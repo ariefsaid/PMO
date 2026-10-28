@@ -21,6 +21,8 @@ import {
   useEntityForm,
   useToast,
   Button,
+  buttonClasses,
+  MenuButton,
   Checkbox,
   Icon,
   type Column,
@@ -1496,7 +1498,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
             'Manual phase progress when set; otherwise Done phase tasks divided by the phase task count. Source: get_project_milestones.',
           )}>
             <span tabIndex={0} className="inline-flex min-w-0 items-center">
-              <ProgressBar value={Math.round(group.milestone.effective_pct)} showValue compact aria-label={t('projectDetail.tasks.phaseProgress', 'Phase progress')} />
+              <ProgressBar value={Math.round(group.milestone.effective_pct)} tone={group.milestone.effective_pct >= 100 ? 'success' : 'neutral'} showValue compact aria-label={t('projectDetail.tasks.phaseProgress', 'Phase progress')} />
             </span>
           </Tooltip>}
           {lateDays !== null && <Tooltip content={t('projectDetail.tasks.phaseLateTooltip', 'Days past the phase target date, compared with today in the organization timezone. Source: milestone target date and organization day.')}>
@@ -1568,32 +1570,33 @@ const TaskRecordDrawer: React.FC<TaskRecordDrawerProps> = ({
   const { t } = useTranslation('project');
   if (!task) return null;
   const subtasks = allTasks.filter((candidate) => candidate.parent_task_id === task.id && candidate.tombstoned_at == null);
-  const taskCode = task.id.slice(0, 8);
   return <Drawer
     open
     title={task.name}
-    subtitle={t('projectDetail.tasks.drawerSubtitle', 'Task · {{id}}', { id: taskCode })}
     status={<StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>}
-    icon={<Icon name="tasks" />}
     onClose={onClose}
     nestedOpen={nestedOpen}
-    footer={<div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-      <div className="flex min-w-0 flex-wrap gap-2">
-        {canEdit && <Button variant="outline" size="sm" onClick={() => openEdit(task)}>{t('projectDetail.tasks.action.edit', 'Edit')}</Button>}
-        {canArchive && <Button variant="outline" size="sm" onClick={() => onArchive(task)}>{task.archived_at == null ? t('projectDetail.tasks.action.archive', 'Archive') : t('projectDetail.tasks.action.unarchive', 'Unarchive')}</Button>}
-        {canDelete && <Button variant="destructive" size="sm" onClick={() => onDelete(task)}>{t('projectDetail.tasks.action.delete', 'Delete')}</Button>}
-      </div>
-      <Link to={`/projects/${projectId}/tasks#task-${task.id}`} className="touch-target ml-auto inline-flex min-h-9 items-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{t('projectDetail.tasks.openFullRecord', 'Open full record')}</Link>
-    </div>}
+    // Same header as every record drawer: main action · Open full page · ⋯ for the rare ones.
+    headerActions={<>
+      {canEdit && <Button variant="outline" size="sm" onClick={() => openEdit(task)}>{t('projectDetail.tasks.action.edit', 'Edit')}</Button>}
+      <Link to={`/projects/${projectId}/tasks#task-${task.id}`} className={buttonClasses('outline', 'sm')}>{t('projectDetail.tasks.openFullRecord', 'Open full page')}</Link>
+      {(canArchive || canDelete) && <MenuButton
+        ariaLabel={t('projectDetail.tasks.drawerMoreActions', 'More task actions')}
+        items={[
+          ...(canArchive ? [{ label: task.archived_at == null ? t('projectDetail.tasks.action.archive', 'Archive') : t('projectDetail.tasks.action.unarchive', 'Unarchive'), onClick: () => onArchive(task) }] : []),
+          ...(canDelete ? [{ label: t('projectDetail.tasks.action.delete', 'Delete'), onClick: () => onDelete(task), danger: true }] : []),
+        ]}
+      />}
+    </>}
   >
     <div className="space-y-5">
       {externallyOwned && <TaskPushBadge state={pendingPush} />}
       <section aria-labelledby="task-drawer-description" className="space-y-2">
-        <h3 id="task-drawer-description" className="text-[13px] font-semibold">{t('projectDetail.tasks.form.description', 'Description')}</h3>
+        <h2 id="task-drawer-description" className="text-[13px] font-semibold">{t('projectDetail.tasks.form.description', 'Description')}</h2>
         {task.description ? <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{task.description}</p> : <p className="text-sm text-muted-foreground">{t('projectDetail.tasks.drawer.noDescription', 'No description provided.')}</p>}
       </section>
       <section aria-labelledby="task-drawer-details" className="space-y-2">
-        <h3 id="task-drawer-details" className="text-[13px] font-semibold">{t('projectDetail.tasks.drawer.details', 'Details')}</h3>
+        <h2 id="task-drawer-details" className="text-[13px] font-semibold">{t('projectDetail.tasks.drawer.details', 'Details')}</h2>
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-sm">
           <dt className="text-muted-foreground">{t('projectDetail.tasks.column.assignee', 'Assignee')}</dt><dd className="min-w-0 break-words">{task.assignee?.full_name ?? t('projectDetail.tasks.unassigned', 'Unassigned')}</dd>
           <dt className="text-muted-foreground">{t('projectDetail.tasks.column.due', 'Due')}</dt><dd>{task.end_date ? formatDateOnly(task.end_date) : '—'}</dd>
@@ -1602,7 +1605,7 @@ const TaskRecordDrawer: React.FC<TaskRecordDrawerProps> = ({
         </dl>
       </section>
       <section aria-labelledby="task-drawer-subtasks" className="space-y-2">
-        <h3 id="task-drawer-subtasks" className="text-[13px] font-semibold">{t('projectDetail.tasks.drawer.subtasks', 'Subtasks')}</h3>
+        <h2 id="task-drawer-subtasks" className="text-[13px] font-semibold">{t('projectDetail.tasks.drawer.subtasks', 'Subtasks')}</h2>
         {subtasks.length ? <ul className="divide-y divide-border rounded-md border border-border">
           {orderedTasks(subtasks).map((subtask) => <li key={subtask.id} className="flex min-w-0 items-center gap-2 px-3 py-2">
             <button type="button" className="min-w-0 flex-1 truncate text-left text-sm hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openTask(subtask)}>{subtask.name}</button>
@@ -1610,9 +1613,12 @@ const TaskRecordDrawer: React.FC<TaskRecordDrawerProps> = ({
           </li>)}
         </ul> : <p className="text-sm text-muted-foreground">{t('projectDetail.tasks.drawer.noSubtasks', 'No subtasks.')}</p>}
       </section>
-      <CommentsSection entityType="task" entityId={task.id} />
+      <section aria-labelledby="task-drawer-comments" className="space-y-2">
+        <h2 id="task-drawer-comments" className="text-[13px] font-semibold">{t('common:comments.title', 'Comments')}</h2>
+        <CommentsSection entityType="task" entityId={task.id} hideTitle />
+      </section>
       <section aria-labelledby="task-drawer-history" className="space-y-2">
-        <h3 id="task-drawer-history" className="text-[13px] font-semibold">{t('projectDetail.tasks.drawer.history', 'History')}</h3>
+        <h2 id="task-drawer-history" className="text-[13px] font-semibold">{t('projectDetail.tasks.drawer.history', 'History')}</h2>
         <RecordHistory entityType="task" entityId={task.id} />
       </section>
     </div>

@@ -11,7 +11,7 @@ import { formatDateOnly, formatNumberExact } from '@/src/lib/format';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { Button } from '@/src/components/ui/Button';
 import { Icon } from '@/src/components/ui/icons';
-import { KPITile } from '@/src/components/ui/KPITile';
+import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { HubGrid } from './hub/HubGrid';
 import { useNeedsYou } from './restructure/useNeedsYou';
@@ -176,9 +176,9 @@ export const EngineerDashboard: React.FC = () => {
         )}
       />
 
-      <section
+      <KPIRow
         aria-label={t('hub.engineer.kpiBand', 'Your week')}
-        className="grid grid-cols-2 gap-3 min-[1180px]:grid-cols-4"
+        className="grid-cols-2 min-[1180px]:grid-cols-4"
       >
         <KPITile
           testId="kpi-hours-week"
@@ -236,7 +236,7 @@ export const EngineerDashboard: React.FC = () => {
           linkLabel={t('hub.engineer.openReturnedClaims', 'Open returned expense claims')}
           help={t('hub.engineer.expensesHelp', 'Counts your own expense claims with Rejected status, shown as returned. If claim data is unavailable, the value is shown as —.')}
         />
-      </section>
+      </KPIRow>
 
       <HubGrid>
         <EngineerTimePanel

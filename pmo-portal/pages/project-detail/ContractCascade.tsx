@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
-import { DataTable, Drawer, ListState, ProgressBar, StatusPill, TaxBasisLabel, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
+import { DataTable, Drawer, Icon, ListState, ProgressBar, StatusPill, TaxBasisLabel, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
@@ -161,8 +161,9 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
           </ol>
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
             {canViewMoney && <button type="button" aria-expanded={drawdownOpen} aria-controls="contract-cascade-drawdown"
-              className="inline-flex min-h-10 items-center gap-2 rounded-sm border-l-2 border-primary pl-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+              className="inline-flex min-h-10 items-center gap-2 rounded-sm text-left hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
               onClick={() => setDrawdownOpen((open) => !open)}>
+              <Icon name="chev" className={`size-3.5 text-muted-foreground transition-transform duration-100 motion-reduce:transition-none ${drawdownOpen ? 'rotate-90' : ''}`} />
               <span className="text-muted-foreground">{t('projectDetail.workOrders.drawdown.headroom', 'Drawdown headroom')}</span>
               <strong className="font-semibold text-foreground">{orderBilling.isPending || orderBilling.isError
                 ? '—'
@@ -173,7 +174,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
                 {orderBilling.isError ? t('projectDetail.cascade.orderBillingError', 'Can invoice is unavailable while work-order billing is loading.') : t('projectDetail.cascade.orderBillingLoading', 'Can invoice is loading.')}
               </span>
             ) : <Tooltip content={t('projectDetail.cascade.source.canInvoice', 'Delivered quantity not yet invoiced, priced at contract rates, plus remaining value on money-only orders.')}>
-              <span className="inline-flex cursor-help items-center gap-2 border-l-2 border-primary pl-2 tabular-nums">
+              <span className="inline-flex cursor-help items-center gap-2 tabular-nums">
                 <span className="text-muted-foreground">{t('projectDetail.cascade.canInvoice', 'Can invoice')}</span>
                 <strong className="font-semibold text-foreground">{project.currency} {formatNumberWhole(canInvoice)}</strong>
               </span>
@@ -296,7 +297,7 @@ const MoneyStep: React.FC<{ label: string; value: string; percentage: number | n
         <Tooltip content={detail}><span className="block w-fit cursor-help text-lg font-semibold tabular-nums leading-tight text-foreground">{value}</span></Tooltip>
       </div>
       {percentage !== null && <Tooltip content={t('projectDetail.cascade.percentOfContractSource', 'Computed as this stage value divided by the contract value.') }>
-        <span className="mt-2 block w-full max-w-36 cursor-help"><ProgressBar value={percentage} showValue compact aria-label={label} tone={percentage > 100 ? 'destructive' : 'primary'} /></span>
+        <span className="mt-2 block w-full max-w-36 cursor-help"><ProgressBar value={percentage} showValue compact aria-label={label} tone={percentage > 100 ? 'destructive' : 'neutral'} /></span>
       </Tooltip>}
       {percentage === null && <span className="mt-2 block text-xs text-muted-foreground">—</span>}
     </li>

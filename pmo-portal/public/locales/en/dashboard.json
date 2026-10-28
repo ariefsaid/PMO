@@ -318,7 +318,9 @@
       "procurementApproval": "Procurement waiting for your approval",
       "procurementApprovalHelp": "Open this procurement to review its approval request.",
       "supplier": "Supplier: {{name}}",
-      "supplierUnavailable": "Supplier unavailable"
+      "supplierUnavailable": "Supplier unavailable",
+      "atRiskAtLeast": "At least {{count}}",
+      "riskPartial": "At 90% or more of budget; other projects have incomplete budget or spending data"
     },
     "company": {
       "title": "Dashboard",

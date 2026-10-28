@@ -24,7 +24,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
     <div className="space-y-4">
       <ProcurementBlock projectId={projectId} />
       {showErp && (
-        <div className="rounded-lg border border-border bg-card px-3 py-3 sm:px-4">
+        <div className="border-t border-border pt-4">
           <ErpPurchasesSection
             projectId={projectId}
             className="mt-0"

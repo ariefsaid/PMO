@@ -226,7 +226,8 @@
   },
   "budgetCategory": {
     "travelAccommodation": "Perjalanan & akomodasi",
-    "vehicle": "Kendaraan"
+    "vehicle": "Kendaraan",
+    "uncategorized": "Tanpa kategori"
   },
   "erpLinks": {
     "orphansTitle": "Dokumen ERPNext yang belum masuk pembelian",
@@ -453,7 +454,8 @@
       "forecastOnlyFigure": "Tersedia di Proyeksi per tahun fiskal.",
       "budgetLineItems": "Baris anggaran",
       "budgetLineSource": "Sumber: baris versi anggaran yang dipilih.",
-      "noLineItems": "Tidak ada baris anggaran yang dicatat untuk kategori ini."
+      "noLineItems": "Tidak ada baris anggaran yang dicatat untuk kategori ini.",
+      "figures": "Angka anggaran"
     },
     "cost": {
       "spendingChecking": "Memeriksa pengeluaran…",

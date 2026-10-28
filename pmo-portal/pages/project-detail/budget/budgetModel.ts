@@ -35,6 +35,8 @@ export interface BudgetComparisonRow {
   change: number;
 }
 
+export const UNCATEGORIZED = 'Uncategorized';
+
 const COMMITTED_STATUSES = new Set(['Ordered', 'Received', 'Vendor Invoiced', 'Paid']);
 
 export function buildBudgetSummaryRows(input: {
@@ -57,8 +59,10 @@ export function buildBudgetSummaryRows(input: {
   const commitmentCategories = new Set<string>();
   if (input.canReadProcurements && input.procurements) {
     for (const procurement of input.procurements) {
-      if (!COMMITTED_STATUSES.has(procurement.status) || !procurement.budget_category) continue;
-      const category = procurement.budget_category;
+      if (!COMMITTED_STATUSES.has(procurement.status)) continue;
+      // A commitment with no budget category still spends the budget: count it in its own row,
+      // or the committed total and "left" overstate the headroom.
+      const category = procurement.budget_category || UNCATEGORIZED;
       commitmentCategories.add(category);
       if (procurement.currency !== input.currency) {
         unreadableCategories.add(category);

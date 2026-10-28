@@ -170,7 +170,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
       {canLink && rows.length > 0 && (
         // Always mounted (review 10): selecting never shifts the list, and select-all works on phone cards too.
         <div role="group" aria-label={t('erpLinks.selectionGroup', 'Selected documents')}
-          className="mb-3 flex min-h-12 flex-wrap items-center gap-2.5 rounded-lg bg-primary/[0.06] px-3 py-2">
+          className="mb-3 flex min-h-12 flex-wrap items-center gap-2.5 rounded-lg bg-secondary px-3 py-2">
           <Checkbox
             className="max-[767px]:!size-6"
             checked={allChosen ? true : selecting ? 'mixed' : false}
@@ -259,7 +259,7 @@ const OutcomeNotice: React.FC<{ outcome: Outcome }> = ({ outcome }) => {
           {targets.map((id, i) => (
             <React.Fragment key={id}>
               {i > 0 && ', '}
-              <Link to={`/procurement/${id}`} className="font-medium text-primary hover:underline">{targetName(i)}</Link>
+              <Link to={`/procurement/${id}`} className="font-medium text-primary-text hover:underline">{targetName(i)}</Link>
             </React.Fragment>
           ))}
           {refused.length > 0 && '.'}

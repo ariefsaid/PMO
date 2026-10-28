@@ -632,7 +632,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             </select>
           </label>
         </div>
-        {canViewBilling && <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-l-2 border-border pl-3 text-sm" role="status">
+        {canViewBilling && <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm" role="status">
           {rows.length > 0 && billing.data && <span data-testid="wo-billing-summary" aria-label={t('common:projectDetail.workOrders.billing.summaryTitle', 'Billing against work orders')} className="flex flex-wrap gap-x-4 gap-y-1">
             <span>
               <span className="text-muted-foreground">{t('common:projectDetail.workOrders.billing.stillToInvoice', 'Still to invoice')}</span>

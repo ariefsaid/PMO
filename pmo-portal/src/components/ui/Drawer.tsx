@@ -51,14 +51,14 @@ export interface DrawerProps {
   footer?: React.ReactNode;
   /**
    * CW-3a: record-header anatomy. When `icon` or `status` is provided, the drawer
-   * header renders the shared `RecordHeader` (icon + name + status pill + a top-right
+   * header renders the shared `RecordHeader` (name + status pill + a top-right
    * action zone) instead of the plain title/subtitle row — so a drawer record opens
    * with the SAME header anatomy as a full record page. `headerActions` holds the
    * record actions (Edit/Archive/Delete by permission), surfaced in the HEADER (not
-   * the footer). `status` doubles as the drawer's aria-describedby content.
+   * the footer). `status` doubles as the drawer's aria-describedby content. The icon
+   * itself is not drawn: a coloured tile in every drawer header is decoration.
    */
   icon?: React.ReactNode;
-  iconColor?: string;
   /** Status pill node — surfaced beside the name in the RecordHeader anatomy. */
   status?: React.ReactNode;
   /** Top-right record action zone (Edit/Archive/Delete by permission). */
@@ -76,7 +76,6 @@ export const Drawer: React.FC<DrawerProps> = ({
   width = 'sm',
   footer,
   icon,
-  iconColor,
   status,
   headerActions,
   children,
@@ -218,8 +217,7 @@ export const Drawer: React.FC<DrawerProps> = ({
               </span>
               <RecordHeader
                 variant="drawer"
-                icon={icon ?? (typeof title === 'string' ? title.trim().charAt(0).toUpperCase() : '•')}
-                iconColor={iconColor}
+                icon={null}
                 name={title}
                 status={status}
                 meta={subtitle}

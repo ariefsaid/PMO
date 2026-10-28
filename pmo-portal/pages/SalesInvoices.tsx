@@ -1518,7 +1518,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
           amount: panelInvoice.amount == null ? '—' : formatCurrency(panelInvoice.amount, panelInvoice.currency),
         }) : ''}
         subtitle={panelInvoice ? <span className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-xs">{invoiceNumber(panelInvoice) ?? t('finance:receivables.statusDraftApproval', 'Draft · to approve')}</span>
+          {invoiceNumber(panelInvoice) && <span className="font-mono text-xs">{invoiceNumber(panelInvoice)}</span>}
           {projectLabelOf(panelInvoice) && <span className="text-xs">{projectLabelOf(panelInvoice)}</span>}
         </span> : undefined}
         icon={<Icon name="doc" />}

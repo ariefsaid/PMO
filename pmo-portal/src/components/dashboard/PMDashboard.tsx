@@ -13,7 +13,7 @@ import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { INTERNAL_STATUSES, ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { expenseClaimsAwaitingKey } from '@/src/hooks/approvalsQueryKeys';
 import { useNeedsYou } from './restructure/useNeedsYou';
-import { KPITile } from '@/src/components/ui/KPITile';
+import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
 import { ListState } from '@/src/components/ui/ListState';
 import { Icon } from '@/src/components/ui/icons';
 import { ApprovalStrip } from './hub/ApprovalStrip';
@@ -24,7 +24,7 @@ import {
   formatHours,
   projectAtRisk,
   projectMoneyFigure,
-  projectRiskBasisKnown,
+  atRiskCount,
   sumAwaitingTimesheetHours,
 } from './hub/pm/metrics';
 
@@ -96,13 +96,13 @@ export const PMDashboard: React.FC = () => {
     orgCurrency,
     t('hub.pm.marginUnavailable', 'Billed-work margin is unavailable for one or more projects.'),
   );
-  const unknownRiskCount = projects.filter((project) => !projectRiskBasisKnown(project)).length;
-  const atRiskValue = projects.length === 0
-    ? '0'
-    : unknownRiskCount > 0
-      ? '—'
-      : String(projects.filter(projectAtRisk).length);
-  const atRiskReason = unknownRiskCount > 0
+  const atRisk = atRiskCount(projects);
+  const atRiskValue = atRisk === null
+    ? '—'
+    : atRisk.partial
+      ? t('hub.pm.atRiskAtLeast', 'At least {{count}}', { count: atRisk.count })
+      : String(atRisk.count);
+  const atRiskReason = atRisk === null
     ? t('hub.pm.riskUnavailable', 'Budget risk is unknown because one or more projects have incomplete actual spending or budget data.')
     : undefined;
   const approvedHours = sumAwaitingTimesheetHours(timesheetsQuery.data);
@@ -166,7 +166,7 @@ export const PMDashboard: React.FC = () => {
 
       <ApprovalStrip items={approvalItems} />
 
-      <section aria-label={t('hub.pm.kpiBand', 'My project figures')} className="grid grid-cols-2 gap-3 min-[1180px]:grid-cols-5">
+      <KPIRow aria-label={t('hub.pm.kpiBand', 'My project figures')} className="grid-cols-2 min-[1180px]:grid-cols-5">
         <KPITile
           testId="kpi-my-projects"
           tone="violet"
@@ -202,7 +202,9 @@ export const PMDashboard: React.FC = () => {
           label={t('hub.pm.atRisk', 'At risk')}
           value={projectsErrorReason ? '—' : atRiskValue}
           unavailableReason={projectsErrorReason ?? atRiskReason}
-          vs={t('hub.pm.riskDefinition', 'Projects at 90% or more of budget')}
+          vs={atRisk?.partial
+            ? t('hub.pm.riskPartial', 'At 90% or more of budget; other projects have incomplete budget or spending data')
+            : t('hub.pm.riskDefinition', 'Projects at 90% or more of budget')}
           loading={projectsQuery.isPending}
           to="/projects?filter=at-risk"
           linkLabel={t('hub.pm.openAtRisk', 'Open at-risk projects')}
@@ -233,7 +235,7 @@ export const PMDashboard: React.FC = () => {
           linkLabel={t('hub.pm.openTimesheets', 'Open team timesheets to approve')}
           help={t('hub.pm.teamHoursHelp', 'Sum of hours in team timesheets currently waiting for your approval.')}
         />
-      </section>
+      </KPIRow>
 
       {primaryLoading ? (
         <ListState variant="loading" />

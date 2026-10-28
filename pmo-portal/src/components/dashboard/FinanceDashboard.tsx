@@ -9,7 +9,7 @@ import { useProjectIdentity } from '@/src/hooks/useProjects';
 import { useCompanyCollections } from '@/src/hooks/useCompanyCollections';
 import { useActualsSnapshot, useApAgingSnapshot, useArAgingSnapshot } from '@/src/hooks/useErpSnapshots';
 import { AccountingSnapshotsSection } from './AccountingSnapshotsSection';
-import { KPITile } from '@/src/components/ui/KPITile';
+import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
 import { AwaitingApprovalTile } from './AwaitingApprovalTile';
 import { StillToInvoiceCard } from './StillToInvoiceCard';
 import { Card, CardHead } from '@/src/components/ui/Card';
@@ -419,7 +419,7 @@ export const FinanceDashboard: React.FC = () => {
       <section aria-label={t('uxs03.attentionAndApprovals', 'Attention and approvals')} className="empty:hidden grid grid-cols-1 gap-3 min-[560px]:grid-cols-2">
         <AwaitingApprovalTile includeTimesheets={false} label={t('dashboard:finance.awaiting', 'Purchase requests awaiting your decision')} />
       </section>
-      <section aria-label={t('dashboard:finance.kpiBand', 'Finance KPIs')} className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-5">
+      <KPIRow aria-label={t('dashboard:finance.kpiBand', 'Finance KPIs')} className="grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-5">
         {/* AC-IXD-DASH-W5-C2A: Contracted revenue → /projects?filter=Ongoing */}
         <KPITile testId="kpi-revenue" tone="green" icon="dollar" label={t('dashboard:finance.contractValue', 'Contract value in progress')}
           {...figure(data?.total_contract_value ?? null)} loading={isPending}
@@ -445,7 +445,7 @@ export const FinanceDashboard: React.FC = () => {
           to="/procurement?status=Vendor+Invoiced"
           linkLabel={t('dashboard:finance.payablesLink', 'Open vendor invoices awaiting payment')}
           help={t('dashboard:finance.payablesHelp', 'Procurement value owed to vendors in the Vendor Invoiced state.')} />
-      </section>
+      </KPIRow>
 
       {/* OD-BILL-1 / #786: what is still to invoice on the client's POs. */}
       <StillToInvoiceCard />

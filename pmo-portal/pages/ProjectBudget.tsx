@@ -32,6 +32,7 @@ import {
   TaxBasisLabel,
   StatusPill,
   Tooltip,
+  KPIRow,
   KPITile,
   ViewToggle,
   ProgressBar,
@@ -977,12 +978,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
 
       {versions.length === 0 && <ListState variant="empty" icon="dollar" title={t('financeCopy.noBudgetVersionsYet', 'No budget versions yet')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} action={canWrite ? { label: t('projectDetail.budget.createBudget', 'Create budget'), onClick: () => setShowNewVersionForm(true) } : undefined} />}
 
-      <div className="grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-4">
+      <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="grid-cols-2 lg:grid-cols-4">
         <KPITile icon="dollar" tone="blue" label={t('financeCopy.budget', 'Budget')} value={formatAmount(totalBudget)} help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items, grouped by category.')} />
         <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} value={formatAmount(totalSpent)} unavailableReason={totalSpent === null ? t('projectDetail.budget.spendingUnavailable', 'Spending is unknown or unavailable.') : undefined} help={actualSource} />
         <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} value={formatAmount(totalCommitted)} unavailableReason={totalCommitted === null ? t('projectDetail.budget.commitmentsUnavailable', 'Commitments are unknown or unavailable.') : undefined} help={t('projectDetail.budget.committedSource', 'Source: ordered, received, vendor-invoiced, and paid procurement totals in the project currency.')} />
         <KPITile icon="down" tone={totalLeft !== null && totalLeft < 0 ? 'red' : 'green'} label={t('projectDetail.budget.left', 'Left')} value={formatAmount(totalLeft)} negative={totalLeft !== null && totalLeft < 0} unavailableReason={totalLeft === null ? t('projectDetail.budget.leftUnavailable', 'Left is unknown while spending or commitments are unavailable.') : undefined} help={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')} />
-      </div>
+      </KPIRow>
 
       <section aria-label={t('projectDetail.budget.budgetVsActual', 'Budget vs actual')} className="min-w-0 space-y-3 rounded-lg border border-border bg-card p-3 sm:p-4">
         {selectedRows.size > 0 && view === 'actual' ? (
@@ -1020,6 +1021,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             {selectedVersion.status !== 'Active' && <p className="text-sm text-muted-foreground">{t('projectDetail.budget.viewingVersion', 'Viewing {{status}} v{{version}}; project spending and commitments reflect the current project totals.', { status: selectedVersion.status, version: selectedVersion.version })}</p>}
             {draftEditor}
             <DataTable
+              embedded
               rows={enrichedRows}
               columns={actualColumns}
               rowKey={(row) => row.category}
@@ -1059,6 +1061,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           </div>
         </div>
         {versions.length > 0 ? <DataTable
+          embedded
           rows={versionRows}
           columns={versionColumns}
           rowKey={(version) => version.id}
@@ -1121,18 +1124,18 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           </dl>
           {selectedCategory.used !== null && <div><Tooltip content={t('projectDetail.budget.utilizationFormula', 'Calculated as (spent + committed) divided by budget.')}><span tabIndex={0} className="text-sm font-medium">{t('projectDetail.budget.percentUsed', '% used')}</span></Tooltip><ProgressBar value={Math.round(selectedCategory.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(selectedCategory.category, t) })} /></div>}
           <section aria-labelledby="budget-records-heading" className="space-y-2">
-            <h3 id="budget-records-heading" className="text-sm font-semibold">{t('projectDetail.budget.recordsBehindSpending', 'Records behind the spending')}</h3>
+            <h2 id="budget-records-heading" className="text-sm font-semibold">{t('projectDetail.budget.recordsBehindSpending', 'Records behind the spending')}</h2>
             <p className="text-sm text-muted-foreground">{t('projectDetail.budget.ledgerRowsUnavailable', 'Transaction-level ledger records are unavailable in the project finance summary.')}</p>
           </section>
           <section aria-labelledby="budget-category-lines-heading" className="space-y-2">
-            <h3 id="budget-category-lines-heading" className="text-sm font-semibold">{t('projectDetail.budget.budgetLineItems', 'Budget line items')}</h3>
+            <h2 id="budget-category-lines-heading" className="text-sm font-semibold">{t('projectDetail.budget.budgetLineItems', 'Budget line items')}</h2>
             <ul className="divide-y divide-border" aria-label={t('projectDetail.budget.budgetLineItems', 'Budget line items')}>
               {selectedCategory.lines.map((line) => <li key={line.id ?? `${line.category}-${line.description}`} className="flex min-w-0 items-start justify-between gap-3 py-2 text-sm"><span className="min-w-0 break-words text-muted-foreground">{line.description || '—'}<span className="ml-2 text-xs">{t('financeCopy.fiscalYear', 'Fiscal year')}: {line.fiscal_year ?? t('financeCopy.unPhased', 'Un-phased')}</span></span><Tooltip content={t('projectDetail.budget.budgetLineSource', 'Source: selected budget version line item.')}><span tabIndex={0} className="shrink-0 tabular-nums">{formatAmount(Number(line.budgeted_amount))}</span></Tooltip></li>)}
               {selectedCategory.lines.length === 0 && <li className="py-2 text-sm text-muted-foreground">{t('projectDetail.budget.noLineItems', 'No budget line items are recorded for this category.')}</li>}
             </ul>
           </section>
           <section aria-labelledby="budget-notes-heading" className="space-y-2">
-            <h3 id="budget-notes-heading" className="text-sm font-semibold">{t('projectDetail.budget.notes', 'Notes')}</h3>
+            <h2 id="budget-notes-heading" className="text-sm font-semibold">{t('projectDetail.budget.notes', 'Notes')}</h2>
             <p className="text-sm text-muted-foreground">{t('projectDetail.budget.categoryNotesUnavailable', 'No category notes are recorded.')}</p>
           </section>
         </div>}

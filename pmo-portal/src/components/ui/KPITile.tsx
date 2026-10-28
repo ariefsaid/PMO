@@ -70,6 +70,33 @@ export interface KPITileProps<L extends string = string> {
   className?: string;
 }
 
+/** Inside a KPIRow the tiles become cells of one joined strip: no own frame, no decorative icon tile. */
+const KPIRowContext = React.createContext(false);
+
+export interface KPIRowProps {
+  children: React.ReactNode;
+  /** Column classes for the strip, e.g. `grid-cols-2 lg:grid-cols-4`. */
+  className?: string;
+  'aria-label'?: string;
+}
+
+/**
+ * One figure row: tiles share a single bordered frame split by hairlines (the procurement summary strip),
+ * so a row of figures reads as one group rather than a grid of identical cards. A last odd cell spans the
+ * row on the two-column phone layout instead of leaving a grey hole.
+ */
+export const KPIRow: React.FC<KPIRowProps> = ({ children, className, 'aria-label': ariaLabel }) => (
+  <section
+    aria-label={ariaLabel}
+    className={cn(
+      'grid min-w-0 gap-px overflow-hidden rounded-lg border border-border bg-border [&>*]:bg-card max-sm:[&>*:last-child:nth-child(odd)]:col-span-2',
+      className,
+    )}
+  >
+    <KPIRowContext.Provider value>{children}</KPIRowContext.Provider>
+  </section>
+);
+
 const DELTA_CLASS: Record<KPIDelta['dir'], string> = {
   up: 'text-success bg-success/12',
   down: 'text-destructive-text bg-destructive/10',
@@ -98,26 +125,28 @@ export function KPITile<L extends string = string>({
   className,
 }: KPITileProps<L>) {
   const { t } = useTranslation();
+  const inRow = React.useContext(KPIRowContext);
   const isLink = to != null;
   const rootClass = cn(
-    'relative flex min-w-0 flex-col gap-2.5 rounded-lg border border-border bg-card px-4 pb-3.5 pt-4',
+    'relative flex min-w-0 flex-col gap-2.5 bg-card px-4 pb-3.5 pt-4',
+    inRow ? 'h-full' : 'rounded-lg border border-border',
     // Hover-lift is an interaction affordance — only a drillable (link) tile gets it,
     // so a plain tile reads as a static surface and never promises a click it can't honor
     // (design-review I1: shared hover lift was a false affordance on plain tiles).
-    isLink && 'transition-shadow duration-150 hover:shadow-[0_2px_10px_hsl(240_6%_10%/0.06)]',
+    isLink && (inRow ? 'transition-colors duration-150 hover:bg-accent/60' : 'transition-shadow duration-150 hover:shadow-[0_2px_10px_hsl(240_6%_10%/0.06)]'),
     className
   );
 
   const head = (
     <div className="flex items-center gap-2">
-      <span
+      {!inRow && <span
         className={cn(
           'grid size-[30px] shrink-0 place-items-center rounded-lg [&_svg]:size-4',
           TONE_CLASS[tone]
         )}
       >
         <Icon name={icon} />
-      </span>
+      </span>}
       <span className="text-[12.5px] font-medium text-muted-foreground">{label}</span>
       {help && (
         <Tooltip content={help} title={helpLabel}>
@@ -141,7 +170,7 @@ export function KPITile<L extends string = string>({
         <Link
           to={to}
           aria-label={linkLabel ?? label}
-          className="absolute inset-0 z-0 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className={cn('absolute inset-0 z-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring', inRow ? 'focus-visible:-outline-offset-2' : 'rounded-lg focus-visible:outline-offset-2')}
         />
         <div className="relative z-10 flex min-w-0 flex-col gap-2.5 pointer-events-none">
           {head}

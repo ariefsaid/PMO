@@ -3,7 +3,7 @@ import { PageHeader, type PageStat } from './PageHeader';
 import { cn } from './cn';
 
 export interface RecordHeaderProps {
-  /** Leading icon tile glyph (a letter) or node. Mandatory by the RecordHeader contract. */
+  /** Leading icon tile glyph or node; omitted (null) inside drawers, where the tile is decoration. */
   icon: React.ReactNode;
   iconColor?: string;
   name: React.ReactNode;
@@ -51,6 +51,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
     // The drawer host already supplies a border-bottom seam + popover surface, so the
     // drawer variant drops the standalone card chrome (no double border / nested radius).
     surface={variant === 'drawer' ? 'bare' : 'card'}
+    actionsBelow={variant === 'drawer'}
     icon={icon}
     iconColor={iconColor}
     name={name}

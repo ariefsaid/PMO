@@ -643,7 +643,7 @@ const GanttBarBlock: React.FC<GanttBarBlockProps> = ({
         className={`absolute -translate-x-1/2 -translate-y-1/2 text-[14px] text-violet${onActivate ? ' cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring' : ''}`}
         style={{ left: box.xStart, top: box.y + box.h / 2 }}
       >
-        ◆
+        <span aria-hidden="true" className="block size-2.5 rotate-45 rounded-[2px] bg-violet" />
       </span>
     );
   }
@@ -662,9 +662,8 @@ const GanttBarBlock: React.FC<GanttBarBlockProps> = ({
         width,
         top: box.y,
         height: box.h,
-        background: 'hsl(var(--secondary) / 0.78)',
-        border: '1px solid hsl(var(--border))',
-        boxShadow: 'inset 3px 0 0 hsl(var(--violet))',
+        background: 'hsl(var(--violet) / 0.12)',
+        border: '1px solid hsl(var(--violet) / 0.35)',
         transition: prefersReducedMotion ? 'none' : 'opacity 150ms ease',
       }}
     >

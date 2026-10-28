@@ -694,8 +694,7 @@
       "openCount": "{{count}} open",
       "noFilteredTasksInGroup": "No tasks in this phase match the current filters.",
       "doneCount": "{{count}} done",
-      "drawerSubtitle": "Task · {{id}}",
-      "openFullRecord": "Open full record",
+      "openFullRecord": "Open full page",
       "drawer": {
         "noDescription": "No description provided.",
         "details": "Details",
@@ -704,7 +703,8 @@
         "noSubtasks": "No subtasks.",
         "history": "History"
       },
-      "noMilestone": "No phase"
+      "noMilestone": "No phase",
+      "drawerMoreActions": "More task actions"
     },
     "workOrders": {
       "export": {

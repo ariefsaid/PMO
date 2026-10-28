@@ -69,6 +69,25 @@ describe('budgetModel', () => {
     ]);
   });
 
+  it('counts commitments with no budget category in an Uncategorized row so the totals include them', () => {
+    const rows = buildBudgetSummaryRows({
+      lines: [line('Labor', 'Work', 100)],
+      actuals: [{ category: 'Labor', budget: 100, actual: 10 }],
+      procurements: [
+        { status: 'Ordered', budget_category: null, approved_total_value: 40, total_value: 40, currency: 'USD' },
+        { status: 'Paid', budget_category: null, approved_total_value: null, total_value: 15, currency: 'USD' },
+        { status: 'Requested', budget_category: null, approved_total_value: 99, total_value: 99, currency: 'USD' },
+      ],
+      canReadProcurements: true,
+      currency: 'USD',
+    });
+
+    expect(rows.map(({ category, budget, spent, committed }) => ({ category, budget, spent, committed }))).toEqual([
+      { category: 'Labor', budget: 100, spent: 10, committed: 0 },
+      { category: 'Uncategorized', budget: 0, spent: null, committed: 55 },
+    ]);
+  });
+
   it('compares any two versions by category and signs the proposed change', () => {
     const rows = compareBudgetVersions(
       [line('Labor', 'Design', 100), line('Materials', 'Steel', 50)],

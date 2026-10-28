@@ -44,7 +44,7 @@ export const AccessDenied: React.FC<AccessDeniedProps> = ({
     <span className="grid size-[52px] place-items-center rounded-[14px] bg-secondary text-muted-foreground">
       <Icon name="lock" className="size-6" strokeWidth={1.75} />
     </span>
-    <div className="text-[15px] font-semibold">{title}</div>
+    <h1 className="text-[15px] font-semibold">{title}</h1>
     <div className="max-w-[44ch] text-[13px] text-muted-foreground">{sub}</div>
     <Button variant="primary" size="sm" onClick={onBack} className="mt-1">
       <Icon name="back" />

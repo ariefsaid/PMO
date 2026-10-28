@@ -108,3 +108,15 @@ export function projectBudgetUsagePct(project: PMDashboardProject): number | nul
   if (!projectRiskBasisKnown(project) || project.budget === null || project.spent === null) return null;
   return Math.round((project.spent / project.budget) * 100);
 }
+
+/**
+ * At-risk projects. Unknown budget data never hides a project already known to be at risk:
+ * then the count is a floor ("at least N"). Null only when nothing is known at risk and some are unknown.
+ */
+export function atRiskCount(projects: readonly PMDashboardProject[]): { count: number; partial: boolean } | null {
+  const known = projects.filter(projectRiskBasisKnown);
+  const count = known.filter(projectAtRisk).length;
+  const partial = known.length < projects.length;
+  if (partial && count === 0) return null;
+  return { count, partial };
+}

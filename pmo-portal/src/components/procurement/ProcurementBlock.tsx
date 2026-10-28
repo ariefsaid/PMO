@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Badge,
   Button,
+  buttonClasses,
   ConfirmDialog,
   DataTable,
   Drawer,
@@ -269,7 +270,7 @@ function ProcurementBudgetLeft({
 
   return (
     <div className="space-y-1">
-      <div className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+      <div className="text-xs text-muted-foreground">
         {t('projectDetail.procurement.detail.budgetLeft', 'Budget left in category')}
       </div>
       <Tooltip content={source}>
@@ -295,11 +296,12 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
   const procurementQuery = projectId ? projectQuery : companyQuery;
   const { data, isPending, isError, refetch } = procurementQuery;
   const ownScoped = !projectId && role === 'Engineer';
-  const rows = useMemo(() => [...(data ?? [])]
-    .filter((row) => !ownScoped || row.requested_by_id === currentUser?.id)
+  const scopedRows = useMemo(() => (data ?? []).filter((row) => !ownScoped || row.requested_by_id === currentUser?.id),
+    [data, ownScoped, currentUser?.id]);
+  const rows = useMemo(() => scopedRows
     .filter((row) => !rowFilter || rowFilter(row))
     .sort(rowOrder ?? ((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())),
-  [data, ownScoped, currentUser?.id, rowFilter, rowOrder]);
+  [scopedRows, rowFilter, rowOrder]);
   const canSeeMoney = may('view', 'procurement');
   const canApprove = may('transition', 'procurement');
   const canCreate = may('create', 'procurement');
@@ -317,7 +319,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
   const [sort, setSort] = useState<SortState>();
   const [pendingDecision, setPendingDecision] = useState<PendingDecision | null>(null);
   const openId = searchParams.get('open');
-  const selected = rows.find((row) => row.id === openId) ?? null;
+  // A shared ?open= link opens its record even when the current tab or filter hides the row.
+  const selected = scopedRows.find((row) => row.id === openId) ?? null;
   const expandedRow = rows.find((row) => row.id === expandedId) ?? null;
   const focusRow = selected ?? expandedRow;
   const { data: project } = useProject(projectId ?? focusRow?.project_id ?? undefined);
@@ -549,7 +552,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         return (
           <Tooltip content={t('procurement.settlementTooltip', 'Recorded paid amount compared with recorded invoices.')}>
             <span tabIndex={0} className="inline-flex min-w-0 w-full items-center gap-1.5 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-              <span aria-hidden="true" className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-secondary"><span className="block h-full bg-primary" style={{ width: `${percent}%` }} /></span>
+              <span aria-hidden="true" className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-secondary"><span className={`block h-full ${percent >= 100 ? 'bg-success' : 'bg-muted-foreground/55'}`} style={{ width: `${percent}%` }} /></span>
               <span className="shrink-0 text-xs tabular text-muted-foreground" title={`${formatCurrency(paid, row.currency)} / ${formatCurrency(money.invoiced.amount, row.currency)}`}>
                 {percent}%
               </span>
@@ -585,11 +588,11 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
                 <button type="button" aria-expanded={isExpanded} aria-label={t(isExpanded ? 'procurement.collapseDetails' : 'procurement.expandDetails', isExpanded ? 'Collapse procurement details' : 'Expand procurement details')}
                   onClick={() => setExpandedId(isExpanded ? null : row.id)}
                   className="shrink-0 rounded-sm p-1 text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-                  <Icon name={isExpanded ? 'up' : 'down'} className="size-3.5" />
+                  <Icon name="chev" className={`size-3.5 transition-transform duration-100 motion-reduce:transition-none ${isExpanded ? '-rotate-90' : 'rotate-90'}`} />
                 </button>
               </div>
-              <span className="block truncate font-mono text-xs text-muted-foreground">
-                {row.code ?? row.id.slice(0, 8)} · {row.vendor?.name ?? t('projectDetail.procurement.noSupplier', 'No supplier')}
+              <span className="block truncate text-xs text-muted-foreground">
+                <span className="font-mono">{row.code ?? row.id.slice(0, 8)}</span> · {row.vendor?.name ?? t('projectDetail.procurement.noSupplier', 'No supplier')}
               </span>
               {isExpanded && (
                 <div className="space-y-2 border-t border-border/70 pt-2 text-xs" onClick={(event) => event.stopPropagation()}>
@@ -928,27 +931,25 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         loading={transition.isPending}
         nestedOpen={pendingDecision !== null}
         onClose={() => setSelected(null)}
-        headerActions={selected && drawerCanDecide ? (
-          <Button size="sm" onClick={() => decide([selected], 'Approved')} disabled={transition.isPending}>
+        headerActions={selected ? <>
+          {drawerCanDecide && <Button size="sm" onClick={() => decide([selected], 'Approved')} disabled={transition.isPending}>
             <Icon name="check" />{t('projectDetail.procurement.bulk.approve', 'Approve')}
-          </Button>
-        ) : undefined}
-        footer={selected ? (
-          <Link to={`/procurement/${selected.id}`} className="mr-auto inline-flex min-h-10 items-center text-sm font-medium text-foreground underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+          </Button>}
+          <Link to={`/procurement/${selected.id}`} className={buttonClasses('outline', 'sm')}>
             {t('projectDetail.procurement.detail.openFullRecord', 'Open full page')}
           </Link>
-        ) : undefined}
+        </> : undefined}
       >
         {selected && (
           <div className="space-y-6">
             <section className="grid grid-cols-2 gap-x-5 gap-y-4 border-b border-border/70 pb-5 text-sm">
               <div className="space-y-1">
-                <div className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{t('projectDetail.procurement.detail.category', 'Category')}</div>
+                <div className="text-xs text-muted-foreground">{t('projectDetail.procurement.detail.category', 'Category')}</div>
                 <div className="font-medium">{categoryLabel(selected.budget_category)}</div>
               </div>
               {canSeeMoney && (
                 <div className="space-y-1">
-                  <div className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{t('projectDetail.procurement.detail.value', 'Value')}</div>
+                  <div className="text-xs text-muted-foreground">{t('projectDetail.procurement.detail.value', 'Value')}</div>
                   <Tooltip content={moneyTooltip}>
                     <span tabIndex={0} className="inline-flex rounded-sm font-medium tabular focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                       {drawerMoney?.mostReal ? formatCurrency(drawerMoney.mostReal.amount, selected.currency) : t('procurement.moneyUnknown', 'Not recorded')}
@@ -965,7 +966,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
                 </div>
               )}
               <div className="space-y-1">
-                <div className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{t('projectDetail.procurement.detail.owner', 'Owner')}</div>
+                <div className="text-xs text-muted-foreground">{t('projectDetail.procurement.detail.owner', 'Owner')}</div>
                 <div className="inline-flex min-w-0 items-center gap-2 font-medium">
                   <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-foreground">
                     {initials(selected.requested_by?.full_name)}
@@ -974,7 +975,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
                 </div>
               </div>
               <div className="space-y-1">
-                <div className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{t('procurement.ageInStage', 'Age in stage')}</div>
+                <div className="text-xs text-muted-foreground">{t('procurement.ageInStage', 'Age in stage')}</div>
                 <Tooltip content={t('procurement.ageInStageTooltip', 'Days since the current procurement stage was most recently entered.')}>
                   <span tabIndex={0} className="inline-flex rounded-sm tabular text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                     {t('procurement.ageInStageDays', '{{count}}d', { count: ageInCurrentStage(selected, erp.data) })}
@@ -985,7 +986,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
                 <ProcurementBudgetLeft project={project} row={selected} amount={drawerMoney.mostReal.amount} t={t} />
               )}
               <div className="col-span-full space-y-1">
-                <div className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{t('projectDetail.procurement.table.nextStep', 'Next step')}</div>
+                <div className="text-xs text-muted-foreground">{t('projectDetail.procurement.table.nextStep', 'Next step')}</div>
                 <div className={selected.status === 'Requested' && canApprove ? 'font-medium text-primary-text' : 'text-muted-foreground'}>
                   {nextStepText(selected.status, canApprove, t)}
                 </div>
@@ -994,13 +995,13 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
 
             <section aria-labelledby="procurement-drawer-timeline">
               <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-                <h3 id="procurement-drawer-timeline" className="text-sm font-semibold">{t('projectDetail.procurement.detail.timeline', 'Step timeline')}</h3>
+                <h2 id="procurement-drawer-timeline" className="text-sm font-semibold">{t('projectDetail.procurement.detail.timeline', 'Step timeline')}</h2>
                 <span className="text-xs text-muted-foreground">{t('projectDetail.procurement.detail.timelineHint', 'Steps can happen in any order; skipped steps are not recorded.')}</span>
               </div>
               <ol className="space-y-2 border-l border-border pl-4">
                 {timeline.map((step) => (
                   <li key={step.key} className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-0.5 text-sm">
-                    <span aria-hidden="true" className={`absolute -left-[21px] top-1.5 size-2.5 rounded-full border ${step.date ? 'border-primary bg-primary' : 'border-border bg-card'}`} />
+                    <span aria-hidden="true" className={`absolute -left-[21px] top-1.5 size-2.5 rounded-full border ${step.date ? 'border-success bg-success' : 'border-border bg-card'}`} />
                     <span className={step.date ? 'font-medium text-foreground' : 'text-muted-foreground'}>{stageText(step.key, t)}</span>
                     <time dateTime={step.date ?? undefined} className="text-xs tabular text-muted-foreground">
                       {step.date ? formatDate(step.date) : t('projectDetail.procurement.detail.notRecorded', 'Not recorded')}
@@ -1012,7 +1013,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
 
             <section aria-labelledby="procurement-drawer-documents">
               <div className="mb-2 flex items-center justify-between gap-3">
-                <h3 id="procurement-drawer-documents" className="text-sm font-semibold">{t('projectDetail.procurement.detail.documents', 'Documents')}</h3>
+                <h2 id="procurement-drawer-documents" className="text-sm font-semibold">{t('projectDetail.procurement.detail.documents', 'Documents')}</h2>
                 {canAttachDocument && (
                   <Link to={`/procurement/${selected.id}/files`} className="text-xs font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                     {t('procurement.rowMenu.linkFile', 'Link a file')}

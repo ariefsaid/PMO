@@ -226,7 +226,8 @@
   },
   "budgetCategory": {
     "travelAccommodation": "Travel & accommodation",
-    "vehicle": "Vehicle"
+    "vehicle": "Vehicle",
+    "uncategorized": "Uncategorized"
   },
   "erpLinks": {
     "orphansTitle": "ERPNext documents not in a purchase",
@@ -453,7 +454,8 @@
       "forecastOnlyFigure": "Available in Forecast by fiscal year.",
       "budgetLineItems": "Budget line items",
       "budgetLineSource": "Source: selected budget version line item.",
-      "noLineItems": "No budget line items are recorded for this category."
+      "noLineItems": "No budget line items are recorded for this category.",
+      "figures": "Budget figures"
     },
     "cost": {
       "spendingChecking": "Checking spending…",

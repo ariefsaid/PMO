@@ -18,7 +18,7 @@ export const DeliveryPctChip: React.FC<DeliveryPctChipProps> = ({ pct }) => {
   return (
     <span role="img" aria-label={t('dashboard.delivery.percent', 'Delivery {{rounded}}%', { rounded })} className="inline-flex items-center gap-2">
       <span className="h-1.5 w-12 overflow-hidden rounded-full bg-secondary">
-        <span className="block h-full rounded-full bg-primary" style={{ width: `${rounded}%` }} />
+        <span className={`block h-full rounded-full ${rounded >= 100 ? 'bg-success' : 'bg-muted-foreground/55'}`} style={{ width: `${rounded}%` }} />
       </span>
       <span className="text-[11.5px] font-bold tabular text-foreground">{rounded}%</span>
     </span>

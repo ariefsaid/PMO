@@ -2,7 +2,7 @@ import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, ListState, ProgressBar, TaxBasisLabel, Tooltip } from '@/src/components/ui';
+import { Button, Icon, ListState, ProgressBar, TaxBasisLabel, Tooltip } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
@@ -151,7 +151,7 @@ export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) 
               <dd className="mt-2">
                 <Tooltip content={step.source}>
                   <span tabIndex={0} className="block">
-                    <ProgressBar value={pctOf(step.value, contractValue)} widthless aria-label={t('projectDetail.money.stageAria', '{{label}} is {{percent}}% of contract', { label: step.label, percent: pctOf(step.value, contractValue) })} />
+                    <ProgressBar value={pctOf(step.value, contractValue)} tone="neutral" widthless aria-label={t('projectDetail.money.stageAria', '{{label}} is {{percent}}% of contract', { label: step.label, percent: pctOf(step.value, contractValue) })} />
                   </span>
                 </Tooltip>
               </dd>
@@ -196,7 +196,7 @@ export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) 
       <div className="mt-5 border-t border-border/70 pt-3" data-testid="money-position-details">
         <button type="button" aria-expanded={financeDetailsOpen} onClick={() => setFinanceDetailsOpen((open) => !open)}
           className="touch-target inline-flex items-center gap-2 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-foreground">
-          <span aria-hidden="true" className="inline-block w-3.5 text-center">{financeDetailsOpen ? '⌄' : '›'}</span>
+          <Icon name="chev" className={`size-3.5 transition-transform duration-100 motion-reduce:transition-none ${financeDetailsOpen ? 'rotate-90' : ''}`} />
           {t('projectDetail.money.details', 'Details')}
         </button>
         {financeDetailsOpen && <div className="space-y-4 pt-4"><ProjectFinancesSection project={project} /></div>}

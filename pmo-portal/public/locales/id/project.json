@@ -694,8 +694,7 @@
       "openCount": "{{count}} terbuka",
       "noFilteredTasksInGroup": "Tidak ada tugas pada tahap ini yang cocok dengan filter saat ini.",
       "doneCount": "{{count}} selesai",
-      "drawerSubtitle": "Tugas · {{id}}",
-      "openFullRecord": "Buka catatan lengkap",
+      "openFullRecord": "Buka halaman lengkap",
       "drawer": {
         "noDescription": "Tidak ada deskripsi.",
         "details": "Detail",
@@ -704,7 +703,8 @@
         "noSubtasks": "Belum ada subtugas.",
         "history": "Riwayat"
       },
-      "noMilestone": "Tanpa fase"
+      "noMilestone": "Tanpa fase",
+      "drawerMoreActions": "Tindakan tugas lainnya"
     },
     "workOrders": {
       "export": {
