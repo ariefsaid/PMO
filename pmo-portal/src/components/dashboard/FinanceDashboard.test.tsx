@@ -183,8 +183,11 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
   it('does not treat a missing supplier invoice amount as zero', () => {
     procurements[0]!.total_value = null as unknown as number;
     renderPane();
-    expect(within(screen.getByTestId('kpi-outstanding')).getByRole('button', { name: 'Not available yet' })).toHaveTextContent('—');
-    expect(screen.getByTestId('kpi-outstanding')).not.toHaveTextContent('$150,000');
+    const outstanding = screen.getByTestId('kpi-outstanding');
+    expect(within(outstanding).getByRole('status')).toHaveTextContent('Not available yet');
+    expect(within(outstanding).queryByText('—')).not.toBeInTheDocument();
+    expect(within(outstanding).queryByRole('button', { name: 'Not available yet' })).not.toBeInTheDocument();
+    expect(outstanding).not.toHaveTextContent('$150,000');
   });
   it('AC-RD-FIN-003: localizes finance money labels and names vendor balances as payables in Bahasa', () => {
     render(<BahasaProvider locale="id"><MemoryRouter><FinanceDashboard /></MemoryRouter></BahasaProvider>);

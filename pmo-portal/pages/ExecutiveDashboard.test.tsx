@@ -185,7 +185,7 @@ describe('ExecutiveDashboard (real data)', () => {
     expect(tile).not.toHaveTextContent('Not available yet');
   });
 
-  it('AC-RD-UNAVAIL-001: an unknowable margin or amount is a dash with the reason, not prose in the figure slot', () => {
+  it('AC-RD-UNAVAIL-001: an unknowable margin is omitted and an unknown amount shows its reason without a dash', () => {
     dashState.data = {
       ...populated,
       pipeline_projected_margin: null as unknown as number,
@@ -195,8 +195,9 @@ describe('ExecutiveDashboard (real data)', () => {
     // SL-B: an uncomputable margin has no tile at all (never a dash-only or prose tile).
     expect(screen.queryByTestId('kpi-pipeline-projected-margin')).not.toBeInTheDocument();
     const weighted = screen.getByTestId('kpi-pipeline-weighted-value');
-    expect(within(weighted).getByRole('button', { name: 'Not available yet' })).toHaveTextContent('—');
-    expect(within(weighted).queryByText('Not available yet', { selector: ':not(.sr-only)' })).toBeNull();
+    expect(within(weighted).getByRole('status')).toHaveTextContent('Not available yet');
+    expect(within(weighted).queryByText('—')).not.toBeInTheDocument();
+    expect(within(weighted).queryByRole('button', { name: 'Not available yet' })).not.toBeInTheDocument();
   });
 
   it('gives active contract value its own label distinct from contract value on hand', () => {
