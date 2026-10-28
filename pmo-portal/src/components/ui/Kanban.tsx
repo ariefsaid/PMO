@@ -37,7 +37,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
       className={cn(
         'flex min-w-0 flex-col rounded-lg border',
         // ring = the non-colour cue (matches the selected card treatment)
-        selected ? 'border-primary ring-2 ring-primary/40 bg-primary/[0.04]' : 'border-border bg-secondary/50',
+        selected ? 'border-primary ring-2 ring-primary/40 bg-primary/[0.04]' : 'border-transparent bg-secondary/50',
       )}
     >
       <div className="kcol-head-sticky border-b border-border px-3 pb-2.5 pt-[11px]">

@@ -680,3 +680,10 @@ details > summary:not(.list-none)::before {
 }
 details[open] > summary:not(.list-none)::before { transform: rotate(45deg); }
 @media (prefers-reduced-motion: reduce) { details > summary:not(.list-none)::before { transition: none; } }
+
+/* Short last lines read as mistakes: headings balance, paragraphs avoid a one-word last line. */
+h1, h2, h3 { text-wrap: balance; }
+p { text-wrap: pretty; }
+
+/* Assistant "typing" cue: dots fade in a wave (no bounce). */
+@keyframes thinking-dot { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }

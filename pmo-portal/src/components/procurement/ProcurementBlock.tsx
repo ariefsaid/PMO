@@ -696,7 +696,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
           return (
             <Tooltip content={t('projectDetail.procurement.ownerTooltip', 'Requested by {{name}}. Source: procurement record.', { name: owner })}>
               <span tabIndex={0} className="inline-flex max-w-full items-center gap-2 rounded-sm text-[12px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-                <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-foreground">{initials(owner)}</span>
+                <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-foreground">{initials(owner)}</span>
                 <span className="truncate">{owner}</span>
               </span>
             </Tooltip>
@@ -976,7 +976,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
               <div className="space-y-1">
                 <div className="text-xs text-muted-foreground">{t('projectDetail.procurement.detail.owner', 'Owner')}</div>
                 <div className="inline-flex min-w-0 items-center gap-2 font-medium">
-                  <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-foreground">
+                  <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-foreground">
                     {initials(selected.requested_by?.full_name)}
                   </span>
                   <span className="truncate">{selected.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned')}</span>

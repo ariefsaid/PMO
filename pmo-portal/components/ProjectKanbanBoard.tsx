@@ -145,7 +145,7 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
           {project.project_manager_id != null && (
             <span
               aria-hidden
-              className="grid size-[16px] shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-muted-foreground"
+              className="grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-muted-foreground"
             >
               {(pmLabel.trim().charAt(0) || '?').toUpperCase()}
             </span>

@@ -498,7 +498,7 @@ const Projects: React.FC = () => {
               role="img"
               aria-label={label}
               title={label}
-              className="grid size-[18px] shrink-0 place-items-center rounded-full text-[8px] font-bold text-white"
+              className="grid size-5 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white"
               style={{ background: 'hsl(var(--avatar-2))' }}
             >
               {initials}
