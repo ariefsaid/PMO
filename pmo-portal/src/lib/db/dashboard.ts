@@ -46,7 +46,7 @@ export interface ExecutiveDashboard {
   on_hand_contract_remaining: number | null;
   /** Profit on billed work: billed-work revenue less Actual. */
   on_hand_realized_margin: number | null;
-  on_hand_realized_margin_by_currency?: Array<{ currency: string; known_amount: number | null; unknown_projects: number }>;
+  on_hand_realized_margin_by_currency?: Array<{ currency: string; known_amount: number | null; known_billed_revenue?: number | null; unknown_projects: number }>;
   on_hand_actual_known: number | null;
   on_hand_actual_project_count: number;
   on_hand_actual_project_total: number;
@@ -61,6 +61,10 @@ export interface ExecutiveDashboard {
   pipeline_projected_margin: number | null;
   projects_at_risk: number;
   active_delivery_projects?: number;
+  active_delivery_actual_project_count?: number;
+  active_delivery_actual_project_total?: number;
+  active_delivery_actual_coverage_count?: number;
+  active_delivery_actual_coverage_total?: number;
   risk_unchecked_projects?: number;
   projects_by_status: StatusCount<ProjectStatus>[];
   procurements_by_status: StatusCount<ProcurementStatus>[];

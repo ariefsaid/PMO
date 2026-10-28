@@ -62,5 +62,17 @@
   },
   "kpi": {
     "activeProjectsCount": "{{count}} proyek aktif"
+  },
+  "executive": {
+    "spendingContractPercent": "{{percent}}% dari kontrak",
+    "activeBudgetAmount": "Anggaran aktif: {{amount}}",
+    "noActiveBudget": "Tidak ada anggaran aktif",
+    "knownMarginPercentage": "{{percent}} dari pendapatan tertagih pada proyek dengan margin yang diketahui",
+    "ongoingProjectsCount": "{{count}} proyek yang sedang berjalan",
+    "chartDataTableDescription": "Nilai grafik tercantum dalam tabel data berikut.",
+    "chartDataTableLabel": "Data untuk {{label}}",
+    "chartTableStatus": "Status",
+    "chartTableCount": "Jumlah",
+    "chartTableTotal": "Total"
   }
 }

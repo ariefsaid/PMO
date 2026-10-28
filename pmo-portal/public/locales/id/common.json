@@ -1254,8 +1254,7 @@
       "result": "{{wins}} menang dari {{total}} proyek selesai", "currencyResult": "{{currency}} {{percent}}% — {{wins}} menang dari {{total}} proyek selesai", "noRecordedLosses": "{{currency}} — belum ada kekalahan tercatat; {{wins}} menang", "progress": "Tingkat kemenangan {{percent}}%", "won": "Menang", "lost": "Kalah", "declined": "{{n}} tidak ikut tender — tidak dihitung dalam win rate"
     },
     "bva": { "atRisk": "Berisiko" },
-    "projectedMargin": { "group": "Margin proyeksi pipeline", "summary": "disesuaikan dengan peluang pada {{count}} {{stageNoun}} aktif", "stage": "tahap", "stages": "tahap", "barLabel": "{{stage}}: {{value}} tertimbang" },
-    "procurementStatus": { "summary": "{{label}}, {{total}} {{noun}}, terbanyak pada {{status}}." },
+    "projectedMargin": { "group": "Nilai pipeline tertimbang per tahap", "barLabel": "{{stage}}: {{value}} tertimbang" },
     "pm": {
       "title": "Dashboard saya", "subtitle": "Proyek, kesehatan anggaran, dan antrean persetujuan Anda.", "kpiBand": "KPI saya",
       "myProjects": "Proyek saya", "openMyProjects": "Buka proyek saya",
@@ -1307,8 +1306,7 @@
     "chart": {
       "pipelineMargin": {
         "empty": "Tidak ada pipeline aktif",
-        "error": "Gagal memuat pipeline",
-        "title": "Margin proyeksi pipeline"
+        "error": "Gagal memuat pipeline"
       },
       "procStatus": {
         "chartLabel": "Pengadaan menurut status",
@@ -1347,22 +1345,21 @@
       "aboutMetric": "Tentang metrik ini",
       "helpLabel": "Bantuan: {{label}}",
       "totalContractValue": {
-        "help": "Total nilai kontrak di seluruh portofolio aktif.",
+        "help": "Total nilai kontrak seluruh proyek yang sedang berjalan.",
         "label": "Total nilai kontrak",
-        "linkLabel": "Buka proyek aktif untuk melihat total nilai kontrak",
-        "mobileVs": "Nilai kontrak {{count}} proyek yang masih berjalan"
+        "linkLabel": "Buka proyek Berjalan, Menang — menunggu rapat awal, dan Ditunda untuk melihat total nilai kontrak"
       },
       "totalSpend": {
         "help": "Aktual portofolio saat ini yang tercatat hingga kini.",
-        "label": "Pengeluaran tercatat",
-        "linkLabel": "Buka proyek aktif untuk melihat rincian pengeluaran"
+        "label": "Pengeluaran tercatat dalam portofolio saat ini",
+        "linkLabel": "Buka proyek Berjalan, Menang — menunggu rapat awal, dan Ditunda untuk meninjau pengeluaran"
       }
     },
     "mobile": {
       "needsAttention": "Perlu perhatian",
-      "riskSummary": "dari {{count}} proyek aktif melewati anggaran atau terlambat",
-      "noRiskSummary": "dari {{count}} proyek aktif · semua berjalan sesuai rencana",
-      "spendLink": "Buka rincian pengeluaran · {{amount}} hingga kini",
+      "riskSummary": "dari {{count}} proyek pelaksanaan aktif melewati anggaran atau terlambat",
+      "noRiskSummary": "dari {{count}} proyek pelaksanaan aktif · semua berjalan sesuai rencana",
+      "spendLink": "Buka proyek Berjalan, Menang — menunggu rapat awal, dan Ditunda · pengeluaran portofolio saat ini {{amount}} hingga kini",
       "breakdown": "Rincian",
       "approvals": "Persetujuan",
       "awaitingApproval": "Menunggu persetujuan Anda",
@@ -4668,7 +4665,7 @@
     "notAvailableYet":"Belum tersedia",
     "marginToDate":"Margin hingga saat ini", "attentionAndApprovals":"Perhatian dan persetujuan",
     "realizedMargin":"Margin atas pekerjaan yang ditagihkan", "realizedMarginKnown":"Margin yang diketahui atas pekerjaan yang ditagihkan", "contractRemaining":"Sisa kontrak setelah Aktual yang diketahui",
-    "coverage":"Aktual tersedia untuk {{known}} dari {{total}} proyek pelaksanaan", "coverageCategories":"Cakupan aktual: {{known}} dari {{total}} kategori biaya terpetakan", "actualIncompleteCategories":"Aktual belum lengkap: {{count}} kategori biaya belum dipetakan", "openAccountingMap":"Tinjau pemetaan akuntansi", "mixedCurrencyTotalUnavailable":"Tidak tersedia untuk mata uang campuran", "recordedOutcomesOnly":"Hanya hasil yang tercatat; keputusan yang belum tercatat tidak dihitung.", "pmoPurchasing":"Permintaan pembelian PMO", "pmoPurchasingScope":"Pembelian langsung melalui ERP tidak termasuk dalam grafik permintaan PMO ini.",
+    "coverage":"Aktual tersedia untuk {{known}} dari {{total}} proyek pelaksanaan aktif", "coverageCategories":"Cakupan aktual: {{known}} dari {{total}} kategori biaya terpetakan", "actualIncompleteCategories":"Aktual belum lengkap: {{count}} kategori biaya belum dipetakan", "openAccountingMap":"Tinjau pemetaan akuntansi", "mixedCurrencyTotalUnavailable":"Tidak tersedia untuk mata uang campuran", "recordedOutcomesOnly":"Hanya hasil yang tercatat; keputusan yang belum tercatat tidak dihitung.", "pmoPurchasing":"Permintaan pembelian PMO", "pmoPurchasingScope":"Pembelian langsung melalui ERP tidak termasuk dalam grafik permintaan PMO ini.",
     "activeBudget":"Anggaran aktif", "actual":"Aktual", "variance":"Selisih", "utilization":"Pemakaian", "atRisk":"Berisiko",
     "activeBudgetReviewEmpty":"Belum ada anggaran aktif yang siap ditinjau", "activeBudgetReviewEmptySub":"Anggaran aktif bernilai positif ditampilkan di sini.",
     "actualSourceCurrency":"Mata uang sumber: {{currency}}", "actualAsOf":"Per {{date}}",
