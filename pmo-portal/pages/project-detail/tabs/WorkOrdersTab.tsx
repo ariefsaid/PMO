@@ -15,6 +15,7 @@ import {
   MenuButton,
   ProgressBar,
   StatusPill,
+  TaxBasisLabel,
   Tooltip,
   useToast,
   type Column,
@@ -635,7 +636,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               {t('projectDetail.contract.orders', 'Customer orders')}
             </h2>
             {/* C6: currency named once for the orders below; every figure in them is a bare number. */}
-            {canViewBilling && <span className="text-xs text-muted-foreground">{currency}</span>}
+            {/* AC-BWO-004: billing figures are net of tax — the basis is said once, here. */}
+            {canViewBilling && <span className="text-xs text-muted-foreground">{currency} · <TaxBasisLabel treatment="exclusive" showDetails={false} className="whitespace-nowrap text-xs" testId="wo-billing-basis" /></span>}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {deliveryCandidates.length > 0 && (
@@ -684,12 +686,12 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 {formatNumberWhole(billingTotals.stillToInvoice)}
               </strong>
             </span>}
-            <span>
+            {billingTotals.inDraft > 0 && <span>
               <span className="text-muted-foreground">{t('common:projectDetail.workOrders.billing.notSubmitted', 'Not yet submitted')}</span>{' '}
               <strong data-testid="wo-billing-total-draft" className="ml-1 tabular-nums">
                 {formatNumberWhole(billingTotals.inDraft)}
               </strong>
-            </span>
+            </span>}
           </span>}
         </div>}
 
@@ -783,7 +785,11 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 .sort((a, b) => b.prepared_at.localeCompare(a.prepared_at))[0];
               const billingRow = billingById.get(row.id);
               const orderInvoices = invoicesByWo.get(row.id) ?? [];
-              const settlement = invoiceReadReady ? summarizeInvoiceSettlement(orderInvoices) : null;
+              // NFR-BWO-005: no figures until BOTH the invoices and the order billing are read — a pending or failed
+              // billing read must not look like an order with nothing invoiced.
+              const settlement = invoiceReadReady && !billing.isPending && !billing.isError ? summarizeInvoiceSettlement(orderInvoices) : null;
+              // SUB-C: invoiced / paid / unpaid appear once something has been invoiced.
+              const hasInvoiced = (settlement?.invoiced ?? 0) > 0;
               const canPrepare = canPrepareForOrder(row);
               const canConfirm = Boolean(pendingBast) && may('confirm', 'workOrderAcceptance', {
                 currentUserId: currentUser?.id,
@@ -889,17 +895,18 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                     </div>
 
                     {canViewBilling && <dl className="flex flex-wrap gap-x-6 gap-y-2" data-testid={`wo-money-${row.id}`} aria-label={t('common:projectDetail.workOrders.billing.column', 'Billing')}>
-                      {settlement?.invoiced !== null && settlement?.invoiced !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('common:projectDetail.workOrders.billing.invoiced', 'Invoiced')} value={formatNumberWhole(settlement.invoiced)} detail={settlement.balancesKnown
-                        ? t('common:projectDetail.workOrders.billing.lineInvoiced', 'Invoiced {{invoiced}} · paid {{paid}}', { invoiced: formatNumberWhole(settlement.invoiced), paid: formatNumberWhole(settlement.paid) })
-                        : t('projectDetail.cascade.source.invoiced', 'Source: non-draft, non-cancelled invoice amounts.')} />}
-                      {settlement?.balancesKnown && billingRow?.figuresComplete !== false && <MoneyFigure label={t('common:projectDetail.workOrders.billing.paid', 'Paid')} value={formatNumberWhole(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount less the accounting balance outstanding.')} />}
-                      {settlement?.unpaid !== null && settlement?.unpaid !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('projectDetail.cascade.unpaid', 'Unpaid')} value={formatNumberWhole(settlement.unpaid)} detail={t('projectDetail.cascade.source.invoiceUnpaid', 'Source: accounting balance outstanding for this invoice.')} destructive={settlement.unpaid > 0} />}
+                      {/* AC-BWO-004: what is still to invoice leads, ahead of invoiced and paid. */}
                       {billingRow?.figuresComplete && row.status !== 'Draft' && row.status !== 'Cancelled' && <div className="min-w-0 text-xs">
                           <dt className="sr-only">{t('common:projectDetail.workOrders.billing.stillToInvoice', 'Still to invoice')}</dt>
                           <dd className="cursor-help text-muted-foreground tabular-nums"><Tooltip content={t('projectDetail.workOrders.billing.pendingNote', 'Drafts and unraised claims count as not yet invoiced.') }><span>{billingRow.remaining < 0
                             ? t('common:projectDetail.workOrders.billing.lineOver', 'Over by {{amount}}', { amount: formatNumberWhole(Math.abs(billingRow.remaining)) })
                             : t('common:projectDetail.workOrders.billing.lineRemaining', 'Still to invoice {{amount}}', { amount: formatNumberWhole(billingRow.remaining) })}</span></Tooltip></dd>
                         </div>}
+                      {hasInvoiced && settlement?.invoiced !== null && settlement?.invoiced !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('common:projectDetail.workOrders.billing.invoiced', 'Invoiced')} value={formatNumberWhole(settlement.invoiced)} detail={settlement.balancesKnown
+                        ? t('common:projectDetail.workOrders.billing.lineInvoiced', 'Invoiced {{invoiced}} · paid {{paid}}', { invoiced: formatNumberWhole(settlement.invoiced), paid: formatNumberWhole(settlement.paid) })
+                        : t('projectDetail.cascade.source.invoiced', 'Source: non-draft, non-cancelled invoice amounts.')} />}
+                      {hasInvoiced && settlement?.balancesKnown && billingRow?.figuresComplete !== false && <MoneyFigure label={t('common:projectDetail.workOrders.billing.paid', 'Paid')} value={formatNumberWhole(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount less the accounting balance outstanding.')} />}
+                      {hasInvoiced && settlement?.unpaid !== null && settlement?.unpaid !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('projectDetail.cascade.unpaid', 'Unpaid')} value={formatNumberWhole(settlement.unpaid)} detail={t('projectDetail.cascade.source.invoiceUnpaid', 'Source: accounting balance outstanding for this invoice.')} destructive={settlement.unpaid > 0} />}
                     </dl>}
 
                     {orderFiguresMissing && <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role={invoicesQuery.isError || billing.isError ? 'alert' : 'status'}>

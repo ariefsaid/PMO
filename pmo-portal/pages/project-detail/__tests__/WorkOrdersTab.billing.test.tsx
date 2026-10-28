@@ -585,6 +585,63 @@ describe('WorkOrdersTab — billing by work order: restored oracles (AC-BWO-003/
     expect(within(screen.getByTestId('customer-order-wo-2')).getByText(/has no amount or is in another currency/)).toBeInTheDocument();
   });
 
+  it('NFR-BWO-005 billing still loading shows a loading note, never zero invoiced or paid', () => {
+    h.invoices = invoicesMatchingBill();
+    h.billing = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    renderTab();
+    const order = within(screen.getByTestId('customer-order-wo-1'));
+    expect(order.getByText('Invoice figures are loading.')).toBeInTheDocument();
+    expect(within(screen.getByTestId('wo-money-wo-1')).queryByText('Invoiced')).toBeNull();
+    expect(within(screen.getByTestId('wo-money-wo-1')).queryByText('Paid')).toBeNull();
+  });
+
+  it('NFR-BWO-005 a failed billing read says so and offers Retry, never zeros', async () => {
+    const refetch = vi.fn();
+    h.invoices = invoicesMatchingBill();
+    h.billing = { data: undefined, isPending: false, isError: true, refetch };
+    renderTab();
+    const order = within(screen.getByTestId('customer-order-wo-1'));
+    expect(order.getByText("Couldn't load billing for these work orders")).toBeInTheDocument();
+    expect(within(screen.getByTestId('wo-money-wo-1')).queryByText('Invoiced')).toBeNull();
+    await userEvent.click(order.getByRole('button', { name: 'Retry invoice figures' }));
+    expect(refetch).toHaveBeenCalled();
+  });
+
+  it('AC-BWO-004 (SUB-C) "excl. PPN" is said once, on the Customer orders heading — never per order', () => {
+    h.invoices = invoicesMatchingBill();
+    renderTab();
+    const basis = screen.getAllByTestId('wo-billing-basis');
+    expect(basis).toHaveLength(1);
+    expect(basis[0]).toHaveClass('whitespace-nowrap');
+    expect(screen.getByRole('heading', { name: 'Customer orders' }).parentElement).toContainElement(basis[0]);
+    expect(within(screen.getByTestId('customer-order-wo-1')).queryByTestId('wo-billing-basis')).toBeNull();
+  });
+
+  it('AC-BWO-004 what is still to invoice leads the order figures, ahead of invoiced and paid', () => {
+    h.invoices = invoicesMatchingBill();
+    renderTab();
+    const text = screen.getByTestId('wo-money-wo-1').textContent ?? '';
+    expect(text.indexOf('Still to invoice')).toBeGreaterThan(-1);
+    expect(text.indexOf('Still to invoice')).toBeLessThan(text.indexOf('Invoiced'));
+  });
+
+  it('SUB-C invoiced, paid and unpaid appear only once something has been invoiced', () => {
+    h.billing.data = [bill({ invoiced: 0, pending: 0, paid: 0, remaining: 500_000, lineCount: 0, unpaidCount: 0 })];
+    renderTab();
+    const figures = screen.getByTestId('wo-money-wo-1');
+    expect(figures).toHaveTextContent('Still to invoice 500,000');
+    expect(within(figures).queryByText('Invoiced')).toBeNull();
+    expect(within(figures).queryByText('Paid')).toBeNull();
+    expect(within(figures).queryByText('Unpaid')).toBeNull();
+  });
+
+  it('AC-BWO-003 the summary says nothing about drafts when nothing awaits submission', () => {
+    h.billing.data = [bill({ pending: 0 })];
+    renderTab();
+    expect(screen.getByTestId('wo-billing-summary')).not.toHaveTextContent('Not yet submitted');
+    expect(screen.queryByTestId('wo-billing-total-draft')).toBeNull();
+  });
+
 });
 
 describe('WorkOrdersTab — billing actions', () => {
