@@ -1,7 +1,7 @@
--- 0384: one document-value basis for a native purchase's linked ERP documents and PMO records (#1350).
+-- 0386: one document-value basis for a native purchase's linked ERP documents and PMO records (#1350).
 -- Sum each document kind across its sources; where orders or invoices exist, use the greater of the
 -- order total and pre-tax invoice total. Otherwise use linked receipts, then payments. Cancellations,
--- currency mismatches and superseded invoices do not count. Rollback: rollback/0384_procurement_native_document_value_down.sql
+-- currency mismatches and superseded invoices do not count. Rollback: rollback/0386_procurement_native_document_value_down.sql
 
 -- The optional old-row map reconstructs the whole statement's pre-update basis.
 create function public.procurement_document_total(
