@@ -279,10 +279,19 @@ describe('project procurement tab', () => {
     expect(screen.getAllByText('—').length).toBeGreaterThan(0);
   });
 
-  it('shows an ERP hint in the procurement empty state when accounting documents are available', () => {
+  it('points below only when an unlinked ERP document is listed there', () => {
+    erpState.data = [{ id: 'linked-paid', procurementId: 'proc-1', doctype: 'Purchase Invoice', name: 'PINV-PAID', projectIds: ['proj-abc'], currency: 'USD', outstanding: 0, dueDate: null, docDate: null, isReturn: false, grandTotal: 1, netTotal: 1 }];
+    const { unmount } = renderTab('Finance');
+    expect(screen.queryByText(/appear below/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /not linked to a procurement/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'All unlinked ERPNext documents' })).not.toBeInTheDocument();
+
+    unmount();
     erpState.data = [{ id: 'd1', procurementId: null, doctype: 'Purchase Invoice', name: 'PINV-1', projectIds: ['proj-abc'], currency: 'USD', outstanding: 1, dueDate: null, docDate: null, isReturn: false, grandTotal: 1, netTotal: 1 }];
     renderTab('Finance');
-    expect(screen.getByText('Purchases recorded in the accounting system appear below.')).toBeInTheDocument();
+    expect(screen.getByText(/Purchases recorded in (the )?(accounting system|ERPNext) appear below/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /not linked to a procurement/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'All unlinked ERPNext documents' })).toBeInTheDocument();
   });
 });
 

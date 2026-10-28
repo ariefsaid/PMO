@@ -71,11 +71,11 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
     const vendorlessBilled = { ...procurement, vendor_id: null };
     h.detail.data = vendorlessBilled;
     const view = renderAt('/procurement/proc-001/files');
-    fireEvent.click(screen.getByRole('button', { name: 'Set vendor' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Set supplier' }));
 
     fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
-    expect(await screen.findByRole('option', { name: 'New vendor' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('option', { name: 'New vendor' }));
+    expect(await screen.findByRole('option', { name: 'New supplier' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('option', { name: 'New supplier' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save supplier' }));
 
     await waitFor(() => expect(h.updateVendor).toHaveBeenCalledWith('vendor-new'));
@@ -89,30 +89,30 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
     h.realRole = 'Engineer'; h.effectiveRole = 'Engineer';
     h.detail.data = { ...procurement, vendor_id: null };
     renderAt('/procurement/proc-001/files');
-    expect(screen.queryByRole('button', { name: 'Set vendor' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Set supplier' })).not.toBeInTheDocument();
   });
 
   it('hides Set supplier while an Admin is impersonating another role', () => {
     h.realRole = 'Admin'; h.effectiveRole = 'Engineer';
     h.detail.data = { ...procurement, vendor_id: null };
     renderAt('/procurement/proc-001/files');
-    expect(screen.queryByRole('button', { name: 'Set vendor' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Set supplier' })).not.toBeInTheDocument();
   });
 
   it('shows Set supplier to Finance under the live procurements_update role policy', () => {
     h.realRole = 'Finance'; h.effectiveRole = 'Finance';
     h.detail.data = { ...procurement, vendor_id: null };
     renderAt('/procurement/proc-001/files');
-    expect(screen.getByRole('button', { name: 'Set vendor' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Set supplier' })).toBeInTheDocument();
   });
 
   it('shows the stale-supplier recovery message and refetches after a conditional write conflict', async () => {
     h.detail.data = { ...procurement, vendor_id: null };
     h.updateVendor.mockRejectedValueOnce(Object.assign(new Error('A vendor was already set.'), { code: 'VENDOR_ALREADY_SET' }));
     renderAt('/procurement/proc-001/files');
-    fireEvent.click(screen.getByRole('button', { name: 'Set vendor' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Set supplier' }));
     fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
-    fireEvent.click(await screen.findByRole('option', { name: 'New vendor' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'New supplier' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save supplier' }));
     await waitFor(() => expect(h.toast).toHaveBeenCalledWith('A supplier was already set. Refresh to see it.', undefined, 'warning'));
     expect(h.detail.refetch).toHaveBeenCalled();
