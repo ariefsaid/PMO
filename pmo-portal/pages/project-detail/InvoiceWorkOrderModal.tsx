@@ -9,7 +9,7 @@ import { useRevenueMutations } from '@/src/hooks/useRevenue';
 import { useCommandIntent } from '@/src/hooks/useCommandIntent';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
-import { currencySymbol, formatCurrency, formatCurrencyCents, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrencyCents, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
 import { invoiceAmountProblem } from '@/src/lib/workOrderBilling';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 
@@ -58,8 +58,7 @@ const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
   const erpItems = useErpItemOptions('sales');
   const { create } = useRevenueMutations();
   const intent = useCommandIntent();
-  // C5: whole units; cents only when the cap itself has cents, so the refusal names the real limit.
-  const remainingText = Number.isInteger(remaining) ? formatCurrency(remaining, workOrder.currency) : formatCurrencyCents(remaining, workOrder.currency);
+  const remainingText = formatCurrencyCents(remaining, workOrder.currency);
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
 
   const form = useEntityForm<Values>({
