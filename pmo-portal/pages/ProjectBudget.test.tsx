@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { axe } from 'jest-axe';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { ToastProvider } from '@/src/components/ui';
+import { ToastProvider, useToast } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { BahasaProvider } from '@/test/bahasa';
 
@@ -87,6 +87,11 @@ const renderPage = (projectId = 'p-1') =>
     </FinanceI18nTestProvider>
   );
 
+const UnresolvedErrorToast: React.FC = () => {
+  const { toast } = useToast();
+  return <button onClick={() => toast('Unresolved error', 'Retry the failed operation', 'error')}>Show unresolved error</button>;
+};
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -129,6 +134,19 @@ const activeVersion = {
   activation_basis: null,
   line_items: [],
   total: 4700000,
+};
+
+const activeSuccessorVersion = {
+  ...activeVersion,
+  line_items: [{
+    id: 'li-active-successor',
+    budget_version_id: 'v-active',
+    category: 'Labor',
+    description: 'Current labor plan',
+    budgeted_amount: 4700000,
+    actual_amount: 0,
+    org_id: 'org-1',
+  }],
 };
 
 const archivedVersion = {
@@ -514,6 +532,29 @@ describe('ProjectBudget Draft version actions', () => {
     resetState();
   });
 
+  it('keeps an unresolved error when New version is opened and cancelled', async () => {
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    render(
+      <FinanceI18nTestProvider>
+        <MemoryRouter>
+          <ToastProvider>
+            <UnresolvedErrorToast />
+            <ProjectBudget projectId="p-1" />
+          </ToastProvider>
+        </MemoryRouter>
+      </FinanceI18nTestProvider>,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Show unresolved error' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Unresolved error Retry the failed operation');
+    await userEvent.click(screen.getByRole('button', { name: /New version/i }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Unresolved error Retry the failed operation');
+    await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Unresolved error Retry the failed operation');
+    resetState();
+  });
+
   /**
    * ⚑ SHOULD-FIX (FU-2 round 2) — a version with no line items sends NOTHING to ERPNext (the fan-out
    * has no year to attempt), so the toast must not announce a push. Neither may it cry failure: no
@@ -729,7 +770,7 @@ describe('ProjectBudget Active version actions', () => {
       .toHaveAttribute('role', 'alert');
   });
 
-  it('does not surface an ERP Budget left by a previous activation of the archived version', () => {
+  it('keeps a live archived ERP Budget visible when its activation witness is older', () => {
     budgetState.data = 0;
     versionsState.data = [archivedVersion];
     archiveTargetsState.data = [{
@@ -739,7 +780,80 @@ describe('ProjectBudget Active version actions', () => {
     }];
     renderPage();
 
-    expect(screen.queryByRole('alert', { name: /ERPNext is still enforcing/i })).not.toBeInTheDocument();
+    expect(screen.getByText('ERPNext is still enforcing an archived budget for this project. Cancel the ERPNext Budget documents or activate a new PMO budget.'))
+      .toHaveAttribute('role', 'alert');
+  });
+
+  it('keeps the archived warning when an Active version has not pushed the same account and year', () => {
+    budgetState.data = 4700000;
+    versionsState.data = [archivedVersion, activeSuccessorVersion];
+    archiveTargetsState.data = [{
+      id: 'mirror-arch', budget_version_id: 'v-arch', fiscal_year: '2026', erp_account: 'Labor',
+      erp_budget_name: 'BUD-OLD', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure',
+      activated_at_witness: '2025-11-01T00:00:00Z',
+    }, {
+      id: 'mirror-active-failed', budget_version_id: 'v-active', fiscal_year: '2026', erp_account: 'Labor',
+      erp_budget_name: 'BUD-NEW', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'failed', budget_intent: 'ensure',
+      activated_at_witness: activeSuccessorVersion.activated_at,
+    }];
+    renderPage();
+
+    expect(screen.getByText('ERPNext is still enforcing an archived budget for this project. Cancel the ERPNext Budget documents or activate a new PMO budget.'))
+      .toHaveAttribute('role', 'alert');
+  });
+
+  it('keeps a partial multi-account/year successor push visible for the unresolved grain', () => {
+    budgetState.data = 4700000;
+    versionsState.data = [archivedVersion, activeSuccessorVersion];
+    archiveTargetsState.data = [{
+      id: 'mirror-arch-labor', budget_version_id: 'v-arch', fiscal_year: '2026', erp_account: 'Labor',
+      erp_budget_name: 'BUD-OLD-LABOR', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure',
+      activated_at_witness: '2025-11-01T00:00:00Z',
+    }, {
+      id: 'mirror-arch-materials', budget_version_id: 'v-arch', fiscal_year: '2027', erp_account: 'Materials',
+      erp_budget_name: 'BUD-OLD-MATERIALS', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure',
+      activated_at_witness: '2025-11-01T00:00:00Z',
+    }, {
+      id: 'mirror-active-labor', budget_version_id: 'v-active', fiscal_year: '2026', erp_account: 'Labor',
+      erp_budget_name: 'BUD-NEW-LABOR', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure',
+      activated_at_witness: activeSuccessorVersion.activated_at,
+    }];
+    renderPage();
+
+    expect(screen.getByText('ERPNext is still enforcing an archived budget for this project. Cancel the ERPNext Budget documents or activate a new PMO budget.'))
+      .toHaveAttribute('role', 'alert');
+  });
+
+  it('keeps the archived warning when an Active successor has no lines to push', () => {
+    budgetState.data = 4700000;
+    versionsState.data = [archivedVersion, activeVersion];
+    archiveTargetsState.data = [{
+      id: 'mirror-arch', budget_version_id: 'v-arch', fiscal_year: '2026', erp_account: 'Labor',
+      erp_budget_name: 'BUD-OLD', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure',
+      activated_at_witness: '2025-11-01T00:00:00Z',
+    }];
+    renderPage();
+
+    expect(screen.getByText('ERPNext is still enforcing an archived budget for this project. Cancel the ERPNext Budget documents or activate a new PMO budget.'))
+      .toHaveAttribute('role', 'alert');
+  });
+
+  it('resolves an archived warning only after the Active successor is pushed for the same account and year', () => {
+    budgetState.data = 4700000;
+    versionsState.data = [archivedVersion, activeSuccessorVersion];
+    archiveTargetsState.data = [{
+      id: 'mirror-arch', budget_version_id: 'v-arch', fiscal_year: '2026', erp_account: 'Labor',
+      erp_budget_name: 'BUD-OLD', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure',
+      activated_at_witness: '2025-11-01T00:00:00Z',
+    }, {
+      id: 'mirror-active', budget_version_id: 'v-active', fiscal_year: '2026', erp_account: 'Labor',
+      erp_budget_name: 'BUD-NEW', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure',
+      activated_at_witness: activeSuccessorVersion.activated_at,
+    }];
+    renderPage();
+
+    expect(screen.queryByText('ERPNext is still enforcing an archived budget for this project. Cancel the ERPNext Budget documents or activate a new PMO budget.'))
+      .not.toBeInTheDocument();
   });
 
   it('B4: can cancel archive confirmation', async () => {

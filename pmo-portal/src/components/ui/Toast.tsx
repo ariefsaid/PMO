@@ -55,9 +55,10 @@ export const ToastView: React.FC<{
 
 interface ToastApi {
   toast: {
-    (title: string, kind?: ToastKind): void;
-    (title: string, sub?: string, kind?: ToastKind): void;
+    (title: string, kind?: ToastKind): number;
+    (title: string, sub?: string, kind?: ToastKind): number;
   };
+  dismiss: (id: number) => void;
   clear: () => void;
 }
 const ToastCtx = createContext<ToastApi | undefined>(undefined);
@@ -80,7 +81,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [alertAnnouncement]);
 
-  const toast = useCallback((title: string, subOrKind?: string, kind?: ToastKind) => {
+  const toast = useCallback((title: string, subOrKind?: string, kind?: ToastKind): number => {
     const isKind = (value: string | undefined): value is ToastKind =>
       value === 'info' || value === 'success' || value === 'warning' || value === 'error';
     const resolvedKind = kind ?? (isKind(subOrKind) ? subOrKind : 'info');
@@ -89,9 +90,10 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const current = itemRef.current;
     const urgent = resolvedKind === 'warning' || resolvedKind === 'error';
     const message = [title, sub].filter(Boolean).join(' ');
-    const enqueue = (entry: ToastData, front = false) => {
+    const enqueue = (entry: ToastData, front = false): number => {
       const existingIndex = queue.current.findIndex((queued) => queued.kind === entry.kind && queued.title === entry.title);
-      if (existingIndex >= 0) {
+      const existing = existingIndex >= 0 ? queue.current[existingIndex] : undefined;
+      if (existing) {
         if (front && existingIndex > 0) {
           const updated = [...queue.current];
           const [existing] = updated.splice(existingIndex, 1);
@@ -99,7 +101,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           queue.current = updated;
           setQueueCount(updated.length);
         }
-        return;
+        return existing.id;
       }
       const updated = front ? [entry, ...queue.current] : [...queue.current, entry];
       if (updated.length > 5) {
@@ -113,21 +115,23 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       queue.current = updated;
       setQueueCount(updated.length);
+      return entry.id;
     };
 
     if (current?.kind === 'warning' && resolvedKind === 'error') {
       enqueue(current, true);
       itemRef.current = next;
       setItem(next);
-      return;
+      return next.id;
     }
     if (current?.kind === 'warning' || current?.kind === 'error') {
       if (current.kind === 'error' && urgent) announceQueuedUrgent(message);
-      if (current.kind !== resolvedKind || current.title !== title) enqueue(next);
-      return;
+      if (current.kind !== resolvedKind || current.title !== title) return enqueue(next);
+      return current.id;
     }
     itemRef.current = next;
     setItem(next);
+    return next.id;
   }, [announceQueuedUrgent]);
 
   // These regions are persistent for the lifetime of the provider. Content is added only
@@ -178,6 +182,30 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setItem(next ?? null);
   }, []);
 
+  const dismissById = useCallback((id: number) => {
+    if (itemRef.current?.id === id) {
+      dismiss();
+      return;
+    }
+    const index = queue.current.findIndex((queued) => queued.id === id);
+    if (index < 0) return;
+
+    const removed = queue.current[index];
+    if (!removed) return;
+    queue.current = queue.current.filter((queued) => queued.id !== id);
+    setQueueCount(queue.current.length);
+
+    const current = itemRef.current;
+    const removedMessage = [removed.title, removed.sub].filter(Boolean).join(' ');
+    const currentMessage = current && (current.kind === 'warning' || current.kind === 'error')
+      ? [current.title, current.sub].filter(Boolean).join(' ')
+      : '';
+    if ((removed.kind === 'warning' || removed.kind === 'error') && alertAnnouncement === removedMessage && currentMessage) {
+      setAlertAnnouncement('');
+      setTimeout(() => setAlertAnnouncement(currentMessage), 0);
+    }
+  }, [alertAnnouncement, dismiss]);
+
   const clear = useCallback(() => {
     queue.current = [];
     setQueueCount(0);
@@ -189,7 +217,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   return (
-    <ToastCtx.Provider value={{ toast, clear }}>
+    <ToastCtx.Provider value={{ toast, dismiss: dismissById, clear }}>
       {children}
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{statusAnnouncement}</div>
       <div className="sr-only" role="alert" aria-live="assertive" aria-atomic="true">{alertAnnouncement}</div>

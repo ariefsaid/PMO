@@ -1,9 +1,5 @@
 import { reconcileOrgBudgetArchiveCancellations, type BudgetArchiveCancelIntent, type BudgetArchiveBackstopDeps } from './budgetArchiveBackstop.ts';
 
-globalThis.fetch = async () => { throw new Error('unexpected network access in archive queue unit test'); };
-(Deno as unknown as { serve: (...args: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
-await import('./index.ts');
-
 const JOB: BudgetArchiveCancelIntent = {
   id: 'job-1', org_id: 'org-1', project_id: 'project-1', budget_version_id: 'version-1',
   source_mirror_id: 'mirror-1', actor_user_id: 'actor-1', fiscal_year: '2026', erp_account: 'Labor',

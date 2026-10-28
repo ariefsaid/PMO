@@ -1,7 +1,7 @@
 -- #1422 / FR-BUD-122: archiving and queuing ERPNext cancellation is atomic,
 -- idempotent, actor-attributed, and preserves the existing four-role gate.
 begin;
-select plan(12);
+select plan(17);
 
 insert into organizations (id, name) values
   ('03870000-0000-0000-0000-000000000001', 'Archive Intent Org');
@@ -59,8 +59,33 @@ select is((public.archive_budget_version_with_cancel_intent('03870000-0000-0000-
   'AC-BUD-122: repeating archive returns the stored operator decision without changing it');
 reset role;
 
--- activate_budget_version can reactivate an Archived version. A later archive is a new user decision,
--- so it must create a new durable request and cancellation intent for the new activation witness.
+-- The archive remains fenced until every exact-target cancellation has settled.
+select throws_ok($$ update budget_versions set status='Active'
+ where id='03870000-0000-0000-0000-0000000000d1' $$,
+ 'P0001', 'budget archive cancellation is unresolved; complete cancellation before reactivating',
+ 'AC-BUD-122: reactivation cannot cross an unresolved cancellation');
+select throws_ok($$ update budget_versions set activated_at='2026-10-29T00:00:00Z'
+ where id='03870000-0000-0000-0000-0000000000d1' $$,
+ 'P0001', 'budget archive cancellation is unresolved; complete cancellation before reactivating',
+ 'AC-BUD-122: the activation witness is fenced while cancellation is unresolved');
+update budget_archive_cancel_intents set state='held'
+ where budget_version_id='03870000-0000-0000-0000-0000000000d1';
+select throws_ok($$ update budget_versions set status='Draft'
+ where id='03870000-0000-0000-0000-0000000000d1' $$,
+ 'P0001', 'budget archive cancellation is unresolved; complete cancellation before reactivating',
+ 'AC-BUD-122: a held intent cannot be bypassed by returning to Draft');
+update budget_archive_cancel_intents set state='superseded'
+ where budget_version_id='03870000-0000-0000-0000-0000000000d1';
+select throws_ok($$ update budget_versions set status='Active'
+ where id='03870000-0000-0000-0000-0000000000d1' $$,
+ 'P0001', 'budget archive cancellation is unresolved; complete cancellation before reactivating',
+ 'AC-BUD-122: superseding an intent does not release an issued cancellation');
+select lives_ok($$ update budget_versions set name='Renamed archived budget'
+ where id='03870000-0000-0000-0000-0000000000d1' $$,
+ 'AC-BUD-122: unrelated archived metadata remains editable');
+update budget_archive_cancel_intents set state='complete'
+ where budget_version_id='03870000-0000-0000-0000-0000000000d1';
+
 update budget_versions set status='Active', activated_at='2026-10-29T00:00:00Z'
  where id='03870000-0000-0000-0000-0000000000d1';
 update budget_version_account_erp_mirror

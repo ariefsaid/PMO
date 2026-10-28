@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProjectBudget, useBudgetVersions, useBudgetMutations, useBudgetActivationMode, useBudgetArchiveTargets } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
@@ -704,7 +704,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
   const canWrite = can('edit', 'budgetLine');
   const { currentUser } = useAuth();
   const currentUserId = currentUser?.id ?? null;
-  const { toast, clear: clearToasts } = useToast();
+  const { toast, dismiss: dismissToast } = useToast();
+  const activationNoticeId = useRef<number | null>(null);
+  const dismissActivationNotice = () => {
+    if (activationNoticeId.current !== null) dismissToast(activationNoticeId.current);
+    activationNoticeId.current = null;
+  };
   // The derived total (useProjectBudget) has no version of its own to carry a currency —
   // fall back to the org default until a version is selected (FR-L10N-020).
   const orgCurrency = useOrgCurrency();
@@ -728,11 +733,27 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
     [versionsQuery.data]
   );
   const hasActive = versions.some((version) => version.status === 'Active');
-  const archiveTargetsQuery = useBudgetArchiveTargets(versions.map((version) => version.id), !hasActive);
-  const archivedLiveTargets = (archiveTargetsQuery.data ?? []).filter((target) =>
-    !hasActive && versions.some((version) => version.id === target.budget_version_id && version.status === 'Archived') &&
-    versions.some((version) => version.id === target.budget_version_id && version.activated_at === target.activated_at_witness) &&
-    target.erp_cancelled_at === null && target.erp_docstatus !== 2,
+  const hasArchived = versions.some((version) => version.status === 'Archived');
+  const archiveTargetsQuery = useBudgetArchiveTargets(versions.map((version) => version.id), hasArchived);
+  const archiveTargets = archiveTargetsQuery.data ?? [];
+  const pushedActiveGrains = new Set(
+    archiveTargets.flatMap((target) => {
+      const activeVersion = versions.find((version) =>
+        version.id === target.budget_version_id &&
+        version.status === 'Active' &&
+        version.activated_at === target.activated_at_witness,
+      );
+      if (
+        !activeVersion || target.budget_intent !== 'ensure' || target.push_state !== 'pushed' ||
+        target.erp_cancelled_at !== null || target.erp_docstatus === 2
+      ) return [];
+      return [JSON.stringify([target.erp_account, target.fiscal_year])];
+    }),
+  );
+  const archivedLiveTargets = archiveTargets.filter((target) =>
+    versions.some((version) => version.id === target.budget_version_id && version.status === 'Archived') &&
+    target.erp_cancelled_at === null && target.erp_docstatus !== 2 &&
+    !pushedActiveGrains.has(JSON.stringify([target.erp_account, target.fiscal_year])),
   );
   const derivedTotal = budgetQuery.data ?? 0;
 
@@ -803,19 +824,19 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
   // Stage a confirm without writing. The page renders one ConfirmDialog from
   // pendingConfirm; commitConfirm() runs the real mutation only on Confirm.
   const requestCreate = (name: string) => {
-    clearToasts();
+    dismissActivationNotice();
     setPendingConfirm({ kind: 'create', name });
   };
   const requestActivate = (id: string) => {
-    clearToasts();
+    dismissActivationNotice();
     setPendingConfirm({ kind: 'activate', id, label: versionLabel(id), soleOperator });
   };
   const requestClone = (id: string) => {
-    clearToasts();
+    dismissActivationNotice();
     setPendingConfirm({ kind: 'clone', id, label: versionLabel(id) });
   };
   const requestArchive = async (id: string) => {
-    clearToasts();
+    dismissActivationNotice();
     try {
       const refreshed = await archiveTargetsQuery.refetch();
       if (refreshed.error) throw refreshed.error;
@@ -831,11 +852,11 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
     }
   };
   const requestDeleteDraft = (id: string) => {
-    clearToasts();
+    dismissActivationNotice();
     setPendingConfirm({ kind: 'deleteDraft', id, label: versionLabel(id) });
   };
   const requestDeleteLineItem = (id: string) => {
-    clearToasts();
+    dismissActivationNotice();
     setPendingConfirm({ kind: 'deleteLineItem', id, label: id });
   };
 
@@ -865,7 +886,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
           // there is no mirror row for the sweep backstop to re-drive either. The recovery affordance
           // is the Budget projection's "Retry the push".
           if (pushState === 'failed') {
-            toast(
+            activationNoticeId.current = toast(
               t('financeCopy.versionActivatedERPNotUpdated', 'Version activated — but ERPNext was not updated'),
               t('financeCopy.budgetActiveRetryFromProjection', "{{version}}. PMO's budget is active; retry the push from the Budget projection.", { version: c.label }),
               'warning',
@@ -875,13 +896,13 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
             // created no ERP `Budget`. Announcing a push would be a statement about money that never
             // moved; announcing a failure would invent an attempt. Nothing was sent — say that, and name
             // the act that changes it. (The per-year `never-pushed` banner agrees rather than contradicts.)
-            toast(
+            activationNoticeId.current = toast(
               t('financeCopy.versionActivatedNothingSent', 'Version activated — nothing was sent to ERPNext'),
               t('financeCopy.noBudgetLinesToPush', '{{version}} has no budget lines, so no ERPNext Budget was created. Add lines and activate a new version to enforce one.', { version: c.label }),
               'warning',
             );
           } else {
-            toast(t('financeCopy.versionActivated', 'Version activated'), c.label, 'success');
+            activationNoticeId.current = toast(t('financeCopy.versionActivated', 'Version activated'), c.label, 'success');
           }
           break;
         }
@@ -1022,7 +1043,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
         ) : null}
       </div>
       {canWrite && (
-        <Button variant="outline" onClick={() => { clearToasts(); setShowNewVersionForm(true); }}>
+        <Button variant="outline" onClick={() => { dismissActivationNotice(); setShowNewVersionForm(true); }}>
           {t('financeCopy.newVersion', "+ New version")}</Button>
       )}
     </div>
@@ -1062,7 +1083,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
     <div className="flex flex-col gap-4">
       {head}
 
-      {!hasActive && archivedLiveTargets.length > 0 && (
+      {archivedLiveTargets.length > 0 && (
         <div role="alert" className="rounded-lg border border-warning/30 bg-warning/[0.07] px-3.5 py-3 text-sm text-foreground">
           {tf('budgetArchive.archivedBudgetStillLiveInErp')}
         </div>

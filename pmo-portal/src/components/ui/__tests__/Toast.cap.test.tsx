@@ -10,14 +10,16 @@ import { ToastProvider, useToast } from '../Toast';
 //   keeps feedback calm and out of the way.
 
 // A tiny harness that exposes the imperative toast() API to the test.
-let fire: (title: string, sub?: string, kind?: 'info' | 'success' | 'warning' | 'error') => void;
-let fireWarning: (title: string, sub?: string) => void;
+let fire: (title: string, sub?: string, kind?: 'info' | 'success' | 'warning' | 'error') => number;
+let fireWarning: (title: string, sub?: string) => number;
 let clearToasts: () => void;
+let dismissToast: (id: number) => void;
 const Harness: React.FC = () => {
-  const { toast, clear } = useToast();
+  const { toast, clear, dismiss } = useToast();
   fire = (title, sub, kind = 'success') => toast(title, sub, kind);
   fireWarning = (title, sub) => toast(title, sub, 'warning');
   clearToasts = clear;
+  dismissToast = dismiss;
   return null;
 };
 
@@ -61,6 +63,21 @@ describe('AC-IXD-WP-005: Toast caps to one visible, auto-dismissing within 3–5
     expect(screen.queryByText('routine success')).toBeNull();
     act(() => fireEvent.click(screen.getByRole('button', { name: 'Dismiss notification' })));
     expect(screen.getByText('routine success')).toBeInTheDocument();
+  });
+
+  it('dismisses one identified toast without clearing an unrelated unresolved error', () => {
+    render(<ToastProvider><Harness /></ToastProvider>);
+    let activationNoticeId = 0;
+    act(() => {
+      activationNoticeId = fireWarning('Version activated, ERP update pending', 'Retry the push');
+      fire('Unresolved error', 'Retry the failed operation', 'error');
+    });
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Unresolved error Retry the failed operation');
+    act(() => dismissToast(activationNoticeId));
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Unresolved error Retry the failed operation');
+    expect(screen.queryByText('Version activated, ERP update pending')).toBeNull();
   });
 
   it('clear removes the active toast, queued toasts, and their live-region announcements', () => {
