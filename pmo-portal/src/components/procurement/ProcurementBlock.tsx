@@ -874,7 +874,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
             </>
           ) : (
             <>
-              <label className="flex h-8 min-w-[150px] flex-1 items-center gap-2 rounded-md border border-input bg-background px-2.5 text-[13px] focus-within:ring-2 focus-within:ring-ring sm:max-w-[260px]">
+              <label className="flex h-8 min-w-[220px] flex-1 items-center gap-2 rounded-md border border-input bg-background px-2.5 text-[13px] focus-within:ring-2 focus-within:ring-ring sm:max-w-[260px]">
                 <Icon name="search" className="size-4 shrink-0 text-muted-foreground" />
                 <span className="sr-only">{t('projectDetail.procurement.searchLabel', 'Search procurement')}</span>
                 <input

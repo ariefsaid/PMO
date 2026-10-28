@@ -151,7 +151,7 @@ export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) 
               <dd className="mt-2">
                 <Tooltip content={step.source}>
                   <span tabIndex={0} className="block">
-                    <ProgressBar value={pctOf(step.value, contractValue)} tone="neutral" widthless aria-label={t('projectDetail.money.stageAria', '{{label}} is {{percent}}% of contract', { label: step.label, percent: pctOf(step.value, contractValue) })} />
+                    <ProgressBar value={pctOf(step.value, contractValue)} tone="neutral" widthless className="w-full" aria-label={t('projectDetail.money.stageAria', '{{label}} is {{percent}}% of contract', { label: step.label, percent: pctOf(step.value, contractValue) })} />
                   </span>
                 </Tooltip>
               </dd>
