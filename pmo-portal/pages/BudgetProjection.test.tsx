@@ -272,11 +272,11 @@ describe('BudgetProjection — an unobtainable figure is never rendered as money
     expect(totalRow).not.toHaveTextContent('$75,000');
   });
 
-  it('T5 full amounts: zero fraction suppressed, a non-zero fraction kept', async () => {
+  it('T5 read-only money rounds to whole units and suppresses a zero fraction', async () => {
     fetchMock.mockResolvedValue([{ ...ROW, pmoBudgetAmount: 400000.5, actualsToDate: 180000 }]);
     renderForecast();
     const row = within(await rowFor('Labor'));
-    expect(row.getByText('$400,000.5')).toBeInTheDocument();
+    expect(row.getByText('$400,001')).toBeInTheDocument();
     expect(row.getByText('$180,000')).toBeInTheDocument();
   });
 
@@ -321,7 +321,8 @@ describe('BudgetProjection — a NULL budget says WHICH kind of absence it is', 
     fetchMock.mockResolvedValue([{ ...NO_BUDGET, attributionKnown: false }]);
     phasingMock.mockResolvedValue(phasing({ Labor: ['2026-2027'] }, { Labor: true }));
     renderForecast();
-    const incomplete = await screen.findByTestId('forecast-incomplete');
+    await screen.findByText(/Labor: Budget attribution is stale or incomplete/);
+    const incomplete = screen.getByTestId('forecast-incomplete');
     expect(incomplete).toHaveTextContent(/Labor: Budget attribution is stale or incomplete/);
     expect(incomplete).not.toHaveTextContent(/Budgeted in another fiscal year/);
   });
@@ -330,7 +331,8 @@ describe('BudgetProjection — a NULL budget says WHICH kind of absence it is', 
     fetchMock.mockResolvedValue([{ ...NO_BUDGET, attributionKnown: false }]);
     phasingMock.mockResolvedValue(phasing({ Labor: [ERP_FISCAL_YEAR] }, { Labor: true }));
     renderForecast();
-    const incomplete = await screen.findByTestId('forecast-incomplete');
+    await screen.findByText(/Review the line phasing/);
+    const incomplete = screen.getByTestId('forecast-incomplete');
     expect(incomplete).toHaveTextContent(/Review the line phasing/);
     expect(incomplete).not.toHaveTextContent(/No budget line is recorded/);
   });
@@ -339,7 +341,8 @@ describe('BudgetProjection — a NULL budget says WHICH kind of absence it is', 
     fetchMock.mockResolvedValue([{ ...NO_BUDGET, attributionKnown: true, projectedVariance: -75000 }]);
     phasingMock.mockResolvedValue(phasing({ Materials: [ERP_FISCAL_YEAR] }, { Materials: true }));
     renderForecast();
-    const incomplete = await screen.findByTestId('forecast-incomplete');
+    await screen.findByText(/Labor: No budget line is recorded for this category/);
+    const incomplete = screen.getByTestId('forecast-incomplete');
     expect(incomplete).toHaveTextContent(/Labor: No budget line is recorded for this category/);
     expect(incomplete).not.toHaveTextContent(/phasing/);
     expect(within(await rowFor('Labor')).getByText('-$75,000')).toBeInTheDocument();

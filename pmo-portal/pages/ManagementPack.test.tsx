@@ -2,6 +2,7 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ManagementPack } from '@/src/lib/reports/managementPack';
 
 const state = vi.hoisted(() => ({ pack: null as ManagementPack | null }));
@@ -37,9 +38,18 @@ const report = (): ManagementPack => ({
 
 beforeEach(() => { state.pack = report(); });
 
+const renderPage = () => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter><ManagementPackPage /></MemoryRouter>
+    </QueryClientProvider>,
+  );
+};
+
 describe('Management pack money display (#1260, #1437)', () => {
   it('AC-MONEY-DISPLAY: leaves an unknown backlog figure empty and gives one plain-language reason with a fix link', () => {
-    render(<MemoryRouter><ManagementPackPage /></MemoryRouter>);
+    renderPage();
 
     expect(screen.getByTestId('backlog-unavailable')).toHaveTextContent(
       'A foreign-currency invoice needs reconciliation before this balance can be known.',

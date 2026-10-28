@@ -10,9 +10,16 @@ import { FinanceI18nTestProvider } from './__tests__/financeI18nTestProvider';
 const state = vi.hoisted(() => ({
   budget: { data: 0, isPending: false, isError: false, refetch: vi.fn() },
   versions: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+  activationPrecheck: {
+    data: { status: 'ready', erpCheck: 'available', fiscalYearNames: ['FY-2026'], issues: [] },
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  },
   position: { actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true, rows: [] as unknown[], unknown: 0 },
   procurements: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   pushRows: [] as unknown[],
+  archiveTargets: { data: [] as unknown[], refetch: vi.fn().mockResolvedValue({ data: [], error: null }) },
   projectionRows: [] as unknown[],
   phasing: { years: {} as Record<string, string[]>, unphased: {} as Record<string, true> },
   fiscalYears: [{ fiscalYear: 'FY-2026', isActivePush: true }],
@@ -35,6 +42,8 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => state.budget,
   useBudgetVersions: () => state.versions,
   useBudgetActivationMode: () => ({ data: 'allowed', isPending: false, isError: false }),
+  useBudgetActivationPrecheck: () => state.activationPrecheck,
+  useBudgetArchiveTargets: () => state.archiveTargets,
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: state.createVersion, isPending: false },
     cloneVersion: { mutateAsync: state.clone, isPending: false },
@@ -124,9 +133,16 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.budget = { data: 0, isPending: false, isError: false, refetch: vi.fn() };
   state.versions = { data: [], isPending: false, isError: false, refetch: vi.fn() };
+  state.activationPrecheck = {
+    data: { status: 'ready', erpCheck: 'available', fiscalYearNames: ['FY-2026'], issues: [] },
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  };
   state.position = { actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true, rows: [], unknown: 0 };
   state.procurements = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   state.pushRows = [];
+  state.archiveTargets = { data: [], refetch: vi.fn().mockResolvedValue({ data: [], error: null }) };
   state.projectionRows = [];
   state.phasing = { years: { Labor: ['FY-2026'], Materials: ['FY-2027'], Travel: ['FY-2026'] }, unphased: {} };
   state.fiscalYears = [{ fiscalYear: 'FY-2026', isActivePush: true }];
@@ -136,6 +152,7 @@ beforeEach(() => {
 
 describe('ProjectBudget Option A', () => {
   it('renders the approved summary, category columns, versions card, draft waiting banner, and bulk actions', async () => {
+    state.role = 'Finance';
     state.versions.data = [active() as unknown as BudgetVersionWithItems, draft() as unknown as BudgetVersionWithItems];
     state.position.rows = [{ category: 'Labor', budget: 100, actual: 35 }];
     state.procurements.data = [{ status: 'Ordered', budget_category: 'Labor', approved_total_value: 15, total_value: 15, currency: 'USD' }];
@@ -327,11 +344,11 @@ describe('ProjectBudget Option A', () => {
     state.phasing = { years: { Labor: ['FY-2026'], Materials: ['FY-2027'], 'Professional Fees': ['FY-2026'] }, unphased: { 'Professional Fees': true } };
     renderPage(['/projects/p-1/budget?budgetView=forecast']);
     expect(await screen.findByTestId('forecast-incomplete')).toHaveTextContent('Incomplete categories: Labor, Materials, Travel, Equipment, Professional Fees');
-    expect(screen.getByText(/Labor: No ledger reading is available/)).toBeInTheDocument();
-    expect(screen.getByText(/Materials: Budgeted in another fiscal year: FY-2027/)).toBeInTheDocument();
-    expect(screen.getByText(/Travel: No accounting ledger account is mapped/)).toBeInTheDocument();
-    expect(screen.getByText(/Equipment: No budget line is recorded/)).toBeInTheDocument();
-    expect(screen.getByText(/Professional Fees: Budget attribution is stale or incomplete/)).toBeInTheDocument();
+    expect(await screen.findByText(/Labor: No ledger reading is available/)).toBeInTheDocument();
+    expect(await screen.findByText(/Materials: Budgeted in another fiscal year: FY-2027/)).toBeInTheDocument();
+    expect(await screen.findByText(/Travel: No accounting ledger account is mapped/)).toBeInTheDocument();
+    expect(await screen.findByText(/Equipment: No budget line is recorded/)).toBeInTheDocument();
+    expect(await screen.findByText(/Professional Fees: Budget attribution is stale or incomplete/)).toBeInTheDocument();
     expect(screen.getByText(/Recorded spending as of/)).toBeInTheDocument();
   });
 
