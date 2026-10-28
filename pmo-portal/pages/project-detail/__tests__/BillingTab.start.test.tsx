@@ -75,7 +75,7 @@ const RouteProbe: React.FC = () => {
   return <output data-testid="route">{`${location.pathname}${location.search}`}</output>;
 };
 
-describe('M18 project billing start', () => {
+describe('AC-S15-001 / M18 project billing start', () => {
   it('lets Finance choose a billing method from Raise invoice on the tab', async () => {
     const user = userEvent.setup();
     renderTab();

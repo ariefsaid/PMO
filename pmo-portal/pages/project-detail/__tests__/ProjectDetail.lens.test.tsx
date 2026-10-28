@@ -54,7 +54,7 @@ vi.mock('@/src/hooks/useProgressBilling', () => ({
   useBoqItems: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectBilling: () => ({ data: { contractLines: [] }, isPending: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('../ProjectProfitLossSection', () => ({ default: () => null }));
+vi.mock('../ProjectProfitLossSection', () => ({ default: ({ projectId }: { projectId: string }) => <div data-testid="project-profit-loss">Project totals {projectId}</div> }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
 }));
@@ -193,7 +193,7 @@ beforeEach(() => {
 });
 
 describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
-  it.each(['Admin', 'Finance', 'Project Manager'])('%s sees the financial Overview blocks and contract value', async (role) => {
+  it.each(['Admin', 'Executive', 'Finance', 'Project Manager'])('%s sees the financial Overview blocks and contract value', async (role) => {
     roleBox.value = role;
     projectsState.data = [onHandRow];
     const view = await renderAt('/projects/p1');
@@ -228,6 +228,10 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(within(menu!).getByRole('button', { name: 'Project details' })).toBeInTheDocument();
     expect(within(menu!).getByTestId('project-erp-link')).toBeInTheDocument();
     expect(within(menu!).queryByRole('button', { name: 'Change status' })).not.toBeInTheDocument();
+    // AC-IXD-PROJ-W5-C3-09: an Engineer is never offered the contract-value editor or its read-only lock.
+    expect(within(menu!).queryByRole('button', { name: /contract value/i })).not.toBeInTheDocument();
+    expect(within(menu!).queryByTestId('contract-value-read-explanation')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('contract-value-sod')).not.toBeInTheDocument();
     await userEvent.click(within(menu!).getByRole('button', { name: 'Project details' }));
     expect(within(menu!).getByTestId('project-detail-rail')).toBeInTheDocument();
     engineer.unmount();
@@ -248,6 +252,30 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     }
     expect(screen.queryByRole('heading', { name: 'Budget' })).not.toBeInTheDocument();
     expect(screen.queryByText('$1,200,000')).not.toBeInTheDocument();
+  });
+
+  it('AC-009 support: Overview mounts project totals once, inside Money position, before the phase timeline and Activity', async () => {
+    projectsState.data = [onHandRow];
+    await renderAt('/projects/p1');
+    const totals = screen.getAllByTestId('project-profit-loss');
+    expect(totals).toHaveLength(1);
+    expect(totals[0]).toHaveTextContent('Project totals p1');
+    expect(within(screen.getByRole('region', { name: /Money position/ })).getByTestId('project-profit-loss')).toBe(totals[0]);
+    const phases = screen.getByRole('heading', { name: 'Phase timeline' });
+    const activity = screen.getByRole('button', { name: /Activity · \d+ comments/ });
+    expect(totals[0].compareDocumentPosition(phases) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(phases.compareDocumentPosition(activity) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('AC-009 support: other tabs and an unavailable project do not mount project totals', async () => {
+    projectsState.data = [onHandRow];
+    const tasks = await renderAt('/projects/p1/tasks');
+    expect(screen.getByRole('tab', { name: 'Tasks', selected: true })).toBeInTheDocument();
+    expect(screen.queryByTestId('project-profit-loss')).not.toBeInTheDocument();
+    tasks.unmount();
+    projectsState.data = [];
+    await renderAt('/projects/missing');
+    expect(screen.queryByTestId('project-profit-loss')).not.toBeInTheDocument();
   });
 
   it('AC-IXD-PROJ-004: Finance opens Change contract value from the compact header More menu', async () => {

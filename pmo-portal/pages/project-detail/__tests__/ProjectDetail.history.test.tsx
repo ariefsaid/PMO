@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -68,7 +68,11 @@ vi.mock('../tabs/DocumentsTab', () => ({ default: () => <div>Documents surface</
 vi.mock('../tabs/WorkOrdersTab', () => ({ default: () => <div>Work orders</div> }));
 vi.mock('../tabs/BillingTab', () => ({ default: () => <div>Billing surface</div> }));
 vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => null }));
-vi.mock('@/src/components/history/RecordHistory', () => ({ RecordHistory: () => <div>Change history</div> }));
+vi.mock('@/src/components/history/RecordHistory', () => ({
+  RecordHistory: (p: { entityType: string; entityId: string; includeChildren?: boolean; kindFilters?: boolean }) => (
+    <div data-testid="record-history">{`Change history ${p.entityType}:${p.entityId}:${String(p.includeChildren)}:${String(p.kindFilters)}`}</div>
+  ),
+}));
 vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
 
 import ProjectDetail from '../ProjectDetail';
@@ -101,6 +105,21 @@ describe('ProjectDetail Activity drawer (AC-CHG-018)', () => {
     expect(screen.getByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'History' })).not.toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'Activity' })).toBeInTheDocument();
+  });
+
+  it('AC-CHG-018: /projects/:id/history shows the project history with child roll-up and kind filters', async () => {
+    await renderAt('/projects/p1/history');
+    const drawer = screen.getByRole('dialog', { name: 'Activity' });
+    expect(within(drawer).getByTestId('record-history')).toHaveTextContent('project:p1:true:true');
+  });
+
+  it('AC-CHG-018: the Activity entry is keyboard-operable', async () => {
+    await renderAt('/projects/p1');
+    const activityLine = screen.getByRole('button', { name: /Activity · 0 comments/i });
+    activityLine.focus();
+    await userEvent.keyboard('{Enter}');
+    const drawer = await screen.findByRole('dialog', { name: 'Activity' });
+    expect(within(drawer).getByTestId('record-history')).toHaveTextContent('project:p1:true:true');
   });
 
   it('AC-CHG-018: Activity is available from Overview only and closing its drawer restores focus', async () => {

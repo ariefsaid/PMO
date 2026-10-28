@@ -165,6 +165,12 @@ describe('ProjectDetail — section deep links (AC-W2-IA-004)', () => {
     expect(screen.getByTestId('tab-work-orders')).toHaveTextContent('focus:wo-2');
   });
 
+  it('AC-UNB-005: without ?wo= the work-orders area focuses nothing', async () => {
+    await renderAt('/projects/p1/work-orders');
+    expect(screen.getByRole('tab', { name: 'Contract & billing', selected: true })).toBeInTheDocument();
+    expect(screen.getByTestId('tab-work-orders')).toHaveTextContent('focus:none');
+  });
+
   it('AC-W2-IA-004: an unknown tab falls back to Overview without a crash', async () => {
     await renderAt('/projects/p1/unknown-tab');
     expect(screen.getByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
@@ -185,7 +191,7 @@ describe('ProjectDetail — section deep links (AC-W2-IA-004)', () => {
     }
   });
 
-  it.each(['/projects/p1/budget', '/projects/p1/contract'])(
+  it.each(['/projects/p1/budget', '/projects/p1/contract', '/projects/p1/billing'])(
     'AC-PB-008: an Engineer deep-link to %s falls back to Overview',
     async (path) => {
       await renderAt(path, 'Engineer');

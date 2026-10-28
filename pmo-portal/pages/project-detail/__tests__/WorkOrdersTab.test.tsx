@@ -331,6 +331,9 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
     expect(screen.getByRole('menuitem', { name: 'Cancel order' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit order' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Set value' })).not.toBeInTheDocument();
+    // The frozen body offers neither edit nor value change from the action menu either.
+    expect(screen.queryByRole('menuitem', { name: /^Edit/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Set value/ })).not.toBeInTheDocument();
   });
 
   it('a terminal row keeps only the view-only customer-PO action', async () => {

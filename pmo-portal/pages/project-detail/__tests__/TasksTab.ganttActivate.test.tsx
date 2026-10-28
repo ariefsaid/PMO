@@ -173,6 +173,19 @@ describe('AC-JR-T23: TasksTab Gantt bars open the task drawer when clicked', () 
     expect(within(drawer).getByRole('button', { name: 'Edit' })).toBeInTheDocument();
   });
 
+  it('AC-JR-T23: Edit from the Gantt-opened drawer shows the pre-filled Edit task form', async () => {
+    renderTab('Project Manager');
+    await userEvent.click(screen.getByRole('tab', { name: /timeline/i }));
+    await waitFor(() => expect(screen.getByRole('figure')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /Survey the site/i }));
+    const drawer = await screen.findByRole('dialog', { name: 'Survey the site' });
+    await userEvent.click(within(drawer).getByRole('button', { name: 'Edit' }));
+    const form = await screen.findByRole('dialog', { name: /Edit task/i });
+    expect(within(form).getByDisplayValue('Survey the site')).toBeInTheDocument();
+    expect(within(form).getByRole('button', { name: /save task/i })).toBeInTheDocument();
+  });
+
   it('AC-1402 keeps Comments reachable from a Timeline row menu', async () => {
     renderTab('Project Manager');
     await userEvent.click(screen.getByRole('tab', { name: /timeline/i }));

@@ -132,7 +132,7 @@ beforeEach(() => {
 });
 
 describe('project procurement tab', () => {
-  it('keeps New procurement available from the project and passes its id to the create route', async () => {
+  it('AC-JR-T13: keeps New procurement available from the project and passes its id to the create route', async () => {
     renderTab('Project Manager');
     await userEvent.click(screen.getByRole('button', { name: /new procurement/i }));
     expect(mockNavigate).toHaveBeenCalledWith('/procurement/new?project=proj-abc');
@@ -142,6 +142,34 @@ describe('project procurement tab', () => {
     renderTab('Project Manager');
     expect(screen.getByText('No procurement on this project yet.')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /new procurement/i })).toHaveLength(1);
+  });
+
+  it('review 8: the empty state points below only when ERPNext documents are shown there', () => {
+    const { unmount } = renderTab('Finance');
+    expect(screen.getByText('No procurement on this project yet.')).toBeInTheDocument();
+    expect(screen.queryByText(/appear below/)).toBeNull();
+    unmount();
+    erpState.data = [{ id: 'd1', procurementId: null, doctype: 'Purchase Invoice', name: 'PINV-1', projectIds: ['proj-abc'], currency: 'USD', outstanding: 1, dueDate: null, docDate: null, isReturn: false, grandTotal: 1, netTotal: 1 }];
+    renderTab('Finance');
+    expect(screen.getByText(/appear below/)).toBeInTheDocument();
+  });
+
+  it('AC-JR-T13: New procurement is offered to an Engineer too (create: allow(ALL)) and keeps this project', async () => {
+    renderTab('Engineer');
+    await userEvent.click(screen.getByRole('button', { name: /new procurement/i }));
+    expect(mockNavigate).toHaveBeenCalledWith('/procurement/new?project=proj-abc');
+  });
+
+  it('AC-S19-003: an approved request shows its approval state and next step without inline lifecycle pips', () => {
+    procState.data = [procurement('Network equipment', 'Approved')];
+    renderTab('Project Manager');
+    // Request · Order · Receive · Pay: an approved request stays in the Request stage and its passed
+    // approval gate reads as the next step (quotes or order), never as "Submit for approval".
+    expect(screen.getByText('Get quotes or order')).toBeInTheDocument();
+    expect(screen.queryByText('Submit for approval')).not.toBeInTheDocument();
+    expect(screen.queryByText('Approve or return')).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: /Lifecycle:/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /new procurement/i })).toBeInTheDocument();
   });
 
   it('AC-1402 keeps the project procurement list embedded in its page section', () => {
@@ -361,5 +389,7 @@ describe('project procurement loading and error states', () => {
     renderTab('Project Manager');
     await userEvent.click(screen.getByRole('button', { name: /try again|retry/i }));
     expect(procState.refetch).toHaveBeenCalled();
+    // AC-JR-T13: the create action stays available while the list is in error.
+    expect(screen.getByRole('button', { name: /new procurement/i })).toBeInTheDocument();
   });
 });

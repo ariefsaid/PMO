@@ -236,6 +236,18 @@ describe('TasksTab — archive affordance (AC-CUA-098/099/100)', () => {
     expect(screen.getByText('Unarchive')).toBeInTheDocument();
   });
 
+  it('AC-CUA-099: a permitted Project Manager gets Archive then Unarchive in the row menu', async () => {
+    renderTab('Project Manager');
+    await userEvent.click(screen.getAllByRole('button', { name: /Row actions/i })[0]);
+    expect(screen.getByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(screen.getByRole('button', { name: 'More task options' }));
+    await userEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Show archived' }));
+    const archivedRow = screen.getByText('Archived obsolete work').closest('tr')!;
+    await userEvent.click(within(archivedRow).getByRole('button', { name: /Row actions/i }));
+    expect(screen.getByRole('menuitem', { name: 'Unarchive' })).toBeInTheDocument();
+  });
+
   it('AC-1402: PM receives the existing task archive and delete actions', async () => {
     renderTab('Project Manager');
     await userEvent.click(screen.getAllByRole('button', { name: /Row actions/i })[0]);
@@ -555,6 +567,17 @@ describe('TasksTab — Mine / All list scope', () => {
 });
 
 describe('TasksTab — delete (AC-TASK-006)', () => {
+  it('AC-TASK-006: PM deletes a task through a destructive confirm', async () => {
+    renderTab('Project Manager');
+    const row = screen.getByText('Survey the site').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /delete/i }));
+    const confirm = await screen.findByRole('alertdialog');
+    expect(mutations.remove.mutateAsync).not.toHaveBeenCalled();
+    await userEvent.click(within(confirm).getByRole('button', { name: /delete task/i }));
+    await waitFor(() => expect(mutations.remove.mutateAsync).toHaveBeenCalledWith('t1'));
+  });
+
   it('AC-TASK-006: Admin deletes a task through a destructive confirm', async () => {
     renderTab('Admin');
     const row = screen.getByText('Survey the site').closest('tr')!;

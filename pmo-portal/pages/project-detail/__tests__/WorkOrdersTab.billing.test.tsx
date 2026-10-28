@@ -454,6 +454,139 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
   });
 });
 
+describe('WorkOrdersTab — billing by work order: restored oracles (AC-BWO-003/004, AC-UNB-002, NFR-BWO-005)', () => {
+  // The per-order Invoiced/Paid figures read the project's invoices; this fixture matches the server billing row
+  // (invoiced 330,000 · paid 100,000 · draft 90,000 · still to invoice 80,000).
+  const invoicesMatchingBill = () => ({
+    data: [{ id: 'si-1', work_order_id: 'wo-1', status: 'Unpaid', amount: 330_000, erp_outstanding_amount: 230_000, si_number: 'INV-1', currency: 'USD' }],
+    isPending: false, isError: false, refetch: vi.fn(),
+  });
+
+  it("AC-BWO-004 Finance sees the work order's billing status with invoiced, paid and still to invoice", () => {
+    h.invoices = invoicesMatchingBill();
+    renderTab();
+    const order = screen.getByTestId('customer-order-wo-1');
+    expect(within(order).getByText('Partly invoiced')).toBeInTheDocument();
+    const figures = within(screen.getByTestId('wo-money-wo-1'));
+    expect(figures.getByText('Invoiced').closest('dt')!.parentElement).toHaveTextContent('330,000');
+    expect(figures.getByText('Paid').closest('dt')!.parentElement).toHaveTextContent('100,000');
+    expect(within(order).getByText('Still to invoice 80,000')).toBeInTheDocument();
+  });
+
+  it('SUB-C the always-on summary note is gone, but the incomplete-totals note stays', () => {
+    const { unmount } = renderTab();
+    expect(screen.queryByText(/Issued and closed work orders, less what has been invoiced/)).toBeNull();
+    unmount();
+    h.billing.data = [bill({ figuresComplete: false, problems: [{ recordId: 'si-9', number: 'ACC-SINV-9', cause: 'no-amount', currency: 'USD' }] })];
+    renderTab();
+    expect(screen.getByText(/has no amount or is in another currency/)).toBeInTheDocument();
+  });
+
+  it('AC-BWO-004 an incl.-PPN work order shows the net value its billing figures reconcile against', async () => {
+    h.list.data = [wo({ order_value: 555_000, tax_treatment: 'inclusive', tax_amount: 55_000 })];
+    h.billing.data = [bill({ orderNet: 500_000 })];
+    renderTab();
+    await userEvent.hover(screen.getByRole('button', { name: /^Raise invoice/ }));
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Net value 500,000');
+  });
+
+  it('AC-BWO-004 an excl.-PPN work order needs no net line — its order value already is the net', () => {
+    renderTab();
+    expect(screen.getByTestId('customer-order-wo-1')).not.toHaveTextContent('Net value');
+  });
+
+  it("AC-BWO-004 a work order that can't be totalled names the invoice and the cause", () => {
+    h.billing.data = [bill({
+      figuresComplete: false,
+      problems: [
+        { recordId: 'si-9', number: 'ACC-SINV-9', cause: 'no-amount', currency: 'USD' },
+        { recordId: 'si-7', number: 'ACC-SINV-7', cause: 'other-currency', currency: 'EUR' },
+        { recordId: 'pc-1', number: null, cause: 'no-amount', currency: 'USD' },
+      ],
+    })];
+    renderTab();
+    const order = screen.getByTestId('customer-order-wo-1');
+    expect(within(order).getByText("Can't total")).toBeInTheDocument();
+    expect(order).toHaveTextContent('ACC-SINV-9 has no amount');
+    expect(order).toHaveTextContent('ACC-SINV-7 is in EUR');
+    expect(order).toHaveTextContent('An invoice has no amount');
+    expect(order).not.toHaveTextContent('Still to invoice');
+  });
+
+  it.each([
+    ['Paid', bill({ invoiced: 500_000, pending: 0, paid: 500_000, remaining: 0, unpaidCount: 0 }), 'Fully paid'],
+    ['Fully invoiced', bill({ invoiced: 500_000, pending: 0, remaining: 0, unpaidCount: 2 }), 'Fully invoiced'],
+    ['Awaiting submission', bill({ invoiced: 0, pending: 500_000, paid: 0, remaining: 0, unpaidCount: 0 }), 'Awaiting submission'],
+    ['Not invoiced', bill({ invoiced: 0, pending: 0, paid: 0, remaining: 500_000, lineCount: 0, unpaidCount: 0 }), 'Not invoiced'],
+    ["Can't total", bill({ figuresComplete: false }), "Can't total"],
+  ])('AC-BWO-004 shows %s', (_label, row, pill) => {
+    h.billing.data = [row];
+    renderTab();
+    expect(within(screen.getByTestId('customer-order-wo-1')).getByText(pill)).toBeInTheDocument();
+  });
+
+  it("AC-BWO-003 a work order covered only by a draft reads Awaiting submission with the draft amount — never 'Fully invoiced'", () => {
+    h.billing.data = [bill({ invoiced: 0, pending: 500_000, paid: 0, remaining: 0, unpaidCount: 0 })];
+    renderTab();
+    const order = within(screen.getByTestId('customer-order-wo-1'));
+    expect(order.getByText('Awaiting submission')).toBeInTheDocument();
+    expect(order.queryByText('Fully invoiced')).toBeNull();
+    // L6/C4: "Not yet submitted" and its amount are said once, in the billing summary.
+    expect(screen.getByTestId('wo-billing-total-draft')).toHaveTextContent('500,000');
+  });
+
+  it('AC-BWO-003 the awaiting-submission pill reads in Bahasa', async () => {
+    h.billing.data = [bill({ invoiced: 0, pending: 500_000, paid: 0, remaining: 0, unpaidCount: 0 })];
+    await financeTestI18n.changeLanguage('id');
+    try {
+      h.role = 'Finance';
+      render(<MemoryRouter><FinanceI18nTestProvider><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId="c-1" /></ToastProvider></FinanceI18nTestProvider></MemoryRouter>);
+      expect(within(screen.getByTestId('customer-order-wo-1')).getByText('Menunggu dikirim')).toBeInTheDocument();
+    } finally {
+      await financeTestI18n.changeLanguage('en');
+    }
+  });
+
+  it('AC-BWO-003 the summary leads with what is still to invoice', () => {
+    h.list.data = [wo(), wo({ id: 'wo-2', wo_number: 'WO-2' })];
+    h.billing.data = [bill(), bill({ workOrderId: 'wo-2' })];
+    renderTab();
+    const text = screen.getByTestId('wo-billing-summary').textContent ?? '';
+    expect(text.indexOf('Still to invoice')).toBe(0);
+    expect(text.indexOf('Still to invoice')).toBeLessThan(text.indexOf('Not yet submitted'));
+  });
+
+  it('AC-BWO-004 an over-invoiced work order states the excess', () => {
+    h.billing.data = [bill({ remaining: -1_000 })];
+    renderTab();
+    const order = within(screen.getByTestId('customer-order-wo-1'));
+    expect(order.getByText('Over-invoiced')).toBeInTheDocument();
+    expect(order.getByText('Over by 1,000')).toBeInTheDocument();
+  });
+
+  it('AC-UNB-002 the project still-to-invoice total adds Issued and Closed work orders; an over-invoiced one adds nothing left', () => {
+    h.list.data = [wo(), wo({ id: 'wo-2', status: 'Closed', wo_number: 'WO-2' }), wo({ id: 'wo-3', status: 'Draft', wo_number: null })];
+    h.billing.data = [
+      bill(),
+      bill({ workOrderId: 'wo-2', status: 'Closed', invoiced: 105_000, pending: 0, paid: 0, remaining: -5_000 }),
+      bill({ workOrderId: 'wo-3', status: 'Draft', invoiced: 0, pending: 0, paid: 0, remaining: 900_000, lineCount: 0, unpaidCount: 0 }),
+    ];
+    renderTab();
+    expect(screen.getByTestId('wo-billing-total-still')).toHaveTextContent('80,000');
+    expect(screen.getByTestId('wo-billing-total-still')).not.toHaveTextContent('980,000');
+  });
+
+  it('AC-UNB-002 one untotallable work order leaves the project totals out, never a partial sum', () => {
+    h.list.data = [wo(), wo({ id: 'wo-2', wo_number: 'WO-2' })];
+    h.billing.data = [bill(), bill({ workOrderId: 'wo-2', figuresComplete: false })];
+    renderTab();
+    expect(screen.queryByTestId('wo-billing-total-still')).toBeNull();
+    expect(screen.queryByTestId('wo-billing-summary')).toBeNull();
+    expect(within(screen.getByTestId('customer-order-wo-2')).getByText(/has no amount or is in another currency/)).toBeInTheDocument();
+  });
+
+});
+
 describe('WorkOrdersTab — billing actions', () => {
 
 

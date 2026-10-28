@@ -148,6 +148,8 @@ vi.mock('react-router', async (orig) => {
 // B-9 (AC-W2-IA-004): all tabs are now deep-linkable via /projects/:projectId/:tab.
 // Both the `:tab` route and the bare `:projectId` route are registered so navigation
 // after a tab click (which goes to /projects/:projectId/:tab) keeps rendering ProjectDetail.
+// Tab bodies are React.lazy chunks; under a parallel test run their first import can exceed findBy's 1s default.
+const LAZY_TAB_TIMEOUT = 5000;
 const freshClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
 // list-working-set-return (#682, AC-LRC-003): a plain string entry is the direct-link case (no
@@ -219,8 +221,42 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(within(details).getByText('Customer PO ref')).toBeInTheDocument();
     expect(within(details).getByText('CPO-2026-001')).toBeInTheDocument();
     expect(within(details).getByText('Contract date')).toBeInTheDocument();
+    // PD-A: the header status is the one status display; project details carry no Status row or help paragraph.
+    expect(within(details).queryByText('Status')).not.toBeInTheDocument();
+    expect(within(details).queryByText(/Move the project through its delivery stages/)).not.toBeInTheDocument();
 
     expect(screen.queryByText('Project information')).not.toBeInTheDocument();
+  });
+
+  it('UIP-005: Overview owns the phase planner below the tab navigation', async () => {
+    await renderAt('/projects/p1');
+    const panel = screen.getByRole('tabpanel');
+    expect(screen.getByRole('tablist', { name: /Project sections/i }).compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(panel).getByRole('heading', { name: 'Phase timeline' })).toBeInTheDocument();
+    // L10: the Overview shows the phases; a PM opens the planner from the phase block itself.
+    await userEvent.click(within(panel).getByRole('button', { name: 'Update phases' }));
+    expect(within(panel).getByTestId('milestone-strip-empty')).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Plan delivery phases' })).toBeInTheDocument();
+  });
+
+  it('UIP-005 / PD-A: Tasks with no phases shows no phase line at all and not the full planner', async () => {
+    await renderAt('/projects/p1/tasks');
+    expect(await screen.findByText(/no tasks yet/i, undefined, { timeout: LAZY_TAB_TIMEOUT })).toBeInTheDocument();
+    expect(screen.queryByTestId('milestone-strip-empty')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('milestone-summary')).not.toBeInTheDocument();
+    expect(screen.queryByText('No delivery phases yet')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Phase timeline' })).not.toBeInTheDocument();
+  });
+
+  it('UX-002: mobile keeps record-wide transitions discoverable without a fixed action covering the selected work', async () => {
+    desktopBox.value = false;
+    await renderAt('/projects/p1/documents');
+
+    expect(document.querySelector('[data-mobile-action-bar]')).toBeNull();
+    expect(await within(screen.getByRole('tabpanel')).findByText('Document register', undefined, { timeout: LAZY_TAB_TIMEOUT })).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText('More actions'));
+    const menu = screen.getByLabelText('More actions').closest('details');
+    expect(within(menu!).getByRole('button', { name: /change status/i })).toBeInTheDocument();
   });
 
   it('CW-7: /projects/:id defaults to Overview for EVERY role — the URL is role-invariant (Engineer)', async () => {
@@ -284,7 +320,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(navigate).toHaveBeenCalledWith('/projects/p1/procurement', expect.anything());
     view.unmount();
     await renderAt('/projects/p1/procurement');
-    expect(await within(screen.getByRole('tabpanel')).findByText(/No procurement on this project yet/i)).toBeInTheDocument();
+    expect(await within(screen.getByRole('tabpanel')).findByText(/No procurement on this project yet/i, undefined, { timeout: LAZY_TAB_TIMEOUT })).toBeInTheDocument();
   });
 
   it('AC-LRC-003: a tab switch forwards the current location.state so return context survives it', async () => {
@@ -305,9 +341,9 @@ describe('ProjectDetail shell (decomposition)', () => {
     // MemoryRouter URL; direct URL navigation is the correct way to test URL-driven tab content.)
     await renderAt('/projects/p1/tasks');
     // Tasks is now a real CRUD surface (no longer a "coming soon" placeholder).
-    expect(await screen.findByText(/no tasks yet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no tasks yet/i, undefined, { timeout: LAZY_TAB_TIMEOUT })).toBeInTheDocument();
     // PM (a structure write-role) sees the gated New task affordance.
-    expect((await screen.findAllByRole('button', { name: /new task/i })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole('button', { name: /new task/i }, { timeout: LAZY_TAB_TIMEOUT })).length).toBeGreaterThan(0);
   });
 
   it('AC-DOC-001: the Documents tab mounts the real document register (empty state, gated Add for the PM)', async () => {
@@ -315,9 +351,9 @@ describe('ProjectDetail shell (decomposition)', () => {
     await renderAt('/projects/p1/documents');
     // The deferred "coming soon" placeholder is gone — this is now a real register.
     expect(screen.queryByText(/Document management is coming soon/i)).not.toBeInTheDocument();
-    expect(await screen.findByText(/No documents yet/i)).toBeInTheDocument();
+    expect(await screen.findByText(/No documents yet/i, undefined, { timeout: LAZY_TAB_TIMEOUT })).toBeInTheDocument();
     // PM is a master-data write-role → the gated Add document affordance is present (header CTA only).
-    expect(await screen.findAllByRole('button', { name: /Add document/i })).toHaveLength(1);
+    expect(await screen.findAllByRole('button', { name: /Add document/i }, { timeout: LAZY_TAB_TIMEOUT })).toHaveLength(1);
   });
 
   it('does NOT render a Timesheets tab (removed placeholder, tracked in backlog)', async () => {
@@ -342,7 +378,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.queryByText('Project Budget')).not.toBeInTheDocument();
     // SUB-D: with no versions at all the tab says nothing extra — "+ New version" and the empty state remain,
     // and "$0" is never presented as a budget.
-    expect(await screen.findByText('No budget versions yet')).toBeInTheDocument();
+    expect(await screen.findByText('No budget versions yet', undefined, { timeout: LAZY_TAB_TIMEOUT })).toBeInTheDocument();
   });
 
   it('shows a loading state on a cold deep-link before the cache resolves', async () => {

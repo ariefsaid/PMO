@@ -15,6 +15,8 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import ProjectDetail from '../ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import type { ProjectFinances } from '@/src/lib/projectFinances';
+import { repositories } from '@/src/lib/repositories';
 
 // ── shared mutable state ─────────────────────────────────────────────────────
 const projectsState = {
@@ -33,6 +35,9 @@ const milestonesState = {
 
 // The pre-win record the by-id read resolves (#840) — a 'Tender Submitted' deal so legal targets
 // include 'Won, Pending KoM' (enabling the Mark won button).
+// The signed-in role (real JWT role); PM by default, switched per test.
+const session = vi.hoisted(() => ({ role: 'Project Manager' }));
+
 const oppRecord = vi.hoisted(() => ({
     id: 'opp1',
     name: 'Alpha Solar Bid',
@@ -131,11 +136,11 @@ vi.mock('@/src/hooks/useDocuments', () => ({
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'u-pm', org_id: 'org-1' }, role: 'Project Manager' }),
+  useAuth: () => ({ currentUser: { id: 'u-pm', org_id: 'org-1' }, role: session.role }),
 }));
 
 vi.mock('@/src/auth/impersonation', () => ({
-  useEffectiveRole: () => ({ effectiveRole: 'Project Manager', realRole: 'Project Manager' }),
+  useEffectiveRole: () => ({ effectiveRole: session.role, realRole: session.role }),
 }));
 
 vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
@@ -181,9 +186,10 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     projectsState.isError = false;
     milestonesState.data = [];
     navigate.mockClear();
+    session.role = 'Project Manager';
   });
 
-  it('AC-IFW-RECORD-01: pre-win record renders the PipelineLens project journey', async () => {
+  it('AC-IFW-RECORD-01: pre-win record renders PipelineLens (Project journey / Next actions) BEFORE the Delivery phases section', async () => {
     await renderAt('/projects/opp1');
 
     // The PipelineLens "Project stage journey" stepper must be in the DOM (CW-1: "Deal" → "Project")
@@ -194,8 +200,18 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     expect(projectJourney).toBeInTheDocument();
     expect(projectJourneyHeading).toBeInTheDocument();
 
-    expect(projectJourney).toBeInTheDocument();
-    expect(projectJourneyHeading).toBeInTheDocument();
+    // The pre-win phase line (Overview › Phase timeline) is always present for an empty planner and
+    // renders AFTER the sales lens in document order.
+    const compactPlanner = await screen.findByTestId('prewin-compact-planner');
+    expect(projectJourneyHeading.compareDocumentPosition(compactPlanner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('AC-IFW-RECORD-01 (M2): pre-win + empty planner renders a compact one-line affordance, NOT the full "Plan this project\'s delivery phases" band', async () => {
+    // milestonesState.data = [] (from beforeEach) — empty planner, pre-win record
+    await renderAt('/projects/opp1');
+
+    expect(await screen.findByTestId('prewin-compact-planner')).toHaveTextContent('Phase planning starts once this is won');
+    expect(screen.queryByText(/Plan this project's delivery phases/i)).not.toBeInTheDocument();
   });
 
   it('AC-IFW-RECORD-01: pre-win record does NOT render the "Progress curve" (S-curve hidden for pre-win)', async () => {
@@ -237,5 +253,54 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     await renderAt(`/projects/opp1${area}`);
     expect(screen.getByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
     expect(screen.getByLabelText('Project stage journey')).toBeInTheDocument();
+    expect(await screen.findByTestId('prewin-compact-planner')).toBeInTheDocument();
+  });
+});
+
+// AC-PMP-006: invoices and spending already recorded against a deal stay visible before it is won.
+describe('AC-PMP-006: pipeline Overview keeps Project finances for finance readers', () => {
+  const pipelineFinances = (projectId: string): ProjectFinances => ({
+    project_id: projectId,
+    cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '0.00' }], receipt_count: 0 },
+    contract_invoiced: '0.00',
+    remaining_to_invoice: '500000.00',
+    invoices: [],
+    budget: null,
+    actuals: { currency: 'USD', as_of: '2026-10-17T00:00:00Z', total: '1200.00', excludes_restricted_rows: false,
+      categories: [{ category: 'Labor', mapped: true, amount: '1200.00' }] },
+  } as unknown as ProjectFinances);
+
+  beforeEach(() => {
+    projectsState.data = [];
+    milestonesState.data = [];
+    navigate.mockClear();
+    vi.restoreAllMocks();
+  });
+
+  it('AC-PMP-006: a Finance reader sees Project finances on a Tender deal, fetched once for it, without the contract money strip', async () => {
+    session.role = 'Finance';
+    const getProjectFinances = vi.spyOn(repositories.revenue, 'getProjectFinances')
+      .mockImplementation(async (projectId: string) => pipelineFinances(projectId));
+    await renderAt('/projects/opp1');
+
+    const finances = await screen.findByTestId('project-finances');
+    await waitFor(() => expect(getProjectFinances).toHaveBeenCalledExactlyOnceWith('opp1'));
+    await waitFor(() => expect(within(finances).getByText('Recorded spending')).toBeInTheDocument());
+    // The won-project contract strip is not shown on a deal: no "% invoiced" lead and the contract-remaining
+    // figure appears only inside Project finances, never as a header/money-block tile.
+    expect(screen.queryByText(/% invoiced/i)).not.toBeInTheDocument();
+    const remaining = screen.getAllByText('Contract remaining after cost');
+    expect(remaining.every((node) => finances.contains(node))).toBe(true);
+  });
+
+  it('AC-PMP-006: an Engineer sees no Project finances on the deal and nothing is fetched', async () => {
+    session.role = 'Engineer';
+    const getProjectFinances = vi.spyOn(repositories.revenue, 'getProjectFinances')
+      .mockImplementation(async (projectId: string) => pipelineFinances(projectId));
+    await renderAt('/projects/opp1');
+
+    expect(screen.getByLabelText('Project stage journey')).toBeInTheDocument();
+    expect(screen.queryByTestId('project-finances')).not.toBeInTheDocument();
+    expect(getProjectFinances).not.toHaveBeenCalled();
   });
 });

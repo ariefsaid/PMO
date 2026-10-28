@@ -228,6 +228,9 @@ describe('DocumentsTab — register rows (AC-DOC-001)', () => {
     listState.data = withDocumentCount(11);
     renderTab();
     expect(screen.getByLabelText(/Search documents/i)).toBeInTheDocument();
+    // SUB-E: the toolbar shows search but no "N documents" count restating the table.
+    expect(screen.queryByTestId('documents-count')).toBeNull();
+    expect(screen.queryByText(/^\d+ documents?$/)).toBeNull();
   });
 
   it('C4: an owner whose name is not visible is left blank, never "Name unavailable"', () => {
@@ -740,10 +743,15 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
   it('AC-DOC-083: preview file actions are available after opening a document', async () => {
     renderTab('Admin', 'admin-1');
     await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
-    expect(within(screen.getByRole('complementary')).getByRole('button', { name: /Upload file for Site Plan/i })).toBeEnabled();
+    const upload = within(screen.getByRole('complementary')).getByRole('button', { name: /Upload file for Site Plan/i });
+    expect(upload).toBeEnabled();
+    // AC-DOC-083: file actions keep the touch-target hook (WCAG 2.5.8 minimum target) on phone.
+    expect(upload.className).toContain('touch-target');
     await userEvent.click(screen.getByRole('button', { name: 'Close preview' }));
     await userEvent.click(screen.getByRole('button', { name: 'View Survey Report' }));
-    expect(within(screen.getByRole('complementary')).getByRole('button', { name: /Download file for Survey Report/i })).toBeEnabled();
+    const download = within(screen.getByRole('complementary')).getByRole('button', { name: /Download file for Survey Report/i });
+    expect(download).toBeEnabled();
+    expect(download.className).toContain('touch-target');
   });
 });
 

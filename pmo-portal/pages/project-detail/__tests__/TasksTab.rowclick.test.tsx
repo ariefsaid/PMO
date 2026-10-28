@@ -120,6 +120,15 @@ describe('TasksTab — row click opens the shared task drawer (AC-1402)', () => 
     expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
   });
 
+  it('AC-W6-IXD-TASKROW: the drawer Edit action opens the edit form pre-filled with that task', async () => {
+    renderTab('Project Manager');
+    await userEvent.click(screen.getByText('Survey the site').closest('tr')!);
+    const drawer = await screen.findByRole('dialog', { name: 'Survey the site' });
+    await userEvent.click(within(drawer).getByRole('button', { name: 'Edit' }));
+    const dialog = await screen.findByRole('dialog', { name: /Edit task/i });
+    expect(within(dialog).getByLabelText(/task name/i)).toHaveValue('Survey the site');
+  });
+
   it('B1: the task drawer matches the other record drawers — wide, with Edit as the main header action', async () => {
     renderTab('Project Manager');
     await userEvent.click(screen.getByText('Survey the site').closest('tr')!);
