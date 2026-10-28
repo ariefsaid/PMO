@@ -108,6 +108,8 @@ const Projects: React.FC = () => {
   const canEdit = may('edit', 'project');
   const canArchive = may('archive', 'project');
   const canRowWrite = canEdit || canArchive;
+  // Contract amounts follow the shared money-view permission (same as project detail).
+  const canViewMoney = may('view', 'salesInvoice');
 
   // list-working-set-return (#682): `filter`/`client`/`pm`/`q`/`view` are URL-owned. The URL is
   // authoritative for supported keys; the role default (Engineer keeps "My Projects") and the
@@ -407,6 +409,47 @@ const Projects: React.FC = () => {
   const coverageReason = partialRows.length === 0 ? undefined : coverageAsOf
     ? t('projects:coverage.partialUpdated', 'Actual is partial on {{partial}} of {{total}} projects. Updated {{date}}.', { partial: partialRows.length, total: filtered.length, date: formatInstantDate(coverageAsOf) })
     : t('projects:coverage.partial', 'Actual is partial on {{partial}} of {{total}} projects.', { partial: partialRows.length, total: filtered.length });
+  // The money-view-gated Contract column (see `canViewMoney`). A typed const — not an inline
+  // conditional spread — so the surrounding array literal keeps its contextual `Column` typing.
+  const contractColumn: Column<ProjectWithRefs> | null = canViewMoney ? {
+    key: 'contract',
+    header: t('projects.columns.contract', 'Contract'),
+    kind: 'money',
+    size: 160,
+    minSize: 152,
+    maxSize: 320,
+    align: 'num',
+    exportValue: (p) => p.contract_value,
+    // FR-L10N-020: each row is one project, so the currency is that project's own (0187's
+    // per-record column) — an org default would be wrong the moment two currencies coexist.
+    // OD-TAX-1 §2: a contract figure carries its basis wherever it is rendered. A list is the
+    // surface where two projects on OPPOSITE bases sit one row apart — a column of bare numbers
+    // there reads as comparable when it is not.
+    // Keep the visible basis concise; the record's full stored qualifier remains available to AT.
+    cell: (p) => {
+      const detailsId = `contract-tax-details-${p.id}`;
+      return (
+        <div className="flex min-w-0 flex-col items-end gap-0.5" aria-describedby={detailsId}>
+          <span>{formatCurrency(p.contract_value, p.currency)}</span>
+          <TaxBasisLabel
+            treatment={p.tax_treatment}
+            showDetails={false}
+            className="block max-w-full whitespace-normal break-words leading-tight"
+          />
+          <span id={detailsId} className="sr-only">
+            <TaxBasisLabel
+              treatment={p.tax_treatment}
+              taxRate={p.tax_rate}
+              taxBaseNumerator={p.tax_base_numerator}
+              taxBaseDenominator={p.tax_base_denominator}
+              className="block max-w-full whitespace-normal break-words"
+              testId={`contract-tax-label-${p.id}`}
+            />
+          </span>
+        </div>
+      );
+    },
+  } : null;
   const columns: Column<ProjectWithRefs>[] = [
     {
       key: 'project',
@@ -520,45 +563,12 @@ const Projects: React.FC = () => {
       exportValue: (p) => String(p.status),
       cell: (p) => <StatusPill variant={pillVariantForProjectStatus(p.status as string)}>{p.status}</StatusPill>,
     },
-    {
-      key: 'contract',
-      header: t('projects.columns.contract', 'Contract'),
-      kind: 'money',
-      size: 160,
-      minSize: 152,
-      maxSize: 320,
-      align: 'num',
-      exportValue: (p) => p.contract_value,
-      // FR-L10N-020: each row is one project, so the currency is that project's own (0187's
-      // per-record column) — an org default would be wrong the moment two currencies coexist.
-      // OD-TAX-1 §2: a contract figure carries its basis wherever it is rendered. A list is the
-      // surface where two projects on OPPOSITE bases sit one row apart — a column of bare numbers
-      // there reads as comparable when it is not.
-      // Keep the visible basis concise; the record's full stored qualifier remains available to AT.
-      cell: (p) => {
-        const detailsId = `contract-tax-details-${p.id}`;
-        return (
-          <div className="flex min-w-0 flex-col items-end gap-0.5" aria-describedby={detailsId}>
-            <span>{formatCurrency(p.contract_value, p.currency)}</span>
-            <TaxBasisLabel
-              treatment={p.tax_treatment}
-              showDetails={false}
-              className="block max-w-full whitespace-normal break-words leading-tight"
-            />
-            <span id={detailsId} className="sr-only">
-              <TaxBasisLabel
-                treatment={p.tax_treatment}
-                taxRate={p.tax_rate}
-                taxBaseNumerator={p.tax_base_numerator}
-                taxBaseDenominator={p.tax_base_denominator}
-                className="block max-w-full whitespace-normal break-words"
-                testId={`contract-tax-label-${p.id}`}
-              />
-            </span>
-          </div>
-        );
-      },
-    },
+    // Contract figure is money-view-gated (see `canViewMoney`): roles without the shared
+    // money-view permission get no Contract column — and, since `withCurrencyColumn` only
+    // inserts next to this key, neither the export's Contract column nor its per-row Currency
+    // column. Gating the column covers the desktop table AND the phone card reflow (the
+    // DataTable renders both branches from this one array).
+    ...(contractColumn ? [contractColumn] : []),
     {
       key: 'actual',
       header: t('projects.columns.actual', 'Actual'),
@@ -685,6 +695,8 @@ const Projects: React.FC = () => {
   });
 
   // AC-L10N-052: the download carries each row's own ISO code beside contract (export-only).
+  // Money-view-gated roles have no `contract` column at all, so this inserts no Currency column
+  // either — their export carries neither the contract figure nor its currency qualifier.
   const exportColumns = withCurrencyColumn(columns, 'contract', (r) => r.currency);
 
   // ── States ──────────────────────────────────────────────────────────────
