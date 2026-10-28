@@ -266,9 +266,17 @@ describe('version selection (AC-BD)', () => {
   });
 });
 
-// R-008: Project Managers read the push status, without the Admin/Finance retry and release controls.
-describe('R-008 a Project Manager sees ERP enforcement read-only', () => {
-  it('shows the push state and ERP budget to a PM, without retry or release controls', async () => {
+describe('SP-4 ERP push state follows #1402 role scope', () => {
+  it.each(['Project Manager', 'Executive', 'Engineer'])('hides push state and the accounting column from %s', (role) => {
+    state.role = role;
+    state.pushRows = [PUSH];
+    renderPage();
+    expect(screen.queryByRole('columnheader', { name: 'Accounting system' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('budget-erp-notice')).not.toBeInTheDocument();
+  });
+
+  it.each(['Finance', 'Admin'])('shows push state and the accounting column to %s', async (role) => {
+    state.role = role;
     state.pushRows = [
       PUSH,
       { ...PUSH, pushState: 'held', fiscalYear: 'FY-2027', pushError: 'command-held', erpBudgetName: null, holdReleasable: true },
@@ -276,10 +284,15 @@ describe('R-008 a Project Manager sees ERP enforcement read-only', () => {
     renderPage();
     await userEvent.click(screen.getByText('Sources and budget enforcement'));
     const notice = await screen.findByTestId('budget-erp-notice');
+    expect(screen.getByRole('columnheader', { name: 'Accounting system' })).toBeInTheDocument();
     expect(notice).toHaveTextContent('Enforced by ERPNext');
     expect(notice).toHaveTextContent('BUDGET-0007');
     expect(notice).toHaveTextContent('FY-2027');
     expect(within(notice).queryByRole('button', { name: 'Retry the push' })).not.toBeInTheDocument();
-    expect(within(notice).queryByRole('button', { name: 'Release the hold' })).not.toBeInTheDocument();
+    if (role === 'Admin') {
+      expect(within(notice).getByRole('button', { name: 'Release the hold' })).toBeInTheDocument();
+    } else {
+      expect(within(notice).queryByRole('button', { name: 'Release the hold' })).not.toBeInTheDocument();
+    }
   });
 });

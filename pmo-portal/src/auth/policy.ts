@@ -409,7 +409,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    */
   budgetVersion: {
     transition: (role, ctx) => {
-      if (!has(MASTER_DATA, role) || ctx.record?.status !== 'Draft') return false;
+      if (!has(['Admin', 'Executive', 'Finance'], role) || ctx.record?.status !== 'Draft') return false;
       const drafter = ctx.record?.created_by ?? null;
       if (ctx.currentUserId && (ctx.record?.editor_ids ?? []).includes(ctx.currentUserId)) return false;
       if (drafter === null) return role === 'Admin' || role === 'Finance';

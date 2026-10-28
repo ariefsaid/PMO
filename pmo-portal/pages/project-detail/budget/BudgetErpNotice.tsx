@@ -41,8 +41,8 @@ export default function BudgetErpNotice({
   const may = usePermission();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  // R-008: every budget reader sees where the budget stands in the ERP; only Admin/Finance retry a push.
-  const visible = may('view', 'salesInvoice');
+  // #1402 scopes ERP push state to Finance and Admin; retries remain under the same role gate.
+  const visible = realRole === 'Admin' || realRole === 'Finance';
   const canRetry = realRole === 'Admin' || realRole === 'Finance';
   const pushQuery = useQuery<BudgetPushStatusRow[]>({
     queryKey: PUSH_STATUS_KEY(projectId),

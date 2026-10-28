@@ -140,11 +140,12 @@ export const PMDashboard: React.FC = () => {
   }, [assignedProjectIds, deliveryQuery, orgId, projectIds, projectsQuery, procurementsQuery, queryClient, timesheetsQuery, userId, visibleProjectIds]);
 
   const approvalItems = needs.items
-    .filter((item) => item.id === 'approvals' || item.id === 'team-timesheets')
+    .filter((item) => ['approvals', 'team-timesheets', 'projects-over-budget', 'projects-risk-unchecked'].includes(item.id))
     .map((item) => ({
       ...item,
       tone: item.tone === 'lost' ? 'lost' as const : item.tone === 'neutral' ? 'neutral' as const : 'warn' as const,
-      icon: item.id === 'team-timesheets' ? 'clock' as const : 'check' as const,
+      icon: item.id === 'team-timesheets' ? 'clock' as const : item.id.startsWith('projects-') ? 'alert' as const : 'check' as const,
+      count: item.countLabel ?? item.count,
     }));
   const primaryError = projectsQuery.isError || needs.isError || procurementsQuery.isError;
   const primaryLoading = projectsQuery.isPending || needs.isPending || procurementsQuery.isPending;

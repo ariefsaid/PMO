@@ -546,21 +546,25 @@ describe('PMDashboard — rulings re-check', () => {
     realized_margin: 2_500_000, budget: 4_500_000,
   });
 
-  it('L12(e): the card margin follows the project Overview gate — left out while a budget category has no linked spending', () => {
+  it('QI-5 shows the partial at-risk count in the PM Needs you strip', () => {
     state.projects.data = [meridian];
-    // The dashboard RPC says 2.5M, but the Overview derivation leaves it out (a category is unmapped).
+    state.needs.items = [{
+      id: 'projects-over-budget', count: 1, countLabel: 'At least 1',
+      label: 'project over 90% of budget', href: '/projects?filter=My+Projects', tone: 'warn',
+    }];
+    renderDashboard();
+    expect(screen.getByRole('link', { name: /At least 1 project over 90% of budget/i })).toHaveAttribute('href', '/projects?filter=My+Projects');
+  });
+
+  it('SP-8 the Margin to date tile and project card use the same realized-margin basis', () => {
+    state.projects.data = [meridian];
+    // Overview finance detail is deliberately different; both dashboard surfaces use the project RPC value.
     state.finances = { mer: financesFor(meridian, { mapped: false }) };
     renderDashboard();
     const card = areaFor('Meridian');
-    expect(within(card).queryByText('Margin to date')).not.toBeInTheDocument();
-    expect(card).not.toHaveTextContent('$2.5M');
-  });
-
-  it('L12(e): when the Overview gate passes the card shows that same margin', () => {
-    state.projects.data = [meridian];
-    state.finances = { mer: financesFor(meridian, { mapped: true }) };
-    renderDashboard();
-    expect(within(areaFor('Meridian')).getByText('$2.5M')).toBeInTheDocument();
+    expect(screen.getByTestId('kpi-margin-to-date')).toHaveTextContent('$2.5M');
+    expect(within(card).getByText('Margin to date')).toBeInTheDocument();
+    expect(within(card).getByText('$2.5M')).toBeInTheDocument();
   });
 
   it('C4: unknown project number, client and spending are left out — no "—" in the card — and the reason is said once on the page', () => {

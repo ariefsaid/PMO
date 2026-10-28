@@ -30,6 +30,7 @@ import { useFinancePosition } from '@/src/hooks/useFinancePosition';
 import { usePayablesPosition } from '@/pages/finance/payablesPosition';
 import { StatusBarChart } from '@/src/components/dashboard/StatusBarChart';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
+import { ProjectedMarginBars } from '@/src/components/dashboard/ProjectedMarginBars';
 import { formatCurrency } from '@/src/lib/format';
 import { supplierUnpaid } from '@/pages/procurement/blocks/procurementMoney';
 import { stageForStatus, PROCUREMENT_STAGES, type ProcurementStage } from '@/pages/procurement/blocks/stage';
@@ -85,7 +86,7 @@ function needsAttention(items: NeedsItem[], ids: string[], t: (key: string, fall
     id: item.id,
     tone: item.tone,
     icon: item.id.includes('invoice') || item.id === 'ready-to-bill' ? 'dollar' as const : item.id.includes('procurement') ? 'cart' as const : 'alert' as const,
-    count: item.count,
+    count: item.countLabel ?? item.count,
     label: item.label,
     amount: item.amount,
     href: item.href,
@@ -338,7 +339,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       case 'sales': return <AreaPanel key={id} title={t('dashboard:hub.company.sales', 'Sales')} openHref="/sales" openLabel={t('dashboard:hub.company.openSales', 'Open sales')}>
         <FigureGroup heading={t('dashboard:hub.company.salesFigures', 'Sales results')} figures={[{ ...periodMini('won'), help: help('won') }]} isPending={figures.periodPending} isError={figures.periodError} onRetry={figures.periodRetry} hideHeading />
         <section className="grid gap-2">
-          <div className="flex items-center gap-2"><h3 className="text-sm font-semibold">{t('dashboard:hub.company.pipelineByStage', 'Pipeline by stage')}</h3><Tooltip content={t('dashboard:hub.company.help.pipelineStages', 'Stage counts and gross values come from the sales pipeline. Gross is grouped by project currency. The source does not return forecast margin by stage.')}><button type="button" aria-label={t('dashboard:hub.company.aboutPipelineStages', 'About pipeline by stage')} className="touch-target grid size-7 place-items-center rounded-full text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
+          <div className="flex items-center gap-2"><h3 className="text-sm font-semibold">{t('dashboard:hub.company.pipelineByStage', 'Pipeline by stage')}</h3><Tooltip content={t('dashboard:hub.company.help.pipelineStages', 'Stage counts, gross values, and probability-weighted stage values come from the sales pipeline. Forecast margin summarizes open stages.')}><button type="button" aria-label={t('dashboard:hub.company.aboutPipelineStages', 'About pipeline by stage')} className="touch-target grid size-7 place-items-center rounded-full text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
+          <ProjectedMarginBars projectedMargin={data?.pipeline_projected_margin ?? null} stages={pipelineStages} currency={orgCurrency} />
           <PipelineStages stages={pipelineStages} projects={pipeline.data?.projects ?? []} pending={pipeline.isPending} error={pipeline.isError} retry={() => { void pipeline.refetch(); }} />
         </section>
         <WinRateCard currency={orgCurrency} range={figures.winRateRange} hidePeriodControl embedded />

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, renderHook, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -134,7 +134,18 @@ beforeEach(() => {
   state.tasks = [];
 });
 
+afterEach(() => vi.useRealTimers());
+
 describe('project money position', () => {
+  it('uses the organization day when deciding whether project phases are late', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-28T00:15:00.000Z'));
+    state.milestones = [{ id: 'm1', name: 'Design', target_date: '2026-10-27', effective_pct: 40, task_count: 2 }];
+
+    const { result } = renderHook(() => useProjectAttention(project(), 'pm'));
+    expect(result.current.items.some((item) => item.key === 'phases')).toBe(false);
+  });
+
   it('keeps spent unknown unless every Active-budget category has a mapped actual', () => {
     state.versions = [budgetVersion([
       { category: 'Labor', budgeted_amount: '100' },

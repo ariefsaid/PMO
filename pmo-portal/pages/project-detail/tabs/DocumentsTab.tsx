@@ -367,10 +367,11 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       {doc.doc_date ? formatDateOnly(doc.doc_date) : '—'}
     </span>
   );
-  const selectedDocumentsHaveFile = selectedDocuments.some((doc) => {
+  const documentHasFile = (doc: ProjectDocumentRow) => {
     const webUrl = projectReference(doc)?.web_url;
-    return Boolean(doc.file_path || (webUrl && validMicrosoftBrowserUrl(webUrl)));
-  });
+    return Boolean(doc.file_path || (!isMicrosoftFolder(doc) && webUrl && validMicrosoftBrowserUrl(webUrl)));
+  };
+  const selectedDocumentsHaveFile = selectedDocuments.some(documentHasFile);
   const statusLabels: Record<DocStatus, string> = {
     Draft: t('projectDetail.documents.action.reopen', 'Reopen for revision'),
     Issued: t('projectDetail.documents.action.issue', 'Issue'),
@@ -433,6 +434,15 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       cell: documentDateCell,
       exportValue: (doc) => doc.doc_date ?? '',
     },
+    ...(filtered.some(documentHasFile) ? [{
+      key: 'file',
+      header: t('projectDetail.documents.column.file', 'File'),
+      size: 220, minSize: 160, maxSize: 300,
+      cell: (doc: ProjectDocumentRow) => doc.source === 'onedrive'
+        ? (isMicrosoftFolder(doc) ? '—' : (microsoftCell(doc) ?? '—'))
+        : (fileCell(doc) ?? '—'),
+      exportValue: (doc: ProjectDocumentRow) => doc.file_path?.split('/').pop() ?? (isMicrosoftFolder(doc) ? '' : doc.ms_item_name ?? ''),
+    } satisfies Column<ProjectDocumentRow>] : []),
   ];
 
   /** The status actions available on a row, per the workflow + SoD + role gates. */

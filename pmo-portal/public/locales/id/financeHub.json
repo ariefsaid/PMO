@@ -193,16 +193,10 @@
     "col": {
       "progress": "Progres",
       "earned": "Diperoleh",
-      "invoices": "Faktur",
-      "openAr": "Belum dibayar klien",
-      "openArExport": "Belum dibayar klien · termasuk pajak",
-      "openArHelp": "Jumlah yang masih terutang klien atas faktur yang sudah diajukan, termasuk pajak.",
-      "openArHelpLabel": "Belum dibayar klien · termasuk pajak"
+      "invoices": "Faktur"
     },
     "noProgressNote": "Belum ada progres tercatat, jadi pendapatan yang diperoleh mengikuti nilai yang sudah ditagih.",
     "backlogUnknownNote": "Sisa nilai kontrak tidak ditampilkan jika faktur mata uang asing perlu direkonsiliasi sebelum saldonya dapat diketahui.",
-    "reviewInvoices": "Tinjau faktur",
-    "openArUnknownNote_one": "Belum dibayar klien tidak ditampilkan untuk {{count}} proyek: saldo faktur belum dilaporkan oleh sistem akuntansi.",
-    "openArUnknownNote_other": "Belum dibayar klien tidak ditampilkan untuk {{count}} proyek: saldo faktur belum dilaporkan oleh sistem akuntansi."
+    "reviewInvoices": "Tinjau faktur"
   }
 }

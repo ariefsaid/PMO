@@ -97,8 +97,6 @@ const ALL_ITEMS: NavItem[] = [
   { to: '/finance', text: 'Finance', icon: 'dollar', group: 'Finance', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/receivables', text: 'Receivables', icon: 'invoices', group: 'Finance', feature: 'revenue', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/payables', text: 'Payables', icon: 'procurement', group: 'Finance', feature: 'procurement', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
-  // Project Managers keep the revenue report (R-006) without the rest of the Finance section.
-  { to: '/finance/reports', text: 'Reports', icon: 'reports', group: 'Delivery', feature: 'revenue', realRoleOnly: true, roles: [UserRole.ProjectManager] },
   { to: '/finance/reports', text: 'Reports', icon: 'reports', group: 'Finance', feature: 'revenue', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
   { to: '/finance/statements', text: 'Statements', icon: 'reports', group: 'Finance', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
 ];

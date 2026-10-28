@@ -20,8 +20,7 @@ import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueD
 import { getExecutiveDashboard, getFinanceBudgetReview, getPMDashboardProjects } from '@/src/lib/db/dashboard';
 import { listTimesheetsAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import { moneyFigure } from '@/src/lib/dashboardMoney';
-import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
-import { isActualComplete } from '@/src/lib/projectFinances';
+import { atRiskCount, projectRiskBasisKnown } from '../hub/pm/metrics';
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from '@/src/lib/db/projectTransitions';
 import { repositories } from '@/src/lib/repositories';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
@@ -34,6 +33,7 @@ export type NeedsTone = 'warn' | 'neutral' | 'lost';
 export interface NeedsItem {
   id: string;
   count: number;
+  countLabel?: string;
   label: string;
   amount?: ReactNode;
   href: string;
@@ -69,6 +69,8 @@ export interface NeedsYouFacts {
   readyToBill?: number;
   budgetsOver?: number;
   projectsOverBudget?: number;
+  projectsOverBudgetPartial?: boolean;
+  projectsOverBudgetUnknown?: number;
   overdueProjectTasks?: number;
   timesheetsToApprove?: number;
   timesheetStatus?: string | null;
@@ -143,10 +145,18 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
 
   if (role === 'Project Manager') {
     add(approvalItem(facts.approvals));
-    if (facts.projectsOverBudget !== undefined) add({
+    if (facts.projectsOverBudget !== undefined && facts.projectsOverBudget > 0) add({
       id: 'projects-over-budget', count: facts.projectsOverBudget,
+      countLabel: facts.projectsOverBudgetPartial
+        ? t('needs.pmAtLeast', 'At least {{count}}', { count: facts.projectsOverBudget })
+        : undefined,
       label: counted(t, 'needs.pmOverBudget', 'project over 90% of budget', 'projects over 90% of budget', facts.projectsOverBudget),
       href: '/projects?filter=My+Projects', tone: 'warn',
+    });
+    if (facts.projectsOverBudget === 0 && facts.projectsOverBudgetUnknown !== undefined) add({
+      id: 'projects-risk-unchecked', count: facts.projectsOverBudgetUnknown,
+      label: counted(t, 'needs.pmRiskUnchecked', 'project without a checkable budget', 'projects without a checkable budget', facts.projectsOverBudgetUnknown),
+      href: '/projects?filter=My+Projects', tone: 'neutral',
     });
     if (facts.overdueProjectTasks !== undefined) add({
       id: 'overdue-project-tasks', count: facts.overdueProjectTasks,
@@ -356,12 +366,10 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const pmDeliveryProjects = useMemo(() => (pmProjectsQuery.data ?? []).filter((project) =>
     ON_HAND_STATUSES.includes(project.status) || INTERNAL_STATUSES.includes(project.status as never),
   ), [pmProjectsQuery.data]);
-  const pmAtRiskCount = useMemo(() => pmDeliveryProjects.filter((project) => isMoneyAtRisk({
-    status: project.status, budget: project.budget, budgetCurrency: project.budget_currency ?? project.currency,
-    projectCurrency: project.currency, spent: project.spent, actualCurrency: project.actual_currency ?? project.currency,
-    actualComplete: isActualComplete({ basis: 'erp', readSucceeded: project.spent !== null, complete: project.actual_complete,
-      coverageCount: project.actual_coverage_count, coverageTotal: project.actual_coverage_total }),
-  })).length, [pmDeliveryProjects]);
+  const pmAtRisk = useMemo(() => atRiskCount(pmDeliveryProjects), [pmDeliveryProjects]);
+  const pmUnknownRiskCount = pmAtRisk === null
+    ? pmDeliveryProjects.filter((project) => !projectRiskBasisKnown(project)).length
+    : undefined;
   const pmOverdueTaskCount = useMemo(() => projectTasks.flatMap((query) => query.data ?? []).filter((task) =>
     activeTask(task.status) && task.end_date !== null && organizationDay.day !== null && task.end_date < organizationDay.day,
   ).length, [organizationDay.day, projectTasks]);
@@ -388,7 +396,9 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     supplierInvoices: companyRole ? supplierNeeds : undefined,
     readyToBill: companyRole ? workOrdersQuery.data && workOrdersQuery.data.totals.reduce((sum, row) => sum + row.count, 0) + workOrdersQuery.data.incompleteCount : undefined,
     budgetsOver: companyRole ? budgetReviewQuery.data?.filter((row) => row.variance !== null && row.variance > 0).length : undefined,
-    projectsOverBudget: role === 'Project Manager' && pmProjectsQuery.data ? pmAtRiskCount : undefined,
+    projectsOverBudget: role === 'Project Manager' && pmProjectsQuery.data ? pmAtRisk?.count ?? 0 : undefined,
+    projectsOverBudgetPartial: role === 'Project Manager' ? pmAtRisk?.partial : undefined,
+    projectsOverBudgetUnknown: role === 'Project Manager' && pmProjectsQuery.data ? pmUnknownRiskCount : undefined,
     overdueProjectTasks: role === 'Project Manager' && !projectTasks.some((query) => query.isPending || query.isError) ? pmOverdueTaskCount : undefined,
     timesheetsToApprove: role === 'Project Manager' && !timesheetsAwaitingQuery.isPending && !timesheetsAwaitingQuery.isError ? timesheetsAwaitingQuery.data?.length ?? 0 : undefined,
     timesheetStatus: currentTimesheet?.status ?? (currentWeek && !timesheetsQuery.isPending && !timesheetsQuery.isError ? 'Draft' : null),

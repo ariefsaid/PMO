@@ -2,8 +2,6 @@ import React, { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useProject } from '@/src/hooks/useProjects';
-import { useProjectFinances } from '@/src/hooks/useProjectFinances';
-import { deriveMargin } from '@/src/lib/projectFinances';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { DeliveryPctChip } from '@/components/DeliveryPctChip';
 import { pillVariantForProjectStatus } from '@/components/projects';
@@ -17,7 +15,7 @@ import { ProgressBar } from '@/src/components/ui/ProgressBar';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { Tooltip } from '@/src/components/ui/Tooltip';
 import { Icon } from '@/src/components/ui/icons';
-import { projectAtRisk, projectRiskBasisKnown, projectSpendOfContractPct } from './metrics';
+import { projectAtRisk, projectMoneyFigure, projectRiskBasisKnown, projectSpendOfContractPct } from './metrics';
 
 interface PMProjectAreaProps {
   project: PMDashboardProject;
@@ -84,17 +82,12 @@ export const PMProjectArea: React.FC<PMProjectAreaProps> = ({
     t('hub.pm.contractUnavailable', 'This project contract value is unavailable.'),
     { code: currencyCodeNeeded },
   );
-  // L12(e): the margin shows only when the project Overview's own gate lets it (billed-work revenue
-  // complete, spending linked for every budget category, one currency) — the same derivation, same figure.
-  const finances = useProjectFinances(project.id);
-  const marginBucket = finances.data?.invoices.find((bucket) => bucket.currency === project.currency);
-  const derivedMargin = marginBucket && finances.data?.actuals ? deriveMargin(marginBucket, finances.data.actuals) : null;
-  const marginAmount = derivedMargin && derivedMargin.reason === null && derivedMargin.amount !== null ? Number(derivedMargin.amount) : null;
-  const margin = moneyFigure(
-    marginAmount,
-    projectCurrency,
+  // SP-8: card and dashboard tile share the same per-project realized-margin figure.
+  const margin = projectMoneyFigure(
+    [project],
+    'realized_margin',
+    orgCurrency,
     t('hub.pm.marginUnavailable', 'Billed-work margin is unavailable for this project.'),
-    { code: currencyCodeNeeded },
   );
   const spent = moneyFigure(
     project.spent,

@@ -234,7 +234,7 @@ export interface TasksTabProps {
 }
 
 const TasksTab: React.FC<TasksTabProps> = (props) => {
-  return <TasksTabA {...props} />;
+  return <TasksWorkspace {...props} />;
 };
 
 /**
@@ -246,7 +246,7 @@ const TasksTab: React.FC<TasksTabProps> = (props) => {
  * static), enforced by the column-pinned RLS (migration 0016) — the FE is the
  * clarity projection, RLS is the authority.
  */
-const TasksTabA: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
+const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
   const { t } = useTranslation('project');
   const may = usePermission();
   const { realRole } = useEffectiveRole();

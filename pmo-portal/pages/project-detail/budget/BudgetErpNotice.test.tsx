@@ -64,6 +64,21 @@ beforeEach(() => {
 });
 
 describe('every push state is stated (C-5)', () => {
+  it.each(['Project Manager', 'Executive', 'Engineer'])('SP-4 hides ERP push state from %s', async (role) => {
+    h.pushStatus.mockResolvedValue([push({ pushState: 'pushed', fiscalYear: FY, erpBudgetName: 'BUDGET-0007' })]);
+    renderNotice(role);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByTestId('budget-erp-notice')).not.toBeInTheDocument();
+    expect(h.pushStatus).not.toHaveBeenCalled();
+  });
+
+  it('SP-4 shows ERP push state to Admin', async () => {
+    h.pushStatus.mockResolvedValue([push({ pushState: 'pushed', fiscalYear: FY, erpBudgetName: 'BUDGET-0007' })]);
+    renderNotice('Admin');
+    expect(await notice()).toHaveTextContent('BUDGET-0007');
+    expect(h.pushStatus).toHaveBeenCalledWith('proj-1');
+  });
+
   it.each([
     ['pending', 'Queued'],
     ['pushing', 'Sending'],

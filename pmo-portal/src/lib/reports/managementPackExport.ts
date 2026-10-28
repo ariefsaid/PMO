@@ -30,23 +30,19 @@ const rowName = (row: PackRow, l: ManagementPackExportLabels): string =>
   row.kind === 'unassigned' ? l.unassigned : row.projectName ?? '';
 
 /** Long format (one row per project row × month) so a pivot table can reshape it; months are `YYYY-MM` text. */
-/** Optional current-receivable column (R-007): a snapshot today, so it is filled on each row's as-at month only. */
-export interface ManagementPackOpenArColumn { label: string; of: (row: PackRow) => number }
-
-export function buildManagementPackExport(pack: ManagementPack, l: ManagementPackExportLabels, openAr?: ManagementPackOpenArColumn): ExportTable {
+export function buildManagementPackExport(pack: ManagementPack, l: ManagementPackExportLabels): ExportTable {
   const header = [
     l.month, l.projectNumber, l.project, l.client, l.currency, l.taxBasis, l.planned, l.recognised, l.invoiced,
-    l.recognisedToDate, l.invoicedToDate, l.unbilled, l.backlog, l.basis, ...(openAr ? [openAr.label] : []),
+    l.recognisedToDate, l.invoicedToDate, l.unbilled, l.backlog, l.basis,
   ];
   const body: CellValue[][] = [];
   for (const row of pack.rows) {
-    row.months.forEach((m, index) => {
+    row.months.forEach((m) => {
       body.push([
         m.month.slice(0, 7), row.projectNumber ?? '', rowName(row, l), row.clientName ?? '', row.currency,
         l.taxBasisValue, money(m.planned), money(m.recognised), money(m.invoiced), money(m.recognisedToDate),
         money(m.invoicedToDate), money(m.unbilled), money(m.backlog),
         m.basis === 'progress' ? l.basisProgress : l.basisInvoiced,
-        ...(openAr ? [index === row.months.length - 1 ? openAr.of(row) : ''] : []),
       ]);
     });
   }
@@ -55,7 +51,6 @@ export function buildManagementPackExport(pack: ManagementPack, l: ManagementPac
       body.push([
         t.month.slice(0, 7), '', l.total, '', totals.currency, l.taxBasisValue, money(t.planned), money(t.recognised),
         money(t.invoiced), money(t.recognisedToDate), money(t.invoicedToDate), money(t.unbilled), money(t.backlog), '',
-        ...(openAr ? [''] : []),
       ]);
     }
   }

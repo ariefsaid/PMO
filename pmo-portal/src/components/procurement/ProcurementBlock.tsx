@@ -17,7 +17,6 @@ import {
   useToast,
   type Column,
   type DataTableProps,
-  type DrawerProps,
   type RowMenuItem,
   type SortState,
 } from '@/src/components/ui';
@@ -31,7 +30,7 @@ import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { repositories } from '@/src/lib/repositories';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
-import { externalRefsOf, type ProcurementWithRefs } from '@/src/lib/db/procurements';
+import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { formatCurrency, formatDate, formatShortMoney } from '@/src/lib/format';
 import { mayDecideRoutedApproval } from '@/src/lib/procurement/approvalRoute';
@@ -50,6 +49,7 @@ import { procurementMoney, type ProcurementMoneyResult } from '@/pages/procureme
 import { allowedActions, sortActions, stateMainAction } from '@/pages/procurement/blocks/mainAction';
 import { purchaseHasValue } from '@/pages/procurement/purchaseValue';
 import { useBudgetPosition } from '@/pages/project-detail/useProjectPosition';
+import { matchesSearch } from '@/src/lib/procurementSearch';
 
 /**
  * ProcurementBlockProps: omit `projectId` for the company-wide procurement index;
@@ -97,9 +97,6 @@ export const ProcurementList: React.FC<ProcurementListProps> = ({ label, rows, c
       : <DataTable rows={rows} columns={columns} rowKey={(row) => row.id} {...tableProps} className={embedded ? 'rounded-none border-0 bg-transparent' : undefined} tableId={`procurement-block-${tableId}`} />}
   </section>
 );
-
-/** Procurement-specific composition over the shared accessible Drawer primitive. */
-export const ProcurementDrawer: React.FC<DrawerProps> = (props) => <Drawer {...props} />;
 
 type DecisionTarget = 'Approved' | 'Rejected' | 'Cancelled';
 type PendingDecision = { rows: ProcurementWithRefs[]; target: DecisionTarget };
@@ -181,7 +178,7 @@ function datesFor(row: ProcurementWithRefs, erpDocuments: ReturnType<typeof useE
     purchase_orders: row.purchase_orders,
     receipts: row.receipts,
     invoices: row.procurement_invoices,
-    payments: row.payments,
+    payments: (row.payments ?? []).filter((payment) => payment.status === 'Paid'),
   }, linked);
 }
 
@@ -380,16 +377,13 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
   ])).entries()].sort(([, a], [, b]) => a.localeCompare(b)), [rows, t]);
 
   const filteredRows = useMemo(() => {
-    const needle = search.trim().toLocaleLowerCase();
     const filtered = rows.filter((row) => {
       if (selectedStage && stageForStatus(row.status) !== selectedStage) return false;
       if (categoryFilter === UNCATEGORIZED_FILTER && row.budget_category) return false;
       if (categoryFilter && categoryFilter !== UNCATEGORIZED_FILTER && row.budget_category !== categoryFilter) return false;
       if (ownerFilter === UNASSIGNED_FILTER && row.requested_by_id) return false;
       if (ownerFilter && ownerFilter !== UNASSIGNED_FILTER && row.requested_by_id !== ownerFilter) return false;
-      if (!needle) return true;
-      return [row.title, row.code, row.vendor?.name, row.requested_by?.full_name, row.status, ...externalRefsOf(row)]
-        .some((value) => value?.toLocaleLowerCase().includes(needle));
+        return matchesSearch(row, search);
     });
     if (!sort) return filtered;
     const direction = sort.dir === 'asc' ? 1 : -1;
@@ -479,7 +473,6 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
   const rowMenu = (row: ProcurementWithRefs, inDrawer = false): RowMenuItem[] => {
     const items: RowMenuItem[] = inDrawer ? [] : [
       { label: t('projectDetail.procurement.rowMenu.open', 'Open procurement'), onClick: () => openFullRecord(row) },
-      { label: t('procurement.rowMenu.nextAction', 'Next action'), onClick: () => openFullRecord(row) },
     ];
     items.push({ label: t('procurement.rowMenu.recordDocument', 'Record another document'), onClick: () => openFullRecord(row) });
     if (canDecideRow(row)) {
@@ -511,7 +504,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
       { key: 'Request' as const, date: dates.request },
       { key: 'Order' as const, date: dates.order },
       { key: 'Receive' as const, date: dates.receive },
-      { key: payStepLabel(Boolean(row.payments?.length) || (erp.data ?? []).some((document) => document.procurementId === row.id && document.doctype === 'Payment Entry')), date: dates.pay },
+      { key: payStepLabel(Boolean(row.payments?.some((payment) => payment.status === 'Paid')) || (erp.data ?? []).some((document) => document.procurementId === row.id && document.doctype === 'Payment Entry')), date: dates.pay },
     ];
     const done = steps.filter((step) => step.date);
     if (done.length === 0) return t('procurement.noStepDates', 'No step dates recorded yet.');
@@ -678,7 +671,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
           const next = nextStepText(row.status, canDecideRow(row), t);
           return <Tooltip content={next}><span title={next} className={`block min-w-0 w-full max-w-full truncate ${row.status === 'Requested' && canDecideRow(row) ? 'font-medium text-primary-text' : 'text-muted-foreground'}`}>{next}</span></Tooltip>;
         },
-        exportValue: (row) => nextStepText(row.status, canApprove, t),
+        exportValue: (row) => nextStepText(row.status, canDecideRow(row), t),
       },
       {
         key: 'age',
@@ -724,7 +717,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
       },
     ];
     return tableColumns;
-  }, [canSeeMoney, canApprove, t, categoryLabel, canDecideRow, stageDateTooltip, erp.data, expandedId, detailQuery.data, detailQuery.isError, detailQuery.isPending, project, projectId, setSelected, rowAmount]);
+  }, [canSeeMoney, t, categoryLabel, canDecideRow, stageDateTooltip, erp.data, expandedId, detailQuery.data, detailQuery.isError, detailQuery.isPending, project, projectId, setSelected, rowAmount]);
 
   const exportColumns = columns;
   const selectedForExport = selectedRows;
@@ -754,7 +747,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
     purchase_requests: drawerDetails?.purchase_requests ?? selected.purchase_requests,
     purchase_orders: drawerDetails?.purchase_orders ?? selected.purchase_orders,
     procurement_invoices: drawerDetails?.invoices ?? selected.procurement_invoices,
-    payments: drawerDetails?.payments ?? selected.payments,
+    payments: (drawerDetails?.payments ?? selected.payments ?? []).filter((payment) => payment.status === 'Paid'),
     erpDocuments: drawerErpDocuments.map((document) => ({ doctype: document.doctype, grand_total: document.grandTotal, outstanding_amount: document.outstanding })),
   }) : null;
   const dates = selected ? stageDates({
@@ -764,9 +757,10 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
     invoices: drawerDetails?.invoices ?? selected.procurement_invoices,
     payments: drawerDetails?.payments ?? selected.payments,
   }, drawerErpDocuments.map((document) => ({ doctype: document.doctype, docDate: document.docDate }))) : null;
-  const hasPayment = Boolean((drawerDetails?.payments ?? selected?.payments ?? []).length)
+  const hasPayment = Boolean((drawerDetails?.payments ?? selected?.payments ?? []).some((payment) => payment.status === 'Paid'))
     || drawerErpDocuments.some((document) => document.doctype === 'Payment Entry');
   const paymentDate = (drawerDetails?.payments ?? selected?.payments ?? [])
+    .filter((payment) => payment.status === 'Paid')
     .map((payment) => payment.date ?? payment.created_at)
     .filter((date): date is string => Boolean(date))
     .sort()[0]
@@ -919,7 +913,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         emptySub={hasUnfilteredRows
           ? t('projectDetail.procurement.emptyFiltered.sub', 'Adjust the search or filters and try again.')
           : projectId && erp.data?.length
-            ? t('uxs19.projectEmptyScope', 'Purchases recorded in the accounting system appear below.')
+            ? t('uxs19.projectEmptyScope', 'Purchases recorded in ERPNext appear below.')
             // The company list says what it leaves out, so an empty list is not read as "no purchases at all".
             : !projectId ? t('procurement.empty.scopeNote', 'Purchases recorded only in the accounting system are not listed here.') : undefined}
         emptyAction={hasUnfilteredRows ? { label: t('projectDetail.procurement.emptyFiltered.clear', 'Clear filters'), onClick: () => {
@@ -1013,7 +1007,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
 
       </ProcurementList>
 
-      <ProcurementDrawer
+      <Drawer
         open={selected !== null}
         title={selected?.title ?? t('projectDetail.procurement.detail.title', 'Procurement details')}
         subtitle={selected ? `${selected.code ?? selected.id.slice(0, 8)} · ${selected.vendor?.name ?? t('projectDetail.procurement.noSupplier', 'No supplier')}` : undefined}
@@ -1080,7 +1074,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
               <div className="col-span-full space-y-1">
                 <div className="text-xs text-muted-foreground">{t('projectDetail.procurement.table.nextStep', 'Next step')}</div>
                 <div className={selected.status === 'Requested' && canApprove ? 'font-medium text-primary-text' : 'text-muted-foreground'}>
-                  {nextStepText(selected.status, canApprove, t)}
+                  {nextStepText(selected.status, canDecideRow(selected), t)}
                 </div>
               </div>
             </section>
@@ -1134,7 +1128,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
             </section>
           </div>
         )}
-      </ProcurementDrawer>
+      </Drawer>
 
       <ConfirmDialog
         open={pendingDecision !== null}

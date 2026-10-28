@@ -2,14 +2,14 @@ import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
-  Button, DataTable, Icon, ListPage, ListState, MenuButton, ProgressBar, StatusPill, TextField, Toolbar, Tooltip, type Column,
+  Button, DataTable, Icon, ListPage, ListState, MenuButton, ProgressBar, StatusPill, TextField, Toolbar, type Column,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useManagementPack } from '@/src/hooks/useManagementPack';
 import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
 import { useProjects } from '@/src/hooks/useProjects';
-import { useRevenuePerProject, useSalesInvoices } from '@/src/hooks/useRevenue';
+import { useRevenuePerProject } from '@/src/hooks/useRevenue';
 import { useExport } from '@/src/components/export/useExport';
 import { RecordProgressModal } from '@/src/components/reports/RecordProgressModal';
 import { fromCents, type PackMonth, type PackRow, type PackTotalsMonth } from '@/src/lib/reports/managementPack';
@@ -17,7 +17,6 @@ import {
   buildManagementPackExport, managementPackFileStem, type ManagementPackExportLabels,
 } from '@/src/lib/reports/managementPackExport';
 import { monthInputToIso } from '@/src/lib/reports/months';
-import type { ExportTable } from '@/src/lib/export/buildExportRows';
 import { formatCurrency, formatUtcMonthYear } from '@/src/lib/format';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { moneyFigure } from '@/src/lib/dashboardMoney';
@@ -67,19 +66,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   const { data: revenueRows, isPending: invoiceCountsPending } = useRevenuePerProject();
   const projectById = useMemo(() => new Map((projects ?? []).map((project) => [project.id, project])), [projects]);
   const invoiceCounts = useMemo(() => new Map((revenueRows ?? []).map((row) => [`${row.project_id ?? ''}|${row.currency}`, row.invoice_count])), [revenueRows]);
-  // R-007: per-project open receivable (gross, tax included, whole currency units — not the pack's cents),
-  // from the same per-project revenue read.
-  const openAr = useMemo(() => new Map((revenueRows ?? []).map((row) => [`${row.project_id ?? ''}|${row.currency}`, Number(row.open_ar)])), [revenueRows]);
-  // L12(f): an open invoice whose balance the accounting system has not reported makes that row's unpaid amount
-  // unknown. Unknown is never 0: the figure is left out and the page says why, once.
-  const { data: salesInvoices, isPending: salesInvoicesPending } = useSalesInvoices(undefined, { enabled: !!pack });
-  const unknownAr = useMemo(() => new Set((salesInvoices ?? [])
-    .filter((invoice) => (invoice.status === 'Unpaid' || invoice.status === 'Submitted') && (invoice.erp_outstanding_amount == null || !Number.isFinite(invoice.erp_outstanding_amount)))
-    .map((invoice) => `${invoice.project_id ?? ''}|${invoice.currency}`)), [salesInvoices]);
-  const arPending = invoiceCountsPending || salesInvoicesPending;
-
-  // Project Managers read revenue per project here too (R-006); the RPC and RLS scope the rows.
-  if (!may('view', 'finance') && !may('view', 'salesInvoice')) {
+  if (!may('view', 'finance')) {
     return (
       <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
@@ -138,24 +125,12 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     basisProgress: t('managementPack.basis.progressShort', 'Progress'),
   };
   // One Export (long-format CSV, one row per project × month with its currency and tax basis).
-  const openArExport = { label: t('financeHub:managementPack.col.openArExport', 'Unpaid by client · incl. tax'), of: (row: PackRow) => openArFor(row) ?? 0 };
-  /** L12(f): the export builder fills the unpaid cell on each row's as-at line; an unknown one is blanked, never 0. */
-  const withUnknownOpenArBlank = (table: ExportTable, rows: PackRow[]): ExportTable => {
-    const column = table.header.length - 1;
-    let line = 0;
-    for (const row of rows) {
-      line += row.months.length;
-      const cells = table.body[line - 1];
-      if (row.months.length > 0 && cells && openArFor(row) === null) cells[column] = '';
-    }
-    return table;
-  };
   const onExport = () => {
-    if (pack) void exportTable(withUnknownOpenArBlank(buildManagementPackExport(pack, exportLabels, openArExport), pack.rows), managementPackFileStem(pack), 'csv');
+    if (pack) void exportTable(buildManagementPackExport(pack, exportLabels), managementPackFileStem(pack), 'csv');
   };
   const onExportRow = (row: PackRow) => {
     if (!pack) return;
-    void exportTable(withUnknownOpenArBlank(buildManagementPackExport({ ...pack, rows: [row], totals: [] }, exportLabels, openArExport), [row]),
+    void exportTable(buildManagementPackExport({ ...pack, rows: [row], totals: [] }, exportLabels),
       `${managementPackFileStem(pack)}_${row.projectNumber ?? row.projectName ?? 'row'}`, 'csv');
   };
 
@@ -193,13 +168,6 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   });
   const latestMonth = (row: PackRow) => row.months[row.months.length - 1] ?? null;
   const invoiceCountFor = (row: PackRow) => invoiceCounts.get(`${row.projectId ?? ''}|${row.currency}`) ?? 0;
-  const openArFor = (row: PackRow): number | null => {
-    const key = `${row.projectId ?? ''}|${row.currency}`;
-    if (unknownAr.has(key)) return null;
-    // A row with no submitted invoice owes nothing: a known zero.
-    return openAr.get(key) ?? 0;
-  };
-  const unknownArRows = filteredRows.filter((row) => openArFor(row) === null);
   const initials = (name: string) => name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '?';
   // O11: when no contract row has recorded progress the whole column would read "Invoiced basis";
   // the page says it once instead and the column is left out.
@@ -276,20 +244,6 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       exportValue: (row) => invoiceCountFor(row),
     },
     {
-      key: 'openAr',
-      // N2: a short header; the tax-included basis is stated once in its help.
-      header: <span className="inline-flex items-center gap-1">{t('financeHub:managementPack.col.openAr', 'Unpaid by client')}<Tooltip content={t('financeHub:managementPack.col.openArHelp', 'What clients still owe on submitted invoices, tax included.')}><button type="button" aria-label={t('financeHub:managementPack.col.openArHelpLabel', 'Unpaid by client · tax included')} className="inline-grid size-4 place-items-center rounded-full normal-case text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></span>,
-      kind: 'money',
-      align: 'num',
-      size: 160,
-      cell: (row) => {
-        if (arPending) return <span data-testid="pack-cell-openAr" className="tabular text-right text-[13px]">—</span>;
-        const owed = openArFor(row);
-        return owed === null ? null : <span data-testid="pack-cell-openAr" className="tabular text-right text-[13px]">{formatCurrency(owed, row.currency)}</span>;
-      },
-      exportValue: (row) => openArFor(row) ?? '',
-    },
-    {
       key: 'actions',
       header: <span className="sr-only">{t('managementPack.actions', 'Actions')}</span>,
       kind: 'actions',
@@ -323,7 +277,6 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         backlog: backlogIsUnknown ? backlogUnknown : money(contracts.reduce((total, row) => total + (latestMonth(row)?.backlog ?? 0), 0), currency),
         invoiceCount: invoiceCountsPending ? '—' : filteredRows.reduce((total, row) => total + invoiceCountFor(row), 0),
         // An unknown row makes the currency total unknown too: left out, explained by the note below the table.
-        openAr: arPending ? '—' : rows.some((row) => openArFor(row) === null) ? null : formatCurrency(rows.reduce((total, row) => total + (openArFor(row) ?? 0), 0), currency),
       } as Record<string, React.ReactNode>,
     };
   });
@@ -499,7 +452,6 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       {pack && state === undefined && (
         <>
           {!anyProgress && pack.rows.some((row) => row.kind === 'contract') && <p className="mt-3 text-sm text-muted-foreground">{t('financeHub:managementPack.noProgressNote', 'No progress is recorded yet, so earned revenue follows what has been invoiced.')}</p>}
-          {!arPending && unknownArRows.length > 0 && <p className="mt-3 text-sm text-muted-foreground">{t('financeHub:managementPack.openArUnknownNote', { defaultValue: unknownArRows.length === 1 ? 'Unpaid by client is left out for {{count}} project: an invoice balance has not been reported by the accounting system yet.' : 'Unpaid by client is left out for {{count}} projects: an invoice balance has not been reported by the accounting system yet.', count: unknownArRows.length })}{' '}<Link to="/finance/receivables" className="font-medium text-primary-text underline underline-offset-2">{t('financeHub:managementPack.reviewInvoices', 'Review invoices')}</Link></p>}
           {backlogUnknownSomewhere && <p className="mt-3 text-sm text-muted-foreground">{t('financeHub:managementPack.backlogUnknownNote', 'Backlog is left out where a foreign-currency invoice needs reconciliation before the balance can be known.')}{' '}<Link to="/finance/receivables" className="font-medium text-primary-text underline underline-offset-2">{t('financeHub:managementPack.reviewInvoices', 'Review invoices')}</Link></p>}
           {pack.rows.some((row) => row.kind === 'unassigned') && <p className="mt-3 text-sm text-muted-foreground">{t('financeHub:managementPack.unassignedNote', 'Some invoices are not assigned to a project yet.')}{' '}<Link to="/finance/receivables?attribution=unassigned" className="font-medium text-primary-text underline underline-offset-2">{t('financeHub:managementPack.assignProjects', 'Assign projects')}</Link></p>}
           <button type="button" aria-expanded={monthlyTotalsExpanded} aria-controls="managementpack-monthly-totals" onClick={() => setMonthlyTotalsExpanded((expanded) => !expanded)} className="mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">

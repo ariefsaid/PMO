@@ -12,6 +12,7 @@ import {
   ProjectNameLink,
   MobileToolbarDisclosure,
   Card,
+  Tabs,
   type Column,
 } from '@/src/components/ui';
 import { ExportButton, withCurrencyColumn } from '@/src/components/export';
@@ -44,8 +45,9 @@ import { lifecycleSteps, pillVariantForStatus } from '../components/procurement'
 import { ErpOrphansSection } from './procurement/ErpOrphansSection';
 import { needsYou, type NeedsYouResult } from './procurement/blocks/needsYou';
 import type { StageKey } from './procurement/blocks/stage';
-import { matchesStage, orphanTotals, shortTotalsLabel, totalsByCurrency, type ProcurementListRole } from './procurement/list/model';
+import { matchesSearch, matchesStage, orphanTotals, shortTotalsLabel, totalsByCurrency, type ProcurementListRole } from './procurement/list/model';
 import { ProcurementGroupedView } from './procurement/list/ProcurementGroupedView';
+import { tabId, tabPanelId } from '@/src/components/ui/tabIds';
 
 type StatusFilter = 'All' | 'Needs approval' | 'Open' | 'Ordered' | 'Vendor Invoiced' | 'Paid';
 type ProcurementRouteView = ProcurementView | 'grouped';
@@ -202,20 +204,16 @@ const ProcurementPage: React.FC = () => {
   const supplierId = searchParams.get('supplier') ?? '';
   const raisedById = searchParams.get('raisedBy') ?? '';
   const scopedIds = useMemo(() => new Set(all.map((row) => row.id)), [all]);
-  const normalizedSearch = search.trim().toLocaleLowerCase();
   const rowFilter = useCallback((row: ProcurementWithRefs) => {
     return scopedIds.has(row.id)
       && (tab !== 'needs-you' || needsById.has(row.id))
       && matchesWorkingSetStatus(row.status, workingSet)
-      && (!normalizedSearch
-        || row.title.toLocaleLowerCase().includes(normalizedSearch)
-        || (row.code ?? '').toLocaleLowerCase().includes(normalizedSearch)
-        || externalRefsOf(row).some((reference) => reference.toLocaleLowerCase().includes(normalizedSearch)))
+      && matchesSearch(row, search)
       && (!projectId || row.project_id === projectId)
       && (!supplierId || row.vendor_id === supplierId)
       && (!raisedById || row.requested_by_id === raisedById)
       && matchesStage(row, selectedStage);
-  }, [needsById, normalizedSearch, projectId, raisedById, scopedIds, selectedStage, supplierId, tab, workingSet]);
+  }, [needsById, projectId, raisedById, scopedIds, search, selectedStage, supplierId, tab, workingSet]);
   const needsYouOrder = useCallback((a: ProcurementWithRefs, b: ProcurementWithRefs) =>
     (needsById.get(a.id)?.result.since.getTime() ?? 0) - (needsById.get(b.id)?.result.since.getTime() ?? 0),
   [needsById]);
@@ -232,13 +230,9 @@ const ProcurementPage: React.FC = () => {
 
   const tabRows = tab === 'needs-you' ? needsYouRows.map(({ row }) => row) : all;
   const filtered = useMemo(() => {
-    const query = search.trim().toLocaleLowerCase();
     return tabRows
       .filter((row) => matchesWorkingSetStatus(row.status, workingSet))
-      .filter((row) => !query
-        || row.title.toLocaleLowerCase().includes(query)
-        || (row.code ?? '').toLocaleLowerCase().includes(query)
-        || externalRefsOf(row).some((reference) => reference.toLocaleLowerCase().includes(query)))
+      .filter((row) => matchesSearch(row, search))
       .filter((row) => !projectId || row.project_id === projectId)
       .filter((row) => !supplierId || row.vendor_id === supplierId)
       .filter((row) => !raisedById || row.requested_by_id === raisedById)
@@ -417,22 +411,14 @@ const ProcurementPage: React.FC = () => {
     // L6: the All tab carries the total, so the title has no second count.
     <ListPage title={title} description={description} primaryAction={primaryAction}>
       <div className="space-y-4 pb-20 sm:pb-0">
-        <div role="tablist" aria-label={t('tabs.label', 'Procurement lists')} className="flex min-w-0 gap-5 overflow-x-auto border-b border-border scroll-fade-x">
-          {tabs.map(({ key, label, count, money }) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={tab === key}
-              aria-controls="procurement-tab-panel"
-              tabIndex={tab === key ? 0 : -1}
-              onClick={() => setTab(key)}
-              className={`touch-target shrink-0 border-b-2 px-0.5 py-2.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tab === key ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-            >
-              {label}<span className="ml-1.5 tabular text-muted-foreground">{count}</span>{money && <span className="ml-1.5 tabular text-[12px] font-normal text-muted-foreground">{money}</span>}
-            </button>
-          ))}
-        </div>
+        <Tabs
+          items={tabs.map(({ key, label, count, money }) => ({ value: key, label, count, detail: money || undefined }))}
+          value={tab}
+          onChange={setTab}
+          ariaLabel={t('tabs.label', 'Procurement lists')}
+          idBase="procurement-list-tabs"
+          className="mb-0 min-w-0 gap-5 scroll-fade-x"
+        />
 
         {ready && (
           <ProcurementKpiRow rows={all} role={realRole as ProcurementListRole} />
@@ -480,7 +466,7 @@ const ProcurementPage: React.FC = () => {
           </div>
         )}
 
-        <div id="procurement-tab-panel" role="tabpanel" aria-label={tab === 'orphans' ? t('tab.orphans', 'Not in a procurement') : tab === 'needs-you' ? t('tab.needsYou', 'Needs you') : t('tab.all', 'All')}>
+        <div id={tabPanelId('procurement-list-tabs', tab)} role="tabpanel" aria-labelledby={tabId('procurement-list-tabs', tab)}>
           {isPending && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={6} /></div>}
 
           {(isError || (!isPending && !data)) && (

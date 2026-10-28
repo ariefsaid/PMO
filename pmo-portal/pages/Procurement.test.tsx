@@ -116,6 +116,15 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(within(screen.getByTestId('list-page-header')).getByRole('heading')).toBeInTheDocument();
   });
 
+  it('QI-6 switches procurement list tabs with the shared arrow-key pattern', async () => {
+    renderPage('/procurement?tab=all');
+    const tabs = screen.getByRole('tablist', { name: 'Procurement lists' });
+    const all = within(tabs).getByRole('tab', { name: /All/ });
+    all.focus();
+    await userEvent.keyboard('{ArrowLeft}');
+    expect(within(tabs).getByRole('tab', { name: /Needs you/ })).toHaveAttribute('aria-selected', 'true');
+  });
+
   it('AC-S19-002: daily rows show the procurement stage and its next step', async () => {
     renderPage('/procurement?tab=all');
     expect(screen.getByText('Workstations & AV')).toBeInTheDocument();

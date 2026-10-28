@@ -103,8 +103,7 @@ export interface AttentionItem {
   to: string;
 }
 
-const attnToday = () => new Date().toISOString().slice(0, 10);
-const lateDays = (target: string) => Math.max(1, Math.floor((Date.parse(attnToday()) - Date.parse(target)) / 86_400_000));
+const lateDays = (target: string, today: string) => Math.max(1, Math.floor((Date.parse(today) - Date.parse(target)) / 86_400_000));
 
 /**
  * Exceptions that need a person, from signals the page already shows. Not used for `delivery`
@@ -123,14 +122,16 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
   const base = `/projects/${project.id}`;
   const milestones = useMilestones(project.id);
   const tasks = useTasks(project.id);
+  const organizationDay = useFxOrgDay(true);
   const budget = useBudgetPosition(project, lens !== 'delivery');
   const receivables = useOverdueReceivables(project, lens !== 'delivery');
   const canApprove = lens !== 'delivery' && may('transition', 'procurement');
   const procurements = useProjectProcurements(canApprove ? project.id : null);
-  const isPending = milestones.isPending || (lens === 'delivery' && tasks.isPending) || (lens !== 'delivery' && (
+  const isPending = organizationDay.isPending || milestones.isPending || (lens === 'delivery' && tasks.isPending) || (lens !== 'delivery' && (
     budget.isPending || budget.actualsPending || receivables.isPending || (canApprove && procurements.isPending)
   ));
-  const failedRead = milestones.isError ? 'phases'
+  const failedRead = organizationDay.isError ? 'today'
+    : milestones.isError ? 'phases'
     : lens === 'delivery' && tasks.isError ? 'tasks'
     : lens !== 'delivery' && budget.isError ? 'budget'
       : lens !== 'delivery' && budget.actualsError ? 'spending'
@@ -138,13 +139,15 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
           : canApprove && procurements.isError ? 'procurements'
             : null;
   const error = failedRead ? {
-    what: failedRead === 'phases' ? t('projectDetail.attention.check.phases', 'phases')
+    what: failedRead === 'today' ? t('projectDetail.attention.check.today', 'organization day')
+      : failedRead === 'phases' ? t('projectDetail.attention.check.phases', 'phases')
       : failedRead === 'tasks' ? t('projectDetail.attention.check.tasks', 'tasks')
       : failedRead === 'budget' ? t('projectDetail.attention.check.budget', 'budget')
         : failedRead === 'spending' ? t('projectDetail.attention.check.spending', 'spending')
           : failedRead === 'receivables' ? t('projectDetail.attention.check.receivables', 'receivables')
             : t('projectDetail.attention.check.procurements', 'procurements'),
     retry: () => Promise.all([
+      ...(organizationDay.isError ? [organizationDay.retry()] : []),
       ...(milestones.isError ? [milestones.refetch()] : []),
       ...(lens === 'delivery' && tasks.isError ? [tasks.refetch()] : []),
       ...(budget.isError ? [budget.refetch()] : []),
@@ -161,8 +164,8 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
     .map((task) => `task-${task.id}`)), [tasks.data, currentUser?.id]);
   const items = useMemo(() => {
     const out: AttentionItem[] = [];
+    const today = organizationDay.day ?? '';
     if (lens === 'delivery') {
-      const today = attnToday();
       const mine = (tasks.data ?? []).filter((task) => task.assignee_id === currentUser?.id && task.status !== 'Done');
       for (const task of mine) {
         const blocked = task.status === 'Blocked';
@@ -212,7 +215,7 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
         explanation: t('projectDetail.attention.arTooltip', 'Invoice status, due date, and any known unpaid balance come from project invoices and accounting sync.'),
         action: receivables.data.count === 1 ? t('projectDetail.attention.arActionOne', 'See invoice') : t('projectDetail.attention.arActionMany', 'See invoices') });
     }
-    const late = (milestones.data ?? []).filter((m) => m.target_date && m.target_date < attnToday() && m.effective_pct < 100 && (m.effective_pct > 0 || m.task_count > 0));
+    const late = (milestones.data ?? []).filter((m) => m.target_date && m.target_date < today && m.effective_pct < 100 && (m.effective_pct > 0 || m.task_count > 0));
     if (late.length) {
       const worst = late.reduce((w, m) => (m.target_date! < w.target_date! ? m : w));
       // N16: late reads red here as it does on the phase rows and Tasks — one lateness colour.
@@ -220,7 +223,7 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
         what: late.length === 1
           ? t('projectDetail.attention.phaseWhat', '{{name}} is late', { name: worst.name })
           : t('projectDetail.attention.phasesWhat', '{{count}} phases late', { count: late.length }),
-        size: t('projectDetail.attention.phaseSize', '{{days}} days late', { days: lateDays(worst.target_date!) }),
+        size: t('projectDetail.attention.phaseSize', '{{days}} days late', { days: lateDays(worst.target_date!, today) }),
         action: t('projectDetail.attention.phaseAction', 'See tasks'),
         explanation: t('projectDetail.attention.phaseTooltip', 'Phase target dates and completion come from the project phase plan.') });
     }
@@ -237,7 +240,7 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
       }
     }
     return out.sort((x, y) => (x.tone === y.tone ? 0 : x.tone === 'danger' ? -1 : 1));
-  }, [lens, tasks.data, budget.overRows, budget.projectOver, receivables.data, milestones.data, procurements.data, canApprove, currentUser?.id, realRole, base, project.currency, t]);
+  }, [lens, organizationDay.day, tasks.data, budget.overRows, budget.projectOver, receivables.data, milestones.data, procurements.data, canApprove, currentUser?.id, realRole, base, project.currency, t]);
 
   return { items, myVisibleTaskKeys, isPending, error };
 }

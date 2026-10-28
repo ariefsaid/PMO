@@ -86,6 +86,9 @@
     "readyToBill": "perintah kerja belum ditagihkan",
     "budgetsOver": "anggaran terlampaui",
     "pmOverBudget": "proyek menggunakan lebih dari 90% anggaran",
+    "pmAtLeast": "Sedikitnya {{count}}",
+    "pmRiskUnchecked_one": "proyek dengan anggaran yang belum dapat diperiksa",
+    "pmRiskUnchecked_other": "proyek dengan anggaran yang belum dapat diperiksa",
     "pmTasks": "tugas proyek Anda terlambat",
     "pmTimesheets": "lembar waktu tim menunggu persetujuan",
     "engineerTasks": "tugas terlambat atau jatuh tempo minggu ini",
@@ -408,7 +411,7 @@
         "won": "Jumlah dan nilai proyek yang tercatat sebagai menang dalam periode terpilih.",
         "winRate": "Proyek menang dibagi jumlah proyek menang dan kalah dalam periode terpilih. Grafik dapat beralih antara jumlah dan nilai.",
         "stageMargin": "Nilai dan jumlah tahap berasal dari pipeline penjualan. Model data saat ini tidak menyediakan margin prakiraan per tahap.",
-        "pipelineStages": "Jumlah dan nilai bruto per tahap berasal dari pipeline penjualan. Nilai bruto dikelompokkan menurut mata uang proyek. Sumber tidak menyediakan margin prakiraan per tahap.",
+        "pipelineStages": "Jumlah, nilai bruto, dan nilai tertimbang probabilitas per tahap berasal dari pipeline penjualan. Margin prakiraan merangkum tahap terbuka.",
         "purchasesScope": "Pembelian yang dicatat langsung di sistem akuntansi tidak termasuk dalam tampilan pengadaan PMO ini."
       },
       "budgetAttentionHelp": "Anggaran proyek melampaui perbandingan dengan pengeluaran tercatat.",

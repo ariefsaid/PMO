@@ -209,6 +209,7 @@ afterEach(() => resetActiveLocale());
 describe('ProjectBudget Bahasa confirmation copy (BU-2)', () => {
   it('renders all six confirmation descriptions in Bahasa in an id locale session', async () => {
     await financeTestI18n.changeLanguage('id');
+    roleState.realRole = 'Finance';
     const cases = [
       { versions: [], trigger: /Buat anggaran/i, fill: true, confirm: /^Buat$/i, body: 'Ini membuat versi anggaran Draf baru bernama' },
       { versions: [draftVersion], trigger: /Activate v2|Aktifkan v2/i, confirm: /Aktifkan versi/i, body: 'Ini menjadikan Draft v2 (v2) sebagai anggaran aktif' },
@@ -330,7 +331,7 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     expect(screen.getAllByText(/Spending isn't linked yet\./)).toHaveLength(1);
   });
 
-  it('places the accounting-system notice after the budget table; Admin, Finance and Project Manager all read it', async () => {
+  it('places the accounting-system notice after the budget table for Admin and Finance, and hides it from PMs', async () => {
     budgetState.data = activeVersion.total;
     versionsState.data = [activeVersion];
     budgetPushState.rows = [
@@ -353,11 +354,11 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     expect(await screen.findByTestId('budget-erp-notice')).toBeInTheDocument();
     financeView.unmount();
 
-    // R-008 (regression audit): a Project Manager reads the push state too, as before the restructure — read-only.
+    // #1402 limits budget enforcement state to Finance and Admin.
     roleState.realRole = 'Project Manager';
     renderPage();
-    await userEvent.click(screen.getByText('Sources and budget enforcement'));
-    expect(await screen.findByTestId('budget-erp-notice')).toHaveTextContent('BUDGET-1');
+    expect(screen.queryByText('Sources and budget enforcement')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('budget-erp-notice')).not.toBeInTheDocument();
   });
 });
 
@@ -496,7 +497,8 @@ describe('ProjectBudget version status display', () => {
 // Draft actions
 // ---------------------------------------------------------------------------
 describe('ProjectBudget Draft version actions', () => {
-  it('shows Activate in the header and Delete draft in the Versions drawer', async () => {
+  it('SP-5 Finance sees Activate and Delete draft in the Versions drawer', async () => {
+    roleState.realRole = 'Finance';
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     renderPage();
@@ -507,6 +509,7 @@ describe('ProjectBudget Draft version actions', () => {
   });
 
   it('B2: Activate opens a default-tone confirm; mutation fires only on Confirm; toasts on resolve', async () => {
+    roleState.realRole = 'Finance';
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     renderPage();
@@ -527,6 +530,7 @@ describe('ProjectBudget Draft version actions', () => {
   //    mirror row at all, the sweep backstop's queue IS that mirror, and the user was shown a plain
   //    success while ERPNext kept enforcing the previous budget.
   it('HIGH-C activation whose ERP push failed still succeeds, but SAYS SO instead of toasting a clean success', async () => {
+    roleState.realRole = 'Finance';
     mockActivate.mockResolvedValueOnce({ pushState: 'failed' });
     budgetState.data = 0;
     versionsState.data = [draftVersion];
@@ -544,6 +548,7 @@ describe('ProjectBudget Draft version actions', () => {
    * attempt was made and there is nothing to retry.
    */
   it('activation of a version with NO lines says nothing was sent — never "ERPNext is enforcing" it', async () => {
+    roleState.realRole = 'Finance';
     mockActivate.mockResolvedValueOnce({ pushState: 'nothing-to-push' });
     budgetState.data = 0;
     versionsState.data = [draftVersion];
@@ -558,6 +563,7 @@ describe('ProjectBudget Draft version actions', () => {
   });
 
   it('AC-1050-07: sole operator sees Activate and must confirm the exception before activation', async () => {
+    roleState.realRole = 'Finance';
     budgetState.data = 100;
     versionsState.data = [{ ...draftVersion, created_by: 'u1', editor_ids: ['u1'] }];
     activationModeState.data = 'sole_operator';
@@ -589,6 +595,14 @@ describe('ProjectBudget Draft version actions', () => {
     renderPage();
     expect(screen.queryByRole('button', { name: /^Activate v2$/i })).not.toBeInTheDocument();
     expect(screen.getByText('You drafted or edited this version, so someone else must activate it.')).toBeInTheDocument();
+  });
+
+  it('SP-5 PM cannot activate an unedited draft', () => {
+    roleState.realRole = 'Project Manager';
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    expect(screen.queryByRole('button', { name: /^Activate v2$/i })).not.toBeInTheDocument();
   });
 
   it('OD-BUDGET-6: a PM sees that a version with no recorded drafter needs Admin or Finance', () => {

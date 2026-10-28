@@ -11,6 +11,8 @@ export interface TabItem<V extends string = string> {
    * Count badge). Omit (or pass null/undefined) for tabs that carry no count.
    */
   count?: number | null;
+  /** Optional secondary tab detail (e.g. a money total), still exposed in the tab name. */
+  detail?: string;
 }
 
 export interface TabsProps<V extends string = string> {
@@ -161,6 +163,7 @@ export function Tabs<V extends string = string>({
                 {t.count}
               </span>
             )}
+            {t.detail && <span className="ml-1.5 tabular text-[12px] font-normal text-muted-foreground">{t.detail}</span>}
           </button>
         );
       })}

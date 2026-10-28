@@ -5,6 +5,7 @@ import { Link, useSearchParams } from 'react-router';
 import { useProjectBudget, useBudgetVersions, useBudgetMutations, useBudgetActivationMode } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useUsers } from '@/src/hooks/useUsers';
 import { useProjectProcurements } from '@/src/hooks/useProcurements';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
@@ -525,12 +526,13 @@ type PendingBudgetConfirm =
 const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => {
   const { t } = useTranslation('finance');
   const can = usePermission();
+  const { realRole } = useEffectiveRole();
   const canWrite = can('edit', 'budgetLine');
   const canReadMoney = can('view', 'salesInvoice');
   const canReadProcurements = can('view', 'procurement');
   const canManageAccounting = can('manage', 'orgAccounting');
-  // R-008: every budget reader sees the ERP push status (read-only); retry/release stay with Admin/Finance in the notice.
-  const canViewBudgetEnforcement = canReadMoney;
+  // #1402 scopes ERP push status to Finance and Admin.
+  const canViewBudgetEnforcement = realRole === 'Admin' || realRole === 'Finance';
   const { currentUser } = useAuth();
   const usersQuery = useUsers();
   const erpBindingQuery = useErpnextBinding();
@@ -795,9 +797,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       const previous = index > 0 ? orderedVersions[index - 1] : null;
       return previous ? <Tooltip content={t('projectDetail.budget.versionChangeSource', 'Calculated as this version total minus the prior numbered version total.')}><span tabIndex={0} className={version.total > previous.total ? 'text-destructive-text' : undefined}>{version.total > previous.total ? t('projectDetail.budget.changeIncrease', '+') : ''}{formatAmount(version.total - previous.total)}</span></Tooltip> : '—';
     } },
-    { key: 'accounting', header: t('projectDetail.budget.accountingSystem', 'Accounting system'), cell: (version) => {
+    ...(canViewBudgetEnforcement ? [{ key: 'accounting', header: t('projectDetail.budget.accountingSystem', 'Accounting system'), cell: (version: BudgetVersionWithItems) => {
       if (version.status !== 'Active') return '—';
-      if (!canViewBudgetEnforcement) return '—';
       if (pushStatusQuery.isPending) return <span className="text-muted-foreground">{t('projectDetail.budget.checkingPushState', 'Checking')}</span>;
       if (pushStatusQuery.isError) return <span className="inline-flex items-center gap-1 text-muted-foreground">{t('projectDetail.budget.pushStateError', "Couldn't check")}<Button variant="ghost" size="sm" onClick={() => void pushStatusQuery.refetch()}>{t('common.retry', 'Retry')}</Button></span>;
       const states = (pushStatusQuery.data ?? []).filter((row) => row.pushState !== null);
@@ -815,7 +816,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         const state = labels[row.pushState ?? ''] ?? { label: t('projectDetail.budget.pushNotEnforced', 'Not enforced'), variant: 'lost' as const };
         return <StatusPill key={`${row.fiscalYear ?? 'project'}-${index}`} variant={state.variant}>{state.label}{row.fiscalYear ? ` · ${row.fiscalYear}` : ''}</StatusPill>;
       })}</span>;
-    } },
+    } } satisfies Column<BudgetVersionWithItems>] : []),
   ];
   const versionMenu = (version: BudgetVersionWithItems): RowMenuItem[] => [
     { label: t('projectDetail.budget.openVersion', 'Open version'), onClick: () => { setBudgetView('actual'); setSelectedVersionId(version.id); setVersionsOpen(true); } },

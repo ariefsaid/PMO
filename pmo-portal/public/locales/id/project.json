@@ -332,6 +332,7 @@
       "countTooltip": "Jumlah item proyek saat ini yang perlu ditindaklanjuti.",
       "rowTooltip": "Status didasarkan pada catatan proyek dan tahap alur kerjanya saat ini.",
       "check": {
+        "today": "tanggal organisasi",
         "phases": "tahapan",
         "tasks": "tugas",
         "budget": "anggaran",
@@ -569,6 +570,7 @@
         "source": "Sumber",
         "owner": "Pemilik",
         "docDate": "Tanggal",
+        "file": "Berkas",
         "revision": "Revisi",
         "documentDate": "Tanggal dokumen"
       },

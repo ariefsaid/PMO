@@ -1,6 +1,7 @@
-import { procurementMoney, supplierUnpaid, type MoneyFigure, type ProcurementMoneyKind } from '../blocks/procurementMoney';
+import { procurementMoney, supplierUnpaid, type MoneyFigure, type ProcurementMoneyInput, type ProcurementMoneyKind } from '../blocks/procurementMoney';
 import { stageForStatus, type StageKey } from '../blocks/stage';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
+export { matchesSearch } from '@/src/lib/procurementSearch';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { formatShortMoney } from '@/src/lib/format';
 
@@ -28,12 +29,14 @@ const REQUEST_ONLY_ROLE = 'Engineer';
 /** One source for every calculated list figure, with sensitive invoice/payment data withheld from Engineers. */
 export function moneyForListRow(row: ProcurementWithRefs, role: ProcurementListRole) {
   if (role === REQUEST_ONLY_ROLE) return procurementMoney({ total_value: row.total_value });
+  const linked = row as ProcurementWithRefs & { erpDocuments?: ProcurementMoneyInput['erpDocuments'] };
   return procurementMoney({
     total_value: row.total_value,
     purchase_requests: row.purchase_requests,
     purchase_orders: row.purchase_orders,
     procurement_invoices: row.procurement_invoices,
     payments: row.payments,
+    erpDocuments: linked.erpDocuments,
   });
 }
 

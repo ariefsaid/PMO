@@ -79,6 +79,7 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(screen.queryByRole('button', { name: /A supplier invoice/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /payment/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /A document already in the accounting system/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/document already in hand/i)).not.toBeInTheDocument();
   });
 
   it('B3: an Engineer\'s back control leaves for the Procurement list, not a one-choice chooser', () => {

@@ -49,10 +49,12 @@ function parseHave(value: string | null): ProcurementHave | null {
 
 function ProcurementIntake({
   choices,
+  description,
   onChoose,
   lockToNeed = false,
 }: {
   choices: IntakeChoice[];
+  description: string;
   onChoose: (choice: IntakeChoice['value']) => void;
   lockToNeed?: boolean;
 }) {
@@ -64,7 +66,7 @@ function ProcurementIntake({
         {t('question', 'What do you have?')}
       </h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        {t('questionDescription', 'Start with a new need or a document already in hand.')}
+        {description}
       </p>
       {lockToNeed && (
         <p role="status" className="mt-4 text-sm text-muted-foreground">
@@ -273,7 +275,14 @@ export default function ProcurementCreate() {
     return (
       <main className="mx-auto w-full max-w-7xl p-4 pb-6 md:p-6">
         <BackBar label={t('backToProcurement', 'Procurement')} onBack={() => guardLeave(() => navigate('/procurement'))} />
-        <ProcurementIntake choices={choices} onChoose={choose} lockToNeed={Boolean(savedRequestId)} />
+        <ProcurementIntake
+          choices={choices}
+          description={canCaptureDocuments
+            ? t('questionDescription', 'Start with a new need or a document already in hand.')
+            : t('choices.need.description', 'Raise a purchase request.')}
+          onChoose={choose}
+          lockToNeed={Boolean(savedRequestId)}
+        />
         <ConfirmDialog
           open={pendingLeave !== null}
           tone="default"

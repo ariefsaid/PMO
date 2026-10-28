@@ -332,6 +332,7 @@
       "countTooltip": "Count of current project items that need follow-up.",
       "rowTooltip": "Status is based on project records and their current workflow state.",
       "check": {
+        "today": "organization day",
         "phases": "phases",
         "tasks": "tasks",
         "budget": "budget",
@@ -569,6 +570,7 @@
         "source": "Source",
         "owner": "Owner",
         "docDate": "Date",
+        "file": "File",
         "revision": "Revision",
         "documentDate": "Document date"
       },

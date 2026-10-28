@@ -193,16 +193,10 @@
     "col": {
       "progress": "Progress",
       "earned": "Earned",
-      "invoices": "Invoices",
-      "openAr": "Unpaid by client",
-      "openArExport": "Unpaid by client · incl. tax",
-      "openArHelp": "What clients still owe on submitted invoices, tax included.",
-      "openArHelpLabel": "Unpaid by client · tax included"
+      "invoices": "Invoices"
     },
     "noProgressNote": "No progress is recorded yet, so earned revenue follows what has been invoiced.",
     "backlogUnknownNote": "Backlog is left out where a foreign-currency invoice needs reconciliation before the balance can be known.",
-    "reviewInvoices": "Review invoices",
-    "openArUnknownNote_one": "Unpaid by client is left out for {{count}} project: an invoice balance has not been reported by the accounting system yet.",
-    "openArUnknownNote_other": "Unpaid by client is left out for {{count}} projects: an invoice balance has not been reported by the accounting system yet."
+    "reviewInvoices": "Review invoices"
   }
 }

@@ -5,7 +5,7 @@
  */
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui/Toast';
 
@@ -103,6 +103,26 @@ describe('L2(a): the phone pipeline is one line per stage', () => {
     expect(items[1]).toHaveTextContent(/^Tender Submitted\s*·\s*4\s*·\s*\$6,050,000$/);
     expect(within(list).queryByText('Count')).not.toBeInTheDocument();
     expect(within(list).queryByText('Gross')).not.toBeInTheDocument();
+  });
+
+  it('SP-3 shows the weighted forecast margin headline and stage values', () => {
+    state.figures = figures({ pipeline_projected_margin: 0.125 });
+    state.pipeline = {
+      stages: [
+        { status: 'Leads', count: 2, total_value: 1_000_000, weighted_value: 250_000 },
+        { status: 'Won', count: 1, total_value: 100_000, weighted_value: 100_000 },
+      ],
+      projects: [],
+    };
+    renderDashboard('Finance');
+
+    const margin = screen.getByRole('group', { name: 'Pipeline projected margin' });
+    expect(within(margin).getByText('12.5%')).toBeInTheDocument();
+    expect(within(margin).getByRole('progressbar', { name: /Leads: \$250,000 weighted/ })).toBeInTheDocument();
+    expect(within(margin).queryByRole('progressbar', { name: /Won:/ })).not.toBeInTheDocument();
+    fireEvent.focus(screen.getByRole('button', { name: 'About pipeline by stage' }));
+    expect(screen.getByRole('tooltip')).toHaveTextContent(/probability-weighted stage values/i);
+    expect(screen.queryByText(/source does not return forecast margin/i)).not.toBeInTheDocument();
   });
 });
 

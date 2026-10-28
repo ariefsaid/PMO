@@ -8,6 +8,23 @@ const translate = (key: string, fallback: string, options?: Record<string, unkno
   fallback.replace('{{count}}', String(options?.count ?? ''));
 
 describe('needs-you dashboard selectors', () => {
+  it('QI-5 labels a partial PM at-risk count as a floor', () => {
+    const [item] = buildNeedsItems('Project Manager', {
+      projectsOverBudget: 2,
+      projectsOverBudgetPartial: true,
+    }, translate);
+    expect(item).toMatchObject({ id: 'projects-over-budget', count: 2, countLabel: 'At least 2' });
+  });
+
+  it('QI-5 says when no PM at-risk count can be checked', () => {
+    const [item] = buildNeedsItems('Project Manager', {
+      projectsOverBudget: 0,
+      projectsOverBudgetUnknown: 3,
+    }, translate);
+    expect(item).toMatchObject({ id: 'projects-risk-unchecked', count: 3, tone: 'neutral' });
+    expect(item?.label).toMatch(/without a checkable budget/i);
+  });
+
   it('shows executive approvals, risk and procurement needs with their work destinations', () => {
     const items = buildNeedsItems('Executive', {
       approvals: 2, atRiskProjects: 1, procurementsAwaitingApproval: 3,

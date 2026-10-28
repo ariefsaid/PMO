@@ -48,7 +48,7 @@ export function fieldLabels(t: TFunction): Record<string, string> {
     pr_number: t('history.field.pr_number', 'PR number'),
     po_number: t('history.field.po_number', 'PO number'),
     requested_by_id: t('history.field.requested_by_id', 'Requested by'),
-    vendor_id: t('history.field.vendor_id', 'Vendor'),
+    vendor_id: t('history.field.vendor_id', 'Supplier'),
     budget_category: t('history.field.budget_category', 'Budget category'),
     total_value: t('history.field.total_value', 'Total value'),
     procurement_id: t('history.field.procurement_id', 'Procurement'),

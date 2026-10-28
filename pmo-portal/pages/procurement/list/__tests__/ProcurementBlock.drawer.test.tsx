@@ -93,10 +93,25 @@ describe('Procurement drawer header (B4)', () => {
     expect(JSON.parse(probe.getAttribute('data-state') ?? 'null')).toMatchObject({ runMainAction: 'Paid' });
   });
 
+  it('QM-9 removes the duplicate Next action row-menu item', async () => {
+    renderBlock('/procurement');
+    await userEvent.click(screen.getAllByRole('button', { name: 'Row actions' })[0]!);
+    expect(screen.getByRole('menuitem', { name: 'Open procurement' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Next action' })).not.toBeInTheDocument();
+  });
+
   it('offers Approve to a viewer who may decide a waiting procurement', () => {
     procState.data = [row({ status: 'Requested', procurement_invoices: [], approved_by_id: null })];
     renderBlock();
     expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+  });
+
+  it('QM-1 keeps the drawer next step specific to the routed approver', () => {
+    procState.data = [row({ status: 'Requested', procurement_invoices: [], approved_by_id: null, approvalRoute: { route: 'assigned', approvers: [{ id: 'u-other' }] } })];
+    renderBlock();
+    const drawer = screen.getByRole('dialog', { name: /Inverters/ });
+    expect(within(drawer).getByText('Waiting on approver')).toBeInTheDocument();
+    expect(within(drawer).queryByText('Approve or return')).not.toBeInTheDocument();
   });
 
   it('OD-UX-1: Approve from the drawer confirms against the amount before anything is written', async () => {
@@ -138,6 +153,16 @@ describe('Procurement drawer body', () => {
     const request = within(timeline).getByText('Request').closest('li')!;
     expect(request).toHaveTextContent('Not recorded');
     expect(request).not.toHaveTextContent('Oct 27, 2026');
+  });
+
+  it('QM-2 treats a scheduled payment as invoiced until it is paid', () => {
+    procState.data = [row({ payments: [{ amount: 5_000, status: 'Scheduled', date: '2026-10-22' }] })];
+    renderBlock();
+    const timeline = screen.getByRole('region', { name: 'Step timeline' });
+    const pay = within(timeline).getByText('Invoiced').closest('li')!;
+    expect(pay).toHaveTextContent('Oct 20, 2026');
+    expect(pay).not.toHaveTextContent('Oct 22, 2026');
+    expect(within(timeline).queryByText('Paid')).not.toBeInTheDocument();
   });
 
   it('C4: leaves out the category budget figure when it is unknown, never "Not available"', () => {

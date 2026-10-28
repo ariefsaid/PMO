@@ -212,6 +212,17 @@ describe('DocumentsTab — register rows (AC-DOC-001)', () => {
     expect(screen.getAllByText('Issued').length).toBeGreaterThan(0);
   });
 
+  it('SP-6 shows the File column only when the current document view includes a file', async () => {
+    renderTab();
+    expect(screen.getByRole('columnheader', { name: 'File' })).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText('Filter by category'), 'Drawing');
+    expect(screen.queryByRole('columnheader', { name: 'File' })).not.toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText('Filter by category'), 'Specification');
+    expect(screen.getByRole('columnheader', { name: 'File' })).toBeInTheDocument();
+  });
+
   it('AC-DOC-001: search filters rows by title/code', async () => {
     listState.data = withDocumentCount(11);
     renderTab();
@@ -697,14 +708,15 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     renderTab('Admin', 'admin-1');
     const fileInput = screen.getByTestId('file-input') as HTMLInputElement;
     await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
-    await userEvent.click(screen.getByRole('button', { name: /Upload file for Site Plan/i }));
+    const preview = screen.getByRole('complementary');
+    await userEvent.click(within(preview).getByRole('button', { name: /Upload file for Site Plan/i }));
     const oversize = new File(['x'], 'too-big.pdf', { type: 'application/pdf' });
     Object.defineProperty(oversize, 'size', { value: 6 * 1024 * 1024 });
     await userEvent.upload(fileInput, oversize);
-    expect(screen.getByText('File exceeds 5 MB limit')).toHaveTextContent('File exceeds 5 MB limit');
-    await userEvent.click(screen.getByRole('button', { name: /Remove failed upload for Site Plan/i }));
+    expect(within(preview).getByText('File exceeds 5 MB limit')).toHaveTextContent('File exceeds 5 MB limit');
+    await userEvent.click(within(preview).getByRole('button', { name: /Remove failed upload for Site Plan/i }));
     expect(screen.queryByText('File exceeds 5 MB limit')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Upload file for Site Plan/i })).toBeInTheDocument();
+    expect(within(preview).getByRole('button', { name: /Upload file for Site Plan/i })).toBeInTheDocument();
   });
 
   it('AC-DOC-020: selecting a valid file from Upload dispatches the upload mutation', async () => {
@@ -713,7 +725,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     const file = new File(['x'], 'drawing.pdf', { type: 'application/pdf' });
 
     await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
-    await userEvent.click(screen.getByRole('button', { name: /Upload file for Site Plan/i }));
+    await userEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Upload file for Site Plan/i }));
     await userEvent.upload(fileInput, file);
     expect(fileUploadState.upload.mutate).toHaveBeenCalledWith({ docId: 'd1', file });
   });
@@ -725,7 +737,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     const file = new File(['x'], 'drawing.pdf', { type: 'application/pdf' });
 
     await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
-    await userEvent.click(screen.getByRole('button', { name: /Replace file for Site Plan/i }));
+    await userEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Replace file for Site Plan/i }));
     await userEvent.upload(fileInput, file);
     expect(fileUploadState.replace.mutate).toHaveBeenCalledWith({ docId: 'd1', file });
   });

@@ -1,12 +1,4 @@
-/**
- * R-006 — Project Managers keep the revenue report for their projects.
- *
- * Restores the access the deleted Revenue-by-project page gave PMs (baseline fa511c382: the report used
- * `may('view','salesInvoice')`, Finance/PM/Executive/Admin). The replacement report lives at
- * /finance/reports; a PM must reach it from the rail and the route, read their projects' figures, and
- * still get no invoice write control. Engineers stay out. Runs against the REAL policy (only the role
- * and the data sources are stubbed), so it binds the route guard, the page gate and the rail together.
- */
+/** SP-1 — Reports follows the Finance area access ruling: Finance, Executive and Admin only. */
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
@@ -83,47 +75,45 @@ beforeEach(() => {
   h.query = { data: buildManagementPack(facts), isPending: false, isError: false, error: null, refetch: () => Promise.resolve() };
 });
 
-describe('R-006 — Project Manager access to the revenue report', () => {
-  it('R-006: the /finance/reports route opens the report for a Project Manager; an Engineer is still refused', async () => {
-    renderReportsRoute();
-    expect(await screen.findByRole('region', { name: 'Report figures' })).toBeInTheDocument();
-    expect(screen.getByText('Alpha')).toBeInTheDocument();
-    expect(screen.queryByText("You don't have access to the management pack")).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Finance' })).not.toBeInTheDocument();
+describe('SP-1 — Reports follows Finance access', () => {
+  it('allows Finance, Executive and Admin, and refuses Project Managers and Engineers at the route', async () => {
+    for (const role of ['Finance', 'Executive', 'Admin']) {
+      h.role = role;
+      renderReportsRoute();
+      expect(await screen.findByRole('region', { name: 'Report figures' })).toBeInTheDocument();
+      cleanup();
+    }
 
-    cleanup();
-    h.role = 'Engineer';
-    renderReportsRoute();
-    expect(await screen.findByText(/Finance is available to Finance, Executive and Admin roles|You don't have access to the management pack/)).toBeInTheDocument();
+    for (const role of ['Project Manager', 'Engineer']) {
+      h.role = role;
+      renderReportsRoute();
+      expect(screen.getByText(/Finance is available to Finance, Executive and Admin roles/)).toBeInTheDocument();
+      expect(screen.queryByRole('region', { name: 'Report figures' })).not.toBeInTheDocument();
+      cleanup();
+    }
+  });
+
+  it('keeps the page-level gate closed to a Project Manager when rendered directly', () => {
+    h.role = 'Project Manager';
+    render(<MemoryRouter><ToastProvider><ManagementPack /></ToastProvider></MemoryRouter>);
+    expect(screen.getByText(/Finance reports are available to Finance, Executive and Admin roles/)).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Report figures' })).not.toBeInTheDocument();
   });
 
-  it('R-006: a Project Manager reads their projects’ revenue but gets no invoice write action', () => {
-    render(<MemoryRouter><ToastProvider><ManagementPack /></ToastProvider></MemoryRouter>);
-    expect(screen.getByRole('region', { name: 'Report figures' })).toBeInTheDocument();
-    expect(screen.getByText('Alpha')).toBeInTheDocument();
+  it('shows Reports in the Finance rail group only for Finance, Executive and Admin', () => {
+    for (const role of ['Finance', 'Executive', 'Admin']) {
+      h.role = role;
+      render(<MemoryRouter><Rail /></MemoryRouter>);
+      expect(screen.getByRole('link', { name: 'Reports' })).toHaveAttribute('href', '/finance/reports');
+      cleanup();
+    }
 
-    cleanup();
-    h.query = { ...h.query, data: buildManagementPack({ ...facts, projects: [], invoiced: [] }) };
-    render(<MemoryRouter><ToastProvider><ManagementPack /></ToastProvider></MemoryRouter>);
-    expect(screen.getByText('No projects to report')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'New invoice' })).not.toBeInTheDocument();
-  });
-
-  it('R-006: the rail gives a Project Manager Reports (→ /finance/reports) without the Finance section, and only while Revenue is on', () => {
-    render(<MemoryRouter><Rail /></MemoryRouter>);
-    expect(screen.getByRole('link', { name: 'Reports' })).toHaveAttribute('href', '/finance/reports');
-    expect(screen.queryByRole('link', { name: 'Finance' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Receivables' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Statements' })).not.toBeInTheDocument();
-
-    cleanup();
-    h.revenue = false;
+    h.role = 'Project Manager';
     render(<MemoryRouter><Rail /></MemoryRouter>);
     expect(screen.queryByRole('link', { name: 'Reports' })).not.toBeInTheDocument();
-
+    expect(screen.queryByRole('link', { name: 'Finance' })).not.toBeInTheDocument();
     cleanup();
-    h.revenue = true;
+
     h.role = 'Engineer';
     render(<MemoryRouter><Rail /></MemoryRouter>);
     expect(screen.queryByRole('link', { name: 'Reports' })).not.toBeInTheDocument();

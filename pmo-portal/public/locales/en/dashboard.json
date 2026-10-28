@@ -86,6 +86,9 @@
     "readyToBill": "work order still to invoice",
     "budgetsOver": "budget running over",
     "pmOverBudget": "project over 90% of budget",
+    "pmAtLeast": "At least {{count}}",
+    "pmRiskUnchecked_one": "project without a checkable budget",
+    "pmRiskUnchecked_other": "projects without a checkable budget",
     "pmTasks": "overdue task on your projects",
     "pmTimesheets": "team timesheet to approve",
     "engineerTasks": "task overdue or due this week",
@@ -408,7 +411,7 @@
         "won": "Count and value of projects recorded as won within the selected period.",
         "winRate": "Won projects divided by won plus lost projects in the selected period. The chart can switch between count and value.",
         "stageMargin": "Stage values and counts come from the sales pipeline. Stage-level forecast margin is not returned by the current read model.",
-        "pipelineStages": "Stage counts and gross values come from the sales pipeline. Gross is grouped by project currency. The source does not return forecast margin by stage.",
+        "pipelineStages": "Stage counts, gross values, and probability-weighted stage values come from the sales pipeline. Forecast margin summarizes open stages.",
         "purchasesScope": "Purchases made directly in the accounting system are not counted in this PMO procurement view."
       },
       "budgetAttentionHelp": "A project budget is over its recorded spend comparison.",
