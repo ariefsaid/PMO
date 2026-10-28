@@ -333,7 +333,7 @@ const ProcurementPage: React.FC = () => {
     trackFilterApplied('status', statusOptions.length, 'procurement');
   };
 
-  const filterControls = (
+  const filterControls = (withRaisedBy = true) => (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
       <label className="sr-only" htmlFor="procurement-project-filter">{t('filter.project', 'Project')}</label>
       <select id="procurement-project-filter" aria-label={t('filter.project', 'Project')} value={projectId} onChange={(event) => updateQuery({ project: event.target.value || null })} className="h-8 max-w-48 rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -345,11 +345,13 @@ const ProcurementPage: React.FC = () => {
         <option value="">{t('filter.supplier', 'Supplier')}</option>
         {supplierFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
+      {withRaisedBy && <>
       <label className="sr-only" htmlFor="procurement-raised-by-filter">{t('filter.raisedBy', 'Raised by')}</label>
       <select id="procurement-raised-by-filter" aria-label={t('filter.raisedBy', 'Raised by')} value={raisedById} onChange={(event) => updateQuery({ raisedBy: event.target.value || null })} className="h-8 max-w-48 rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <option value="">{t('filter.raisedBy', 'Raised by')}</option>
         {raisedByFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
+      </>}
       <label className="sr-only" htmlFor="procurement-status-filter">{t('filter.status', 'Status')}</label>
       <select id="procurement-status-filter" aria-label={t('filter.status', 'Status')} value={statusValue} onChange={(event) => changeStatusFilter(event.target.value)} className="h-8 max-w-48 rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -454,14 +456,14 @@ const ProcurementPage: React.FC = () => {
                 resultCount={filtered.length}
                 containerClassName="min-w-[220px] flex-1 max-sm:basis-full max-sm:w-full max-sm:min-w-0"
               />
-              <div className="hidden min-w-0 flex-wrap items-center gap-2 md:flex">{filterControls}</div>
+              <div className="hidden min-w-0 flex-wrap items-center gap-2 md:flex">{filterControls()}</div>
               <MobileToolbarDisclosure
                 label={t('filter.filters', 'Filters')}
                 count={[projectId, supplierId, raisedById, statusValue !== 'All' ? statusValue : '', selectedStage ?? ''].filter(Boolean).length || undefined}
                 className="relative md:hidden"
                 panelClassName="absolute left-0 top-full z-30 mt-1 flex w-[min(330px,calc(100vw-2rem))] flex-col gap-2 rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-md"
               >
-                <div className="flex flex-col gap-2">{filterControls}</div>
+                <div className="flex flex-col gap-2">{filterControls()}</div>
               </MobileToolbarDisclosure>
               <span aria-live="polite" className="ml-auto whitespace-nowrap text-[12px] text-muted-foreground">
                 {t(filtered.length === 1 ? 'result.one' : 'result.many', { count: filtered.length, defaultValue: `${filtered.length} ${filtered.length === 1 ? 'result' : 'results'}` })}
@@ -518,7 +520,7 @@ const ProcurementPage: React.FC = () => {
           )}
 
           {ready && tab !== 'orphans' && tabRows.length > 0 && currentView === 'table' && (
-            <ProcurementBlock rowFilter={rowFilter} rowOrder={tab === 'needs-you' ? needsYouOrder : undefined} showCreate={false} />
+            <ProcurementBlock rowFilter={rowFilter} rowOrder={tab === 'needs-you' ? needsYouOrder : undefined} showCreate={false} toolbarExtra={filterControls(Boolean(raisedById))} />
           )}
         </div>
 

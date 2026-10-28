@@ -60,6 +60,8 @@ export interface ProcurementBlockProps {
   rowOrder?: (a: ProcurementWithRefs, b: ProcurementWithRefs) => number;
   /** False when the host page already shows "New procurement" as its primary action. */
   showCreate?: boolean;
+  /** Extra filter controls the host page owns (e.g. the company list's URL filters), shown in the toolbar. */
+  toolbarExtra?: React.ReactNode;
 }
 
 export const ProcurementStageBand: React.FC<React.PropsWithChildren<{ label: string }>> = ({ label, children }) => (
@@ -282,7 +284,7 @@ function ProcurementBudgetLeft({
   );
 }
 
-export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, rowFilter, rowOrder, showCreate = true }) => {
+export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, rowFilter, rowOrder, showCreate = true, toolbarExtra }) => {
   const { t } = useTranslation('procurement');
   const { currentUser, role } = useAuth();
   const navigate = useNavigate();
@@ -664,7 +666,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         kind: 'number',
         colClassName: projectId ? 'hidden' : undefined,
         align: 'num',
-        size: 72,
+        size: 100,
         minSize: 68,
         sortKey: 'age',
         cell: (row) => {
@@ -684,7 +686,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         header: t('procurement.raisedBy', 'Raised by'),
         kind: 'text',
         colClassName: projectId ? 'hidden' : undefined,
-        size: 125,
+        size: 150,
         minSize: 105,
         sortKey: 'owner',
         cell: (row) => {
@@ -872,7 +874,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
             </>
           ) : (
             <>
-              <label className="flex h-9 min-w-[150px] flex-1 items-center gap-2 rounded-md border border-input bg-background px-2.5 text-sm focus-within:ring-2 focus-within:ring-ring sm:max-w-[260px]">
+              <label className="flex h-8 min-w-[150px] flex-1 items-center gap-2 rounded-md border border-input bg-background px-2.5 text-[13px] focus-within:ring-2 focus-within:ring-ring sm:max-w-[260px]">
                 <Icon name="search" className="size-4 shrink-0 text-muted-foreground" />
                 <span className="sr-only">{t('projectDetail.procurement.searchLabel', 'Search procurement')}</span>
                 <input
@@ -883,12 +885,13 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
                   className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
                 />
               </label>
+              {toolbarExtra}
               <label className="sr-only" htmlFor="procurement-category-filter">{t('projectDetail.procurement.filter.category', 'Filter by category')}</label>
               <select
                 id="procurement-category-filter"
                 value={categoryFilter}
                 onChange={(event) => setCategoryFilter(event.target.value)}
-                className="h-9 min-w-0 max-w-full rounded-md border border-input bg-background px-2.5 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                className="h-8 min-w-0 max-w-full rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
               >
                 <option value="">{t('projectDetail.procurement.filter.allCategories', 'Category')}</option>
                 {rows.some((row) => !row.budget_category) && <option value={UNCATEGORIZED_FILTER}>{t('projectDetail.procurement.uncategorized', 'Uncategorized')}</option>}
@@ -899,7 +902,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
                 id="procurement-owner-filter"
                 value={ownerFilter}
                 onChange={(event) => setOwnerFilter(event.target.value)}
-                className="h-9 min-w-0 max-w-full rounded-md border border-input bg-background px-2.5 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                className="h-8 min-w-0 max-w-full rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
               >
                 <option value="">{t('projectDetail.procurement.filter.allOwners', 'Owner')}</option>
                 {rows.some((row) => !row.requested_by_id) && <option value={UNASSIGNED_FILTER}>{t('projectDetail.procurement.unassigned', 'Unassigned')}</option>}

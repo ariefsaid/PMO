@@ -13,7 +13,7 @@
   "action": {
     "submit": "Submit for approval", "recordOrder": "Record order", "chooseQuote": "Choose quote",
     "recordReceipt": "Record receipt", "recordInvoice": "Record supplier invoice", "recordPayment": "Record payment",
-    "return": "Return", "rework": "Rework", "addQuote": "Add quotation", "requestQuotes": "Request quotations", "record": "Record"
+    "return": "Return", "rework": "Rework", "addQuote": "Add quotation", "requestQuotes": "Request quotations"
   },
   "meta": { "raisedBy": "Raised by" },
   "quotes": { "chosen": "Chosen", "validUntil": "Valid until", "vsChosen": "vs chosen" },

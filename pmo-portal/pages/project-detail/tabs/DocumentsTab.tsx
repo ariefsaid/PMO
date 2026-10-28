@@ -336,16 +336,17 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   );
   const ownerCell = (doc: ProjectDocumentRow) => {
     const label = ownerLabel(doc);
+    const unknown = label === t('projectDetail.documents.owner.unavailable', 'Name unavailable');
     return (
       <Tooltip
         title={t('projectDetail.documents.tooltip.ownerTitle', 'Owner')}
         content={t('projectDetail.documents.tooltip.owner', 'Document author from the organization profile.')}
       >
         <span tabIndex={0} className="inline-flex min-w-0 max-w-full items-center gap-2 text-[13px] text-foreground" aria-label={label}>
-          <span aria-hidden="true" className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground">
+          {!unknown && <span aria-hidden="true" className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground">
             {ownerInitials(label)}
-          </span>
-          <span className="truncate">{label}</span>
+          </span>}
+          <span className={unknown ? 'truncate text-muted-foreground' : 'truncate'}>{label}</span>
         </span>
       </Tooltip>
     );

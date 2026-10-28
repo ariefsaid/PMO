@@ -167,6 +167,12 @@ export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) 
           {cash?.state === 'known' ? null : <FixLink to="/incoming-payments">{t('projectDetail.money.matchPayments', 'Match payments')}</FixLink>}
         </Note>
       )}
+      {cashReceived !== null && paid !== null && paid > cashReceived && (
+        <Note>
+          {t('projectDetail.money.paidNotReceived', '{{amount}} is settled in accounting but no receipt is matched to it yet.', { amount: whole(paid - cashReceived) })}{' '}
+          <FixLink to="/incoming-payments">{t('projectDetail.money.matchPayments', 'Match payments')}</FixLink>
+        </Note>
+      )}
       <dl className="mt-6 grid min-w-0 gap-4 border-t border-border/70 pt-4 sm:grid-cols-3">
         <div className="min-w-0">
           <dt className="text-xs text-muted-foreground">{t('projectDetail.money.spentBudget', 'Spent vs budget')}</dt>

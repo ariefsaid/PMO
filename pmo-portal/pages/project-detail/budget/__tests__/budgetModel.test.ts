@@ -84,7 +84,7 @@ describe('budgetModel', () => {
 
     expect(rows.map(({ category, budget, spent, committed }) => ({ category, budget, spent, committed }))).toEqual([
       { category: 'Labor', budget: 100, spent: 10, committed: 0 },
-      { category: 'Uncategorized', budget: 0, spent: null, committed: 55 },
+      { category: 'Uncategorized', budget: 0, spent: 0, committed: 55 },
     ]);
   });
 

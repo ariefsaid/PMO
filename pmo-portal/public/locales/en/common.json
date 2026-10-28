@@ -2890,7 +2890,7 @@
           "incomplete": "Can't total",
           "notInvoiced": "Not invoiced",
           "overInvoiced": "Over-invoiced",
-          "paid": "Paid",
+          "paid": "Fully paid",
           "partlyInvoiced": "Partly invoiced",
           "awaitingSubmission": "Awaiting submission"
         },

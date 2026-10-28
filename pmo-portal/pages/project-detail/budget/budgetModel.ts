@@ -87,7 +87,9 @@ export function buildBudgetSummaryRows(input: {
     return {
       category,
     budget: categoryLines.reduce((sum, line) => sum + Number(line.budgeted_amount), 0),
-    spent: actualsByCategory.get(category) ?? null,
+    // Nothing is booked to "Uncategorized" in the accounts: its documents' cost already sits in the
+    // categories they were posted to, so this row adds commitments only.
+    spent: actualsByCategory.get(category) ?? (category === UNCATEGORIZED ? 0 : null),
     committed: !input.canReadProcurements || !input.procurements || unreadableCategories.has(category)
       ? null
       : committedByCategory.get(category) ?? 0,

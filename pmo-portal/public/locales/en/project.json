@@ -404,7 +404,8 @@
       "budgetUse": "Budget use {{percent}}%",
       "grossMargin": "Gross margin",
       "cashReceived": "Cash received",
-      "cashSource": "Receipt cash allocated to invoices for this project; separate from invoice settlement."
+      "cashSource": "Receipt cash allocated to invoices for this project; separate from invoice settlement.",
+      "paidNotReceived": "{{amount}} is settled in accounting but no receipt is matched to it yet."
     },
     "cost": {
       "estimateTitle": "Budget",

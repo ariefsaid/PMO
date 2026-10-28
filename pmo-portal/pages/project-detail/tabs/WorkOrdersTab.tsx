@@ -143,7 +143,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     incomplete: t('common:projectDetail.workOrders.billing.status.incomplete', "Can't total"),
     'over-invoiced': t('common:projectDetail.workOrders.billing.status.overInvoiced', 'Over-invoiced'),
     'not-invoiced': t('common:projectDetail.workOrders.billing.status.notInvoiced', 'Not invoiced'),
-    paid: t('common:projectDetail.workOrders.billing.status.paid', 'Paid'),
+    paid: t('common:projectDetail.workOrders.billing.status.paid', 'Fully paid'),
     'awaiting-submission': t('common:projectDetail.workOrders.billing.status.awaitingSubmission', 'Awaiting submission'),
     'fully-invoiced': t('common:projectDetail.workOrders.billing.status.fullyInvoiced', 'Fully invoiced'),
     'partly-invoiced': t('common:projectDetail.workOrders.billing.status.partlyInvoiced', 'Partly invoiced'),

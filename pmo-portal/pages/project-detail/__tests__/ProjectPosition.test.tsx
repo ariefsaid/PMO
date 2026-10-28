@@ -491,6 +491,21 @@ describe('contract billing block', () => {
     expect(screen.getByText('200')).toBeInTheDocument();
   });
 
+  it('explains settled invoice value that has no matched receipt and links to matching', () => {
+    state.boqItems = [{ id: 'boq-1', quantity: 10, rate: 100 }];
+    state.billing = { contractLines: [] };
+    state.invoices = [{ ...invoice(), currency: 'USD', amount: 250, erp_outstanding_amount: 50 }];
+    state.finances = {
+      contract_invoiced: '250', remaining_to_invoice: '750', invoices: [],
+      cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '150' }], receipt_count: 1 },
+      actuals: { currency: 'USD', total: '100.00', as_of: null, excludes_restricted_rows: false, categories: [] },
+    };
+
+    renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
+    expect(screen.getByText(/50 is settled in accounting but no receipt is matched to it yet\./)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Match payments' })).toHaveAttribute('href', '/incoming-payments');
+  });
+
   it('AC-FX-011: shows the contract equivalent using the project contract date', () => {
     state.finances = {
       contract_invoiced: '100', remaining_to_invoice: '900', invoices: [],

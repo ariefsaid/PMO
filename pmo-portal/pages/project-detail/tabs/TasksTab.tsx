@@ -1613,10 +1613,10 @@ const TaskRecordDrawer: React.FC<TaskRecordDrawerProps> = ({
           </li>)}
         </ul> : <p className="text-sm text-muted-foreground">{t('projectDetail.tasks.drawer.noSubtasks', 'No subtasks.')}</p>}
       </section>
-      <section aria-labelledby="task-drawer-comments" className="space-y-2">
-        <h2 id="task-drawer-comments" className="text-[13px] font-semibold">{t('common:comments.title', 'Comments')}</h2>
+      <div className="space-y-2">
+        <h2 className="text-[13px] font-semibold">{t('common:comments.title', 'Comments')}</h2>
         <CommentsSection entityType="task" entityId={task.id} hideTitle />
-      </section>
+      </div>
       <section aria-labelledby="task-drawer-history" className="space-y-2">
         <h2 id="task-drawer-history" className="text-[13px] font-semibold">{t('projectDetail.tasks.drawer.history', 'History')}</h2>
         <RecordHistory entityType="task" entityId={task.id} />

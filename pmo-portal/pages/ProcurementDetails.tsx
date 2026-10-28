@@ -1134,7 +1134,7 @@ const ProcurementDetails: React.FC = () => {
         </div>}
       />
 
-      {mutationError && <p role="alert" data-testid="procurement-mutation-error" className="mb-3 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-[13px] text-destructive">{mutationError}</p>}
+      {mutationError && <p role="alert" data-testid="procurement-mutation-error" className="mb-3 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-[13px] text-destructive-text">{mutationError}</p>}
       <div className="space-y-3">
         <ProcurementStageTracker procurement={p} linkedDocuments={linkedDocs} />
         <ProcurementMoneySummary procurement={p} linkedDocuments={linkedDocs} isEngineer={isEngineer} budgetSignal={isEngineer ? undefined : <ProcurementBudgetSignal
@@ -1155,6 +1155,7 @@ const ProcurementDetails: React.FC = () => {
       />}
       {approverLimitLine && <p className="mt-2 text-[12.5px] font-medium text-muted-foreground">{approverLimitLine}</p>}
       {decisionContextNote && <p data-testid="sod-ready-hint" className="mb-3 text-[12.5px] text-muted-foreground">{decisionContextNote}</p>}
+      {routeNote && !(showVICapture || showCreateGR || showCreateVI) && <p data-testid="approval-route-note" className="mb-3 text-[12.5px] text-muted-foreground">{routeNote}</p>}
       {mainAction?.to === 'Approved' && <label className="mb-4 mt-2 block max-w-xl text-[12px] font-medium text-muted-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
         <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-[13px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
       </label>}
@@ -1434,7 +1435,7 @@ const ProcurementDetails: React.FC = () => {
       {mainAction && <>
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card p-3 shadow-[0_-2px_10px_hsl(var(--foreground)/0.06)] sm:hidden">
           <div className="mx-auto flex max-w-3xl gap-2">
-            <Button variant="primary" className="min-h-11 flex-1" aria-label={t('procurementRecord:action.record', 'Record')} disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{t('procurementRecord:action.record', 'Record')}</Button>
+            <Button variant="primary" className="min-h-11 flex-1" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>
             <Button variant="outline" className="min-h-11" aria-label={t('procurementRecord:moreActions', 'More procurement actions')} aria-expanded={moreMenuOpen} onClick={() => setMoreMenuOpen((open) => !open)}>⋯</Button>
           </div>
           {moreMenuOpen && <div role="menu" aria-label={t('procurementRecord:moreActions', 'More procurement actions')} className="mx-auto mt-2 max-h-[55vh] max-w-3xl overflow-y-auto rounded-md border border-border bg-card p-1 shadow-lg">
@@ -1473,7 +1474,7 @@ const ProcurementDetails: React.FC = () => {
           const params = new URLSearchParams(location.search);
           params.set('bupot', slipId);
           params.set('bupotBill', invoiceId);
-          navigate(`/procurement/${encodeURIComponent(id)}/timeline?${params.toString()}${location.hash}`);
+          navigate(`/procurement/${encodeURIComponent(id)}/files?${params.toString()}${location.hash}`);
         }}
       />}
 

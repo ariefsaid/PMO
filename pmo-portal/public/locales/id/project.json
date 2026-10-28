@@ -404,7 +404,8 @@
       "budgetUse": "Penggunaan anggaran {{percent}}%",
       "grossMargin": "Margin kotor",
       "cashReceived": "Kas diterima",
-      "cashSource": "Kas penerimaan yang dialokasikan ke faktur proyek ini; terpisah dari pelunasan faktur."
+      "cashSource": "Kas penerimaan yang dialokasikan ke faktur proyek ini; terpisah dari pelunasan faktur.",
+      "paidNotReceived": "{{amount}} sudah lunas di akuntansi tetapi belum ada penerimaan yang dicocokkan."
     },
     "cost": {
       "estimateTitle": "Anggaran",

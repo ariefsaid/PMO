@@ -13,7 +13,7 @@
   "action": {
     "submit": "Ajukan untuk persetujuan", "recordOrder": "Catat pesanan", "chooseQuote": "Pilih penawaran",
     "recordReceipt": "Catat penerimaan", "recordInvoice": "Catat faktur pemasok", "recordPayment": "Catat pembayaran",
-    "return": "Kembalikan", "rework": "Ajukan ulang", "addQuote": "Tambah penawaran", "requestQuotes": "Minta penawaran", "record": "Catat"
+    "return": "Kembalikan", "rework": "Ajukan ulang", "addQuote": "Tambah penawaran", "requestQuotes": "Minta penawaran"
   },
   "meta": { "raisedBy": "Diajukan oleh" },
   "quotes": { "chosen": "Dipilih", "validUntil": "Berlaku sampai", "vsChosen": "dibandingkan pilihan" },
