@@ -160,7 +160,7 @@ const ExpandedPanel: React.FC<{
               }}
               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
             >
-              {t('procurement.preview.viewFullRequest', 'View full procurement')}
+              {t('procurement.preview.viewFullRequest', 'View procurement record')}
               <Icon name="chev" aria-hidden />
             </Link>
           </div>

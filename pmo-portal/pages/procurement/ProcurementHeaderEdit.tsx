@@ -37,7 +37,7 @@ interface FormValues {
   budgetCategory: string;
 }
 
-const validate = (v: FormValues, requiredTitleMessage: string): Partial<Record<keyof FormValues, string>> => {
+const validate = (v: FormValues, _requiredTitleMessage: string): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
   if (!v.title.trim()) errors.title = 'A procurement title is required.';
   return errors;

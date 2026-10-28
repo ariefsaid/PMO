@@ -144,7 +144,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
     committedSpend, commitmentPending, commitmentError, projectCurrency: project.currency,
     actuals: authorizedActuals, contractValue: project.contract_value, activeBudget });
   const actualPosition = moneyPosition.actual;
-  const actualUnavailable = t('uxs01.actualUnavailable', 'Unavailable');
+  const actualUnavailable = t('uxs01.actualUnavailable', 'Actual spending is still being confirmed.');
   const actualFigure: React.ReactNode = moneyPosition.headlineState === 'available' && actualPosition.amount !== null && actualPosition.currency
     ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language) ?? <UnknownFigure reason={actualUnavailable} />
     : moneyPosition.headlineState === 'loading'

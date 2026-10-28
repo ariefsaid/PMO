@@ -404,7 +404,7 @@ const Projects: React.FC = () => {
     const money = projectMoney?.[project.id];
     return money?.ledgerBasis === 'erp' && money.actuals.categories.some((category) => !category.mapped || category.amount == null);
   });
-  const unknownActualRows = filtered.filter((project) => projectMoney?.[project.id]?.actuals.total == null);
+  const _unknownActualRows = filtered.filter((project) => projectMoney?.[project.id]?.actuals.total == null);
   const coverageAsOf = filtered.reduce<string | null>((latest, project) => {
     const asOf = projectMoney?.[project.id]?.ledgerBasis === 'erp' ? projectMoney?.[project.id]?.actuals.asOf ?? null : null;
     return asOf && (!latest || asOf > latest) ? asOf : latest;

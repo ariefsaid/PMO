@@ -20,7 +20,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { BahasaProvider } from '@/test/bahasa';
 
 // ---------------------------------------------------------------------------
 // Stub ProcurementFilesSubsection — it calls useQueryClient() internally.
@@ -225,17 +224,6 @@ const renderPage = (id = 'proc-s6-001', state?: unknown) =>
     </MemoryRouter>,
   );
 
-const renderBahasaPage = (id = 'proc-s6-001') =>
-  render(
-    <BahasaProvider>
-      <MemoryRouter initialEntries={[`/procurement/${id}`]}>
-        <Routes>
-          <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
-        </Routes>
-      </MemoryRouter>
-    </BahasaProvider>,
-  );
-
 // ---------------------------------------------------------------------------
 // AC-S6-3: BackBar on success render at <=921px (C-IMP-1)
 // ---------------------------------------------------------------------------
@@ -400,7 +388,7 @@ describe('C1/O18: the no-access page names the record a procurement and carries 
     renderPage();
     expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
     const page = screen.getByTestId('procurement-no-access');
-    expect(page).toHaveTextContent('This procurement either doesn\'t exist');
+    expect(page).toHaveTextContent('This procurement record either doesn\'t exist');
     expect(page).not.toHaveTextContent(/request/i);
     detailState.isError = false;
     detailState.error = null;

@@ -97,8 +97,6 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         : undefined;
   const invalidRange = (error as { code?: string } | null)?.code === '22023';
   const backlogReason = t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.');
-  const backlogUnavailable = t('uxs34.backlogUnavailable', 'The foreign-currency invoice backlog needs reconciliation before this balance can be known.');
-  const backlogNeedsReview = pack?.totals.some((total) => total.months.some((month) => month.backlog === null)) ?? false;
 
   const setMonth = (key: 'from' | 'to', value: string) => {
     const next = new URLSearchParams(params);

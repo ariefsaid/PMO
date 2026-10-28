@@ -372,7 +372,7 @@ const ProcurementDetails: React.FC = () => {
             title={t('procurementDetail.accessDenied.title', "You don't have access to this record")}
             sub={t(
               'procurementDetail.accessDenied.sub',
-              "This procurement either doesn't exist or isn't visible to your role. If you raised it, open it from your own procurements.",
+              "This procurement record either doesn't exist or isn't visible to your role. If you created it, open it from your procurement list.",
             )}
           />
         </div>
@@ -414,7 +414,7 @@ const ProcurementDetails: React.FC = () => {
   if (!recordInScope) {
     return <>
       <div data-testid="mobile-back-bar" className="hidden max-[920px]:block"><BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} /></div>
-      <div data-testid="procurement-no-access"><ListState variant="empty" icon="lock" titleAsPageHeading title={t('procurementDetail.accessDenied.title', "You don't have access to this record")} sub={t('procurementDetail.accessDenied.sub', "This procurement either doesn't exist or isn't visible to your role. If you raised it, open it from your own procurements.")} /></div>
+      <div data-testid="procurement-no-access"><ListState variant="empty" icon="lock" titleAsPageHeading title={t('procurementDetail.accessDenied.title', "You don't have access to this record")} sub={t('procurementDetail.accessDenied.sub', "This procurement record either doesn't exist or isn't visible to your role. If you created it, open it from your procurement list.")} /></div>
     </>;
   }
   const isRequester = p.requested_by_id === currentUser?.id;
@@ -1385,7 +1385,7 @@ const ProcurementDetails: React.FC = () => {
                 )
               : t(
                   'procurementDetail.confirm.viBody',
-                  'This records a supplier invoice against {{request}}.',
+                  'This records a supplier invoice against procurement record {{request}}.',
                   { request: p.title },
                 )
         }

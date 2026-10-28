@@ -120,7 +120,7 @@ function localizedRecordKindLabel(kind: RecordKind, t: TFunction): string {
     case 'purchase_order': return t('procurementLedger.types.purchaseOrder', 'Purchase Order');
     case 'payment': return t('procurementLedger.types.payment', 'Payment');
     case 'goods_receipt': return t('procurementDetail.recordKinds.goodsReceipt', 'Goods Receipt');
-    case 'vendor_invoice': return t('procurementDetail.recordKinds.vendorInvoice', 'Supplier invoice');
+    case 'vendor_invoice': return t('procurementDetail.recordKinds.vendorInvoice', 'Supplier Invoice');
   }
 }
 
