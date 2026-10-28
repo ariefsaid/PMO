@@ -10,6 +10,7 @@ import { BahasaProvider } from '../../test/bahasa';
 
 const h = vi.hoisted(() => ({
   role: 'Finance' as string,
+  revenue: true,
   userId: 'u-fin',
   query: { data: undefined as unknown, isPending: false, isError: false, error: null as unknown, refetch: vi.fn() },
   exportTable: vi.fn(),
@@ -19,6 +20,7 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => true }));
+vi.mock('@/src/auth/useFeature', () => ({ useFeature: () => h.revenue }));
 vi.mock('@/src/hooks/useManagementPack', () => ({
   useManagementPack: () => h.query,
   useRecordProjectProgress: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -65,6 +67,7 @@ const renderPage = (embedded = false) =>
 
 beforeEach(() => {
   h.role = 'Finance';
+  h.revenue = true;
   h.userId = 'u-fin';
   h.query = { data: buildManagementPack(facts), isPending: false, isError: false, error: null, refetch: vi.fn() };
   h.exportTable.mockReset();
@@ -74,6 +77,11 @@ beforeEach(() => {
 });
 
 describe('AC-MMP-012 who sees the pack and who records progress', () => {
+  it('AC-MMP-015: mounts the Board pack action in the Finance Reports header', () => {
+    renderPage();
+    expect(within(screen.getByTestId('list-page-header')).getByRole('button', { name: 'Board pack' })).toBeInTheDocument();
+  });
+
   it('AC-MMP-012: an Engineer gets the no-access message', () => {
     h.role = 'Engineer';
     renderPage();

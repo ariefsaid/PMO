@@ -126,6 +126,15 @@ function ProjectSpendTable({ dashboard, projects, pending, error, retry }: {
         const contract = row.contract_value == null ? null : money(row.contract_value, row.currency);
         const facts = [manager, contract].filter(Boolean).join(' · ');
         const spent = row.spent == null ? '—' : money(row.spent, row.actual_currency ?? row.currency);
+        const spendAccessibleName = !row.actual_complete
+          ? t('dashboard:hub.company.projectSpendLinkIncomplete', 'Open {{name}}; spending unavailable because actuals are incomplete.', { name })
+          : row.spent === null
+            ? t('dashboard:hub.company.projectSpendLinkNoAmount', 'Open {{name}}; spending unavailable because no comparable amount is available.', { name })
+            : row.actual_currency === null || row.actual_currency === undefined
+              ? t('dashboard:hub.company.projectSpendLinkNoCurrency', 'Open {{name}}; recorded spending has no currency basis to compare with the contract.', { name })
+              : row.actual_currency !== row.currency
+                ? t('dashboard:hub.company.projectSpendLinkDifferentCurrency', 'Open {{name}}; recorded spending {{amount}} is in a different currency from the contract.', { name, amount: money(row.spent, row.actual_currency) })
+                : t('dashboard:hub.company.projectSpendLinkKnown', 'Open {{name}}; recorded spending {{amount}} to date.', { name, amount: money(row.spent, row.actual_currency) });
         const menu: RowMenuItem[] = [
           { label: t('dashboard:hub.company.openProject', 'Open project'), onClick: () => navigate(`/projects/${row.id}`) },
           { label: t('dashboard:hub.company.openBudget', 'Open budget'), onClick: () => navigate(`/projects/${row.id}/budget`) },
@@ -134,7 +143,7 @@ function ProjectSpendTable({ dashboard, projects, pending, error, retry }: {
         return <li key={row.id} className="grid gap-1.5 py-2 first:pt-0 last:pb-0">
           <div className="flex min-w-0 items-center gap-2">
             <div className="min-w-0 flex-1">
-              <Link to={`/projects/${row.id}`} className="block truncate text-sm font-medium text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{name}</Link>
+              <Link to={`/projects/${row.id}`} aria-label={spendAccessibleName} className="block truncate text-sm font-medium text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{name}</Link>
               {facts && <p className="truncate text-xs text-muted-foreground">{facts}</p>}
             </div>
             <StatusPill variant={statusVariant(row.status)}>{statusLabel(row.status)}</StatusPill>
@@ -287,7 +296,13 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const todayFigure = (id: string) => figures.today.find((figure) => figure.id === id);
   // L6: overdue invoices, supplier invoices and work still to invoice are owned by their tiles above
   // (count, amount and link); the panels list only attention items no tile carries.
-  const deliveryNeeds = needsAttention(needs.areaItems, ['at-risk', 'risk-unchecked', 'budgets-over'], t);
+  const activeDeliveryProjects = data?.active_delivery_projects ?? 0;
+  const deliveryNeeds = needsAttention(needs.areaItems, ['at-risk', 'risk-unchecked', 'budgets-over'], t).map((item) =>
+    item.id === 'at-risk' && activeDeliveryProjects > 0
+      ? { ...item, label: t('dashboard:hub.company.atRiskOfActiveDelivery', 'of {{count}} active delivery projects at risk', { count: activeDeliveryProjects }) }
+      : item,
+  );
+  const showDeliveryAllClear = activeDeliveryProjects > 0 && data?.projects_at_risk === 0 && data?.risk_unchecked_projects === 0;
   const purchasingNeeds = needsAttention(needs.areaItems, ['procurement-approvals'], t);
   const order = finance ? ['billing', 'purchasing', 'delivery', 'sales'] : ['delivery', 'sales', 'billing', 'purchasing'];
   const refresh = () => {
@@ -331,6 +346,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     switch (id) {
       case 'delivery': return <AreaPanel key={id} title={t('dashboard:hub.company.delivery', 'Delivery')} openHref="/projects" openLabel={t('dashboard:hub.company.openProjects', 'Open projects')}>
         <AttentionList compact items={deliveryNeeds} />
+        {activeDeliveryProjects > 0 && data?.active_delivery_actual_project_count != null && <p className="text-xs text-muted-foreground">{t('dashboard:hub.company.actualsCoverage', 'Actuals available for {{available}} of {{total}} active delivery projects.', { available: data.active_delivery_actual_project_count, total: activeDeliveryProjects })}</p>}
+        {showDeliveryAllClear && <p className="text-xs text-muted-foreground">{t('dashboard:hub.company.checkedRiskClear', '0 projects at risk. All {{count}} active delivery projects are currently on track.', { count: activeDeliveryProjects })}</p>}
         <section className="grid gap-2">
           <div className="flex items-center gap-2"><h3 className="text-sm font-semibold">{t('dashboard:hub.company.spendingVsContract', 'Spending vs contract')}</h3><Tooltip content={t('dashboard:hub.company.projectSpendHelp', 'Used is recorded spending divided by contract value. It is shown only when actuals are complete and currencies match.')}><button type="button" aria-label={t('dashboard:hub.company.aboutProjectSpend', 'About spending versus contract')} className="touch-target grid size-7 place-items-center rounded-full text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
           <ProjectSpendTable dashboard={data} projects={projects.data} pending={figures.dashboardPending || projects.isPending} error={figures.dashboardError || projects.isError} retry={() => { figures.dashboardRetry(); void projects.refetch(); }} />

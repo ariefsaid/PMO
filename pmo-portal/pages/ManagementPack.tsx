@@ -12,6 +12,7 @@ import { useProjects } from '@/src/hooks/useProjects';
 import { useRevenuePerProject } from '@/src/hooks/useRevenue';
 import { useExport } from '@/src/components/export/useExport';
 import { RecordProgressModal } from '@/src/components/reports/RecordProgressModal';
+import { BoardPackAction } from '@/src/components/reports/BoardPackAction';
 import { fromCents, type PackMonth, type PackRow, type PackTotalsMonth } from '@/src/lib/reports/managementPack';
 import {
   buildManagementPackExport, managementPackFileStem, type ManagementPackExportLabels,
@@ -368,6 +369,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       title={t('finance:area.reportTitle', 'Revenue by project and month')}
       headingLevel={embedded ? 2 : 1}
       description={embedded ? undefined : t('managementPack.description', 'Planned, recognised and invoiced revenue per project and month. All figures exclude tax.')}
+      primaryAction={!embedded ? <BoardPackAction /> : undefined}
     >
       {isPending && !pack ? (
         <KPIRow aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-5 grid-cols-2 xl:grid-cols-4">
