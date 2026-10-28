@@ -34,11 +34,15 @@ or Luna will do; no Luna where GLM will do. Only a used-up quota moves work up a
 | Work | Model · harness · effort |
 |---|---|
 | Quick, cheap, mechanical (formatting, lookups, summaries, transcript harvests) | Gemini Flash (latest) · antigravity |
-| Bounded build with a precise brief; code or security review of a build; read-only audits | GLM-5.3-flash · pi or zcode · max |
+| Bounded build with a precise brief; code or security review of a build; read-only audits | GLM-5.3-flash · pi (Z.AI provider) · max — see GLM launch below |
 | Build a slice GLM can't (judgement, UI craft) | GPT-6 Luna · codex · xhigh |
 | Spec, plan, hard fix round, design/rendered review, money or security judgement | GPT-6.1 Sol · codex · medium |
 | Complex assessment, second opinion on design or money | Gemini Argon · antigravity · high (quota-limited: reserve it) |
 | Only when GPT quota is out, or the job needs Claude | Sonnet 5.5 · claude · medium/high; then Opus 5.5 · claude |
+
+**GLM launch.** `--agent pi` ignores `--model` and runs pi's own default provider, which is not GLM, and
+`zcode` does not start under Orca. Start GLM by opening a terminal in the worker's worktree that runs
+`pi --provider zai --model glm-5.3-flash:max`, then `orca orchestration worker-start --terminal <handle>`.
 
 Money-path, SoD and auth/token-custody work stays **Director-dispatched per issue** (one worker per
 step, adversarial review, mutation checks) — now through Orca workers instead of pi.
