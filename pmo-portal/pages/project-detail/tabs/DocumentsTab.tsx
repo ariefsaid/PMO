@@ -732,6 +732,9 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     }
   };
 
+  // C4: the drawer shows a File field only when there is a file, a Draft to upload to, an upload in flight or an error.
+  const drawerFileContent = (doc: ProjectDocumentRow) => (doc.source !== 'onedrive'
+    && (doc.file_path || doc.status === 'Draft' || progress[doc.id] != null || clientUploadErrors[doc.id] || uploadErrors[doc.id]) ? fileCell(doc) : undefined);
   const fileCell = (doc: ProjectDocumentRow) => {
     if (doc.source === 'onedrive') return <span className="text-muted-foreground">{'—'}</span>;
     return (
@@ -1077,7 +1080,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
               childDoc={previewChildDoc}
               transitions={previewTransitions}
               sodBlocked={previewSodBlocked}
-              fileContent={fileCell(drawerDoc)}
+              fileContent={drawerFileContent(drawerDoc)}
               microsoftFile={microsoftCell(drawerDoc)}
               hasFile={Boolean(drawerDoc.file_path)}
               sharePointUrl={safePreviewSharePointUrl}
@@ -1102,7 +1105,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
           childDoc={previewChildDoc}
           transitions={previewTransitions}
           sodBlocked={previewSodBlocked}
-          fileContent={fileCell(drawerDoc)}
+          fileContent={drawerFileContent(drawerDoc)}
           hasFile={Boolean(drawerDoc.file_path)}
           sharePointUrl={safePreviewSharePointUrl}
           fullRecordHref={`/projects/${projectId}/documents`}
@@ -1436,7 +1439,8 @@ const DocumentActionFooter: React.FC<DocumentActionFooterProps> = ({
         </a>
       )}
       {canDelete && (
-        <Button variant="destructive" size="sm" className="sm:ml-auto" onClick={onDelete}>
+        // B1: Delete stays reachable but quiet; it is confirmed, and the drawer's one filled action is the next step.
+        <Button variant="ghost" size="sm" className="text-destructive-text sm:ml-auto" onClick={onDelete}>
           {t('projectDetail.documents.action.delete', 'Delete')}
         </Button>
       )}
@@ -1466,15 +1470,16 @@ const DocumentPreviewFields: React.FC<DocumentPreviewProps> = ({
         )}
         {!isFolder && (
           <>
-            <DocField label={t('projectDetail.documents.field.code', 'Code')}>
-              {doc.code ? <span className="font-mono text-[13px]">{doc.code}</span> : <span className="text-muted-foreground">{'—'}</span>}
-            </DocField>
+            {/* C4: empty fields are left out, never shown as "—". */}
+            {doc.code && <DocField label={t('projectDetail.documents.field.code', 'Code')}>
+              <span className="font-mono text-[13px]">{doc.code}</span>
+            </DocField>}
             <DocField label={t('projectDetail.documents.field.category', 'Category')}>
               {doc.category || t('projectDetail.documents.category.uncategorized', 'Uncategorized')}
             </DocField>
-            <DocField label={t('projectDetail.documents.field.docDate', 'Document date')}>
-              {doc.doc_date ? <span className="tabular">{doc.doc_date}</span> : <span className="text-muted-foreground">{'—'}</span>}
-            </DocField>
+            {doc.doc_date && <DocField label={t('projectDetail.documents.field.docDate', 'Document date')}>
+              <span className="tabular-nums">{formatDateOnly(doc.doc_date)}</span>
+            </DocField>}
           </>
         )}
         {parentDoc?.revision && (
@@ -1492,9 +1497,9 @@ const DocumentPreviewFields: React.FC<DocumentPreviewProps> = ({
             {microsoftFile}
           </DocField>
         )}
-        <DocField label={t('projectDetail.documents.field.file', 'File')}>
-          {fileContent ?? <span className="text-muted-foreground">{'—'}</span>}
-        </DocField>
+        {fileContent && <DocField label={t('projectDetail.documents.field.file', 'File')}>
+          {fileContent}
+        </DocField>}
       </dl>
 
       {(transitions.length > 0 || sodBlocked) && (

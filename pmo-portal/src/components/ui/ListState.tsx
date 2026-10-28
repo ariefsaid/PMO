@@ -105,11 +105,10 @@ export const ListState: React.FC<ListStateProps> = ({
       >
         <Icon name="alert" className="size-5 shrink-0 text-destructive" />
         <div className="flex-1">
-          {title && (
-            <div className="text-[13.5px] font-semibold text-destructive-text">
-              {title}
-            </div>
-          )}
+          {/* O18: a page whose only content is this error keeps its level-one heading. */}
+          {title && (titleAsPageHeading
+            ? <h1 className="text-[13.5px] font-semibold text-destructive-text">{title}</h1>
+            : <div className="text-[13.5px] font-semibold text-destructive-text">{title}</div>)}
           {sub && <div className="mt-px text-[12.5px] text-muted-foreground">{sub}</div>}
         </div>
         {onRetry && (

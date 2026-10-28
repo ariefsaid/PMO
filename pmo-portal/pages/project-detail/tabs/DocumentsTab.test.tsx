@@ -277,6 +277,22 @@ describe('DocumentsTab — register views and selection', () => {
     expect(screen.getByRole('complementary', { name: 'Site Plan' })).toBeInTheDocument();
   });
 
+  it('C4: the document drawer leaves out empty fields and reads the date as a date, never a raw "—" or ISO string', () => {
+    renderTab('Admin', 'admin-1', '/projects/p1?open=d4');
+    const drawer = screen.getByRole('complementary', { name: 'Cover Note' });
+    expect(within(drawer).queryByText('Code')).toBeNull();
+    expect(within(drawer).queryByText('Document date')).toBeNull();
+    expect(within(drawer).queryByText('File')).toBeNull();
+    expect(within(drawer).queryByText('—')).toBeNull();
+  });
+
+  it('C4: a dated document reads its date formatted in the drawer', () => {
+    renderTab('Admin', 'admin-1', '/projects/p1?open=d2');
+    const drawer = screen.getByRole('complementary', { name: 'Steel Spec' });
+    expect(within(drawer).getByText('Document date')).toBeInTheDocument();
+    expect(within(drawer).queryByText('2026-06-02')).toBeNull();
+  });
+
   it('AC-1402: selecting rows reveals bulk actions and limits actions to selected documents', async () => {
     renderTab();
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select Steel Spec' }));

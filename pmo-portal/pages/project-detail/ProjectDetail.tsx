@@ -151,6 +151,7 @@ const ProjectDetail: React.FC = () => {
           <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
           <ListState
             variant="error"
+            titleAsPageHeading
             title={t('projectDetail.loadError.title', "Couldn't load this project")}
             sub={t('projectDetail.loadError.sub', 'The request failed. Check your connection and try again.')}
             retryLabel={t('projectDetail.loadError.retry', 'Retry')}
@@ -167,6 +168,7 @@ const ProjectDetail: React.FC = () => {
         <ListState
           variant="error"
           icon="inbox"
+          titleAsPageHeading
           title={t('projectDetail.notFound.title', 'Project not found')}
           sub={t(
             'projectDetail.notFound.sub',
