@@ -146,4 +146,17 @@ describe('DataTable row selection', () => {
     expect(screen.queryByText('Client')).not.toBeInTheDocument();
     expect(screen.queryByText('Group')).not.toBeInTheDocument();
   });
+
+  it('on a phone the select-all control has a visible label that also toggles it', async () => {
+    mockViewport(false);
+    const onSelectionChange = vi.fn();
+    render(
+      <DataTable rows={rows} columns={columns} rowKey={(row) => row.id} selection={{ selectedIds: new Set(), onChange: onSelectionChange }} />,
+    );
+
+    expect(screen.getByRole('checkbox', { name: 'Select all rows' })).toBeInTheDocument();
+    await userEvent.click(screen.getByText('Select all rows'));
+
+    expect([...onSelectionChange.mock.calls[0][0]]).toEqual(['invoice-1', 'invoice-2']);
+  });
 });

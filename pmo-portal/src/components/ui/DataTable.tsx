@@ -801,8 +801,9 @@ export function DataTable<Row>({
       >
         {selection && !state && <li className="flex items-center gap-2 border-b border-border/70 bg-secondary/30 px-4 py-2">
           <span onClick={(event) => event.stopPropagation()}>
-            <Checkbox checked={selectAllChecked} onChange={toggleAllRows} label={t('table.selectAllRows', 'Select all rows')} disabled={visibleSelectionIds.length === 0} />
+            <Checkbox checked={selectAllChecked} onChange={toggleAllRows} label={t('table.selectAllRows', 'Select all rows')} labelledBy={`${tableInstanceId}-select-all`} disabled={visibleSelectionIds.length === 0} />
           </span>
+          <span id={`${tableInstanceId}-select-all`} className="cursor-default select-none text-[12px] text-muted-foreground" onClick={() => { if (visibleSelectionIds.length > 0) toggleAllRows(selectAllChecked !== true); }}>{t('table.selectAllRows', 'Select all rows')}</span>
         </li>}
         {state ? (
           <li className="p-0">{listStateNode}</li>
