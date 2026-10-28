@@ -19,6 +19,7 @@ import { ToastProvider } from '@/src/components/ui';
 import Projects from './Projects';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { BahasaProvider } from '@/test/bahasa';
 
 const seed = [
   { id: 'p1', name: 'Innovate Corp HQ Fit-Out', code: 'PRJ-001', status: 'Ongoing Project',
@@ -134,6 +135,18 @@ const renderPage = (role = 'Project Manager', initialPath = '/projects') => {
   );
 };
 
+const renderBahasaPage = (role = 'Project Manager', initialPath = '/projects') => {
+  roleBox.value = role;
+  return render(
+    <BahasaProvider>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <LocationProbe />
+        <ToastProvider><Projects /></ToastProvider>
+      </MemoryRouter>
+    </BahasaProvider>,
+  );
+};
+
 describe('Projects index — kanban view (AC-PK-008)', () => {
   beforeEach(() => {
     sessionStorage.clear();
@@ -177,6 +190,17 @@ describe('Projects index — kanban view (AC-PK-008)', () => {
     const cards = screen.getAllByTestId('project-card');
     expect(cards.length).toBeGreaterThan(0);
     for (const card of cards) expect(board).toContainElement(card);
+  });
+
+  it('AC-PRJ-L10N-001: Bahasa localizes the project status, Board tab, and row Edit action', async () => {
+    renderBahasaPage('Admin', '/projects?view=table');
+    expect(await screen.findByText('Proyek berjalan')).toBeInTheDocument();
+    const row = screen.getByText('Proyek berjalan').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: 'Tindakan baris' }));
+    expect(await screen.findByRole('menuitem', { name: 'Ubah' })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Papan' }));
+    expect(screen.getByTestId('project-kanban-board')).toBeInTheDocument();
   });
 });
 

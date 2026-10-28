@@ -389,7 +389,7 @@ test(
     await expect(queue).toBeVisible({ timeout: 15_000 });
 
     // Finance can approve procurement, so the procurement queue group is present.
-    await expect(queue.getByRole('heading', { name: /purchase requests/i })).toBeVisible({ timeout: 15_000 });
+    await expect(queue.getByRole('heading', { name: /procurement/i })).toBeVisible({ timeout: 15_000 });
 
     // Finance cannot approve timesheets, so there is no timesheet tab/lane in the two-pane inbox.
     await expect(page.getByRole('tab', { name: /timesheets/i })).toHaveCount(0);
@@ -410,7 +410,7 @@ test(
 
     // Neither section renders.
     await expect(
-      page.getByRole('region', { name: /purchase requests awaiting you/i }),
+      page.getByRole('region', { name: /procurement awaiting you/i }),
     ).not.toBeVisible({ timeout: 5_000 });
     await expect(
       page.getByRole('region', { name: /timesheets awaiting you/i }),

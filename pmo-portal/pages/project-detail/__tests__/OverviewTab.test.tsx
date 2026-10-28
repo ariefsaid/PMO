@@ -303,13 +303,13 @@ describe('OverviewTab T14: Procurement summary card', () => {
     expect(document.body.textContent).toMatch(/1 Closed/);
   });
 
-  it('UX-026/T14: labels procurement totals as request value, distinct from PMO purchase orders', () => {
+  it('UX-026/T14: labels procurement totals and row counts as procurement records', () => {
     renderTab();
     // Committed: r1(50k)+r2(80k)+r4(20k)=150k; r3(Cancelled) excluded
     // $150,000 also appears as Budget snapshot activeTotal — use count >= 1
     expect(screen.getAllByText(/\$150,000/i).length).toBeGreaterThanOrEqual(1);
-    // The procurement amount is total request value, not the separate Committed measure.
-    expect(screen.getByText(/Total request value:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Total procurement value:/i)).toBeInTheDocument();
+    expect(screen.getByText(/3 procurement records/i)).toBeInTheDocument();
   });
 
   it('T14: shows top 3 recent requests (newest first)', () => {
@@ -329,7 +329,7 @@ describe('OverviewTab T14: Procurement summary card', () => {
     procState.data = [];
     renderTab();
     expect(screen.queryByText(/Procurement summary/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/No purchase requests for this project yet/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No procurement records for this project yet/i)).not.toBeInTheDocument();
   });
 
   it('T14: a failed procurement read keeps its error + Retry', () => {

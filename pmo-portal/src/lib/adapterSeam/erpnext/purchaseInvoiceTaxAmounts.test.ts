@@ -109,7 +109,7 @@ const PPH23_ROW = { charge_type: 'Actual', account_head: 'PPh 23 Payable - SC', 
 const BAD = (label: string, liability: boolean) =>
   `The ${label} in Administration → Accounting is not a usable ${liability ? 'tax-payable (liability) ' : ''}account of this organization's ERPNext company. Correct it, then record the invoice again.`;
 
-describe('vendor invoice tax entered as amounts (#876 slice 2)', () => {
+describe('supplier invoice tax entered as amounts (#876 slice 2)', () => {
   it('AC-VWH-033 entered VAT and PPh 23 become two Actual rows on the org accounts, with an empty template', async () => {
     const { body, command: cmd } = await push({ vatAmount: 22, withheldAmount: 4, pphType: 'pph23' });
     expect(body.taxes_and_charges).toBe('');
@@ -147,12 +147,12 @@ describe('vendor invoice tax entered as amounts (#876 slice 2)', () => {
   });
 
   it.each([
-    ['a negative VAT', { vatAmount: -1, withheldAmount: 0, pphType: null }, "The vendor invoice's VAT amount must be zero or a positive amount with at most two decimals."],
-    ['a VAT with three decimals', { vatAmount: 1.005, withheldAmount: 0, pphType: null }, "The vendor invoice's VAT amount must be zero or a positive amount with at most two decimals."],
-    ['a withholding given as text', { vatAmount: 0, withheldAmount: '4', pphType: 'pph23' }, "The vendor invoice's tax withheld must be zero or a positive amount with at most two decimals."],
+    ['a negative VAT', { vatAmount: -1, withheldAmount: 0, pphType: null }, "The supplier invoice's VAT amount must be zero or a positive amount with at most two decimals."],
+    ['a VAT with three decimals', { vatAmount: 1.005, withheldAmount: 0, pphType: null }, "The supplier invoice's VAT amount must be zero or a positive amount with at most two decimals."],
+    ['a withholding given as text', { vatAmount: 0, withheldAmount: '4', pphType: 'pph23' }, "The supplier invoice's tax withheld must be zero or a positive amount with at most two decimals."],
     ['a withholding without its type', { vatAmount: 0, withheldAmount: 4, pphType: null }, 'Say whether the tax withheld is PPh 23 or PPh 4(2).'],
     ['an unknown withholding type', { vatAmount: 0, withheldAmount: 4, pphType: 'pph21' }, 'The withholding type must be PPh 23 or PPh 4(2).'],
-    ['a withholding above the items total', { vatAmount: 0, withheldAmount: 200.01, pphType: 'pph23' }, "The tax withheld is larger than the invoice's items total before tax. Check the PPh amount on the vendor's invoice."],
+    ['a withholding above the items total', { vatAmount: 0, withheldAmount: 200.01, pphType: 'pph23' }, "The tax withheld is larger than the invoice's items total before tax. Check the PPh amount on the supplier's invoice."],
   ] as Array<[string, Row, string]>)('AC-VWH-033 %s is refused (commit-rejected) before any ERPNext read or write', async (_label, record, message) => {
     const erp = erpFetch();
     await expect(resolve(command(record), erp)).rejects.toMatchObject({ code: 'commit-rejected', message });
@@ -160,8 +160,8 @@ describe('vendor invoice tax entered as amounts (#876 slice 2)', () => {
   });
 
   it.each([
-    ['the PPh 23 setting is empty', { ...SETTINGS, pph23_payable_account: null }, 'Set the PPh 23 payable account in Administration → Accounting before recording this tax on a vendor invoice.'],
-    ['the input VAT setting is empty', { ...SETTINGS, input_vat_account: null }, 'Set the Input VAT account in Administration → Accounting before recording this tax on a vendor invoice.'],
+    ['the PPh 23 setting is empty', { ...SETTINGS, pph23_payable_account: null }, 'Set the PPh 23 payable account in Administration → Accounting before recording this tax on a supplier invoice.'],
+    ['the input VAT setting is empty', { ...SETTINGS, input_vat_account: null }, 'Set the Input VAT account in Administration → Accounting before recording this tax on a supplier invoice.'],
     ['ERPNext has no such account', { ...SETTINGS, pph23_payable_account: 'Missing - SC' }, BAD('PPh 23 payable account', true)],
     ['the account belongs to another company', { ...SETTINGS, pph23_payable_account: 'Foreign PPh - OC' }, BAD('PPh 23 payable account', true)],
     ['the account is a group', { ...SETTINGS, pph23_payable_account: 'Duties and Taxes - SC' }, BAD('PPh 23 payable account', true)],
@@ -195,7 +195,7 @@ describe('vendor invoice tax entered as amounts (#876 slice 2)', () => {
     const erp = erpFetch();
     await expect(resolve(command(record), erp)).rejects.toMatchObject({
       code: 'commit-rejected',
-      message: "The vendor invoice's items total cannot be computed: a line is missing its quantity. Complete the case's lines, then record the invoice again.",
+      message: "The supplier invoice's items total cannot be computed: a line is missing its quantity. Complete the case's lines, then record the invoice again.",
     });
     expect(erp.fetchImpl).not.toHaveBeenCalled();
   });

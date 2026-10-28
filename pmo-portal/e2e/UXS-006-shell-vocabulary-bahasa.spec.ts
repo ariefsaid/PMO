@@ -9,11 +9,11 @@ import { signIn } from './helpers';
  * both find a destination without changing any URL or role rule.
  *
  * Journey (pm@acme.test — has the Vendors doorway, My Tasks, and Companies):
- *   1. rail shows "Tugas Saya" and "Vendor";
+ *   1. rail shows "Tugas Saya" and "Pemasok";
  *   2. palette finds Companies by the localized word ("perusahaan") and lands on
  *      /companies with a matching "Perusahaan" breadcrumb;
- *   3. palette "Vendor" opens the canonical filtered doorway
- *      /companies?type=Vendor whose breadcrumb reads "Vendor";
+ *   3. palette "Pemasok" opens the canonical filtered doorway
+ *      /companies?type=Vendor whose breadcrumb reads "Pemasok";
  *   4. palette "my tasks" (English alias in the id locale) finds "Tugas Saya".
  *
  * Bahasa without a persisted profile write: `I18nProvider` resolves the language
@@ -73,7 +73,7 @@ test.describe('UXS-006: shell speaks the saved language', () => {
     // label itself is localized, hence the alternation).
     const rail = page.getByRole('navigation', { name: /primary navigation|navigasi utama/i });
     await expect(rail.getByRole('link', { name: /^Tugas Saya/ })).toBeVisible({ timeout: 10_000 });
-    await expect(rail.getByRole('link', { name: 'Vendor' })).toHaveCount(0);
+    await expect(rail.getByRole('link', { name: 'Pemasok' })).toHaveCount(0);
     await expect(page.locator('#rail-my-tasks-hint')).toHaveCount(0);
 
     // A localized word finds its destination; the breadcrumb agrees with it.
@@ -84,12 +84,12 @@ test.describe('UXS-006: shell speaks the saved language', () => {
     await page.waitForURL('**/companies');
     await currentCrumb(page, 'Perusahaan');
 
-    // The canonical Vendors doorway opens the existing Companies list filtered
-    // to vendors, and its breadcrumb carries the doorway's own name.
-    await (await openPalette(page)).fill('vendor');
-    await page.getByRole('option', { name: 'Vendor', exact: true }).click();
+    // The canonical Suppliers doorway opens the existing Companies list filtered
+    // to suppliers, and its breadcrumb carries the doorway's own name.
+    await (await openPalette(page)).fill('pemasok');
+    await page.getByRole('option', { name: 'Pemasok', exact: true }).click();
     await page.waitForURL('**/companies?type=Vendor');
-    await currentCrumb(page, 'Vendor');
+    await currentCrumb(page, 'Pemasok');
 
     // The familiar English alias still finds the localized destination.
     await (await openPalette(page)).fill('my tasks');

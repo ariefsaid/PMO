@@ -155,6 +155,10 @@ describe('erpnext/bodies — R9-frozen toBody', () => {
     expectCommitRejected(() => peToBody(rec({ paid_amount: 100, date: '2026-10-08' }), ctx), /default_payable_account/);
   });
 
+  it('AC-VPAY-002 a payment refusal uses supplier wording', () => {
+    expectCommitRejected(() => peToBody(rec({ paid_amount: 0, date: '2026-10-08' }), CTX), /supplier payment/i);
+  });
+
   it('AC-VPAY-002 paid_amount absent or ≤ 0 is refused — never sent as undefined', () => {
     expectCommitRejected(() => peToBody(rec({ date: '2026-10-08' }), CTX), /paid_amount/);
     expectCommitRejected(() => peToBody(rec({ paid_amount: 0, date: '2026-10-08' }), CTX), /paid_amount/);

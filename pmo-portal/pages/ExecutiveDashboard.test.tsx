@@ -249,8 +249,8 @@ describe('ExecutiveDashboard (real data)', () => {
   });
   it('AC-RF-007: purchasing chart states that ERP-native purchases are outside PMO scope', () => {
     renderPage();
-    expect(screen.getByTestId('dashboard-proc-status')).toHaveTextContent('PMO purchasing requests');
-    expect(screen.getByTestId('dashboard-proc-status')).toHaveTextContent('ERP-native purchases are outside this PMO request chart.');
+    expect(screen.getByTestId('dashboard-proc-status')).toHaveTextContent('Procurement');
+    expect(screen.getByTestId('dashboard-proc-status')).toHaveTextContent('ERP-native purchases are outside this PMO procurement chart.');
     expect(screen.getByTestId('dashboard-proc-status')).toHaveTextContent('5');
   });
 
@@ -269,7 +269,7 @@ describe('ExecutiveDashboard (real data)', () => {
       'href',
       '/procurement?status=Requested',
     );
-    expect(within(chart).getByRole('link', { name: /Vendor Quote/ })).toHaveAttribute(
+    expect(within(chart).getByRole('link', { name: /Supplier Quote/ })).toHaveAttribute(
       'href',
       '/procurement?status=Vendor%20Quoted',
     );
@@ -281,18 +281,18 @@ describe('ExecutiveDashboard (real data)', () => {
       'href',
       '/procurement?status=Received',
     );
-    expect(within(chart).getByRole('link', { name: /Vendor Invoice/ })).toHaveAttribute(
+    expect(within(chart).getByRole('link', { name: /Supplier Invoice/ })).toHaveAttribute(
       'href',
       '/procurement?status=Vendor%20Invoiced',
     );
   });
 
-  it('AC-S19-004: no PMO requests is clear while ERP-native purchasing stays in scope copy', () => {
+  it('AC-S19-004: no PMO procurement records is clear while ERP-native purchasing stays in scope copy', () => {
     dashState.data = { ...populated, procurements_by_status: [] };
     renderPage();
     const chart = screen.getByTestId('dashboard-proc-status');
-    expect(within(chart).getByText('No PMO requests to show')).toBeInTheDocument();
-    expect(chart).toHaveTextContent('ERP-native purchases are outside this PMO request chart.');
+    expect(within(chart).getByText('No procurement records to show')).toBeInTheDocument();
+    expect(chart).toHaveTextContent('ERP-native purchases are outside this PMO procurement chart.');
   });
   it('spending-vs-contract list shows project names and contract denominator', () => {
     renderPage();
@@ -353,17 +353,17 @@ describe('ExecutiveDashboard dual-lens tiles (AC-1114 / FR-SPD-012)', () => {
     const weighted = screen.getByTestId('kpi-pipeline-weighted-value');
     expect(weighted).toHaveTextContent('$800K');
     expect(weighted.querySelector('[title="$800,000"]')).not.toBeNull();
-    // Pipeline forecast-margin tile shows ONLY the weighted pipeline projected margin (20.0%) —
+    // Pipeline forecast-margin tile shows ONLY the weighted pipeline projected margin (20%) —
     // the dual on-hand↔weighted toggle was removed (AC-IXD-DASH-002: one metric name = one number).
-    expect(screen.getByTestId('kpi-pipeline-projected-margin')).toHaveTextContent('20.0%');
+    expect(screen.getByTestId('kpi-pipeline-projected-margin')).toHaveTextContent('20%');
     expect(screen.queryByTestId('kpi-avg-gross-margin')).toBeNull();
   });
 
   it('AC-IXD-DASH-002: the forecast-margin tile shows weightedPct only — no lens toggle', () => {
     renderPage();
     const tile = screen.getByTestId('kpi-pipeline-projected-margin');
-    // Weighted pipeline projected margin 20.0%, with no on-hand option to toggle to.
-    expect(tile).toHaveTextContent('20.0%');
+    // Weighted pipeline projected margin 20%, with no on-hand option to toggle to.
+    expect(tile).toHaveTextContent('20%');
     expect(screen.queryByRole('tab', { name: /Weighted/i })).toBeNull();
     expect(screen.queryByRole('tab', { name: /On-hand/i })).toBeNull();
   });
@@ -401,8 +401,8 @@ describe('ExecutiveDashboard Procurement-by-Status drill links (AC-JR-W1-10)', (
 
   it('AC-JR-W1-10: procurement status links use encodeURIComponent for statuses with spaces', () => {
     renderPage();
-    // "Vendor Quote" has a space — the raw status value is still encoded unchanged.
-    const vendorLink = screen.getByRole('link', { name: /Vendor Quote/i });
+    // "Supplier Quote" has a space — the raw status value is still encoded unchanged.
+    const vendorLink = screen.getByRole('link', { name: /Supplier Quote/i });
     expect(vendorLink).toHaveAttribute('href', '/procurement?status=Vendor%20Quoted');
   });
 });

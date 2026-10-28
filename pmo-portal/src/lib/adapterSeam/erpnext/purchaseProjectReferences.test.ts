@@ -143,7 +143,7 @@ describe('purchase project dimensions and vendor references', () => {
     expect((body.items as Row[])[0].project).toBe('ERP-PROJ-001');
   });
 
-  it('AC-PRJ-002 sends the vendor invoice reference and date independently when set', () => {
+  it('AC-PRJ-002 sends the supplier invoice reference and date independently when set', () => {
     const ctx = { refs: { supplier: 'Synthetic Supplier' }, config: {} };
     const invoice = { id: 'pmo-1', items: [ITEM] };
     expect(piToBody({ ...invoice, referenceNumber: 'VENDOR-INV-001', invoiceDate: '2026-09-20' }, ctx))

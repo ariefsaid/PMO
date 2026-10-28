@@ -165,13 +165,13 @@ describe('ProcurementDetails — tabbed record shell (Slice 1)', () => {
     navigate.mockClear();
   });
 
-  it('renders the Procurement tablist with Overview · Line items · Documents · Vendor quotes', () => {
+  it('renders the Procurement tablist with Overview · Line items · Documents · supplier quotes', () => {
     renderAt('/procurement/proc-001');
     const tablist = screen.getByRole('tablist', { name: /Procurement sections/i });
     expect(within(tablist).getByRole('tab', { name: 'Overview' })).toBeInTheDocument();
     expect(within(tablist).getByRole('tab', { name: /Line items/ })).toBeInTheDocument();
     expect(within(tablist).getByRole('tab', { name: /Documents/ })).toBeInTheDocument();
-    expect(within(tablist).getByRole('tab', { name: /Vendor quotes/ })).toBeInTheDocument();
+    expect(within(tablist).getByRole('tab', { name: /supplier quotes/i })).toBeInTheDocument();
   });
 
   it('defaults to the Overview tab when no :tab param is present', () => {
@@ -204,7 +204,7 @@ describe('ProcurementDetails — tabbed record shell (Slice 1)', () => {
   // — same class as the other `{ replace: true }` tab-switch assertions).
   it('clicking a tab navigates (replace) to its deep-link, forwarding location.state', async () => {
     renderAt('/procurement/proc-001');
-    await userEvent.click(screen.getByRole('tab', { name: /Vendor quotes/ }));
+    await userEvent.click(screen.getByRole('tab', { name: /supplier quotes/i }));
     // #879: the navigation carries the tab-switch marker (AppShell route-focus exemption).
     expect(navigate).toHaveBeenCalledWith('/procurement/proc-001/quotes', {
       replace: true,
@@ -240,7 +240,7 @@ describe('ProcurementDetails — tabbed record shell (Slice 1)', () => {
     renderAt('/procurement/proc-001');
     // 1 item, 1 quotation, 0 documents-collection rows.
     expect(screen.getByRole('tab', { name: /Line items\s*1/ })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Vendor quotes\s*1/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /supplier quotes\s*1/i })).toBeInTheDocument();
   });
 
   it('CanWrite gating still applies: an Engineer non-requester is NOT offered Confirm Receipt', () => {

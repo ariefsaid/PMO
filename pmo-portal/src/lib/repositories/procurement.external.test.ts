@@ -355,7 +355,7 @@ describe('task 4.8 — flipped ownership map — procurement/company record crea
     expect(record).not.toHaveProperty('withheldPphType');
   });
 
-  it('forwards the supplied vendor invoice reference and date to external dispatch (#764)', async () => {
+  it('forwards the supplied supplier invoice reference and date to external dispatch (#764)', async () => {
     dispatchSpy.mockResolvedValue({ externalRecordId: 'SYNTHETIC-PI-001', canonical: { id: 'pmo-1' } });
     await repositories.procurement.createInvoice({
       procurementId: 'proc-1', status: 'Received', invoiceDate: '2026-09-20',

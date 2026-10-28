@@ -25,19 +25,19 @@ describe('ProcurementBoard in Bahasa', () => {
     const titleIn = (key: string, name: string) =>
       within(screen.getByTestId(`prstage-${key}`)).getByText(name, { exact: true });
     expect(titleIn('pr', 'Permintaan Pembelian')).toBeInTheDocument();
-    expect(titleIn('vq', 'Penawaran Vendor')).toBeInTheDocument();
-    expect(titleIn('po', 'Purchase Order')).toBeInTheDocument();
+    expect(titleIn('vq', 'Penawaran Pemasok')).toBeInTheDocument();
+    expect(titleIn('po', 'Pesanan pembelian')).toBeInTheDocument();
     expect(titleIn('gr', 'Penerimaan Barang')).toBeInTheDocument();
-    expect(titleIn('vi', 'Invoice Vendor')).toBeInTheDocument();
+    expect(titleIn('vi', 'Faktur pemasok')).toBeInTheDocument();
     expect(titleIn('paid', 'Pembayaran')).toBeInTheDocument();
-    for (const en of ['Purchase Request', 'Vendor Quote', 'Goods Receipt', 'Vendor Invoice', 'Payment']) {
+    for (const en of ['Purchase Request', 'Supplier Quote', 'Goods Receipt', 'Supplier Invoice', 'Payment']) {
       expect(screen.queryByText(en, { exact: true })).toBeNull();
     }
   });
 
   it('the empty-column message names the stage in Bahasa', () => {
     renderBoard();
-    expect(screen.getByText('Tidak ada permintaan pada tahap Penawaran Vendor')).toBeInTheDocument();
-    expect(screen.queryByText(/No requests at/)).toBeNull();
+    expect(screen.getByText('Tidak ada catatan pengadaan pada tahap Penawaran Pemasok')).toBeInTheDocument();
+    expect(screen.queryByText(/No procurement records at/)).toBeNull();
   });
 });

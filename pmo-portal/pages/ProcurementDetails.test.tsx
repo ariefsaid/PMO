@@ -346,7 +346,7 @@ const paidProcurement = {
 // ---------------------------------------------------------------------------
 // The page is now a tabbed record shell (`/procurement/:id/:tab?`, default Overview).
 // `tab` deep-links a panel so a test can land on the tab that owns the content it
-// asserts (line items / documents / vendor quotes). Goals unchanged — only the journey
+// asserts (line items / documents / supplier quotes). Goals unchanged — only the journey
 // step "land on the owning tab" is made explicit (the content moved behind a tab).
 const renderPage = (id = 'proc-001', tab?: string) =>
   render(
@@ -583,7 +583,7 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     expect(budgetEvidence.compareDocumentPosition(decision) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(within(decision).getAllByRole('button', { name: /approve/i })).toHaveLength(1);
     expect(within(decision).getAllByRole('button', { name: /reject/i })).toHaveLength(1);
-    expect(within(decision).getAllByRole('button', { name: /cancel request/i })).toHaveLength(1);
+    expect(within(decision).getAllByRole('button', { name: /cancel procurement/i })).toHaveLength(1);
 
     within(decision).getByRole('button', { name: /add a note/i }).focus();
     await userEvent.tab();
@@ -591,7 +591,7 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     await userEvent.tab();
     expect(within(decision).getByRole('button', { name: /reject/i })).toHaveFocus();
     await userEvent.tab();
-    expect(within(decision).getByRole('button', { name: /cancel request/i })).toHaveFocus();
+    expect(within(decision).getByRole('button', { name: /cancel procurement/i })).toHaveFocus();
   });
 
   it('AC-S20-002: policy and separation-of-duties detail follows financial evidence without losing its explanation', () => {
@@ -611,11 +611,11 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     expect(screen.queryByRole('button', { name: /approve/i })).not.toBeInTheDocument();
   });
 
-  it('AC-805: Submit (Draft → Requested) offered to Engineer', () => {
+  it('AC-805: Submit for approval (Draft → Requested) offered to Engineer', () => {
     mockEffectiveRole = 'Engineer';
     detailState.data = { ...baseProcurement, status: 'Draft' };
     renderPage();
-    expect(screen.getByRole('button', { name: /submit request/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /submit for approval/i })).toBeInTheDocument();
   });
 
   it('AC-805: Paid status shows no transition actions (terminal)', () => {
@@ -670,7 +670,7 @@ describe('AC-805: transition mutations called on action click', () => {
     ));
   });
 
-  it('AC-805 / AC-IXD-WP-003: clicking Submit (a routine forward step) fires the transition on a SINGLE click — no confirm (OD-UX-1)', async () => {
+  it('AC-805 / AC-IXD-WP-003: clicking Submit for approval (a routine forward step) fires the transition on a SINGLE click — no confirm (OD-UX-1)', async () => {
     mockEffectiveRole = 'Engineer';
     // AC-W3-D10: Submit is only enabled when ≥1 line item exists; give the fixture an item.
     detailState.data = {
@@ -680,7 +680,7 @@ describe('AC-805: transition mutations called on action click', () => {
       items: [{ id: 'it1', org_id: 'org-1', procurement_id: 'proc-001', name: 'Widget', description: null, quantity: 1, rate: 500, amount: 500 }],
     };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /submit request/i }));
+    await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
     // OD-UX-1: routine reversible forward steps are single-click + a toast, no modal.
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryByRole('alertdialog')).toBeNull();
@@ -836,7 +836,7 @@ describe('Action bar covers mid-flow transitions', () => {
   it('Received status shows Mark Vendor Invoiced for Finance', () => {
     detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other' };
     renderPage();
-    expect(screen.getByRole('button', { name: /mark vendor invoiced/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /mark supplier invoiced/i })).toBeInTheDocument();
   });
 
   it('Vendor Invoiced status shows Mark as Paid for Finance (not the approver)', () => {
@@ -898,9 +898,9 @@ describe('Action bar covers mid-flow transitions', () => {
     renderPage('proc-001', 'documents');
     const choice = screen.getByLabelText('Record the first document') as HTMLSelectElement;
     // Finance may request, source, invoice and pay; it is not the requester and not a receiver, so no goods receipt.
-    expect([...choice.options].map((o) => o.text)).toEqual(['Request', 'Quote request', 'Order', 'Vendor invoice', 'Payment']);
+    expect([...choice.options].map((o) => o.text)).toEqual(['Request', 'Quote request', 'Order', 'Supplier invoice', 'Payment']);
     fireEvent.change(choice, { target: { value: 'vendor_invoice' } });
-    expect(screen.getByRole('button', { name: /capture vendor invoice/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /capture supplier invoice/i })).toBeInTheDocument();
   });
 
   it('D2 C1/C2: a goods receipt chosen as the first document is written through the page confirm, and only then reported', async () => {
@@ -914,26 +914,27 @@ describe('Action bar covers mid-flow transitions', () => {
     // Staged, not written: nothing is created and nothing is toasted until the confirm.
     expect(mockCreateReceipt).not.toHaveBeenCalled();
     expect(toast).not.toHaveBeenCalled();
+    expect(await screen.findByText(/This records a complete goods receipt against procurement record/)).toBeInTheDocument();
     await confirmInDialog(/save gr/i);
     await waitFor(() => expect(mockCreateReceipt).toHaveBeenCalledTimes(1));
     expect(mockCreateReceipt).toHaveBeenCalledWith(expect.objectContaining({ status: 'Complete' }));
     await waitFor(() => expect(toast).toHaveBeenCalledWith('Goods receipt recorded', undefined, 'success'));
   });
 
-  it('D2 C1/C2: a vendor invoice chosen as the first document is written through the page confirm, and only then reported', async () => {
+  it('D2 C1/C2: a supplier invoice chosen as the first document is written through the page confirm, and only then reported', async () => {
     detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other' };
     mockCreateInvoice.mockClear(); toast.mockClear();
     renderPage('proc-001', 'documents');
     fireEvent.change(screen.getByLabelText('Record the first document'), { target: { value: 'vendor_invoice' } });
-    await userEvent.click(screen.getByRole('button', { name: /capture vendor invoice/i }));
+    await userEvent.click(screen.getByRole('button', { name: /capture supplier invoice/i }));
     await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
     await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
     await userEvent.click(screen.getByTestId('btn-save-vi'));
     expect(mockCreateInvoice).not.toHaveBeenCalled();
     expect(toast).not.toHaveBeenCalled();
-    await confirmInDialog(/save vendor invoice/i);
+    await confirmInDialog(/save supplier invoice/i);
     await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(toast).toHaveBeenCalledWith('Vendor invoice recorded', undefined, 'success'));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Supplier invoice recorded', undefined, 'success'));
   });
 
   it('a requester without a recording role is offered only the request (no choice to make)', () => {
@@ -1046,16 +1047,16 @@ describe('Confirm severity + error-code classified toast (P1/P2, sub-task b)', (
     expect(mockTransition).not.toHaveBeenCalled();
   });
 
-  it('P2: a destructive action (Cancel request) opens an alertdialog; only confirm fires the transition', async () => {
+  it('P2: a destructive action (Cancel procurement) opens an alertdialog; only confirm fires the transition', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
     renderPage();
     // requester (u-alice) may cancel a Requested PR (canCancel early). The page
-    // terminal action reads "Cancel request" (double-negative cleanup, polish #2).
-    await userEvent.click(screen.getByRole('button', { name: /^Cancel request$/i }));
+    // terminal action reads "Cancel procurement" (double-negative cleanup, polish #2).
+    await userEvent.click(screen.getByRole('button', { name: /^Cancel procurement$/i }));
     expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     expect(mockTransition).not.toHaveBeenCalled();
-    // commit button reads "Cancel request" (disambiguated from the dialog's own dismiss)
-    await confirmInDialog(/cancel request/i);
+    // commit button reads "Cancel procurement" (disambiguated from the dialog's own dismiss)
+    await confirmInDialog(/cancel procurement/i);
     await waitFor(() =>
       expect(mockTransition).toHaveBeenCalledWith(expect.objectContaining({ to: 'Cancelled' })),
     );
@@ -1195,7 +1196,7 @@ describe('VI creation panel (D3, AC-816 UI support)', () => {
     mockCreateInvoice.mockResolvedValue({ id: 'i-new' });
   });
 
-  it('shows Create Vendor Invoice button for Finance on Vendor Invoiced status', () => {
+  it('shows Create Supplier Invoice button for Finance on Vendor Invoiced status', () => {
     detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
     expect(screen.getByTestId('btn-create-vi')).toBeInTheDocument();
@@ -1220,12 +1221,12 @@ describe('VI creation panel (D3, AC-816 UI support)', () => {
     detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
     await userEvent.click(screen.getByTestId('btn-create-vi'));
-    // #505: stating the tax treatment + amount is now part of recording a vendor invoice.
+    // #505: stating the tax treatment + amount is now part of recording a supplier invoice.
     await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'inclusive');
     await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '450');
     await userEvent.click(screen.getByTestId('btn-save-vi'));
     expect(mockCreateInvoice).not.toHaveBeenCalled();
-    await confirmInDialog(/save vendor invoice/i);
+    await confirmInDialog(/save supplier invoice/i);
     await waitFor(() =>
       expect(mockCreateInvoice).toHaveBeenCalledWith(
         // #505: the staged tax facts survive the confirm hop and reach the mutation.
@@ -1393,25 +1394,25 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
     expect(reject.className).not.toContain('bg-success');
   });
 
-  // Polish #2 — the three "Cancel"s disambiguate: page action = "Cancel request",
-  // and the confirm dialog's dismiss = "Keep request" (not "Cancel").
-  it('polish#2: the PR cancel confirm dismiss reads "Keep request", not "Cancel"', async () => {
+  // Polish #2 — the three "Cancel"s disambiguate: page action = "Cancel procurement",
+  // and the confirm dialog's dismiss = "Keep procurement" (not "Cancel").
+  it('polish#2: the PR cancel confirm dismiss reads "Keep procurement", not "Cancel"', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^Cancel request$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Cancel procurement$/i }));
     const dialog = await screen.findByRole('alertdialog');
-    // dismiss is the non-destructive button: "Keep request"
-    expect(within(dialog).getByRole('button', { name: /^keep request$/i })).toBeInTheDocument();
+    // dismiss is the non-destructive button: "Keep procurement"
+    expect(within(dialog).getByRole('button', { name: /^keep procurement$/i })).toBeInTheDocument();
     // the dialog must NOT carry a bare "Cancel" dismiss (the double-negative tell)
     expect(within(dialog).queryByRole('button', { name: /^cancel$/i })).toBeNull();
   });
 
-  it('polish#2: "Keep request" dismisses the dialog WITHOUT firing the transition', async () => {
+  it('polish#2: "Keep procurement" dismisses the dialog WITHOUT firing the transition', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^Cancel request$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Cancel procurement$/i }));
     const dialog = await screen.findByRole('alertdialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: /^keep request$/i }));
+    await userEvent.click(within(dialog).getByRole('button', { name: /^keep procurement$/i }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
     expect(mockTransition).not.toHaveBeenCalled();
   });
@@ -1527,7 +1528,7 @@ describe('0349: approved-amount ceiling and quote re-route (AC-SEC-220/221)', ()
     await selectFirstQuote();
     await waitFor(() => expect(toast).toHaveBeenCalledWith(
       'Quote selected',
-      'The quote is above the approved amount, so the request went back for approval.',
+      'The quote is above the approved amount, so the procurement went back for approval.',
       'success',
     ));
   });
@@ -1536,6 +1537,6 @@ describe('0349: approved-amount ceiling and quote re-route (AC-SEC-220/221)', ()
     detailState.data = quoted(900);
     renderPage('proc-001', 'quotes');
     await selectFirstQuote();
-    await waitFor(() => expect(toast).toHaveBeenCalledWith('Quote selected', 'The request advanced to Quote Selected', 'success'));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Quote selected', 'The procurement advanced to Quote Selected', 'success'));
   });
 });

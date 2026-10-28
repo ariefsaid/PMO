@@ -50,12 +50,12 @@ describe('AC-APR-030 mayDecideRoutedApproval', () => {
 describe('AC-APR-030 approvalRouteNote', () => {
   it('AC-APR-030: names the approver and the within-budget line', () => {
     expect(approvalRouteNote(route(), 'Materials', t)).toBe(
-      "Approval for this request is routed to Ana Approver: it is within the project's Materials budget.",
+      "Approval for this procurement is routed to Ana Approver: it is within the project's Materials budget.",
     );
   });
   it('AC-APR-030: an Engineer is not told the spend is within budget (their visibility can understate it)', () => {
     const note = approvalRouteNote(route(), 'Materials', t, 'Engineer');
-    expect(note).toBe('Approval for this request is routed to Ana Approver: they are the approver set for this project.');
+    expect(note).toBe('Approval for this procurement is routed to Ana Approver: they are the approver set for this project.');
     expect(note).not.toContain('within');
   });
   it('AC-APR-030: a Project Manager still sees the within-budget line', () => {
@@ -68,7 +68,7 @@ describe('AC-APR-030 approvalRouteNote', () => {
       approvers: [{ id: 'u-1', fullName: 'Ena' }, { id: 'u-2', fullName: 'Fin' }],
     });
     expect(approvalRouteNote(r, null, t)).toBe(
-      'Approval for this request is routed to Ena or Fin: it is overhead spend, not charged to a project.',
+      'Approval for this procurement is routed to Ena or Fin: it is overhead spend, not charged to a project.',
     );
   });
   it('AC-APR-030: an escalated within-budget request says the project approver cannot act', () => {
@@ -78,7 +78,7 @@ describe('AC-APR-030 approvalRouteNote', () => {
   });
   it('AC-APR-010: a request only an Admin may decide says so instead of naming nobody', () => {
     expect(approvalRouteNote(route({ route: 'admin', reason: 'no_project', approvers: [] }), null, t)).toBe(
-      'Approval for this request needs an Admin: no one in the senior approver set can act on it.',
+      'Approval for this procurement needs an Admin: no one in the senior approver set can act on it.',
     );
   });
   it('DD-APR-3: a budget changed under the request says why it went to the senior set', () => {

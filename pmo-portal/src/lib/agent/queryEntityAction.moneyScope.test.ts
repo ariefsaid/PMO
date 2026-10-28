@@ -1,6 +1,6 @@
 /**
  * AC-SEC-233 — the assistant's read tool does not offer bill and payment records to a role that reads none
- * (owner ruling 2026-10-23, migration 0350). An Engineer asking about vendor invoices or payments gets a clear
+ * (owner ruling 2026-10-23, migration 0350). An Engineer asking about supplier invoices or payments gets a clear
  * "not available for your role" result instead of an empty list that reads as "there are none". Every other
  * entity, and the four roles that read money records, are unchanged. Exercises the shipped action.
  */
@@ -42,7 +42,7 @@ describe('AC-SEC-233 query_entity — money records by role', () => {
     }
   });
 
-  it.each(['Admin', 'Executive', 'Project Manager', 'Finance'])('AC-SEC-233 %s still reads vendor invoices and payments', async (role) => {
+  it.each(['Admin', 'Executive', 'Project Manager', 'Finance'])('AC-SEC-233 %s still reads supplier invoices and payments', async (role) => {
     for (const entity of ['procurement_invoices', 'payments']) {
       const { ctx, from } = ctxFor(role);
       expect(await queryEntityAction.run({ entity }, ctx)).toEqual({ rowCount: 1, rows: [{ id: 'r1' }] });

@@ -48,7 +48,7 @@ export function useHistoryEnumLabel(): (entityType: string, column: string, valu
     if (column === 'type' && entityType === 'company') {
       switch (value) {
         case 'Client': return t('companies.type.client', 'Client');
-        case 'Vendor': return t('companies.type.vendor', 'Vendor');
+        case 'Vendor': return t('companies.type.vendor', 'Supplier');
         case 'Internal': return t('companies.type.internal', 'Internal');
         default: return value;
       }

@@ -32,6 +32,8 @@ import { can } from '@/src/auth/policy';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { AtRiskProjectsLink } from '@/src/components/dashboard/AtRiskProjectsLink';
 import { useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
+import { orderByProcurementLifecycle } from '@/src/lib/db/procurementLifecycle';
+import { formatPercent } from '@/src/lib/format';
 
 const ExecutiveDashboard: React.FC = () => {
   const { t } = useTranslation('dashboard');
@@ -66,10 +68,10 @@ const ExecutiveDashboard: React.FC = () => {
 
   const procByStatus = useMemo(
     () =>
-      (data?.procurements_by_status ?? []).map((s) => ({
+      orderByProcurementLifecycle((data?.procurements_by_status ?? []).map((s) => ({
         status: s.status as Tables<'procurements'>['status'],
         count: s.count,
-      })),
+      }))),
     [data?.procurements_by_status],
   );
 
@@ -156,9 +158,7 @@ const ExecutiveDashboard: React.FC = () => {
     }) + ' · ' + t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', {
       known: data.on_hand_actual_coverage_count ?? 0, total: data.on_hand_actual_coverage_total ?? 0,
     });
-    const weightedPct = data.pipeline_projected_margin === null
-      ? '—'
-      : `${(data.pipeline_projected_margin * 100).toFixed(1)}%`;
+    const weightedPct = formatPercent(data.pipeline_projected_margin);
 
     /** Chart/detail section — shared between mobile (below fold) and desktop. */
     const chartsSection = (
@@ -191,21 +191,21 @@ const ExecutiveDashboard: React.FC = () => {
         <DashGrid>
           <Card data-testid="dashboard-proc-status">
             <span className="sr-only">{`${data.procurements_by_status.length} ${t('dashboard.sr.statuses', 'statuses')}`}</span>
-            <CardHead>{t('uxs03.pmoPurchasing', 'PMO purchasing requests')}</CardHead>
-            <p className="px-4 text-xs text-muted-foreground">{t('uxs03.pmoPurchasingScope', 'ERP-native purchases are outside this PMO request chart.')}</p>
+            <CardHead>{t('uxs03.pmoPurchasing', 'Procurement')}</CardHead>
+            <p className="px-4 text-xs text-muted-foreground">{t('uxs03.pmoPurchasingScope', 'ERP-native purchases are outside this PMO procurement chart.')}</p>
             <div className="px-4 pb-4 pt-2">
               {procByStatus.length === 0 ? (
                 <ListState
                   variant="empty"
                   icon="cart"
-                  title={t('uxs19.dashboardEmpty', 'No PMO requests to show')}
+                  title={t('uxs19.dashboardEmpty', 'No procurement records to show')}
                 />
               ) : (
                 <StatusBarChart
                   data={procByStatus}
                   toneFor={procurementStatusTone}
                   label={t('dashboard.chart.procStatus.chartLabel', 'Procurement by status')}
-                  noun={t('dashboard.chart.procStatus.noun', 'requests')}
+                  noun={t('dashboard.chart.procStatus.noun', 'procurement records')}
                   hrefFor={(s) => `/procurement?status=${encodeURIComponent(s)}`}
                   labelFor={procurementStatusLabel}
                 />

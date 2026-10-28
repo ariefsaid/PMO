@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -7,6 +7,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { buildManagementPack } from '@/src/lib/reports/managementPack';
 import type { ManagementPackFacts } from '@/src/lib/db/managementPack';
 import { BahasaProvider } from '../../test/bahasa';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const h = vi.hoisted(() => ({
   role: 'Finance' as string,
@@ -48,17 +49,20 @@ const renderPage = () =>
   render(<MemoryRouter><ToastProvider><ManagementPack /></ToastProvider></MemoryRouter>);
 
 beforeEach(() => {
+  resetActiveLocale();
   h.role = 'Finance';
   h.userId = 'u-fin';
   h.query = { data: buildManagementPack(facts), isPending: false, isError: false, error: null, refetch: vi.fn() };
   h.exportTable.mockReset();
 });
 
+afterEach(() => resetActiveLocale());
+
 describe('AC-MMP-012 who sees the pack and who records progress', () => {
   it('AC-MMP-012: an Engineer gets the no-access message', () => {
     h.role = 'Engineer';
     renderPage();
-    expect(screen.getByRole('heading', { name: "You don't have access to the management pack" })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: "You don't have access to Reports" })).toBeInTheDocument();
   });
 
   it('AC-MMP-012: an open project with no progress entry can record its first entry; closed projects cannot', () => {
@@ -109,7 +113,7 @@ describe('AC-MMP-013 honest states', () => {
   it('AC-MMP-013: a failed load shows the error and no figures', () => {
     h.query = { data: undefined, isPending: false, isError: true, error: new Error('boom'), refetch: vi.fn() };
     renderPage();
-    expect(screen.getByText("Couldn't load the management pack")).toBeInTheDocument();
+    expect(screen.getByText("Couldn't load Reports")).toBeInTheDocument();
     expect(screen.queryAllByTestId(/^pack-cell-/)).toHaveLength(0);
     expect(screen.queryByText(/[^\d]0[.,]00\b/)).toBeNull();
   });
@@ -203,6 +207,22 @@ describe('AC-V24P-017 real Bahasa balance-availability explanations', () => {
   const ID_REASON = 'Tagihan dalam mata uang asing perlu direkonsiliasi sebelum saldo ini dapat diketahui.';
   const renderBahasa = () =>
     render(<BahasaProvider><MemoryRouter><ToastProvider><ManagementPack /></ToastProvider></MemoryRouter></BahasaProvider>);
+
+  it('AC-REPORTS-001: the finance report page title is localized as Laporan', () => {
+    renderBahasa();
+    expect(screen.getByRole('heading', { name: 'Laporan' })).toBeInTheDocument();
+  });
+
+  it('AC-REPORTS-PCT-001: progress percentages keep their precision and use the Bahasa number locale', () => {
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    h.query.data = buildManagementPack({
+      ...facts,
+      progress: [{ project_id: 'p1', month: '2026-04-01', pct_complete: 55.25, entered_at: '2026-04-30T10:00:00Z', entered_by_name: 'Finance' }],
+    });
+    renderBahasa();
+    const row = within(screen.getByText('Alpha').closest('tr')!);
+    expect(row.getByText('55,25% selesai')).toBeInTheDocument();
+  });
 
   // Alpha's name can label more than one row (contract + per-currency); take the row carrying the backlog cell.
   const alphaContractRow = () =>

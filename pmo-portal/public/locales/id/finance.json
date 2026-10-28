@@ -17,7 +17,7 @@
   },
   "erpPurchases": {
     "countedInActuals": "Sudah dihitung dalam Aktual.",
-    "backToProcurement": "Permintaan pengadaan",
+    "backToProcurement": "Pengadaan",
     "noAccess": "Anda tidak memiliki akses ke pembelian organisasi",
     "empty": "Belum ada pembelian dari ERPNext",
     "emptySub": "Pembelian tampil di sini setelah sinkronisasi berikutnya, begitu ERPNext terhubung.",
@@ -141,5 +141,8 @@
     "supplierCount": "{{count}} pemasok",
     "loadError": "Gagal memuat dokumen ERPNext yang belum masuk pembelian",
     "agingTitle": "Tagihan ERPNext yang belum dibayar (termasuk yang ditautkan)"
+  },
+  "budgetMap": {
+    "overheadsHint": "Biaya langsung proyek, bukan biaya overhead perusahaan."
   }
 }

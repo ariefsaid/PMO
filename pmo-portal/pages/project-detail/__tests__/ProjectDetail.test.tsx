@@ -256,7 +256,7 @@ describe('ProjectDetail shell (decomposition)', () => {
   it('I-2: record-tab create buttons are demoted to outline so Change status stays the one blue primary', async () => {
     const cases = [
       ['/projects/p1/budget', /new version/i],
-      ['/projects/p1/procurement', /new request/i],
+      ['/projects/p1/procurement', /new procurement/i],
       ['/projects/p1/tasks', /new task/i],
       ['/projects/p1/documents', /add document/i],
     ] as const;
@@ -320,7 +320,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(navigate).toHaveBeenCalledWith('/projects/p1/procurement', expect.anything());
     view.unmount();
     await renderAt('/projects/p1/procurement');
-    expect(await within(screen.getByRole('tabpanel')).findByText(/No purchase requests for this project yet/i)).toBeInTheDocument();
+    expect(await within(screen.getByRole('tabpanel')).findByText(/No procurement records for this project yet/i)).toBeInTheDocument();
   });
 
   it('AC-LRC-003: a tab switch forwards the current location.state so return context survives it', async () => {

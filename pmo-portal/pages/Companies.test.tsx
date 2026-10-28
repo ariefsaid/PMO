@@ -123,7 +123,7 @@ describe('Companies index — rows + filters (AC-CO-001)', () => {
 
   it('AC-CO-001: the type filter narrows the visible rows', async () => {
     renderPage();
-    await userEvent.click(screen.getByRole('tab', { name: /^Vendor$/ }));
+    await userEvent.click(screen.getByRole('tab', { name: /^Supplier$/ }));
     expect(screen.queryByText('Cascade Port Authority')).not.toBeInTheDocument();
     expect(screen.getByText('Steelforge Fabrication')).toBeInTheDocument();
   });
@@ -143,7 +143,7 @@ describe('Companies index — rows + filters (AC-CO-001)', () => {
       return within(row).getByText(label).closest('span')!;
     };
     const client = pillEl('Client', 'Cascade Port Authority'); // categorical violet (highlighted)
-    const vendor = pillEl('Vendor', 'Steelforge Fabrication'); // neutral grey
+    const vendor = pillEl('Supplier', 'Steelforge Fabrication'); // neutral grey
     const internal = pillEl('Internal', 'Internal Holdings'); // neutral grey
     const clientDot = client.querySelector('[data-pill-dot]') as HTMLElement;
     // S1 (ADR-0068): status is a quiet DOT + LABEL — NO filled slab. The category
@@ -159,10 +159,10 @@ describe('Companies index — rows + filters (AC-CO-001)', () => {
     expect(client.className).not.toContain('bg-primary');
     expect(vendor.className).not.toContain('bg-primary');
     expect(internal.className).not.toContain('bg-primary');
-    // The label (Client / Vendor / Internal) carries identity — never colour-only:
+    // The label (Client / Supplier / Internal) carries identity — never colour-only:
     // each type pill renders its name inside its own row.
     expect(within(screen.getByText('Cascade Port Authority').closest('tr')!).getByText('Client')).toBeInTheDocument();
-    expect(within(screen.getByText('Steelforge Fabrication').closest('tr')!).getByText('Vendor')).toBeInTheDocument();
+    expect(within(screen.getByText('Steelforge Fabrication').closest('tr')!).getByText('Supplier')).toBeInTheDocument();
     expect(within(screen.getByText('Internal Holdings').closest('tr')!).getByText('Internal')).toBeInTheDocument();
   });
 });
@@ -373,14 +373,14 @@ describe('Companies index — row → detail navigation (CW-4b)', () => {
 describe('Companies index — list working set + return context (AC-LRC-006)', () => {
   it('AC-LRC-001: a direct URL with ?type= restores the selected filter and the narrowed rows', () => {
     renderPage('Admin', '/companies?type=Vendor');
-    expect(screen.getByRole('tab', { name: /^Vendor$/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /^Supplier$/ })).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByText('Cascade Port Authority')).not.toBeInTheDocument();
     expect(screen.getByText('Steelforge Fabrication')).toBeInTheDocument();
   });
 
   it('AC-LRC-001: choosing a type filter writes ?type= to the URL (a copied link reproduces the same set)', async () => {
     renderPage('Admin');
-    await userEvent.click(screen.getByRole('tab', { name: /^Vendor$/ }));
+    await userEvent.click(screen.getByRole('tab', { name: /^Supplier$/ }));
     await waitFor(() =>
       expect(screen.getByTestId('location-probe').dataset.search).toBe('?type=Vendor'),
     );

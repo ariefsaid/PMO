@@ -699,7 +699,7 @@ const ApprovalsPage: React.FC = () => {
   const countFor = (kind: Scope) => allPopulation.filter((entry: ApprovalPopulationEntry) => entry.kind === kind).length;
   const scopeLabels: Record<Scope, string> = {
     all: t('approvals.scope.all', 'All pending'),
-    procurement: t('approvals.scope.procurement', 'Purchase requests'),
+    procurement: t('approvals.scope.procurement', 'Procurement records'),
     timesheets: t('approvals.scope.timesheets', 'Timesheets'),
     expense: t('approvals.scope.expense', 'Expense claims'),
     invoice: t('approvals.scope.invoice', 'Customer invoices'),
@@ -748,7 +748,7 @@ const ApprovalsPage: React.FC = () => {
         title={t('approvals.accessDenied.title', "You don't have access to approvals")}
         sub={t(
           'approvals.accessDenied.sub',
-          'Approvals are for the roles that sign off purchase requests or timesheets. Your work lives on your dashboard, projects, and tasks.',
+          'Approvals are for the roles that sign off procurement or timesheets. Your work lives on your dashboard, projects, and tasks.',
         )}
         onBack={() => navigate('/')}
       />
@@ -790,7 +790,7 @@ const ApprovalsPage: React.FC = () => {
         title={t('approvals.previewEmpty.title', 'Select an approval item')}
         sub={t(
           'approvals.previewEmpty.sub',
-          'When a pending request is available, its preview and actions appear here.',
+          'When a pending procurement record is available, its preview and actions appear here.',
         )}
       />
     );
@@ -805,7 +805,7 @@ const ApprovalsPage: React.FC = () => {
         <p className="mt-0.5 max-w-[72ch] text-sm text-muted-foreground">
           {t(
             'approvals.subtitle',
-            'Needs my approval — everything waiting on your decision: purchase requests, timesheets, expense claims and customer invoices.',
+            'Needs my approval — everything waiting on your decision: procurement, timesheets, expense claims and customer invoices.',
           )}
         </p>
       </div>
@@ -890,7 +890,7 @@ const ApprovalsPage: React.FC = () => {
             <div className="space-y-5">
               {(activeScope === 'all' || activeScope === 'procurement') && canApproveProcurement && (
                 <QueueGroup
-                  title={t('approvals.group.procurement.title', 'Purchase requests')}
+                  title={t('approvals.group.procurement.title', 'Procurement records')}
                   count={pendingProc}
                   items={procurementRows.map((row) => ({ key: `procurement:${row.id}`, kind: 'procurement' as const, row }))}
                   selectedKey={selectedKey}
@@ -900,11 +900,11 @@ const ApprovalsPage: React.FC = () => {
                   onRetry={() => refetchProc()}
                   emptyTitle={t(
                     'approvals.group.procurement.emptyTitle',
-                    'No requests awaiting your decision',
+                    'No procurement records awaiting your decision',
                   )}
                   emptySub={t(
                     'approvals.group.procurement.emptySub',
-                    'Purchase requests that need your approval will appear here.',
+                    'Procurement records that need your approval will appear here.',
                   )}
                 />
               )}

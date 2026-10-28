@@ -241,14 +241,14 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, comm
                 {/* #571 — one sentence; the styled amount is a placeholder a translator moves. */}
                 <Trans
                   i18nKey="uxs01.totalRequestValueAcross"
-                  defaults="Total request value: <amount>{{amount}}</amount> across {{n}} {{unit}}"
+                  defaults="Total procurement value: <amount>{{amount}}</amount> across {{n}} {{unit}}"
                   values={{
                     amount: formatCurrency(procSummary.committedTotal, project.currency),
                     n: String(procSummary.count),
                     unit:
                       procSummary.count === 1
-                        ? t('projectDetail.overview.procSummary.requestOne', 'request')
-                        : t('projectDetail.overview.procSummary.requestOther', 'requests'),
+                        ? t('projectDetail.overview.procSummary.requestOne', 'procurement record')
+                        : t('projectDetail.overview.procSummary.requestOther', 'procurement records'),
                   }}
                   components={{
                     amount: <span className="font-semibold tabular text-foreground text-[14px]" />,

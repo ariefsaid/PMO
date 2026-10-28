@@ -95,10 +95,8 @@ test(
     await waitReady(page);
     await expectNoHorizontalOverflow(page);
 
-    // The Vendor tab's label IS translated (`companies.type.vendor`); the Bahasa word happens to
-    // be "Vendor" as well, so the same tab name is correct in both locales. The `?type=` URL value
-    // is the untranslated enum by design (listWorkingSet.ts).
-    await page.getByRole('tab', { name: /^Vendor$/i }).click();
+    // The Supplier type label is localized; the `?type=` URL value stays the unchanged enum.
+    await page.getByRole('tab', { name: /^Pemasok$/i }).click();
     await expect(page).toHaveURL(/[?&]type=Vendor/);
     const searchId = page.getByRole('searchbox', { name: 'Cari perusahaan', exact: true });
     await expect(searchId).toBeVisible();

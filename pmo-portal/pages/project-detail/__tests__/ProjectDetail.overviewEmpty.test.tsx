@@ -84,7 +84,7 @@ describe('PD-B Overview renders only blocks with data', () => {
     expect(within(phases).getByRole('button', { name: 'Plan delivery phases' })).toBeInTheDocument();
     for (const gone of ['Budget utilization', 'Budget snapshot', 'Procurement summary', 'Contract drawdown', 'Progress curve',
       'Project profit and loss', 'No active budget', 'Statements are not available yet', "Plan this project's delivery phases",
-      'No purchase requests for this project yet', 'No dated phases yet']) {
+      'No procurement records for this project yet', 'No dated phases yet']) {
       expect(within(panel).queryByText(gone)).toBeNull();
     }
   });

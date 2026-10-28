@@ -5,7 +5,7 @@
  * (SP2401-001 "PV Modules — Meridian 4.2 MW" — Paid, full record set + 8 events),
  *
  * When axe-core runs on each of the four tabs (Overview · Line items · Documents ·
- * Vendor quotes),
+ * supplier quotes),
  *
  * Then there are zero violations on every tab.
  *
@@ -27,7 +27,7 @@ const TABS: { name: string; tab: string }[] = [
   { name: 'Overview', tab: 'overview' },
   { name: 'Line items', tab: 'items' },
   { name: 'Documents', tab: 'documents' },
-  { name: 'Vendor quotes', tab: 'quotes' },
+  { name: 'Supplier quotes', tab: 'quotes' },
 ];
 
 for (const { name, tab } of TABS) {

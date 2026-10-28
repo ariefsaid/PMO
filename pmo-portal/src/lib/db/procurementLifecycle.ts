@@ -100,6 +100,18 @@ export const LEGAL_TRANSITIONS: Record<string, string[]> = {
   Cancelled:        [],
 };
 
+/** Stable display order for lifecycle charts, derived from the transition graph's canonical order. */
+export const PROCUREMENT_LIFECYCLE_ORDER = Object.keys(LEGAL_TRANSITIONS) as ProcurementStatus[];
+
+/** Sort status aggregates by lifecycle progression without changing the records or their enum values. */
+export function orderByProcurementLifecycle<T extends { status: string }>(rows: readonly T[]): T[] {
+  const rank = new Map<string, number>(PROCUREMENT_LIFECYCLE_ORDER.map((status, index) => [status, index]));
+  return [...rows].sort((left, right) =>
+    (rank.get(left.status) ?? Number.MAX_SAFE_INTEGER) - (rank.get(right.status) ?? Number.MAX_SAFE_INTEGER)
+      || left.status.localeCompare(right.status),
+  );
+}
+
 /**
  * Returns true when (from → to) is in the legal transition superset (AC-800/801, FR-PROC-001/002).
  * Pure function; mirrors the map in transition_procurement().

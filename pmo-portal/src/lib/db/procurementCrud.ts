@@ -46,7 +46,7 @@ export type ProcurementDocStatus = ProcurementDocumentRow['status'];
 
 export class ProcurementVendorAlreadySetError extends ProcurementError {
   constructor() {
-    super('A vendor was already set.', 'VENDOR_ALREADY_SET');
+    super('A supplier was already set.', 'VENDOR_ALREADY_SET');
     this.name = 'ProcurementVendorAlreadySetError';
   }
 }

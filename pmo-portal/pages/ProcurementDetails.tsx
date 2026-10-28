@@ -193,7 +193,7 @@ function allowedActions(
 
   // Draft → Requested: the requester, any role; Admin break-glass (OD-PROC-1, FR-PROC-005)
   if (legal('Requested') && (isRequester || role === 'Admin')) {
-    actions.push({ to: 'Requested', label: t('procurementDetail.action.submitRequest', 'Submit Request'), variant: 'primary' });
+    actions.push({ to: 'Requested', label: t('procurementDetail.action.submitRequest', 'Submit for approval'), variant: 'primary' });
   }
 
   // Requested → Approved / Rejected: PM/Finance/Exec/Admin and NOT the requester (SoD-a) (FR-PROC-006)
@@ -219,7 +219,7 @@ function allowedActions(
   // Purchase Order" is a valid skip-to-PO path but is demoted to `outline` so only
   // ONE blue appears per stage (DESIGN.md One-Blue Rule). BOTH remain clickable.
   if (legal('Vendor Quoted') && canSource(role)) {
-    actions.push({ to: 'Vendor Quoted', label: t('procurementDetail.action.requestVendorQuotes', 'Request Vendor Quotes'), variant: 'primary' });
+    actions.push({ to: 'Vendor Quoted', label: t('procurementDetail.action.requestVendorQuotes', 'Request Supplier Quotes'), variant: 'primary' });
   }
   if (legal('Ordered') && canSource(role) && status === 'Approved') {
     // outline (not primary) — see D7 note above
@@ -244,7 +244,7 @@ function allowedActions(
 
   // Received → Vendor Invoiced: Finance only (FR-PROC-009)
   if (legal('Vendor Invoiced') && INVOICE_PAY_ROLES.has(role)) {
-    actions.push({ to: 'Vendor Invoiced', label: t('procurementDetail.action.markVendorInvoiced', 'Mark Vendor Invoiced'), variant: 'primary' });
+    actions.push({ to: 'Vendor Invoiced', label: t('procurementDetail.action.markVendorInvoiced', 'Mark Supplier Invoiced'), variant: 'primary' });
   }
 
   // Vendor Invoiced → Paid: Finance only, AND not the user who approved the
@@ -264,7 +264,7 @@ function allowedActions(
   // action reads "Cancel request" (verb + object) so it never reads as a bare
   // "Cancel" that could be mistaken for dismissing the screen (polish #2).
   if (legal('Cancelled') && canCancel(role, isRequester, status)) {
-    actions.push({ to: 'Cancelled', label: t('procurementDetail.action.cancelRequest', 'Cancel request'), variant: 'destructive' });
+    actions.push({ to: 'Cancelled', label: t('procurementDetail.action.cancelRequest', 'Cancel procurement'), variant: 'destructive' });
   }
 
   return actions;
@@ -291,7 +291,7 @@ function sortActions(
 function sodGateMessage(p: ProcurementDetail, role: string, isRequester: boolean): string | null {
   // Approval gate: a Requested PR awaiting a non-requester approver.
   if (p.status === 'Requested' && isRequester) {
-    return `This request was raised by ${p.requested_by?.full_name ?? 'you'}. A different user holding the Project-Manager, Finance, or Executive role must review it — the requester cannot self-approve their own request.`;
+    return `This procurement was raised by ${p.requested_by?.full_name ?? 'you'}. A different user holding the Project-Manager, Finance, or Executive role must review it — the requester cannot self-approve their own procurement.`;
   }
   // Receipt gate: an Ordered PR where the viewer cannot confirm receipt.
   if (p.status === 'Ordered' && !(isRequester || RECEIPT_ROLES.has(role))) {
@@ -437,7 +437,7 @@ const ProcurementDetails: React.FC = () => {
             title={t('procurementDetail.accessDenied.title', "You don't have access to this record")}
             sub={t(
               'procurementDetail.accessDenied.sub',
-              "This procurement request either doesn't exist or isn't visible to your role. If you raised it, open it from your own requests.",
+              "This procurement record either doesn't exist or isn't visible to your role. If you created it, open it from your procurement list.",
             )}
           />
         </div>
@@ -672,23 +672,23 @@ const ProcurementDetails: React.FC = () => {
       ) : (
         t(
           'procurementDetail.confirm.terminal',
-          'This is a terminal action for this request and cannot be undone.',
+          'This is a terminal action for this procurement and cannot be undone.',
         )
       );
     setPendingConfirm({
       kind: 'transition',
       to: action.to,
       title: isCancel
-        ? t('procurementDetail.confirm.cancelTitle', 'Cancel this request?')
+        ? t('procurementDetail.confirm.cancelTitle', 'Cancel this procurement?')
         : destructive
-          ? t('procurementDetail.confirm.destructiveTitle', '{{action}} this request', {
+          ? t('procurementDetail.confirm.destructiveTitle', '{{action}} this procurement', {
               action: action.label,
             })
           : `${action.label}?`,
       description,
       confirmLabel: action.label,
       cancelLabel: isCancel
-        ? t('procurementDetail.confirm.keepRequest', 'Keep request')
+        ? t('procurementDetail.confirm.keepRequest', 'Keep procurement')
         : undefined,
       tone: destructive ? 'destructive' : 'default',
     });
@@ -705,7 +705,7 @@ const ProcurementDetails: React.FC = () => {
       // AC-IXD-PROC-001: the toast names the SAME canonical state the badge will
       // show — not the raw enum value (button verb → badge → toast all agree).
       toast(
-        t('procurementDetail.toast.requestUpdated', 'Request updated'),
+        t('procurementDetail.toast.requestUpdated', 'Procurement updated'),
         `${t('procurementDetail.toast.movedTo', 'Moved to')} ${toastStateLabel(to)}`,
         'success',
       );
@@ -755,7 +755,7 @@ const ProcurementDetails: React.FC = () => {
           intent: pendingConfirm.intent,
         });
         setShowCreateVI(false);
-        toast(t('procurementDetail.toast.viRecorded', 'Vendor invoice recorded'), undefined, 'success');
+        toast(t('procurementDetail.toast.viRecorded', 'Supplier invoice recorded'), undefined, 'success');
       }
       setPendingConfirm(null);
     } catch (err) {
@@ -786,7 +786,7 @@ const ProcurementDetails: React.FC = () => {
       setNotesInput('');
       setShowVICapture(false);
       toast(
-        t('procurementDetail.toast.viRecorded', 'Vendor invoice recorded'),
+        t('procurementDetail.toast.viRecorded', 'Supplier invoice recorded'),
         `${t('procurementDetail.toast.movedTo', 'Moved to')} ${toastStateLabel('Vendor Invoiced')}`,
         'success',
       );
@@ -902,7 +902,7 @@ const ProcurementDetails: React.FC = () => {
       ),
     },
     {
-      label: t('procurementDetail.detail.vendor', 'Vendor'),
+      label: t('procurementDetail.detail.vendor', 'Supplier'),
       value: p.vendor?.name ? (
         <CompanyNameLink companyId={p.vendor_id} name={p.vendor.name} />
       ) : (
@@ -942,7 +942,7 @@ const ProcurementDetails: React.FC = () => {
   const attachTypeName: Record<LedgerRow['type'], string> = {
     PR: t('procurement:documents.type.pr', 'Purchase request'), RFQ: t('procurement:documents.type.rfq', 'Quote request'),
     Quote: t('procurement:documents.type.quote', 'Quotation'), PO: t('procurement:documents.type.po', 'Purchase order'),
-    GR: t('procurement:documents.type.gr', 'Goods receipt'), Invoice: t('procurement:documents.type.invoice', 'Vendor invoice'),
+    GR: t('procurement:documents.type.gr', 'Goods receipt'), Invoice: t('procurement:documents.type.invoice', 'Supplier invoice'),
     Payment: t('procurement:documents.type.payment', 'Payment'),
   };
   // Labelled by type + number (never a raw id); a record with no number yet is just its type.
@@ -970,7 +970,7 @@ const ProcurementDetails: React.FC = () => {
     },
     {
       value: 'quotes',
-      label: t('procurementDetail.tabs.vendorQuotes', 'Vendor quotes'),
+      label: t('procurementDetail.tabs.vendorQuotes', 'Supplier quotes'),
       count: p.quotations.length || null,
     },
     { value: 'history', label: t('procurementDetail.tabs.history', 'History') },
@@ -1065,7 +1065,7 @@ const ProcurementDetails: React.FC = () => {
           onSave={async (patch) => {
             await crud.updateHeader.mutateAsync(patch);
             toast(
-              t('procurementDetail.toast.requestUpdated', 'Request updated'),
+              t('procurementDetail.toast.requestUpdated', 'Procurement updated'),
               t('procurementDetail.toast.headerSaved', 'Header saved'),
               'success',
             );
@@ -1170,14 +1170,14 @@ const ProcurementDetails: React.FC = () => {
               gates={gates}
             />
             {vendorPickerOpen && canSetVendor && (
-              <div role="dialog" aria-label={t('bupot.setVendor', 'Set vendor')} className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-border p-3">
+              <div role="dialog" aria-label={t('bupot.setVendor', 'Set supplier')} className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-border p-3">
                 <Combobox
-                  label={t('bupot.vendor', 'Vendor')}
-                  noun={t('bupot.vendor', 'vendor')}
+                  label={t('bupot.vendor', 'Supplier')}
+                  noun={t('bupot.vendor', 'Supplier')}
                   value={selectedVendorId}
                   onChange={(value) => setSelectedVendorId(value)}
                   loadOptions={async () => vendorOptions ?? []}
-                  placeholder={t('bupot.selectVendor', 'Select a vendor…')}
+                  placeholder={t('bupot.selectVendor', 'Select a supplier…')}
                 />
                 <Button
                   variant="primary"
@@ -1188,12 +1188,12 @@ const ProcurementDetails: React.FC = () => {
                     try {
                       await crud.updateVendor.mutateAsync(selectedVendorId);
                       setVendorPickerOpen(false);
-                      toast(t('bupot.vendorSet', 'Vendor set'), undefined, 'success');
+                      toast(t('bupot.vendorSet', 'Supplier set'), undefined, 'success');
                     } catch (err) {
                       if ((err as { code?: string })?.code === 'VENDOR_ALREADY_SET') {
                         setVendorPickerOpen(false);
                         toast(
-                          t('bupot.vendorAlreadySet', 'A vendor was already set. Refresh to see it.'),
+                          t('bupot.vendorAlreadySet', 'A supplier was already set. Refresh to see it.'),
                           undefined,
                           'warning',
                         );
@@ -1203,7 +1203,7 @@ const ProcurementDetails: React.FC = () => {
                       onMutationError(err);
                     }
                   }}
-                >{t('bupot.saveVendor', 'Save vendor')}</Button>
+                >{t('bupot.saveVendor', 'Save supplier')}</Button>
                 <Button variant="outline" size="sm" onClick={() => setVendorPickerOpen(false)}>{t('bupot.cancelSetVendor', 'Cancel')}</Button>
               </div>
             )}
@@ -1250,11 +1250,11 @@ const ProcurementDetails: React.FC = () => {
                 rerouted
                   ? t(
                       'procurement:quoteSelection.reroutedDetail',
-                      'The quote is above the approved amount, so the request went back for approval.',
+                      'The quote is above the approved amount, so the procurement went back for approval.',
                     )
                   : t(
                       'procurementDetail.toast.quoteSelectedDetail',
-                      'The request advanced to Quote Selected',
+                      'The procurement advanced to Quote Selected',
                     ),
                 'success',
               );
@@ -1338,7 +1338,7 @@ const ProcurementDetails: React.FC = () => {
             ? pendingConfirm.title
             : pendingConfirm?.kind === 'createGR'
               ? t('procurementDetail.confirm.grTitle', 'Record this goods receipt?')
-              : t('procurementDetail.confirm.viTitle', 'Record this vendor invoice?')
+              : t('procurementDetail.confirm.viTitle', 'Record this supplier invoice?')
         }
         description={
           pendingConfirm?.kind === 'transition'
@@ -1346,12 +1346,12 @@ const ProcurementDetails: React.FC = () => {
             : pendingConfirm?.kind === 'createGR'
               ? t(
                   'procurementDetail.confirm.grBody',
-                  'This records a {{status}} goods receipt against {{request}}.',
+                  'This records a {{status}} goods receipt against procurement record {{request}}.',
                   { status: pendingConfirm.status.toLowerCase(), request: p.title },
                 )
               : t(
                   'procurementDetail.confirm.viBody',
-                  'This records a vendor invoice against {{request}}.',
+                  'This records a supplier invoice against procurement record {{request}}.',
                   { request: p.title },
                 )
         }
@@ -1360,7 +1360,7 @@ const ProcurementDetails: React.FC = () => {
             ? pendingConfirm.confirmLabel
             : pendingConfirm?.kind === 'createGR'
               ? t('procurementDetail.confirm.saveGR', 'Save GR')
-              : t('procurementDetail.confirm.saveVI', 'Save vendor invoice')
+              : t('procurementDetail.confirm.saveVI', 'Save supplier invoice')
         }
         cancelLabel={
           pendingConfirm?.kind === 'transition' ? pendingConfirm.cancelLabel : undefined

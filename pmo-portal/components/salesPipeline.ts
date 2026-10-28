@@ -9,6 +9,7 @@ import {
   projectStatusGroup,
 } from '@/src/lib/db/projectTransitions';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
+import { formatPercent as formatLocalizedPercent } from '@/src/lib/format';
 
 /**
  * Kanban column model (OD-SP-1 / FR-SPD-014). Seven columns in fixed order: the five open
@@ -139,7 +140,7 @@ export function pillVariantForStatus(status: PipelineProject['status']): StatusV
 
 /** Whole-number percent label from an RPC win_probability fraction. */
 export function formatPercent(probability: number): string {
-  return `${Math.round(probability * 100)}%`;
+  return formatLocalizedPercent(probability, 0);
 }
 
 /**

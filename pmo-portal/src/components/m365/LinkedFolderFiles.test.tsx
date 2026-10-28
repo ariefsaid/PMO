@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { AppError } from '@/src/lib/appError';
 import { axeViolations } from '@/src/components/__tests__/axe';
+import { BahasaProvider } from '@/test/bahasa';
 
 const listChildren = vi.hoisted(() => vi.fn());
 vi.mock('@/src/lib/m365/graphClient', () => ({ listChildren: (...a: unknown[]) => listChildren(...a) }));
@@ -53,6 +54,18 @@ describe('#1320 AC-2 LinkedFolderFiles', () => {
     expect(document.body.textContent).not.toContain('RAW-UPSTREAM');
     await userEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(await screen.findByText('Plan.pdf')).toBeInTheDocument();
+  });
+
+  it('AC-2: an expired connection explains that reconnecting restores this folder list', async () => {
+    listChildren.mockRejectedValueOnce(Object.assign(new Error('expired'), { code: 'CONNECTION_STALE' }));
+    mount();
+    expect(await screen.findByText('The Microsoft 365 connection expired. Reconnect to see this folder’s files.')).toBeInTheDocument();
+  });
+
+  it('AC-2: the expired-folder reconnect message is localized in Bahasa', async () => {
+    listChildren.mockRejectedValueOnce(Object.assign(new Error('expired'), { code: 'CONNECTION_STALE' }));
+    render(<BahasaProvider><MemoryRouter><LinkedFolderFiles reference={ref} /></MemoryRouter></BahasaProvider>);
+    expect(await screen.findByText('Koneksi Microsoft 365 telah kedaluwarsa. Hubungkan ulang untuk melihat file folder ini.')).toBeInTheDocument();
   });
 
   it('AC-2: when Microsoft has more than one page, says the list is partial', async () => {
