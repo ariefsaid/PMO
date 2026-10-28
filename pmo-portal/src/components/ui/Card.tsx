@@ -23,8 +23,7 @@ export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
  * The Flat-By-Default Rule: a card is defined by its 1px border + surface tone,
  * never a rest shadow. The state-lift shadow appears only on interactive hover.
  *
- * `variant="bare"` (content-over-containers) drops the frame so a section reads as
- * heading + content on the canvas — fewer boxes, more air (monochrome-calm reskin).
+ * `variant="bare"` drops the frame so a section reads as heading + content on the canvas.
  */
 export const Card: React.FC<CardProps> = ({
   interactive = false,
@@ -41,7 +40,7 @@ export const Card: React.FC<CardProps> = ({
       clip && 'overflow-hidden',
       seam && 'rounded-b-none',
       interactive &&
-        'transition-shadow duration-150 hover:shadow-[0_2px_10px_hsl(240_6%_10%/0.06)]',
+        'transition-colors duration-150 hover:bg-surface-hover',
       className
     )}
     {...rest}
@@ -72,11 +71,15 @@ export const CardHead = React.forwardRef<HTMLHeadingElement, CardHeadProps>(({
   return (
     <div
       className={cn(
-        'flex items-center gap-2.5 border-b border-border px-4 py-[13px] text-sm font-semibold',
+        'flex items-center gap-2.5 border-b border-border px-4 py-3 font-semibold',
         className
       )}
     >
-      <Heading ref={ref} className="flex min-w-0 flex-1 items-center gap-2.5" {...rest}>
+      <Heading
+        ref={ref}
+        className={cn('flex min-w-0 flex-1 items-center gap-2.5', level === 2 ? 'text-section' : 'text-group')}
+        {...rest}
+      >
         {children}
       </Heading>
       {actions != null && actions !== false && (

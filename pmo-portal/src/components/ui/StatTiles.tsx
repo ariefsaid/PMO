@@ -20,7 +20,7 @@ export interface StatTilesProps {
   columns?: number;
   className?: string;
   /**
-   * Visual treatment (monochrome-calm reskin, content-over-containers):
+   * Visual treatment:
    *  • `framed` (default) — the hairline-gap strip in a bordered card frame.
    *  • `bare`              — borderless: the KPIs sit directly on the canvas,
    *                          separated by whitespace. Used on record-page finance
@@ -59,7 +59,7 @@ const SM_COLS_CLASS: Record<number, string> = {
  * sm:col-span-1 resets the span at the sm+ breakpoint where the N-col grid takes over.
  * Desktop behavior is unchanged.
  *
- * `variant="bare"` (content-over-containers): drops the card frame + cell fills so the
+ * `variant="bare"`: drops the card frame + cell fills so the
  * strip is a quiet row of KPIs on the canvas — fewer boxes, more air. Layout + clip
  * behavior is identical to `framed`.
  */
@@ -99,14 +99,14 @@ export const StatTiles: React.FC<StatTilesProps> = ({
             className={cn(
               isBare
                 ? 'py-1'
-                : 'bg-card px-3.5 py-[13px] first:rounded-l-lg last:rounded-r-lg',
+                : 'bg-card px-3 py-3 first:rounded-l-lg last:rounded-r-lg',
               isLastOdd && 'col-span-2 sm:col-span-1',
             )}
           >
-            <div className="mb-1 text-[11.5px] text-muted-foreground">{t.label}</div>
+            <div className="mb-1 text-control text-muted-foreground">{t.label}</div>
             <div
               className={cn(
-                'min-w-0 break-words text-[17px] font-bold tracking-[-0.01em] tabular',
+                'min-w-0 break-words text-metric font-semibold tabular',
                 // AC-RAM-004 (#688): raw text-success failed color-contrast in dark theme —
                 // the same class of gap the 'neg' tone below was already fixed for. text-success-text
                 // uses --success-text (the AA on-canvas variant), same move as destructive-text.
@@ -118,7 +118,7 @@ export const StatTiles: React.FC<StatTilesProps> = ({
             >
               <FigureContent value={t.value} exactValue={t.exactValue} unavailableReason={t.unavailableReason} />
             </div>
-            {t.sub && <div className="mt-0.5 text-[11px] text-muted-foreground">{t.sub}</div>}
+            {t.sub && <div className="mt-0.5 text-support text-muted-foreground">{t.sub}</div>}
           </div>
         );
       })}

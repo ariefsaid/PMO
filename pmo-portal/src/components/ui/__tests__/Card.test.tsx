@@ -13,11 +13,6 @@ describe('Card', () => {
     expect(card.className).not.toMatch(/shadow-\[/);
   });
 
-  it('interactive card gets the hover state-lift shadow', () => {
-    render(<Card interactive>body</Card>);
-    expect(screen.getByText('body').className).toContain('hover:shadow-[0_2px_10px_hsl(240_6%_10%/0.06)]');
-  });
-
   it('seam variant squares the bottom corners (sits above a table)', () => {
     render(<Card seam>body</Card>);
     expect(screen.getByText('body').className).toContain('rounded-b-none');

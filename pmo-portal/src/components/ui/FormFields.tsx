@@ -7,8 +7,8 @@ import { useMoneyInputMask } from './useMoneyInputMask';
 // ---------------------------------------------------------------------------
 // Shared form field primitives (crud-components §2.1 / §2.2). Strictly
 // DESIGN.md-tokened: the `input` shell (background bg, 1px `input` border,
-// `rounded-md`, 32px tall, 0 10px padding), the global `:focus-visible` ring,
-// 12px/600 labels in `muted-foreground`, the darkened-red AA error text, and
+// `rounded-md`, 38px tall, 12px horizontal padding), the global `:focus-visible` ring,
+// 14px/600 labels, the darkened-red AA error text, and
 // the destructive-tinted error summary. None reinvents a native control.
 //
 // a11y (the single source of field accessibility): every field renders a
@@ -37,7 +37,7 @@ export const FieldError: React.FC<FieldErrorProps> = ({ id, children, className 
     <span
       id={id}
       role="alert"
-      className={cn('flex items-center gap-1.5 text-[12px] font-medium text-destructive-text', className)}
+      className={cn('flex items-center gap-1.5 text-support font-medium text-destructive-text', className)}
     >
       <Icon name="alert" className="size-[13px] shrink-0" />
       {children}
@@ -95,11 +95,11 @@ export const FieldShell: React.FC<FieldShellProps> = ({
     [error ? errId : null, helper ? helpId : null].filter(Boolean).join(' ') || undefined;
 
   return (
-    <div className={cn('flex flex-col gap-1.5', fullWidth && 'col-span-full', className)}>
+    <div className={cn('flex flex-col gap-2', fullWidth && 'col-span-full', className)}>
       <label
         htmlFor={fieldId}
         className={cn(
-          'text-[12px] font-semibold leading-[1.3] text-foreground',
+          'text-control font-semibold text-foreground',
           hideLabel && 'sr-only',
         )}
       >
@@ -117,7 +117,7 @@ export const FieldShell: React.FC<FieldShellProps> = ({
         'aria-describedby': describedby,
       })}
       {helper && !error && (
-        <span id={helpId} className="text-[12px] text-muted-foreground">
+        <span id={helpId} className="text-support text-muted-foreground">
           {helper}
         </span>
       )}
@@ -128,7 +128,8 @@ export const FieldShell: React.FC<FieldShellProps> = ({
 
 /** The shared input visual shell (token-pure). */
 const inputBase =
-  'h-8 w-full rounded-md border border-input bg-background px-[10px] text-[13.5px] text-foreground ' +
+  'h-[var(--control-height)] w-full rounded-md border border-input bg-background px-3 text-control text-foreground ' +
+  '[@media(pointer:coarse)]:h-11 ' +
   'placeholder:text-muted-foreground disabled:bg-secondary disabled:text-muted-foreground ' +
   'disabled:cursor-not-allowed';
 const inputInvalid = 'border-destructive';
@@ -212,7 +213,7 @@ export const TextField: React.FC<TextFieldProps> = ({
               tabIndex={-1}
               aria-label={revealed ? 'Hide value' : 'Show value'}
               aria-pressed={revealed}
-              className="absolute inset-y-0 right-0 flex w-8 items-center justify-center text-muted-foreground hover:text-foreground"
+              className="touch-target absolute inset-y-0 right-0 flex w-8 items-center justify-center text-muted-foreground hover:text-foreground"
             >
               <Icon name={revealed ? 'eye-off' : 'eye'} className="size-3.55" aria-hidden="true" />
             </button>
@@ -268,7 +269,7 @@ export const NumberField: React.FC<NumberFieldProps> = ({
           {prefix && (
             <span
               aria-hidden
-              className="pointer-events-none absolute left-[10px] top-1/2 -translate-y-1/2 text-[13.5px] text-muted-foreground"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-control text-muted-foreground"
             >
               {prefix}
             </span>
@@ -339,7 +340,7 @@ export const TextArea: React.FC<TextAreaProps> = ({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className={cn(
-          'min-h-16 w-full resize-y rounded-md border border-input bg-background px-[10px] py-2 text-[13.5px] leading-[1.5] text-foreground',
+          'min-h-16 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-control text-foreground',
           'placeholder:text-muted-foreground disabled:bg-secondary disabled:text-muted-foreground disabled:cursor-not-allowed',
           error && inputInvalid,
           className,
@@ -409,7 +410,7 @@ export const SelectField: React.FC<SelectFieldProps> = ({
         onChange={(e) => onChange(e.target.value)}
         className={cn(
           inputBase,
-          'appearance-none bg-[right_9px_center] bg-no-repeat pr-[30px] [background-size:15px]',
+          'appearance-none bg-[right_14px_center] bg-no-repeat pr-11 [background-size:15px]',
           error && inputInvalid,
           className,
         )}
@@ -465,7 +466,7 @@ export interface FormSectionProps {
 export const FormSection: React.FC<FormSectionProps> = ({ legend, children, className }) => (
   <fieldset className={cn('m-0 mb-4 border-0 p-0 last:mb-0', className)}>
     {legend && (
-      <legend className="mb-2.5 p-0 text-[13px] font-semibold tracking-[-0.01em] text-foreground">
+      <legend className="mb-2 p-0 text-group font-semibold text-foreground">
         {legend}
       </legend>
     )}

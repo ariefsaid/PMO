@@ -17,9 +17,7 @@ import React from 'react';
  * Mechanism: `railActiveOverride` prop on <Rail>:
  *   'salesPipeline' | 'projects' | null
  *
- * The active token is `bg-primary/10 font-semibold text-nav-active-text` (DESIGN.md §nav-item-active,
- * contrast-fixed: text-primary=#2563eb on primary/10 bg is 4.48:1 — just below AA 4.5:1;
- * text-nav-active-text=hsl(221 75% 38%)=#1a46aa gives 7.31:1 — AC-PR-026 fix).
+ * Selected destinations expose `aria-current="page"` as well as the visual state.
  */
 
 vi.mock('@/src/auth/impersonation', () => ({
@@ -68,10 +66,8 @@ const renderRail = (override: 'salesPipeline' | 'projects' | null) =>
     </MemoryRouter>,
   );
 
-const ACTIVE_CLASS_FRAGMENT = 'text-nav-active-text';
-
-function isActive(el: HTMLElement): boolean {
-  return el.className.includes(ACTIVE_CLASS_FRAGMENT);
+function isCurrent(el: HTMLElement): boolean {
+  return el.getAttribute('aria-current') === 'page';
 }
 
 describe('Rail — stage-aware rail highlight (Option A, Task D)', () => {
@@ -82,8 +78,8 @@ describe('Rail — stage-aware rail highlight (Option A, Task D)', () => {
       const salesLink = screen.getByRole('link', { name: /sales pipeline/i });
       const projectsLink = screen.getByRole('link', { name: /^projects$/i });
 
-      expect(isActive(salesLink)).toBe(true);
-      expect(isActive(projectsLink)).toBe(false);
+      expect(isCurrent(salesLink)).toBe(true);
+      expect(isCurrent(projectsLink)).toBe(false);
       unmount();
     },
   );
@@ -95,8 +91,8 @@ describe('Rail — stage-aware rail highlight (Option A, Task D)', () => {
       const salesLink = screen.getByRole('link', { name: /sales pipeline/i });
       const projectsLink = screen.getByRole('link', { name: /^projects$/i });
 
-      expect(isActive(projectsLink)).toBe(true);
-      expect(isActive(salesLink)).toBe(false);
+      expect(isCurrent(projectsLink)).toBe(true);
+      expect(isCurrent(salesLink)).toBe(false);
       unmount();
     },
   );
@@ -106,8 +102,8 @@ describe('Rail — stage-aware rail highlight (Option A, Task D)', () => {
     () => {
       renderRail(null);
       const projectsLink = screen.getByRole('link', { name: /^projects$/i });
-      // URL prefix /projects matches → NavLink isActive=true → active class present
-      expect(isActive(projectsLink)).toBe(true);
+      // URL prefix /projects matches and marks the current destination.
+      expect(isCurrent(projectsLink)).toBe(true);
     },
   );
 });

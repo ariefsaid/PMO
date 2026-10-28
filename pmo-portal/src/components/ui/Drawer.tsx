@@ -4,6 +4,7 @@ import { cn } from './cn';
 import { Icon } from './icons';
 import { Button } from './Button';
 import { RecordHeader } from './RecordHeader';
+import { overlayBackdropClassName, overlayBackdropStyle } from './OverlaySurface';
 
 // ---------------------------------------------------------------------------
 // Drawer — a right-side quick-view sheet (Wave-5 Cluster 6, D11/D12).
@@ -21,10 +22,9 @@ import { RecordHeader } from './RecordHeader';
 //     uses for its discard dialog)
 //   - role="dialog" + aria-modal + aria-labelledby/aria-describedby
 //
-// Token-pure: white `popover` surface, a single left `border` hairline seam
-// (Single-Border Rule), the verbatim *Overlay* shadow on the floating edge,
-// the `subheading`/`muted-foreground` header, a ghost close icon-button. No new
-// token. Slides in via `confirm-anim` discipline; motion-reduce → crossfade.
+// Token-pure: `popover` surface, a single left `border` hairline seam,
+// neutral header and a ghost close icon-button. Slides in via `confirm-anim`
+// discipline; motion-reduce → crossfade.
 //
 // Same overlay z-band as the modal: scrim z-[800], panel z-[810].
 // ---------------------------------------------------------------------------
@@ -45,7 +45,7 @@ export interface DrawerProps {
    * EntityFormModal's discard-dialog pattern.
    */
   nestedOpen?: boolean;
-  /** Desktop width preset: 'sm' = 420px (default) | 'lg' = min(560px, 92vw). Drawers fill phones. */
+  /** Desktop width preset: 'sm' = --drawer-width (default) | 'lg' = min(560px, 92vw). Drawers fill phones. */
   width?: 'sm' | 'lg';
   /** Optional border-top footer slot for secondary entry points. */
   footer?: React.ReactNode;
@@ -180,7 +180,8 @@ export const Drawer: React.FC<DrawerProps> = ({
         data-testid="drawer-scrim"
         aria-hidden
         onClick={requestClose}
-        className="confirm-scrim-anim absolute inset-0 bg-foreground/40"
+        className={overlayBackdropClassName}
+        style={overlayBackdropStyle}
       />
       <div
         ref={dialogRef}
@@ -196,17 +197,15 @@ export const Drawer: React.FC<DrawerProps> = ({
         aria-hidden={nestedOpen || undefined}
         className={cn(
           // Edge-anchored: full-height right panel, square against the viewport
-          // edge (inner cards keep their own radius); the left border is the
-          // only seam (Single-Border Rule), the *Overlay* shadow floats it.
+          // edge (inner cards keep their own radius); the left border is the only seam.
           'drawer-anim relative z-[810] flex h-full flex-col border-l border-border bg-popover',
-          'shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]',
           'motion-reduce:animate-none',
           'w-full',
-          width === 'lg' ? 'sm:w-[min(560px,92vw)]' : 'sm:w-[min(420px,92vw)]',
+          width === 'lg' ? 'sm:w-[min(560px,92vw)]' : 'sm:w-[min(var(--drawer-width),92vw)]',
         )}
       >
         {/* Header */}
-        <div className="flex items-start gap-2.5 border-b border-border px-[18px] py-4">
+        <div className="flex items-start gap-2.5 border-b border-border bg-secondary px-4 py-3">
           {useRecordHeader ? (
             <div className="min-w-0 flex-1">
               {/* Visually-hidden a11y anchor — RecordHeader's own h1 carries no stable
@@ -228,12 +227,12 @@ export const Drawer: React.FC<DrawerProps> = ({
             <div className="min-w-0 flex-1">
               <h2
                 id={titleId}
-                className="truncate text-[16px] font-bold tracking-[-0.01em] text-popover-foreground"
+                className="truncate text-control font-semibold text-popover-foreground"
               >
                 {title}
               </h2>
               {subtitle && (
-                <div id={subId} className="mt-1.5 text-[12.5px] text-muted-foreground">
+                <div id={subId} className="mt-1 text-support text-muted-foreground">
                   {subtitle}
                 </div>
               )}
@@ -251,11 +250,11 @@ export const Drawer: React.FC<DrawerProps> = ({
         </div>
 
         {/* Body (scrollable) */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-[18px] py-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-[var(--drawer-body-inset)] py-4">{children}</div>
 
         {/* Optional footer action row */}
         {footer && (
-          <div className="flex flex-wrap items-center gap-2 border-t border-border px-[18px] py-3.5">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-4 pt-2 pb-4">
             {footer}
           </div>
         )}

@@ -66,7 +66,11 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
       ) : undefined
     }
     // Phone identity gets a complete row before status; desktop PageHeader is unchanged.
-    className={cn('[&_h1]:basis-full sm:[&_h1]:basis-0', className)}
+    className={cn(
+      '[&_h1]:basis-full sm:[&_h1]:basis-0',
+      variant === 'drawer' && '[&_h1]:text-control [&_h1]:font-semibold [&_h1]:leading-5',
+      className,
+    )}
   />
 );
 

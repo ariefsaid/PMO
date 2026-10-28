@@ -56,7 +56,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
     <div className="flex flex-wrap items-start gap-3.5">
       {icon && (
         <span
-          className="grid size-11 shrink-0 place-items-center rounded-[10px] text-[17px] font-bold text-white [&_svg]:size-5"
+          className="grid size-11 shrink-0 place-items-center rounded-[10px] text-[17px] font-bold text-primary-foreground [&_svg]:size-5"
           style={{ background: iconColor ?? 'hsl(var(--primary))' }}
         >
           {icon}
@@ -64,22 +64,22 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       )}
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-          <h1 className={cn('min-w-0 flex-1 break-words text-[19px] font-bold tracking-[-0.02em]', !actionsBelow && 'sm:truncate')}>{name}</h1>
+          <h1 className={cn('min-w-0 flex-1 break-words text-page font-semibold', !actionsBelow && 'sm:truncate')}>{name}</h1>
           {status}
         </div>
-        {meta && <div className="mt-0.5 text-[12.5px] text-muted-foreground">{meta}</div>}
+        {meta && <div className="mt-0.5 text-support text-muted-foreground">{meta}</div>}
       </div>
       {actions && <div className={cn('flex w-full shrink-0 items-center gap-2', !actionsBelow && 'ml-auto sm:w-auto')}>{actions}</div>}
     </div>
     {stats && stats.length > 0 && (
       <div
-        className="mt-4 grid gap-[22px] border-t border-border pt-4"
+        className="mt-4 grid gap-4 border-t border-border pt-4"
         style={{ gridTemplateColumns: `repeat(${stats.length}, 1fr)` }}
       >
         {stats.map((s, i) => (
           <div key={i}>
-            <div className="mb-[3px] text-[11.5px] text-muted-foreground">{s.label}</div>
-            <div className="text-[15px] font-bold tracking-[-0.01em] tabular">{s.value}</div>
+            <div className="mb-1 text-support text-muted-foreground">{s.label}</div>
+            <div className="text-group font-semibold tabular">{s.value}</div>
           </div>
         ))}
       </div>
