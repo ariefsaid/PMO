@@ -139,7 +139,7 @@ describe('SP-1 — a Project Manager is denied the report page', () => {
     h.role = 'Project Manager';
     h.userId = 'u-pm';
     renderPage();
-    expect(screen.getByRole('heading', { name: "You don't have access to the management pack" })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: "You don't have access to Reports" })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Report figures' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Actions for Alpha/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New invoice' })).not.toBeInTheDocument();
@@ -268,7 +268,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     expect(screen.queryByText(/No progress is recorded yet/)).not.toBeInTheDocument();
   });
 
-  it('Reports figures are one joined strip with short amounts and the exact amount kept', () => {
+  it('Reports figures group by currency and keep the exact amount behind a short figure', () => {
     h.query.data = buildManagementPack({
       ...facts,
       projects: [{ ...project('p1', 'Alpha', 'u-pm'), contract_net: 90_000_000 }],
@@ -277,8 +277,10 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     renderPage();
     const figures = screen.getByRole('region', { name: 'Report figures' });
     expect(within(figures).queryAllByRole('article')).toHaveLength(0);
-    const short = within(figures).getAllByText('IDR 62.4M')[0];
-    expect(short.getAttribute('title')).toMatch(/^IDR\s62,400,000$/);
+    const idr = screen.getByRole('heading', { level: 2, name: 'IDR' }).closest<HTMLElement>('section[aria-labelledby]')!;
+    const invoiced = within(idr).getByText('Invoiced to date').closest<HTMLElement>('div.relative.flex.flex-col')!;
+    const short = within(invoiced).getByTitle(/^IDR[\s\u00a0]62,400,000$/);
+    expect(short).toHaveTextContent('62.4M');
   });
 
   it.each([
@@ -297,7 +299,8 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
 
     expect(progress).toHaveAttribute('aria-valuenow', String(percent));
     expect(within(progress).getByTestId('progress-fill')).toHaveClass(tone);
-    expect(row.getByText(`${percent}% · Apr`)).toBeInTheDocument();
+    expect(row.getByText(`${percent}% complete`)).toBeInTheDocument();
+    expect(row.getByText(/·\s*Apr/)).toBeInTheDocument();
   });
 
   it('AC-1405-REPORT-008: the toolbar and table share one card, and money figures use whole units by currency', () => {
@@ -314,9 +317,14 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     expect(tableCard).toContainElement(screen.getByRole('button', { name: 'Export' }));
     expect(tableCard).toContainElement(screen.getByRole('table', { name: 'Project' }));
 
-    const figures = screen.getByRole('region', { name: 'Report figures' });
-    expect(figures).toHaveTextContent(/IDR\s250 · \$12,345/);
-    expect(figures).not.toHaveTextContent(/[.,]00\b/);
+    const idr = screen.getByRole('heading', { level: 2, name: 'IDR' }).closest<HTMLElement>('section[aria-labelledby]')!;
+    const usd = screen.getByRole('heading', { level: 2, name: 'USD' }).closest<HTMLElement>('section[aria-labelledby]')!;
+    const idrInvoiced = within(idr).getByText('Invoiced to date').closest<HTMLElement>('div.relative.flex.flex-col')!;
+    const usdInvoiced = within(usd).getByText('Invoiced to date').closest<HTMLElement>('div.relative.flex.flex-col')!;
+    expect(within(idrInvoiced).getByTitle(/^IDR[\s\u00a0]250$/)).toHaveTextContent('250');
+    expect(within(usdInvoiced).getByTitle('$12,345')).toHaveTextContent('12.3K');
+    expect(idr).not.toHaveTextContent(/[.,]00\b/);
+    expect(usd).not.toHaveTextContent(/[.,]00\b/);
     expect(screen.getByRole('columnheader', { name: 'Invoices' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Actions' })).toBeInTheDocument();
   });
@@ -327,11 +335,13 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
       invoiced: [...facts.invoiced, { project_id: 'p1', currency: 'USD', month: '2026-04-01', net: 50, invoice_count: 1 }],
     });
     renderPage();
-    const figures = screen.getByRole('region', { name: 'Report figures' });
+    const idr = screen.getByRole('heading', { level: 2, name: 'IDR' }).closest<HTMLElement>('section[aria-labelledby]')!;
+    const backlogLabel = within(idr).getByText('Backlog of contract total');
+    const backlogTile = backlogLabel.closest<HTMLElement>('div.relative.flex.flex-col')!;
     // C4: no "Unavailable" value anywhere; the backlog tile shows only what is known.
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
-    expect(figures).not.toHaveTextContent(/IDR\s*—/);
-    expect(within(figures).getByRole('button', { name: /^How this figure is calculated: Backlog of contract total/ })).toBeInTheDocument();
+    expect(within(backlogTile).getByRole('button', { name: 'How this figure is calculated: Backlog of contract total' })).toBeInTheDocument();
+    expect(backlogTile.querySelector('.tabular')).toBeEmptyDOMElement();
     expect(screen.getAllByText(/Backlog is left out where a foreign-currency invoice needs reconciliation/)).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Review invoices' })).toHaveAttribute('href', '/finance/receivables');
   });
@@ -404,9 +414,12 @@ describe('AC-V24P-017 real Bahasa balance-availability explanations', () => {
     expect(row.getByText('55,25% selesai')).toBeInTheDocument();
   });
 
-  // Alpha's name can label more than one row (contract + per-currency); take the row carrying the backlog cell.
+  // Alpha's name can label more than one row (contract + per-currency); take the row with the actual contract amount.
   const alphaContractRow = () =>
-    screen.getAllByRole('row').find((r) => within(r).queryByText('Alpha') && within(r).queryByTitle(ID_REASON))!;
+    screen.getAllByRole('row').find((r) => {
+      const row = within(r);
+      return Boolean(row.queryByText('Alpha') && row.queryByTestId('pack-cell-contract')?.textContent?.includes('1,000'));
+    })!;
 
   it('AC-V24P-017: unknown backlog is blank in Bahasa with one localized reason and link', () => {
     h.query.data = buildManagementPack({

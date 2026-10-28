@@ -471,7 +471,13 @@ describe('contract billing block', () => {
     expect(screen.getByText('Project finances')).toBeInTheDocument();
     expect(screen.getByText('2 invoices')).toBeInTheDocument();
     expect(screen.getByText(/Updated/)).toBeInTheDocument();
-    expect(screen.getByText('Spending setup details')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Recorded spending · USD' })).toBeInTheDocument();
+    expect(screen.getByText('Actuals exclude restricted rows', { exact: true })).toHaveAttribute('role', 'status');
+    const setupPrompt = screen.getByTestId('spending-setup-prompt');
+    expect(setupPrompt).toHaveTextContent('Recorded spending will appear after account setup is complete.');
+    expect(within(setupPrompt).getByRole('link', { name: 'Open spending setup' })).toHaveAttribute(
+      'href', '/administration/accounting#budget-account-map',
+    );
     expect(screen.getByText('Show category details')).toBeInTheDocument();
     expect(screen.getByText('Contract remaining after cost')).toBeInTheDocument();
     const currencySection = within(screen.getByTestId('project-finances-USD'));
