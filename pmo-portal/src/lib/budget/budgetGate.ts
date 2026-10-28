@@ -24,6 +24,31 @@
  */
 import { resolveBudgetAccounts, BudgetCategoryUnmappedError, type BudgetLineItem, type CategoryAccountMapRow } from './categoryAccountMap.ts';
 
+export type { BudgetLineItem, CategoryAccountMapRow } from './categoryAccountMap.ts';
+
+/** Structured detail for the draft's pre-activation readiness summary. */
+export interface BudgetReadinessIssue {
+  code: string;
+  categories?: string[];
+  lines?: Array<{ category: string; fiscalYear: string | null }>;
+  fiscalYear?: string;
+  fiscalYears?: string[];
+  startFiscalYear?: string;
+  endFiscalYear?: string;
+  date?: string;
+  datePart?: 'start' | 'end';
+  reason?: 'project-start-date-missing';
+}
+
+export interface BudgetActivationPrecheckResult {
+  status: 'ready' | 'blocked' | 'erp-unavailable';
+  /** An ERP outage is informational under ADR-0059; the PMO activation still proceeds. */
+  erpCheck: 'available' | 'unavailable' | 'not-required';
+  /** `null` means the external calendar was not read. */
+  fiscalYearNames: string[] | null;
+  issues: BudgetReadinessIssue[];
+}
+
 /**
  * The classification carried on every gate rejection (FR-BUD-015). A superset of the coarse
  * `AdapterErrorCode` ('commit-rejected'/'external-unreachable'): the gate additionally carries the
@@ -34,6 +59,7 @@ import { resolveBudgetAccounts, BudgetCategoryUnmappedError, type BudgetLineItem
 export class BudgetGateError extends Error {
   readonly code: string;
   readonly unmappedCategories?: string[];
+  readonly finding?: BudgetReadinessIssue;
   /** The fiscal year the gate had already resolved at the point of the throw — set on every rejection
    *  that happens AFTER the project/fiscal-year step (the multi-FY/unphased/out-of-span/invalid/map
    *  rejections). `undefined` for an earlier rejection (version/project unreadable, no activation stamp)
@@ -42,12 +68,13 @@ export class BudgetGateError extends Error {
    *  writing a wrong-grain row. BFY: it is the START fiscal year of the project's span (the grain the
    *  failure writers stamp, FR-BFY-010/033). */
   readonly fiscalYear?: string;
-  constructor(code: string, message: string, unmappedCategories?: string[], fiscalYear?: string) {
+  constructor(code: string, message: string, unmappedCategories?: string[], fiscalYear?: string, finding?: BudgetReadinessIssue) {
     super(message);
     this.name = 'BudgetGateError';
     this.code = code;
     if (unmappedCategories) this.unmappedCategories = unmappedCategories;
     if (fiscalYear) this.fiscalYear = fiscalYear;
+    if (finding) this.finding = finding;
   }
 }
 
@@ -97,6 +124,57 @@ export interface FiscalYearRow {
   year_end_date: string;
 }
 
+function invalidFiscalYearError(
+  lineItems: readonly BudgetLineItem[],
+  fiscalYears: readonly FiscalYearRow[],
+  fallbackFiscalYear?: string,
+): BudgetGateError | null {
+  const knownFYNames = new Set(fiscalYears.map((fy) => fy.name));
+  const invalid = lineItems.filter((li) => li.fiscal_year && !knownFYNames.has(li.fiscal_year));
+  if (invalid.length === 0) return null;
+  const first = invalid[0]!;
+  return new BudgetGateError(
+    'budget-fiscal-year-invalid',
+    `budget push: line "${first.category}" (${first.budgeted_amount}) is phased to fiscal year "${first.fiscal_year}" which names no ERPnext Fiscal Year — refusing rather than defaulting`,
+    undefined,
+    fallbackFiscalYear,
+    {
+      code: 'budget-fiscal-year-invalid',
+      lines: invalid.map((li) => ({ category: li.category, fiscalYear: li.fiscal_year ?? null })),
+    },
+  );
+}
+
+function missingProjectStartDateError(): BudgetGateError {
+  return new BudgetGateError(
+    'commit-rejected',
+    'budget push: the project has no start date to resolve a fiscal year',
+    undefined,
+    undefined,
+    { code: 'budget-project-start-date-missing', reason: 'project-start-date-missing' },
+  );
+}
+
+function categoryMapError(
+  lineItems: readonly BudgetLineItem[],
+  categoryMap: readonly CategoryAccountMapRow[],
+  fallbackFiscalYear?: string,
+): BudgetGateError | null {
+  try {
+    resolveBudgetAccounts(lineItems, categoryMap);
+    return null;
+  } catch (err) {
+    if (!(err instanceof BudgetCategoryUnmappedError)) throw err;
+    return new BudgetGateError(
+      'budget-category-unmapped',
+      err.message,
+      err.unmappedCategories,
+      fallbackFiscalYear,
+      { code: 'budget-category-unmapped', categories: err.unmappedCategories },
+    );
+  }
+}
+
 /** BFY: one entry of the per-year push plan — the phased fiscal year + the line items that belong to it. */
 export interface BudgetGatePlanEntry {
   /** The ERPNext `Fiscal Year` NAME this plan entry targets (one ERP `Budget` per entry). */
@@ -141,6 +219,9 @@ function fiscalYearContaining(date: string, fiscalYears: readonly FiscalYearRow[
     throw new BudgetGateError(
       'budget-fiscal-year-ambiguous',
       `budget push: ${matches.length} ERPNext Fiscal Years contain ${date} (${matches.map((fy) => fy.name).join(', ')}) — refusing rather than picking one`,
+      undefined,
+      undefined,
+      { code: 'budget-fiscal-year-ambiguous', date, fiscalYears: matches.map((fy) => fy.name) },
     );
   }
   return matches[0] ?? null;
@@ -156,7 +237,7 @@ function resolveSpanOrFailClosed(
   fiscalYears: readonly FiscalYearRow[],
 ): { startFY: string; endFY: string; inSpanFYNames: Set<string> } {
   if (!project.start_date) {
-    throw new BudgetGateError('commit-rejected', 'budget push: the project has no start date to resolve a fiscal year');
+    throw missingProjectStartDateError();
   }
   const startDate = project.start_date;
   const startFy = fiscalYearContaining(startDate, fiscalYears);
@@ -164,6 +245,9 @@ function resolveSpanOrFailClosed(
     throw new BudgetGateError(
       'budget-fiscal-year-unresolved',
       `budget push: no ERPNext Fiscal Year contains the project start date ${project.start_date} — refusing rather than guessing a year`,
+      undefined,
+      undefined,
+      { code: 'budget-fiscal-year-unresolved', date: project.start_date, datePart: 'start' },
     );
   }
   let endFyName: string;
@@ -176,6 +260,7 @@ function resolveSpanOrFailClosed(
         `budget push: no ERPnext Fiscal Year contains the project end date ${project.end_date} — refusing rather than guessing a year`,
         undefined,
         startFy.name,
+        { code: 'budget-fiscal-year-unresolved', date: project.end_date, datePart: 'end' },
       );
     }
     endFyName = endFy.name;
@@ -236,6 +321,13 @@ function buildPlan(
       `budget push: the project spans fiscal years ${span.startFY}–${span.endFY} but ${unphased.length} line(s) are not phased to a year — phase these lines (no pro-rata split is invented): ${named}`,
       undefined,
       span.startFY,
+      {
+        code: 'budget-multi-fiscal-year-unphased',
+        categories: unphased.map((li) => li.category),
+        lines: unphased.map((li) => ({ category: li.category, fiscalYear: null })),
+        startFiscalYear: span.startFY,
+        endFiscalYear: span.endFY,
+      },
     );
   }
   // Every phased year must lie within the project's span.
@@ -246,6 +338,12 @@ function buildPlan(
         `budget push: line "${li.category}" (${li.budgeted_amount}) is phased to fiscal year "${li.fiscal_year}" which is outside the project's span ${span.startFY}–${span.endFY}`,
         undefined,
         span.startFY,
+        {
+          code: 'budget-fiscal-year-out-of-span',
+          lines: [{ category: li.category, fiscalYear: li.fiscal_year ?? null }],
+          startFiscalYear: span.startFY,
+          endFiscalYear: span.endFY,
+        },
       );
     }
   }
@@ -261,6 +359,79 @@ function buildPlan(
     bucket.push(li);
   }
   return [...byYear.entries()].map(([fiscal_year, items]) => ({ fiscal_year, line_items: items }));
+}
+
+/**
+ * Read-only draft precheck for the activation UI. It uses the exact calendar, phasing and account-map
+ * validators that the push gate uses. An ERP read failure is represented as unverified, while a
+ * missing PMO project start date or category-map issue remains blocking when independently provable.
+ */
+export async function runBudgetActivationPrecheck(deps: BudgetGateDeps, erpBudgetPushConfigured = true): Promise<BudgetActivationPrecheckResult> {
+  const version = await deps.readVersion(deps.versionId);
+  if (!version || version.org_id !== deps.orgId) {
+    throw new BudgetGateError('commit-rejected', 'budget activation pre-check: version not readable');
+  }
+  if (version.status !== 'Draft') {
+    throw new BudgetGateError('commit-rejected', 'budget activation pre-check: version is not a Draft');
+  }
+
+  const project = await deps.readProject(version.project_id);
+  if (!project || project.org_id !== deps.orgId) {
+    throw new BudgetGateError('commit-rejected', 'budget activation pre-check: project not readable');
+  }
+
+  if (!erpBudgetPushConfigured) {
+    return { status: 'ready', erpCheck: 'not-required', fiscalYearNames: null, issues: [] };
+  }
+
+  const lineItems = await deps.readLineItems(deps.versionId);
+  const categoryMap = await deps.readCategoryMap();
+  const issues: BudgetGateError[] = [];
+  const mapError = categoryMapError(lineItems, categoryMap);
+  if (mapError) issues.push(mapError);
+
+  let fiscalYears: FiscalYearRow[];
+  try {
+    fiscalYears = await deps.readFiscalYears();
+  } catch {
+    if (!project.start_date) issues.push(missingProjectStartDateError());
+    return {
+      status: issues.length > 0 ? 'blocked' : 'erp-unavailable',
+      erpCheck: 'unavailable',
+      fiscalYearNames: null,
+      issues: issues.map((issue) => issue.finding ?? { code: issue.code, categories: issue.unmappedCategories }),
+    };
+  }
+
+  let span: ReturnType<typeof resolveSpanOrFailClosed> | null = null;
+  try {
+    span = resolveSpanOrFailClosed(project, fiscalYears);
+  } catch (err) {
+    if (!(err instanceof BudgetGateError)) throw err;
+    issues.push(err);
+  }
+
+  const invalidYearError = invalidFiscalYearError(lineItems, fiscalYears, span?.startFY);
+  if (invalidYearError) issues.push(invalidYearError);
+
+  if (span) {
+    const knownFYNames = new Set(fiscalYears.map((fy) => fy.name));
+    const validForPlanning = lineItems.filter((li) => !li.fiscal_year || knownFYNames.has(li.fiscal_year));
+    try {
+      buildPlan(project, span, validForPlanning);
+    } catch (err) {
+      if (!(err instanceof BudgetGateError)) throw err;
+      issues.push(err);
+    }
+  }
+
+  const issueDetails = issues.map((issue) => issue.finding ?? { code: issue.code, categories: issue.unmappedCategories });
+  return {
+    status: issueDetails.length > 0 ? 'blocked' : 'ready',
+    erpCheck: 'available',
+    fiscalYearNames: [...new Set(fiscalYears.map((fy) => fy.name))],
+    issues: issueDetails,
+  };
 }
 
 /**
@@ -307,31 +478,16 @@ export async function runBudgetGate(deps: BudgetGateDeps): Promise<BudgetGateRes
 
   // (5) Validate every phased fiscal_year against the client's own calendar — BEFORE the plan/out-of-span
   // step, so a typo naming NO Fiscal Year is reported as 'invalid', not 'out-of-span'.
-  const knownFYNames = new Set(fiscalYears.map((fy) => fy.name));
-  for (const li of lineItems) {
-    if (li.fiscal_year && !knownFYNames.has(li.fiscal_year)) {
-      throw new BudgetGateError(
-        'budget-fiscal-year-invalid',
-        `budget push: line "${li.category}" (${li.budgeted_amount}) is phased to fiscal year "${li.fiscal_year}" which names no ERPnext Fiscal Year — refusing rather than defaulting`,
-        undefined,
-        span.startFY,
-      );
-    }
-  }
+  const invalidYearError = invalidFiscalYearError(lineItems, fiscalYears, span.startFY);
+  if (invalidYearError) throw invalidYearError;
 
   // (6) Build the per-year push plan.
   const plan = buildPlan(project, span, lineItems);
 
   // (7) Resolve the category→account map over the plan's union of categories.
   const map = await deps.readCategoryMap();
-  try {
-    resolveBudgetAccounts(lineItems, map);
-  } catch (err) {
-    if (err instanceof BudgetCategoryUnmappedError) {
-      throw new BudgetGateError('budget-category-unmapped', err.message, err.unmappedCategories, span.startFY);
-    }
-    throw err;
-  }
+  const mapError = categoryMapError(lineItems, map, span.startFY);
+  if (mapError) throw mapError;
 
   return {
     versionId: version.id,

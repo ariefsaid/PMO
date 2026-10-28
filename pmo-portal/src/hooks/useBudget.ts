@@ -3,6 +3,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import {
   deriveProjectBudget,
   getBudgetActivationMode,
+  precheckBudgetActivation,
   listBudgetVersions,
   createBudgetVersion,
   cloneVersion as dalCloneVersion,
@@ -53,6 +54,16 @@ export function useBudgetActivationMode(versionId: string | undefined) {
   });
 }
 
+/** Runs the same read-only server gate as the ERP push for the selected Draft. */
+export function useBudgetActivationPrecheck(versionId: string | undefined) {
+  return useQuery({
+    queryKey: ['budget-activation-precheck', versionId],
+    queryFn: () => precheckBudgetActivation(versionId!),
+    enabled: Boolean(versionId),
+    staleTime: 0,
+  });
+}
+
 export function useBudgetVersions(projectId: string) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
@@ -76,6 +87,7 @@ export function useBudgetMutations(projectId: string) {
   const invalidateBoth = () => {
     queryClient.invalidateQueries({ queryKey: budgetKey(orgId, projectId) });
     queryClient.invalidateQueries({ queryKey: budgetVersionsKey(orgId, projectId) });
+    queryClient.invalidateQueries({ queryKey: ['budget-activation-precheck'] });
     queryClient.invalidateQueries({ queryKey: ['project-finances', orgId, projectId] });
   };
 
