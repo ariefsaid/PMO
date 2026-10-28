@@ -183,7 +183,8 @@
     "col": {
       "progress": "Progress",
       "earned": "Earned",
-      "invoices": "Invoices"
+      "invoices": "Invoices",
+      "openAr": "Unpaid by client · incl. tax"
     },
     "noProgressNote": "No progress is recorded yet, so earned revenue follows what has been invoiced.",
     "backlogUnknownNote": "Backlog is left out where a foreign-currency invoice needs reconciliation before the balance can be known.",

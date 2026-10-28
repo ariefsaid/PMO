@@ -41,7 +41,9 @@ export default function BudgetErpNotice({
   const may = usePermission();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const visible = realRole === 'Admin' || realRole === 'Finance';
+  // R-008: every budget reader sees where the budget stands in the ERP; only Admin/Finance retry a push.
+  const visible = may('view', 'salesInvoice');
+  const canRetry = realRole === 'Admin' || realRole === 'Finance';
   const pushQuery = useQuery<BudgetPushStatusRow[]>({
     queryKey: PUSH_STATUS_KEY(projectId),
     queryFn: () => fetchBudgetPushStatus(projectId),
@@ -127,7 +129,7 @@ export default function BudgetErpNotice({
             : noBudgetEnforced
               ? t('projectDetail.budget.neverPushed', 'No ERP budget yet.')
               : t('projectDetail.budget.previousBudgetStillEnforced', 'Previous budget still enforced. {{message}}', { message: copy.message });
-        const offerRetry = !unstamped && (state === 'failed' || state === 'held' || state === 'never-pushed') && copy.retryable;
+        const offerRetry = !unstamped && (state === 'failed' || state === 'held' || state === 'never-pushed') && copy.retryable && canRetry;
         const offerRelease = state === 'held' && row.holdReleasable && canRelease;
         const needsMap = copy.code === 'budget-category-unmapped' && row.unmappedCategories?.length;
         return (

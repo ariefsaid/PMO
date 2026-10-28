@@ -66,8 +66,12 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   const { data: revenueRows, isPending: invoiceCountsPending } = useRevenuePerProject();
   const projectById = useMemo(() => new Map((projects ?? []).map((project) => [project.id, project])), [projects]);
   const invoiceCounts = useMemo(() => new Map((revenueRows ?? []).map((row) => [`${row.project_id ?? ''}|${row.currency}`, row.invoice_count])), [revenueRows]);
+  // R-007: per-project open receivable (gross, tax included, whole currency units — not the pack's cents),
+  // from the same per-project revenue read.
+  const openAr = useMemo(() => new Map((revenueRows ?? []).map((row) => [`${row.project_id ?? ''}|${row.currency}`, Number(row.open_ar)])), [revenueRows]);
 
-  if (!may('view', 'finance')) {
+  // Project Managers read revenue per project here too (R-006); the RPC and RLS scope the rows.
+  if (!may('view', 'finance') && !may('view', 'salesInvoice')) {
     return (
       <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
@@ -169,6 +173,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   });
   const latestMonth = (row: PackRow) => row.months[row.months.length - 1] ?? null;
   const invoiceCountFor = (row: PackRow) => invoiceCounts.get(`${row.projectId ?? ''}|${row.currency}`) ?? 0;
+  const openArFor = (row: PackRow) => openAr.get(`${row.projectId ?? ''}|${row.currency}`) ?? 0;
   const initials = (name: string) => name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '?';
   // O11: when no contract row has recorded progress the whole column would read "Invoiced basis";
   // the page says it once instead and the column is left out.
@@ -244,6 +249,15 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       exportValue: (row) => invoiceCountFor(row),
     },
     {
+      key: 'openAr',
+      header: t('financeHub:managementPack.col.openAr', 'Unpaid by client · incl. tax'),
+      kind: 'money',
+      align: 'num',
+      size: 130,
+      cell: (row) => <span data-testid="pack-cell-openAr" className="tabular text-right text-[13px]">{invoiceCountsPending ? '—' : formatCurrency(openArFor(row), row.currency)}</span>,
+      exportValue: (row) => openArFor(row),
+    },
+    {
       key: 'actions',
       header: <span className="sr-only">{t('managementPack.actions', 'Actions')}</span>,
       kind: 'actions',
@@ -276,6 +290,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         unbilled: money(sum('unbilled'), currency),
         backlog: backlogIsUnknown ? backlogUnknown : money(contracts.reduce((total, row) => total + (latestMonth(row)?.backlog ?? 0), 0), currency),
         invoiceCount: invoiceCountsPending ? '—' : filteredRows.reduce((total, row) => total + invoiceCountFor(row), 0),
+        openAr: invoiceCountsPending ? '—' : formatCurrency(rows.reduce((total, row) => total + openArFor(row), 0), currency),
       } as Record<string, React.ReactNode>,
     };
   });

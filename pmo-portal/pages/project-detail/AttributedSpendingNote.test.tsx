@@ -21,4 +21,15 @@ describe('AttributedSpendingNote', () => {
     render(<AttributedSpendingNote projectId="project-1" />);
     expect(screen.queryByTestId('budget-attributed-note')).not.toBeInTheDocument();
   });
+
+  it.each([[null], [undefined]])('AC-CAT-016 renders nothing when attributed is %s', (attributed) => {
+    state.data = { actuals: { currency: 'USD', tagged_total: '100.00', attributed_total: attributed } };
+    const { container } = render(<AttributedSpendingNote projectId="project-1" />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('renders nothing while finances are unread', () => {
+    const { container } = render(<AttributedSpendingNote projectId="project-1" />);
+    expect(container).toBeEmptyDOMElement();
+  });
 });

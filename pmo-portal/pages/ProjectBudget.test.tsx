@@ -330,7 +330,7 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     expect(screen.getAllByText(/Spending isn't linked yet\./)).toHaveLength(1);
   });
 
-  it('places the accounting-system notice after the budget table for Admin and Finance only', async () => {
+  it('places the accounting-system notice after the budget table; Admin, Finance and Project Manager all read it', async () => {
     budgetState.data = activeVersion.total;
     versionsState.data = [activeVersion];
     budgetPushState.rows = [
@@ -353,9 +353,11 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     expect(await screen.findByTestId('budget-erp-notice')).toBeInTheDocument();
     financeView.unmount();
 
+    // R-008 (regression audit): a Project Manager reads the push state too, as before the restructure — read-only.
     roleState.realRole = 'Project Manager';
     renderPage();
-    expect(screen.queryByTestId('budget-erp-notice')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByText('Sources and budget enforcement'));
+    expect(await screen.findByTestId('budget-erp-notice')).toHaveTextContent('BUDGET-1');
   });
 });
 

@@ -136,6 +136,14 @@ export const FinanceAccessRoute: React.FC<{ children: React.ReactNode }> = ({ ch
   return <>{children}</>;
 };
 
+/** Reports: the finance roles, plus Project Managers, who read their projects' revenue there (as on the old
+ *  Revenue by project page). Every other finance page stays behind FinanceAccessRoute. */
+export const ReportsAccessRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const may = usePermission();
+  if (!may('view', 'finance') && may('view', 'salesInvoice')) return <>{children}</>;
+  return <FinanceAccessRoute>{children}</FinanceAccessRoute>;
+};
+
 export const FinanceLegacyRedirect: React.FC<{ to: string; paymentsView?: boolean }> = ({ to, paymentsView = false }) => {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
@@ -216,7 +224,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/finance', element: <FinanceAccessRoute><FinanceHubPage /></FinanceAccessRoute> },
   { path: '/finance/receivables', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<ReceivablesPage />} /></FinanceAccessRoute> },
   { path: '/finance/payables', element: <FinanceAccessRoute><FeatureRoute feature="procurement" element={<PayablesPage />} /></FinanceAccessRoute> },
-  { path: '/finance/reports', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<ManagementPackPage />} /></FinanceAccessRoute> },
+  { path: '/finance/reports', element: <ReportsAccessRoute><FeatureRoute feature="revenue" element={<ManagementPackPage />} /></ReportsAccessRoute> },
   { path: '/finance/statements', element: <FinanceAccessRoute><FinancialStatementsPage /></FinanceAccessRoute> },
   { path: '/sales-invoices', element: <FinanceLegacyRedirect to="/finance/receivables" /> },
   { path: '/sales-invoices/:invoiceId', element: <SalesInvoicesPage /> },

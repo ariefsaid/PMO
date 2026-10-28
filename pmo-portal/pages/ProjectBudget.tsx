@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import { useProjectBudget, useBudgetVersions, useBudgetMutations, useBudgetActivationMode } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
-import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { useUsers } from '@/src/hooks/useUsers';
 import { useProjectProcurements } from '@/src/hooks/useProcurements';
@@ -530,8 +529,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const canReadMoney = can('view', 'salesInvoice');
   const canReadProcurements = can('view', 'procurement');
   const canManageAccounting = can('manage', 'orgAccounting');
-  const { realRole } = useEffectiveRole();
-  const canViewBudgetEnforcement = realRole === 'Admin' || realRole === 'Finance';
+  // R-008: every budget reader sees the ERP push status (read-only); retry/release stay with Admin/Finance in the notice.
+  const canViewBudgetEnforcement = canReadMoney;
   const { currentUser } = useAuth();
   const usersQuery = useUsers();
   const erpBindingQuery = useErpnextBinding();
@@ -833,7 +832,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     try {
       switch (confirm.kind) {
         case 'create': {
-          await mutations.createVersion.mutateAsync({ projectId, name: confirm.name });
+          const created = await mutations.createVersion.mutateAsync({ projectId, name: confirm.name });
+          // BU-1: the new Draft is the version in view, as after "Clone to revise".
+          setSelectedVersionId(created.id);
+          setBudgetView('actual');
           setShowNewVersionForm(false);
           setNewVersionName('');
           setPendingConfirm(null);
@@ -990,7 +992,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           </div>
         </section>
       )}
-      {!activeVersion && <p role="status" className="text-sm text-muted-foreground">{t('projectDetail.budget.noActiveBudget', 'No active budget')}</p>}
+      {/* SUB-D: with no versions at all, the empty state below says it once. */}
+      {!activeVersion && versions.length > 0 && <p role="status" className="text-sm text-muted-foreground">{t('projectDetail.budget.noActiveBudget', 'No active budget')}</p>}
 
       {showNewVersionForm && canWrite && <NewVersionForm onSubmit={requestCreate} onCancel={() => setShowNewVersionForm(false)} value={newVersionName} onChange={setNewVersionName} />}
 
@@ -1060,7 +1063,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             {position.actualsPending && <p role="status" className="text-sm text-muted-foreground">{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</p>}
             {position.actualsError && <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">{t('projectDetail.budget.actualsError', "Couldn't check spending.")}<Button variant="ghost" size="sm" onClick={() => void position.refetchActuals()}>{t('common.retry', 'Retry')}</Button></p>}
             {canSeeActuals && position.unknown > 0 && !position.actualsPending && !position.actualsError && <p className="text-sm text-muted-foreground">{t('projectDetail.cost.spendingUnlinked', "Spending isn't linked yet.")} {canManageAccounting ? <a href="/administration/accounting#budget-account-map" className="font-medium text-primary-text underline underline-offset-2">{t('projectDetail.cost.finishSetup', 'Finish spending setup')}</a> : t('projectDetail.cost.askAdmin', 'An administrator can finish the setup.')}</p>}
-          </> : <ListState variant="empty" title={t('projectDetail.budget.noActiveBudget', 'No active budget')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} />
+          </> : versions.length === 0 ? null : <ListState variant="empty" title={t('projectDetail.budget.noActiveBudget', 'No active budget')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} />
         ) : activeVersion ? <><AttributedSpendingNote projectId={projectId} /><BudgetProjection projectId={projectId} currency={project.currency} canEdit={canWrite} committedByCategory={Object.fromEntries(summaryRows.map((row) => [row.category, canSeeCommitments ? row.committed : null]))} canReadCommitments={canSeeCommitments} onAdjustInDraft={adjustInDraft} onExport={(rows) => {
           const headers = ['Category', 'Budget', 'Spent', 'Cost to finish', 'Forecast final', 'Forecast remaining'];
           const csv = [headers, ...rows.map((row) => [budgetCategoryLabel(row.category, t), row.pmoBudgetAmount ?? '', row.actualsToDate ?? '', row.pmoEtc, row.projectedFinalCost ?? '', row.projectedVariance ?? ''])].map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\r\n');
@@ -1099,7 +1102,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             projectId={projectId}
             activeVersion={activeVersion}
             hasDraft={Boolean(draftVersion)}
-            onRecover={() => {
+            onRecover={!canWrite ? undefined : () => {
               setBudgetView('actual');
               if (draftVersion) {
                 setSelectedVersionId(draftVersion.id);

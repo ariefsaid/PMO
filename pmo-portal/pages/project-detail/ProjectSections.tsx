@@ -10,6 +10,7 @@ import { useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { ProjectAttention } from './ProjectAttention';
 import { useOverdueReceivables, useProjectAttention } from './useProjectPosition';
 import { CostBlock, DeliveryBlock, MoneyBlock } from './ProjectBlocks';
+import { ProjectFinancesSection } from './ProjectFinancesSection';
 import { ActivityFooter, MyOpenTasks, ProjectActivity } from './ProjectActivity';
 
 const BudgetTab = React.lazy(() => import('./tabs/BudgetTab'));
@@ -78,6 +79,8 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
       <div className="grid min-w-0 gap-12 xl:grid-cols-2">
         <CostBlock project={project} isPipeline onOpenBudget={() => onOpen('budget')} />
         <DeliveryBlock projectId={project.id} isPipeline={isPipeline} />
+        {/* AC-PMP-006: invoices and spending already recorded against a deal stay visible before it is won. */}
+        {canSeeMoney && <div className="min-w-0 xl:col-span-2"><ProjectFinancesSection project={project} /></div>}
       </div>
     );
   }

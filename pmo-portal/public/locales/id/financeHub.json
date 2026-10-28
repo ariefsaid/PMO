@@ -183,7 +183,8 @@
     "col": {
       "progress": "Progres",
       "earned": "Diperoleh",
-      "invoices": "Faktur"
+      "invoices": "Faktur",
+      "openAr": "Belum dibayar klien · termasuk pajak"
     },
     "noProgressNote": "Belum ada progres tercatat, jadi pendapatan yang diperoleh mengikuti nilai yang sudah ditagih.",
     "backlogUnknownNote": "Sisa nilai kontrak tidak ditampilkan jika faktur mata uang asing perlu direkonsiliasi sebelum saldonya dapat diketahui.",
