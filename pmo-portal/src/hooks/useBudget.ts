@@ -17,7 +17,10 @@ import {
   type BudgetLineItemRow,
   type NewLineItem,
   type ActivateVersionResult,
+  type ArchiveVersionResult,
+  type BudgetArchiveLiveTarget,
   type BudgetActivationMode,
+  listBudgetArchiveLiveTargets,
 } from '@/src/lib/db/budgets';
 
 // ---------------------------------------------------------------------------
@@ -63,6 +66,18 @@ export function useBudgetVersions(projectId: string) {
   });
 }
 
+export function useBudgetArchiveTargets(versionIds: readonly string[], pollWhileLive = false) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  const stableIds = [...versionIds].sort();
+  return useQuery<BudgetArchiveLiveTarget[]>({
+    queryKey: ['budget-archive-live-targets', orgId, stableIds],
+    queryFn: () => listBudgetArchiveLiveTargets(stableIds),
+    enabled: Boolean(orgId && stableIds.length > 0),
+    refetchInterval: (query) => pollWhileLive && (query.state.data?.length ?? 0) > 0 ? 30_000 : false,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Mutation hook (T13)
 // ---------------------------------------------------------------------------
@@ -94,9 +109,12 @@ export function useBudgetMutations(projectId: string) {
     onSuccess: invalidateBoth,
   });
 
-  const archive = useMutation<void, Error, string>({
-    mutationFn: (versionId) => archiveVersion(versionId),
-    onSuccess: invalidateBoth,
+  const archive = useMutation<ArchiveVersionResult, Error, { versionId: string; cancelErp: boolean }>({
+    mutationFn: ({ versionId, cancelErp }) => archiveVersion(versionId, cancelErp),
+    onSuccess: () => {
+      invalidateBoth();
+      queryClient.invalidateQueries({ queryKey: ['budget-archive-live-targets', orgId] });
+    },
   });
 
   const deleteDraft = useMutation<void, Error, string>({

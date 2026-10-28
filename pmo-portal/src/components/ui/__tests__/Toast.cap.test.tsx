@@ -12,10 +12,12 @@ import { ToastProvider, useToast } from '../Toast';
 // A tiny harness that exposes the imperative toast() API to the test.
 let fire: (title: string, sub?: string, kind?: 'info' | 'success' | 'warning' | 'error') => void;
 let fireWarning: (title: string, sub?: string) => void;
+let clearToasts: () => void;
 const Harness: React.FC = () => {
-  const { toast } = useToast();
+  const { toast, clear } = useToast();
   fire = (title, sub, kind = 'success') => toast(title, sub, kind);
   fireWarning = (title, sub) => toast(title, sub, 'warning');
+  clearToasts = clear;
   return null;
 };
 
@@ -59,6 +61,19 @@ describe('AC-IXD-WP-005: Toast caps to one visible, auto-dismissing within 3–5
     expect(screen.queryByText('routine success')).toBeNull();
     act(() => fireEvent.click(screen.getByRole('button', { name: 'Dismiss notification' })));
     expect(screen.getByText('routine success')).toBeInTheDocument();
+  });
+
+  it('clear removes the active toast, queued toasts, and their live-region announcements', () => {
+    render(<ToastProvider><Harness /></ToastProvider>);
+    act(() => {
+      fireWarning('Review required', 'Check the transfer');
+      fire('Saved', 'routine success');
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent('Review required Check the transfer');
+    act(() => clearToasts());
+    expect(screen.queryByText('Review required')).toBeNull();
+    expect(screen.queryByText('routine success')).toBeNull();
+    expect(screen.getByRole('alert')).toBeEmptyDOMElement();
   });
 
   it('TO-2: an error preempts a warning and returns the still-undismissed warning to the queue head', () => {

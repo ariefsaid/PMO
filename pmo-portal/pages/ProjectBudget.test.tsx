@@ -24,9 +24,13 @@ const versionsState = {
   refetch: vi.fn(),
 };
 const activationModeState = { data: undefined as string | undefined, isPending: false, isError: false };
+const archiveTargetsState = {
+  data: [] as Array<Record<string, unknown>>,
+  refetch: vi.fn(),
+};
 
 const mockActivate = vi.fn().mockResolvedValue({ pushState: 'pushed' });
-const mockArchive = vi.fn().mockResolvedValue(undefined);
+const mockArchive = vi.fn().mockResolvedValue({ cancelErp: false, liveTargetCount: 0, queuedCount: 0 });
 const mockClone = vi.fn().mockResolvedValue('v-clone');
 const mockDeleteDraft = vi.fn().mockResolvedValue(undefined);
 const mockCreateVersion = vi.fn().mockResolvedValue({ id: 'v-new' });
@@ -38,6 +42,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetState,
   useBudgetVersions: () => versionsState,
   useBudgetActivationMode: () => activationModeState,
+  useBudgetArchiveTargets: () => archiveTargetsState,
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: mockCreateVersion, isPending: false },
     cloneVersion: { mutateAsync: mockClone, isPending: false },
@@ -120,6 +125,7 @@ const activeVersion = {
   org_id: 'org-1',
   currency: 'USD',
   created_at: '2026-01-01T00:00:00Z',
+  activated_at: '2026-01-01T00:00:00Z',
   activation_basis: null,
   line_items: [],
   total: 4700000,
@@ -134,6 +140,7 @@ const archivedVersion = {
   org_id: 'org-1',
   currency: 'USD',
   created_at: '2026-01-01T00:00:00Z',
+  activated_at: '2025-12-01T00:00:00Z',
   activation_basis: null,
   line_items: [],
   total: 0,
@@ -149,6 +156,8 @@ function resetState() {
   activationModeState.data = undefined;
   activationModeState.isPending = false;
   activationModeState.isError = false;
+  archiveTargetsState.data = [];
+  archiveTargetsState.refetch.mockReset().mockImplementation(async () => ({ data: archiveTargetsState.data, error: null }));
   roleState.realRole = 'Project Manager';
 }
 
@@ -490,6 +499,21 @@ describe('ProjectBudget Draft version actions', () => {
     resetState();
   });
 
+  it('clears an earlier activation warning when the operator starts another budget action', async () => {
+    mockActivate.mockResolvedValueOnce({ pushState: 'failed' });
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
+    expect(await findToastAnnouncement('alert', /activated/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /New version/i }));
+    expect(screen.queryByText('Version activated — but ERPNext was not updated')).not.toBeInTheDocument();
+    resetState();
+  });
+
   /**
    * ⚑ SHOULD-FIX (FU-2 round 2) — a version with no line items sends NOTHING to ERPNext (the fan-out
    * has no year to attempt), so the toast must not announce a push. Neither may it cry failure: no
@@ -643,8 +667,79 @@ describe('ProjectBudget Active version actions', () => {
     expect(mockArchive).not.toHaveBeenCalled();
     expect(screen.getByRole('alertdialog')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Archive version/i }));
-    expect(mockArchive).toHaveBeenCalledWith('v-active');
+    expect(mockArchive).toHaveBeenCalledWith({ versionId: 'v-active', cancelErp: false });
     resetState();
+  });
+
+  it('offers a default-on ERPNext cancellation choice for live archived budgets and submits the selected choice', async () => {
+    budgetState.data = 4700000;
+    versionsState.data = [activeVersion];
+    archiveTargetsState.data = [{
+      id: 'mirror-1', budget_version_id: 'v-active', fiscal_year: '2026', erp_account: 'Labor',
+      erp_budget_name: 'BUD-1', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure',
+      activated_at_witness: activeVersion.activated_at,
+      archive_cancellation_available: true,
+    }, {
+      id: 'mirror-2', budget_version_id: 'v-active', fiscal_year: '2027', erp_account: 'Materials',
+      erp_budget_name: 'BUD-2', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure',
+      activated_at_witness: activeVersion.activated_at,
+      archive_cancellation_available: true,
+    }];
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
+    const confirm = screen.getByRole('alertdialog');
+    expect(within(confirm).getByRole('checkbox', { name: 'Also cancel 2 Budget documents in ERPNext' })).toHaveAttribute('aria-checked', 'true');
+    await userEvent.click(within(confirm).getByRole('checkbox', { name: 'Also cancel 2 Budget documents in ERPNext' }));
+    await userEvent.click(within(confirm).getByRole('button', { name: /Archive version/i }));
+
+    expect(mockArchive).toHaveBeenCalledWith({ versionId: 'v-active', cancelErp: false });
+  });
+
+  it('does not offer ERP cancellation when the active ERPNext v16 binding is unavailable', async () => {
+    budgetState.data = 4700000;
+    versionsState.data = [activeVersion];
+    archiveTargetsState.data = [{
+      id: 'mirror-1', budget_version_id: 'v-active', fiscal_year: '2026', erp_account: 'Labor',
+      erp_budget_name: 'BUD-1', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure',
+      activated_at_witness: activeVersion.activated_at,
+      archive_cancellation_available: false,
+    }];
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
+    const confirm = screen.getByRole('alertdialog');
+    expect(within(confirm).queryByRole('checkbox')).not.toBeInTheDocument();
+    await userEvent.click(within(confirm).getByRole('button', { name: /Archive version/i }));
+
+    expect(mockArchive).toHaveBeenCalledWith({ versionId: 'v-active', cancelErp: false });
+  });
+
+  it('shows an action-required banner when no budget is active and an archived ERPNext budget remains live', () => {
+    budgetState.data = 0;
+    versionsState.data = [archivedVersion];
+    archiveTargetsState.data = [{
+      id: 'mirror-arch', budget_version_id: 'v-arch', fiscal_year: '2026', erp_account: 'Labor',
+      erp_budget_name: 'BUD-OLD', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure',
+      activated_at_witness: archivedVersion.activated_at,
+    }];
+    renderPage();
+
+    expect(screen.getByText('ERPNext is still enforcing an archived budget for this project. Cancel the ERPNext Budget documents or activate a new PMO budget.'))
+      .toHaveAttribute('role', 'alert');
+  });
+
+  it('does not surface an ERP Budget left by a previous activation of the archived version', () => {
+    budgetState.data = 0;
+    versionsState.data = [archivedVersion];
+    archiveTargetsState.data = [{
+      id: 'mirror-stale', budget_version_id: 'v-arch', fiscal_year: '2026', erp_account: 'Labor',
+      erp_budget_name: 'BUD-OLD', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure',
+      activated_at_witness: '2025-11-01T00:00:00Z',
+    }];
+    renderPage();
+
+    expect(screen.queryByRole('alert', { name: /ERPNext is still enforcing/i })).not.toBeInTheDocument();
   });
 
   it('B4: can cancel archive confirmation', async () => {

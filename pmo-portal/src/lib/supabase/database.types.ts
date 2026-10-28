@@ -769,6 +769,99 @@ export type Database = {
           },
         ]
       }
+      budget_archive_cancel_intents: {
+        Row: {
+          activated_at_witness: string
+          actor_user_id: string
+          budget_version_id: string
+          created_at: string
+          erp_account: string
+          erp_budget_name: string
+          fiscal_year: string
+          id: string
+          last_error: string | null
+          org_id: string
+          project_id: string
+          pushed_project_end_date: string | null
+          pushed_project_start_date: string | null
+          request_id: string
+          source_mirror_id: string
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          activated_at_witness: string
+          actor_user_id: string
+          budget_version_id: string
+          created_at?: string
+          erp_account: string
+          erp_budget_name: string
+          fiscal_year: string
+          id?: string
+          last_error?: string | null
+          org_id: string
+          project_id: string
+          pushed_project_end_date?: string | null
+          pushed_project_start_date?: string | null
+          request_id: string
+          source_mirror_id: string
+          state?: string
+          updated_at?: string
+        }
+        Update: {
+          activated_at_witness?: string
+          actor_user_id?: string
+          budget_version_id?: string
+          created_at?: string
+          erp_account?: string
+          erp_budget_name?: string
+          fiscal_year?: string
+          id?: string
+          last_error?: string | null
+          org_id?: string
+          project_id?: string
+          pushed_project_end_date?: string | null
+          pushed_project_start_date?: string | null
+          request_id?: string
+          source_mirror_id?: string
+          state?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      budget_archive_requests: {
+        Row: {
+          budget_version_id: string
+          cancel_erp: boolean
+          created_at: string
+          id: string
+          live_target_count: number
+          org_id: string
+          project_id: string
+          requested_by: string
+        }
+        Insert: {
+          budget_version_id: string
+          cancel_erp: boolean
+          created_at?: string
+          id?: string
+          live_target_count?: number
+          org_id: string
+          project_id: string
+          requested_by: string
+        }
+        Update: {
+          budget_version_id?: string
+          cancel_erp?: boolean
+          created_at?: string
+          id?: string
+          live_target_count?: number
+          org_id?: string
+          project_id?: string
+          requested_by?: string
+        }
+        Relationships: []
+      }
       budget_version_account_erp_mirror: {
         Row: {
           activated_at_witness: string | null
@@ -7976,6 +8069,10 @@ export type Database = {
       activate_budget_version: {
         Args: { version_id: string }
         Returns: undefined
+      }
+      archive_budget_version_with_cancel_intent: {
+        Args: { p_archive_request_id?: string; p_cancel_erp?: boolean; p_version_id: string }
+        Returns: Json
       }
       activate_external_binding: {
         Args: {

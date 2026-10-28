@@ -38,6 +38,23 @@ export interface ActivateVersionResult {
   pushState: 'pushed' | 'failed' | 'nothing-to-push';
 }
 
+export interface ArchiveVersionResult {
+  /** The choice saved by the first successful archive request. */
+  cancelErp: boolean;
+  /** Live ERPNext v16 account budgets observed and committed with the archive request. */
+  liveTargetCount: number;
+  /** Durable cancellation intents recorded for the sweep. */
+  queuedCount: number;
+}
+
+export type BudgetArchiveLiveTarget = Omit<Tables<'budget_version_account_erp_mirror'>, 'erp_budget_name' | 'budget_intent'> & {
+  erp_budget_name: string;
+  budget_intent: 'ensure' | 'remove';
+  /** True only while this org has an active ERPNext v16 binding; the mirror can outlive it. */
+  archive_cancellation_available: boolean;
+};
+type BudgetArchiveMirrorTarget = Omit<BudgetArchiveLiveTarget, 'archive_cancellation_available'>;
+
 export interface NewLineItem {
   category: BudgetLineItemRow['category'];
   description: string | null;
@@ -130,6 +147,43 @@ export async function listBudgetVersions(projectId: string): Promise<BudgetVersi
     total: (v.line_items ?? []).reduce((sum, li) => sum + Number(li.budgeted_amount), 0),
     editor_ids: editorsByVersion.get(v.id) ?? [],
   }));
+}
+
+/**
+ * Reads live ERPNext v16 account budgets for a project's versions. These rows drive
+ * the archive prompt and the FR-BUD-122 project banner; the archive RPC re-checks
+ * the same truth under lock before persisting any cancellation intent.
+ */
+export async function listBudgetArchiveLiveTargets(versionIds: readonly string[]): Promise<BudgetArchiveLiveTarget[]> {
+  if (versionIds.length === 0) return [];
+  const { data: binding, error: bindingError } = await supabase
+    .from('external_org_bindings')
+    .select('version_major,activated_at')
+    .eq('external_tier', 'erpnext')
+    .maybeSingle();
+  // A failed binding read disables the optional cancel choice, while the mirror query below still
+  // powers the action-required banner and preserves the ability to archive PMO's version.
+  const cancellationAvailable = !bindingError && binding?.version_major === 16 && typeof binding.activated_at === 'string';
+  const { data, error } = await supabase
+    .from('budget_push_mirror_rows')
+    .select('id,budget_version_id,fiscal_year,erp_account,erp_budget_name,erp_docstatus,erp_cancelled_at,push_state,budget_intent,activated_at_witness')
+    .in('budget_version_id', [...versionIds])
+    .neq('erp_account', '')
+    .is('erp_cancelled_at', null);
+  if (error) throw toAppError(error);
+  const targets = ((data ?? []) as unknown as Array<Partial<BudgetArchiveMirrorTarget>>)
+    .filter((row): row is BudgetArchiveMirrorTarget =>
+      typeof row.id === 'string' &&
+      typeof row.budget_version_id === 'string' &&
+      typeof row.fiscal_year === 'string' &&
+      typeof row.activated_at_witness === 'string' &&
+      typeof row.erp_account === 'string' && row.erp_account !== '' &&
+      typeof row.erp_budget_name === 'string' && row.erp_budget_name !== '' &&
+      row.erp_docstatus !== 2 &&
+      (row.budget_intent === 'ensure' || row.budget_intent === 'remove') &&
+      typeof row.push_state === 'string',
+    );
+  return targets.map((target) => ({ ...target, archive_cancellation_available: cancellationAvailable }));
 }
 
 // ---------------------------------------------------------------------------
@@ -449,20 +503,27 @@ async function pushActivatedBudget(versionId: string): Promise<unknown> {
   return dispatchBudgetPush(versionId);
 }
 
-/**
- * Archives the Active version via a plain update (FR-BV-008).
- * org_id NEVER sent — RLS gates the write.
- */
-export async function archiveVersion(versionId: string): Promise<void> {
-  const { data, error } = await supabase
-    .from('budget_versions')
-    .update({ status: 'Archived' })
-    .eq('id', versionId)
-    .select('id');
+/** Archives the Active version and records the operator's v16 cancellation choice atomically. */
+export async function archiveVersion(versionId: string, cancelErp: boolean): Promise<ArchiveVersionResult> {
+  const { data, error } = await supabase.rpc('archive_budget_version_with_cancel_intent', {
+    p_version_id: versionId,
+    p_cancel_erp: cancelErp,
+    p_archive_request_id: crypto.randomUUID(),
+  });
   if (error) throw toAppError(error);
-  // #541: a `using`-denied archive is a 0-row no-op with no error — the version stays Active and
-  // keeps sourcing the project's budget total.
-  assertWriteLanded(data, 'Budget version not found or you do not have permission to archive it.');
+  const result = data as {
+    cancel_erp?: unknown;
+    live_target_count?: unknown;
+    intent_ids?: unknown;
+  } | null;
+  if (!result || typeof result.cancel_erp !== 'boolean' || typeof result.live_target_count !== 'number' || !Array.isArray(result.intent_ids)) {
+    throw new AppError('Budget archive returned an invalid result', 'commit-rejected');
+  }
+  return {
+    cancelErp: result.cancel_erp,
+    liveTargetCount: result.live_target_count,
+    queuedCount: result.intent_ids.length,
+  };
 }
 
 /**

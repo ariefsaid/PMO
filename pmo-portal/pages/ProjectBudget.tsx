@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useProjectBudget, useBudgetVersions, useBudgetMutations, useBudgetActivationMode } from '@/src/hooks/useBudget';
+import { useProjectBudget, useBudgetVersions, useBudgetMutations, useBudgetActivationMode, useBudgetArchiveTargets } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
 import { BudgetDocumentLinks } from '@/src/components/m365/BudgetDocumentLinks';
 import { useAuth } from '@/src/auth/useAuth';
@@ -22,6 +22,7 @@ import {
   DataTable,
   type Column,
   ConfirmDialog,
+  Checkbox,
   useToast,
   NumberField,
 } from '@/src/components/ui';
@@ -690,19 +691,20 @@ type PendingBudgetConfirm =
   | { kind: 'create'; name: string }
   | { kind: 'activate'; id: string; label: string; soleOperator: boolean }
   | { kind: 'clone'; id: string; label: string }
-  | { kind: 'archive'; id: string; label: string }
+  | { kind: 'archive'; id: string; label: string; cancelCount: number; cancelErp: boolean }
   | { kind: 'deleteDraft'; id: string; label: string }
   | { kind: 'deleteLineItem'; id: string; label: string };
 
 const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
   const { t } = useTranslation();
+  const { t: tf } = useTranslation('finance');
   // Cosmetic gate on the REAL role (ADR-0016): budget line-item write = the shipped
   // WRITE_ROLES (Admin·Exec·PM·Finance). RLS is the real authority.
   const can = usePermission();
   const canWrite = can('edit', 'budgetLine');
   const { currentUser } = useAuth();
   const currentUserId = currentUser?.id ?? null;
-  const { toast } = useToast();
+  const { toast, clear: clearToasts } = useToast();
   // The derived total (useProjectBudget) has no version of its own to carry a currency —
   // fall back to the org default until a version is selected (FR-L10N-020).
   const orgCurrency = useOrgCurrency();
@@ -724,6 +726,13 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
   const versions = useMemo<BudgetVersionWithItems[]>(
     () => (versionsQuery.data ?? []) as BudgetVersionWithItems[],
     [versionsQuery.data]
+  );
+  const hasActive = versions.some((version) => version.status === 'Active');
+  const archiveTargetsQuery = useBudgetArchiveTargets(versions.map((version) => version.id), !hasActive);
+  const archivedLiveTargets = (archiveTargetsQuery.data ?? []).filter((target) =>
+    !hasActive && versions.some((version) => version.id === target.budget_version_id && version.status === 'Archived') &&
+    versions.some((version) => version.id === target.budget_version_id && version.activated_at === target.activated_at_witness) &&
+    target.erp_cancelled_at === null && target.erp_docstatus !== 2,
   );
   const derivedTotal = budgetQuery.data ?? 0;
 
@@ -793,17 +802,42 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
 
   // Stage a confirm without writing. The page renders one ConfirmDialog from
   // pendingConfirm; commitConfirm() runs the real mutation only on Confirm.
-  const requestCreate = (name: string) => setPendingConfirm({ kind: 'create', name });
-  const requestActivate = (id: string) =>
+  const requestCreate = (name: string) => {
+    clearToasts();
+    setPendingConfirm({ kind: 'create', name });
+  };
+  const requestActivate = (id: string) => {
+    clearToasts();
     setPendingConfirm({ kind: 'activate', id, label: versionLabel(id), soleOperator });
-  const requestClone = (id: string) =>
+  };
+  const requestClone = (id: string) => {
+    clearToasts();
     setPendingConfirm({ kind: 'clone', id, label: versionLabel(id) });
-  const requestArchive = (id: string) =>
-    setPendingConfirm({ kind: 'archive', id, label: versionLabel(id) });
-  const requestDeleteDraft = (id: string) =>
+  };
+  const requestArchive = async (id: string) => {
+    clearToasts();
+    try {
+      const refreshed = await archiveTargetsQuery.refetch();
+      if (refreshed.error) throw refreshed.error;
+      const targets = (refreshed.data ?? []).filter((target) =>
+        target.archive_cancellation_available && target.budget_version_id === id && target.budget_intent === 'ensure' &&
+        versions.some((version) => version.id === id && version.activated_at === target.activated_at_witness),
+      );
+      setPendingConfirm({
+        kind: 'archive', id, label: versionLabel(id), cancelCount: targets.length, cancelErp: targets.length > 0,
+      });
+    } catch (err) {
+      toast(t('financeCopy.actionFailed', 'Action failed'), err instanceof Error ? err.message : undefined, 'warning');
+    }
+  };
+  const requestDeleteDraft = (id: string) => {
+    clearToasts();
     setPendingConfirm({ kind: 'deleteDraft', id, label: versionLabel(id) });
-  const requestDeleteLineItem = (id: string) =>
+  };
+  const requestDeleteLineItem = (id: string) => {
+    clearToasts();
     setPendingConfirm({ kind: 'deleteLineItem', id, label: id });
+  };
 
   // Commit the staged mutation and toast on resolve (§6.7). The RPC contract is
   // byte-for-byte preserved — the confirm only gates WHEN each mutateAsync runs.
@@ -859,11 +893,20 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
           toast(t('financeCopy.versionCloned', 'Version cloned'), t('financeCopy.newDraftFrom', 'New draft from {{version}}', { version: c.label }), 'success');
           break;
         }
-        case 'archive':
-          await mutations.archive.mutateAsync(c.id);
+        case 'archive': {
+          const result = await mutations.archive.mutateAsync({ versionId: c.id, cancelErp: c.cancelErp });
           setPendingConfirm(null);
-          toast(t('financeCopy.versionArchived', 'Version archived'), c.label, 'success');
+          if (result.cancelErp && result.queuedCount > 0) {
+            toast(
+              tf('budgetArchive.versionArchivedCancellationQueued'),
+              tf('budgetArchive.cancellationQueuedDetail', { count: result.queuedCount }),
+              'success',
+            );
+          } else {
+            toast(t('financeCopy.versionArchived', 'Version archived'), c.label, 'success');
+          }
           break;
+        }
         case 'deleteDraft':
           await mutations.deleteDraft.mutateAsync(c.id);
           setPendingConfirm(null);
@@ -908,22 +951,40 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
   // no fragile in-body re-narrowing (`c.kind === 'create' ? c.name : ''`) is
   // needed and no empty-string '""' can render (item J). The call site dispatches
   // through a single helper that ties the handler to the matching variant.
-  type ConfirmDescriptions = {
-    [K in PendingBudgetConfirm['kind']]: (c: Extract<PendingBudgetConfirm, { kind: K }>) => string;
-  };
-  const confirmDescriptions: ConfirmDescriptions = {
+  const confirmDescriptions: { [K in PendingBudgetConfirm['kind']]: (c: Extract<PendingBudgetConfirm, { kind: K }>) => React.ReactNode } = {
     create: (c) => t('financeCopy.confirmCreateDescription', 'This creates a new Draft budget version named "{{name}}".', { name: c.name }),
     activate: (c) => c.soleOperator
       ? t('financeCopy.confirmSoleOperatorActivation', "You're the only person in this organisation, so you can activate a budget you prepared yourself. Once a colleague joins, a second person will need to activate it.")
       : t('financeCopy.confirmActivateDescription', 'This makes {{version}} the live active budget and supersedes the current active version.', { version: c.label }),
     clone: (c) => t('financeCopy.confirmCloneDescription', 'This copies {{version}} into a new editable Draft.', { version: c.label }),
-    archive: (c) => t('financeCopy.confirmArchiveDescription', 'This removes {{version}} as the active budget. You can clone it later to revise.', { version: c.label }),
+    archive: (c) => (
+      <div className="flex flex-col gap-3">
+        <p>{t('financeCopy.confirmArchiveDescription', 'This removes {{version}} as the active budget. You can clone it later to revise.', { version: c.label })}</p>
+        {c.cancelCount > 0 && (
+          <div className="flex items-start gap-2">
+            <Checkbox
+              label={tf('budgetArchive.alsoCancelErpBudgets', { count: c.cancelCount })}
+              labelledBy="budget-archive-cancel-label"
+              checked={c.cancelErp}
+              onChange={(checked) => setPendingConfirm((current) => current?.kind === 'archive' ? { ...current, cancelErp: checked } : current)}
+            />
+            <span
+              id="budget-archive-cancel-label"
+              className="cursor-pointer text-sm text-foreground"
+              onClick={() => setPendingConfirm((current) => current?.kind === 'archive' ? { ...current, cancelErp: !current.cancelErp } : current)}
+            >
+              {tf('budgetArchive.alsoCancelErpBudgets', { count: c.cancelCount })}
+            </span>
+          </div>
+        )}
+      </div>
+    ),
     deleteDraft: (c) => t('financeCopy.confirmDeleteDraftDescription', 'This permanently deletes the draft {{version}}. This cannot be undone.', { version: c.label }),
     deleteLineItem: () => t('financeCopy.confirmDeleteLineItemDescription', 'This permanently removes the line item from the draft. This cannot be undone.'),
   };
-  const describeConfirm = (c: PendingBudgetConfirm): string =>
+  const describeConfirm = (c: PendingBudgetConfirm): React.ReactNode =>
     // Safe: the union is keyed by `kind`, so the handler at c.kind accepts c.
-    (confirmDescriptions[c.kind] as (x: PendingBudgetConfirm) => string)(c);
+    (confirmDescriptions[c.kind] as (x: PendingBudgetConfirm) => React.ReactNode)(c);
 
   const budgetConfirm = pendingConfirm && (
     <ConfirmDialog
@@ -939,7 +1000,6 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
     />
   );
 
-  const hasActive = versions.some((v) => v.status === 'Active');
   const head = (
     // AC-W6-IXD-BUDHEAD (B-3): the redundant <h2>Project Budget</h2> duplicated the
     // selected "Budget" tab label (which already names the section). Dropped — the
@@ -962,7 +1022,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
         ) : null}
       </div>
       {canWrite && (
-        <Button variant="outline" onClick={() => setShowNewVersionForm(true)}>
+        <Button variant="outline" onClick={() => { clearToasts(); setShowNewVersionForm(true); }}>
           {t('financeCopy.newVersion', "+ New version")}</Button>
       )}
     </div>
@@ -1001,6 +1061,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
   return (
     <div className="flex flex-col gap-4">
       {head}
+
+      {!hasActive && archivedLiveTargets.length > 0 && (
+        <div role="alert" className="rounded-lg border border-warning/30 bg-warning/[0.07] px-3.5 py-3 text-sm text-foreground">
+          {tf('budgetArchive.archivedBudgetStillLiveInErp')}
+        </div>
+      )}
 
       {showNewVersionForm && canWrite && (
         <NewVersionForm

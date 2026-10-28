@@ -58,6 +58,7 @@ interface ToastApi {
     (title: string, kind?: ToastKind): void;
     (title: string, sub?: string, kind?: ToastKind): void;
   };
+  clear: () => void;
 }
 const ToastCtx = createContext<ToastApi | undefined>(undefined);
 
@@ -177,8 +178,18 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setItem(next ?? null);
   }, []);
 
+  const clear = useCallback(() => {
+    queue.current = [];
+    setQueueCount(0);
+    itemRef.current = null;
+    setItem(null);
+    setStatusAnnouncement('');
+    setAlertAnnouncement('');
+    lastAnnouncement.current = null;
+  }, []);
+
   return (
-    <ToastCtx.Provider value={{ toast }}>
+    <ToastCtx.Provider value={{ toast, clear }}>
       {children}
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{statusAnnouncement}</div>
       <div className="sr-only" role="alert" aria-live="assertive" aria-atomic="true">{alertAnnouncement}</div>
