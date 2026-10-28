@@ -84,13 +84,17 @@ export interface ProcurementListProps extends Omit<DataTableProps<ProcurementWit
   columns: Column<ProcurementWithRefs>[];
   children: React.ReactNode;
   embedded?: boolean;
+  /** N7: with nothing to list at all, the empty state stands alone — no column headers over a void. */
+  bareEmpty?: boolean;
 }
 
 /** Shared list surface and DataTable contract, including its controlled selection and row menu. */
-export const ProcurementList: React.FC<ProcurementListProps> = ({ label, rows, columns, children, embedded = false, tableId, ...tableProps }) => (
+export const ProcurementList: React.FC<ProcurementListProps> = ({ label, rows, columns, children, embedded = false, bareEmpty = false, tableId, ...tableProps }) => (
   <section aria-label={label} className={embedded ? 'overflow-hidden' : 'overflow-hidden rounded-lg border border-border bg-card'}>
     {children}
-    <DataTable rows={rows} columns={columns} rowKey={(row) => row.id} {...tableProps} className={embedded ? 'rounded-none border-0 bg-transparent' : undefined} tableId={`procurement-block-${tableId}`} />
+    {bareEmpty && tableProps.state === 'empty'
+      ? <ListState variant="empty" title={tableProps.emptyTitle} sub={tableProps.emptySub} action={tableProps.emptyAction} />
+      : <DataTable rows={rows} columns={columns} rowKey={(row) => row.id} {...tableProps} className={embedded ? 'rounded-none border-0 bg-transparent' : undefined} tableId={`procurement-block-${tableId}`} />}
   </section>
 );
 
@@ -114,7 +118,9 @@ function statusText(status: ProcurementStatus, t: (key: string, fallback: string
   const label = stageLabelForStatus(status);
   if (label === 'Invoiced, not paid') return t('projectDetail.procurement.stageBand.invoicedNotPaid', label);
   if (label === 'Paid') return t('projectDetail.procurement.stageBand.paid', label);
-  if (status === 'Approved' || status === 'Vendor Quoted' || status === 'Quote Selected') return stageText('Request', t);
+  // N11: Approved is green, so it carries its own name; "Request" stays the grey (in-progress) label.
+  if (status === 'Approved') return t('projectDetail.procurement.stageBand.approved', 'Approved');
+  if (status === 'Vendor Quoted' || status === 'Quote Selected') return stageText('Request', t);
   if (status === 'Rejected') return t('projectDetail.procurement.stage.rejected', 'Rejected');
   if (status === 'Cancelled') return t('projectDetail.procurement.stage.cancelled', 'Cancelled');
   return stageText(stageForStatus(status), t);
@@ -587,8 +593,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         header: t('projectDetail.procurement.table.procurement', 'Procurement'),
         kind: 'text',
         rowHeader: true,
-        size: 220,
-        minSize: 200,
+        size: 280,
+        minSize: 220,
         sortKey: 'title',
         cell: (row) => {
           const isExpanded = expandedId === row.id;
@@ -607,7 +613,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
                   <Icon name="chev" className={`size-3.5 transition-transform duration-100 motion-reduce:transition-none ${isExpanded ? '-rotate-90' : 'rotate-90'}`} />
                 </button>
               </div>
-              <span className="block truncate text-xs text-muted-foreground">
+              <span className="block line-clamp-2 break-words text-xs text-muted-foreground">
                 <span className="font-mono">{row.code ?? row.id.slice(0, 8)}</span> · {row.vendor?.name ?? t('projectDetail.procurement.noSupplier', 'No supplier')}
               </span>
               {isExpanded && (
@@ -830,12 +836,12 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
               : t('procurement.stageCountTooltip', 'Count of procurements currently in {{stage}}. Source: company procurement records.', { stage: stageLabel });
             const source = canSeeMoney ? `${countTooltip} ${moneyTooltip}` : countTooltip;
             return (
-              <Tooltip key={key} content={source}>
+              <Tooltip key={key} content={source} block>
                 <button
                   type="button"
                   aria-pressed={selectedStage === key}
                   onClick={() => setSelectedStage((current) => current === key ? null : key)}
-                  className={`flex min-h-[68px] min-w-0 flex-col items-start justify-center px-3 py-2 text-left transition-colors focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selectedStage === key ? 'bg-accent' : 'bg-card hover:bg-accent/40'}`}
+                  className={`flex min-h-[68px] w-full min-w-0 flex-col items-start justify-center px-3 py-2 text-left transition-colors focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selectedStage === key ? 'bg-accent' : 'bg-card hover:bg-accent/40'}`}
                 >
                   <span className="flex w-full min-w-0 items-center justify-between gap-1 text-xs font-semibold text-muted-foreground">
                     <span className="truncate">{stageLabel}</span>
@@ -861,6 +867,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         rows={filteredRows}
         columns={columns}
         embedded={Boolean(projectId)}
+        bareEmpty={!hasUnfilteredRows}
         accessibleName={projectId ? t('projectDetail.procurement.table.accessibleName', 'Project procurement') : t('procurement.table.accessibleName', 'Procurement')}
         rowMenu={(row) => rowMenu(row)}
         mobileCardDetails={(row) => {
@@ -903,7 +910,12 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         state={isPending ? 'loading' : isError ? 'error' : filteredRows.length === 0 ? 'empty' : undefined}
         emptyTitle={hasUnfilteredRows
           ? t('projectDetail.procurement.emptyFiltered.title', 'No procurement matches these filters.')
-          : projectId ? t('projectDetail.procurement.empty.title', 'No procurement on this project yet.') : t('procurement.empty.title', 'No procurement yet.')}
+          : projectId
+            // N7: an engineer only ever sees the procurements they raised, so an empty project says exactly that.
+            ? (role === 'Engineer'
+              ? t('projectDetail.procurement.empty.engineerTitle', "You haven't raised a procurement on this project.")
+              : t('projectDetail.procurement.empty.title', 'No procurement on this project yet.'))
+            : t('procurement.empty.title', 'No procurement yet.')}
         emptySub={hasUnfilteredRows
           ? t('projectDetail.procurement.emptyFiltered.sub', 'Adjust the search or filters and try again.')
           : projectId && erp.data?.length

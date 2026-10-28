@@ -1,6 +1,8 @@
 import { procurementMoney, supplierUnpaid, type MoneyFigure, type ProcurementMoneyKind } from '../blocks/procurementMoney';
 import { stageForStatus, type StageKey } from '../blocks/stage';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
+import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
+import { formatShortMoney } from '@/src/lib/format';
 
 export type ProcurementListRole = 'Engineer' | 'Project Manager' | 'Finance' | 'Executive' | 'Admin' | string | null | undefined;
 export type ProcurementGroupKey = 'needs-approval' | 'in-progress' | 'invoiced' | 'done';
@@ -10,6 +12,10 @@ export interface CurrencyTotal {
   currency: string;
   amount: number | null;
   unknown: boolean;
+  /** L12c: the sum of the rows whose amount IS recorded, kept when some rows are not (so the known figure still shows). */
+  knownAmount?: number;
+  /** How many rows in this currency have no recorded amount. */
+  unknownCount?: number;
 }
 
 export interface ProcurementGroup {
@@ -62,13 +68,15 @@ export function totalsByCurrency(
 ): CurrencyTotal[] {
   const totals = new Map<string, CurrencyTotal>();
   for (const row of rows) {
-    const current = totals.get(row.currency) ?? { currency: row.currency, amount: 0, unknown: false };
+    const current = totals.get(row.currency) ?? { currency: row.currency, amount: 0, unknown: false, knownAmount: 0, unknownCount: 0 };
     const figure = figureForListRow(row, role, basis, reasons?.get(row.id));
     if (figure.unknown || figure.amount === null) {
       current.unknown = true;
       current.amount = null;
-    } else if (!current.unknown) {
-      current.amount = (current.amount ?? 0) + figure.amount;
+      current.unknownCount = (current.unknownCount ?? 0) + 1;
+    } else {
+      current.knownAmount = (current.knownAmount ?? 0) + figure.amount;
+      if (!current.unknown) current.amount = (current.amount ?? 0) + figure.amount;
     }
     totals.set(row.currency, current);
   }
@@ -100,4 +108,35 @@ export function matchesStage(row: ProcurementWithRefs, stage: StageKey | null): 
 
 export function daysSince(date: Date, now = new Date()): number {
   return Math.max(0, Math.floor((now.getTime() - date.getTime()) / 86_400_000));
+}
+
+/** Accounting-system documents no procurement holds yet, totalled per currency (an unrecorded amount stays visibly unknown). */
+export function orphanTotals(orphans: readonly ErpPurchaseRow[]): CurrencyTotal[] {
+  const totals = new Map<string, CurrencyTotal>();
+  for (const doc of orphans) {
+    const currency = doc.currency ?? '';
+    const current = totals.get(currency) ?? { currency, amount: 0, unknown: false, knownAmount: 0, unknownCount: 0 };
+    if (doc.grandTotal == null) { current.unknown = true; current.amount = null; current.unknownCount = (current.unknownCount ?? 0) + 1; }
+    else {
+      current.knownAmount = (current.knownAmount ?? 0) + doc.grandTotal;
+      if (!current.unknown) current.amount = (current.amount ?? 0) + doc.grandTotal;
+    }
+    totals.set(currency, current);
+  }
+  return [...totals.values()];
+}
+
+/** The figure a total can honestly show: the whole sum when every row is recorded, else the recorded part (never a placeholder). */
+export function shownAmount(total: CurrencyTotal): number | null {
+  if (!total.unknown && total.amount !== null) return total.amount;
+  return total.knownAmount && total.knownAmount > 0 ? total.knownAmount : null;
+}
+
+/** "$2.4M · IDR 10M" for a tab label: non-zero figures only; empty when nothing is recorded. */
+export function shortTotalsLabel(totals: readonly CurrencyTotal[]): string {
+  return totals
+    .map((total) => ({ total, amount: shownAmount(total) }))
+    .filter((entry): entry is { total: CurrencyTotal; amount: number } => entry.amount !== null && entry.amount !== 0)
+    .map(({ total, amount }) => formatShortMoney(amount, total.currency))
+    .join(' · ');
 }

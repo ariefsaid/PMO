@@ -503,7 +503,10 @@ describe('ProcurementDetails — Batch-A cleanup (E4 / H2 / G5)', () => {
     renderPage();
     const moneyCard = screen.getByTestId('procurement-money-summary');
     expect(within(moneyCard).getByText('Requested')).toBeInTheDocument();
-    expect(within(moneyCard).getByText('$50,000')).toBeInTheDocument();
+    // C6: the heading names the currency once, so the figures below are bare numbers.
+    expect(within(moneyCard).getByText(/Money · USD, before tax/)).toBeInTheDocument();
+    expect(within(moneyCard).getByText('50,000')).toBeInTheDocument();
+    expect(within(moneyCard).queryByText('$50,000')).not.toBeInTheDocument();
     expect(within(moneyCard).getByText('Ordered')).toBeInTheDocument();
   });
 });
@@ -580,7 +583,7 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     const header = screen.getByTestId('record-header');
     expect(screen.getByText('Workstations for HQ')).toBeInTheDocument();
     expect(screen.getByText('PROC-2026-001')).toBeInTheDocument();
-    expect(within(money).getByText('$50,000')).toBeInTheDocument();
+    expect(within(money).getByText('50,000')).toBeInTheDocument();
     expect(within(header).getByRole('button', { name: 'Approve' }).className).toContain('bg-primary');
     expect(screen.getAllByRole('button', { name: 'Approve' })).toHaveLength(1);
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));

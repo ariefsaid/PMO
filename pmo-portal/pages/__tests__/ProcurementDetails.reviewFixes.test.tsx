@@ -202,7 +202,7 @@ describe('I3: Draft money summary has no misleading placeholder', () => {
 
     const text = moneyText();
     // Must contain the request value
-    expect(text).toContain('$85,000');
+    expect(text).toContain('85,000');
     // Must NOT contain a placeholder that reads as a state
     expect(MISLEADING.some((phrase) => text.toLowerCase().includes(phrase.toLowerCase()))).toBe(false);
   });

@@ -71,19 +71,31 @@ describe('AC-PROC1 one-page request creation', () => {
 
     mocks.realRole = 'Engineer';
     renderCreate('/procurement/new');
-    expect(screen.getByRole('button', { name: /A new need/i })).toBeVisible();
+    // B3: one choice is no choice — an Engineer starts straight on the request form.
+    expect(screen.queryByRole('heading', { name: 'What do you have?' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /new procurement/i })).toBeVisible();
+    expect(screen.getByLabelText(/title/i)).toBeVisible();
     expect(screen.queryByRole('button', { name: /An order/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /A supplier invoice/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /payment/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /A document already in the accounting system/i })).not.toBeInTheDocument();
   });
 
+  it('B3: an Engineer\'s back control leaves for the Procurement list, not a one-choice chooser', () => {
+    mocks.realRole = 'Engineer';
+    renderCreate('/procurement/new');
+    expect(screen.queryByRole('button', { name: /What do you have\?/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Back to Procurement/ })).toBeVisible();
+  });
+
   it('SEC-RS-5: an Engineer following a ?have=invoice link gets the request choice, not an invoice draft', () => {
     mocks.realRole = 'Engineer';
     renderCreate('/procurement/new?have=invoice');
-    expect(screen.getByRole('heading', { name: 'What do you have?' })).toBeVisible();
+    // The request form opens (never an invoice draft): its note names a purchase request, not a supplier invoice.
+    expect(screen.getByRole('heading', { name: /new procurement/i })).toBeVisible();
+    expect(screen.getByText(/purchase request remains a draft/i)).toBeVisible();
+    expect(screen.queryByText(/then record the supplier invoice/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /A supplier invoice/i })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/title/i)).not.toBeInTheDocument();
     expect(mocks.createRequest).not.toHaveBeenCalled();
   });
 

@@ -207,6 +207,10 @@
         "selectVisible": "Pilih yang terlihat",
         "clear": "Hapus pilihan"
       },
+      "empty": {
+        "title": "Belum ada pengadaan di proyek ini.",
+        "engineerTitle": "Anda belum mengajukan pengadaan di proyek ini."
+      },
       "emptyFiltered": {
         "title": "Tidak ada pengadaan yang cocok dengan filter ini.",
         "sub": "Sesuaikan pencarian atau filter, lalu coba lagi.",

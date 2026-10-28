@@ -50,6 +50,8 @@
     "mostReal": "Nilai paling nyata per pengadaan: nilai dibayar, jika tidak ada gunakan faktur pemasok, lalu pesanan pembelian, lalu permintaan pembelian. Total dipisahkan menurut mata uang.",
     "pay": "Faktur pemasok menggunakan saldo yang belum dibayar; pengadaan lunas bernilai nol. Total dipisahkan menurut mata uang.",
     "engineer": "Hanya nilai permintaan. Nilai faktur pemasok dan pembayaran tidak ditampilkan.",
+    "partialNotRecorded_one": "{{count}} lagi belum tercatat jumlahnya",
+    "partialNotRecorded_other": "{{count}} lagi belum tercatat jumlahnya",
     "notRecorded": "Nilai {{currencies}} belum dicatat",
     "none": "Tidak ada nilai",
     "kind": {

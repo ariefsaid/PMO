@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, Icon, Tooltip } from '@/src/components/ui';
-import { formatCalendarDayInTimeZone, formatCurrency, formatWeekdayMonthDay } from '@/src/lib/format';
+import { formatCalendarDayInTimeZone, formatCurrency, formatNumber, formatWeekdayMonthDay } from '@/src/lib/format';
 import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
@@ -258,7 +258,7 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
                   </button>
                 </Tooltip>
                 <p className={`${lead ? 'text-[20px] font-semibold text-foreground' : 'text-[16px] font-medium text-foreground'} tabular-nums`}>
-                  {unknown || absent ? '—' : formatCurrency(figure.amount ?? 0, procurement.currency)}
+                  {unknown || absent ? '—' : formatNumber(Math.round(figure.amount ?? 0))}
                 </p>
                 {explanation && <p className="mt-0.5 text-[12px] text-muted-foreground">{explanation}</p>}
                 {lead && <p className="mt-0.5 text-[12px] text-muted-foreground">{t('money.outstanding', 'Outstanding balance')}</p>}
@@ -364,7 +364,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
       .filter((doc) => !(isEngineer && (doc.doctype === 'Purchase Invoice' || doc.doctype === 'Payment Entry')))
       .map((doc) => ({
         id: `erp-${doc.id}`, date: doc.docDate, label: doc.doctype === 'Purchase Invoice' ? t('timeline.supplierInvoice', 'Supplier invoice') : doc.doctype === 'Purchase Receipt' ? t('timeline.receipt', 'Receipt') : doc.doctype === 'Purchase Order' ? t('timeline.order', 'Order') : t('timeline.payment', 'Payment'), number: doc.name,
-        facts: [doc.supplier, doc.erpStatus, doc.billNo ? `${t('timeline.supplierReference', 'Supplier reference')} ${doc.billNo}` : null, doc.dueDate ? `${t('timeline.dueDate', 'Due')} ${showDate(doc.dueDate, t('timeline.dateMissing', 'Date not recorded'))}` : null].filter((fact): fact is string => Boolean(fact)),
+        facts: [doc.supplier, /^overdue$/i.test(doc.erpStatus ?? '') ? null : doc.erpStatus, doc.billNo ? `${t('timeline.supplierReference', 'Supplier reference')} ${doc.billNo}` : null].filter((fact): fact is string => Boolean(fact)),
         amount: isEngineer ? null : doc.grandTotal,
         currency: doc.currency, source: 'accounting-system', erp: doc, overdueDays: (doc.outstanding ?? 0) > 0 ? overdueDays(doc.dueDate) : 0,
         icon: doc.doctype === 'Purchase Order' ? 'cart' : doc.doctype === 'Purchase Receipt' ? 'inbox' : doc.doctype === 'Purchase Invoice' ? 'invoices' : 'payments',
@@ -381,8 +381,10 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
         className="flex-wrap"
         actions={(
           <>
-            <span className="text-[12px] font-normal text-muted-foreground">{t('timeline.inDateOrder', 'in date order · missing steps aren’t required by your company')}</span>
-            <button type="button" onClick={onFullHistory} className="text-[12.5px] font-medium text-primary-text underline underline-offset-2">{t('timeline.fullHistory', 'Full history')}</button>
+            <span className="flex min-w-0 flex-col items-start gap-0.5 max-sm:max-w-[13rem] sm:flex-row sm:items-baseline sm:gap-3">
+              <span className="text-[12px] font-normal text-muted-foreground">{t('timeline.inDateOrder', 'in date order · missing steps aren’t required by your company')}</span>
+              <button type="button" onClick={onFullHistory} className="shrink-0 text-[12.5px] font-medium text-primary-text underline underline-offset-2">{t('timeline.fullHistory', 'Full history')}</button>
+            </span>
           </>
         )}
       >
@@ -416,7 +418,6 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
                         {entry.facts?.map((fact) => <span key={fact}>{fact}</span>)}
                         {entry.note && <span>{entry.note}</span>}
                         {entry.source === 'accounting-system' && <span>{t('timeline.fromAccounting', 'from accounting system')}</span>}
-                        {entry.overdueDays ? <span className="rounded-full bg-destructive/10 px-2 py-0.5 font-medium text-destructive-text">{t('timeline.overdue', { defaultValue: 'Overdue {{days}} days', days: entry.overdueDays })}</span> : null}
                       </span>
                     </span>
                     {entry.amount != null && entry.currency && !isEngineer && (
@@ -428,7 +429,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
                     )}
                   </summary>
                   <div className="ml-[128px] mt-2 border-l border-border pl-3 text-[12.5px] text-muted-foreground max-[640px]:ml-8">
-                    {entry.erp && <dl className="mb-2 grid grid-cols-2 gap-x-4 gap-y-1"><dt>{t('details.supplier', 'Supplier')}</dt><dd>{entry.erp.supplier ?? '—'}</dd><dt>{t('timeline.status', 'Status')}</dt><dd>{entry.erp.erpStatus ?? '—'}</dd><dt>{t('timeline.dueDate', 'Due date')}</dt><dd>{showDate(entry.erp.dueDate, t('timeline.dateMissing', 'Date not recorded'))}</dd></dl>}
+                    {entry.erp && <dl className="mb-2 grid grid-cols-2 gap-x-4 gap-y-1"><dt>{t('details.supplier', 'Supplier')}</dt><dd>{entry.erp.supplier ?? '—'}</dd><dt>{t('timeline.status', 'Status')}</dt><dd>{entry.erp.erpStatus ?? '—'}</dd><dt>{t('timeline.dueDate', 'Due date')}</dt><dd>{showDate(entry.erp.dueDate, t('timeline.dateMissing', 'Date not recorded'))}{entry.overdueDays ? ` · ${t('timeline.overdue', { defaultValue: 'Overdue {{days}} days', days: entry.overdueDays })}` : ''}</dd></dl>}
                     {entry.ledger && <>
                       {entry.ledger.groupRef && <p>Group ref · {entry.ledger.groupRef}</p>}
                       <ProcurementFilesSubsection phase={phaseByType[entry.ledger.type]} parentId={entry.ledger.recordId} procurementId={procurement.id} canWrite={canWriteFiles} uploadedById={uploadedById} />

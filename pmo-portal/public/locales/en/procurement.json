@@ -207,6 +207,10 @@
         "selectVisible": "Select visible",
         "clear": "Clear selection"
       },
+      "empty": {
+        "title": "No procurement on this project yet.",
+        "engineerTitle": "You haven't raised a procurement on this project."
+      },
       "emptyFiltered": {
         "title": "No procurement matches these filters.",
         "sub": "Adjust the search or filters and try again.",

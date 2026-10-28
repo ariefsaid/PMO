@@ -21,7 +21,7 @@ export function erpLinkReasonText(reason: string | null, t: T): string {
     case 'currency_mismatch': return t('finance:erpLinks.reason.currency', 'The document’s currency differs from this purchase.');
     case 'gate_request_before_order': return t('finance:erpLinks.reason.gateRequest', 'Your organization requires a purchase request before an order.');
     case 'gate_approval_before_order': return t('finance:erpLinks.reason.gateApprovalOrder', 'Your organization requires an approval before an order.');
-    case 'gate_receipt_before_invoice': return t('finance:erpLinks.reason.gateReceipt', 'Your organization requires a goods receipt before a vendor invoice.');
+    case 'gate_receipt_before_invoice': return t('finance:erpLinks.reason.gateReceipt', 'Your organization requires a goods receipt before a supplier invoice.');
     case 'gate_approval_before_payment': return t('finance:erpLinks.reason.gateApprovalPayment', 'Your organization requires an approval before payment.');
     case 'document_spans_projects': return t('finance:erpLinks.reason.spansProjects', 'This invoice is recorded against several projects. Link it from ERPNext per project, or record it in PMO.');
     case 'sharepoint_host_not_allowed': return t('finance:erpLinks.reason.sharepointHost', 'The file is not on your organization’s SharePoint site.');

@@ -115,7 +115,8 @@ export default function ProcurementCreate() {
   // everyone else raises a plain request.
   const canCaptureDocuments = may('create', 'procDoc');
   const [haveChoice, setHave] = useState<ProcurementHave | null>(() => parseHave(params.get('have')));
-  const have = haveChoice !== 'need' && !canCaptureDocuments ? null : haveChoice;
+  // B3: a role that can only raise a need has one choice, so it starts straight on that form.
+  const have: ProcurementHave | null = canCaptureDocuments ? haveChoice : 'need';
   const [title, setTitle] = useState('');
   const [selectedProject, setSelectedProject] = useState<string | null>(projectId);
   const [supplierId, setSupplierId] = useState<string | null>(null);
@@ -300,7 +301,9 @@ export default function ProcurementCreate() {
 
   return (
     <main className="mx-auto w-full max-w-7xl p-4 pb-24 md:p-6">
-      <BackBar label={t('backToChoices', 'What do you have?')} onBack={() => setHave(null)} />
+      {canCaptureDocuments
+        ? <BackBar label={t('backToChoices', 'What do you have?')} onBack={() => setHave(null)} />
+        : <BackBar label={t('backToProcurement', 'Procurement')} onBack={() => guardLeave(() => navigate('/procurement'))} />}
       <form id="procurement-create-form" onSubmit={submit} noValidate>
         <header className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4">
           <div>

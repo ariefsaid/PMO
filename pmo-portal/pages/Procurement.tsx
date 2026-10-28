@@ -43,7 +43,7 @@ import { lifecycleSteps, pillVariantForStatus } from '../components/procurement'
 import { ErpOrphansSection } from './procurement/ErpOrphansSection';
 import { needsYou, type NeedsYouResult } from './procurement/blocks/needsYou';
 import type { StageKey } from './procurement/blocks/stage';
-import { matchesStage, type ProcurementListRole } from './procurement/list/model';
+import { matchesStage, orphanTotals, shortTotalsLabel, totalsByCurrency, type ProcurementListRole } from './procurement/list/model';
 import { ProcurementGroupedView } from './procurement/list/ProcurementGroupedView';
 
 type StatusFilter = 'All' | 'Needs approval' | 'Open' | 'Ordered' | 'Vendor Invoiced' | 'Paid';
@@ -401,10 +401,13 @@ const ProcurementPage: React.FC = () => {
     { value: 'board', label: t('view.board', 'Board'), icon: 'cols' },
   ];
   const currentNeedsReasons = tab === 'needs-you' ? needsYouReasons : new Map<string, { result: NeedsYouResult['reason']; text: string }>();
-  const tabs: Array<{ key: ProcurementTab; label: string; count: number }> = [
-    { key: 'needs-you', label: t('tab.needsYou', 'Needs you'), count: needsYouRows.length },
-    { key: 'all', label: t('tab.all', 'All'), count: all.length },
-    ...(canSeeOrphans ? [{ key: 'orphans' as const, label: t('tab.orphans', 'Not in a procurement'), count: orphanRows.length }] : []),
+  // O7: the tabs are the one place the scope counts live, so the money they hold rides in the tab label.
+  const needsYouMoney = shortTotalsLabel(totalsByCurrency(needsYouRows.map(({ row }) => row), realRole as ProcurementListRole, 'needs-you', new Map(needsYouRows.map(({ row, result }) => [row.id, result.reason]))));
+  const orphanMoney = canViewOrphans ? shortTotalsLabel(orphanTotals(orphanRows)) : '';
+  const tabs: Array<{ key: ProcurementTab; label: string; count: number; money: string }> = [
+    { key: 'needs-you', label: t('tab.needsYou', 'Needs you'), count: needsYouRows.length, money: needsYouMoney },
+    { key: 'all', label: t('tab.all', 'All'), count: all.length, money: '' },
+    ...(canSeeOrphans ? [{ key: 'orphans' as const, label: t('tab.orphans', 'Not in a procurement'), count: orphanRows.length, money: orphanMoney }] : []),
   ];
 
   return (
@@ -412,7 +415,7 @@ const ProcurementPage: React.FC = () => {
     <ListPage title={title} description={description} primaryAction={primaryAction}>
       <div className="space-y-4 pb-20 sm:pb-0">
         <div role="tablist" aria-label={t('tabs.label', 'Procurement lists')} className="flex min-w-0 gap-5 overflow-x-auto border-b border-border scroll-fade-x">
-          {tabs.map(({ key, label, count }) => (
+          {tabs.map(({ key, label, count, money }) => (
             <button
               key={key}
               type="button"
@@ -423,20 +426,13 @@ const ProcurementPage: React.FC = () => {
               onClick={() => setTab(key)}
               className={`touch-target shrink-0 border-b-2 px-0.5 py-2.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tab === key ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
             >
-              {label}<span className="ml-1.5 tabular text-muted-foreground">{count}</span>
+              {label}<span className="ml-1.5 tabular text-muted-foreground">{count}</span>{money && <span className="ml-1.5 tabular text-[12px] font-normal text-muted-foreground">{money}</span>}
             </button>
           ))}
         </div>
 
         {ready && (
-          <ProcurementKpiRow
-            rows={all}
-            needsYouRows={needsYouRows}
-            orphans={canViewOrphans ? orphanRows : undefined}
-            tab={tab}
-            role={realRole as ProcurementListRole}
-            onSelectTab={setTab}
-          />
+          <ProcurementKpiRow rows={all} role={realRole as ProcurementListRole} />
         )}
 
         {tab !== 'orphans' && ready && currentView === 'table' && (

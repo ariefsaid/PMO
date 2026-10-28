@@ -196,7 +196,7 @@ describe('Procurement list restructure', () => {
     expect(page).not.toHaveTextContent('$500');
     expect(page).not.toHaveTextContent('$300');
     expect(page).not.toHaveTextContent('$200');
-    expect(screen.getByTestId('summary-total-needs-you')).toHaveAttribute('title', expect.stringMatching(/supplier invoice and payment amounts are not shown/i));
+    expect(screen.getByTestId('summary-total-ordered')).toHaveAttribute('title', expect.stringMatching(/supplier invoice and payment amounts are not shown/i));
   });
 
   it('Finance can open the Not in a procurement tab', () => {
@@ -255,7 +255,7 @@ describe('Procurement list restructure', () => {
     expect(payTotal).toHaveAttribute('title', expect.stringMatching(/unpaid balance/i));
   });
 
-  it('L6/F11: tabs own the counts; tiles carry short money and meaning, never the same count again', () => {
+  it('L6/F11 + O7: tabs own the counts and the money for their scope; the tiles carry only the figures no tab owns', () => {
     roleState.role = 'Finance';
     authState.userId = 'u-finance';
     procState.data = [
@@ -267,14 +267,43 @@ describe('Procurement list restructure', () => {
     renderPage();
 
     expect(screen.getByRole('tab', { name: /Needs you/i })).toHaveTextContent('2');
+    expect(screen.getByRole('tab', { name: /Needs you/i })).toHaveTextContent('$2.4M');
     expect(screen.getByRole('tab', { name: /Not in a procurement/i })).toHaveTextContent('1');
-    const needsTile = screen.getByTestId('summary-cell-needs-you');
-    expect(within(needsTile).queryByText('2')).toBeNull();
-    expect(within(screen.getByTestId('summary-cell-orphans')).queryByText('1')).toBeNull();
+    expect(screen.getByRole('tab', { name: /Not in a procurement/i })).toHaveTextContent('$700');
+    expect(screen.queryByTestId('summary-cell-needs-you')).toBeNull();
+    expect(screen.queryByTestId('summary-cell-orphans')).toBeNull();
     expect(screen.getByTestId('summary-total-unpaid')).toHaveTextContent('$2.4M');
     expect(screen.getByTestId('summary-total-unpaid')).toHaveAttribute('aria-label', expect.stringContaining('$2,433,500'));
     expect(screen.getByTestId('summary-cell-unpaid')).toHaveTextContent(/2 procurements/);
     expect(screen.getByTestId('summary-cell-ordered')).toHaveTextContent(/1 procurement/);
+  });
+
+  it('L12c: the unpaid tile shows the recorded balance and says how many have none, instead of "amount not recorded" alone', () => {
+    roleState.role = 'Finance';
+    authState.userId = 'u-finance';
+    procState.data = [
+      row({ id: 'known', status: 'Vendor Invoiced', procurement_invoices: [{ amount: 30_000, erp_outstanding_amount: 30_000, invoice_date: daysAgo(4) }] }),
+      row({ id: 'blank', status: 'Vendor Invoiced', procurement_invoices: [] }),
+    ];
+    renderPage('/procurement?tab=all');
+
+    const tile = screen.getByTestId('summary-total-unpaid');
+    expect(tile).toHaveTextContent('$30K');
+    expect(tile).toHaveTextContent(/1 more has no amount recorded/i);
+    expect(tile).not.toHaveTextContent(/USD amount not recorded/i);
+  });
+
+  it('C4: a known zero reads 0 and an Engineer gets no supplier-invoice tile', () => {
+    roleState.role = 'Engineer';
+    authState.userId = 'u-engineer';
+    procState.data = [row({ id: 'mine', requested_by_id: 'u-engineer', status: 'Requested' })];
+    renderPage('/procurement?tab=all');
+
+    expect(screen.queryByTestId('summary-cell-unpaid')).toBeNull();
+    const ordered = screen.getByTestId('summary-total-ordered');
+    expect(ordered).toHaveTextContent('0');
+    expect(ordered).not.toHaveTextContent(/no amount/i);
+    expect(screen.queryByText('No amount')).toBeNull();
   });
 
   it('/erp-purchases redirects to the Procurement orphans tab', () => {

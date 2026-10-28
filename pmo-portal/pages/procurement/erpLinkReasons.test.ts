@@ -53,3 +53,9 @@ describe('erpPreTaxAmount', () => {
   });
 });
 
+
+describe('C2: plain words', () => {
+  it('the goods-receipt gate says supplier invoice, never vendor invoice', () => {
+    expect(erpLinkReasonText('gate_receipt_before_invoice', t)).toBe('Your organization requires a goods receipt before a supplier invoice.');
+  });
+});
