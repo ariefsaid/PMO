@@ -1440,7 +1440,7 @@ const DocumentActionFooter: React.FC<DocumentActionFooterProps> = ({
       )}
       {canDelete && (
         // B1: Delete stays reachable but quiet; it is confirmed, and the drawer's one filled action is the next step.
-        <Button variant="ghost" size="sm" className="text-destructive-text sm:ml-auto" onClick={onDelete}>
+        <Button variant="ghost" size="sm" className="text-destructive-text! sm:ml-auto" onClick={onDelete}>
           {t('projectDetail.documents.action.delete', 'Delete')}
         </Button>
       )}
