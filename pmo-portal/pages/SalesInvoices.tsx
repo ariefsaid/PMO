@@ -1534,7 +1534,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
         nestedOpen={Boolean(submitTarget || receiptTarget || formTarget || cancelTarget || projectTarget || efakturTarget)}
       >
         {panelInvoice && <div className="space-y-5 p-4 sm:p-5">
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-y border-border py-4 text-sm">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-b border-border pb-4 text-sm">
             <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.outstanding', 'Outstanding · tax included')}</dt><dd className="mt-1 tabular">{panelInvoice.erp_outstanding_amount == null ? '—' : formatCurrencyCents(panelInvoice.erp_outstanding_amount, panelInvoice.currency)}</dd></div>
             <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.dueDate', 'Due date')}</dt><dd className="mt-1">{deriveArDueDate(panelInvoice.invoice_date, panelInvoice.erp_payment_terms_days, panelInvoice.erp_due_date, panelInvoice.received_date) ? formatDateOnly(deriveArDueDate(panelInvoice.invoice_date, panelInvoice.erp_payment_terms_days, panelInvoice.erp_due_date, panelInvoice.received_date)!) : '—'}</dd></div>
             <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.invoiceDate', 'Invoice date')}</dt><dd className="mt-1">{panelInvoice.invoice_date ? formatDateOnly(panelInvoice.invoice_date) : '—'}</dd></div>
