@@ -176,7 +176,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   const afterPct = budgetAmount > 0 ? (afterRequest / budgetAmount) * 100 : 0;
 
   const tiles = [
-    { label: 'This procurement', value: formatCurrency(totalValue, currency) },
+    { label: t('decisionSupport.thisProcurement', 'This procurement'), value: formatCurrency(totalValue, currency) },
     {
       label: 'Reserved',
       value: formatCurrency(otherReserved, currency),
@@ -191,7 +191,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
     },
     { label: 'Project budget', value: formatCurrency(budgetAmount, currency) },
     {
-      label: 'After this procurement',
+      label: t('decisionSupport.afterThisProcurement', 'After this procurement'),
       value: formatCurrency(afterRequest, currency),
       // I4 (design-review): afterPct is headroom remaining (afterRequest/budget),
       // NOT utilization — labelled "% headroom remaining" for honest spend control.

@@ -446,8 +446,8 @@ export const FinanceDashboard: React.FC = () => {
           {...figure(outstanding)} loading={procPending}
           vs={t('dashboard:finance.payablesDetail', 'Supplier-invoiced, awaiting payment')}
           to="/procurement?status=Vendor+Invoiced"
-          linkLabel={t('dashboard:finance.payablesLink', 'Open vendor invoices awaiting payment')}
-          help={t('dashboard:finance.payablesHelp', 'Procurement value owed to vendors in the Vendor Invoiced state.')} />
+          linkLabel={t('dashboard:finance.payablesLink', 'Open supplier invoices awaiting payment')}
+          help={t('dashboard:finance.payablesHelp', 'Procurement value owed to suppliers in the Supplier Invoiced state.')} />
       </KPIRow>
 
       {/* OD-BILL-1 / #786: what is still to invoice on the client's POs. */}

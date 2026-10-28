@@ -166,6 +166,7 @@
     "search": "Search projects",
     "projectManager": "Project manager",
     "progressValue": "Progress {{percent}}%",
+    "progressComplete": "{{percent}}% complete",
     "noLatestMonthEntry": "No entry for latest month",
     "noSearchMatches": "No projects match your search",
     "noSearchMatchesSub": "Try another project, client or project manager name.",

@@ -11,12 +11,13 @@ import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
 import { OtherCurrencyCommitments } from './OtherCurrencyCommitments';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
-import { formatExactMoney, formatInstantDate, formatNumberMax2 } from '@/src/lib/format';
+import { formatExactMoney, formatInstantDate } from '@/src/lib/format';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 
 export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }) {
-  const { t, i18n } = useTranslation('project');
+  const { t } = useTranslation('project');
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const canInspectAccounting = realRole === 'Finance' || realRole === 'Admin';
@@ -27,10 +28,11 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
   // currency heading name it once); only a figure in another currency carries its code. C4: an unknown figure is
   // null, and the caller leaves it out rather than printing a placeholder.
   const money = (value: string | null, currency: string | null, sectionCurrency: string | null = project.currency): string | null => {
-    const units = moneyUnits(value);
-    if (units === null || !currency) return null;
-    const amount = formatNumberMax2(Number(units) / 100);
-    return currency === sectionCurrency ? amount : `${currency} ${amount}`;
+    if (value === null || !currency) return null;
+    return formatExactMoney(value, currency, getNumberLocale(), {
+      wholeUnits: true,
+      omitCurrency: currency === sectionCurrency,
+    });
   };
   const title = <h2 className="text-sm font-semibold">{t('projectFinances.title', 'Project finances')}</h2>;
 
@@ -63,11 +65,13 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
   if (actualPosition.basis === 'erp') {
     for (const row of actuals.categories) {
       const known = row.mapped && actuals.currency !== null &&
-        formatExactMoney(row.amount, actuals.currency, i18n.language, { wholeUnits: true }) !== null;
+        formatExactMoney(row.amount, actuals.currency, getNumberLocale(), { wholeUnits: true }) !== null;
       if (known) knownCategories.push(row);
     }
   }
-  const spendingHasData = actualPosition.amount !== null || knownCategories.length > 0;
+  const spendingHasData = actualPosition.amount !== null
+    || knownCategories.length > 0
+    || (actualPosition.basis === 'unavailable' && actuals.categories.length > 0);
   // #1271 AC-3: tagged vs rule-attributed cost, named only when some of the (complete, ERP-ledger) total is attributed.
   const split = actualPosition.basis === 'erp' && actualPosition.complete
     ? attributedSplit({ tagged: actuals.tagged_total, attributed: actuals.attributed_total })
@@ -140,12 +144,16 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
       {!hasInvoices && <p className="text-sm text-muted-foreground" data-testid="project-no-invoices">
         {t('project:noLinkedInvoices', 'No invoices linked to this project yet')}
       </p>}
-      {hasInvoices && <dl className="grid min-w-0 gap-4 sm:grid-cols-3">
-        {otherCurrencyCash.length > 0 && field(t('uxs01.cashReceived', 'Cash received'), otherCurrencyCash.join(' · '), <span className="text-xs text-muted-foreground">{cashScope}</span>)}
-        {onHand && field(t('projectFinances.contractInvoiced', 'Invoiced against contract'), money(data.contract_invoiced, project.currency),
-          isTaxTreatment(project.tax_treatment) && <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} testId="project-invoiced-basis" />)}
-        {onHand && field(t('projectFinances.remaining', 'Remaining to invoice'), money(data.remaining_to_invoice, project.currency),
-          isTaxTreatment(project.tax_treatment) && <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} testId="project-remaining-basis" />)}
+      {hasInvoices && onHand && <div className="min-w-0 space-y-2">
+        <h3 className="text-sm font-semibold">{t('moneyDisplay.contractPosition', 'Contract invoice position')} · {project.currency}</h3>
+        <dl className="grid min-w-0 gap-4 sm:grid-cols-3">
+          {field(t('projectFinances.contractInvoiced', 'Invoiced against contract'), money(data.contract_invoiced, project.currency))}
+          {field(t('projectFinances.remaining', 'Remaining to invoice'), money(data.remaining_to_invoice, project.currency))}
+        </dl>
+        {isTaxTreatment(project.tax_treatment) && <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} testId="project-finances-contract-basis" />}
+      </div>}
+      {hasInvoices && otherCurrencyCash.length > 0 && <dl className="grid min-w-0 gap-4 sm:grid-cols-3">
+        {field(t('uxs01.cashReceived', 'Cash received'), otherCurrencyCash.join(' · '), <span className="text-xs text-muted-foreground">{cashScope}</span>)}
       </dl>}
       {data.invoices.map((bucket) => {
         const margin = deriveMargin(bucket, actuals);
@@ -192,7 +200,11 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
           && <p className="text-xs text-muted-foreground">{t('uxs01.coverageUnavailable', 'Spending coverage unavailable')}</p>}
         {actualPosition.basis === 'pmo'
           ? <p className="text-xs text-muted-foreground">
-            {t('uxs01.pmoCoverage', 'Committed PMO purchase orders')}
+            {commitments.isPending
+              ? t('uxs01.actualLoading', 'Loading Actual…')
+              : commitments.isError
+                ? t('uxs01.coverageUnavailable', 'Spending coverage unavailable')
+                : t('uxs01.pmoCoverage', 'Committed PMO purchase orders')}
           </p>
           : !completeCoverage && <p className="text-xs text-muted-foreground">
             {hasCoverage
