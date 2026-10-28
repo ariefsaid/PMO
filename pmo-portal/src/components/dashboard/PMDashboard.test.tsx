@@ -261,13 +261,13 @@ describe('Project Manager area hub', () => {
     renderDashboard();
 
     const unknownContract = screen.getByTestId('kpi-my-contract-value');
-    expect(within(unknownContract).getByText('—')).toBeInTheDocument();
+    expect(within(unknownContract).queryByText('$100,000')).not.toBeInTheDocument();
+    const contractReasons = within(unknownContract).getAllByRole('status');
+    expect(contractReasons).toHaveLength(1);
+    expect(contractReasons[0]).toHaveTextContent(/one or more project contract values are unavailable/i);
     // C4: an unknown margin is left out of the band, and the reason is said once under it.
     expect(screen.queryByTestId('kpi-margin-to-date')).not.toBeInTheDocument();
     expect(screen.getAllByText(/Some projects have incomplete spending/)).toHaveLength(1);
-    const unknownReason = within(unknownContract).getByRole('button', { name: /one or more project contract values are unavailable/i });
-    fireEvent.focus(unknownReason);
-    expect(screen.getByRole('tooltip')).toHaveTextContent(/one or more project contract values are unavailable/i);
   });
 
   it('states Budget not set once in project metadata without an unknown-risk attention row', () => {
@@ -421,7 +421,8 @@ describe('PMDashboard — ported baseline cases (delivery scope, money, risk, st
     const tile = screen.getByTestId('kpi-at-risk');
     // Never a false 0: the figure carries the reason risk is unknown.
     expect(within(tile).queryByText('0')).not.toBeInTheDocument();
-    expect(within(tile).getByRole('button', { name: /budget risk is unknown/i })).toBeInTheDocument();
+    expect(within(tile).getAllByRole('status')).toHaveLength(1);
+    expect(within(tile).getByRole('status')).toHaveTextContent(/budget risk is unknown/i);
     expect(screen.queryByText(/all on track/i)).not.toBeInTheDocument();
   });
 

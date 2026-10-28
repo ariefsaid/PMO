@@ -30,6 +30,12 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => state.versions,
   useBudgetActivationMode: () => ({ data: 'allowed', isPending: false, isError: false }),
+  useBudgetActivationPrecheck: () => ({
+    data: { status: 'ready', erpCheck: 'available', fiscalYearNames: ['FY-2026'], issues: [] },
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: state.createVersion, isPending: false },
     cloneVersion: { mutateAsync: vi.fn(), isPending: false },

@@ -204,8 +204,15 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
   });
 
   it('shows an error state with retry on a failed fetch', async () => {
-    fetchMock.mockRejectedValue(new Error('boom'));
+    const user = userEvent.setup();
     renderForecast();
+    await rowFor('Labor');
+
+    // Let fiscal-year discovery and its default-year scan succeed first. Fail the user's
+    // subsequent forecast read for a different listed year, so this exercises forecast Retry.
+    fetchMock.mockRejectedValueOnce(new Error('boom'));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), PRIOR_ERP_FISCAL_YEAR);
+
     expect(await screen.findByText('Forecast could not be loaded')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });

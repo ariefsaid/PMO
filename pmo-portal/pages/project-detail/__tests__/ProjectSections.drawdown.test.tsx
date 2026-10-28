@@ -81,6 +81,7 @@ describe('Project contract drawdown (#566 / OD-CR-13)', () => {
 
     const panel = await screen.findByRole('tabpanel', { name: 'Contract & billing' });
     const drawdown = await within(panel).findByTestId('project-drawdown');
+    expect(drawdown).toBeVisible();
     expect(drawdown).toHaveTextContent('$500,000');
     expect(drawdown).toHaveTextContent('$100,000');
     expect(drawdown).toHaveTextContent('$900,000');

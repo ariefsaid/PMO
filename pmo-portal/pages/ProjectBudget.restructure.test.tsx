@@ -152,6 +152,8 @@ beforeEach(() => {
 
 describe('ProjectBudget Option A', () => {
   it('renders the approved summary, category columns, versions card, draft waiting banner, and bulk actions', async () => {
+    // This case includes the Finance-only activation affordance; PM read access and SoD stay
+    // covered by the PM summary and activation/PM-draft cases below.
     state.role = 'Finance';
     state.versions.data = [active() as unknown as BudgetVersionWithItems, draft() as unknown as BudgetVersionWithItems];
     state.position.rows = [{ category: 'Labor', budget: 100, actual: 35 }];

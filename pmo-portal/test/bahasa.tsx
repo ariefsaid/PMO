@@ -18,6 +18,10 @@ const EN_FINANCE = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/e
 const ID_FINANCE = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/finance.json'), 'utf8'));
 const EN_FINANCE_HUB = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/financeHub.json'), 'utf8'));
 const ID_FINANCE_HUB = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/financeHub.json'), 'utf8'));
+const EN_PROCUREMENT = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/procurement.json'), 'utf8'));
+const ID_PROCUREMENT = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/procurement.json'), 'utf8'));
+const EN_PROJECT = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/project.json'), 'utf8'));
+const ID_PROJECT = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/project.json'), 'utf8'));
 
 function makeBahasaI18n(locale: 'en' | 'id') {
   const i18n = i18next.createInstance();
@@ -28,8 +32,8 @@ function makeBahasaI18n(locale: 'en' | 'id') {
     defaultNS: 'common',
     fallbackNS: 'common',
     resources: {
-      id: { common: ID, dashboard: ID_DASHBOARD, finance: ID_FINANCE, financeHub: ID_FINANCE_HUB },
-      en: { common: EN, dashboard: EN_DASHBOARD, finance: EN_FINANCE, financeHub: EN_FINANCE_HUB },
+      id: { common: ID, dashboard: ID_DASHBOARD, finance: ID_FINANCE, financeHub: ID_FINANCE_HUB, procurement: ID_PROCUREMENT, project: ID_PROJECT },
+      en: { common: EN, dashboard: EN_DASHBOARD, finance: EN_FINANCE, financeHub: EN_FINANCE_HUB, procurement: EN_PROCUREMENT, project: EN_PROJECT },
     },
     initImmediate: false,
     interpolation: { escapeValue: false },
