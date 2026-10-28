@@ -231,7 +231,7 @@ describe('list working-set URL codec', () => {
     expect(meetings.project).toBe('All');
   });
 
-  it('AC-LRC-001/002: within the table view, keeps a Needs-attention scope with an open funnel stage and forces Open only for Lost', () => {
+  it('AC-LRC-001/002: keeps Needs-attention stages and makes terminal Won/Lost scopes unambiguous', () => {
     // Scope is meaningful only for the table view (#682 Director ruling, 2026-09-29) — these
     // scope/stage interactions are a table-only concept, so the URL states this test parses and
     // serializes name `view=table` explicitly.
@@ -249,6 +249,12 @@ describe('list working-set URL codec', () => {
 
     const lostAlone: SalesWorkingSet = parseListWorkingSet('sales', '?scope=Lost&view=table');
     expect(lostAlone).toMatchObject({ scope: 'Lost', status: '' });
+    expect(parseListWorkingSet('sales', '?scope=Won&view=table')).toMatchObject({
+      scope: 'Won', status: '',
+    });
+    expect(parseListWorkingSet('sales', '?scope=Won&status=Leads&view=table')).toMatchObject({
+      scope: 'Open', status: 'Leads',
+    });
 
     // Serializing a contradictory Lost + open stage omits scope (Open is the default), so the URL
     // and the controls both read Open + Leads.
@@ -265,6 +271,10 @@ describe('list working-set URL codec', () => {
       serializeListWorkingSet('sales', '', { scope: 'Lost', status: '', q: '', view: 'table' })
         .toString(),
     ).toBe('scope=Lost&view=table');
+    expect(
+      serializeListWorkingSet('sales', '', { scope: 'Won', status: '', q: '', view: 'table' })
+        .toString(),
+    ).toBe('scope=Won&view=table');
 
     // Round-trips: Needs attention + stage survives serialization.
     const roundTrip = parseListWorkingSet(

@@ -14,7 +14,7 @@ import { UNASSIGNED_PROJECT_MANAGER } from './projects/projectManagerLabel';
 export type ListName = 'projects' | 'sales' | 'procurement' | 'companies' | 'contacts' | 'meetings';
 
 export type ProjectFilter = 'All' | 'My Projects' | 'Ongoing' | 'Completed' | 'at-risk';
-export type SalesScope = 'Open' | 'Lost' | 'Needs attention';
+export type SalesScope = 'Open' | 'Won' | 'Lost' | 'Needs attention';
 export type SalesStage = '' | OpenFunnelStage;
 export type ProcurementFilterStatus =
   | 'All'
@@ -95,7 +95,7 @@ const PROJECT_FILTERS = [
   'Completed',
   'at-risk',
 ] as const satisfies readonly ProjectFilter[];
-const SALES_SCOPES = ['Open', 'Lost', 'Needs attention'] as const satisfies readonly SalesScope[];
+const SALES_SCOPES = ['Open', 'Won', 'Lost', 'Needs attention'] as const satisfies readonly SalesScope[];
 const SALES_STAGES = ['', ...OPEN_FUNNEL_STAGES] as readonly SalesStage[];
 
 const PROCUREMENT_FILTER_STATUSES = [
@@ -368,10 +368,15 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
         // Within the table, only a Lost scope conflicts with an open funnel stage. "Needs
         // attention" and an open stage are a valid combination (SalesPipeline intersects them),
         // so that contradiction forces Open only when Lost was requested together with an open
-        // stage. This is the single place the "scope is table-only" rule lives — mirrored in
+        // stage. Terminal Won/Lost scopes conflict with an open funnel stage and fall to Open.
+        // This is the single place the "scope is table-only" rule lives — mirrored in
         // `serialize` below, never re-derived on the page.
         ...classificationValues(params),
-        scope: view !== 'table' ? 'Open' : status && requestedScope === 'Lost' ? 'Open' : requestedScope,
+        scope: view !== 'table'
+          ? 'Open'
+          : status && (requestedScope === 'Won' || requestedScope === 'Lost')
+            ? 'Open'
+            : requestedScope,
         status,
         q: searchValue(params),
         view,
@@ -380,12 +385,16 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
     serialize: (params, value, options) => {
       // Mirror of parse: the board carries no scope, so switching to it (or serializing a working
       // set whose view is already board) never writes an inert `scope` — the key is omitted
-      // entirely rather than pinned to a value the view ignores. A Lost scope cannot coexist with
-      // an open stage in the table, so it is forced to Open only in that contradictory case;
+      // entirely rather than pinned to a value the view ignores. Terminal scopes cannot coexist
+      // with an open stage in the table, so they are forced to Open only in that contradiction;
       // Needs attention + stage round-trips as-is.
       putClassification(params, value);
       const scope =
-        value.view !== 'table' ? 'Open' : value.scope === 'Lost' && value.status ? 'Open' : value.scope;
+        value.view !== 'table'
+          ? 'Open'
+          : (value.scope === 'Lost' || value.scope === 'Won') && value.status
+            ? 'Open'
+            : value.scope;
       putParam(params, 'scope', scope, 'Open');
       putParam(params, 'status', value.status);
       putParam(params, 'q', value.q);

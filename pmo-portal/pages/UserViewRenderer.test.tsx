@@ -8,7 +8,7 @@
  * AC-VR-021 (ready state renders correctly after two-tick delay).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 
@@ -351,13 +351,21 @@ describe('UserViewRenderer — data states (AC-VR-006..010)', () => {
     expect(screen.getByText('Won')).toBeInTheDocument();
   });
 
-  it('AC-VR-011d: StatusBarChart hydrates an aria summary + legend from grouped rows', async () => {
+  it('AC-VR-011d: StatusBarChart exposes a concise name, grouped data table, and legend', async () => {
     setupGrouped('StatusBarChart');
     mockExecute.mockResolvedValue([{ status: 'Open', cnt: 4 }, { status: 'Done', cnt: 6 }]);
     renderRenderer();
-    // figure role=img with the aria summary "<entity>, <total> records, most in <top>."
-    await waitFor(() => expect(screen.getByRole('img', { name: /10 records/i })).toBeInTheDocument());
-    expect(screen.getByRole('img', { name: /most in Done/i })).toBeInTheDocument();
+    const chart = await waitFor(() => screen.getByRole('img', { name: 'projects' }));
+    expect(chart).toHaveAccessibleDescription('The chart values are listed in the following data table.');
+
+    const table = screen.getByRole('table', { name: 'Data for projects' });
+    expect(within(table).getByRole('row', { name: 'Open 4' })).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: 'Done 6' })).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: 'Total 10' })).toBeInTheDocument();
+
+    const legend = screen.getByRole('group', { name: 'projects' });
+    expect(within(legend).getByText('Open')).toBeInTheDocument();
+    expect(within(legend).getByText('Done')).toBeInTheDocument();
   });
 
   it('AC-VR-011e: ProgressBar hydrates a scalar value from the first row', async () => {

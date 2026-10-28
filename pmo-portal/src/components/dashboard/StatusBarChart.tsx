@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useId, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import {
@@ -18,9 +18,9 @@ export interface StatusBarChartProps<S extends string> {
   data: StatusDatum<S>[];
   /** Maps a status to its DESIGN.md chart-series token (the bug-fix helper). */
   toneFor: (status: S) => string;
-  /** Section label for the aria insight summary. */
+  /** Concise accessible name for the chart and its legend. */
   label: string;
-  /** Plural noun for the summary ("requests" / "projects"). */
+  /** Retained for existing call sites; detailed values are now available in the data table. */
   noun: string;
   height?: number;
   /**
@@ -50,14 +50,13 @@ export interface StatusBarChartProps<S extends string> {
  * Status-toned bar chart: one `<Cell>` per datum colored by `toneFor` so color
  * carries the status meaning (fixes the legacy single-fill `#10b981` bug). Color
  * is never the only channel — the x-axis names each status, the legend is dot +
- * **text**, and the section carries an aria summary naming the top status
- * (color-not-only / screen-reader-summary / contrast-data).
+ * **text**, and the chart's concise accessible name describes a screen-reader table of the full
+ * values (color-not-only / screen-reader-summary / contrast-data).
  */
 export function StatusBarChart<S extends string>({
   data,
   toneFor,
   label,
-  noun,
   height = 260,
   hrefFor,
   labelFor,
@@ -66,24 +65,13 @@ export function StatusBarChart<S extends string>({
   const { t } = useTranslation();
   const prefersReducedMotion = usePrefersReducedMotion();
   const isNarrow = useIsNarrow();
+  const descriptionId = useId();
 
-  const { total, topStatus } = useMemo(() => {
-    const sum = data.reduce((a, d) => a + d.count, 0);
-    const top = data.reduce<StatusDatum<S> | null>(
-      (best, d) => (best === null || d.count > best.count ? d : best),
-      null,
-    );
-    return { total: sum, topStatus: top?.status ?? '—' };
-  }, [data]);
-
-  const displayStatus = labelFor?.(topStatus as S) ?? topStatus;
-  const summary = labelFor
-    ? t('dashboard.procurementStatus.summary', '{{label}}, {{total}} {{noun}}, most in {{status}}.', { label, total, noun, status: displayStatus })
-    : `${label}, ${total} ${noun}, most in ${topStatus}.`;
+  const total = useMemo(() => data.reduce((sum, datum) => sum + datum.count, 0), [data]);
 
   return (
     <figure className="m-0">
-      <div role="img" aria-label={summary}>
+      <div role="img" aria-label={label} aria-describedby={descriptionId}>
       <ResponsiveContainer width="100%" height={height}>
         <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} vertical={false} />
@@ -131,6 +119,32 @@ export function StatusBarChart<S extends string>({
         </BarChart>
       </ResponsiveContainer>
       </div>
+
+      <p id={descriptionId} className="sr-only">
+        {t('dashboard:executive.chartDataTableDescription', 'The chart values are listed in the following data table.')}
+      </p>
+      <table className="sr-only" aria-label={t('dashboard:executive.chartDataTableLabel', 'Data for {{label}}', { label })}>
+        <thead>
+          <tr>
+            <th scope="col">{t('dashboard:executive.chartTableStatus', 'Status')}</th>
+            <th scope="col">{t('dashboard:executive.chartTableCount', 'Count')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((datum) => (
+            <tr key={datum.status}>
+              <th scope="row">{labelFor?.(datum.status) ?? datum.status}</th>
+              <td>{datum.count}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th scope="row">{t('dashboard:executive.chartTableTotal', 'Total')}</th>
+            <td>{total}</td>
+          </tr>
+        </tfoot>
+      </table>
 
       <figcaption role="group" aria-label={label} className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[11.5px] text-muted-foreground">
         {data.map((d) => {

@@ -23,6 +23,10 @@ import { ToastProvider } from '@/src/components/ui/Toast';
 const populated = {
   active_projects: 18,
   active_delivery_projects: 18,
+  active_delivery_actual_project_count: 18,
+  active_delivery_actual_project_total: 18,
+  active_delivery_actual_coverage_count: 18,
+  active_delivery_actual_coverage_total: 18,
   risk_unchecked_projects: 0,
   total_contract_value: 23050000, currency: 'USD',
   on_hand_margin: 0.224,
@@ -139,15 +143,15 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
   it('AC-RD-SPEND-001: labels partial actuals as recorded spending with a Partial marker', () => {
     dashState.data = {
       ...populated,
-      on_hand_actual_project_count: 2,
-      on_hand_actual_project_total: 3,
-      on_hand_actual_coverage_count: 4,
-      on_hand_actual_coverage_total: 5,
+      active_delivery_actual_project_count: 2,
+      active_delivery_actual_project_total: 3,
+      active_delivery_actual_coverage_count: 4,
+      active_delivery_actual_coverage_total: 5,
     };
     mockIsDesktop = false;
     renderPage();
     const spend = screen.getByTestId('dashboard-at-risk');
-    expect(within(spend).getByText('Recorded spending')).toBeInTheDocument();
+    expect(within(spend).getByText('On-hand recorded spending')).toBeInTheDocument();
     expect(within(spend).getByText('Partial')).toBeInTheDocument();
     expect(within(spend).queryByText('Total project spend')).not.toBeInTheDocument();
   });
@@ -258,8 +262,8 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
     const contractBook = screen.getByTestId('mobile-contract-book');
     expect(within(contractBook).getByText(/Contract remaining after known Actual/i)).toBeInTheDocument();
     expect(within(contractBook).getByText(/Margin on billed work/i)).toBeInTheDocument();
-    expect(within(contractBook).getByText(/Signed value of/i)).toBeInTheDocument();
-    expect(within(contractBook).getByText(/projects still in delivery/i)).toBeInTheDocument();
+    expect(within(contractBook).getByText(/Ongoing projects/i)).toBeInTheDocument();
+    expect(within(contractBook).getByText(/Ongoing projects/i)).toBeInTheDocument();
   });
 
   it('AC-MOBILE-5 (CW-7): mobile uses the SAME metric labels as desktop (no forked "Active contract value")', () => {
@@ -274,7 +278,7 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
     // The old forked label is gone.
     expect(within(contractBook).queryByText(/Active contract value/i)).not.toBeInTheDocument();
     // The scope-explaining source micro-line is retained (the asymmetry is carried here, not by a forked term).
-    expect(within(contractBook).getByText(/projects still in delivery/i)).toBeInTheDocument();
+    expect(within(contractBook).getByText(/Ongoing projects/i)).toBeInTheDocument();
   });
 
   it('CW-7: every shared metric LABEL on mobile matches a desktop KPI label (same page, reflowed)', () => {
@@ -282,7 +286,7 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
     const desktopLabels = [
       'Contracted revenue',
       'Total contract value',
-      'Recorded spending',
+      'On-hand recorded spending',
     ];
     mockIsDesktop = false;
     renderPage();

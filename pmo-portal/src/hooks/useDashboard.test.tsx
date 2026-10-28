@@ -57,7 +57,7 @@ vi.mock('@/src/lib/repositories', () => ({
   },
 }));
 
-import { useDashboard, useWinRate, useSalesPipeline, useLostDeals, usePMDashboardProjects } from './useDashboard';
+import { useDashboard, useWinRate, useSalesPipeline, useLostDeals, useWonDeals, usePMDashboardProjects } from './useDashboard';
 import { getExecutiveDashboard, getWinRate, getSalesPipeline, getPMDashboardProjects } from '@/src/lib/db/dashboard';
 import { repositories } from '@/src/lib/repositories';
 
@@ -197,6 +197,33 @@ describe('useLostDeals (#578, OD-TAX-1 §2)', () => {
     expect(result.current.data?.find((d) => d.id === 'lost-1')).toMatchObject({
       end_client_id: '75800000-0000-0000-0000-0000000000a1',
       end_client_name: 'EC Delta',
+    });
+  });
+});
+
+describe('useWonDeals (#1441)', () => {
+  it('AC-1441: reads all on-hand statuses through the RLS project repository and maps actionable rows', async () => {
+    vi.mocked(repositories.project.list).mockResolvedValueOnce([{
+      id: 'won-1', name: 'Won Deal Zeta', short_name: 'Zeta Fit-Out', status: 'Close Out',
+      pmo_project_number: 'PMO-2601', code: 'ZETA', contract_value: 900000, currency: 'USD',
+      tax_treatment: 'exclusive', tax_rate: 0, tax_base_numerator: null, tax_base_denominator: null,
+      service_line: 'Construction', sector: 'Commercial', location: 'Jakarta', award_type: 'Direct',
+      bidding_entity: null, client: { name: 'Zeta Co' }, end_client_id: null, end_client: null,
+      last_update: '2026-09-01T00:00:00Z', pm: { full_name: 'PM Zeta' },
+    }] as never);
+
+    const { result } = renderHook(() => useWonDeals(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(repositories.project.list).toHaveBeenCalledWith({
+      statuses: ['Won, Pending KoM', 'Ongoing Project', 'On Hold', 'Close Out'],
+    });
+    expect(result.current.data?.[0]).toMatchObject({
+      id: 'won-1', name: 'Won Deal Zeta', short_name: 'Zeta Fit-Out',
+      pmo_project_number: 'PMO-2601', code: 'ZETA', status: 'Close Out',
+      client_name: 'Zeta Co', end_client_id: null, win_probability: 1,
+      service_line: 'Construction', sector: 'Commercial', location: 'Jakarta',
+      award_type: 'Direct', last_update: '2026-09-01T00:00:00Z', pm_name: 'PM Zeta',
     });
   });
 });

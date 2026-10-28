@@ -7,7 +7,7 @@ import { KPITile } from '@/src/components/ui/KPITile';
 import { Card, CardHead } from '@/src/components/ui/Card';
 import { ListState } from '@/src/components/ui/ListState';
 import { BoardPackAction } from '@/src/components/reports/BoardPackAction';
-import { moneyFigure, shortMoney } from '@/src/lib/dashboardMoney';
+import { formatDashboardPercent, moneyFigure, shortMoney } from '@/src/lib/dashboardMoney';
 import { riskCheckableFor } from '@/src/lib/dashboardConstants';
 import { FigureContent } from '@/src/components/ui/FigureContent';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -144,17 +144,25 @@ const ExecutiveDashboard: React.FC = () => {
       .map((row) => currencyMoney(row.contract_remaining!, row.currency));
     const marginByCurrency = (data.on_hand_realized_margin_by_currency ?? [])
       .filter((row) => row.known_amount !== null)
-      .map((row) => currencyMoney(row.known_amount!, row.currency));
+      .map((row) => {
+        const amount = currencyMoney(row.known_amount!, row.currency);
+        const percent = formatDashboardPercent(row.known_amount, row.known_billed_revenue ?? null);
+        return percent === null
+          ? amount
+          : `${amount} (${t('dashboard:executive.knownMarginPercentage', '{{percent}} of billed revenue for projects with known margin', { percent })})`;
+      });
     const mixedPipelineCurrencies = (data.pipeline_total_value_by_currency ?? []).length > 1;
     const unknownMarginProjects = (data.on_hand_realized_margin_by_currency ?? [])
       .reduce((sum, item) => sum + item.unknown_projects, 0);
     const marginLabel = unknownMarginProjects > 0
       ? t('uxs03.realizedMarginKnown', 'Known margin on billed work')
       : t('uxs03.realizedMargin', 'Margin on billed work');
-    const actualCoverage = t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', {
-      known: data.on_hand_actual_project_count ?? 0, total: data.on_hand_actual_project_total ?? 0,
+    const actualCoverage = t('uxs03.coverage', 'Actual available for {{known}} of {{total}} active delivery projects', {
+      known: data.active_delivery_actual_project_count ?? 0,
+      total: data.active_delivery_actual_project_total ?? data.active_delivery_projects ?? 0,
     }) + ' · ' + t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', {
-      known: data.on_hand_actual_coverage_count ?? 0, total: data.on_hand_actual_coverage_total ?? 0,
+      known: data.active_delivery_actual_coverage_count ?? 0,
+      total: data.active_delivery_actual_coverage_total ?? 0,
     });
     const weightedPct = data.pipeline_projected_margin === null
       ? '—'
@@ -214,11 +222,7 @@ const ExecutiveDashboard: React.FC = () => {
           </Card>
 
           <Card data-testid="dashboard-pipeline-margin">
-            {/* DASH-002: the chart heading reads the SAME canonical noun as the KPI tile
-                ("Pipeline forecast margin"), not the divergent "Pipeline — Projected Margin". */}
-            <CardHead>{data.pipeline_projected_margin === null
-              ? t('dashboard.kpi.pipelineWeighted.label', 'Pipeline (weighted)')
-              : t('dashboard.chart.pipelineMargin.title', 'Pipeline forecast margin')}</CardHead>
+            <CardHead>{t('dashboard.kpi.pipelineWeighted.label', 'Pipeline (weighted)')}</CardHead>
             <div className="px-4 pb-4 pt-3">
               {pipeError ? (
                 <ListState
@@ -237,7 +241,7 @@ const ExecutiveDashboard: React.FC = () => {
                   title={t('dashboard.chart.pipelineMargin.empty', 'No open pipeline')}
                 />
               ) : (
-                <ProjectedMarginBars projectedMargin={data.pipeline_projected_margin} stages={pipeline.stages} currency={orgCurrency} />
+                <ProjectedMarginBars stages={pipeline.stages} currency={orgCurrency} />
               )}
             </div>
           </Card>
@@ -350,24 +354,22 @@ const ExecutiveDashboard: React.FC = () => {
           />
             </>
           )}
-          {/* AC-IXD-DASH-W5-C2A: Total contract value → /projects?filter=Ongoing.
-              vs copy corrected from "active + closed-out" to "active" — the RPC total_contract_value
-              is Ongoing-project only; the drill destination matches the data (honesty fix). */}
+          {/* The RPC total_contract_value includes Ongoing Project rows only. */}
           <KPITile
             testId="kpi-total-contract-value"
             tone="amber"
             icon="grid"
             label={t('uxs03.activeContractValue', 'Active contract value')}
             {...figure(data.total_contract_value)}
-            vs={t('dashboard:kpi.activeProjectsCount', '{{count}} active projects', { count: data.active_projects })}
+            vs={t('dashboard:executive.ongoingProjectsCount', '{{count}} Ongoing projects', { count: data.active_projects })}
             to="/projects?filter=Ongoing"
             linkLabel={t(
               'dashboard.kpi.totalContractValue.linkLabel',
-              'Open active projects to see total contract value',
+              'Open Ongoing, Won, Pending KoM, and On Hold projects to see total contract value',
             )}
             help={t(
               'dashboard.kpi.totalContractValue.help',
-              'Total contract value across the active portfolio.',
+              'Total contract value across Ongoing projects.',
             )}
           />
           {/* AC-IXD-DASH-W5-C2A: Total project spend → /projects?filter=Ongoing */}
@@ -375,15 +377,16 @@ const ExecutiveDashboard: React.FC = () => {
             testId="kpi-total-spend"
             tone="red"
             icon="cart"
-            label={t('dashboard.kpi.totalSpend.label', 'Recorded spending')}
+            label={t('dashboard.kpi.totalSpend.label', 'On-hand recorded spending')}
             {...figure(data.on_hand_actual_known)}
-            vs={`${data.on_hand_actual_project_count < data.on_hand_actual_project_total || data.on_hand_actual_coverage_count < data.on_hand_actual_coverage_total ? `${t('dashboard:spend.partial', 'Partial')} · ` : ''}${t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', {
-              known: data.on_hand_actual_project_count ?? 0, total: data.on_hand_actual_project_total ?? 0,
+            vs={`${(data.active_delivery_actual_project_count ?? 0) < (data.active_delivery_actual_project_total ?? data.active_delivery_projects ?? 0) || (data.active_delivery_actual_coverage_count ?? 0) < (data.active_delivery_actual_coverage_total ?? 0) ? `${t('dashboard:spend.partial', 'Partial')} · ` : ''}${t('uxs03.coverage', 'Actual available for {{known}} of {{total}} active delivery projects', {
+              known: data.active_delivery_actual_project_count ?? 0,
+              total: data.active_delivery_actual_project_total ?? data.active_delivery_projects ?? 0,
             })}`}
             to="/projects?filter=Ongoing"
             linkLabel={t(
               'dashboard.kpi.totalSpend.linkLabel',
-              'Open active projects to see spend breakdown',
+              'Open Ongoing, Won, Pending KoM, and On Hold projects to review spending',
             )}
             help={t(
               'dashboard.kpi.totalSpend.help',
