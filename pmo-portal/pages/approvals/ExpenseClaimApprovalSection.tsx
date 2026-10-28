@@ -6,7 +6,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useExpenseClaimsAwaitingDecision, type ExpenseClaimAwaiting } from '@/src/hooks/useExpenseClaims';
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
-import { formatCurrencyCents } from '@/src/lib/format';
+import { formatCurrencyAuto } from '@/src/lib/format';
 import { useExpenseReceipts } from '@/src/hooks/useExpenseReceipts';
 import type { ExpenseReceiptRow } from '@/src/lib/db/expenseReceipts';
 
@@ -30,7 +30,7 @@ const ExpenseClaimEvidencePreview: React.FC<{ claim: ExpenseClaimAwaiting['claim
     <div className="border-t border-border px-4 py-3">
       <DecisionContextSummary
         identity={claim.claim_number ?? claim.title}
-        amount={formatCurrencyCents(Number(claim.amount), claim.currency)}
+        amount={formatCurrencyAuto(Number(claim.amount), claim.currency)}
       />
       <ul className="mt-3 space-y-2">
       {files.map((file) => {
@@ -59,7 +59,7 @@ export const ExpenseClaimApprovalSection: React.FC = () => {
     return (
       <div className="mb-4">
         <ListState variant="error" title={t('expenses.approvals.errorTitle', "Couldn't load expense claims awaiting you")}
-          sub={t('expenses.approvals.errorSub', 'Purchase requests and timesheets below are unaffected.')} onRetry={() => void refetch()} />
+          sub={t('expenses.approvals.errorSub', 'Procurement and timesheets below are unaffected.')} onRetry={() => void refetch()} />
       </div>
     );
   }
@@ -75,7 +75,7 @@ export const ExpenseClaimApprovalSection: React.FC = () => {
                 <Link to={`/expenses/${claim.id}`} className="font-medium text-primary-text hover:underline">{claim.claim_number ?? claim.title}</Link>
                 <span className="min-w-0 flex-1 truncate">{claim.title}</span>
                 <span className="text-muted-foreground">{claim.claimant?.full_name ?? '—'}</span>
-                <span className="tabular-nums">{formatCurrencyCents(Number(claim.amount), claim.currency)}</span>
+                <span className="tabular-nums">{formatCurrencyAuto(Number(claim.amount), claim.currency)}</span>
                 <Button variant="outline" size="sm" aria-expanded={evidenceClaimId === claim.id} onClick={() => setEvidenceClaimId((current) => current === claim.id ? null : claim.id)}>
                   {t('expenses.approvals.previewEvidence', 'Preview claim evidence')}
                 </Button>

@@ -28,13 +28,13 @@ describe('ProcurementBoard — by-stage kanban (Issue 3)', () => {
   it('renders all six lifecycle stage columns (no Approved column — approval is a gate)', () => {
     // Owner directive 2026-06-21: approval is a gate, not a stage → no Approved column.
     render(<ProcurementBoard procurements={[]} onOpen={vi.fn()} />);
-    for (const full of ['Purchase Request', 'Vendor Quote', 'Purchase Order', 'Goods Receipt', 'Vendor Invoice', 'Payment']) {
+    for (const full of ['Purchase Request', 'Supplier Quote', 'Purchase Order', 'Goods Receipt', 'Supplier Invoice', 'Payment']) {
       expect(screen.getByText(full)).toBeInTheDocument();
     }
     expect(screen.queryByText('Approved')).not.toBeInTheDocument();
   });
 
-  it('an approved request appears in the Vendor Quote column (the bar advanced on approval)', () => {
+  it('an approved request appears in the Supplier Quote column (the bar advanced on approval)', () => {
     render(
       <MemoryRouter>
         <ProcurementBoard procurements={[row({ status: 'Approved', title: 'Approved req' })]} onOpen={vi.fn()} />
@@ -56,7 +56,7 @@ describe('ProcurementBoard — by-stage kanban (Issue 3)', () => {
 
   it('shows the empty message for a stage with no requests', () => {
     render(<ProcurementBoard procurements={[]} onOpen={vi.fn()} />);
-    expect(screen.getByText('No requests at Vendor Quote')).toBeInTheDocument();
+    expect(screen.getByText('No requests at Supplier Quote')).toBeInTheDocument();
   });
 
   it('activating a card calls onOpen with the request', async () => {

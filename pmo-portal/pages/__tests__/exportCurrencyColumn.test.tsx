@@ -151,7 +151,7 @@ describe('AC-L10N-052 Projects and Procurement exports carry the row currency', 
     const { ws, col } = await exportFrom(<ProcurementPage />);
     expect(col('Currency')).toBe(col('Value') + 1);
     const row = (title: string) =>
-      [2, 3].map((r) => ws.getRow(r)).find((x) => x.getCell(col('Request')).value === title)!;
+      [2, 3].map((r) => ws.getRow(r)).find((x) => x.getCell(col('Procurement')).value === title)!;
     expect(row('Widgets USD').getCell(col('Currency')).value).toBe('USD');
     expect(row('Widgets USD').getCell(col('Value')).value).toBe(5000);
     expect(row('Widgets IDR').getCell(col('Currency')).value).toBe('IDR');

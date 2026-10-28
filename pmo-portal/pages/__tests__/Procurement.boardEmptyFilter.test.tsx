@@ -1,7 +1,7 @@
 /**
  * C-PR-1 — Procurement board empty-filter state.
  * AC-C-PR-1: when filtered.length===0 in board view, renders a single ListState
- * "No requests match your filters" instead of 7 empty stage columns.
+ * "No procurement records match your filters" instead of 7 empty stage columns.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -65,12 +65,12 @@ const renderPage = (search = '') =>
   );
 
 describe('AC-C-PR-1: board view empty-filter state (no 7 empty columns)', () => {
-  it('AC-C-PR-1: board view with zero filter results shows "No requests match your filters"', () => {
+  it('AC-C-PR-1: board view with zero filter results shows "No procurement records match your filters"', () => {
     // URL param ?status=Paid filters the single Requested row out → 0 rows
     renderPage('?status=Paid');
 
     // The empty ListState must be shown, not 7 stage columns
-    expect(screen.getByText(/No requests match your filters/i)).toBeInTheDocument();
+    expect(screen.getByText(/No procurement records match your filters/i)).toBeInTheDocument();
     // The 7 stage columns must NOT be rendered
     expect(screen.queryByTestId('prstage-pr')).toBeNull();
     expect(screen.queryByTestId('prstage-vq')).toBeNull();
@@ -81,8 +81,8 @@ describe('AC-C-PR-1: board view empty-filter state (no 7 empty columns)', () => 
     renderPage();
 
     // With no filter the single Requested row is present → board columns render
-    // "No requests match your filters" must NOT appear when there are results
-    expect(screen.queryByText(/No requests match your filters/i)).toBeNull();
+    // "No procurement records match your filters" must NOT appear when there are results
+    expect(screen.queryByText(/No procurement records match your filters/i)).toBeNull();
     // The board stage column for "Purchase Request" should render
     expect(screen.getByTestId('prstage-pr')).toBeInTheDocument();
   });

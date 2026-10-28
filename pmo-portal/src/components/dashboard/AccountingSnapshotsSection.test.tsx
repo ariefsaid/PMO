@@ -125,7 +125,7 @@ describe('AccountingSnapshotsSection — populated state', () => {
   it('AC-RD-FIN-003: renders Bahasa money labels for accounting snapshots', () => {
     render(<BahasaProvider locale="id"><MemoryRouter><AccountingSnapshotsSection {...emptyProps} actuals={actualsRows} apAging={apRows} arAging={arRows} /></MemoryRouter></BahasaProvider>);
     expect(screen.getByText('Aktual (buku besar ERP)')).toBeInTheDocument();
-    expect(screen.getByText('Utang kepada vendor (AP)')).toBeInTheDocument();
+    expect(screen.getByText('Utang kepada pemasok (AP)')).toBeInTheDocument();
     expect(screen.getByText('Piutang pelanggan (AR)')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Proyek' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Akun' })).toBeInTheDocument();

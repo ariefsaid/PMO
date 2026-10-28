@@ -47,10 +47,10 @@ describe('AC-PROC1 one-page request creation', () => {
 
   it('AC-PROC1-001 shows inline request fields and line editor but no quotations', () => {
     renderCreate();
-    expect(screen.getByRole('heading', { name: /new purchase request/i })).toBeVisible();
+    expect(screen.getByRole('heading', { name: /new procurement/i })).toBeVisible();
     expect(screen.getByLabelText(/title/i)).toBeVisible();
     expect(screen.getByLabelText(/project/i)).toBeVisible();
-    expect(screen.getByLabelText(/vendor/i)).toBeVisible();
+    expect(screen.getByLabelText(/supplier/i)).toBeVisible();
     expect(screen.getByLabelText(/budget category/i)).toBeVisible();
     expect(screen.getByTestId('line-items-section')).toBeVisible();
     expect(screen.queryByText(/quotation/i)).not.toBeInTheDocument();
@@ -92,7 +92,7 @@ describe('AC-PROC1 one-page request creation', () => {
   it('AC-PROC1-004 required title error is inline and blocks creation', () => {
     renderCreate();
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    expect(screen.getByText('A request title is required.')).toBeVisible();
+    expect(screen.getByText('A procurement title is required.')).toBeVisible();
     expect(mocks.createRequest).not.toHaveBeenCalled();
   });
 
@@ -151,7 +151,7 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/some lines were not saved/i);
     expect(screen.getByLabelText(/title/i)).toBeDisabled();
     expect(screen.getByLabelText(/project/i)).toBeDisabled();
-    expect(screen.getByLabelText(/vendor/i)).toBeDisabled();
+    expect(screen.getByLabelText(/supplier/i)).toBeDisabled();
   });
 
   it('AC-PROC1-006 disables line controls while the request is saving', async () => {

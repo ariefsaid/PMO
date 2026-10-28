@@ -26,6 +26,11 @@ describe('erpLinkReasonText', () => {
       .toBe('This invoice is recorded against several projects. Link it from ERPNext per project, or record it in PMO.');
   });
 
+  it('names a supplier invoice in a receipt-before-invoice rule', () => {
+    expect(erpLinkReasonText('gate_receipt_before_invoice', t))
+      .toBe('Your organization requires a goods receipt before a supplier invoice.');
+  });
+
   it('passes server sentences (e.g. the SoD refusal) through unchanged', () => {
     expect(erpLinkReasonText('separation of duties: approver cannot pay own procurement', t))
       .toBe('separation of duties: approver cannot pay own procurement');

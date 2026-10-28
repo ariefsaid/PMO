@@ -17,7 +17,7 @@
   },
   "erpPurchases": {
     "countedInActuals": "Already counted in Actuals.",
-    "backToProcurement": "Procurement requests",
+    "backToProcurement": "Procurement",
     "noAccess": "You don't have access to the organization's purchases",
     "empty": "No purchases from ERPNext yet",
     "emptySub": "They appear here after the next sync once ERPNext is connected.",
@@ -52,6 +52,29 @@
   "budgetCategory": {
     "travelAccommodation": "Travel & accommodation",
     "vehicle": "Vehicle"
+  },
+  "budgetActivation": {
+    "checking": "Checking project dates, line phasing, ERPNext fiscal years and account mapping…",
+    "checkFailed": "Couldn't check budget readiness. Refresh and try again.",
+    "erpUnavailable": "Couldn't check ERPNext; it'll be checked again when the budget is pushed.",
+    "ready": "Ready to activate. ERPNext fiscal years and budget account mappings are available.",
+    "unphased": "Phase every line before activating this multi-year budget. Un-phased categories: {{categories}}.",
+    "unmapped": "Map these budget categories before activating: {{categories}}.",
+    "invalidYear": "Choose a fiscal year listed by ERPNext for these lines: {{lines}}.",
+    "outOfSpan": "These lines use a fiscal year outside the project dates: {{lines}}.",
+    "ambiguousYear": "ERPNext has overlapping fiscal years on {{date}} ({{fiscalYears}}). Ask an administrator to correct the calendar.",
+    "missingStart": "Add a project start date before activating this budget.",
+    "unresolvedStartYear": "ERPNext has no fiscal year for the project start date {{date}}.",
+    "unresolvedEndYear": "ERPNext has no fiscal year for the project end date {{date}}.",
+    "issue": "Budget readiness check found an issue that must be resolved before activation.",
+    "invalidFiscalYearName": "Choose a fiscal year from ERPNext, or leave it blank."
+  },
+  "budgetArchive": {
+    "alsoCancelErpBudgets_one": "Also cancel {{count}} Budget document in ERPNext",
+    "alsoCancelErpBudgets_other": "Also cancel {{count}} Budget documents in ERPNext",
+    "archivedBudgetStillLiveInErp": "ERPNext is still enforcing an archived budget for this project. Cancel the ERPNext Budget documents or activate a new PMO budget.",
+    "cancellationQueuedDetail": "ERPNext will be contacted to cancel {{count}} Budget documents.",
+    "versionArchivedCancellationQueued": "Version archived; ERPNext cancellation queued"
   },
   "erpLinks": {
     "orphansTitle": "ERPNext documents not in a purchase",
@@ -105,7 +128,7 @@
       "currency": "The document’s currency differs from this purchase.",
       "gateRequest": "Your organization requires a purchase request before an order.",
       "gateApprovalOrder": "Your organization requires an approval before an order.",
-      "gateReceipt": "Your organization requires a goods receipt before a vendor invoice.",
+      "gateReceipt": "Your organization requires a goods receipt before a supplier invoice.",
       "gateApprovalPayment": "Your organization requires an approval before payment.",
       "spansProjects": "This invoice is recorded against several projects. Link it from ERPNext per project, or record it in PMO.",
       "sharepointHost": "The file is not on your organization’s SharePoint site.",
@@ -141,5 +164,8 @@
     "supplierCount": "{{count}} suppliers",
     "loadError": "Couldn't load the ERPNext documents not in a purchase",
     "agingTitle": "Unpaid ERPNext invoices (incl. linked)"
+  },
+  "budgetMap": {
+    "overheadsHint": "Direct project cost, not company overhead."
   }
 }

@@ -5,11 +5,6 @@
     "catalogueValue": "Returned for changes"
   },
   {
-    "key": "dashboard.winRate.title",
-    "defaultValue": "Win Rate",
-    "catalogueValue": "Win rate"
-  },
-  {
     "key": "projectDetail.milestones.prewinPlaceholder",
     "defaultValue": "Phase planning starts once this is won",
     "catalogueValue": "Delivery planning starts once this is won"
@@ -23,11 +18,6 @@
     "key": "projectDetail.workOrderValue.errors.value",
     "defaultValue": "Enter the order value as a non-negative amount with no more than 2 decimal places",
     "catalogueValue": "Enter the order value as a non-negative number"
-  },
-  {
-    "key": "bupot.vendor",
-    "defaultValue": "vendor",
-    "catalogueValue": "Vendor"
   },
   {
     "key": "bupot.refusal.conflict",

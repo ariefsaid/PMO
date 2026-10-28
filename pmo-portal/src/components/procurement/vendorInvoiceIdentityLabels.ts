@@ -35,13 +35,13 @@ interface IdentityCopy {
 
 function identityCopy(t: TFunction): IdentityCopy {
   return {
-    reference: t('bupot.identity.vendorReference', 'Vendor invoice reference'),
+    reference: t('bupot.identity.vendorReference', 'Supplier invoice reference'),
     systemNumber: t('bupot.identity.systemNumber', 'System VI number'),
     case: t('bupot.identity.case', 'Case'),
     project: t('bupot.identity.project', 'Project'),
     pmoNumber: t('bupot.identity.pmoNumber', 'PMO project number'),
     billDate: t('bupot.identity.billDate', 'Bill date'),
-    referenceMissing: t('bupot.identity.referenceMissing', 'Vendor invoice reference not recorded'),
+    referenceMissing: t('bupot.identity.referenceMissing', 'Supplier invoice reference not recorded'),
     systemNumberMissing: t('bupot.identity.systemNumberMissing', 'System VI number unavailable'),
     contextPending: t('bupot.identity.contextPending', 'Details loading'),
     contextUnavailable: t('bupot.identity.contextUnavailable', 'Details unavailable'),

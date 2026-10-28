@@ -45,7 +45,7 @@ import IncomingPayments from '../IncomingPayments';
 import { FinanceI18nTestProvider } from './financeI18nTestProvider';
 import { financeTestI18n } from './financeI18nTestInstance';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { currencySymbol, formatCurrencyAuto, instantToZonedDatetimeLocal } from '@/src/lib/format';
+import { currencySymbol, formatCurrencyCents, instantToZonedDatetimeLocal } from '@/src/lib/format';
 import { AppError } from '@/src/lib/appError';
 
 const TODAY = () => instantToZonedDatetimeLocal(new Date(), 'UTC').slice(0, 10);
@@ -480,11 +480,11 @@ describe('Receipt page — every allocation (S-06)', () => {
   it('RF-030/034 lists each invoice the receipt settled with its own amount, linked to the invoice', () => {
     h.payments.data = [erpReceipt({ amount: 95_000, received_amount: 95_000, allocation_details: twoInvoices })];
     renderAt('/incoming-payments/ip-erp');
-    const table = screen.getByRole('table', { name: 'Invoices this receipt settled' });
-    expect(within(table).getByRole('link', { name: 'ACC-SINV-A' })).toHaveAttribute('href', '/sales-invoices/si-a');
-    expect(within(table).getByRole('link', { name: 'ACC-SINV-B' })).toHaveAttribute('href', '/sales-invoices/si-b');
-    expect(within(table).getByText(formatCurrencyAuto(25_000, 'IDR').replace(/\u00a0/g, ' '))).toBeInTheDocument();
-    expect(within(table).getByText(formatCurrencyAuto(30_000, 'IDR').replace(/\u00a0/g, ' '))).toBeInTheDocument();
+    const allocations = screen.getByLabelText('Invoices this receipt settled');
+    expect(within(allocations).getByRole('link', { name: 'ACC-SINV-A' })).toHaveAttribute('href', '/sales-invoices/si-a');
+    expect(within(allocations).getByRole('link', { name: 'ACC-SINV-B' })).toHaveAttribute('href', '/sales-invoices/si-b');
+    expect(within(allocations).getByText(formatCurrencyCents(25_000, 'IDR').replace(/\u00a0/g, ' '))).toBeInTheDocument();
+    expect(within(allocations).getByText(formatCurrencyCents(30_000, 'IDR').replace(/\u00a0/g, ' '))).toBeInTheDocument();
   });
 
   it('keeps settled invoice allocations in cards on phones', () => {
@@ -493,15 +493,15 @@ describe('Receipt page — every allocation (S-06)', () => {
     renderAt('/incoming-payments/ip-erp');
     const cards = screen.getByTestId('dt-card-branch');
     expect(within(cards).getByRole('link', { name: 'ACC-SINV-A' })).toHaveAttribute('href', '/sales-invoices/si-a');
-    expect(within(cards).getByText(formatCurrencyAuto(25_000, 'IDR').replace(/\u00a0/g, ' '))).toBeInTheDocument();
+    expect(within(cards).getByText(formatCurrencyCents(25_000, 'IDR').replace(/\u00a0/g, ' '))).toBeInTheDocument();
     vi.unstubAllGlobals();
   });
   it('does not assign the receipt currency to an allocation whose currency was not reported', () => {
     h.payments.data = [erpReceipt({ allocation_details: [alloc('ACC-SINV-A', '25000.00', 'si-a', null)] })];
     renderAt('/incoming-payments/ip-erp');
-    const table = screen.getByRole('table', { name: 'Invoices this receipt settled' });
-    expect(within(table).getByText('Not reported')).toBeInTheDocument();
-    expect(within(table).queryByText(/25,000/)).toBeNull();
+    const allocations = screen.getByLabelText('Invoices this receipt settled');
+    expect(within(allocations).getByText('Not reported')).toBeInTheDocument();
+    expect(within(allocations).queryByText(/25,000/)).toBeNull();
   });
 
   it('RF-031 states the cash not yet applied to any invoice, separate from the matched cash', () => {
@@ -539,8 +539,8 @@ describe('Receipt page — every allocation (S-06)', () => {
     h.route = 'pmo';
     h.payments.data = [receipt()];
     renderAt('/incoming-payments/ip-1');
-    const table = screen.getByRole('table', { name: 'Invoices this receipt settled' });
-    expect(within(table).getByRole('link', { name: 'INV-2610070001' })).toHaveAttribute('href', '/sales-invoices/si-1');
+    const allocations = screen.getByLabelText('Invoices this receipt settled');
+    expect(within(allocations).getByRole('link', { name: 'INV-2610070001' })).toHaveAttribute('href', '/sales-invoices/si-1');
     expect(screen.queryByTestId('receipt-unapplied')).toBeNull();
   });
 

@@ -26,7 +26,7 @@ const tiles: StatTile[] = [
 
 const detailRows = [
   { label: 'Project', value: 'Meridian Solar Farm' },
-  { label: 'Vendor', value: 'Sunforge Components' },
+  { label: 'Supplier', value: 'Sunforge Components' },
   { label: 'Requested by', value: 'D. Okafor' },
 ];
 
@@ -81,7 +81,7 @@ describe('ProcurementOverviewTab (bento)', () => {
     expect(dl.tagName).toBe('DL');
     expect(within(dl).getByText('Project')).toBeInTheDocument();
     expect(within(dl).getByText('Meridian Solar Farm')).toBeInTheDocument();
-    expect(within(dl).getByText('Vendor')).toBeInTheDocument();
+    expect(within(dl).getByText('Supplier')).toBeInTheDocument();
   });
 
   it('renders the Progression timeline (newest-first, current ring) in the side slot', () => {

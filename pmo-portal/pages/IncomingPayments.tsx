@@ -33,6 +33,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import {
   currencySymbol,
+  formatCurrencyAuto,
   formatCurrencyCents,
   formatDateOnly,
   formatMoneyInputValue,
@@ -356,7 +357,7 @@ const IncomingPayments: React.FC = () => {
       align: 'num',
       cell: (p) => (
         <span className="tabular text-right text-[13px]">
-          {p.amount != null ? formatCurrencyCents(p.amount, p.currency) : '—'}
+          {p.amount != null ? formatCurrencyAuto(p.amount, p.currency) : '—'}
         </span>
       ),
       // A NUMBER, not its string: a text cell is unsummable and locale-fragile (#701).
@@ -370,14 +371,14 @@ const IncomingPayments: React.FC = () => {
     },
     {
       key: 'received_amount', header: t('financeCopy.cashReceived', "Cash received"), align: 'num',
-      cell: (p) => p.received_amount != null ? formatCurrencyCents(p.received_amount, p.currency) : '—',
+      cell: (p) => p.received_amount != null ? formatCurrencyAuto(p.received_amount, p.currency) : '—',
       exportValue: (p) => p.received_amount ?? '',
     },
     {
       // S-06 (RF-032): None = known to be zero; Not reported = the source never said. Unknown is not zero.
       key: 'withheld_amount', header: t('financeCopy.taxWithheld', "Tax withheld"), align: 'num',
       cell: (p) => p.withheld_amount == null ? <span className="text-muted-foreground">{notReported}</span>
-        : p.withheld_amount === 0 ? t('uxs06.none', 'None') : formatCurrencyCents(p.withheld_amount, p.currency),
+        : p.withheld_amount === 0 ? t('uxs06.none', 'None') : formatCurrencyAuto(p.withheld_amount, p.currency),
       exportValue: (p) => p.withheld_amount ?? '',
     },
     {
@@ -386,7 +387,7 @@ const IncomingPayments: React.FC = () => {
       cell: (p) => {
         const unapplied = knownUnappliedCash({ ...p, allocation_details: displayAllocations(p, invoiceNumberOf) });
         return unapplied === null ? <span className="text-muted-foreground">{notReported}</span>
-          : unapplied === 0 ? t('uxs06.none', 'None') : <span className="font-medium">{formatCurrencyCents(unapplied, p.currency)}</span>;
+          : unapplied === 0 ? t('uxs06.none', 'None') : <span className="font-medium">{formatCurrencyAuto(unapplied, p.currency)}</span>;
       },
       exportValue: (p) => knownUnappliedCash({ ...p, allocation_details: displayAllocations(p, invoiceNumberOf) }) ?? '',
     },

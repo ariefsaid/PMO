@@ -23,13 +23,31 @@ test('AC-732 PM creates a Draft, adds line-items {600000,400000}, a second perso
   // cannot turn the confirm dialog into an environment-dependent timeout.
   await page.route('**/functions/v1/adapter-dispatch', async (route) => {
     const body = route.request().postDataJSON() as {
+      action?: string;
       domain?: string;
       operation?: string;
       record?: { id?: string; [key: string]: unknown };
     };
-    expect(body.domain).toBe('budget');
-    expect(body.operation).toBe('create');
-    expect(body.record?.id).toBeTruthy();
+
+    if (body.action === 'budget-activation-precheck') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          status: 'ready',
+          erpCheck: 'available',
+          fiscalYearNames: ['2026', '2027'],
+          issues: [],
+        }),
+      });
+      return;
+    }
+
+    if (body.domain !== 'budget' || body.operation !== 'create') {
+      await route.continue();
+      return;
+    }
+
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -129,7 +147,24 @@ test('AC-732 PM creates a Draft, adds line-items {600000,400000}, a second perso
   await expect(activateDialog).toBeVisible({ timeout: 5_000 });
   const activateConfirmBtn = activateDialog.getByRole('button', { name: 'Activate version', exact: true });
   await expect(activateConfirmBtn).toBeVisible();
+
+  // The adapter endpoint also handles the readiness precheck. Wait for the budget-create
+  // request specifically so that preparatory calls cannot satisfy the push-body oracle.
+  const budgetPushRequest = page.waitForRequest((request) => {
+    if (request.method() !== 'POST' || !request.url().includes('/adapter-dispatch')) return false;
+    const body = request.postDataJSON() as { domain?: string; operation?: string };
+    return body.domain === 'budget' && body.operation === 'create';
+  });
   await activateConfirmBtn.click();
+
+  const pushBody = (await budgetPushRequest).postDataJSON() as {
+    domain?: string;
+    operation?: string;
+    record?: { id?: string; [key: string]: unknown };
+  };
+  expect(pushBody.domain).toBe('budget');
+  expect(pushBody.operation).toBe('create');
+  expect(pushBody.record?.id).toBeTruthy();
 
   // Wait for the dialog to close
   await expect(activateDialog).not.toBeVisible({ timeout: 10_000 });

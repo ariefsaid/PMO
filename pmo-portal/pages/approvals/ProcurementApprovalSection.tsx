@@ -44,7 +44,7 @@ export const ProcurementApprovalSection: React.FC = () => {
   return (
     <Card seam>
       <CardHead className="rounded-t-lg">
-        Purchase requests awaiting you ({countLabel})
+        Procurement records awaiting you ({countLabel})
       </CardHead>
 
       {isPending && (
@@ -58,7 +58,7 @@ export const ProcurementApprovalSection: React.FC = () => {
       {!isPending && isError && (
         <ListState
           variant="error"
-          title="Couldn't load purchase requests"
+          title="Couldn't load procurement records"
           sub="Something went wrong fetching requests awaiting you."
           onRetry={() => refetch()}
           className="rounded-b-lg"
@@ -69,8 +69,8 @@ export const ProcurementApprovalSection: React.FC = () => {
         <ListState
           variant="empty"
           icon="inbox"
-          title="No requests awaiting your decision"
-          sub="Purchase requests that need your approval will appear here."
+          title="No procurement records awaiting your decision"
+          sub="Procurement records that need your approval will appear here."
           className="rounded-b-lg"
         />
       )}

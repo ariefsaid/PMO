@@ -178,7 +178,7 @@ describe('PMDashboard Project Status margin — no false-green (I2)', () => {
     renderPane();
     // Server read model reports 25% profit margin on billed work.
     const allText = document.body.textContent ?? '';
-    expect(allText).toContain('25.0%');
+    expect(allText).toContain('25%');
     // G3: delivery rows without a margin read a concrete "Not set" value,
     // never a bare em-dash placeholder (the "—" in the section heading separator
     // is typographic, not a value placeholder, so we scope to the list rows).
@@ -306,7 +306,10 @@ describe('AC-1238: PM dashboard counts only active-delivery projects', () => {
       { ...mine[1], currency: 'IDR', actual_currency: 'IDR', budget_currency: 'IDR' },
     ];
     renderPane();
-    expect(within(screen.getByTestId('kpi-my-contract-value')).getByRole('button', { name: 'Not available yet' })).toHaveTextContent('—');
+    const contractTile = screen.getByTestId('kpi-my-contract-value');
+    expect(within(contractTile).getByRole('status')).toHaveTextContent('Not available yet');
+    expect(contractTile).not.toHaveTextContent('$0');
+    expect(contractTile).not.toHaveTextContent('—');
   });
 });
 
@@ -325,7 +328,7 @@ describe('AC-1238: PM project-status row legibility', () => {
     const statusCard = screen.getByRole('region', { name: 'Project Status' });
     const row = within(statusCard).getByRole('link', { name: 'My Project A' }).closest('li') as HTMLElement;
     expect(within(row).getByText('Margin')).toBeInTheDocument();
-    expect(within(row).getByRole('img', { name: 'My Project A margin to date: 25.0%' })).toBeInTheDocument();
+    expect(within(row).getByRole('img', { name: 'My Project A margin to date: 25%' })).toBeInTheDocument();
     expect(statusCard.querySelector('[class*="outline-offset-2"]')).toBeNull();
   });
 });

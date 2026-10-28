@@ -61,7 +61,7 @@ echo "==> disler/super-simple-software-factory — the sssf orchestrator skill (
 # The factory itself is STAMPED into the repo (adws/, tracked) — this vendors the operating
 # skill (/sssf routing, cookbooks, the visualizer). PMO adaptations live in the stamped files,
 # not skill overrides: the roster (adws/adw_sssf_config/sssf.config.yaml) runs zai + openai-codex
-# per docs/pi-delegation.md §2 — openrouter/fireworks (upstream's defaults) are banned here.
+# per docs/archive/pi-delegation.md §2 — openrouter/fireworks (upstream's defaults) are banned here.
 git clone --depth 1 https://github.com/disler/super-simple-software-factory.git "$TMP/sssf"
 rm -rf "${DEST:?}/sssf"
 cp -R "$TMP/sssf/.claude/skills/sssf" "$DEST/sssf"
@@ -78,10 +78,10 @@ if [ -f "$DEST/impeccable/scripts/context.mjs" ]; then
   rm -f "$DEST/impeccable/scripts/context.mjs.bak"
 fi
 
-echo "==> taste (Leonxlnx/taste-skill — v1 stable) — anti-slop craft discipline"
+echo "==> taste (Leonxlnx/taste-skill) — anti-slop craft discipline"
 git clone --depth 1 https://github.com/Leonxlnx/taste-skill.git "$TMP/taste"
 rm -rf "${DEST:?}/taste"
-cp -R "$TMP/taste/skills/taste-skill-v1" "$DEST/taste"
+cp -R "$TMP/taste/skills/taste-skill" "$DEST/taste"
 
 echo "==> ui-ux-pro-max (nextlevelbuilder) — CORE skills only (skip Gemini generative sub-skills)"
 git clone --depth 1 https://github.com/nextlevelbuilder/ui-ux-pro-max-skill.git "$TMP/uupm"

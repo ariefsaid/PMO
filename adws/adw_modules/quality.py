@@ -241,7 +241,7 @@ def build(run) -> QualityCheckResult:
 def pgtap(run) -> QualityCheckResult:
     """RLS/tenancy/role contracts. reset+test chained inside ONE db-lock hold —
     separate holds let a sibling worktree's reset land in between and produce
-    false REDs and false GREENs alike (CLAUDE.md, pi-delegation §8)."""
+    false REDs and false GREENs alike (CLAUDE.md, docs/orca-dispatch.md)."""
     return _run(QualityCheckSpec(
         name="pgtap",
         area="db",

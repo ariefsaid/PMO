@@ -98,10 +98,10 @@ const renderExec = () =>
   );
 
 describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
-  it('AC-IXD-DASH-W5-C2A-EXEC-1: the active-projects count (on the contract tile, SL-B) drills to /projects?filter=Ongoing', () => {
+  it('AC-IXD-DASH-W5-C2A-EXEC-1: the Ongoing-project count names its set and drills to /projects?filter=Ongoing', () => {
     renderExec();
     const tile = screen.getByTestId('kpi-total-contract-value');
-    expect(tile).toHaveTextContent(/\d+ active projects/);
+    expect(tile).toHaveTextContent(/\d+ Ongoing projects/i);
     expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=Ongoing');
   });
 
@@ -190,7 +190,7 @@ describe('AC-IXD-DASH-W5-C2A — Finance dashboard KPI drills', () => {
     const tile = screen.getByTestId('kpi-outstanding');
     const label = within(tile).getByRole('link').getAttribute('aria-label');
     expect(label).toBeTruthy();
-    expect(label!.toLowerCase()).toContain('vendor');
+    expect(label!.toLowerCase()).toContain('supplier');
   });
 
   it('AC-UX-017: the margin-to-date tile is not a link that implies cash or profit finality', () => {

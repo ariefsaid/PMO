@@ -19,7 +19,7 @@
  * ResponsiveContainer mount-flash (tracked separately).
  *
  * AC-PR-027 UPDATE: the procurement-detail route is now a tabbed record shell
- * (`/procurement/:id/:tab` — Overview · Line items · Documents · Vendor quotes).
+ * (`/procurement/:id/:tab` — Overview · Line items · Documents · supplier quotes).
  * Each tab renders different content; ALL FOUR tabs must pass the no-bleed gate.
  * The old single `/procurement/:id` entry is replaced by four explicit tab entries.
  */

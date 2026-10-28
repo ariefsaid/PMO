@@ -20,8 +20,13 @@ vi.mock('@/src/lib/analytics', async importOriginal => ({
 } satisfies Analytics));
 
 // Oracle payload — extended dual-lens fields (no avg_gross_margin)
-const populated = {
+const populated: ExecutiveDashboardData = {
   active_projects: 2,
+  active_delivery_projects: 2,
+  active_delivery_actual_project_count: 2,
+  active_delivery_actual_project_total: 2,
+  active_delivery_actual_coverage_count: 2,
+  active_delivery_actual_coverage_total: 2,
   total_contract_value: 8000000,
   on_hand_margin: 0.949375,
   on_hand_value: 8000000 as number | null,
@@ -33,7 +38,7 @@ const populated = {
   on_hand_actual_coverage_count: 2,
   on_hand_actual_coverage_total: 2,
   on_hand_value_by_currency: [{ currency: 'USD', contract_value: 8000000, actual_known: 4000000, contract_remaining: 7595000, actual_coverage_count: 2, actual_coverage_total: 2, realized_margin_known: 1200000, unknown_projects: 0 }],
-  on_hand_realized_margin_by_currency: [{ currency: 'USD', known_amount: 1200000, unknown_projects: 0 }],
+  on_hand_realized_margin_by_currency: [{ currency: 'USD', known_amount: 1200000, known_billed_revenue: 7200000, unknown_projects: 0 }],
   pipeline_weighted_value: 800000,
   pipeline_projected_margin: 0.200 as number | null,
   pipeline_total_value: 2000000,
@@ -75,7 +80,7 @@ function resetWinRateRangeTracker(): void {
 }
 
 const dashState: {
-  data: (typeof populated & Pick<ExecutiveDashboardData, 'on_hand_value_by_currency' | 'on_hand_realized_margin_by_currency'>) | null;
+  data: ExecutiveDashboardData | null;
   isPending: boolean;
   isError: boolean;
   refetch: ReturnType<typeof vi.fn>;
@@ -129,7 +134,7 @@ describe('ExecutiveDashboard (real data)', () => {
     expect(screen.getAllByText(/Risk can't be checked yet/)).toHaveLength(1);
     expect(screen.queryByTestId('kpi-pipeline-projected-margin')).not.toBeInTheDocument();
     expect(screen.queryByTestId('kpi-active-projects')).not.toBeInTheDocument();
-    expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('2 active projects');
+    expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('2 Ongoing projects');
     const marginCard = screen.getByTestId('dashboard-pipeline-margin');
     expect(within(marginCard).getByText('Pipeline (weighted)')).toBeInTheDocument();
     expect(within(marginCard).queryByText('Pipeline forecast margin')).toBeNull();
@@ -185,7 +190,7 @@ describe('ExecutiveDashboard (real data)', () => {
     expect(tile).not.toHaveTextContent('Not available yet');
   });
 
-  it('AC-RD-UNAVAIL-001: an unknowable margin or amount is a dash with the reason, not prose in the figure slot', () => {
+  it('AC-RD-UNAVAIL-001: an unknowable margin is omitted and an unknown amount shows its reason without a dash', () => {
     dashState.data = {
       ...populated,
       pipeline_projected_margin: null as unknown as number,
@@ -195,8 +200,9 @@ describe('ExecutiveDashboard (real data)', () => {
     // SL-B: an uncomputable margin has no tile at all (never a dash-only or prose tile).
     expect(screen.queryByTestId('kpi-pipeline-projected-margin')).not.toBeInTheDocument();
     const weighted = screen.getByTestId('kpi-pipeline-weighted-value');
-    expect(within(weighted).getByRole('button', { name: 'Not available yet' })).toHaveTextContent('—');
-    expect(within(weighted).queryByText('Not available yet', { selector: ':not(.sr-only)' })).toBeNull();
+    expect(within(weighted).getByRole('status')).toHaveTextContent('Not available yet');
+    expect(within(weighted).queryByText('—')).not.toBeInTheDocument();
+    expect(within(weighted).queryByRole('button', { name: 'Not available yet' })).not.toBeInTheDocument();
   });
 
   it('gives active contract value its own label distinct from contract value on hand', () => {
@@ -215,9 +221,68 @@ describe('ExecutiveDashboard (real data)', () => {
     expect(within(screen.getByTestId('dashboard-pipeline-margin')).getByText('Pipeline (weighted)')).toBeInTheDocument();
   });
 
-  it('renders Active Projects = 2 and Total Contract Value $8,000,000 (AC-701)', () => {
+  it('D-003: the pipeline bars are titled for weighted value, not projected margin', () => {
     renderPage();
-    expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('2 active projects');
+
+    const card = screen.getByTestId('dashboard-pipeline-margin');
+    expect(within(card).getByRole('heading', { name: 'Pipeline (weighted)' })).toBeInTheDocument();
+    expect(within(card).queryByText('20.0%')).toBeNull();
+  });
+
+  it('AC-1414: margin percentage uses billed revenue from the same known-margin projects', () => {
+    dashState.data = {
+      ...populated,
+      on_hand_realized_margin_by_currency: [
+        { currency: 'USD', known_amount: 1_200_000, known_billed_revenue: 7_200_000, unknown_projects: 1 },
+      ],
+    };
+    renderPage();
+
+    const tile = screen.getByTestId('kpi-on-hand-margin');
+    expect(tile).toHaveTextContent('$1.2M');
+    expect(tile).toHaveTextContent('16.7% of billed revenue for projects with known margin');
+  });
+
+  it('AC-1414: keeps the known margin amount and omits its percentage without billed revenue', () => {
+    dashState.data = {
+      ...populated,
+      on_hand_realized_margin_by_currency: [
+        { currency: 'USD', known_amount: 1_200_000, known_billed_revenue: null, unknown_projects: 1 },
+      ],
+    };
+    renderPage();
+
+    const tile = screen.getByTestId('kpi-on-hand-margin');
+    expect(tile).toHaveTextContent('$1.2M');
+    expect(tile).not.toHaveTextContent('of billed revenue');
+  });
+
+  it('D-004: mobile actual coverage and at-risk copy share the active-delivery denominator', () => {
+    desktop.value = false;
+    dashState.data = {
+      ...populated,
+      active_projects: 5,
+      active_delivery_projects: 7,
+      active_delivery_actual_project_count: 2,
+      active_delivery_actual_project_total: 7,
+      active_delivery_actual_coverage_count: 5,
+      active_delivery_actual_coverage_total: 7,
+      on_hand_actual_project_count: 1,
+      on_hand_actual_project_total: 5,
+      projects_at_risk: 1,
+    };
+    renderPage();
+
+    expect(screen.getByTestId('dashboard-at-risk')).toHaveTextContent('of 7 active delivery projects flagged');
+    expect(screen.getByTestId('dashboard-at-risk')).toHaveTextContent('Actual available for 2 of 7 active delivery projects');
+    expect(screen.getByTestId('mobile-kpi-total-contract-value')).toHaveTextContent('5 Ongoing projects');
+    const spendDrill = screen.getByRole('link', { name: /Open Ongoing, Won, Pending KoM, and On Hold projects/ });
+    expect(spendDrill).toHaveAttribute('href', '/projects?filter=Ongoing');
+  });
+
+  it('renders Ongoing projects = 2 and Total Contract Value $8,000,000 (AC-701)', () => {
+    renderPage();
+    expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('2 Ongoing projects');
     expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('$8,000,000');
   });
 
@@ -269,7 +334,7 @@ describe('ExecutiveDashboard (real data)', () => {
       'href',
       '/procurement?status=Requested',
     );
-    expect(within(chart).getByRole('link', { name: /Vendor Quote/ })).toHaveAttribute(
+    expect(within(chart).getByRole('link', { name: /Supplier Quote/ })).toHaveAttribute(
       'href',
       '/procurement?status=Vendor%20Quoted',
     );
@@ -281,17 +346,17 @@ describe('ExecutiveDashboard (real data)', () => {
       'href',
       '/procurement?status=Received',
     );
-    expect(within(chart).getByRole('link', { name: /Vendor Invoice/ })).toHaveAttribute(
+    expect(within(chart).getByRole('link', { name: /Supplier Invoice/ })).toHaveAttribute(
       'href',
       '/procurement?status=Vendor%20Invoiced',
     );
   });
 
-  it('AC-S19-004: no PMO requests is clear while ERP-native purchasing stays in scope copy', () => {
+  it('AC-S19-004: no PMO procurement records is clear while ERP-native purchasing stays in scope copy', () => {
     dashState.data = { ...populated, procurements_by_status: [] };
     renderPage();
     const chart = screen.getByTestId('dashboard-proc-status');
-    expect(within(chart).getByText('No PMO requests to show')).toBeInTheDocument();
+    expect(within(chart).getByText('No procurement records to show')).toBeInTheDocument();
     expect(chart).toHaveTextContent('ERP-native purchases are outside this PMO request chart.');
   });
   it('spending-vs-contract list shows project names and contract denominator', () => {
@@ -353,17 +418,17 @@ describe('ExecutiveDashboard dual-lens tiles (AC-1114 / FR-SPD-012)', () => {
     const weighted = screen.getByTestId('kpi-pipeline-weighted-value');
     expect(weighted).toHaveTextContent('$800K');
     expect(weighted.querySelector('[title="$800,000"]')).not.toBeNull();
-    // Pipeline forecast-margin tile shows ONLY the weighted pipeline projected margin (20.0%) —
+    // Pipeline forecast-margin tile shows ONLY the weighted pipeline projected margin (20%) —
     // the dual on-hand↔weighted toggle was removed (AC-IXD-DASH-002: one metric name = one number).
-    expect(screen.getByTestId('kpi-pipeline-projected-margin')).toHaveTextContent('20.0%');
+    expect(screen.getByTestId('kpi-pipeline-projected-margin')).toHaveTextContent('20%');
     expect(screen.queryByTestId('kpi-avg-gross-margin')).toBeNull();
   });
 
   it('AC-IXD-DASH-002: the forecast-margin tile shows weightedPct only — no lens toggle', () => {
     renderPage();
     const tile = screen.getByTestId('kpi-pipeline-projected-margin');
-    // Weighted pipeline projected margin 20.0%, with no on-hand option to toggle to.
-    expect(tile).toHaveTextContent('20.0%');
+    // Weighted pipeline projected margin 20%, with no on-hand option to toggle to.
+    expect(tile).toHaveTextContent('20%');
     expect(screen.queryByRole('tab', { name: /Weighted/i })).toBeNull();
     expect(screen.queryByRole('tab', { name: /On-hand/i })).toBeNull();
   });
@@ -401,8 +466,8 @@ describe('ExecutiveDashboard Procurement-by-Status drill links (AC-JR-W1-10)', (
 
   it('AC-JR-W1-10: procurement status links use encodeURIComponent for statuses with spaces', () => {
     renderPage();
-    // "Vendor Quote" has a space — the raw status value is still encoded unchanged.
-    const vendorLink = screen.getByRole('link', { name: /Vendor Quote/i });
+    // "Supplier Quote" has a space — the raw status value is still encoded unchanged.
+    const vendorLink = screen.getByRole('link', { name: /Supplier Quote/i });
     expect(vendorLink).toHaveAttribute('href', '/procurement?status=Vendor%20Quoted');
   });
 });

@@ -45,5 +45,8 @@
     "openNamed": "Buka {{name}}",
     "partial": "Hanya menampilkan file pertama. Buka folder di Microsoft untuk melihat sisanya.",
     "open": "Buka"
+  },
+  "notice": {
+    "expiredFolder": "Koneksi Microsoft 365 telah kedaluwarsa. Hubungkan ulang untuk melihat file folder ini."
   }
 }

@@ -20,8 +20,8 @@ import { MemoryRouter, Route, Routes } from 'react-router';
  *
  *  AC-IXD-WP-003 — a `ConfirmDialog` opens for the CONSEQUENTIAL set
  *    {Approve, Reject, Cancel, Mark-as-Paid} and does NOT open for the ROUTINE
- *    reversible forward steps {Submit Request, Request Vendor Quotes,
- *    Generate Purchase Order, Confirm Receipt, Mark Vendor Invoiced} — those
+ *    reversible forward steps {Submit Request, request supplier quotes,
+ *    Generate Purchase Order, Confirm Receipt, mark supplier invoiced} — those
  *    commit on a single click + a quiet toast.
  *
  *  AC-IXD-WP-002 (component half) — the kept Approve + Mark-as-Paid confirms
@@ -177,9 +177,9 @@ beforeEach(() => {
 // AC-IXD-WP-003 — routine forward steps are SINGLE-CLICK (no confirm)
 // ---------------------------------------------------------------------------
 describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no confirm)', () => {
-  it('AC-IXD-WP-003: Submit Request (Draft→Requested) commits on a single click — no dialog', async () => {
+  it('AC-IXD-WP-003: Submit for approval (Draft→Requested) commits on a single click — no dialog', async () => {
     mockEffectiveRole = 'Engineer';
-    // AC-W3-D10: Submit Request is only enabled when ≥1 line item is present.
+    // AC-W3-D10: Submit for approval is only enabled when ≥1 line item is present.
     detailState.data = {
       ...baseProcurement,
       status: 'Draft',
@@ -188,7 +188,7 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
       items: [{ id: 'it1', org_id: 'org-1', procurement_id: 'proc-001', name: 'Widget', description: null, quantity: 1, rate: 500, amount: 500 }],
     };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /submit request/i }));
+    await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
 
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryByRole('alertdialog')).toBeNull();
@@ -197,10 +197,10 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
     );
   });
 
-  it('AC-IXD-WP-003: Request Vendor Quotes (Approved→Vendor Quoted) commits on a single click — no dialog', async () => {
+  it('AC-IXD-WP-003: request supplier quotes (Approved→Vendor Quoted) commits on a single click — no dialog', async () => {
     detailState.data = { ...baseProcurement, status: 'Approved', requested_by_id: 'u-other' };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /request vendor quotes/i }));
+    await userEvent.click(screen.getByRole('button', { name: /request supplier quotes/i }));
 
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryByRole('alertdialog')).toBeNull();
@@ -233,13 +233,13 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
     );
   });
 
-  it('AC-IXD-WP-003: Mark Vendor Invoiced (Received→Vendor Invoiced) — O3 deliberate change: opens inline capture (no modal confirm), and transition commits when the inline capture is submitted', async () => {
-    // O3 (AC-W3-O3): clicking "Mark Vendor Invoiced" now opens an inline capture panel
+  it('AC-IXD-WP-003: mark supplier invoiced (Received→Vendor Invoiced) — O3 deliberate change: opens inline capture (no modal confirm), and transition commits when the inline capture is submitted', async () => {
+    // O3 (AC-W3-O3): clicking "mark supplier invoiced" now opens an inline capture panel
     // to co-locate invoice details with the transition (deliberate UX change). There is
     // still no ConfirmDialog modal — the inline panel IS the capture step.
     detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other' };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /mark vendor invoiced/i }));
+    await userEvent.click(screen.getByRole('button', { name: /mark supplier invoiced/i }));
 
     // No modal dialog — the inline capture panel takes over (no confirm dialog surface).
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -262,12 +262,12 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
   it('AC-IXD-WP-003: a routine single-click forward step fires a quiet success toast', async () => {
     detailState.data = { ...baseProcurement, status: 'Approved', requested_by_id: 'u-other' };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /request vendor quotes/i }));
-    // AC-IXD-PROC-001: the toast names the CANONICAL state ("Vendor Quote") — the
+    await userEvent.click(screen.getByRole('button', { name: /request supplier quotes/i }));
+    // AC-IXD-PROC-001: the toast names the CANONICAL state ("Supplier Quote") — the
     // same noun the badge shows — not the raw enum value ("Vendor Quoted"). The
     // quiet-success-toast goal-oracle is unchanged; only the canonical label is asserted.
     await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith('Request updated', expect.stringContaining('Vendor Quote'), 'success'),
+      expect(toast).toHaveBeenCalledWith('Procurement updated', 'Moved to Supplier Quote', 'success'),
     );
   });
 });
@@ -292,10 +292,10 @@ describe('AC-IXD-WP-003: consequential procurement actions still confirm', () =>
     expect(mockTransition).not.toHaveBeenCalled();
   });
 
-  it('AC-IXD-WP-003: Cancel request opens a destructive confirm and does NOT write on the first click', async () => {
+  it('AC-IXD-WP-003: Cancel procurement opens a destructive confirm and does NOT write on the first click', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^cancel request$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^cancel procurement$/i }));
     expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     expect(mockTransition).not.toHaveBeenCalled();
   });

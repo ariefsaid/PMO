@@ -57,7 +57,9 @@ function mockWritableTaskSupabase(): HandlerDeps['supabase'] {
       if (table === 'tasks') {
         return {
           update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue({ data: null, error: null }),
+            eq: vi.fn().mockReturnValue({
+              select: vi.fn().mockResolvedValue({ data: [{ id: 'task-1', status: 'Done' }], error: null }),
+            }),
           }),
           select: vi.fn().mockReturnValue({
             limit: vi.fn().mockResolvedValue({ data: [], error: null }),

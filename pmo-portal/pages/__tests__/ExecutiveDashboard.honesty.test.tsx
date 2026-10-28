@@ -117,8 +117,8 @@ describe('ExecutiveDashboard honesty — labels match values (AC-IXD-DASH-001/00
     renderPage();
     const tile = screen.getByTestId('kpi-pipeline-projected-margin');
     expect(within(tile).getByText(/Pipeline forecast margin/i)).toBeInTheDocument();
-    // It shows ONLY the weighted pipeline projected margin (20.0%) — no on-hand option.
-    expect(tile).toHaveTextContent('20.0%');
+    // It shows ONLY the weighted pipeline projected margin (20%) — no on-hand option.
+    expect(tile).toHaveTextContent('20%');
     // No dual-lens toggle remains (one metric name = one number).
     expect(within(tile).queryByRole('tab', { name: /On-hand/i })).toBeNull();
     expect(within(tile).queryByRole('tab', { name: /Weighted/i })).toBeNull();
@@ -130,12 +130,11 @@ describe('ExecutiveDashboard honesty — labels match values (AC-IXD-DASH-001/00
     expect(screen.queryByText(/^Projected margin$/i)).toBeNull();
   });
 
-  it('DASH-002: the pipeline-margin CHART panel heading matches the tile noun "Pipeline forecast margin"', () => {
+  it('DASH-002: the weighted-pipeline chart panel names the value it shows', () => {
     renderPage();
-    // The chart panel that visualizes the same metric reads the SAME canonical noun as the tile —
-    // not the divergent "Pipeline — Projected Margin".
+    // The bars show weighted pipeline value, so the heading must not call them a margin chart.
     const panel = screen.getByTestId('dashboard-pipeline-margin');
-    expect(within(panel).getByText('Pipeline forecast margin')).toBeInTheDocument();
+    expect(within(panel).getByRole('heading', { name: 'Pipeline (weighted)' })).toBeInTheDocument();
     expect(screen.queryByText(/Pipeline\s*—\s*Projected Margin/i)).toBeNull();
   });
 });

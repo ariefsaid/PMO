@@ -48,7 +48,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 import { Rail } from '../Rail';
 import { FeatureRoute } from '@/src/components/FeatureRoute';
 
-const FINANCE_ITEMS = [/Sales Invoices/i, /Incoming Payments/i, /Revenue by Project/i, /Management pack/i];
+const FINANCE_ITEMS = [/Sales Invoices/i, /Incoming Payments/i, /Revenue by Project/i, /Reports/i];
 
 const ownershipRow = (domain: string) => ({ domain, externalTier: 'erpnext' });
 

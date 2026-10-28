@@ -99,7 +99,7 @@ never write app code yourself — you delegate and **verify**.
 - **Model choice:** opus for planning, all review, security, and hard/security build slices; sonnet
   for routine implementation, QA runs, releases; haiku for mechanical edits.
   **pi-trial alternative:** when delegating role work to the pi CLI (GLM/codex substrates), follow
-  `docs/pi-delegation.md` — routing, invocation, brief structure, verification gotchas.
+  `docs/archive/pi-delegation.md` — routing, invocation, brief structure, verification gotchas.
 - **Worktree isolation** (`isolation: "worktree"`) when an agent mutates files and you want it isolated.
 
 ## 3a. Route the executor first; chain issues, don't pace them one at a time
@@ -108,13 +108,15 @@ never write app code yourself — you delegate and **verify**.
 > Claude subagents in a parallel burst). Both were pre-factory. An agent that follows the old default
 > spends an owner checkpoint per issue that the routing removed — the failure recorded on 2026-08-19.
 
+> **Superseded 2026-10-27:** every executor below is now an Orca worker — `docs/orca-dispatch.md`. Routing *classes* (bounded slice · money/auth tier · foggy) still hold.
+
 **Default = the ADW builds it, and issues chain.** Before starting any build, route it:
 
 | Issue shape | Executor |
 |---|---|
 | Bounded code slice (incl. ordinary schema/migration work) | **`uv run adws/adw_simple_sdlc.py <brief.md>`** — own worktree, tmux-detached |
 | Bounded FE/UI slice | same chain, `--builder fe_builder --reviewer fe_reviewer` |
-| Money-path · SoD · auth/token-custody · anything `review-money`-tier | **Director-dispatched** per issue (pi, `docs/pi-delegation.md`) — never the factory |
+| Money-path · SoD · auth/token-custody · anything `review-money`-tier | **Director-dispatched** per issue (pi, `docs/archive/pi-delegation.md`) — never the factory |
 | Foggy / multi-issue / decision-shaped | `/wayfinder` first |
 
 Inside a **signed milestone brief** the Director chains these **without pausing at issue boundaries**;
@@ -135,7 +137,7 @@ exploit a window of abundant Claude weekly quota). When parallel, the wave model
   PR; **CI runs each PR's isolated Postgres + pgTAP + e2e in parallel** (public repo ⇒ unlimited Actions; see
   `docs/environments.md` "CI is the isolated-DB-per-PR pool"). Verify from CI + light local; merge one PR at a time.
 - **Executor:** per the routing table above — **ADW first**. `pi` is the Director's own dispatch surface for
-  the money/auth tier (`docs/pi-delegation.md`); Claude `Task` subagents are a last resort for a parallel
+  the money/auth tier (`docs/archive/pi-delegation.md`); Claude `Task` subagents are a last resort for a parallel
   burst when both substrates are saturated. Neither replaces the ADW for a bounded slice.
 - **Ceiling = Director verification bandwidth ⇒ keep ≤ 3–4 streams in flight.** Beyond that the Director
   starts trusting instead of verifying — the failure the 3-reviewer battery exists to prevent.
@@ -168,7 +170,7 @@ Each `AC-###` is owned by **one** test at the **lowest sufficient layer**:
   separate gated promote (`CLAUDE.md` Branch flow). Branching off `main` also means CI verifies the wrong
   merge commit. Branch names: `feat/`, `chore/`, `test/`, `perf/`.
 - `release-engineer` pushes on the builder's evidence from the **local final gate** (CLAUDE.md): typecheck,
-  lint on touched files, `vitest run --changed origin/dev`, the touched e2e journeys, and the touched pgTAP
+  lint on touched files, the directly touched test files (never a local full suite — CI shards are the proof, OD-LOCAL-GATE-LIGHT), the touched e2e journeys, and the touched pgTAP
   files (`supabase test db <files>`) for DB changes — re-running only a check it doubts. The full suite runs
   in CI on the PR and decides the merge — never merge on a red or unrun check.
 - For a PR targeting `main`, CI's `verify` + `integration` (pgTAP, both e2e lanes, consent, visual,

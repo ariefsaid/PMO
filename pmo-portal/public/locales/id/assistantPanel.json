@@ -1,0 +1,23 @@
+{
+  "title": "Tanya asisten Anda",
+  "visibility": "Saya hanya dapat melihat data yang dapat Anda lihat.",
+  "readOnly": "Untuk saat ini, jawaban hanya dapat dibaca.",
+  "examples": {
+    "projectSchedule": "Proyek saya mana yang terlambat dari jadwal?",
+    "openOpportunities": "Berapa peluang terbuka yang saya miliki pada kuartal ini?",
+    "companiesWithoutProjects": "Tampilkan perusahaan saya yang tidak memiliki proyek aktif."
+  },
+  "suggestions": {
+    "projectStatus": "Ringkas status proyek ini.",
+    "projectOverdueTasks": "Tugas mana pada proyek ini yang terlambat?",
+    "projectBudget": "Tampilkan anggaran dan realisasi proyek ini.",
+    "procurementSummary": "Ringkas catatan pengadaan ini.",
+    "procurementNextStep": "Apa langkah berikutnya untuk pengadaan ini?",
+    "procurementOpenItems": "Item mana pada pengadaan ini yang masih terbuka?",
+    "companyActiveWork": "Ringkas pekerjaan aktif perusahaan ini.",
+    "companyOpportunities": "Tampilkan peluang terbuka perusahaan ini.",
+    "companyProjects": "Proyek apa saja yang dimiliki perusahaan ini?",
+    "contactActivity": "Ringkas aktivitas terbaru dengan kontak ini.",
+    "contactOpenItems": "Item terbuka apa saja yang melibatkan kontak ini?"
+  }
+}

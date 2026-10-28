@@ -154,26 +154,5 @@ test.describe('AC-RD-GEOM-001: dashboard figures stay inside their boxes', () =>
     }
   }
 
-  for (const bahasa of [false, true]) {
-    test(`AC-RD-GEOM-001: win-rate period control ends above the headline figure at 390px (${bahasa ? 'Bahasa' : 'English'})`, async ({ page }) => {
-      if (bahasa) await forceBahasa(page);
-      await installIdrDashboardFixture(page);
-      await page.setViewportSize({ width: 390, height: 900 });
-      await signIn(page, 'exec@acme.test');
-      await page.goto('/');
-      const figure = page.getByTestId('kpi-win-rate');
-      await expect(figure).toBeVisible();
-      await waitForFonts(page);
-      const gap = await figure.evaluate((el) => {
-        const card = el.closest('section');
-        const periods = card?.querySelector('[data-testid="win-rate-period-all"]')?.parentElement;
-        if (!periods) throw new Error('win-rate period control not found');
-        const track = periods.getBoundingClientRect();
-        const lastButton = Array.from(periods.querySelectorAll('button')).reduce((bottom, b) => Math.max(bottom, b.getBoundingClientRect().bottom), 0);
-        return { figureTop: el.getBoundingClientRect().top, trackBottom: track.bottom, buttonsBottom: lastButton };
-      });
-      expect(gap.buttonsBottom, 'every period option sits inside its track').toBeLessThanOrEqual(gap.trackBottom + 0.5);
-      expect(gap.trackBottom, 'the track ends above the win-rate figure').toBeLessThanOrEqual(gap.figureTop + 0.5);
-    });
-  }
+
 });

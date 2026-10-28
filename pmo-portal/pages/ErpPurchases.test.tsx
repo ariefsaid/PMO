@@ -31,6 +31,7 @@ describe('ErpPurchases page', () => {
     expect(screen.getAllByText('Tower Retrofit').length).toBeGreaterThan(0);
     expect(screen.getAllByText('No project').length).toBeGreaterThan(0);
     expect(screen.getAllByRole('button', { name: /^Link PUR-ORD-/ })).toHaveLength(2);
+    expect(screen.getByRole('link', { name: 'Procurement' })).toHaveAttribute('href', '/procurement');
   });
 
   it('reads the default orphan list (set-aside documents are not in it), so its count matches the rows shown', () => {
@@ -58,7 +59,7 @@ describe('ErpPurchases page', () => {
     purchasesMock.mockReturnValue({ data: undefined });
     renderPage();
     expect(screen.getByText("You don't have access to the organization's purchases")).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Procurement requests' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Procurement' })).toBeNull();
     expect(purchasesMock).toHaveBeenLastCalledWith(undefined, { enabled: false });
   });
 });

@@ -72,6 +72,8 @@ vi.mock('@/src/hooks/useBudget', () => ({
   // line-items). Return 4,700,000 to match the seed project so the 50% util assertion holds.
   useProjectBudget: () => ({ data: 4_700_000, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => ({ data: budgetVersionsBox.value, isPending: false, isError: false, refetch: vi.fn() }),
+  useBudgetActivationPrecheck: () => ({ data: undefined, isPending: false, isError: false }),
+  useBudgetArchiveTargets: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetActivationMode: () => ({ data: undefined, isPending: false, isError: false }),
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: vi.fn() }, activate: { mutateAsync: vi.fn() },
@@ -144,10 +146,26 @@ vi.mock('react-router', async (orig) => {
 // after a tab click (which goes to /projects/:projectId/:tab) keeps rendering ProjectDetail.
 const freshClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
+const preloadTab = async (path: string | { pathname: string }) => {
+  const pathname = typeof path === 'string' ? path : path.pathname;
+  const tab = pathname.split('/')[3] ?? 'overview';
+  switch (tab) {
+    case 'budget': await import('../tabs/BudgetTab'); break;
+    case 'procurement': await import('../tabs/ProcurementTab'); break;
+    case 'tasks': await import('../tabs/TasksTab'); break;
+    case 'documents': await import('../tabs/DocumentsTab'); break;
+    case 'work-orders': await import('../tabs/WorkOrdersTab'); break;
+    case 'billing': await import('../tabs/BillingTab'); break;
+    default: await import('../tabs/OverviewTab');
+  }
+};
+
 // list-working-set-return (#682, AC-LRC-003): a plain string entry is the direct-link case (no
 // captured list context); an { pathname, state } entry lets a test seed a validated
 // `pmoListReturn` context as though the record were opened from a narrowed Projects list.
 const renderAt = async (path: string | { pathname: string; state?: unknown }) => {
+  // These tests cover the settled shell; route-chunk loading has separate coverage.
+  await preloadTab(path);
   const view = render(
     <QueryClientProvider client={freshClient()}>
       <MemoryRouter initialEntries={[path]}>
@@ -256,7 +274,7 @@ describe('ProjectDetail shell (decomposition)', () => {
   it('I-2: record-tab create buttons are demoted to outline so Change status stays the one blue primary', async () => {
     const cases = [
       ['/projects/p1/budget', /new version/i],
-      ['/projects/p1/procurement', /new request/i],
+      ['/projects/p1/procurement', /new procurement/i],
       ['/projects/p1/tasks', /new task/i],
       ['/projects/p1/documents', /add document/i],
     ] as const;
@@ -290,7 +308,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     await renderAt('/projects/p1');
 
     expect(screen.getByText('PMO purchase orders')).toBeInTheDocument();
-    expect(screen.getAllByText('$2,350,000.00').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('$2,350,000').length).toBeGreaterThanOrEqual(2);
     // PD-B: budget use lives in the Budget snapshot's Budget position.
     expect(screen.getByTestId('budget-used')).toHaveTextContent('50% of budget');
   });
@@ -305,7 +323,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     // project's requests: the project-wide read is not issued and nothing derived from it shows.
     expect(screen.getByText('Contract')).toBeInTheDocument();
     expect(screen.queryByText('PMO purchase orders')).not.toBeInTheDocument();
-    expect(screen.queryByText('$2,350,000.00')).not.toBeInTheDocument();
+    expect(screen.queryByText('$2,350,000')).not.toBeInTheDocument();
     expect(screen.queryByTestId('budget-used')).not.toBeInTheDocument();
     expect(committedSpendHook).toHaveBeenCalled();
     for (const [projectId] of committedSpendHook.mock.calls) expect(projectId).toBeNull();
@@ -320,7 +338,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(navigate).toHaveBeenCalledWith('/projects/p1/procurement', expect.anything());
     view.unmount();
     await renderAt('/projects/p1/procurement');
-    expect(await within(screen.getByRole('tabpanel')).findByText(/No purchase requests for this project yet/i)).toBeInTheDocument();
+    expect(await within(screen.getByRole('tabpanel')).findByText(/No procurement records for this project yet/i)).toBeInTheDocument();
   });
 
   it('AC-LRC-003: a tab switch forwards the current location.state so return context survives it', async () => {

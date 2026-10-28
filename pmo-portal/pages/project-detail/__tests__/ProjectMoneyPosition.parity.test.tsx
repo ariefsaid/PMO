@@ -237,6 +237,13 @@ async function waitForFinance(client: QueryClient) {
   ])?.status).toBe('success'));
 }
 
+function recordedSpendingAmount(section: HTMLElement, currency: string, label: string) {
+  const heading = [...section.querySelectorAll('h3')].find((node) =>
+    node.textContent?.startsWith(`${label} · ${currency}`),
+  );
+  return heading?.nextElementSibling?.firstChild?.textContent;
+}
+
 function statTile(label: string) {
   const tile = screen.getAllByTestId('stat-tile')
     .find((candidate) => within(candidate).queryByText(label, { exact: true }));
@@ -280,17 +287,17 @@ describe('project money position consumer parity', () => {
     await waitFor(() => expect(h.getProjectFinances).toHaveBeenCalledExactlyOnceWith(project.id));
     await waitForFinance(client);
     const actualTile = statTile(t('projectDetail.header.tile.actual', 'Actual'));
-    expect(within(actualTile).getByText(formatExactMoney('10.10', 'USD', language)!)).toBeInTheDocument();
+    expect(within(actualTile).getByText(formatExactMoney('10.10', 'USD', language, { wholeUnits: true })!)).toBeInTheDocument();
     expect(actualTile).toHaveTextContent(t('uxs01.completeCoverage', 'Complete category coverage'));
     expect(within(statTile(t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost')))
       .getByText(formatSignedExactMoney('89.90', 'USD', language)!)).toBeInTheDocument();
     expect(statTile(t('projectDetail.header.tile.spend', 'Spend'))).toHaveTextContent('25%');
 
     const financeSection = screen.getByTestId('project-finances');
-    expect(financeSection).toHaveTextContent(formatExactMoney('10.10', 'USD', language)!);
+    expect(recordedSpendingAmount(financeSection, 'USD', t('uxs01.recordedSpending', 'Recorded spending'))).toBe('10');
     const cashField = screen.getByText(t('uxs01.cashReceived', 'Cash received'), { exact: true }).parentElement!;
-    expect(normalizeSpacing(cashField.textContent ?? '')).toContain(normalizeSpacing(formatExactMoney('0.00', 'USD', language)!));
-    expect(normalizeSpacing(cashField.textContent ?? '')).toContain(normalizeSpacing(formatExactMoney('7.50', 'IDR', language)!));
+    expect(normalizeSpacing(cashField.textContent ?? '')).toContain(normalizeSpacing(formatExactMoney('0.00', 'USD', language, { wholeUnits: true })!));
+    expect(normalizeSpacing(cashField.textContent ?? '')).toContain(normalizeSpacing(formatExactMoney('7.50', 'IDR', language, { wholeUnits: true })!));
     // PD-C: the settlement explanation is the title of the "Settled" label, not a paragraph.
     expect(screen.getAllByText(t('projectFinances.settled', 'Settled'))[0]).toHaveAttribute('title', t(
       'projectFinances.settlementNote',
@@ -317,12 +324,12 @@ describe('project money position consumer parity', () => {
     await waitForFinance(client);
     const aside = screen.getByTestId('financial-summary');
     expect(within(statTile(t('projectDetail.overview.finance.actual', 'Actual')))
-      .getByText(t('uxs01.actualUnavailable', 'Unavailable'))).toBeInTheDocument();
+      .getByText(t('uxs01.actualUnavailable', 'Actual spending is still being confirmed.'))).toBeInTheDocument();
     expect(aside).not.toHaveTextContent(t('uxs01.completeCoverage', 'Complete category coverage'));
     const financeSection = screen.getByTestId('project-finances');
     // PD-C: coverage is stated only when partial — full mapping is never reported as partial.
     expect(financeSection).not.toHaveTextContent(/Partial coverage|Cakupan sebagian/);
-    expect(financeSection).toHaveTextContent(t('projectFinances.unavailable', 'Unavailable'));
+    expect(financeSection).toHaveTextContent(t('project:actualsUnavailable', 'Actual spending is still being confirmed.'));
     expect(projectFinancesModule.buildProjectMoneyPosition).toHaveBeenCalled();
   });
 
@@ -337,7 +344,7 @@ describe('project money position consumer parity', () => {
     await waitForFinance(client);
     const aside = screen.getByTestId('financial-summary');
     expect(within(statTile(t('projectDetail.overview.finance.actual', 'Actual')))
-      .getByText(formatExactMoney('10.10', 'EUR', 'en')!)).toBeInTheDocument();
+      .getByText(formatExactMoney('10.10', 'EUR', 'en', { wholeUnits: true })!)).toBeInTheDocument();
     // PD-A: cross-currency ratios are withheld by omitting the tiles, not by prose.
     expect(screen.queryByText(t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'))).not.toBeInTheDocument();
     expect(screen.queryByText(t('projectDetail.overview.finance.spend', 'Spend'))).not.toBeInTheDocument();
@@ -367,7 +374,7 @@ describe('project money position consumer parity', () => {
     const aside = screen.getByTestId('financial-summary');
     expect(aside).toHaveTextContent(t('uxs01.pmoCoverage', 'Committed PMO purchase orders'));
     expect(within(statTile(t('projectDetail.overview.finance.actual', 'Actual')))
-      .getByText(formatExactMoney('0.00', 'USD', 'en')!)).toBeInTheDocument();
+      .getByText(formatExactMoney('0.00', 'USD', 'en', { wholeUnits: true })!)).toBeInTheDocument();
     expect(within(statTile(t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost')))
       .getByText(formatSignedExactMoney('100.00', 'USD', 'en')!)).toBeInTheDocument();
     expect(within(statTile(t('projectDetail.overview.finance.spend', 'Spend'))).getByText('0%')).toBeInTheDocument();
@@ -432,9 +439,11 @@ describe('project money position consumer parity', () => {
       "Couldn't load project finances.",
     ))).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: t('projectFinances.retry', 'Retry') }));
-    await waitFor(() => expect(screen.getByTestId('project-finances')).toHaveTextContent(
-      formatExactMoney('10.10', 'USD', 'en')!,
-    ));
+    await waitFor(() => expect(recordedSpendingAmount(
+      screen.getByTestId('project-finances'),
+      'USD',
+      t('uxs01.recordedSpending', 'Recorded spending'),
+    )).toBe('10'));
     expect(h.getProjectFinances).toHaveBeenCalledTimes(2);
   });
 });

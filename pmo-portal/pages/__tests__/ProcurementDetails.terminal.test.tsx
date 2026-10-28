@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 
 /**
  * AC-IXD-PROC-005 — at the terminal Paid state there are no persistent
- * "Create Goods Receipt" / "Create Vendor Invoice" primary buttons (their stages
+ * "Create Goods Receipt" / "create supplier invoice" primary buttons (their stages
  * have passed); any GR/VI already created shows as a quiet read-only summary
  * (IxD #14 carry-in / SP-3). The GR form is gated to Ordered | Received, the VI
  * form to Vendor Invoiced only.
@@ -146,13 +146,13 @@ beforeEach(() => {
 });
 
 describe('AC-IXD-PROC-005: terminal Paid has no persistent GR/VI create buttons', () => {
-  it('AC-IXD-PROC-005: a Paid PR offers neither "Create Goods Receipt" nor "Create Vendor Invoice"', () => {
+  it('AC-IXD-PROC-005: a Paid PR offers neither "Create Goods Receipt" nor "create supplier invoice"', () => {
     detailState.data = { ...base, status: 'Paid' };
     renderPage();
     expect(screen.queryByTestId('btn-create-gr')).toBeNull();
     expect(screen.queryByTestId('btn-create-vi')).toBeNull();
     expect(screen.queryByRole('button', { name: /create goods receipt/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /create vendor invoice/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /create supplier invoice/i })).toBeNull();
   });
 
   it('AC-IXD-PROC-005: the already-created GR/VI render as a quiet read-only summary at Paid', () => {

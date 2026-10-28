@@ -1,9 +1,10 @@
 ---
 name: PMO Portal
 description: >
-  The monochrome-calm control surface (ADR-0068). Calm near-mono zinc chrome; PMO
-  blue reserved for the ONE primary action + focus ring + active-nav; status as a
-  quiet dot/ring + label; content-over-containers. LIGHT default + first-class
+  The clear control surface (ADR-0068, relaxed 2026-10-27): calm near-mono zinc
+  chrome, information-rich content. PMO blue reserved for the ONE primary action +
+  focus ring + active-nav; status as dot/ring or tinted pill + label; cards group a
+  job's content; every key figure carries its meaning. LIGHT default + first-class
   WCAG-AA DARK. Values below are the LIGHT (`:root`) theme; the full light|dark
   pair is in §2. Canonical runtime form is the bare `H S% L%` triplet.
 colors:
@@ -84,9 +85,21 @@ components:
 
 # Design System: PMO Portal
 
+This file is the token sheet (colour, type, geometry, motion, component tokens).
+It does not govern page composition.
+Composition authority: the owner's approval of rendered screens (OD-VISUAL-RESET).
+
 ## 1. Overview
 
-**Creative North Star: "The Quiet Control Surface" — monochrome-calm (ADR-0068).**
+**Creative North Star: "The Clear Control Surface" (ADR-0068, relaxed by the owner 2026-10-27).**
+
+> **Relaxed 2026-10-27 (owner).** The 2026-07-01 "Quiet Control Surface" read as *remove*: stacked with
+> the anti-slop rules it produced plain tables with no features. Tokens (colour, type, radii, motion) are
+> unchanged. What changed: **calm chrome, rich data.** Cards, figure rows, progress bars, steppers,
+> timelines, charts, tinted status and violet accents are all in the vocabulary — use them where they make
+> the data clearer or the next step obvious. A restructure never removes a capability the page had unless
+> the owner drops it (The Feature-Floor Rule, below). "Minimal" means nothing without a job; it never
+> means bare.
 
 This is the **monochrome-calm** language the owner locked on 2026-07-01 (ADR-0068), ported *in place*
 onto the existing app (Foundation slices F1 tokens + F2 dark toggle are committed; the surface slices
@@ -94,11 +107,12 @@ follow). It supersedes the prior "calm/dense/light-only shadcn" identity in *loo
 data, chart, and action is unchanged. The mockups in `docs/design-mockups/redesign/reskin/` define the
 look; **the committed code is the source of truth for every value below** (`pmo-portal/index.css`).
 
-The personality is **calm, dense-but-airy, data-first, and premium in both themes.** Chrome is a calm
-near-mono zinc ramp; **PMO blue is reserved for the ONE primary action per surface, the focus ring, and
+The personality is **calm, dense-but-airy, data-first, and premium in both themes.** The *chrome*
+(nav, toolbars, page frame) is a calm near-mono zinc ramp; the *content* is where colour, figures and
+structure carry meaning and show what matters; **PMO blue is reserved for the ONE primary action per surface, the focus ring, and
 active-nav** — nothing else. Status means something but is rendered **restrained**: a quiet **dot/ring +
-label** (or a faint tint), **never a loud filled slab**. Structure prefers **hairline borders or
-whitespace over boxes** (content-over-containers). It is an operator's tool for a contract- and
+label** (or a faint tint), **never a loud filled slab**. Group related content in a card or panel when
+that makes the grouping obvious; avoid only boxes that group nothing (a card inside a card). It is an operator's tool for a contract- and
 project-based business, and it explicitly rejects the "AI SaaS marketing" aesthetic: no
 dark-mode-with-purple-gradients, no neon, no glassmorphism, no oversized hero type, no shadow-heavy
 floating-card soup. *Calm after the 100th use.*
@@ -116,10 +130,11 @@ floating-card soup. *Calm after the 100th use.*
 - **Icons:** ONE monoline family, stroke-2, 24×24 viewBox, `currentColor`, 1em — the `<Icon name=…>`
   facade (`src/components/ui/icons.tsx`).
 - **Dark mode is first-class + WCAG-AA in both themes** (verified numerically; §6). Toggle via `<html>.dark`.
-- **Density = deliberate balance (action ↔ density ↔ whitespace).** Airier than the old chrome
-  (generous gutters, ~56–64px rows, content-over-containers) **while staying action-rich**: exactly one
-  primary action visible; essential ERP verbs (Advance/Approve/Return/New) obvious; rare/secondary
-  actions disclosed in menus, hover/focus, or disclosure rows. *Subtract, don't strip.*
+- **Density = information, not compression.** Spacing stays comfortable (generous gutters, ~56–64px
+  rows); the information and action payload per screen is what gets maximised — a figure with its
+  variance, reason, owner, trend and a way to act on it (The ERP-UX Aspiration, below). Exactly one
+  primary action visible; essential ERP verbs (Advance/Approve/Return/New) obvious; rare actions in
+  row menus, hover/focus, or disclosure rows. *Subtract noise, never features.*
 
 > **Coherence Wave (2026-06-14):** the app's *atoms* are shared and disciplined — the diagnosed
 > "doesn't feel like the same app" problem is PATTERN/MOLECULE drift, not token drift. §7 is the
@@ -257,8 +272,8 @@ Medium/High `warn` · Critical `lost`. **(C) Categorical/type/activity** `violet
 kind + `neutral` for the rest. The StatusPill `open` (blue-tint) variant is frozen out of status use.
 
 **The Single-Border Rule.** `--border` is one value; `--input` is its slightly-stronger sibling for field
-strokes. Never invent a second border color to "separate" regions — use surface-tone contrast or spacing
-(content-over-containers) instead.
+strokes. Never invent a second border color to "separate" regions — use surface-tone contrast, spacing
+or a card instead.
 
 **The Stated-State Rule (rendered Discover pass, 2026-07-22).** *A state that renders nothing is a
 defect, not a default — silence is indistinguishable from absence.* If a machine can be in five states
@@ -284,9 +299,30 @@ named as unclassified rather than printed. The same map decides whether a **Retr
 at all: *a button that can only ever fail is worse than no button* — it says the problem is transient
 when it is structural. A withheld affordance always states the remedy that replaces it.
 
-**Content-over-containers (ADR-0068 §1).** Fewer boxes; prefer hairline dividers and whitespace to
-nested card wrappers. Drop a wrapping card where whitespace/dividers suffice; keep a container only where
-the content earns it (a phase/delivery card, a table frame).
+**The ERP-UX Aspiration (owner-validated 2026-05-31 in the earlier portal; adopted 2026-10-27).**
+*"Cohesive, enterprise-grade, modern cloud-ERP feel with dense, information-rich UI and strong visual
+information architecture."* The test for every design decision: does this make the surface carry more
+relevant **information and actionability**, more scannable, and more like the *same* tool as the other
+surfaces? Decoration or a one-off pattern is a regression however clean it looks. A manager's eye lands on
+the most important number, status or required action in under three seconds. Aim: Salesforce / Linear
+data-surface quality; away from marketing-page rhythm and stock demo cards with no data. Every priority
+data surface (lists, budgets, procurement, dashboards) carries:
+- **(a)** a tooltip on every computed or sourced figure: how it's calculated, where it came from;
+- **(b)** a toolbar that swaps to bulk actions when rows are selected;
+- **(c)** row click opens detail without losing the list (drawer, expand-in-place, or the record page);
+- **(d)** a `⋯` row menu with the row's actions;
+- **(e)** figures with meaning: variance as money + % + reason, % used as a threshold-coloured progress
+  bar, status as a pill with detail, owner as an avatar chip;
+- **(f)** inline row metadata: trend (▲/▼ vs. comparison), last updated, owner.
+
+**Containers that group (relaxed 2026-10-27).** Use a card or panel when it groups one job's content —
+a money summary, a health row, a stage, an attention list. Don't nest cards inside cards, and don't box a
+single line. Figure rows (KPI tiles), progress bars and coloured stage markers are welcome where they show
+the answer faster than a table.
+
+**The Feature-Floor Rule (owner, 2026-10-27).** A restructure starts from everything the current page
+can do (figures, filters, actions, drawers, history, forecast) and keeps all of it unless the owner
+drops an item. Moving a feature behind a link or into a drawer is fine; deleting it is not.
 
 ## 3. Typography
 
@@ -386,8 +422,8 @@ status text apply them as `hsl(var(--token))`. See §6 for the verified contrast
 - **Corner:** `lg` radius (8px). When a card sits above a toolbar+table assembly, top corners round and
   the seam squares (`var(--radius) var(--radius) 0 0`).
 - **Background:** `card` on the canvas; the tone contrast reads as elevated (no rest shadow).
-- **Border:** always a 1px `border` — the primary depth cue. **Drop the wrapper where whitespace/dividers
-  suffice** (content-over-containers).
+- **Border:** always a 1px `border` — the primary depth cue. Use a card when it groups one job's
+  content; never a card inside a card.
 - **Padding:** 16px standard; compact cards (kanban) ~11px.
 - **CardHead:** a real heading element (default `h2`, a card is a section under the page `h1`); set `level={3}` only under a real `h2` parent, and keep the page outline gap-free and keep card titles in heading navigation.
 - **KPI Tile** (signature): white card, 16px padding, [30px tinted icon tile] + [label, `muted-foreground`
@@ -593,8 +629,8 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
 - **Do** hold `--primary` to the ONE primary action + ring + active-nav; keep it under ~10% of any screen.
 - **Do** render status as a dot/ring + label (or a faint `/10–/12` tint) using the AA `-text` tokens;
   reserve solid status fills for the destructive verb only.
-- **Do** define structure with the single 1px `border` + surface-tone contrast — and prefer
-  whitespace/dividers over boxes (content-over-containers).
+- **Do** define structure with the single 1px `border` + surface-tone contrast; use a card where it
+  groups one job's content, never a card inside a card.
 - **Do** apply `tabular-nums` to every figure (currency, %, counts, deltas, ages).
 - **Do** keep controls at 32px and rows roomy; use the 8px radius spine with `calc()` derivations.
 - **Do** use `font-mono` only for machine IDs/codes and the `⌘K` chip; everything else is Inter+cv.
@@ -623,85 +659,6 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
   stepper/KPI-tile/project-card/list-toolbar grammar — reuse the §7 molecule.
 - **Don't** invent a per-feature create verb. Use **"New &lt;Entity&gt;"**; keep a domain verb only where
   the domain uses it, and make button + modal title + submit all say the same phrase.
-
----
-
-## 7. Coherence-Wave canonical molecules (enforced standard)
-
-The atoms (§2–§6) are shared; this section governs the **molecules** so every module behaves by one
-rulebook. Plan: `docs/plans/2026-06-14-coherence-wave.md`.
-
-### Terminology + create-verb
-- **Canonical noun = "Project"** in all UI copy. "Deal"/"opportunity" are removed. "Pipeline" is a valid
-  *stage-group* label, not a second noun.
-- **Create-verb = "New &lt;Entity&gt;"** (New project / company / contact / user). Domain verbs kept only
-  where the domain uses them; then button + modal title + submit must be identical.
-
-### RecordHeader (the one record-page header)
-Anatomy (non-optional): **[icon tile] [name] [status pill] … [Edit] [Archive/Delete by permission]**,
-actions top-right. Optional `meta` row + `StatTiles` strip below. Thin wrapper over `PageHeader`
-(`src/components/ui/PageHeader.tsx`); the Project detail header is the template.
-
-**Selected-job-first** (2026-10-09, UIP-005/006/009). Compact common identity/status comes before the tab
-strip; the selected tab's work follows without a mandatory tour of Overview cards. Full project phase cards
-stay actionable in Overview; other tabs keep a one-line phase summary (`Current: <phase>`, overdue named in
-text) with an adjacent Overview/blocker link. One idle contract-value presentation; the Read-only chip sits
-where the Edit control sits, so KPI values share one baseline. On phone, a long record title takes the full
-width; status/metadata stack below it. Approval previews keep readable request identity before secondary metadata.
-
-### Record-open paradigm (The Record-Open Rule)
-- **Every primary entity is a routable `/x/:id` page** with breadcrumb + Back + ⌘K indexing. Drawers are
-  optional quick-peek previews that carry a URL + "Open full record" — never the only home.
-- **Stage-aware project lens (ADR-0020):** the one `/projects/:id` shows a **pipeline lens** pre-win
-  (Value / Win probability / Weighted) and a **delivery lens** post-win (Contract/Committed/Actual strip,
-  S-curve, milestone stepper, delivery tabs). Tab/body visibility is driven by `projectStatusGroup`.
-
-### RecordActionZone (the record-action contract)
-The advance/approve verbs (Advance / Mark won / Approve / Reject) live in ONE consistently-placed,
-**never-below-the-fold** zone (sticky on desktop, fixed action bar on mobile), above the green
-"Ready to advance" banner. Edit/Archive live in the header; advance verbs live here — one rule.
-
-### ListPage shell
-Fixed grammar: **[title + count] … [primary "New &lt;Entity&gt;"]**, then a toolbar in fixed slot order
-**view-switcher · status filters · Search · Filter · Export · Import** (empty slots held in place). ONE
-`ViewToggle` with the shared `Table / Board / Calendar / Cards` label set. View-switcher right-aligned
-(icon segmented); status filters left as text chips — visually distinct. Implemented as `ListPage`
-(`src/components/ui/ListPage.tsx`): named slots `title / description / count / primaryAction` +
-`banner / filters / search / secondaryFilter / exportAction / importAction / view`.
-At phone width, a list may use the `mobileToolbar` slot to keep status, search, and the current view
-visible while grouping secondary controls in labelled inline disclosures. Opening one disclosure
-closes its sibling on click; an outside pointer-down must not collapse the first panel before the
-user's click reaches the second trigger. Keep the panels in document flow and their actions reachable.
-Escape and outside interaction close the active panel; a closed, inert shell dialog does not block
-dismissal. Restore focus after an action unmounts its panel, while preserving focus on another
-control the user intentionally selected.
-
-### Approvals (one inbox)
-`/approvals` is the single canonical inbox for ALL approval types, with per-module deep-link tabs, one
-`ApprovalRow`, one decision affordance (inline Approve/Return + "Open"). Rail label + H1 = "Approvals".
-
-### Dashboard states
-
-**A clear queue is compact, not absent** (2026-10-09, UIP-010/011). A dashboard work panel with no items states
-its exact scope in a compact region (≤120px at 1440, in every locale), letting active work below rise. Loading,
-error and unavailable states stay distinct. A displayed project exception links to its canonical record in one
-step; presentation changes never alter financial calculations.
-
-### Skeleton loading pattern
-- **Page-head skeleton:** two `skel` divs mirroring `DashPageHead` (h1 + two-line sub) — never a single
-  `skel h-8` (collapses the two-line structure → layout jump on ready). `skel-line` provides line height
-  + gap.
-- **Panel skeleton:** delegate to `<ChartFrame state="loading">` (emits `data-testid="liststate-loading"`).
-  Never hand-roll a panel spinner.
-- **Unified loading guard:** unify data-loading + still-compiling under one `isPending || compiling` guard
-  so the user sees a single stable skeleton with no FOUC. Reference: `UserViewRenderer` (I3).
-
-### FE design battery — 4 lenses, run twice
-Every UI issue passes a **4-lens design battery** twice (mockup round 1, built-UI round 2 per
-`docs/design-workflow.md`): **Lens A Visual / B Flow / C Structure / D Intent**. `design-reviewer` owns
-all four; Lens D grades against `docs/jtbd.md`. In the current (default) **portfolio** review mode
-(ADR-0030), this is the rendered Discover pass: `design-reviewer` renders the running app on rich seed and
-audits open-endedly; every finding graduates to a test + a `routes × oracles` cell + a DESIGN.md note.
 
 ---
 

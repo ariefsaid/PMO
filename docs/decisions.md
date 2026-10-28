@@ -3561,3 +3561,24 @@ work orders are not migrated (none has allocations; no closing value means they 
 Management-pack earned-value recognition is follow-up #1279.
 
 **OD-TASK-FIN-1 (owner, 2026-10-23)** — Finance works tasks exactly like an Engineer: creates tasks (incl. meeting `/action`), edits tasks it created, changes status on tasks assigned to it, and gets the My Tasks doorway (rail + ⌘K); it does not edit, delete or archive other people's tasks. Supersedes the earlier Finance task scope where it differs. Enforced by migration 0355 (RLS + column guard) and the ClickUp task authorization; proof `AC-TASK-FIN-001`.
+
+## OD-VISUAL-RESET — composition rulings are evidence, not locks; looks are judged rendered (owner 2026-10-25)
+
+Owner, after the #806 slices still read as patched tiles: "I don't want a redesign of changing colors and font. But logical, intent and intuitiveness of UX, IA and IxD of this app needs to be so much more enhanced", and the skills (impeccable, taste, ui-ux-pro-max) should drive the result, not owner-raised findings. Mirrors gordi-mos OD-2026-10-11-VISUAL-RESET. Decided:
+
+- Past rulings about layout, placement, page composition, molecules and "equal or simpler" (DESIGN.md §7, DD/OD layout notes, the subtraction rule as a veto) become **evidence** a design pass may overturn. Tokens, colour, type (ADR-0068), domain language, roles/RLS, money rules and accessibility stay binding.
+- `DESIGN.md` is the token sheet only. Page composition authority is the owner's approval of **rendered screens**. No document pins where a block sits.
+- A test asserts what a user can do, never how it looks. Look-pinning tests are deleted when the page they pin is recomposed; behaviour, a11y, money and role tests stay.
+- UI work is done only with 390 and 1440 screenshots of **every state** (each toggle, period, empty, light/dark), an empty impeccable detector result and no serious axe findings on the touched routes. A figure keeps its form across its own controls: a toggle changes the numbers, never the chart type or layout.
+- Redesign PRs get machine gates plus one security review only when auth, RLS or money files change. No spec or code-quality rounds on composition. Round cap: one review, one fix.
+- Every owner screenshot becomes a GitHub issue the same day (label `ux-owner`), before anyone touches code.
+- *Amended 2026-10-27 (owner):* the area-by-area #806 redesign (2026-10-25/26) was reverted from dev; the UX standard, area specs and route-job rules went with it (rules produced compliance, not design). Restart is one screen at a time, rendered, owner-approved before the next.
+
+**OD-CI-REDESIGN-LANE (owner, 2026-10-25)** — CI on dev is allowed but must be worthwhile: a redesign-lane PR (`redesign/*` → dev) runs the local gates first (`npm run typecheck`, `npx eslint --max-warnings=0 <touched>`, `scripts/with-test-lock.sh … vitest run --changed origin/dev`, `scripts/ux-proof.sh` on touched routes), then is pushed **once** so CI's fast lane runs once; rebase only right before merge; no re-runs for timing-only failures; docs deliverables push direct to dev with no PR; small areas are batched into one PR. Main is never used to find out whether a branch is green: its CI runs once per release.
+
+### OD-CI-REDESIGN-LANE amendment (2026-10-26, owner: finish in hours, not days)
+The local gate for redesign builds and fix rounds no longer includes `vitest --changed origin/dev` or any full suite: CI's unit shards are the full proof on the dev PR. Local gate = `check:guards`, typecheck, eslint on touched files, directly touched tests, touched e2e, `ux-proof` with real-shaped captures. Rendered reviews run in parallel across Sol, Argon and GLM (one PR each); fix rounds use Sol medium; merge on CI green plus the Director's P1 check, P2 leftovers filed as issues.
+
+### OD-LOCAL-GATE-LIGHT (2026-10-26, owner) — no local full suite, CI shards are the proof
+Standing rule for the whole project, not only the redesign lane: the local pre-PR gate is `check:guards`, typecheck, eslint on touched files, the directly touched test files, touched e2e, rendered captures for UI, touched pgTAP for DB. `vitest --changed origin/dev` and full local suites are dropped: CI's two unit shards + pgTAP are the full proof on every PR to dev. Reason: on a shared Mac with parallel builds, one near-full local run per build serialised everything behind the test lock for hours and drove builders to bypass the lock. Supersedes the local-gate wording in older plans and briefs.
+

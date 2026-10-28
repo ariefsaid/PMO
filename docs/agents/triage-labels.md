@@ -13,7 +13,7 @@ label strings used in this repo's issue tracker.
 
 When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label
 string from this table. In this repo "ready-for-agent" means ready for the **Director to dispatch**
-(pi role agents per `docs/pi-delegation.md`), not for an unattended AFK run — the per-issue loop's
+(Orca workers per `docs/orca-dispatch.md`), not for an unattended AFK run — the per-issue loop's
 gates still apply.
 
 Edit the right-hand column to match whatever vocabulary is actually in use.

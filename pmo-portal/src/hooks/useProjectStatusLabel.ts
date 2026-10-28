@@ -51,11 +51,11 @@ export function useProcurementStatusLabel(): (status: string) => string {
     Draft: t('uxs19.status.draft', 'Draft'),
     Requested: t('uxs19.status.requested', 'Purchase Request'),
     Approved: t('uxs19.status.approved', 'Approved'),
-    'Vendor Quoted': t('uxs19.status.vendorQuoted', 'Vendor Quote'),
+    'Vendor Quoted': t('uxs19.status.vendorQuoted', 'Supplier Quote'),
     'Quote Selected': t('uxs19.status.quoteSelected', 'Quote Selected'),
     Ordered: t('uxs19.status.ordered', 'Purchase Order'),
     Received: t('uxs19.status.received', 'Goods Receipt'),
-    'Vendor Invoiced': t('uxs19.status.vendorInvoiced', 'Vendor Invoice'),
+    'Vendor Invoiced': t('uxs19.status.vendorInvoiced', 'Supplier Invoice'),
     Paid: t('uxs19.status.paid', 'Paid'),
     Rejected: t('uxs19.status.rejected', 'Rejected'),
     Cancelled: t('uxs19.status.cancelled', 'Cancelled'),
@@ -67,13 +67,13 @@ export function useProcurementStatusLabel(): (status: string) => string {
 export function useProcurementNextStepLabel(): (status: string) => string | null {
   const { t } = useTranslation();
   const labels: Partial<Record<string, string>> = {
-    Draft: t('uxs19.nextStep.draft', 'Submit request'),
+    Draft: t('uxs19.nextStep.draft', 'Submit for approval'),
     Requested: t('uxs19.nextStep.requested', 'Await approval'),
-    Approved: t('uxs19.nextStep.approved', 'Request vendor quotes'),
+    Approved: t('uxs19.nextStep.approved', 'Request supplier quotes'),
     'Vendor Quoted': t('uxs19.nextStep.vendorQuoted', 'Select quote'),
     'Quote Selected': t('uxs19.nextStep.quoteSelected', 'Prepare purchase order'),
     Ordered: t('uxs19.nextStep.ordered', 'Record receipt'),
-    Received: t('uxs19.nextStep.received', 'Record vendor invoice'),
+    Received: t('uxs19.nextStep.received', 'Record supplier invoice'),
     'Vendor Invoiced': t('uxs19.nextStep.vendorInvoiced', 'Record payment'),
   };
   return (status) => {

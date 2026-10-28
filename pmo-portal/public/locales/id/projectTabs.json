@@ -1,4 +1,8 @@
 {
+  "budgetForecast": {
+    "remainingShort": "Sisa",
+    "budgetUsedShort": "% terpakai"
+  },
   "billing": {
     "quantity": "Penagihan kuantitas"
   },

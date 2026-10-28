@@ -9,6 +9,8 @@ import {
   projectStatusGroup,
 } from '@/src/lib/db/projectTransitions';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
+import { formatPercent as formatLocalizedPercent } from '@/src/lib/format';
+import { OPEN_BID_STATUSES, STALE_BID_THRESHOLD_DAYS } from '@/src/lib/dashboardConstants';
 
 /**
  * Kanban column model (OD-SP-1 / FR-SPD-014). Seven columns in fixed order: the five open
@@ -97,6 +99,15 @@ export const SALES_COLUMNS: readonly SalesColumn[] = [
  */
 export const ATTENTION_THRESHOLD_DAYS = 30;
 
+/** An open bid is stale after 90 days without a move to a new pipeline stage. */
+export function isStaleBid(
+  project: Pick<PipelineProject, 'status' | 'stage_started_at'>,
+): boolean {
+  if (!OPEN_BID_STATUSES.has(project.status as string)) return false;
+  const ageInDays = daysSince(project.stage_started_at);
+  return ageInDays !== null && ageInDays >= STALE_BID_THRESHOLD_DAYS;
+}
+
 /**
  * Returns the number of days since the given ISO timestamp, or null if the
  * timestamp is absent. Used for both display ("X days ago") and the attention gate.
@@ -139,7 +150,7 @@ export function pillVariantForStatus(status: PipelineProject['status']): StatusV
 
 /** Whole-number percent label from an RPC win_probability fraction. */
 export function formatPercent(probability: number): string {
-  return `${Math.round(probability * 100)}%`;
+  return formatLocalizedPercent(probability, 0);
 }
 
 /**

@@ -58,7 +58,7 @@ test('AC-M365DOC-058: a PM links a folder to a project-less case and it persists
   // Raise an overhead request: title only, no project.
   await page.goto('/procurement');
   await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
-  await page.getByRole('button', { name: /raise request/i }).click();
+  await page.getByRole('button', { name: /new procurement/i }).click();
   await expect(page).toHaveURL(/\/procurement\/new$/); // one-page create (#806)
   await page.getByLabel(/title/i).fill(title);
   await page.getByRole('button', { name: 'Save' }).click();

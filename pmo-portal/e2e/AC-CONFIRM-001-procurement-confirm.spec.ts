@@ -37,7 +37,7 @@ test('Supporting proof: pm@ submits the Draft as a routine single-click step (no
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Draft', {
     timeout: 10_000,
   });
-  await page.getByRole('button', { name: 'Submit Request' }).click();
+  await page.getByRole('button', { name: 'Submit for approval' }).click();
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested', {
     timeout: 15_000,
   });

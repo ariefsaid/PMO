@@ -96,10 +96,10 @@ describe('Procurement: filter_applied fires on the status SegFilter', () => {
   });
 });
 
-describe('Procurement: search_used fires (debounced) at the requests search box', () => {
+describe('Procurement: search_used fires (debounced) at the procurement records search box', () => {
   it('AC: typing and going idle fires search_used', () => {
     renderPage();
-    const input = screen.getByLabelText('Filter requests');
+    const input = screen.getByLabelText('Filter procurement records');
     fireEvent.change(input, { target: { value: 'Workstations' } });
     vi.advanceTimersByTime(500);
     expect(analytics.trackSearchUsed).toHaveBeenCalledWith('procurement-list', 1, 'procurement');
@@ -110,7 +110,7 @@ describe('Procurement: empty_state_seen fires when there are zero requests (FIX 
   it('AC: renders the empty ListState and fires empty_state_seen with state_id/role/module', () => {
     procState.data = [];
     renderPage();
-    expect(screen.getByText('No purchase requests yet')).toBeInTheDocument();
+    expect(screen.getByText('No procurement records yet')).toBeInTheDocument();
     expect(analytics.trackEmptyStateSeen).toHaveBeenCalledWith(
       'procurement-empty',
       'Project Manager',

@@ -171,14 +171,12 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     committedSpend, commitmentPending, commitmentError, projectCurrency: project.currency,
     actuals: authorizedActuals, contractValue: project.contract_value, activeBudget });
   const actualPosition = moneyPosition.actual;
-  const actualUnavailable = t('uxs01.actualUnavailable', 'Unavailable');
+  const actualUnavailable = t('uxs01.actualUnavailable', 'Actual spending is still being confirmed.');
+  const contractUnavailable = t('project:moneyDisplay.contractUnavailable', "The contract value hasn't been entered.");
+  const purchaseOrdersUnavailable = t('project:moneyDisplay.purchaseOrdersUnavailable', 'Purchase order totals are still being confirmed.');
   const actualFigure: React.ReactNode = moneyPosition.headlineState === 'available' && actualPosition.amount !== null && actualPosition.currency
-    ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language) ?? <UnknownFigure reason={actualUnavailable} />
-    : moneyPosition.headlineState === 'loading'
-      ? <UnknownFigure reason={t('uxs01.actualLoading', 'Loading Actual…')} />
-      : moneyPosition.headlineState === 'partial'
-        ? <UnknownFigure reason={t('uxs01.actualPartial', 'Incomplete — see spending details')} />
-        : <UnknownFigure reason={actualUnavailable} />;
+    ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language, { wholeUnits: true })
+    : null;
   const attributedActual = actualPosition.basis === 'erp' && actualPosition.complete && authorizedActuals
     ? attributedSplit({ attributed: authorizedActuals.attributed_total })
     : null;
@@ -228,7 +226,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       label: t('projectDetail.header.tile.contract', 'Contract'),
       value: (
         <div className="flex flex-wrap items-baseline gap-2">
-          <span data-testid="contract-value-amount">{project.contract_value == null ? <UnknownFigure reason={actualUnavailable} /> : formatCurrency(project.contract_value, project.currency)}</span>
+          <span data-testid="contract-value-amount">{project.contract_value == null ? <UnknownFigure reason={contractUnavailable} /> : formatCurrency(project.contract_value, project.currency)}</span>
           <div className="basis-full min-w-0">
             <FxEquivalent
               amount={project.contract_value}
@@ -268,7 +266,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           value: commitmentPending
             ? <UnknownFigure reason={t('uxs01.actualLoading', 'Loading Actual…')} />
             : commitmentError || committed === undefined
-              ? <UnknownFigure reason={actualUnavailable} />
+              ? <UnknownFigure reason={purchaseOrdersUnavailable} />
               : formatCurrency(committed, project.currency),
           ...(committedOtherCurrencies && committedOtherCurrencies.length > 0 ? { sub: <OtherCurrencyCommitments positions={committedOtherCurrencies} /> } : {}),
         }]
@@ -280,11 +278,15 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         ? <>{actualCoverage}{actualPosition.asOf && <span className="block">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}</span>}
           {/* #1271 AC-3: attributed cost is named apart from tagged cost, only when there is some. */}
           {attributedActual && actualPosition.currency && <span className="block" data-testid="actual-attributed-note">
-            {t('costAttribution:split.header', 'Includes {{attributed}} attributed', { attributed: formatExactMoney(attributedActual.attributed, actualPosition.currency, i18n.language) ?? attributedActual.attributed })}
+            {t('costAttribution:split.header', 'Includes {{attributed}} attributed', { attributed: formatExactMoney(attributedActual.attributed, actualPosition.currency, i18n.language, { wholeUnits: true }) ?? attributedActual.attributed })}
           </span>}
           {/* A PMO-basis Actual is the committed figure; name other currencies once, here only when no PMO tile does. */}
           {actualPosition.basis === 'pmo' && commitmentSource !== 'pmo' && <OtherCurrencyCommitments positions={committedOtherCurrencies} />}</>
-        : moneyPosition.headlineState === 'partial' ? t('dashboard:spend.partial', 'Partial') : undefined },
+        : moneyPosition.headlineState === 'partial'
+          ? t('dashboard:spend.partial', 'Partial')
+          : moneyPosition.headlineState === 'loading'
+            ? t('uxs01.actualLoading', 'Loading Actual…')
+            : actualUnavailable },
     ...(contractAfterCostLabel === null
       ? []
       : [{

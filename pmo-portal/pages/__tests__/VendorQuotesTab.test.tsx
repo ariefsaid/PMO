@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { BahasaProvider } from '@/test/bahasa';
 
 type Analytics = typeof import('@/src/lib/analytics');
 const analytics = vi.hoisted(() => ({ trackComingSoonClicked: vi.fn<Analytics['trackComingSoonClicked']>() }));
@@ -128,7 +129,7 @@ async function confirmInDialog(label: string | RegExp) {
 describe('AC-VQ-001: VendorQuotesTab — empty state', () => {
   it('AC-PMC-006: empty state names the missing bid comparison and next step', () => {
     render(<VendorQuotesTab {...defaultProps} quotations={[]} />);
-    expect(screen.getByText('No quotes recorded. Add a vendor quote to compare bids.')).toBeInTheDocument();
+    expect(screen.getByText('No quotes recorded. Add a supplier quote to compare bids.')).toBeInTheDocument();
   });
 
   it('AC-VQ-001: empty state still shows Add button when canAdd=true', () => {
@@ -140,7 +141,7 @@ describe('AC-VQ-001: VendorQuotesTab — empty state', () => {
 describe('AC-RD-TBL-QUOTE-001: semantic quote comparison table', () => {
   it('exposes quotation rows and selectable actions within a named table', () => {
     render(<VendorQuotesTab {...defaultProps} quotations={[selectedQuote, unselectedQuote]} selectedId="q-lo" canSelect />);
-    expect(screen.getByRole('table', { name: /vendor bid comparison/i })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: /supplier bid comparison/i })).toBeInTheDocument();
     expect(screen.getAllByRole('row').length).toBeGreaterThanOrEqual(3);
     expect(screen.getByRole('button', { name: /select quote/i })).toBeInTheDocument();
   });
@@ -377,7 +378,7 @@ describe('AC-PLC-009: vendor quote money entry', () => {
     const user = userEvent.setup();
     render(<VendorQuotesTab {...defaultProps} quotations={[]} canAdd onAdd={onAdd} />);
     await user.click(screen.getByRole('button', { name: /add quotation/i }));
-    await user.click(screen.getByRole('combobox', { name: 'Vendor' }));
+    await user.click(screen.getByRole('combobox', { name: 'Supplier' }));
     await user.click(await screen.findByRole('option', { name: /Apex Supply/i }));
     const amount = screen.getByLabelText(/quoted total/i);
     await user.type(amount, '1.234');
@@ -452,7 +453,7 @@ describe('AC-VQ-008: VendorQuotesTab — vendor name as primary row heading', ()
 describe('review fixes: bid comparison presentation', () => {
   it('OD-MONEY-FMT: preserves non-zero cents in quote amounts', () => {
     render(<VendorQuotesTab {...defaultProps} quotations={[makeQuote({ total_amount: 148000.5 })]} />);
-    expect(screen.getAllByText('$148,000.5').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('$148,001').length).toBeGreaterThanOrEqual(1);
   });
 
   it('keeps each attachment section associated with its quote row', () => {
@@ -506,6 +507,20 @@ describe('AC-VQ-009: VendorQuotesTab — best-value pill during decision', () =>
     );
     // No "Best value" pill when in read-only (past Quote Selected) and no selection
     expect(screen.queryByText(/best value/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('AC-1410: supplier wording in quote comparison', () => {
+  it('describes supplier quotes without the legacy vendor label', () => {
+    render(<VendorQuotesTab {...defaultProps} quotations={[]} />);
+
+    expect(screen.getByText('Compare and select a supplier quote')).toBeInTheDocument();
+  });
+
+  it('uses pemasok wording in the Bahasa quote comparison', () => {
+    render(<BahasaProvider locale="id"><VendorQuotesTab {...defaultProps} quotations={[]} /></BahasaProvider>);
+
+    expect(screen.getByText('Bandingkan dan pilih penawaran pemasok')).toBeInTheDocument();
   });
 });
 

@@ -59,7 +59,7 @@ export const PaymentCeilingNotice: React.FC<PaymentCeilingNoticeProps> = ({
         title={t('procurement:ceiling.approveHigher', 'Approve higher amount')}
         description={t(
           'procurement:ceiling.confirmBody',
-          'The approved amount becomes {{billed}} (now {{approved}}). You will not be able to pay this request yourself.',
+          'The approved amount becomes {{billed}} (now {{approved}}). You will not be able to pay this procurement yourself.',
           { billed: formatCurrency(billedNet, currency), approved: formatCurrency(approvedAmount, currency) },
         )}
         confirmLabel={t('procurement:ceiling.confirm', 'Approve')}

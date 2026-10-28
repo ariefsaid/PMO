@@ -158,15 +158,10 @@ select lives_ok(
   $$ delete from public.budget_versions where id = '01700000-0000-0000-0000-0000000000f2' $$,
   'AC-DPS-012 CONTROL deleteDraftVersion still works: a PM can delete a DRAFT version');
 
--- archiveVersion does a direct `update … set status = ''Archived''` — this guard is DELETE-only.
--- ⚑ 0178 RE-SCOPED THIS PIN. It stays green and it stays a CONTROL, but it is no longer "the UPDATE
---   path is untouched": `Active -> Archived` is now the ONLY status edit a client may make. The two
---   edits this assertion used to bless by omission — `-> Active`, and the `Active -> Draft -> edit the
---   line items -> Active` ROUND TRIP that voided budget_line_items_draft_guard entirely — are denied
---   by 0178 §1 and asserted in 0171 §A. Read this line as "archiveVersion still works", nothing wider.
+-- The archived transition is now paired with durable ERP cancellation intent by the RPC.
 select lives_ok(
-  $$ update public.budget_versions set status = 'Archived' where id = '01700000-0000-0000-0000-0000000000f1' $$,
-  'AC-DPS-012 CONTROL archiveVersion''s direct UPDATE still works (0178 §1 narrowed the UPDATE path to exactly this one transition)');
+  $$ select public.archive_budget_version_with_cancel_intent('01700000-0000-0000-0000-0000000000f1', false) $$,
+  'AC-DPS-012 CONTROL archiveVersion still works through the durable archive RPC');
 -- put it back for the Admin control below
 reset role;
 update public.budget_versions set status = 'Active' where id = '01700000-0000-0000-0000-0000000000f1';

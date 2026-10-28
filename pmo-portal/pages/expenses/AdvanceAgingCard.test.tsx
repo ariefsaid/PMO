@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
-import { formatCurrencyAuto, formatCurrencyCents } from '@/src/lib/format';
+import { formatCurrencyAuto } from '@/src/lib/format';
 // The DOM matchers collapse NBSP to a space; Intl emits NBSP between code and digits.
-const money = (v: number, c: string) => formatCurrencyCents(v, c).replace(/\u00a0/g, ' ');
+const money = (v: number, c: string) => formatCurrencyAuto(v, c).replace(/\u00a0/g, ' ');
 
 const h = vi.hoisted(() => ({
   aging: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
