@@ -4,15 +4,15 @@ import { formatDashboardMoney, formatDashboardPercent, moneyFigure, moneyTotalsF
 
 afterEach(() => resetActiveLocale());
 
-describe('AC-RD-MONEY-001 formatDashboardMoney (exact form)', () => {
-  it('suppresses a zero fraction', () => {
+describe('AC-MONEY-DISPLAY formatDashboardMoney (whole-unit form)', () => {
+  it('rounds to whole units', () => {
     expect(formatDashboardMoney(160_890_500_000, 'IDR', 'en-US')).toBe('IDR\u00a0160,890,500,000');
     expect(formatDashboardMoney(1_200_000, 'USD', 'en-US')).toBe('$1,200,000');
   });
 
-  it('keeps a non-zero fraction exact', () => {
-    expect(formatDashboardMoney(1234.5, 'USD', 'en-US')).toBe('$1,234.50');
-    expect(formatDashboardMoney(0.07, 'USD', 'en-US')).toBe('$0.07');
+  it('does not display cents on read-only surfaces', () => {
+    expect(formatDashboardMoney(1234.5, 'USD', 'en-US')).toBe('$1,235');
+    expect(formatDashboardMoney(0.07, 'USD', 'en-US')).toBe('$0');
   });
 
   it('keeps the sign on a negative whole amount', () => {
@@ -51,9 +51,15 @@ describe('AC-RD-MONEY-001 moneyFigure (short visible, exact in metadata)', () =>
     expect(moneyFigure(1_200_000, 'USD', 'Unavailable').exactValue).toBe('US$1.200.000');
   });
 
-  it('keeps a non-zero fraction in the exact form for an exact decimal string', () => {
+  it('omits a repeated currency when the block heading already names it', () => {
+    const fig = moneyFigure(1_200_000, 'USD', 'Unavailable', { labelHasCurrency: true });
+    expect(fig.value).toBe('1.2M');
+    expect(fig.exactValue).toBe('$1,200,000');
+  });
+
+  it('rounds an exact decimal string to a whole currency unit', () => {
     const fig = moneyFigure('29812225000.50', 'IDR', 'Unavailable');
-    expect(fig.exactValue).toBe('IDR\u00a029,812,225,000.50');
+    expect(fig.exactValue).toBe('IDR\u00a029,812,225,001');
     expect(fig.value).toBe('IDR\u00a029.8B');
   });
 
@@ -61,10 +67,10 @@ describe('AC-RD-MONEY-001 moneyFigure (short visible, exact in metadata)', () =>
     expect(moneyFigure('5000.00', 'USD', 'x').exactValue).toBe('$5,000');
   });
 
-  it('is an em dash with the reason when the amount is unknown (never 0, never prose)', () => {
+  it('omits an unknown figure and carries its reason as plain text (never 0 or a dash)', () => {
     for (const unknown of [null, 'garbage']) {
       const fig = moneyFigure(unknown, 'USD', 'Budget not loaded');
-      expect(fig.value).toBe('—');
+      expect(fig.value).toBe('');
       expect(fig.unavailableReason).toBe('Budget not loaded');
       expect(fig.exactValue).toBeUndefined();
     }
@@ -77,8 +83,8 @@ describe('AC-RD-MONEY-001 small amounts', () => {
     expect(moneyFigure(0, 'USD', 'x')).toEqual({ value: '$0' });
   });
 
-  it('never rounds a sub-thousand amount: the exact form is shown as-is', () => {
-    expect(moneyFigure(999.5, 'USD', 'x')).toEqual({ value: '$999.50' });
+  it('rounds a sub-thousand amount to whole units', () => {
+    expect(moneyFigure(999.5, 'USD', 'x')).toEqual({ value: '$1,000' });
   });
 });
 
@@ -121,7 +127,7 @@ describe('AC-RD-MONEY-001 moneyTotalsFigure (per-currency totals, never summed)'
   });
   it('keeps a non-empty unavailable reason if a currency cannot be formatted', () => {
     const fig = moneyTotalsFigure([{ currency: 'not-a-currency', amount: 12 }], 'USD', 'Revenue unavailable');
-    expect(fig.value).toBe('—');
+    expect(fig.value).toBe('');
     expect(fig.unavailableReason).toBe('Revenue unavailable');
   });
 });

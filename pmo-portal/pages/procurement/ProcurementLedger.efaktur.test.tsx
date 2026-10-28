@@ -73,7 +73,7 @@ function renderLedger(props: Partial<React.ComponentProps<typeof ProcurementLedg
 }
 
 describe('ProcurementLedger e-Faktur details', () => {
-  it('AC-EFK-005 shows the vendor invoice number + date in ONE e-Faktur cell; other record types render none', () => {
+  it('AC-EFK-005 shows the supplier invoice number + date in ONE e-Faktur cell; other record types render none', () => {
     renderLedger();
     const headers = screen.getAllByRole('columnheader').map((h) => h.textContent?.trim());
     expect(headers).not.toContain('e-Faktur number');

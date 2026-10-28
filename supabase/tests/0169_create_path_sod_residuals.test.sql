@@ -528,9 +528,8 @@ set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01690000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok(
-  $$ update public.budget_versions set status = 'Archived'
-      where id = '01690000-0000-0000-0000-00000000a001' $$,
-  'AC-RES-042 CONTROL archiveVersion''s direct status UPDATE still works (the guard is INSERT-only)');
+  $$ select public.archive_budget_version_with_cancel_intent('01690000-0000-0000-0000-00000000a001', false) $$,
+  'AC-RES-042 CONTROL archiveVersion still works through the durable archive RPC');
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- F. create_procurement_invoice — the RPC accepted the protected end state as a PARAMETER. Now that

@@ -9,7 +9,7 @@ export function AttributedSpendingNote({ projectId }: { projectId: string }) {
   const { data } = useProjectFinances(projectId);
   const actuals = data?.actuals;
   const split = actuals?.currency ? attributedSplit({ attributed: actuals.attributed_total }) : null;
-  const amount = split && actuals?.currency ? formatExactMoney(split.attributed, actuals.currency, i18n.language) : null;
+  const amount = split && actuals?.currency ? formatExactMoney(split.attributed, actuals.currency, i18n.language, { wholeUnits: true }) : null;
   if (!amount) return null;
   return (
     <p className="text-xs text-muted-foreground" data-testid="budget-attributed-note">

@@ -107,12 +107,47 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     expect(row.getByRole('progressbar', { name: /forecast utilization/i })).toHaveAttribute('aria-valuenow', '75');
   });
 
-  it('H-4 defaults to the fiscal year the Active version was pushed against, not the calendar year', async () => {
+  it('H-4 uses the client-listed fiscal year instead of the calendar year', async () => {
     renderForecast();
     await rowFor('Labor');
     expect(fetchMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR);
     expect(fetchMock).not.toHaveBeenCalledWith('proj-1', String(new Date().getFullYear()));
     expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(ERP_FISCAL_YEAR);
+  });
+
+  it('AC-1424 defaults to the first listed year with recorded spending before a later active-push year', async () => {
+    const firstWithSpending = 'FY-2026';
+    const laterActivePush = 'FY-2028';
+    yearsMock.mockResolvedValue([
+      { fiscalYear: firstWithSpending, isActivePush: false },
+      { fiscalYear: laterActivePush, isActivePush: true },
+      { fiscalYear: 'FY-2024', isActivePush: false },
+    ]);
+    fetchMock.mockImplementation(async (_projectId: string, year: string) => {
+      if (year === firstWithSpending) return [{ ...ROW, actualsToDate: 12_000 }];
+      if (year === laterActivePush) return [{ ...ROW, actualsToDate: 95_000 }];
+      return [{ ...ROW, actualsToDate: 0 }];
+    });
+
+    renderForecast();
+
+    expect(await rowFor('Labor')).toHaveTextContent('$12,000');
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(firstWithSpending);
+    expect(fetchMock).toHaveBeenCalledWith('proj-1', firstWithSpending);
+    expect(fetchMock).not.toHaveBeenCalledWith('proj-1', laterActivePush);
+  });
+
+  it('AC-1440 keeps forecast headers short and exposes their full meaning', async () => {
+    renderForecast();
+    await rowFor('Labor');
+
+    const remaining = screen.getByRole('columnheader', { name: 'Forecast remaining' });
+    expect(within(remaining).getByText('Remaining')).toBeInTheDocument();
+    expect(within(remaining).getByText('Remaining')).toHaveAttribute('title', 'Forecast remaining');
+
+    const used = screen.getByRole('columnheader', { name: 'Forecast budget used' });
+    expect(within(used).getByText('% used')).toBeInTheDocument();
+    expect(within(used).getByText('% used')).toHaveAttribute('title', 'Forecast budget used');
   });
 
   it('H-4 offers only fiscal years that exist for this project — never a synthesized calendar year', async () => {

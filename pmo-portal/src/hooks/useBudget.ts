@@ -3,6 +3,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import {
   deriveProjectBudget,
   getBudgetActivationMode,
+  precheckBudgetActivation,
   listBudgetVersions,
   createBudgetVersion,
   cloneVersion as dalCloneVersion,
@@ -17,7 +18,10 @@ import {
   type BudgetLineItemRow,
   type NewLineItem,
   type ActivateVersionResult,
+  type ArchiveVersionResult,
+  type BudgetArchiveLiveTarget,
   type BudgetActivationMode,
+  listBudgetArchiveLiveTargets,
 } from '@/src/lib/db/budgets';
 
 // ---------------------------------------------------------------------------
@@ -53,6 +57,16 @@ export function useBudgetActivationMode(versionId: string | undefined) {
   });
 }
 
+/** Runs the same read-only server gate as the ERP push for the selected Draft. */
+export function useBudgetActivationPrecheck(versionId: string | undefined) {
+  return useQuery({
+    queryKey: ['budget-activation-precheck', versionId],
+    queryFn: () => precheckBudgetActivation(versionId!),
+    enabled: Boolean(versionId),
+    staleTime: 0,
+  });
+}
+
 export function useBudgetVersions(projectId: string) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
@@ -60,6 +74,18 @@ export function useBudgetVersions(projectId: string) {
     queryKey: budgetVersionsKey(orgId, projectId),
     queryFn: () => listBudgetVersions(projectId),
     enabled: Boolean(orgId && projectId),
+  });
+}
+
+export function useBudgetArchiveTargets(versionIds: readonly string[], pollWhileLive = false) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  const stableIds = [...versionIds].sort();
+  return useQuery<BudgetArchiveLiveTarget[]>({
+    queryKey: ['budget-archive-live-targets', orgId, stableIds],
+    queryFn: () => listBudgetArchiveLiveTargets(stableIds),
+    enabled: Boolean(orgId && stableIds.length > 0),
+    refetchInterval: (query) => pollWhileLive && (query.state.data?.length ?? 0) > 0 ? 30_000 : false,
   });
 }
 
@@ -76,6 +102,7 @@ export function useBudgetMutations(projectId: string) {
   const invalidateBoth = () => {
     queryClient.invalidateQueries({ queryKey: budgetKey(orgId, projectId) });
     queryClient.invalidateQueries({ queryKey: budgetVersionsKey(orgId, projectId) });
+    queryClient.invalidateQueries({ queryKey: ['budget-activation-precheck'] });
     queryClient.invalidateQueries({ queryKey: ['project-finances', orgId, projectId] });
   };
 
@@ -94,9 +121,12 @@ export function useBudgetMutations(projectId: string) {
     onSuccess: invalidateBoth,
   });
 
-  const archive = useMutation<void, Error, string>({
-    mutationFn: (versionId) => archiveVersion(versionId),
-    onSuccess: invalidateBoth,
+  const archive = useMutation<ArchiveVersionResult, Error, { versionId: string; cancelErp: boolean }>({
+    mutationFn: ({ versionId, cancelErp }) => archiveVersion(versionId, cancelErp),
+    onSuccess: () => {
+      invalidateBoth();
+      queryClient.invalidateQueries({ queryKey: ['budget-archive-live-targets', orgId] });
+    },
   });
 
   const deleteDraft = useMutation<void, Error, string>({

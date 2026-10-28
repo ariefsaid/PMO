@@ -246,7 +246,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     renderAt('/sales-invoices');
     const row = screen.getByText('ACC-SINV-2026-00001').closest('tr');
     expect(row).toHaveTextContent('Partly paid');
-    expect(row).toHaveTextContent('$1.00');
+    expect(row).toHaveTextContent('$1');
   });
 
   it('invoice identity is a direct record link that retains the list query', () => {
@@ -303,7 +303,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(screen.getByText('77 days overdue')).toBeInTheDocument();
     expect(screen.getByText('Partly paid')).toBeInTheDocument();
     expect(screen.getByText('Acme Energy')).toBeInTheDocument();
-    expect(screen.getByText('$5,000.00')).toBeInTheDocument();
+    expect(screen.getByText('$5,000')).toBeInTheDocument();
     const appliedReceiptsHeading = screen.getByRole('heading', { name: 'Applied receipts' });
     expect(appliedReceiptsHeading.parentElement).toHaveTextContent('SYNTHETIC-RECEIPT-1');
     expect(appliedReceiptsHeading.parentElement).toHaveTextContent('$250.00');

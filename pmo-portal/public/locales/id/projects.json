@@ -1,8 +1,11 @@
 {
   "coverage": {
+    "readError": "Data pengeluaran proyek tidak dapat dibaca.",
+    "unknown": "Data Aktual tidak diketahui pada {{count}} dari {{total}} proyek.",
     "partial": "Aktual belum lengkap pada {{partial}} dari {{total}} proyek.",
     "partialUpdated": "Aktual belum lengkap pada {{partial}} dari {{total}} proyek. Diperbarui {{date}}."
   },
+  "moneyFiguresUnavailable": "Beberapa nilai keuangan proyek masih dikonfirmasi.",
   "actual": {
     "restrictedTag": "Dikecualikan (terbatas)"
   },

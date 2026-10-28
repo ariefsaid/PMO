@@ -19,6 +19,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
+import { BahasaProvider } from '@/test/bahasa';
 
 // ---------------------------------------------------------------------------
 // Mock useProjectBudget + useProjectCommittedSpend — controlled per-test
@@ -66,14 +67,16 @@ let viewerRole: Role = 'Project Manager';
 function renderPanel(
   props: Omit<React.ComponentProps<typeof DecisionSupportPanel>, 'status' | 'currency'> &
     Partial<Pick<React.ComponentProps<typeof DecisionSupportPanel>, 'status' | 'currency'>>,
+  locale?: 'id',
 ) {
-  return render(
+  const content = (
     <ImpersonationProvider realRole={viewerRole}>
       <MemoryRouter>
         <DecisionSupportPanel status="Requested" currency="USD" {...props} />
       </MemoryRouter>
-    </ImpersonationProvider>,
+    </ImpersonationProvider>
   );
+  return render(locale === 'id' ? <BahasaProvider locale="id">{content}</BahasaProvider> : content);
 }
 
 /** The value element of the stat tile whose label matches `label` (exact, case-insensitive). */
@@ -202,11 +205,17 @@ describe('AC-IXD-PROC-W5-2d — four figures rendered (committed basis)', () => 
     committedState.data = 986600; // committed spend (Σ PO Ordered..Paid)
   });
 
-  it('renders "This request" label with total_value formatted as currency', () => {
+  it('renders "This procurement" label with total_value formatted as currency', () => {
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
     const labels = screen.getAllByText(/this procurement/i);
     expect(labels.length).toBeGreaterThan(0);
     expect(screen.getByText(/\$48,000/)).toBeInTheDocument();
+  });
+
+  it('AC-1438 shows the procurement term in Bahasa budget-impact labels', () => {
+    renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' }, 'id');
+    expect(screen.getByText('Pengadaan ini')).toBeInTheDocument();
+    expect(screen.getByText('Setelah pengadaan ini')).toBeInTheDocument();
   });
 
   it('AC-RD-MONEY-002: approval money is the exact full amount, never a short unit (OD-MONEY-FMT: KPI cards only)', () => {
@@ -231,7 +240,7 @@ describe('AC-IXD-PROC-W5-2d — four figures rendered (committed basis)', () => 
     expect(screen.getByText(/\$1,200,000/)).toBeInTheDocument();
   });
 
-  it('renders "After this request" label with available−totalValue + percent (Requested)', () => {
+  it('renders "After this procurement" label with available−totalValue + percent (Requested)', () => {
     // available=213,400; totalValue=48,000 → after=165,400; % = 165400/1200000 ≈ 13.8%
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
     expect(screen.getByText(/after this procurement/i)).toBeInTheDocument();
@@ -248,12 +257,13 @@ describe('AC-IXD-PROC-W5-2e — over-budget advisory', () => {
     budgetState.data = 1200000;
   });
 
-  it('shows a non-blocking advisory with exact dollar overage when request exceeds available', () => {
+  it('shows a non-blocking advisory with exact dollar overage when procurement exceeds available', () => {
     // committed=1,100,000; reserved=0 → available=100,000; totalValue=120,000 → over by $20,000
     committedState.data = 1100000;
     renderPanel({ projectId: 'proj-1', totalValue: 120000, projectName: 'HQ Fit-Out' });
     // Non-blocking advisory: role="status", NOT role="alert"
     const advisory = screen.getByRole('status');
+    expect(advisory.textContent).toMatch(/this procurement exceeds available budget/i);
     expect(advisory.textContent).toMatch(/exceeds available budget/i);
     expect(advisory.textContent).toMatch(/\$20,000/);
     expect(advisory.textContent).toMatch(/advisory only/i);

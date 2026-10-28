@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Card,
   CardHead,
@@ -36,7 +37,7 @@ interface FormValues {
   budgetCategory: string;
 }
 
-const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
+const validate = (v: FormValues, requiredTitleMessage: string): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
   if (!v.title.trim()) errors.title = 'A procurement title is required.';
   return errors;
@@ -69,9 +70,13 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
   onClose,
   busy,
 }) => {
+  const { t } = useTranslation();
   const form = useEntityForm<FormValues>({
     initialValues: { title, projectId, vendorId, budgetCategory: budgetCategory ?? '' },
-    validate,
+    validate: (values) => validate(
+      values,
+      t('procurement:headerEdit.titleRequired', 'A procurement title is required.'),
+    ),
     idPrefix: 'pr-header-edit',
     module: 'procurement',
   });

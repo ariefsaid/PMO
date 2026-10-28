@@ -350,7 +350,7 @@ const paidProcurement = {
 // ---------------------------------------------------------------------------
 // The page is now a tabbed record shell (`/procurement/:id/:tab?`, default Overview).
 // `tab` deep-links a panel so a test can land on the tab that owns the content it
-// asserts (line items / documents / vendor quotes). Goals unchanged — only the journey
+// asserts (line items / documents / supplier quotes). Goals unchanged — only the journey
 // step "land on the owning tab" is made explicit (the content moved behind a tab).
 const renderPage = (id = 'proc-001', tab?: string, query = '') =>
   render(
@@ -667,7 +667,7 @@ describe('AC-805: transition mutations called on action click', () => {
     ));
   });
 
-  it('AC-805 / AC-IXD-WP-003: clicking Submit (a routine forward step) fires the transition on a SINGLE click — no confirm (OD-UX-1)', async () => {
+  it('AC-805 / AC-IXD-WP-003: clicking Submit for approval (a routine forward step) fires the transition on a SINGLE click — no confirm (OD-UX-1)', async () => {
     mockEffectiveRole = 'Engineer';
     // AC-W3-D10: Submit is only enabled when ≥1 line item exists; give the fixture an item.
     detailState.data = {
@@ -919,13 +919,14 @@ describe('Action bar covers mid-flow transitions', () => {
     // Staged, not written: nothing is created and nothing is toasted until the confirm.
     expect(mockCreateReceipt).not.toHaveBeenCalled();
     expect(toast).not.toHaveBeenCalled();
+    expect(await screen.findByText(/This records a complete goods receipt against procurement record/)).toBeInTheDocument();
     await confirmInDialog(/save gr/i);
     await waitFor(() => expect(mockCreateReceipt).toHaveBeenCalledTimes(1));
     expect(mockCreateReceipt).toHaveBeenCalledWith(expect.objectContaining({ status: 'Complete' }));
     await waitFor(() => expect(toast).toHaveBeenCalledWith('Goods receipt recorded', undefined, 'success'));
   });
 
-  it('D2 C1/C2: a vendor invoice chosen as the first document is written through the page confirm, and only then reported', async () => {
+  it('D2 C1/C2: a supplier invoice chosen as the first document is written through the page confirm, and only then reported', async () => {
     detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other' };
     mockCreateInvoice.mockClear(); toast.mockClear();
     renderPage('proc-001', 'files');
@@ -1461,7 +1462,7 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
     expect(within(dialog).queryByRole('button', { name: /^cancel$/i })).toBeNull();
   });
 
-  it('polish#2: "Keep request" dismisses the dialog WITHOUT firing the transition', async () => {
+  it('polish#2: "Keep procurement" dismisses the dialog WITHOUT firing the transition', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
     renderPage();
     const header = screen.getByTestId('record-header');

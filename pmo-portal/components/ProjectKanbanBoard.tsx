@@ -38,6 +38,7 @@ import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { pillVariantForProjectStatus } from './projects';
 import ProjectCardShell from './ProjectCardShell';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 
 // ---------------------------------------------------------------------------
 // Column definitions — lifecycle order, DESIGN.md tokens for dot colors.
@@ -108,6 +109,7 @@ interface ProjectKanbanCardProps {
 
 const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActivate }) => {
   const { t } = useTranslation();
+  const projectStatusLabel = useProjectStatusLabel();
   const displayName = projectDisplayName(project);
   const initial = (displayName.trim().charAt(0) || '•').toUpperCase();
   // FR-PRJUX-004/005: the footer label reads from the manager ID so an assigned blank-name
@@ -130,7 +132,7 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
       code={project.code}
       status={
         <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>
-          {project.status}
+          {projectStatusLabel(project.status as string)}
         </StatusPill>
       }
       body={

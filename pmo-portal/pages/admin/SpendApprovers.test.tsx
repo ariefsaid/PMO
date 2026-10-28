@@ -81,6 +81,7 @@ describe('AC-APR-034 Spend approvers admin card', () => {
   it('AC-APR-034: an Admin removes an approver through a confirm', async () => {
     renderPanel('Admin');
     await userEvent.click(await screen.findByRole('button', { name: 'Remove Fiona Finance' }));
+    expect(screen.getByText('They will no longer approve procurement records. Records already decided are unchanged.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Remove' }));
     await waitFor(() => expect(removeSpendApprover).toHaveBeenCalledWith('sa-1'));
   });
@@ -168,7 +169,7 @@ describe('UX-081 resolved approval route (S-32)', () => {
     renderPanel('Admin');
     const note = await screen.findByTestId('spend-route-project');
     expect(note).toHaveTextContent('Within budget, the standard rules apply');
-    expect(note).toHaveTextContent('go to the overhead approvers');
+    expect(note).toHaveTextContent('procurement records go to the overhead approvers');
   });
 
   it('UX-081: an empty project list with no eligible senior approver leaves decisions to an Admin (DD-APR-4)', async () => {
@@ -178,7 +179,7 @@ describe('UX-081 resolved approval route (S-32)', () => {
     listOrgProfiles.mockResolvedValue([{ id: 'u-gone', full_name: 'Gus Gone', role: 'Finance', status: 'disabled' }]);
     renderPanel('Admin');
     const note = await screen.findByTestId('spend-route-project');
-    expect(note).toHaveTextContent('Only an Admin can decide');
+    expect(note).toHaveTextContent('Only an Admin can decide these procurement records');
     expect(note).not.toHaveTextContent('go to the overhead approvers');
   });
 
@@ -194,7 +195,7 @@ describe('UX-081 resolved approval route (S-32)', () => {
     renderPanel('Admin');
     const note = await screen.findByTestId('spend-route-project');
     await waitFor(() => expect(note).toHaveTextContent('Nobody listed can approve right now'));
-    expect(note).toHaveTextContent('go to the overhead approvers');
+    expect(note).toHaveTextContent('These procurement records go to the overhead approvers');
   });
 
   it('UX-081: dead project rows with no senior rows fall back to the flat role rules', async () => {
@@ -204,7 +205,8 @@ describe('UX-081 resolved approval route (S-32)', () => {
     listOrgProfiles.mockResolvedValue([{ id: 'u-gone', full_name: 'Gus Gone', role: 'Finance', status: 'disabled' }]);
     renderPanel('Admin');
     const note = await screen.findByTestId('spend-route-project');
-    expect(note).toHaveTextContent('Standard rules: any of');
+    expect(note).toHaveTextContent("Standard rules: any of");
+    expect(note).toHaveTextContent("can approve another person's procurement record");
     expect(note).not.toHaveTextContent('Only an Admin can decide');
   });
 

@@ -208,8 +208,9 @@ async function commitV16BudgetCreate(
 
   const predecessor = deps.ctx.budgetAccount?.predecessor;
   if (!predecessor) return fail('has no witnessed predecessor to remove');
-  const target = deps.ctx.refs.self ?? predecessor;
+  const target = predecessor;
   const doc = await getDoc(deps.client, entry.doctype, target) as Record<string, unknown>;
+  if (doc.name !== target) return fail('received a different document than its witnessed predecessor');
   verify(doc);
   if (Number(doc.docstatus) === 0) fail(`is occupied by draft ${String(doc.name)}`);
   if (Number(doc.docstatus) === 2) return { externalRecordId: target, canonical: canonical(doc) };
@@ -220,6 +221,7 @@ async function commitV16BudgetCreate(
     fail(`has unsupported document status ${String(doc.docstatus)}`);
   }
   const readback = await getDoc(deps.client, entry.doctype, target) as Record<string, unknown>;
+  if (readback.name !== target) return fail('received a different cancellation readback document');
   verify(readback);
   if (Number(readback.docstatus) !== 2) fail(`could not confirm cancellation of ${target}`);
   return { externalRecordId: target, canonical: canonical(readback) };

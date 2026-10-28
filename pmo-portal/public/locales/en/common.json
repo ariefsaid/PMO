@@ -112,11 +112,11 @@
     "saveVendorTax": "Save accounts",
     "saveWithholding": "Save account",
     "savedChoiceUnavailable": "Saved value is not in the current chart; it remains saved until replaced.",
-    "vendorTaxHeading": "Vendor bill tax accounts",
-    "vendorTaxIntro": "Choose company-chart accounts for input VAT and tax withheld from vendor bills. Input VAT candidates use Asset accounts; PPh payable candidates use Liability accounts.",
+    "vendorTaxHeading": "Supplier bill tax accounts",
+    "vendorTaxIntro": "Choose company-chart accounts for input VAT and tax withheld from supplier bills. Input VAT candidates use Asset accounts; PPh payable candidates use Liability accounts.",
     "vendorTaxLoadError": "Couldn't load the tax accounts",
     "vendorTaxRemoteChanged": "The saved accounts changed. Your edits are kept; reload the saved values to discard them.",
-    "vendorTaxSaved": "Vendor tax accounts saved",
+    "vendorTaxSaved": "Supplier tax accounts saved",
     "withholdingHeading": "Receipt withholding",
     "withholdingIntro": "Choose the Asset account used for income tax withheld by clients. An Admin must configure it before a receipt with withholding can be recorded.",
     "withholdingLabel": "Tax-prepaid account",
@@ -205,14 +205,11 @@
     "operatorRecovery": "Open organization ERP setup"
   },
   "uxs02": {
-    "unavailable": "Unavailable",
     "activeBudget": "Active budget",
     "noActiveBudget": "No active budget",
     "zeroActiveBudget": "{{budget}} Active budget; usage unavailable",
     "riskUnavailableTitle": "Couldn't check project budget risk",
     "riskUnavailableSub": "Project spending and Active budget information could not be checked.",
-    "incompleteCoverage": "Incomplete source coverage",
-    "restrictedRowsExcluded": "Restricted rows excluded",
     "budgetUsed": "{{percent}}% of Active budget",
     "budgetSummary": "{{actual}} of {{budget}} Active budget",
     "currencyMismatch": "Budget currency differs from Actual",
@@ -303,7 +300,7 @@
     "view": "View bukti potong",
     "record": "Record bukti potong",
     "setVendor": "Set supplier",
-    "vendorRequired": "Set a supplier on this procurement before recording this slip.",
+    "vendorRequired": "Set a supplier on the procurement record before recording this slip.",
     "vendorSet": "Supplier set",
     "vendorAlreadySet": "A supplier was already set. Refresh to see it.",
     "selectVendor": "Select a supplier…",
@@ -392,7 +389,7 @@
     "amountExceedsBase": "Issued withholding cannot exceed the tax base.",
     "invalidTaxPeriod": "Choose a tax month no later than the current month.",
     "invalidFactsCopy": "Review the entered facts and try again.",
-    "vendorUnavailable": "Supplier details not recorded",
+    "vendorUnavailable": "Supplier details unavailable",
     "noBillHistory": "No withholding slips recorded for this bill.",
     "selectedBills": "Selected bills ({{count}})",
     "candidateEmpty": "No eligible bills for this supplier, currency and PPh type.",
@@ -702,7 +699,7 @@
     },
     "spendApprovers": {
       "title": "Spend approvers",
-      "description": "Who approves purchase requests. Spend charged to a project and within its budget line goes to that project's approver; overhead, and spend that would exceed the budget line, goes to the overhead approvers. Any one listed approver can approve. With nobody listed, the standard role rules apply.",
+      "description": "Who approves procurement. Spend charged to a project and within its budget line goes to that project's approver; overhead, and spend that would exceed the budget line, goes to the overhead approvers. Any one listed approver can approve. With nobody listed, the standard role rules apply.",
       "orgSet": {
         "title": "Overhead and over-budget approvers"
       },
@@ -723,13 +720,13 @@
       },
       "confirm": {
         "title": "Remove {{name}}?",
-        "description": "They will no longer approve these requests. Requests already decided are unchanged.",
+        "description": "They will no longer approve procurement records. Records already decided are unchanged.",
         "confirm": "Remove"
       },
       "form": {
         "orgTitle": "Add an overhead approver",
         "projectTitle": "Add a project approver",
-        "subtitle": "Any one listed approver can approve a request.",
+        "subtitle": "Any one listed approver can approve a procurement record.",
         "legend": "Approver",
         "person": "Person",
         "personPlaceholder": "Select a person…",
@@ -747,7 +744,7 @@
       "label": "Customer invoices awaiting you",
       "heading": "Customer invoices awaiting you ({{count}})",
       "errorTitle": "Couldn't load invoices awaiting you",
-      "errorSub": "Purchase requests and timesheets below are unaffected.",
+      "errorSub": "Procurement and timesheets below are unaffected.",
       "raisedBy": "Raised by",
       "net": "Net (before tax)",
       "tax": "Tax",
@@ -782,7 +779,7 @@
       }
     },
     "accessDenied": {
-      "sub": "Approvals are for the roles that sign off purchase requests or timesheets. Your work lives on your dashboard, projects, and tasks.",
+      "sub": "Approvals are for the roles that sign off procurement or timesheets. Your work lives on your dashboard, projects, and tasks.",
       "title": "You don't have access to approvals"
     },
     "attest": {
@@ -823,9 +820,9 @@
     "entryOther": "entries",
     "group": {
       "procurement": {
-        "emptySub": "Purchase requests that need your approval will appear here.",
-        "emptyTitle": "No requests awaiting your decision",
-        "title": "Purchase requests"
+        "emptySub": "Procurement records that need your approval will appear here.",
+        "emptyTitle": "No procurement records awaiting your decision",
+        "title": "Procurement records"
       },
       "timesheets": {
         "emptySub": "Submitted timesheets from your reports will appear here for review.",
@@ -835,7 +832,7 @@
     },
     "noProjectLinked": "No project linked",
     "previewEmpty": {
-      "sub": "When a pending request is available, its preview and actions appear here.",
+      "sub": "When a pending procurement record is available, its preview and actions appear here.",
       "title": "Select an approval item"
     },
     "previewError": {
@@ -875,7 +872,7 @@
     },
     "scope": {
       "all": "All pending",
-      "procurement": "Purchase requests",
+      "procurement": "Procurement records",
       "timesheets": "Timesheets",
       "expense": "Expense claims",
       "invoice": "Customer invoices"
@@ -884,7 +881,7 @@
       "policyHelp": "Policy: a different person approves each timesheet."
     },
     "scopeToggleLabel": "Approvals scope",
-    "subtitle": "Needs my approval — everything waiting on your decision: purchase requests, timesheets, expense claims and customer invoices.",
+    "subtitle": "Needs my approval — everything waiting on your decision: procurement, timesheets, expense claims and customer invoices.",
     "title": "Approvals",
     "unknownOwner": "Unknown",
     "unknownRequester": "Unknown requester",
@@ -934,7 +931,7 @@
       "archiveInstead": "Archive instead",
       "dismiss": "Dismiss"
     },
-    "description": "Clients and vendors used across projects and procurement. Master data shared by the whole organisation.",
+    "description": "Clients and suppliers used across projects and procurement. Master data shared by the whole organisation.",
     "filters": {
       "all": "All",
       "ariaLabel": "Filter by type"
@@ -951,7 +948,7 @@
         "placeholder": "e.g. Cascade Port Authority"
       },
       "newSubmit": "Create company",
-      "newSubtitle": "Add a client or vendor to the directory",
+      "newSubtitle": "Add a client or supplier to the directory",
       "newTitle": "New company",
       "sections": {
         "identity": "Identity"
@@ -973,7 +970,7 @@
       "placeholder": "Search companies…"
     },
     "states": {
-      "emptySub": "Add your first client or vendor to start linking projects and purchase requests to a directory.",
+      "emptySub": "Add your first client or supplier to start linking projects and procurement records to a directory.",
       "emptyTitle": "No companies yet",
       "errorSub": "The request failed. Check your connection and try again.",
       "errorTitle": "Couldn't load companies"
@@ -993,7 +990,7 @@
     "type": {
       "client": "Client",
       "internal": "Internal",
-      "vendor": "Vendor"
+      "vendor": "Supplier"
     }
   },
   "companyDetail": {
@@ -1130,10 +1127,10 @@
     "type": {
       "client": "Client",
       "internal": "Internal",
-      "vendor": "Vendor"
+      "vendor": "Supplier"
     },
     "vendorTax": {
-      "hint": "Pre-fills new bills from this vendor. The amounts stay editable on each bill.",
+      "hint": "Pre-fills new bills from this supplier. The amounts stay editable on each bill.",
       "none": "None",
       "notSet": "Not set",
       "onlyRoles": "Only Admin or Finance can change these.",
@@ -1143,10 +1140,10 @@
       "pphRateHelper": "Required when withholding is selected. Enter a rate above 0 and below 100%.",
       "pphRateError": "Enter a rate above 0 and below 100 with no more than 3 decimal places.",
       "save": "Save defaults",
-      "saved": "Vendor tax defaults saved",
+      "saved": "Supplier tax defaults saved",
       "summaryPph": "{{type}} at {{rate}}%",
       "summaryVat": "VAT {{rate}}%",
-      "title": "Vendor tax defaults",
+      "title": "Supplier tax defaults",
       "vatRate": "VAT rate (%)",
       "vatRateError": "Enter a rate from 0 to 100 with no more than 3 decimal places, or leave it blank.",
       "withholding": "Withholding"
@@ -1379,7 +1376,37 @@
       "hoursShort": "{{hours}}h",
       "hoursSpoken": "{{hours}} {{unit}}",
       "hoursUnit": "hours",
-      "day": {}
+      "day": {
+        "sun": "Sun",
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat"
+      },
+      "title": "My Dashboard",
+      "subtitle": "Your hours this week and timesheet status.",
+      "logHours": "Log this week's hours",
+      "logHoursShort": "Log hours",
+      "kpiBand": "My KPIs",
+      "hoursThisWeek": "Hours this week",
+      "weeklyHoursCardTitle": "Hours This Week",
+      "weekOf": "week of {{date}}",
+      "openTimesheetsLog": "Open your timesheets to log this week's hours",
+      "hoursHelp": "Total hours on your most recent timesheet.",
+      "timesheetStatus": "Timesheet status",
+      "noneThisPeriod": "None this period",
+      "openTimesheetsStatus": "Open your timesheets to see your current status",
+      "statusHelp": "The status of your most recent timesheet.",
+      "loadError": "Couldn't load your timesheets",
+      "recentError": "Couldn't load recent entries",
+      "noHoursSub": "Log your hours to see your weekly breakdown.",
+      "projectBreakdownSub": "Log your hours to see a project breakdown.",
+      "hoursByDay": "Hours this week by day",
+      "dayHours": "{{day}}: {{hours}} hours",
+      "byProject": "This week by project",
+      "recentEntries": "Recent entries"
     },
     "atRisk": {
       "reviewSingle": "Review {{count}} at-risk project",
@@ -1415,9 +1442,12 @@
       "procStatus": {
         "chartLabel": "Procurement by status",
         "empty": "No procurement activity yet",
-        "noun": "requests"
+        "noun": "procurement records"
       },
-      "pipelineMargin": {}
+      "pipelineMargin": {
+        "empty": "No open pipeline",
+        "error": "Couldn't load the pipeline"
+      }
     },
     "kpi": {
       "awaitingApproval": {
@@ -1431,11 +1461,31 @@
         "review": "Review"
       },
       "helpLabel": "Help: {{label}}",
-      "pipelineMargin": {},
-      "pipelineWeighted": {},
-      "revenueOnHand": {},
-      "totalContractValue": {},
-      "totalSpend": {}
+      "pipelineMargin": {
+        "help": "Probability-adjusted projected margin across the open pipeline (Σ(value − budget) / Σ value, weighted by stage win-probability).",
+        "label": "Pipeline forecast margin",
+        "vs": "probability-weighted"
+      },
+      "pipelineWeighted": {
+        "help": "Sum of (project value × stage win-probability) across all open stages.",
+        "label": "Pipeline (weighted)",
+        "linkLabel": "Open the sales pipeline",
+        "vs": "of {{gross}} gross"
+      },
+      "revenueOnHand": {
+        "help": "Contract value across delivery projects. Margin is measured on billed work only: billed-work revenue less Actual. It is not cash received."
+      },
+      "totalContractValue": {
+        "help": "Total contract value across Ongoing projects.",
+        "label": "Total contract value",
+        "linkLabel": "Open Ongoing, Won, Pending KoM, and On Hold projects to see total contract value"
+      },
+      "totalSpend": {
+        "help": "On-hand portfolio Actual recorded to date.",
+        "label": "On-hand recorded spending",
+        "linkLabel": "Open Ongoing, Won, Pending KoM, and On Hold projects to review spending"
+      },
+      "aboutMetric": "About this metric"
     },
     "stillToInvoice": {
       "count": "Work orders: {{n}}",
@@ -1447,13 +1497,60 @@
       "incompleteMore": "and {{n}} more",
       "clientPo": "Client PO {{po}}"
     },
-    "pm": {},
-    "empty": {},
-    "error": {},
-    "mobile": {},
-    "kpiBand": {},
-    "sr": {},
-    "subtitle": {}
+    "pm": {
+      "title": "My Dashboard",
+      "subtitle": "Your projects, budget health, and approvals queue.",
+      "kpiBand": "My KPIs",
+      "myProjects": "My projects",
+      "openMyProjects": "Open my projects",
+      "contractValue": "My contract value",
+      "openContractValue": "Open my projects to see contract value",
+      "contractValueHelp": "Total contract value across your projects.",
+      "atRisk": "At risk",
+      "budgetUsage": "budget usage > 90%",
+      "openAtRisk": "Open my at-risk projects",
+      "atRiskHelp": "Your projects whose actual spend exceeds 90% of budget.",
+      "loadError": "Couldn't load your projects",
+      "statusTitle": "Project Status",
+      "nothingToShow": "Nothing to show yet"
+    },
+    "empty": {
+      "sub": "Create your first project to see portfolio KPIs here.",
+      "title": "No data yet"
+    },
+    "error": {
+      "sub": "The dashboard query failed. Retry, or check back shortly.",
+      "title": "Couldn't load the dashboard"
+    },
+    "mobile": {
+      "needsAttention": "Needs attention",
+      "riskSummary": "of {{count}} active delivery projects flagged over budget or behind schedule",
+      "noRiskSummary": "of {{count}} active delivery projects · all on track",
+      "spendLink": "Open Ongoing, Won, Pending KoM, and On Hold projects · on-hand spending {{amount}} to date",
+      "breakdown": "Breakdown",
+      "approvals": "Approvals",
+      "awaitingApproval": "Awaiting your approval",
+      "approvalsLink": "Awaiting your approval: {{count}} items. Open approvals inbox.",
+      "approvalsLinkError": "Awaiting your approval. Open approvals inbox.",
+      "review": "Review",
+      "contractBook": "Contract book",
+      "atRiskRegion": "Projects at risk",
+      "atRiskZero": "All projects on track",
+      "atRiskCount": "{{count}} projects at risk"
+    },
+    "kpiBand": {
+      "label": "Portfolio KPIs"
+    },
+    "sr": {
+      "activeProjects": "active projects",
+      "statuses": "statuses"
+    },
+    "subtitle": {
+      "desktop": "Portfolio health across the contracting book — margin on hand, pipeline forecast, and delivery exposure.",
+      "mobile": "What needs your attention across the contracting book."
+    },
+    "uxs36CustomerCollectionsTitle": "Customer collections (AR)",
+    "title": "Executive Dashboard"
   },
   "decisionContext": {
     "amount": "Amount",
@@ -1527,7 +1624,7 @@
       "truncated": "Showing the oldest {{count}} advances."
     },
     "approvals": {
-      "errorSub": "Purchase requests and timesheets below are unaffected.",
+      "errorSub": "Procurement and timesheets below are unaffected.",
       "errorTitle": "Couldn't load expense claims awaiting you",
       "heading": "Expense claims awaiting you ({{count}})",
       "label": "Expense claims awaiting you",
@@ -1952,7 +2049,7 @@
   },
   "procurement": {
     "columns": {
-      "request": "Request",
+      "request": "Procurement",
       "project": "Project",
       "requester": "Requester",
       "value": "Value",
@@ -1964,32 +2061,69 @@
       "toggle": "Show preview for {{title}}",
       "loadErrorSub": "Something went wrong fetching the preview.",
       "lineItems": "Line items",
-      "viewFullRequest": "View full procurement"
+      "viewFullRequest": "View procurement record"
     },
     "filter": {
-      "paid": "Paid"
+      "paid": "Paid",
+      "all": "All",
+      "needsApproval": "Needs approval",
+      "open": "Open",
+      "ordered": "Ordered",
+      "vendorInvoiced": "Supplier invoiced"
     },
     "stage": {
       "gr": "Goods Receipt",
       "paid": "Payment",
       "po": "Purchase Order",
       "pr": "Purchase Request",
-      "vi": "Supplier invoice",
-      "vq": "Supplier quote"
+      "vi": "Supplier Invoice",
+      "vq": "Supplier Quote"
     },
-    "column": {},
+    "column": {
+      "lifecycle": "Lifecycle",
+      "project": "Project",
+      "request": "Procurement",
+      "requestedBy": "Requested by",
+      "status": "Status",
+      "value": "Value"
+    },
     "empty": {
-      "orgWide": {},
-      "ownScoped": {}
+      "orgWide": {
+        "title": "No procurement records yet"
+      },
+      "ownScoped": {
+        "title": "You haven't created any procurement records yet"
+      }
     },
     "error": {
-      "sub": "Something went wrong fetching your requests.",
+      "sub": "Something went wrong fetching your procurement records.",
       "title": "Couldn't load procurements"
     },
-    "noMatch": {},
-    "search": {},
-    "title": {},
-    "view": {}
+    "noMatch": {
+      "clearFilters": "Clear filters",
+      "sub": "Try a different status, search term, or clear the filters.",
+      "title": "No procurement records match your filters"
+    },
+    "search": {
+      "label": "Filter procurement records",
+      "placeholder": "Filter procurement records or references…"
+    },
+    "title": {
+      "orgWide": "Procurement",
+      "ownScoped": "Your procurement records"
+    },
+    "view": {
+      "board": "Board",
+      "table": "Table"
+    },
+    "importCycleData": "Import cycle data",
+    "lifecycleLabel": "Lifecycle",
+    "listLabel": "Procurement",
+    "raiseRequest": "New procurement",
+    "stageEmpty": "No procurement records at {{stage}}",
+    "statusFilterLabel": "Status filter",
+    "unknownRequester": "Unknown",
+    "viewToggleLabel": "Procurement view"
   },
   "procurementLedger": {
     "title": "Case ledger",
@@ -2020,7 +2154,7 @@
   },
   "procurementDetail": {
     "accessDenied": {
-      "sub": "This procurement either doesn't exist or isn't visible to your role. If you raised it, open it from your own procurements.",
+      "sub": "This procurement record either doesn't exist or isn't visible to your role. If you created it, open it from your procurement list.",
       "title": "You don't have access to this record"
     },
     "action": {
@@ -2029,14 +2163,16 @@
       "confirmReceipt": "Confirm Receipt",
       "generatePurchaseOrder": "Generate Purchase Order",
       "markAsPaid": "Mark as Paid",
-      "markVendorInvoiced": "Record supplier invoice",
+      "markVendorInvoiced": "Mark Supplier Invoiced",
       "reject": "Reject",
       "selectQuote": "Compare and select a quote",
-      "submitRequest": "Submit for approval"
+      "submitRequest": "Submit for approval",
+      "requestVendorQuotes": "Request Supplier Quotes",
+      "rework": "Rework (Back to Draft)"
     },
     "recordKinds": {
       "goodsReceipt": "Goods Receipt",
-      "vendorInvoice": "Supplier invoice"
+      "vendorInvoice": "Supplier Invoice"
     },
     "statusOption": {
       "draft": "Draft",
@@ -2056,7 +2192,7 @@
       "scheduled": "Scheduled"
     },
     "vendorInvoice": {
-      "enterDetails": "Enter the supplier invoice details:",
+      "enterDetails": "Enter invoice details to mark as Supplier Invoiced:",
       "invoiceNumber": "Invoice #",
       "optional": "optional",
       "invoicePlaceholder": "e.g. INV-2291",
@@ -2094,7 +2230,7 @@
       "approveBody": "Approve <money/>?",
       "cancelTitle": "Cancel this procurement?",
       "destructiveTitle": "{{action}} this procurement",
-      "grBody": "This records a {{status}} goods receipt against {{request}}.",
+      "grBody": "This records a {{status}} goods receipt against procurement record {{request}}.",
       "grTitle": "Record this goods receipt?",
       "keepRequest": "Keep procurement",
       "markPaidBody": "Record {{amount}} as paid? This records payment evidence; it does not transfer funds.",
@@ -2104,7 +2240,7 @@
       "saveGR": "Save GR",
       "saveVI": "Save supplier invoice",
       "terminal": "This is a terminal action for this procurement and cannot be undone.",
-      "viBody": "This records a supplier invoice against {{request}}.",
+      "viBody": "This records a supplier invoice against procurement record {{request}}.",
       "viTitle": "Record this supplier invoice?"
     },
     "detail": {
@@ -2113,7 +2249,8 @@
       "notYetSelected": "Not yet selected",
       "pending": "Pending",
       "project": "Project",
-      "requestedBy": "Requested by"
+      "requestedBy": "Requested by",
+      "vendor": "Supplier"
     },
     "error": {
       "sub": "Something went wrong fetching the procurement details.",
@@ -2181,9 +2318,29 @@
       "withholding": "Tax withheld",
       "withheldAboveItems": "The tax withheld is larger than the items total before tax. Check the PPh amount."
     },
-    "meta": {},
-    "tabs": {},
-    "tile": {}
+    "meta": {
+      "requestedBy": "requested by"
+    },
+    "tabs": {
+      "documents": "Documents",
+      "lineItems": "Line items",
+      "overview": "Overview",
+      "vendorQuotes": "Supplier quotes",
+      "history": "History"
+    },
+    "tile": {
+      "goodsReceived": "Goods received",
+      "poCommitted": "PO committed",
+      "prValue": "PR value",
+      "receiptOne": "receipt",
+      "receiptOther": "receipts",
+      "selectedFallback": "selected",
+      "selectedQuote": "Selected quote"
+    },
+    "approvalNotes": "Approval notes",
+    "editHeader": "Edit",
+    "lifecycleLabel": "Procurement lifecycle",
+    "rejectionNotes": "Rejection notes"
   },
   "projectDetail": {
     "backToProjects": "Projects",
@@ -2363,7 +2520,8 @@
         "code": "Code",
         "document": "Document",
         "status": "Status",
-        "file": "File"
+        "file": "File",
+        "date": "Date"
       },
       "deleteConfirm": {
         "body": "This permanently removes the document register entry. This can't be undone.",
@@ -2382,7 +2540,8 @@
         "file": "File",
         "lineage": "Revision lineage",
         "revision": "Revision",
-        "supersededBy": "Superseded by"
+        "supersededBy": "Superseded by",
+        "status": "Status"
       },
       "fileValidationFailed": "File validation failed",
       "form": {
@@ -2444,7 +2603,8 @@
         "reopen": "Reopen for revision"
       },
       "viewDocument": "View",
-      "viewRevision": "View revision"
+      "viewRevision": "View revision",
+      "download": "Download"
     },
     "drawdown": {
       "barLabel": "Contract drawn down",
@@ -2631,12 +2791,35 @@
       "title": "Project not found"
     },
     "overview": {
-      "budgetSnapshot": {},
-      "budgetUtil": {},
-      "finance": {
-        "title": "Financial summary"
+      "budgetSnapshot": {
+        "activeBudget": "Active budget",
+        "actualSpent": "Actual spent",
+        "byCategory": "By category",
+        "byCategoryLabel": "Budget by category",
+        "error": "Couldn't load budget",
+        "openBudgetTab": "Open Budget tab",
+        "title": "Budget snapshot"
       },
-      "procSummary": {}
+      "budgetUtil": {
+        "atRisk": "At risk",
+        "ofBudget": "of budget"
+      },
+      "finance": {
+        "title": "Financial summary",
+        "actual": "Actual",
+        "contract": "Contract",
+        "spend": "Spend"
+      },
+      "procSummary": {
+        "closed": "Closed",
+        "completed": "Completed",
+        "error": "Couldn't load procurement",
+        "open": "Open",
+        "requestOne": "procurement record",
+        "requestOther": "procurement records",
+        "title": "Procurement summary",
+        "viewAll": "View all procurement"
+      }
     },
     "pipeline": {
       "backToSalesPipeline": "← Back to Sales Pipeline",
@@ -2686,17 +2869,22 @@
     },
     "procurement": {
       "empty": {
-        "title": "No procurement on this project yet."
+        "title": "No procurement records for this project yet"
       },
       "error": {
-        "sub": "Something went wrong fetching this project's procurement.",
+        "sub": "Something went wrong fetching this project's procurement records.",
         "title": "Couldn't load procurement"
       },
       "group": {},
       "newRequest": "New procurement",
       "summary": {},
       "title": "Procurement",
-      "column": {}
+      "column": {
+        "request": "Procurement",
+        "status": "Status",
+        "value": "Value"
+      },
+      "openRow": "Open"
     },
     "rail": {
       "actionsAriaLabel": "Project rail actions",
@@ -2733,7 +2921,9 @@
       "overview": "Overview",
       "procurement": "Procurement",
       "tasks": "Tasks",
-      "workOrders": "Work orders"
+      "workOrders": "Work orders",
+      "billing": "Billing",
+      "history": "History"
     },
     "tasks": {
       "action": {
@@ -2877,7 +3067,9 @@
         "cancel": "Cancel order",
         "close": "Close order",
         "issue": "Issue",
-        "setValue": "Set value"
+        "setValue": "Set value",
+        "edit": "Edit",
+        "new": "New work order"
       },
       "billing": {
         "openDraft": "Open draft",
@@ -2938,7 +3130,9 @@
         "stillToInvoice": "Still to invoice",
         "summaryTitle": "Billing against work orders",
         "notSubmitted": "Not yet submitted",
-        "lineNet": "Net value {{amount}}"
+        "lineNet": "Net value {{amount}}",
+        "unavailable": "Unavailable",
+        "lineNotSubmitted": "Not yet submitted {{amount}}"
       },
       "clientPo": "Customer PO",
       "issueGate": {
@@ -2946,7 +3140,13 @@
         "peerBody": "The value must be set by your supervisor or a more senior active reviewer before it can be issued.",
         "unstampedBody": "The value must be set by an authorized reviewer before this order can be issued."
       },
-      "column": {},
+      "column": {
+        "actions": "Actions",
+        "number": "WO number",
+        "orderDate": "Order date",
+        "status": "Status",
+        "value": "Order value"
+      },
       "confirm": {
         "cancel": {
           "body": "Cancelling is final and cannot be undone — it is how a work order is withdrawn, since there is no delete. Its value stops counting towards the drawdown.",
@@ -2969,7 +3169,10 @@
           "title": "This would go past the contract ceiling"
         }
       },
-      "empty": {},
+      "empty": {
+        "sub": "Record the client’s purchase orders here. Once issued, they draw down the project’s contract value.",
+        "title": "No work orders on this project yet"
+      },
       "error": {
         "sub": "The client’s purchase orders for this project could not be read. Retry, or reopen the project.",
         "title": "Couldn’t load the work orders"
@@ -2992,7 +3195,8 @@
         "transitioned": "Work order updated",
         "updated": "Work order updated",
         "valueSet": "Work order value set"
-      }
+      },
+      "title": "Work orders"
     },
     "loadError": {
       "title": "Couldn't load this project",
@@ -3376,7 +3580,7 @@
       "meetings": "Meetings",
       "myTasks": "My Tasks",
       "myTasksHint": "Your assigned work across projects",
-      "vendors": "Vendors",
+      "vendors": "Suppliers",
       "procurement": "Procurement",
       "projects": "Projects",
       "revenueByProject": "Revenue by Project",
@@ -3386,7 +3590,7 @@
       "profileSettings": "Profile & preferences",
       "expenses": "Expenses",
       "financialStatements": "Financial statements",
-      "managementPack": "Management pack"
+      "managementPack": "Reports"
     },
     "notifications": {
       "empty": "No notifications yet.",
@@ -3799,11 +4003,40 @@
     "title": "Allow {{client}} to access your PMO account?"
   },
   "uxs04": {
-    "noActiveBudget": "No active budget"
+    "noActiveBudget": "No active budget",
+    "forecast": "Forecast",
+    "editCostToFinish": "Edit cost to finish",
+    "budget": "Budget",
+    "recordedSpending": "Recorded spending",
+    "costToFinish": "Cost to finish",
+    "costToFinishFor": "Cost to finish: {{category}}",
+    "forecastFinalCost": "Forecast final cost",
+    "forecastRemaining": "Forecast remaining",
+    "forecastOverrun": "Forecast overrun",
+    "forecastRemainingOver": "Forecast remaining / (overrun)",
+    "forecastBudgetUsed": "Forecast budget used",
+    "recordedAsOf": "Recorded spending as of",
+    "incompleteBudget": "Not complete: budget unknown for {{categories}}",
+    "incompleteRecorded": "Not complete: spending unavailable for {{categories}}",
+    "reasonBudgetedElsewhere": "Budgeted in {{years}}",
+    "reasonBudgetYearUnclear": "Budget year unclear: phase its budget lines",
+    "reasonNoBudgetLine": "No budget line",
+    "reasonNoBudgetThisYear": "No budget on record for this year",
+    "reasonSpendingNotRead": "Spending not read yet",
+    "reasonSpendingUnmapped": "Spending unavailable: no ledger account mapped",
+    "sourcesAndStatus": "Sources and budget enforcement",
+    "sourcesNote": "Recorded spending is what the accounting ledger has posted. The budget is your active version; cost to finish is your own estimate and is never sent to the ERP.",
+    "costToFinishSaved": "Cost to finish saved",
+    "rowNotSaved": "Not saved. Try again.",
+    "someNotSaved": "Some changes were not saved",
+    "savedAndNotSaved": "Saved: {{saved}}. Not saved: {{failed}}. {{reason}}",
+    "noneSaved": "Nothing was saved: {{failed}}. {{reason}}"
   },
   "uxs05": {
     "customerReference": "Customer reference",
-    "overdueOnly": "Overdue only"
+    "overdueOnly": "Overdue only",
+    "overdueDay": "{{count}} day overdue",
+    "overdueDays": "{{count}} days overdue"
   },
   "financeCopy": {
     "viewInvoice": "View invoice",
@@ -3979,7 +4212,7 @@
     "budgetCategorySubcontractors": "Subcontractors",
     "budgetCategoryEquipment": "Equipment",
     "budgetCategoryPermitsFees": "Permits & Fees",
-    "budgetCategoryOverheads": "Overheads",
+    "budgetCategoryOverheads": "Project operating costs",
     "budgetCategoryContingency": "Contingency",
     "budgetVersionCreated": "Budget version created",
     "versionActivatedERPNotUpdated": "Version activated — but ERPNext was not updated",
@@ -4101,7 +4334,38 @@
     "sodAuthorMissing": "This invoice has no recorded author, so it cannot be approved",
     "nativeDraftsOpen": "Invoices raised in PMO are still in draft",
     "activateEditorBlocked": "You drafted or edited this version, so someone else must activate it.",
-    "activateNeedsAdminOrFinance": "No drafter is recorded for this version, so only Admin or Finance can activate it."
+    "activateNeedsAdminOrFinance": "No drafter is recorded for this version, so only Admin or Finance can activate it.",
+    "continueToApprove": "Continue to approve",
+    "activeBudget": "Active budget:",
+    "newVersion": "+ New version",
+    "version": "Version",
+    "noFiscalYearOnRecord": "No fiscal year on record",
+    "activateABudgetVersionAndPushItToTheERPToRecordOneOrWaitForTheERPLedgerToSyncItsFirstPostingsForThisProject": "Activate a budget version and push it to the ERP to record one, or wait for the ERP ledger to sync its first postings for this project.",
+    "waitingToReachERPNext": "Waiting to reach ERPNext",
+    "budgetQueuedForERPNext": "This budget is queued for ERPNext and has not been sent yet.",
+    "sendingToERPNext": "Sending to ERPNext",
+    "budgetBeingSentToERPNext": "This budget is being sent to ERPNext now.",
+    "erpNextEnforcingBudget": "ERPNext is enforcing this budget.",
+    "use": "Use",
+    "onTheActiveVersionAboveThenActivateTheCloneThatRecordsARealActivationAndCanBePushed": "on the active version above, then activate the clone — that records a real activation and can be pushed.",
+    "mapTheseCategoriesToAnERPAccountThenRetry": "Map these categories to an ERP account, then retry:",
+    "categoriesThatNeedAnERPAccount": "Categories that need an ERP account",
+    "youDonTHaveAccessToRevenueByProject": "You don't have access to Revenue by Project",
+    "theRevenuePerProjectViewIsAvailableToFinanceProjectManagersAndExecutives": "The revenue per project view is available to Finance, Project Managers, and Executives.",
+    "unassigned": "Unassigned",
+    "totalRevenue": "Total Revenue",
+    "openAR": "Open AR",
+    "invoices": "Invoices",
+    "revenueByProject": "Revenue by Project",
+    "noRevenueDataYet": "No revenue data yet",
+    "createSalesInvoicesToSeeRevenuePerProject": "No invoice revenue has been recorded yet. New Invoice starts billing; revenue appears here after invoices are recorded.",
+    "noRevenueData": "No revenue data",
+    "invoicesWithAmountsWillAppearHere": "Invoices with amounts will appear here.",
+    "budgetActiveRetryFromProjection": "{{version}}. PMO's budget is active; retry the push from the Budget projection.",
+    "budgetEtcAmountInvalid": "Enter a valid, non-negative amount with no more than 2 decimal places",
+    "erpEnforcingBudgetYear": "ERPNext is now enforcing the active budget for {{year}}.",
+    "budgetProjectionLoadFailed": "Couldn't load the budget projection",
+    "currency": "Currency"
   },
   "viewBuilder": {
     "privateScope": "Private — only you",
@@ -4222,9 +4486,9 @@
     "description": "Planned, recognised and invoiced revenue per project and month. All figures exclude tax.",
     "from": "From",
     "asAt": "As at",
-    "noAccessTitle": "You don't have access to the management pack",
-    "noAccessSub": "Finance reports are available to Finance, Executive and Admin roles.",
-    "errorTitle": "Couldn't load the management pack",
+    "noAccessTitle": "You don't have access to Reports",
+    "noAccessSub": "Reports are available to Finance, Project Managers, Executives and Admins.",
+    "errorTitle": "Couldn't load Reports",
     "errorSub": "The request failed. Check your connection and try again.",
     "invalidRange": "Choose a start month on or before the as-at month, at most 24 months apart.",
     "emptyTitle": "No projects to report",
@@ -4239,7 +4503,8 @@
     "total": "Total",
     "basis": {
       "invoiced": "Invoiced",
-      "progressShort": "Progress"
+      "progressShort": "Progress",
+      "progress": "{{pct}} complete"
     },
     "col": {
       "month": "Month",
@@ -4268,10 +4533,13 @@
       "note": "Note",
       "save": "Save progress",
       "saved": "Progress saved"
-    }
+    },
+    "title": "Reports"
   },
   "uxs34": {
-    "backlogReason": "A foreign-currency invoice needs reconciliation before this balance can be known."
+    "backlogReason": "A foreign-currency invoice needs reconciliation before this balance can be known.",
+    "cumulativeScope": "Cumulative amounts · since project start through {{month}}",
+    "backlogUnavailable": "The foreign-currency invoice backlog needs reconciliation before this balance can be known."
   },
   "comments": {
     "title": "Comments",
@@ -4412,7 +4680,7 @@
       "company": "Company",
       "contact": "Contact",
       "sales_invoice": "Sales invoice",
-      "procurement_invoice": "Supplier invoice",
+      "procurement_invoice": "Supplier bill",
       "vendor_withholding_slip": "Bukti potong",
       "vendor_withholding_slip_bill": "Bukti potong bill link"
     },
@@ -4469,7 +4737,7 @@
       "credits_grant": "Credits granted",
       "company_tax_defaults_change": "Company tax defaults changed",
       "org_withholding_account_change": "Withholding accounts changed",
-      "org_vendor_tax_accounts_change": "Vendor tax accounts changed",
+      "org_vendor_tax_accounts_change": "Supplier tax accounts changed",
       "org_tax_default_change": "Tax defaults changed",
       "org_down_payment_item_change": "Down-payment items changed",
       "meeting_grant_create": "Meeting access granted",
@@ -4505,13 +4773,16 @@
     "retry": "Retry",
     "mixedTaxBases": "Mixed tax bases",
     "contractInvoiced": "Invoiced against contract",
-    "remaining": "Remaining to invoice"
+    "remaining": "Remaining to invoice",
+    "differentCurrencies": "Amounts are in different currencies.",
+    "workUnavailable": "Billed-work revenue could not be determined.",
+    "actualsUnavailable": "Actual spending is still being confirmed."
   },
   "uxs01": {
     "recordedSpending": "Recorded spending",
     "pmoPurchaseOrders": "PMO purchase orders",
     "pmoCoverage": "Committed PMO purchase orders",
-    "actualUnavailable": "Unavailable",
+    "actualUnavailable": "Actual spending is still being confirmed.",
     "actualLoading": "Loading Actual…",
     "actualPartial": "Incomplete — see spending details",
     "completeCoverage": "Complete category coverage",
@@ -4522,7 +4793,15 @@
     "categoryDetails": "Recorded spending by category",
     "contractRemainingAfterCost": "Contract remaining after cost",
     "cashReceived": "Cash received",
-    "cashReceivedScope": "Receipt cash linked to this project's invoices"
+    "cashReceivedScope": "Receipt cash linked to this project's invoices",
+    "totalRequestValueAcross": "Total procurement value: <amount>{{amount}}</amount> across {{n}} {{unit}}",
+    "budgetPosition": "Budget position",
+    "overBudgetBy": "Over budget by {{amount}}",
+    "budgetRemaining": "Budget remaining {{amount}}",
+    "onBudget": "On budget",
+    "cashReceivedUnavailable": "Receipt-linked cash hasn't been reported yet.",
+    "cashReceivedInvalid": "Receipt-linked cash could not be verified.",
+    "cashReceivedIncomplete": "Incomplete — receipt allocation cannot establish cash"
   },
   "invoiceProject": {
     "assign": "Assign project",
@@ -4594,7 +4873,7 @@
       "taxDefault": "Default tax treatment",
       "spendApprovers": "Spend approvers",
       "withholding": "Receipt withholding",
-      "vendorTax": "Vendor bill tax accounts",
+      "vendorTax": "Supplier bill tax accounts",
       "downPayments": "Down payments",
       "budgetMap": "Budget account map",
       "expenseMap": "Expense account map"
@@ -4625,18 +4904,27 @@
     "financeDashboardSubtitle": "Portfolio revenue, spend, margin, and budget utilization.",
     "financeBudgetReviewTitle": "Budget review — top 5 by variance (portfolio-wide)",
     "financeProjectColumn": "Project",
-    "financeReadyToPay": "Ready to pay"
+    "financeReadyToPay": "Ready to pay",
+    "contractedRevenue": "Contracted revenue",
+    "contractValueOnHand": "Contract value on hand",
+    "activeContractValue": "Active contract value",
+    "marginToDate": "Margin to date",
+    "actualIncompleteCategories": "Actual incomplete: {{count}} cost categories not mapped",
+    "openAccountingMap": "Review accounting mappings",
+    "mixedCurrencyTotalUnavailable": "Unavailable for mixed currencies",
+    "deliveryChartEmpty": "No delivery projects to compare yet",
+    "deliveryChartScope": "Won, on-hold, delivery and closed-out projects, plus internal work."
   },
   "uxs32": {
     "roleList": "{{first}}, {{second}}, {{third}} or {{fourth}}",
-    "roleRoute": "Standard rules: any of {{roles}} can approve someone else's request.",
+    "roleRoute": "Standard rules: any of {{roles}} can approve another person's procurement record.",
     "holders": "Right now: {{names}}.",
     "holdersNone": "Nobody active holds these roles right now.",
     "holdersUnavailable": "Couldn't check who holds these roles right now.",
     "routeUnavailable": "Couldn't verify who can approve right now.",
-    "noEligible": "Nobody listed can approve right now. Only an Admin can decide these requests until someone eligible is added.",
-    "escalate": "Nobody listed can approve right now. These requests go to the overhead approvers.",
-    "projectEmpty": "No project approvers listed. Within budget, the standard rules apply — any of {{roles}} can approve. Over the budget line, or when the line cannot be checked, requests go to the overhead approvers."
+    "noEligible": "Nobody listed can approve right now. Only an Admin can decide these procurement records until someone eligible is added.",
+    "escalate": "Nobody listed can approve right now. These procurement records go to the overhead approvers.",
+    "projectEmpty": "No project approvers listed. Within budget, the standard rules apply — any of {{roles}} can approve. Over the budget line, or when the line cannot be checked, procurement records go to the overhead approvers."
   },
   "uxs38": {
     "emptyScope": "Reference rates affect displayed rupiah equivalents only — accounting records are never changed.",
@@ -4675,7 +4963,8 @@
     "receiptsUnavailable": "Applied receipt details are unavailable.",
     "receiptReferenceUnavailable": "Receipt reference not recorded",
     "allocationAmountUnavailable": "Applied amount not available",
-    "receiptsCoverageUnknown": "Receipt allocations have not all been reported."
+    "receiptsCoverageUnknown": "Receipt allocations have not all been reported.",
+    "evidenceUnavailable": "Bill evidence is temporarily unavailable."
   },
   "uxCorrectness": {
     "projectNumberPattern": {
@@ -4760,13 +5049,13 @@
   "uxs19": {
     "status": {
       "draft": "Draft",
-      "requested": "Purchase Request",
+      "requested": "Requested",
       "approved": "Approved",
-      "vendorQuoted": "Supplier quote",
+      "vendorQuoted": "Supplier Quote",
       "quoteSelected": "Quote Selected",
       "ordered": "Purchase Order",
       "received": "Goods Receipt",
-      "vendorInvoiced": "Supplier invoice",
+      "vendorInvoiced": "Supplier Invoice",
       "paid": "Paid",
       "rejected": "Rejected",
       "cancelled": "Cancelled"
@@ -4782,7 +5071,12 @@
       "vendorInvoiced": "Record payment"
     },
     "nextStepPrefix": "Next:",
-    "projectEmptyScope": "Purchases recorded in ERPNext appear below."
+    "projectEmptyScope": "This list covers PMO procurement records. Purchases recorded in ERPNext appear below.",
+    "more": "More",
+    "pageDescriptionOrgWide": "Create procurement records and track approvals, orders and payments. Open a procurement record for its full history.",
+    "pageDescriptionOwnScoped": "Track the procurement records you raised from approval through payment.",
+    "emptyScopeNote": "PMO procurement records only; ERP-native purchases are not listed here.",
+    "dashboardEmpty": "No procurement records to show"
   },
   "uxs29": {
     "expenseCapture": {
@@ -4844,7 +5138,8 @@
   },
   "uxs26": {
     "invoiceEmptyProjectManager": "No client invoices have been recorded yet. Finance manages invoice creation.",
-    "receiptsEmptyProjectManager": "No client receipts have been recorded yet. Finance records client payments."
+    "receiptsEmptyProjectManager": "No client receipts have been recorded yet. Finance records client payments.",
+    "revenueEmptyProjectManager": "No invoice revenue has been recorded yet. Finance manages invoice creation."
   },
   "m365Documents": {
     "link": "Link from Microsoft 365",
@@ -5051,6 +5346,13 @@
       "resolve": "To finish these, open the project or case, then use \"Choose existing folder\" or \"Create folder in SharePoint\"."
     }
   },
-  "revenueByProject": {},
-  "uxs37": {}
+  "revenueByProject": {
+    "currencyErrorSub": "Try again to view revenue.",
+    "currencyErrorTitle": "Couldn't load organization currency",
+    "subtitle": "Project revenue, net of tax, in each invoice's own currency, with a separate Unassigned group for invoices not linked to a project."
+  },
+  "uxs37": {
+    "billedWorkTaxBasis": "net of tax",
+    "openReceivablesTaxBasis": "gross, tax included"
+  }
 }

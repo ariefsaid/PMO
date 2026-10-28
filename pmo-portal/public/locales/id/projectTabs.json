@@ -1,4 +1,9 @@
 {
+  "budgetForecast": {
+    "remainingShort": "Sisa",
+    "budgetUsedShort": "% terpakai",
+    "budgetUsedFull": "Penggunaan anggaran proyeksi"
+  },
   "billing": {
     "quantity": "Penagihan kuantitas"
   },
@@ -155,11 +160,13 @@
         "save": "Simpan",
         "saveRow": "Simpan {{item}}",
         "subtitle": "Kuantitas yang diambil Work Order ini dari kontrak. Setiap baris disimpan sendiri-sendiri; memesan lebih dari sisa diperbolehkan dan ditandai.",
-        "title": "Baris kontrak — {{wo}}"
+        "title": "Baris kontrak — {{wo}}",
+        "none": "Belum ada baris kontrak yang dialokasikan"
       },
       "quantities": {
         "counts": "{{lines}} baris · {{basts}} BAST",
-        "summary": "Baris kontrak dan BAST — {{wo}}"
+        "summary": "Baris kontrak dan BAST — {{wo}}",
+        "title": "Kuantitas kontrak"
       }
     }
   }

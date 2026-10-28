@@ -24,15 +24,15 @@
     "newLineTotal": "New line total",
     "addLineItem": "Add line item",
     "add": "Add",
-    "removeDescription": "This removes the line item from the procurement. You can add it again while the procurement is a draft.",
+    "removeDescription": "This removes the line item from procurement. You can add it again while the procurement is a draft.",
     "removeItem": "Remove item",
     "searchItem": "Search item code or name…"
   },
   "create": {
-    "heading": "New purchase request",
+    "heading": "New procurement",
     "save": "Save",
-    "draftNote": "This request remains a draft until you submit it.",
-    "requestDetails": "Request details",
+    "draftNote": "This procurement remains a draft until you submit it.",
+    "requestDetails": "Procurement details",
     "titleField": "Title",
     "titleRequired": "A procurement title is required.",
     "linesFailed": "Procurement saved, but some lines were not saved. Save again to retry.",
@@ -41,11 +41,11 @@
     "vendor": "Supplier",
     "selectVendor": "Optional — select a supplier…",
     "budgetCategory": "Budget category",
-    "denied": "You do not have permission to create purchase requests.",
+    "denied": "You do not have permission to create procurement records.",
     "unsaved": {
-      "title": "Unsaved request",
-      "description": "This request has not been saved. Leave this page and discard it?",
-      "partialDescription": "Your request is saved. Any remaining line items will be lost if you leave.",
+      "title": "Unsaved procurement",
+      "description": "This procurement has not been saved. Leave this page and discard it?",
+      "partialDescription": "Your procurement is saved. Any remaining line items will be lost if you leave.",
       "leave": "Leave",
       "stay": "Stay"
     }
@@ -62,7 +62,7 @@
   },
   "ledger": {
     "paymentInErp": "Record the payment in ERPNext; it links here on the next sync.",
-    "billsHiddenForRole": "Supplier invoices and payments are not shown for your role.",
+    "billsHiddenForRole": "Supplier bills and payments are not shown for your role.",
     "awaitingApproval": "Waiting for approval. Documents can be recorded once it is approved.",
     "approveToStart": "Approve to start recording documents.",
     "emptyTitle": "No documents yet",
@@ -96,7 +96,7 @@
     "saved": "Saved",
     "request_before_orderHelp": "When on, an order needs a purchase request first.",
     "approval_before_orderHelp": "When on, an order needs an approved request first.",
-    "receipt_before_invoiceHelp": "When on, a vendor invoice needs a goods receipt first.",
+    "receipt_before_invoiceHelp": "When on, a supplier invoice needs a goods receipt first.",
     "approval_before_paymentHelp": "When on, a payment needs an approved amount first."
   },
   "documents": {
@@ -301,5 +301,47 @@
   "common": {
     "loading": "Loading…",
     "retry": "Retry"
+  },
+  "quotes": {
+    "compareHint": "Compare and select a supplier quote",
+    "supplierColumn": "Supplier / Quote #",
+    "supplierQuoteFallback": "Supplier quote",
+    "tableName": "Supplier bid comparison",
+    "selectSupplier": "Select a supplier…",
+    "selectionDescription": "The selected quote sets the procurement value and supplier. If it is above the approved amount, the procurement goes back for approval."
+  },
+  "approvalRow": {
+    "open": "Open procurement",
+    "details": "Procurement details",
+    "loadError": "Couldn't load procurement details",
+    "approved": "Procurement approved",
+    "rejected": "Procurement rejected",
+    "reject": "Reject procurement",
+    "approveDescription": "Approve {{title}} — {{amount}}? This will advance the procurement to the ordering stage.",
+    "rejectDescription": "Reject {{title}}? The requester will be notified and may revise and resubmit."
+  },
+  "decisionSupport": {
+    "thisProcurement": "This procurement",
+    "afterThisProcurement": "After this procurement",
+    "overBudgetLead": "This procurement exceeds available budget by"
+  },
+  "headerEdit": {
+    "heading": "Edit procurement details",
+    "titlePlaceholder": "Procurement title",
+    "titleRequired": "A procurement title is required.",
+    "save": "Save procurement"
+  },
+  "preview": {
+    "loadErrorTitle": "Couldn't load procurement details"
+  },
+  "procurementDetail": {
+    "readyHint": {
+      "draftOther": "Ready to submit this procurement for approval.",
+      "requested": "You may approve or reject this procurement. The requester cannot self-approve — separation of duties requires a different reviewer.",
+      "vendorInvoicedApprover": "Payment must be released by a different finance user — the approver can't also pay this procurement.",
+      "vendorInvoiced": "Releasing payment — the approver can't also pay (separation of duties). You may mark this as paid below.",
+      "default": "Ready to advance. Select an action below to move this procurement to its next stage."
+    },
+    "sodPreannounce": "Submitting hands this to another approver — you can't approve your own procurement record."
   }
 }

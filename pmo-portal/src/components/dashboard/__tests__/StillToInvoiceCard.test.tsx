@@ -37,7 +37,7 @@ describe('StillToInvoiceCard (OD-BILL-1 / #786)', () => {
   it('AC-UNB-005 shows each currency total excl. PPN with its count', () => {
     renderCard();
     const totals = screen.getByTestId('still-to-invoice-totals');
-    expect(totals).toHaveTextContent('$1,300.00');
+    expect(totals).toHaveTextContent('$1,300');
     expect(totals).toHaveTextContent('excl. PPN');
     expect(totals).toHaveTextContent('Work orders: 2');
   });

@@ -168,7 +168,40 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
   onActionClick,
   mutations,
 }) => {
-  // The compact SoD hint remains with the decision controls, after the request's
+  const { t: tProcurement } = useTranslation('procurement');
+  /** Per-status ready copy teaches the relevant SoD rule without changing enforcement. */
+  const readyGateMessage = (status: ProcurementStatus, requester: boolean, approver: boolean) => {
+    switch (status) {
+      case 'Draft':
+        return requester
+          ? tProcurement(
+              'procurementDetail.sodPreannounce',
+              'Submitting hands this to another approver — you can\'t approve your own procurement record.',
+            )
+          : tProcurement('procurementDetail.readyHint.draftOther', 'Ready to submit this procurement for approval.');
+      case 'Requested':
+        return tProcurement(
+          'procurementDetail.readyHint.requested',
+          'You may approve or reject this procurement. The requester cannot self-approve — separation of duties requires a different reviewer.',
+        );
+      case 'Vendor Invoiced':
+        return approver
+          ? tProcurement(
+              'procurementDetail.readyHint.vendorInvoicedApprover',
+              'Payment must be released by a different finance user — the approver can\'t also pay this procurement.',
+            )
+          : tProcurement(
+              'procurementDetail.readyHint.vendorInvoiced',
+              'Releasing payment — the approver can\'t also pay (separation of duties). You may mark this as paid below.',
+            );
+      default:
+        return tProcurement(
+          'procurementDetail.readyHint.default',
+          'Ready to advance. Select an action below to move this procurement to its next stage.',
+        );
+    }
+  };
+  // The compact SoD hint remains with the decision controls, after the procurement record's
   // identity, value and supporting evidence. The authority and wording stay unchanged.
   // The Draft-author case is covered by the `sod-pre-announce` line below.
   const showReadyHint = !gateMsg && !routeNote && actions.length > 0 && !(isDraft && isRequester);
@@ -209,7 +242,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
           {ceilingNotice}
 
           {/* B-IMP-2 (AC-S6-2): SoD pre-announce for the author on a Draft record.
-              The author (requester) is about to submit their own request; they need to know
+              The author (requester) is about to submit their own procurement record; they need to know
               that submission hands it to a different approver — self-approval is not allowed.
               This is an AUTHOR-side pre-announce on Draft only; the VIEWER-side SoD hint
               (blocked line at Requested) already handles the non-author blocker path. */}

@@ -87,6 +87,14 @@ const renderAtWithI18n = () =>
   );
 
 describe('ExpenseClaimDetail', () => {
+  it('AC-MONEY-DISPLAY: rounds the read-only claim amount to whole currency units', () => {
+    h.claim = { ...base, amount: 300.49, currency: 'USD' };
+    as('eng', 'Engineer');
+    renderAt();
+    expect(screen.getByTestId('expense-amount')).toHaveTextContent('$300');
+    expect(screen.getByTestId('expense-amount')).not.toHaveTextContent('$300.49');
+  });
+
   it('AC-002 #1325: the header project link shows the short name and titles the contractual one', () => {
     h.claim = { ...base, project_id: 'project-1', project: { name: 'Contractual Project one', short_name: 'North Terminal' } };
     as('eng', 'Engineer');

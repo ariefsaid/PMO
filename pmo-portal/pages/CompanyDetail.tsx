@@ -70,7 +70,7 @@ import type { ContactInput } from '@/src/lib/db/contacts';
  */
 const typeOptions = (t: TFunction) => [
   { value: 'Client', label: t('companyDetail.type.client', 'Client') },
-  { value: 'Vendor', label: t('companyDetail.type.vendor', 'Vendor') },
+  { value: 'Vendor', label: t('companyDetail.type.vendor', 'Supplier') },
   { value: 'Internal', label: t('companyDetail.type.internal', 'Internal') },
 ];
 

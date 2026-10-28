@@ -254,7 +254,7 @@ describe('AC-IFW-PROC-02: Reject fires transition with to:Rejected', () => {
     await userEvent.click(screen.getByRole('button', { name: /^Reject$/i }));
     // tone="destructive" → role="alertdialog" (ConfirmDialog a11y contract)
     const dialog = await screen.findByRole('alertdialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: /Reject request/i }));
+    await userEvent.click(within(dialog).getByRole('button', { name: /Reject procurement/i }));
     expect(transitionMutate).toHaveBeenCalledWith(
       { to: 'Rejected' },
       expect.any(Object),
@@ -317,32 +317,33 @@ describe('AC-JR-W2-01: project name is wrapped in ProjectNameLink (T07 census E)
   });
 });
 
-// ── AC-JR-W2-02: "Open request" link in expanded panel footer ────────────────
+// ── AC-JR-W2-02: "Open procurement" link in expanded panel footer ───────────
 
-describe('AC-JR-W2-02: "Open request" link in expanded panel footer (T07)', () => {
-  it('AC-JR-W2-02: expanded panel footer contains an "Open request" link to /procurement/:id', async () => {
+describe('AC-JR-W2-02: "Open procurement" link in expanded panel footer (T07)', () => {
+  it('AC-JR-W2-02: expanded panel footer contains an "Open procurement" link to /procurement/:id', async () => {
     renderAs();
     await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
-    const link = screen.getByRole('link', { name: /open request/i });
+    const link = screen.getByRole('link', { name: /open procurement/i });
     expect(link).toBeInTheDocument();
     expect(link.getAttribute('href')).toBe('/procurement/pr-001');
+    expect(screen.getByText('Procurement details')).toBeInTheDocument();
   });
 
-  it('AC-JR-W2-02: "Open request" link is in the same footer region as Approve/Reject', async () => {
+  it('AC-JR-W2-02: "Open procurement" link is in the same footer region as Approve/Reject', async () => {
     renderAs();
     await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
-    const openLink = screen.getByRole('link', { name: /open request/i });
+    const openLink = screen.getByRole('link', { name: /open procurement/i });
     const approveBtn = screen.getByRole('button', { name: /^Approve$/i });
     // Both are in the DOM simultaneously — same footer
     expect(openLink).toBeInTheDocument();
     expect(approveBtn).toBeInTheDocument();
   });
 
-  it('AC-JR-W2-02: "Open request" visible even when user lacks transition permission', async () => {
+  it('AC-JR-W2-02: "Open procurement" visible even when user lacks transition permission', async () => {
     renderAs('Engineer');
     await userEvent.click(screen.getByRole('button', { name: /show budget impact/i }));
-    // Engineers can't approve but should still be able to open the full request
-    const link = screen.getByRole('link', { name: /open request/i });
+    // Engineers can't approve but should still be able to open the full procurement record.
+    const link = screen.getByRole('link', { name: /open procurement/i });
     expect(link).toBeInTheDocument();
     expect(link.getAttribute('href')).toBe('/procurement/pr-001');
   });

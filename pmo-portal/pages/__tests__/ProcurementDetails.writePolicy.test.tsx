@@ -185,9 +185,9 @@ beforeEach(() => {
 // AC-IXD-WP-003 — routine forward steps are SINGLE-CLICK (no confirm)
 // ---------------------------------------------------------------------------
 describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no confirm)', () => {
-  it('AC-IXD-WP-003: Submit Request (Draft→Requested) commits on a single click — no dialog', async () => {
+  it('AC-IXD-WP-003: Submit for approval (Draft→Requested) commits on a single click — no dialog', async () => {
     mockEffectiveRole = 'Engineer';
-    // AC-W3-D10: Submit Request is only enabled when ≥1 line item is present.
+    // AC-W3-D10: Submit for approval is only enabled when ≥1 line item is present.
     detailState.data = {
       ...baseProcurement,
       status: 'Draft',
@@ -205,7 +205,7 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
     );
   });
 
-  it('AC-IXD-WP-003: Request Vendor Quotes (Approved→Vendor Quoted) commits on a single click — no dialog', async () => {
+  it('AC-IXD-WP-003: request supplier quotes (Approved→Vendor Quoted) commits on a single click — no dialog', async () => {
     detailState.data = { ...baseProcurement, status: 'Approved', requested_by_id: 'u-other' };
     renderPage();
     // At Approved the header's primary is "Record order"; requesting quotations is in the More menu (#1404).
@@ -309,7 +309,7 @@ describe('AC-IXD-WP-003: consequential procurement actions still confirm', () =>
     expect(mockTransition).not.toHaveBeenCalled();
   });
 
-  it('AC-IXD-WP-003: Cancel request opens a destructive confirm and does NOT write on the first click', async () => {
+  it('AC-IXD-WP-003: Cancel procurement opens a destructive confirm and does NOT write on the first click', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
     renderPage();
     const header = await openMoreActions();

@@ -150,7 +150,7 @@ describe('exact project-finance money', () => {
     const remaining = deriveContractRemainingAfterCost(0.30, actuals, 'USD');
     expect(remaining).toBe('0.20');
     expect(formatSignedExactMoney(deriveContractRemainingAfterCost(0.10, { ...actuals, total: '0.30' }, 'USD')!, 'USD', 'en-US'))
-      .toBe('−$0.20');
+      .toBe('$0');
     expect(deriveContractRemainingAfterCost(0.30, { ...actuals, total: null }, 'USD')).toBeNull();
   });
 

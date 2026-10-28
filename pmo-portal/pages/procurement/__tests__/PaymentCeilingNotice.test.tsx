@@ -24,6 +24,7 @@ describe('PaymentCeilingNotice', () => {
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toHaveTextContent(formatCurrency(1200, 'USD'));
     expect(dialog).toHaveTextContent(formatCurrency(1000, 'USD'));
+    expect(dialog).toHaveTextContent('You will not be able to pay this procurement yourself.');
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
     await waitFor(() => expect(onApprove).toHaveBeenCalledWith(1200));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());

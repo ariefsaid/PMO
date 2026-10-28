@@ -872,7 +872,7 @@ const budget: BudgetRepository = {
   findImportedLine: (versionId, importKey) => wrap(() => findImportedLine(versionId, importKey)),
   cloneVersion: (versionId) => wrap(() => cloneVersion(versionId)),
   activateVersion: (versionId) => wrap(() => activateVersion(versionId)),
-  archiveVersion: (versionId) => wrap(() => archiveVersion(versionId)),
+  archiveVersion: (versionId, cancelErp) => wrap(() => archiveVersion(versionId, cancelErp)),
   deleteDraftVersion: (versionId) => wrap(() => deleteDraftVersion(versionId)),
   listDocumentLinks: (versionId) => wrap(() => listBudgetDocumentLinks(versionId)),
   addDocumentLink: (versionId, reference) => wrap(() => addBudgetDocumentLink(versionId, reference)),

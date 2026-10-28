@@ -20,6 +20,24 @@ const baseProps = {
 };
 
 describe('Drawer: render gating + a11y (AC-W5-C6-DRAWER)', () => {
+  it('AC-1416: record drawers use the full viewport width on phones and keep each desktop width preset', () => {
+    const { rerender } = render(
+      <Drawer {...baseProps}>
+        <p>body</p>
+      </Drawer>,
+    );
+    expect(screen.getByRole('dialog').className).toContain('max-md:w-full');
+    expect(screen.getByRole('dialog').className).toContain('md:w-[min(420px,92vw)]');
+
+    rerender(
+      <Drawer {...baseProps} width="lg">
+        <p>body</p>
+      </Drawer>,
+    );
+    expect(screen.getByRole('dialog').className).toContain('max-md:w-full');
+    expect(screen.getByRole('dialog').className).toContain('md:w-[min(560px,92vw)]');
+  });
+
   it('renders nothing when !open', () => {
     render(
       <Drawer {...baseProps} open={false}>

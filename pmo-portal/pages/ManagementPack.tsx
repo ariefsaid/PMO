@@ -72,7 +72,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
           <h2 className="text-heading font-semibold">
-            {t('managementPack.noAccessTitle', "You don't have access to the management pack")}
+            {t('managementPack.noAccessTitle', "You don't have access to Reports")}
           </h2>
           <p className="mt-2 text-muted-foreground">
             {t('managementPack.noAccessSub', 'Finance reports are available to Finance, Executive and Admin roles.')}
@@ -96,6 +96,9 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         ? 'empty'
         : undefined;
   const invalidRange = (error as { code?: string } | null)?.code === '22023';
+  const backlogReason = t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.');
+  const backlogUnavailable = t('uxs34.backlogUnavailable', 'The foreign-currency invoice backlog needs reconciliation before this balance can be known.');
+  const backlogNeedsReview = pack?.totals.some((total) => total.months.some((month) => month.backlog === null)) ?? false;
 
   const setMonth = (key: 'from' | 'to', value: string) => {
     const next = new URLSearchParams(params);
@@ -144,7 +147,6 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
 
   // C4 + Unknowable-Is-Not-Zero: an unknown backlog is an explained dash (reason on hover and for screen
   // readers), never the word "Unavailable" as a value; the page states the reason once with its fix link.
-  const backlogReason = t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.');
   const backlogUnknown = <span title={backlogReason}>—<span className="sr-only"> {backlogReason}</span></span>;
 
   const measureCell = (key: Measure) => (row: PackRow) => {
@@ -410,7 +412,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       {state === 'error' && (
         <ListState
           variant="error"
-          title={t('managementPack.errorTitle', "Couldn't load the management pack")}
+          title={t('managementPack.errorTitle', "Couldn't load Reports")}
           sub={invalidRange
             ? t('managementPack.invalidRange', 'Choose a start month on or before the as-at month, at most 24 months apart.')
             : t('managementPack.errorSub', 'The request failed. Check your connection and try again.')}

@@ -125,9 +125,14 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     const notes = screen.getAllByText(/Actual is partial on/);
     expect(notes).toHaveLength(1);
     expect(notes[0]).toHaveTextContent('Actual is partial on 2 of 25 projects. Updated');
-    // null Actual stays unavailable, never 0
-    const partialRow = screen.getByText('Synthetic project 1').closest('tr')!;
-    expect(within(partialRow).getAllByText('Unavailable').length).toBeGreaterThan(0);
+    // Null Actual leaves the amount cell blank; the shared note explains the partial coverage.
+    const table = screen.getByRole('table');
+    const partialRow = [...table.querySelectorAll<HTMLTableRowElement>('tbody tr')].find((row) => row.textContent?.includes('Synthetic project 1'))!;
+    const actualColumn = [...table.querySelectorAll('thead th')].findIndex((header) => (header as HTMLElement).dataset.colKey === 'actual');
+    const actualCell = partialRow.cells.item(actualColumn);
+    expect(actualColumn).toBeGreaterThanOrEqual(0);
+    expect(actualCell).not.toBeNull();
+    expect(actualCell?.textContent?.trim()).toBe('');
     expect(within(partialRow).queryByText('$0.00')).not.toBeInTheDocument();
   });
 
@@ -149,7 +154,7 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     const body = document.querySelector('tbody')!;
     expect(within(body).queryByText(/of .* Active budget/)).not.toBeInTheDocument();
     const bar = within(screen.getByText('Synthetic project 4').closest('tr')!).getByRole('progressbar', { name: '25% of Active budget' });
-    expect(bar.closest('[title]')).toHaveAttribute('title', '$1,000,004.00 of $4,000,000.00 Active budget');
+    expect(bar.closest('[title]')).toHaveAttribute('title', '$1,000,004 of $4,000,000 Active budget');
   });
 
   it('Progress without phases is a dash, not "No phases yet"', () => {

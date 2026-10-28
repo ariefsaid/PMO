@@ -177,7 +177,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(screen.getByRole('tab', { name: /All pending/i })).toHaveTextContent('3');
     // The two-row queue contains procurement + timesheets; expenses and invoices render below it.
     expect(within(screen.getByRole('region', { name: /Approvals queue/i })).getByText('2')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Purchase requests/i })).toHaveTextContent('1');
+    expect(screen.getByRole('tab', { name: /Procurement records/i })).toHaveTextContent('1');
     expect(screen.getByRole('tab', { name: /Timesheets/i })).toHaveTextContent('1');
     expect(screen.getByRole('tab', { name: /Expense claims/i })).toHaveTextContent('1');
     expect(screen.queryByRole('tab', { name: /Customer invoices/i })).not.toBeInTheDocument();
@@ -213,7 +213,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
   it('L3-APPROVALS: a PM (sees both modules) gets queue filters for All, Procurement, and Timesheets', () => {
     renderAs('Project Manager');
     expect(screen.getByRole('tab', { name: /All/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Purchase requests/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Procurement records/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Timesheets/i })).toBeInTheDocument();
   });
 
@@ -257,7 +257,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(screen.getAllByText('Steel beams').length).toBeGreaterThan(0);
     expect(screen.queryByText('Crane rental')).not.toBeInTheDocument();
     expect(screen.queryByText('Already approved')).not.toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Purchase requests/i })).toHaveTextContent('1');
+    expect(screen.getByRole('tab', { name: /Procurement records/i })).toHaveTextContent('1');
   });
 
   it('a queue selection moves the preview pane + keeps approve/reject there — no navigation', async () => {

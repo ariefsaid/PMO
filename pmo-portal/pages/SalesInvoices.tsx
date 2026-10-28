@@ -45,7 +45,7 @@ import { canAttributeInvoice } from '@/src/lib/invoiceProjectAssignment';
 import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
-import { currencySymbol, formatCurrency, formatCurrencyCents, formatDateOnly, formatInstantDate, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrency, formatCurrencyAuto, formatCurrencyCents, formatDateOnly, formatInstantDate, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { IncomingPaymentRow, SalesInvoiceRow, SalesInvoiceStatus } from '@/src/lib/db/revenue';
 import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
@@ -768,7 +768,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
                     {viewTarget.erp_outstanding_amount == null
                       ? t('uxs17.outstandingUnavailable', 'Outstanding amount not available')
                       : <>
-                        {formatCurrencyCents(viewTarget.erp_outstanding_amount, viewTarget.currency)}
+                        {formatCurrencyAuto(viewTarget.erp_outstanding_amount, viewTarget.currency)}
                         <FxEquivalent amount={viewTarget.erp_outstanding_amount} currency={viewTarget.currency} date="latest" />
                       </>}
                   </dd>

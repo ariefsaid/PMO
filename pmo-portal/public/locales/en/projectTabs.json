@@ -1,4 +1,9 @@
 {
+  "budgetForecast": {
+    "remainingShort": "Remaining",
+    "budgetUsedShort": "% used",
+    "budgetUsedFull": "Forecast budget used"
+  },
   "billing": {
     "quantity": "Quantity billing"
   },
@@ -155,11 +160,13 @@
         "save": "Save",
         "saveRow": "Save {{item}}",
         "subtitle": "Quantities this order takes from the contract. Each line saves on its own; ordering more than the balance is allowed and flagged.",
-        "title": "Contract lines — {{wo}}"
+        "title": "Contract lines — {{wo}}",
+        "none": "No contract lines allocated yet"
       },
       "quantities": {
         "counts": "{{lines}} lines · {{basts}} BAST",
-        "summary": "Contract lines and BAST — {{wo}}"
+        "summary": "Contract lines and BAST — {{wo}}",
+        "title": "Contract quantities"
       }
     }
   }

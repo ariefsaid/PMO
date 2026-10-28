@@ -107,9 +107,9 @@ describe('Rail — role-shaped nav Approvals (B-2, AC-W2-IXD-003)', () => {
     expect(screen.queryByRole('link', { name: 'My Tasks' })).not.toBeInTheDocument();
   });
 
-  it('FIN-S9: there is no Vendors rail item (Companies carries the Vendor filter) and no My integrations item', () => {
+  it('FIN-S9: there is no Suppliers rail item when CRM is enabled and no My integrations item', () => {
     renderRailAs('Admin');
-    expect(screen.queryByRole('link', { name: 'Vendors' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Suppliers' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /my integrations/i })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Companies' })).toHaveAttribute('href', '/companies');
   });

@@ -7,6 +7,7 @@ import { Button, DataTable, Drawer, Icon, ListState, NumberField, ProgressBar, S
 import type { BudgetProjectionCellRow } from '@/src/lib/repositories/budgetProjection';
 import { fetchActiveBudgetCategoryPhasing, fetchBudgetProjection, listBudgetFiscalYears, upsertBudgetProjectionEtc } from '@/src/lib/repositories/budgetProjection';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
+import { chooseDefaultBudgetFiscalYear } from '@/src/lib/budget/budgetProjection';
 import { formatCurrencyAuto, formatInstantDate, parseMoneyInputAtScale } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 
@@ -59,8 +60,23 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
     enabled: Boolean(projectId),
   });
   const years = yearsQuery.data ?? [];
-  const defaultYear = years.find((row) => row.isActivePush)?.fiscalYear ?? years[0]?.fiscalYear ?? '';
-  const fiscalYear = requestedYear === undefined ? defaultYear : requestedYear;
+  const defaultYearQuery = useQuery<string | null>({
+    queryKey: ['budget-default-fiscal-year', projectId, years.map(({ fiscalYear, isActivePush }) => ({ fiscalYear, isActivePush }))],
+    queryFn: async () => {
+      const yearsWithSpending = new Set<string>();
+      for (const year of years) {
+        const rows = await fetchBudgetProjection(projectId, year.fiscalYear);
+        queryClient.setQueryData(['budget-projection', projectId, year.fiscalYear], rows);
+        if (rows.some((row) => row.actualsToDate !== null && row.actualsToDate !== 0)) {
+          yearsWithSpending.add(year.fiscalYear);
+          break;
+        }
+      }
+      return chooseDefaultBudgetFiscalYear(years, yearsWithSpending);
+    },
+    enabled: yearsQuery.isSuccess,
+  });
+  const fiscalYear = requestedYear === undefined ? defaultYearQuery.data ?? '' : requestedYear;
   const projectionQuery = useQuery({
     queryKey: ['budget-projection', projectId, fiscalYear],
     queryFn: () => fetchBudgetProjection(projectId, fiscalYear),
@@ -203,14 +219,20 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
     },
     {
       key: 'remaining',
-      header: t('projectDetail.budget.forecastRemaining', 'Forecast remaining'),
+      header: <span
+        title={t('projectDetail.budget.forecastRemaining', 'Forecast remaining')}
+        aria-label={t('projectDetail.budget.forecastRemaining', 'Forecast remaining')}
+      >{t('projectTabs:budgetForecast.remainingShort', 'Remaining')}</span>,
       kind: 'money',
       align: 'num',
       cell: (row) => <Tooltip content={t('projectDetail.budget.forecastRemainingFormula', 'Calculated as fiscal-year budget minus forecast final. Negative values are an overrun.')}><span tabIndex={0} className={row.projectedVariance !== null && row.projectedVariance < 0 ? 'text-destructive-text' : undefined}>{moneyText(row.projectedVariance, currency)}</span></Tooltip>,
     },
     {
       key: 'status',
-      header: t('projectDetail.budget.status', 'Status'),
+      header: <span
+        title={t('projectTabs:budgetForecast.budgetUsedFull', 'Forecast budget used')}
+        aria-label={t('projectTabs:budgetForecast.budgetUsedFull', 'Forecast budget used')}
+      >{t('projectTabs:budgetForecast.budgetUsedShort', '% used')}</span>,
       kind: 'status',
       cell: (row) => row.projectedUtilization === null
         ? <StatusPill variant="neutral">{t('projectDetail.budget.unavailable', 'Unavailable')}</StatusPill>
@@ -236,7 +258,13 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
     },
   }] : [];
 
-  if (yearsQuery.isError) return <ListState variant="error" title={t('projectDetail.budget.fiscalYearsError', 'Fiscal years could not be loaded')} onRetry={() => void yearsQuery.refetch()} />;
+  if (yearsQuery.isError || defaultYearQuery.isError) {
+    return <ListState
+      variant="error"
+      title={t('projectDetail.budget.fiscalYearsError', 'Fiscal years could not be loaded')}
+      onRetry={() => void (yearsQuery.isError ? yearsQuery.refetch() : defaultYearQuery.refetch())}
+    />;
+  }
 
   return (
     <section ref={sectionRef} className="min-w-0 space-y-3" aria-label={t('projectDetail.budget.forecast', 'Forecast')} data-testid="budget-forecast-view">
@@ -256,7 +284,7 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
           </> : <Button ref={triggerRef} variant="outline" size="sm" onClick={beginEdit}>{t('projectDetail.budget.editCostToFinish', 'Edit cost to finish')}</Button>)}
         </div>
       </div>
-      {fiscalYear === '' ? (
+      {yearsQuery.isPending || defaultYearQuery.isPending ? <ListState variant="loading" rows={4} /> : fiscalYear === '' ? (
         <ListState variant="empty" title={t('projectDetail.budget.chooseFiscalYear', 'Choose a fiscal year to view the ERP forecast')} sub={t('projectDetail.budget.chooseFiscalYearSub', 'Activate and push a budget version, then choose its fiscal year. If no ledger rows have arrived yet, wait for the first posting to sync.')} />
       ) : projectionQuery.isPending ? <ListState variant="loading" rows={4} />
         : projectionQuery.isError ? <ListState variant="error" title={t('projectDetail.budget.forecastError', 'Forecast could not be loaded')} onRetry={() => void projectionQuery.refetch()} />

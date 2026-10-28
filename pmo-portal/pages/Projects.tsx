@@ -61,6 +61,7 @@ import ProjectCalendarView from '../components/ProjectCalendarView';
 import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { projectManagerLabel, UNASSIGNED_PROJECT_MANAGER } from '@/src/lib/projects/projectManagerLabel';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 
 /**
  * The status-group SegFilter. Model B (ADR-0020): the pre-win "Leads" partition lives in the
@@ -76,6 +77,7 @@ const COMPLETED = [ProjectStatusEnum.CloseOut, ProjectStatusEnum.Loss] as string
 
 const Projects: React.FC = () => {
   const { t } = useTranslation();
+  const projectStatusLabel = useProjectStatusLabel();
   const { effectiveRole, realRole } = useEffectiveRole();
   const may = usePermission();
   const { toast } = useToast();
@@ -402,6 +404,7 @@ const Projects: React.FC = () => {
     const money = projectMoney?.[project.id];
     return money?.ledgerBasis === 'erp' && money.actuals.categories.some((category) => !category.mapped || category.amount == null);
   });
+  const unknownActualRows = filtered.filter((project) => projectMoney?.[project.id]?.actuals.total == null);
   const coverageAsOf = filtered.reduce<string | null>((latest, project) => {
     const asOf = projectMoney?.[project.id]?.ledgerBasis === 'erp' ? projectMoney?.[project.id]?.actuals.asOf ?? null : null;
     return asOf && (!latest || asOf > latest) ? asOf : latest;
@@ -552,16 +555,13 @@ const Projects: React.FC = () => {
     },
     {
       key: 'status',
-      // ⚑ The pill CONTENT (`p.status`) is a database enum, not a literal — localising workflow
-      // status labels is its own decision (it needs one map every surface shares) and is not in
-      // this pass. Only the column header moves.
       header: t('projects.columns.status', 'Status'),
       kind: 'status',
       size: 140,
       minSize: 112,
       maxSize: 220,
       exportValue: (p) => String(p.status),
-      cell: (p) => <StatusPill variant={pillVariantForProjectStatus(p.status as string)}>{p.status}</StatusPill>,
+      cell: (p) => <StatusPill variant={pillVariantForProjectStatus(p.status as string)}>{projectStatusLabel(p.status as string)}</StatusPill>,
     },
     // Contract figure is money-view-gated (see `canViewMoney`): roles without the shared
     // money-view permission get no Contract column — and, since `withCurrencyColumn` only
@@ -577,15 +577,13 @@ const Projects: React.FC = () => {
       minSize: 152,
       maxSize: 320,
       align: 'num',
-      colClassName: 'xl:pr-4',
+      colClassName: 'xl:pr-6',
       caveat: coverageReason ? { reason: coverageReason } : undefined,
       // RF-008 / S-02: canonical ERP-mapped Actual, never the legacy stored project.spent value.
       cell: (p) => {
         if (moneyPending) return <span className="text-[12px] text-muted-foreground">…</span>;
         const money = projectMoney?.[p.id];
-        if (moneyError || !money) {
-          return <span className="text-muted-foreground" title={t('uxs02.unavailable', 'Unavailable')}>—<span className="sr-only"> {t('uxs02.unavailable', 'Unavailable')}</span></span>;
-        }
+        if (moneyError || !money) return null;
         const actualPosition = deriveActualPosition({
           ledgerBasis: money.ledgerBasis,
           committedSpend: money.ledgerBasis === 'pmo' && money.actuals.total != null ? Number(money.actuals.total) : undefined,
@@ -602,18 +600,14 @@ const Projects: React.FC = () => {
         });
         const actual = actualPosition.amount;
         if (actual == null) {
-          // Unknown is never 0. Partial coverage is explained once, by the table note; only a row that
-          // excludes restricted rows is marked on its own (its cause is not a coverage gap).
-          const restricted = money.actuals.excludesRestrictedRows;
-          const reason = restricted ? t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded') : t('uxs02.incompleteCoverage', 'Incomplete source coverage');
-          return (
-            <span className="text-muted-foreground" title={reason}>
-              —<span className="sr-only"> {t('uxs02.unavailable', 'Unavailable')}</span>
-              {restricted && <span className="ml-1 text-[11px]">{t('projects:actual.restrictedTag', 'Restricted excluded')}</span>}
-            </span>
-          );
+          // Incomplete coverage is explained once in the table caveat. Restricted rows have a
+          // distinct row-level cause, so keep that plain-language tag and omit the numeric slot.
+          return money.actuals.excludesRestrictedRows
+            ? <span className="text-muted-foreground text-[11px]">{t('projects:actual.restrictedTag', 'Restricted excluded')}</span>
+            : null;
         }
-        return <span className="text-muted-foreground">{formatExactMoney(actual, actualPosition.currency || p.currency, getNumberLocale()) ?? '—'}</span>;
+        const formatted = formatExactMoney(actual, actualPosition.currency || p.currency, getNumberLocale(), { wholeUnits: true });
+        return formatted ? <span className="text-muted-foreground">{formatted}</span> : null;
       },
     },
     {
@@ -623,7 +617,7 @@ const Projects: React.FC = () => {
       size: 120,
       minSize: 96,
       maxSize: 160,
-      colClassName: 'xl:pl-4',
+      colClassName: 'xl:pl-6',
       cell: (p) => {
         // I7: defer while delivery summary is loading to prevent flash of false empty state.
         if (deliveryError) return <span className="text-[12px] text-muted-foreground">—</span>;
@@ -655,32 +649,27 @@ const Projects: React.FC = () => {
         const money = projectMoney?.[p.id];
         const actual = money?.actuals.total == null ? null : Number(money.actuals.total);
         const activeBudget = money?.hasActiveBudget && money.activeBudgetAmount != null ? Number(money.activeBudgetAmount) : null;
-        if (moneyError || !money) {
-          return <span className="text-muted-foreground" title={t('uxs02.unavailable', 'Unavailable')}>—<span className="sr-only"> {t('uxs02.unavailable', 'Unavailable')}</span></span>;
-        }
+        if (moneyError || !money) return null;
         if (!money.hasActiveBudget || activeBudget == null) {
-          return <span className="text-muted-foreground" title={t('uxs02.noActiveBudget', 'No active budget')}>—<span className="sr-only"> {t('uxs02.noActiveBudget', 'No active budget')}</span></span>;
+          return <span className="text-muted-foreground">{t('uxs02.noActiveBudget', 'No active budget')}</span>;
         }
         if (activeBudget === 0) {
           const reason = t('uxs02.zeroActiveBudget', '{{budget}} Active budget; usage unavailable', { budget: formatCurrency(activeBudget, money.activeBudgetCurrency ?? p.currency) });
-          return <span className="text-muted-foreground" title={reason}>—<span className="sr-only"> {reason}</span></span>;
+          return <span className="text-muted-foreground">{reason}</span>;
         }
-        if (actual == null) {
-          return <span className="text-muted-foreground" title={t('uxs02.unavailable', 'Unavailable')}>—<span className="sr-only"> {t('uxs02.unavailable', 'Unavailable')}</span></span>;
-        }
+        if (actual == null) return null;
         if (money.activeBudgetCurrency !== money.actuals.currency || money.actuals.currency !== p.currency) {
-          return <span className="text-muted-foreground" title={t('uxs02.currencyMismatch', 'Budget currency differs from Actual')}>—<span className="sr-only"> {t('uxs02.currencyMismatch', 'Budget currency differs from Actual')}</span></span>;
+          return <span className="text-muted-foreground">{t('uxs02.currencyMismatch', 'Budget currency differs from Actual')}</span>;
         }
         const completeCoverage = isActualComplete({ basis: money.ledgerBasis ?? 'erp', readSucceeded: true, complete: money.actuals.complete,
           categories: money.actuals.categories, excludesRestrictedRows: money.actuals.excludesRestrictedRows });
         if (!completeCoverage) {
-          const reason = money.actuals.excludesRestrictedRows ? t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded') : t('uxs02.incompleteCoverage', 'Incomplete source coverage');
-          return <span className="text-muted-foreground" title={reason}>—<span className="sr-only"> {t('uxs02.unavailable', 'Unavailable')}: {reason}</span></span>;
+          return null;
         }
         const percent = Math.round((actual / activeBudget) * 100);
         const atRisk = isAtRiskActual(p);
         return (
-          <div title={t('uxs02.budgetSummary', '{{actual}} of {{budget}} Active budget', { actual: formatExactMoney(money.actuals.total, money.actuals.currency || p.currency, getNumberLocale()), budget: formatExactMoney(money.activeBudgetAmount, money.activeBudgetCurrency ?? p.currency, getNumberLocale()) })}>
+          <div title={t('uxs02.budgetSummary', '{{actual}} of {{budget}} Active budget', { actual: formatExactMoney(money.actuals.total, money.actuals.currency || p.currency, getNumberLocale(), { wholeUnits: true }), budget: formatExactMoney(money.activeBudgetAmount, money.activeBudgetCurrency ?? p.currency, getNumberLocale(), { wholeUnits: true }) })}>
             <ProgressBar value={percent} showValue compact tone={atRisk ? 'destructive' : percent >= 70 ? 'warning' : undefined} aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent })} />
           </div>
         );
@@ -826,7 +815,7 @@ const Projects: React.FC = () => {
   const mobileToolbar = (
     <div data-testid="projects-mobile-toolbar" className="w-full min-w-0 space-y-2.5">
       {/* status — bounded horizontal scroller (must stay reachable at 390px) */}
-      <div data-testid="status-filter-scroll" className="overflow-x-auto scroll-fade-x">
+      <div data-testid="status-filter-scroll" className="min-w-0 max-w-full overflow-x-auto scroll-fade-x">
         <ViewToggle<StatusFilter>
           options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
           value={filter}
@@ -1020,7 +1009,7 @@ const Projects: React.FC = () => {
         /* AC-2: wrap in overflow-x-auto so the full filter strip (incl. "At risk") is
            reachable at 390px without clipping. scroll-fade-x adds the right-edge fade
            affordance (the project tab strip pattern). */
-        <div data-testid="status-filter-scroll" className="overflow-x-auto scroll-fade-x">
+        <div data-testid="status-filter-scroll" className="min-w-0 max-w-full overflow-x-auto scroll-fade-x">
           <ViewToggle<StatusFilter>
             options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
             value={filter}

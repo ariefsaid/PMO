@@ -15,6 +15,7 @@ interface BudgetVersionsDrawerProps {
   canWrite: boolean;
   hasDraft: boolean;
   nestedOpen?: boolean;
+  readinessSummary?: React.ReactNode;
   onArchive: (id: string) => void;
   onClone: (id: string) => void;
   onDeleteDraft: (id: string) => void;
@@ -36,6 +37,7 @@ export default function BudgetVersionsDrawer({
   canWrite,
   hasDraft,
   nestedOpen = false,
+  readinessSummary,
   onArchive,
   onClone,
   onDeleteDraft,
@@ -110,6 +112,7 @@ export default function BudgetVersionsDrawer({
                   </div>
                 )}
               </div>
+              {version.status === 'Draft' && readinessSummary}
               <BudgetDocumentLinks versionId={version.id} status={version.status} />
             </li>
           ))}

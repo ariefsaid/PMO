@@ -27,6 +27,7 @@
  */
 import React from 'react';
 import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { Card, CardPad } from '@/src/components/ui/Card';
 import { StatTiles } from '@/src/components/ui/StatTiles';
 import { ErrBanner } from '@/src/components/ui/ErrBanner';
@@ -71,6 +72,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   status,
   currency,
 }) => {
+  const { t } = useTranslation('procurement');
   // Committed and Reserved sum every request on the project. A role that reads only the requests it
   // raised (Engineer, migration 0350) would get a partial sum and an overstated Available, so the
   // panel is not offered to it and its reads are not issued.
@@ -218,7 +220,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             title="Over available budget"
             sub={
               <>
-                This request exceeds available budget by{' '}
+                {t('decisionSupport.overBudgetLead', 'This procurement exceeds available budget by')}{' '}
                 <strong className="tabular">{formatCurrency(overAvailableAmount, currency)}</strong>. Approval
                 is still permitted — this is an advisory only.
               </>

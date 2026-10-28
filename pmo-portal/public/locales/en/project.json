@@ -1,10 +1,12 @@
 {
   "finishSpendingSetup": "Finish spending setup",
-  "spendingAdminHandoff": "Ask an administrator to finish spending setup.",
+  "spendingAdminHandoff": "Ask an administrator to complete spending setup.",
+  "spendingSetupPrompt": "Recorded spending will appear after account setup is complete.",
+  "spendingSetupLink": "Open spending setup",
   "spendingSetupDetails": "Spending setup details",
   "noSpendingReading": "Spending hasn't been updated yet.",
   "categoryNeedsSetup": "Spending setup is not complete for this category.",
-  "invoiceBalanceUnavailable": "Invoice balance is not available yet",
+  "invoiceBalanceUnavailable": "Invoice balance is still being confirmed.",
   "invoiceScope": "Only invoices linked to this project are included.",
   "noLinkedInvoices": "No invoices linked to this project yet",
   "billedWork": "Billed-work revenue",
@@ -775,5 +777,11 @@
   },
   "financeCopy": {
     "budget": "Budget"
+  },
+  "moneyDisplay": {
+    "contractUnavailable": "The contract value hasn't been entered.",
+    "contractPosition": "Contract invoice position",
+    "purchaseOrdersUnavailable": "Purchase order totals are still being confirmed.",
+    "reviewInvoices": "Review invoices"
   }
 }

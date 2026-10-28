@@ -1380,7 +1380,7 @@ const ProcurementDetails: React.FC = () => {
             : pendingConfirm?.kind === 'createGR'
               ? t(
                   'procurementDetail.confirm.grBody',
-                  'This records a {{status}} goods receipt against {{request}}.',
+                  'This records a {{status}} goods receipt against procurement record {{request}}.',
                   { status: pendingConfirm.status.toLowerCase(), request: p.title },
                 )
               : t(

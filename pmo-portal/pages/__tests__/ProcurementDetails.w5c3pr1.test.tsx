@@ -10,7 +10,7 @@
  * D17: GR/VI create affordances demoted to quiet links
  *   - At Ordered/Received: "Create Goods Receipt" trigger is a ghost/link style
  *     (NOT a solid primary blue), sits inside the DecisionCard below the primary CTA
- *   - At Vendor Invoiced (recovery): "Create Vendor Invoice" trigger is also ghost/link
+ *   - At Vendor Invoiced (recovery): "create supplier invoice" trigger is also ghost/link
  *   - The stage's primary CTA remains the single blue button (One-Blue Rule)
  *   - The separate Card wrappers for GR/VI triggers are removed (the triggers slot
  *     inside the DecisionCard)

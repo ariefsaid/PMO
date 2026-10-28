@@ -24,6 +24,7 @@ function makeBahasaI18n(locale: 'en' | 'id') {
   void i18n.init({
     lng: locale,
     fallbackLng: 'en',
+    ns: ['common', 'dashboard', 'finance', 'procurement', 'recordFolders', 'assistantPanel', 'project'],
     defaultNS: 'common',
     fallbackNS: 'common',
     resources: {

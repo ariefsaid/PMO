@@ -14,7 +14,7 @@ import {
   type ComboboxOption,
   type SubmitError,
 } from '@/src/components/ui';
-import { formatCurrencyCents, formatMonthYear } from '@/src/lib/format';
+import { formatCurrencyAuto, formatMonthYear } from '@/src/lib/format';
 import { useRuleErrorCopy } from './useRuleErrorCopy';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import {
@@ -246,7 +246,7 @@ const CostAttributionRuleForm: React.FC<Props> = ({ rule, projects, currency, on
                           ? budgetCategoryLabel(r.category as Parameters<typeof budgetCategoryLabel>[0], t)
                           : <StatusPill variant="warn">{t('costAttribution:preview.unmapped', 'Not mapped')}</StatusPill>}
                       </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums">{formatCurrencyCents(r.amount, currency)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums">{formatCurrencyAuto(r.amount, currency)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -254,7 +254,7 @@ const CostAttributionRuleForm: React.FC<Props> = ({ rule, projects, currency, on
             </div>
             <p className="mt-2 text-[13px] text-muted-foreground">
               {t('costAttribution:preview.total', 'Total {{amount}} across {{lines}} ledger lines.', {
-                amount: formatCurrencyCents(total, currency),
+                amount: formatCurrencyAuto(total, currency),
                 lines: rows.reduce<number>((n, r) => n + r.line_count, 0),
               })}
             </p>

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useWinRate, type WinRateRange } from '@/src/hooks/useDashboard';
 import { ViewToggle, type ViewOption } from '@/src/components/ui/ViewToggle';
 import { ListState } from '@/src/components/ui/ListState';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatPercent } from '@/src/lib/format';
 import { toIso } from '@/src/lib/calendar/monthMatrix';
 import { Tooltip } from '@/src/components/ui/Tooltip';
 import { Icon } from '@/src/components/ui/icons';
@@ -65,7 +65,7 @@ const WinRateFigure: React.FC<{
   isPrimary?: boolean;
   t: ReturnType<typeof useTranslation>['t'];
 }> = ({ currency, label, figure, basis, outcomeLabel, isPrimary = false, t }) => {
-  const percent = figure.rate === null ? null : `${(figure.rate * 100).toFixed(1)}%`;
+  const percent = figure.rate === null ? null : formatPercent(figure.rate);
   const displayAmount = (value: number) => basis === 'count' ? String(value) : formatCurrency(value, currency);
   const detail = figure.denominator > 0
     ? t('dashboard:winRate.ratio', '{{won}} won of {{total}} {{outcomes}}', {

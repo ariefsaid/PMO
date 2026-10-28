@@ -102,7 +102,7 @@ interface KindConfig {
 const GROUP_REF_KINDS: ReadonlySet<RecordKind> = new Set<RecordKind>(['purchase_request', 'purchase_order', 'vendor_invoice']);
 
 const DEFAULT_REF_LABEL = 'External ref';
-const DEFAULT_REF_PLACEHOLDER = 'e.g. VENDOR-PO-001';
+const DEFAULT_REF_PLACEHOLDER = 'e.g. SUPPLIER-PO-001';
 
 const KIND_LABEL: Record<RecordKind, string> = {
   purchase_request: 'Purchase Request',

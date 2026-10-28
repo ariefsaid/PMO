@@ -60,12 +60,14 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
   const completeCoverage = moneyPosition.coverage.kind === 'complete';
   const needsCategorySetup = actualPosition.basis === 'erp' && actuals.categories.some((row) => !row.mapped);
   const knownCategories: typeof actuals.categories = [];
-  const unavailableCategories: typeof actuals.categories = [];
-  for (const row of actuals.categories) {
-    const known = row.mapped && actuals.currency !== null &&
-      formatExactMoney(row.amount, actuals.currency, i18n.language) !== null;
-    (known ? knownCategories : unavailableCategories).push(row);
+  if (actualPosition.basis === 'erp') {
+    for (const row of actuals.categories) {
+      const known = row.mapped && actuals.currency !== null &&
+        formatExactMoney(row.amount, actuals.currency, i18n.language, { wholeUnits: true }) !== null;
+      if (known) knownCategories.push(row);
+    }
   }
+  const spendingHasData = actualPosition.amount !== null || knownCategories.length > 0;
   // #1271 AC-3: tagged vs rule-attributed cost, named only when some of the (complete, ERP-ledger) total is attributed.
   const split = actualPosition.basis === 'erp' && actualPosition.complete
     ? attributedSplit({ tagged: actuals.tagged_total, attributed: actuals.attributed_total })
@@ -174,7 +176,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
           </div>
         );
       })}
-      <div className="min-w-0 space-y-2">
+      {spendingHasData && <div className="min-w-0 space-y-2">
         <h3 className="text-sm font-semibold">
           {t('uxs01.recordedSpending', 'Recorded spending')}{actualPosition.currency ? ` · ${actualPosition.currency}` : ''}
         </h3>
@@ -211,15 +213,6 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
         )}
         {actualPosition.basis === 'erp' && !actualPosition.asOf &&
           <p className="text-xs text-muted-foreground">{t('project:noSpendingReading', "Spending hasn't been updated yet.")}</p>}
-        {needsCategorySetup && canInspectAccounting && (
-          <p className="text-xs text-muted-foreground" data-testid="spending-setup-prompt">
-            {canManageAccounting
-              ? <Link className="font-medium text-primary-text underline-offset-4 hover:underline" to="/administration/accounting#budget-account-map">
-                  {t('project:finishSpendingSetup', 'Finish spending setup')}
-                </Link>
-              : t('project:spendingAdminHandoff', 'Ask an administrator to finish spending setup.')}
-          </p>
-        )}
         {actualPosition.basis === 'erp' && actuals.excludes_restricted_rows && <p role="status">{t('projectFinances.restricted', 'Actuals exclude restricted rows')}</p>}
         {actualPosition.basis === 'erp' && knownCategories.length > 0 && <details className="min-w-0">
           <summary className="cursor-pointer text-sm font-medium">{t('uxs01.showCategoryDetails', 'Show category details')}</summary>
@@ -235,20 +228,17 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
             />
           </div>
         </details>}
-        {actualPosition.basis === 'erp' && canInspectAccounting && unavailableCategories.length > 0 && (
-          <details className="min-w-0">
-            <summary className="cursor-pointer text-sm font-medium">{t('project:spendingSetupDetails', 'Spending setup details')}</summary>
-            <ul className="mt-2 list-disc pl-5 text-sm">
-              {unavailableCategories.map((row) => <li key={row.category}>
-                {budgetCategoryLabel(row.category as Parameters<typeof budgetCategoryLabel>[0], t)}
-                {' — '}{row.mapped
-                  ? t('project:noSpendingReading', "Spending hasn't been updated yet.")
-                  : t('project:categoryNeedsSetup', 'Spending setup is not complete for this category.')}
-              </li>)}
-            </ul>
-          </details>
-        )}
-      </div>
+      </div>}
+      {needsCategorySetup && canInspectAccounting && (
+        <p className="text-sm text-muted-foreground" data-testid="spending-setup-prompt">
+          {canManageAccounting
+            ? <>{t('project:spendingSetupPrompt', 'Recorded spending will appear after account setup is complete.')}{' '}
+              <Link className="font-medium text-primary-text underline-offset-4 hover:underline" to="/administration/accounting#budget-account-map">
+                {t('project:spendingSetupLink', 'Open spending setup')}
+              </Link></>
+            : t('project:spendingAdminHandoff', 'Ask an administrator to complete spending setup.')}
+        </p>
+      )}
       {hasInvoices && <p className="text-xs text-muted-foreground" data-testid="project-invoicing-scope">
         {t('project:invoiceScope', 'Only invoices linked to this project are included.')}
       </p>}

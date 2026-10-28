@@ -8,7 +8,7 @@
  * B-IMP-2 (AC-S6-2): SoD pre-announce on draft state for the author
  *   When the PR is in Draft and the current user is the requester (author),
  *   show inline copy "Submitting hands this to another approver — you can't
- *   approve your own request." so the author understands SoD before submitting.
+ *   approve your own procurement record." so the author understands SoD before submitting.
  *
  * C-IMP-1 (AC-S6-3): BackBar on success render at <=921px
  *   The BackBar is rendered (conditionally visible via CSS) on the success render
@@ -20,6 +20,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import { BahasaProvider } from '@/test/bahasa';
 
 // ---------------------------------------------------------------------------
 // Stub ProcurementFilesSubsection — it calls useQueryClient() internally.
@@ -222,6 +223,17 @@ const renderPage = (id = 'proc-s6-001', state?: unknown) =>
         <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
       </Routes>
     </MemoryRouter>,
+  );
+
+const renderBahasaPage = (id = 'proc-s6-001') =>
+  render(
+    <BahasaProvider>
+      <MemoryRouter initialEntries={[`/procurement/${id}`]}>
+        <Routes>
+          <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
+        </Routes>
+      </MemoryRouter>
+    </BahasaProvider>,
   );
 
 // ---------------------------------------------------------------------------

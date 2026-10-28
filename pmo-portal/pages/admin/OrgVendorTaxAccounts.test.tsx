@@ -129,7 +129,7 @@ it('AC-VWH-029 a failed read offers a retry and no write', async () => {
 it('AC-VWH-029 the setting renders in Bahasa Indonesia', async () => {
   await financeTestI18n.changeLanguage('id');
   renderSetting();
-  expect(await screen.findByText('Akun pajak tagihan vendor')).toBeInTheDocument();
+  expect(await screen.findByText('Akun pajak tagihan pemasok')).toBeInTheDocument();
   expect(await screen.findByRole('combobox', { name: 'Akun PPN Masukan' })).toBeInTheDocument();
 });
 

@@ -93,6 +93,8 @@ vi.mock('../ProjectProfitLossSection', () => ({ default: () => null }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useBudgetActivationPrecheck: () => ({ data: undefined, isPending: false, isError: false }),
+  useBudgetArchiveTargets: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetActivationMode: () => ({ data: undefined, isPending: false, isError: false }),
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: vi.fn() }, activate: { mutateAsync: vi.fn() },

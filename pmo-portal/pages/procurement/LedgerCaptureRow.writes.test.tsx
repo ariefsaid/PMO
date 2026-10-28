@@ -1,6 +1,6 @@
 /**
  * D2 review C1/C2 — every kind the ledger capture row can offer must reach a REAL write, and the form must never
- * report "recorded" for one that wrote nothing. Goods receipt and vendor invoice used to open a form whose save
+ * report "recorded" for one that wrote nothing. Goods receipt and supplier invoice used to open a form whose save
  * went nowhere (the page toasted success; the ledger stayed empty). They now hand off to the page's confirm
  * (`onStage`); the other four write through `onCreate`.
  */
@@ -80,7 +80,7 @@ describe('every kind the ledger capture row can offer is wired to a write', () =
       expect(onStage).toHaveBeenCalledWith(expect.objectContaining({ kind: kind === 'goods_receipt' ? 'createGR' : 'createVI' }));
       expect(onCreate).not.toHaveBeenCalled();
       // Staging is not a write: nothing is toasted as recorded until the page's confirm commits it.
-      expect(screen.queryByText(/(Goods Receipt|Vendor Invoice) recorded/i)).toBeNull();
+      expect(screen.queryByText(/(Goods Receipt|Supplier Invoice) recorded/i)).toBeNull();
     } else {
       await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1));
       expect(onCreate).toHaveBeenCalledWith(kind, expect.anything());

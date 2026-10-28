@@ -38,7 +38,7 @@ const columnFields = [
 export const ProcurementListColumns: React.FC = () => {
   const { t } = useTranslation();
   const labels = {
-    request: t('procurement.columns.request', 'Request'),
+    request: t('procurement.columns.request', 'Procurement'),
     project: t('procurement.columns.project', 'Project'),
     requester: t('procurement.columns.requester', 'Requester'),
     value: t('procurement.columns.value', 'Value'),

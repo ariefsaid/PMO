@@ -1251,7 +1251,8 @@ describe('resolvePaymentRefs — #910 task 2 (FR-VPAY-002/003/004/006)', () => {
 
   it('FR-VPAY-006b — paid_amount ≤ 0 refuses', async () => {
     const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
-    await expect(resolveAdapter(paymentCommand({ paid_amount: 0 }), HAPPY_TABLES, fetchImpl)).rejects.toMatchObject({ code: 'commit-rejected' });
+    await expect(resolveAdapter(paymentCommand({ paid_amount: 0 }), HAPPY_TABLES, fetchImpl))
+      .rejects.toSatisfy((err: AppError) => err.code === 'commit-rejected' && /supplier payment/i.test(err.message));
     await expect(resolveAdapter(paymentCommand({ paid_amount: -1 }), HAPPY_TABLES, fetchImpl)).rejects.toMatchObject({ code: 'commit-rejected' });
     expect(fetchImpl).not.toHaveBeenCalled();
   });

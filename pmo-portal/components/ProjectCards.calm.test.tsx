@@ -45,6 +45,26 @@ const money = (over: Partial<ProjectMoneyRead> = {}): ProjectMoneyRead => ({
 }) as ProjectMoneyRead;
 
 describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
+  it('AC-1242: top-aligns the Budget used label and keeps the risk warning outside the bar row once', () => {
+    render(<ProjectCard
+      project={project}
+      onOpen={vi.fn()}
+      deliverySummary={{ deliveryPct: 40, committedSpend: 0, budget: 0 }}
+      projectMoney={money({
+        actuals: {
+          currency: 'USD', total: '950.00', asOf: null, excludesRestrictedRows: false,
+          categories: [{ category: 'Labor', mapped: true, amount: '950.00' }],
+        },
+        activeBudgetAmount: '1000.00',
+      })}
+    />);
+    const card = screen.getByTestId('project-card');
+    const bars = screen.getByTestId('project-card-bars');
+    expect(bars).toHaveClass('items-start');
+    expect(within(bars).queryByText('At risk')).not.toBeInTheDocument();
+    expect(within(card).getAllByText('At risk')).toHaveLength(1);
+  });
+
   it('a card with no Active budget says "No active budget" once, and has no Budget used row', () => {
     render(<ProjectCard project={project} onOpen={vi.fn()} deliverySummary={{ deliveryPct: 40, committedSpend: 0, budget: 0 }}
       projectMoney={money({ activeBudgetAmount: null, activeBudgetCurrency: null, hasActiveBudget: false })} />);
@@ -71,20 +91,23 @@ describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
   it('Actual is the amount only; the bar carries the percentage, not an "x of y" caption', () => {
     render(<ProjectCard project={project} onOpen={vi.fn()} deliverySummary={{ deliveryPct: 40, committedSpend: 0, budget: 0 }} projectMoney={money()} />);
     const card = screen.getByTestId('project-card');
-    expect(within(card).getByText('$125,000.00')).toBeInTheDocument();
+    expect(within(card).getByText('$125,000')).toBeInTheDocument();
     expect(within(card).queryByText(/Updated|Update time|Incomplete source coverage|Restricted rows excluded/)).not.toBeInTheDocument();
     expect(within(card).queryByText(/of .* Active budget/)).not.toBeInTheDocument();
     expect(within(card).getAllByLabelText('25% of Active budget')).toHaveLength(1);
   });
 
-  it('a partial Actual shows Unavailable (never a partial total), with no per-card coverage prose', () => {
+  it('a partial Actual stays blank with one plain-language explanation, never a partial total', () => {
     render(<ProjectCard project={project} onOpen={vi.fn()} projectMoney={money({
       actuals: { currency: 'USD', total: '450.00', asOf: null, excludesRestrictedRows: false,
         categories: [{ category: 'Labor', mapped: true, amount: '450.00' }, { category: 'Materials', mapped: false, amount: null }] },
     } as Partial<ProjectMoneyRead>)} />);
     const card = screen.getByTestId('project-card');
     expect(within(card).queryByText('$450.00')).not.toBeInTheDocument();
-    expect(within(card).getAllByText('Unavailable')).toHaveLength(1);
+    expect(within(card).getByTestId('project-card-actual')).toBeEmptyDOMElement();
+    expect(within(card).getAllByTestId('project-card-money-unavailable')).toHaveLength(1);
+    expect(within(card).getByTestId('project-card-money-unavailable')).toHaveTextContent('Some project financial figures are still being confirmed.');
+    expect(within(card).queryByText('Unavailable')).not.toBeInTheDocument();
     expect(within(card).queryByText(/Incomplete source coverage/)).not.toBeInTheDocument();
   });
 

@@ -214,7 +214,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
       >
         Bid comparison
         <span className="ml-2 text-[13px] font-normal text-muted-foreground">
-          Compare and select a vendor quote
+          {t('procurement:quotes.compareHint', 'Compare and select a supplier quote')}
         </span>
       </CardHead>
 
