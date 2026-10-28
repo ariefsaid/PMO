@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vite
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import ExcelJS from 'exceljs';
 import { ToastProvider } from '@/src/components/ui';
@@ -14,7 +15,7 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 
 const hoisted = vi.hoisted(() => ({ captured: [] as ArrayBuffer[] }));
 
-vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [] }), useHasErpPurchases: () => ({ data: false }) }));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/lib/export', async (orig) => {
   const actual = (await orig()) as typeof import('@/src/lib/export');
@@ -58,20 +59,24 @@ vi.mock('@/src/hooks/useProcurementView', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/src/hooks/useProcurementView')>()),
   useProcurementView: () => ['table', vi.fn()],
 }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }), useProject: () => ({ data: null }) }));
+const procState = vi.hoisted(() => ({ current: null as null | { data: unknown[]; isPending: boolean; isError: boolean; refetch: () => void } }));
 vi.mock('@/src/hooks/useProcurements', () => ({
-  useProcurements: () => ({
-    data: [
-      {
-        ...base('p-all', 'Has all three'),
-        pr_refs: [{ external_ref: 'PRQ-001' }],
-        po_refs: [{ external_ref: 'PRO-002' }],
-        vi_refs: [{ external_ref: 'PRO-002' }, { external_ref: null }],
-      },
-      { ...base('p-none', 'Has none'), pr_refs: [], po_refs: [{ external_ref: null }], vi_refs: [] },
-    ],
-    isPending: false, isError: false, refetch: vi.fn(),
-  }),
+  useProcurements: () => procState.current,
+  useProjectProcurements: () => procState.current,
 }));
+const rows = () => ({
+  data: [
+    {
+      ...base('p-all', 'Has all three'),
+      pr_refs: [{ external_ref: 'PRQ-001' }],
+      po_refs: [{ external_ref: 'PRO-002' }],
+      vi_refs: [{ external_ref: 'PRO-002' }, { external_ref: null }],
+    },
+    { ...base('p-none', 'Has none'), pr_refs: [], po_refs: [{ external_ref: null }], vi_refs: [] },
+  ],
+  isPending: false, isError: false, refetch: vi.fn(),
+  });
 
 let ProcurementPage: React.ComponentType;
 beforeAll(async () => {
@@ -79,6 +84,7 @@ beforeAll(async () => {
 }, 60_000);
 
 beforeEach(() => {
+  procState.current = rows();
   hoisted.captured = [];
   URL.createObjectURL = vi.fn(() => 'blob:test');
   URL.revokeObjectURL = vi.fn();
@@ -89,13 +95,15 @@ afterEach(() => vi.restoreAllMocks());
 describe('AC-EXT-002 Procurement export carries the record external references', () => {
   it('AC-EXT-002: the "External references" column joins PR, PO and VI references; a case with none is blank', async () => {
     render(
-      <ImpersonationProvider realRole="Admin">
-        <MemoryRouter>
-          <ToastProvider>
-            <ProcurementPage />
-          </ToastProvider>
-        </MemoryRouter>
-      </ImpersonationProvider>,
+      <QueryClientProvider client={new QueryClient()}>
+        <ImpersonationProvider realRole="Admin">
+          <MemoryRouter>
+            <ToastProvider>
+              <ProcurementPage />
+            </ToastProvider>
+          </MemoryRouter>
+        </ImpersonationProvider>
+      </QueryClientProvider>,
     );
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /^More$/i }));
@@ -106,7 +114,7 @@ describe('AC-EXT-002 Procurement export carries the record external references',
     const ws = wb.worksheets[0];
     const headers = (ws.getRow(1).values as unknown[]).slice(1) as string[];
     const refCol = headers.indexOf('External references') + 1;
-    const reqCol = headers.indexOf('Request') + 1;
+    const reqCol = headers.indexOf('Procurement') + 1;
     expect(refCol).toBeGreaterThan(0);
     const cell = (title: string) =>
       [2, 3].map((r) => ws.getRow(r)).find((x) => x.getCell(reqCol).value === title)!.getCell(refCol).value;

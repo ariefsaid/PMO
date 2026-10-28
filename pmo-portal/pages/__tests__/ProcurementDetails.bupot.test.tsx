@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -38,6 +38,10 @@ vi.mock('@/src/components/ui', async (importOriginal) => {
   return { ...actual, useToast: () => ({ toast: h.toast }) };
 });
 
+vi.mock('@/src/hooks/useProcurementRecords', () => ({ useProcurementRecordMutations: () => ({ createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false }, createRfq: { mutateAsync: vi.fn(), isPending: false }, createPurchaseOrder: { mutateAsync: vi.fn(), isPending: false }, createPayment: { mutateAsync: vi.fn(), isPending: false } }) }));
+vi.mock('@/src/hooks/useProcurementFiles', () => import('@/pages/__tests__/helpers/procurementFilesMock'));
+vi.mock('@/src/hooks/useProjects', () => import('@/pages/__tests__/helpers/projectScopeMock'));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 import ProcurementDetails from '../ProcurementDetails';
 
 const procurement = {
@@ -66,7 +70,7 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
   it('lets Finance set only the missing vendor on a billed request, then permits slip recording', async () => {
     const vendorlessBilled = { ...procurement, vendor_id: null };
     h.detail.data = vendorlessBilled;
-    const view = renderAt('/procurement/proc-001/documents');
+    const view = renderAt('/procurement/proc-001/files');
     fireEvent.click(screen.getByRole('button', { name: 'Set vendor' }));
 
     fireEvent.click(screen.getByRole('combobox', { name: 'Vendor' }));
@@ -76,7 +80,7 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
 
     await waitFor(() => expect(h.updateVendor).toHaveBeenCalledWith('vendor-new'));
     h.detail.data = { ...vendorlessBilled, vendor_id: 'vendor-new' };
-    view.rerender(<MemoryRouter initialEntries={['/procurement/proc-001/documents']}><Routes><Route path="/procurement/:procurementId/:tab?" element={<><ProcurementDetails /><LocationText /></>} /></Routes></MemoryRouter>);
+    view.rerender(<MemoryRouter initialEntries={['/procurement/proc-001/files']}><Routes><Route path="/procurement/:procurementId/:tab?" element={<><ProcurementDetails /><LocationText /></>} /></Routes></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: 'Record bukti potong' }));
     expect(screen.getByRole('dialog', { name: 'Record modal' })).toHaveTextContent('invoice-1');
   });
@@ -84,28 +88,28 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
   it('hides Set vendor from Engineer under the live procurements_update role policy', () => {
     h.realRole = 'Engineer'; h.effectiveRole = 'Engineer';
     h.detail.data = { ...procurement, vendor_id: null };
-    renderAt('/procurement/proc-001/documents');
+    renderAt('/procurement/proc-001/files');
     expect(screen.queryByRole('button', { name: 'Set vendor' })).not.toBeInTheDocument();
   });
 
   it('hides Set vendor while an Admin is impersonating another role', () => {
     h.realRole = 'Admin'; h.effectiveRole = 'Engineer';
     h.detail.data = { ...procurement, vendor_id: null };
-    renderAt('/procurement/proc-001/documents');
+    renderAt('/procurement/proc-001/files');
     expect(screen.queryByRole('button', { name: 'Set vendor' })).not.toBeInTheDocument();
   });
 
   it('shows Set vendor to Finance under the live procurements_update role policy', () => {
     h.realRole = 'Finance'; h.effectiveRole = 'Finance';
     h.detail.data = { ...procurement, vendor_id: null };
-    renderAt('/procurement/proc-001/documents');
+    renderAt('/procurement/proc-001/files');
     expect(screen.getByRole('button', { name: 'Set vendor' })).toBeInTheDocument();
   });
 
   it('shows the stale-vendor recovery message and refetches after a conditional write conflict', async () => {
     h.detail.data = { ...procurement, vendor_id: null };
     h.updateVendor.mockRejectedValueOnce(Object.assign(new Error('A vendor was already set.'), { code: 'VENDOR_ALREADY_SET' }));
-    renderAt('/procurement/proc-001/documents');
+    renderAt('/procurement/proc-001/files');
     fireEvent.click(screen.getByRole('button', { name: 'Set vendor' }));
     fireEvent.click(screen.getByRole('combobox', { name: 'Vendor' }));
     fireEvent.click(await screen.findByRole('option', { name: 'New vendor' }));
@@ -115,8 +119,8 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
   });
 
   it('opens the record modal from a paid bill row', () => {
-    renderAt('/procurement/proc-001/documents');
-    expect(screen.getAllByText('VI-001')).toHaveLength(2);
+    renderAt('/procurement/proc-001/files');
+    expect(within(screen.getByRole('region', { name: 'Bill row' })).getByText('VI-001')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Record bukti potong' }));
     expect(screen.getByRole('dialog', { name: 'Record modal' })).toHaveTextContent('invoice-1');
     expect(screen.getByRole('button', { name: 'Save evidence' })).toBeInTheDocument();
@@ -129,11 +133,11 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/procurement/proc-001?keep=1&tabHint=history'));
   });
 
-  it('#961 open-case-scroll carries the selected slip and linked bill to the target Documents ledger', async () => {
+  it('#961 open-case-scroll carries the selected slip and linked bill to the target Files ledger (the case ledger, #1404)', async () => {
     renderAt('/procurement/proc-001?bupot=slip-from-url');
     fireEvent.click(screen.getByRole('button', { name: 'Open bill in case' }));
-    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/procurement/case-b/documents?bupot=slip-from-url&bupotBill=invoice-2'));
-    expect(screen.getByRole('tab', { name: /^Documents/ })).toHaveAttribute('aria-selected', 'true');
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/procurement/case-b/files?bupot=slip-from-url&bupotBill=invoice-2'));
+    expect(screen.getByRole('tab', { name: /^Files/ })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByTestId('slip-detail')).toHaveTextContent('Details: slip-from-url');
     expect(screen.getByTestId('slip-detail')).toHaveAttribute('data-suppress-arrival-focus', 'true');
     expect(screen.getByRole('region', { name: 'Bill row' })).toHaveAttribute('data-target-invoice', 'invoice-2');
@@ -141,7 +145,7 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
 
   it('#961 F15 states that this bill has no withholding history', async () => {
     h.history.data = { pages: [{ rows: [] }] };
-    renderAt('/procurement/proc-001/documents');
+    renderAt('/procurement/proc-001/files');
     fireEvent.click(screen.getByRole('button', { name: 'Bill history' }));
     expect(await screen.findByText('No withholding slips recorded for this bill.')).toBeInTheDocument();
     expect(screen.queryByTestId('liststate-loading')).not.toBeInTheDocument();
@@ -149,7 +153,7 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
   });
 
   it('opens a retained slip from the bill history entry point, including void entries', async () => {
-    renderAt('/procurement/proc-001/documents');
+    renderAt('/procurement/proc-001/files');
     const historyOpener = screen.getByRole('button', { name: 'Bill history' });
     historyOpener.focus();
     fireEvent.click(historyOpener);

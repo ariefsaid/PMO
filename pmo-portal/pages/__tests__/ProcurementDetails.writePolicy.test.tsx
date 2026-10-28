@@ -14,6 +14,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import { headerActions, openMoreActions } from '@/pages/__tests__/helpers/procurementHeader';
 
 /**
  * AC-IXD-WP-003 + AC-IXD-WP-002 (write-policy, OD-UX-1; plan tasks 9/10):
@@ -124,6 +125,8 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
+vi.mock('@/src/hooks/useProjects', () => import('@/pages/__tests__/helpers/projectScopeMock'));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 import ProcurementDetails from '../ProcurementDetails';
 
 const baseProcurement = {
@@ -152,6 +155,11 @@ const baseProcurement = {
   quotations: [],
   receipts: [],
   invoices: [],
+  purchase_requests: [],
+  rfqs: [],
+  purchase_orders: [],
+  payments: [],
+  statusEvents: [],
 };
 
 const renderPage = (id = 'proc-001') =>
@@ -188,7 +196,7 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
       items: [{ id: 'it1', org_id: 'org-1', procurement_id: 'proc-001', name: 'Widget', description: null, quantity: 1, rate: 500, amount: 500 }],
     };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /submit request/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: 'Submit for approval' }));
 
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryByRole('alertdialog')).toBeNull();
@@ -200,7 +208,9 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
   it('AC-IXD-WP-003: Request Vendor Quotes (Approved→Vendor Quoted) commits on a single click — no dialog', async () => {
     detailState.data = { ...baseProcurement, status: 'Approved', requested_by_id: 'u-other' };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /request vendor quotes/i }));
+    // At Approved the header's primary is "Record order"; requesting quotations is in the More menu (#1404).
+    const header = await openMoreActions();
+    await userEvent.click(header.getByRole('menuitem', { name: 'Request quotations' }));
 
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryByRole('alertdialog')).toBeNull();
@@ -212,7 +222,7 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
   it('AC-IXD-WP-003: Generate Purchase Order (Quote Selected→Ordered) commits on a single click — no dialog', async () => {
     detailState.data = { ...baseProcurement, status: 'Quote Selected', requested_by_id: 'u-other' };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /generate purchase order/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: 'Record order' }));
 
     expect(screen.queryByRole('dialog')).toBeNull();
     await waitFor(() =>
@@ -220,17 +230,22 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
     );
   });
 
-  it('AC-IXD-WP-003: Confirm Receipt (Ordered→Received) commits on a single click — no dialog', async () => {
-    // Receipt is offered to the requester or a PM (RECEIPT_ROLES); use a PM non-requester.
+  it('AC-IXD-WP-003: Record receipt (Ordered→Received) opens the receipt form on a single click — no dialog — and saving it records the receipt', async () => {
+    // Receipt is offered to the requester or a PM (RECEIPT_ROLES); use a PM non-requester. The old
+    // one-click "Confirm Receipt" transition became "Record receipt" (#1404): the receipt is recorded as a
+    // document, which moves the purchase to Received. The click itself stays dialog-free; the write is
+    // staged by the form's save and confirmed once, as every GR capture was.
     mockEffectiveRole = 'Project Manager';
     detailState.data = { ...baseProcurement, status: 'Ordered', requested_by_id: 'u-other' };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /confirm receipt/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: 'Record receipt' }));
 
     expect(screen.queryByRole('dialog')).toBeNull();
-    await waitFor(() =>
-      expect(mockTransition).toHaveBeenCalledWith(expect.objectContaining({ to: 'Received' })),
-    );
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(screen.getByTestId('form-create-gr')).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('btn-save-gr'));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Save GR' }));
+    await waitFor(() => expect(mockCreateReceipt).toHaveBeenCalledTimes(1));
   });
 
   it('AC-IXD-WP-003: Mark Vendor Invoiced (Received→Vendor Invoiced) — O3 deliberate change: opens inline capture (no modal confirm), and transition commits when the inline capture is submitted', async () => {
@@ -239,7 +254,7 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
     // still no ConfirmDialog modal — the inline panel IS the capture step.
     detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other' };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /mark vendor invoiced/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: 'Record supplier invoice' }));
 
     // No modal dialog — the inline capture panel takes over (no confirm dialog surface).
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -262,7 +277,8 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
   it('AC-IXD-WP-003: a routine single-click forward step fires a quiet success toast', async () => {
     detailState.data = { ...baseProcurement, status: 'Approved', requested_by_id: 'u-other' };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /request vendor quotes/i }));
+    const header = await openMoreActions();
+    await userEvent.click(header.getByRole('menuitem', { name: 'Request quotations' }));
     // AC-IXD-PROC-001: the toast names the CANONICAL state ("Vendor Quote") — the
     // same noun the badge shows — not the raw enum value ("Vendor Quoted"). The
     // quiet-success-toast goal-oracle is unchanged; only the canonical label is asserted.
@@ -279,7 +295,7 @@ describe('AC-IXD-WP-003: consequential procurement actions still confirm', () =>
   it('AC-IXD-WP-003: Approve opens a confirm and does NOT write on the first click', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^approve$/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: /^approve$/i }));
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
     expect(mockTransition).not.toHaveBeenCalled();
   });
@@ -287,7 +303,8 @@ describe('AC-IXD-WP-003: consequential procurement actions still confirm', () =>
   it('AC-IXD-WP-003: Reject opens a destructive confirm and does NOT write on the first click', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^reject$/i }));
+    const header = await openMoreActions();
+    await userEvent.click(header.getByRole('menuitem', { name: /^reject$/i }));
     expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     expect(mockTransition).not.toHaveBeenCalled();
   });
@@ -295,7 +312,8 @@ describe('AC-IXD-WP-003: consequential procurement actions still confirm', () =>
   it('AC-IXD-WP-003: Cancel request opens a destructive confirm and does NOT write on the first click', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^cancel request$/i }));
+    const header = await openMoreActions();
+    await userEvent.click(header.getByRole('menuitem', { name: /^cancel procurement$/i }));
     expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     expect(mockTransition).not.toHaveBeenCalled();
   });
@@ -308,7 +326,7 @@ describe('AC-IXD-WP-003: consequential procurement actions still confirm', () =>
       approved_by_id: 'u-someone-else',
     };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /mark as paid/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: 'Record payment' }));
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
     expect(mockTransition).not.toHaveBeenCalled();
   });
@@ -328,7 +346,7 @@ describe('AC-IXD-WP-002: kept financial confirms restate the amount + project + 
       requested_by: { full_name: 'Alice Manager' },
     };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^approve$/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: /^approve$/i }));
     const dialog = await screen.findByRole('dialog');
     // confirm against the money: amount + project + requester all restated
     expect(dialog).toHaveTextContent('$85,000');
@@ -347,7 +365,7 @@ describe('AC-IXD-WP-002: kept financial confirms restate the amount + project + 
       requested_by: { full_name: 'Alice Manager' },
     };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /mark as paid/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: 'Record payment' }));
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toHaveTextContent('Record $85,000 as paid? This records payment evidence; it does not transfer funds.');
     // confirming pays it (SoD-b is server-enforced; here the click commits)

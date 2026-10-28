@@ -103,6 +103,8 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
+vi.mock('@/src/hooks/useProjects', () => import('@/pages/__tests__/helpers/projectScopeMock'));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 import ProcurementDetails from '../ProcurementDetails';
 
 const orderedProcurement = {
@@ -165,32 +167,43 @@ describe('ProcurementDetails — tabbed record shell (Slice 1)', () => {
     navigate.mockClear();
   });
 
-  it('renders the Procurement tablist with Overview · Line items · Documents · Vendor quotes', () => {
+  // The record page's tabs are now Timeline · Line items · Quotations · Files · Details (#1404): the old
+  // Overview is the Timeline (the legacy overview/history paths resolve to it), Documents became
+  // Files (the legacy documents path resolves there), Vendor quotes became Quotations, and the lifecycle verb lives in the RecordHeader actions.
+  it('renders the Procurement tablist with Timeline · Line items · Quotations · Files · Details', () => {
     renderAt('/procurement/proc-001');
     const tablist = screen.getByRole('tablist', { name: /Procurement sections/i });
-    expect(within(tablist).getByRole('tab', { name: 'Overview' })).toBeInTheDocument();
+    expect(within(tablist).getByRole('tab', { name: /Timeline/ })).toBeInTheDocument();
     expect(within(tablist).getByRole('tab', { name: /Line items/ })).toBeInTheDocument();
-    expect(within(tablist).getByRole('tab', { name: /Documents/ })).toBeInTheDocument();
-    expect(within(tablist).getByRole('tab', { name: /Vendor quotes/ })).toBeInTheDocument();
+    expect(within(tablist).getByRole('tab', { name: /Quotations/ })).toBeInTheDocument();
+    expect(within(tablist).getByRole('tab', { name: /Files/ })).toBeInTheDocument();
+    expect(within(tablist).getByRole('tab', { name: /Details/ })).toBeInTheDocument();
   });
 
-  it('defaults to the Overview tab when no :tab param is present', () => {
+  it('defaults to the Timeline tab when no :tab param is present', () => {
     renderAt('/procurement/proc-001');
-    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
-    // The Overview bento renders its progression timeline.
-    expect(screen.getByTestId('procurement-progression')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Timeline/ })).toHaveAttribute('aria-selected', 'true');
+    // The Timeline panel renders the case timeline.
+    expect(within(screen.getByRole('tabpanel')).getByRole('heading', { name: /Timeline/ })).toBeInTheDocument();
   });
 
-  it('an unknown :tab param falls back to Overview', () => {
+  it('an unknown :tab param falls back to Timeline', () => {
     renderAt('/procurement/proc-001/bogus');
-    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /Timeline/ })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('deep-links to the Documents tab via /procurement/:id/documents', () => {
+  it('a legacy /procurement/:id/documents link (bill and slip deep links) lands on Files', () => {
     renderAt('/procurement/proc-001/documents');
-    expect(screen.getByRole('tab', { name: /Documents/ })).toHaveAttribute('aria-selected', 'true');
-    // The Overview-only progression slot is NOT rendered on the Documents panel.
-    expect(screen.queryByTestId('procurement-progression')).toBeNull();
+    expect(screen.getByRole('tab', { name: /Files/ })).toHaveAttribute('aria-selected', 'true');
+    expect(navigate).toHaveBeenCalledWith('/procurement/proc-001/files', expect.anything());
+  });
+
+  it('deep-links to the Files tab via /procurement/:id/files', () => {
+    renderAt('/procurement/proc-001/files');
+    expect(screen.getByRole('tab', { name: /Files/ })).toHaveAttribute('aria-selected', 'true');
+    // The Timeline-only panel content is NOT rendered on the Files panel.
+    expect(screen.getByTestId('procurement-tabpanel-files')).toBeInTheDocument();
+    expect(screen.queryByTestId('procurement-tabpanel-timeline')).toBeNull();
   });
 
   it('deep-links to the Line items tab and shows the line-items section', () => {
@@ -204,7 +217,7 @@ describe('ProcurementDetails — tabbed record shell (Slice 1)', () => {
   // — same class as the other `{ replace: true }` tab-switch assertions).
   it('clicking a tab navigates (replace) to its deep-link, forwarding location.state', async () => {
     renderAt('/procurement/proc-001');
-    await userEvent.click(screen.getByRole('tab', { name: /Vendor quotes/ }));
+    await userEvent.click(screen.getByRole('tab', { name: /Quotations/ }));
     // #879: the navigation carries the tab-switch marker (AppShell route-focus exemption).
     expect(navigate).toHaveBeenCalledWith('/procurement/proc-001/quotes', {
       replace: true,
@@ -214,8 +227,8 @@ describe('ProcurementDetails — tabbed record shell (Slice 1)', () => {
 
   it('ArrowRight moves selection to the next tab (roving keyboard nav), forwarding location.state', async () => {
     renderAt('/procurement/proc-001');
-    const overview = screen.getByRole('tab', { name: 'Overview' });
-    overview.focus();
+    const first = screen.getByRole('tab', { name: /Timeline/ });
+    first.focus();
     await userEvent.keyboard('{ArrowRight}');
     // #879: the navigation carries the tab-switch marker (AppShell route-focus exemption).
     expect(navigate).toHaveBeenCalledWith('/procurement/proc-001/items', {
@@ -227,36 +240,38 @@ describe('ProcurementDetails — tabbed record shell (Slice 1)', () => {
   it('the active panel is a role=tabpanel labelled by the active tab (a11y wiring)', () => {
     renderAt('/procurement/proc-001');
     const panel = screen.getByRole('tabpanel');
-    expect(panel).toHaveAttribute('id', 'procurement-detail-tabpanel-overview');
-    expect(panel).toHaveAttribute('aria-labelledby', 'procurement-detail-tab-overview');
+    expect(panel).toHaveAttribute('id', 'procurement-detail-tabpanel-timeline');
+    expect(panel).toHaveAttribute('aria-labelledby', 'procurement-detail-tab-timeline');
   });
 
-  it('the RecordActionZone is rendered OUTSIDE the tabs (present on every tab)', () => {
-    renderAt('/procurement/proc-001/documents');
-    expect(screen.getByTestId('record-action-zone')).toBeInTheDocument();
+  it('the RecordHeader action area is rendered OUTSIDE the tabs (present on every tab)', () => {
+    renderAt('/procurement/proc-001/files');
+    expect(screen.getByTestId('record-header-actions')).toBeInTheDocument();
   });
 
-  it('the tab count badges reflect items / documents / quotes counts', () => {
+  it('the tab count badges reflect items / quotes counts', () => {
     renderAt('/procurement/proc-001');
-    // 1 item, 1 quotation, 0 documents-collection rows.
+    // 1 item, 1 quotation.
     expect(screen.getByRole('tab', { name: /Line items\s*1/ })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Vendor quotes\s*1/ })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Quotations\s*1/ })).toBeInTheDocument();
   });
 
-  it('CanWrite gating still applies: an Engineer non-requester is NOT offered Confirm Receipt', () => {
-    mockEffectiveRole = 'Engineer';
+  it('CanWrite gating still applies: a Finance non-requester is NOT offered Record receipt', () => {
+    // (An Engineer only opens purchases they raised, so Finance is the viewer without receipt authority.)
+    mockEffectiveRole = 'Finance';
     detailState.data = { ...orderedProcurement, requested_by_id: 'u-other' };
     renderAt('/procurement/proc-001');
-    // Ordered→Received authority excludes a non-requester Engineer.
-    expect(screen.queryByRole('button', { name: /confirm receipt/i })).toBeNull();
+    // Ordered→Received authority is the requester or a Project Manager; the header is otherwise present.
+    expect(screen.getByTestId('record-header-actions')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /record receipt/i })).toBeNull();
   });
 
-  it('the action zone advance verb shows for an authorized viewer (Confirm Receipt at Ordered for PM)', () => {
+  it('the header advance verb shows for an authorized viewer (Record receipt at Ordered for PM)', () => {
     mockEffectiveRole = 'Project Manager';
     detailState.data = { ...orderedProcurement, requested_by_id: 'u-other' };
-    renderAt('/procurement/proc-001/documents');
-    // Verb is in the action zone regardless of active tab.
-    expect(screen.getByRole('button', { name: /confirm receipt/i })).toBeInTheDocument();
+    renderAt('/procurement/proc-001/files');
+    // Verb is in the header actions regardless of active tab.
+    expect(within(screen.getByTestId('record-header-actions')).getByRole('button', { name: /record receipt/i })).toBeInTheDocument();
   });
 });
 

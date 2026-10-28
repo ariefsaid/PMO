@@ -6,7 +6,9 @@
  * future record forks the verb into an ad-hoc placement, these tests fail.
  *
  * Covered pages:
- *   1. ProcurementDetails — the "Approve" / "Submit Request" / lifecycle actions
+ *   1. ProcurementDetails — the "Approve" / "Submit for approval" / lifecycle actions. Since the
+ *      procurement record restructure (#1404) they live in the RecordHeader actions slot
+ *      (`record-header-actions`, the header's canonical placement contract), not RecordActionZone.
  *   2. IncidentDetail — the "Start Investigating" / "Close Incident" advance button
  *   3. PipelineLens (pre-win) — the "Advance" / "Mark won" / "Mark lost" buttons
  *
@@ -107,6 +109,11 @@ const procRecord = {
   quotations: [],
   receipts: [],
   invoices: [],
+  purchase_requests: [],
+  rfqs: [],
+  purchase_orders: [],
+  payments: [],
+  statusEvents: [],
 };
 
 vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
@@ -117,14 +124,14 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
 
 import ProcurementDetails from '../../../../pages/ProcurementDetails';
 
-describe('Enforcement: ProcurementDetails renders advance verbs through RecordActionZone', () => {
+describe('Enforcement: ProcurementDetails renders advance verbs in the canonical RecordHeader actions slot', () => {
   beforeEach(() => {
     procDetailState.data = procRecord;
     procDetailState.isPending = false;
     procDetailState.isError = false;
   });
 
-  it('AC-ENFORCE-PROC: the lifecycle action buttons live inside data-testid="record-action-zone"', () => {
+  it('AC-ENFORCE-PROC: the lifecycle action buttons live inside data-testid="record-header-actions"', () => {
     const qc = makeClient();
     render(
       <QueryClientProvider client={qc}>
@@ -137,11 +144,11 @@ describe('Enforcement: ProcurementDetails renders advance verbs through RecordAc
         </ToastProvider>
       </QueryClientProvider>,
     );
-    // The decision-card (and its action buttons) must live within the RecordActionZone.
-    const zone = screen.getByTestId('record-action-zone');
+    // The primary lifecycle action must live within the RecordHeader actions slot.
+    const zone = screen.getByTestId('record-header-actions');
     expect(zone).toBeInTheDocument();
-    // The Submit Request primary action is inside the zone.
-    const submitBtn = within(zone).getByRole('button', { name: /Submit Request/i });
+    // The Submit for approval primary action is inside the slot.
+    const submitBtn = within(zone).getByRole('button', { name: /Submit for approval/i });
     expect(submitBtn).toBeInTheDocument();
   });
 });

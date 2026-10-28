@@ -111,6 +111,8 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
+vi.mock('@/src/hooks/useProjects', () => import('@/pages/__tests__/helpers/projectScopeMock'));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 import ProcurementDetails from '../ProcurementDetails';
 
 const orderedProcurement = {
@@ -171,7 +173,7 @@ const renderAt = (path: string) =>
     </MemoryRouter>,
   );
 
-describe('ProcurementDetails — e-Faktur on the Documents tab', () => {
+describe('ProcurementDetails — e-Faktur on the Files tab (the case ledger)', () => {
   beforeEach(() => {
     detailState.data = orderedProcurement;
     mockEffectiveRole = 'Finance';
@@ -181,7 +183,7 @@ describe('ProcurementDetails — e-Faktur on the Documents tab', () => {
 
   it('AC-EFK-005 Finance records a vendor e-Faktur from the ledger and sees a success toast', async () => {
     const user = userEvent.setup();
-    renderAt('/procurement/proc-001/documents');
+    renderAt('/procurement/proc-001/files');
     const row = screen.getByText('VI-2601100001').closest('tr');
     if (!row) throw new Error('no ledger row for the vendor invoice');
     await user.click(within(row).getByRole('button', { name: 'Row actions' }));

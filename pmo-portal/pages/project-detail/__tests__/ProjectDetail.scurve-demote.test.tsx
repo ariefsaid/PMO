@@ -33,7 +33,7 @@ const milestonesState = {
 };
 
 // ── module mocks ─────────────────────────────────────────────────────────────
-vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [] }), useHasErpPurchases: () => ({ data: false }) }));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
   // #840: the detail route reads ONE project by id (any stage), never the whole list.

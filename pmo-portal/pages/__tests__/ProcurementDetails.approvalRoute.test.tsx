@@ -3,7 +3,7 @@
  * Approve/Reject on a Requested request, and the one-line note naming who decides and why.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 
@@ -98,6 +98,8 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
+vi.mock('@/src/hooks/useProjects', () => import('@/pages/__tests__/helpers/projectScopeMock'));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 import ProcurementDetails from '../ProcurementDetails';
 
 // ---------------------------------------------------------------------------
@@ -185,7 +187,7 @@ describe('AC-APR-031 approval routing on the request page', () => {
     mockUserId = 'u-finance';
     detailState.data = { ...base, status: 'Requested', budget_category: 'Materials', approvalRoute: routedTo('u-finance', 'Fay Finance') };
     renderPage();
-    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(within(screen.getByTestId('record-header')).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
     expect(screen.queryByTestId('approval-route-note')).not.toBeInTheDocument();
   });
 
@@ -194,7 +196,7 @@ describe('AC-APR-031 approval routing on the request page', () => {
     mockUserId = 'u-finance';
     detailState.data = { ...base, status: 'Requested' };
     renderPage();
-    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(within(screen.getByTestId('record-header')).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
   });
 
   it('AC-APR-031: an Admin who is not named keeps break-glass', () => {
@@ -202,7 +204,7 @@ describe('AC-APR-031 approval routing on the request page', () => {
     mockUserId = 'u-admin';
     detailState.data = { ...base, status: 'Requested', budget_category: 'Materials', approvalRoute: routedTo('u-pm2', 'Pia Approver') };
     renderPage();
-    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(within(screen.getByTestId('record-header')).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
   });
 });
 

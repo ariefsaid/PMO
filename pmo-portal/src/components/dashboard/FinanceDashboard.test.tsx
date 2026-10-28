@@ -174,7 +174,7 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
     expect(screen.queryByText('Outstanding invoices')).not.toBeInTheDocument();
     expect(screen.queryByText('Total project spend')).not.toBeInTheDocument();
     expect(screen.getByText('Aktual (buku besar ERP)')).toBeInTheDocument();
-    expect(screen.getByText('Utang kepada vendor (AP)')).toBeInTheDocument();
+    expect(screen.getByText('Utang pemasok (AP)')).toBeInTheDocument();
     const rendered = document.body.textContent ?? '';
     for (const englishLabel of ['PRs awaiting you', 'Total project spend', 'Outstanding invoices', 'vendor-invoiced, awaiting payment', 'Ready to pay', 'Actuals (ERP ledger)', 'AP aging', 'Fiscal year', 'Total outstanding']) {
       expect(rendered).not.toContain(englishLabel);
@@ -257,7 +257,7 @@ describe('FinanceDashboard task FIX-2 (Discover CRITICAL 2) — accounting snaps
 
     renderPane();
 
-    expect(screen.getByText('Customer collections (AR)', { exact: true })).toBeInTheDocument();
+    expect(screen.getByText('Client receivables (AR)', { exact: true })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Customer:C-0001' })).toHaveAttribute(
       'href', '/companies/co-client-1#collections',
     );

@@ -1,9 +1,9 @@
 /**
  * Stream S6 — Wave-0 mobile UX fixes for ProcurementDetails
  *
- * AC-S20-001: one evidence-first responsive decision area
- *   The canonical decision-card is the sole action area at every viewport; it uses
- *   sticky positioning for reachability without a mirrored mobile control.
+ * AC-S20-001: one evidence-first decision area
+ *   The RecordHeader's primary action is the single decision control (#1404); there is no legacy
+ *   mirrored mobile sticky-action bar.
  *
  * B-IMP-2 (AC-S6-2): SoD pre-announce on draft state for the author
  *   When the PR is in Draft and the current user is the requester (author),
@@ -143,6 +143,8 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
+vi.mock('@/src/hooks/useProjects', () => import('@/pages/__tests__/helpers/projectScopeMock'));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 import ProcurementDetails from '../ProcurementDetails';
 
 // ---------------------------------------------------------------------------
@@ -179,6 +181,11 @@ const draftByAlice = {
   quotations: [],
   receipts: [],
   invoices: [],
+  purchase_requests: [],
+  rfqs: [],
+  purchase_orders: [],
+  payments: [],
+  statusEvents: [],
 };
 
 /** A Draft PR by someone else — u-alice is NOT the requester (tests SoD copy absent). */
@@ -307,9 +314,12 @@ describe('AC-S6-2 (B-IMP-2): SoD pre-announce shown to author on Draft', () => {
 });
 
 // ---------------------------------------------------------------------------
-// AC-S20-001: one evidence-first responsive decision area; no mirrored phone CTA.
+// AC-S20-001: one evidence-first decision area; no legacy mirrored phone CTA.
+// The decision card + sticky RecordActionZone were replaced by the RecordHeader's one primary action
+// (#1404); the phone-only fixed bar repeats that same verb. Look pins (sticky/bottom-0 classes, button
+// counts inside a zone) are dropped; the goal — one canonical control, no second legacy bar — holds.
 // ---------------------------------------------------------------------------
-describe('AC-S20-001: one responsive decision area on phone', () => {
+describe('AC-S20-001: one decision area on phone', () => {
   beforeEach(() => {
     detailState.isPending = false;
     detailState.isError = false;
@@ -318,21 +328,12 @@ describe('AC-S20-001: one responsive decision area on phone', () => {
     mockIsDesktop = false;
   });
 
-  it('AC-S20-001: a Draft request has one action zone and one Submit Request control', () => {
+  it('AC-S20-001: a Draft request has one Submit control in the header actions and no legacy mobile bar', () => {
     detailState.data = { ...draftByAlice };
     renderPage();
-    expect(screen.getAllByTestId('record-action-zone')).toHaveLength(1);
+    const actions = screen.getByTestId('record-header-actions');
+    expect(within(actions).getAllByRole('button', { name: /submit for approval/i })).toHaveLength(1);
     expect(screen.queryByTestId('mobile-sticky-action')).toBeNull();
-    expect(within(screen.getByTestId('decision-card')).getAllByRole('button', { name: /submit request/i })).toHaveLength(1);
-  });
-
-  it('AC-S20-001: the single decision area uses sticky reachability without a second DOM action', () => {
-    detailState.data = { ...draftByAlice };
-    renderPage();
-    const zone = screen.getByTestId('record-action-zone');
-    expect(zone.className).toContain('sticky');
-    expect(zone.className).toContain('bottom-0');
-    expect(zone.querySelectorAll('button')).toHaveLength(2); // Submit + Cancel, both canonical controls.
   });
 
   it('AC-S20-001: a terminal request has no mirrored bar or transition action', () => {

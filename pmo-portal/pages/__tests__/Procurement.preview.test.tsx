@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 
@@ -33,14 +34,17 @@ const { procState, detailState } = vi.hoisted(() => ({
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
-vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [] }), useHasErpPurchases: () => ({ data: false }) }));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [] }),
   useVendorOptions: () => ({ data: [] }),
 }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }), useProject: () => ({ data: null }) }));
+vi.mock('@/pages/project-detail/useProjectPosition', () => ({ useBudgetPosition: () => ({ rows: [], hasBudget: false, isPending: false, actualsPending: false }) }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procState,
+  useProjectProcurements: () => procState,
 }));
 
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
@@ -89,11 +93,13 @@ const PROC_ROW = {
 
 const renderPage = () =>
   render(
-    <ToastProvider>
-      <MemoryRouter initialEntries={['/procurement']}>
-        <ProcurementPage />
-      </MemoryRouter>
-    </ToastProvider>,
+    <QueryClientProvider client={new QueryClient()}>
+      <ToastProvider>
+        <MemoryRouter initialEntries={['/procurement']}>
+          <ProcurementPage />
+        </MemoryRouter>
+      </ToastProvider>
+    </QueryClientProvider>,
   );
 
 beforeEach(() => {
@@ -106,34 +112,22 @@ beforeEach(() => {
 });
 
 describe('Procurement list — inline preview (fix #5)', () => {
-  it('UIP-007: linked project identities wrap and the next step stays below the status', () => {
-    procState.data = [{ ...PROC_ROW, project_id: 'proj-1' }];
+  it('UIP-007: a Requested row shows its stage and what happens next', () => {
     renderPage();
-    const project = screen.getByRole('link', { name: /Open Tower Build/ });
-    expect(project.className).toContain('whitespace-normal');
-    const status = screen.getByText('Purchase Request');
-    const nextStep = screen.getByTestId('procurement-next-step');
-    const statusCell = nextStep.closest('dd');
-    expect(statusCell).toContainElement(status);
-    expect(nextStep).toHaveTextContent(/^Next:\s*Await approval$/);
-    expect(nextStep.className).toContain('block');
-    expect(status.compareDocumentPosition(nextStep) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    const row = screen.getByRole('button', { name: 'Open Steel Beams Supply' }).closest('tr');
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLElement).getByText('Request')).toBeInTheDocument();
+    // Raised by the signed-in user, so the approval is waiting on someone else.
+    expect(within(row as HTMLElement).getByText('Waiting on approver')).toBeInTheDocument();
+    expect(within(row as HTMLElement).getByText('Alice Engineer')).toBeInTheDocument();
   });
-  it('UIP-007: mixed rows use one comparative grid and retain labelled phone fields', () => {
-    procState.data = [PROC_ROW, { ...PROC_ROW, id: 'pr-2', title: 'Cable supply for the extended site commissioning works', total_value: 9800, project: null, requested_by: null }];
-    const { container } = renderPage();
-    const header = screen.getByTestId('procurement-list-columns');
-    const rows = container.querySelectorAll('[data-row-activate]');
-    expect(rows).toHaveLength(2);
-    for (const row of rows) {
-      expect(row.className).toContain('md:grid-cols-12');
-      expect(header.className).toContain('md:grid-cols-12');
-      const value = row.querySelector('[data-procurement-value]');
-      expect(value?.className).toContain('md:text-right');
-      expect(value?.className).toContain('tabular');
-      expect(row).toHaveTextContent(/Project.*Requester.*Value.*Age.*Status/);
-    }
-    expect(screen.getByRole('link', { name: 'Cable supply for the extended site commissioning works' }).className).not.toContain('truncate');
+  it('UIP-007: rows with a missing requester and a long title still list and stay openable', () => {
+    const longTitle = 'Cable supply for the extended site commissioning works';
+    procState.data = [PROC_ROW, { ...PROC_ROW, id: 'pr-2', title: longTitle, total_value: 9800, project: null, requested_by: null }];
+    renderPage();
+    const longRow = screen.getByRole('button', { name: `Open ${longTitle}` }).closest('tr') as HTMLElement;
+    expect(within(longRow).getByText('Unassigned')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open Steel Beams Supply' })).toBeInTheDocument();
   });
   it('AC-FIX5-PREVIEW-01: each table row has an expand toggle button', () => {
     renderPage();
@@ -141,31 +135,34 @@ describe('Procurement list — inline preview (fix #5)', () => {
     expect(toggles.length).toBeGreaterThan(0);
   });
 
-  it('AC-FIX5-PREVIEW-02: clicking the toggle reveals the row detail panel in place', async () => {
-    detailState.data = {
-      ...PROC_ROW,
-      project_id: 'proj-1',
-      items: [],
-    };
+  const DETAIL = {
+    ...PROC_ROW,
+    project_id: 'proj-1',
+    items: [{ id: 'i-1', name: 'Steel beam', description: 'IPE 300', quantity: 12 }],
+    purchase_requests: [], quotations: [], purchase_orders: [], receipts: [], invoices: [], payments: [],
+  };
+  const expandFirstRow = async () => {
+    detailState.data = DETAIL;
     const user = userEvent.setup();
     renderPage();
-    const toggle = screen.getAllByRole('button', { name: /show.*preview|expand|preview/i })[0];
-    await user.click(toggle);
-    // After toggle, the expanded panel should be visible
-    expect(screen.getByRole('region', { name: /preview/i })).toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: /show.*preview|expand|preview/i })[0]);
+    return user;
+  };
+
+  it('AC-FIX5-PREVIEW-02: clicking the toggle reveals the row detail panel in place', async () => {
+    await expandFirstRow();
+    // The row stays in the list; its line items and next step open beneath the title.
+    const toggle = screen.getByRole('button', { name: /collapse procurement details/i });
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Line items')).toBeInTheDocument();
+    expect(screen.getByText(/Steel beam · IPE 300 · 12/)).toBeInTheDocument();
+    expect(screen.getByText(/^Next step:/, { selector: 'span' })).toBeInTheDocument();
   });
 
-  it('AC-FIX5-PREVIEW-03: the detail preview has a "View full request" link to /procurement/:id', async () => {
-    detailState.data = {
-      ...PROC_ROW,
-      project_id: 'proj-1',
-      items: [],
-    };
-    const user = userEvent.setup();
-    renderPage();
-    const toggle = screen.getAllByRole('button', { name: /show.*preview|expand|preview/i })[0];
-    await user.click(toggle);
-    const link = screen.getByRole('link', { name: /view full request/i });
+  it('AC-FIX5-PREVIEW-03: from the preview the user reaches the full record at /procurement/:id', async () => {
+    const user = await expandFirstRow();
+    await user.click(screen.getByRole('button', { name: 'Open procurement' }));
+    const link = await screen.findByRole('link', { name: /open full page/i });
     expect(link).toHaveAttribute('href', '/procurement/pr-1');
   });
 });
