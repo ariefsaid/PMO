@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Card,
   CardHead,
@@ -36,9 +37,9 @@ interface FormValues {
   budgetCategory: string;
 }
 
-const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
+const validate = (v: FormValues, requiredTitleMessage: string): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
-  if (!v.title.trim()) errors.title = 'A request title is required.';
+  if (!v.title.trim()) errors.title = requiredTitleMessage;
   return errors;
 };
 
@@ -69,9 +70,13 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
   onClose,
   busy,
 }) => {
+  const { t } = useTranslation();
   const form = useEntityForm<FormValues>({
     initialValues: { title, projectId, vendorId, budgetCategory: budgetCategory ?? '' },
-    validate,
+    validate: (values) => validate(
+      values,
+      t('procurement:headerEdit.titleRequired', 'A procurement title is required.'),
+    ),
     idPrefix: 'pr-header-edit',
     module: 'procurement',
   });
@@ -119,7 +124,7 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
 
   return (
     <Card className="mb-4" data-testid="header-edit-card">
-      <CardHead>Edit request details</CardHead>
+      <CardHead>{t('procurement:headerEdit.heading', 'Edit procurement details')}</CardHead>
       <form onSubmit={handleSubmit}>
         <CardPad className="flex flex-col gap-4">
           <FormGrid>
@@ -132,7 +137,7 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
               onBlur={titleField.onBlur}
               error={titleField.error}
               fullWidth
-              placeholder="Request title"
+              placeholder={t('procurement:headerEdit.titlePlaceholder', 'Procurement title')}
             />
             <Combobox
               label="Project"
@@ -149,9 +154,9 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
               loadOptions={loadProjects}
             />
             <Combobox
-              label="Vendor"
-              noun="vendor"
-              placeholder={vendorName ?? 'Optional — select a vendor…'}
+              label={t('procurementDetail.detail.vendor', 'Supplier')}
+              noun={t('bupot.vendor', 'supplier')}
+              placeholder={vendorName ?? t('bupot.selectVendor', 'Select a supplier…')}
               value={form.values.vendorId}
               selectedOption={
                 form.values.vendorId && vendorName
@@ -171,7 +176,7 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
             />
           </FormGrid>
           <FormActions
-            submitLabel="Save request"
+            submitLabel={t('procurement:headerEdit.save', 'Save procurement')}
             onCancel={onClose}
             disabled={!form.canSubmit}
             loading={busy || form.isSubmitting}

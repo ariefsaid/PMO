@@ -61,6 +61,7 @@ import ProjectCalendarView from '../components/ProjectCalendarView';
 import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { projectManagerLabel, UNASSIGNED_PROJECT_MANAGER } from '@/src/lib/projects/projectManagerLabel';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 
 /**
  * The status-group SegFilter. Model B (ADR-0020): the pre-win "Leads" partition lives in the
@@ -76,6 +77,7 @@ const COMPLETED = [ProjectStatusEnum.CloseOut, ProjectStatusEnum.Loss] as string
 
 const Projects: React.FC = () => {
   const { t } = useTranslation();
+  const projectStatusLabel = useProjectStatusLabel();
   const { effectiveRole, realRole } = useEffectiveRole();
   const may = usePermission();
   const { toast } = useToast();
@@ -509,16 +511,13 @@ const Projects: React.FC = () => {
     },
     {
       key: 'status',
-      // ⚑ The pill CONTENT (`p.status`) is a database enum, not a literal — localising workflow
-      // status labels is its own decision (it needs one map every surface shares) and is not in
-      // this pass. Only the column header moves.
       header: t('projects.columns.status', 'Status'),
       kind: 'status',
       size: 140,
       minSize: 112,
       maxSize: 220,
       exportValue: (p) => String(p.status),
-      cell: (p) => <StatusPill variant={pillVariantForProjectStatus(p.status as string)}>{p.status}</StatusPill>,
+      cell: (p) => <StatusPill variant={pillVariantForProjectStatus(p.status as string)}>{projectStatusLabel(p.status as string)}</StatusPill>,
     },
     {
       key: 'contract',

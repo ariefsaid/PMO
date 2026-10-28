@@ -174,7 +174,7 @@ describe('AC-APR-031 approval routing on the request page', () => {
     detailState.data = { ...base, status: 'Requested', budget_category: 'Materials', approvalRoute: routedTo('u-pm2', 'Pia Approver') };
     renderPage();
     expect(screen.getByTestId('approval-route-note').textContent).toBe(
-      "Approval for this request is routed to Pia Approver: it is within the project's Materials budget.",
+      "Approval for this procurement is routed to Pia Approver: it is within the project's Materials budget.",
     );
     expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument();

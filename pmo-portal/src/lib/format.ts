@@ -332,9 +332,22 @@ export function formatMoneyInputValue(value: number, locale = getNumberLocale())
   return formatMoneyInputDraft(neutral.replace('.', numberSymbols(locale).decimal), locale);
 }
 
-/** Format a nullable % value: null → '—'; numeric → '{rounded}%'. */
+/** Format a nullable percentage already expressed in percentage points: null → '—'; numeric → '{rounded}%'. */
 export function pct(v: number | null): string {
-  return v == null ? '—' : `${Math.round(v)}%`;
+  return v == null ? '—' : `${formatNumberWhole(v)}%`;
+}
+
+/** Format a nullable ratio (0.25 → 25.0%) using the viewer's number locale. */
+export function formatPercent(value: number | null, fractionDigits = 1): string {
+  if (value == null) return '—';
+  if (!Number.isInteger(fractionDigits) || fractionDigits < 0 || fractionDigits > 20) {
+    throw new RangeError('Percentage fraction digits must be an integer from 0 to 20.');
+  }
+  return numberFormatterFor(`percent-${fractionDigits}`, getNumberLocale(), undefined, {
+    style: 'percent',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: fractionDigits,
+  }).format(value);
 }
 
 // Single source of truth for human date display (CW-7 coherence sweep). Routing ALL date cells

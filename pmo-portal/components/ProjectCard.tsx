@@ -12,6 +12,7 @@ import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { pillVariantForProjectStatus } from './projects';
 import ProjectCardShell from './ProjectCardShell';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 
 export interface ProjectCardProps {
   project: ProjectWithRefs;
@@ -39,6 +40,7 @@ export interface ProjectCardProps {
  */
 const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySummary, projectMoney, onEdit }) => {
   const { t } = useTranslation();
+  const projectStatusLabel = useProjectStatusLabel();
   // FR-L10N-020: every figure on this card belongs to THIS project, so the currency is the
   // project's own — not the org default. Two projects in different currencies render correctly
   // side by side in the same list, which is the whole point of the per-record column (0187).
@@ -192,7 +194,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
       clientId={project.client_id}
       status={
         <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>
-          {project.status}
+          {projectStatusLabel(project.status as string)}
         </StatusPill>
       }
       body={body}

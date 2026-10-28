@@ -158,6 +158,7 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     const { onDelete } = renderSection();
     await userEvent.click(screen.getByRole('button', { name: /remove mig welding wire/i }));
     const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveTextContent('This removes the line item from procurement. You can add it again while the procurement is a draft.');
     await userEvent.click(within(dialog).getByRole('button', { name: /remove item/i }));
     expect(onDelete).toHaveBeenCalledWith('it1');
   });

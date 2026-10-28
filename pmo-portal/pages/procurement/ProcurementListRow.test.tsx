@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -8,9 +8,8 @@ import { BahasaProvider } from '@/test/bahasa';
 import { ProcurementListRow } from './ProcurementListRow';
 
 // The expanded panel reads the detail query; a settled, empty detail is enough to render the region.
-vi.mock('@/src/hooks/useProcurementDetail', () => ({
-  useProcurementDetail: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
-}));
+const detailQuery = vi.hoisted(() => ({ data: null as unknown, isPending: false, isError: false, refetch: vi.fn() }));
+vi.mock('@/src/hooks/useProcurementDetail', () => ({ useProcurementDetail: () => detailQuery }));
 
 const row = {
   id: 'procurement-selected-quote',
@@ -29,6 +28,13 @@ const row = {
 } as ProcurementWithRefs;
 
 describe('AC-S19-002: procurement daily row', () => {
+  beforeEach(() => {
+    detailQuery.data = null;
+    detailQuery.isPending = false;
+    detailQuery.isError = false;
+    detailQuery.refetch.mockClear();
+  });
+
   it('shows the localized state and useful next step while leaving the full lifecycle to detail', () => {
     render(
       <BahasaProvider locale="id">
@@ -65,5 +71,18 @@ describe('AC-S19-002: procurement daily row', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('region', { name: 'Pratinjau untuk Lighting package' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: /^Preview for/i })).not.toBeInTheDocument();
+  });
+
+  it('reports a procurement-specific preview error', async () => {
+    detailQuery.isError = true;
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <ProcurementListRow row={row} />
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole('button', { name: /show preview for/i }));
+    expect(screen.getByText("Couldn't load procurement details")).toBeInTheDocument();
   });
 });

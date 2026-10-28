@@ -24,7 +24,7 @@ const ErpPurchasesPage: React.FC = () => {
       description={t('erpLinks.pageDescription', 'Orders, receipts, invoices and payments entered in ERPNext that no purchase holds yet. Their cost is already in each project\'s Actuals.')}
       count={canView && purchases.data ? orphans.length : undefined}
       primaryAction={canView
-        ? <Link to="/procurement" className="text-sm font-medium text-primary hover:underline">{t('erpPurchases.backToProcurement', 'Procurement requests')}</Link>
+        ? <Link to="/procurement" className="text-sm font-medium text-primary hover:underline">{t('erpPurchases.backToProcurement', 'Procurement')}</Link>
         : undefined}
     >
       {!canView ? (

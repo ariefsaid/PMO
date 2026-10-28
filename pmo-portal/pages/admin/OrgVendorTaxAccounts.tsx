@@ -115,7 +115,7 @@ export default function OrgVendorTaxAccounts() {
       savedBaseline.current = value;
       setRemoteChanged(false);
       void qc.invalidateQueries({ queryKey });
-      toast(t('uxs11.vendorTaxSaved', 'Vendor tax accounts saved'), undefined, 'success');
+      toast(t('uxs11.vendorTaxSaved', 'Supplier tax accounts saved'), undefined, 'success');
     },
     onError: (err) => {
       const classified = classifyMutationError(err);
@@ -156,10 +156,10 @@ export default function OrgVendorTaxAccounts() {
   return (
     <section aria-labelledby="vendor-tax-accounts-heading">
       <h2 id="vendor-tax-accounts-heading" tabIndex={-1} className="scroll-mt-4 text-[15px] font-semibold">
-        {t('uxs11.vendorTaxHeading', 'Vendor bill tax accounts')}
+        {t('uxs11.vendorTaxHeading', 'Supplier bill tax accounts')}
       </h2>
       <p className="mt-1 text-[13px] text-muted-foreground">
-        {t('uxs11.vendorTaxIntro', 'Choose the company-chart accounts used for input VAT and tax withheld from vendor bills. Input VAT candidates use Asset accounts; PPh payable candidates use Liability accounts.')}
+        {t('uxs11.vendorTaxIntro', 'Choose the company-chart accounts used for input VAT and tax withheld from supplier bills. Input VAT candidates use Asset accounts; PPh payable candidates use Liability accounts.')}
       </p>
       <div className="mt-3 max-w-md">
         {query.isError ? (

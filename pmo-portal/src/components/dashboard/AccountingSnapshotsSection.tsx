@@ -279,8 +279,8 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
     )}
     {showApAging && (
     <SnapshotBlock<ErpAgingSnapshotRow>
-      title={t('dashboard:finance.apTitle', 'Vendor payables (AP)')}
-      errorLabel={t('dashboard:finance.apError', "Couldn't load vendor payables")}
+      title={t('dashboard:finance.apTitle', 'Supplier payables (AP)')}
+      errorLabel={t('dashboard:finance.apError', "Couldn't load supplier payables")}
       emptyLabel={t('dashboard.agingSnapshotEmpty', 'No aging data to show yet.')}
       emptyDescription={t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}
       rows={apAging}

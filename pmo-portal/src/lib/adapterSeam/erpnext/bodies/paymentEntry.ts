@@ -20,17 +20,17 @@ import { mirrorMoney } from '../moneyShape.ts';
 function requiredAccount(config: Record<string, unknown>, key: 'default_cash_account' | 'default_bank_account' | 'default_payable_account'): string {
   const value = config[key];
   if (typeof value === 'string' && value.trim() !== '') return value.trim();
-  throw new AdapterError('commit-rejected', `vendor payment: set ${key} in Administration → Accounting before paying a bill`);
+  throw new AdapterError('commit-rejected', `supplier payment: set ${key} in Administration → Accounting before paying a bill`);
 }
 
 export function peToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
   const amount = Number(rec.paid_amount);
   if (!Number.isFinite(amount) || amount <= 0) {
-    throw new AdapterError('commit-rejected', `vendor payment: paid_amount "${String(rec.paid_amount)}" must be a positive figure`);
+    throw new AdapterError('commit-rejected', `supplier payment: paid_amount "${String(rec.paid_amount)}" must be a positive figure`);
   }
   const date = typeof rec.date === 'string' && rec.date.trim() !== '' ? rec.date.trim() : null;
   if (!date) {
-    throw new AdapterError('commit-rejected', 'vendor payment: date is required (it is the Payment Entry posting/reference date)');
+    throw new AdapterError('commit-rejected', 'supplier payment: date is required (it is the Payment Entry posting/reference date)');
   }
   // paid_from: cash preferred, bank fallback (R9 §2 "account defaults... resolved from Company defaults")
   // — and NEITHER present is a refusal, never a silent undefined (DD-VPAY-6).

@@ -52,7 +52,7 @@ export function mayDecideRoutedApproval(
 const APPROVER_RANK_ROLES = ['Admin', 'Executive', 'Finance', 'Project Manager'];
 
 /**
- * One line telling a viewer who is not routed this request who decides it, and why (FR-APR-031). */
+ * One line telling a viewer who is not routed this procurement who decides it, and why (FR-APR-031). */
 export function approvalRouteNote(
   route: Pick<ApprovalRoute, 'route' | 'reason' | 'approvers'>,
   category: string | null,
@@ -62,7 +62,7 @@ export function approvalRouteNote(
   if (route.route === 'admin') {
     return t(
       'procurementDetail.route.adminOnly',
-      'Approval for this request needs an Admin: no one in the senior approver set can act on it.',
+      'Approval for this procurement needs an Admin: no one in the senior approver set can act on it.',
     );
   }
   const names = route.approvers
@@ -112,7 +112,7 @@ export function approvalRouteNote(
     );
   }
   return t('procurementDetail.route.note', {
-    defaultValue: 'Approval for this request is routed to {{names}}: {{why}}',
+    defaultValue: 'Approval for this procurement is routed to {{names}}: {{why}}',
     names,
     why,
   });

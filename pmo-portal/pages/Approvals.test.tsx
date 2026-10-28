@@ -420,7 +420,7 @@ describe('S-18 UX-060: phone width renders the unified queue + preview grammar',
     // The two retired interaction systems are gone from the inbox entirely.
     expect(screen.queryByTestId('approvals-timesheets-mobile-section')).not.toBeInTheDocument();
     expect(screen.queryByText(/team approvals queue/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/purchase requests awaiting you/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/procurement awaiting you/i)).not.toBeInTheDocument();
 
     // The same preview region as desktop, with the first pending item already previewed.
     const preview = screen.getByTestId('approvals-preview-region');
@@ -460,7 +460,7 @@ it('S-18 RF-042: the caught-up empty state scopes the claim to PMO and points ER
   expect(caughtUp).toHaveTextContent(/in PMO/i);
   expect(caughtUp).toHaveTextContent(/ERPNext/i);
   // The clear-queue summary names only scopes available to this role in the inbox.
-  expect(caughtUp).toHaveTextContent(/purchase requests/i);
+  expect(caughtUp).toHaveTextContent(/procurement/i);
   expect(caughtUp).toHaveTextContent(/timesheets/i);
   expect(caughtUp).not.toHaveTextContent(/customer invoices/i);
 });
@@ -471,7 +471,7 @@ it('S-18: Finance sees only approval kinds that Finance can act on', () => {
   procState.data = [];
   renderPage('all');
   const caughtUp = screen.getByTestId('approvals-caught-up');
-  expect(caughtUp).toHaveTextContent(/purchase requests/i);
+  expect(caughtUp).toHaveTextContent(/procurement/i);
   expect(caughtUp).toHaveTextContent(/expense claims/i);
   expect(caughtUp).toHaveTextContent(/customer invoices/i);
   expect(caughtUp).not.toHaveTextContent(/timesheets/i);

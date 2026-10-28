@@ -50,7 +50,7 @@ import { isDirectCostPostingAccount, proposeBudgetAccountMap, type BudgetPosting
 const BUDGET_CATEGORIES = Constants.public.Enums.budget_category;
 
 /** AC-CAT-005: the categories added after the original seven are translated here; the seven keep their names. */
-const TRANSLATED_HERE: readonly string[] = ['Special expenses', 'Travel & accommodation', 'Vehicle'];
+const TRANSLATED_HERE: readonly string[] = ['Special expenses', 'Travel & accommodation', 'Vehicle', 'Overheads'];
 const accountMapCategoryLabel = (value: string, t: (key: string, fallback: string) => string) =>
   TRANSLATED_HERE.includes(value) ? budgetCategoryLabel(value, t) : value;
 
@@ -225,7 +225,16 @@ const BudgetAccountMap: React.FC = () => {
       header: t('admin.budgetMap.columns.category', 'Category'),
       kind: 'text',
       size: 180,
-      cell: (category) => <span className="font-medium">{categoryLabel(category)}</span>,
+      cell: (category) => (
+        <div>
+          <span className="font-medium">{categoryLabel(category)}</span>
+          {category === 'Overheads' && (
+            <p className="mt-0.5 text-[12px] text-muted-foreground">
+              {t('finance:budgetMap.overheadsHint', 'Direct project cost, not company overhead.')}
+            </p>
+          )}
+        </div>
+      ),
     },
     {
       key: 'erpAccount',

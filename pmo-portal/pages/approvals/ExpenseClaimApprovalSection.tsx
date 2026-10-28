@@ -59,7 +59,7 @@ export const ExpenseClaimApprovalSection: React.FC = () => {
     return (
       <div className="mb-4">
         <ListState variant="error" title={t('expenses.approvals.errorTitle', "Couldn't load expense claims awaiting you")}
-          sub={t('expenses.approvals.errorSub', 'Purchase requests and timesheets below are unaffected.')} onRetry={() => void refetch()} />
+          sub={t('expenses.approvals.errorSub', 'Procurement and timesheets below are unaffected.')} onRetry={() => void refetch()} />
       </div>
     );
   }

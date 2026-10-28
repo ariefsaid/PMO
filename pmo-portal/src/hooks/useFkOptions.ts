@@ -26,13 +26,14 @@ const FK_STALE_MS = 5 * 60_000; // FK reference lists change rarely; cache for 5
 
 /** Vendor companies as FK options (id→value, name→label, "Vendor" sub). */
 export function useVendorOptions() {
+  const { t } = useTranslation();
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<ComboboxOption[]>({
     queryKey: ['fk-options', 'vendor', orgId],
     queryFn: async () => {
       const rows = await repositories.company.list({ type: 'Vendor' });
-      return rows.map((c) => ({ value: c.id, label: companyDisplayName(c), sub: c.short_name ? c.name : 'Vendor' }));
+      return rows.map((c) => ({ value: c.id, label: companyDisplayName(c), sub: c.short_name ? c.name : t('companies.type.vendor', 'Supplier') }));
     },
     enabled: Boolean(orgId),
     staleTime: FK_STALE_MS,

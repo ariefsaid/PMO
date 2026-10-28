@@ -45,5 +45,8 @@
     "openNamed": "Open {{name}}",
     "partial": "Showing the first files only. Open the folder in Microsoft to see the rest.",
     "open": "Open"
+  },
+  "notice": {
+    "expiredFolder": "The Microsoft 365 connection expired. Reconnect to see this folder’s files."
   }
 }

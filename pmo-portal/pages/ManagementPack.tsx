@@ -15,7 +15,7 @@ import {
   buildManagementPackExport, managementPackFileStem, type ManagementPackExportLabels,
 } from '@/src/lib/reports/managementPackExport';
 import { monthInputToIso } from '@/src/lib/reports/months';
-import { formatCurrencyAuto, formatUtcMonthYear } from '@/src/lib/format';
+import { formatCurrencyAuto, formatPercent, formatUtcMonthYear } from '@/src/lib/format';
 import { moneyFigure } from '@/src/lib/dashboardMoney';
 import { PROGRESS_RECORDABLE_PROJECT_STATUSES } from '@/src/lib/dashboardConstants';
 
@@ -60,10 +60,10 @@ const ManagementPack: React.FC = () => {
       <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
           <h2 className="text-heading font-semibold">
-            {t('managementPack.noAccessTitle', "You don't have access to the management pack")}
+            {t('managementPack.noAccessTitle', "You don't have access to Reports")}
           </h2>
           <p className="mt-2 text-muted-foreground">
-            {t('managementPack.noAccessSub', 'The management pack is available to Finance, Project Managers, Executives and Admins.')}
+            {t('managementPack.noAccessSub', 'Reports are available to Finance, Project Managers, Executives and Admins.')}
           </p>
           <Button variant="outline" onClick={() => navigate('/')} className="mt-4">
             <Icon name="back" className="size-4 mr-2" />
@@ -185,7 +185,7 @@ const ManagementPack: React.FC = () => {
       size: 110,
       cell: (row) =>
         row.latestProgress
-          ? t('managementPack.basis.progress', '{{pct}}% complete', { pct: row.latestProgress.pctComplete })
+          ? t('managementPack.basis.progress', '{{pct}} complete', { pct: formatPercent(row.latestProgress.pctComplete / 100, 2) })
           : t('managementPack.basis.invoiced', 'Invoiced'),
     },
     {
@@ -251,7 +251,7 @@ const ManagementPack: React.FC = () => {
 
   return (
     <ListPage
-      title={t('managementPack.title', 'Monthly management pack')}
+      title={t('managementPack.title', 'Reports')}
       description={t('managementPack.description', 'Planned, recognised and invoiced revenue per project and month. All figures exclude tax.')}
       primaryAction={
         <Button variant="outline" disabled={!pack || busy} onClick={onExport}>
@@ -314,7 +314,7 @@ const ManagementPack: React.FC = () => {
       {state === 'error' && (
         <ListState
           variant="error"
-          title={t('managementPack.errorTitle', "Couldn't load the management pack")}
+          title={t('managementPack.errorTitle', "Couldn't load Reports")}
           sub={invalidRange
             ? t('managementPack.invalidRange', 'Choose a start month on or before the as-at month, at most 24 months apart.')
             : t('managementPack.errorSub', 'The request failed. Check your connection and try again.')}

@@ -206,35 +206,35 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () => {
-  it('Draft (requester=self): shows Submit Request', () => {
+  it('Draft (requester=self): shows Submit for approval', () => {
     authState.userId = 'u-other'; // requester is the current user
     detailState.data = { ...BASE, status: 'Draft', requested_by_id: 'u-other', items: BASE.items };
     renderPage();
-    expect(screen.getByRole('button', { name: /submit request/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /submit for approval/i })).toBeInTheDocument();
   });
 
-  it('OD-PROC-1: Draft (PM, non-requester): no Submit Request — submit is the requester\'s act', () => {
+  it('OD-PROC-1: Draft (PM, non-requester): no Submit for approval — submit is the requester\'s act', () => {
     roleState.realRole = 'Project Manager';
     roleState.effectiveRole = 'Project Manager';
     detailState.data = { ...BASE, status: 'Draft', requested_by_id: 'u-other', items: BASE.items };
     renderPage();
-    expect(screen.queryByRole('button', { name: /submit request/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /submit for approval/i })).not.toBeInTheDocument();
   });
 
-  it('OD-PROC-1: Draft (Admin, non-requester): shows Submit Request (break-glass)', () => {
+  it('OD-PROC-1: Draft (Admin, non-requester): shows Submit for approval (break-glass)', () => {
     roleState.realRole = 'Admin';
     roleState.effectiveRole = 'Admin';
     detailState.data = { ...BASE, status: 'Draft', requested_by_id: 'u-other', items: BASE.items };
     renderPage();
-    expect(screen.getByRole('button', { name: /submit request/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /submit for approval/i })).toBeInTheDocument();
   });
 
-  it('OD-PROC-1: Draft (impersonating Admin, real PM, non-requester): no Submit Request', () => {
+  it('OD-PROC-1: Draft (impersonating Admin, real PM, non-requester): no Submit for approval', () => {
     roleState.realRole = 'Project Manager';
     roleState.effectiveRole = 'Admin';
     detailState.data = { ...BASE, status: 'Draft', requested_by_id: 'u-other', items: BASE.items };
     renderPage();
-    expect(screen.queryByRole('button', { name: /submit request/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /submit for approval/i })).not.toBeInTheDocument();
   });
 
   it('Requested (PM role, non-requester): shows Approve (primary) and Reject', () => {
@@ -247,12 +247,12 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
     expect(screen.getByRole('button', { name: /^reject$/i })).toBeInTheDocument();
   });
 
-  it('Approved: shows Request Vendor Quotes (primary) and Generate Purchase Order (secondary)', () => {
+  it('Approved: shows Request Supplier Quotes (primary) and Generate Purchase Order (secondary)', () => {
     roleState.realRole = 'Project Manager';
     roleState.effectiveRole = 'Project Manager';
     detailState.data = { ...BASE, status: 'Approved' };
     renderPage();
-    expect(screen.getByRole('button', { name: /request vendor quotes/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /request supplier quotes/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /generate purchase order/i })).toBeInTheDocument();
   });
 
@@ -270,7 +270,7 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
   it('AC-PMC-006: empty quote tab explains the missing bid comparison', () => {
     detailState.data = { ...BASE, status: 'Vendor Quoted', quotations: [] };
     renderPage('proc-001', 'quotes');
-    expect(screen.getByText('No quotes recorded. Add a vendor quote to compare bids.')).toBeInTheDocument();
+    expect(screen.getByText('No quotes recorded. Add a supplier quote to compare bids.')).toBeInTheDocument();
   });
 
   it('Quote Selected: shows Generate Purchase Order (primary)', () => {
@@ -294,7 +294,7 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
     roleState.effectiveRole = 'Finance';
     detailState.data = { ...BASE, status: 'Received' };
     renderPage();
-    expect(screen.getByRole('button', { name: /mark vendor invoiced/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /mark supplier invoiced/i })).toBeInTheDocument();
   });
 
   it('Vendor Invoiced (Finance, not-approver): shows Mark as Paid (success)', () => {
@@ -346,6 +346,14 @@ describe('AC-PR-S4-002: SoD gate messaging shows correctly', () => {
     expect(screen.queryByRole('button', { name: /^approve$/i })).toBeNull();
   });
 
+  it('Requested status + different reviewer: ready hint names the procurement being reviewed', () => {
+    roleState.realRole = 'Project Manager';
+    roleState.effectiveRole = 'Project Manager';
+    detailState.data = { ...BASE, status: 'Requested', requested_by_id: 'u-other' };
+    renderPage();
+    expect(screen.getByTestId('sod-ready-hint')).toHaveTextContent(/approve or reject this procurement/i);
+  });
+
   it('Vendor Invoiced (Finance=approver): Mark as Paid is hidden (SoD-b)', () => {
     // u-alice is Finance AND the approver of this procurement
     authState.userId = 'u-alice';
@@ -383,7 +391,7 @@ describe('AC-PR-S4-002: SoD gate messaging shows correctly', () => {
     detailState.data = { ...BASE, status: 'Draft', requested_by_id: 'u-other', items: BASE.items };
     renderPage();
     expect(screen.getByTestId('sod-pre-announce')).toBeInTheDocument();
-    expect(screen.getByTestId('sod-pre-announce').textContent).toMatch(/you can't approve your own request/i);
+    expect(screen.getByTestId('sod-pre-announce').textContent).toMatch(/you can't approve your own procurement/i);
   });
 });
 
@@ -719,7 +727,7 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
     expect(mockTransition).not.toHaveBeenCalled();
   });
 
-  it('Cancel Request opens a ConfirmDialog with "Keep request" dismiss label', async () => {
+  it('Cancel procurement opens a ConfirmDialog with "Keep procurement" dismiss label', async () => {
     const { default: userEvent } = await import('@testing-library/user-event');
     // Requester can cancel at Draft
     authState.userId = 'u-other';
@@ -727,11 +735,11 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
     roleState.effectiveRole = 'Engineer';
     detailState.data = { ...BASE, status: 'Draft', requested_by_id: 'u-other', items: BASE.items };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /cancel request/i }));
+    await userEvent.click(screen.getByRole('button', { name: /cancel procurement/i }));
     const dialog = screen.queryByRole('dialog') ?? screen.queryByRole('alertdialog');
     expect(dialog).toBeInTheDocument();
-    // The dismiss says "Keep request" (not plain "Cancel") to avoid the 3-Cancel confusion
-    expect(screen.getByRole('button', { name: /keep request/i })).toBeInTheDocument();
+    // The dismiss says "Keep procurement" (not plain "Cancel") to avoid the 3-Cancel confusion
+    expect(screen.getByRole('button', { name: /keep procurement/i })).toBeInTheDocument();
   });
 
   it('Mark as Paid opens a ConfirmDialog with money-restate copy', async () => {
@@ -755,7 +763,7 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
     expect(dialog!.textContent).toContain('Record $1,090 as paid? This records payment evidence; it does not transfer funds.');
   });
 
-  it('Submit Request (routine) commits directly — no ConfirmDialog', async () => {
+  it('Submit for approval (routine) commits directly — no ConfirmDialog', async () => {
     const { default: userEvent } = await import('@testing-library/user-event');
     authState.userId = 'u-other'; // the requester
     roleState.realRole = 'Engineer';
@@ -763,7 +771,7 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
     mockTransition.mockResolvedValueOnce(undefined);
     detailState.data = { ...BASE, status: 'Draft', requested_by_id: 'u-other', items: BASE.items };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /submit request/i }));
+    await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
     // No dialog — direct commit
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryByRole('alertdialog')).toBeNull();

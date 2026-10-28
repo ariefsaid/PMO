@@ -13,7 +13,7 @@ import { PROCUREMENT_GATES_KEY } from '@/src/hooks/useProcurementGates';
 const RULES: { key: keyof ProcurementGates; label: string; help: string }[] = [
   { key: 'request_before_order', label: 'Request required before order', help: 'When on, an order needs a purchase request first.' },
   { key: 'approval_before_order', label: 'Approval required before order', help: 'When on, an order needs an approved request first.' },
-  { key: 'receipt_before_invoice', label: 'Receipt required before invoice', help: 'When on, a vendor invoice needs a goods receipt first.' },
+  { key: 'receipt_before_invoice', label: 'Receipt required before invoice', help: 'When on, a supplier invoice needs a goods receipt first.' },
   { key: 'approval_before_payment', label: 'Approval required before payment', help: 'When on, a payment needs an approved amount first.' },
 ];
 

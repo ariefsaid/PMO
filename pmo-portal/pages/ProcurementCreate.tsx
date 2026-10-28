@@ -79,7 +79,7 @@ export default function ProcurementCreate() {
     event.preventDefault();
     if (saving) return;
     if (!title.trim()) {
-      setErrors({ title: t('procurement:create.titleRequired', 'A request title is required.') });
+      setErrors({ title: t('procurement:create.titleRequired', 'A procurement title is required.') });
       return;
     }
     setErrors({});
@@ -121,7 +121,7 @@ export default function ProcurementCreate() {
     }
     if (failedLines.length > 0) {
       setLines(failedLines);
-      setErrors({ save: reconcileMessage ?? t('procurement:create.linesFailed', 'Request saved, but some lines were not saved. Save again to retry.') });
+      setErrors({ save: reconcileMessage ?? t('procurement:create.linesFailed', 'Procurement saved, but some lines were not saved. Save again to retry.') });
       setSaving(false);
       return;
     }
@@ -129,7 +129,7 @@ export default function ProcurementCreate() {
   };
 
   if (!may('create', 'procurement')) {
-    return <main className="p-6"><h1>{t('procurement:create.denied', 'You do not have permission to create purchase requests.')}</h1></main>;
+    return <main className="p-6"><h1>{t('procurement:create.denied', 'You do not have permission to create procurement records.')}</h1></main>;
   }
 
   return (
@@ -138,15 +138,15 @@ export default function ProcurementCreate() {
       <form onSubmit={submit} noValidate>
         <header className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4">
           <div>
-            <h1 className="text-2xl font-semibold">{t('procurement:create.heading', 'New purchase request')}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{t('procurement:create.draftNote', 'This request remains a draft until you submit it.')}</p>
+            <h1 className="text-2xl font-semibold">{t('procurement:create.heading', 'New procurement')}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">{t('procurement:create.draftNote', 'This procurement remains a draft until you submit it.')}</p>
           </div>
           <Button type="submit" variant="primary" loading={saving || create.isPending || createItem.isPending}>
             {t('procurement:create.save', 'Save')}
           </Button>
         </header>
-        <section className="mb-6 border-b border-border pb-6" aria-label={t('procurement:create.requestDetails', 'Request details')}>
-          <h2 className="mb-4 font-semibold">{t('procurement:create.requestDetails', 'Request details')}</h2>
+        <section className="mb-6 border-b border-border pb-6" aria-label={t('procurement:create.requestDetails', 'Procurement details')}>
+          <h2 className="mb-4 font-semibold">{t('procurement:create.requestDetails', 'Procurement details')}</h2>
           <fieldset disabled={Boolean(savedRequestId) || saving}>
           <FormGrid>
             <TextField
@@ -168,9 +168,9 @@ export default function ProcurementCreate() {
               loadOptions={async () => projects}
             />
             <Combobox
-              label={t('procurement:create.vendor', 'Vendor')}
-              noun="vendor"
-              placeholder={t('procurement:create.selectVendor', 'Optional — select a vendor…')}
+              label={t('procurement:create.vendor', 'Supplier')}
+              noun={t('procurement:create.vendor', 'Supplier')}
+              placeholder={t('procurement:create.selectVendor', 'Optional — select a supplier…')}
               value={vendorId}
               selectedOption={vendors.find((option) => option.value === vendorId) ?? null}
               onChange={setVendorId}
@@ -204,8 +204,8 @@ export default function ProcurementCreate() {
       <ConfirmDialog
         open={pendingLeave !== null}
         tone="default"
-        title={t('procurement:create.unsaved.title', 'Unsaved request')}
-        description={savedRequestId ? t('procurement:create.unsaved.partialDescription', 'Your request is saved. Any remaining line items will be lost if you leave.') : t('procurement:create.unsaved.description', 'This request has not been saved. Leave this page and discard it?')}
+        title={t('procurement:create.unsaved.title', 'Unsaved procurement')}
+        description={savedRequestId ? t('procurement:create.unsaved.partialDescription', 'Your procurement is saved. Any remaining line items will be lost if you leave.') : t('procurement:create.unsaved.description', 'This procurement has not been saved. Leave this page and discard it?')}
         confirmLabel={t('procurement:create.unsaved.leave', 'Leave')}
         cancelLabel={t('procurement:create.unsaved.stay', 'Stay')}
         onConfirm={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }}

@@ -11,7 +11,7 @@ import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupaba
 // NOTE (OD-UX-1 write policy, supersedes the old confirm-every-write gate): a
 // ConfirmDialog is shown IFF the write is consequential/financial — the set
 // {Approve, Reject, Cancel, Mark-as-Paid}. The ROUTINE reversible forward steps
-// (Submit Request, Request Vendor Quotes, Generate Purchase Order, Confirm Receipt,
+// (Submit for approval, Request Supplier Quotes, Generate Purchase Order, Confirm Receipt,
 // Mark Vendor Invoiced) are SINGLE-CLICK + a toast (no modal). GR/VI record-creation
 // forms keep their confirm. The goal-oracle is unchanged: the full PR/PO/GR/VI trail
 // is minted as the deal walks Draft→Paid; only the per-step interaction changed.
@@ -117,8 +117,8 @@ test('AC-816 full procure-to-pay happy path: Draft→Requested→Approved→Orde
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Draft', { timeout: 10_000 });
 
-  // Submit Request is a ROUTINE forward step (OD-UX-1) → single click, no dialog.
-  await page.getByRole('button', { name: 'Submit Request' }).click();
+  // Submit for approval is a ROUTINE forward step (OD-UX-1) → single click, no dialog.
+  await page.getByRole('button', { name: 'Submit for approval' }).click();
 
   // Wait for status to advance to Requested and PR# to appear
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested', { timeout: 15_000 });
@@ -172,7 +172,7 @@ test('AC-816 full procure-to-pay happy path: Draft→Requested→Approved→Orde
   // PR→Paid authority); record the invoice as Scheduled-for-payment + its date.
   await page.getByTestId('vi-status-select').selectOption('Scheduled');
   await page.getByTestId('vi-date-input').fill('2026-06-09');
-  // #505 (0196): a vendor invoice must state whether its amount already includes tax, and how much
+  // #505 (0196): a supplier invoice must state whether its amount already includes tax, and how much
   // tax that is — neither is recoverable from the total afterwards, so the submit is blocked until
   // both are answered. A deliberate added step in the journey, not a workaround.
   await page.getByTestId('vi-tax-treatment-select').selectOption('exclusive');

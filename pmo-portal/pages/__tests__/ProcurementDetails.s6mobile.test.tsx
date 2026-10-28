@@ -8,7 +8,7 @@
  * B-IMP-2 (AC-S6-2): SoD pre-announce on draft state for the author
  *   When the PR is in Draft and the current user is the requester (author),
  *   show inline copy "Submitting hands this to another approver — you can't
- *   approve your own request." so the author understands SoD before submitting.
+ *   approve your own procurement record." so the author understands SoD before submitting.
  *
  * C-IMP-1 (AC-S6-3): BackBar on success render at <=921px
  *   The BackBar is rendered (conditionally visible via CSS) on the success render
@@ -20,6 +20,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import { BahasaProvider } from '@/test/bahasa';
 
 // ---------------------------------------------------------------------------
 // Stub ProcurementFilesSubsection — it calls useQueryClient() internally.
@@ -215,6 +216,17 @@ const renderPage = (id = 'proc-s6-001') =>
     </MemoryRouter>,
   );
 
+const renderBahasaPage = (id = 'proc-s6-001') =>
+  render(
+    <BahasaProvider>
+      <MemoryRouter initialEntries={[`/procurement/${id}`]}>
+        <Routes>
+          <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
+        </Routes>
+      </MemoryRouter>
+    </BahasaProvider>,
+  );
+
 // ---------------------------------------------------------------------------
 // AC-S6-3: BackBar on success render at <=921px (C-IMP-1)
 // ---------------------------------------------------------------------------
@@ -282,7 +294,15 @@ describe('AC-S6-2 (B-IMP-2): SoD pre-announce shown to author on Draft', () => {
     detailState.data = { ...draftByAlice };
     renderPage();
     const notice = screen.getByTestId('sod-pre-announce');
-    expect(notice).toHaveTextContent(/can.?t approve your own request/i);
+    expect(notice).toHaveTextContent(/can't approve your own procurement record/i);
+  });
+
+  it('AC-S6-2: localizes the procurement-record SoD pre-announce in Bahasa', () => {
+    detailState.data = { ...draftByAlice };
+    renderBahasaPage();
+    expect(screen.getByTestId('sod-pre-announce')).toHaveTextContent(
+      'Mengirim ini ke peninjau lain — Anda tidak dapat menyetujui catatan pengadaan Anda sendiri.',
+    );
   });
 
   it('AC-S6-2: the pre-announce is NOT shown when the viewer is NOT the author (Draft, different user)', () => {
@@ -318,12 +338,12 @@ describe('AC-S20-001: one responsive decision area on phone', () => {
     mockIsDesktop = false;
   });
 
-  it('AC-S20-001: a Draft request has one action zone and one Submit Request control', () => {
+  it('AC-S20-001: a Draft procurement record has one action zone and one Submit for approval control', () => {
     detailState.data = { ...draftByAlice };
     renderPage();
     expect(screen.getAllByTestId('record-action-zone')).toHaveLength(1);
     expect(screen.queryByTestId('mobile-sticky-action')).toBeNull();
-    expect(within(screen.getByTestId('decision-card')).getAllByRole('button', { name: /submit request/i })).toHaveLength(1);
+    expect(within(screen.getByTestId('decision-card')).getAllByRole('button', { name: /submit for approval/i })).toHaveLength(1);
   });
 
   it('AC-S20-001: the single decision area uses sticky reachability without a second DOM action', () => {

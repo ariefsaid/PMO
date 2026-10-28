@@ -194,7 +194,7 @@ describe('AC-IXD-DASH-W5-C2B — N16: Ready to pay table', () => {
   it('AC-IXD-DASH-W5-C2B-N16-5: row has an accessible label to navigate to PR detail', () => {
     renderPane();
     // The row button must reference the PR title so screen reader users know where it goes
-    const btn = screen.getByRole('button', { name: /Open Scaffolding Invoice/i });
+    const btn = screen.getByRole('button', { name: /Open procurement record: Scaffolding Invoice/i });
     expect(btn).toBeInTheDocument();
   });
 
@@ -306,12 +306,12 @@ describe('AC-IXD-DASH-W5-C2B — OD-C/I2: Vendor Invoiced visible segment', () =
   it('AC-IXD-DASH-W5-C2B-VI-1: Procurement page has a "Vendor Invoiced" toolbar segment tab', () => {
     renderProcurement('/procurement');
     // Finance role — must have a visible "Vendor Invoiced" tab (role="tab") in the toolbar
-    expect(screen.getByRole('tab', { name: /vendor invoiced/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /supplier invoiced/i })).toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2B-VI-2: clicking Vendor Invoiced segment filters to only VI rows', async () => {
     renderProcurement('/procurement');
-    const viButton = screen.getByRole('tab', { name: /vendor invoiced/i });
+    const viButton = screen.getByRole('tab', { name: /supplier invoiced/i });
     await userEvent.click(viButton);
     // After clicking VI segment: VI row visible, others not
     expect(screen.getByText('Scaffolding Invoice')).toBeInTheDocument();
@@ -322,7 +322,7 @@ describe('AC-IXD-DASH-W5-C2B — OD-C/I2: Vendor Invoiced visible segment', () =
   it('AC-IXD-DASH-W5-C2B-VI-3: navigating to ?status=Vendor+Invoiced shows VI segment selected (aria-selected)', () => {
     renderProcurement('/procurement?status=Vendor+Invoiced');
     // The ViewToggle uses role="tab" + aria-selected (not aria-pressed)
-    const viTab = screen.getByRole('tab', { name: /vendor invoiced/i });
+    const viTab = screen.getByRole('tab', { name: /supplier invoiced/i });
     // Must be visually + semantically selected (aria-selected="true")
     expect(viTab).toHaveAttribute('aria-selected', 'true');
   });

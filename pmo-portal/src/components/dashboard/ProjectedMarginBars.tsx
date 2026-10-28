@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { Link } from 'react-router';
 import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
-import { formatCompactCurrency } from '@/src/lib/format';
+import { formatCompactCurrency, formatPercent } from '@/src/lib/format';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { SALES_COLUMNS } from '@/components/salesPipeline';
 import type { PipelineStage } from '@/src/lib/db/dashboard';
@@ -50,7 +50,7 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ projec
       {projectedMargin !== null && (
         <div className="mb-3.5 flex items-baseline gap-2.5">
           <span className="min-w-0 break-words text-[30px] font-bold leading-none tracking-[-0.02em] tabular">
-            {`${(projectedMargin * 100).toFixed(1)}%`}
+            {formatPercent(projectedMargin)}
           </span>
           <span className="text-xs text-muted-foreground">
             {t('dashboard.projectedMargin.summary', 'probability-adjusted across {{count}} open {{stageNoun}}', { count: open.length, stageNoun: open.length === 1 ? t('dashboard.projectedMargin.stage', 'stage') : t('dashboard.projectedMargin.stages', 'stages') })}

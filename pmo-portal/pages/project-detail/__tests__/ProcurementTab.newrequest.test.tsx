@@ -1,5 +1,5 @@
 /**
- * AC-JR-T13: ProcurementTab "New request" button — in-context PR creation.
+ * AC-JR-T13: ProcurementTab "New procurement" button — in-context PR creation.
  *
  * When a user is on a project's Procurement tab they should be able to raise a
  * PR against THIS project without leaving the tab. The button is gated by
@@ -89,24 +89,24 @@ beforeEach(() => {
 
 // ── AC-JR-T13: header button visible ──────────────────────────────────────────
 
-describe('AC-JR-T13: ProcurementTab shows a gated "New request" button', () => {
-  it('AC-JR-T13: header "New request" button is visible when user can create procurement', () => {
+describe('AC-JR-T13: ProcurementTab shows a gated "New procurement" button', () => {
+  it('AC-JR-T13: header "New procurement" button is visible when user can create procurement', () => {
     renderTab('Project Manager');
-    expect(screen.getAllByRole('button', { name: /new request/i })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /new procurement/i })).toHaveLength(1);
   });
 
-  it('AC-JR-T13 (SUB-E): the empty state does not repeat the header "New request" action', () => {
+  it('AC-JR-T13 (SUB-E): the empty state does not repeat the header "New procurement" action', () => {
     procState.data = [];
     renderTab('Project Manager');
-    expect(screen.getByText(/No purchase requests for this project yet/i)).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /new request/i })).toHaveLength(1);
+    expect(screen.getByText(/No procurement records for this project yet/i)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /new procurement/i })).toHaveLength(1);
     expect(screen.queryByText('Requests raised against this project, tracked through their lifecycle.')).toBeNull();
   });
 
   it('review 8: the empty state points below only when ERPNext documents are shown there', () => {
     procState.data = [];
     const { unmount } = renderTab('Project Manager');
-    expect(screen.getByText(/No purchase requests for this project yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/No procurement records for this project yet/i)).toBeInTheDocument();
     expect(screen.queryByText(/appear below/)).toBeNull();
     unmount();
     erpState.data = [{ id: 'd1', procurementId: null, doctype: 'Purchase Invoice', name: 'PINV-1', projectIds: ['proj-abc'],
@@ -115,10 +115,10 @@ describe('AC-JR-T13: ProcurementTab shows a gated "New request" button', () => {
     expect(screen.getByText(/appear below/)).toBeInTheDocument();
   });
 
-  it('AC-JR-T13: "New request" button is visible for Engineer role too (create: allow(ALL))', () => {
+  it('AC-JR-T13: "New procurement" button is visible for Engineer role too (create: allow(ALL))', () => {
     // The policy says create: allow(ALL) so ALL roles including Engineer can create procurements.
     renderTab('Engineer');
-    const buttons = screen.getAllByRole('button', { name: /new request/i });
+    const buttons = screen.getAllByRole('button', { name: /new procurement/i });
     expect(buttons.length).toBeGreaterThanOrEqual(1);
   });
 });
@@ -150,16 +150,16 @@ describe('AC-S19-003: project procurement vocabulary', () => {
     expect(screen.queryByText(/Next:/)).toBeNull();
     expect(screen.queryByTestId('procurement-next-step')).toBeNull();
     expect(screen.queryByRole('list', { name: /Lifecycle:/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /New request/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /New procurement/i })).toBeInTheDocument();
   });
 });
 
 // ── AC-JR-T13: one-page create route and project context ──────────────────────
 
-describe('AC-JR-T13: New request navigates to the project-scoped create route', () => {
-  it('AC-JR-T13: clicking New request keeps this project in the create URL', async () => {
+describe('AC-JR-T13: New procurement navigates to the project-scoped create route', () => {
+  it('AC-JR-T13: clicking New procurement keeps this project in the create URL', async () => {
     renderTab('Project Manager');
-    const [headerBtn] = screen.getAllByRole('button', { name: /new request/i });
+    const [headerBtn] = screen.getAllByRole('button', { name: /new procurement/i });
     await userEvent.click(headerBtn);
     expect(mockNavigate).toHaveBeenCalledWith('/procurement/new?project=proj-abc');
   });

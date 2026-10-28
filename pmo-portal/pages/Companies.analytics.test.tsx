@@ -85,7 +85,7 @@ afterEach(() => {
 describe('Companies: filter_applied fires when the type filter changes', () => {
   it('AC: clicking a type filter segment fires filter_applied with filter_id + option_count + module', () => {
     renderPage();
-    fireEvent.click(screen.getByRole('tab', { name: 'Vendor' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Supplier' }));
     expect(analytics.trackFilterApplied).toHaveBeenCalledWith('type', 4, 'companies');
   });
 });

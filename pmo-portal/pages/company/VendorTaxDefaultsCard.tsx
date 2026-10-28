@@ -37,7 +37,7 @@ export const VendorTaxDefaultsCard: React.FC<{ company: CompanyRow }> = ({ compa
     mutationFn: (input: VendorTaxDefaultsInput) => repositories.company.setTaxDefaults(company.id, input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['company'] });
-      toast(t('companyDetail.vendorTax.saved', 'Vendor tax defaults saved'), undefined, 'success');
+      toast(t('companyDetail.vendorTax.saved', 'Supplier tax defaults saved'), undefined, 'success');
     },
     onError: (err) => {
       const classified = classifyMutationError(err);
@@ -60,10 +60,10 @@ export const VendorTaxDefaultsCard: React.FC<{ company: CompanyRow }> = ({ compa
   return (
     <div data-testid="vendor-tax-defaults">
       <Card variant="bare" className="mb-4">
-        <CardHead>{t('companyDetail.vendorTax.title', 'Vendor tax defaults')}</CardHead>
+      <CardHead>{t('companyDetail.vendorTax.title', 'Supplier tax defaults')}</CardHead>
         <CardPad>
           <p className="mb-3 text-[13px] text-muted-foreground">
-            {t('companyDetail.vendorTax.hint', 'Pre-fills new bills from this vendor. The amounts stay editable on each bill.')}
+            {t('companyDetail.vendorTax.hint', 'Pre-fills new bills from this supplier. The amounts stay editable on each bill.')}
           </p>
           {canManage ? (
             <form

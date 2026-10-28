@@ -22,6 +22,8 @@ import { moneyFigure, shortMoney } from '@/src/lib/dashboardMoney';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { StatusBarChart } from './StatusBarChart';
 import { procurementStatusTone } from './procurementStatusTone';
+import { orderByProcurementLifecycle } from '@/src/lib/db/procurementLifecycle';
+import { useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { DashPageHead, DashGrid } from './layout';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import type { BudgetReviewRow } from '@/src/lib/db/dashboard';
@@ -78,7 +80,7 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
   const columns: Column<ProcurementWithRefs>[] = [
     {
       key: 'request',
-      header: t('dashboard:finance.request', 'Request'),
+      header: t('dashboard:finance.request', 'Procurement'),
       cell: (r) => (
         <div className="min-w-0">
           <div className="truncate font-semibold" title={r.title}>
@@ -113,7 +115,7 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
       // FR-FIN-DEBT / OBS-FIN-DEBT-004: real vendor_invoiced_at (stamped on →'Vendor Invoiced',
       // migration 0022), falling back to updated_at only for legacy rows stamped before the migration.
       header: (
-        <span title={t('dashboard:finance.invoicedHelp', 'Days since the vendor invoice was recorded; older records use their last update date.') }>
+        <span title={t('dashboard:finance.invoicedHelp', 'Days since the supplier invoice was recorded; older records use their last update date.') }>
           {t('dashboard:finance.invoiced', 'Invoiced')}
         </span>
       ),
@@ -139,10 +141,10 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
       columns={columns}
       rowKey={(r) => r.id}
       onActivate={(r) => navigate(`/procurement/${r.id}`)}
-      rowLabel={(r) => t('dashboard:finance.openRequest', 'Open {{request}}', { request: r.title })}
+      rowLabel={(r) => t('dashboard:finance.openRequest', 'Open procurement record: {{request}}', { request: r.title })}
       state={tableState}
       emptyTitle={t('dashboard:finance.nothingAwaitingPayment', 'Nothing awaiting payment')}
-      emptySub={t('dashboard:finance.allInvoicesPaid', 'All vendor invoices have been paid or none are awaiting action.')}
+      emptySub={t('dashboard:finance.allInvoicesPaid', 'All supplier invoices have been paid or none are awaiting action.')}
       errorTitle={t('dashboard:finance.loadInvoicesError', "Couldn't load invoices")}
       onRetry={onRetry}
       className="rounded-t-none border-t-0"
@@ -226,6 +228,7 @@ function compareNullable(
  */
 export const FinanceDashboard: React.FC = () => {
   const { t } = useTranslation('dashboard');
+  const procurementStatusLabel = useProcurementStatusLabel();
   const { data, isPending, isError, refetch } = useDashboard();
   const { data: projects } = useProjectIdentity();
   // Org-denominated figures (RPC aggregates, BudgetReviewRow) — the org currency, not a record's.
@@ -277,10 +280,10 @@ export const FinanceDashboard: React.FC = () => {
   const procByStatus = useMemo(() => {
     const counts = new Map<string, number>();
     for (const p of procurements ?? []) counts.set(p.status, (counts.get(p.status) ?? 0) + 1);
-    return [...counts.entries()].map(([status, count]) => ({
+    return orderByProcurementLifecycle([...counts.entries()].map(([status, count]) => ({
       status: status as Tables<'procurements'>['status'],
       count,
-    }));
+    })));
   }, [procurements]);
 
   // N17: portfolio-wide Active-budget variance ranking. Positive usable Active budget and default
@@ -419,7 +422,7 @@ export const FinanceDashboard: React.FC = () => {
 
       {/* KPI band — 5 tiles: reflows 5→3→2→1 at 1180/920/560 (unchanged from PR-A) */}
       <section aria-label={t('uxs03.attentionAndApprovals', 'Attention and approvals')} className="empty:hidden grid grid-cols-1 gap-3 min-[560px]:grid-cols-2">
-        <AwaitingApprovalTile includeTimesheets={false} label={t('dashboard:finance.awaiting', 'Purchase requests awaiting your decision')} />
+        <AwaitingApprovalTile includeTimesheets={false} label={t('dashboard:finance.awaiting', 'Procurement awaiting your decision')} />
       </section>
       <section aria-label={t('dashboard:finance.kpiBand', 'Finance KPIs')} className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-5">
         {/* AC-IXD-DASH-W5-C2A: Contracted revenue → /projects?filter=Ongoing */}
@@ -441,12 +444,12 @@ export const FinanceDashboard: React.FC = () => {
             + ' · ' + marginLabel + ': ' + money(data?.on_hand_realized_margin ?? null) + ' · ' + actualCoverage}
           help={t('dashboard:finance.marginHelp', 'Billed-work revenue less recorded spending; this is not cash received.')} />
         {/* AC-IXD-DASH-W5-C2A: Outstanding invoices → /procurement?status=Vendor+Invoiced (N16) */}
-        <KPITile testId="kpi-outstanding" tone="amber" icon="doc" label={t('dashboard:finance.payables', 'Vendor payables')}
+        <KPITile testId="kpi-outstanding" tone="amber" icon="doc" label={t('dashboard:finance.payables', 'Supplier payables')}
           {...figure(outstanding)} loading={procPending}
-          vs={t('dashboard:finance.payablesDetail', 'Vendor-invoiced, awaiting payment')}
+          vs={t('dashboard:finance.payablesDetail', 'Supplier-invoiced, awaiting payment')}
           to="/procurement?status=Vendor+Invoiced"
-          linkLabel={t('dashboard:finance.payablesLink', 'Open vendor invoices awaiting payment')}
-          help={t('dashboard:finance.payablesHelp', 'Procurement value owed to vendors in the Vendor Invoiced state.')} />
+          linkLabel={t('dashboard:finance.payablesLink', 'Open supplier invoices awaiting payment')}
+          help={t('dashboard:finance.payablesHelp', 'Procurement value owed to suppliers in the Supplier Invoiced state.')} />
       </section>
 
       {/* OD-BILL-1 / #786: what is still to invoice on the client's POs. */}
@@ -529,8 +532,8 @@ export const FinanceDashboard: React.FC = () => {
 
       <DashGrid>
         <Card>
-          <CardHead>{t('uxs03.pmoPurchasing', 'PMO purchasing requests')}</CardHead>
-          <p className="px-4 text-xs text-muted-foreground">{t('uxs03.pmoPurchasingScope', 'ERP-native purchases are outside this PMO request chart.')}</p>
+          <CardHead>{t('uxs03.pmoPurchasing', 'PMO procurement')}</CardHead>
+          <p className="px-4 text-xs text-muted-foreground">{t('uxs03.pmoPurchasingScope', 'ERP-native purchases are outside this PMO procurement chart.')}</p>
           <div className="px-4 pb-4 pt-2">
             {procError ? (
               <ListState variant="error" title="Couldn't load procurement" onRetry={() => refetchProc()} />
@@ -541,7 +544,8 @@ export const FinanceDashboard: React.FC = () => {
             ) : (
               <StatusBarChart data={procByStatus} toneFor={procurementStatusTone}
                 label={t('dashboard.chart.procStatus.chartLabel', 'Procurement by status')}
-                noun={t('dashboard.chart.procStatus.noun', 'requests')} />
+                noun={t('dashboard.chart.procStatus.noun', 'procurement records')}
+                labelFor={procurementStatusLabel} />
             )}
           </div>
         </Card>

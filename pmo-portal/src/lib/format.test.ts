@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import {
-  PLATFORM_CURRENCY, currencySymbol, formatCompactCurrency, formatCurrency, parseMoneyInput, pct, formatDate, formatRelativeTime,
+  PLATFORM_CURRENCY, currencySymbol, formatCompactCurrency, formatCurrency, parseMoneyInput, pct, formatPercent, formatDate, formatRelativeTime,
   formatCurrencyAuto, formatCurrencyCents, formatCurrencyFine, formatNumber, formatNumberMax2,
   formatDateNumeric, formatDateUtc, formatDateTime, formatDayMonth, formatExactMoney, formatFullDate, formatMonthDay,
   formatMonthYear, formatUtcDayMonthYear, formatUtcMonthYear, formatWeekday, formatWeekdayMonthDay,
@@ -94,6 +94,19 @@ describe('pct — nullable % formatter (added for delivery-milestones feature)',
     expect(pct(67.7)).toBe('68%');
     expect(pct(0)).toBe('0%');
     expect(pct(100)).toBe('100%');
+  });
+});
+
+describe('formatPercent — viewer-number-locale percentage display', () => {
+  it('uses the active number locale for decimal percentages and keeps null honest', () => {
+    setActiveLocale({ locale: 'en', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    expect(formatPercent(0.256)).toBe('25,6%');
+    expect(formatPercent(0.25)).toBe('25%');
+    expect(formatPercent(0.5525, 2)).toBe('55,25%');
+    expect(formatPercent(null)).toBe('—');
+
+    setActiveLocale({ locale: 'id', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+    expect(formatPercent(0.256)).toBe('25.6%');
   });
 });
 

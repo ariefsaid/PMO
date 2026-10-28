@@ -138,7 +138,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
         <div className="flex items-center gap-3"><span aria-label={t('lineItems.newLineTotal', 'New line total')} className="tabular text-muted-foreground">{(() => { const qty = parseMoneyInputAtScale(draft.quantity, 2); const rate = parseMoneyInputAtScale(draft.rate, 2); return qty !== null && rate !== null ? formatCurrencyAuto(qty * rate, currency) : '—'; })()}</span><Button size="sm" variant="outline" aria-label={t('lineItems.addLineItem', 'Add line item')} disabled={!draft.name.trim()} loading={busy} onClick={() => void submitAdd()}><Icon name="plus" />{t('lineItems.add', 'Add')}</Button></div>
       </div>
     </CardPad>}
-    <ConfirmDialog open={!!deleteTarget} tone="destructive" title={deleteTarget ? `Remove ${deleteTarget.name}?` : 'Remove line item?'} description={t('lineItems.removeDescription', 'This removes the line item from the request. You can add it again while the request is a draft.')} confirmLabel={t('lineItems.removeItem', 'Remove item')} loading={busy} onConfirm={confirmDelete} onCancel={() => setDeleteTarget(null)} />
+    <ConfirmDialog open={!!deleteTarget} tone="destructive" title={deleteTarget ? `Remove ${deleteTarget.name}?` : 'Remove line item?'} description={t('lineItems.removeDescription', 'This removes the line item from procurement. You can add it again while the procurement is a draft.')} confirmLabel={t('lineItems.removeItem', 'Remove item')} loading={busy} onConfirm={confirmDelete} onCancel={() => setDeleteTarget(null)} />
   </Card>;
 };
 LineItemsSection.displayName = 'LineItemsSection';

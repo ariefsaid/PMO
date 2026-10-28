@@ -8,15 +8,15 @@ import type { Role } from '@/src/auth/AuthContext';
 
 /**
  * A-3 Engineer own-scoped procurement (AC-W2-RBAC-006, rbac-visibility §A/§E + OD-W2-1):
- *   An Engineer who reaches /procurement sees it scoped to THEIR OWN requests — the page reads
- *   as "your requests" (copy) AND the list is actually narrowed to rows they requested
+ *   An Engineer who reaches /procurement sees it scoped to THEIR OWN procurement records — the page reads
+ *   as "your procurement records" (copy) AND the list is actually narrowed to rows they requested
  *   (requested_by_id === their uid), since procurements_select RLS is org-wide, not requester-
- *   scoped (so the FE narrows the cached list for clarity). It still offers "Raise request"
+ *   scoped (so the FE narrows the cached list for clarity). It still offers "New procurement"
  *   (any member may raise). NO approve/edit/manage affordances appear here (the index has none;
  *   lifecycle gating lives on the detail page). The route is NOT blocked.
  *
- * Two-sided: Engineer (own-scoped copy + only their own rows + Raise request); a manager (PM)
- * sees the org index copy + ALL org rows + Raise request.
+ * Two-sided: Engineer (own-scoped copy + only their own rows + creation); a manager (PM)
+ * sees the org index copy + ALL org rows + creation.
  */
 const { procState, createState } = vi.hoisted(() => ({
   procState: {
@@ -86,12 +86,12 @@ beforeEach(() => {
 });
 
 describe('Procurement — Engineer own-scoped view (A-3)', () => {
-  it('AC-W2-RBAC-006: an Engineer reads as "your requests" (own-scoped) and can Raise request', () => {
+  it('AC-W2-RBAC-006: an Engineer reads as "your procurement records" (own-scoped) and can create one', () => {
     renderAs('Engineer');
     // Own-scoped copy: the page describes the Engineer's OWN requests, not the org index.
-    expect(screen.getByText(/your.*requests/i)).toBeInTheDocument();
-    // Raise request stays available (any member may raise).
-    expect(screen.getByRole('button', { name: /Raise request/i })).toBeInTheDocument();
+    expect(screen.getByText(/your.*procurement records/i)).toBeInTheDocument();
+    // Procurement creation stays available (any member may create one).
+    expect(screen.getByRole('button', { name: 'New procurement' })).toBeInTheDocument();
   });
 
   it("AC-W2-RBAC-006: an Engineer's list contains ONLY their own requests, not the whole org", () => {
@@ -102,13 +102,13 @@ describe('Procurement — Engineer own-scoped view (A-3)', () => {
     expect(screen.queryByText('Scaffolding rental')).not.toBeInTheDocument();
   });
 
-  it('AC-W2-RBAC-006: a PM sees the org-wide procurement index (NOT the "your requests" scoping)', () => {
+  it('AC-W2-RBAC-006: a PM sees the org-wide procurement index (NOT the "your procurement records" scoping)', () => {
     renderAs('Project Manager');
     // The org-wide description stays distinct from the own-scoped requester copy.
-    expect(screen.getByText('Raise requests and track approvals, orders and payments. Open a request for its full history.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Raise request/i })).toBeInTheDocument();
-    // No "your requests" own-scoping framing for a manager.
-    expect(screen.queryByText(/^Your purchase requests$/i)).not.toBeInTheDocument();
+    expect(screen.getByText('Create procurement records and track approvals, orders and payments. Open a procurement record for its full history.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'New procurement' })).toBeInTheDocument();
+    // No "your procurement records" own-scoping framing for a manager.
+    expect(screen.queryByText(/^Your procurement records$/i)).not.toBeInTheDocument();
     // A manager sees EVERY requester's rows (org index), including u-other's.
     expect(screen.getByText('Crane hire')).toBeInTheDocument();
     expect(screen.getByText('Scaffolding rental')).toBeInTheDocument();

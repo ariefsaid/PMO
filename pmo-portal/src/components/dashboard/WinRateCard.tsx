@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useWinRate, type WinRateRange } from '@/src/hooks/useDashboard';
 import { ViewToggle, type ViewOption } from '@/src/components/ui/ViewToggle';
 import { ListState } from '@/src/components/ui/ListState';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatPercent } from '@/src/lib/format';
 import { toIso } from '@/src/lib/calendar/monthMatrix';
 
 // ── Win-rate period options (PRESERVED VERBATIM from the legacy file — AC-1117) ──
@@ -135,9 +135,9 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
                 <p key={row.currency} data-testid={`win-rate-value-${row.currency}`} className="text-sm text-muted-foreground">
                   {row.win_rate_value === null
                     ? t('dashboard.winRate.noRecordedLosses', '{{currency}} — no recorded losses; {{wins}} won', { currency: row.currency, wins: fmt(row.wins_value, row.currency) })
-                    : t('dashboard.winRate.currencyResult', '{{currency}} {{percent}}% — {{wins}} won of {{total}} closed', {
+                    : t('dashboard.winRate.currencyResult', '{{currency}} {{percent}} — {{wins}} won of {{total}} closed', {
                       currency: row.currency,
-                      percent: (row.win_rate_value * 100).toFixed(1),
+                      percent: formatPercent(row.win_rate_value),
                       wins: fmt(row.wins_value, row.currency),
                       total: fmt(row.wins_value + row.losses_value, row.currency),
                     })}
@@ -152,7 +152,7 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
               aria-live="polite"
               className="text-[34px] font-bold leading-none tracking-[-0.02em] tabular"
             >
-              {rate !== null ? `${(rate * 100).toFixed(1)}%` : '—'}
+              {formatPercent(rate)}
             </span>
             <span className="text-xs text-muted-foreground">
               {t('dashboard.winRate.result', '{{wins}} won of {{total}} closed', { wins: fmt(wins), total: fmt(total) })}
@@ -161,7 +161,7 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
 
           <span
             role="progressbar"
-            aria-label={t('dashboard.winRate.progress', 'Win rate {{percent}}%', { percent: rate !== null ? (rate * 100).toFixed(1) : 0 })}
+            aria-label={t('dashboard.winRate.progress', 'Win rate {{percent}}', { percent: formatPercent(rate) })}
             aria-valuenow={wonPct}
             aria-valuemin={0}
             aria-valuemax={100}

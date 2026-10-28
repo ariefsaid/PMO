@@ -23,7 +23,7 @@
  *     - Tests run serially within this file (test.describe.configure({mode:'serial'})) to
  *       avoid DB state interference between AC-PR-020 and AC-PR-022 in this spec.
  *
- *   ADVANCE: SP2401-004 (same case) — Admin may click "Request Vendor Quotes" at Approved.
+ *   ADVANCE: SP2401-004 (same case) — Admin may click "Request Supplier Quotes" at Approved.
  *     (If already past Approved the advance test passes via the early-return path.)
  *
  * Goal-oracle per AC-PR-020 (unchanged):
@@ -146,11 +146,11 @@ test('AC-PR-022 advance action on the case page performs its stated action (hone
   // Find the primary advance action available to Admin at this status.
   // The JTBD goal is: clicking the action actually moves the case forward.
   // Routine, single-click actions (no confirm dialog):
-  //   At Approved: "Request Vendor Quotes" or "Generate Purchase Order"
-  //   At Requested: "Submit Request"
+  //   At Approved: "Request Supplier Quotes" or "Generate Purchase Order"
+  //   At Requested: "Submit for approval"
   //   At Quote Selected: "Generate Purchase Order"
   const actionBtns = page.getByRole('button', {
-    name: /^(Submit Request|Request Vendor Quotes|Generate Purchase Order|Confirm Receipt)$/,
+    name: /^(Submit for approval|Request Supplier Quotes|Generate Purchase Order|Confirm Receipt)$/,
   });
   const count = await actionBtns.count();
 

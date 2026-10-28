@@ -161,7 +161,7 @@ const ProcurementPage: React.FC = () => {
     [projectRefs],
   );
   const cycleVendorLookup = useMemo(
-    () => makeRefLookup(vendorRefs, 'Vendor'),
+    () => makeRefLookup(vendorRefs, 'Supplier'),
     [vendorRefs],
   );
 
@@ -201,7 +201,7 @@ const ProcurementPage: React.FC = () => {
     'Needs approval': t('procurement.filter.needsApproval', 'Needs approval'),
     Open: t('procurement.filter.open', 'Open'),
     Ordered: t('procurement.filter.ordered', 'Ordered'),
-    'Vendor Invoiced': t('procurement.filter.vendorInvoiced', 'Vendor invoiced'),
+    'Vendor Invoiced': t('procurement.filter.vendorInvoiced', 'Supplier invoiced'),
     Paid: t('procurement.filter.paid', 'Paid'),
   };
 
@@ -242,7 +242,7 @@ const ProcurementPage: React.FC = () => {
   const columns: Column<ProcurementWithRefs>[] = [
     {
       key: 'request',
-      header: t('procurement.column.request', 'Request'),
+      header: t('procurement.column.request', 'Procurement'),
       cell: (r) => (
         <div className="min-w-0">
           <div className="truncate font-semibold" title={r.title}>
@@ -351,15 +351,15 @@ const ProcurementPage: React.FC = () => {
     <ListPage
       title={
         ownScoped
-          ? t('procurement.title.ownScoped', 'Your purchase requests')
+          ? t('procurement.title.ownScoped', 'Your procurement records')
           : t('procurement.title.orgWide', 'Procurement')
       }
       description={
         ownScoped
-          ? t('uxs19.pageDescriptionOwnScoped', 'Track the requests you raised from approval through payment.')
+          ? t('uxs19.pageDescriptionOwnScoped', 'Track the procurement records you raised from approval through payment.')
           : (
             <>
-              {t('uxs19.pageDescriptionOrgWide', 'Raise requests and track approvals, orders and payments. Open a request for its full history.')}
+              {t('uxs19.pageDescriptionOrgWide', 'Create procurement records and track approvals, orders and payments. Open a procurement record for its full history.')}
               {hasErpPurchases && (
                 <>
                   {' '}
@@ -375,7 +375,7 @@ const ProcurementPage: React.FC = () => {
         canCreate && (
           <Button variant="primary" onClick={() => navigate('/procurement/new')}>
             <Icon name="plus" />
-            {t('procurement.raiseRequest', 'Raise request')}
+            {t('procurement.raiseRequest', 'New procurement')}
           </Button>
         )
       }
@@ -407,8 +407,8 @@ const ProcurementPage: React.FC = () => {
       search={
         state !== 'loading' && (
           <SearchMini
-            placeholder={t('procurement.search.placeholder', 'Filter requests or references…')}
-            aria-label={t('procurement.search.label', 'Filter requests')}
+            placeholder={t('procurement.search.placeholder', 'Filter procurement records or references…')}
+            aria-label={t('procurement.search.label', 'Filter procurement records')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             searchSurface="procurement-list"
@@ -474,7 +474,7 @@ const ProcurementPage: React.FC = () => {
         <ListState
           variant="error"
           title={t('procurement.error.title', "Couldn't load procurements")}
-          sub={t('procurement.error.sub', 'Something went wrong fetching your requests.')}
+          sub={t('procurement.error.sub', 'Something went wrong fetching your procurement records.')}
           onRetry={() => refetch()}
         />
       )}
@@ -485,19 +485,19 @@ const ProcurementPage: React.FC = () => {
           icon="cart"
           title={
             ownScoped
-              ? t('procurement.empty.ownScoped.title', "You haven't raised any requests yet")
-              : t('procurement.empty.orgWide.title', 'No purchase requests yet')
+              ? t('procurement.empty.ownScoped.title', "You haven't created any procurement records yet")
+              : t('procurement.empty.orgWide.title', 'No procurement records yet')
           }
           sub={t(
             'uxs19.emptyScopeNote',
-            'PMO requests only; ERP-native purchases are not listed here.',
+            'PMO procurement records only; ERP-native purchases are not listed here.',
           )}
           stateId="procurement-empty"
           role={realRole ?? undefined}
           module="procurement"
           action={
             canCreate
-              ? { label: t('procurement.raiseRequest', 'Raise request'), onClick: () => navigate('/procurement/new') }
+              ? { label: t('procurement.raiseRequest', 'New procurement'), onClick: () => navigate('/procurement/new') }
               : undefined
           }
         />
@@ -510,7 +510,7 @@ const ProcurementPage: React.FC = () => {
         filtered.length === 0 ? (
           <ListState
             variant="empty"
-            title={t('procurement.noMatch.title', 'No requests match your filters')}
+            title={t('procurement.noMatch.title', 'No procurement records match your filters')}
             sub={t(
               'procurement.noMatch.sub',
               'Try a different status, search term, or clear the filters.',
@@ -529,7 +529,7 @@ const ProcurementPage: React.FC = () => {
         filtered.length === 0 ? (
           <ListState
             variant="empty"
-            title={t('procurement.noMatch.title', 'No requests match your filters')}
+            title={t('procurement.noMatch.title', 'No procurement records match your filters')}
             sub={t(
               'procurement.noMatch.sub',
               'Try a different status, search term, or clear the filters.',
@@ -537,7 +537,7 @@ const ProcurementPage: React.FC = () => {
             action={{ label: t('procurement.noMatch.clearFilters', 'Clear filters'), onClick: clearListFilters }}
           />
         ) : (
-          <div className="rounded-lg border border-border bg-card" aria-label={t('procurement.listLabel', 'Procurement requests')}>
+          <div className="rounded-lg border border-border bg-card" aria-label={t('procurement.listLabel', 'Procurement')}>
             <ProcurementListColumns />
             {filtered.map((r) => (
               <ProcurementListRow key={r.id} row={r} />

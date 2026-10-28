@@ -90,7 +90,7 @@ test(
     // ── GOAL ORACLE: the valid row IS in the list; the invalid one is NOT ──────
     const validRow = companyRow(page, validName);
     await expect(validRow).toBeVisible({ timeout: 15_000 });
-    await expect(validRow.getByText('Vendor')).toBeVisible();
+    await expect(validRow.getByText('Supplier')).toBeVisible();
     await expect(companyRow(page, invalidName)).not.toBeVisible({ timeout: 5_000 });
   },
 );

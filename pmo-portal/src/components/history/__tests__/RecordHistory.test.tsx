@@ -157,7 +157,7 @@ describe('RecordHistory — formatting (AC-CHG-015)', () => {
     });
     renderIt({ includeChildren: true, kindFilters: true });
     expect(await screen.findByText('Sales invoice · SI-2026-01')).toBeInTheDocument();
-    expect(screen.getByText('Vendor bill · VI-2026-01')).toBeInTheDocument();
+    expect(screen.getByText('Supplier bill · VI-2026-01')).toBeInTheDocument();
     expect(repo.recordHistory.lookupNames).toHaveBeenCalledWith({
       sales_invoice: ['si-1'], procurement_invoice: ['vi-1'],
     });
@@ -406,7 +406,7 @@ describe('RecordHistory — enum values use the module label helpers (AC-CHG-015
     expect(screen.getByText('Alone → Consortium')).toBeInTheDocument();
     // the same stage word the procurement header pill shows for Received
     expect(screen.getByText('Purchase Order → Goods Receipt')).toBeInTheDocument();
-    expect(screen.getByText('Vendor Invoice → Paid')).toBeInTheDocument();
+    expect(screen.getByText('Supplier Invoice → Paid')).toBeInTheDocument();
     expect(screen.getByText('Draft → Issued')).toBeInTheDocument();
     expect(screen.getByText('Draft → Active')).toBeInTheDocument();
     expect(screen.getByText('Labor → Materials')).toBeInTheDocument();
@@ -421,8 +421,8 @@ describe('RecordHistory — enum values use the module label helpers (AC-CHG-015
     renderIt({ includeChildren: true }, true);
     expect(await screen.findByText('Penunjukan langsung → Tender')).toBeInTheDocument();
     expect(screen.getByText('Sendiri → Konsorsium')).toBeInTheDocument();
-    expect(screen.getByText('Purchase Order → Penerimaan Barang')).toBeInTheDocument();
-    expect(screen.getByText('Invoice Vendor → Lunas')).toBeInTheDocument();
+    expect(screen.getByText('Pesanan pembelian → Penerimaan Barang')).toBeInTheDocument();
+    expect(screen.getByText('Faktur pemasok → Lunas')).toBeInTheDocument();
     expect(screen.getByText('Draft → Diterbitkan')).toBeInTheDocument();
     expect(screen.getByText('Draf → Aktif')).toBeInTheDocument();
   });
