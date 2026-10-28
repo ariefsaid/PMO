@@ -957,7 +957,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   };
   const outstandingColumn: Column<SalesInvoiceRow> = {
     key: 'erp_outstanding_amount',
-    header: embedded ? <span className="inline-flex items-center gap-1">{t('financeCopy.outstanding', 'Outstanding')}<Tooltip content={t('finance:receivables.outstanding', 'Outstanding · tax included')}><button type="button" aria-label={t('finance:receivables.outstanding', 'Outstanding · tax included')} className="inline-grid size-4 place-items-center rounded-full normal-case text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">?</button></Tooltip></span> : t('financeCopy.outstanding', "Outstanding"),
+    header: embedded ? <span className="inline-flex items-center gap-1">{t('financeCopy.outstanding', 'Outstanding')}<Tooltip content={t('finance:receivables.outstanding', 'Outstanding · tax included')}><button type="button" aria-label={t('finance:receivables.outstanding', 'Outstanding · tax included')} className="inline-grid size-4 place-items-center rounded-full normal-case text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></span> : t('financeCopy.outstanding', "Outstanding"),
     kind: 'money',
     align: 'num',
     size: embedded ? 140 : 170,

@@ -662,3 +662,21 @@
   border: 2px solid transparent;
   background-clip: content-box;
 }
+
+/* One disclosure marker app-wide: a small chevron that turns when the section opens, in place of the
+   browser triangle. Summaries styled as their own control (`list-none`, e.g. ⋯ menus) opt out. */
+details > summary:not(.list-none) { list-style: none; }
+details > summary:not(.list-none)::-webkit-details-marker { display: none; }
+details > summary:not(.list-none)::before {
+  content: '';
+  display: inline-block;
+  width: 0.42em;
+  height: 0.42em;
+  margin: 0 0.55em 0.12em 0.1em;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 120ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+details[open] > summary:not(.list-none)::before { transform: rotate(45deg); }
+@media (prefers-reduced-motion: reduce) { details > summary:not(.list-none)::before { transition: none; } }

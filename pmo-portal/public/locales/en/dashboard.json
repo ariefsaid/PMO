@@ -460,7 +460,8 @@
       "budgetReviewError": "Couldn't load budget review",
       "accountingSnapshots": "Accounting snapshots",
       "snapshotsMissing": "No accounting snapshots yet",
-      "snapshotsMissingSub": "Snapshot data appears after the next accounting sync."
+      "snapshotsMissingSub": "Snapshot data appears after the next accounting sync.",
+      "spentLabel": "Spent"
     }
   },
   "restructure": {

@@ -2989,7 +2989,6 @@
   "projectDetail.workOrders.billing.invoiced",
   "projectDetail.workOrders.billing.lineInvoiced",
   "projectDetail.workOrders.billing.lineNet",
-  "projectDetail.workOrders.billing.lineNotSubmitted",
   "projectDetail.workOrders.billing.lineOver",
   "projectDetail.workOrders.billing.lineRemaining",
   "projectDetail.workOrders.billing.loadError",

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
-import { AccessDenied, Button, DataTable, ListPage, SearchMini, StatusPill, Toolbar, Tooltip, type Column } from '@/src/components/ui';
+import { AccessDenied, Button, DataTable, Icon, ListPage, SearchMini, StatusPill, Toolbar, Tooltip, type Column } from '@/src/components/ui';
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
 import { useExport } from '@/src/components/export/useExport';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
@@ -141,7 +141,7 @@ const PayablesPage: React.FC = () => {
               })()}
             </>;
           })()}
-          <Tooltip content={t('financeHub:hub.payablesHint', 'Sum of recorded supplier invoices waiting for payment, grouped by currency.')}><button type="button" aria-label={t('financeHub:hub.figureHelp', 'How this figure is calculated')} className="mt-1 inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">?</button></Tooltip>
+          <Tooltip content={t('financeHub:hub.payablesHint', 'Sum of recorded supplier invoices waiting for payment, grouped by currency.')}><button type="button" aria-label={t('financeHub:hub.figureHelp', 'How this figure is calculated')} className="mt-1 inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip>
         </article>
         <article className="min-w-0 rounded-lg border border-border bg-card p-4">
           <div className="text-sm font-medium text-muted-foreground">{t('financeHub:hub.oldestWaiting', 'Oldest waiting')}</div>
@@ -149,7 +149,7 @@ const PayablesPage: React.FC = () => {
             <div className="mt-1 text-[20px] font-bold tabular">{oldest ? t('financeHub:hub.daysWaiting', '{{count}} days', { count: oldest.ageDays }) : '—'}</div>
             <div className="mt-1 text-sm text-muted-foreground">{t('financeHub:hub.fix.payables.oldestMeaning', 'Calendar days since the supplier invoice was recorded')}</div>
           </>}
-          <Tooltip content={t('financeHub:hub.oldestPayableHint', 'Calendar days since the supplier invoice was recorded, using the oldest payable invoice.')}><button type="button" aria-label={t('financeHub:hub.figureHelp', 'How this figure is calculated')} className="mt-1 inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">?</button></Tooltip>
+          <Tooltip content={t('financeHub:hub.oldestPayableHint', 'Calendar days since the supplier invoice was recorded, using the oldest payable invoice.')}><button type="button" aria-label={t('financeHub:hub.figureHelp', 'How this figure is calculated')} className="mt-1 inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip>
         </article>
       </section>
       {!finance.isPending && !finance.isError && <AgeingStrip kind="payables" values={finance.position.payablesAgeing} />}

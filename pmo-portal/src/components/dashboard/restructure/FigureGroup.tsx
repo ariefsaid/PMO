@@ -57,7 +57,7 @@ export const FigureGroup: React.FC<FigureGroupProps> = ({
         <h2 className="text-[18px] font-semibold leading-[1.3]">{heading}</h2>
         {basis && <span className="text-[12px] text-muted-foreground">{basis}</span>}
       </div>}
-      <div className="grid grid-cols-2 gap-x-4 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-4">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))] gap-x-4">
         {figures.map((figure) => {
           const value = figure.value === null ? (
             <span title={figure.unavailableReason ?? t('figures.unknownReason', 'The source could not provide this figure.')}>—

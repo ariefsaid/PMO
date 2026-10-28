@@ -67,7 +67,7 @@ interface AreaCardProps {
 const AreaCard: React.FC<AreaCardProps> = ({ title, to, amount, otherCurrencies = [], meaning, extra, hint, loading = false, error = false, retry }) => {
   const { t } = useTranslation();
   return (
-    <article className="min-w-0 rounded-lg border border-border bg-card p-4">
+    <article className="min-w-0 bg-card p-4">
       <Link to={to} aria-label={t('financeHub:hub.fix.area.open', { defaultValue: 'Open {{area}}', area: title })} className="flex min-w-0 items-center justify-between gap-3 font-semibold text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
         <span className="truncate">{title}</span><Icon name="chev" className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       </Link>
@@ -77,11 +77,13 @@ const AreaCard: React.FC<AreaCardProps> = ({ title, to, amount, otherCurrencies 
         <button type="button" onClick={retry} className="mt-2 min-h-11 text-left text-sm text-destructive underline underline-offset-2">{t('financeHub:hub.retry', 'Retry')}</button>
       ) : (
         <>
-          <div className="mt-2 truncate text-[20px] font-bold tabular" title={amount}>{amount}</div>
+          <div className="mt-2 flex min-w-0 items-center gap-1">
+            <span className="truncate text-[20px] font-bold tabular" title={amount}>{amount}</span>
+            <Tooltip content={hint}><button type="button" aria-label={t('financeHub:hub.figureHelp', 'How this figure is calculated')} className="touch-target inline-grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip>
+          </div>
           {otherCurrencies.map((value) => <div key={value} className="truncate text-xs text-muted-foreground">{t('financeHub:hub.fix.currency.other', { defaultValue: '+ {{amount}} in other currencies', amount: value })}</div>)}
           <div className="mt-1 text-sm text-muted-foreground">{meaning}</div>
           {extra && <div className="mt-0.5 text-sm text-muted-foreground">{extra}</div>}
-          <Tooltip content={hint}><button type="button" aria-label={t('financeHub:hub.figureHelp', 'How this figure is calculated')} className="mt-1 inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">?</button></Tooltip>
         </>
       )}
     </article>
@@ -167,7 +169,7 @@ const FinanceHub: React.FC = () => {
   const areas = (
     <section aria-labelledby="finance-hub-areas">
       <h2 id="finance-hub-areas" className="mb-3 text-base font-semibold">{t('financeHub:hub.areas', 'Finance areas')}</h2>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 min-[1100px]:grid-cols-4">
+      <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2 min-[1100px]:grid-cols-4">
         {hasRevenue && <AreaCard
           title={t('financeHub:hub.receivables', 'Receivables')} to="/finance/receivables"
           amount={receivableMoney.lead || t('financeHub:hub.fix.area.noBalance', 'No balance')}

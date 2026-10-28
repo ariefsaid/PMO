@@ -112,7 +112,7 @@ function ProjectSpendTable({ dashboard, projects, pending, error, retry }: {
             <StatusPill variant={statusVariant(row.status)}>{statusLabel(row.status)}</StatusPill>
             <MenuButton ariaLabel={t('dashboard:hub.company.rowActionsFor', 'Row actions for {{name}}', { name })} items={menu} />
           </div>
-          {percent == null ? <span className="text-xs text-muted-foreground" title={t('dashboard:hub.company.usedUnknown', 'Recorded spending is incomplete or uses a different currency.')}>—</span> : <Tooltip content={t('dashboard:hub.company.spentOfContract', 'Spent {{spent}} of {{contract}} contract', { spent, contract })}><div className="flex items-center gap-2"><ProgressBar value={percent} widthless className="min-w-0 flex-1" aria-label={t('dashboard:hub.company.usedNamedAria', '{{name}}: {{percent}}% of contract used', { name, percent })} /><span className="w-10 text-right text-xs tabular">{percent}%</span></div></Tooltip>}
+          {percent == null ? <span className="text-xs text-muted-foreground" title={t('dashboard:hub.company.usedUnknown', 'Recorded spending is incomplete or uses a different currency.')}>{t('dashboard:hub.company.spentLabel', 'Spent')} —<span className="sr-only"> {t('dashboard:hub.company.usedUnknown', 'Recorded spending is incomplete or uses a different currency.')}</span></span> : <Tooltip content={t('dashboard:hub.company.spentOfContract', 'Spent {{spent}} of {{contract}} contract', { spent, contract })}><div className="flex items-center gap-2"><ProgressBar value={percent} widthless className="min-w-0 flex-1 [&>span:first-child]:flex-1" aria-label={t('dashboard:hub.company.usedNamedAria', '{{name}}: {{percent}}% of contract used', { name, percent })} /><span className="w-10 text-right text-xs tabular">{percent}%</span></div></Tooltip>}
         </li>;
       })}
     </ul>
@@ -254,7 +254,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         </section>
       </AreaPanel>;
       case 'sales': return <AreaPanel key={id} title={t('dashboard:hub.company.sales', 'Sales')} openHref="/sales" openLabel={t('dashboard:hub.company.openSales', 'Open sales')} meta={t('dashboard:hub.company.period', 'Selected period: {{period}}', { period: periodState.period.label })}>
-        <FigureGroup heading={t('dashboard:hub.company.salesFigures', 'Sales results')} figures={[{ ...periodMini('won'), help: help('won') }, { ...periodMini('win-rate'), help: help('win-rate') }]} isPending={figures.periodPending} isError={figures.periodError} onRetry={figures.periodRetry} hideHeading />
+        <FigureGroup heading={t('dashboard:hub.company.salesFigures', 'Sales results')} figures={[{ ...periodMini('won'), help: help('won') }]} isPending={figures.periodPending} isError={figures.periodError} onRetry={figures.periodRetry} hideHeading />
         <section className="grid gap-2">
           <div className="flex items-center gap-2"><h3 className="text-sm font-semibold">{t('dashboard:hub.company.pipelineByStage', 'Pipeline by stage')}</h3><Tooltip content={t('dashboard:hub.company.help.pipelineStages', 'Stage counts and gross values come from the sales pipeline. Gross is grouped by project currency. The source does not return forecast margin by stage.')}><button type="button" aria-label={t('dashboard:hub.company.aboutPipelineStages', 'About pipeline by stage')} className="touch-target grid size-7 place-items-center rounded-full text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
           <p className="text-xs text-muted-foreground">{t('dashboard:hub.company.pipelineForecast', 'Overall forecast margin: {{value}}', { value: data?.pipeline_projected_margin == null ? '—' : `${(data.pipeline_projected_margin * 100).toFixed(1)}%` })}</p>
@@ -303,7 +303,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     return <div className="space-y-4"><h1 className="text-2xl font-bold">{t('dashboard:hub.company.title', 'Dashboard')}</h1><ListState variant="empty" icon="grid" title={t('dashboard:hub.company.emptyTitle', 'No company activity yet')} sub={t('dashboard:hub.company.emptySub', 'Projects, sales, billing, and purchasing will appear here as records are added.')} /></div>;
   }
 
-  return <main className="space-y-4" data-company-role={role}>
+  return <div className="space-y-4" data-company-role={role}>
     <header className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0"><h1 className="text-[24px] font-bold leading-tight tracking-[-0.02em]">{t('dashboard:hub.company.title', 'Dashboard')}</h1><p className="mt-0.5 max-w-[68ch] text-[13.5px] text-muted-foreground">{t('dashboard:hub.company.subtitle', 'Company position across delivery, sales, billing, and purchasing.')}</p></div>
       <div className="flex flex-wrap items-end gap-2"><PeriodPicker period={periodState.period} selectPeriod={periodState.selectPeriod} setCustomMonth={periodState.setCustomMonth} /><Button variant="outline" className="min-h-11 min-w-11 min-[1180px]:h-8" onClick={refresh} aria-label={t('dashboard:hub.company.refresh', 'Refresh dashboard')}><Icon name="refresh" /><span className="hidden sm:inline">{t('dashboard:hub.company.refresh', 'Refresh')}</span></Button></div>
@@ -321,5 +321,5 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       <FinanceTableCard title={t('dashboard:hub.company.budgetReview', 'Budget review')} rows={budgetRows} columns={budgetColumns} help={t('dashboard:hub.company.budgetReviewHelp', 'Percent used is recorded spending divided by the active budget when actuals are complete and currencies match. Variance is spending minus budget; positive means over budget.')}><div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2"><p className="text-xs text-muted-foreground">{t('dashboard:hub.company.topBudgetsByVariance', 'Top 5 active budgets by variance')}</p><Link to="/projects" className="inline-flex min-h-11 items-center text-sm font-medium text-primary-text hover:underline">{t('dashboard:hub.company.viewAllBudgets', 'View all')}</Link></div><div className="overflow-x-auto"><BudgetReviewTable rows={budgetRows} pending={budgetReview.isPending} error={budgetReview.isError} retry={() => void budgetReview.refetch()} /></div></FinanceTableCard>
       <FinanceAccountingBlocks />
     </section>}
-  </main>;
+  </div>;
 }

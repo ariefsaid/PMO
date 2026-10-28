@@ -460,7 +460,8 @@
       "budgetReviewError": "Tidak dapat memuat tinjauan anggaran",
       "accountingSnapshots": "Snapshot akuntansi",
       "snapshotsMissing": "Belum ada snapshot akuntansi",
-      "snapshotsMissingSub": "Data snapshot akan muncul setelah sinkronisasi akuntansi berikutnya."
+      "snapshotsMissingSub": "Data snapshot akan muncul setelah sinkronisasi akuntansi berikutnya.",
+      "spentLabel": "Terpakai"
     }
   },
   "restructure": {

@@ -2915,7 +2915,6 @@
         "summaryTitle": "Billing against work orders",
         "unavailable": "Unavailable",
         "notSubmitted": "Not yet submitted",
-        "lineNotSubmitted": "Not yet submitted {{amount}}",
         "lineNet": "Net value {{amount}}"
       },
       "clientPo": "Customer PO",

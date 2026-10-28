@@ -641,10 +641,10 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               </strong>
             </span>
             <span>
-              <span className="text-muted-foreground">{t('common:projectDetail.workOrders.billing.notSubmitted', 'Not yet submitted')}</span>
-              <strong data-testid="wo-billing-total-draft" aria-label={t('common:projectDetail.workOrders.billing.notSubmitted', 'Not yet submitted')} className="ml-2 tabular-nums">
+              <span className="text-muted-foreground">{t('common:projectDetail.workOrders.billing.notSubmitted', 'Not yet submitted')}</span>{' '}
+              <strong data-testid="wo-billing-total-draft" className="ml-1 tabular-nums">
                 {billingTotals.complete
-                  ? t('common:projectDetail.workOrders.billing.lineNotSubmitted', 'Not yet submitted {{amount}}', { amount: formatCurrencyCents(billingTotals.inDraft, currency) })
+                  ? formatCurrencyCents(billingTotals.inDraft, currency)
                   : t('common:projectDetail.workOrders.billing.unavailable', 'Unavailable')}
               </strong>
             </span>
@@ -956,7 +956,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                     {acceptancesQuery.isError && <ListState variant="error" title={t('projectTabs:contractQuantities.workOrders.acceptances.error', 'Couldn’t load the BASTs')} onRetry={() => void acceptancesQuery.refetch()} />}
                     {(hasOrderLines || bastList.length > 0 || canPrepare || row.status === 'Issued') && (
                       <details className="group">
-                        <summary className="cursor-pointer text-xs text-muted-foreground underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                        <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                           {t('projectTabs:contractQuantities.workOrders.quantities.summary', 'Contract lines and BAST — {{wo}}', { wo: row.wo_number ?? row.title })}
                           <span className="ml-2">{t('projectTabs:contractQuantities.workOrders.quantities.counts', '{{lines}} lines · {{basts}} BAST', { lines: rawLines.length, basts: bastList.length })}</span>
                         </summary>
@@ -1032,7 +1032,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             {t('projectDetail.billing.claims.evidenceFirst', 'Claims need evidence attached before an invoice draft can be raised.')}
           </p>
           <details className="mb-4 border-b border-border pb-4">
-            <summary className="touch-target w-fit cursor-pointer rounded-sm text-sm font-medium text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+            <summary className="touch-target w-fit cursor-pointer rounded-sm text-sm font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
               {t('projectDetail.billing.summary.details', 'Billing summary details')}
             </summary>
             {summary ? <dl data-testid="work-orders-billing-detail" className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">

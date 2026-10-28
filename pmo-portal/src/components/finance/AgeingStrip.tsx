@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { formatCurrency } from '@/src/lib/format';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { Tooltip } from '@/src/components/ui/Tooltip';
+import { Icon } from '@/src/components/ui/icons';
 import type { AgeingBuckets, PayablesAgeingBuckets } from '@/src/lib/finance/financePosition';
 
 type AgeingKind = 'receivables' | 'payables';
@@ -63,8 +64,8 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, values }) => {
           <button
             type="button"
             aria-label={t('financeHub:hub.bucketHelp', 'How this age balance is calculated')}
-            className="inline-flex size-6 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-          >?</button>
+            className="touch-target inline-flex size-6 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+          ><Icon name="help" className="size-3.5" /></button>
         </Tooltip>
       </h2>
       {currencies.map(([currency, buckets]) => {

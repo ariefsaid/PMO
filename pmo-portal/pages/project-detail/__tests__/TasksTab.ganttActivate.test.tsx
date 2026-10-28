@@ -169,7 +169,7 @@ describe('AC-JR-T23: TasksTab Gantt bars open the task drawer when clicked', () 
     fireEvent.click(screen.getByRole('button', { name: /Survey the site/i }));
 
     const drawer = await screen.findByRole('dialog', { name: 'Survey the site' });
-    expect(within(drawer).getByRole('link', { name: 'Open full record' })).toBeInTheDocument();
+    expect(within(drawer).getByRole('link', { name: 'Open full page' })).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: 'Edit' })).toBeInTheDocument();
   });
 

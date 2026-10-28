@@ -96,11 +96,11 @@ function Figure({
 }) {
   const { t } = useTranslation();
   return (
-    <section className="min-w-0 rounded-lg border border-border bg-card p-3 sm:p-4" aria-label={title}>
+    <section className="min-w-0 bg-card p-3 sm:p-4" aria-label={title}>
       <div className="flex items-start justify-between gap-2">
         <h2 className="text-xs font-semibold text-muted-foreground">{title}</h2>
         <Tooltip content={help}>
-          <button type="button" aria-label={t('finance:receivables.calculation', 'How this figure is calculated')} className="inline-grid size-5 shrink-0 place-items-center rounded-full text-xs font-semibold text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">?</button>
+          <button type="button" aria-label={t('finance:receivables.calculation', 'How this figure is calculated')} className="touch-target inline-grid size-5 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button>
         </Tooltip>
       </div>
       <p data-figure-value className="mt-2 break-words text-[20px] font-semibold leading-tight tabular sm:text-[23px]">{value}</p>
@@ -181,7 +181,7 @@ export default function ReceivablesPage() {
   }, { replace: true });
 
   return (
-    <main className="mx-auto w-full max-w-[1440px] px-4 py-5 pb-24 sm:px-6 sm:pb-8">
+    <div className="min-w-0 pb-24 sm:pb-0">
       <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-[24px] font-bold tracking-[-0.02em]">{t('finance:receivables.title', 'Receivables')}</h1>
@@ -191,7 +191,7 @@ export default function ReceivablesPage() {
         </Button>}
       </header>
 
-      <div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border xl:grid-cols-4">
         <Figure
           title={t('finance:receivables.owed', 'Owed to you')}
           value={dataPending ? '—' : owedValue}
@@ -257,6 +257,6 @@ export default function ReceivablesPage() {
           <Icon name="plus" />{t('finance:area.newInvoice', 'New invoice')}
         </Button>
       </div>}
-    </main>
+    </div>
   );
 }

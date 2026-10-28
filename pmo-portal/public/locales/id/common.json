@@ -2915,7 +2915,6 @@
         "summaryTitle": "Penagihan per Work Order",
         "unavailable": "Tidak tersedia",
         "notSubmitted": "Belum dikirim",
-        "lineNotSubmitted": "Belum dikirim {{amount}}",
         "lineNet": "Nilai neto {{amount}}"
       },
       "clientPo": "PO pelanggan",

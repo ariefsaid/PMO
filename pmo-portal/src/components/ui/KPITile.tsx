@@ -89,7 +89,7 @@ export const KPIRow: React.FC<KPIRowProps> = ({ children, className, 'aria-label
   <section
     aria-label={ariaLabel}
     className={cn(
-      'grid min-w-0 gap-px overflow-hidden rounded-lg border border-border bg-border [&>*]:bg-card max-sm:[&>*:last-child:nth-child(odd)]:col-span-2',
+      'grid min-w-0 gap-px overflow-hidden rounded-lg border border-border bg-border [&>*]:bg-card max-sm:[&>*:last-child:nth-child(odd)]:col-span-full',
       className,
     )}
   >

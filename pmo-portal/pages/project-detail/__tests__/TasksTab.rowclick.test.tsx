@@ -111,11 +111,13 @@ describe('TasksTab — row click opens the shared task drawer (AC-1402)', () => 
     await userEvent.click(screen.getByText('Survey the site').closest('tr')!);
     const dialog = await screen.findByRole('dialog', { name: 'Survey the site' });
     expect(within(dialog).getByRole('button', { name: 'Edit' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Archive' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Delete' })).toBeInTheDocument();
     expect(within(dialog).getByText('Task comments')).toBeInTheDocument();
     expect(within(dialog).getByText('Task history')).toBeInTheDocument();
-    expect(within(dialog).getByRole('link', { name: 'Open full record' })).toHaveAttribute('href', '/projects/p1/tasks#task-t1');
+    expect(within(dialog).getByRole('link', { name: 'Open full page' })).toHaveAttribute('href', '/projects/p1/tasks#task-t1');
+    // Rare actions sit in the drawer header's ⋯ menu, like every record drawer.
+    await userEvent.click(within(dialog).getByRole('button', { name: 'More task actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
   });
 
   it('AC-1402: pressing Enter on the row activation button opens the drawer', async () => {

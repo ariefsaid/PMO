@@ -419,7 +419,7 @@ export const FinanceDashboard: React.FC = () => {
       <section aria-label={t('uxs03.attentionAndApprovals', 'Attention and approvals')} className="empty:hidden grid grid-cols-1 gap-3 min-[560px]:grid-cols-2">
         <AwaitingApprovalTile includeTimesheets={false} label={t('dashboard:finance.awaiting', 'Purchase requests awaiting your decision')} />
       </section>
-      <KPIRow aria-label={t('dashboard:finance.kpiBand', 'Finance KPIs')} className="grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-5">
+      <KPIRow aria-label={t('dashboard:finance.kpiBand', 'Finance KPIs')} className="grid-cols-1 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-5">
         {/* AC-IXD-DASH-W5-C2A: Contracted revenue → /projects?filter=Ongoing */}
         <KPITile testId="kpi-revenue" tone="green" icon="dollar" label={t('dashboard:finance.contractValue', 'Contract value in progress')}
           {...figure(data?.total_contract_value ?? null)} loading={isPending}

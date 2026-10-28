@@ -354,7 +354,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-sm font-medium text-muted-foreground">{figure.label}</h2>
               <Tooltip content={figure.help}>
-                <button type="button" aria-label={t('financeHub:managementPack.figures.calculationHelp', 'How this figure is calculated')} className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">?</button>
+                <button type="button" aria-label={t('financeHub:managementPack.figures.calculationHelp', 'How this figure is calculated')} className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button>
               </Tooltip>
             </div>
             {isPending && !pack ? <div className="mt-3 h-7 w-3/4 animate-pulse rounded bg-secondary" aria-label={t('financeHub:managementPack.loadingFigure', 'Loading figure')} /> :
