@@ -128,6 +128,8 @@ async function seed(admin: SupabaseClient, s: Seed): Promise<void> {
       id: s.procurementId,
       org_id: ORG_ID, title: `AC-VPAY-001 case ${suffix}`, vendor_id: s.companyId,
       status: 'Vendor Invoiced', currency: SAR_CURRENCY, approved_by_id: approverId,
+      // #1332/#0368 requires a recorded approved amount before an approved purchase can be paid.
+      approved_total_value: 1_090_000,
     })
     .select('id').single();
   if (procErr) throw new Error(`seed procurement failed: ${procErr.message}`);
