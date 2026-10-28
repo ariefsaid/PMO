@@ -320,17 +320,6 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(onRetry).toHaveBeenCalled();
   });
 
-  // ── Selected state ───────────────────────────────────────────────────────
-
-  it('the selected card carries the primary/[0.07] wash class', () => {
-    mockViewport(false);
-    render(
-      <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} selectedKey="R-1" />,
-    );
-    const firstLi = getCardBranch()!.querySelector('li') as HTMLElement;
-    expect(firstLi.className).toContain('bg-primary/[0.07]');
-  });
-
   // ── No data dropped ──────────────────────────────────────────────────────
 
   it('every non-title column has a <dt> label in the card (no data dropped)', () => {

@@ -14,24 +14,17 @@ export type StatusVariant =
   | 'violet';
 
 /**
- * The Quiet-Status Rule (ADR-0068 monochrome-calm): status = a small colored
- * DOT + a colored LABEL on the surrounding surface — NEVER a loud filled slab.
- * No tinted pill background, no pill chrome (rounded/horizontal padding). The dot
- * carries the hue; the AA `-text` token carries the label color; the word carries
- * identity. Dot + label means it is never color-only.
- *
- * Label colors are the AA `--status-*-text` / `--warning-foreground` token values
- * (open=blue, won=success, lost=destructive, warn/overdue=warning, violet=violet)
- * or `--muted-foreground` for the grey variants (progress/neutral/draft/superseded).
- * Each clears ≥4.5:1 on the plain canvas/card surface in BOTH themes (verified per
- * reskin/_app.css §0 — these are the same token values, computed against white +
- * the dark canvas/card). The dot keeps the per-variant hue.
+ * Status is conveyed through a paired semantic surface + text token, with a small
+ * dot retained as a secondary cue. The label always carries the status meaning,
+ * including for people who do not distinguish the colours.
  */
 interface PillStyle {
-  /** Label text color as a Tailwind utility (grey + warn variants). */
+  /** Label text color as a Tailwind utility (neutral + warning variants). */
   labelCls?: string;
   /** Label text color via an AA token (hsl(var(--status-*-text))) — colored variants. */
   labelColor?: string;
+  /** Paired semantic status surface. */
+  surfaceCls: string;
   /** Dot color (token via hsl(var(--x))). */
   dot: string;
   /**
@@ -52,23 +45,24 @@ interface PillStyle {
 }
 
 const STYLES: Record<StatusVariant, PillStyle> = {
-  // colored variants — label color from the AA --status-*-text token (inline hsl(var()))
-  open: { labelColor: 'hsl(var(--status-open-text))', dot: 'hsl(var(--primary))' },
-  won: { labelColor: 'hsl(var(--status-won-text))', dot: 'hsl(var(--success))' },
-  lost: { labelColor: 'hsl(var(--status-lost-text))', dot: 'hsl(var(--destructive))' },
-  violet: { labelColor: 'hsl(var(--status-violet-text))', dot: 'hsl(var(--violet))' },
-  // warn/overdue — AA amber label via the --warning-foreground token utility
-  warn: { labelCls: 'text-warning-foreground', dot: 'hsl(var(--warning))' },
-  overdue: { labelCls: 'text-warning-foreground', dot: 'hsl(var(--warning))' },
-  // grey variants — quiet muted label + muted dot (label carries identity, not color)
+  // Colored variants use the matching status surface and AA text tokens.
+  open: { labelColor: 'hsl(var(--status-open-text))', surfaceCls: 'bg-status-neutral-surface', dot: 'hsl(var(--primary))' },
+  won: { labelColor: 'hsl(var(--status-won-text))', surfaceCls: 'bg-status-success-surface', dot: 'hsl(var(--success))' },
+  lost: { labelColor: 'hsl(var(--status-lost-text))', surfaceCls: 'bg-status-danger-surface', dot: 'hsl(var(--destructive))' },
+  violet: { labelColor: 'hsl(var(--status-violet-text))', surfaceCls: 'bg-status-violet-surface', dot: 'hsl(var(--violet))' },
+  // Warning variants use the AA amber label on the matching pale surface.
+  warn: { labelCls: 'text-warning-foreground', surfaceCls: 'bg-status-warning-surface', dot: 'hsl(var(--warning))' },
+  overdue: { labelCls: 'text-warning-foreground', surfaceCls: 'bg-status-warning-surface', dot: 'hsl(var(--warning))' },
+  // Neutral variants share the AA neutral label + surface pair.
   progress: {
-    labelCls: 'text-muted-foreground',
+    labelCls: 'text-count-foreground',
+    surfaceCls: 'bg-status-neutral-surface',
     dot: 'hsl(var(--muted-foreground))',
     dotCls: 'outline outline-1 outline-offset-2 outline-current',
   },
-  neutral: { labelCls: 'text-muted-foreground', dot: 'hsl(var(--muted-foreground))' },
-  draft: { labelCls: 'text-muted-foreground', dot: 'hsl(var(--muted-foreground))' },
-  superseded: { labelCls: 'text-muted-foreground', dot: 'hsl(var(--muted-foreground))' },
+  neutral: { labelCls: 'text-count-foreground', surfaceCls: 'bg-status-neutral-surface', dot: 'hsl(var(--muted-foreground))' },
+  draft: { labelCls: 'text-count-foreground', surfaceCls: 'bg-status-neutral-surface', dot: 'hsl(var(--muted-foreground))' },
+  superseded: { labelCls: 'text-count-foreground', surfaceCls: 'bg-status-neutral-surface', dot: 'hsl(var(--muted-foreground))' },
 };
 
 export interface StatusPillProps extends React.HTMLAttributes<HTMLSpanElement> {
@@ -87,7 +81,8 @@ export const StatusPill: React.FC<StatusPillProps> = ({
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center gap-1.5 text-[12px] font-semibold whitespace-nowrap',
+        'inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2 text-control font-normal whitespace-nowrap',
+        s.surfaceCls,
         s.labelCls,
         className
       )}
