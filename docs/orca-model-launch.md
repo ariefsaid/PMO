@@ -27,7 +27,7 @@ orca orchestration worker-start --run <run> --spec "<brief>" \
   --terminal <handle> --worktree path:<that worktree> --json
 ```
 
-Smoke test first: `pi --provider zai --model glm-5.3-flash -p --no-session --no-tools "Reply with exactly: OK" < /dev/null`.
+Pi reports `worker_done` to Orca by itself when it finishes (verified 2026-10-28). Smoke test first: `pi --provider zai --model glm-5.3-flash -p --no-session --no-tools "Reply with exactly: OK" < /dev/null`.
 
 ## Gotchas
 
