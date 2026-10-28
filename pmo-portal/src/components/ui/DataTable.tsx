@@ -142,6 +142,8 @@ export interface DataTableProps<Row> {
    */
   rowMenu?: (row: Row) => RowMenuItem[] | undefined;
   className?: string;
+  /** Omit the table's outer frame when it is embedded in an existing surface. */
+  embedded?: boolean;
   /**
    * Opt-in (AC-TBL-CARDS-001): render the stacked record cards whenever the table's OWN width is below this many px,
    * not only below the `md` viewport. For a table in a column narrower than the viewport implies (the record layout,
@@ -322,6 +324,7 @@ export function DataTable<Row>({
   onRetry,
   rowMenu,
   className,
+  embedded = false,
   cardBelow,
   accessibleName,
   tableId,
@@ -477,7 +480,7 @@ export function DataTable<Row>({
   ) : null;
 
   return (
-    <div ref={rootRef} className={cn('overflow-hidden rounded-b-lg border border-border bg-card', className)}>
+    <div ref={rootRef} className={cn(!embedded && 'overflow-hidden rounded-b-lg border border-border bg-card', className)}>
       {isDesktop ? (
       /* ── Desktop table branch (≥768px — only branch in the DOM; markup byte-unchanged) ── */
       // `relative` makes this scroller the containing block for the absolutely-positioned

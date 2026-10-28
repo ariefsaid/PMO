@@ -44,6 +44,8 @@ export interface StatusBarChartProps<S extends string> {
    * caller (dashboards) — this prop is new and off by default.
    */
   compactYAxis?: boolean;
+  /** Replace the tall chart with proportional linked stage segments and a count legend. */
+  compactSegments?: boolean;
 }
 
 /**
@@ -62,6 +64,7 @@ export function StatusBarChart<S extends string>({
   hrefFor,
   labelFor,
   compactYAxis,
+  compactSegments = false,
 }: StatusBarChartProps<S>) {
   const { t } = useTranslation();
   const prefersReducedMotion = usePrefersReducedMotion();
@@ -80,6 +83,43 @@ export function StatusBarChart<S extends string>({
   const summary = labelFor
     ? t('dashboard.procurementStatus.summary', '{{label}}, {{total}} {{noun}}, most in {{status}}.', { label, total, noun, status: displayStatus })
     : `${label}, ${total} ${noun}, most in ${topStatus}.`;
+
+  if (compactSegments) {
+    return (
+      <figure className="m-0 grid gap-2">
+        <div role="group" aria-label={label} className="flex h-8 overflow-hidden rounded-md bg-secondary">
+          {data.map((datum) => {
+            const name = labelFor?.(datum.status) ?? datum.status;
+            return hrefFor ? (
+              <Link
+                key={datum.status}
+                to={hrefFor(datum.status)}
+                aria-label={`${name}: ${datum.count}`}
+                title={`${name}: ${datum.count}`}
+                className="min-w-0 border-r border-background/60 last:border-r-0 focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                style={{ width: `${total > 0 ? (datum.count / total) * 100 : 0}%`, background: tintStatusFill(toneFor(datum.status)) }}
+              />
+            ) : (
+              <span
+                key={datum.status}
+                aria-label={`${name}: ${datum.count}`}
+                className="min-w-0 border-r border-background/60 last:border-r-0"
+                style={{ width: `${total > 0 ? (datum.count / total) * 100 : 0}%`, background: tintStatusFill(toneFor(datum.status)) }}
+              />
+            );
+          })}
+        </div>
+        <figcaption role="group" aria-label={label} className="flex flex-wrap gap-x-4 gap-y-1.5 text-[11.5px] text-muted-foreground">
+          {data.map((datum) => {
+            const name = labelFor?.(datum.status) ?? datum.status;
+            const entry = <><span aria-hidden="true" data-testid="legend-dot" className="size-1.5 shrink-0 rounded-full" style={{ background: toneFor(datum.status) }} />{name}<span className="tabular font-semibold text-foreground">{datum.count}</span></>;
+            return hrefFor ? <Link key={datum.status} to={hrefFor(datum.status)} className="inline-flex items-center gap-1.5 hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">{entry}</Link> : <span key={datum.status} className="inline-flex items-center gap-1.5">{entry}</span>;
+          })}
+        </figcaption>
+        <span className="sr-only">{summary}</span>
+      </figure>
+    );
+  }
 
   return (
     <figure className="m-0">

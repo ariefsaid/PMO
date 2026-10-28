@@ -621,6 +621,11 @@ export function formatMonthDay(d: Date): string {
   return dateFormatterFor('monthDay', getDateLocale(), { month: 'short', day: 'numeric' }).format(d);
 }
 
+/** "Jun" — short month name (dashboard period labels). */
+export function formatMonthShort(d: Date): string {
+  return dateFormatterFor('monthShort', getDateLocale(), { month: 'short' }).format(d);
+}
+
 /** "Sun" — short weekday (timesheet grid columns). */
 export function formatWeekday(d: Date): string {
   return dateFormatterFor('weekday', getDateLocale(), { weekday: 'short' }).format(d);

@@ -109,6 +109,14 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
     expect(screen.getByRole('group', { name: /Time frame/i })).toBeInTheDocument();
   });
 
+  it('uses a heading without a second card frame when embedded in an area panel', () => {
+    const { container } = render(<WinRateCard currency="USD" embedded />);
+    const section = screen.getByRole('region', { name: 'Win rate' });
+    expect(section).not.toHaveClass('rounded-lg', 'border');
+    expect(screen.getByRole('heading', { name: 'Win rate', level: 3 })).toBeInTheDocument();
+    expect(container.querySelector('section.rounded-lg.border')).toBeNull();
+  });
+
   it('AC-RF-004: limits the metric to recorded outcomes and keeps a basis-aware readout', () => {
     render(<WinRateCard currency="USD" />);
     expect(screen.getByText(/2 won of 3 closed/i)).toBeInTheDocument();

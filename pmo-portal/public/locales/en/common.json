@@ -1377,65 +1377,17 @@
     "procurementStatus": {
       "summary": "{{label}}, {{total}} {{noun}}, most in {{status}}."
     },
-    "pm": {
-      "title": "My Dashboard",
-      "subtitle": "Your projects, budget health, and approvals queue.",
-      "kpiBand": "My KPIs",
-      "myProjects": "My projects",
-      "openMyProjects": "Open my projects",
-      "contractValue": "My contract value",
-      "openContractValue": "Open my projects to see contract value",
-      "contractValueHelp": "Total contract value across your projects.",
-      "atRisk": "At risk",
-      "budgetUsage": "budget usage > 90%",
-      "openAtRisk": "Open my at-risk projects",
-      "atRiskHelp": "Your projects whose actual spend exceeds 90% of budget.",
-      "loadError": "Couldn't load your projects",
-      "statusTitle": "Project Status",
-      "nothingToShow": "Nothing to show yet"
-    },
     "delivery": {
       "percent": "Delivery {{rounded}}%"
     },
     "engineer": {
-      "title": "My Dashboard",
-      "subtitle": "Your hours this week and timesheet status.",
-      "logHours": "Log this week's hours",
-      "logHoursShort": "Log hours",
-      "kpiBand": "My KPIs",
-      "hoursThisWeek": "Hours this week",
-      "weeklyHoursCardTitle": "Hours This Week",
-      "weekOf": "week of {{date}}",
-      "openTimesheetsLog": "Open your timesheets to log this week's hours",
-      "hoursHelp": "Total hours on your most recent timesheet.",
-      "timesheetStatus": "Timesheet status",
-      "noneThisPeriod": "None this period",
-      "openTimesheetsStatus": "Open your timesheets to see your current status",
-      "statusHelp": "The status of your most recent timesheet.",
-      "loadError": "Couldn't load your timesheets",
-      "recentError": "Couldn't load recent entries",
       "noHours": "No hours logged this week",
-      "noHoursSub": "Log your hours to see your weekly breakdown.",
-      "projectBreakdownSub": "Log your hours to see a project breakdown.",
-      "hoursByDay": "Hours this week by day",
-      "dayHours": "{{day}}: {{hours}} hours",
-      "byProject": "This week by project",
-      "recentEntries": "Recent entries",
       "entriesEmptySub": "Hours you log will show up here.",
       "noNote": "No note",
       "unknownProject": "Unknown",
       "hoursShort": "{{hours}}h",
       "hoursSpoken": "{{hours}} {{unit}}",
-      "hoursUnit": "hours",
-      "day": {
-        "sun": "Sun",
-        "mon": "Mon",
-        "tue": "Tue",
-        "wed": "Wed",
-        "thu": "Thu",
-        "fri": "Fri",
-        "sat": "Sat"
-      }
+      "hoursUnit": "hours"
     },
     "atRisk": {
       "reviewSingle": "Review {{count}} at-risk project",
@@ -1447,7 +1399,6 @@
       "guidance": "Ask your administrator to sync accounting data."
     },
     "accountingSnapshots": "Accounting snapshots",
-    "uxs36CustomerCollectionsTitle": "Customer collections (AR)",
     "uxs36ReportDate": "Report date",
     "uxs36AgeingBasis": "Ageing basis",
     "uxs36Unavailable": "Unavailable",
@@ -1469,24 +1420,11 @@
       "tooltip": "Board pack export arrives with Reports"
     },
     "chart": {
-      "pipelineMargin": {
-        "empty": "No open pipeline",
-        "error": "Couldn't load the pipeline",
-        "title": "Pipeline forecast margin"
-      },
       "procStatus": {
         "chartLabel": "Procurement by status",
         "empty": "No procurement activity yet",
         "noun": "requests"
       }
-    },
-    "empty": {
-      "sub": "Create your first project to see portfolio KPIs here.",
-      "title": "No data yet"
-    },
-    "error": {
-      "sub": "The dashboard query failed. Retry, or check back shortly.",
-      "title": "Couldn't load the dashboard"
     },
     "kpi": {
       "awaitingApproval": {
@@ -1499,56 +1437,7 @@
         "linkMany": "{{label}}: {{count}} items awaiting",
         "review": "Review"
       },
-      "pipelineMargin": {
-        "help": "Probability-adjusted projected margin across the open pipeline (Σ(value − budget) / Σ value, weighted by stage win-probability).",
-        "label": "Pipeline forecast margin",
-        "vs": "probability-weighted"
-      },
-      "pipelineWeighted": {
-        "help": "Sum of (project value × stage win-probability) across all open stages.",
-        "label": "Pipeline (weighted)",
-        "linkLabel": "Open the sales pipeline",
-        "vs": "of {{gross}} gross"
-      },
-      "revenueOnHand": {
-        "help": "Contract value across delivery projects. Margin is measured on billed work only: billed-work revenue less Actual. It is not cash received."
-      },
-      "aboutMetric": "About this metric",
-      "helpLabel": "Help: {{label}}",
-      "totalContractValue": {
-        "help": "Total contract value across the active portfolio.",
-        "label": "Total contract value",
-        "linkLabel": "Open active projects to see total contract value",
-        "mobileVs": "Signed value of the {{count}} projects still in delivery"
-      },
-      "totalSpend": {
-        "help": "On-hand portfolio Actual recorded to date.",
-        "label": "Recorded spending",
-        "linkLabel": "Open active projects to see spend breakdown"
-      }
-    },
-    "mobile": {
-      "needsAttention": "Needs attention",
-      "riskSummary": "of {{count}} active projects flagged over budget or behind schedule",
-      "noRiskSummary": "of {{count}} active projects · all on track",
-      "spendLink": "Open spend breakdown · {{amount}} spent to date",
-      "breakdown": "Breakdown",
-      "approvals": "Approvals",
-      "awaitingApproval": "Awaiting your approval",
-      "approvalsLink": "Awaiting your approval: {{count}} items. Open approvals inbox.",
-      "approvalsLinkError": "Awaiting your approval. Open approvals inbox.",
-      "review": "Review",
-      "contractBook": "Contract book",
-      "atRiskRegion": "Projects at risk",
-      "atRiskZero": "All projects on track",
-      "atRiskCount": "{{count}} projects at risk"
-    },
-    "kpiBand": {
-      "label": "Portfolio KPIs"
-    },
-    "sr": {
-      "activeProjects": "active projects",
-      "statuses": "statuses"
+      "helpLabel": "Help: {{label}}"
     },
     "stillToInvoice": {
       "count": "Work orders: {{n}}",
@@ -1559,12 +1448,7 @@
       "title": "Still to invoice on work orders",
       "incompleteMore": "and {{n}} more",
       "clientPo": "Client PO {{po}}"
-    },
-    "subtitle": {
-      "desktop": "Portfolio health across the contracting book — margin on hand, pipeline forecast, and delivery exposure.",
-      "mobile": "What needs your attention across the contracting book."
-    },
-    "title": "Executive Dashboard"
+    }
   },
   "decisionContext": {
     "amount": "Amount",
@@ -4727,22 +4611,15 @@
     }
   },
   "uxs03": {
-    "contractedRevenue": "Contracted revenue",
-    "contractValueOnHand": "Contract value on hand",
-    "activeContractValue": "Active contract value",
     "spendingContract": "Spending vs contract",
     "spendingContractBar": "{{name}}: {{percent}}% of contract",
     "notAvailableYet": "Not available yet",
-    "marginToDate": "Margin to date",
     "attentionAndApprovals": "Attention and approvals",
     "realizedMargin": "Margin on billed work",
     "realizedMarginKnown": "Known margin on billed work",
     "contractRemaining": "Contract remaining after known Actual",
     "coverage": "Actual available for {{known}} of {{total}} delivery projects",
     "coverageCategories": "Actual coverage: {{known}} of {{total}} mapped cost categories",
-    "actualIncompleteCategories": "Actual incomplete: {{count}} cost categories not mapped",
-    "openAccountingMap": "Review accounting mappings",
-    "mixedCurrencyTotalUnavailable": "Unavailable for mixed currencies",
     "recordedOutcomesOnly": "Recorded outcomes only; unrecorded decisions are not counted.",
     "pmoPurchasing": "PMO purchasing requests",
     "pmoPurchasingScope": "ERP-native purchases are outside this PMO request chart.",
@@ -4755,8 +4632,6 @@
     "activeBudgetReviewEmptySub": "Active, positive-value budgets appear here.",
     "actualSourceCurrency": "Source currency: {{currency}}",
     "actualAsOf": "As of {{date}}",
-    "deliveryChartEmpty": "No delivery projects to compare yet",
-    "deliveryChartScope": "Won, on-hold, delivery and closed-out projects, plus internal work.",
     "financeDashboardTitle": "Finance Dashboard",
     "financeDashboardSubtitle": "Portfolio revenue, spend, margin, and budget utilization.",
     "financeBudgetReviewTitle": "Budget review — top 5 by variance (portfolio-wide)",
@@ -4919,8 +4794,7 @@
       "vendorInvoiced": "Record payment"
     },
     "nextStepPrefix": "Next:",
-    "projectEmptyScope": "Purchases recorded in ERPNext appear below.",
-    "dashboardEmpty": "No PMO requests to show"
+    "projectEmptyScope": "Purchases recorded in ERPNext appear below."
   },
   "uxs29": {
     "expenseCapture": {

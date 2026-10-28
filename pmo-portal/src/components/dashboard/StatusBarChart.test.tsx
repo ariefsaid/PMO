@@ -39,6 +39,18 @@ describe('StatusBarChart (new AC — status-toned procurement chart)', () => {
     expect(screen.getByRole('link', { name: /Paid/i })).toHaveAttribute('href', '/procurement?status=Paid');
   });
 
+  it('renders compact proportional stage links with counts in a legend instead of a tall chart', () => {
+    const { container } = render(
+      <MemoryRouter><StatusBarChart data={data} toneFor={procurementStatusTone} label="Purchasing by stage" noun="procurements" hrefFor={(status) => `/procurement?status=${status}`} compactSegments /></MemoryRouter>,
+    );
+    expect(container.querySelector('svg')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Draft: 1' })).toHaveAttribute('href', '/procurement?status=Draft');
+    expect(screen.getByRole('link', { name: 'Ordered: 3' })).toHaveAttribute('href', '/procurement?status=Ordered');
+    expect(screen.getByRole('link', { name: 'Paid: 5' })).toHaveAttribute('href', '/procurement?status=Paid');
+    const legendItems = Array.from(container.querySelectorAll('figcaption a'));
+    expect(legendItems.map((item) => item.textContent?.replace(/\s/g, ''))).toEqual(['Draft1', 'Ordered3', 'Paid5']);
+  });
+
   it('renders a dot+text legend entry per status (color-not-only)', () => {
     render(
       <StatusBarChart data={data} toneFor={procurementStatusTone} label="Procurement by status" noun="requests" />,

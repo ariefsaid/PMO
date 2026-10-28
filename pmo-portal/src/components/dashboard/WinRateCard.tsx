@@ -5,6 +5,8 @@ import { ViewToggle, type ViewOption } from '@/src/components/ui/ViewToggle';
 import { ListState } from '@/src/components/ui/ListState';
 import { formatCurrency } from '@/src/lib/format';
 import { toIso } from '@/src/lib/calendar/monthMatrix';
+import { Tooltip } from '@/src/components/ui/Tooltip';
+import { Icon } from '@/src/components/ui/icons';
 
 // ── Win-rate period options (PRESERVED VERBATIM from the legacy file — AC-1117) ──
 
@@ -54,11 +56,21 @@ function buildWinRateRange(period: PeriodKey): WinRateRange {
  * dot + text (color-not-only). Zero closed deals shows an honest empty message
  * rather than a fabricated 0%.
  */
-export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
+export interface WinRateCardProps {
+  currency: string;
+  /** Omit the standalone card frame when this content sits in an area panel. */
+  embedded?: boolean;
+  /** A containing dashboard may own the date range and URL state. */
+  range?: WinRateRange;
+  hidePeriodControl?: boolean;
+}
+
+export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = false, range: externalRange, hidePeriodControl = false }) => {
   const [mode, setMode] = useState<'count' | 'value'>('count');
   const [period, setPeriod] = useState<PeriodKey>('all');
   const range = useMemo(() => buildWinRateRange(period), [period]);
-  const { data: wr, isError, refetch } = useWinRate(range);
+  const activeRange = externalRange ?? range;
+  const { data: wr, isError, refetch } = useWinRate(activeRange);
   const { t } = useTranslation();
   const basisOptions: ViewOption<'count' | 'value'>[] = [
     { value: 'count', label: t('dashboard.winRate.basisCount', 'By count'), testId: 'win-rate-toggle-count' },
@@ -94,21 +106,24 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
     mode === 'count' ? String(n) : formatCurrency(n, valueCurrency);
 
   return (
-    <section aria-label={t('dashboard.winRate.title', 'Win rate')} className="rounded-lg border border-border bg-card p-4">
+    <section aria-label={t('dashboard.winRate.title', 'Win rate')} className={embedded ? 'grid gap-3' : 'rounded-lg border border-border bg-card p-4'}>
       <div className="mb-3.5 flex flex-wrap items-center gap-2">
-        <span className="text-[13.5px] font-semibold">{t('dashboard.winRate.title', 'Win Rate')}</span>
+        <h3 className="text-sm font-semibold">{t('dashboard.winRate.title', 'Win rate')}</h3>
+        <Tooltip content={t('dashboard:hub.company.help.winRate', 'Won projects divided by won plus lost projects in the selected period. The chart can switch between count and value.')}>
+          <button type="button" aria-label={t('dashboard:hub.company.aboutWinRate', 'About win rate')} className="touch-target grid size-11 place-items-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button>
+        </Tooltip>
         <span className="flex-1" />
         <ViewToggle<'count' | 'value'> options={basisOptions} value={mode} onChange={setMode} ariaLabel={t('dashboard.winRate.basis', 'Win-rate basis')} semantics="toggle" />
       </div>
 
-      <ViewToggle<PeriodKey>
+      {!hidePeriodControl && <ViewToggle<PeriodKey>
         options={periodOptions}
         value={period}
         onChange={setPeriod}
         ariaLabel={t('dashboard.winRate.period', 'Time frame')}
         className="mb-3.5 flex-wrap"
         semantics="toggle"
-      />
+      />}
 
       {isError ? (
         <ListState

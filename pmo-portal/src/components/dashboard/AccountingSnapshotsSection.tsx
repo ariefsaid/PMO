@@ -25,6 +25,8 @@ import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/er
 export interface AccountingSnapshotsSectionProps {
   showActuals?: boolean;
   showApAging?: boolean;
+  showArAging?: boolean;
+  embedded?: boolean;
   actuals: ErpActualsSnapshotRow[];
   actualsPending?: boolean;
   actualsError?: boolean;
@@ -177,6 +179,7 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
   tableId,
   errorLabel,
   detail,
+  embedded = false,
 }: {
   title: string;
   emptyLabel: string;
@@ -193,32 +196,33 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
   errorLabel: string;
   /** One shared snapshot fact line (e.g. aging report date + basis), shown once under the provenance. */
   detail?: string;
+  embedded?: boolean;
 }) {
   const first = rows[0];
+  const content = <>
+    {first && (
+      <AccountingSnapshotProvenance
+        asOf={first.asOf}
+        sourceReport={first.sourceReport}
+        reportVersion={reportVersion}
+        className={detail ? 'mb-1' : 'mb-2.5'}
+      />
+    )}
+    {first && detail && <p className="mb-2.5 text-[11px] text-muted-foreground">{detail}</p>}
+    {isError ? (
+      <ListState variant="error" title={errorLabel} onRetry={onRetry} />
+    ) : pending ? (
+      <ListState variant="loading" rows={3} />
+    ) : rows.length === 0 ? (
+      <ListState variant="empty" icon="doc" title={emptyLabel} sub={emptyDescription} />
+    ) : (
+      <DataTable<Row> rows={rows} columns={columns} rowKey={rowKey} className={embedded ? undefined : 'rounded-t-none border-t-0'} embedded={embedded} tableId={tableId} />
+    )}
+  </>;
   return (
-    <Card seam>
-      <CardHead className="rounded-t-lg">{title}</CardHead>
-      <div className="px-4 pb-4 pt-2">
-        {first && (
-          <AccountingSnapshotProvenance
-            asOf={first.asOf}
-            sourceReport={first.sourceReport}
-            reportVersion={reportVersion}
-            className={detail ? 'mb-1' : 'mb-2.5'}
-          />
-        )}
-        {first && detail && <p className="mb-2.5 text-[11px] text-muted-foreground">{detail}</p>}
-        {isError ? (
-          <ListState variant="error" title={errorLabel} onRetry={onRetry} />
-        ) : pending ? (
-          <ListState variant="loading" rows={3} />
-        ) : rows.length === 0 ? (
-          <ListState variant="empty" icon="doc" title={emptyLabel} sub={emptyDescription} />
-        ) : (
-          <DataTable<Row> rows={rows} columns={columns} rowKey={rowKey} className="rounded-t-none border-t-0" tableId={tableId} />
-        )}
-      </div>
-    </Card>
+    embedded
+      ? <section className="grid gap-2"><h3 className="text-sm font-semibold">{title}</h3>{content}</section>
+      : <Card seam><CardHead className="rounded-t-lg">{title}</CardHead><div className="px-4 pb-4 pt-2">{content}</div></Card>
   );
 }
 
@@ -239,6 +243,8 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
   actualProjectNames,
   showActuals = true,
   showApAging = true,
+  showArAging = true,
+  embedded = false,
 }) => {
   const { t } = useTranslation('dashboard');
   // Actuals rows carry no currency field and are org-denominated. Aging rows must keep the source
@@ -279,8 +285,8 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
     )}
     {showApAging && (
     <SnapshotBlock<ErpAgingSnapshotRow>
-      title={t('dashboard:finance.apTitle', 'Vendor payables (AP)')}
-      errorLabel={t('dashboard:finance.apError', "Couldn't load vendor payables")}
+      title={t('dashboard:hub.company.supplierAgingTitle', 'Supplier payables (AP)')}
+      errorLabel={t('dashboard:hub.company.supplierAgingError', "Couldn't load supplier payables")}
       emptyLabel={t('dashboard.agingSnapshotEmpty', 'No aging data to show yet.')}
       emptyDescription={t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}
       rows={apAging}
@@ -294,9 +300,9 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       detail={agingDetail(apAging)}
     />
     )}
-    <SnapshotBlock<ErpAgingSnapshotRow>
-      title={t('dashboard.uxs36CustomerCollectionsTitle', 'Customer collections (AR)')}
-      errorLabel={t('dashboard:finance.arError', "Couldn't load customer receivables")}
+    {showArAging && <SnapshotBlock<ErpAgingSnapshotRow>
+      title={t('dashboard:hub.company.clientAgingTitle', 'Client receivables (AR)')}
+      errorLabel={t('dashboard:hub.company.clientAgingError', "Couldn't load client receivables")}
       emptyLabel={t('dashboard.agingSnapshotEmpty', 'No aging data to show yet.')}
       emptyDescription={t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}
       rows={arAging}
@@ -308,7 +314,8 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       rowKey={agingRowKey}
       reportVersion={arAging[0]?.reportVersion}
       detail={agingDetail(arAging)}
-    />
+      embedded={embedded}
+    />}
   </section>
   );
 };
