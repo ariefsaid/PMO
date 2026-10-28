@@ -37,10 +37,12 @@ import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 // Shared-module import of the SAME agent loop the interactive path uses (the fired run is an
 // ordinary run — no automation-only branch). This does NOT modify agent-chat source.
 import { agentChatHandler } from '../agent-chat/handler.ts';
-import {
-  AGENT_MASTER_DATA_ROLES,
-  AGENT_TASK_STATUS_ROLES,
-} from '../../../pmo-portal/src/auth/agentRoles.ts';
+// #1315: the fired run's deputy preflight is THE SAME one check the interactive path uses
+// (../agent-chat/agentCan.ts) — never a dispatch-local copy. The copies had already drifted
+// (the interactive path admitted salesInvoice.create for Admin/Finance; this copy silently
+// denied it, so a fired automation could not raise an invoice its owner could). The shared
+// function is unit-tested (pmo-portal/src/lib/agent/agentCan.test.ts + agentRoles drift guard).
+import { agentCan } from '../agent-chat/agentCan.ts';
 
 serveWithErrorReporting('agent-dispatch', async (req: Request): Promise<Response> => {
   // ── 1. Authorization: the caller (the pg_cron tick) must present the DEDICATED dispatch
@@ -130,16 +132,8 @@ serveWithErrorReporting('agent-dispatch', async (req: Request): Promise<Response
   const conditionModel = new OpenRouterModelClient({ apiKey });
   const conditionModelId = Deno.env.get('AGENT_MODEL_CHEAP') ?? model;
 
-  // Same can() deputy re-auth as interactive (FR-AAN-017) — threaded to the fired run via extras.
-  const MASTER_DATA_SET = new Set(AGENT_MASTER_DATA_ROLES);
-  const TASK_STATUS_SET = new Set(AGENT_TASK_STATUS_ROLES);
-  const agentCan = (action: string, entity: string, ctx: { realRole: string | null }): boolean => {
-    const role = ctx.realRole;
-    if (!role) return false;
-    if (entity === 'contactActivity' && action === 'create') return MASTER_DATA_SET.has(role);
-    if (entity === 'taskStatus' && action === 'edit') return TASK_STATUS_SET.has(role);
-    return false;
-  };
+  // Same can() deputy re-auth as interactive (FR-AAN-017) — the SHARED check (see import note),
+  // threaded to the fired run via extras.
 
   // ── ADR-0044 §6 / REC-4: credit-backed RateGuard, gated by the SAME AGENT_CREDITS_ENFORCED flag
   // as the interactive path (agent-chat/index.ts) — default OFF so a deployment with no seeded

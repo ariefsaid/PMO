@@ -17,7 +17,10 @@ async function collect(it: AsyncIterable<AgentEvent>): Promise<AgentEvent[]> {
 }
 
 function mockSupabase() {
-  const updateEq = vi.fn().mockResolvedValue({ data: null, error: null });
+  // #1315: the real update chain is .update().eq().select() — .select() resolves with the UPDATED
+  // rows (here: the happy path, the row came back). The refusal case overrides updateSelect.
+  const updateSelect = vi.fn().mockResolvedValue({ data: [{ id: 'task-1', status: 'Done' }], error: null });
+  const updateEq = vi.fn().mockReturnValue({ select: updateSelect });
   const update = vi.fn().mockReturnValue({ eq: updateEq });
   const from = vi.fn().mockImplementation((table: string) => {
     if (table === 'profiles') {
@@ -56,7 +59,7 @@ function mockSupabase() {
       }),
     };
   });
-  return { supabase: { from } as unknown as HandlerDeps['supabase'], update, updateEq };
+  return { supabase: { from } as unknown as HandlerDeps['supabase'], update, updateEq, updateSelect };
 }
 
 function baseDeps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
