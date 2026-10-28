@@ -14,6 +14,8 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 import type { BudgetProjectionCellRow } from '@/src/lib/repositories/budgetProjection';
+import enProjectTabs from '../public/locales/en/projectTabs.json';
+import idProjectTabs from '../public/locales/id/projectTabs.json';
 
 const { fetchMock, upsertEtcMock, yearsMock, phasingMock } = vi.hoisted(() => ({
   fetchMock: vi.fn(),
@@ -137,17 +139,27 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     expect(fetchMock).not.toHaveBeenCalledWith('proj-1', laterActivePush);
   });
 
-  it('AC-1440 keeps forecast headers short and exposes their full meaning', async () => {
+  it.each([
+    ['en', 'Remaining', 'Forecast remaining / (overrun)', '% used', 'Forecast budget used'],
+    ['id', 'Sisa', 'Perkiraan sisa / (kelebihan)', '% terpakai', 'Perkiraan anggaran terpakai'],
+  ])('AC-1440: keeps forecast headers short with their full meaning available in %s', async (locale, remaining, remainingMeaning, used, usedMeaning) => {
+    // The redesigned page uses projectTabs for the short labels. Load the shipped locale files
+    // into this focused finance test instance so the ID row proves the real user-facing strings.
+    financeTestI18n.addResourceBundle('en', 'projectTabs', enProjectTabs, true, true);
+    financeTestI18n.addResourceBundle('id', 'projectTabs', idProjectTabs, true, true);
+    await financeTestI18n.changeLanguage(locale);
     renderForecast();
-    await rowFor('Labor');
-
-    const remaining = screen.getByRole('columnheader', { name: 'Forecast remaining' });
-    expect(within(remaining).getByText('Remaining')).toBeInTheDocument();
-    expect(within(remaining).getByText('Remaining')).toHaveAttribute('title', 'Forecast remaining');
-
-    const used = screen.getByRole('columnheader', { name: 'Forecast budget used' });
-    expect(within(used).getByText('% used')).toBeInTheDocument();
-    expect(within(used).getByText('% used')).toHaveAttribute('title', 'Forecast budget used');
+    const table = await screen.findByRole('table');
+    const remainingHeader = table.querySelector('th[data-col-key="remaining"]') as HTMLElement;
+    const usedHeader = table.querySelector('th[data-col-key="status"]') as HTMLElement;
+    const remainingLabel = remainingHeader.querySelector('[title]');
+    const usedLabel = usedHeader.querySelector('[title]');
+    expect(remainingHeader).toHaveAccessibleName(remainingMeaning);
+    expect(remainingLabel).toHaveAttribute('title', remainingMeaning);
+    expect(remainingLabel).toHaveTextContent(remaining);
+    expect(usedHeader).toHaveAccessibleName(usedMeaning);
+    expect(usedLabel).toHaveAttribute('title', usedMeaning);
+    expect(usedLabel).toHaveTextContent(used);
   });
 
   it('H-4 offers only fiscal years that exist for this project — never a synthesized calendar year', async () => {

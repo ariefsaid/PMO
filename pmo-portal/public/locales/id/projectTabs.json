@@ -1,8 +1,9 @@
 {
   "budgetForecast": {
     "remainingShort": "Sisa",
+    "remainingFull": "Perkiraan sisa / (kelebihan)",
     "budgetUsedShort": "% terpakai",
-    "budgetUsedFull": "Penggunaan anggaran proyeksi"
+    "budgetUsedFull": "Perkiraan anggaran terpakai"
   },
   "billing": {
     "quantity": "Penagihan kuantitas"

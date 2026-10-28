@@ -226,7 +226,7 @@ describe('ProjectBudget Option A', () => {
     expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue('FY-2026');
     expect(screen.getByRole('columnheader', { name: 'Cost to finish' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Forecast final' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Forecast remaining' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Forecast remaining / (overrun)' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Open Labor forecast details' }));
     const drawer = screen.getByRole('dialog', { name: 'Labor' });
     expect(screen.getByTestId('route-search')).toHaveTextContent('?budgetView=forecast&open=Labor');
