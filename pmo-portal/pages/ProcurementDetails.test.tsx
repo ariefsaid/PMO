@@ -1418,6 +1418,26 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
     expect(approve.className).not.toContain('bg-success');
   });
 
+  it('UIP-009: a Requested procurement shows its Purchase Request status in the record header', () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    renderPage();
+    expect(within(screen.getByTestId('record-header')).getByText('Purchase Request', { exact: true })).toBeInTheDocument();
+  });
+
+  it('AC-CONFIRM-001: Reject opens the existing destructive confirm without changing status', async () => {
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    renderPage();
+    const header = screen.getByTestId('record-header');
+    await userEvent.click(within(header).getByRole('button', { name: /^Reject$/ }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(mockTransition).not.toHaveBeenCalled();
+    expect(screen.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested');
+    await userEvent.click(within(dialog).getByRole('button', { name: /cancel/i }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(mockTransition).not.toHaveBeenCalled();
+    expect(screen.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested');
+  });
+
   it('polish#1: Reject is available from the overflow menu', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();

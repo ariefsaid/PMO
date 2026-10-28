@@ -75,6 +75,9 @@ export interface LedgerCaptureRowProps {
    * the row offers the choice; with one (a requester) it is the plain request capture it always was.
    */
   firstDocumentKinds?: RecordKind[];
+  /** One-shot arrival handoff from intake; opens this same first-document capture when allowed. */
+  autoOpenFirstDocument?: RecordKind | null;
+  onAutoOpenFirstDocumentConsumed?: () => void;
   /** Goods receipt / vendor invoice confirm-before-commit hand-off (the page's ConfirmDialog owns the write). */
   onStage?: (staged: StagedRecord) => void;
   /** Changes whenever a record is committed, so an open form closes after its write lands. */
@@ -123,6 +126,8 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
   busy = false,
   isApprover = false,
   firstDocumentKinds = [],
+  autoOpenFirstDocument = null,
+  onAutoOpenFirstDocumentConsumed,
   onStage,
   resetKey = 0,
   canApprove = false,
@@ -134,8 +139,22 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [chosen, setChosen] = useState<RecordKind>('purchase_request');
+  const autoOpenConsumed = useRef(false);
   const { t } = useTranslation();
   useEffect(() => setOpen(false), [resetKey]);
+  useEffect(() => {
+    if (!autoOpenFirstDocument || autoOpenConsumed.current) return;
+    autoOpenConsumed.current = true;
+    if (!canWrite || status !== 'Draft' || existingTypes.size !== 0
+      || !firstDocumentKinds.includes(autoOpenFirstDocument)
+      || gateHold(autoOpenFirstDocument, gates) !== null) {
+      onAutoOpenFirstDocumentConsumed?.();
+      return;
+    }
+    setChosen(autoOpenFirstDocument);
+    setOpen(true);
+    onAutoOpenFirstDocumentConsumed?.();
+  }, [autoOpenFirstDocument, canWrite, existingTypes, firstDocumentKinds, gates, onAutoOpenFirstDocumentConsumed, status]);
   // The page's decision bar is sticky at the bottom: bring an opened form to the middle of the screen so its Save
   // button is not left underneath it.
   const rowRef = useRef<HTMLDivElement>(null);

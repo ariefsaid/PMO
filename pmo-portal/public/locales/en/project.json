@@ -756,6 +756,7 @@
         "chooseOrder": "Choose the customer order receiving this delivery."
       },
       "description": "Description",
+      "closingValue": "Closing value",
       "orderValue": "Order value",
       "orderValueSource": "Source: the customer order value set by an authorized reviewer."
     },

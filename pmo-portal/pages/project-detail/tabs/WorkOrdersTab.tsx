@@ -848,7 +848,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                   const percentDone = deliveredQuantity === null || line.allocation.quantity <= 0 ? null : Math.round(deliveredQuantity / line.allocation.quantity * 100);
                   return <div className="min-w-24">
                     <Tooltip content={t('projectDetail.cascade.source.lineDelivered', 'Source: total quantity accepted on confirmed BASTs for this work order.') }>
-                      <span className={cn('cursor-help tabular-nums', short && 'text-warning-foreground')}>{deliveredQuantity === null ? '—' : formatNumberExact(deliveredQuantity)}</span>
+                      <span data-testid={`contract-accepted-${line.allocation.boqItemId}`} className={cn('cursor-help tabular-nums', short && 'text-warning-foreground')}>
+                        {deliveredQuantity === null ? '—' : `${formatNumberExact(deliveredQuantity)} ${line.item?.unit ?? ''}`}
+                      </span>
                     </Tooltip>
                     {percentDone !== null && <Tooltip content={t('projectDetail.cascade.source.lineDeliveryProgress', 'Accepted quantity ÷ ordered quantity. A final short delivery is flagged.') }>
                       <span className="mt-1 block w-full max-w-24 cursor-help"><ProgressBar value={percentDone} widthless aria-label={t('projectDetail.cascade.deliveryProgress', 'Delivered percentage')} /></span>
@@ -902,6 +904,15 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                             ? t('common:projectDetail.workOrders.billing.lineOver', 'Over by {{amount}}', { amount: formatNumberWhole(Math.abs(billingRow.remaining)) })
                             : t('common:projectDetail.workOrders.billing.lineRemaining', 'Still to invoice {{amount}}', { amount: formatNumberWhole(billingRow.remaining) })}</span></Tooltip></dd>
                         </div>}
+                      {row.status === 'Closed' && row.closing_value !== null && row.closing_value !== undefined && <div className="min-w-0 text-xs">
+                        <dt className="sr-only">{t('projectDetail.workOrders.closingValue', 'Closing value')}</dt>
+                        <dd data-testid={`wo-closing-${row.id}`} className="text-muted-foreground tabular-nums">
+                          {t('projectTabs:contractQuantities.workOrders.closing.closedAt', 'Closed at {{amount}} (excl. PPN)', {
+                            amount: formatCurrency(Number(row.closing_value), currency),
+                            interpolation: { escapeValue: false },
+                          })}
+                        </dd>
+                      </div>}
                       {hasInvoiced && settlement?.invoiced !== null && settlement?.invoiced !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('common:projectDetail.workOrders.billing.invoiced', 'Invoiced')} value={formatNumberWhole(settlement.invoiced)} detail={settlement.balancesKnown
                         ? t('common:projectDetail.workOrders.billing.lineInvoiced', 'Invoiced {{invoiced}} · paid {{paid}}', { invoiced: formatNumberWhole(settlement.invoiced), paid: formatNumberWhole(settlement.paid) })
                         : t('projectDetail.cascade.source.invoiced', 'Source: non-draft, non-cancelled invoice amounts.')} />}
@@ -1038,7 +1049,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                               onRetry={() => void acceptancesQuery.refetch()}
                               currentUserId={currentUser?.id ?? null}
                               projectManagerId={projectManagerId}
-                              hasAllocations={false}
+                              hasAllocations={rawLines.length > 0}
                               onPrepare={() => setBastFor({ row, draft: null })}
                               onEdit={(acceptance) => setBastFor({ row, draft: acceptance })}
                               onWithdraw={setWithdrawFor}

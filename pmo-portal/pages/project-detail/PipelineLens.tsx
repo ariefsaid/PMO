@@ -244,6 +244,18 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
         ownerTile,
       ];
 
+  const projectJourney = (
+    <section className="min-w-0 space-y-3 border-b border-border pb-4 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-5">
+      <h2 className="text-sm font-semibold text-foreground">{t('projectDetail.pipeline.journeyHeading', 'Project journey')}</h2>
+      <LifecycleStepper
+        variant="bar"
+        steps={dealJourneySteps(liveStatus as never)}
+        aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')}
+        className="[&_span]:text-xs"
+      />
+    </section>
+  );
+
   return (
     <div className="min-w-0">
       {!isDesktop && <div className="mb-4 space-y-3 md:hidden">
@@ -268,6 +280,8 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
         ) : null}
       </div>}
 
+      {!isDesktop && projectJourney}
+
       <details ref={detailsRef} open={isDesktop || detailsOpen} onToggle={(event) => setDetailsOpen(event.currentTarget.open)} className="min-w-0">
         <summary className="mb-4 cursor-pointer text-sm font-semibold text-foreground md:hidden">
           {t('projectDetail.pipeline.moreAboutDeal', 'More about this deal')}
@@ -286,15 +300,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
           )}
 
         <div className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-2">
-          <section className="min-w-0 space-y-3 border-b border-border pb-4 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-5">
-            <h2 className="text-sm font-semibold text-foreground">{t('projectDetail.pipeline.journeyHeading', 'Project journey')}</h2>
-            <LifecycleStepper
-              variant="bar"
-              steps={dealJourneySteps(liveStatus as never)}
-              aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')}
-              className="[&_span]:text-xs"
-            />
-          </section>
+          {isDesktop && projectJourney}
 
           <section className="min-w-0 space-y-3">
             <div ref={nextActionsHeadRef} tabIndex={-1} className="outline-none focus-visible:ring-0">

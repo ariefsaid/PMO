@@ -155,6 +155,15 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent('Drafts and unraised claims count as not yet invoiced.');
   });
 
+  it('AC-CQ-020 Finance can read a closed work order’s closing value on its row', () => {
+    h.list.data = [wo({ status: 'Closed', closing_value: 49_850_000, closed_at: '2026-10-05T00:00:00Z' })];
+    h.billing.data = [bill({ status: 'Closed', orderNet: 49_850_000, remaining: 49_850_000 })];
+    renderTab('Finance');
+
+    const order = screen.getByTestId('customer-order-wo-1');
+    expect(within(order).getByTestId('wo-closing-wo-1')).toHaveTextContent('49,850,000');
+  });
+
   it('AC-1402 clicking an allocated line opens its quantity history drawer', async () => {
     h.boq.data = [{ id: 'boq-1', project_id: 'p1', item_code: 'L-1', description: 'Cable installation', unit: 'm', quantity: 10, rate: 25_000, earning_basis: 'unit_rate', line_no: 1 }];
     h.projectBilling.data = {
@@ -664,7 +673,7 @@ describe('WorkOrdersTab — billing actions', () => {
     }
   });
 
-  it('AC-1402 allocated line opens quantity history and prefills the claim flow', async () => {
+  it('AC-1402 / AC-CQ-020 exposes accepted quantity and opens history to prefill the claim flow', async () => {
     const allocation = { workOrderId: 'wo-1', boqItemId: 'boq-1', quantity: 100, claimedQuantity: 20, acceptedQuantity: 98, final: true };
     h.boq = { data: [{ id: 'boq-1', item_code: 'SURVEY', description: 'Survey route', unit: 'km', quantity: 100, rate: 1_000, earning_basis: 'unit_rate' }], isPending: false, isError: false, refetch: vi.fn() };
     h.orderLines = { data: [{ id: 'line-1', work_order_id: 'wo-1', boq_item_id: 'boq-1', quantity: 100 }], isPending: false, isError: false, refetch: vi.fn() };
@@ -675,6 +684,7 @@ describe('WorkOrdersTab — billing actions', () => {
         acceptedQuantity: 98, closedFinal: 0, earnedQuantity: 98, contractBalance: 0, allocations: [allocation] }],
     }, isPending: false, isError: false, refetch: vi.fn() };
     renderTab();
+    expect(screen.getByTestId('contract-accepted-boq-1')).toHaveTextContent(/98\s*km/);
     const lineTrigger = screen.getByRole('button', { name: 'Open Survey route quantity history' });
     await userEvent.click(lineTrigger);
     const drawer = screen.getByRole('dialog');

@@ -756,6 +756,7 @@
         "chooseOrder": "Pilih pesanan pelanggan yang menerima pengiriman ini."
       },
       "description": "Deskripsi",
+      "closingValue": "Nilai penutupan",
       "orderValue": "Nilai order",
       "orderValueSource": "Sumber: nilai pesanan pelanggan yang ditetapkan oleh peninjau berwenang."
     },

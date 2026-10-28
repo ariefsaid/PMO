@@ -87,4 +87,23 @@ describe('every kind the ledger capture row can offer is wired to a write', () =
       expect(onStage).not.toHaveBeenCalled();
     }
   });
+
+  it('AC-PFE-001 order intake opens the first-document purchase-order capture', async () => {
+    const onCreate = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ToastProvider>
+        <LedgerCaptureRow
+          status="Draft" existingTypes={new Set()} canWrite onCreate={onCreate}
+          firstDocumentKinds={[...FIRST_DOCUMENT_ORDER]} autoOpenFirstDocument="purchase_order"
+        />
+      </ToastProvider>,
+    );
+
+    expect(screen.getByTestId('purchase_order-ref-input')).toBeVisible();
+    await userEvent.type(screen.getByTestId('purchase_order-ref-input'), 'PO-INTAKE-1');
+    await userEvent.type(screen.getByTestId('purchase_order-amount-input'), '5000000');
+    await userEvent.click(screen.getByTestId('purchase_order-save-btn'));
+
+    await waitFor(() => expect(onCreate).toHaveBeenCalledWith('purchase_order', expect.objectContaining({ referenceNumber: 'PO-INTAKE-1' })));
+  });
 });

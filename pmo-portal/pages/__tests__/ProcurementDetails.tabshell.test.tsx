@@ -29,6 +29,10 @@ vi.mock('@/src/hooks/useProcurementRecords', () => ({
 vi.mock('@/pages/procurement/ProcurementFilesSubsection', () => ({
   ProcurementFilesSubsection: () => null,
 }));
+vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
+  const actual = (await orig()) as Record<string, unknown>;
+  return { ...actual, useOrgTaxDefault: () => 'exclusive' };
+});
 
 // LedgerFileCell's AttachButton calls useProcurementFiles → useQuery → needs a QueryClient.
 // Stub the hook so tabshell tests stay QueryClient-free.
@@ -204,6 +208,14 @@ describe('ProcurementDetails — tabbed record shell (Slice 1)', () => {
     // The Timeline-only panel content is NOT rendered on the Files panel.
     expect(screen.getByTestId('procurement-tabpanel-files')).toBeInTheDocument();
     expect(screen.queryByTestId('procurement-tabpanel-timeline')).toBeNull();
+  });
+
+  it('routes an order intake handoff through the Files tab capture row', () => {
+    detailState.data = { ...orderedProcurement, status: 'Draft', purchase_orders: [] };
+    renderAt('/procurement/proc-001/timeline?record=po');
+
+    expect(navigate).toHaveBeenCalledWith('/procurement/proc-001/files', expect.objectContaining({ replace: true }));
+    expect(screen.queryByTestId('procurement-record-capture')).toBeNull();
   });
 
   it('deep-links to the Line items tab and shows the line-items section', () => {

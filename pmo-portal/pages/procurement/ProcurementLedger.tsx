@@ -250,6 +250,9 @@ export interface ProcurementLedgerProps {
   isApprover?: boolean;
   /** FR-PFE-001: the kinds the viewer's role may record as the first document of an empty Draft. */
   firstDocumentKinds?: RecordKind[];
+  /** One-shot arrival handoff from intake; uses the same Draft first-document capture row. */
+  autoOpenFirstDocument?: RecordKind | null;
+  onAutoOpenFirstDocumentConsumed?: () => void;
   /** The viewer may approve this purchase (worded into the Requested empty state). */
   canApprove?: boolean;
   /** Goods receipt / vendor invoice stage a confirm-before-commit on the page instead of writing here. */
@@ -288,6 +291,8 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
   targetInvoiceId,
   isApprover = false,
   firstDocumentKinds,
+  autoOpenFirstDocument,
+  onAutoOpenFirstDocumentConsumed,
   canApprove = false,
   onStageRecord,
   vendorId: invoiceVendorId,
@@ -534,6 +539,8 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
           invoiceIdentityContext={invoiceIdentityContext}
           isApprover={isApprover}
           firstDocumentKinds={firstDocumentKinds}
+          autoOpenFirstDocument={autoOpenFirstDocument}
+          onAutoOpenFirstDocumentConsumed={onAutoOpenFirstDocumentConsumed}
           canApprove={canApprove}
           emptyLedger={rows.length === 0}
           onStage={onStageRecord}
@@ -550,7 +557,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
             {t('procurement:ledger.billsHiddenForRole', 'Supplier invoices and payments are not shown for your role.')}
           </p>
         )}
-        <p className="mt-3 text-[11px] text-muted-foreground">
+        <p className="mt-3 text-xs text-muted-foreground">
           {t('procurementLedger.ledgerNote', 'Every record appears once, chronological. Empty record types have no row.')}
         </p>
       </CardPad>

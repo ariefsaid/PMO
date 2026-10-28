@@ -235,6 +235,7 @@ const ProcurementDetails: React.FC = () => {
   const [showCreateGR, setShowCreateGR] = useState(false);
   const [showCreateVI, setShowCreateVI] = useState(false);
   const [captureKind, setCaptureKind] = useState<RecordKind | null>(null);
+  const [autoOpenFirstDocument, setAutoOpenFirstDocument] = useState<RecordKind | null>(null);
   const [recordMenuOpen, setRecordMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const isNarrow = useIsNarrow();
@@ -282,7 +283,10 @@ const ProcurementDetails: React.FC = () => {
     let nextPath = location.pathname;
     if (requested === 'receipt') setShowCreateGR(true);
     else if (requested === 'invoice') setShowVICapture(true);
-    else if (requested === 'po') setCaptureKind('purchase_order');
+    else if (requested === 'po') {
+      setAutoOpenFirstDocument('purchase_order');
+      nextPath = `/procurement/${procurementId}/files`;
+    }
     else if (requested === 'payment') setCaptureKind('payment');
     else if (requested === 'quotation') {
       quoteAutoOpen.current = true;
@@ -926,7 +930,7 @@ const ProcurementDetails: React.FC = () => {
     if (mainAction && mainAction.to === handoffTarget) clickMainAction();
   };
   const secondaryClick = () => {
-    if (returnAction) onActionClick({ ...returnAction, label: t('procurementRecord:action.return', 'Return'), variant: 'outline' });
+    if (returnAction) onActionClick(returnAction);
     else setTab('quotes');
   };
   const openQuotationCapture = () => {
@@ -967,12 +971,11 @@ const ProcurementDetails: React.FC = () => {
         status={
           <span data-testid="procurement-status-badge" data-status={p.status}>
             <StatusPill variant={pillVariantForStatus(p.status)}>
-              {p.status === 'Requested' ? t('procurementRecord:status.waitingApproval', 'Waiting for approval')
-                : p.status === 'Vendor Invoiced' ? t('procurementRecord:status.invoicedNotPaid', 'Invoiced, not paid')
-                  : p.status === 'Vendor Quoted' ? t('procurementRecord:status.quotationReceived', 'Quotation received')
-                    : p.status === 'Quote Selected' ? t('procurementRecord:status.quoteChosen', 'Quote chosen')
-                      : p.status === 'Rejected' ? t('procurementRecord:status.returned', 'Returned')
-                        : stageLabelForStatus(p.status)}
+              {p.status === 'Vendor Invoiced' ? t('procurementRecord:status.invoicedNotPaid', 'Invoiced, not paid')
+                : p.status === 'Vendor Quoted' ? t('procurementRecord:status.quotationReceived', 'Quotation received')
+                  : p.status === 'Quote Selected' ? t('procurementRecord:status.quoteChosen', 'Quote chosen')
+                    : p.status === 'Rejected' ? t('procurementRecord:status.returned', 'Returned')
+                      : stageLabelForStatus(p.status)}
             </StatusPill>
           </span>
         }
@@ -990,7 +993,7 @@ const ProcurementDetails: React.FC = () => {
             </div>}
           </div>}
           {approverLimitLine && <span className="hidden text-[12px] text-muted-foreground lg:inline">{approverLimitLine}</span>}
-          {returnAction && <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={secondaryClick}>{t('procurementRecord:action.return', 'Return')}</Button>}
+          {returnAction && <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={secondaryClick}>{t('procurementDetail.action.reject', 'Reject')}</Button>}
           {p.status === 'Approved' && canAddQuote && <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={openQuotationCapture}>{t('procurementRecord:action.addQuote', 'Add quotation')}</Button>}
           {/* B4: below 640px the phone action bar owns the one filled main action. */}
           {mainAction && !isNarrow && <Button variant="primary" size="sm" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>}
@@ -1143,6 +1146,8 @@ const ProcurementDetails: React.FC = () => {
                 canReceive: isRequester || RECEIPT_ROLES.has(role),
                 canInvoicePay: INVOICE_PAY_ROLES.has(role),
               })}
+              autoOpenFirstDocument={autoOpenFirstDocument}
+              onAutoOpenFirstDocumentConsumed={() => setAutoOpenFirstDocument(null)}
               canApprove={canApproveAmount}
               onStageRecord={(staged) => { setMutationError(null); setPendingConfirm(staged); }}
               vendorId={p.vendor_id}

@@ -112,6 +112,14 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(within(drawer).getByRole('link', { name: 'Open full page' })).toBeInTheDocument();
   });
 
+  it('AC-CQ-020 exposes the remaining contract quantity on its visible not-yet-ordered row', () => {
+    h.boq = { data: [{ id: 'b1', quantity: 1_900, rate: 50_000, item_code: 'KM-1', description: 'Cable route', unit: 'km' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.billing = { data: { contractNet: 95_000_000, dpBilled: 0, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 903, allocations: [] }] }, isPending: false, isError: false, refetch: vi.fn() };
+    renderCascade();
+
+    expect(screen.getByTestId('contract-balance-b1')).toHaveTextContent(/903\s*km/);
+  });
+
   it('AC-1402 does not render contract money for an Engineer', () => {
     h.canViewMoney = false;
     h.boq = { data: [{ id: 'b1', quantity: 10, rate: 100, item_code: 'L-1', description: 'Line', unit: 'ea' }], isPending: false, isError: false, refetch: vi.fn() };
