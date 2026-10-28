@@ -197,7 +197,7 @@ describe('ProjectBudget Option A', () => {
     state.versions.data = [active() as unknown as BudgetVersionWithItems];
     state.projectionRows = [{
       category: 'Labor', pmoBudgetAmount: 100, actualsToDate: 35, actualsAsOf: '2026-02-01T00:00:00Z',
-      pmoEtc: 50, projectedFinalCost: 85, projectedVariance: 15, projectedUtilization: 85, attributionKnown: true,
+      pmoEtc: 50, projectedFinalCost: 85, projectedVariance: 15, projectedUtilization: 0.85, attributionKnown: true,
     }];
 
     renderPage();
@@ -226,7 +226,7 @@ describe('ProjectBudget Option A', () => {
     state.versions.data = [active() as unknown as BudgetVersionWithItems];
     state.projectionRows = [{
       category: 'Labor', pmoBudgetAmount: 100, actualsToDate: 35, actualsAsOf: '2026-02-01T00:00:00Z',
-      pmoEtc: 50, projectedFinalCost: 85, projectedVariance: 15, projectedUtilization: 85, attributionKnown: true,
+      pmoEtc: 50, projectedFinalCost: 85, projectedVariance: 15, projectedUtilization: 0.85, attributionKnown: true,
     }];
 
     renderPage();
@@ -354,8 +354,8 @@ describe('ProjectBudget Option A', () => {
   it('M12: a partial cost-to-finish save names saved and failed categories and keeps the classified row reason', async () => {
     state.versions.data = [active() as unknown as BudgetVersionWithItems];
     state.projectionRows = [
-      { category: 'Labor', pmoBudgetAmount: 100, actualsToDate: 10, actualsAsOf: '2026-10-20T00:00:00Z', pmoEtc: 5, projectedFinalCost: 15, projectedVariance: 85, projectedUtilization: 15, attributionKnown: true },
-      { category: 'Materials', pmoBudgetAmount: 100, actualsToDate: 20, actualsAsOf: '2026-10-20T00:00:00Z', pmoEtc: 2, projectedFinalCost: 22, projectedVariance: 78, projectedUtilization: 22, attributionKnown: true },
+      { category: 'Labor', pmoBudgetAmount: 100, actualsToDate: 10, actualsAsOf: '2026-10-20T00:00:00Z', pmoEtc: 5, projectedFinalCost: 15, projectedVariance: 85, projectedUtilization: 0.15, attributionKnown: true },
+      { category: 'Materials', pmoBudgetAmount: 100, actualsToDate: 20, actualsAsOf: '2026-10-20T00:00:00Z', pmoEtc: 2, projectedFinalCost: 22, projectedVariance: 78, projectedUtilization: 0.22, attributionKnown: true },
     ];
     state.saveEtc.mockImplementation(async (_project, _year, category) => {
       if (category === 'Materials') throw new Error('Write rejected');

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
@@ -22,11 +22,15 @@ interface BudgetProjectionProps {
 
 const moneyText = (value: number | null, currency: string) => value === null ? '—' : formatCurrencyAuto(value, currency);
 
+/** Forecast final over budget as a percent; the projection carries it as a fraction (0.95 = 95%). */
+const utilizationPct = (row: BudgetProjectionCellRow) => row.projectedUtilization === null ? null : row.projectedUtilization * 100;
+
 function projectionTone(row: BudgetProjectionCellRow): 'neutral' | 'won' | 'warn' | 'lost' {
-  if (row.projectedUtilization === null) return 'neutral';
+  const pct = utilizationPct(row);
+  if (pct === null) return 'neutral';
   if (row.projectedVariance !== null && row.projectedVariance < 0) return 'lost';
-  if (row.projectedUtilization >= 90) return 'lost';
-  if (row.projectedUtilization >= 70) return 'warn';
+  if (pct >= 90) return 'lost';
+  if (pct >= 70) return 'warn';
   return 'won';
 }
 
@@ -38,6 +42,17 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
   const [editing, setEditing] = useState(false);
   const [etcDraft, setEtcDraft] = useState<Record<string, string>>({});
   const [etcErrors, setEtcErrors] = useState<Record<string, string>>({});
+  // I-3: focus goes into the editor on open and returns to the Edit button on every exit.
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const restoreFocus = useRef(false);
+  useEffect(() => {
+    if (editing) { sectionRef.current?.querySelector<HTMLInputElement>('tbody input, [role="rowgroup"] input')?.focus(); return; }
+    if (!restoreFocus.current) return;
+    restoreFocus.current = false;
+    triggerRef.current?.focus();
+  }, [editing]);
+  const closeEdit = () => { restoreFocus.current = true; setEditing(false); };
   const yearsQuery = useQuery({
     queryKey: ['budget-fiscal-years', projectId],
     queryFn: () => listBudgetFiscalYears(projectId),
@@ -63,6 +78,8 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
   const hasLinesForCategory = (category: BudgetProjectionCellRow['category']) => Boolean((phasing?.years[category]?.length ?? 0) || phasing?.unphased[category]);
   const budgetReasonFor = (row: BudgetProjectionCellRow): string | null => {
     if (row.pmoBudgetAmount !== null) return null;
+    // Say nothing until the line phasing is read; a guess here could name a cause that is not true.
+    if (phasing === undefined) return null;
     const years = phasing?.years[row.category] ?? [];
     const unphased = phasing?.unphased[row.category] === true;
     const otherYears = years.filter((year) => year !== fiscalYear);
@@ -105,7 +122,7 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
       void queryClient.invalidateQueries({ queryKey: ['budget-projection', projectId, fiscalYear] });
       setEtcDraft(Object.fromEntries(failed.map((item) => [item.category, String(item.amount)])));
       setEtcErrors(Object.fromEntries(failed.map((item) => [item.category, t('projectDetail.budget.etcRowNotSaved', 'Not saved. {{reason}}', { reason: item.reason })])));
-      if (failed.length === 0) setEditing(false);
+      if (failed.length === 0) closeEdit();
     },
   });
 
@@ -128,7 +145,7 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
     }
     setEtcErrors(errors);
     if (Object.keys(errors).length > 0 || entries.length === 0) {
-      if (entries.length === 0 && Object.keys(errors).length === 0) setEditing(false);
+      if (entries.length === 0 && Object.keys(errors).length === 0) closeEdit();
       return;
     }
     saveEtc.mutate(entries);
@@ -198,8 +215,8 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
       cell: (row) => row.projectedUtilization === null
         ? <StatusPill variant="neutral">{t('projectDetail.budget.unavailable', 'Unavailable')}</StatusPill>
         : <span className="flex min-w-28 flex-col gap-1">
-          <StatusPill variant={projectionTone(row)}>{row.projectedVariance !== null && row.projectedVariance < 0 ? t('projectDetail.budget.overBudget', 'Over budget') : row.projectedUtilization >= 90 ? t('projectDetail.budget.atRisk', 'At risk') : row.projectedUtilization >= 70 ? t('projectDetail.budget.watch', 'Watch') : t('projectDetail.budget.onTrack', 'On track')}</StatusPill>
-          <Tooltip content={t('projectDetail.budget.forecastUtilizationFormula', 'Forecast final divided by fiscal-year budget.')}><span tabIndex={0}><ProgressBar compact value={Math.round(row.projectedUtilization)} showValue aria-label={`${budgetCategoryLabel(row.category, t)} ${t('projectDetail.budget.forecastUtilization', 'forecast utilization')}`} /></span></Tooltip>
+          <StatusPill variant={projectionTone(row)}>{row.projectedVariance !== null && row.projectedVariance < 0 ? t('projectDetail.budget.overBudget', 'Over budget') : utilizationPct(row)! >= 90 ? t('projectDetail.budget.atRisk', 'At risk') : utilizationPct(row)! >= 70 ? t('projectDetail.budget.watch', 'Watch') : t('projectDetail.budget.onTrack', 'On track')}</StatusPill>
+          <Tooltip content={t('projectDetail.budget.forecastUtilizationFormula', 'Forecast final divided by fiscal-year budget.')}><span tabIndex={0}><ProgressBar compact value={Math.round(utilizationPct(row)!)} showValue aria-label={`${budgetCategoryLabel(row.category, t)} ${t('projectDetail.budget.forecastUtilization', 'forecast utilization')}`} /></span></Tooltip>
         </span>,
     },
   ], [canReadCommitments, committedByCategory, currency, editing, etcDraft, etcErrors, t]);
@@ -222,11 +239,11 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
   if (yearsQuery.isError) return <ListState variant="error" title={t('projectDetail.budget.fiscalYearsError', 'Fiscal years could not be loaded')} onRetry={() => void yearsQuery.refetch()} />;
 
   return (
-    <section className="min-w-0 space-y-3" aria-label={t('projectDetail.budget.forecast', 'Forecast')} data-testid="budget-forecast-view">
+    <section ref={sectionRef} className="min-w-0 space-y-3" aria-label={t('projectDetail.budget.forecast', 'Forecast')} data-testid="budget-forecast-view">
       <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
         <label className="flex min-w-44 flex-col gap-1 text-xs font-medium text-muted-foreground">
           {t('projectDetail.budget.fiscalYear', 'Fiscal year')}
-          <select aria-label={t('projectDetail.budget.fiscalYear', 'Fiscal year')} value={fiscalYear} onChange={(event) => setRequestedYear(event.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
+          <select aria-label={t('projectDetail.budget.fiscalYear', 'Fiscal year')} value={fiscalYear} disabled={editing || saveEtc.isPending} onChange={(event) => setRequestedYear(event.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
             <option value="">{t('projectDetail.budget.wholeProject', 'Whole project')}</option>
             {years.map((year) => <option key={year.fiscalYear} value={year.fiscalYear}>{year.fiscalYear}{year.isActivePush ? ` · ${t('projectDetail.budget.activePushYear', 'active push')}` : ''}</option>)}
           </select>
@@ -235,8 +252,8 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
           {rows.length > 0 && <Button variant="outline" size="sm" onClick={() => onExport(rows)}>{t('projectDetail.budget.export', 'Export')}</Button>}
           {canEdit && rows.length > 0 && (editing ? <>
             <Button variant="primary" size="sm" loading={saveEtc.isPending} onClick={saveEdits}>{saveEtc.data?.failed.length ? t('projectDetail.budget.retryFailedEtc', 'Retry failed edits') : t('common.save', 'Save')}</Button>
-            <Button variant="outline" size="sm" onClick={() => { setEditing(false); setEtcErrors({}); setEtcDraft({}); }}>{t('common.cancel', 'Cancel')}</Button>
-          </> : <Button variant="outline" size="sm" onClick={beginEdit}>{t('projectDetail.budget.editCostToFinish', 'Edit cost to finish')}</Button>)}
+            <Button variant="outline" size="sm" onClick={() => { setEtcErrors({}); setEtcDraft({}); closeEdit(); }}>{t('common.cancel', 'Cancel')}</Button>
+          </> : <Button ref={triggerRef} variant="outline" size="sm" onClick={beginEdit}>{t('projectDetail.budget.editCostToFinish', 'Edit cost to finish')}</Button>)}
         </div>
       </div>
       {fiscalYear === '' ? (
