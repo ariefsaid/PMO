@@ -11,6 +11,8 @@ const {
   mockSelect,
   mockEq,
   mockIn,
+  mockIs,
+  mockNeq,
   mockOrder,
   mockLimit,
   mockUpdate,
@@ -25,6 +27,8 @@ const {
   const mockSelect = vi.fn();
   const mockEq = vi.fn();
   const mockIn = vi.fn();
+  const mockIs = vi.fn();
+  const mockNeq = vi.fn();
   const mockOrder = vi.fn();
   const mockLimit = vi.fn();
   const mockUpdate = vi.fn();
@@ -39,6 +43,8 @@ const {
     mockSelect,
     mockEq,
     mockIn,
+    mockIs,
+    mockNeq,
     mockOrder,
     mockLimit,
     mockUpdate,
@@ -70,6 +76,7 @@ import {
   activateVersion,
   retryBudgetPush,
   archiveVersion,
+  listBudgetArchiveLiveTargets,
   deleteDraftVersion,
   listBudgetDocumentLinks,
   addBudgetDocumentLink,
@@ -101,6 +108,8 @@ function makeFromBuilder(resolved: { data: unknown; error: unknown }) {
   builder.select = mockSelect.mockReturnValue(builder);
   builder.eq = mockEq.mockReturnValue(builder);
   builder.in = mockIn.mockReturnValue(builder);
+  builder.is = mockIs.mockReturnValue(builder);
+  builder.neq = mockNeq.mockReturnValue(builder);
   builder.order = mockOrder.mockReturnValue(builder);
   builder.limit = mockLimit.mockReturnValue(builder);
   builder.update = mockUpdate.mockReturnValue(builder);
@@ -122,6 +131,8 @@ beforeEach(() => {
   mockSelect.mockReset();
   mockEq.mockReset();
   mockIn.mockReset();
+  mockIs.mockReset();
+  mockNeq.mockReset();
   mockOrder.mockReset();
   mockLimit.mockReset();
   mockUpdate.mockReset();
@@ -682,23 +693,84 @@ describe('precheckBudgetActivation', () => {
 });
 
 describe('archiveVersion', () => {
-  it('archiveVersion sets status Archived via update (FR-BV-008)', async () => {
-    makeFromBuilder({ data: [{ id: 'v1', status: 'Archived' }], error: null });
-    await archiveVersion('v1');
-    expect(mockFrom).toHaveBeenCalledWith('budget_versions');
-    expect(mockUpdate).toHaveBeenCalledWith({ status: 'Archived' });
-    expect(mockEq).toHaveBeenCalledWith('id', 'v1');
+  it('archives through the durable RPC and returns the queued cancellation count', async () => {
+    makeRpcBuilder({ data: { cancel_erp: true, live_target_count: 2, intent_ids: ['job-1', 'job-2'] }, error: null });
+    await expect(archiveVersion('v1', true)).resolves.toEqual({
+      cancelErp: true, liveTargetCount: 2, queuedCount: 2,
+    });
+    expect(mockRpc).toHaveBeenCalledWith('archive_budget_version_with_cancel_intent', expect.objectContaining({
+      p_version_id: 'v1', p_cancel_erp: true,
+      p_archive_request_id: expect.stringMatching(/^[0-9a-f-]{36}$/i),
+    }));
+    expect(mockUpdate).not.toHaveBeenCalled();
   });
 
-  it('sends no org_id (FR-BV-008)', async () => {
-    makeFromBuilder({ data: [{ id: 'v1' }], error: null });
-    await archiveVersion('v1');
-    expect(JSON.stringify(mockUpdate.mock.calls)).not.toContain('org_id');
+  it('preserves the stored operator decision returned by an idempotent retry', async () => {
+    makeRpcBuilder({ data: { cancel_erp: true, live_target_count: 1, intent_ids: ['job-1'] }, error: null });
+    await expect(archiveVersion('v1', false)).resolves.toMatchObject({ cancelErp: true, queuedCount: 1 });
   });
 
-  it('throws on error', async () => {
-    makeFromBuilder({ data: null, error: { message: 'archive fail' } });
-    await expect(archiveVersion('v1')).rejects.toThrow('archive fail');
+  it('throws on a failed archive RPC', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'archive fail', code: '42501' } });
+    await expect(archiveVersion('v1', true)).rejects.toThrow('archive fail');
+  });
+});
+
+describe('listBudgetArchiveLiveTargets', () => {
+  function configureArchiveTargets(binding: { version_major: number; activated_at: string | null }, rows: unknown[]) {
+    const targetBuilder = makeFromBuilder({ data: rows, error: null });
+    const bindingBuilder = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: binding, error: null }),
+    };
+    mockFrom.mockImplementation((table: string) => table === 'external_org_bindings' ? bindingBuilder : targetBuilder);
+  }
+
+  it('reads live v16 account budgets for the supplied versions', async () => {
+    configureArchiveTargets({ version_major: 16, activated_at: '2026-01-01T00:00:00Z' }, [
+      { id: 'm1', budget_version_id: 'v1', fiscal_year: '2026', erp_account: '5100', erp_budget_name: 'BUD-1', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure', activated_at_witness: '2026-01-01T00:00:00Z' },
+      { id: 'm2', budget_version_id: 'v1', fiscal_year: '2027', erp_account: '5200', erp_budget_name: null, erp_docstatus: null, erp_cancelled_at: null, push_state: 'failed', budget_intent: 'ensure' },
+      { id: 'm3', budget_version_id: 'v1', fiscal_year: '2028', erp_account: '5300', erp_budget_name: 'BUD-3', erp_docstatus: 2, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure' },
+      { id: 'm4', budget_version_id: 'v2', fiscal_year: '2026', erp_account: '5400', erp_budget_name: 'BUD-4', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure', activated_at_witness: '2026-01-01T00:00:00Z' },
+      { id: 'm5', budget_version_id: 'v1', fiscal_year: '2026', erp_account: '5500', erp_budget_name: 'BUD-5', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pending', budget_intent: 'remove', activated_at_witness: '2026-01-01T00:00:00Z' },
+    ]);
+    const targets = await listBudgetArchiveLiveTargets(['v1', 'v2']);
+    expect(targets.map((row) => row.id)).toEqual(['m1', 'm4', 'm5']);
+    expect(targets.every((row) => row.archive_cancellation_available)).toBe(true);
+    expect(mockFrom).toHaveBeenCalledWith('budget_push_mirror_rows');
+    expect(mockFrom).toHaveBeenCalledWith('external_org_bindings');
+    expect(mockSelect).toHaveBeenCalledWith('id,budget_version_id,fiscal_year,erp_account,erp_budget_name,erp_docstatus,erp_cancelled_at,push_state,budget_intent,activated_at_witness');
+    expect(mockIn).toHaveBeenCalledWith('budget_version_id', ['v1', 'v2']);
+    expect(mockIs).toHaveBeenCalledWith('erp_cancelled_at', null);
+    expect(mockNeq).toHaveBeenCalledWith('erp_account', '');
+  });
+
+  it('keeps live targets visible for the action-required banner when v16 cancellation is unavailable', async () => {
+    configureArchiveTargets({ version_major: 16, activated_at: null }, [
+      { id: 'm1', budget_version_id: 'v1', fiscal_year: '2026', erp_account: '5100', erp_budget_name: 'BUD-1', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure', activated_at_witness: '2026-01-01T00:00:00Z' },
+    ]);
+
+    const targets = await listBudgetArchiveLiveTargets(['v1']);
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0].archive_cancellation_available).toBe(false);
+  });
+
+  it('enables archive cancellation only for an active ERPNext v16 binding', async () => {
+    configureArchiveTargets({ version_major: 15, activated_at: '2026-01-01T00:00:00Z' }, [
+      { id: 'm1', budget_version_id: 'v1', fiscal_year: '2026', erp_account: '5100', erp_budget_name: 'BUD-1', erp_docstatus: 1, erp_cancelled_at: null, push_state: 'pushed', budget_intent: 'ensure', activated_at_witness: '2026-01-01T00:00:00Z' },
+    ]);
+
+    const targets = await listBudgetArchiveLiveTargets(['v1']);
+
+    expect(targets).toHaveLength(1);
+    expect(targets[0].archive_cancellation_available).toBe(false);
+  });
+
+  it('does not query when there are no versions', async () => {
+    await expect(listBudgetArchiveLiveTargets([])).resolves.toEqual([]);
+    expect(mockFrom).not.toHaveBeenCalled();
   });
 });
 
@@ -778,8 +850,8 @@ describe('AC-W3-F6: budget DAL throws AppError preserving the Postgres error cod
   });
 
   it('archiveVersion rejects with AppError carrying the original code', async () => {
-    makeFromBuilder({ data: null, error: { message: 'rls denied', code: '42501' } });
-    const err = await archiveVersion('v1').catch((e: unknown) => e);
+    makeRpcBuilder({ data: null, error: { message: 'rls denied', code: '42501' } });
+    const err = await archiveVersion('v1', true).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AppError);
     expect((err as AppError).code).toBe('42501');
   });
@@ -828,16 +900,16 @@ describe('#541 budget writes reject a using-denied 0-row no-op', () => {
   });
 
   it('#541: archiveVersion resolves when the row comes back (positive control)', async () => {
-    makeFromBuilder({ data: [{ id: 'v1' }], error: null });
-    await expect(archiveVersion('v1')).resolves.toBeUndefined();
+    makeRpcBuilder({ data: { cancel_erp: false, live_target_count: 0, intent_ids: [] }, error: null });
+    await expect(archiveVersion('v1', false)).resolves.toMatchObject({ cancelErp: false, queuedCount: 0 });
   });
 
   it('#541: archiveVersion rejects 42501 when 0 rows matched and no error was reported', async () => {
-    makeFromBuilder({ data: [], error: null });
-    const err = await archiveVersion('v1').catch((e: unknown) => e);
+    makeRpcBuilder({ data: null, error: { message: 'budget version not found', code: '42501' } });
+    const err = await archiveVersion('v1', false).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AppError);
     expect((err as AppError).code).toBe('42501');
-    expect(mockUpdate).toHaveBeenCalled();
+    expect(mockRpc).toHaveBeenCalled();
   });
 
   it('#541: deleteDraftVersion resolves when the row comes back (positive control)', async () => {

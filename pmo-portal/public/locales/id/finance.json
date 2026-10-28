@@ -69,6 +69,13 @@
     "issue": "Pemeriksaan kesiapan anggaran menemukan masalah yang harus diselesaikan sebelum aktivasi.",
     "invalidFiscalYearName": "Pilih tahun fiskal dari ERPNext, atau kosongkan kolom ini."
   },
+  "budgetArchive": {
+    "alsoCancelErpBudgets_one": "Batalkan juga {{count}} dokumen Budget di ERPNext",
+    "alsoCancelErpBudgets_other": "Batalkan juga {{count}} dokumen Budget di ERPNext",
+    "archivedBudgetStillLiveInErp": "ERPNext masih menerapkan anggaran yang diarsipkan untuk proyek ini. Batalkan dokumen Budget di ERPNext atau aktifkan anggaran PMO yang baru.",
+    "cancellationQueuedDetail": "ERPNext akan dihubungi untuk membatalkan {{count}} dokumen Budget.",
+    "versionArchivedCancellationQueued": "Versi diarsipkan; pembatalan ERPNext dimasukkan ke antrean"
+  },
   "erpLinks": {
     "orphansTitle": "Dokumen ERPNext yang belum masuk pembelian",
     "pageDescription": "Pesanan, penerimaan, tagihan, dan pembayaran yang dicatat di ERPNext dan belum masuk pembelian mana pun. Biayanya sudah tercatat di Aktual setiap proyek.",

@@ -64,6 +64,8 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 100_000, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => ({ data: [draftVersion], isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetActivationMode: () => ({ data: undefined, isPending: false, isError: false }),
+  useBudgetActivationPrecheck: () => ({ data: undefined, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }),
+  useBudgetArchiveTargets: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn().mockResolvedValue({ data: [] }) }),
   useBudgetMutations: () => mutations,
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));

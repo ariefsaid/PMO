@@ -69,6 +69,13 @@
     "issue": "Budget readiness check found an issue that must be resolved before activation.",
     "invalidFiscalYearName": "Choose a fiscal year from ERPNext, or leave it blank."
   },
+  "budgetArchive": {
+    "alsoCancelErpBudgets_one": "Also cancel {{count}} Budget document in ERPNext",
+    "alsoCancelErpBudgets_other": "Also cancel {{count}} Budget documents in ERPNext",
+    "archivedBudgetStillLiveInErp": "ERPNext is still enforcing an archived budget for this project. Cancel the ERPNext Budget documents or activate a new PMO budget.",
+    "cancellationQueuedDetail": "ERPNext will be contacted to cancel {{count}} Budget documents.",
+    "versionArchivedCancellationQueued": "Version archived; ERPNext cancellation queued"
+  },
   "erpLinks": {
     "orphansTitle": "ERPNext documents not in a purchase",
     "pageDescription": "Orders, receipts, invoices and payments entered in ERPNext that no purchase holds yet. Their cost is already in each project's Actuals.",
