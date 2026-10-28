@@ -32,12 +32,11 @@ export interface TabsProps<V extends string = string> {
  * horizontally-scrollable scroll-snap strip — `overflow-x-auto snap-x snap-mandatory`
  * with each tab `snap-start`. The active tab is scrolled into view whenever `value`
  * changes (using `scrollIntoView`). A right-edge fade affordance (mask-image gradient)
- * signals "scroll for more" — the same pattern as StatTiles. Desktop tab bar is
- * unchanged (the CSS cascade keeps the desktop look; the snap-x/overflow-x-auto
- * are harmless no-ops on desktop because the tabs fit without scrolling).
+ * signals "scroll for more" — the same pattern as StatTiles. The strip stays
+ * horizontal at desktop widths; overflow and snap are harmless when the tabs fit.
  *
- * Each tab is ≥44px tall (h-11 = 44px) to meet the WCAG 2.5.5 touch-target floor on
- * coarse pointers. On desktop 44px looks fine with the underline indicator.
+ * Each tab follows the 52px shared rhythm and exceeds the WCAG 2.5.5 44px
+ * touch-target floor on coarse pointers.
  *
  * Tokens: `primary` underline (`.ptab-active::after`), `muted-foreground` inactive
  * text, `border` bottom divider. No new tokens; the mask-image gradient uses #000
@@ -142,24 +141,24 @@ export function Tabs<V extends string = string>({
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(t.value)}
             className={cn(
-              // h-11 = 44px — WCAG 2.5.5 touch-target floor; looks fine on desktop too.
+              // 52px tab rhythm; remains above the WCAG 2.5.5 coarse-pointer target floor.
               // snap-start: this tab is the snap destination when scrolling the strip.
               // shrink-0: prevents tabs from squishing (needed for proper snap behaviour).
-              'relative h-11 shrink-0 snap-start px-3.5 text-[13.5px] font-medium',
+              'relative h-[var(--table-head-height)] shrink-0 snap-start px-4 text-control font-normal',
               active
                 // AC-RAM-004 (#688): raw text-primary as small text is ~3.5:1 on the dark canvas
                 // (sub-AA, DESIGN.md accessibility posture). text-primary-text is the AA on-canvas
                 // variant; the underline (::after, decorative, non-text) keeps --primary.
-                ? 'ptab-active font-semibold text-primary-text'
+                ? 'ptab-active text-primary-text'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
             {t.label}
             {t.count != null && (
-              // Count badge: secondary fill + muted text, full radius, text-[11px]
+              // Count badge: neutral fill + accessible neutral text, full radius, text-[11px]
               // (DESIGN.md §5 Count badge). The number is part of the tab's accessible
               // name (a11y: count read in label, not color-only).
-              <span className="ml-1.5 rounded-full bg-secondary px-1.5 py-px text-[11px] font-medium text-muted-foreground">
+              <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-status-neutral-surface px-1.5 text-[11px] font-medium text-count-foreground">
                 {t.count}
               </span>
             )}

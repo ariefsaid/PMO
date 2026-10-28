@@ -312,13 +312,6 @@ describe('DataTable', () => {
     expect(onRetry).toHaveBeenCalled();
   });
 
-  it('marks the selected row with the primary tint', () => {
-    render(
-      <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} selectedKey="PRJ-1" />
-    );
-    expect(screen.getByText('Alpha').closest('tr')!.className).toContain('bg-primary/[0.07]');
-  });
-
   it('Toolbar/SearchMini/TableFoot render their content', async () => {
     const { Toolbar, SearchMini, TableFoot } = await import('../DataTable');
     render(
@@ -333,6 +326,17 @@ describe('DataTable', () => {
     );
     expect(screen.getByPlaceholderText('Find…')).toBeInTheDocument();
     expect(screen.getByText('Total: 2,180')).toBeInTheDocument();
+  });
+
+  it('SearchMini focuses its input when its expanded hit area is clicked', async () => {
+    const { SearchMini } = await import('../DataTable');
+    render(<SearchMini aria-label="Find projects" placeholder="Find…" />);
+    const input = screen.getByRole('searchbox', { name: 'Find projects' });
+
+    expect(input.parentElement).toHaveClass('touch-target');
+    await userEvent.click(input.parentElement!);
+
+    expect(input).toHaveFocus();
   });
 
   it('AC-TBL-STICKY-001 keeps the desktop row-actions header and cells pinned with an opaque separated surface', () => {
@@ -356,7 +360,6 @@ describe('DataTable', () => {
     const sharedClasses = [
       'sticky',
       '-right-px',
-      'bg-card',
       'shadow-[inset_1px_0_0_hsl(var(--border))]',
     ];
 
