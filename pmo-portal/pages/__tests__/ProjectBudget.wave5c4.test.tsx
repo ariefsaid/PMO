@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
@@ -68,7 +68,7 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('../project-detail/useProjectPosition', () => ({ useBudgetPosition: () => ({ isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [], unknown: 0 }) }));
 vi.mock('../project-detail/budget/BudgetErpNotice', () => ({ default: () => null }));
-vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
+vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }), useQuery: () => ({ data: undefined, isPending: false, isError: false }) }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
@@ -186,6 +186,11 @@ function expectInlineError(field: HTMLElement) {
   expect(error).toBeInTheDocument();
 }
 
+// The draft line-item editor sits behind "Edit draft" in the draft-waiting banner.
+async function openDraftEditor() {
+  await userEvent.click(screen.getByRole('button', { name: 'Edit draft' }));
+}
+
 function resetState() {
   budgetState.data = 0;
   budgetState.isPending = false;
@@ -215,7 +220,8 @@ describe('AC-IXD-BUDGET-W5-C4: Update budget opens the new draft editor', () => 
 
     const { rerender } = renderPage();
 
-    await userEvent.click(screen.getByRole('button', { name: /Expand Materials details/i }));
+    // Category details open in the category drawer.
+    await userEvent.click(screen.getByRole('button', { name: /Open Materials budget details/i }));
     expect(screen.getByText('Steel')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Update budget' }));
@@ -235,11 +241,13 @@ describe('AC-IXD-BUDGET-W5-C4: Update budget opens the new draft editor', () => 
       </MemoryRouter>
     );
 
-    // The new draft is exposed for editing as soon as the versions query refreshes.
+    // The new draft is exposed in the draft banner as soon as the versions query refreshes,
+    // and "Edit draft" opens its line-item editor.
     await waitFor(() => {
-      expect(screen.getByRole('region', { name: 'Proposed update' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Add line item/i })).toBeInTheDocument();
+      expect(screen.getByRole('region', { name: 'Draft waiting for approval' })).toBeInTheDocument();
     });
+    await userEvent.click(screen.getByRole('button', { name: 'Edit draft' }));
+    expect(await screen.findByRole('button', { name: /Add line item/i })).toBeInTheDocument();
   });
 
   it('the new draft remains discoverable in the Versions drawer', async () => {
@@ -261,8 +269,9 @@ describe('AC-IXD-BUDGET-W5-C4: Update budget opens the new draft editor', () => 
       </MemoryRouter>
     );
 
-    await userEvent.click(screen.getByRole('button', { name: 'Versions' }));
-    expect(screen.getByText('Version 1 (copy)')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    const drawer = screen.getByRole('dialog', { name: 'Budget versions' });
+    expect(within(drawer).getByText('Version 1 (copy)')).toBeInTheDocument();
   });
 
   it('Update budget shows a success toast after cloning', async () => {
@@ -281,18 +290,20 @@ describe('AC-IXD-BUDGET-W5-C4: Update budget opens the new draft editor', () => 
 // AC-IXD-BUDGET-W5-C4: Inline line-item edit in Draft
 // ---------------------------------------------------------------------------
 describe('AC-IXD-BUDGET-W5-C4: inline line-item edit — Draft', () => {
-  it('each Draft line item has an Edit button with an accessible name', () => {
+  it('each Draft line item has an Edit button with an accessible name', async () => {
     versionsState.data = [draftVersionWithItems];
     renderPage();
+    await openDraftEditor();
 
     // "Edit line item Labor" — matches the a11y label pattern
     const editBtn = screen.getByRole('button', { name: /Edit line item Labor/i });
     expect(editBtn).toBeInTheDocument();
   });
 
-  it('Edit button has aria-label including the category name', () => {
+  it('Edit button has aria-label including the category name', async () => {
     versionsState.data = [draftVersionWithItems];
     renderPage();
+    await openDraftEditor();
 
     const editBtn = screen.getByRole('button', { name: /Edit line item Labor/i });
     expect(editBtn).toHaveAttribute('aria-label', expect.stringContaining('Labor'));
@@ -301,6 +312,7 @@ describe('AC-IXD-BUDGET-W5-C4: inline line-item edit — Draft', () => {
   it('clicking Edit opens an inline editor (category select + amount input visible)', async () => {
     versionsState.data = [draftVersionWithItems];
     renderPage();
+    await openDraftEditor();
 
     await userEvent.click(screen.getByRole('button', { name: /Edit line item Labor/i }));
 
@@ -313,6 +325,7 @@ describe('AC-IXD-BUDGET-W5-C4: inline line-item edit — Draft', () => {
   it('inline editor fields are labelled (a11y)', async () => {
     versionsState.data = [draftVersionWithItems];
     renderPage();
+    await openDraftEditor();
 
     await userEvent.click(screen.getByRole('button', { name: /Edit line item Labor/i }));
 
@@ -330,6 +343,7 @@ describe('AC-IXD-BUDGET-W5-C4: inline line-item edit — Draft', () => {
   it('inline editor pre-populates fields with the current line item values', async () => {
     versionsState.data = [draftVersionWithItems];
     renderPage();
+    await openDraftEditor();
 
     await userEvent.click(screen.getByRole('button', { name: /Edit line item Labor/i }));
 
@@ -344,6 +358,7 @@ describe('AC-IXD-BUDGET-W5-C4: inline line-item edit — Draft', () => {
   it('Save calls updateLineItem with the correct {id, patch} when amount changes', async () => {
     versionsState.data = [draftVersionWithItems];
     renderPage();
+    await openDraftEditor();
 
     await userEvent.click(screen.getByRole('button', { name: /Edit line item Labor/i }));
 
@@ -362,6 +377,7 @@ describe('AC-IXD-BUDGET-W5-C4: inline line-item edit — Draft', () => {
   it('Save calls updateLineItem with updated category patch when category changes', async () => {
     versionsState.data = [draftVersionWithItems];
     renderPage();
+    await openDraftEditor();
 
     await userEvent.click(screen.getByRole('button', { name: /Edit line item Labor/i }));
 
@@ -379,6 +395,7 @@ describe('AC-IXD-BUDGET-W5-C4: inline line-item edit — Draft', () => {
   it('blank amount is rejected — updateLineItem not called, error message shown', async () => {
     versionsState.data = [draftVersionWithItems];
     renderPage();
+    await openDraftEditor();
 
     await userEvent.click(screen.getByRole('button', { name: /Edit line item Labor/i }));
 
@@ -396,6 +413,7 @@ describe('AC-IXD-BUDGET-W5-C4: inline line-item edit — Draft', () => {
   it('invalid amount (non-numeric) is rejected — updateLineItem not called', async () => {
     versionsState.data = [draftVersionWithItems];
     renderPage();
+    await openDraftEditor();
 
     await userEvent.click(screen.getByRole('button', { name: /Edit line item Labor/i }));
 
@@ -412,6 +430,7 @@ describe('AC-IXD-BUDGET-W5-C4: inline line-item edit — Draft', () => {
   it('zero amount is rejected (budget line items must be > 0)', async () => {
     versionsState.data = [draftVersionWithItems];
     renderPage();
+    await openDraftEditor();
 
     await userEvent.click(screen.getByRole('button', { name: /Edit line item Labor/i }));
 
@@ -428,6 +447,7 @@ describe('AC-IXD-BUDGET-W5-C4: inline line-item edit — Draft', () => {
   it('Cancel closes editor without calling updateLineItem', async () => {
     versionsState.data = [draftVersionWithItems];
     renderPage();
+    await openDraftEditor();
 
     await userEvent.click(screen.getByRole('button', { name: /Edit line item Labor/i }));
     // Editor is open
@@ -445,6 +465,7 @@ describe('AC-IXD-BUDGET-W5-C4: inline line-item edit — Draft', () => {
   it('Save shows a success toast (routine write — OD-UX-1, no confirm)', async () => {
     versionsState.data = [draftVersionWithItems];
     renderPage();
+    await openDraftEditor();
 
     await userEvent.click(screen.getByRole('button', { name: /Edit line item Labor/i }));
 
@@ -460,6 +481,7 @@ describe('AC-IXD-BUDGET-W5-C4: inline line-item edit — Draft', () => {
   it('Delete button is still present in the same row when editing', async () => {
     versionsState.data = [draftVersionWithItems];
     renderPage();
+    await openDraftEditor();
 
     // Edit is open — Delete should still be accessible
     // (After clicking Edit, the row enters edit mode but Delete remains)
@@ -480,7 +502,7 @@ describe('AC-IXD-BUDGET-W5-C4: only Draft lines are editable', () => {
     versionsState.data = [activeVersion];
     renderPage();
 
-    await userEvent.click(screen.getByRole('button', { name: /Expand Materials details/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Open Materials budget details/i }));
     expect(screen.getByText('Steel')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Edit line item/i })).not.toBeInTheDocument();
   });
@@ -490,8 +512,9 @@ describe('AC-IXD-BUDGET-W5-C4: only Draft lines are editable', () => {
     versionsState.data = [activeVersion, archivedVersionWithItems];
     renderPage();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Versions' }));
-    expect(screen.getByText('Old v0')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    const drawer = screen.getByRole('dialog', { name: 'Budget versions' });
+    expect(within(drawer).getByText('Old v0')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Edit line item/i })).not.toBeInTheDocument();
   });
 });

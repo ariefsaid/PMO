@@ -46,7 +46,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => ({
 vi.mock('../project-detail/useProjectPosition', () => ({ useBudgetPosition: () => ({ isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [], unknown: 0 }) }));
 vi.mock('../project-detail/budget/BudgetSummary', () => ({ default: () => null }));
 vi.mock('../project-detail/budget/BudgetErpNotice', () => ({ default: () => null }));
-vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
+vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }), useQuery: () => ({ data: undefined, isPending: false, isError: false }) }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
@@ -93,7 +93,8 @@ describe('ProjectBudget accessible names (W2-5)', () => {
     const user = userEvent.setup();
     renderPage();
 
-    // Open the "Add line item" row
+    // Open the draft editor from the "Draft waiting for approval" banner, then the "Add line item" row
+    await user.click(await screen.findByRole('button', { name: 'Edit draft' }));
     const addBtn = await screen.findByRole('button', { name: /add line item/i });
     await user.click(addBtn);
 

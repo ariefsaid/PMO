@@ -55,7 +55,7 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('../project-detail/useProjectPosition', () => ({ useBudgetPosition: () => ({ isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [], unknown: 0 }) }));
 vi.mock('../project-detail/budget/BudgetErpNotice', () => ({ default: () => null }));
-vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
+vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }), useQuery: () => ({ data: undefined, isPending: false, isError: false }) }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
@@ -147,9 +147,10 @@ beforeEach(() => {
 // AC-W6-J7 — Total footer in edit mode
 // ---------------------------------------------------------------------------
 describe('AC-W6-J7: Draft edit-mode Total footer', () => {
-  it('AC-W6-J7: the Draft edit-mode line-item table shows a Total footer equal to the sum of budgeted amounts', () => {
+  it('AC-W6-J7: the Draft edit-mode line-item table shows a Total footer equal to the sum of budgeted amounts', async () => {
     versionsState.data = [draftVersionWithItems];
     renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Edit draft' }));
 
     const total = screen.getByTestId('budget-edit-total');
     expect(total).toHaveTextContent('$4,700,000');
@@ -163,9 +164,9 @@ describe('AC-W6-IXD-BUDHEAD: project budget lead', () => {
     renderPage();
 
     expect(screen.getByRole('heading', { name: 'Project budget' })).toBeInTheDocument();
-    expect(screen.getAllByText('USD')).toHaveLength(1);
+    expect(screen.getAllByText(/^USD ·/)).toHaveLength(1);
     expect(screen.getAllByTestId('tax-basis')).toHaveLength(1);
-    expect(screen.getByRole('table', { name: 'Budget by category' })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Budget vs actual by category' })).toBeInTheDocument();
     expect(screen.queryByText(/forecast|cost-to-finish/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/fiscal year picker/i)).not.toBeInTheDocument();
   });
@@ -180,8 +181,8 @@ describe('AC-W6-IXD-BUDHEAD: project budget lead', () => {
   it('shows the active line sum in the table total row instead of a card total', () => {
     versionsState.data = [{ ...draftVersionWithItems, id: 'v-active', status: 'Active' as const, name: 'Budget v1', version: 1 }];
     renderPage();
-    const table = screen.getByRole('table', { name: 'Budget by category' });
-    expect(within(table).getByText('4,700,000')).toBeInTheDocument();
+    const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
+    expect(within(table).getByText('$4,700,000')).toBeInTheDocument();
     expect(screen.queryByTestId('derived-budget')).not.toBeInTheDocument();
   });
 });
@@ -193,7 +194,8 @@ describe('AC-W6-J8: add-row amount input type=text', () => {
     versionsState.data = [draftVersionWithItems];
     renderPage();
 
-    // Open the add row
+    // Open the draft editor from the banner, then the add row
+    await userEvent.click(screen.getByRole('button', { name: 'Edit draft' }));
     await userEvent.click(screen.getByRole('button', { name: /\+ Add line item/i }));
 
     const amount = screen.getByPlaceholderText('Amount');
