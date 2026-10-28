@@ -86,7 +86,7 @@ describe('Executive dashboard Bahasa', () => {
     expect(screen.getByRole('button', { name: '12 bulan terakhir' })).toBeInTheDocument();
     expect(screen.getByText('2 menang dari 3 yang diputuskan')).toBeInTheDocument();
     const decidedRate = screen.getByRole('progressbar', { name: 'Tingkat kemenangan USD dari tender yang diputuskan' });
-    expect(decidedRate).toHaveAttribute('aria-valuetext', '66.7%');
+    expect(decidedRate).toHaveAttribute('aria-valuetext', '66,7%');
     expect(screen.getByText('Menang')).toBeInTheDocument();
     expect(screen.getByText('Kalah atau masih terbuka')).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'Pengeluaran dibanding kontrak' })).toBeInTheDocument();
@@ -98,11 +98,11 @@ describe('Executive dashboard Bahasa', () => {
     const procurementChart = screen.getByRole('img', { name: 'Pengadaan menurut status' });
     expect(procurementChart).toHaveAccessibleDescription('Nilai grafik tercantum dalam tabel data berikut.');
     const procurementTable = screen.getByRole('table', { name: 'Data untuk Pengadaan menurut status' });
-    expect(within(procurementTable).getByRole('row', { name: 'Permintaan Pembelian 2' })).toBeInTheDocument();
+    expect(within(procurementTable).getByRole('row', { name: 'Diminta 2' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Disetujui/ })).toHaveAttribute('href', '/procurement?status=Approved');
     expect(screen.getByRole('link', { name: /Penerimaan Barang/ })).toHaveAttribute('href', '/procurement?status=Received');
-    expect(screen.getByRole('link', { name: /Invoice Vendor/ })).toHaveAttribute('href', '/procurement?status=Vendor%20Invoiced');
-    expect(screen.getByRole('link', { name: /Penawaran Vendor/ })).toHaveAttribute('href', '/procurement?status=Vendor%20Quoted');
+    expect(screen.getByRole('link', { name: /Faktur pemasok/ })).toHaveAttribute('href', '/procurement?status=Vendor%20Invoiced');
+    expect(screen.getByRole('link', { name: /Penawaran pemasok/ })).toHaveAttribute('href', '/procurement?status=Vendor%20Quoted');
     expect(screen.getByTestId('still-to-invoice-loading')).toBeInTheDocument();
 
     cleanup();

@@ -115,9 +115,9 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
     // Not one fabricated zero anywhere on the page.
     expect(screen.queryAllByText('$0')).toHaveLength(0);
     expect(screen.queryAllByText('$0.00')).toHaveLength(0);
-    // The tiles stay, honestly blank (em-dash), so the layout doesn't jump.
+    // The tiles stay, honestly blank, while the error card explains the failed read.
     expect(screen.getByText('Total Revenue (net of tax)')).toBeInTheDocument();
-    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryAllByText('—')).toHaveLength(0);
   });
 
   it('shows skeletons, not zeroes, while the revenue query is still loading', () => {

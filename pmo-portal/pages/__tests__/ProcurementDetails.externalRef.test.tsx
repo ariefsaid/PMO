@@ -175,7 +175,7 @@ const baseProcurement = {
   invoices: [],
 };
 
-/** A Received PR ready for "Mark Vendor Invoiced" with a different user as approver (not u-finance). */
+/** A Received PR ready for "mark supplier invoiced" with a different user as approver (not u-finance). */
 const receivedProcurement = {
   ...baseProcurement,
   status: 'Received' as const,
@@ -224,7 +224,7 @@ const openInlineCapture = async () => {
   detailState.isError = false;
   mockEffectiveRole = 'Finance';
   renderPage();
-  await userEvent.click(screen.getByRole('button', { name: /mark vendor invoiced/i }));
+  await userEvent.click(screen.getByRole('button', { name: /mark supplier invoiced/i }));
 };
 
 describe('AC-EXT-001: inline vendor-invoice capture (atomic capture_vendor_invoice path)', () => {
@@ -284,7 +284,7 @@ describe('AC-EXT-001: staged vendor-invoice capture is forwarded through the con
     await userEvent.click(screen.getByTestId('btn-save-vi'));
     // staged, not yet written
     expect(mockCreateInvoice).not.toHaveBeenCalled();
-    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /save vendor invoice/i }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /save supplier invoice/i }));
     await waitFor(() =>
       expect(mockCreateInvoice).toHaveBeenCalledWith(
         expect.objectContaining({ externalRef: 'PRO-0026100002' }),
@@ -306,7 +306,7 @@ describe('AC-EXT-001: staged vendor-invoice capture is forwarded through the con
     await userEvent.selectOptions(screen.getByTestId('vi-tax-template-select'), 'Input VAT 11');
     await userEvent.click(screen.getByTestId('btn-save-vi'));
     expect(mockCreateInvoice).not.toHaveBeenCalled();
-    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /save vendor invoice/i }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /save supplier invoice/i }));
     await waitFor(() =>
       expect(mockCreateInvoice).toHaveBeenCalledWith(expect.objectContaining({ taxTemplate: 'Input VAT 11' })),
     );
@@ -322,7 +322,7 @@ describe('AC-VWH-030 / AC-VWH-032 (#876 slice 2): vendor tax reaches the write',
   });
   afterEach(() => { vendorDefault.value = null; });
 
-  it('AC-VWH-030 Mark Vendor Invoiced pre-fills VAT and PPh from the vendor default and forwards the withholding', async () => {
+  it('AC-VWH-030 mark supplier invoiced pre-fills VAT and PPh from the vendor default and forwards the withholding', async () => {
     vendorDefault.value = { vatRate: 11, pphType: 'pph23', pphRate: 2 };
     await openInlineCapture();
     await userEvent.type(screen.getByTestId('vi-amount-input'), '1000000');
@@ -345,7 +345,7 @@ describe('AC-VWH-030 / AC-VWH-032 (#876 slice 2): vendor tax reaches the write',
     await userEvent.selectOptions(screen.getByTestId('vi-pph-type-select'), 'pph23');
     await userEvent.type(screen.getByTestId('vi-withheld-input'), '20000');
     await userEvent.click(screen.getByTestId('btn-save-vi'));
-    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /save vendor invoice/i }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /save supplier invoice/i }));
     await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledWith(
       expect.objectContaining({ taxAmount: 110000, withheldAmount: 20000, withheldPphType: 'pph23' })));
   });
@@ -360,7 +360,7 @@ describe('AC-VWH-030 / AC-VWH-032 (#876 slice 2): vendor tax reaches the write',
     await userEvent.selectOptions(screen.getByTestId('vi-pph-type-select'), 'pph23');
     await userEvent.type(screen.getByTestId('vi-erp-withheld-input'), '20000');
     await userEvent.click(screen.getByTestId('btn-save-vi'));
-    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /save vendor invoice/i }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /save supplier invoice/i }));
     await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledWith(expect.objectContaining({
       erpTaxAmounts: { vatAmount: 110000, withheldAmount: 20000, pphType: 'pph23' } })));
     expect(mockCreateInvoice.mock.calls[0][0]).not.toHaveProperty('taxTemplate');

@@ -342,7 +342,7 @@ describe('ProjectBudget T5 DataTable adoption', () => {
     versionsState.data = [{ ...activeVersion, total: 1234.5, line_items: [priced(1234.5)] }];
     renderPage();
     const table = within(screen.getByTestId('version-card')).getByRole('table');
-    expect(within(table).getByRole('cell', { name: '$1,234.5' })).toBeInTheDocument();
+    expect(within(table).getByRole('cell', { name: '$1,235' })).toBeInTheDocument();
     expect(screen.getByTestId('dt-table-branch')).toBeInTheDocument();
   });
 

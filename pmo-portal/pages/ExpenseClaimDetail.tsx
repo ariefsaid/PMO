@@ -14,7 +14,7 @@ import {
 import { availableExpenseActions, settlementPreview } from '@/src/lib/expenses/expenseRules';
 import { approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { formatCurrencyCents } from '@/src/lib/format';
+import { formatCurrencyAuto } from '@/src/lib/format';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { ExpenseDecisionBar } from './expenses/ExpenseDecisionBar';
 import { ExpenseLinesCard } from './expenses/ExpenseLinesCard';
@@ -111,24 +111,24 @@ const ExpenseClaimDetail: React.FC = () => {
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div>
               <dt className="text-xs text-muted-foreground">{t('expenses.detail.amount', 'Amount')}</dt>
-              <dd className="font-semibold tabular-nums" data-testid="expense-amount">{formatCurrencyCents(amount, claim.currency)}</dd>
+              <dd className="font-semibold tabular-nums" data-testid="expense-amount">{formatCurrencyAuto(amount, claim.currency)}</dd>
             </div>
             {claim.kind === 'claim' && claim.status === 'Paid' && (
               <>
                 <div>
                   <dt className="text-xs text-muted-foreground">{t('expenses.detail.advanceApplied', 'Advance applied')}</dt>
-                  <dd className="tabular-nums">{formatCurrencyCents(paidSplit.applied, claim.currency)}</dd>
+                  <dd className="tabular-nums">{formatCurrencyAuto(paidSplit.applied, claim.currency)}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-muted-foreground">{t('expenses.detail.cashPaid', 'Cash paid')}</dt>
-                  <dd className="tabular-nums">{formatCurrencyCents(paidSplit.cash, claim.currency)}</dd>
+                  <dd className="tabular-nums">{formatCurrencyAuto(paidSplit.cash, claim.currency)}</dd>
                 </div>
               </>
             )}
             {claim.kind === 'advance' && claim.status === 'Paid' && (
               <div>
                 <dt className="text-xs text-muted-foreground">{t('expenses.detail.outstanding', 'Outstanding')}</dt>
-                <dd className="tabular-nums">{outstanding === null ? '—' : formatCurrencyCents(outstanding, claim.currency)}</dd>
+                <dd className="tabular-nums">{outstanding === null ? '—' : formatCurrencyAuto(outstanding, claim.currency)}</dd>
               </div>
             )}
             {claim.payment_reference && (

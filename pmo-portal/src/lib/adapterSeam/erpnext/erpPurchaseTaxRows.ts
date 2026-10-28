@@ -85,7 +85,7 @@ export async function resolvePurchaseTaxRows(deps: ErpClientDeps, company: strin
   let withheldRate = 0;
   for (const row of template.taxes ?? []) {
     if (row.charge_type !== 'On Net Total') {
-      throw new AdapterError('commit-rejected', `The purchase tax template "${templateName}" has a "${String(row.charge_type)}" row; only "On Net Total" rows can be sent for a vendor invoice`);
+      throw new AdapterError('commit-rejected', `The purchase tax template "${templateName}" has a "${String(row.charge_type)}" row; only "On Net Total" rows can be sent for a supplier invoice`);
     }
     const account = typeof row.account_head === 'string' ? row.account_head : '';
     const rate = Number(row.rate);
@@ -163,7 +163,7 @@ export function parseEnteredPurchaseTax(record: Record<string, unknown>): Entere
   if (!('vatAmount' in record) && !('withheldAmount' in record) && !('pphType' in record)) return null;
   const money = (value: unknown, label: string): number => {
     if (typeof value !== 'number' || !MONEY.test(String(value))) {
-      throw new AdapterError('commit-rejected', `The vendor invoice's ${label} must be zero or a positive amount with at most two decimals.`);
+      throw new AdapterError('commit-rejected', `The supplier invoice's ${label} must be zero or a positive amount with at most two decimals.`);
     }
     return value;
   };
@@ -189,7 +189,7 @@ async function usableAccount(
   const label = SETTING_LABEL[setting];
   const account = name?.trim() ?? '';
   if (!account) {
-    throw new AppError(`Set the ${label} in Administration → Accounting before recording this tax on a vendor invoice.`, 'config-rejected');
+    throw new AppError(`Set the ${label} in Administration → Accounting before recording this tax on a supplier invoice.`, 'config-rejected');
   }
   const doc = (await readAccount(deps, account)) as { company?: unknown; is_group?: unknown; root_type?: unknown } | null;
   if (!doc || doc.company !== company || Number(doc.is_group) !== 0 || (liability && doc.root_type !== 'Liability')) {
@@ -210,7 +210,7 @@ export async function buildEnteredPurchaseTaxRows(
   deps: ErpClientDeps, company: string, entered: EnteredPurchaseTax, accounts: VendorTaxAccounts, itemsTotal: number | null,
 ): Promise<ErpActualTaxRow[]> {
   if (itemsTotal !== null && Math.round(entered.withheldAmount * 100) > Math.round(itemsTotal * 100)) {
-    throw new AdapterError('commit-rejected', "The tax withheld is larger than the invoice's items total before tax. Check the PPh amount on the vendor's invoice.");
+    throw new AdapterError('commit-rejected', "The tax withheld is larger than the invoice's items total before tax. Check the PPh amount on the supplier's invoice.");
   }
   const rows: ErpActualTaxRow[] = [];
   if (entered.vatAmount > 0) {

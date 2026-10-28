@@ -356,8 +356,8 @@ describe('AC-LRC-012 — Procurement', () => {
   it('AC-LRC-012: a genuinely empty collection shows the create-first-record copy, no Clear filters action', () => {
     procurementsState.data = [];
     renderList(Procurement);
-    expect(screen.getByText(/No purchase requests yet/i)).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /Raise request/i }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/No procurement records yet/i)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /New procurement/i }).length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByRole('button', { name: /Clear filters/i })).not.toBeInTheDocument();
   });
 
@@ -366,8 +366,8 @@ describe('AC-LRC-012 — Procurement', () => {
       { id: 'pr1', title: 'Crane hire', code: 'PR-001', status: 'Requested', total_value: 5000, currency: 'USD', created_at: '2026-06-01T00:00:00Z', project: { name: 'Harbour' }, requested_by_id: 'u1', requested_by: { full_name: 'Alice' } },
     ];
     renderList(Procurement);
-    await userEvent.type(screen.getByLabelText(/Filter requests/i), 'no-such-request');
-    expect(await screen.findByText(/No requests match your filters/i)).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/Filter procurement records/i), 'no-such-procurement');
+    expect(await screen.findByText(/No procurement records match your filters/i)).toBeInTheDocument();
     const clear = screen.getByRole('button', { name: /Clear filters/i });
     await userEvent.click(clear);
     expect(await screen.findByText('Crane hire')).toBeInTheDocument();

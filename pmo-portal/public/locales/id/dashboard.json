@@ -3,11 +3,11 @@
     "account": "Akun",
     "actualsError": "Gagal memuat aktual",
     "actualsTitle": "Aktual (buku besar ERP)",
-    "allInvoicesPaid": "Semua faktur vendor telah dibayar atau tidak ada yang menunggu tindakan.",
-    "apError": "Gagal memuat utang vendor",
-    "apTitle": "Utang kepada vendor (AP)",
+    "allInvoicesPaid": "Semua faktur pemasok telah dibayar atau tidak ada yang menunggu tindakan.",
+    "apError": "Gagal memuat utang pemasok",
+    "apTitle": "Utang kepada pemasok (AP)",
     "arError": "Gagal memuat piutang pelanggan",
-    "awaiting": "Permintaan pembelian menunggu keputusan Anda",
+    "awaiting": "Catatan pengadaan menunggu keputusan Anda",
     "budgetReviewLoadError": "Tidak dapat memuat tinjauan anggaran",
     "contractValue": "Nilai kontrak berjalan",
     "contractValueHelp": "Total nilai kontrak proyek aktif.",
@@ -18,7 +18,7 @@
     "days": "{{count}} hari",
     "fiscalYear": "Tahun fiskal",
     "invoiced": "Ditagihkan",
-    "invoicedHelp": "Jumlah hari sejak faktur vendor dicatat; catatan lama menggunakan tanggal pembaruan terakhir.",
+    "invoicedHelp": "Jumlah hari sejak faktur pemasok dicatat; catatan lama menggunakan tanggal pembaruan terakhir.",
     "kpiBand": "KPI keuangan",
     "loadInvoicesError": "Gagal memuat faktur",
     "margin": "Margin hingga saat ini",
@@ -27,16 +27,16 @@
     "netUnavailableReason": "Snapshot sumber tidak menyediakan nilai neto.",
     "nothingAwaitingPayment": "Tidak ada yang menunggu pembayaran",
     "oneDay": "1 hari",
-    "openRequest": "Buka {{request}}",
+    "openRequest": "Buka catatan pengadaan {{request}}",
     "party": "Pihak",
-    "payables": "Utang kepada vendor",
-    "payablesDetail": "Ditagihkan vendor, menunggu pembayaran",
-    "payablesHelp": "Nilai pengadaan yang terutang kepada vendor dengan status Ditagihkan Vendor.",
-    "payablesLink": "Buka faktur vendor yang menunggu pembayaran",
+    "payables": "Utang kepada pemasok",
+    "payablesDetail": "Ditagih oleh pemasok, menunggu pembayaran",
+    "payablesHelp": "Nilai pengadaan yang terutang kepada pemasok dengan status Ditagih Pemasok.",
+    "payablesLink": "Buka faktur pemasok yang menunggu pembayaran",
     "project": "Proyek",
     "projectUnavailableReason": "Nama proyek tidak tersedia.",
     "recordedSpending": "Pengeluaran tercatat",
-    "request": "Permintaan",
+    "request": "Pengadaan",
     "spendingHelp": "Pengeluaran aktual yang tercatat di seluruh portofolio proyek berjalan.",
     "spendingLink": "Buka proyek aktif untuk melihat rincian pengeluaran",
     "today": "Hari ini",
@@ -52,7 +52,7 @@
   "pmRow": {
     "delivery": "Pengiriman",
     "margin": "Margin",
-    "marginAria": "Margin sampai saat ini {{name}}: {{pct}}%"
+    "marginAria": "Margin sampai saat ini {{name}}: {{pct}}"
   },
   "risk": {
     "uncheckedNote": "Risiko belum dapat diperiksa — belum ada anggaran aktif."
@@ -62,6 +62,22 @@
   },
   "kpi": {
     "activeProjectsCount": "{{count}} proyek aktif"
+  },
+  "dashboard": {
+    "chart": {
+      "procStatus": {
+        "chartLabel": "Pengadaan menurut status",
+        "empty": "Belum ada aktivitas pengadaan",
+        "noun": "catatan pengadaan"
+      }
+    }
+  },
+  "uxs03": {
+    "pmoPurchasing": "Permintaan pembelian PMO",
+    "pmoPurchasingScope": "Pembelian langsung melalui ERP tidak termasuk dalam grafik permintaan PMO ini."
+  },
+  "uxs19": {
+    "dashboardEmpty": "Tidak ada catatan pengadaan untuk ditampilkan"
   },
   "winRate": {
     "title": "Tingkat kemenangan",

@@ -183,7 +183,7 @@ describe('ProcurementDetails — e-Faktur on the Documents tab', () => {
     const user = userEvent.setup();
     renderAt('/procurement/proc-001/documents');
     const row = screen.getByText('VI-2601100001').closest('tr');
-    if (!row) throw new Error('no ledger row for the vendor invoice');
+    if (!row) throw new Error('no ledger row for the supplier invoice');
     await user.click(within(row).getByRole('button', { name: 'Row actions' }));
     await user.click(screen.getByRole('menuitem', { name: 'Record e-Faktur' }));
     await user.type(screen.getByLabelText('e-Faktur number'), '010.001-26.12345678');

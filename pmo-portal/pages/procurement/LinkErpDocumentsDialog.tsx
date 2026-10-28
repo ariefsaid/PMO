@@ -61,15 +61,15 @@ export const LinkErpDocumentsDialog: React.FC<LinkErpDocumentsDialogProps> = ({ 
       .map((p) => {
         const otherSupplier = Boolean(docSupplier && p.vendor?.name && norm(p.vendor.name) !== norm(docSupplier));
         const otherCurrency = Boolean(docCurrency && p.currency && norm(p.currency) !== norm(docCurrency));
-        const marks = [
+        const badges = [
           otherSupplier ? t('erpLinks.differentSupplier', 'different supplier') : null,
           otherCurrency ? t('erpLinks.differentCurrency', 'different currency') : null,
-        ];
+        ].filter((mark): mark is string => Boolean(mark));
         const option: ComboboxOption = {
           value: p.id,
           label: p.title,
-          // Marks lead so a truncated sub-line still shows them.
-          sub: [...marks, p.vendor?.name, stageLabel(String(p.status))].filter(Boolean).join(' · '),
+          badges,
+          sub: [p.vendor?.name, stageLabel(String(p.status))].filter(Boolean).join(' · '),
         };
         return { option, rank: (otherSupplier ? 1 : 0) + (otherCurrency ? 1 : 0) };
       });

@@ -416,7 +416,7 @@ describe('createInvoice', () => {
   });
 });
 
-// #505: captureVendorInvoice is the SECOND path that creates a vendor invoice (the atomic
+// #505: captureVendorInvoice is the SECOND path that creates a supplier invoice (the atomic
 // transition+create RPC). It carries the same four tax params or it would be the hole the migration
 // closes on the create path and leaves open here.
 describe('captureVendorInvoice', () => {

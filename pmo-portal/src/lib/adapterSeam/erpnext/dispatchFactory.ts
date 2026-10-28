@@ -501,11 +501,11 @@ async function resolvePaymentRefs(deps: ErpDispatchFactoryDeps): Promise<{ refs:
   const procurementId = typeof record.procurementId === 'string' ? record.procurementId : '';
   const invoiceId = typeof record.invoiceId === 'string' && record.invoiceId.trim() !== '' ? record.invoiceId : null;
   if (!invoiceId || !procurementId) {
-    throw new AppError('vendor payment: the bill it settles is required (select the vendor invoice this payment closes)', 'commit-rejected');
+    throw new AppError('supplier payment: the bill it settles is required (select the supplier invoice this payment closes)', 'commit-rejected');
   }
   const amount = Number(record.paid_amount);
   if (!Number.isFinite(amount) || amount <= 0) {
-    throw new AppError(`vendor payment: paid_amount "${String(record.paid_amount)}" must be a positive figure`, 'commit-rejected');
+    throw new AppError(`supplier payment: paid_amount "${String(record.paid_amount)}" must be a positive figure`, 'commit-rejected');
   }
 
   const replay = deps.replay === true;
@@ -516,19 +516,19 @@ async function resolvePaymentRefs(deps: ErpDispatchFactoryDeps): Promise<{ refs:
     .eq('org_id', deps.orgId).eq('id', invoiceId).maybeSingle();
   if (error) throw new AppError(error.message, error.code);
   if (!bill) {
-    throw new AppError(`vendor payment: bill '${invoiceId}' was not found in this org`, 'commit-rejected');
+    throw new AppError(`supplier payment: bill '${invoiceId}' was not found in this org`, 'commit-rejected');
   }
   const billRow = bill as { procurement_id: string | null; erp_outstanding_amount: number | string | null; vi_number: string | null; currency: string | null };
   const billName = billRow.vi_number ?? invoiceId;
   if (billRow.procurement_id !== procurementId) {
-    throw new AppError(`vendor payment: bill ${billName} belongs to a different procurement case`, 'commit-rejected');
+    throw new AppError(`supplier payment: bill ${billName} belongs to a different procurement case`, 'commit-rejected');
   }
   // On recovery, ERP may already have applied this payment and refreshed the bill outstanding to
   // zero. Preserve the bill/case anchor and mapping checks, but do not re-run mutable balance checks.
   if (replay) {
     const piExternalId = await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'procurement', invoiceId);
     if (!piExternalId) {
-      throw new AppError(`vendor payment: bill ${billName} has no ERP mapping in this org's external_refs — it is not on ERPNext yet`, 'commit-rejected');
+      throw new AppError(`supplier payment: bill ${billName} has no ERP mapping in this org's external_refs — it is not on ERPNext yet`, 'commit-rejected');
     }
     refs.pi = piExternalId;
     record.references = [{ reference_doctype: 'Purchase Invoice', reference_name: piExternalId, allocated_amount: amount }];
@@ -545,31 +545,31 @@ async function resolvePaymentRefs(deps: ErpDispatchFactoryDeps): Promise<{ refs:
   const { data: orgRow, error: orgError } = await deps.serviceClient.from('organizations')
     .select('default_currency').eq('id', deps.orgId).maybeSingle();
   if (orgError || !orgRow) {
-    throw new AppError('vendor payment: the org currency could not be read — cannot verify the bill is in the company currency', 'commit-rejected');
+    throw new AppError('supplier payment: the org currency could not be read — cannot verify the bill is in the company currency', 'commit-rejected');
   }
   const orgCurrency = (orgRow as { default_currency?: unknown }).default_currency;
   if (typeof orgCurrency !== 'string' || !/^[A-Z]{3}$/.test(orgCurrency)) {
-    throw new AppError('vendor payment: the org currency is not set — set it before paying a bill', 'commit-rejected');
+    throw new AppError('supplier payment: the org currency is not set — set it before paying a bill', 'commit-rejected');
   }
   const billCurrency = billRow.currency;
   if (!billCurrency || billCurrency === 'XXX') {
-    throw new AppError(`vendor payment: bill ${billName} has no mirrored currency yet — record the bill's ERP push first`, 'commit-rejected');
+    throw new AppError(`supplier payment: bill ${billName} has no mirrored currency yet — record the bill's ERP push first`, 'commit-rejected');
   }
   if (billCurrency !== orgCurrency) {
     throw new AppError(`This bill is in ${billCurrency}; paying a foreign-currency bill from PMO is not supported yet — pay it in ERPNext.`, 'commit-rejected');
   }
   if (billRow.erp_outstanding_amount === null || billRow.erp_outstanding_amount === undefined) {
-    throw new AppError(`vendor payment: bill ${billName} has no mirrored ERP outstanding yet — record the bill's ERP push first`, 'commit-rejected');
+    throw new AppError(`supplier payment: bill ${billName} has no mirrored ERP outstanding yet — record the bill's ERP push first`, 'commit-rejected');
   }
   if (amount > Number(billRow.erp_outstanding_amount)) {
-    throw new AppError(`vendor payment: paid_amount ${amount} exceeds bill ${billName}'s outstanding ${billRow.erp_outstanding_amount}`, 'commit-rejected');
+    throw new AppError(`supplier payment: paid_amount ${amount} exceeds bill ${billName}'s outstanding ${billRow.erp_outstanding_amount}`, 'commit-rejected');
   }
 
   // The bill's ERP Purchase Invoice name (procurement domain). Unmapped ⇒ the bill never reached
   // ERPNext — there is nothing to allocate against, so refuse (never a party: undefined PE).
   const piExternalId = await resolveExternalRef(deps.serviceClient as unknown as ExternalRefsLookupClient, deps.orgId, 'procurement', invoiceId);
   if (!piExternalId) {
-    throw new AppError(`vendor payment: bill ${billName} has no ERP mapping in this org's external_refs — it is not on ERPNext yet`, 'commit-rejected');
+    throw new AppError(`supplier payment: bill ${billName} has no ERP mapping in this org's external_refs — it is not on ERPNext yet`, 'commit-rejected');
   }
   refs.pi = piExternalId;
   // DISCARD caller-supplied references entirely; build ONLY from the resolved bill (DD-VPAY-2).
@@ -1263,7 +1263,7 @@ async function resolvePurchaseInvoiceTaxes(
   if (typeof company !== 'string' || !company) {
     throw new AppError(chosen
       ? 'ERPNext has no company set for this organization, so the chosen purchase tax template cannot be checked. Set the ERP company in Administration → Integrations, then record the invoice again.'
-      : 'ERPNext has no company set for this organization, so the vendor invoice tax cannot be checked. Set the ERP company in Administration → Integrations, then record the invoice again.',
+      : 'ERPNext has no company set for this organization, so the supplier invoice tax cannot be checked. Set the ERP company in Administration → Integrations, then record the invoice again.',
     'config-rejected');
   }
   const client: ErpClientDeps = { fetchImpl: deps.fetchImpl, apiKey: deps.apiKey, apiSecret: deps.apiSecret,
@@ -1285,7 +1285,7 @@ async function resolvePurchaseInvoiceTaxes(
   }
   const itemsTotal = itemsNetTotal(lines);
   if (lines.length > 0 && itemsTotal === null) {
-    throw new AdapterError('commit-rejected', "The vendor invoice's items total cannot be computed: a line is missing its quantity. Complete the case's lines, then record the invoice again.");
+    throw new AdapterError('commit-rejected', "The supplier invoice's items total cannot be computed: a line is missing its quantity. Complete the case's lines, then record the invoice again.");
   }
   const { data, error } = await deps.serviceClient.from('organizations')
     .select('input_vat_account,pph23_payable_account,pph4_2_payable_account').eq('id', deps.orgId).maybeSingle();

@@ -86,7 +86,7 @@ describe('VendorTaxDefaultsCard (#876 slice 2, OD-VWH-1)', () => {
   it('AC-VWH-028 the card renders in Bahasa Indonesia', async () => {
     await financeTestI18n.changeLanguage('id');
     renderCard();
-    expect(screen.getByText('Default pajak vendor')).toBeInTheDocument();
+    expect(screen.getByText('Default pajak pemasok')).toBeInTheDocument();
     expect(screen.getByLabelText('Tarif PPN (%)')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Simpan default' })).toBeInTheDocument();
   });

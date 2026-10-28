@@ -78,6 +78,15 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     expect(await screen.findByRole('dialog', { name: 'Petakan Kendaraan' })).toBeInTheDocument();
   });
 
+  it('AC-BUD-OVERHEADS-001: labels Overheads as project operating costs and explains the mapping basis', async () => {
+    listMock.mockResolvedValue([]);
+    renderPage();
+
+    const row = (await screen.findByText('Biaya operasional proyek')).closest('tr')!;
+    expect(within(row).getByText('Biaya operasional proyek')).toBeInTheDocument();
+    expect(within(row).getByText('Biaya langsung proyek, bukan biaya overhead perusahaan.')).toBeInTheDocument();
+  });
+
   it('#693: heading, intro, column headers, unmapped pill and row actions are Bahasa', async () => {
     listMock.mockResolvedValue([{ id: 'm-labor', category: 'Labor', erpAccount: '5100 - Direct Costs', isPushTarget: true }]);
     renderPage();

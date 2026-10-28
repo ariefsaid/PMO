@@ -8,7 +8,7 @@
  *      is present but NOT primary — both are reachable (OD-W5-2).
  *  (c) SoD-blocked state: GateNotice renders INSIDE the decision area when the
  *      viewer cannot approve; NO action buttons appear in that area (D6).
- *  (d) "Cancel request" (destructive) renders AFTER/BELOW the primary CTA —
+ *  (d) "Cancel procurement" (destructive) renders AFTER/BELOW the primary CTA —
  *      never before it in DOM order (D8).
  *
  * All states: normal / SoD-blocked / terminal (Paid — no decision actions).
@@ -359,13 +359,13 @@ describe('AC-IXD-PROC-W5-1 (b): exactly one primary button per stage (One-Blue R
     expect(primaryButtons).toHaveLength(1);
   });
 
-  it('AC-IXD-PROC-W5-1b: at Approved stage "Request Vendor Quotes" is the primary button', () => {
+  it('AC-IXD-PROC-W5-1b: at Approved stage "Request Supplier Quotes" is the primary button', () => {
     detailState.data = { ...approvedBase };
     renderPage();
 
     const decisionCard = screen.getByTestId('decision-card');
     const rvqBtn = within(decisionCard).getByRole('button', {
-      name: /request vendor quotes/i,
+      name: /request supplier quotes/i,
     });
     expect(rvqBtn.className).toContain('bg-primary');
   });
@@ -389,7 +389,7 @@ describe('AC-IXD-PROC-W5-1 (b): exactly one primary button per stage (One-Blue R
 
     const decisionCard = screen.getByTestId('decision-card');
     expect(
-      within(decisionCard).getByRole('button', { name: /request vendor quotes/i }),
+      within(decisionCard).getByRole('button', { name: /request supplier quotes/i }),
     ).toBeInTheDocument();
     expect(
       within(decisionCard).getByRole('button', { name: /generate purchase order/i }),
@@ -483,9 +483,9 @@ describe('AC-IXD-PROC-W5-1 (c): SoD-blocked state — GateNotice inside decision
 });
 
 // ---------------------------------------------------------------------------
-// AC-IXD-PROC-W5-1 (d) — Destructive (Cancel request) appears AFTER primary in DOM order
+// AC-IXD-PROC-W5-1 (d) — Destructive (Cancel procurement) appears AFTER primary in DOM order
 // ---------------------------------------------------------------------------
-describe('AC-IXD-PROC-W5-1 (d): Cancel request renders after/below the primary CTA in DOM order (D8)', () => {
+describe('AC-IXD-PROC-W5-1 (d): Cancel procurement renders after/below the primary CTA in DOM order (D8)', () => {
   beforeEach(() => {
     mockRole = 'Finance';
     detailState.isPending = false;
@@ -493,7 +493,7 @@ describe('AC-IXD-PROC-W5-1 (d): Cancel request renders after/below the primary C
     detailState.error = null;
   });
 
-  it('AC-IXD-PROC-W5-1d: at Draft+requester, "Cancel request" appears after "Submit Request" in DOM order', () => {
+  it('AC-IXD-PROC-W5-1d: at Draft+requester, "Cancel procurement" appears after "Submit for approval" in DOM order', () => {
     mockRole = 'Engineer';
     detailState.data = {
       ...draftWithCancelBase,
@@ -501,38 +501,38 @@ describe('AC-IXD-PROC-W5-1 (d): Cancel request renders after/below the primary C
     };
     renderPage();
 
-    const submitBtn = screen.getByRole('button', { name: /submit request/i });
-    const cancelBtn = screen.getByRole('button', { name: /^cancel request$/i });
+    const submitBtn = screen.getByRole('button', { name: /submit for approval/i });
+    const cancelBtn = screen.getByRole('button', { name: /^cancel procurement$/i });
 
     expect(
       appearsBeforeInDOM(submitBtn, cancelBtn),
-      '"Submit Request" (primary) must appear before "Cancel request" in DOM order',
+      '"Submit for approval" (primary) must appear before "Cancel procurement" in DOM order',
     ).toBe(true);
   });
 
-  it('AC-IXD-PROC-W5-1d: at Requested (Finance, not requester), "Cancel request" appears after "Approve" in DOM order', () => {
+  it('AC-IXD-PROC-W5-1d: at Requested (Finance, not requester), "Cancel procurement" appears after "Approve" in DOM order', () => {
     detailState.data = { ...base, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
 
     const approveBtn = screen.getByRole('button', { name: /^approve$/i });
-    const cancelBtn = screen.getByRole('button', { name: /^cancel request$/i });
+    const cancelBtn = screen.getByRole('button', { name: /^cancel procurement$/i });
 
     expect(
       appearsBeforeInDOM(approveBtn, cancelBtn),
-      '"Approve" (primary) must appear before "Cancel request" in DOM order',
+      '"Approve" (primary) must appear before "Cancel procurement" in DOM order',
     ).toBe(true);
   });
 
-  it('AC-IXD-PROC-W5-1d: at Approved stage, "Cancel request" appears after "Request Vendor Quotes" in DOM order', () => {
+  it('AC-IXD-PROC-W5-1d: at Approved stage, "Cancel procurement" appears after "Request Supplier Quotes" in DOM order', () => {
     detailState.data = { ...approvedBase };
     renderPage();
 
-    const rvqBtn = screen.getByRole('button', { name: /request vendor quotes/i });
-    const cancelBtn = screen.getByRole('button', { name: /^cancel request$/i });
+    const rvqBtn = screen.getByRole('button', { name: /request supplier quotes/i });
+    const cancelBtn = screen.getByRole('button', { name: /^cancel procurement$/i });
 
     expect(
       appearsBeforeInDOM(rvqBtn, cancelBtn),
-      '"Request Vendor Quotes" (primary) must appear before "Cancel request" in DOM order',
+      '"Request Supplier Quotes" (primary) must appear before "Cancel procurement" in DOM order',
     ).toBe(true);
   });
 

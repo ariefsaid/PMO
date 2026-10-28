@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { StatTiles, type StatTile } from '../StatTiles';
 
 // ---------------------------------------------------------------------------
@@ -32,13 +32,12 @@ describe('StatTiles', () => {
     expect(screen.getByText('$1,200,000', { selector: '.sr-only' })).toBeInTheDocument();
   });
 
-  it('AC-RD-UNAVAIL-001: unavailable stat shows a dash whose reason opens on focus, never as prose in the figure', () => {
+  it('AC-MONEY-DISPLAY: unknown stat omits the amount and shows the reason once', () => {
     render(<StatTiles tiles={[{ label: 'Contract', value: 'Unavailable', unavailableReason: 'Budget not loaded' }]} />);
-    const dash = screen.getByRole('button', { name: 'Budget not loaded' });
-    expect(dash).toHaveTextContent('—');
+    expect(screen.getByRole('status')).toHaveTextContent('Budget not loaded');
+    expect(screen.queryByText('—')).not.toBeInTheDocument();
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
-    act(() => dash.focus());
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Budget not loaded');
+    expect(screen.queryByRole('button', { name: 'Budget not loaded' })).not.toBeInTheDocument();
   });
 
   it('renders every tile (label + value)', () => {

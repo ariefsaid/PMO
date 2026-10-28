@@ -165,7 +165,7 @@ describe('Procurement list — inline preview (fix #5)', () => {
     renderPage();
     const toggle = screen.getAllByRole('button', { name: /show.*preview|expand|preview/i })[0];
     await user.click(toggle);
-    const link = screen.getByRole('link', { name: /view full request/i });
+    const link = screen.getByRole('link', { name: /view procurement record/i });
     expect(link).toHaveAttribute('href', '/procurement/pr-1');
   });
 });

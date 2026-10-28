@@ -1,12 +1,20 @@
 {
   "finishSpendingSetup": "Selesaikan penyiapan pengeluaran",
   "spendingAdminHandoff": "Minta administrator menyelesaikan penyiapan pengeluaran.",
+  "spendingSetupPrompt": "Pengeluaran tercatat akan muncul setelah penyiapan akun selesai.",
+  "spendingSetupLink": "Buka penyiapan pengeluaran",
   "spendingSetupDetails": "Detail penyiapan pengeluaran",
   "noSpendingReading": "Pengeluaran belum diperbarui.",
   "categoryNeedsSetup": "Penyiapan pengeluaran untuk kategori ini belum selesai.",
-  "invoiceBalanceUnavailable": "Saldo faktur belum tersedia",
+  "invoiceBalanceUnavailable": "Saldo faktur masih menunggu konfirmasi.",
   "invoiceScope": "Hanya faktur yang ditautkan ke proyek ini yang disertakan.",
   "noLinkedInvoices": "Belum ada faktur yang ditautkan ke proyek ini",
   "billedWork": "Pendapatan pekerjaan tertagih",
-  "billedWorkQualifier": "Tanpa pajak; tidak termasuk uang muka"
+  "billedWorkQualifier": "Tanpa pajak; tidak termasuk uang muka",
+  "moneyDisplay": {
+    "contractUnavailable": "Nilai kontrak belum diisi.",
+    "contractPosition": "Posisi penagihan kontrak",
+    "purchaseOrdersUnavailable": "Total pesanan pembelian masih menunggu konfirmasi.",
+    "reviewInvoices": "Tinjau faktur"
+  }
 }

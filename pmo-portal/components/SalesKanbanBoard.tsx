@@ -59,7 +59,7 @@ const DealCard: React.FC<{
       pmoProjectNumber={null}
       code={null}
       status={
-        <StatusPill variant={pillVariantForStatus(project.status)}>{statusLabel(project.status)}</StatusPill>
+        <StatusPill variant={pillVariantForStatus(project.status)} wrap>{statusLabel(project.status)}</StatusPill>
       }
       body={
         // #696: the money row WRAPS. A column is ~258px wide, and in Bahasa (longer grouped

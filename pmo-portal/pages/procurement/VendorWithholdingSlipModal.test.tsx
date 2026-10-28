@@ -79,7 +79,7 @@ describe('AC-BUPOT-017 capture form', () => {
     h.isError = false;
     h.data = { pages: [{ rows: [] }] };
     view.rerender(<VendorWithholdingSlipModal invoice={invoice} vendorId="vendor-a" open onClose={vi.fn()} onSave={h.save} />);
-    expect(screen.getByText('No eligible bills for this vendor, currency and PPh type.')).toBeInTheDocument();
+    expect(screen.getByText('No eligible bills for this supplier, currency and PPh type.')).toBeInTheDocument();
     expect(screen.getByLabelText(/issued slip number/i)).toHaveValue('DJ-RETRY-1');
     expect(screen.getByText('Selected bills (1)')).toBeInTheDocument();
   });
@@ -116,7 +116,7 @@ describe('AC-BUPOT-017 capture form', () => {
     expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     expect(screen.getByRole('checkbox', { name: /SUP-DUP-7.*VI-7001.*Case North.*Harbor works.*PRJ-2641.*2026-10-01/ })).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: /SUP-DUP-7.*VI-7002.*Case South.*Canal works.*PRJ-2642/ })).toBeInTheDocument();
-    expect(screen.getByText(locale === 'en' ? 'Vendor invoice reference not recorded' : 'Referensi faktur vendor belum dicatat')).toBeInTheDocument();
+    expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference not recorded' : 'Referensi faktur pemasok belum dicatat')).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent('invoice-a');
     await financeTestI18n.changeLanguage('en');
   });

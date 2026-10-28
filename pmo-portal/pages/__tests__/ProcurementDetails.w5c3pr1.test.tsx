@@ -10,7 +10,7 @@
  * D17: GR/VI create affordances demoted to quiet links
  *   - At Ordered/Received: "Create Goods Receipt" trigger is a ghost/link style
  *     (NOT a solid primary blue), sits inside the DecisionCard below the primary CTA
- *   - At Vendor Invoiced (recovery): "Create Vendor Invoice" trigger is also ghost/link
+ *   - At Vendor Invoiced (recovery): "create supplier invoice" trigger is also ghost/link
  *   - The stage's primary CTA remains the single blue button (One-Blue Rule)
  *   - The separate Card wrappers for GR/VI triggers are removed (the triggers slot
  *     inside the DecisionCard)
@@ -264,13 +264,13 @@ describe('AC-IXD-PROC-W5-C3-D9: stepper nodes show full-word stage names', () =>
     expect(within(stepper).getByText('Purchase Request')).toBeInTheDocument();
   });
 
-  it('D9-2: the "Vendor Quote" node label is visible as text', () => {
+  it('D9-2: the "supplier quote" node label is visible as text', () => {
     detailState.data = { ...base, status: 'Vendor Quoted' };
     renderPage();
     const stepper = screen.getByRole('list', { name: /procurement lifecycle/i });
     const items = within(stepper).getAllByRole('listitem');
     const texts = items.map((li) => li.textContent ?? '');
-    expect(texts.some((t) => t.includes('Vendor Quote'))).toBe(true);
+    expect(texts.some((t) => t.includes('Supplier Quote'))).toBe(true);
   });
 
   it('D9-3: the "Purchase Order" node label is visible as text', () => {
@@ -291,13 +291,13 @@ describe('AC-IXD-PROC-W5-C3-D9: stepper nodes show full-word stage names', () =>
     expect(texts.some((t) => t.includes('Goods Receipt'))).toBe(true);
   });
 
-  it('D9-5: the "Vendor Invoice" node label is visible as text', () => {
+  it('D9-5: the "Supplier Invoice" node label is visible as text', () => {
     detailState.data = { ...vendorInvoicedFixture, invoices: [] };
     renderPage();
     const stepper = screen.getByRole('list', { name: /procurement lifecycle/i });
     const items = within(stepper).getAllByRole('listitem');
     const texts = items.map((li) => li.textContent ?? '');
-    expect(texts.some((t) => t.includes('Vendor Invoice'))).toBe(true);
+    expect(texts.some((t) => t.includes('Supplier Invoice'))).toBe(true);
   });
 
   it('D9-6: the "Payment" (Paid) node label is visible as text', () => {
@@ -320,7 +320,7 @@ describe('AC-IXD-PROC-W5-C3-D9: stepper nodes show full-word stage names', () =>
     expect(ariaLabels[0]).toMatch(/^Purchase Request/i);
   });
 
-  it('D9-8: approval is a gate — an Approved PR advances PR→done + Vendor Quote→current, with NO standalone "Approved" node', () => {
+  it('D9-8: approval is a gate — an Approved PR advances PR→done + supplier quote→current, with NO standalone "Approved" node', () => {
     // Owner directive 2026-06-21: approval is a gate, not a stage. Approving moves
     // the bar to the Vendor-Quote node (the next action); there is no Approved node.
     detailState.data = { ...base, status: 'Approved', approved_by_id: 'u-fin' };
@@ -333,7 +333,7 @@ describe('AC-IXD-PROC-W5-C3-D9: stepper nodes show full-word stage names', () =>
     // The PR node is done (the bar advanced on approval) …
     expect(ariaLabels[0]).toBe('Purchase Request: done');
     // … and the Vendor-Quote node is the current step (the next action).
-    expect(ariaLabels[1]).toBe('Vendor Quote: current');
+    expect(ariaLabels[1]).toBe('Supplier Quote: current');
   });
 
   it('D9-9: the mono pr_number ref renders under the Purchase Request node when a PR record exists (I1)', () => {
@@ -371,7 +371,7 @@ describe('AC-IXD-PROC-W5-C3-D9: stepper nodes show full-word stage names', () =>
     // ADR-0093 (deliberate change from "always six"): the bar shows the steps that happened plus the next, so a
     // purchase that skipped a step no longer shows it. The six stages are still PR · VQ · PO · GR · VI · Payment.
     const labels = items.map((i) => (i.getAttribute('aria-label') ?? '').split(':')[0].trim());
-    const FULL = ['Purchase Request', 'Vendor Quote', 'Purchase Order', 'Goods Receipt', 'Vendor Invoice', 'Payment'];
+    const FULL = ['Purchase Request', 'Supplier Quote', 'Purchase Order', 'Goods Receipt', 'Supplier Invoice', 'Payment'];
     expect(labels.length).toBeGreaterThan(0);
     labels.forEach((l) => expect(FULL).toContain(l));
     expect(labels[labels.length - 1]).toBe('Payment');
@@ -567,7 +567,7 @@ describe('AC-IXD-PROC-W5-C3 non-regression: existing DecisionCard behaviors unch
     renderPage();
     const stepper = screen.getByRole('list', { name: /procurement lifecycle/i });
     const items = within(stepper).getAllByRole('listitem');
-    expect(items.map((i) => (i.getAttribute('aria-label') ?? '').split(':')[0].trim())).toEqual(['Purchase Request', 'Vendor Quote']);
+    expect(items.map((i) => (i.getAttribute('aria-label') ?? '').split(':')[0].trim())).toEqual(['Purchase Request', 'Supplier Quote']);
   });
 });
 

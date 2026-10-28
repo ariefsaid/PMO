@@ -139,7 +139,7 @@ describe('SalesInvoices customer collections deep link (AC-S36-004)', () => {
     expect(within(table).queryByText('INV-C1-P1-CURRENT')).not.toBeInTheDocument();
     expect(within(table).queryByText('INV-C1-P2-OVERDUE')).not.toBeInTheDocument();
     expect(within(table).queryByText('INV-C2-P1-OVERDUE')).not.toBeInTheDocument();
-    expect(within(table).getByRole('row', { name: /INV-C1-P1-OVERDUE/ })).toHaveTextContent('$1,000.00');
+    expect(within(table).getByRole('row', { name: /INV-C1-P1-OVERDUE/ })).toHaveTextContent('$1,000');
     expect(screen.getByTestId('customer-filter')).toHaveTextContent('Customer: Northwind Services');
   });
 

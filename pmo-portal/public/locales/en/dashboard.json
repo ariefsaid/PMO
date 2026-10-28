@@ -3,11 +3,11 @@
     "account": "Account",
     "actualsError": "Couldn't load actuals",
     "actualsTitle": "Actuals (ERP ledger)",
-    "allInvoicesPaid": "All vendor invoices have been paid or none are awaiting action.",
-    "apError": "Couldn't load vendor payables",
-    "apTitle": "Vendor payables (AP)",
+    "allInvoicesPaid": "All supplier invoices have been paid or none are awaiting action.",
+    "apError": "Couldn't load supplier payables",
+    "apTitle": "Supplier payables (AP)",
     "arError": "Couldn't load customer receivables",
-    "awaiting": "Purchase requests awaiting your decision",
+    "awaiting": "Procurement awaiting your decision",
     "budgetReviewLoadError": "Couldn't load budget review",
     "contractValue": "Contract value in progress",
     "contractValueHelp": "Total contract value across active projects.",
@@ -18,7 +18,7 @@
     "days": "{{count}} days",
     "fiscalYear": "Fiscal year",
     "invoiced": "Invoiced",
-    "invoicedHelp": "Days since the vendor invoice was recorded; older records use their last update date.",
+    "invoicedHelp": "Days since the supplier invoice was recorded; older records use their last update date.",
     "kpiBand": "Finance KPIs",
     "loadInvoicesError": "Couldn't load invoices",
     "margin": "Margin to date",
@@ -27,16 +27,16 @@
     "netUnavailableReason": "The source snapshot did not supply a Net value.",
     "nothingAwaitingPayment": "Nothing awaiting payment",
     "oneDay": "1 day",
-    "openRequest": "Open {{request}}",
+    "openRequest": "Open procurement record {{request}}",
     "party": "Party",
-    "payables": "Vendor payables",
-    "payablesDetail": "Vendor-invoiced, awaiting payment",
-    "payablesHelp": "Procurement value owed to vendors in the Vendor Invoiced state.",
-    "payablesLink": "Open vendor invoices awaiting payment",
+    "payables": "Supplier payables",
+    "payablesDetail": "Supplier-invoiced, awaiting payment",
+    "payablesHelp": "Procurement value owed to suppliers in the Supplier Invoiced state.",
+    "payablesLink": "Open supplier invoices awaiting payment",
     "project": "Project",
     "projectUnavailableReason": "Project name is unavailable.",
     "recordedSpending": "Recorded spending",
-    "request": "Request",
+    "request": "Procurement",
     "spendingHelp": "Actual spending recorded across the delivery portfolio.",
     "spendingLink": "Open active projects to see spending details",
     "today": "Today",
@@ -52,7 +52,7 @@
   "pmRow": {
     "delivery": "Delivery",
     "margin": "Margin",
-    "marginAria": "{{name}} margin to date: {{pct}}%"
+    "marginAria": "{{name}} margin to date: {{pct}}"
   },
   "risk": {
     "uncheckedNote": "Risk can't be checked yet — no active budget."
@@ -62,6 +62,22 @@
   },
   "kpi": {
     "activeProjectsCount": "{{count}} active projects"
+  },
+  "dashboard": {
+    "chart": {
+      "procStatus": {
+        "chartLabel": "Procurement by status",
+        "empty": "No procurement activity yet",
+        "noun": "procurement records"
+      }
+    }
+  },
+  "uxs03": {
+    "pmoPurchasing": "PMO purchasing requests",
+    "pmoPurchasingScope": "ERP-native purchases are outside this PMO request chart."
+  },
+  "uxs19": {
+    "dashboardEmpty": "No procurement records to show"
   },
   "winRate": {
     "title": "Win rate",

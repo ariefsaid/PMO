@@ -163,7 +163,7 @@ describe('AC-IXD-PROC-002: the lifecycle stepper advances when a PR is Approved'
     expect(approvedIdx).toBeGreaterThan(requestedIdx);
   });
 
-  it('AC-IXD-PROC-002: approving advances PR→done + Vendor Quote→current, with NO standalone "Approved" node', () => {
+  it('AC-IXD-PROC-002: approving advances PR→done + supplier quote→current, with NO standalone "Approved" node', () => {
     detailState.data = { ...base, status: 'Approved', approved_by_id: 'u-fin' };
     renderPage();
     const stepper = screen.getByRole('list', { name: /procurement lifecycle/i });
@@ -173,9 +173,9 @@ describe('AC-IXD-PROC-002: the lifecycle stepper advances when a PR is Approved'
     const labels = ariaLabels.map((l) => l.split(':')[0].trim());
     // Approval is a gate, not a stage — no node is labelled "Approved".
     expect(labels).not.toContain('Approved');
-    // The bar advanced on approval: PR done, Vendor Quote current (the next action).
+    // The bar advanced on approval: PR done, supplier quote current (the next action).
     expect(ariaLabels[0]).toBe('Purchase Request: done');
-    expect(ariaLabels[1]).toBe('Vendor Quote: current');
+    expect(ariaLabels[1]).toBe('Supplier Quote: current');
   });
 });
 

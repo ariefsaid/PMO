@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
   Button, Card, DataTable, Icon, KPITile, ListPage, ListState, StatusPill, TextField, type Column,
 } from '@/src/components/ui';
@@ -15,7 +15,7 @@ import {
   buildManagementPackExport, managementPackFileStem, type ManagementPackExportLabels,
 } from '@/src/lib/reports/managementPackExport';
 import { monthInputToIso } from '@/src/lib/reports/months';
-import { formatCurrencyAuto, formatUtcMonthYear } from '@/src/lib/format';
+import { formatCurrencyAuto, formatPercent, formatUtcMonthYear } from '@/src/lib/format';
 import { moneyFigure } from '@/src/lib/dashboardMoney';
 import { PROGRESS_RECORDABLE_PROJECT_STATUSES } from '@/src/lib/dashboardConstants';
 
@@ -26,9 +26,9 @@ type TotalsRow = PackTotalsMonth & { currency: string };
 const KPI_MEASURES: Measure[] = ['recognisedToDate', 'invoicedToDate', 'unbilled', 'backlog'];
 const TOTALS_MEASURES: TotalsMeasure[] = ['planned', 'recognised', 'invoiced', 'unbilled', 'backlog'];
 const monthLabel = (iso: string) => formatUtcMonthYear(new Date(`${iso}T00:00:00Z`));
-// OD-MONEY-FMT: the exact amount in its currency, zero fraction suppressed, non-zero fraction kept.
+// Full, whole-unit values for the management-pack tables; exports retain source cents.
 const money = (cents: number | null, currency: string) =>
-  cents === null ? '—' : formatCurrencyAuto(fromCents(cents), currency);
+  cents === null ? '' : formatCurrencyAuto(fromCents(cents), currency);
 
 const ManagementPack: React.FC = () => {
   const { t } = useTranslation();
@@ -60,10 +60,10 @@ const ManagementPack: React.FC = () => {
       <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
           <h2 className="text-heading font-semibold">
-            {t('managementPack.noAccessTitle', "You don't have access to the management pack")}
+            {t('managementPack.noAccessTitle', "You don't have access to Reports")}
           </h2>
           <p className="mt-2 text-muted-foreground">
-            {t('managementPack.noAccessSub', 'The management pack is available to Finance, Project Managers, Executives and Admins.')}
+            {t('managementPack.noAccessSub', 'Reports are available to Finance, Project Managers, Executives and Admins.')}
           </p>
           <Button variant="outline" onClick={() => navigate('/')} className="mt-4">
             <Icon name="back" className="size-4 mr-2" />
@@ -84,6 +84,9 @@ const ManagementPack: React.FC = () => {
         ? 'empty'
         : undefined;
   const invalidRange = (error as { code?: string } | null)?.code === '22023';
+  const backlogReason = t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.');
+  const backlogUnavailable = t('uxs34.backlogUnavailable', 'The foreign-currency invoice backlog needs reconciliation before this balance can be known.');
+  const backlogNeedsReview = pack?.totals.some((total) => total.months.some((month) => month.backlog === null)) ?? false;
 
   const setMonth = (key: 'from' | 'to', value: string) => {
     const next = new URLSearchParams(params);
@@ -129,19 +132,13 @@ const ManagementPack: React.FC = () => {
     const value = m ? m[key] : null;
     return (
       <span data-testid={`pack-cell-${key}`} className="tabular text-right text-[13px]">
-        {key === 'backlog' && row.kind === 'contract' && value === null ? (
-          <span title={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')}>{t('uxs34.backlogUnavailable', 'Unavailable')}</span>
-        ) : money(value, row.currency)}
+        {money(value, row.currency)}
         {key === 'unbilled' && value !== null && value < 0 && (
           <span className="ml-1 text-xs text-muted-foreground">{t('managementPack.billedAhead', 'billed ahead')}</span>
         )}
       </span>
     );
   };
-
-  const backlogUnavailable = (
-    <span title={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')}>{t('uxs34.backlogUnavailable', 'Unavailable')}</span>
-  );
 
   const columns: Column<PackRow>[] = [
     {
@@ -185,7 +182,7 @@ const ManagementPack: React.FC = () => {
       size: 110,
       cell: (row) =>
         row.latestProgress
-          ? t('managementPack.basis.progress', '{{pct}}% complete', { pct: row.latestProgress.pctComplete })
+          ? t('managementPack.basis.progress', '{{pct}} complete', { pct: formatPercent(row.latestProgress.pctComplete / 100, 2) })
           : t('managementPack.basis.invoiced', 'Invoiced'),
     },
     {
@@ -216,7 +213,7 @@ const ManagementPack: React.FC = () => {
         recognisedToDate: money(m.recognisedToDate, tot.currency),
         invoicedToDate: money(m.invoicedToDate, tot.currency),
         unbilled: money(m.unbilled, tot.currency),
-        backlog: m.backlog === null ? backlogUnavailable : money(m.backlog, tot.currency),
+        backlog: money(m.backlog, tot.currency),
       } as Record<string, React.ReactNode>,
     };
   });
@@ -241,9 +238,7 @@ const ManagementPack: React.FC = () => {
       size: 140,
       cell: (r) => (
         <span className="tabular text-right text-[13px]">
-          {k === 'backlog' && r.backlog === null
-            ? <span title={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')}>{t('uxs34.backlogUnavailable', 'Unavailable')}</span>
-            : money(r[k], r.currency)}
+          {money(r[k], r.currency)}
         </span>
       ),
     })),
@@ -251,7 +246,7 @@ const ManagementPack: React.FC = () => {
 
   return (
     <ListPage
-      title={t('managementPack.title', 'Monthly management pack')}
+      title={t('managementPack.title', 'Reports')}
       description={t('managementPack.description', 'Planned, recognised and invoiced revenue per project and month. All figures exclude tax.')}
       primaryAction={
         <Button variant="outline" disabled={!pack || busy} onClick={onExport}>
@@ -291,19 +286,27 @@ const ManagementPack: React.FC = () => {
           {t('uxs34.cumulativeScope', 'Cumulative amounts · since project start through {{month}}', { month: monthLabel(pack.to) })}
         </p>
       )}
+      {pack && state === undefined && backlogNeedsReview && (
+        <p className="mb-3 text-sm text-muted-foreground" role="status" data-testid="backlog-unavailable">
+          {backlogReason}{' '}
+          <Link className="font-medium text-primary-text underline-offset-4 hover:underline" to="/sales-invoices">
+            {t('project:moneyDisplay.reviewInvoices', 'Review invoices')}
+          </Link>
+        </p>
+      )}
       {pack && state === undefined && pack.totals.map((tot) => {
         const m = tot.months[tot.months.length - 1];
         return (
-          <div key={tot.currency} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
-            {KPI_MEASURES.map((k) => (
-              <KPITile key={k} label={`${label[k]} · ${tot.currency}`}
-                {...moneyFigure(m[k] === null ? null : fromCents(m[k]), tot.currency, k === 'backlog'
-                    ? t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')
-                    : t('uxs03.notAvailableYet', 'Not available yet'))}
-                icon="dollar" tone="blue"
-                help={k === 'backlog' && m[k] === null ? t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.') : undefined}
-                helpLabel={k === 'backlog' && m[k] === null ? t('uxs34.backlogUnavailable', 'Unavailable') : undefined} />
-            ))}
+          <div key={tot.currency} className="mb-6">
+            <h2 className="mb-2 text-sm font-semibold">{tot.currency}</h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {KPI_MEASURES.map((k) => {
+                const figure = moneyFigure(m[k] === null ? null : fromCents(m[k]), tot.currency, backlogUnavailable,
+                  { labelHasCurrency: true });
+                return <KPITile key={k} label={label[k]} value={figure.value}
+                  exactValue={figure.exactValue} icon="dollar" tone="blue" />;
+              })}
+            </div>
           </div>
         );
       })}
@@ -314,7 +317,7 @@ const ManagementPack: React.FC = () => {
       {state === 'error' && (
         <ListState
           variant="error"
-          title={t('managementPack.errorTitle', "Couldn't load the management pack")}
+          title={t('managementPack.errorTitle', "Couldn't load Reports")}
           sub={invalidRange
             ? t('managementPack.invalidRange', 'Choose a start month on or before the as-at month, at most 24 months apart.')
             : t('managementPack.errorSub', 'The request failed. Check your connection and try again.')}

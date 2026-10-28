@@ -24,28 +24,28 @@
     "newLineTotal": "Total baris baru",
     "addLineItem": "Tambah item",
     "add": "Tambah",
-    "removeDescription": "Item ini akan dihapus dari permintaan. Anda dapat menambahkannya kembali selama permintaan masih berupa draf.",
+    "removeDescription": "Item ini akan dihapus dari pengadaan. Anda dapat menambahkannya kembali selama pengadaan masih berupa draf.",
     "removeItem": "Hapus item",
     "searchItem": "Cari kode atau nama item…"
   },
   "create": {
-    "heading": "Permintaan pembelian baru",
+    "heading": "Pengadaan baru",
     "save": "Simpan",
-    "draftNote": "Permintaan ini tetap berstatus Draf sampai Anda mengirimkannya.",
-    "requestDetails": "Rincian permintaan",
+    "draftNote": "Pengadaan ini tetap berstatus Draf sampai Anda mengirimkannya.",
+    "requestDetails": "Rincian pengadaan",
     "titleField": "Judul",
-    "titleRequired": "Judul permintaan wajib diisi.",
-    "linesFailed": "Permintaan tersimpan, tetapi beberapa baris belum tersimpan. Simpan lagi untuk mencoba kembali.",
+    "titleRequired": "Judul pengadaan wajib diisi.",
+    "linesFailed": "Pengadaan tersimpan, tetapi beberapa baris belum tersimpan. Simpan lagi untuk mencoba kembali.",
     "project": "Proyek",
     "selectProject": "Pilih proyek…",
     "vendor": "Pemasok",
     "selectVendor": "Opsional — pilih pemasok…",
     "budgetCategory": "Kategori anggaran",
-    "denied": "Anda tidak memiliki izin untuk membuat permintaan pembelian.",
+    "denied": "Anda tidak memiliki izin untuk membuat catatan pengadaan.",
     "unsaved": {
-      "title": "Permintaan belum disimpan",
-      "description": "Permintaan ini belum disimpan. Tinggalkan halaman dan buang?",
-      "partialDescription": "Permintaan Anda sudah tersimpan. Item yang belum tersimpan akan hilang jika Anda meninggalkan halaman ini.",
+      "title": "Pengadaan belum disimpan",
+      "description": "Pengadaan ini belum disimpan. Tinggalkan halaman dan buang?",
+      "partialDescription": "Pengadaan Anda sudah tersimpan. Item yang belum tersimpan akan hilang jika Anda meninggalkan halaman ini.",
       "leave": "Tinggalkan",
       "stay": "Tetap di sini"
     }
@@ -53,16 +53,24 @@
   "ceiling": {
     "exceeds": "Jumlah tagihan melebihi jumlah yang disetujui sebesar {{amount}}. Pemberi persetujuan harus menyetujui jumlah yang lebih tinggi.",
     "approveHigher": "Setujui jumlah lebih tinggi",
-    "confirmBody": "Jumlah yang disetujui menjadi {{billed}} (saat ini {{approved}}). Anda tidak dapat membayar permintaan ini sendiri.",
+    "confirmBody": "Jumlah yang disetujui menjadi {{billed}} (saat ini {{approved}}). Anda tidak dapat membayar pengadaan ini sendiri.",
     "confirm": "Setujui",
     "approved": "Jumlah lebih tinggi disetujui"
   },
   "quoteSelection": {
-    "reroutedDetail": "Penawaran melebihi jumlah yang disetujui, sehingga permintaan dikembalikan untuk persetujuan."
+    "reroutedDetail": "Penawaran melebihi jumlah yang disetujui, sehingga pengadaan dikembalikan untuk persetujuan."
+  },
+  "quotes": {
+    "compareHint": "Bandingkan dan pilih penawaran pemasok",
+    "supplierColumn": "Pemasok / No. penawaran",
+    "supplierQuoteFallback": "Penawaran pemasok",
+    "tableName": "Perbandingan penawaran pemasok",
+    "selectSupplier": "Pilih pemasok…",
+    "selectionDescription": "Penawaran yang dipilih menetapkan nilai pengadaan dan pemasok. Jika melebihi jumlah yang disetujui, pengadaan akan kembali untuk persetujuan."
   },
   "ledger": {
     "paymentInErp": "Catat pembayaran di ERPNext; akan tertaut di sini pada sinkronisasi berikutnya.",
-    "billsHiddenForRole": "Tagihan vendor dan pembayaran tidak ditampilkan untuk peran Anda.",
+    "billsHiddenForRole": "Tagihan pemasok dan pembayaran tidak ditampilkan untuk peran Anda.",
     "awaitingApproval": "Menunggu persetujuan. Dokumen dapat dicatat setelah disetujui.",
     "approveToStart": "Setujui untuk mulai mencatat dokumen.",
     "emptyTitle": "Belum ada dokumen",
@@ -76,7 +84,7 @@
       "rfq": "Permintaan penawaran",
       "order": "Pesanan",
       "receipt": "Penerimaan barang",
-      "invoice": "Faktur vendor",
+      "invoice": "Faktur pemasok",
       "payment": "Pembayaran",
       "needsRequest": "perlu permintaan dulu",
       "needsApproval": "perlu persetujuan dulu",
@@ -96,7 +104,7 @@
     "saved": "Tersimpan",
     "request_before_orderHelp": "Jika aktif, pesanan memerlukan permintaan pembelian lebih dulu.",
     "approval_before_orderHelp": "Jika aktif, pesanan memerlukan permintaan yang disetujui lebih dulu.",
-    "receipt_before_invoiceHelp": "Jika aktif, faktur vendor memerlukan penerimaan barang lebih dulu.",
+    "receipt_before_invoiceHelp": "Jika aktif, faktur pemasok memerlukan penerimaan barang lebih dulu.",
     "approval_before_paymentHelp": "Jika aktif, pembayaran memerlukan jumlah yang disetujui lebih dulu."
   },
   "documents": {
@@ -111,11 +119,45 @@
       "quote": "Penawaran",
       "po": "Pesanan pembelian",
       "gr": "Penerimaan barang",
-      "invoice": "Faktur vendor",
+      "invoice": "Faktur pemasok",
       "payment": "Pembayaran"
     }
   },
   "detail": {
     "paidNeedsValue": "Tambahkan item baris atau dokumen bernilai sebelum menandai lunas."
+  },
+  "approvalRow": {
+    "open": "Buka pengadaan",
+    "details": "Rincian pengadaan",
+    "loadError": "Rincian pengadaan gagal dimuat",
+    "approved": "Pengadaan disetujui",
+    "rejected": "Pengadaan ditolak",
+    "reject": "Tolak pengadaan",
+    "approveDescription": "Setujui {{title}} — {{amount}}? Pengadaan ini akan dilanjutkan ke tahap pemesanan.",
+    "rejectDescription": "Tolak {{title}}? Pemohon akan diberi tahu dan dapat memperbaiki lalu mengajukan ulang."
+  },
+  "decisionSupport": {
+    "thisProcurement": "Pengadaan ini",
+    "afterThisProcurement": "Setelah pengadaan ini",
+    "overBudgetLead": "Pengadaan ini melebihi anggaran yang tersedia sebesar"
+  },
+  "headerEdit": {
+    "heading": "Edit rincian pengadaan",
+    "titlePlaceholder": "Judul pengadaan",
+    "titleRequired": "Judul pengadaan wajib diisi.",
+    "save": "Simpan pengadaan"
+  },
+  "preview": {
+    "loadErrorTitle": "Gagal memuat detail pengadaan"
+  },
+  "procurementDetail": {
+    "readyHint": {
+      "draftOther": "Siap mengajukan pengadaan ini untuk disetujui.",
+      "requested": "Anda dapat menyetujui atau menolak pengadaan ini. Pemohon tidak dapat menyetujui pengajuannya sendiri — pemisahan tugas memerlukan peninjau lain.",
+      "vendorInvoicedApprover": "Pembayaran harus dirilis oleh pengguna keuangan lain — penyetuju tidak dapat sekaligus membayar pengadaan ini.",
+      "vendorInvoiced": "Untuk merilis pembayaran, penyetuju tidak boleh sekaligus menjadi pembayar (pemisahan tugas). Anda dapat menandai pengadaan ini sebagai lunas di bawah.",
+      "default": "Siap melanjutkan. Pilih tindakan di bawah untuk memindahkan pengadaan ini ke tahap berikutnya."
+    },
+    "sodPreannounce": "Mengirim ini ke peninjau lain — Anda tidak dapat menyetujui catatan pengadaan Anda sendiri."
   }
 }

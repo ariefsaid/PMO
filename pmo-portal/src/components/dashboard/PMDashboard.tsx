@@ -21,6 +21,7 @@ import { isMoneyAtRisk, riskCheckableFor } from '@/src/lib/dashboardConstants';
 import { moneyFigure } from '@/src/lib/dashboardMoney';
 import { pillVariantForProjectStatus } from '@/components/projects';
 import { INTERNAL_STATUSES, ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
+import { formatPercent } from '@/src/lib/format';
 
 const DELIVERY_PROJECT_STATUSES = new Set([...ON_HAND_STATUSES, ...INTERNAL_STATUSES]);
 
@@ -174,10 +175,10 @@ export const PMDashboard: React.FC = () => {
                         <span className="text-[11.5px] text-muted-foreground">{t('dashboard:pmRow.margin', 'Margin')}</span>
                         <span
                           role="img"
-                          aria-label={margin !== null ? t('dashboard:pmRow.marginAria', '{{name}} margin to date: {{pct}}%', { name: p.name, pct: margin.toFixed(1) }) : undefined}
+                          aria-label={margin !== null ? t('dashboard:pmRow.marginAria', '{{name}} margin to date: {{pct}}', { name: p.name, pct: formatPercent(margin / 100) }) : undefined}
                           className={`min-w-12 text-right text-[13px] font-bold ${margin !== null ? 'tabular' : ''} ${marginClass}`}
                         >
-                          {margin !== null ? `${margin.toFixed(1)}%` : t('uxs03.notAvailableYet', 'Not available yet')}
+                          {margin !== null ? formatPercent(margin / 100) : t('uxs03.notAvailableYet', 'Not available yet')}
                         </span>
                       </span>
                     </li>

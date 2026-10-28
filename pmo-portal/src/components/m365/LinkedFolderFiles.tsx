@@ -35,6 +35,7 @@ export function LinkedFolderFiles({ reference }: { reference: { drive_id: string
       <M365BrowseNotice
         code={(state.error as { code?: string } | null)?.code}
         onRetry={() => { setState({ loading: true }); setAttempt((n) => n + 1); }}
+        linkedFolder
       />
     );
   }

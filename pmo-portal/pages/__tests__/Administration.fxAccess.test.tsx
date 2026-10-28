@@ -24,6 +24,8 @@ vi.mock('@/src/auth/usePermission', () => ({
   usePermission: () => (action: string, entity: string) => {
     if (entity === 'fxRate' && action === 'view')
       return state.role === 'Finance' || state.role === 'Admin';
+    if (entity === 'costAttribution' && action === 'manage')
+      return state.role === 'Finance' || state.role === 'Admin';
     if (entity === 'user' && action === 'view')
       return state.role === 'Executive' || state.role === 'Admin';
     return false;

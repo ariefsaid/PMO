@@ -141,7 +141,7 @@ describe('Enforcement: ProcurementDetails renders advance verbs through RecordAc
     const zone = screen.getByTestId('record-action-zone');
     expect(zone).toBeInTheDocument();
     // The Submit Request primary action is inside the zone.
-    const submitBtn = within(zone).getByRole('button', { name: /Submit Request/i });
+    const submitBtn = within(zone).getByRole('button', { name: /Submit for approval/i });
     expect(submitBtn).toBeInTheDocument();
   });
 });

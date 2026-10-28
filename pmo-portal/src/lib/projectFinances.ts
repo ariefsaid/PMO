@@ -231,11 +231,13 @@ export function deriveContractRemainingFromPosition(
   return contract === null || cost === null ? null : moneyText(contract - cost);
 }
 
+/** Signed whole-unit display money (#1437): the minus stays exact, cents do not survive to a display surface. */
 export function formatSignedExactMoney(value: ExactMoney, currency: string, locale: string): string | null {
   const units = moneyUnits(value);
   if (units === null) return null;
-  const formatted = formatExactMoney(moneyText(units < 0n ? -units : units), currency, locale);
-  return formatted === null ? null : `${units < 0n ? '−' : ''}${formatted}`;
+  const formatted = formatExactMoney(moneyText(units < 0n ? -units : units), currency, locale, { wholeUnits: true });
+  // A magnitude that rounds to zero loses its sign (−0.49 → "$0", never "−$0"), matching formatExactMoney.
+  return formatted === null ? null : `${units <= -50n ? '−' : ''}${formatted}`;
 }
 
 export interface AssignInvoiceProjectInput {

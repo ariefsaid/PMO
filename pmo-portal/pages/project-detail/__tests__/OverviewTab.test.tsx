@@ -226,11 +226,11 @@ describe('project invoicing summary', () => {
       expect(screen.getByTestId('project-drawdown').compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(screen.queryByTestId('project-invoicing-summary')).not.toBeInTheDocument();
       expect(section).not.toHaveTextContent('$220.00');
-      expect(section).toHaveTextContent('$110.00');
-      expect(section).toHaveTextContent('$100.00');
+      expect(section).toHaveTextContent('Contract invoice position · USD');
+      expect(section).toHaveTextContent('110');
+      expect(section).toHaveTextContent('100');
       expect(screen.queryByTestId('project-contract-basis')).not.toBeInTheDocument();
-      expect(screen.getByTestId('project-invoiced-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
-      expect(screen.getByTestId('project-remaining-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
+      expect(screen.getByTestId('project-finances-contract-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
       view.unmount();
     }
     // Overview and its Project finances summary share the same React Query key; each calls the hook, while the request is cached/deduplicated.
@@ -303,13 +303,13 @@ describe('OverviewTab T14: Procurement summary card', () => {
     expect(document.body.textContent).toMatch(/1 Closed/);
   });
 
-  it('UX-026/T14: labels procurement totals as request value, distinct from PMO purchase orders', () => {
+  it('UX-026/T14: labels procurement totals and row counts as procurement records', () => {
     renderTab();
     // Committed: r1(50k)+r2(80k)+r4(20k)=150k; r3(Cancelled) excluded
     // $150,000 also appears as Budget snapshot activeTotal — use count >= 1
     expect(screen.getAllByText(/\$150,000/i).length).toBeGreaterThanOrEqual(1);
-    // The procurement amount is total request value, not the separate Committed measure.
-    expect(screen.getByText(/Total request value:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Total procurement value:/i)).toBeInTheDocument();
+    expect(screen.getByText(/3 procurement records/i)).toBeInTheDocument();
   });
 
   it('T14: shows top 3 recent requests (newest first)', () => {
@@ -329,7 +329,7 @@ describe('OverviewTab T14: Procurement summary card', () => {
     procState.data = [];
     renderTab();
     expect(screen.queryByText(/Procurement summary/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/No purchase requests for this project yet/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No procurement records for this project yet/i)).not.toBeInTheDocument();
   });
 
   it('T14: a failed procurement read keeps its error + Retry', () => {
@@ -519,7 +519,7 @@ describe('OverviewTab D15 financial summary — Actual requires authorized compl
     const actualTile = Array.from(tiles).find((el) => el.textContent?.includes('Actual'));
     expect(actualTile).toBeTruthy();
     // This role cannot read the authorized project-finances source; committed PO spend is not a substitute.
-    expect(actualTile!.querySelector('.sr-only')).toHaveTextContent('Unavailable');
+    expect(actualTile!.textContent).toContain('Actual spending is still being confirmed.');
     expect(actualTile!.textContent).not.toContain('$3,700,000');
     expect(actualTile!.textContent).not.toContain('$0');
   });

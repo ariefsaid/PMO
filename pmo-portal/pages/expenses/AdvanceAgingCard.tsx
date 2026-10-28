@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, DataTable, ListState, type Column } from '@/src/components/ui';
 import { useExpenseAdvanceAging } from '@/src/hooks/useExpenseClaims';
-import { formatCurrencyAuto, formatCurrencyCents } from '@/src/lib/format';
+import { formatCurrencyAuto } from '@/src/lib/format';
 import { AGING_BUCKETS, agingTotals } from '@/src/lib/expenses/expenseRules';
 import { AGING_LIMIT, type ExpenseAdvanceAgingRow } from '@/src/lib/db/expenseClaims';
 import { agingBucketLabel } from './expenseLabels';
@@ -46,7 +46,7 @@ export const AdvanceAgingCard: React.FC = () => {
                 <div key={bucket}>
                   <dt className="text-xs text-muted-foreground">{agingBucketLabel(bucket, t)}</dt>
                   <dd className="font-semibold tabular-nums" data-testid={`aging-${currency}-${bucket}`}>
-                    {formatCurrencyCents(buckets[bucket], currency)}
+                    {formatCurrencyAuto(buckets[bucket], currency)}
                   </dd>
                 </div>
               ))}

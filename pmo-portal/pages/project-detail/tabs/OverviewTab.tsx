@@ -99,11 +99,13 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, comm
     ? null
     : formatSignedExactMoney(contractAfterCost, project.currency, i18n.language);
   const spendPctTile = moneyPosition.spendPercent;
-  // PD-A: same cuts as the header strip — unknown = "—" + reason, partial = one word, and a figure
+  // PD-A: same cuts as the header strip — unknown = no figure + reason, partial = one word, and a figure
   // with no value (or a capability the org does not use) gets no tile.
-  const unavailableReason = t('uxs01.actualUnavailable', 'Unavailable');
+  const unavailableReason = t('uxs01.actualUnavailable', 'Actual spending is still being confirmed.');
+  const contractUnavailable = t('project:moneyDisplay.contractUnavailable', "The contract value hasn't been entered.");
+  const purchaseOrdersUnavailable = t('project:moneyDisplay.purchaseOrdersUnavailable', 'Purchase order totals are still being confirmed.');
   const actualFigure: React.ReactNode = moneyPosition.headlineState === 'available' && actualPosition.amount !== null && actualPosition.currency
-    ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language) ?? <UnknownFigure reason={unavailableReason} />
+    ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language, { wholeUnits: true }) ?? <UnknownFigure reason={unavailableReason} />
     : <UnknownFigure reason={moneyPosition.headlineState === 'loading'
       ? t('uxs01.actualLoading', 'Loading Actual…')
       : moneyPosition.headlineState === 'partial'
@@ -117,7 +119,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, comm
           label: t('projectDetail.overview.finance.contract', 'Contract'),
           value: (
             <>
-              <span>{project.contract_value == null ? <UnknownFigure reason={unavailableReason} /> : formatCurrency(project.contract_value, project.currency)}</span>
+              <span>{project.contract_value == null ? <UnknownFigure reason={contractUnavailable} /> : formatCurrency(project.contract_value, project.currency)}</span>
               <FxEquivalent amount={project.contract_value} currency={project.currency} date={project.contract_date} />
             </>
           ),
@@ -131,7 +133,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, comm
               value: commitmentPending
                 ? <UnknownFigure reason={t('uxs01.actualLoading', 'Loading Actual…')} />
                 : commitmentError || committedSpend === undefined
-                  ? <UnknownFigure reason={unavailableReason} />
+                  ? <UnknownFigure reason={purchaseOrdersUnavailable} />
                   : formatCurrency(committedSpend, project.currency),
               ...(committedOtherCurrencies && committedOtherCurrencies.length > 0 ? { sub: <OtherCurrencyCommitments positions={committedOtherCurrencies} /> } : {}),
             }]
@@ -241,14 +243,14 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, comm
                 {/* #571 — one sentence; the styled amount is a placeholder a translator moves. */}
                 <Trans
                   i18nKey="uxs01.totalRequestValueAcross"
-                  defaults="Total request value: <amount>{{amount}}</amount> across {{n}} {{unit}}"
+                  defaults="Total procurement value: <amount>{{amount}}</amount> across {{n}} {{unit}}"
                   values={{
                     amount: formatCurrency(procSummary.committedTotal, project.currency),
                     n: String(procSummary.count),
                     unit:
                       procSummary.count === 1
-                        ? t('projectDetail.overview.procSummary.requestOne', 'request')
-                        : t('projectDetail.overview.procSummary.requestOther', 'requests'),
+                        ? t('projectDetail.overview.procSummary.requestOne', 'procurement record')
+                        : t('projectDetail.overview.procSummary.requestOther', 'procurement records'),
                   }}
                   components={{
                     amount: <span className="font-semibold tabular text-foreground text-[14px]" />,

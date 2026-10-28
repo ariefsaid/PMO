@@ -89,7 +89,7 @@ describe('Procurement index — IA-3 (real data)', () => {
     sessionStorage.clear();
   });
 
-  it('renders seeded requests with joined project name (AC-501)', () => {
+  it('renders seeded procurement records with joined project name (AC-501)', () => {
     renderPage();
     expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
@@ -103,20 +103,20 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(within(screen.getByTestId('list-page-header')).getByRole('heading')).toBeInTheDocument();
   });
 
-  it('AC-S19-002: daily rows show the request state and next step without repeating lifecycle pips', () => {
+  it('AC-S19-002: daily rows show the procurement state and next step without repeating lifecycle pips', () => {
     renderPage();
     expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Show preview for/i }).length).toBeGreaterThan(0);
-    expect(screen.getByText('Vendor Quote')).toBeInTheDocument();
+    expect(screen.getByText('Supplier Quote')).toBeInTheDocument();
     expect(screen.getByText('Next: Select quote')).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: /Lifecycle:/i })).not.toBeInTheDocument();
   });
 
   it('AC-S19-002: status, search, and create stay ahead of accessible More transfer tools', async () => {
     renderPage();
-    const create = screen.getByRole('button', { name: /raise request/i });
+    const create = screen.getByRole('button', { name: /new procurement/i });
     const filter = screen.getByRole('tab', { name: /^All$/ });
-    const search = screen.getByLabelText(/filter requests/i);
+    const search = screen.getByLabelText(/filter procurement records/i);
     const more = screen.getByRole('button', { name: 'More' });
     const follows = (first: HTMLElement, second: HTMLElement) =>
       Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
@@ -181,15 +181,15 @@ describe('Procurement index — IA-3 (real data)', () => {
 
   it('AC-S19-002: the canonical full status label and next-step copy are localized in Bahasa', () => {
     renderPageInLocale('id');
-    expect(screen.getByText('Penawaran Vendor')).toBeInTheDocument();
+    expect(screen.getByText('Penawaran pemasok')).toBeInTheDocument();
     expect(screen.getByText('Langkah berikutnya: Pilih penawaran')).toBeInTheDocument();
   });
 
   it('search filters real rows by title/code (AC-504)', async () => {
     renderPage();
-    await userEvent.type(screen.getByPlaceholderText(/Filter requests/i), 'zzz');
+    await userEvent.type(screen.getByPlaceholderText(/Filter procurement records/i), 'zzz');
     expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument();
-    expect(screen.getByText(/No requests match/i)).toBeInTheDocument();
+    expect(screen.getByText(/No procurement records match/i)).toBeInTheDocument();
   });
 
   // list-working-set-return (#683): the zero-match table state offers a Clear filters action
@@ -197,8 +197,8 @@ describe('Procurement index — IA-3 (real data)', () => {
   // AC-LRC-012's owning proof is pages/__tests__/listWorkingSet.emptyStates.test.tsx.
   it('a zero-match search offers Clear filters, which restores the rows', async () => {
     renderPage();
-    await userEvent.type(screen.getByPlaceholderText(/Filter requests/i), 'zzz');
-    expect(await screen.findByText(/No requests match/i)).toBeInTheDocument();
+    await userEvent.type(screen.getByPlaceholderText(/Filter procurement records/i), 'zzz');
+    expect(await screen.findByText(/No procurement records match/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
     expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
     expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
@@ -211,10 +211,10 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
   });
 
-  it('switching to the Board view groups requests into stage columns', async () => {
+  it('switching to the Board view groups procurement records into stage columns', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Board/i }));
-    // Vendor Quoted request lands in the VQ column
+    // Supplier Quote procurement record lands in the VQ column
     expect(within(screen.getByTestId('prstage-vq')).getByText('Workstations & AV')).toBeInTheDocument();
   });
 
@@ -246,18 +246,18 @@ describe('Procurement index — states', () => {
     expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
   });
 
-  it('empty state when zero rows teaches + offers a real Raise request action (AC-PROC-006)', () => {
+  it('empty state when zero rows teaches + offers a real New procurement action (AC-PROC-006)', () => {
     procState.data = [];
     renderPage();
-    expect(screen.getByText(/No purchase requests yet/i)).toBeInTheDocument();
-    expect(screen.getByText('PMO requests only; ERP-native purchases are not listed here.')).toBeInTheDocument();
+    expect(screen.getByText(/No procurement records yet/i)).toBeInTheDocument();
+    expect(screen.getByText('PMO procurement records only; ERP-native purchases are not listed here.')).toBeInTheDocument();
     // The dead disabled CTA was removed in the cleanup round; the CRUD slice
     // restores a REAL, working create affordance (header CTA + empty-state action).
-    expect(screen.getAllByRole('button', { name: /raise request/i }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole('button', { name: /new procurement/i }).length).toBeGreaterThanOrEqual(1);
   });
 });
 
-describe('Procurement index — Raise request gating (AC-PROC-006)', () => {
+describe('Procurement index — New procurement gating (AC-PROC-006)', () => {
   beforeEach(() => {
     procState.data = seed;
     procState.isPending = false;
@@ -265,20 +265,20 @@ describe('Procurement index — Raise request gating (AC-PROC-006)', () => {
     effRole.value = 'Project Manager';
   });
 
-  it('AC-PROC-006: a write-role sees the header Raise request CTA', () => {
+  it('AC-PROC-006: a write-role sees the header New procurement CTA', () => {
     renderPage();
-    expect(screen.getByRole('button', { name: /raise request/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /new procurement/i })).toBeInTheDocument();
   });
 
-  it('AC-PROC-006: an Engineer ALSO sees Raise request (any member may raise)', () => {
+  it('AC-PROC-006: an Engineer ALSO sees New procurement (any member may create)', () => {
     effRole.value = 'Engineer';
     renderPage();
-    expect(screen.getByRole('button', { name: /raise request/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /new procurement/i })).toBeInTheDocument();
   });
 
-  it('AC-PROC-006: clicking Raise request navigates to the full-page create route', async () => {
+  it('AC-PROC-006: clicking New procurement navigates to the full-page create route', async () => {
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /raise request/i }));
+    await userEvent.click(screen.getByRole('button', { name: /new procurement/i }));
     expect(screen.getByTestId('route-path')).toHaveTextContent('/procurement/new');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
@@ -305,7 +305,7 @@ describe('Procurement list working set — AC-LRC-001/002', () => {
     // The URL-driven status segment is selected.
     expect(screen.getByRole('tab', { name: /^Paid$/ })).toHaveAttribute('aria-selected', 'true');
     // The URL-driven search is present in the search box.
-    expect(screen.getByPlaceholderText(/Filter requests/i)).toHaveValue('Crane');
+    expect(screen.getByPlaceholderText(/Filter procurement records/i)).toHaveValue('Crane');
     // Only the matching row renders.
     expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
     expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument();

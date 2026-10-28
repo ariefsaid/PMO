@@ -37,7 +37,7 @@ test('AC-PFE-001: record an order as the first document of a draft purchase', as
     // GOAL: Ordered, and the PO is on the ledger — the request step was never taken.
     await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Ordered', { timeout: 15_000 });
     await expect(page.getByText(poRef).first()).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole('button', { name: 'Submit Request' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Submit for approval' })).toHaveCount(0);
 
     // Persisted, not just rendered: the order row exists and the purchase is Ordered in the database.
     const { data: po } = await admin.from('purchase_orders').select('id').eq('procurement_id', purchaseId).throwOnError();

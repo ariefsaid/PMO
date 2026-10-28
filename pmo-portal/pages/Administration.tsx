@@ -166,7 +166,7 @@ const AccountingSectionNavigation: React.FC = () => {
     { id: 'org-tax-default', label: t('uxs31.accounting.taxDefault', 'Default tax treatment') },
     { id: 'spend-approvers', label: t('uxs31.accounting.spendApprovers', 'Spend approvers') },
     { id: 'withholding-account-heading', label: t('uxs31.accounting.withholding', 'Receipt withholding') },
-    { id: 'vendor-tax-accounts-heading', label: t('uxs31.accounting.vendorTax', 'Vendor bill tax accounts') },
+    { id: 'vendor-tax-accounts-heading', label: t('uxs31.accounting.vendorTax', 'Supplier bill tax accounts') },
     { id: 'down-payment-item-heading', label: t('uxs31.accounting.downPayments', 'Down payments') },
     { id: 'procurement-gates-heading', label: t('procurement:gates.heading', 'Purchase rules') },
     { id: 'budget-account-map', label: t('uxs31.accounting.budgetMap', 'Budget account map') },
@@ -310,6 +310,7 @@ const Administration: React.FC = () => {
   const isAdminViewer = may('view', 'user');
   const canFx = may('view', 'fxRate');
   const canManageCostAttribution = may('manage', 'costAttribution');
+  const canViewCostAttribution = isAdminViewer || canManageCostAttribution;
   const isFinance = realRole === 'Finance';
   const isOperator = operatorMembership.isOperator;
   const operatorRoute = section !== undefined && isOperatorSection(section);
@@ -318,8 +319,11 @@ const Administration: React.FC = () => {
   const canEnterAdministration = isAdminViewer || isOperator || (fxRoute && isFinance && canFx) || (costAttributionRoute && isFinance && canManageCostAttribution);
   const needsOperatorCheck = operatorRoute || (!isAdminViewer && !isFinance);
   const navigationSections: AdministrationSection[] = isFinance
-    ? FINANCE_SECTIONS
-    : ORGANIZATION_SECTIONS.filter((id) => id !== 'exchange-rates' || canFx);
+    ? FINANCE_SECTIONS.filter((id) => id !== 'cost-attribution' || canManageCostAttribution)
+    : [
+      ...ORGANIZATION_SECTIONS.filter((id) => id !== 'exchange-rates' || canFx),
+      ...(canViewCostAttribution ? ['cost-attribution' as const] : []),
+    ];
   const sectionLabels = buildSectionLabels(t);
   const label = (id: AdministrationSection) => sectionLabels[id];
 

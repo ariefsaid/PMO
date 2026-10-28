@@ -54,7 +54,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
   const columns: Column<ProcurementWithRefs>[] = [
     {
       key: 'request',
-      header: t('projectDetail.procurement.column.request', 'Request'),
+      header: t('projectDetail.procurement.column.request', 'Procurement'),
       cell: (r) => (
         <div className="min-w-0">
           <div className="truncate font-semibold" title={r.title}>
@@ -98,7 +98,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
         title={t('projectDetail.procurement.error.title', "Couldn't load procurement")}
         sub={t(
           'projectDetail.procurement.error.sub',
-          "Something went wrong fetching this project's purchase requests.",
+          "Something went wrong fetching this project's procurement records.",
         )}
         onRetry={() => refetch()}
       />
@@ -107,17 +107,17 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
 
   return (
     <div>
-      {/* Header: title + gated "New request" button (T13 — in-context PR creation). */}
+      {/* Header: title + gated procurement creation button (T13 — in-context PR creation). */}
       <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-[16px] font-bold tracking-[-0.01em]">
-            {t('projectDetail.procurement.title', 'Purchase Requests')}
+            {t('projectDetail.procurement.title', 'Procurement')}
           </h2>
         </div>
         {canCreate && (
           <Button variant="outline" size="sm" onClick={() => navigate(`/procurement/new?project=${encodeURIComponent(projectId)}`)}>
             <Icon name="plus" />
-            {t('projectDetail.procurement.newRequest', 'New request')}
+            {t('projectDetail.procurement.newRequest', 'New procurement')}
           </Button>
         )}
       </div>
@@ -131,11 +131,11 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
         state={rows.length === 0 ? 'empty' : undefined}
         emptyTitle={t(
           'projectDetail.procurement.empty.title',
-          'No purchase requests for this project yet',
+          'No procurement records for this project yet',
         )}
         emptySub={erpListedBelow ? t(
           'uxs19.projectEmptyScope',
-          'This list covers PMO requests. Purchases recorded in ERPNext appear below.',
+          'This list covers PMO procurement records. Purchases recorded in ERPNext appear below.',
         ) : undefined}
       tableId="project-detail-tabs-procurementtab-table" />
 

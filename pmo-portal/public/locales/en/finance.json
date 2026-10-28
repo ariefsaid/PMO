@@ -17,7 +17,7 @@
   },
   "erpPurchases": {
     "countedInActuals": "Already counted in Actuals.",
-    "backToProcurement": "Procurement requests",
+    "backToProcurement": "Procurement",
     "noAccess": "You don't have access to the organization's purchases",
     "empty": "No purchases from ERPNext yet",
     "emptySub": "They appear here after the next sync once ERPNext is connected.",
@@ -128,7 +128,7 @@
       "currency": "The document’s currency differs from this purchase.",
       "gateRequest": "Your organization requires a purchase request before an order.",
       "gateApprovalOrder": "Your organization requires an approval before an order.",
-      "gateReceipt": "Your organization requires a goods receipt before a vendor invoice.",
+      "gateReceipt": "Your organization requires a goods receipt before a supplier invoice.",
       "gateApprovalPayment": "Your organization requires an approval before payment.",
       "spansProjects": "This invoice is recorded against several projects. Link it from ERPNext per project, or record it in PMO.",
       "sharepointHost": "The file is not on your organization’s SharePoint site.",
@@ -164,5 +164,8 @@
     "supplierCount": "{{count}} suppliers",
     "loadError": "Couldn't load the ERPNext documents not in a purchase",
     "agingTitle": "Unpaid ERPNext invoices (incl. linked)"
+  },
+  "budgetMap": {
+    "overheadsHint": "Direct project cost, not company overhead."
   }
 }

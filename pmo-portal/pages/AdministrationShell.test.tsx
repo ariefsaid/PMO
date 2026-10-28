@@ -155,7 +155,7 @@ vi.mock('./admin/OrgProjectClassificationOptions', () => ({ default: () => <div>
 vi.mock('./admin/OrgTaxDefault', () => ({ default: () => <div id="org-tax-default" tabIndex={-1}>Tax default panel</div> }));
 vi.mock('./admin/SpendApprovers', () => ({ default: () => <div id="spend-approvers" tabIndex={-1} /> }));
 vi.mock('./admin/OrgWithholdingAccount', () => ({ default: () => <h2 id="withholding-account-heading" tabIndex={-1}>Receipt withholding</h2> }));
-vi.mock('./admin/OrgVendorTaxAccounts', () => ({ default: () => <h2 id="vendor-tax-accounts-heading" tabIndex={-1}>Vendor bill tax accounts</h2> }));
+vi.mock('./admin/OrgVendorTaxAccounts', () => ({ default: () => <h2 id="vendor-tax-accounts-heading" tabIndex={-1}>Supplier bill tax accounts</h2> }));
 vi.mock('./admin/OrgDownPaymentItem', () => ({ default: () => <h2 id="down-payment-item-heading" tabIndex={-1}>Down payments</h2> }));
 vi.mock('./admin/OrgProcurementGates', () => ({ default: () => <h2 id="procurement-gates-heading" tabIndex={-1}>Purchase rules</h2> }));
 vi.mock('./admin/BudgetAccountMap', () => ({ default: () => {
@@ -247,7 +247,7 @@ describe('Administration route-backed shell', () => {
 
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/users'));
     expect(screen.getByRole('link', { name: 'Users' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getAllByRole('link')).toHaveLength(6);
+    expect(screen.getAllByRole('link')).toHaveLength(7);
     expect(screen.getByTestId('administration-panel-users')).toBeInTheDocument();
     expect(screen.queryByTestId('administration-panel-integrations')).not.toBeInTheDocument();
     expect(screen.queryByTestId('administration-panel-accounting')).not.toBeInTheDocument();
@@ -259,6 +259,21 @@ describe('Administration route-backed shell', () => {
     expect(panelMounts.credits).toBe(0);
     expect(panelMounts.usage).toBe(0);
     expect(panelMounts.features).toBe(0);
+  });
+
+  it('AC-CAT-018: an Admin can open Cost attribution from the Administration section navigation', async () => {
+    renderShell('/administration/cost-attribution');
+    const nav = await screen.findByRole('navigation', { name: 'Administration sections' });
+    const link = within(nav).getByRole('link', { name: 'Cost attribution' });
+    expect(link).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByTestId('administration-panel-cost-attribution')).toHaveTextContent('Cost attribution panel');
+  });
+
+  it('AC-CAT-019: an Executive sees Cost attribution as the current Administration destination', async () => {
+    renderShell('/administration/cost-attribution', 'Executive');
+    const nav = await screen.findByRole('navigation', { name: 'Administration sections' });
+    expect(within(nav).getByRole('link', { name: 'Cost attribution' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByTestId('administration-panel-cost-attribution')).toHaveTextContent('Cost attribution panel');
   });
 
   it('Finance entering Administration still lands on Exchange rates', async () => {
@@ -291,11 +306,11 @@ describe('Administration route-backed shell', () => {
     expect(panelMounts.accounting).toBe(0);
   });
 
-  it('AC-ADMIA-002: an Operator sees all eight destinations and only mounts the requested panel', async () => {
+  it('AC-ADMIA-002: an Operator sees all nine destinations and only mounts the requested panel', async () => {
     const usageView = renderShell('/administration/usage', 'Admin', true);
 
     await waitFor(() => expect(screen.getByTestId('administration-panel-usage')).toBeInTheDocument());
-    expect(screen.getAllByRole('link')).toHaveLength(8);
+    expect(screen.getAllByRole('link')).toHaveLength(9);
     expect(screen.getByRole('link', { name: 'Usage' })).toHaveAttribute('aria-current', 'page');
     expect(screen.queryByTestId('administration-panel-users')).not.toBeInTheDocument();
     expect(screen.queryByTestId('administration-panel-features')).not.toBeInTheDocument();
@@ -366,7 +381,7 @@ describe('Administration route-backed shell', () => {
       ['Default tax treatment', 'org-tax-default'],
       ['Spend approvers', 'spend-approvers'],
       ['Receipt withholding', 'withholding-account-heading'],
-      ['Vendor bill tax accounts', 'vendor-tax-accounts-heading'],
+      ['Supplier bill tax accounts', 'vendor-tax-accounts-heading'],
       ['Down payments', 'down-payment-item-heading'],
       ['Purchase rules', 'procurement-gates-heading'],
       ['Budget account map', 'budget-account-map'],
@@ -461,7 +476,7 @@ describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', 
     const nav = screen.getByRole('navigation', { name: 'Administration sections' });
     const links = within(nav).getAllByRole('link');
 
-    expect(links).toHaveLength(6);
+    expect(links).toHaveLength(7);
     for (const link of links) {
       // Native deep links: real href, keyboard-focusable (never tabindex=-1), never a button.
       expect(link.getAttribute('href')).toMatch(/^\/administration\//);
@@ -505,6 +520,7 @@ describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', 
       '/administration/projects',
       '/administration/credits',
       '/administration/exchange-rates',
+      '/administration/cost-attribution',
     ]);
 
     // Focus the first section link, then Tab to each subsequent destination.
@@ -542,7 +558,7 @@ describe('AC-ADMIA-005 — Administration section touch targets (phone)', () => 
     renderShell('/administration/usage', 'Admin', true);
     const nav = screen.getByRole('navigation', { name: 'Administration sections' });
     const links = within(nav).getAllByRole('link');
-    expect(links).toHaveLength(8);
+    expect(links).toHaveLength(9);
     for (const link of links) {
       expect(link.className).toContain('touch-target');
     }

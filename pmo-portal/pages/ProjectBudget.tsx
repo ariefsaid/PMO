@@ -9,6 +9,7 @@ import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import {
   formatCurrency,
   formatCurrencyAuto,
+  formatCurrencyCents,
   formatMoneyInputValue,
   parseMoneyInputAtScale,
 } from '@/src/lib/format';
@@ -520,7 +521,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
           key: 'total',
           label: t('financeCopy.total', "Total"),
           values: {
-            amount: <span data-testid="budget-edit-total" className="font-bold">{formatCurrencyAuto(total, currency)}</span>,
+            amount: <span data-testid="budget-edit-total" className="font-bold">{formatCurrencyCents(total, currency)}</span>,
           },
         }]}
       />

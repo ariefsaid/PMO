@@ -9,7 +9,7 @@ import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
-import { formatCurrencyCents } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 import { parseMissingKeyHandler } from '@/src/lib/i18n';
 
 const h = vi.hoisted(() => ({
@@ -66,7 +66,7 @@ const CLAIMS = [
 ];
 const DOCS = [{ id: 'doc-1', org_id: 'o', project_id: 'p1', code: null, category: 'Report', title: 'Progress report', revision: 'A', status: 'Issued', doc_date: null, author_id: null, file_path: 'docs/report.pdf', created_at: '' }];
 // jest-dom collapses whitespace (incl. the currency's no-break space) in the element text, so normalise the expectation the same way.
-const money = (value: number) => formatCurrencyCents(value, 'IDR').replace(/\s+/g, ' ');
+const money = (value: number) => formatCurrency(value, 'IDR').replace(/\s+/g, ' ');
 
 beforeEach(() => {
   vi.clearAllMocks();

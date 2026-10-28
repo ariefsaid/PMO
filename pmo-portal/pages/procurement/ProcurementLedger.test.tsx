@@ -253,11 +253,11 @@ describe('AC-PR-LEDGER-010: ProcurementLedger renders DataTable', () => {
   it('AC-UXS-004 offers the existing vendor edit recovery instead of opening a slip form without a vendor', () => {
     const onSetVendor = vi.fn();
     wrap(<ProcurementLedger {...BASE_PROPS} detail={makeDetail({ status: 'Draft', vendor_id: null })} rows={[SAMPLE_ROWS[1]]} invoices={[{ id: 'vi-1', amount: 100, currency: 'USD' } as never]} withholdingCoverage={{ 'vi-1': { coverage_state: 'not-recorded', active_slip_id: null } as never }} canWriteWithholdingSlip vendorMissing onSetVendor={onSetVendor} />);
-    expect(screen.getByText('Set a vendor on the request before recording this slip.')).toBeInTheDocument();
+    expect(screen.getByText('Set a supplier on the procurement record before recording this slip.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Record bukti potong' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Set vendor' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Set supplier' })).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Set vendor' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Set supplier' }));
     expect(onSetVendor).toHaveBeenCalledTimes(1);
   });
 
@@ -489,7 +489,7 @@ describe('AC-PR-LEDGER-018: file column — prop-driven, no fetch on mount', () 
 });
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────
-// #548 / OD-TAX-1 §2 — the vendor invoice's total states its basis; nothing else claims one
+// #548 / OD-TAX-1 §2 — the supplier invoice's total states its basis; nothing else claims one
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 describe('#548 (OD-TAX-1): the ledger Amount column carries the row’s tax basis', () => {
   it('#548: the Invoice row reads "incl. PPN" — 0196 makes the marker NOT NULL, so it always exists', () => {
@@ -536,7 +536,7 @@ describe('AC-EXT-002 (#769): the ledger shows each record\'s Group ref', () => {
   });
 });
 
-describe('AC-VWH-012: a vendor invoice with tax withheld shows VAT, tax withheld and net payable (#876)', () => {
+describe('AC-VWH-012: a supplier invoice with tax withheld shows VAT, tax withheld and net payable (#876)', () => {
   const withholdingRow: LedgerRow = {
     ...SAMPLE_ROWS[1], id: 'vi-876', systemNumber: 'VI-2026-0876', recordId: 'vi-876',
     amount: 1110000, currency: 'IDR', taxAmount: 110000, withheldAmount: 20000,
@@ -553,7 +553,7 @@ describe('AC-VWH-012: a vendor invoice with tax withheld shows VAT, tax withheld
     expect(within(breakdown).getByTestId('vi-withholding-net').textContent).toBe(formatCurrency(1090000, 'IDR'));
   });
 
-  it('AC-VWH-012 a vendor invoice with nothing withheld renders no breakdown (unchanged)', () => {
+  it('AC-VWH-012 a supplier invoice with nothing withheld renders no breakdown (unchanged)', () => {
     wrap(<ProcurementLedger {...BASE_PROPS} rows={[{ ...SAMPLE_ROWS[1], taxAmount: 0, withheldAmount: 0 }]} />);
     expect(screen.queryByTestId('vi-withholding-breakdown')).toBeNull();
   });
@@ -571,7 +571,7 @@ describe('AC-VWH-026: a standalone tax-exclusive bill shows net payable = amount
 
 describe('AC-SEC-234: a role that reads no bills or payments is told so, never shown "no bill"', () => {
   const NON_MONEY_ROWS = SAMPLE_ROWS.filter((row) => row.type !== 'Invoice' && row.type !== 'Payment');
-  const NOTE = 'Vendor bills and payments are not shown for your role.';
+  const NOTE = 'Supplier bills and payments are not shown for your role.';
 
   beforeEach(() => {
     roleState.realRole = 'Engineer';
@@ -602,6 +602,6 @@ describe('AC-SEC-234: a role that reads no bills or payments is told so, never s
       interpolation: { escapeValue: false }, initImmediate: false, react: { useSuspense: false },
     });
     render(<I18nextProvider i18n={i18n}><MemoryRouter><QueryClientProvider client={new QueryClient()}><ProcurementLedger {...BASE_PROPS} canWrite={false} detail={makeDetail({ status: 'Paid' })} rows={NON_MONEY_ROWS} /></QueryClientProvider></MemoryRouter></I18nextProvider>);
-    expect(screen.getByText('Tagihan vendor dan pembayaran tidak ditampilkan untuk peran Anda.')).toBeInTheDocument();
+    expect(screen.getByText('Tagihan pemasok dan pembayaran tidak ditampilkan untuk peran Anda.')).toBeInTheDocument();
   });
 });

@@ -25,7 +25,7 @@ for (const role of ['pm', 'finance'] as const) {
         clone.querySelectorAll('.sr-only, button, [data-testid="fx-equivalent"]').forEach((n) => n.remove());
         return clone.textContent ?? '';
       })).trim();
-      expect(visible, `tile ${i} value is a figure, not prose`).toMatch(/^(—|[^A-Za-z]*\d[\d.,%\s]*[^A-Za-z]*|[A-Z$€£]{1,4}\s?[\d.,\s]+)$/);
+      expect(visible, `tile ${i} value is a figure or omitted when unknown, never prose`).toMatch(/^(|[^A-Za-z]*\d[\d.,%\s]*[^A-Za-z]*|[A-Z$€£]{1,4}\s?[\d.,\s]+)$/);
       const box = await tiles.nth(i).evaluate((el) => {
         const tile = el.getBoundingClientRect();
         const v = el.querySelector(':scope > div:nth-child(2)') as HTMLElement;
