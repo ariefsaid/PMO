@@ -932,6 +932,12 @@ async function resolveBudgetRefs(
     } else if (typeof record.budget_predecessor !== 'string' || !record.budget_predecessor) {
       throw new AppError(`budget push: removal for account ${selectedAccount} has no witnessed predecessor`, 'commit-rejected');
     }
+    if (record.budget_intent === 'remove') {
+      // A removal names a durable predecessor; current grain occupancy is irrelevant.
+      // The adapter reads that exact document and validates its dimensions and status.
+      refs.self = record.budget_predecessor as string;
+      return { refs };
+    }
   } else {
     const accounts = resolveBudgetAccounts(lineItems, accountMap);
     if (accounts.length === 0) return { refs };

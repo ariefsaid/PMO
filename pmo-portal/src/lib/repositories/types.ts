@@ -63,7 +63,7 @@ import type {
   RecordFolderTarget,
 } from '@/src/lib/m365/recordFolders';
 import type { PreparedAgentAttachmentUpload } from '@/src/lib/db/agentAttachments';
-import type { ActivateVersionResult } from '@/src/lib/db/budgets';
+import type { ActivateVersionResult, ArchiveVersionResult } from '@/src/lib/db/budgets';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import type { UserRow, UserRole, InviteUserInput, SetUserStatusInput } from '@/src/lib/db/adminUsers';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -608,7 +608,7 @@ export interface BudgetRepository {
   /** HIGH-C: returns the ERP push CONSEQUENCE (the PMO transition itself either succeeded or threw).
    *  Never `void` — a push that failed (or never reached the edge function) must be surfaced. */
   activateVersion(versionId: string): Promise<ActivateVersionResult>;
-  archiveVersion(versionId: string): Promise<void>;
+  archiveVersion(versionId: string, cancelErp: boolean): Promise<ArchiveVersionResult>;
   deleteDraftVersion(versionId: string): Promise<void>;
   listDocumentLinks(versionId: string): Promise<BudgetDocumentLinkRow[]>;
   addDocumentLink(versionId: string, reference: MicrosoftReferenceInput): Promise<BudgetDocumentLinkRow>;

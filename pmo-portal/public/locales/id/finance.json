@@ -53,6 +53,29 @@
     "travelAccommodation": "Perjalanan & akomodasi",
     "vehicle": "Kendaraan"
   },
+  "budgetActivation": {
+    "checking": "Memeriksa tanggal proyek, pembagian item, tahun fiskal ERPNext, dan pemetaan akun…",
+    "checkFailed": "Kesiapan anggaran tidak dapat diperiksa. Muat ulang dan coba lagi.",
+    "erpUnavailable": "ERPNext tidak dapat diperiksa; pemeriksaan akan dilakukan lagi saat anggaran dikirim.",
+    "ready": "Siap diaktifkan. Tahun fiskal dan pemetaan akun anggaran ERPNext tersedia.",
+    "unphased": "Bagi setiap item sebelum mengaktifkan anggaran multi-tahun ini. Kategori yang belum dibagi: {{categories}}.",
+    "unmapped": "Petakan kategori anggaran ini sebelum aktivasi: {{categories}}.",
+    "invalidYear": "Pilih tahun fiskal ERPNext untuk item ini: {{lines}}.",
+    "outOfSpan": "Item ini menggunakan tahun fiskal di luar tanggal proyek: {{lines}}.",
+    "ambiguousYear": "ERPNext memiliki tahun fiskal yang tumpang tindih pada {{date}} ({{fiscalYears}}). Minta administrator memperbaiki kalender.",
+    "missingStart": "Tambahkan tanggal mulai proyek sebelum mengaktifkan anggaran ini.",
+    "unresolvedStartYear": "ERPNext tidak memiliki tahun fiskal untuk tanggal mulai proyek {{date}}.",
+    "unresolvedEndYear": "ERPNext tidak memiliki tahun fiskal untuk tanggal selesai proyek {{date}}.",
+    "issue": "Pemeriksaan kesiapan anggaran menemukan masalah yang harus diselesaikan sebelum aktivasi.",
+    "invalidFiscalYearName": "Pilih tahun fiskal dari ERPNext, atau kosongkan kolom ini."
+  },
+  "budgetArchive": {
+    "alsoCancelErpBudgets_one": "Batalkan juga {{count}} dokumen Budget di ERPNext",
+    "alsoCancelErpBudgets_other": "Batalkan juga {{count}} dokumen Budget di ERPNext",
+    "archivedBudgetStillLiveInErp": "ERPNext masih menerapkan anggaran yang diarsipkan untuk proyek ini. Batalkan dokumen Budget di ERPNext atau aktifkan anggaran PMO yang baru.",
+    "cancellationQueuedDetail": "ERPNext akan dihubungi untuk membatalkan {{count}} dokumen Budget.",
+    "versionArchivedCancellationQueued": "Versi diarsipkan; pembatalan ERPNext dimasukkan ke antrean"
+  },
   "erpLinks": {
     "orphansTitle": "Dokumen ERPNext yang belum masuk pembelian",
     "pageDescription": "Pesanan, penerimaan, tagihan, dan pembayaran yang dicatat di ERPNext dan belum masuk pembelian mana pun. Biayanya sudah tercatat di Aktual setiap proyek.",

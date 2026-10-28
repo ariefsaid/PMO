@@ -51,6 +51,8 @@ export interface LineItem {
 }
 
 export interface ServedSeed {
+  /** Budget version state for read-only activation prechecks; normal dispatch fixtures remain Active. */
+  versionStatus?: 'Draft' | 'Active';
   fiscalYears: FiscalYear[];
   lineItems: LineItem[];
   categoryMap: Array<{ category: string; erp_account: string }>;
@@ -151,7 +153,7 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_
         id: VERSION_ID,
         org_id: ORG_ID,
         project_id: PROJECT_ID,
-        status: 'Active',
+        status: seed.versionStatus ?? 'Active',
         activated_at: ACTIVATED_AT,
       })),
     supabaseSelect('projects', () =>

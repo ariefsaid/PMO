@@ -825,7 +825,7 @@ describe('delegation — methods pass args through and return the DAL result', (
     vi.mocked(budgetsDal.createBudgetVersion).mockResolvedValue({} as never);
     vi.mocked(budgetsDal.cloneVersion).mockResolvedValue('v2');
     vi.mocked(budgetsDal.activateVersion).mockResolvedValue({ pushState: 'pushed' });
-    vi.mocked(budgetsDal.archiveVersion).mockResolvedValue(undefined);
+    vi.mocked(budgetsDal.archiveVersion).mockResolvedValue({ cancelErp: true, liveTargetCount: 1, queuedCount: 1 });
     vi.mocked(budgetsDal.deleteDraftVersion).mockResolvedValue(undefined);
     vi.mocked(budgetImportSkipDal.findImportTargetDraft).mockResolvedValue(null);
     vi.mocked(budgetImportSkipDal.findImportedLine).mockResolvedValue(null);
@@ -867,8 +867,8 @@ describe('delegation — methods pass args through and return the DAL result', (
     await repositories.budget.activateVersion('v1');
     expect(budgetsDal.activateVersion).toHaveBeenCalledWith('v1');
 
-    await repositories.budget.archiveVersion('v1');
-    expect(budgetsDal.archiveVersion).toHaveBeenCalledWith('v1');
+    await repositories.budget.archiveVersion('v1', true);
+    expect(budgetsDal.archiveVersion).toHaveBeenCalledWith('v1', true);
 
     await repositories.budget.deleteDraftVersion('v1');
     expect(budgetsDal.deleteDraftVersion).toHaveBeenCalledWith('v1');

@@ -150,9 +150,14 @@ import {
   type BudgetMirrorCandidateRow,
   type BudgetBackstopVersionRow,
 } from './budgetBackstop.ts';
+import {
+  reconcileOrgBudgetArchiveCancellations,
+  type BudgetArchiveBackstopDeps,
+  type BudgetArchiveCancelIntent,
+} from './budgetArchiveBackstop.ts';
 import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts';
 import { budgetVersionIdOf, decodeFiscalYear, encodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
-import { budgetAccountIdentity, budgetAccountPushKey, parseBudgetIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
+import { budgetAccountArchiveKey, budgetAccountIdentity, budgetAccountPushKey, parseBudgetIdentity } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountIdentity.ts';
 import { resolveV16BudgetAccounts } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetAccountPlan.ts';
 
 /** FR-BFY-075 — the named state a sweep budget recovery takes when the CURRENT gate would refuse the
@@ -2303,7 +2308,7 @@ export function budgetBackstopDepsLive(
  *  so the backstop stopped running and a stale `committing` budget row was never quarantined (AC-BUD-032
  *  regression). Gate on `activatedAt` (the same signal `orgEmploysErpnext` uses); the empty-candidate
  *  filter below still makes this a no-op for an org with no budget outbox rows. */
-async function reconcileOrgBudgetPushesLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ driven: number; error?: string }> {
+async function reconcileOrgBudgetPushesLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ driven: number; error?: string }> {
   if (!org.activatedAt) return { driven: 0 };
   try {
     // The SoT eligibility set (0131), fetched ONCE per pass — the backstop may only re-drive a row this
@@ -2321,8 +2326,9 @@ async function reconcileOrgBudgetPushesLive(serviceClient: SupabaseClient, org: 
           : null,
         budget_intent: (c.canonical as Record<string, unknown> | null)?.budget_intent === 'remove' ? 'remove' as const : 'ensure' as const,
       }));
+    const retryPendingIds = await listRetryPendingLive(serviceClient, org.orgId);
     const result = await reconcileOrgBudgetPushes(
-      budgetBackstopDepsLive(serviceClient, org, eligibleBudgetCandidates, await listRetryPendingLive(serviceClient, org.orgId)),
+      budgetBackstopDepsLive(serviceClient, org, eligibleBudgetCandidates, retryPendingIds),
       { orgId: org.orgId },
     );
     // NEW-3: per-row throws are contained so the queue drains, but they are NEVER silent — a row that
@@ -2330,10 +2336,208 @@ async function reconcileOrgBudgetPushesLive(serviceClient: SupabaseClient, org: 
     for (const e of result.errors) {
       console.warn(`[erpnext-sweep] org ${org.orgId} budget ${e.budgetVersionId}: backstop row failed — ${e.error}`);
     }
-    return { driven: result.driven, error: result.errors.length ? `${result.errors.length} budget row(s) failed` : undefined };
+    const archiveResult = await reconcileOrgBudgetArchiveCancellationsLive(
+      serviceClient, org, new Set(eligibleBudgetCandidates.map((candidate) => candidate.id)), retryPendingIds, cache,
+    );
+    for (const e of archiveResult.errors) {
+      console.warn(`[erpnext-sweep] org ${org.orgId} budget archive intent ${e.id}: ${e.error}`);
+    }
+    const errorCount = result.errors.length + archiveResult.errors.length;
+    return { driven: result.driven + archiveResult.driven, error: errorCount ? `${errorCount} budget row(s) failed` : undefined };
   } catch (err) {
     return { driven: 0, error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+/** FR-BUD-122 — the durable, explicit v16 archive-cancellation queue. */
+async function readBudgetArchiveLifecycleLive(
+  serviceClient: SupabaseClient,
+  job: BudgetArchiveCancelIntent,
+): Promise<{ status: string; activatedAt: string | null; activeSuccessorUsesTarget: boolean } | null> {
+  const { data: version, error: versionError } = await serviceClient.from('budget_versions')
+    .select('id,org_id,project_id,status,activated_at')
+    .eq('id', job.budget_version_id).eq('org_id', job.org_id).maybeSingle();
+  if (versionError) throw new AppError(versionError.message, versionError.code);
+  if (!version || version.project_id !== job.project_id) return null;
+  const { data: active, error: activeError } = await serviceClient.from('budget_versions')
+    .select('id').eq('org_id', job.org_id).eq('project_id', job.project_id)
+    .eq('status', 'Active').neq('id', job.budget_version_id).limit(1);
+  if (activeError) throw new AppError(activeError.message, activeError.code);
+  const activeIds = (active ?? []).map((row) => row.id);
+  let activeSuccessorUsesTarget = false;
+  if (activeIds.length > 0) {
+    const { data: successorTargets, error: successorError } = await serviceClient.from('budget_version_account_erp_mirror')
+      .select('id').eq('org_id', job.org_id).in('budget_version_id', activeIds)
+      .eq('fiscal_year', job.fiscal_year).eq('erp_account', job.erp_account)
+      .eq('budget_intent', 'ensure').eq('erp_budget_name', job.erp_budget_name)
+      .is('erp_cancelled_at', null).neq('erp_docstatus', 2).limit(1);
+    if (successorError) throw new AppError(successorError.message, successorError.code);
+    activeSuccessorUsesTarget = (successorTargets ?? []).length > 0;
+  }
+  return {
+    status: version.status,
+    activatedAt: version.activated_at,
+    activeSuccessorUsesTarget,
+  };
+}
+
+async function budgetArchiveTargetStillLiveAndOwnedLive(
+  serviceClient: SupabaseClient,
+  job: BudgetArchiveCancelIntent,
+): Promise<boolean> {
+  const { data: binding, error: bindingError } = await serviceClient.from('external_org_bindings')
+    .select('version_major,activated_at').eq('org_id', job.org_id).eq('external_tier', ERPNEXT_TIER).maybeSingle();
+  if (bindingError) throw new AppError(bindingError.message, bindingError.code);
+  if (binding?.version_major !== 16 || !binding.activated_at) return false;
+  const { data: mirror, error: mirrorError } = await serviceClient.from('budget_version_account_erp_mirror')
+    .select('id,org_id,budget_version_id,fiscal_year,erp_account,budget_intent,push_state,erp_budget_name,erp_docstatus,erp_cancelled_at,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
+    .eq('id', job.source_mirror_id).eq('org_id', job.org_id)
+    .eq('budget_version_id', job.budget_version_id).eq('fiscal_year', job.fiscal_year)
+    .eq('erp_account', job.erp_account).maybeSingle();
+  if (mirrorError) throw new AppError(mirrorError.message, mirrorError.code);
+  if (!mirror || mirror.erp_budget_name !== job.erp_budget_name ||
+      mirror.activated_at_witness !== job.activated_at_witness || mirror.budget_intent !== 'remove' ||
+      mirror.pushed_project_start_date !== job.pushed_project_start_date ||
+      mirror.pushed_project_end_date !== job.pushed_project_end_date) return false;
+  const isStillLive = mirror.erp_cancelled_at === null && mirror.erp_docstatus !== 2 &&
+    ['pending', 'failed', 'held', 'pushed'].includes(mirror.push_state);
+  const alreadyCancelled = mirror.erp_cancelled_at !== null && mirror.erp_docstatus === 2;
+  if (!isStillLive && !alreadyCancelled) return false;
+
+  let identity: string;
+  try { identity = budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account); }
+  catch { return false; }
+  const { data: externalRef, error: refError } = await serviceClient.from('external_refs')
+    .select('external_record_id').eq('org_id', job.org_id).eq('domain', ERPNEXT_BUDGET_DOMAIN)
+    .eq('external_tier', ERPNEXT_TIER).eq('pmo_record_id', identity)
+    .eq('external_record_id', job.erp_budget_name).maybeSingle();
+  if (refError) throw new AppError(refError.message, refError.code);
+  return !!externalRef;
+}
+
+async function reconcileOrgBudgetArchiveCancellationsLive(
+  serviceClient: SupabaseClient,
+  org: OrgBinding,
+  eligibleOutboxIds: ReadonlySet<string>,
+  retryPendingIds: ReadonlySet<string>,
+  cache?: ErpAuthPairCache,
+): Promise<{ driven: number; errors: Array<{ id: string; error: string }> }> {
+  const deps: BudgetArchiveBackstopDeps = {
+    listPending: async (orgId, limit) => {
+      const { data, error } = await serviceClient.from('budget_archive_cancel_intents')
+        .select('id,org_id,project_id,budget_version_id,source_mirror_id,actor_user_id,fiscal_year,erp_account,erp_budget_name,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
+        .eq('org_id', orgId).eq('state', 'pending')
+        .order('created_at', { ascending: true }).order('id', { ascending: true }).limit(limit);
+      if (error) throw new AppError(error.message, error.code);
+      return (data ?? []) as unknown as BudgetArchiveCancelIntent[];
+    },
+    readLifecycle: (job) => readBudgetArchiveLifecycleLive(serviceClient, job),
+    targetIsStillLiveAndOwned: (job) => budgetArchiveTargetStillLiveAndOwnedLive(serviceClient, job),
+    driveCancellation: async (job) => {
+      const identity = budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account);
+      const idempotencyKey = budgetAccountArchiveKey(identity, job.activated_at_witness);
+      const outbox = await findBudgetOutboxRow(serviceClient, job.org_id, identity, idempotencyKey);
+      if (outbox?.state === 'confirmed') return true;
+      if (outbox && !eligibleOutboxIds.has(outbox.id)) {
+        if (outbox.state === 'committing' || outbox.state === 'quarantined' || retryPendingIds.has(outbox.id)) return false;
+        throw new AppError('budget archive cancellation outbox is no longer eligible for automatic retry', 'commit-rejected');
+      }
+      if (outbox) {
+        await dispatchMoneyWrite(await buildReconcileDepsLive(serviceClient, org, outbox, cache));
+        return true;
+      }
+
+      const authorization = await checkErpnextCommandAuthorization(serviceClient as never, job.org_id, job.actor_user_id, {
+        domain: ERPNEXT_BUDGET_DOMAIN,
+        operation: 'create',
+        record: { id: job.budget_version_id, erp_doc_kind: 'budget' },
+      });
+      if (!authorization.ok) throw new AppError(authorization.message, 'commit-rejected');
+
+      const command: AdapterCommand = {
+        domain: ERPNEXT_BUDGET_DOMAIN,
+        operation: 'create',
+        idempotencyKey,
+        record: {
+          id: job.budget_version_id,
+          erp_doc_kind: 'budget',
+          projectId: job.project_id,
+          fiscal_year: job.fiscal_year,
+          erp_account: job.erp_account,
+          budget_intent: 'remove',
+          budget_predecessor: job.erp_budget_name,
+          outbox_identity: identity,
+          project_start_date: job.pushed_project_start_date,
+          project_end_date: job.pushed_project_end_date,
+          activated_at: job.activated_at_witness,
+          budget_archive_cancel_job_id: job.id,
+          line_items: [],
+        },
+      };
+      await dispatchMoneyWrite(await buildMoneyWriteDepsLive(serviceClient, org, {
+        command,
+        actorUserId: job.actor_user_id,
+        outboxRecordId: identity,
+        persistPayload: true,
+      }, cache));
+      return true;
+    },
+    markComplete: async (job) => {
+      const { error } = await serviceClient.from('budget_archive_cancel_intents')
+        .update({ state: 'complete', last_error: null, updated_at: new Date().toISOString() })
+        .eq('id', job.id).eq('org_id', job.org_id).eq('state', 'pending');
+      if (error) throw new AppError(error.message, error.code);
+    },
+    markSuperseded: async (job) => {
+      const { error } = await serviceClient.from('budget_archive_cancel_intents')
+        .update({ state: 'superseded', last_error: null, updated_at: new Date().toISOString() })
+        .eq('id', job.id).eq('org_id', job.org_id).eq('state', 'pending');
+      if (error) throw new AppError(error.message, error.code);
+      const { error: mirrorError } = await serviceClient.from('budget_version_account_erp_mirror')
+        .update({ push_state: 'held', push_error: 'budget-archive-cancel-superseded' })
+        .eq('id', job.source_mirror_id).eq('org_id', job.org_id)
+        .eq('budget_version_id', job.budget_version_id).eq('fiscal_year', job.fiscal_year)
+        .eq('erp_account', job.erp_account).is('erp_cancelled_at', null)
+        .in('push_state', ['pending', 'failed']);
+      if (mirrorError) throw new AppError(mirrorError.message, mirrorError.code);
+    },
+    markHeld: async (job, reason) => {
+      const { error } = await serviceClient.from('budget_archive_cancel_intents')
+        .update({ state: 'held', last_error: reason.slice(0, 1000), updated_at: new Date().toISOString() })
+        .eq('id', job.id).eq('org_id', job.org_id).eq('state', 'pending');
+      if (error) throw new AppError(error.message, error.code);
+      const { error: mirrorError } = await serviceClient.from('budget_version_account_erp_mirror')
+        .update({ push_state: 'held', push_error: 'budget-archive-cancel-held' })
+        .eq('id', job.source_mirror_id).eq('org_id', job.org_id)
+        .eq('budget_version_id', job.budget_version_id).eq('fiscal_year', job.fiscal_year)
+        .eq('erp_account', job.erp_account).is('erp_cancelled_at', null)
+        .in('push_state', ['pending', 'failed', 'pushed']);
+      if (mirrorError) throw new AppError(mirrorError.message, mirrorError.code);
+      await surfaceActionRequired(serviceClient, job.org_id, 'budget-archive-cancel-held', {
+        projectId: job.project_id, versionId: job.budget_version_id,
+        fiscalYear: job.fiscal_year, account: job.erp_account,
+      });
+    },
+    noteRetry: async (job, reason) => {
+      const { error } = await serviceClient.from('budget_archive_cancel_intents')
+        .update({ last_error: reason.slice(0, 1000), updated_at: new Date().toISOString() })
+        .eq('id', job.id).eq('org_id', job.org_id).eq('state', 'pending');
+      if (error) throw new AppError(error.message, error.code);
+      const { error: mirrorError } = await serviceClient.from('budget_version_account_erp_mirror')
+        .update({ push_state: 'failed', push_error: 'budget-archive-cancel-retry' })
+        .eq('id', job.source_mirror_id).eq('org_id', job.org_id)
+        .eq('budget_version_id', job.budget_version_id).eq('fiscal_year', job.fiscal_year)
+        .eq('erp_account', job.erp_account).is('erp_cancelled_at', null)
+        .in('push_state', ['pending', 'failed']);
+      if (mirrorError) throw new AppError(mirrorError.message, mirrorError.code);
+      await surfaceActionRequired(serviceClient, job.org_id, 'budget-archive-cancel-retry', {
+        projectId: job.project_id, versionId: job.budget_version_id,
+        fiscalYear: job.fiscal_year, account: job.erp_account,
+      });
+    },
+  };
+  const result = await reconcileOrgBudgetArchiveCancellations(deps, org.orgId);
+  return { driven: result.driven, errors: result.errors };
 }
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -3175,7 +3379,7 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
     feedOrgLedgers: (org) => feedOrgLedgersLive(serviceClient, org, erpAuth),
     feedOrgPurchases: (org) => feedOrgPurchasesLive(serviceClient, org, erpAuth),
     refreshOrgAccounting: (org) => refreshOrgAccountingLive(serviceClient, org, erpAuth),
-    reconcileOrgBudgetPushes: (org) => reconcileOrgBudgetPushesLive(serviceClient, org),
+    reconcileOrgBudgetPushes: (org) => reconcileOrgBudgetPushesLive(serviceClient, org, erpAuth),
     reconcileOrgTimesheetPushes: (org) => reconcileOrgTimesheetPushesLive(serviceClient, org),
     reconcileOrgExpensePostings: (org) => reconcileOrgExpensePostingsLive(serviceClient, org, erpAuth),
     isFullSweepDue: (org) => fullSweepDue(org.lastFullSweepAt, handlerEntryMs),
@@ -3396,6 +3600,49 @@ export async function buildMoneyWriteDepsLive(
  * gate passes but its plan no longer contains the frozen year — a re-phase moves a year out of the plan
  * without the gate itself objecting, and POSTing that year would enforce a budget PMO no longer states.
  */
+async function assertBudgetArchiveSweepGate(
+  serviceClient: SupabaseClient,
+  org: OrgBinding,
+  payload: Record<string, unknown>,
+  outbox: OutboxRow,
+): Promise<void> {
+  const jobId = typeof payload.budget_archive_cancel_job_id === 'string' ? payload.budget_archive_cancel_job_id : '';
+  if (!jobId) throw new AppError('budget archive recovery HELD: cancellation job witness is missing', BUDGET_SWEEP_GATE_HELD);
+  const { data, error } = await serviceClient.from('budget_archive_cancel_intents')
+    .select('id,org_id,project_id,budget_version_id,source_mirror_id,actor_user_id,fiscal_year,erp_account,erp_budget_name,activated_at_witness,pushed_project_start_date,pushed_project_end_date,state')
+    .eq('id', jobId).eq('org_id', org.orgId).maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
+  const job = data as (BudgetArchiveCancelIntent & { state: string }) | null;
+  if (!job) throw new AppError('budget archive recovery HELD: cancellation job no longer exists', BUDGET_SWEEP_GATE_HELD);
+
+  const versionId = String(payload.id ?? '');
+  let identity: string;
+  try { identity = budgetAccountIdentity(job.budget_version_id, job.fiscal_year, job.erp_account); }
+  catch { throw new AppError('budget archive recovery HELD: cancellation identity is invalid', BUDGET_SWEEP_GATE_HELD); }
+  const key = budgetAccountArchiveKey(identity, job.activated_at_witness);
+  if (versionId !== job.budget_version_id || payload.projectId !== job.project_id ||
+      payload.fiscal_year !== job.fiscal_year || payload.erp_account !== job.erp_account ||
+      payload.budget_intent !== 'remove' || payload.budget_predecessor !== job.erp_budget_name ||
+      payload.outbox_identity !== identity || payload.activated_at !== job.activated_at_witness ||
+      outbox.pmoRecordId !== identity || outbox.idempotencyKey !== key) {
+    throw new AppError('budget archive recovery HELD: frozen cancellation does not match its durable intent', BUDGET_SWEEP_GATE_HELD);
+  }
+
+  // A committed document is already cancelled in ERPNext; only finalize its PMO read model. Pending,
+  // failed and post-window quarantined replays can all issue a new write and must recheck lifecycle.
+  if (outbox.state === 'committed' || outbox.state === 'confirmed') return;
+  if (job.state !== 'pending') {
+    throw new AppError('budget archive recovery HELD: cancellation intent is no longer pending', BUDGET_SWEEP_GATE_HELD);
+  }
+  const lifecycle = await readBudgetArchiveLifecycleLive(serviceClient, job);
+  if (!lifecycle || lifecycle.status !== 'Archived' || lifecycle.activatedAt !== job.activated_at_witness || lifecycle.activeSuccessorUsesTarget) {
+    throw new AppError('budget archive recovery HELD: archived version or active target witness changed', BUDGET_SWEEP_GATE_HELD);
+  }
+  if (!(await budgetArchiveTargetStillLiveAndOwnedLive(serviceClient, job))) {
+    throw new AppError('budget archive recovery HELD: ERP Budget predecessor witness changed', BUDGET_SWEEP_GATE_HELD);
+  }
+}
+
 async function assertBudgetSweepGate(
   serviceClient: SupabaseClient,
   org: OrgBinding,
@@ -3411,6 +3658,10 @@ async function assertBudgetSweepGate(
       `erpnext-sweep budget recovery: the frozen command names no version/fiscal year — refusing to POST it (${versionId}/${frozenYear})`,
       BUDGET_SWEEP_GATE_HELD,
     );
+  }
+  if (payload.budget_archive_cancel_job_id !== undefined) {
+    await assertBudgetArchiveSweepGate(serviceClient, org, payload, outbox);
+    return;
   }
   let plan: BudgetGateResult;
   try {
