@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
-import { DataTable, Drawer, Icon, ListState, ProgressBar, StatusPill, TaxBasisLabel, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
+import { DataTable, Drawer, ListState, ProgressBar, StatusPill, TaxBasisLabel, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
@@ -68,8 +68,6 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   const canViewMoney = may('view', 'salesInvoice');
   const invoices = useSalesInvoices(project.id, { enabled: canViewMoney });
   const orderBilling = useWorkOrderBilling(project.id, canViewMoney);
-  const [drawdownOpen, setDrawdownOpen] = useState(false);
-
   if (boq.isPending || billing.isPending || orders.isPending) return <ListState variant="loading" rows={6} />;
   if (boq.isError || billing.isError || orders.isError || !billing.data) {
     return <ListState variant="error" title={t('projectDetail.cascade.error', "Couldn't load the contract")} onRetry={() => { void boq.refetch(); void billing.refetch(); void orders.refetch(); }} />;
@@ -160,13 +158,6 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
             </>}
           </ol>
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
-            {canViewMoney && <button type="button" aria-expanded={drawdownOpen} aria-controls="contract-cascade-drawdown"
-              className="inline-flex min-h-10 items-center gap-2 rounded-sm text-left hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-              onClick={() => setDrawdownOpen((open) => !open)}>
-              <Icon name="chev" className={`size-3.5 text-muted-foreground transition-transform duration-100 motion-reduce:transition-none ${drawdownOpen ? 'rotate-90' : ''}`} />
-              {/* L6: the headroom figure lives once, inside the drawdown it opens (it matches Not yet ordered below). */}
-              <span className="text-muted-foreground">{t('projectDetail.workOrders.drawdown.headroom', 'Drawdown headroom')}</span>
-            </button>}
             {(orderBilling.isError || orderBilling.isPending) ? (
               <span className="text-xs text-muted-foreground" role={orderBilling.isError ? 'alert' : 'status'}>
                 {orderBilling.isError ? t('projectDetail.cascade.orderBillingError', 'Can invoice is unavailable while work-order billing is loading.') : t('projectDetail.cascade.orderBillingLoading', 'Can invoice is loading.')}
@@ -184,9 +175,6 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               </span>
             </Tooltip>}
           </div>
-          {canViewMoney && drawdownOpen && <div id="contract-cascade-drawdown" className="mt-3">
-            <ProjectDrawdown key={project.id} projectId={project.id} />
-          </div>}
           <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground">
             {hasReadingLayer && <Tooltip content={t('projectDetail.cascade.source.notOrderedValue', 'Source: unallocated contract quantity multiplied by its contract rate.') }><span className="cursor-help">{t('projectDetail.cascade.notOrdered', 'Not yet ordered')} <strong className="font-semibold text-foreground">{formatNumberWhole(notYetOrdered)}</strong></span></Tooltip>}
             {billing.data.dpBilled > 0 && <Tooltip content={t('projectDetail.cascade.source.downPayment', 'Source: project billing totals for down payment billed and recovered.') }><span className="cursor-help">· {t('projectDetail.cascade.downPaymentSummary', 'Down payment {{billed}} · recovered {{recovered}}', {
@@ -209,6 +197,8 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
           )}
         </section>
       )}
+
+      {canViewMoney && <ProjectDrawdown key={project.id} projectId={project.id} />}
 
       {children}
 

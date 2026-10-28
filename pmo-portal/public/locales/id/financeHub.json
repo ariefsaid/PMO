@@ -166,6 +166,7 @@
     "search": "Cari proyek",
     "projectManager": "Manajer proyek",
     "progressValue": "Progres {{percent}}%",
+    "progressComplete": "{{percent}}% selesai",
     "noLatestMonthEntry": "Belum ada entri untuk bulan terbaru",
     "noSearchMatches": "Tidak ada proyek yang cocok dengan pencarian",
     "noSearchMatchesSub": "Coba nama proyek, klien, atau manajer proyek lain.",

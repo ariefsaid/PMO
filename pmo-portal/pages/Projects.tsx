@@ -404,14 +404,22 @@ const Projects: React.FC = () => {
     const money = projectMoney?.[project.id];
     return money?.ledgerBasis === 'erp' && money.actuals.categories.some((category) => !category.mapped || category.amount == null);
   });
-  const _unknownActualRows = filtered.filter((project) => projectMoney?.[project.id]?.actuals.total == null);
+  const unknownActualRows = filtered.filter((project) => projectMoney?.[project.id]?.actuals.total == null);
   const coverageAsOf = filtered.reduce<string | null>((latest, project) => {
     const asOf = projectMoney?.[project.id]?.ledgerBasis === 'erp' ? projectMoney?.[project.id]?.actuals.asOf ?? null : null;
     return asOf && (!latest || asOf > latest) ? asOf : latest;
   }, null);
-  const coverageReason = partialRows.length === 0 ? undefined : coverageAsOf
-    ? t('projects:coverage.partialUpdated', 'Actual is partial on {{partial}} of {{total}} projects. Updated {{date}}.', { partial: partialRows.length, total: filtered.length, date: formatInstantDate(coverageAsOf) })
-    : t('projects:coverage.partial', 'Actual is partial on {{partial}} of {{total}} projects.', { partial: partialRows.length, total: filtered.length });
+  const coverageReason = moneyPending
+    ? undefined
+    : moneyError
+      ? t('projects:coverage.readError', 'Project spending could not be read.')
+      : partialRows.length > 0
+      ? coverageAsOf
+        ? t('projects:coverage.partialUpdated', 'Actual is partial on {{partial}} of {{total}} projects. Updated {{date}}.', { partial: partialRows.length, total: filtered.length, date: formatInstantDate(coverageAsOf) })
+        : t('projects:coverage.partial', 'Actual is partial on {{partial}} of {{total}} projects.', { partial: partialRows.length, total: filtered.length })
+      : unknownActualRows.length > 0
+        ? t('projects:coverage.unknown', 'Actual is unknown on {{count}} of {{total}} projects.', { count: unknownActualRows.length, total: filtered.length })
+        : undefined;
   // The money-view-gated Contract column (see `canViewMoney`). A typed const — not an inline
   // conditional spread — so the surrounding array literal keeps its contextual `Column` typing.
   const contractColumn: Column<ProjectWithRefs> | null = canViewMoney ? {

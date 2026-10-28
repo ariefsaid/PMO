@@ -160,13 +160,11 @@
         "save": "Simpan",
         "saveRow": "Simpan {{item}}",
         "subtitle": "Kuantitas yang diambil Work Order ini dari kontrak. Setiap baris disimpan sendiri-sendiri; memesan lebih dari sisa diperbolehkan dan ditandai.",
-        "title": "Baris kontrak — {{wo}}",
-        "none": "Belum ada baris kontrak yang dialokasikan"
+        "title": "Baris kontrak — {{wo}}"
       },
       "quantities": {
         "counts": "{{lines}} baris · {{basts}} BAST",
-        "summary": "Baris kontrak dan BAST — {{wo}}",
-        "title": "Kuantitas kontrak"
+        "summary": "Baris kontrak dan BAST — {{wo}}"
       }
     }
   }

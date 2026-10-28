@@ -31,6 +31,7 @@ import { useProjectVatEditability } from '@/src/hooks/useProjectVatEditability';
 import { Checkbox } from '@/src/components/ui/Checkbox';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { projectVatRefusal } from '@/src/lib/projectVatRefusal';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import {
   currencySymbol,
   formatCurrency,
@@ -133,7 +134,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
   onToggleLockReason,
   onBeginValueEdit,
 }) => {
-  const { t, i18n } = useTranslation('project');
+  const { t } = useTranslation('project');
   const isDesktop = useIsDesktop();
   const { data: derivedBudget, isPending: budgetPending, isError: budgetError } = useProjectBudget(project.id);
   const activeBudget = derivedBudget ?? 0;
@@ -146,11 +147,11 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
   const actualPosition = moneyPosition.actual;
   const actualUnavailable = t('uxs01.actualUnavailable', 'Actual spending is still being confirmed.');
   const actualFigure: React.ReactNode = moneyPosition.headlineState === 'available' && actualPosition.amount !== null && actualPosition.currency
-    ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language) ?? <UnknownFigure reason={actualUnavailable} />
+    ? formatExactMoney(actualPosition.amount, actualPosition.currency, getNumberLocale(), { wholeUnits: true }) ?? <UnknownFigure reason={actualUnavailable} />
     : moneyPosition.headlineState === 'loading'
       ? <UnknownFigure reason={t('uxs01.actualLoading', 'Loading Actual…')} />
       : moneyPosition.headlineState === 'partial'
-        ? <UnknownFigure reason={t('uxs01.actualPartial', 'Incomplete — see spending details')} />
+        ? null
         : <UnknownFigure reason={actualUnavailable} />;
   const attributedActual = actualPosition.basis === 'erp' && actualPosition.complete && authorizedActuals
     ? attributedSplit({ attributed: authorizedActuals.attributed_total })
@@ -166,7 +167,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
   const contractAfterCostTone = moneyPosition.contractAfterCostTone;
   const contractAfterCostLabel = contractAfterCost === null
     ? null
-    : formatSignedExactMoney(contractAfterCost, project.currency, i18n.language);
+    : formatSignedExactMoney(contractAfterCost, project.currency, getNumberLocale());
   const spendPct = moneyPosition.spendPercent;
   const taxDetailsNeeded = project.tax_rate == null
     || (project.tax_base_numerator ?? 1) !== 1 || (project.tax_base_denominator ?? 1) !== 1;
@@ -176,7 +177,9 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
       label: t('projectDetail.header.tile.contract', 'Contract'),
       value: (
         <div className="flex flex-wrap items-baseline gap-2">
-          <span data-testid="contract-value-amount">{project.contract_value == null ? <UnknownFigure reason={actualUnavailable} /> : formatCurrency(project.contract_value, project.currency)}</span>
+          <span data-testid="contract-value-amount">{project.contract_value == null
+            ? <UnknownFigure reason={t('moneyDisplay.contractUnavailable', "The contract value hasn't been entered.")} />
+            : formatCurrency(project.contract_value, project.currency)}</span>
           <div className="basis-full min-w-0">
             <FxEquivalent amount={project.contract_value} currency={project.currency} date={project.contract_date} compact />
           </div>
@@ -215,10 +218,12 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
       sub: actualPosition.complete
         ? <>{actualCoverage}{actualPosition.asOf && <span className="block">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}</span>}
           {attributedActual && actualPosition.currency && <span className="block" data-testid="actual-attributed-note">
-            {t('costAttribution:split.header', 'Includes {{attributed}} attributed', { attributed: formatExactMoney(attributedActual.attributed, actualPosition.currency, i18n.language) ?? attributedActual.attributed })}
+            {t('costAttribution:split.header', 'Includes {{attributed}} attributed', { attributed: formatExactMoney(attributedActual.attributed, actualPosition.currency, getNumberLocale(), { wholeUnits: true }) ?? attributedActual.attributed })}
           </span>}
           {actualPosition.basis === 'pmo' && commitmentSource !== 'pmo' && <OtherCurrencyCommitments positions={committedOtherCurrencies} />}</>
-        : moneyPosition.headlineState === 'partial' ? t('dashboard:spend.partial', 'Partial') : undefined },
+        : moneyPosition.headlineState === 'partial'
+          ? <span aria-label={t('uxs01.actualPartial', 'Incomplete — see spending details')}>{t('dashboard:spend.partial', 'Partial')}</span>
+          : undefined },
     ...(contractAfterCostLabel === null ? [] : [{
       label: t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'),
       value: contractAfterCostLabel,
