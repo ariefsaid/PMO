@@ -252,7 +252,7 @@ export const PMProjectArea: React.FC<PMProjectAreaProps> = ({
         )}
       </div>
 
-      <section aria-label={t('hub.pm.attentionLabel', 'Project attention')}>
+      <section aria-label={t('hub.pm.attentionLabel', 'What needs you on {{project}}', { project: project.name })}>
         {hasNoAttention ? (
           <p className="py-1 text-sm text-muted-foreground">{t('hub.pm.nothingNeedsYou', 'Nothing needs you here.')}</p>
         ) : (

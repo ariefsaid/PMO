@@ -306,7 +306,7 @@
       "contractSpendHelp": "{{spent}} spent of {{contract}} contract.",
       "contractSpentAria": "{{name}}: {{percent}}% of contract spent",
       "spendingUnavailable": "Actual spending is unavailable for this project.",
-      "attentionLabel": "Project attention",
+      "attentionLabel": "What needs you on {{project}}",
       "nothingNeedsYou": "Nothing needs you here.",
       "projectAtRisk": "Budget is at least 90% spent",
       "projectAtRiskHelp": "Recorded actual spending is at least 90% of this project's positive budget in the same currency.",

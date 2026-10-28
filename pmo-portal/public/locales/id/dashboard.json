@@ -306,7 +306,7 @@
       "contractSpendHelp": "{{spent}} telah dikeluarkan dari kontrak {{contract}}.",
       "contractSpentAria": "{{name}}: {{percent}}% kontrak telah terpakai",
       "spendingUnavailable": "Pengeluaran aktual proyek ini tidak tersedia.",
-      "attentionLabel": "Hal yang perlu ditangani pada proyek",
+      "attentionLabel": "Yang perlu ditangani pada {{project}}",
       "nothingNeedsYou": "Tidak ada hal yang perlu ditangani di sini.",
       "projectAtRisk": "Anggaran terpakai setidaknya 90%",
       "projectAtRiskHelp": "Pengeluaran aktual tercatat mencapai setidaknya 90% dari anggaran positif proyek ini dalam mata uang yang sama.",

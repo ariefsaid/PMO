@@ -216,7 +216,7 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
     ) : rows.length === 0 ? (
       <ListState variant="empty" icon="doc" title={emptyLabel} sub={emptyDescription} />
     ) : (
-      <DataTable<Row> rows={rows} columns={columns} rowKey={rowKey} className={embedded ? undefined : 'rounded-t-none border-t-0'} embedded={embedded} tableId={tableId} />
+      <DataTable<Row> rows={rows} columns={columns} rowKey={rowKey} embedded tableId={tableId} />
     )}
   </>;
   return (
@@ -262,7 +262,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
     ? `${reportDateLabel}: ${rows[0].reportDate ?? unavailable} · ${ageingBasisLabel}: ${rows[0].ageingBasedOn ?? unavailable}`
     : undefined;
   return (
-  <section aria-label={t('dashboard.accountingSnapshots', 'Accounting snapshots')} className="flex flex-col gap-4">
+  <section aria-label={embedded ? undefined : t('dashboard.accountingSnapshots', 'Accounting snapshots')} className="flex flex-col gap-4">
     {showActuals && (
     <SnapshotBlock<ErpActualsSnapshotRow>
       title={t('dashboard:finance.actualsTitle', 'Actuals (ERP ledger)')}

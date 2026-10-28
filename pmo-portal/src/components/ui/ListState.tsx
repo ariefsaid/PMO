@@ -14,6 +14,8 @@ export interface ListStateProps {
   variant: 'loading' | 'empty' | 'error';
   /** Empty/error heading. */
   title?: string;
+  /** Render the empty-state title as the page's h1 (a whole-page state such as no access). */
+  titleAsPageHeading?: boolean;
   /** Empty/error supporting copy (≤44ch). String or ReactNode (e.g. a Link). */
   sub?: React.ReactNode;
   /** Empty-state icon (defaults to `inbox`). */
@@ -50,6 +52,7 @@ export interface ListStateProps {
 export const ListState: React.FC<ListStateProps> = ({
   variant,
   title,
+  titleAsPageHeading = false,
   sub,
   icon = 'inbox',
   action,
@@ -127,10 +130,8 @@ export const ListState: React.FC<ListStateProps> = ({
         className
       )}
     >
-      <span className="grid size-[52px] place-items-center rounded-[14px] bg-secondary text-muted-foreground">
-        <Icon name={icon} className="size-6" strokeWidth={1.75} />
-      </span>
-      {title && <div className="text-[15px] font-semibold">{title}</div>}
+      <Icon name={icon} aria-hidden className="size-6 text-muted-foreground" strokeWidth={1.75} />
+      {title && (titleAsPageHeading ? <h1 className="text-[15px] font-semibold">{title}</h1> : <div className="text-[15px] font-semibold">{title}</div>)}
       {sub && <div className="max-w-[44ch] text-[13px] text-muted-foreground">{sub}</div>}
       {action && (
         <Button variant="primary" size="sm" onClick={action.onClick} className="mt-1">

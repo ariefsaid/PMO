@@ -191,7 +191,9 @@ function ClientAgingBlock() {
 function FinanceAccountingBlocks() {
   const actuals = useActualsSnapshot();
   const apAging = useApAgingSnapshot();
-  return <AccountingSnapshotsSection showActuals showApAging showArAging={false} actuals={actuals.data ?? []} actualsPending={actuals.isPending} actualsError={actuals.isError} onRetryActuals={() => void actuals.refetch()} apAging={apAging.data ?? []} apAgingPending={apAging.isPending} apAgingError={apAging.isError} onRetryApAging={() => void apAging.refetch()} arAging={[]} />;
+  const projects = useProjects();
+  const projectNames = React.useMemo(() => new Map((projects.data ?? []).map((project) => [project.id, projectDisplayName(project)])), [projects.data]);
+  return <AccountingSnapshotsSection showActuals showApAging showArAging={false} actualProjectNames={projectNames} actuals={actuals.data ?? []} actualsPending={actuals.isPending} actualsError={actuals.isError} onRetryActuals={() => void actuals.refetch()} apAging={apAging.data ?? []} apAgingPending={apAging.isPending} apAgingError={apAging.isError} onRetryApAging={() => void apAging.refetch()} arAging={[]} />;
 }
 
 export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | 'Admin' | 'Finance'> }) {

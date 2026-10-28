@@ -485,6 +485,7 @@ const ProcurementDetails: React.FC = () => {
           <ListState
             variant="empty"
             icon="lock"
+            titleAsPageHeading
             title={t('procurementDetail.accessDenied.title', "You don't have access to this record")}
             sub={t(
               'procurementDetail.accessDenied.sub',
@@ -528,7 +529,7 @@ const ProcurementDetails: React.FC = () => {
   if (!recordInScope) {
     return <>
       <div data-testid="mobile-back-bar" className="hidden max-[920px]:block"><BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} /></div>
-      <div data-testid="procurement-no-access"><ListState variant="empty" icon="lock" title={t('procurementDetail.accessDenied.title', "You don't have access to this record")} sub={t('procurementDetail.accessDenied.sub', "This procurement request either doesn't exist or isn't visible to your role. If you raised it, open it from your own requests.")} /></div>
+      <div data-testid="procurement-no-access"><ListState variant="empty" icon="lock" titleAsPageHeading title={t('procurementDetail.accessDenied.title', "You don't have access to this record")} sub={t('procurementDetail.accessDenied.sub', "This procurement request either doesn't exist or isn't visible to your role. If you raised it, open it from your own requests.")} /></div>
     </>;
   }
   const isRequester = p.requested_by_id === currentUser?.id;
