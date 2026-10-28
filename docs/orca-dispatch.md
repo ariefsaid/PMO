@@ -40,7 +40,7 @@ or Luna will do; no Luna where GLM will do. Only a used-up quota moves work up a
 | Complex assessment, second opinion on design or money | Gemini Argon · antigravity · high (quota-limited: reserve it) |
 | Only when GPT quota is out, or the job needs Claude | Sonnet 5.5 · claude · medium/high; then Opus 5.5 · claude |
 
-**GLM launch.** `--agent pi` ignores `--model` and runs pi's own default provider, which is not GLM, and
+**GLM launch** (full recipes and gotchas: `docs/orca-model-launch.md`). `--agent pi` ignores `--model` and runs pi's own default provider, which is not GLM, and
 `zcode` does not start under Orca. Start GLM by opening a terminal in the worker's worktree that runs
 `pi --provider zai --model glm-5.3-flash:max`, then `orca orchestration worker-start --terminal <handle>`.
 
