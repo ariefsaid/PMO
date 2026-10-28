@@ -1,6 +1,7 @@
 {
   "budgetForecast": {
     "remainingShort": "Remaining",
+    "remainingFull": "Forecast remaining / (overrun)",
     "budgetUsedShort": "% used",
     "budgetUsedFull": "Forecast budget used"
   },

@@ -220,8 +220,8 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
     {
       key: 'remaining',
       header: <span
-        title={t('projectDetail.budget.forecastRemaining', 'Forecast remaining')}
-        aria-label={t('projectDetail.budget.forecastRemaining', 'Forecast remaining')}
+        title={t('projectTabs:budgetForecast.remainingFull', 'Forecast remaining / (overrun)')}
+        aria-label={t('projectTabs:budgetForecast.remainingFull', 'Forecast remaining / (overrun)')}
       >{t('projectTabs:budgetForecast.remainingShort', 'Remaining')}</span>,
       kind: 'money',
       align: 'num',

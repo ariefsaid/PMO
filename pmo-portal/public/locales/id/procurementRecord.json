@@ -19,7 +19,7 @@
   "quotes": { "chosen": "Dipilih", "validUntil": "Berlaku sampai", "vsChosen": "dibandingkan pilihan" },
   "close": "Tutup",
   "approval": { "withinLimit": "Dalam batas Anda", "goesTo": "Diteruskan ke {{name}}", "note": "Catatan persetujuan (opsional)" },
-  "sod": { "approverHint": "Anda dapat menyetujui atau menolak pengadaan ini. Pemohon tidak dapat menyetujui pengadaannya sendiri — pemisahan tugas memerlukan peninjau lain.", "approverCannotPay": "Pembayaran harus dirilis oleh pengguna keuangan lain — penyetuju tidak dapat juga membayar pengadaan ini.", "payerHint": "Merilis pembayaran — penyetuju tidak dapat juga membayar (pemisahan tugas).", "preAnnounce": "Mengajukan akan menyerahkan ini ke penyetuju lain — Anda tidak dapat menyetujui pengadaan Anda sendiri." },
+  "sod": { "approverHint": "Anda dapat menyetujui atau menolak pengadaan ini. Pemohon tidak dapat menyetujui pengadaannya sendiri — pemisahan tugas memerlukan peninjau lain.", "approverCannotPay": "Pembayaran harus dirilis oleh pengguna keuangan lain — penyetuju tidak dapat juga membayar pengadaan ini.", "payerHint": "Merilis pembayaran — penyetuju tidak dapat juga membayar (pemisahan tugas).", "preAnnounce": "Mengirim ini ke peninjau lain — Anda tidak dapat menyetujui catatan pengadaan Anda sendiri." },
   "gate": { "addLineItem": "Tambahkan setidaknya satu item baris sebelum mengajukan." },
   "waiting": {
     "approval": "Menunggu persetujuan",
