@@ -6,10 +6,11 @@
 --   (c) an ERP invoice recorded against several projects is not linked into one purchase;
 --   (d) an empty PMO purchase (no line items, no approval, total 0) takes its total from the ERP documents linked in;
 --   (e) a SharePoint file sent with a link must be on the organisation's own SharePoint host (one shared rule);
---   (f) unlinking refreshes totals; a file cannot be attached to a document whose link is gone.
+--   (f) unlinking refreshes totals; a file cannot be attached to a document whose link is gone;
+--   (g) a native purchase value reconciles linked ERP documents and PMO records, including ERP cancellation.
 -- The two-session lock proofs for (f) are in procurement_unlink_lock_order.test.sql.
 begin;
-select plan(44);
+select plan(54);
 
 create extension if not exists dblink;
 
@@ -47,7 +48,10 @@ select upsert_erp_purchase_documents('03720000-0000-0000-0000-00000000000a', $$[
  {"erp_doctype":"Purchase Order","erp_name":"PO-SP2","supplier":"SUP-1","currency":"IDR","grand_total":11,"net_total":10,"erp_docstatus":1,"erp_project":"ERP-A","erp_modified":"2026-02-01"},
  {"erp_doctype":"Purchase Order","erp_name":"PO-SP3","supplier":"SUP-1","currency":"IDR","grand_total":11,"net_total":10,"erp_docstatus":1,"erp_project":"ERP-A","erp_modified":"2026-02-01"},
  {"erp_doctype":"Purchase Order","erp_name":"PO-U1","supplier":"SUP-1","currency":"IDR","grand_total":33,"net_total":30,"erp_docstatus":1,"erp_project":"ERP-A","erp_modified":"2026-02-01"},
- {"erp_doctype":"Purchase Order","erp_name":"PO-U2","supplier":"SUP-1","currency":"IDR","grand_total":22,"net_total":20,"erp_docstatus":1,"erp_project":"ERP-A","erp_modified":"2026-02-01"}
+ {"erp_doctype":"Purchase Order","erp_name":"PO-U2","supplier":"SUP-1","currency":"IDR","grand_total":22,"net_total":20,"erp_docstatus":1,"erp_project":"ERP-A","erp_modified":"2026-02-01"},
+ {"erp_doctype":"Purchase Order","erp_name":"PO-G3A","supplier":"SUP-1","currency":"IDR","grand_total":110,"net_total":100,"erp_docstatus":1,"erp_project":"ERP-A","erp_modified":"2026-02-01"},
+ {"erp_doctype":"Purchase Order","erp_name":"PO-G3B","supplier":"SUP-1","currency":"IDR","grand_total":55,"net_total":50,"erp_docstatus":1,"erp_project":"ERP-A","erp_modified":"2026-02-01"},
+ {"erp_doctype":"Purchase Order","erp_name":"PO-G3ITEM","supplier":"SUP-1","currency":"IDR","grand_total":110,"net_total":100,"erp_docstatus":1,"erp_project":"ERP-A","erp_modified":"2026-02-01"}
 ]$$::jsonb);
 -- PINV-SPLIT is recorded against both projects in ERPNext (its GL lines carry two projects).
 update erp_purchase_documents set project_ids = array['03720000-0000-0000-0000-0000000000d1','03720000-0000-0000-0000-0000000000d2']::uuid[]
@@ -63,9 +67,12 @@ insert into procurements (id, org_id, title, requested_by_id, project_id, curren
   ('03720000-0000-0000-0000-0000000000e7','03720000-0000-0000-0000-00000000000a','Approved','03720000-0000-0000-0000-0000000000a1','03720000-0000-0000-0000-0000000000d1','IDR',500,'Approved','03720000-0000-0000-0000-0000000000a5',500),
   ('03720000-0000-0000-0000-0000000000e8','03720000-0000-0000-0000-00000000000a','Items','03720000-0000-0000-0000-0000000000a1','03720000-0000-0000-0000-0000000000d1','IDR',0,'Draft',null,null),
   ('03720000-0000-0000-0000-0000000000e9','03720000-0000-0000-0000-00000000000a','Typed','03720000-0000-0000-0000-0000000000a1','03720000-0000-0000-0000-0000000000d1','IDR',800,'Draft',null,null),
-  ('03720000-0000-0000-0000-0000000000ea','03720000-0000-0000-0000-00000000000a','Files','03720000-0000-0000-0000-0000000000a1','03720000-0000-0000-0000-0000000000d1','IDR',0,'Draft',null,null);
+  ('03720000-0000-0000-0000-0000000000ea','03720000-0000-0000-0000-00000000000a','Files','03720000-0000-0000-0000-0000000000a1','03720000-0000-0000-0000-0000000000d1','IDR',0,'Draft',null,null),
+  ('03720000-0000-0000-0000-000000000e10','03720000-0000-0000-0000-00000000000a','G3 merged docs','03720000-0000-0000-0000-0000000000a1','03720000-0000-0000-0000-0000000000d1','IDR',0,'Draft',null,null),
+  ('03720000-0000-0000-0000-000000000e11','03720000-0000-0000-0000-00000000000a','G3 item total','03720000-0000-0000-0000-0000000000a1','03720000-0000-0000-0000-0000000000d1','IDR',0,'Draft',null,null);
 insert into procurement_items (org_id, procurement_id, name, quantity, rate) values
-  ('03720000-0000-0000-0000-00000000000a','03720000-0000-0000-0000-0000000000e8','Cable',1,300);
+  ('03720000-0000-0000-0000-00000000000a','03720000-0000-0000-0000-0000000000e8','Cable',1,300),
+  ('03720000-0000-0000-0000-00000000000a','03720000-0000-0000-0000-000000000e11','G3 line',1,300);
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"03720000-0000-0000-0000-0000000000a1","role":"authenticated"}';
@@ -214,6 +221,55 @@ select is(link_erp_purchase_documents($$[{"erp_name":"PO-SP3","procurement_id":"
 select is(link_erp_purchase_documents($$[{"erp_name":"PO-SP1","procurement_id":"03720000-0000-0000-0000-0000000000ea",
   "sharepoint":{"drive_id":"d","item_id":"x3","web_url":"https://corp.sharepoint.com/po.pdf","name":"po.pdf","kind":"file"}}]$$) #>> '{results,0,reason}',
   'm365_not_configured', 'a file sent with a link needs the organisation''s SharePoint library');
+reset role;
+
+-- ── (g) a PMO purchase combines linked ERP documents and PMO records ─────────────────────────────────────────
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"03720000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((select count(*)::int from jsonb_array_elements(link_erp_purchase_documents('[
+  {"erp_name":"PO-G3A","procurement_id":"03720000-0000-0000-0000-000000000e10"},
+  {"erp_name":"PO-G3B","procurement_id":"03720000-0000-0000-0000-000000000e10"}
+]') -> 'results') r where r->>'outcome' = 'link'), 2, 'fixture: both G3 ERP orders link into a native purchase');
+select is((select total_value from procurements where id = '03720000-0000-0000-0000-000000000e10'), 150::numeric,
+  'a zero-value native purchase takes the combined linked order value');
+reset role;
+insert into purchase_orders (procurement_id, org_id, status, amount, currency)
+values ('03720000-0000-0000-0000-000000000e10','03720000-0000-0000-0000-00000000000a','Issued',20,'IDR');
+select is((select total_value from procurements where id = '03720000-0000-0000-0000-000000000e10'), 170::numeric,
+  'PMO and linked ERP orders are summed as one order total');
+insert into procurement_invoices (procurement_id, org_id, status, amount, currency, tax_treatment, tax_amount)
+values ('03720000-0000-0000-0000-000000000e10','03720000-0000-0000-0000-00000000000a','Received',25,'IDR','exclusive',0);
+select is((select total_value from procurements where id = '03720000-0000-0000-0000-000000000e10'), 170::numeric,
+  'a later PMO invoice does not replace the larger linked order value');
+set local request.jwt.claims = '{"role":"service_role"}';
+select upsert_erp_purchase_documents('03720000-0000-0000-0000-00000000000a', $$[
+ {"erp_doctype":"Purchase Order","erp_name":"PO-G3A","supplier":"SUP-1","currency":"IDR","grand_total":110,"net_total":100,"erp_docstatus":2,"erp_project":"ERP-A","erp_modified":"2026-02-02"}
+]$$::jsonb);
+reset request.jwt.claims;
+select is((select total_value from procurements where id = '03720000-0000-0000-0000-000000000e10'), 70::numeric,
+  'cancelling one linked ERP order recomputes the total with the remaining order and PMO documents');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"03720000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select unlink_erp_purchase_document(l.id) from procurement_erp_links l join erp_purchase_documents d on d.id = l.erp_purchase_document_id
+ where l.procurement_id = '03720000-0000-0000-0000-000000000e10' and d.erp_name = 'PO-G3B';
+select is((select total_value from procurements where id = '03720000-0000-0000-0000-000000000e10'), 25::numeric,
+  'unlinking the remaining ERP order leaves the PMO invoice amount');
+select is(link_erp_purchase_documents('[{"erp_name":"PO-G3ITEM","procurement_id":"03720000-0000-0000-0000-000000000e11"}]') #>> '{results,0,outcome}', 'link',
+  'fixture: an ERP order links into a purchase with line items');
+select is((select total_value from procurements where id = '03720000-0000-0000-0000-000000000e11'), 300::numeric,
+  'a purchase with line items keeps its item total on link');
+reset role;
+insert into procurement_invoices (procurement_id, org_id, status, amount, currency, tax_treatment, tax_amount)
+values ('03720000-0000-0000-0000-000000000e11','03720000-0000-0000-0000-00000000000a','Received',500,'IDR','exclusive',0);
+select is((select total_value from procurements where id = '03720000-0000-0000-0000-000000000e11'), 300::numeric,
+  'a PMO invoice does not replace an item-derived purchase total');
+set local request.jwt.claims = '{"role":"service_role"}';
+select upsert_erp_purchase_documents('03720000-0000-0000-0000-00000000000a', $$[
+ {"erp_doctype":"Purchase Order","erp_name":"PO-G3ITEM","supplier":"SUP-1","currency":"IDR","grand_total":110,"net_total":100,"erp_docstatus":2,"erp_project":"ERP-A","erp_modified":"2026-02-02"}
+]$$::jsonb);
+reset request.jwt.claims;
+select is((select total_value from procurements where id = '03720000-0000-0000-0000-000000000e11'), 300::numeric,
+  'cancelling a linked ERP order does not replace an item-derived purchase total');
 reset role;
 
 -- (a) the org purchase rules are read for active members only.
