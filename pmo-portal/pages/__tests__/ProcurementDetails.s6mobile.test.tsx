@@ -30,6 +30,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => ({ ...((await orig()) as Record<string, unknown>), useOrgTaxDefault: () => undefined }));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
     createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
@@ -119,8 +120,9 @@ vi.mock('react-router', async (orig) => {
 });
 vi.mock('@/src/components/ui', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useToast: () => ({ toast }) };
+  return { ...actual, useToast: () => ({ toast }), useIsNarrow: () => mockIsNarrow };
 });
+let mockIsNarrow = false;
 
 // Stub hooks that DecisionSupportPanel uses
 vi.mock('@/src/hooks/useBudget', () => ({
@@ -213,9 +215,9 @@ const paidByAlice = {
   invoices: [{ id: 'i1', procurement_id: 'proc-s6-001', vi_number: 'VI-001', status: 'Paid' as const, invoice_date: '2026-06-10', org_id: 'org-1', created_at: '2026-06-10T00:00:00Z' }],
 };
 
-const renderPage = (id = 'proc-s6-001') =>
+const renderPage = (id = 'proc-s6-001', state?: unknown) =>
   render(
-    <MemoryRouter initialEntries={[`/procurement/${id}`]}>
+    <MemoryRouter initialEntries={[{ pathname: `/procurement/${id}`, state }]}>
       <Routes>
         <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
       </Routes>
@@ -289,7 +291,7 @@ describe('AC-S6-2 (B-IMP-2): SoD pre-announce shown to author on Draft', () => {
     detailState.data = { ...draftByAlice };
     renderPage();
     const notice = screen.getByTestId('sod-pre-announce');
-    expect(notice).toHaveTextContent(/can.?t approve your own request/i);
+    expect(notice).toHaveTextContent(/can.?t approve your own procurement/i);
   });
 
   it('AC-S6-2: the pre-announce is NOT shown when the viewer is NOT the author (Draft, different user)', () => {
@@ -342,6 +344,54 @@ describe('AC-S20-001: one decision area on phone', () => {
     renderPage();
     expect(screen.queryByTestId('mobile-sticky-action')).toBeNull();
     expect(screen.queryByRole('button', { name: /mark as paid/i })).toBeNull();
+  });
+});
+
+describe('B4: one filled main action per screen, wherever it is started', () => {
+  beforeEach(() => {
+    detailState.isPending = false;
+    detailState.isError = false;
+    detailState.error = null;
+    mockEffectiveRole = 'Engineer';
+    mockIsDesktop = false;
+    mockIsNarrow = false;
+  });
+
+  it('B4: below 640px only the phone action bar carries the main action', () => {
+    mockIsNarrow = true;
+    detailState.data = { ...draftByAlice };
+    renderPage();
+    expect(screen.getAllByRole('button', { name: /submit for approval/i })).toHaveLength(1);
+    expect(within(screen.getByTestId('record-header-actions')).queryByRole('button', { name: /submit for approval/i })).toBeNull();
+  });
+
+  it('B4: opening the record from the drawer main action starts that same action', () => {
+    mockEffectiveRole = 'Finance';
+    detailState.data = { ...draftByOther, status: 'Received' as const };
+    renderPage('proc-s6-001', { runMainAction: 'Vendor Invoiced' });
+    expect(screen.getByTestId('vi-inline-capture')).toBeInTheDocument();
+  });
+
+  it('B4: a stale hand-off for a different step does nothing', () => {
+    mockEffectiveRole = 'Finance';
+    detailState.data = { ...draftByOther, status: 'Received' as const };
+    renderPage('proc-s6-001', { runMainAction: 'Paid' });
+    expect(screen.queryByTestId('vi-inline-capture')).toBeNull();
+  });
+});
+
+describe('C1/O18: the no-access page names the record a procurement and carries the page heading', () => {
+  it('C1: a hidden or missing record reads as a procurement, under one h1', () => {
+    detailState.data = undefined;
+    detailState.isError = true;
+    detailState.error = Object.assign(new Error('not found'), { code: 'PGRST116' });
+    renderPage();
+    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
+    const page = screen.getByTestId('procurement-no-access');
+    expect(page).toHaveTextContent('This procurement either doesn\'t exist');
+    expect(page).not.toHaveTextContent(/request/i);
+    detailState.isError = false;
+    detailState.error = null;
   });
 });
 

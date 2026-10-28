@@ -111,7 +111,11 @@ export default function ProcurementCreate() {
     () => suppliers.map((option) => option.sub === 'Vendor' ? { ...option, sub: t('supplier', 'Supplier') } : option),
     [suppliers, t],
   );
-  const [have, setHave] = useState<ProcurementHave | null>(() => parseHave(params.get('have')));
+  // Recording an existing order, supplier invoice or payment is for roles that may capture those documents;
+  // everyone else raises a plain request.
+  const canCaptureDocuments = may('create', 'procDoc');
+  const [haveChoice, setHave] = useState<ProcurementHave | null>(() => parseHave(params.get('have')));
+  const have = haveChoice !== 'need' && !canCaptureDocuments ? null : haveChoice;
   const [title, setTitle] = useState('');
   const [selectedProject, setSelectedProject] = useState<string | null>(projectId);
   const [supplierId, setSupplierId] = useState<string | null>(null);
@@ -141,6 +145,9 @@ export default function ProcurementCreate() {
         title: t('choices.need.title', 'A new need'),
         description: t('choices.need.description', 'Raise a purchase request.'),
       },
+    ];
+    if (!canCaptureDocuments) return standardChoices;
+    standardChoices.push(
       {
         value: 'order',
         icon: 'cart',
@@ -156,10 +163,10 @@ export default function ProcurementCreate() {
       {
         value: 'payment',
         icon: 'payments',
-        title: t('choices.payment.title', 'A payment'),
-        description: t('choices.payment.description', 'Record a payment already made.'),
+        title: t('choices.payment.title', 'A scheduled payment'),
+        description: t('choices.payment.description', 'Record a payment to a supplier. Finance marks it paid.'),
       },
-    ];
+    );
 
     if (realRole === 'Admin' || realRole === 'Finance') {
       standardChoices.push({
@@ -170,7 +177,7 @@ export default function ProcurementCreate() {
       });
     }
     return standardChoices;
-  }, [realRole, t]);
+  }, [canCaptureDocuments, realRole, t]);
 
   const addLine = async (line: { name: string; quantity: number; rate: number }) => {
     const amount = itemsNetTotal([{ quantity: line.quantity, rate: line.rate }]);
@@ -203,7 +210,7 @@ export default function ProcurementCreate() {
     event.preventDefault();
     if (!have || saving) return;
     if (!title.trim()) {
-      setErrors({ title: t('titleRequired', 'A request title is required.') });
+      setErrors({ title: t('titleRequired', 'A procurement title is required.') });
       return;
     }
     setErrors({});
@@ -250,7 +257,7 @@ export default function ProcurementCreate() {
     }
     if (failedLines.length > 0) {
       setLines(failedLines);
-      setErrors({ save: reconcileMessage ?? t('linesFailed', 'Request saved, but some lines were not saved. Save again to retry.') });
+      setErrors({ save: reconcileMessage ?? t('linesFailed', 'Procurement saved, but some lines were not saved. Save again to retry.') });
       setSaving(false);
       return;
     }

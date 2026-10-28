@@ -19,8 +19,8 @@
       "description": "Catat tagihan yang perlu dipantau."
     },
     "payment": {
-      "title": "Pembayaran",
-      "description": "Catat pembayaran yang sudah dilakukan."
+      "title": "Pembayaran terjadwal",
+      "description": "Catat pembayaran ke pemasok. Bagian Keuangan menandainya lunas."
     },
     "accounting": {
       "title": "Dokumen yang sudah ada di sistem akuntansi",
@@ -37,13 +37,13 @@
   "save": "Simpan",
   "details": "Detail pengadaan",
   "titleField": "Judul",
-  "titleRequired": "Judul permintaan wajib diisi.",
+  "titleRequired": "Judul pengadaan wajib diisi.",
   "project": "Proyek",
   "selectProject": "Pilih proyek…",
   "supplier": "Pemasok",
   "selectSupplier": "Opsional — pilih pemasok…",
   "budgetCategory": "Kategori anggaran",
-  "linesFailed": "Permintaan tersimpan, tetapi beberapa item belum tersimpan. Simpan lagi untuk mencoba ulang.",
+  "linesFailed": "Pengadaan tersimpan, tetapi beberapa item belum tersimpan. Simpan lagi untuk mencoba ulang.",
   "unsaved": {
     "title": "Pengadaan belum tersimpan",
     "description": "Pengadaan ini belum tersimpan. Tinggalkan halaman ini dan buang perubahan?",

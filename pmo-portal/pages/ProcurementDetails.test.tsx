@@ -928,9 +928,9 @@ describe('Action bar covers mid-flow transitions', () => {
     await userEvent.click(screen.getByTestId('btn-save-vi'));
     expect(mockCreateInvoice).not.toHaveBeenCalled();
     expect(toast).not.toHaveBeenCalled();
-    await confirmInDialog(/save vendor invoice/i);
+    await confirmInDialog(/save supplier invoice/i);
     await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(toast).toHaveBeenCalledWith('Vendor invoice recorded', undefined, 'success'));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Supplier invoice recorded', undefined, 'success'));
   });
 
   it('an Engineer can record a receipt for their procurement but sees no Finance document kinds', async () => {
@@ -1047,18 +1047,18 @@ describe('Confirm severity + error-code classified toast (P1/P2, sub-task b)', (
     expect(mockTransition).not.toHaveBeenCalled();
   });
 
-  it('P2: a destructive action (Cancel request) opens an alertdialog; only confirm fires the transition', async () => {
+  it('P2: a destructive action (Cancel procurement) opens an alertdialog; only confirm fires the transition', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
     renderPage();
     // requester (u-alice) may cancel a Requested PR (canCancel early). The page
-    // terminal action reads "Cancel request" (double-negative cleanup, polish #2).
+    // terminal action reads "Cancel procurement" (double-negative cleanup, polish #2).
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
     await userEvent.click(within(header).getByRole('menuitem', { name: 'Cancel procurement' }));
     expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
     expect(mockTransition).not.toHaveBeenCalled();
-    // commit button reads "Cancel request" (disambiguated from the dialog's own dismiss)
-    await confirmInDialog(/cancel request/i);
+    // commit button reads "Cancel procurement" (disambiguated from the dialog's own dismiss)
+    await confirmInDialog(/cancel procurement/i);
     await waitFor(() =>
       expect(mockTransition).toHaveBeenCalledWith(expect.objectContaining({ to: 'Cancelled' })),
     );
@@ -1236,7 +1236,7 @@ describe('VI creation panel (D3, AC-816 UI support)', () => {
     await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '450');
     await userEvent.click(screen.getByTestId('btn-save-vi'));
     expect(mockCreateInvoice).not.toHaveBeenCalled();
-    await confirmInDialog(/save vendor invoice/i);
+    await confirmInDialog(/save supplier invoice/i);
     await waitFor(() =>
       expect(mockCreateInvoice).toHaveBeenCalledWith(
         // #505: the staged tax facts survive the confirm hop and reach the mutation.
@@ -1417,7 +1417,7 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
     expect(within(header).getByRole('menuitem', { name: /^reject$/i })).toBeInTheDocument();
   });
 
-  // Polish #2 — the three "Cancel"s disambiguate: page action = "Cancel request",
+  // Polish #2 — the three "Cancel"s disambiguate: page action = "Cancel procurement",
   // and the confirm dialog's dismiss = "Keep request" (not "Cancel").
   it('polish#2: the PR cancel confirm dismiss reads "Keep request", not "Cancel"', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
@@ -1427,7 +1427,7 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
     await userEvent.click(within(header).getByRole('menuitem', { name: 'Cancel procurement' }));
     const dialog = await screen.findByRole('alertdialog');
     // dismiss is the non-destructive button: "Keep request"
-    expect(within(dialog).getByRole('button', { name: /^keep request$/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /^keep procurement$/i })).toBeInTheDocument();
     // the dialog must NOT carry a bare "Cancel" dismiss (the double-negative tell)
     expect(within(dialog).queryByRole('button', { name: /^cancel$/i })).toBeNull();
   });
@@ -1439,7 +1439,7 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
     await userEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
     await userEvent.click(within(header).getByRole('menuitem', { name: 'Cancel procurement' }));
     const dialog = await screen.findByRole('alertdialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: /^keep request$/i }));
+    await userEvent.click(within(dialog).getByRole('button', { name: /^keep procurement$/i }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull());
     expect(mockTransition).not.toHaveBeenCalled();
   });
@@ -1560,7 +1560,7 @@ describe('0349: approved-amount ceiling and quote re-route (AC-SEC-220/221)', ()
     await selectFirstQuote();
     await waitFor(() => expect(toast).toHaveBeenCalledWith(
       'Quote selected',
-      'The quote is above the approved amount, so the request went back for approval.',
+      'The quote is above the approved amount, so the procurement went back for approval.',
       'success',
     ));
   });
@@ -1569,7 +1569,7 @@ describe('0349: approved-amount ceiling and quote re-route (AC-SEC-220/221)', ()
     detailState.data = quoted(900);
     renderPage('proc-001', 'quotes');
     await selectFirstQuote();
-    await waitFor(() => expect(toast).toHaveBeenCalledWith('Quote selected', 'The request advanced to Quote Selected', 'success'));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Quote selected', 'The procurement advanced to Quote Selected', 'success'));
   });
 });
 
@@ -1661,6 +1661,32 @@ describe('AC-1404: procurement detail composition and role-safe actions', () => 
 
     first.unmount();
     projectScopeState.data = { project_manager_id: 'u-someone-else' };
+    renderPage();
+    expect(screen.getByTestId('procurement-no-access')).toBeInTheDocument();
+  });
+
+  it('SEC-RS-1: a Project Manager opens an overhead procurement they raised (no project)', () => {
+    mockEffectiveRole = 'Project Manager';
+    projectScopeState.data = null;
+    detailState.data = { ...baseProcurement, status: 'Draft', project_id: null, project: null, requested_by_id: 'u-alice' };
+    renderPage();
+    expect(screen.queryByTestId('procurement-no-access')).toBeNull();
+    expect(screen.getByTestId('record-header')).toBeInTheDocument();
+  });
+
+  it("SEC-RS-1: a Project Manager opens their own procurement on another manager's project", () => {
+    mockEffectiveRole = 'Project Manager';
+    projectScopeState.data = { project_manager_id: 'u-someone-else' };
+    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-alice' };
+    renderPage();
+    expect(screen.queryByTestId('procurement-no-access')).toBeNull();
+    expect(screen.getByTestId('record-header')).toBeInTheDocument();
+  });
+
+  it("SEC-RS-1: a Project Manager still cannot open a colleague's overhead procurement", () => {
+    mockEffectiveRole = 'Project Manager';
+    projectScopeState.data = null;
+    detailState.data = { ...baseProcurement, project_id: null, project: null, requested_by_id: 'u-other' };
     renderPage();
     expect(screen.getByTestId('procurement-no-access')).toBeInTheDocument();
   });

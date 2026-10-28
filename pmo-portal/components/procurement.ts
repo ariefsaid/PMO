@@ -37,10 +37,10 @@ export interface PrStage {
 
 export const PR_STAGES: readonly PrStage[] = [
   { key: 'pr', label: 'PR', full: 'Purchase Request' },
-  { key: 'vq', label: 'VQ', full: 'Vendor Quote' },
+  { key: 'vq', label: 'VQ', full: 'Supplier quote' },
   { key: 'po', label: 'PO', full: 'Purchase Order' },
   { key: 'gr', label: 'GR', full: 'Goods Receipt' },
-  { key: 'vi', label: 'VI', full: 'Vendor Invoice' },
+  { key: 'vi', label: 'VI', full: 'Supplier invoice' },
   { key: 'paid', label: 'Paid', full: 'Payment' },
 ] as const;
 
@@ -89,11 +89,11 @@ export const STATUS_LABEL: Record<string, string> = {
   Draft: 'Draft',
   Requested: 'Purchase Request',
   Approved: 'Approved',
-  'Vendor Quoted': 'Vendor Quote',
+  'Vendor Quoted': 'Supplier quote',
   'Quote Selected': 'Quote Selected',
   Ordered: 'Purchase Order',
   Received: 'Goods Receipt',
-  'Vendor Invoiced': 'Vendor Invoice',
+  'Vendor Invoiced': 'Supplier invoice',
   Paid: 'Paid',
   Rejected: 'Rejected',
   Cancelled: 'Cancelled',
@@ -105,13 +105,13 @@ const STATUS_VERB: Record<string, string> = {
   Approved: 'Approve',
   Rejected: 'Reject',
   Draft: 'Rework (Back to Draft)',
-  'Vendor Quoted': 'Request Vendor Quotes',
+  'Vendor Quoted': 'Request supplier quotes',
   'Quote Selected': 'Select Quote',
   Ordered: 'Generate Purchase Order',
   Received: 'Confirm Receipt',
-  'Vendor Invoiced': 'Mark Vendor Invoiced',
+  'Vendor Invoiced': 'Record supplier invoice',
   Paid: 'Mark as Paid',
-  Cancelled: 'Cancel request',
+  Cancelled: 'Cancel procurement',
 };
 
 /**
@@ -184,13 +184,13 @@ export function stageLabelForStatus(status: ProcurementStatus): string {
  * owned by `LEGAL_TRANSITIONS` and the server-side gates.
  */
 const NEXT_PROCUREMENT_STEP: Partial<Record<ProcurementStatus, string>> = {
-  Draft: 'Submit request',
+  Draft: 'Submit for approval',
   Requested: 'Await approval',
-  Approved: 'Request vendor quotes',
+  Approved: 'Request supplier quotes',
   'Vendor Quoted': 'Select quote',
   'Quote Selected': 'Prepare purchase order',
   Ordered: 'Record receipt',
-  Received: 'Record vendor invoice',
+  Received: 'Record supplier invoice',
   'Vendor Invoiced': 'Record payment',
 };
 

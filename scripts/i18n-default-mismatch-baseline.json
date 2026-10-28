@@ -15,11 +15,6 @@
     "catalogueValue": "Enter the order value as a non-negative number"
   },
   {
-    "key": "bupot.vendor",
-    "defaultValue": "vendor",
-    "catalogueValue": "Vendor"
-  },
-  {
     "key": "bupot.refusal.conflict",
     "defaultValue": "A slip number or bill is already covered.",
     "catalogueValue": "A slip number or bill is already covered. Inspect existing slip history."

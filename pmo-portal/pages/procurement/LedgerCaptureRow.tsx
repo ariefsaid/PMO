@@ -42,7 +42,7 @@ const CAPTURE_LABELS: Record<RecordKind, string> = {
   purchase_order: 'Purchase Order',
   payment: 'Payment',
   goods_receipt: 'Goods Receipt',
-  vendor_invoice: 'Vendor Invoice',
+  vendor_invoice: 'Supplier invoice',
 };
 
 // ---------------------------------------------------------------------------
@@ -98,13 +98,13 @@ function firstKindName(kind: RecordKind, t: TFunction): string {
     case 'rfq': return t('procurement:ledger.first.rfq', 'Quote request');
     case 'purchase_order': return t('procurement:ledger.first.order', 'Order');
     case 'goods_receipt': return t('procurement:ledger.first.receipt', 'Goods receipt');
-    case 'vendor_invoice': return t('procurement:ledger.first.invoice', 'Vendor invoice');
+    case 'vendor_invoice': return t('procurement:ledger.first.invoice', 'Supplier invoice');
     default: return t('procurement:ledger.first.payment', 'Payment');
   }
 }
 
 const GATE_HOLD_TEXT: Record<GateHold, [string, string]> = {
-  request: ['procurement:ledger.first.needsRequest', 'needs a request first'],
+  request: ['procurement:ledger.first.needsRequest', 'needs a purchase request first'],
   approval: ['procurement:ledger.first.needsApproval', 'needs an approval first'],
   receipt: ['procurement:ledger.first.needsReceipt', 'needs a goods receipt first'],
 };

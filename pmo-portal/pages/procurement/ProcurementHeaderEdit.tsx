@@ -38,7 +38,7 @@ interface FormValues {
 
 const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
-  if (!v.title.trim()) errors.title = 'A request title is required.';
+  if (!v.title.trim()) errors.title = 'A procurement title is required.';
   return errors;
 };
 
@@ -119,7 +119,7 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
 
   return (
     <Card className="mb-4" data-testid="header-edit-card">
-      <CardHead>Edit request details</CardHead>
+      <CardHead>Edit procurement details</CardHead>
       <form onSubmit={handleSubmit}>
         <CardPad className="flex flex-col gap-4">
           <FormGrid>
@@ -132,7 +132,7 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
               onBlur={titleField.onBlur}
               error={titleField.error}
               fullWidth
-              placeholder="Request title"
+              placeholder="Procurement title"
             />
             <Combobox
               label="Project"
@@ -149,9 +149,9 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
               loadOptions={loadProjects}
             />
             <Combobox
-              label="Vendor"
-              noun="vendor"
-              placeholder={vendorName ?? 'Optional — select a vendor…'}
+              label="Supplier"
+              noun="supplier"
+              placeholder={vendorName ?? 'Optional — select a supplier…'}
               value={form.values.vendorId}
               selectedOption={
                 form.values.vendorId && vendorName
@@ -171,7 +171,7 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
             />
           </FormGrid>
           <FormActions
-            submitLabel="Save request"
+            submitLabel="Save procurement"
             onCancel={onClose}
             disabled={!form.canSubmit}
             loading={busy || form.isSubmitting}

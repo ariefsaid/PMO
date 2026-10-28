@@ -149,7 +149,7 @@ describe('AC-IXD-PROC-W5-2b — loading state', () => {
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
     expect(screen.getByText(/budget impact/i)).toBeInTheDocument();
     expect(document.querySelectorAll('.skel').length).toBeGreaterThan(0);
-    expect(screen.queryByText(/this request/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/this procurement/i)).not.toBeInTheDocument();
   });
 
   it('shows skeleton rows while committed spend is pending (either source blocks)', () => {
@@ -157,7 +157,7 @@ describe('AC-IXD-PROC-W5-2b — loading state', () => {
     committedState.isPending = true;
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
     expect(document.querySelectorAll('.skel').length).toBeGreaterThan(0);
-    expect(screen.queryByText(/this request/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/this procurement/i)).not.toBeInTheDocument();
   });
 
   it('does not show the over-budget advisory while loading', () => {
@@ -175,7 +175,7 @@ describe('AC-IXD-PROC-W5-2c — budget error / unavailable', () => {
     budgetState.isError = true;
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
     expect(screen.getByText(/budget unavailable/i)).toBeInTheDocument();
-    expect(screen.queryByText(/this request/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/this procurement/i)).not.toBeInTheDocument();
   });
 
   it('shows quiet "budget unavailable" message on committed-spend error', () => {
@@ -183,7 +183,7 @@ describe('AC-IXD-PROC-W5-2c — budget error / unavailable', () => {
     committedState.isError = true;
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
     expect(screen.getByText(/budget unavailable/i)).toBeInTheDocument();
-    expect(screen.queryByText(/this request/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/this procurement/i)).not.toBeInTheDocument();
   });
 
   it('shows quiet fallback when budget is 0 (no active budget)', () => {
@@ -204,7 +204,7 @@ describe('AC-IXD-PROC-W5-2d — four figures rendered (committed basis)', () => 
 
   it('renders "This request" label with total_value formatted as currency', () => {
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
-    const labels = screen.getAllByText(/this request/i);
+    const labels = screen.getAllByText(/this procurement/i);
     expect(labels.length).toBeGreaterThan(0);
     expect(screen.getByText(/\$48,000/)).toBeInTheDocument();
   });
@@ -234,7 +234,7 @@ describe('AC-IXD-PROC-W5-2d — four figures rendered (committed basis)', () => 
   it('renders "After this request" label with available−totalValue + percent (Requested)', () => {
     // available=213,400; totalValue=48,000 → after=165,400; % = 165400/1200000 ≈ 13.8%
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
-    expect(screen.getByText(/after this request/i)).toBeInTheDocument();
+    expect(screen.getByText(/after this procurement/i)).toBeInTheDocument();
     expect(screen.getByText(/\$165,400/)).toBeInTheDocument();
     expect(screen.getByText(/13\.8%/)).toBeInTheDocument();
   });
@@ -381,7 +381,7 @@ describe('AC-RB-006 — After = Available − thisRequest at Requested', () => {
     committedState.data = 100;
     reservedState.data = 100;
     renderPanel({ projectId: 'p1', totalValue: 120, projectName: 'X', status: 'Requested' });
-    expect(screen.getByText(/after this request/i)).toBeInTheDocument();
+    expect(screen.getByText(/after this procurement/i)).toBeInTheDocument();
     expect(screen.getByText(/\$380\b/)).toBeInTheDocument();
   });
 });
@@ -393,7 +393,7 @@ describe('AC-RB-007 — After = Available at Approved (no double-subtract)', () 
     reservedState.data = 100; // available = 500
     renderPanel({ projectId: 'p1', totalValue: 120, projectName: 'X', status: 'Approved' });
     // After this request == Available ($500) — thisRequest (120) is NOT subtracted again.
-    expect(tileValue(/after this request/i).textContent).toMatch(/\$500\b/);
+    expect(tileValue(/after this procurement/i).textContent).toMatch(/\$500\b/);
     // The naïve "always subtract thisRequest" answer ($380) must NOT appear anywhere.
     expect(screen.queryByText(/\$380\b/)).not.toBeInTheDocument();
   });
@@ -437,7 +437,7 @@ describe('AC-RB-010 — loading state (reserved read pending)', () => {
     reservedState.isPending = true;
     renderPanel({ projectId: 'p1', totalValue: 10, projectName: 'X', status: 'Requested' });
     expect(document.querySelectorAll('.skel').length).toBeGreaterThan(0);
-    expect(screen.queryByText(/this request/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/this procurement/i)).not.toBeInTheDocument();
   });
 });
 
@@ -447,7 +447,7 @@ describe('AC-RB-011 — error state (reserved read error)', () => {
     reservedState.isError = true;
     renderPanel({ projectId: 'p1', totalValue: 10, projectName: 'X', status: 'Requested' });
     expect(screen.getByText(/budget unavailable/i)).toBeInTheDocument();
-    expect(screen.queryByText(/this request/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/this procurement/i)).not.toBeInTheDocument();
   });
 });
 

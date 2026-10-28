@@ -1,4 +1,4 @@
-import { procurementMoney, type MoneyFigure, type ProcurementMoneyKind } from '../blocks/procurementMoney';
+import { procurementMoney, supplierUnpaid, type MoneyFigure, type ProcurementMoneyKind } from '../blocks/procurementMoney';
 import { stageForStatus, type StageKey } from '../blocks/stage';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 
@@ -38,14 +38,15 @@ export function figureForListRow(
   needsYouReason?: 'approve' | 'pay' | 'receive',
 ): MoneyFigure & { kind: ProcurementMoneyKind | null } {
   const money = moneyForListRow(row, role);
+  const unpaid = (): MoneyFigure => (role === REQUEST_ONLY_ROLE ? money.unpaid : supplierUnpaid(row));
   if (basis === 'pay' && row.status === 'Vendor Invoiced') {
-    return { ...money.unpaid, kind: 'unpaid' };
+    return { ...unpaid(), kind: 'unpaid' };
   }
   if (basis === 'pay' && row.status === 'Paid') {
     return { amount: 0, unknown: false, kind: 'unpaid' };
   }
   if (basis === 'needs-you' && needsYouReason === 'pay') {
-    return { ...money.unpaid, kind: 'unpaid' };
+    return { ...unpaid(), kind: 'unpaid' };
   }
   return money.mostReal
     ? { amount: money.mostReal.amount, unknown: false, kind: money.mostReal.kind }

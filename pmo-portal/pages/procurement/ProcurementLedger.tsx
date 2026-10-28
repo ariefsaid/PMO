@@ -487,7 +487,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
           const coverage = resolvedWithholdingCoverage[row.recordId];
           const invoice = invoices.find((item) => item.id === row.recordId);
           if (coverage?.active_slip_id) items.push({ label: t('bupot.view', 'View bukti potong'), onClick: () => onViewWithholdingSlip?.(coverage.active_slip_id!) });
-          else if (coverage?.coverage_state === 'not-recorded' && invoice && vendorMissing && onSetVendor) items.push({ label: t('bupot.setVendor', 'Set vendor'), onClick: onSetVendor });
+          else if (coverage?.coverage_state === 'not-recorded' && invoice && vendorMissing && onSetVendor) items.push({ label: t('bupot.setVendor', 'Set supplier'), onClick: onSetVendor });
           else if (canWriteWithholdingSlip && coverage?.coverage_state === 'not-recorded' && invoice && !vendorMissing) items.push({ label: t('bupot.record', 'Record bukti potong'), onClick: () => onRecordWithholdingSlip?.(invoice) });
           items.push({ label: t('bupot.history', 'Bukti potong history'), onClick: () => onWithholdingHistory?.(row.recordId) });
           return items.length ? items : undefined;
@@ -547,7 +547,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
         />
         {billsHiddenForRole && (
           <p className="mt-3 text-[12px] text-muted-foreground" data-testid="ledger-bills-hidden-note">
-            {t('procurement:ledger.billsHiddenForRole', 'Vendor bills and payments are not shown for your role.')}
+            {t('procurement:ledger.billsHiddenForRole', 'Supplier invoices and payments are not shown for your role.')}
           </p>
         )}
         <p className="mt-3 text-[11px] text-muted-foreground">

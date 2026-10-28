@@ -73,10 +73,10 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
     const view = renderAt('/procurement/proc-001/files');
     fireEvent.click(screen.getByRole('button', { name: 'Set vendor' }));
 
-    fireEvent.click(screen.getByRole('combobox', { name: 'Vendor' }));
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
     expect(await screen.findByRole('option', { name: 'New vendor' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('option', { name: 'New vendor' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save vendor' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save supplier' }));
 
     await waitFor(() => expect(h.updateVendor).toHaveBeenCalledWith('vendor-new'));
     h.detail.data = { ...vendorlessBilled, vendor_id: 'vendor-new' };
@@ -111,10 +111,10 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
     h.updateVendor.mockRejectedValueOnce(Object.assign(new Error('A vendor was already set.'), { code: 'VENDOR_ALREADY_SET' }));
     renderAt('/procurement/proc-001/files');
     fireEvent.click(screen.getByRole('button', { name: 'Set vendor' }));
-    fireEvent.click(screen.getByRole('combobox', { name: 'Vendor' }));
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
     fireEvent.click(await screen.findByRole('option', { name: 'New vendor' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save vendor' }));
-    await waitFor(() => expect(h.toast).toHaveBeenCalledWith('A vendor was already set. Refresh to see it.', undefined, 'warning'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save supplier' }));
+    await waitFor(() => expect(h.toast).toHaveBeenCalledWith('A supplier was already set. Refresh to see it.', undefined, 'warning'));
     expect(h.detail.refetch).toHaveBeenCalled();
   });
 

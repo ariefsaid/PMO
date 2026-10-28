@@ -110,7 +110,7 @@ const KIND_LABEL: Record<RecordKind, string> = {
   purchase_order: 'Purchase Order',
   payment: 'Payment',
   goods_receipt: 'Goods Receipt',
-  vendor_invoice: 'Vendor Invoice',
+  vendor_invoice: 'Supplier invoice',
 };
 
 function localizedRecordKindLabel(kind: RecordKind, t: TFunction): string {
@@ -120,7 +120,7 @@ function localizedRecordKindLabel(kind: RecordKind, t: TFunction): string {
     case 'purchase_order': return t('procurementLedger.types.purchaseOrder', 'Purchase Order');
     case 'payment': return t('procurementLedger.types.payment', 'Payment');
     case 'goods_receipt': return t('procurementDetail.recordKinds.goodsReceipt', 'Goods Receipt');
-    case 'vendor_invoice': return t('procurementDetail.recordKinds.vendorInvoice', 'Vendor Invoice');
+    case 'vendor_invoice': return t('procurementDetail.recordKinds.vendorInvoice', 'Supplier invoice');
   }
 }
 
@@ -176,7 +176,7 @@ function kindConfig(kind: RecordKind): KindConfig {
       dateLabel: 'Invoice date',
       showAmount: true,
       showInvoiceFk: false,
-      saveLabel: 'Save vendor invoice',
+      saveLabel: 'Save supplier invoice',
       formTestId: 'form-create-vi',
       refTestId: VI_FIELD_TEST_IDS.ref,
       statusTestId: VI_FIELD_TEST_IDS.status,
@@ -500,7 +500,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       // DD-VPAY-3: on a flipped org the payment MUST name its bill — refused here, locally, before
       // any dispatch call (the server gate is the authority; this is the form not throwing blind).
       if (paymentBillRequired && !invoiceId) {
-        setBillError(t('procurementDetail.paymentBillRequired', 'Select the vendor invoice this payment closes.'));
+        setBillError(t('procurementDetail.paymentBillRequired', 'Select the supplier invoice this payment closes.'));
         setSubmitting(false);
         return;
       }
@@ -799,7 +799,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
 
       {isVendorInvoice && pmoAuthorsTax && !amountStr && vendorTax?.pphType && taxIncomplete && (
         <p role="status" className="text-[12px] text-muted-foreground">
-          {t('procurementDetail.withholdingNeedsAmount', 'Enter the bill amount to calculate the vendor withholding.')}
+          {t('procurementDetail.withholdingNeedsAmount', 'Enter the bill amount to calculate the supplier withholding.')}
         </p>
       )}
 
@@ -814,7 +814,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           disabled={taxIncomplete}
           data-testid={cfg.saveTestId}
         >
-          {kind === 'payment' ? t('procurementDetail.savePayment', 'Save Payment') : kind === 'vendor_invoice' ? t('procurementDetail.confirm.saveVI', 'Save vendor invoice') : cfg.saveLabel}
+          {kind === 'payment' ? t('procurementDetail.savePayment', 'Save Payment') : kind === 'vendor_invoice' ? t('procurementDetail.confirm.saveVI', 'Save supplier invoice') : cfg.saveLabel}
         </Button>
         <Button
           type="button"
@@ -849,7 +849,7 @@ export interface RecordCaptureTriggerProps {
 // keep the `trigger-capture-${kind}` id + "Add <Kind>" copy.
 function triggerConfig(kind: RecordKind, t: TFunction): { testId: string; label: string } {
   if (kind === 'goods_receipt') return { testId: 'btn-create-gr', label: t('procurementDetail.recordGoodsReceipt', 'Record goods receipt') };
-  if (kind === 'vendor_invoice') return { testId: 'btn-create-vi', label: t('procurementDetail.recordVendorInvoice', 'Record vendor invoice') };
+  if (kind === 'vendor_invoice') return { testId: 'btn-create-vi', label: t('procurementDetail.recordVendorInvoice', 'Record supplier invoice') };
   return {
     testId: `trigger-capture-${kind}`,
     label: t('procurementDetail.addRecord', 'Add {{record}}', { record: localizedRecordKindLabel(kind, t) }),

@@ -275,7 +275,7 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
   it('AC-PMC-006: empty quote tab explains the missing bid comparison', () => {
     detailState.data = { ...BASE, status: 'Vendor Quoted', quotations: [] };
     renderPage('proc-001', 'quotes');
-    expect(screen.getByText('No quotes recorded. Add a vendor quote to compare bids.')).toBeInTheDocument();
+    expect(screen.getByText('No quotes recorded. Add a supplier quote to compare bids.')).toBeInTheDocument();
   });
 
   it('Quote Selected: shows Record order (primary)', () => {
@@ -393,7 +393,7 @@ describe('AC-PR-S4-002: SoD gate messaging shows correctly', () => {
     detailState.data = { ...BASE, status: 'Draft', requested_by_id: 'u-other', items: BASE.items };
     renderPage();
     expect(screen.getByTestId('sod-pre-announce')).toBeInTheDocument();
-    expect(screen.getByTestId('sod-pre-announce').textContent).toMatch(/you can't approve your own request/i);
+    expect(screen.getByTestId('sod-pre-announce').textContent).toMatch(/you can't approve your own procurement/i);
   });
 });
 
@@ -744,7 +744,7 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
     const dialog = screen.queryByRole('dialog') ?? screen.queryByRole('alertdialog');
     expect(dialog).toBeInTheDocument();
     // The dismiss says "Keep request" (not plain "Cancel") to avoid the 3-Cancel confusion
-    expect(screen.getByRole('button', { name: /keep request/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /keep procurement/i })).toBeInTheDocument();
   });
 
   it('Mark as Paid opens a ConfirmDialog with money-restate copy', async () => {

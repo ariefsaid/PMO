@@ -11,6 +11,7 @@ import {
   Drawer,
   Icon,
   ListState,
+  MenuButton,
   StatusPill,
   Tooltip,
   useToast,
@@ -32,7 +33,8 @@ import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import { externalRefsOf, type ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { formatCurrency, formatDate } from '@/src/lib/format';
+import { formatCurrency, formatDate, formatShortMoney } from '@/src/lib/format';
+import { mayDecideRoutedApproval } from '@/src/lib/procurement/approvalRoute';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
@@ -44,7 +46,9 @@ import {
   payStepLabel,
   stageLabelForStatus,
 } from '@/pages/procurement/blocks/stage';
-import { procurementMoney } from '@/pages/procurement/blocks/procurementMoney';
+import { procurementMoney, type ProcurementMoneyResult } from '@/pages/procurement/blocks/procurementMoney';
+import { allowedActions, sortActions, stateMainAction } from '@/pages/procurement/blocks/mainAction';
+import { purchaseHasValue } from '@/pages/procurement/purchaseValue';
 import { useBudgetPosition } from '@/pages/project-detail/useProjectPosition';
 
 /**
@@ -66,9 +70,10 @@ export interface ProcurementBlockProps {
   onClearFilters?: () => void;
 }
 
+/** Four stage tiles: a 2×2 grid on phones (nothing clipped), one row from `sm` up. */
 export const ProcurementStageBand: React.FC<React.PropsWithChildren<{ label: string }>> = ({ label, children }) => (
-  <section aria-label={label} className="overflow-x-auto rounded-lg border border-border bg-card">
-    <div className="flex min-w-[620px] sm:min-w-0">{children}</div>
+  <section aria-label={label} className="overflow-hidden rounded-lg border border-border bg-border">
+    <div className="grid grid-cols-2 gap-px sm:grid-cols-4">{children}</div>
   </section>
 );
 
@@ -118,8 +123,8 @@ function statusText(status: ProcurementStatus, t: (key: string, fallback: string
 function stageText(stage: ProcurementStage | 'Invoiced' | 'Paid', t: (key: string, fallback: string) => string): string {
   switch (stage) {
     case 'Request': return t('projectDetail.procurement.stageBand.request', 'Request');
-    case 'Order': return t('projectDetail.procurement.stageBand.ordered', 'Ordered');
-    case 'Receive': return t('projectDetail.procurement.stageBand.received', 'Received');
+    case 'Order': return t('projectDetail.procurement.stageBand.order', 'Order');
+    case 'Receive': return t('projectDetail.procurement.stageBand.receive', 'Receive');
     case 'Pay': return t('projectDetail.procurement.stageBand.pay', 'Pay');
     case 'Invoiced': return t('projectDetail.procurement.stageBand.invoiced', 'Invoiced');
     case 'Paid': return t('projectDetail.procurement.stageBand.paid', 'Paid');
@@ -208,6 +213,15 @@ function unpaidVisibleToRole(role: string | null | undefined): boolean {
   return role === 'Finance' || role === 'Admin';
 }
 
+/** The unpaid balance said once: never the shown amount again, never an unknown balance as a figure. */
+function unpaidText(money: ProcurementMoneyResult, currency: string, t: (key: string, fallback: string, options?: Record<string, unknown>) => string): string | null {
+  if (money.unpaid.unknown) return t('procurement.unpaidUnknown', 'Unpaid balance not recorded');
+  const unpaid = money.unpaid.amount;
+  if (unpaid === null || unpaid <= 0) return null;
+  if (money.mostReal && unpaid === money.mostReal.amount) return t('procurement.unpaidInFull', 'Unpaid in full');
+  return t('procurement.unpaidLine', 'Unpaid {{amount}}', { amount: formatCurrency(unpaid, currency) });
+}
+
 function stageTotals(
   rows: ProcurementWithRefs[],
   canSeeMoney: boolean,
@@ -266,11 +280,12 @@ function ProcurementBudgetLeft({
     'projectDetail.procurement.detail.budgetLeftTooltip',
     'Active category budget minus mapped actual spending and this procurement value. Source: the active budget and project spending.',
   );
-  const shown = position.isPending || position.actualsPending
+  const loading = position.isPending || position.actualsPending;
+  // C4: an unknown category position is left out, never shown as a value.
+  if (!loading && left === null) return null;
+  const shown = loading
     ? t('projectDetail.procurement.detail.budgetLoading', 'Loading budget…')
-    : left === null
-      ? t('projectDetail.procurement.detail.budgetUnavailable', 'Not available')
-      : formatCurrency(left, project.currency);
+    : formatCurrency(left!, project.currency);
 
   return (
     <div className="space-y-1">
@@ -288,6 +303,8 @@ function ProcurementBudgetLeft({
 
 export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, rowFilter, rowOrder, showCreate = true, toolbarExtra, onClearFilters }) => {
   const { t } = useTranslation('procurement');
+  // The state main action reuses the record page's labels, which live in the common catalogue.
+  const { t: tCommon } = useTranslation();
   const { currentUser, role } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -436,10 +453,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
 
   const decide = (rowsToChange: ProcurementWithRefs[], target: DecisionTarget) => {
     if (rowsToChange.length === 0) return;
-    if (target === 'Approved') {
-      void runTransition(rowsToChange, target);
-      return;
-    }
+    // Write policy (OD-UX-1): Approve is a money decision, so it confirms against the amount, as on the record page.
     setPendingDecision({ rows: rowsToChange, target });
   };
 
@@ -455,17 +469,16 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
     }
   };
 
-  const rowMenu = (row: ProcurementWithRefs): RowMenuItem[] => {
-    const items: RowMenuItem[] = [
+  /** Row actions; inside the drawer the header already shows Open full page and the main action. */
+  const rowMenu = (row: ProcurementWithRefs, inDrawer = false): RowMenuItem[] => {
+    const items: RowMenuItem[] = inDrawer ? [] : [
       { label: t('projectDetail.procurement.rowMenu.open', 'Open procurement'), onClick: () => openFullRecord(row) },
       { label: t('procurement.rowMenu.nextAction', 'Next action'), onClick: () => openFullRecord(row) },
-      { label: t('procurement.rowMenu.recordDocument', 'Record another document'), onClick: () => openFullRecord(row) },
     ];
+    items.push({ label: t('procurement.rowMenu.recordDocument', 'Record another document'), onClick: () => openFullRecord(row) });
     if (canDecideRow(row)) {
-      items.push(
-        { label: t('projectDetail.procurement.rowMenu.approve', 'Approve'), onClick: () => decide([row], 'Approved') },
-        { label: t('projectDetail.procurement.rowMenu.return', 'Return'), onClick: () => decide([row], 'Rejected') },
-      );
+      if (!inDrawer) items.push({ label: t('projectDetail.procurement.rowMenu.approve', 'Approve'), onClick: () => decide([row], 'Approved') });
+      items.push({ label: t('projectDetail.procurement.rowMenu.return', 'Return'), onClick: () => decide([row], 'Rejected') });
     }
     if (canAttachDocument) {
       items.push({ label: t('procurement.rowMenu.linkFile', 'Link a file'), onClick: () => attachDocument(row) });
@@ -489,12 +502,13 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
   const stageDateTooltip = useCallback((row: ProcurementWithRefs) => {
     const dates = datesFor(row, erp.data);
     const steps = [
-      { key: 'Request' as const, date: dates.request ?? row.created_at },
+      { key: 'Request' as const, date: dates.request },
       { key: 'Order' as const, date: dates.order },
       { key: 'Receive' as const, date: dates.receive },
       { key: payStepLabel(Boolean(row.payments?.length) || (erp.data ?? []).some((document) => document.procurementId === row.id && document.doctype === 'Payment Entry')), date: dates.pay },
     ];
     const done = steps.filter((step) => step.date);
+    if (done.length === 0) return t('procurement.noStepDates', 'No step dates recorded yet.');
     return (
       <div className="space-y-1">
         {done.map((step) => (
@@ -506,6 +520,28 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
     );
   }, [t, erp.data]);
 
+  /** B7: one amount per row, the most real one, with its basis; the unpaid balance sits in its tooltip. */
+  const rowAmount = useCallback((row: ProcurementWithRefs, inline = false) => {
+    const money = moneyFor(row, erp.data);
+    const amount = money.mostReal?.amount;
+    const unpaid = unpaidVisibleToRole(role) ? unpaidText(money, row.currency, t) : null;
+    const tip = [
+      t('procurement.moneyTooltip', 'Most recorded amount: paid, invoiced, ordered, then requested. Source: procurement records.'),
+      unpaid ? `${unpaid}. ${t('procurement.unpaidTooltip', 'Invoice amount less recorded payments, or the ERP outstanding balance.')}` : null,
+    ].filter(Boolean).join(' ');
+    if (amount === undefined) return <span className="text-xs text-muted-foreground">{t('procurement.moneyUnknown', 'Not recorded')}</span>;
+    return (
+      <span className={inline ? 'inline-flex items-baseline gap-1.5' : 'block space-y-0.5 text-right'}>
+        <Tooltip content={tip}>
+          <span tabIndex={0} className="rounded-sm font-medium tabular focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+            {formatCurrency(amount, row.currency)}
+          </span>
+        </Tooltip>
+        <span className={inline ? 'text-xs text-muted-foreground' : 'block text-xs text-muted-foreground'}>{moneyBasisText(money.mostReal!.kind, t)}</span>
+      </span>
+    );
+  }, [erp.data, role, t]);
+
   const columns = useMemo<Column<ProcurementWithRefs>[]>(() => {
     const valueColumn: Column<ProcurementWithRefs> = {
       key: 'value',
@@ -515,31 +551,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
       size: 120,
       minSize: 105,
       sortKey: 'value',
-      cell: (row) => {
-        const money = moneyFor(row, erp.data);
-        const amount = money.mostReal?.amount;
-        const basis = money.mostReal ? moneyBasisText(money.mostReal.kind, t) : t('procurement.moneyUnknown', 'Not recorded');
-        const unpaid = money.unpaid.unknown ? null : money.unpaid.amount;
-        return (
-          <div className="space-y-0.5 text-right">
-            <Tooltip content={t('procurement.moneyTooltip', 'Most recorded amount: paid, invoiced, ordered, then requested. Source: procurement records.')}>
-              <span tabIndex={0} className="rounded-sm font-medium tabular focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-                {amount === undefined ? t('procurement.moneyUnknown', 'Not recorded') : formatCurrency(amount, row.currency)}
-              </span>
-            </Tooltip>
-            <div className="text-xs text-muted-foreground">{basis}</div>
-            {unpaidVisibleToRole(role) && (unpaid !== null && unpaid > 0 || money.unpaid.unknown) && (
-              <Tooltip content={t('procurement.unpaidTooltip', 'Invoice amount less recorded payments, or the ERP outstanding balance.')}>
-                <div tabIndex={0} className="rounded-sm text-xs text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-                  {t('procurement.unpaidLine', 'Unpaid {{amount}}', {
-                    amount: unpaid === null ? t('procurement.moneyUnknown', 'Not recorded') : formatCurrency(unpaid, row.currency),
-                  })}
-                </div>
-              </Tooltip>
-            )}
-          </div>
-        );
-      },
+      cell: (row) => rowAmount(row),
       exportValue: (row) => moneyFor(row, erp.data).mostReal?.amount ?? '',
     };
     const settlementColumn: Column<ProcurementWithRefs> = {
@@ -581,12 +593,12 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         cell: (row) => {
           const isExpanded = expandedId === row.id;
           const rowMoney = moneyFor(row, erp.data);
-          const rowAmount = rowMoney.mostReal?.amount ?? Number(row.total_value ?? 0);
+          const rowValue = rowMoney.mostReal?.amount ?? Number(row.total_value ?? 0);
           const items = detailQuery.data?.id === row.id ? detailQuery.data.items : [];
           return (
             <div className="min-w-0 space-y-2">
               <div className="flex min-w-0 items-start gap-2">
-                <button type="button" aria-label={t('table.openRow', 'Open {{name}}', { name: row.title })} onClick={() => setSelected(row)} className="min-w-0 truncate text-left font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                <button type="button" aria-label={t('table.openRow', 'Open {{name}}', { name: row.title })} onClick={() => setSelected(row)} title={row.title} className="min-w-0 line-clamp-2 break-words text-left font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                   {row.title}
                 </button>
                 <button type="button" aria-expanded={isExpanded} aria-label={t(isExpanded ? 'procurement.collapseDetails' : 'procurement.expandDetails', isExpanded ? 'Collapse procurement details' : 'Expand procurement details')}
@@ -601,7 +613,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
               {isExpanded && (
                 <div className="space-y-2 border-t border-border/70 pt-2 text-xs" onClick={(event) => event.stopPropagation()}>
                   <div><span className="text-muted-foreground">{t('procurement.nextStepLabel', 'Next step')}: </span>{nextStepText(row.status, canDecideRow(row), t)}</div>
-                  {canSeeMoney && project && <ProcurementBudgetLeft project={project} row={row} amount={rowAmount} t={t} />}
+                  {canSeeMoney && project && <ProcurementBudgetLeft project={project} row={row} amount={rowValue} t={t} />}
                   <div>
                     <div className="mb-1 font-medium">{t('procurement.lineItems', 'Line items')}</div>
                     {detailQuery.isPending && <span className="text-muted-foreground">{t('common.loading', 'Loading…')}</span>}
@@ -706,7 +718,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
       },
     ];
     return tableColumns;
-  }, [canSeeMoney, canApprove, t, categoryLabel, canDecideRow, stageDateTooltip, erp.data, role, expandedId, detailQuery.data, detailQuery.isError, detailQuery.isPending, project, projectId, setSelected]);
+  }, [canSeeMoney, canApprove, t, categoryLabel, canDecideRow, stageDateTooltip, erp.data, expandedId, detailQuery.data, detailQuery.isError, detailQuery.isPending, project, projectId, setSelected, rowAmount]);
 
   const exportColumns = columns;
   const selectedForExport = selectedRows;
@@ -728,7 +740,6 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
     void runTransition(decision.rows, decision.target);
   };
 
-  const drawerCanDecide = Boolean(selected && canDecideRow(selected));
   const drawerDetails = detailQuery.data;
   const documents = drawerDetails ? recordDocuments(drawerDetails, t) : [];
   const drawerErpDocuments = (erp.data ?? []).filter((document) => document.procurementId === selected?.id);
@@ -761,12 +772,39 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
     .sort()[0]
     ?? drawerErpDocuments.filter((document) => document.doctype === 'Purchase Invoice').map((document) => document.docDate).filter((date): date is string => Boolean(date)).sort()[0]
     ?? null;
+  // L12: the Request step is dated by its purchase request document, the same source the record page reads.
   const timeline = selected ? [
-    { key: 'Request' as const, date: dates?.request ?? selected.created_at },
+    { key: 'Request' as const, date: dates?.request ?? null },
     { key: 'Order' as const, date: dates?.order ?? null },
     { key: 'Receive' as const, date: dates?.receive ?? null },
     { key: payStepLabel(hasPayment), date: hasPayment ? paymentDate : invoiceDate },
   ] : [];
+  // B4: the drawer offers the record page's own main action for this state and viewer.
+  const drawerDetailLoaded = Boolean(selected && drawerDetails && drawerDetails.id === selected.id);
+  const drawerMain = selected && drawerDetails && drawerDetailLoaded ? stateMainAction(
+    drawerDetails.status,
+    sortActions(allowedActions(
+      drawerDetails.status,
+      role ?? '',
+      drawerDetails.requested_by_id === currentUser?.id,
+      Boolean(currentUser?.id) && drawerDetails.approved_by_id === currentUser?.id,
+      tCommon,
+      mayDecideRoutedApproval(drawerDetails.approvalRoute ?? selected.approvalRoute, currentUser?.id, role === 'Admin'),
+      (drawerDetails.payments?.length ?? 0) > 0,
+      purchaseHasValue(drawerDetails),
+    )),
+    tCommon,
+  ) : undefined;
+  const runDrawerMain = () => {
+    if (!selected || !drawerMain) return;
+    if (drawerMain.transition.to === 'Approved') {
+      decide([selected], 'Approved');
+      return;
+    }
+    // The record page starts the same step on arrival (router state, so a shared link never starts it).
+    navigate(`/procurement/${selected.id}`, { state: { runMainAction: drawerMain.transition.to } });
+  };
+  const drawerUnpaid = selected && drawerMoney && unpaidVisibleToRole(role) ? unpaidText(drawerMoney, selected.currency, t) : null;
   const stageStats = PROCUREMENT_STAGES.map((key) => {
     const stageRows = rows.filter((row) => stageForStatus(row.status) === key);
     return { key, rows: stageRows, currencyTotals: totalsByStage.get(key) ?? [] };
@@ -797,7 +835,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
                   type="button"
                   aria-pressed={selectedStage === key}
                   onClick={() => setSelectedStage((current) => current === key ? null : key)}
-                  className={`flex min-h-[68px] min-w-0 flex-1 flex-col items-start justify-center border-r border-border px-3 py-2 text-left transition-colors last:border-r-0 focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selectedStage === key ? 'bg-primary/5' : 'hover:bg-accent/40'}`}
+                  className={`flex min-h-[68px] min-w-0 flex-col items-start justify-center px-3 py-2 text-left transition-colors focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selectedStage === key ? 'bg-accent' : 'bg-card hover:bg-accent/40'}`}
                 >
                   <span className="flex w-full min-w-0 items-center justify-between gap-1 text-xs font-semibold text-muted-foreground">
                     <span className="truncate">{stageLabel}</span>
@@ -807,7 +845,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
                     <span className="text-[18px] font-semibold leading-tight tabular text-foreground">{stageRows.length}</span>
                   {canSeeMoney && currencyTotals.length > 0 && (
                     <span className="flex min-w-0 flex-wrap justify-end gap-x-2 text-xs text-muted-foreground">
-                      {currencyTotals.map((item) => <span key={item.currency} className="truncate">{formatCurrency(item.value, item.currency)}</span>)}
+                      {currencyTotals.map((item) => <span key={item.currency} title={formatCurrency(item.value, item.currency)}>{formatShortMoney(item.value, item.currency)}</span>)}
                     </span>
                   )}
                   </span>
@@ -824,7 +862,39 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         columns={columns}
         embedded={Boolean(projectId)}
         accessibleName={projectId ? t('projectDetail.procurement.table.accessibleName', 'Project procurement') : t('procurement.table.accessibleName', 'Procurement')}
-        rowMenu={rowMenu}
+        rowMenu={(row) => rowMenu(row)}
+        mobileCardDetails={(row) => {
+          // L3: a phone row reads title · stage · one amount · next step; age and raiser ride along unlabelled.
+          const next = TERMINAL_STATUSES.includes(row.status) ? null : nextStepText(row.status, canDecideRow(row), t);
+          const owner = row.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned');
+          const days = ageInCurrentStage(row, erp.data);
+          return (
+            <div className="space-y-1.5">
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <span className="inline-flex min-w-0 items-center gap-2">
+                  <StatusPill variant={workflowVariant(row.status)}>{statusText(row.status, t)}</StatusPill>
+                  <span className={`text-xs tabular ${days > 30 && row.status !== 'Paid' ? 'text-warning-foreground' : 'text-muted-foreground'}`}>
+                    <span className="sr-only">{t('procurement.ageShort', 'Age')}</span>
+                    {t('procurement.ageInStageDays', '{{count}}d', { count: days })}
+                  </span>
+                </span>
+                {canSeeMoney && rowAmount(row, true)}
+              </div>
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                {next ? (
+                  <Link to={`/procurement/${row.id}`} className="inline-flex min-h-8 items-center rounded-sm text-[13px] font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                    {next}
+                  </Link>
+                ) : <span />}
+                <span className="inline-flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="sr-only">{t('procurement.raisedBy', 'Raised by')}</span>
+                  <span aria-hidden="true" className="grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-bold text-foreground">{initials(owner)}</span>
+                  <span className="truncate">{owner}</span>
+                </span>
+              </div>
+            </div>
+          );
+        }}
         selectedKey={selected?.id}
         selection={{ selectedIds, onChange: setSelectedIds, rowLabel: (row) => t('projectDetail.procurement.selection.selectRow', 'Select {{name}}', { name: row.title }) }}
         sort={sort}
@@ -940,12 +1010,13 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         nestedOpen={pendingDecision !== null}
         onClose={() => setSelected(null)}
         headerActions={selected ? <>
-          {drawerCanDecide && <Button size="sm" onClick={() => decide([selected], 'Approved')} disabled={transition.isPending}>
-            <Icon name="check" />{t('projectDetail.procurement.bulk.approve', 'Approve')}
+          {drawerMain && <Button size="sm" onClick={runDrawerMain} disabled={transition.isPending || (drawerMain.transition.to === 'Requested' && (drawerDetails?.items.length ?? 0) === 0)}>
+            {drawerMain.label}
           </Button>}
           <Link to={`/procurement/${selected.id}`} className={buttonClasses('outline', 'sm')}>
             {t('projectDetail.procurement.detail.openFullRecord', 'Open full page')}
           </Link>
+          <MenuButton items={rowMenu(selected, true)} ariaLabel={t('procurement.moreActions', 'More procurement actions')} />
         </> : undefined}
       >
         {selected && (
@@ -964,10 +1035,10 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
                     </span>
                   </Tooltip>
                   {drawerMoney?.mostReal && <div className="text-xs text-muted-foreground">{moneyBasisText(drawerMoney.mostReal.kind, t)}</div>}
-                  {unpaidVisibleToRole(role) && drawerMoney && (drawerMoney.unpaid.unknown || (drawerMoney.unpaid.amount ?? 0) > 0) && (
+                  {drawerUnpaid && (
                     <Tooltip content={t('procurement.unpaidTooltip', 'Invoice amount less recorded payments, or the ERP outstanding balance.')}>
-                      <div tabIndex={0} className="rounded-sm text-xs text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-                        {t('procurement.unpaidLine', 'Unpaid {{amount}}', { amount: drawerMoney.unpaid.unknown ? t('procurement.moneyUnknown', 'Not recorded') : formatCurrency(drawerMoney.unpaid.amount ?? 0, selected.currency) })}
+                      <div tabIndex={0} className="rounded-sm text-xs font-medium text-warning-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                        {drawerUnpaid}
                       </div>
                     </Tooltip>
                   )}
@@ -1054,17 +1125,27 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
 
       <ConfirmDialog
         open={pendingDecision !== null}
-        title={pendingDecision?.target === 'Cancelled'
+        title={pendingDecision?.target === 'Approved'
+          ? pendingDecision.rows.length > 1
+            ? t('projectDetail.procurement.confirm.approveManyTitle', 'Approve {{count}} procurements?', { count: pendingDecision.rows.length })
+            : t('projectDetail.procurement.confirm.approveTitle', 'Approve this procurement?')
+          : pendingDecision?.target === 'Cancelled'
           ? pendingDecision.rows.length > 1
             ? t('projectDetail.procurement.confirm.cancelManyTitle', 'Cancel these procurements?')
             : t('projectDetail.procurement.confirm.cancelTitle', 'Cancel this procurement?')
           : (pendingDecision?.rows.length ?? 0) > 1
-            ? t('projectDetail.procurement.confirm.returnManyTitle', 'Return these requests?')
-            : t('projectDetail.procurement.confirm.returnTitle', 'Return this request?')}
-        description={pendingDecision?.target === 'Cancelled'
+            ? t('projectDetail.procurement.confirm.returnManyTitle', 'Return these procurements?')
+            : t('projectDetail.procurement.confirm.returnTitle', 'Return this procurement?')}
+        description={pendingDecision?.target === 'Approved'
+          ? pendingDecision.rows.length === 1
+            ? t('projectDetail.procurement.confirm.approveDescription', '{{title}} · {{amount}}. Approving lets the order go ahead.', { title: pendingDecision.rows[0]!.title, amount: formatCurrency(Number(pendingDecision.rows[0]!.total_value), pendingDecision.rows[0]!.currency) })
+            : t('projectDetail.procurement.confirm.approveManyDescription', 'Approving lets each order go ahead.')
+          : pendingDecision?.target === 'Cancelled'
           ? t('projectDetail.procurement.confirm.cancelDescription', 'This procurement will be marked as cancelled.')
-          : t('projectDetail.procurement.confirm.returnDescription', 'The request will be returned to its requester.')}
-        confirmLabel={pendingDecision?.target === 'Cancelled'
+          : t('projectDetail.procurement.confirm.returnDescription', 'The procurement goes back to the person who raised it.')}
+        confirmLabel={pendingDecision?.target === 'Approved'
+          ? t('projectDetail.procurement.bulk.approve', 'Approve')
+          : pendingDecision?.target === 'Cancelled'
           ? t('projectDetail.procurement.rowMenu.cancel', 'Cancel procurement')
           : t('projectDetail.procurement.bulk.return', 'Return')}
         tone={pendingDecision?.target === 'Cancelled' ? 'destructive' : 'default'}

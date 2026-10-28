@@ -100,7 +100,7 @@ const ExpandedPanel: React.FC<{
       ) : detail.isError ? (
         <ListState
           variant="error"
-          title="Couldn't load request details"
+          title="Couldn't load procurement details"
           sub={t('procurement.preview.loadErrorSub', 'Something went wrong fetching the preview.')}
           onRetry={() => detail.refetch()}
         />
@@ -160,7 +160,7 @@ const ExpandedPanel: React.FC<{
               }}
               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
             >
-              {t('procurement.preview.viewFullRequest', 'View full request')}
+              {t('procurement.preview.viewFullRequest', 'View full procurement')}
               <Icon name="chev" aria-hidden />
             </Link>
           </div>

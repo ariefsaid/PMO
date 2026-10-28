@@ -273,10 +273,10 @@ describe('RecordCaptureTrigger — GR/VI label + testid overrides', () => {
     expect(trigger.className).not.toContain('bg-primary');
   });
 
-  it('VI trigger uses btn-create-vi + "Record vendor invoice"', () => {
+  it('VI trigger uses btn-create-vi + "Record supplier invoice"', () => {
     render(<RecordCaptureTrigger kind="vendor_invoice" open={false} onOpen={() => {}} />);
     const trigger = screen.getByTestId('btn-create-vi');
-    expect(trigger).toHaveTextContent(/record vendor invoice/i);
+    expect(trigger).toHaveTextContent(/record supplier invoice/i);
     expect(trigger.className).not.toContain('bg-primary');
   });
 });

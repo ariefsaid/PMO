@@ -49,10 +49,10 @@ test('AC-IXD-WP-001: a routine procurement forward step (Request quotations) is 
   );
 
   // ── Assert 3: a quiet success toast confirmed it ──────────────────────────
-  // AC-IXD-PROC-001: the toast names the CANONICAL state ("Vendor Quote") — the
+  // AC-IXD-PROC-001: the toast names the CANONICAL state ("Supplier quote") — the
   // same noun the badge label shows — not the raw enum ("Vendor Quoted"). The
   // single-click + success-toast goal-oracle is unchanged; only the label noun is.
-  await expect(visibleToast(page, /Vendor Quote/i)).toBeVisible({
+  await expect(visibleToast(page, /Supplier quote/i)).toBeVisible({
     timeout: 10_000,
   });
 });

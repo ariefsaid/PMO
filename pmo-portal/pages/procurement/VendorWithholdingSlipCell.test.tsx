@@ -41,7 +41,7 @@ describe('AC-BUPOT-016 withholding slip cell', () => {
     const record = vi.fn();
     const setVendor = vi.fn();
     render(<VendorWithholdingSlipCell row={bill('not-recorded')} canWrite onRecord={record} vendorMissing onSetVendor={setVendor} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Set vendor' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Set supplier' }));
     expect(setVendor).toHaveBeenCalledOnce();
     expect(screen.queryByRole('button', { name: /record bukti potong/i })).not.toBeInTheDocument();
     expect(record).not.toHaveBeenCalled();
@@ -49,8 +49,8 @@ describe('AC-BUPOT-016 withholding slip cell', () => {
 
   it('does not instruct read-only viewers to set a vendor when no recovery action is available', () => {
     render(<VendorWithholdingSlipCell row={bill('not-recorded')} vendorMissing />);
-    expect(screen.queryByText('Set a vendor on the request before recording this slip.')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Set vendor' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Set a supplier on this procurement before recording this slip.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Set supplier' })).not.toBeInTheDocument();
   });
 
   it('offers record only for explicitly uncovered bills and preserves exception labels', () => {

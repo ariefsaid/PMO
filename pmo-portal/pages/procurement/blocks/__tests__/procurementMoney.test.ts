@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { procurementMoney } from '../procurementMoney';
+import { procurementMoney, supplierUnpaid } from '../procurementMoney';
 
 describe('procurementMoney', () => {
   it('uses the most specific recorded figures and reports the unpaid balance', () => {
@@ -97,5 +97,28 @@ describe('procurementMoney', () => {
     expect(recordedZero.ordered).toEqual({ amount: 0, unknown: false });
     expect(recordedZero.invoiced).toEqual({ amount: 0, unknown: false });
     expect(recordedZero.paid).toEqual({ amount: 0, unknown: false });
+  });
+});
+
+describe('supplierUnpaid (SEC-RS-2: the one owed-to-suppliers figure)', () => {
+  it('is the supplier invoice amount less Paid payments, not the procurement value', () => {
+    expect(supplierUnpaid({
+      total_value: 1000,
+      procurement_invoices: [{ amount: 1110 }],
+      payments: [{ amount: 400, status: 'Paid' }, { amount: 300, status: 'Scheduled' }],
+    })).toEqual({ amount: 710, unknown: false });
+  });
+
+  it('is unknown, not zero, when no supplier invoice amount is on record', () => {
+    expect(supplierUnpaid({ total_value: 1000, procurement_invoices: [], payments: [] })).toEqual({ amount: null, unknown: true });
+    expect(supplierUnpaid({ total_value: 1000 })).toEqual({ amount: null, unknown: true });
+  });
+
+  it('is unknown when an invoice amount is missing', () => {
+    expect(supplierUnpaid({ procurement_invoices: [{ amount: null }], payments: [] })).toEqual({ amount: null, unknown: true });
+  });
+
+  it('is zero when the invoice is fully paid', () => {
+    expect(supplierUnpaid({ procurement_invoices: [{ amount: 500 }], payments: [{ amount: 500, status: 'Paid' }] })).toEqual({ amount: 0, unknown: false });
   });
 });

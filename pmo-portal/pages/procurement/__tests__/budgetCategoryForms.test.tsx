@@ -62,7 +62,7 @@ describe('AC-APR-037 budget category on the request forms', () => {
       </ToastProvider>,
     );
     await userEvent.selectOptions(screen.getByLabelText('Budget category'), '');
-    await userEvent.click(screen.getByRole('button', { name: /save request/i }));
+    await userEvent.click(screen.getByRole('button', { name: /save procurement/i }));
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ budgetCategory: null })));
   });
 });

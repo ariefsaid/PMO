@@ -90,18 +90,18 @@ function readyGateMessage(
     case 'Draft':
       // Author about to submit — teach that submission hands off to a different approver.
       return isRequester
-        ? 'Submitting hands this to an approver — you can\'t approve your own request.'
-        : 'Ready to submit this request for approval.';
+        ? 'Submitting hands this to an approver — you can\'t approve your own procurement.'
+        : 'Ready to submit this procurement for approval.';
     case 'Requested':
       // Approver viewing — teach that the requester cannot self-approve.
-      return 'You may approve or reject this request. The requester cannot self-approve — separation of duties requires a different reviewer.';
+      return 'You may approve or reject this procurement. The requester cannot self-approve — separation of duties requires a different reviewer.';
     case 'Vendor Invoiced':
       // Finance payer — teach SoD-b: the approver cannot also release payment.
       return isApprover
-        ? 'Payment must be released by a different finance user — the approver can\'t also pay this request.'
+        ? 'Payment must be released by a different finance user — the approver can\'t also pay this procurement.'
         : 'Releasing payment — the approver can\'t also pay (separation of duties). You may mark this as paid below.';
     default:
-      return 'Ready to advance. Select an action below to move this request to its next stage.';
+      return 'Ready to advance. Select an action below to move this procurement to its next stage.';
   }
 }
 
@@ -218,7 +218,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               data-testid="sod-pre-announce"
               className="text-[13px] text-muted-foreground"
             >
-              Submitting hands this to another approver — you can&apos;t approve your own request.
+              Submitting hands this to another approver — you can&apos;t approve your own procurement.
             </p>
           )}
 
@@ -490,7 +490,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
   return (
     <div data-testid="vi-inline-capture" className="flex flex-col gap-3">
       <p className="text-[12px] font-semibold text-muted-foreground">
-        {t('procurementDetail.vendorInvoice.enterDetails', 'Enter invoice details to mark as Vendor Invoiced:')}
+        {t('procurementDetail.vendorInvoice.enterDetails', 'Enter the supplier invoice details:')}
       </p>
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
@@ -630,7 +630,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
       <FieldError id={amtErrorId}>{amtError}</FieldError>
       {pmoAuthorsTax && !amtStr && vendorTax?.pphType && withheldInvalid && (
         <p role="status" className="text-[12px] text-muted-foreground">
-          {t('procurementDetail.withholdingNeedsAmount', 'Enter the bill amount to calculate the vendor withholding.')}
+          {t('procurementDetail.withholdingNeedsAmount', 'Enter the bill amount to calculate the supplier withholding.')}
         </p>
       )}
       {!tax && (

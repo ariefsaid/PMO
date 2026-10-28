@@ -24,7 +24,7 @@
     "newLineTotal": "Total baris baru",
     "addLineItem": "Tambah item",
     "add": "Tambah",
-    "removeDescription": "Item ini akan dihapus dari permintaan. Anda dapat menambahkannya kembali selama permintaan masih berupa draf.",
+    "removeDescription": "Item ini akan dihapus dari pengadaan. Anda dapat menambahkannya kembali selama pengadaan masih berupa draf.",
     "removeItem": "Hapus item",
     "searchItem": "Cari kode atau nama item…"
   },
@@ -34,8 +34,8 @@
     "draftNote": "Permintaan ini tetap berstatus Draf sampai Anda mengirimkannya.",
     "requestDetails": "Rincian permintaan",
     "titleField": "Judul",
-    "titleRequired": "Judul permintaan wajib diisi.",
-    "linesFailed": "Permintaan tersimpan, tetapi beberapa baris belum tersimpan. Simpan lagi untuk mencoba kembali.",
+    "titleRequired": "Judul pengadaan wajib diisi.",
+    "linesFailed": "Pengadaan tersimpan, tetapi beberapa item belum tersimpan. Simpan lagi untuk mencoba ulang.",
     "project": "Proyek",
     "selectProject": "Pilih proyek…",
     "vendor": "Pemasok",
@@ -53,16 +53,16 @@
   "ceiling": {
     "exceeds": "Jumlah tagihan melebihi jumlah yang disetujui sebesar {{amount}}. Pemberi persetujuan harus menyetujui jumlah yang lebih tinggi.",
     "approveHigher": "Setujui jumlah lebih tinggi",
-    "confirmBody": "Jumlah yang disetujui menjadi {{billed}} (saat ini {{approved}}). Anda tidak dapat membayar permintaan ini sendiri.",
+    "confirmBody": "Jumlah yang disetujui menjadi {{billed}} (saat ini {{approved}}). Anda tidak dapat membayar pengadaan ini sendiri.",
     "confirm": "Setujui",
     "approved": "Jumlah lebih tinggi disetujui"
   },
   "quoteSelection": {
-    "reroutedDetail": "Penawaran melebihi jumlah yang disetujui, sehingga permintaan dikembalikan untuk persetujuan."
+    "reroutedDetail": "Penawaran melebihi jumlah yang disetujui, sehingga pengadaan dikembalikan untuk persetujuan."
   },
   "ledger": {
     "paymentInErp": "Catat pembayaran di ERPNext; akan tertaut di sini pada sinkronisasi berikutnya.",
-    "billsHiddenForRole": "Tagihan vendor dan pembayaran tidak ditampilkan untuk peran Anda.",
+    "billsHiddenForRole": "Faktur pemasok dan pembayaran tidak ditampilkan untuk peran Anda.",
     "awaitingApproval": "Menunggu persetujuan. Dokumen dapat dicatat setelah disetujui.",
     "approveToStart": "Setujui untuk mulai mencatat dokumen.",
     "emptyTitle": "Belum ada dokumen",
@@ -76,9 +76,9 @@
       "rfq": "Permintaan penawaran",
       "order": "Pesanan",
       "receipt": "Penerimaan barang",
-      "invoice": "Faktur vendor",
+      "invoice": "Faktur pemasok",
       "payment": "Pembayaran",
-      "needsRequest": "perlu permintaan dulu",
+      "needsRequest": "perlu permintaan pembelian dulu",
       "needsApproval": "perlu persetujuan dulu",
       "needsReceipt": "perlu penerimaan barang dulu"
     }
@@ -111,7 +111,7 @@
       "quote": "Penawaran",
       "po": "Pesanan pembelian",
       "gr": "Penerimaan barang",
-      "invoice": "Faktur vendor",
+      "invoice": "Faktur pemasok",
       "payment": "Pembayaran"
     }
   },
@@ -122,8 +122,8 @@
     "procurement": {
       "stageBand": {
         "request": "Permintaan",
-        "ordered": "Dipesan",
-        "received": "Diterima",
+        "order": "Pesan",
+        "receive": "Terima",
         "pay": "Bayar",
         "invoiced": "Ditagih",
         "invoicedNotPaid": "Ditagih, belum dibayar",
@@ -152,11 +152,10 @@
         "payment": "Pembayaran"
       },
       "detail": {
-        "budgetLeftTooltip": "Anggaran kategori aktif dikurangi pengeluaran aktual terpetakan dan nilai permintaan pengadaan ini. Sumber: anggaran aktif dan pengeluaran proyek.",
+        "budgetLeftTooltip": "Anggaran kategori aktif dikurangi pengeluaran aktual terpetakan dan nilai pengadaan ini. Sumber: anggaran aktif dan pengeluaran proyek.",
         "budgetLoading": "Memuat anggaran…",
-        "budgetUnavailable": "Tidak tersedia",
         "budgetLeft": "Sisa anggaran kategori",
-        "title": "Detail permintaan pengadaan",
+        "title": "Detail pengadaan",
         "openFullRecord": "Buka halaman lengkap",
         "category": "Kategori",
         "value": "Nilai",
@@ -172,9 +171,9 @@
       "uncategorized": "Tanpa kategori",
       "unassigned": "Belum ditugaskan",
       "toast": {
-        "approved": "Permintaan pengadaan disetujui",
-        "returned": "Permintaan pengadaan dikembalikan",
-        "cancelled": "Permintaan pengadaan dibatalkan",
+        "approved": "Pengadaan disetujui",
+        "returned": "Pengadaan dikembalikan",
+        "cancelled": "Pengadaan dibatalkan",
         "completedMany": "{{count}} catatan diperbarui.",
         "partial": "Beberapa catatan diperbarui",
         "partialDetail": "{{updated}} diperbarui; {{failed}} perlu ditinjau.",
@@ -182,11 +181,11 @@
         "linkCopyFailed": "Tautan tidak dapat disalin"
       },
       "rowMenu": {
-        "open": "Buka permintaan pengadaan",
+        "open": "Buka pengadaan",
         "approve": "Setujui",
         "return": "Kembalikan",
         "copyLink": "Salin tautan",
-        "cancel": "Batalkan permintaan pengadaan"
+        "cancel": "Batalkan pengadaan"
       },
       "exportEntity": "Pengadaan",
       "table": {
@@ -199,7 +198,7 @@
       },
       "noSupplier": "Tidak ada pemasok",
       "ownerTooltip": "Diminta oleh {{name}}. Sumber: catatan pengadaan.",
-      "stageCountTooltip": "Jumlah permintaan pengadaan yang saat ini berada di tahap {{stage}}. Sumber: catatan pengadaan proyek.",
+      "stageCountTooltip": "Jumlah pengadaan yang saat ini berada di tahap {{stage}}. Sumber: catatan pengadaan proyek.",
       "forYou": "{{count}} untuk Anda",
       "selection": {
         "selectRow": "Pilih {{name}}",
@@ -209,7 +208,7 @@
         "clear": "Hapus pilihan"
       },
       "emptyFiltered": {
-        "title": "Tidak ada permintaan pengadaan yang cocok dengan filter ini.",
+        "title": "Tidak ada pengadaan yang cocok dengan filter ini.",
         "sub": "Sesuaikan pencarian atau filter, lalu coba lagi.",
         "clear": "Hapus filter"
       },
@@ -218,8 +217,8 @@
         "return": "Kembalikan",
         "export": "Ekspor"
       },
-      "searchLabel": "Cari permintaan pengadaan",
-      "search": "Cari permintaan pengadaan…",
+      "searchLabel": "Cari pengadaan",
+      "search": "Cari pengadaan…",
       "filter": {
         "category": "Filter berdasarkan kategori",
         "allCategories": "Kategori",
@@ -228,12 +227,16 @@
         "clearStage": "Hapus filter tahap"
       },
       "confirm": {
-        "cancelManyTitle": "Batalkan permintaan pengadaan ini?",
-        "cancelTitle": "Batalkan permintaan pengadaan ini?",
-        "returnManyTitle": "Kembalikan permintaan ini?",
-        "returnTitle": "Kembalikan permintaan ini?",
-        "cancelDescription": "Permintaan pengadaan ini akan ditandai sebagai dibatalkan.",
-        "returnDescription": "Permintaan ini akan dikembalikan kepada pemintanya."
+        "approveTitle": "Setujui pengadaan ini?",
+        "approveManyTitle": "Setujui {{count}} pengadaan?",
+        "approveDescription": "{{title}} · {{amount}}. Persetujuan mengizinkan pesanan berjalan.",
+        "approveManyDescription": "Persetujuan mengizinkan setiap pesanan berjalan.",
+        "cancelManyTitle": "Batalkan pengadaan ini?",
+        "cancelTitle": "Batalkan pengadaan ini?",
+        "returnManyTitle": "Kembalikan pengadaan ini?",
+        "returnTitle": "Kembalikan pengadaan ini?",
+        "cancelDescription": "Pengadaan ini akan ditandai sebagai dibatalkan.",
+        "returnDescription": "Pengadaan ini akan dikembalikan kepada pengajunya."
       },
       "stage": {
         "cancelled": "Dibatalkan",
@@ -250,7 +253,7 @@
     },
     "needsYou": {
       "none": "—",
-      "approve": "Setujui permintaan",
+      "approve": "Setujui pengadaan",
       "receive": "Catat pengiriman",
       "pay": "Bayar faktur",
       "column": "Alasan perlu tindakan Anda"
@@ -265,25 +268,29 @@
     "moneyUnknown": "Belum dicatat",
     "unpaidTooltip": "Jumlah faktur dikurangi pembayaran tercatat, atau saldo terutang di ERP.",
     "unpaidLine": "Belum dibayar {{amount}}",
+    "unpaidInFull": "Belum dibayar seluruhnya",
+    "unpaidUnknown": "Saldo belum dibayar belum dicatat",
+    "noStepDates": "Belum ada tanggal langkah yang dicatat.",
+    "moreActions": "Tindakan pengadaan lainnya",
     "settlementTooltip": "Jumlah pembayaran yang tercatat dibandingkan dengan faktur yang tercatat.",
     "settlement": "Dibayar / difakturkan",
     "nextStepLabel": "Langkah berikutnya",
     "lineItems": "Item permintaan",
     "lineItemsUnavailable": "Baris item tidak dapat dimuat.",
     "noLineItems": "Belum ada baris item yang dicatat.",
-    "openDrawer": "Buka permintaan pengadaan",
+    "openDrawer": "Buka pengadaan",
     "needsYouTooltip": "Tindakan yang disarankan berdasarkan peran dan status catatan saat ini. Aturan server tetap menjadi acuan.",
-    "ageInStageTooltip": "Jumlah hari sejak permintaan pengadaan terakhir kali memasuki tahap saat ini.",
+    "ageInStageTooltip": "Jumlah hari sejak pengadaan terakhir kali memasuki tahap saat ini.",
     "ageInStage": "Lama di tahap",
     "ageShort": "Umur",
     "ageInStageDays": "{{count}} hari",
     "raisedBy": "Dibuat oleh",
-    "stageCountTooltip": "Jumlah permintaan pengadaan yang saat ini berada di tahap {{stage}}. Sumber: catatan pengadaan perusahaan.",
+    "stageCountTooltip": "Jumlah pengadaan yang saat ini berada di tahap {{stage}}. Sumber: catatan pengadaan perusahaan.",
     "table": {
       "accessibleName": "Pengadaan"
     },
     "empty": {
-      "title": "Belum ada permintaan pengadaan."
+      "title": "Belum ada pengadaan."
     }
   },
   "common": {

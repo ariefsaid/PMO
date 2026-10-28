@@ -129,8 +129,9 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
             return (
               <li key={stage.key} aria-current={isCurrent ? 'step' : undefined} className="min-w-0">
                 <div>
-                  <span className={`mb-1 block text-[12.5px] font-semibold ${isCurrent ? 'text-primary-text' : done ? 'text-success-text' : 'text-muted-foreground'}`}>{stageLabel}</span>
-                  <span aria-hidden="true" className={`block h-1.5 rounded-full ${partial ? 'bg-secondary' : done ? 'bg-success' : isCurrent ? 'bg-primary' : 'bg-secondary'}`}>
+                  <span className={`mb-1 block text-[12.5px] font-semibold ${isCurrent ? 'text-foreground' : done ? 'text-success-text' : 'text-muted-foreground'}`}>{stageLabel}</span>
+                  {/* O14: the current stage reads in neutral ink; blue stays reserved for the one main action. */}
+                  <span aria-hidden="true" className={`block h-1.5 rounded-full ${partial ? 'bg-secondary' : done ? 'bg-success' : isCurrent ? 'bg-muted-foreground' : 'bg-secondary'}`}>
                     {partial && <span className="block h-full w-1/2 rounded-full bg-success" />}
                   </span>
                 </div>
@@ -171,7 +172,7 @@ export const ProcurementBudgetSignal: React.FC<ProcurementBudgetSignalProps> = (
     return <span className="text-[12px] font-normal text-muted-foreground">{t('money.budgetLoading', 'Budget signal loading')}</span>;
   }
   if (budget.isError || committed.isError || reserved.isError) {
-    return <span className="text-[12px] font-normal text-muted-foreground">{t('money.budgetUnavailable', 'Budget signal unavailable')}</span>;
+    return <span className="text-[12px] font-normal text-muted-foreground">{t('money.budgetUnavailable', "Couldn't load the project budget")}</span>;
   }
   if (!budget.data) return <span className="text-[12px] font-normal text-muted-foreground">{t('money.noBudget', 'No active project budget')}</span>;
 
@@ -182,11 +183,11 @@ export const ProcurementBudgetSignal: React.FC<ProcurementBudgetSignalProps> = (
     totalValue,
     status,
   });
-  const label = t('money.budgetSignal', 'Available {{available}} · after this request {{after}}', {
+  const label = t('money.budgetSignal', 'Available {{available}} · after this procurement {{after}}', {
     available: formatCurrency(available, currency),
     after: formatCurrency(afterRequest, currency),
   });
-  return <Tooltip content={t('money.budgetSignalTooltip', 'Available = project budget less committed and reserved spend. “After this request” includes this procurement at its current stage. Source: project budget, committed procurement spend, and reserved procurement spend.')} title={t('money.projectBudget', 'Project budget signal')}>
+  return <Tooltip content={t('money.budgetSignalTooltip', 'Available = project budget less committed and reserved spend. “After this procurement” includes it at its current stage. Source: project budget, committed procurement spend, and reserved procurement spend.')} title={t('money.projectBudget', 'Project budget signal')}>
     <span tabIndex={0} className="text-[12px] font-normal text-muted-foreground underline decoration-dotted underline-offset-2">{label}</span>
   </Tooltip>;
 };
@@ -376,10 +377,16 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
 
   return (
     <Card data-testid="procurement-timeline">
-      <CardHead className="flex flex-wrap items-center gap-3">
-        <span className="flex-1">{t('timeline.title', 'Timeline')}</span>
-        <span className="text-[12px] font-normal text-muted-foreground">{t('timeline.inDateOrder', 'in date order · missing steps aren’t required by your company')}</span>
-        <button type="button" onClick={onFullHistory} className="text-[12.5px] font-medium text-primary-text underline underline-offset-2">{t('timeline.fullHistory', 'Full history')}</button>
+      <CardHead
+        className="flex-wrap"
+        actions={(
+          <>
+            <span className="text-[12px] font-normal text-muted-foreground">{t('timeline.inDateOrder', 'in date order · missing steps aren’t required by your company')}</span>
+            <button type="button" onClick={onFullHistory} className="text-[12.5px] font-medium text-primary-text underline underline-offset-2">{t('timeline.fullHistory', 'Full history')}</button>
+          </>
+        )}
+      >
+        {t('timeline.title', 'Timeline')}
       </CardHead>
       <CardPad>
         <div role="group" aria-label="Timeline filter" className="mb-3 flex flex-wrap gap-2">

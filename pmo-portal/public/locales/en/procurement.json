@@ -24,7 +24,7 @@
     "newLineTotal": "New line total",
     "addLineItem": "Add line item",
     "add": "Add",
-    "removeDescription": "This removes the line item from the request. You can add it again while the request is a draft.",
+    "removeDescription": "This removes the line item from the procurement. You can add it again while the procurement is a draft.",
     "removeItem": "Remove item",
     "searchItem": "Search item code or name…"
   },
@@ -34,12 +34,12 @@
     "draftNote": "This request remains a draft until you submit it.",
     "requestDetails": "Request details",
     "titleField": "Title",
-    "titleRequired": "A request title is required.",
-    "linesFailed": "Request saved, but some lines were not saved. Save again to retry.",
+    "titleRequired": "A procurement title is required.",
+    "linesFailed": "Procurement saved, but some lines were not saved. Save again to retry.",
     "project": "Project",
     "selectProject": "Select a project…",
-    "vendor": "Vendor",
-    "selectVendor": "Optional — select a vendor…",
+    "vendor": "Supplier",
+    "selectVendor": "Optional — select a supplier…",
     "budgetCategory": "Budget category",
     "denied": "You do not have permission to create purchase requests.",
     "unsaved": {
@@ -53,16 +53,16 @@
   "ceiling": {
     "exceeds": "Billed amount exceeds the approved amount by {{amount}}. An approver must approve the higher amount.",
     "approveHigher": "Approve higher amount",
-    "confirmBody": "The approved amount becomes {{billed}} (now {{approved}}). You will not be able to pay this request yourself.",
+    "confirmBody": "The approved amount becomes {{billed}} (now {{approved}}). You will not be able to pay this procurement yourself.",
     "confirm": "Approve",
     "approved": "Higher amount approved"
   },
   "quoteSelection": {
-    "reroutedDetail": "The quote is above the approved amount, so the request went back for approval."
+    "reroutedDetail": "The quote is above the approved amount, so the procurement went back for approval."
   },
   "ledger": {
     "paymentInErp": "Record the payment in ERPNext; it links here on the next sync.",
-    "billsHiddenForRole": "Vendor bills and payments are not shown for your role.",
+    "billsHiddenForRole": "Supplier invoices and payments are not shown for your role.",
     "awaitingApproval": "Waiting for approval. Documents can be recorded once it is approved.",
     "approveToStart": "Approve to start recording documents.",
     "emptyTitle": "No documents yet",
@@ -76,9 +76,9 @@
       "rfq": "Quote request",
       "order": "Order",
       "receipt": "Goods receipt",
-      "invoice": "Vendor invoice",
+      "invoice": "Supplier invoice",
       "payment": "Payment",
-      "needsRequest": "needs a request first",
+      "needsRequest": "needs a purchase request first",
       "needsApproval": "needs an approval first",
       "needsReceipt": "needs a goods receipt first"
     }
@@ -111,7 +111,7 @@
       "quote": "Quotation",
       "po": "Purchase order",
       "gr": "Goods receipt",
-      "invoice": "Vendor invoice",
+      "invoice": "Supplier invoice",
       "payment": "Payment"
     }
   },
@@ -122,8 +122,8 @@
     "procurement": {
       "stageBand": {
         "request": "Request",
-        "ordered": "Ordered",
-        "received": "Received",
+        "order": "Order",
+        "receive": "Receive",
         "pay": "Pay",
         "invoiced": "Invoiced",
         "invoicedNotPaid": "Invoiced, not paid",
@@ -154,7 +154,6 @@
       "detail": {
         "budgetLeftTooltip": "Active category budget minus mapped actual spending and this procurement value. Source: the active budget and project spending.",
         "budgetLoading": "Loading budget…",
-        "budgetUnavailable": "Not available",
         "budgetLeft": "Budget left in category",
         "title": "Procurement details",
         "openFullRecord": "Open full page",
@@ -228,12 +227,16 @@
         "clearStage": "Clear stage filter"
       },
       "confirm": {
+        "approveTitle": "Approve this procurement?",
+        "approveManyTitle": "Approve {{count}} procurements?",
+        "approveDescription": "{{title}} · {{amount}}. Approving lets the order go ahead.",
+        "approveManyDescription": "Approving lets each order go ahead.",
         "cancelManyTitle": "Cancel these procurements?",
         "cancelTitle": "Cancel this procurement?",
-        "returnManyTitle": "Return these requests?",
-        "returnTitle": "Return this request?",
+        "returnManyTitle": "Return these procurements?",
+        "returnTitle": "Return this procurement?",
         "cancelDescription": "This procurement will be marked as cancelled.",
-        "returnDescription": "The request will be returned to its requester."
+        "returnDescription": "The procurement goes back to the person who raised it."
       },
       "stage": {
         "cancelled": "Cancelled",
@@ -250,7 +253,7 @@
     },
     "needsYou": {
       "none": "—",
-      "approve": "Approve request",
+      "approve": "Approve procurement",
       "receive": "Record delivery",
       "pay": "Pay invoice",
       "column": "Why it needs you"
@@ -265,6 +268,10 @@
     "moneyUnknown": "Not recorded",
     "unpaidTooltip": "Invoice amount less recorded payments, or the ERP outstanding balance.",
     "unpaidLine": "Unpaid {{amount}}",
+    "unpaidInFull": "Unpaid in full",
+    "unpaidUnknown": "Unpaid balance not recorded",
+    "noStepDates": "No step dates recorded yet.",
+    "moreActions": "More procurement actions",
     "settlementTooltip": "Recorded paid amount compared with recorded invoices.",
     "settlement": "Paid / invoiced",
     "nextStepLabel": "Next step",

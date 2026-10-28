@@ -22,7 +22,7 @@ import { headerActions, openMoreActions } from '@/pages/__tests__/helpers/procur
  *  AC-IXD-WP-003 — a `ConfirmDialog` opens for the CONSEQUENTIAL set
  *    {Approve, Reject, Cancel, Mark-as-Paid} and does NOT open for the ROUTINE
  *    reversible forward steps {Submit Request, Request Vendor Quotes,
- *    Generate Purchase Order, Confirm Receipt, Mark Vendor Invoiced} — those
+ *    Generate Purchase Order, Confirm Receipt, Record supplier invoice} — those
  *    commit on a single click + a quiet toast.
  *
  *  AC-IXD-WP-002 (component half) — the kept Approve + Mark-as-Paid confirms
@@ -248,8 +248,8 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
     await waitFor(() => expect(mockCreateReceipt).toHaveBeenCalledTimes(1));
   });
 
-  it('AC-IXD-WP-003: Mark Vendor Invoiced (Received→Vendor Invoiced) — O3 deliberate change: opens inline capture (no modal confirm), and transition commits when the inline capture is submitted', async () => {
-    // O3 (AC-W3-O3): clicking "Mark Vendor Invoiced" now opens an inline capture panel
+  it('AC-IXD-WP-003: Record supplier invoice (Received→Vendor Invoiced) — O3 deliberate change: opens inline capture (no modal confirm), and transition commits when the inline capture is submitted', async () => {
+    // O3 (AC-W3-O3): clicking "Record supplier invoice" now opens an inline capture panel
     // to co-locate invoice details with the transition (deliberate UX change). There is
     // still no ConfirmDialog modal — the inline panel IS the capture step.
     detailState.data = { ...baseProcurement, status: 'Received', requested_by_id: 'u-other' };
@@ -279,11 +279,11 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
     renderPage();
     const header = await openMoreActions();
     await userEvent.click(header.getByRole('menuitem', { name: 'Request quotations' }));
-    // AC-IXD-PROC-001: the toast names the CANONICAL state ("Vendor Quote") — the
+    // AC-IXD-PROC-001: the toast names the CANONICAL state ("Supplier quote") — the
     // same noun the badge shows — not the raw enum value ("Vendor Quoted"). The
     // quiet-success-toast goal-oracle is unchanged; only the canonical label is asserted.
     await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith('Request updated', expect.stringContaining('Vendor Quote'), 'success'),
+      expect(toast).toHaveBeenCalledWith('Procurement updated', expect.stringContaining('Supplier quote'), 'success'),
     );
   });
 });

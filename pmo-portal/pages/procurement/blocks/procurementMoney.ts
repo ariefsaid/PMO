@@ -124,3 +124,14 @@ export function procurementMoney(input: ProcurementMoneyInput): ProcurementMoney
     unknown,
   };
 }
+
+/**
+ * Unpaid supplier balance of a procurement waiting for payment — the one figure behind every
+ * "owed to suppliers" view (Procurement list, Finance payables, dashboard). With no supplier invoice
+ * amount on record the balance is unknown, never zero.
+ */
+export function supplierUnpaid(input: ProcurementMoneyInput): MoneyFigure {
+  const money = procurementMoney(input);
+  if (!money.invoiced.unknown && money.invoiced.amount === null) return { amount: null, unknown: true };
+  return money.unpaid;
+}

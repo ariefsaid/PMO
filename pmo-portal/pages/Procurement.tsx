@@ -168,7 +168,8 @@ const ProcurementPage: React.FC = () => {
   const all = useMemo(() => {
     const rows = data ?? [];
     if (isEngineer) return userId ? rows.filter((row) => row.requested_by_id === userId) : [];
-    if (isProjectManager) return userId ? rows.filter((row) => row.project?.project_manager_id === userId) : [];
+    // A PM sees projects they manage plus every request they raised themselves (incl. overhead).
+    if (isProjectManager) return userId ? rows.filter((row) => row.requested_by_id === userId || row.project?.project_manager_id === userId) : [];
     return rows;
   }, [data, isEngineer, isProjectManager, userId]);
 
@@ -372,7 +373,7 @@ const ProcurementPage: React.FC = () => {
     ? t('description.engineer', 'Track the procurements you raised, from request through payment.')
     : isProjectManager
       ? t('description.projectManager', 'Procurements for projects you manage, from request through payment.')
-      : t('description.default', 'Requests, orders, receipts and payments across your organization.');
+      : t('description.default', 'Procurements across your organization, from request through payment.');
   const primaryAction = (
     <div className="flex shrink-0 items-center gap-2">
       <MobileToolbarDisclosure
@@ -407,7 +408,8 @@ const ProcurementPage: React.FC = () => {
   ];
 
   return (
-    <ListPage title={title} description={description} count={ready ? all.length : undefined} primaryAction={primaryAction}>
+    // L6: the All tab carries the total, so the title has no second count.
+    <ListPage title={title} description={description} primaryAction={primaryAction}>
       <div className="space-y-4 pb-20 sm:pb-0">
         <div role="tablist" aria-label={t('tabs.label', 'Procurement lists')} className="flex min-w-0 gap-5 overflow-x-auto border-b border-border scroll-fade-x">
           {tabs.map(({ key, label, count }) => (
@@ -498,7 +500,7 @@ const ProcurementPage: React.FC = () => {
               variant="empty"
               icon="cart"
               title={isEngineer ? t('empty.engineer.title', "You haven't raised any procurements yet") : t('empty.title', 'No procurements yet')}
-              sub={t('empty.sub', 'New procurements will appear here as requests are raised.')}
+              sub={t('empty.sub', 'New procurements will appear here as they are raised.')}
               action={canCreate ? { label: t('newProcurement', 'New procurement'), onClick: () => navigate('/procurement/new') } : undefined}
             />
           )}

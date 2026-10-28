@@ -135,6 +135,33 @@ describe('Procurement list restructure', () => {
     expect(screen.queryByText('Other project work')).not.toBeInTheDocument();
   });
 
+  it("SEC-RS-1: a Project Manager's list includes requests they raised on another project or with no project", () => {
+    procState.data = [
+      row({ id: 'managed', title: 'Managed project work' }),
+      row({
+        id: 'own-on-other',
+        title: 'My request on another project',
+        requested_by_id: 'u-pm',
+        project: { name: 'Project B', code: 'PB-001', project_manager_id: 'u-another-pm' },
+      }),
+      row({ id: 'own-overhead', title: 'My overhead request', requested_by_id: 'u-pm', project_id: null, project: null }),
+      row({ id: 'other-overhead', title: 'Colleague overhead request', project_id: null, project: null }),
+      row({
+        id: 'unmanaged',
+        title: 'Other project work',
+        project: { name: 'Project B', code: 'PB-001', project_manager_id: 'u-another-pm' },
+      }),
+    ];
+
+    renderPage('/procurement?tab=all');
+
+    expect(screen.getByText('Managed project work')).toBeInTheDocument();
+    expect(screen.getByText('My request on another project')).toBeInTheDocument();
+    expect(screen.getByText('My overhead request')).toBeInTheDocument();
+    expect(screen.queryByText('Colleague overhead request')).not.toBeInTheDocument();
+    expect(screen.queryByText('Other project work')).not.toBeInTheDocument();
+  });
+
   it('Engineers do not see the Not in a procurement tab', () => {
     roleState.role = 'Engineer';
     authState.userId = 'u-engineer';
@@ -226,6 +253,28 @@ describe('Procurement list restructure', () => {
     const payTotal = screen.getByTestId('summary-total-unpaid');
     expect(payTotal).toHaveTextContent('$300');
     expect(payTotal).toHaveAttribute('title', expect.stringMatching(/unpaid balance/i));
+  });
+
+  it('L6/F11: tabs own the counts; tiles carry short money and meaning, never the same count again', () => {
+    roleState.role = 'Finance';
+    authState.userId = 'u-finance';
+    procState.data = [
+      row({ id: 'a', status: 'Vendor Invoiced', procurement_invoices: [{ amount: 2_400_000, erp_outstanding_amount: 2_400_000, invoice_date: daysAgo(4) }] }),
+      row({ id: 'b', status: 'Vendor Invoiced', procurement_invoices: [{ amount: 33_500, erp_outstanding_amount: 33_500, invoice_date: daysAgo(9) }] }),
+      row({ id: 'c', status: 'Ordered', purchase_orders: [{ amount: 9_000 }] }),
+    ];
+    erpState.data = [{ id: 'orphan-1', currency: 'USD', grandTotal: 700 }];
+    renderPage();
+
+    expect(screen.getByRole('tab', { name: /Needs you/i })).toHaveTextContent('2');
+    expect(screen.getByRole('tab', { name: /Not in a procurement/i })).toHaveTextContent('1');
+    const needsTile = screen.getByTestId('summary-cell-needs-you');
+    expect(within(needsTile).queryByText('2')).toBeNull();
+    expect(within(screen.getByTestId('summary-cell-orphans')).queryByText('1')).toBeNull();
+    expect(screen.getByTestId('summary-total-unpaid')).toHaveTextContent('$2.4M');
+    expect(screen.getByTestId('summary-total-unpaid')).toHaveAttribute('aria-label', expect.stringContaining('$2,433,500'));
+    expect(screen.getByTestId('summary-cell-unpaid')).toHaveTextContent(/2 procurements/);
+    expect(screen.getByTestId('summary-cell-ordered')).toHaveTextContent(/1 procurement/);
   });
 
   it('/erp-purchases redirects to the Procurement orphans tab', () => {

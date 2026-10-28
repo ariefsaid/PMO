@@ -74,7 +74,7 @@ describe('ProcurementLedger vendor e-Faktur recognition', () => {
     renderLedger([numbered, unnumbered]);
 
     await openEditor(0);
-    expect(screen.getByText(locale === 'en' ? 'Vendor invoice reference: SUP-INV-910' : 'Referensi faktur vendor: SUP-INV-910')).toBeInTheDocument();
+    expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference: SUP-INV-910' : 'Referensi faktur pemasok: SUP-INV-910')).toBeInTheDocument();
     expect(screen.getByText(locale === 'en' ? 'System VI number: VI-910' : 'Nomor VI sistem: VI-910')).toBeInTheDocument();
     expect(screen.getByText(locale === 'en' ? 'Case: Harbor bridge' : 'Kasus: Harbor bridge')).toBeInTheDocument();
     expect(screen.getByText(locale === 'en' ? 'Project: North pier' : 'Proyek: North pier')).toBeInTheDocument();
@@ -89,7 +89,7 @@ describe('ProcurementLedger vendor e-Faktur recognition', () => {
     fireEvent.click(screen.getByRole('button', { name: financeTestI18n.t('efaktur.discard') }));
 
     await openEditor(1);
-    expect(screen.getByText(locale === 'en' ? 'Vendor invoice reference not recorded' : 'Referensi faktur vendor belum dicatat')).toBeInTheDocument();
+    expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference not recorded' : 'Referensi faktur pemasok belum dicatat')).toBeInTheDocument();
     expect(screen.getByText(locale === 'en' ? 'System VI number unavailable' : 'Nomor VI sistem tidak tersedia')).toBeInTheDocument();
     expect(screen.getByText(locale === 'en' ? 'Case: Harbor bridge' : 'Kasus: Harbor bridge')).toBeInTheDocument();
     expect(screen.queryByText('invoice-immutable-911')).not.toBeInTheDocument();

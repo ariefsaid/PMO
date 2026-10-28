@@ -406,7 +406,7 @@ describe('RecordHistory — enum values use the module label helpers (AC-CHG-015
     expect(screen.getByText('Alone → Consortium')).toBeInTheDocument();
     // the same stage word the procurement header pill shows for Received
     expect(screen.getByText('Purchase Order → Goods Receipt')).toBeInTheDocument();
-    expect(screen.getByText('Vendor Invoice → Paid')).toBeInTheDocument();
+    expect(screen.getByText('Supplier invoice → Paid')).toBeInTheDocument();
     expect(screen.getByText('Draft → Issued')).toBeInTheDocument();
     expect(screen.getByText('Draft → Active')).toBeInTheDocument();
     expect(screen.getByText('Labor → Materials')).toBeInTheDocument();
@@ -422,7 +422,7 @@ describe('RecordHistory — enum values use the module label helpers (AC-CHG-015
     expect(await screen.findByText('Penunjukan langsung → Tender')).toBeInTheDocument();
     expect(screen.getByText('Sendiri → Konsorsium')).toBeInTheDocument();
     expect(screen.getByText('Purchase Order → Penerimaan Barang')).toBeInTheDocument();
-    expect(screen.getByText('Invoice Vendor → Lunas')).toBeInTheDocument();
+    expect(screen.getByText('Faktur pemasok → Lunas')).toBeInTheDocument();
     expect(screen.getByText('Draft → Diterbitkan')).toBeInTheDocument();
     expect(screen.getByText('Draf → Aktif')).toBeInTheDocument();
   });

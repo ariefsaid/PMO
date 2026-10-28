@@ -14,7 +14,14 @@ const mocks = vi.hoisted(() => ({
   realRole: 'Admin' as string,
 }));
 vi.mock('react-router', async (importOriginal) => ({ ...await importOriginal<typeof import('react-router')>(), useNavigate: () => mocks.navigate }));
-vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => mocks.canCreate }));
+vi.mock('@/src/auth/usePermission', async () => {
+  const { can } = await vi.importActual<typeof import('@/src/auth/policy')>('@/src/auth/policy');
+  return {
+    usePermission: () => (action: never, entity: string) => entity === 'procurement'
+      ? mocks.canCreate
+      : can(action, entity as never, { realRole: mocks.realRole } as never),
+  };
+});
 vi.mock('@/src/auth/impersonation', async (importOriginal) => ({
   ...await importOriginal<typeof import('@/src/auth/impersonation')>(),
   useOptionalRealRole: () => mocks.realRole,
@@ -51,24 +58,41 @@ describe('AC-PROC1 one-page request creation', () => {
     mocks.createItem.mockResolvedValue({});
   });
 
-  it('shows the five intake choices to Finance and four to an Engineer', () => {
+  it('SEC-RS-5: shows the five intake choices to Finance and only the plain request to an Engineer', () => {
     mocks.realRole = 'Finance';
     const finance = renderCreate('/procurement/new');
     expect(screen.getByRole('heading', { name: 'What do you have?' })).toBeVisible();
     expect(screen.getByRole('button', { name: /A new need/i })).toBeVisible();
     expect(screen.getByRole('button', { name: /An order/i })).toBeVisible();
     expect(screen.getByRole('button', { name: /A supplier invoice/i })).toBeVisible();
-    expect(screen.getByRole('button', { name: /A payment/i })).toBeVisible();
+    expect(screen.getByRole('button', { name: /A scheduled payment/i })).toBeVisible();
     expect(screen.getByRole('button', { name: /A document already in the accounting system/i })).toBeVisible();
     finance.unmount();
 
     mocks.realRole = 'Engineer';
     renderCreate('/procurement/new');
     expect(screen.getByRole('button', { name: /A new need/i })).toBeVisible();
-    expect(screen.getByRole('button', { name: /An order/i })).toBeVisible();
-    expect(screen.getByRole('button', { name: /A supplier invoice/i })).toBeVisible();
-    expect(screen.getByRole('button', { name: /A payment/i })).toBeVisible();
+    expect(screen.queryByRole('button', { name: /An order/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /A supplier invoice/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /payment/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /A document already in the accounting system/i })).not.toBeInTheDocument();
+  });
+
+  it('SEC-RS-5: an Engineer following a ?have=invoice link gets the request choice, not an invoice draft', () => {
+    mocks.realRole = 'Engineer';
+    renderCreate('/procurement/new?have=invoice');
+    expect(screen.getByRole('heading', { name: 'What do you have?' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: /A supplier invoice/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/title/i)).not.toBeInTheDocument();
+    expect(mocks.createRequest).not.toHaveBeenCalled();
+  });
+
+  it('SEC-RS-5: the payment choice reads as a scheduled payment that Finance marks paid', () => {
+    mocks.realRole = 'Finance';
+    renderCreate('/procurement/new');
+    const choice = screen.getByRole('button', { name: /A scheduled payment/i });
+    expect(choice).toHaveTextContent('Finance marks it paid');
+    expect(screen.queryByText(/already made/i)).not.toBeInTheDocument();
   });
 
   it('AC-PROC1-001 shows the need form fields and line editor but no quotations', () => {
@@ -112,7 +136,7 @@ describe('AC-PROC1 one-page request creation', () => {
 
   it.each([
     ['invoice', 'A supplier invoice', 'invoice'],
-    ['payment', 'A payment', 'payment'],
+    ['payment', 'A scheduled payment', 'payment'],
   ] as const)('choosing %s opens its matching capture without line items', async (have, choice, record) => {
     renderCreate('/procurement/new');
     fireEvent.click(screen.getByRole('button', { name: new RegExp(choice, 'i') }));
@@ -169,7 +193,7 @@ describe('AC-PROC1 one-page request creation', () => {
   it('AC-PROC1-004 required title error is inline and blocks creation', () => {
     renderCreate();
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    expect(screen.getByText('A request title is required.')).toBeVisible();
+    expect(screen.getByText('A procurement title is required.')).toBeVisible();
     expect(mocks.createRequest).not.toHaveBeenCalled();
   });
 

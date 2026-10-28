@@ -4,7 +4,7 @@
     "engineer": "Your procurements"
   },
   "description": {
-    "default": "Requests, orders, receipts and payments across your organization.",
+    "default": "Procurements across your organization, from request through payment.",
     "engineer": "Track the procurements you raised, from request through payment.",
     "projectManager": "Procurements for projects you manage, from request through payment."
   },
@@ -42,13 +42,16 @@
   },
   "count": {
     "one": "procurement",
-    "many": "procurements"
+    "many": "procurements",
+    "procurements_one": "{{count}} procurement",
+    "procurements_other": "{{count}} procurements"
   },
   "money": {
     "mostReal": "Most real amount per procurement: paid amount, otherwise supplier invoice, otherwise purchase order, otherwise purchase request. Totals stay separate by currency.",
     "pay": "Supplier invoices use the outstanding balance; paid procurements contribute zero. Totals stay separate by currency.",
     "engineer": "Request amount only. Supplier invoice and payment amounts are not shown.",
-    "unavailable": "Amount unavailable",
+    "notRecorded": "{{currencies}} amount not recorded",
+    "none": "No amount",
     "kind": {
       "requested": "Request amount",
       "ordered": "Order amount",
@@ -143,7 +146,7 @@
     "engineer": {
       "title": "You haven't raised any procurements yet"
     },
-    "sub": "New procurements will appear here as requests are raised."
+    "sub": "New procurements will appear here as they are raised."
   },
   "noMatch": {
     "title": "No procurements match these filters",

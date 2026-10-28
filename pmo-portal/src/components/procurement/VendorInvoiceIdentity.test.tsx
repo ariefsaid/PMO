@@ -15,7 +15,7 @@ describe('vendor invoice recognition identity', () => {
       invoiceDate="2026-09-18"
       context={{ state: 'ready', caseTitle: 'Bridge renewal · phase B', projectName: 'Harbor works', pmoProjectNumber: 'PRJ-2641' }}
     /></FinanceI18nTestProvider>);
-    expect(screen.getByText(locale === 'en' ? 'Vendor invoice reference: SUP-REF-2026-771' : 'Referensi faktur vendor: SUP-REF-2026-771')).toBeInTheDocument();
+    expect(screen.getByText(locale === 'en' ? 'Supplier invoice reference: SUP-REF-2026-771' : 'Referensi faktur pemasok: SUP-REF-2026-771')).toBeInTheDocument();
     expect(document.body).toHaveTextContent('VI-2609-0017');
     expect(document.body).toHaveTextContent('Bridge renewal · phase B');
     expect(document.body).toHaveTextContent('Harbor works');
@@ -25,7 +25,7 @@ describe('vendor invoice recognition identity', () => {
       referenceNumber={null} viNumber={null} invoiceDate={null}
       context={{ state: 'unavailable' }}
     /></FinanceI18nTestProvider>);
-    expect(missing.container).toHaveTextContent(locale === 'en' ? 'Vendor invoice reference not recorded' : 'Referensi faktur vendor belum dicatat');
+    expect(missing.container).toHaveTextContent(locale === 'en' ? 'Supplier invoice reference not recorded' : 'Referensi faktur pemasok belum dicatat');
     expect(missing.container).toHaveTextContent(locale === 'en' ? 'System VI number unavailable' : 'Nomor VI sistem tidak tersedia');
     expect(missing.container).not.toHaveTextContent('invoice-uuid');
   });
@@ -38,7 +38,7 @@ describe('vendor invoice recognition identity', () => {
       context: { state: 'ready', caseTitle: 'Case North', projectName: 'Harbor works', pmoProjectNumber: 'PRJ-2641' },
       t: financeTestI18n.t.bind(financeTestI18n),
     });
-    expect(label).toContain('Vendor invoice reference: DUPLICATE-REF');
+    expect(label).toContain('Supplier invoice reference: DUPLICATE-REF');
     expect(label).toContain('System VI number: VI-17');
     expect(label).toContain('Case: Case North');
     expect(label).toContain('Project: Harbor works');

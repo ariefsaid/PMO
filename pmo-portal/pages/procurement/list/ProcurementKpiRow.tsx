@@ -30,7 +30,11 @@ function orphanTotals(orphans: readonly ErpPurchaseRow[]): CurrencyTotal[] {
   return [...totals.values()];
 }
 
-/** Company-wide figures above the shared procurement list: what waits on you, what is owed, what is ordered. */
+/**
+ * Company-wide figures above the shared procurement list: what waits on you, what is owed, what is ordered.
+ * L6: the tabs own the "Needs you" and "Not in a procurement" counts, so those tiles carry money and meaning
+ * only (and still select their tab); tiles with no tab say their count in the meaning line.
+ */
 export const ProcurementKpiRow: React.FC<ProcurementKpiRowProps> = ({ rows, needsYouRows, orphans, tab, role, onSelectTab }) => {
   const { t } = useTranslation('procurementList');
   const engineer = role === 'Engineer';
@@ -45,7 +49,7 @@ export const ProcurementKpiRow: React.FC<ProcurementKpiRowProps> = ({ rows, need
 
   const cells = [
     {
-      key: 'needs-you', label: t('tab.needsYou', 'Needs you'), count: needsYouRows.length,
+      key: 'needs-you', label: t('tab.needsYou', 'Needs you'), count: null as number | null,
       totals: totalsByCurrency(needsYouRows.map(({ row }) => row), role, 'needs-you', reasons),
       tooltip: engineer ? t('money.engineer', 'Request amount only. Supplier invoice and payment amounts are not shown.') : mostRealTip,
       meaning: t('meaning.needsYou', 'Waiting on your next step'),
@@ -67,7 +71,7 @@ export const ProcurementKpiRow: React.FC<ProcurementKpiRowProps> = ({ rows, need
       onClick: undefined, active: false,
     },
     ...(orphans ? [{
-      key: 'orphans', label: t('tab.orphans', 'Not in a procurement'), count: orphans.length,
+      key: 'orphans', label: t('tab.orphans', 'Not in a procurement'), count: null,
       totals: orphanTotals(orphans),
       tooltip: t('kpi.orphansTip', 'Accounting-system purchase documents no procurement holds yet. Their cost is already in project actuals; linking never counts it twice.'),
       meaning: t('kpi.orphansMeaning', 'From the accounting system, to link'),
@@ -82,9 +86,10 @@ export const ProcurementKpiRow: React.FC<ProcurementKpiRowProps> = ({ rows, need
           const body = (
             <>
               <span className="text-[13px] font-medium text-muted-foreground">{cell.label}</span>
-              <span className="mt-1 tabular text-[20px] font-semibold leading-tight text-foreground">{cell.count}</span>
-              <MoneyTotalLines totals={cell.totals} tooltip={cell.tooltip} testId={`summary-total-${cell.key}`} className="mt-1" />
-              <span className="mt-auto pt-2 text-[12px] leading-snug text-muted-foreground">{cell.meaning}</span>
+              <MoneyTotalLines lead totals={cell.totals} tooltip={cell.tooltip} testId={`summary-total-${cell.key}`} className="mt-1" />
+              <span className="mt-auto pt-2 text-[12px] leading-snug text-muted-foreground">
+                {cell.count === null ? cell.meaning : `${t('count.procurements', { count: cell.count, defaultValue_one: '{{count}} procurement', defaultValue: '{{count}} procurements' })} · ${cell.meaning}`}
+              </span>
             </>
           );
           const base = 'flex min-h-[112px] min-w-0 flex-col items-start bg-card px-3.5 py-3 text-left md:px-4 border-b-2 pb-[10px]';

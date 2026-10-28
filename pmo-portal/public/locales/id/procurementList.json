@@ -4,7 +4,7 @@
     "engineer": "Pengadaan Anda"
   },
   "description": {
-    "default": "Permintaan, pesanan, penerimaan, dan pembayaran di organisasi Anda.",
+    "default": "Pengadaan di organisasi Anda, dari permintaan hingga pembayaran.",
     "engineer": "Lacak pengadaan yang Anda ajukan, dari permintaan hingga pembayaran.",
     "projectManager": "Pengadaan untuk proyek yang Anda kelola, dari permintaan hingga pembayaran."
   },
@@ -42,13 +42,16 @@
   },
   "count": {
     "one": "pengadaan",
-    "many": "pengadaan"
+    "many": "pengadaan",
+    "procurements_one": "{{count}} pengadaan",
+    "procurements_other": "{{count}} pengadaan"
   },
   "money": {
     "mostReal": "Nilai paling nyata per pengadaan: nilai dibayar, jika tidak ada gunakan faktur pemasok, lalu pesanan pembelian, lalu permintaan pembelian. Total dipisahkan menurut mata uang.",
     "pay": "Faktur pemasok menggunakan saldo yang belum dibayar; pengadaan lunas bernilai nol. Total dipisahkan menurut mata uang.",
     "engineer": "Hanya nilai permintaan. Nilai faktur pemasok dan pembayaran tidak ditampilkan.",
-    "unavailable": "Nilai tidak tersedia",
+    "notRecorded": "Nilai {{currencies}} belum dicatat",
+    "none": "Tidak ada nilai",
     "kind": {
       "requested": "Nilai permintaan",
       "ordered": "Nilai pesanan",
@@ -143,7 +146,7 @@
     "engineer": {
       "title": "Anda belum mengajukan pengadaan"
     },
-    "sub": "Pengadaan baru akan muncul di sini setelah permintaan diajukan."
+    "sub": "Pengadaan baru akan muncul di sini setelah diajukan."
   },
   "noMatch": {
     "title": "Tidak ada pengadaan yang cocok dengan filter ini",

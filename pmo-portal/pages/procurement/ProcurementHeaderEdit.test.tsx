@@ -42,7 +42,7 @@ describe('AC-PROC-002 ProcurementHeaderEdit (Draft-header inline edit)', () => {
   it('AC-PROC-002: renders the edit form directly when mounted (opened from the header Edit action)', () => {
     renderEdit();
     expect(screen.getByLabelText(/title/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /save request/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /save procurement/i })).toBeInTheDocument();
   });
 
   it('AC-002 #1325: the loaded selected project discloses its contractual title beside the alias', () => {
@@ -57,7 +57,7 @@ describe('AC-PROC-002 ProcurementHeaderEdit (Draft-header inline edit)', () => {
     const title = screen.getByLabelText(/title/i);
     await userEvent.clear(title);
     await userEvent.type(title, 'Welding consumables Q3');
-    await userEvent.click(screen.getByRole('button', { name: /save request/i }));
+    await userEvent.click(screen.getByRole('button', { name: /save procurement/i }));
     expect(onSave).toHaveBeenCalledWith({
       title: 'Welding consumables Q3',
       projectId: 'proj-1',
@@ -69,7 +69,7 @@ describe('AC-PROC-002 ProcurementHeaderEdit (Draft-header inline edit)', () => {
   it('AC-PROC-002: Save is disabled when the title is cleared', async () => {
     renderEdit();
     await userEvent.clear(screen.getByLabelText(/title/i));
-    expect(screen.getByRole('button', { name: /save request/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /save procurement/i })).toBeDisabled();
   });
 
   it('AC-PROC-002: Cancel closes the panel', async () => {

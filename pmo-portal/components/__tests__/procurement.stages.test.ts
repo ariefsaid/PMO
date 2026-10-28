@@ -54,6 +54,6 @@ describe('AC-IXD-PROC-002 (approval is a gate, not a stage): approving advances 
     const steps = lifecycleSteps(s('Approved'));
     expect(steps[0].state).toBe('done'); // PR node done — approved
     expect(steps[1].state).toBe('current'); // VQ node current — the next action
-    expect(steps[1].label).toBe('Vendor Quote'); // not mislabelled "Approved"
+    expect(steps[1].label).toBe('Supplier quote'); // not mislabelled "Approved"
   });
 });

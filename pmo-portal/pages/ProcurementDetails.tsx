@@ -2,7 +2,6 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
 import {
   RecordHeader,
   Card,
@@ -34,7 +33,6 @@ import { useProject } from '@/src/hooks/useProjects';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useVendorWithholdingRegister, useVendorWithholdingSlipMutations } from '@/src/hooks/useVendorWithholdingSlips';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { can } from '@/src/auth/policy';
 import { usePermission } from '@/src/auth/usePermission';
 import { mayDecideRoutedApproval, approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
@@ -61,8 +59,6 @@ import {
 } from './procurement/ProcurementDecisionZone';
 import { buildLedgerRows, type LedgerRow } from '@/src/lib/db/procurementLedger';
 import {
-  isLegalTransition,
-  canCancel,
   type ProcurementStatus,
   type ProcurementDetail,
   type TaxTreatment,
@@ -80,26 +76,20 @@ import { ProcurementBudgetSignal, ProcurementStageTracker, ProcurementMoneySumma
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { pillVariantForStatus, stageLabelForStatus, selectedQuotation, toastStateLabel } from '../components/procurement';
 import { stageForStatus } from './procurement/blocks/stage';
-
-// ---------------------------------------------------------------------------
-// Role gates for cosmetic display (FR-PROC-006, OD-PROC-1 matrix, AC-805).
-// The RPC is the real authority — this is display-only. The matrix is BYTE-PRESERVED;
-// ADR-0016 re-points it at the REAL JWT role and routes the entity-level role membership
-// through the shared policy `can()`:
-//   - approve/reject membership = can('transition','procurement') → Admin·Exec·PM·Finance
-//   - sourcing/select-quote membership = can('create','quotation') → Admin·PM·Finance
-// The two procurement-STAGE-specific gates below are not entity-level RBAC (they encode a
-// stage role like "who confirms receipt"), so they remain documented local constants.
-// ---------------------------------------------------------------------------
-const canApproveReject = (role: string) =>
-  can('transition', 'procurement', { realRole: role as never });
-const canSource = (role: string) => can('create', 'quotation', { realRole: role as never });
-const RECEIPT_ROLES = new Set(['Project Manager', 'Admin']); // requester also allowed — handled below
+import {
+  allowedActions,
+  canApproveReject,
+  canSource,
+  INVOICE_PAY_ROLES,
+  RECEIPT_ROLES,
+  sortActions,
+  stateMainAction,
+  type ActionVariant,
+} from './procurement/blocks/mainAction';
 /** The ledger row type -> the `procurement_documents.record_kind` it attaches as (0361). */
 const LEDGER_KIND = {
   PR: 'purchase_request', RFQ: 'rfq', Quote: 'quotation', PO: 'purchase_order', GR: 'goods_receipt', Invoice: 'vendor_invoice', Payment: 'payment',
 } as const;
-const INVOICE_PAY_ROLES = new Set(['Finance', 'Admin']);
 
 // ---------------------------------------------------------------------------
 // Tabbed record shell (mirrors ProjectDetail's `/projects/:id/:tab`). Default tab =
@@ -108,6 +98,17 @@ const INVOICE_PAY_ROLES = new Set(['Finance', 'Admin']);
 // ---------------------------------------------------------------------------
 type ProcTab = 'timeline' | 'items' | 'quotes' | 'files' | 'details';
 const PROC_TAB_VALUES: ProcTab[] = ['timeline', 'items', 'quotes', 'files', 'details'];
+/** Runs `run` once after mount (a hand-off that must see the fully derived page state). */
+const RunOnMount: React.FC<{ run: () => void }> = ({ run }) => {
+  const ran = useRef(false);
+  useEffect(() => {
+    if (ran.current) return;
+    ran.current = true;
+    run();
+  }, [run]);
+  return null;
+};
+
 function tabFromParam(param: string | undefined): ProcTab {
   if (param === 'documents') return 'files';
   if (param === 'overview' || param === 'history') return 'timeline';
@@ -115,7 +116,6 @@ function tabFromParam(param: string | undefined): ProcTab {
   return 'timeline';
 }
 
-type ActionVariant = 'primary' | 'success' | 'destructive' | 'outline';
 
 /** A staged, not-yet-committed mutation awaiting the ConfirmDialog. */
 type PendingConfirm =
@@ -166,133 +166,12 @@ type PendingConfirm =
       intent: CommandIntent;
     };
 
-/**
- * Returns the list of (from→to) transitions that should be shown to this role.
- * Cosmetic only — the RPC enforces for real (AC-805, FR-PROC-006); it mirrors
- * transition_procurement's matrix (submit: the requester, or a real Admin).
- */
-function allowedActions(
-  status: ProcurementStatus,
-  role: string,
-  isRequester: boolean,
-  isApprover: boolean,
-  // The labels below are rendered on the stage buttons AND restated in the confirm dialogs, so
-  // they are message strings, not data. `t` is threaded in rather than the labels being turned
-  // into keys resolved at the call site: `i18next-parser` extracts literal keys only, so a
-  // `t(action.labelKey)` would be invisible to the en-side completeness gate (FR-L10N-042a).
-  t: TFunction,
-  /** #803: false when the request is routed to named approvers who do not include the viewer. */
-  routeAllows: boolean = true,
-  /** FR-PFE-005: a payment was recorded at an earlier step (payment-first). */
-  hasPaymentRecord: boolean = false,
-  /** D2 review C3: Mark as Paid needs something to pay — a line item or a recorded amount. */
-  hasValue: boolean = true,
-): { to: ProcurementStatus; label: string; variant: ActionVariant }[] {
-  const actions: { to: ProcurementStatus; label: string; variant: ActionVariant }[] = [];
-
-  const legal = (to: ProcurementStatus) => isLegalTransition(status, to);
-
-  // Draft → Requested: the requester, any role; Admin break-glass (OD-PROC-1, FR-PROC-005)
-  if (legal('Requested') && (isRequester || role === 'Admin')) {
-    actions.push({ to: 'Requested', label: t('procurementDetail.action.submitRequest', 'Submit Request'), variant: 'primary' });
-  }
-
-  // Requested → Approved / Rejected: PM/Finance/Exec/Admin and NOT the requester (SoD-a) (FR-PROC-006)
-  if (legal('Approved') && canApproveReject(role) && !isRequester && routeAllows) {
-    // Approve is the single per-screen CTA at this stage → the One-Blue `primary`
-    // (polish #1). It previously read solid `success` green, which competed with
-    // the system's one interactive blue (DESIGN.md One-Blue Rule). Reject stays a
-    // quiet outline so only one affordance carries weight.
-    actions.push({ to: 'Approved', label: t('procurementDetail.action.approve', 'Approve'), variant: 'primary' });
-  }
-  if (legal('Rejected') && canApproveReject(role) && !isRequester && routeAllows) {
-    actions.push({ to: 'Rejected', label: t('procurementDetail.action.reject', 'Reject'), variant: 'destructive' });
-  }
-
-  // Rejected → Draft: requester rework (FR-PROC-007)
-  if (legal('Draft') && isRequester) {
-    actions.push({ to: 'Draft', label: t('procurementRecord:action.rework', 'Rework'), variant: 'outline' });
-  }
-
-  // Approved → Vendor Quoted / Ordered (skip): PM/Finance/Admin (FR-PROC-008)
-  // D7 (AC-IXD-PROC-W5-1b): at Approved, "Request Vendor Quotes" is the canonical
-  // primary (OD-W5-2 — quoting first is the conventional lower-risk path). "Generate
-  // Purchase Order" is a valid skip-to-PO path but is demoted to `outline` so only
-  // ONE blue appears per stage (DESIGN.md One-Blue Rule). BOTH remain clickable.
-  if (legal('Vendor Quoted') && canSource(role)) {
-    actions.push({ to: 'Vendor Quoted', label: t('procurementRecord:action.requestQuotes', 'Request quotations'), variant: 'primary' });
-  }
-  if (legal('Ordered') && canSource(role) && status === 'Approved') {
-    // outline (not primary) — see D7 note above
-    actions.push({ to: 'Ordered', label: t('procurementDetail.action.generatePurchaseOrder', 'Generate Purchase Order'), variant: 'outline' });
-  }
-
-  // Vendor Quoted → Quote Selected: PM/Finance/Admin
-  if (legal('Quote Selected') && canSource(role)) {
-    actions.push({ to: 'Quote Selected', label: t('procurementDetail.action.selectQuote', 'Compare and select a quote'), variant: 'primary' });
-  }
-
-  // Quote Selected → Ordered: PM/Finance/Admin. status is exactly one value, so
-  // legal('Ordered') holds for at most one of these branches — they cannot collide.
-  if (legal('Ordered') && canSource(role) && status === 'Quote Selected') {
-    actions.push({ to: 'Ordered', label: t('procurementDetail.action.generatePurchaseOrder', 'Generate Purchase Order'), variant: 'primary' });
-  }
-
-  // Ordered → Received: requester or PM (FR-PROC-008)
-  if (legal('Received') && (isRequester || RECEIPT_ROLES.has(role))) {
-    actions.push({ to: 'Received', label: t('procurementDetail.action.confirmReceipt', 'Confirm Receipt'), variant: 'primary' });
-  }
-
-  // Received → Vendor Invoiced: Finance only (FR-PROC-009)
-  if (legal('Vendor Invoiced') && INVOICE_PAY_ROLES.has(role)) {
-    actions.push({ to: 'Vendor Invoiced', label: t('procurementDetail.action.markVendorInvoiced', 'Mark Vendor Invoiced'), variant: 'primary' });
-  }
-
-  // Vendor Invoiced → Paid: Finance only, AND not the user who approved the
-  // request. SoD-b is enforced server-side and ALWAYS rejects pay-by-approver,
-  // so offering it cosmetically produced a "click that does nothing" — gate it.
-  if (legal('Paid') && INVOICE_PAY_ROLES.has(role) && !isApprover && hasValue) {
-    actions.push({ to: 'Paid', label: t('procurementDetail.action.markAsPaid', 'Mark as Paid'), variant: 'primary' });
-  }
-
-  // FR-PFE-005 payment-first: a recorded (scheduled) payment can be paid from an earlier step. Same role and SoD rule as above.
-  if (hasPaymentRecord && ['Draft', 'Approved', 'Quote Selected', 'Ordered', 'Received'].includes(status)
-      && INVOICE_PAY_ROLES.has(role) && !isApprover && hasValue) {
-    actions.push({ to: 'Paid', label: t('procurementDetail.action.markAsPaid', 'Mark as Paid'), variant: 'primary' });
-  }
-
-  // Cancel: subject to canCancel boundary (FR-PROC-009, OD-PROC-B). The page
-  // action reads "Cancel request" (verb + object) so it never reads as a bare
-  // "Cancel" that could be mistaken for dismissing the screen (polish #2).
-  if (legal('Cancelled') && canCancel(role, isRequester, status)) {
-    actions.push({ to: 'Cancelled', label: t('procurementDetail.action.cancelRequest', 'Cancel request'), variant: 'destructive' });
-  }
-
-  return actions;
-}
-
-/**
- * D8 (AC-IXD-PROC-W5-1d): Sort actions so the visual/tab order is always:
- *   primary → outline → destructive (Cancel/Reject last, never above the primary)
- * This is a deliberate, fixed order — not relying on push-order + flex-wrap.
- * Weight: primary=0, outline/success=1, destructive=2.
- */
-function sortActions(
-  actions: { to: ProcurementStatus; label: string; variant: ActionVariant }[],
-): { to: ProcurementStatus; label: string; variant: ActionVariant }[] {
-  const weight = (v: ActionVariant): number => {
-    if (v === 'primary') return 0;
-    if (v === 'destructive') return 2;
-    return 1; // outline, success
-  };
-  return [...actions].sort((a, b) => weight(a.variant) - weight(b.variant));
-}
 
 /** Whether the effective role/identity may not yet advance — drives the SoD gate copy. */
 function sodGateMessage(p: ProcurementDetail, role: string, isRequester: boolean): string | null {
   // Approval gate: a Requested PR awaiting a non-requester approver.
   if (p.status === 'Requested' && isRequester) {
-    return `This request was raised by ${p.requested_by?.full_name ?? 'you'}. A different user holding the Project-Manager, Finance, or Executive role must review it — the requester cannot self-approve their own request.`;
+    return `This procurement was raised by ${p.requested_by?.full_name ?? 'you'}. A different user holding the Project-Manager, Finance, or Executive role must review it — the requester cannot self-approve their own procurement.`;
   }
   // Receipt gate: an Ordered PR where the viewer cannot confirm receipt.
   if (p.status === 'Ordered' && !(isRequester || RECEIPT_ROLES.has(role))) {
@@ -489,7 +368,7 @@ const ProcurementDetails: React.FC = () => {
             title={t('procurementDetail.accessDenied.title', "You don't have access to this record")}
             sub={t(
               'procurementDetail.accessDenied.sub',
-              "This procurement request either doesn't exist or isn't visible to your role. If you raised it, open it from your own requests.",
+              "This procurement either doesn't exist or isn't visible to your role. If you raised it, open it from your own procurements.",
             )}
           />
         </div>
@@ -515,21 +394,23 @@ const ProcurementDetails: React.FC = () => {
   const p: ProcurementDetail = detailQuery.data;
   const role = realRole ?? '';
   const managerId = projectScopeQuery.data?.project_manager_id;
-  if (role === 'Project Manager' && p.project_id && projectScopeQuery.isPending) {
+  // The requester always sees their own procurement, whatever project (or none) it sits on.
+  const raisedByMe = !!currentUser?.id && p.requested_by_id === currentUser.id;
+  if (role === 'Project Manager' && !raisedByMe && p.project_id && projectScopeQuery.isPending) {
     return <>
       <div data-testid="mobile-back-bar" className="hidden max-[920px]:block"><BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} /></div>
       <div data-testid="procurement-loading"><ListState variant="loading" rows={6} /></div>
     </>;
   }
   const recordInScope = role === 'Engineer'
-    ? p.requested_by_id === currentUser?.id
+    ? raisedByMe
     : role === 'Project Manager'
-      ? Boolean(p.project_id && !projectScopeQuery.isError && projectScopeQuery.data != null && managerId === currentUser?.id)
+      ? raisedByMe || Boolean(p.project_id && !projectScopeQuery.isError && projectScopeQuery.data != null && managerId === currentUser?.id)
       : true;
   if (!recordInScope) {
     return <>
       <div data-testid="mobile-back-bar" className="hidden max-[920px]:block"><BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} /></div>
-      <div data-testid="procurement-no-access"><ListState variant="empty" icon="lock" titleAsPageHeading title={t('procurementDetail.accessDenied.title', "You don't have access to this record")} sub={t('procurementDetail.accessDenied.sub', "This procurement request either doesn't exist or isn't visible to your role. If you raised it, open it from your own requests.")} /></div>
+      <div data-testid="procurement-no-access"><ListState variant="empty" icon="lock" titleAsPageHeading title={t('procurementDetail.accessDenied.title', "You don't have access to this record")} sub={t('procurementDetail.accessDenied.sub', "This procurement either doesn't exist or isn't visible to your role. If you raised it, open it from your own procurements.")} /></div>
     </>;
   }
   const isRequester = p.requested_by_id === currentUser?.id;
@@ -545,37 +426,9 @@ const ProcurementDetails: React.FC = () => {
   const hasValue = purchaseHasValue(p);
   const actions = sortActions(allowedActions(p.status, role, isRequester, isApprover, t, routeAllows, (p.payments?.length ?? 0) > 0, hasValue));
   const actionFor = (to: ProcurementStatus) => actions.find((action) => action.to === to);
-  const transitionMainAction = p.status === 'Draft'
-    ? actionFor('Requested')
-    : p.status === 'Requested'
-      ? actionFor('Approved')
-      : p.status === 'Approved'
-        ? actionFor('Ordered') ?? actionFor('Vendor Quoted')
-        : p.status === 'Quote Selected'
-          ? actionFor('Ordered')
-        : p.status === 'Rejected'
-          ? actionFor('Draft')
-        : p.status === 'Vendor Quoted'
-          ? actionFor('Quote Selected')
-          : p.status === 'Ordered'
-            ? actionFor('Received')
-            : p.status === 'Received'
-              ? actionFor('Vendor Invoiced')
-              : p.status === 'Vendor Invoiced'
-                ? actionFor('Paid')
-                : undefined;
-  const mainAction = transitionMainAction ? {
-    ...transitionMainAction,
-    label: p.status === 'Draft' ? t('procurementRecord:action.submit', 'Submit for approval')
-      : p.status === 'Approved' && transitionMainAction.to === 'Ordered' ? t('procurementRecord:action.recordOrder', 'Record order')
-        : p.status === 'Quote Selected' && transitionMainAction.to === 'Ordered' ? t('procurementRecord:action.recordOrder', 'Record order')
-        : p.status === 'Vendor Quoted' ? t('procurementRecord:action.chooseQuote', 'Choose quote')
-          : p.status === 'Rejected' ? t('procurementRecord:action.rework', 'Rework')
-          : p.status === 'Ordered' ? t('procurementRecord:action.recordReceipt', 'Record receipt')
-            : p.status === 'Received' ? t('procurementRecord:action.recordInvoice', 'Record supplier invoice')
-              : p.status === 'Vendor Invoiced' ? t('procurementRecord:action.recordPayment', 'Record payment')
-                : transitionMainAction.label,
-  } : undefined;
+  const stateMain = stateMainAction(p.status, actions, t);
+  const transitionMainAction = stateMain?.transition;
+  const mainAction = stateMain ? { ...stateMain.transition, label: stateMain.label } : undefined;
   const returnAction = p.status === 'Requested' ? actionFor('Rejected') : undefined;
   const secondaryTransitionActions = actions.filter((action) => action.to !== transitionMainAction?.to && action.to !== 'Rejected' && action.to !== 'Cancelled');
   const isEngineer = role === 'Engineer';
@@ -668,13 +521,13 @@ const ProcurementDetails: React.FC = () => {
   // approver who cannot pay learns who can. Display-only; the transition RPC enforces it.
   const payerSodNote = p.status === 'Vendor Invoiced' && INVOICE_PAY_ROLES.has(role)
     ? isApprover
-      ? t('procurementRecord:sod.approverCannotPay', "Payment must be released by a different finance user — the approver can't also pay this request.")
+      ? t('procurementRecord:sod.approverCannotPay', "Payment must be released by a different finance user — the approver can't also pay this procurement.")
       : actionFor('Paid')
         ? t('procurementRecord:sod.payerHint', "Releasing payment — the approver can't also pay (separation of duties).")
         : null
     : null;
   const decisionContextNote = p.status === 'Requested' && isRequester ? null : gateMsg ?? (p.status === 'Requested' && !isRequester && actionFor('Approved')
-    ? t('procurementRecord:sod.approverHint', 'You may approve or reject this request. The requester cannot self-approve — separation of duties requires a different reviewer.')
+    ? t('procurementRecord:sod.approverHint', 'You may approve or reject this procurement. The requester cannot self-approve — separation of duties requires a different reviewer.')
     : payerSodNote);
   // AC-IXD-PROC-005: a create affordance disappears once its stage has passed.
   // The GR form is offered only while goods are being received (Ordered |
@@ -801,23 +654,23 @@ const ProcurementDetails: React.FC = () => {
       ) : (
         t(
           'procurementDetail.confirm.terminal',
-          'This is a terminal action for this request and cannot be undone.',
+          'This is a terminal action for this procurement and cannot be undone.',
         )
       );
     setPendingConfirm({
       kind: 'transition',
       to: action.to,
       title: isCancel
-        ? t('procurementDetail.confirm.cancelTitle', 'Cancel this request?')
+        ? t('procurementDetail.confirm.cancelTitle', 'Cancel this procurement?')
         : destructive
-          ? t('procurementDetail.confirm.destructiveTitle', '{{action}} this request', {
+          ? t('procurementDetail.confirm.destructiveTitle', '{{action}} this procurement', {
               action: action.label,
             })
           : `${action.label}?`,
       description,
       confirmLabel: action.label,
       cancelLabel: isCancel
-        ? t('procurementDetail.confirm.keepRequest', 'Keep request')
+        ? t('procurementDetail.confirm.keepRequest', 'Keep procurement')
         : undefined,
       tone: destructive ? 'destructive' : 'default',
     });
@@ -834,7 +687,7 @@ const ProcurementDetails: React.FC = () => {
       // AC-IXD-PROC-001: the toast names the SAME canonical state the badge will
       // show — not the raw enum value (button verb → badge → toast all agree).
       toast(
-        t('procurementDetail.toast.requestUpdated', 'Request updated'),
+        t('procurementDetail.toast.requestUpdated', 'Procurement updated'),
         `${t('procurementDetail.toast.movedTo', 'Moved to')} ${toastStateLabel(to)}`,
         'success',
       );
@@ -884,7 +737,7 @@ const ProcurementDetails: React.FC = () => {
           intent: pendingConfirm.intent,
         });
         setShowCreateVI(false);
-        toast(t('procurementDetail.toast.viRecorded', 'Vendor invoice recorded'), undefined, 'success');
+        toast(t('procurementDetail.toast.viRecorded', 'Supplier invoice recorded'), undefined, 'success');
       }
       setPendingConfirm(null);
     } catch (err) {
@@ -915,7 +768,7 @@ const ProcurementDetails: React.FC = () => {
       setNotesInput('');
       setShowVICapture(false);
       toast(
-        t('procurementDetail.toast.viRecorded', 'Vendor invoice recorded'),
+        t('procurementDetail.toast.viRecorded', 'Supplier invoice recorded'),
         `${t('procurementDetail.toast.movedTo', 'Moved to')} ${toastStateLabel('Vendor Invoiced')}`,
         'success',
       );
@@ -1062,6 +915,14 @@ const ProcurementDetails: React.FC = () => {
     }
     onActionClick(transitionMainAction ?? mainAction);
   };
+  // B4: the list drawer's main action hands off here (router state, never the URL, so a shared link can't start a
+  // step). It runs only when this page still offers that same step, then the hand-off is cleared.
+  const handoffTarget = (location.state as { runMainAction?: ProcurementStatus } | null)?.runMainAction;
+  const runHandoff = () => {
+    const { runMainAction: _consumed, ...rest } = (location.state ?? {}) as Record<string, unknown>;
+    navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: Object.keys(rest).length ? rest : null });
+    if (mainAction && mainAction.to === handoffTarget) clickMainAction();
+  };
   const secondaryClick = () => {
     if (returnAction) onActionClick({ ...returnAction, label: t('procurementRecord:action.return', 'Return'), variant: 'outline' });
     else setTab('quotes');
@@ -1094,13 +955,13 @@ const ProcurementDetails: React.FC = () => {
         <BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} />
       </div>
 
+      {handoffTarget && <RunOnMount run={runHandoff} />}
       {/* The record header carries the one current-stage action and document/menu actions. */}
       <RecordHeader
         variant="drawer"
         className="mb-4"
+        icon={null}
         name={p.title}
-        iconColor={p.status === 'Paid' ? 'hsl(var(--success))' : 'hsl(var(--primary))'}
-        icon={<Icon name="cart" />}
         status={
           <span data-testid="procurement-status-badge" data-status={p.status}>
             <StatusPill variant={pillVariantForStatus(p.status)}>
@@ -1129,7 +990,8 @@ const ProcurementDetails: React.FC = () => {
           {approverLimitLine && <span className="hidden text-[12px] text-muted-foreground lg:inline">{approverLimitLine}</span>}
           {returnAction && <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={secondaryClick}>{t('procurementRecord:action.return', 'Return')}</Button>}
           {p.status === 'Approved' && canAddQuote && <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={openQuotationCapture}>{t('procurementRecord:action.addQuote', 'Add quotation')}</Button>}
-          {mainAction && <Button variant="primary" size="sm" className="hidden sm:inline-flex" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>}
+          {/* B4: below 640px the phone action bar owns the one filled main action. */}
+          {mainAction && !isNarrow && <Button variant="primary" size="sm" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>}
           <div className="relative">
             <Button variant="outline" size="sm" className="hidden sm:inline-flex" aria-label={t('procurementRecord:moreActions', 'More procurement actions')} aria-expanded={moreMenuOpen} onClick={() => setMoreMenuOpen((open) => !open)}>⋯</Button>
             {moreMenuOpen && <div role="menu" aria-label={t('procurementRecord:moreActions', 'More procurement actions')} className="absolute right-0 top-full z-30 mt-1 hidden min-w-48 rounded-md border border-border bg-card p-1 shadow-lg sm:block">
@@ -1169,7 +1031,7 @@ const ProcurementDetails: React.FC = () => {
       {approverLimitLine && <p className="mt-2 text-[12.5px] font-medium text-muted-foreground">{approverLimitLine}</p>}
       {decisionContextNote && <p data-testid="sod-ready-hint" className="mb-3 text-[12.5px] text-muted-foreground">{decisionContextNote}</p>}
       {isDraft && p.items.length === 0 && mainAction?.to === 'Requested' && <p data-testid="line-items-gate" className="mb-3 text-[12.5px] text-muted-foreground">{t('procurementRecord:gate.addLineItem', 'Add at least one line item before submitting.')}</p>}
-      {isDraft && isRequester && <p data-testid="sod-pre-announce" className="mb-3 text-[12.5px] text-muted-foreground">{t('procurementRecord:sod.preAnnounce', "Submitting hands this to another approver — you can't approve your own request.")}</p>}
+      {isDraft && isRequester && <p data-testid="sod-pre-announce" className="mb-3 text-[12.5px] text-muted-foreground">{t('procurementRecord:sod.preAnnounce', "Submitting hands this to another approver — you can't approve your own procurement.")}</p>}
       {routeNote && !(showVICapture || showCreateGR || showCreateVI) && <p data-testid="approval-route-note" className="mb-3 text-[12.5px] text-muted-foreground">{routeNote}</p>}
       {mainAction?.to === 'Approved' && <label className="mb-4 mt-2 block max-w-xl text-[12px] font-medium text-muted-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
         <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-[13px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
@@ -1189,7 +1051,7 @@ const ProcurementDetails: React.FC = () => {
           onSave={async (patch) => {
             await crud.updateHeader.mutateAsync(patch);
             toast(
-              t('procurementDetail.toast.requestUpdated', 'Request updated'),
+              t('procurementDetail.toast.requestUpdated', 'Procurement updated'),
               t('procurementDetail.toast.headerSaved', 'Header saved'),
               'success',
             );
@@ -1286,14 +1148,14 @@ const ProcurementDetails: React.FC = () => {
               gates={gates}
             /> : <ProcurementTimeline procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer canWriteFiles={canManageFiles} uploadedById={currentUserId} onFullHistory={() => { setHistoryOpen(true); setTab('timeline'); }} />}
             {vendorPickerOpen && canSetVendor && (
-              <div role="dialog" aria-label={t('bupot.setVendor', 'Set vendor')} className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-border p-3">
+              <div role="dialog" aria-label={t('bupot.setVendor', 'Set supplier')} className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-border p-3">
                 <Combobox
-                  label={t('bupot.vendor', 'Vendor')}
-                  noun={t('bupot.vendor', 'vendor')}
+                  label={t('bupot.vendor', 'Supplier')}
+                  noun={t('bupot.vendor', 'Supplier').toLowerCase()}
                   value={selectedVendorId}
                   onChange={(value) => setSelectedVendorId(value)}
                   loadOptions={async () => vendorOptions ?? []}
-                  placeholder={t('bupot.selectVendor', 'Select a vendor…')}
+                  placeholder={t('bupot.selectVendor', 'Select a supplier…')}
                 />
                 <Button
                   variant="primary"
@@ -1304,12 +1166,12 @@ const ProcurementDetails: React.FC = () => {
                     try {
                       await crud.updateVendor.mutateAsync(selectedVendorId);
                       setVendorPickerOpen(false);
-                      toast(t('bupot.vendorSet', 'Vendor set'), undefined, 'success');
+                      toast(t('bupot.vendorSet', 'Supplier set'), undefined, 'success');
                     } catch (err) {
                       if ((err as { code?: string })?.code === 'VENDOR_ALREADY_SET') {
                         setVendorPickerOpen(false);
                         toast(
-                          t('bupot.vendorAlreadySet', 'A vendor was already set. Refresh to see it.'),
+                          t('bupot.vendorAlreadySet', 'A supplier was already set. Refresh to see it.'),
                           undefined,
                           'warning',
                         );
@@ -1319,7 +1181,7 @@ const ProcurementDetails: React.FC = () => {
                       onMutationError(err);
                     }
                   }}
-                >{t('bupot.saveVendor', 'Save vendor')}</Button>
+                >{t('bupot.saveVendor', 'Save supplier')}</Button>
                 <Button variant="outline" size="sm" onClick={() => setVendorPickerOpen(false)}>{t('bupot.cancelSetVendor', 'Cancel')}</Button>
               </div>
             )}
@@ -1384,11 +1246,11 @@ const ProcurementDetails: React.FC = () => {
                 rerouted
                   ? t(
                       'procurement:quoteSelection.reroutedDetail',
-                      'The quote is above the approved amount, so the request went back for approval.',
+                      'The quote is above the approved amount, so the procurement went back for approval.',
                     )
                   : t(
                       'procurementDetail.toast.quoteSelectedDetail',
-                      'The request advanced to Quote Selected',
+                      'The procurement advanced to Quote Selected',
                     ),
                 'success',
               );
@@ -1503,7 +1365,7 @@ const ProcurementDetails: React.FC = () => {
             ? pendingConfirm.title
             : pendingConfirm?.kind === 'createGR'
               ? t('procurementDetail.confirm.grTitle', 'Record this goods receipt?')
-              : t('procurementDetail.confirm.viTitle', 'Record this vendor invoice?')
+              : t('procurementDetail.confirm.viTitle', 'Record this supplier invoice?')
         }
         description={
           pendingConfirm?.kind === 'transition'
@@ -1516,7 +1378,7 @@ const ProcurementDetails: React.FC = () => {
                 )
               : t(
                   'procurementDetail.confirm.viBody',
-                  'This records a vendor invoice against {{request}}.',
+                  'This records a supplier invoice against {{request}}.',
                   { request: p.title },
                 )
         }
@@ -1525,7 +1387,7 @@ const ProcurementDetails: React.FC = () => {
             ? pendingConfirm.confirmLabel
             : pendingConfirm?.kind === 'createGR'
               ? t('procurementDetail.confirm.saveGR', 'Save GR')
-              : t('procurementDetail.confirm.saveVI', 'Save vendor invoice')
+              : t('procurementDetail.confirm.saveVI', 'Save supplier invoice')
         }
         cancelLabel={
           pendingConfirm?.kind === 'transition' ? pendingConfirm.cancelLabel : undefined
