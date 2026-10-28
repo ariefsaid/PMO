@@ -56,7 +56,7 @@
   "budgetActivation": {
     "checking": "Checking project dates, line phasing, ERPNext fiscal years and account mapping…",
     "checkFailed": "Couldn't check budget readiness. Refresh and try again.",
-    "erpUnavailable": "Couldn't check ERPNext — the push will retry and report what's missing.",
+    "erpUnavailable": "Couldn't check ERPNext; it'll be checked again when the budget is pushed.",
     "ready": "Ready to activate. ERPNext fiscal years and budget account mappings are available.",
     "unphased": "Phase every line before activating this multi-year budget. Un-phased categories: {{categories}}.",
     "unmapped": "Map these budget categories before activating: {{categories}}.",

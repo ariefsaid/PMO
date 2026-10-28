@@ -43,8 +43,8 @@ export interface BudgetReadinessIssue {
 export interface BudgetActivationPrecheckResult {
   status: 'ready' | 'blocked' | 'erp-unavailable';
   /** An ERP outage is informational under ADR-0059; the PMO activation still proceeds. */
-  erpCheck: 'available' | 'unavailable';
-  /** `null` means the external calendar could not be read. */
+  erpCheck: 'available' | 'unavailable' | 'not-required';
+  /** `null` means the external calendar was not read. */
   fiscalYearNames: string[] | null;
   issues: BudgetReadinessIssue[];
 }
@@ -366,7 +366,7 @@ function buildPlan(
  * validators that the push gate uses. An ERP read failure is represented as unverified, while a
  * missing PMO project start date or category-map issue remains blocking when independently provable.
  */
-export async function runBudgetActivationPrecheck(deps: BudgetGateDeps): Promise<BudgetActivationPrecheckResult> {
+export async function runBudgetActivationPrecheck(deps: BudgetGateDeps, erpBudgetPushConfigured = true): Promise<BudgetActivationPrecheckResult> {
   const version = await deps.readVersion(deps.versionId);
   if (!version || version.org_id !== deps.orgId) {
     throw new BudgetGateError('commit-rejected', 'budget activation pre-check: version not readable');
@@ -378,6 +378,10 @@ export async function runBudgetActivationPrecheck(deps: BudgetGateDeps): Promise
   const project = await deps.readProject(version.project_id);
   if (!project || project.org_id !== deps.orgId) {
     throw new BudgetGateError('commit-rejected', 'budget activation pre-check: project not readable');
+  }
+
+  if (!erpBudgetPushConfigured) {
+    return { status: 'ready', erpCheck: 'not-required', fiscalYearNames: null, issues: [] };
   }
 
   const lineItems = await deps.readLineItems(deps.versionId);

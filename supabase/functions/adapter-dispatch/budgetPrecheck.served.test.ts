@@ -81,6 +81,23 @@ describe('budget activation precheck served contract (issue #1421)', () => {
     assertEquals(result.erpBudgets.length, 0);
   });
 
+  it('allows an unphased single-year native budget with no ERP binding or account map', async () => {
+    const { routes } = servedRoutes(twoYearPhasedSeed({
+      versionStatus: 'Draft', projectEndDate: '2026-12-31', categoryMap: [],
+      lineItems: [{ id: 'li-1', category: 'Labor', budgeted_amount: '100.00', fiscal_year: null }],
+    }));
+    const nativeRoutes = routes.map((route) => route.pathname === '/rest/v1/external_org_bindings'
+      ? { ...route, response: jsonResponse(null) } : route);
+    const result = await withFetchMock(nativeRoutes, async ({ calls }) => {
+      const response = await precheckBudget();
+      return { response, body: await response.json(), calls };
+    });
+    assertEquals(result.response.status, 200, JSON.stringify(result.body));
+    assertEquals(result.body, { status: 'ready', erpCheck: 'not-required', fiscalYearNames: null, issues: [] });
+    assertEquals(restCall(result.calls, 'budget_category_account_map', 'GET').length, 0);
+    assertEquals(restCall(result.calls, 'external_command_outbox', 'POST').length, 0);
+  });
+
   it('returns ready with ERP Fiscal Year names without creating a push attempt', async () => {
     const { routes, erpBudgets } = servedRoutes(twoYearPhasedSeed({ versionStatus: 'Draft' }));
     const result = await withFetchMock(routes, async ({ calls }) => {

@@ -129,8 +129,10 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
     const fiscalYear = value.trim();
     if (!fiscalYear) return true;
     // ERPNext's exact names are authoritative when available. During an outage, reject obviously
-    // truncated values like "202" while leaving longer custom names typeable until the next check.
-    return fiscalYearNames === null ? fiscalYear.length >= 4 : fiscalYearNames.includes(fiscalYear);
+    // numeric typos like "202" while preserving arbitrary client labels until the next live check.
+    return fiscalYearNames === null
+      ? !/^\d+$/.test(fiscalYear) || /^\d{4}$/.test(fiscalYear)
+      : fiscalYearNames.includes(fiscalYear);
   };
 
   const openEdit = (li: BudgetLineItemRow) => {
@@ -817,7 +819,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
     readinessMessages.push(t('finance:budgetActivation.checkFailed', "Couldn't check budget readiness. Refresh and try again."));
   } else if (activationPrecheck) {
     if (activationPrecheck.erpCheck === 'unavailable') {
-      readinessMessages.push(t('finance:budgetActivation.erpUnavailable', "Couldn't check ERPNext — the push will retry and report what's missing."));
+      readinessMessages.push(t('finance:budgetActivation.erpUnavailable', "Couldn't check ERPNext; it'll be checked again when the budget is pushed."));
     }
     readinessMessages.push(...activationPrecheck.issues.map(issueMessage));
     if (activationPrecheck.status === 'ready' && activationPrecheck.erpCheck === 'available') {

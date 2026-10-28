@@ -758,6 +758,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     try {
       const result = await runBudgetActivationPrecheck(
         buildBudgetGateDeps(callerClient, serviceClient, orgId, versionId, createErpAuthPairCache()),
+        await orgEmploysErpnext(serviceClient, orgId),
       );
       return new Response(JSON.stringify(result), { status: 200, headers });
     } catch (err) {

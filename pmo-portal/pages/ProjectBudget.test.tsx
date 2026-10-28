@@ -667,6 +667,29 @@ describe('ProjectBudget Draft version actions', () => {
     expect(mockActivate).not.toHaveBeenCalled();
   });
 
+  it('issue #1421: a native budget activates without ERP findings', async () => {
+    versionsState.data = [{ ...draftVersion, line_items: [{ ...draftVersion.line_items[0], fiscal_year: null }] }];
+    activationPrecheckState.data = { status: 'ready', erpCheck: 'not-required', fiscalYearNames: null, issues: [] };
+    renderPage();
+    expect(screen.getByTestId('budget-readiness-summary')).toBeEmptyDOMElement();
+    await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
+    const confirm = screen.getByRole('button', { name: /Activate version/i });
+    expect(confirm).toBeEnabled();
+    expect(screen.getByRole('dialog')).not.toHaveTextContent(/ERPNext/);
+    await userEvent.click(confirm);
+    expect(mockActivate).toHaveBeenCalledWith('v-draft');
+  });
+
+  it.each([
+    ['en', /checked again when the budget is pushed/i],
+    ['id', /pemeriksaan akan dilakukan lagi saat anggaran dikirim/i],
+  ] as const)('issue #1421: %s outage copy describes the next push check', (locale, message) => {
+    versionsState.data = [draftVersion];
+    activationPrecheckState.data = { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, issues: [] };
+    render(<BahasaProvider locale={locale}><MemoryRouter><ToastProvider><ProjectBudget projectId="p-1" /></ToastProvider></MemoryRouter></BahasaProvider>);
+    expect(screen.getByTestId('budget-readiness-summary')).toHaveTextContent(message);
+  });
+
   it('issue #1421: clearly reports an unavailable ERP check and still permits PMO activation', async () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
@@ -681,7 +704,8 @@ describe('ProjectBudget Draft version actions', () => {
     expect(screen.getByTestId('budget-readiness-summary')).toHaveTextContent(/couldn't check ERPNext/i);
     await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
     const confirm = screen.getByRole('button', { name: /Activate version/i });
-    expect(screen.getByRole('dialog')).toHaveTextContent(/push will retry/i);
+    expect(screen.getByRole('dialog')).toHaveTextContent(/checked again when the budget is pushed/i);
+    expect(screen.getByRole('dialog')).not.toHaveTextContent(/push will retry/i);
     expect(confirm).toBeEnabled();
     await userEvent.click(confirm);
     expect(mockActivate).toHaveBeenCalledWith('v-draft');
@@ -1138,6 +1162,44 @@ describe('ProjectBudget — the per-line fiscal year (AC-BFY-016)', () => {
     await user.type(screen.getByLabelText(/line item fiscal year/i), '202');
     await user.click(screen.getAllByRole('button', { name: /^save$/i })[0]);
 
+    expect(await screen.findByText(/choose a fiscal year from ERPNext/i)).toBeInTheDocument();
+    expect(mockCreateLineItem).not.toHaveBeenCalled();
+  });
+
+  it.each([['FY1', false], ['A', false], ['FY1', true], ['A', true]] as const)('issue #1421: accepts custom fiscal-year label %s with live calendar %s', async (label, online) => {
+    activationPrecheckState.data = online
+      ? { status: 'ready', erpCheck: 'available', fiscalYearNames: [label], issues: [] }
+      : { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, issues: [] };
+    versionsState.data = [draftVersion];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /add line item/i }));
+    await userEvent.type(screen.getByLabelText(/line item amount/i), '50000');
+    await userEvent.type(screen.getByLabelText(/line item fiscal year/i), label);
+    await userEvent.click(screen.getAllByRole('button', { name: /^save$/i })[0]);
+    await waitFor(() => expect(mockCreateLineItem).toHaveBeenCalledWith({
+      versionId: 'v-draft', item: expect.objectContaining({ fiscal_year: label }),
+    }));
+  });
+
+  it('issue #1421: preserves a short custom fiscal-year label when editing offline', async () => {
+    activationPrecheckState.data = { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, issues: [] };
+    versionsState.data = [{ ...draftVersion, line_items: [{ ...draftVersion.line_items[0], fiscal_year: 'A' }] }];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /edit line item Labor/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    await waitFor(() => expect(mockUpdateLineItem).toHaveBeenCalledWith({
+      id: 'li-1', patch: expect.objectContaining({ fiscal_year: 'A' }),
+    }));
+  });
+
+  it('issue #1421: rejects a numeric year typo while offline', async () => {
+    activationPrecheckState.data = { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, issues: [] };
+    versionsState.data = [draftVersion];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /add line item/i }));
+    await userEvent.type(screen.getByLabelText(/line item amount/i), '50000');
+    await userEvent.type(screen.getByLabelText(/line item fiscal year/i), '202');
+    await userEvent.click(screen.getAllByRole('button', { name: /^save$/i })[0]);
     expect(await screen.findByText(/choose a fiscal year from ERPNext/i)).toBeInTheDocument();
     expect(mockCreateLineItem).not.toHaveBeenCalled();
   });
