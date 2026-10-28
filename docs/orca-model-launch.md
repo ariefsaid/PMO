@@ -54,3 +54,9 @@ Pi reports `worker_done` to Orca by itself when it finishes (verified 2026-10-28
 - **Fresh worker per task**, own child worktree off `origin/dev`; never reuse a worker for another job.
 - **Never stop a running worker** except on the owner's explicit "stop": its tokens (and any agents
   it spawned) are lost.
+- **Quiet coordination.** Heartbeats are liveness only, so never answer or relay them. A coordinator waits
+  with `~/.local/bin/orca-wait <run_id>` in the background, which acks heartbeat-only deliveries silently
+  and wakes it only for a real message. Gaps between waits are when Orca's "you have N messages"
+  prompts wake the coordinator, so keep one wait running. Workers and lane orchestrators message
+  upward only for a decision, a blocker or completion. The same rule sits in each harness's global
+  file (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, `~/.gemini/GEMINI.md`, `~/.pi/agent/AGENTS.md`).
