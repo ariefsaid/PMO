@@ -15,6 +15,7 @@ import { FinanceI18nTestProvider } from './financeI18nTestProvider';
 
 const state = vi.hoisted(() => ({
   versions: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+  archiveTargets: { data: [] as unknown[], refetch: vi.fn().mockResolvedValue({ data: [], error: null }) },
   binding: { data: { status: 'active' } as { status: string } | null | undefined, isPending: false, isError: false },
   role: 'Project Manager',
   pushRows: [] as unknown[],
@@ -36,6 +37,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
     isError: false,
     refetch: vi.fn(),
   }),
+  useBudgetArchiveTargets: () => state.archiveTargets,
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: state.createVersion, isPending: false },
     cloneVersion: { mutateAsync: vi.fn(), isPending: false },
@@ -107,6 +109,7 @@ const renderPage = (initialEntries: string[] = ['/projects/p-1/budget']) => rend
 beforeEach(() => {
   vi.clearAllMocks();
   state.versions = { data: [ACTIVE], isPending: false, isError: false, refetch: vi.fn() };
+  state.archiveTargets = { data: [], refetch: vi.fn().mockResolvedValue({ data: [], error: null }) };
   state.binding = { data: { status: 'active' }, isPending: false, isError: false };
   state.role = 'Project Manager';
   state.pushRows = [];

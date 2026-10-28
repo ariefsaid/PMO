@@ -238,10 +238,11 @@ describe('company area hub (#1403)', () => {
     projectsState.data = topProjects.map((project) => ({ id: project.id, pm: { full_name: `Manager ${project.id.slice(-1)}` } }));
     renderPage();
 
-    expect(screen.getByRole('link', { name: 'Project 6' })).toHaveAttribute('href', '/projects/project-6');
+    const projectList = screen.getByRole('list', { name: 'Spending vs contract' });
+    expect(within(projectList).getByRole('link', { name: /^Open Project 6; recorded spending \$990 to date\.$/ })).toHaveAttribute('href', '/projects/project-6');
     expect(screen.getByText('Manager 6 · $1,006')).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: 'Project 6: 98% of contract used' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Project 1' })).not.toBeInTheDocument();
+    expect(within(projectList).queryByRole('link', { name: /^Open Project 1;/ })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'View all 6 projects' })).toHaveAttribute('href', '/projects');
 
     const user = userEvent.setup();
@@ -269,7 +270,9 @@ describe('company area hub (#1403)', () => {
     renderPage();
     const link = screen.getByRole('link', { name: 'Open related records for Contract on hand.' });
     expect(link).toHaveAttribute('href', '/projects');
-    expect(screen.getByRole('button', { name: 'Contract amount is not available.' })).toHaveTextContent('—');
+    const unknownContract = screen.getByText('Contract amount is not available.', { exact: true });
+    expect(unknownContract).toHaveAttribute('role', 'status');
+    expect(unknownContract).not.toHaveTextContent(/\$|\d|—/);
   });
 
   it('AC-DASH-1403-03: the period picker writes the selected period into the URL', () => {
@@ -297,7 +300,7 @@ describe('company area hub (#1403)', () => {
     }];
     projectsState.data = [{ id: 'project-1', pm: { full_name: 'Project Manager' } }];
     renderPage();
-    fireEvent.click(screen.getByRole('link', { name: 'Project North' }));
+    fireEvent.click(screen.getByRole('link', { name: /^Open Project North; recorded spending \$200 to date\.$/ }));
     expect(screen.getByTestId('location')).toHaveTextContent('/projects/project-1');
   });
 
