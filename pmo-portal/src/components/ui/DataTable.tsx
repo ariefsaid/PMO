@@ -464,7 +464,7 @@ export function DataTable<Row>({
     });
   };
   const selectionLabel = (row: Row, primaryColumn?: Column<Row>) => selection?.rowLabel?.(row)
-    ?? t('table.selectRow', 'Select {{row}}', { row: primaryColumn?.primaryTitle?.(row) ?? rowLabel?.(row)?.replace(/^Open\s+/i, '') ?? rowKey(row) });
+    ?? t('table.selectRow', 'Select {{row}}', { row: rowLabel?.(row)?.replace(/^Open\s+/i, '') ?? primaryColumn?.primaryTitle?.(row) ?? rowKey(row) });
 
   // Shared ListState node — rendered once and reused in both branches via a
   // local variable so the async-state code is one source of truth.
