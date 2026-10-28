@@ -39,7 +39,7 @@ Pi reports `worker_done` to Orca by itself when it finishes (verified 2026-10-28
   orchestrator sends it the brief path (or falls back to Luna).
 - **Wait for pi to finish starting before `worker-start --terminal`.** If the brief arrives during pi's startup
   banner it is lost and pi sits idle at its prompt (`0.0%` context). Check with `orca terminal read`; if idle, type the
-  brief in with `orca terminal send --terminal <handle> --text "<prompt>" --enter`.
+  brief in with `orca terminal send --terminal <handle> --text "<prompt>" --enter`. Prevent it: `orca terminal wait --terminal <handle> --for tui-idle --timeout-ms 60000` before `worker-start`.
 - **`worker-start --terminal` needs `--worktree` matching the terminal's worktree**, or it fails
   with `terminal_worktree_mismatch`.
 - **zcode does not start from the command line or Orca** (CLI 0.17.0 bundled in ZCode.app 3.16.2):
