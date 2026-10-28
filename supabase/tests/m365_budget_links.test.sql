@@ -1,5 +1,10 @@
 begin;
 select no_plan();
+select ok(
+  (select prosecdef from pg_proc where oid = 'public.stamp_guard_budget_m365_link()'::regprocedure)
+    and not has_function_privilege('authenticated', 'public.stamp_guard_budget_m365_link()', 'EXECUTE')
+    and not has_function_privilege('anon', 'public.stamp_guard_budget_m365_link()', 'EXECUTE'),
+  'AC-M365DOC-052 budget link row-lock guard runs with definer authority and is not client-callable');
 insert into public.organizations (id,name) values
  ('10200000-0000-0000-0000-000000000001','Synthetic budget org'),
  ('10200000-0000-0000-0000-000000000002','Synthetic other budget org');

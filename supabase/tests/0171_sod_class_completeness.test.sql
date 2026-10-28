@@ -32,7 +32,7 @@
 -- shape, the Draft budget line-item editor, an Admin's project hard-delete, and the whole legitimate
 -- two-person win.
 begin;
-select plan(101);
+select plan(102);
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- Fixtures (as postgres — an unattributed BYPASSRLS authority, exempt by design).
@@ -109,16 +109,16 @@ insert into project_documents (id, org_id, project_id, code, category, title, re
    'DOC-SCC-2','Drawing','Still a draft','A','2026-02-01','01710000-0000-0000-0000-0000000000a1',null,'Draft');
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
--- A. budget_versions UPDATE — THE ROUND TRIP THAT VOIDED budget_line_items_draft_guard.
---    0176 closed INSERT, 0177 closed DELETE, and UPDATE was never touched.
+-- A. budget_versions UPDATE — status writes now go through the durable archive RPC, and activation
+--    remains owned by activate_budget_version. The underlying transition guard remains defense in depth.
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 select is(
   (select coalesce(string_agg(distinct column_name, ',' order by column_name), '')
      from information_schema.column_privileges
     where table_schema = 'public' and table_name = 'budget_versions'
       and grantee in ('authenticated','anon') and privilege_type = 'UPDATE'),
-  'status',
-  'AC-SCC-010 `status` is the ONLY client-UPDATEable column on budget_versions — activated_at (the ADR-0059 push key) and the identity columns are withheld');
+  '',
+  'AC-SCC-010 no budget_versions column is client-UPDATEable — status transitions use the archive or activation RPC');
 
 select is(
   (select count(*)::int from information_schema.table_privileges
@@ -127,6 +127,9 @@ select is(
   0,
   'AC-SCC-010 …and no TABLE-level UPDATE grant survives (a table grant covers every column and is not reduced by a column revoke — 0075 re-opened 0010 exactly this way)');
 
+-- Temporarily grant only status UPDATE inside this rolled-back test so the transition trigger's
+-- defense-in-depth errors remain covered separately from the real client privilege fence above.
+grant update (status) on public.budget_versions to authenticated;
 set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
@@ -159,6 +162,7 @@ select throws_ok(
   'AC-SCC-013 activated_at cannot be forged — it is the ADR-0059 deterministic ERPNext budget-push key, i.e. a witness of an activation the DB never performed');
 
 reset role;
+revoke update (status) on public.budget_versions from authenticated;
 select is(
   (select budgeted_amount from public.budget_line_items where id = '01710000-0000-0000-0000-0000000000e1'),
   1000000.00::numeric,
@@ -173,9 +177,13 @@ select is(
 set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select lives_ok(
+select throws_ok(
   $$ update public.budget_versions set status = 'Archived' where id = '01710000-0000-0000-0000-0000000000f1' $$,
-  'AC-SCC-015 CONTROL archiveVersion (budgets.ts:382, rendered on Active only) still works — it is the ONE transition a client may make');
+  '42501', 'permission denied for table budget_versions',
+  'AC-SCC-015 direct status UPDATE is unavailable; archiving uses the durable archive RPC');
+select lives_ok(
+  $$ select public.archive_budget_version_with_cancel_intent('01710000-0000-0000-0000-0000000000f1', false) $$,
+  'AC-SCC-015 CONTROL archiveVersion still works through the durable archive RPC');
 
 select lives_ok(
   $$ select activate_budget_version('01710000-0000-0000-0000-0000000000f2'::uuid) $$,

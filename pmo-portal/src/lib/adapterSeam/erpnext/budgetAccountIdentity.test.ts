@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { encodeFiscalYear } from './fiscalYearEncoding';
 import {
   budgetAccountIdentity,
+  budgetAccountArchiveKey,
   budgetAccountPushKey,
   decodeBudgetAccount,
   encodeBudgetAccount,
   isBudgetAccountPushKey,
+  isBudgetAccountArchiveKey,
   parseBudgetIdentity,
 } from './budgetAccountIdentity';
 
@@ -60,5 +62,17 @@ describe('budgetAccountIdentity', () => {
     expect(() => parseBudgetIdentity(`${VERSION}:a:4${encodeFiscalYear('2026')}:434f4753`)).toThrow();
     expect(isBudgetAccountPushKey(`bud16:${identity}:01x`)).toBe(false);
     expect(() => budgetAccountPushKey(identity, null)).toThrow();
+  });
+
+  it('gives archived Budget cancellations a stable key separate from the ensure key', () => {
+    const identity = budgetAccountIdentity(VERSION, '2026', 'COGS');
+    const activatedAt = '2026-10-15T10:00:00Z';
+    const key = budgetAccountArchiveKey(identity, activatedAt);
+
+    expect(key).not.toBe(budgetAccountPushKey(identity, activatedAt));
+    expect(key).toBe(budgetAccountArchiveKey(identity, activatedAt));
+    expect(isBudgetAccountArchiveKey(key)).toBe(true);
+    expect(isBudgetAccountArchiveKey(`bud16-archive:${identity}:01x`)).toBe(false);
+    expect(() => budgetAccountArchiveKey(identity, null)).toThrow();
   });
 });

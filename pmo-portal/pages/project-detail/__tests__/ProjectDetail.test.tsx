@@ -72,6 +72,8 @@ vi.mock('@/src/hooks/useBudget', () => ({
   // line-items). Return 4,700,000 to match the seed project so the 50% util assertion holds.
   useProjectBudget: () => ({ data: 4_700_000, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => ({ data: budgetVersionsBox.value, isPending: false, isError: false, refetch: vi.fn() }),
+  useBudgetActivationPrecheck: () => ({ data: undefined, isPending: false, isError: false }),
+  useBudgetArchiveTargets: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetActivationMode: () => ({ data: undefined, isPending: false, isError: false }),
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: vi.fn() }, activate: { mutateAsync: vi.fn() },
