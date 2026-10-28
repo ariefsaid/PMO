@@ -10,6 +10,7 @@ import {
   ViewToggle,
   ListState,
   DataTable,
+  Badge,
   StatusPill,
   ProgressBar,
   Icon,
@@ -23,7 +24,7 @@ import { useTranslation } from 'react-i18next';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { useProjectStatusLabel, useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
 import { usePermission } from '@/src/auth/usePermission';
-import { useSalesPipeline, useLostDeals } from '@/src/hooks/useDashboard';
+import { useSalesPipeline, useLostDeals, useWonDeals } from '@/src/hooks/useDashboard';
 import { formatCurrency } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
@@ -41,6 +42,7 @@ import {
   openOpportunity,
   daysSince,
   isNeedsAttention,
+  isStaleBid,
   ATTENTION_THRESHOLD_DAYS,
   type OpenFunnelStage,
 } from '../components/salesPipeline';
@@ -50,14 +52,14 @@ import { ExportButton } from '@/src/components/export';
 const OPEN_COLUMNS = SALES_COLUMNS.filter((c) => !c.terminal);
 
 /**
- * Table status filter (Model B, AC-IXD-PROJ-007): Open deals (default) or terminal Lost deals.
+ * Table scope filters (Model B, AC-IXD-PROJ-007): open, terminal Won, and terminal Lost deals.
  * N14 (AC-IXD-PIPE-W5-C5): "Needs attention" segment shows deals from BOTH scopes (open ∪ lost)
  * whose days-since-last_update >= ATTENTION_THRESHOLD_DAYS. get_sales_pipeline() now projects
  * last_update + the owner for open rows (migration 0020), so open deals carry real aging — the
  * filter and the Owner / Last touch columns work on open deals, not just lost ones.
  */
-type DealScope = 'Open' | 'Lost' | 'Needs attention';
-const DEAL_SCOPES: DealScope[] = ['Open', 'Lost', 'Needs attention'];
+type DealScope = 'Open' | 'Won' | 'Lost' | 'Needs attention';
+const DEAL_SCOPES: DealScope[] = ['Open', 'Won', 'Lost', 'Needs attention'];
 
 const SalesPipeline: React.FC = () => {
   const { t } = useTranslation();
@@ -81,9 +83,10 @@ const SalesPipeline: React.FC = () => {
   const canCreate = may('create', 'project');
 
   const { data, isPending, isError, refetch } = useSalesPipeline();
-  // Lost deals are read via the projects RLS path (get_sales_pipeline returns only OPEN stages),
-  // so the terminal "Lost" kanban column + the "Lost" table filter are reachable (FE-only).
+  // Terminal deal rows use the projects RLS path (get_sales_pipeline returns only OPEN stages),
+  // so both terminal kanban columns and their table scopes are reachable.
   const { data: lostDeals, isError: lostError, refetch: refetchLost } = useLostDeals();
+  const { data: wonDeals, isPending: wonPending, isError: wonError, refetch: refetchWon } = useWonDeals();
   const navigate = useNavigate();
   // list-working-set-return (#682): `scope`/`status`/`q`/`view` are URL-owned. D-1
   // (AC-JR-W3B-05) dashboard drill-links via `?status=` keep working — the codec normalizes
@@ -123,20 +126,22 @@ const SalesPipeline: React.FC = () => {
 
   const openProjects = useMemo(() => data?.projects ?? [], [data]);
   const lost = useMemo(() => lostDeals ?? [], [lostDeals]);
+  const won = useMemo(() => wonDeals ?? [], [wonDeals]);
   const declinedCount = useMemo(() => lost.filter((p) => p.status === 'Declined').length, [lost]); // #774
   const stages = useMemo(() => data?.stages ?? [], [data]);
 
-  // The kanban shows every column, so it draws from open ∪ lost (the Lost column is otherwise
-  // always empty — the RPC never returns lost rows).
-  const kanbanProjects = useMemo(() => [...openProjects, ...lost], [openProjects, lost]);
+  // The RPC returns open stages only; terminal Won and Lost rows use their RLS-backed project reads.
+  const kanbanProjects = useMemo(() => [...openProjects, ...won, ...lost], [openProjects, won, lost]);
 
-  // The table is scoped by the Open / Lost / Needs attention SegFilter, then by search.
+  // The table is scoped by Open / Won / Lost / Needs attention, then by search.
   // "Needs attention" (N14): spans open ∪ lost rows whose days-since-last_update >=
   // ATTENTION_THRESHOLD_DAYS. Open rows now carry last_update from the RPC (migration 0020),
   // so a stale open deal is flagged just like a stale lost one.
   const filtered = useMemo(() => {
     let base: PipelineProject[];
-    if (scope === 'Lost') {
+    if (scope === 'Won') {
+      base = won;
+    } else if (scope === 'Lost') {
       base = lost;
     } else if (scope === 'Needs attention') {
       base = [...openProjects, ...lost].filter(isNeedsAttention);
@@ -162,7 +167,7 @@ const SalesPipeline: React.FC = () => {
         (p.client_legal_name ?? '').toLowerCase().includes(q) ||
         (p.end_client_legal_name ?? '').toLowerCase().includes(q),
     );
-  }, [openProjects, lost, scope, search, selectedStatus, workingSet]);
+  }, [openProjects, won, lost, scope, search, selectedStatus, workingSet]);
 
   // Funnel band — always the five open stages in fixed order, even when the RPC
   // omits empty stages (edge (b): render zero-value stages, never blank). Each
@@ -213,9 +218,10 @@ const SalesPipeline: React.FC = () => {
   });
 
   // Display labels for the scope segments. The VALUES stay literal — they drive `filtered`'s
-  // branch and the lost-deals error gate below.
+  // branch and terminal-query error gates below.
   const scopeLabels: Record<DealScope, string> = {
     Open: t('sales.scope.open', 'Open'),
+    Won: t('sales:scope.won', 'Won'),
     Lost: declinedCount > 0
       ? t('sales.lostCounts', 'Lost {{lost}} · Declined {{declined}}', { lost: lost.length - declinedCount, declined: declinedCount })
       : t('sales.scope.lost', 'Lost'),
@@ -223,11 +229,17 @@ const SalesPipeline: React.FC = () => {
   };
 
   const onOpen = (p: PipelineProject) => openOpportunity(openRecord, p);
+  const onScopeChange = (nextScope: DealScope) =>
+    setWorkingSet((ws) => ({
+      ...ws,
+      scope: nextScope,
+      ...(nextScope === 'Lost' || nextScope === 'Won' ? { status: '' } : {}),
+    }));
   const onPhoneScopeChange = (nextScope: DealScope) =>
     setWorkingSet((ws) => ({
       ...ws,
       scope: nextScope,
-      ...(nextScope === 'Lost' ? { status: '' } : {}),
+      ...(nextScope === 'Lost' || nextScope === 'Won' ? { status: '' } : {}),
       // The URL codec only allows a non-Open scope on the table view; the phone still shows its list.
       ...(nextScope !== 'Open' ? { view: 'table' as const } : {}),
     }));
@@ -283,7 +295,16 @@ const SalesPipeline: React.FC = () => {
       header: t('sales.column.stage', 'Stage'),
       kind: 'status',
       size: 132,
-      cell: (r) => <StatusPill variant={pillVariantForStatus(r.status)}>{stageName(r.status)}</StatusPill>,
+      cell: (r) => (
+        <span className="inline-flex flex-wrap items-center gap-1.5">
+          <StatusPill variant={pillVariantForStatus(r.status)}>{stageName(r.status)}</StatusPill>
+          {isStaleBid(r) && (
+            <Badge role="status" data-testid={`stale-bid-${r.id}`}>
+              {t('sales:pipeline.staleBid', 'Stale bid · stage unchanged for 90+ days')}
+            </Badge>
+          )}
+        </span>
+      ),
       exportValue: (r) => r.status,
     },
     {
@@ -447,8 +468,7 @@ const SalesPipeline: React.FC = () => {
     }
   }
 
-  // Search-filtered kanban set (open ∪ lost), so the kanban's view-local search spans every
-  // column including the terminal Lost column.
+  // Search-filtered kanban set (open ∪ won ∪ lost), so board search spans every column.
   const kanbanFiltered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const classified = kanbanProjects.filter((project) => matchesProjectClassification(project, workingSet));
@@ -469,20 +489,20 @@ const SalesPipeline: React.FC = () => {
   // AC-LRC-012: this DataTable's `empty` branch only renders when the collection has data (the
   // genuine collection-empty case is `state === 'empty'` below), so a zero-match here is a
   // FILTERED zero-match ONLY when a control was actually changed from its default — clearing when
-  // nothing is active (e.g. no open deals but lost ones exist) would be a no-op, so no action then.
+  // nothing is active (e.g. no open deals but terminal ones exist) would be a no-op, so no action then.
   const classificationsActive = activeClassificationCount(workingSet) > 0;
   // The Classification disclosure earns its place only when some deal carries a tag (or a filter is
   // already active, so it can be cleared).
   const hasClassification = classificationsActive || kanbanProjects.some((p) =>
     p.service_line || p.sector || p.location || p.award_type || p.bidding_entity);
   const filtersActive = classificationsActive || search.trim() !== '' || scope !== 'Open' || stageIndex !== null;
-  // The Lost / Needs-attention copy ("No lost projects") is true only when the SCOPE itself is
+  // A scope-empty message is true only when the SCOPE itself is
   // empty. When a search or stage narrows a non-empty scope to zero, it is a zero-match instead
   // (AC-LRC-012) — the scope-empty sentence would deny rows that exist.
   const narrowedWithinScope = classificationsActive || search.trim() !== '' || stageIndex !== null;
   // AC-LRC-012 (Board): the board has no scope/stage filter of its own (only search narrows
   // `kanbanProjects` to `kanbanFiltered`), so a zero-match here is always a search zero-match, not
-  // the genuine-empty state (`state === 'empty'` above already covers no open AND no lost deals).
+  // the genuine-empty state (`state === 'empty'` above covers no open, won, or lost deals).
   const boardZeroMatch = kanbanFiltered.length === 0;
   // #682/#683: Clear all is ONE working-set update plus the search reset, so the URL and
   // controls move together (no second event drops the first call). Shared by the table's
@@ -495,12 +515,14 @@ const SalesPipeline: React.FC = () => {
   };
 
   // ── States ────────────────────────────────────────────────────────────────
-  // Empty only when there are no open AND no lost deals (a lost-only org still has a Pipeline).
+  // Empty only when there are no open, won, or lost deals (a terminal-only org still has a Pipeline).
   const state: 'loading' | 'empty' | 'error' | undefined = isPending
     ? 'loading'
+    : wonPending
+      ? 'loading'
     : isError || !data
       ? 'error'
-      : openProjects.length === 0 && lost.length === 0
+      : openProjects.length === 0 && lost.length === 0 && won.length === 0 && !wonError
         ? 'empty'
         : undefined;
 
@@ -570,7 +592,7 @@ const SalesPipeline: React.FC = () => {
       }
       mobileToolbar={state !== 'loading' && (
         <div className="w-full min-w-0 space-y-2">
-          {view === 'kanban' && !isDesktop && scope !== 'Lost' && (
+          {view === 'kanban' && !isDesktop && scope !== 'Lost' && scope !== 'Won' && (
             <label className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
               <span className="shrink-0">{t('uxs24.stageLabel', 'Pipeline stage')}</span>
               <select
@@ -613,12 +635,12 @@ const SalesPipeline: React.FC = () => {
       )}
       filters={
         state !== 'loading' &&
-        /* Open / Lost scope — table-only (the kanban already shows the Lost column). */
+        /* Won / Lost scope — table-only (the kanban already shows both terminal columns). */
         view === 'table' && (
           <ViewToggle<DealScope>
             options={DEAL_SCOPES.map((s) => ({ value: s, label: scopeLabels[s] }))}
             value={scope}
-            onChange={(v) => setWorkingSet((ws) => ({ ...ws, scope: v }))}
+            onChange={onScopeChange}
             ariaLabel={t('sales.scopeToggleLabel', 'Project scope')}
           />
         )
@@ -689,7 +711,7 @@ const SalesPipeline: React.FC = () => {
       {/* AC-LRC-012: a search that matches no card on the Board shows the same zero-match copy
           + Clear filters as the Table (state === 'empty' above already covers the genuine
           no-open-AND-no-lost pipeline, which keeps its own create-first-project state). */}
-      {state === undefined && view === 'kanban' && isDesktop && boardZeroMatch && (
+      {state === undefined && view === 'kanban' && isDesktop && boardZeroMatch && !wonError && (
         <ListState
           variant="empty"
           title={classificationsActive && search.trim() === ''
@@ -702,12 +724,29 @@ const SalesPipeline: React.FC = () => {
         />
       )}
 
-      {state === undefined && view === 'kanban' && isDesktop && !boardZeroMatch && (
-        <SalesKanbanBoard projects={kanbanFiltered} onOpen={onOpen} selectedStageIndex={stageIndex} />
+      {state === undefined && view === 'kanban' && isDesktop && (!boardZeroMatch || wonError) && (
+        <>
+          {wonError && (
+            <ListState
+              variant="error"
+              title={t('sales:wonError.title', "Couldn't load won projects")}
+              sub={t('sales:wonError.sub', 'Something went wrong fetching won projects.')}
+              onRetry={() => refetchWon()}
+            />
+          )}
+          <SalesKanbanBoard projects={kanbanFiltered} onOpen={onOpen} selectedStageIndex={stageIndex} />
+        </>
       )}
 
       {state === undefined && view === 'kanban' && !isDesktop && (
-        lostError && (scope === 'Lost' || scope === 'Needs attention') ? (
+        wonError && scope === 'Won' ? (
+          <ListState
+            variant="error"
+            title={t('sales:wonError.title', "Couldn't load won projects")}
+            sub={t('sales:wonError.sub', 'Something went wrong fetching won projects.')}
+            onRetry={() => refetchWon()}
+          />
+        ) : lostError && (scope === 'Lost' || scope === 'Needs attention') ? (
           <ListState
             variant="error"
             title={t('sales.lostError.title', "Couldn't load lost projects")}
@@ -717,12 +756,16 @@ const SalesPipeline: React.FC = () => {
         ) : filtered.length === 0 ? (
           <ListState
             variant="empty"
-            title={scope === 'Lost' && !narrowedWithinScope
+            title={scope === 'Won' && !narrowedWithinScope
+              ? t('sales:tableEmpty.won.title', 'No won projects')
+              : scope === 'Lost' && !narrowedWithinScope
               ? t('sales.tableEmpty.lost.title', 'No lost projects')
               : scope === 'Needs attention' && !narrowedWithinScope
                 ? t('sales.tableEmpty.needsAttention.title', 'No projects need attention')
                 : t('uxs24.stageEmptyTitle', 'No projects in this stage')}
-            sub={scope === 'Lost' && !narrowedWithinScope
+            sub={scope === 'Won' && !narrowedWithinScope
+              ? t('sales:tableEmpty.won.sub', 'Projects marked won will appear here.')
+              : scope === 'Lost' && !narrowedWithinScope
               ? t('sales.tableEmpty.lost.sub', 'Projects marked lost will appear here.')
               : scope === 'Needs attention' && !narrowedWithinScope
                 ? t('sales.tableEmpty.needsAttention.sub', 'No project has been untouched for {{days}}+ days — pipeline is active.', { days: String(ATTENTION_THRESHOLD_DAYS) })
@@ -741,6 +784,15 @@ const SalesPipeline: React.FC = () => {
         )
       )}
 
+      {state === undefined && view === 'table' && wonError && scope === 'Won' && (
+        <ListState
+          variant="error"
+          title={t('sales:wonError.title', "Couldn't load won projects")}
+          sub={t('sales:wonError.sub', 'Something went wrong fetching won projects.')}
+          onRetry={() => refetchWon()}
+        />
+      )}
+
       {state === undefined && view === 'table' && lostError && (scope === 'Lost' || scope === 'Needs attention') && (
         <ListState
           variant="error"
@@ -750,7 +802,7 @@ const SalesPipeline: React.FC = () => {
         />
       )}
 
-      {state === undefined && view === 'table' && !(lostError && (scope === 'Lost' || scope === 'Needs attention')) && (
+      {state === undefined && view === 'table' && !((wonError && scope === 'Won') || (lostError && (scope === 'Lost' || scope === 'Needs attention'))) && (
         <DataTable<PipelineProject>
           rows={filtered}
           columns={tableColumns}
@@ -759,14 +811,18 @@ const SalesPipeline: React.FC = () => {
           rowLabel={(r) => `${t('sales.openRow', 'Open')} ${r.name}`}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle={
-            !narrowedWithinScope && scope === 'Lost'
+            !narrowedWithinScope && scope === 'Won'
+              ? t('sales:tableEmpty.won.title', 'No won projects')
+              : !narrowedWithinScope && scope === 'Lost'
               ? t('sales.tableEmpty.lost.title', 'No lost projects')
               : !narrowedWithinScope && scope === 'Needs attention'
                 ? t('sales.tableEmpty.needsAttention.title', 'No projects need attention')
                 : t('sales.tableEmpty.search.title', 'No projects match your search')
           }
           emptySub={
-            !narrowedWithinScope && scope === 'Lost'
+            !narrowedWithinScope && scope === 'Won'
+              ? t('sales:tableEmpty.won.sub', 'Projects marked won will appear here.')
+              : !narrowedWithinScope && scope === 'Lost'
               ? t('sales.tableEmpty.lost.sub', 'Projects marked lost will appear here.')
               : !narrowedWithinScope && scope === 'Needs attention'
                 ? t(

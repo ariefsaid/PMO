@@ -13,7 +13,7 @@
  * - Legend assertions use the real figcaption output (unaffected by mocks).
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 
@@ -163,7 +163,7 @@ describe('StatusBarChart hides the cramped rotated x-axis on mobile; legend is t
     expect(xaxis.dataset.height).toBe('64');
   });
 
-  it('DESKTOP: aria summary is unchanged on desktop', () => {
+  it('D-009: the desktop chart has a concise name and exposes its values in a data table', () => {
     mockIsNarrow.mockReturnValue(false);
 
     render(
@@ -177,9 +177,12 @@ describe('StatusBarChart hides the cramped rotated x-axis on mobile; legend is t
       </MemoryRouter>,
     );
 
-    // a11y role and summary unchanged on desktop
     const region = screen.getByRole('img', { name: /Procurement by status/i });
-    expect(region).toHaveAccessibleName(/10 requests/i);
-    expect(region).toHaveAccessibleName(/most in Ordered/i);
+    expect(region).toHaveAccessibleName('Procurement by status');
+    expect(region).toHaveAccessibleDescription('The chart values are listed in the following data table.');
+
+    const table = screen.getByRole('table', { name: 'Data for Procurement by status' });
+    expect(within(table).getByRole('row', { name: 'Ordered 5' })).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: 'Total 10' })).toBeInTheDocument();
   });
 });

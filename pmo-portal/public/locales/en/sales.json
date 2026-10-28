@@ -1,6 +1,20 @@
 {
   "pipeline": {
     "endCustomerLine": "for {{name}}",
-    "mixedCurrency": "Mixed currencies, so no single total"
+    "mixedCurrency": "Mixed currencies, so no single total",
+    "staleBid": "Stale bid · stage unchanged for 90+ days"
+  },
+  "scope": {
+    "won": "Won"
+  },
+  "wonError": {
+    "sub": "Something went wrong fetching won projects.",
+    "title": "Couldn't load won projects"
+  },
+  "tableEmpty": {
+    "won": {
+      "sub": "Projects marked won will appear here.",
+      "title": "No won projects"
+    }
   }
 }

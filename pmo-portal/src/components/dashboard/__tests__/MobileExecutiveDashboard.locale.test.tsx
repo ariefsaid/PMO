@@ -54,13 +54,17 @@ describe('AC-UXS-006 dashboard copy — mobile Executive Bahasa labels', () => {
       </I18nextProvider>,
     );
 
-    expect(screen.getByRole('link', { name: 'Open spend breakdown · $200 spent to date' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Ongoing, Won, Pending KoM, and On Hold projects · on-hand spending $200 to date' })).toBeInTheDocument();
   });
 
   it('AC-RD-UNAVAIL-002: the spend link announces a known 0 or 500, and the reason only when spend is unknown', async () => {
     const i18n = i18next.createInstance();
     await i18n.init({ lng: 'en', fallbackLng: 'en', defaultNS: 'common', resources: { en: { common: enCatalogue } } });
-    const cases: Array<[number | null, RegExp]> = [[0, /\$0 spent/], [500, /\$500 spent/], [null, /Not available yet spent/]];
+    const cases: Array<[number | null, RegExp]> = [
+      [0, /on-hand spending \$0 to date/],
+      [500, /on-hand spending \$500 to date/],
+      [null, /on-hand spending Not available yet to date/],
+    ];
     for (const [spend, name] of cases) {
       const { unmount } = render(
         <I18nextProvider i18n={i18n}>
@@ -69,7 +73,7 @@ describe('AC-UXS-006 dashboard copy — mobile Executive Bahasa labels', () => {
           </MemoryRouter>
         </I18nextProvider>,
       );
-      const link = screen.getByRole('link', { name: /Open spend breakdown/ });
+      const link = screen.getByRole('link', { name: /Open Ongoing, Won, Pending KoM, and On Hold projects/ });
       expect(link).toHaveAccessibleName(name);
       if (spend !== null) expect(link).not.toHaveAccessibleName(/Not available yet/);
       // No interactive dash nested inside the drill link.

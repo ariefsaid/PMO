@@ -36,6 +36,7 @@ vi.mock('@/src/hooks/useListReturn', () => ({ useListReturn: () => ({ openRecord
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => ({ data: { stages: [], projects: [] }, isPending: false, isError: false, refetch: vi.fn() }),
   useLostDeals: () => ({ data: [] }),
+  useWonDeals: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => ({ data: [{ id: 'c9', name: 'Asset Owner', type: 'Client' }], isError: false }),

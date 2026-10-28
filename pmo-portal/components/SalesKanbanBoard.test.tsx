@@ -155,6 +155,25 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
     expect(within(card as HTMLElement).getByText('Won, Pending KoM')).toBeInTheDocument();
   });
 
+  it('AC-1441: warns on open bids after 90 stage-days in both board and phone list cards', () => {
+    const staleOpen: PipelineProject = {
+      ...projects[0],
+      id: 'stale-open-1',
+      stage_started_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+    const board = render(<SalesKanbanBoard projects={[staleOpen, projects[2]]} onOpen={vi.fn()} />);
+    expect(screen.getByTestId('stale-bid-stale-open-1')).toHaveTextContent(/90\+ days/i);
+    expect(screen.queryByTestId('stale-bid-w1')).toBeNull();
+    board.unmount();
+
+    const CompactBoard = SalesKanbanBoard as React.ComponentType<
+      React.ComponentProps<typeof SalesKanbanBoard> & { presentation: 'list' }
+    >;
+    const { unmount } = render(<CompactBoard projects={[staleOpen]} onOpen={vi.fn()} presentation="list" />);
+    expect(screen.getByTestId('stale-bid-stale-open-1')).toBeVisible();
+    unmount();
+  });
+
   it('C2: every rendered stage-column dot is a DESIGN.md token (no raw cyan/orange literal)', () => {
     const { container } = render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
     const dots = Array.from(
