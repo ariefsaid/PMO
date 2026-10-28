@@ -78,12 +78,21 @@ export function formatCurrency(value: number, currency: string): string {
   return currencyFormatterFor('whole', currency, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 }
 
-/** Format exact decimal money without converting its whole or fractional units through Number. */
+/**
+ * Format exact decimal money without converting its whole or fractional units through Number.
+ *
+ * `wholeUnits` (#1437, owner ruling 2026-10-27): read-only display surfaces print WHOLE currency
+ * units — no `.00` and no cents — so `1467628320.47` renders `IDR 1,467,628,320`. Rounding is
+ * half-up on magnitude, matching the Number path (`formatCurrency` / Intl's halfExpand), so a
+ * figure and its exact twin never disagree by a unit; a magnitude that rounds to zero drops its
+ * sign (`-0.49` → `$0`, never `−$0`). Exact decimals stay available to inputs, exports, tax
+ * output and reconciliation surfaces — pass no option there.
+ */
 export function formatExactMoney(
   value: string | null,
   currency: string,
   locale: string,
-  opts: { trimZeroFraction?: boolean } = {},
+  opts: { trimZeroFraction?: boolean; wholeUnits?: boolean; omitCurrency?: boolean } = {},
 ): string | null {
   if (value === null || !/^[A-Z]{3}$/.test(currency) || !/^-?[0-9]+(?:[.][0-9]{1,2})?$/.test(value)) return null;
   const negative = value.startsWith('-');
@@ -91,6 +100,19 @@ export function formatExactMoney(
   const whole = BigInt(wholeText);
   const cents = BigInt(fraction.padEnd(2, '0'));
   try {
+    if (opts.wholeUnits === true) {
+      const rounded = cents >= 50n ? whole + 1n : whole;
+      const parts = numberFormatterFor(
+        opts.omitCurrency === true ? 'exact-number-whole' : 'exact-currency-whole',
+        locale,
+        opts.omitCurrency === true ? undefined : currency,
+        opts.omitCurrency === true
+          ? { minimumFractionDigits: 0, maximumFractionDigits: 0 }
+          : { style: 'currency', currency, minimumFractionDigits: 0, maximumFractionDigits: 0 },
+      ).formatToParts(rounded);
+      const body = parts.map((part) => part.value).join('');
+      return negative && rounded !== 0n ? `−${body}` : body;
+    }
     const trim = opts.trimZeroFraction === true && cents === 0n;
     const parts = numberFormatterFor(trim ? 'exact-currency-whole' : 'exact-currency', locale, currency, {
       style: 'currency', currency,
@@ -551,6 +573,18 @@ export function formatShortMoney(value: number, currency: string, opts: { code?:
   }).format(value).replace('-', '\u2212');
 }
 
+/**
+ * Compact number WITHOUT a currency (#1437: the currency is said once, in the block heading). A
+ * tile whose label already names the currency renders "1.2B", not "IDR 1.2B" above a "· IDR"
+ * label. Same shape as `formatShortMoney` (one decimal only when non-zero, true minus), just no
+ * currency token — pairing it with an exact `title` that carries the code keeps the metadata honest.
+ */
+export function formatShortAmount(value: number): string {
+  return numberFormatterFor('shortAmount', getNumberLocale(), undefined, {
+    notation: 'compact', minimumFractionDigits: 0, maximumFractionDigits: 1,
+  }).format(value).replace('-', '\u2212');
+}
+
 /** The currency's display glyph for input adornments (FR-L10N-020 — a hardcoded `$` prefix is
  *  the same weld formatCurrency had). Codes without a native symbol (IDR) honestly show the code. */
 export function currencySymbol(currency: string): string {
@@ -568,13 +602,9 @@ export function formatCurrencyCents(value: number, currency: string): string {
   return currencyFormatterFor('cents', currency, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 }
 
-// Money — default-fraction values (KPI tiles): "$1,234" / "$1,234.5" / "$1,234.56" (0–3 dp, no padding).
-// Uses `style: 'currency'` rather than welding a `$`, so a negative renders "-$1,234.5" exactly like
-// formatCurrencyCents/Fine. The welded form put the sign INSIDE the symbol ("$-1,234.5"), which left two
-// money values on one screen disagreeing about where the minus goes (#477 review). Positives are
-// byte-identical to the welded form — min 0 / max 3 reproduces the plain NumberFormat default range.
+// Money — whole-unit read-only display (#1437). Exact-cent reconciliation uses formatCurrencyCents.
 export function formatCurrencyAuto(value: number, currency: string): string {
-  return currencyFormatterFor('auto', currency, { minimumFractionDigits: 0, maximumFractionDigits: 3 }).format(value);
+  return formatCurrency(value, currency);
 }
 
 // Money — fine-grained agent/provider costs (sub-$1): "$0.0123" (2–4 dp, record currency).

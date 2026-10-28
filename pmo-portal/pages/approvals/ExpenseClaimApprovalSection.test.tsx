@@ -59,6 +59,16 @@ describe('ExpenseClaimApprovalSection', () => {
     expect(screen.queryByRole('link', { name: 'EXP-1' })).toBeNull();
     expect(screen.queryByRole('link', { name: 'EXP-3' })).toBeNull();
   });
+  it('AC-MONEY-DISPLAY rounds an approval card amount to whole currency units', () => {
+    const row = item('money', 'eng', { route: 'flat', approvers: [] });
+    row.claim.amount = 100.49;
+    row.claim.currency = 'USD';
+    h.data = [row];
+    render(<MemoryRouter><ExpenseClaimApprovalSection /></MemoryRouter>);
+    const claimItem = screen.getByRole('link', { name: 'EXP-money' }).closest('li')!;
+    expect(claimItem).toHaveTextContent('$100');
+    expect(claimItem).not.toHaveTextContent('$100.49');
+  });
   it('AC-EXP-064 renders nothing when nothing awaits the viewer', () => {
     h.data = [item('1', 'pm', null)];
     const { container } = render(<MemoryRouter><ExpenseClaimApprovalSection /></MemoryRouter>);

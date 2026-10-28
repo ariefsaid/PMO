@@ -200,14 +200,11 @@
     "operatorRecovery": "Buka pengaturan ERP organisasi"
   },
   "uxs02": {
-    "unavailable": "Tidak tersedia",
     "activeBudget": "Anggaran Aktif",
     "noActiveBudget": "Tidak ada anggaran aktif",
     "zeroActiveBudget": "Anggaran Aktif {{budget}}; pemakaian tidak tersedia",
     "riskUnavailableTitle": "Risiko anggaran proyek tidak dapat diperiksa",
     "riskUnavailableSub": "Informasi pengeluaran proyek dan anggaran Aktif tidak dapat diperiksa.",
-    "incompleteCoverage": "Cakupan sumber belum lengkap",
-    "restrictedRowsExcluded": "Baris terbatas dikecualikan",
     "budgetUsed": "{{percent}}% dari anggaran Aktif",
     "budgetSummary": "{{actual}} dari anggaran Aktif {{budget}}",
     "currencyMismatch": "Mata uang anggaran berbeda dari Aktual",
@@ -4356,7 +4353,6 @@
   },
   "uxs34": {
     "cumulativeScope": "Jumlah kumulatif · sejak awal proyek hingga {{month}}",
-    "backlogUnavailable": "Belum tersedia",
     "backlogReason": "Tagihan dalam mata uang asing perlu direkonsiliasi sebelum saldo ini dapat diketahui."
   },
   "comments": {
@@ -4563,8 +4559,8 @@
     "invoiced":"Ditagihkan", "settled":"Diselesaikan", "outstanding":"Belum dibayar",
     "settlementNote":"Penyelesaian tagihan (kas, potongan pajak, dan kredit), bukan kas diterima.",
     "margin":"Margin",
-    "differentCurrencies":"Tidak tersedia — mata uang berbeda", "workUnavailable":"Pendapatan pekerjaan ditagihkan belum tersedia",
-    "restricted":"Aktual tidak mencakup baris terbatas", "actualsUnavailable":"Belum tersedia",
+    "differentCurrencies":"Jumlah menggunakan mata uang berbeda.", "workUnavailable":"Pendapatan pekerjaan yang ditagihkan tidak dapat ditentukan.",
+    "restricted":"Aktual tidak mencakup baris terbatas", "actualsUnavailable":"Pengeluaran aktual masih menunggu konfirmasi.",
     "category":"Kategori", "unavailable":"Tidak tersedia",
     "loading":"Memuat keuangan proyek…", "error":"Keuangan proyek tidak dapat dimuat.", "retry":"Coba lagi",
     "mixedTaxBases":"Dasar pajak berbeda",
@@ -4574,7 +4570,7 @@
     "recordedSpending": "Pengeluaran tercatat",
     "pmoPurchaseOrders": "Pesanan pembelian PMO",
     "pmoCoverage": "Pesanan pembelian PMO yang dikomitmenkan",
-    "actualUnavailable": "Tidak tersedia",
+    "actualUnavailable": "Pengeluaran aktual masih menunggu konfirmasi.",
     "actualLoading": "Memuat Aktual…",
     "actualPartial": "Belum lengkap — lihat rincian pengeluaran",
     "completeCoverage": "Cakupan kategori lengkap",
@@ -4591,8 +4587,8 @@
     "onBudget": "Sesuai anggaran",
     "cashReceived": "Kas diterima",
     "cashReceivedScope": "Kas kuitansi yang tertaut ke faktur proyek ini",
-    "cashReceivedUnavailable": "Tidak tersedia — data kas berbasis kuitansi belum tersedia",
-    "cashReceivedInvalid": "Tidak tersedia — data kas berbasis kuitansi tidak dapat diverifikasi",
+    "cashReceivedUnavailable": "Kas yang tertaut ke kuitansi belum dilaporkan.",
+    "cashReceivedInvalid": "Kas yang tertaut ke kuitansi tidak dapat diverifikasi.",
     "cashReceivedIncomplete": "Belum lengkap — alokasi kuitansi belum dapat memastikan kas"
   },
   "invoiceProject": {

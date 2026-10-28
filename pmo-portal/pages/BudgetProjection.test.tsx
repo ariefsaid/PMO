@@ -1218,7 +1218,7 @@ describe('S-04 Forecast — outcome first, plain words, visible reasons, one mul
     await screen.findByText('Labor');
     expect(screen.getByTestId('dt-table-branch')).toBeInTheDocument();
     const row = screen.getByText('Labor').closest('tr')!;
-    expect(within(row).getByText('$400,000.5')).toBeInTheDocument();
+    expect(within(row).getByText('$400,001')).toBeInTheDocument();
     expect(within(row).getByText('$180,000')).toBeInTheDocument();
   });
 

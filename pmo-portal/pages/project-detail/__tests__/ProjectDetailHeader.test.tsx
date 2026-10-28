@@ -129,6 +129,15 @@ beforeEach(() => {
 afterEach(() => resetActiveLocale());
 
 describe('ProjectDetailHeader — content', () => {
+  it('AC-MONEY-DISPLAY: actual figures show rounded whole currency units', () => {
+    financeBox.data = { actuals: { currency: 'USD', total: '1800000.49', excludes_restricted_rows: false,
+      categories: [{ category: 'Labor', mapped: true, amount: '1800000.49' }] } };
+    renderHeader('Finance');
+    const actualTile = screen.getAllByTestId('stat-tile').find((tile) => tile.textContent?.includes('Actual'))!;
+    expect(actualTile).toHaveTextContent('$1,800,000');
+    expect(actualTile).not.toHaveTextContent('$1,800,000.49');
+  });
+
   it.each(['Project Manager', 'Finance'])('UIP-006: %s sees one idle contract amount and one tax-basis presentation', (role) => {
     renderHeader(role);
     expect(screen.getAllByText('$5,000,000')).toHaveLength(1);
@@ -153,8 +162,8 @@ describe('ProjectDetailHeader — content', () => {
     expect(screen.getByText('$5,000,000')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Edit contract value' })).toBeVisible();
     expect(disclosure).toHaveTextContent('PMO purchase orders$2,100,000');
-    expect(disclosure).toHaveTextContent('Actual$2,100,000.00');
-    expect(disclosure).toHaveTextContent('Contract remaining after cost$2,900,000.00');
+    expect(disclosure).toHaveTextContent('Actual$2,100,000');
+    expect(disclosure).toHaveTextContent('Contract remaining after cost$2,900,000');
     expect(disclosure).toHaveTextContent('Spend50%');
   });
 
@@ -212,14 +221,14 @@ describe('ProjectDetailHeader — content', () => {
     expect(screen.getByText('Actual')).toBeInTheDocument();
     expect(screen.getByText('Contract remaining after cost')).toBeInTheDocument();
     expect(screen.getAllByText('$5,000,000').length).toBeGreaterThan(0);
-    expect(screen.getByText('$3,200,000.00')).toBeInTheDocument();
+    expect(screen.getByText('$3,200,000')).toBeInTheDocument();
   });
 
   it('does not call an unknown contract value zero or claim no active budget while its read is pending', () => {
     budgetBox.data = undefined;
     budgetBox.isPending = true;
     renderHeader('Project Manager', { ...onHand, contract_value: null } as unknown as ProjectWithRefs);
-    expect(screen.getByTestId('contract-value-amount')).toHaveTextContent('Unavailable');
+    expect(screen.getByTestId('contract-value-amount')).toHaveTextContent("The contract value hasn't been entered.");
     expect(screen.queryByText('Loading budget…')).not.toBeInTheDocument();
     expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
   });
@@ -584,7 +593,7 @@ describe('ProjectDetailHeader — Actual tile derives from mapped project financ
       excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '1800000.00' }] } } as typeof financeBox.data;
     renderHeader('Finance', onHand, 2_100_000, 'not-tracked');
     const actual = Array.from(document.querySelectorAll('[data-testid="stat-tile"]')).find((tile) => tile.textContent?.includes('Actual'));
-    expect(actual).toHaveTextContent('Includes $300,000.00 attributed');
+    expect(actual).toHaveTextContent('Includes $300,000 attributed');
   });
 
   it('AC-CAT-016 leaves the Actual tile unchanged when attributed cost is zero', () => {
@@ -816,23 +825,23 @@ describe('ProjectDetailHeader — compact strip (AC-RD-HDR-001)', () => {
     expect(tileLabels()).toContain('PMO purchase orders');
   });
 
-  it('AC-RD-HDR-001: an incomplete Actual is "—" plus "Partial" — no prose, no coverage line in the figure slot', () => {
+  it('AC-MONEY-DISPLAY: an incomplete Actual omits the figure and states why once', () => {
     financeBox.data.actuals.categories.push({ category: 'Materials', mapped: false, amount: null });
     renderHeader('Finance');
     const tile = tileFor('Actual');
     const value = tile.children[1];
-    expect(value.querySelector('[aria-hidden="true"]')).toHaveTextContent('—');
-    expect(value.querySelector('.sr-only')).toHaveTextContent('Incomplete — see spending details');
+    expect(value).toHaveTextContent('Incomplete — see spending details');
+    expect(value.textContent).not.toBe('—');
     expect(value).not.toHaveTextContent('$');
     expect(tile.children[2]).toHaveTextContent(/^Partial$/);
     expect(tile).not.toHaveTextContent(/coverage|Updated/i);
   });
 
-  it('AC-RD-HDR-001: an unknown contract value is "—" with its reason, never "$0"', () => {
+  it('AC-MONEY-DISPLAY: an unknown contract value omits the figure and says what is missing', () => {
     renderHeader('Finance', { ...onHand, contract_value: null } as unknown as ProjectWithRefs);
     const amount = screen.getByTestId('contract-value-amount');
-    expect(amount.querySelector('[aria-hidden="true"]')).toHaveTextContent('—');
-    expect(amount.querySelector('.sr-only')).toHaveTextContent('Unavailable');
+    expect(amount).toHaveTextContent("The contract value hasn't been entered.");
+    expect(amount).not.toHaveTextContent('—');
     expect(amount).not.toHaveTextContent('$');
   });
 
