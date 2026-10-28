@@ -128,16 +128,13 @@ export const PMProjectArea: React.FC<PMProjectAreaProps> = ({
       });
     }
     for (const procurement of procurements) {
-      const supplier = procurement.vendor?.name;
       items.push({
         id: `procurement-${procurement.id}`,
         tone: 'warn',
         icon: 'check',
         count: 1,
         label: t('hub.pm.procurementApproval', 'Procurement waiting for your approval'),
-        sub: supplier
-          ? t('hub.pm.supplier', 'Supplier: {{name}}', { name: supplier })
-          : t('hub.pm.supplierUnavailable', 'Supplier unavailable'),
+        sub: [procurement.title, procurement.vendor?.name].filter(Boolean).join(' · ') || undefined,
         href: `/procurement?open=${encodeURIComponent(procurement.id)}`,
         tooltip: t('hub.pm.procurementApprovalHelp', 'Open this procurement to review its approval request.'),
       });

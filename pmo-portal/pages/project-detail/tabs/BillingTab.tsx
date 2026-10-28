@@ -56,7 +56,7 @@ function thisMonth(): string {
 const Figure: React.FC<{ testId: string; label: string; value: string; note?: string; source: string }> = ({ testId, label, value, note, source }) => (
   <div>
     <dt className="text-[12px] text-muted-foreground">{label}</dt>
-    <Tooltip content={source}><dd className="cursor-help tabular text-[15px] font-semibold" data-testid={testId}>{value}</dd></Tooltip>
+    <dd className="cursor-help tabular text-[15px] font-semibold" data-testid={testId}><Tooltip content={source}><span>{value}</span></Tooltip></dd>
     {note && <dd className="text-[11px] text-muted-foreground">{note}</dd>}
   </div>
 );
@@ -64,7 +64,7 @@ const Figure: React.FC<{ testId: string; label: string; value: string; note?: st
 const SourcedFigure: React.FC<{ label: string; value: string; detail: string }> = ({ label, value, detail }) => (
   <div>
     <dt className="text-[12px] text-muted-foreground">{label}</dt>
-    <Tooltip content={detail}><dd className="cursor-help tabular text-[15px] font-semibold">{value}</dd></Tooltip>
+    <dd className="cursor-help tabular text-[15px] font-semibold"><Tooltip content={detail}><span>{value}</span></Tooltip></dd>
   </div>
 );
 

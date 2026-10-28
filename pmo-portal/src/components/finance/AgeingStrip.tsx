@@ -94,7 +94,7 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, values }) => {
                 );
               })}
             </div>
-            <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-x-3 gap-y-2">
+            <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-x-3 gap-y-2">
               {bucketKeys.map((key, index) => (
                 <div key={key} className="grid min-w-0 grid-cols-[10px_minmax(0,1fr)_auto] items-center gap-x-2">
                   <span aria-hidden="true" className={`size-2.5 shrink-0 rounded-full ${BUCKET_COLORS[key]}`} />

@@ -317,8 +317,6 @@
       "overdueTasksHelp": "Tugas pada proyek ini dengan tanggal selesai sebelum hari ini.",
       "procurementApproval": "Pengadaan menunggu persetujuan Anda",
       "procurementApprovalHelp": "Buka pengadaan ini untuk meninjau permintaan persetujuannya.",
-      "supplier": "Pemasok: {{name}}",
-      "supplierUnavailable": "Pemasok tidak tersedia",
       "atRiskAtLeast": "Setidaknya {{count}}",
       "riskPartial": "Pada 90% atau lebih dari anggaran; proyek lain memiliki data anggaran atau pengeluaran yang belum lengkap"
     },
@@ -432,7 +430,6 @@
       "readyToPay": "Siap dibayar",
       "budgetReview": "Tinjauan anggaran",
       "procurement": "Pengadaan",
-      "supplier": "Pemasok",
       "supplierInvoiced": "Ditagihkan pemasok",
       "supplierQuoted": "Penawaran pemasok",
       "amount": "Jumlah",

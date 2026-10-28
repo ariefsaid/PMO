@@ -25,7 +25,7 @@ function currencyLead(values: Record<string, number>, preferred?: string | null)
   const [primary, ...rest] = entries;
   return {
     lead: primary ? formatCurrency(primary[1] / 100, primary[0]) : '',
-    others: rest.map(([currency, cents]) => formatCurrencyWithCode(cents / 100, currency)),
+    others: rest.filter(([, cents]) => cents !== 0).map(([currency, cents]) => formatCurrencyWithCode(cents / 100, currency)),
   };
 }
 

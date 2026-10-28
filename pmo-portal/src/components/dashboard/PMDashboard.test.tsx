@@ -180,7 +180,7 @@ describe('Project Manager area hub', () => {
 
   it('shows project-specific risk, overdue task, and procurement links without work actions', () => {
     state.procurements.data = [{
-      id: 'pr1', project_id: 'p1', requested_by_id: 'another-user', status: 'Requested', approvalRoute: null,
+      id: 'pr1', project_id: 'p1', requested_by_id: 'another-user', status: 'Requested', approvalRoute: null, title: 'Inverter spares',
     }];
     renderDashboard();
 
@@ -189,6 +189,8 @@ describe('Project Manager area hub', () => {
     expect(within(area as HTMLElement).getByRole('link', { name: /budget is at least 90% spent/i })).toHaveAttribute('href', '/projects/p1');
     expect(within(area as HTMLElement).getByRole('link', { name: /2 overdue tasks/i })).toHaveAttribute('href', '/projects/p1/tasks');
     expect(within(area as HTMLElement).getByRole('link', { name: /procurement waiting for your approval/i })).toHaveAttribute('href', '/procurement?open=pr1');
+    expect(within(area as HTMLElement).getByText('Inverter spares')).toBeInTheDocument();
+    expect(within(area as HTMLElement).queryByText(/supplier unavailable/i)).not.toBeInTheDocument();
     expect(screen.getAllByText('Nothing needs you here.').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: /^(approve|submit|create)/i })).not.toBeInTheDocument();
   });

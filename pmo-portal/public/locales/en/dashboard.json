@@ -317,8 +317,6 @@
       "overdueTasksHelp": "Tasks on this project with an end date before today.",
       "procurementApproval": "Procurement waiting for your approval",
       "procurementApprovalHelp": "Open this procurement to review its approval request.",
-      "supplier": "Supplier: {{name}}",
-      "supplierUnavailable": "Supplier unavailable",
       "atRiskAtLeast": "At least {{count}}",
       "riskPartial": "At 90% or more of budget; other projects have incomplete budget or spending data"
     },
@@ -432,7 +430,6 @@
       "readyToPay": "Ready to pay",
       "budgetReview": "Budget review",
       "procurement": "Procurement",
-      "supplier": "Supplier",
       "supplierInvoiced": "Supplier invoiced",
       "supplierQuoted": "Supplier quoted",
       "amount": "Amount",

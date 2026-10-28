@@ -126,9 +126,9 @@ const PayablesPage: React.FC = () => {
       description={t('financeHub:hub.payablesDescription', 'Supplier invoices waiting to be paid.')}
       count={finance.position.payables.length}
     >
-      <section aria-label={t('financeHub:hub.payablesFigures', 'Payables figures')} className="mb-5 grid gap-3 sm:grid-cols-2">
-        <article className="min-w-0 rounded-lg border border-border bg-card p-4">
-          <div className="text-sm font-medium text-muted-foreground">{t('financeHub:hub.toPaySuppliers', 'To pay suppliers')}</div>
+      <section aria-label={t('financeHub:hub.payablesFigures', 'Payables figures')} className="mb-5 grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2">
+        <article className="min-w-0 bg-card p-4">
+          <div className="flex items-center gap-1 text-sm font-medium text-muted-foreground">{t('financeHub:hub.toPaySuppliers', 'To pay suppliers')}<Tooltip content={t('financeHub:hub.payablesHint', 'Sum of recorded supplier invoices waiting for payment, grouped by currency.')}><button type="button" aria-label={t('financeHub:hub.figureHelp', 'How this figure is calculated')} className="-my-1 inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
           {finance.isPending ? <div role="status" className="mt-2 h-7 w-36 animate-pulse rounded bg-muted" /> : (() => {
             const totals = Object.entries(finance.position.payablesTotals).sort(([left], [right]) => left === orgCurrency ? -1 : right === orgCurrency ? 1 : left.localeCompare(right));
             const [lead, ...others] = totals;
@@ -141,15 +141,15 @@ const PayablesPage: React.FC = () => {
               })()}
             </>;
           })()}
-          <Tooltip content={t('financeHub:hub.payablesHint', 'Sum of recorded supplier invoices waiting for payment, grouped by currency.')}><button type="button" aria-label={t('financeHub:hub.figureHelp', 'How this figure is calculated')} className="mt-1 inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip>
+          
         </article>
-        <article className="min-w-0 rounded-lg border border-border bg-card p-4">
-          <div className="text-sm font-medium text-muted-foreground">{t('financeHub:hub.oldestWaiting', 'Oldest waiting')}</div>
+        <article className="min-w-0 bg-card p-4">
+          <div className="flex items-center gap-1 text-sm font-medium text-muted-foreground">{t('financeHub:hub.oldestWaiting', 'Oldest waiting')}<Tooltip content={t('financeHub:hub.oldestPayableHint', 'Calendar days since the supplier invoice was recorded, using the oldest payable invoice.')}><button type="button" aria-label={t('financeHub:hub.figureHelp', 'How this figure is calculated')} className="-my-1 inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
           {finance.isPending ? <div role="status" className="mt-2 h-7 w-24 animate-pulse rounded bg-muted" /> : <>
             <div className="mt-1 text-[20px] font-bold tabular">{oldest ? t('financeHub:hub.daysWaiting', '{{count}} days', { count: oldest.ageDays }) : '—'}</div>
             <div className="mt-1 text-sm text-muted-foreground">{t('financeHub:hub.fix.payables.oldestMeaning', 'Calendar days since the supplier invoice was recorded')}</div>
           </>}
-          <Tooltip content={t('financeHub:hub.oldestPayableHint', 'Calendar days since the supplier invoice was recorded, using the oldest payable invoice.')}><button type="button" aria-label={t('financeHub:hub.figureHelp', 'How this figure is calculated')} className="mt-1 inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip>
+          
         </article>
       </section>
       {!finance.isPending && !finance.isError && <AgeingStrip kind="payables" values={finance.position.payablesAgeing} />}

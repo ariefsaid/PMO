@@ -19,7 +19,8 @@
   "quotes": { "chosen": "Chosen", "validUntil": "Valid until", "vsChosen": "vs chosen" },
   "close": "Close",
   "approval": { "withinLimit": "Within your limit", "goesTo": "Goes to {{name}}", "note": "Approval note (optional)" },
-  "sod": { "approverHint": "You may approve or reject this request. The requester cannot self-approve — separation of duties requires a different reviewer." },
+  "sod": { "approverHint": "You may approve or reject this request. The requester cannot self-approve — separation of duties requires a different reviewer.", "approverCannotPay": "Payment must be released by a different finance user — the approver can't also pay this request.", "payerHint": "Releasing payment — the approver can't also pay (separation of duties).", "preAnnounce": "Submitting hands this to another approver — you can't approve your own request." },
+  "gate": { "addLineItem": "Add at least one line item before submitting." },
   "waiting": {
     "approval": "Waiting for approval",
     "engineerApproval": "Waiting for approval by a project manager or Finance",

@@ -62,6 +62,8 @@ export interface ProcurementBlockProps {
   showCreate?: boolean;
   /** Extra filter controls the host page owns (e.g. the company list's URL filters), shown in the toolbar. */
   toolbarExtra?: React.ReactNode;
+  /** Clears the host page's filters too when the user clears a zero-match table. */
+  onClearFilters?: () => void;
 }
 
 export const ProcurementStageBand: React.FC<React.PropsWithChildren<{ label: string }>> = ({ label, children }) => (
@@ -284,7 +286,7 @@ function ProcurementBudgetLeft({
   );
 }
 
-export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, rowFilter, rowOrder, showCreate = true, toolbarExtra }) => {
+export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, rowFilter, rowOrder, showCreate = true, toolbarExtra, onClearFilters }) => {
   const { t } = useTranslation('procurement');
   const { currentUser, role } = useAuth();
   const navigate = useNavigate();
@@ -837,6 +839,9 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
           : projectId && erp.data?.length
             ? t('uxs19.projectEmptyScope', 'Purchases recorded in the accounting system appear below.')
             : undefined}
+        emptyAction={hasUnfilteredRows ? { label: t('projectDetail.procurement.emptyFiltered.clear', 'Clear filters'), onClick: () => {
+          setSearch(''); setCategoryFilter(''); setOwnerFilter(''); setSelectedStage(null); onClearFilters?.();
+        } } : undefined}
         errorTitle={projectId ? t('projectDetail.procurement.error.title', "Couldn't load procurement") : t('procurement.error.title', "Couldn't load procurement")}
         errorSub={globalErrorSub}
         onRetry={() => { void refetch(); }}

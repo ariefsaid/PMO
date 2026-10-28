@@ -210,7 +210,8 @@
       },
       "emptyFiltered": {
         "title": "Tidak ada permintaan pengadaan yang cocok dengan filter ini.",
-        "sub": "Sesuaikan pencarian atau filter, lalu coba lagi."
+        "sub": "Sesuaikan pencarian atau filter, lalu coba lagi.",
+        "clear": "Hapus filter"
       },
       "bulk": {
         "approve": "Setujui",

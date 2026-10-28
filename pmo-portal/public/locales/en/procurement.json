@@ -210,7 +210,8 @@
       },
       "emptyFiltered": {
         "title": "No procurement matches these filters.",
-        "sub": "Adjust the search or filters and try again."
+        "sub": "Adjust the search or filters and try again.",
+        "clear": "Clear filters"
       },
       "bulk": {
         "approve": "Approve",

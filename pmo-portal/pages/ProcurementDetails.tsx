@@ -18,6 +18,7 @@ import {
   tabId,
   tabPanelId,
   useToast,
+  useIsNarrow,
   ProjectNameLink,
   CompanyNameLink,
   type TabItem,
@@ -108,7 +109,8 @@ const INVOICE_PAY_ROLES = new Set(['Finance', 'Admin']);
 type ProcTab = 'timeline' | 'items' | 'quotes' | 'files' | 'details';
 const PROC_TAB_VALUES: ProcTab[] = ['timeline', 'items', 'quotes', 'files', 'details'];
 function tabFromParam(param: string | undefined): ProcTab {
-  if (param === 'overview' || param === 'documents' || param === 'history') return 'timeline';
+  if (param === 'documents') return 'files';
+  if (param === 'overview' || param === 'history') return 'timeline';
   if (param && (PROC_TAB_VALUES as string[]).includes(param)) return param as ProcTab;
   return 'timeline';
 }
@@ -356,6 +358,7 @@ const ProcurementDetails: React.FC = () => {
   const [captureKind, setCaptureKind] = useState<RecordKind | null>(null);
   const [recordMenuOpen, setRecordMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const isNarrow = useIsNarrow();
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(tabParam === 'history');
   const quoteAutoOpen = useRef(false);
@@ -435,7 +438,7 @@ const ProcurementDetails: React.FC = () => {
   useEffect(() => {
     if (!tabParam || !['overview', 'documents', 'history'].includes(tabParam)) return;
     if (tabParam === 'history') setHistoryOpen(true);
-    navigate(`/procurement/${procurementId}/timeline${location.search}`, {
+    navigate(`/procurement/${procurementId}/${tabParam === 'documents' ? 'files' : 'timeline'}${location.search}`, {
       replace: true,
       state: withTabSwitchNavState(location.state),
     });
@@ -660,9 +663,18 @@ const ProcurementDetails: React.FC = () => {
     && ((p.payments?.length ?? 0) > 0 || p.status === 'Vendor Invoiced');
   const gateMsg = sodGateMessage(p, role, isRequester)
     ?? (paidNeedsValue ? t('procurement:detail.paidNeedsValue', 'Add a line item or a document with an amount before marking this paid.') : null);
+  // SoD-b teaching at Vendor Invoiced: the viewer who may release payment learns why the approver cannot, and the
+  // approver who cannot pay learns who can. Display-only; the transition RPC enforces it.
+  const payerSodNote = p.status === 'Vendor Invoiced' && INVOICE_PAY_ROLES.has(role)
+    ? isApprover
+      ? t('procurementRecord:sod.approverCannotPay', "Payment must be released by a different finance user — the approver can't also pay this request.")
+      : actionFor('Paid')
+        ? t('procurementRecord:sod.payerHint', "Releasing payment — the approver can't also pay (separation of duties).")
+        : null
+    : null;
   const decisionContextNote = p.status === 'Requested' && isRequester ? null : gateMsg ?? (p.status === 'Requested' && !isRequester && actionFor('Approved')
     ? t('procurementRecord:sod.approverHint', 'You may approve or reject this request. The requester cannot self-approve — separation of duties requires a different reviewer.')
-    : null);
+    : payerSodNote);
   // AC-IXD-PROC-005: a create affordance disappears once its stage has passed.
   // The GR form is offered only while goods are being received (Ordered |
   // Received); the VI form only while the request is at Vendor Invoiced. Neither
@@ -1155,6 +1167,8 @@ const ProcurementDetails: React.FC = () => {
       />}
       {approverLimitLine && <p className="mt-2 text-[12.5px] font-medium text-muted-foreground">{approverLimitLine}</p>}
       {decisionContextNote && <p data-testid="sod-ready-hint" className="mb-3 text-[12.5px] text-muted-foreground">{decisionContextNote}</p>}
+      {isDraft && p.items.length === 0 && mainAction?.to === 'Requested' && <p data-testid="line-items-gate" className="mb-3 text-[12.5px] text-muted-foreground">{t('procurementRecord:gate.addLineItem', 'Add at least one line item before submitting.')}</p>}
+      {isDraft && isRequester && <p data-testid="sod-pre-announce" className="mb-3 text-[12.5px] text-muted-foreground">{t('procurementRecord:sod.preAnnounce', "Submitting hands this to another approver — you can't approve your own request.")}</p>}
       {routeNote && !(showVICapture || showCreateGR || showCreateVI) && <p data-testid="approval-route-note" className="mb-3 text-[12.5px] text-muted-foreground">{routeNote}</p>}
       {mainAction?.to === 'Approved' && <label className="mb-4 mt-2 block max-w-xl text-[12px] font-medium text-muted-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
         <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-[13px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
@@ -1432,7 +1446,7 @@ const ProcurementDetails: React.FC = () => {
         mutations={mutations}
       />}
 
-      {mainAction && <>
+      {mainAction && isNarrow && <>
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card p-3 shadow-[0_-2px_10px_hsl(var(--foreground)/0.06)] sm:hidden">
           <div className="mx-auto flex max-w-3xl gap-2">
             <Button variant="primary" className="min-h-11 flex-1" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>

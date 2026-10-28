@@ -155,7 +155,6 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
           <div className="divide-y divide-border border-y border-border">
             {waiting.map((item) => (
               <div key={item.key} className="flex min-w-0 items-center gap-3 py-2.5">
-                <span className="w-9 shrink-0 text-[18px] font-bold tabular">{item.count}</span>
                 <span className="min-w-0 flex-1">
                   <Tooltip content={item.hint}><span tabIndex={0} className="block text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{item.label}</span></Tooltip>
                   {item.detail.map((line, index) => <span key={`${item.key}-${index}`} className="block truncate text-xs text-muted-foreground">{line}</span>)}

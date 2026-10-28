@@ -289,7 +289,7 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
               [t('projectDetail.budget.costToFinish', 'Cost to finish'), formatCurrencyAuto(selected.pmoEtc, currency), t('projectDetail.budget.etcSource', 'PM estimate to complete, saved for this fiscal year.')],
               [t('projectDetail.budget.forecastFinal', 'Forecast final'), moneyText(selected.projectedFinalCost, currency), t('projectDetail.budget.forecastFinalFormula', 'Calculated as ERP spending to date plus cost to finish.')],
               [t('projectDetail.budget.forecastRemaining', 'Forecast remaining'), moneyText(selected.projectedVariance, currency), t('projectDetail.budget.forecastRemainingFormula', 'Calculated as fiscal-year budget minus forecast final. Negative values are an overrun.')],
-            ].map(([label, value, source]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><Tooltip content={source}><dd tabIndex={0} className="mt-1 font-semibold tabular-nums">{value}</dd></Tooltip></div>)}
+            ].map(([label, value, source]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 font-semibold tabular-nums"><Tooltip content={source}><span tabIndex={0}>{value}</span></Tooltip></dd></div>)}
           </dl>
           <section aria-labelledby="forecast-records-heading" className="space-y-2">
             <h3 id="forecast-records-heading" className="text-sm font-semibold">{t('projectDetail.budget.recordsBehindSpending', 'Records behind the spending')}</h3>
