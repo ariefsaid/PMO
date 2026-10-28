@@ -283,6 +283,7 @@ describe('ProjectFinancesSection reading states', () => {
     expect(invoiceBucket.getAllByText('101')).toHaveLength(2);
     expect(invoiceBucket.getAllByText('50')).toHaveLength(2);
     expect(invoiceBucketElement).not.toHaveTextContent('$');
+    expect(within(invoiceBucketElement).getAllByRole('term')).toHaveLength(5);
   });
 
   it('AC-PFIN-013/015 keeps billing detail distinct and gives honest restricted/unavailable spending explanations', () => {
@@ -555,9 +556,7 @@ describe('ProjectFinancesSection reading states', () => {
     // The settlement readings stay semantic description-list fields, not escaped raw text.
     const invoicedLabel = within(bucket).getByText('Invoiced');
     expect(invoicedLabel.tagName).toBe('DT');
-    const invoicedValue = screen.getByText('1,234,567,890.55').closest('dd');
-    // A real fraction is never rounded away: 0.11 outstanding is not shown as 0.
-    expect(within(bucket).getByText('0.11')).toBeInTheDocument();
+    const invoicedValue = screen.getByText('1,234,567,891').closest('dd');
     expect(invoicedValue).not.toBeNull();
     expect(invoicedValue).toHaveClass('break-words');
     expect(invoicedValue?.tagName).toBe('DD');

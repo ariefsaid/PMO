@@ -154,7 +154,10 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
   it('AC-RD-RISK-001: unbudgeted active projects are named in the Delivery panel, so zero at risk is not read as all clear', async () => {
     h.dash = { ...base, risk_unchecked_projects: 2 };
     renderExec();
-    expect(await screen.findByText(/projects without an active budget; risk can't be checked yet/)).toBeInTheDocument();
+    const notice = /projects without an active budget; risk can't be checked yet/;
+    expect(await screen.findByText(notice)).toBeInTheDocument();
+    expect(screen.getAllByText(notice)).toHaveLength(1);
+    expect(screen.queryByText(/0 projects at risk\. All .* currently on track/)).not.toBeInTheDocument();
   });
 
   it('AC-RD-SPEND-001: complete actuals carry no partial marker', () => {

@@ -48,6 +48,7 @@ const archiveTargetsState = {
   data: [] as Array<Record<string, unknown>>,
   refetch: vi.fn(),
 };
+archiveTargetsState.refetch.mockImplementation(() => Promise.resolve({ data: archiveTargetsState.data, error: null }));
 const positionState = { isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [] as unknown[], unknown: 0 };
 const procurementsState = { data: [] as unknown[], isPending: false, isError: false };
 const budgetPushState = vi.hoisted(() => ({ rows: [] as Array<Record<string, unknown>> }));
@@ -230,7 +231,7 @@ function resetState() {
   activationPrecheckState.isError = false;
   activationPrecheckState.refetch = vi.fn();
   archiveTargetsState.data = [];
-  archiveTargetsState.refetch = vi.fn();
+  archiveTargetsState.refetch = vi.fn().mockImplementation(() => Promise.resolve({ data: archiveTargetsState.data, error: null }));
   positionState.isPending = false;
   positionState.isError = false;
   positionState.refetch = vi.fn();
@@ -593,31 +594,35 @@ describe('ProjectBudget Draft version actions', () => {
   });
 
   it('clears an earlier activation warning when the operator starts another budget action', async () => {
+    roleState.realRole = 'Finance';
     mockActivate.mockResolvedValueOnce({ pushState: 'failed' });
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     renderPage();
 
-    await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
     await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
     expect(await findToastAnnouncement('alert', /activated/i)).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: /New version/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Delete draft/i }));
     expect(screen.queryByText('Version activated — but ERPNext was not updated')).not.toBeInTheDocument();
     resetState();
   });
 
   it('keeps an unresolved error when New version is opened and cancelled', async () => {
     budgetState.data = 0;
-    versionsState.data = [draftVersion];
+    versionsState.data = [activeVersion];
     render(
       <FinanceI18nTestProvider>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <MemoryRouter>
           <ToastProvider>
             <UnresolvedErrorToast />
             <ProjectBudget projectId="p-1" project={project} />
           </ToastProvider>
         </MemoryRouter>
+        </QueryClientProvider>
       </FinanceI18nTestProvider>,
     );
 
@@ -765,6 +770,7 @@ describe('ProjectBudget Draft version actions', () => {
   });
 
   it('issue #1421: lists missing readiness on the Draft and disables confirmation until fixed', async () => {
+    roleState.realRole = 'Finance';
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     activationPrecheckState.data = {
@@ -781,7 +787,7 @@ describe('ProjectBudget Draft version actions', () => {
     renderPage();
 
     expect(screen.getByTestId('budget-readiness-summary')).toHaveTextContent(/Materials/i);
-    await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
     expect(activationPrecheckState.refetch).toHaveBeenCalled();
     const confirm = screen.getByRole('button', { name: /Activate version/i });
     expect(screen.getByRole('dialog')).toHaveTextContent(/Materials/i);
@@ -790,11 +796,12 @@ describe('ProjectBudget Draft version actions', () => {
   });
 
   it('issue #1421: a native budget activates without ERP findings', async () => {
+    roleState.realRole = 'Finance';
     versionsState.data = [{ ...draftVersion, line_items: [{ ...draftVersion.line_items[0], fiscal_year: null }] }];
     activationPrecheckState.data = { status: 'ready', erpCheck: 'not-required', fiscalYearNames: null, issues: [] };
     renderPage();
     expect(screen.getByTestId('budget-readiness-summary')).toBeEmptyDOMElement();
-    await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
     const confirm = screen.getByRole('button', { name: /Activate version/i });
     expect(confirm).toBeEnabled();
     expect(screen.getByRole('dialog')).not.toHaveTextContent(/ERPNext/);
@@ -808,11 +815,12 @@ describe('ProjectBudget Draft version actions', () => {
   ] as const)('issue #1421: %s outage copy describes the next push check', (locale, message) => {
     versionsState.data = [draftVersion];
     activationPrecheckState.data = { status: 'erp-unavailable', erpCheck: 'unavailable', fiscalYearNames: null, issues: [] };
-    render(<BahasaProvider locale={locale}><MemoryRouter><ToastProvider><ProjectBudget projectId="p-1" project={project} /></ToastProvider></MemoryRouter></BahasaProvider>);
+    render(<BahasaProvider locale={locale}><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter><ToastProvider><ProjectBudget projectId="p-1" project={project} /></ToastProvider></MemoryRouter></QueryClientProvider></BahasaProvider>);
     expect(screen.getByTestId('budget-readiness-summary')).toHaveTextContent(message);
   });
 
   it('issue #1421: clearly reports an unavailable ERP check and still permits PMO activation', async () => {
+    roleState.realRole = 'Finance';
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     activationPrecheckState.data = {
@@ -824,7 +832,7 @@ describe('ProjectBudget Draft version actions', () => {
     renderPage();
 
     expect(screen.getByTestId('budget-readiness-summary')).toHaveTextContent(/couldn't check ERPNext/i);
-    await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
     const confirm = screen.getByRole('button', { name: /Activate version/i });
     expect(screen.getByRole('dialog')).toHaveTextContent(/checked again when the budget is pushed/i);
     expect(screen.getByRole('dialog')).not.toHaveTextContent(/push will retry/i);
@@ -878,6 +886,7 @@ describe('ProjectBudget Active version actions', () => {
     }];
     renderPage();
 
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
     const confirm = screen.getByRole('alertdialog');
     expect(within(confirm).getByRole('checkbox', { name: 'Also cancel 2 Budget documents in ERPNext' })).toHaveAttribute('aria-checked', 'true');
@@ -898,6 +907,7 @@ describe('ProjectBudget Active version actions', () => {
     }];
     renderPage();
 
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
     const confirm = screen.getByRole('alertdialog');
     expect(within(confirm).queryByRole('checkbox')).not.toBeInTheDocument();

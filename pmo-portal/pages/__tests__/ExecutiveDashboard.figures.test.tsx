@@ -147,8 +147,9 @@ describe('company figures — ported money oracles', () => {
     renderPage();
     expect(screen.queryByText(/Forecast margin/)).not.toBeInTheDocument();
     const pipeline = tile('Pipeline (weighted)');
-    expect(within(pipeline).getByRole('button', { name: 'The accounting source did not provide a comparable amount.' })).toBeInTheDocument();
-    expect(within(pipeline).queryByText('The accounting source did not provide a comparable amount.', { selector: ':not(.sr-only)' })).toBeNull();
+    const unavailable = within(pipeline).getByRole('status');
+    expect(unavailable).toHaveTextContent('The accounting source did not provide a comparable amount.');
+    expect(unavailable).not.toHaveTextContent(/\$|\d/);
   });
 
   it('AC-RD-MONEY-003: in an IDR org a USD on-hand row names its currency by code, never a bare "$"', () => {
@@ -173,7 +174,8 @@ describe('company win rate — ported AC-1115 / FR-SPD-013', () => {
     renderPage();
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
     fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
-    expect(within(screen.getByTestId('win-rate-value-USD')).getByText('92.5%')).toBeInTheDocument();
+    expect(within(screen.getByTestId('win-rate-currency-USD')).getByRole('progressbar', { name: /USD win rate on decided bids/i }))
+      .toHaveAttribute('aria-valuetext', '92.5%');
     fireEvent.click(screen.getByTestId('win-rate-toggle-count'));
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
 
