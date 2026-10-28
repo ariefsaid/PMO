@@ -148,6 +148,25 @@ beforeEach(async () => {
 afterEach(() => resetActiveLocale());
 
 describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
+  it.each([
+    ['en', 'Remaining', 'Forecast remaining / (overrun)', '% used', 'Forecast budget used'],
+    ['id', 'Sisa', 'Perkiraan sisa / (kelebihan)', '% terpakai', 'Perkiraan anggaran terpakai'],
+  ])('AC-1440: keeps forecast headers short with their full meaning available in %s', async (locale, remaining, remainingMeaning, used, usedMeaning) => {
+    await financeTestI18n.changeLanguage(locale);
+    renderPage();
+    const table = await screen.findByRole('table');
+    const remainingHeader = table.querySelector('th[data-col-key="remaining"]');
+    const usedHeader = table.querySelector('th[data-col-key="used"]');
+    const remainingLabel = remainingHeader?.querySelector('[title]');
+    const usedLabel = usedHeader?.querySelector('[title]');
+    expect(remainingHeader).toHaveAccessibleName(remainingMeaning);
+    expect(remainingLabel).toHaveAttribute('title', remainingMeaning);
+    expect(remainingLabel).toHaveTextContent(remaining);
+    expect(usedHeader).toHaveAccessibleName(usedMeaning);
+    expect(usedLabel).toHaveAttribute('title', usedMeaning);
+    expect(usedLabel).toHaveTextContent(used);
+  });
+
   it('AC-CAT-005: localizes Special expenses in the projection without changing its amounts', async () => {
     fetchMock.mockResolvedValue([{ ...ROW, category: 'Special expenses' }]);
     render(<BahasaProvider><MemoryRouter><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ToastProvider><BudgetProjection projectId="proj-1" /></ToastProvider></QueryClientProvider></MemoryRouter></BahasaProvider>);
@@ -175,11 +194,25 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
   });
 
   // ── H-4 (audit r3): the screen's fiscal year must come from the data, never from the calendar. ──
-  it('H-4 defaults to the fiscal year the Active version was pushed against, not the calendar year', async () => {
+  it('H-4 defaults to a listed year with spending rather than the calendar year', async () => {
     renderPage();
     await screen.findByText('Labor');
     expect(fetchMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR);
     expect(fetchMock).not.toHaveBeenCalledWith('proj-1', String(new Date().getFullYear()));
+  });
+
+  it('AC-1424 defaults to the first listed year with recorded actuals before a later active-push year', async () => {
+    yearsMock.mockResolvedValue([
+      { fiscalYear: '2028', isActivePush: true },
+      { fiscalYear: '2026', isActivePush: false },
+      { fiscalYear: '2024', isActivePush: false },
+    ]);
+    fetchMock.mockImplementation(async (_projectId, fiscalYear) => fiscalYear === '2026' ? [ROW] : []);
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: /fiscal year/i })).toHaveValue('2026');
+    });
+    expect(fetchMock).toHaveBeenCalledWith('proj-1', '2026');
   });
 
   it("H-4 offers ONLY fiscal years that exist for this project — a synthesized calendar year can never be selected", async () => {
@@ -1235,8 +1268,8 @@ describe('S-04 Forecast — outcome first, plain words, visible reasons, one mul
     await screen.findByText('Labor');
     const heads = screen.getAllByRole('columnheader').map((h) => h.textContent);
     expect(heads).toEqual([
-      'Category', 'Budget', 'Forecast final cost', 'Forecast remaining / (overrun)',
-      'Recorded spending', 'Cost to finish', 'Forecast budget used',
+      'Category', 'Budget', 'Forecast final cost', 'Remaining',
+      'Recorded spending', 'Cost to finish', '% used',
     ]);
   });
 

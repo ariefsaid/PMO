@@ -55,9 +55,11 @@ describe('LinkErpDocumentsDialog', () => {
     expect(texts.find((t) => t.includes('Imported'))).toContain('different currency');
     expect(texts.find((t) => t.includes('Imported'))).not.toContain('different supplier');
     expect(texts.find((t) => t.includes('Steel'))).not.toMatch(/different/);
-    // D1 render: the mark leads the sub-line so truncation never hides it.
+    // Warning marks are separate badges; the secondary detail line remains available for supplier and stage.
     const cablesSub = screen.getAllByRole('option').find((o) => o.textContent?.includes('Cables'))!.querySelector('[title]');
-    expect(cablesSub?.textContent).toMatch(/^different supplier · /);
+    expect(screen.getByText('different supplier')).toHaveClass('shrink-0', 'whitespace-nowrap');
+    expect(cablesSub?.textContent).not.toContain('different supplier');
+    expect(screen.getByText('different currency')).toHaveClass('shrink-0', 'whitespace-nowrap');
     for (const hidden of ['Settled', 'Old', 'Other', 'Unscoped', 'Pending']) expect(texts.some((t) => t.includes(hidden))).toBe(false);
   });
 

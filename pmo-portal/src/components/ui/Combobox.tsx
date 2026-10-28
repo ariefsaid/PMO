@@ -36,6 +36,8 @@ export interface ComboboxOption {
   label: string;
   /** Optional secondary line (e.g. "Client" / "Vendor"). */
   sub?: string;
+  /** Optional non-truncating labels shown as separate badges in the option row. */
+  badges?: string[];
   /** Optional 2-letter avatar + color for the chip/row. */
   initials?: string;
   color?: string;
@@ -403,15 +405,37 @@ export const Combobox: React.FC<ComboboxProps> = ({
                       onMouseEnter={() => setActive(i)}
                       onClick={() => select(opt)}
                       className={cn(
-                        'flex h-[34px] cursor-pointer items-center gap-2.5 rounded-sm px-[9px] text-[13.5px]',
+                        'flex cursor-pointer gap-2.5 rounded-sm px-[9px] text-[13.5px]',
+                        opt.badges?.length ? 'min-h-[34px] items-start py-1.5' : 'h-[34px] items-center',
                         isSelected && 'bg-primary/[0.07]',
                         isActive && !isSelected && 'bg-accent',
                       )}
                     >
                       <Avatar opt={opt} size={22} />
-                      <span className="min-w-0 truncate">{opt.label}</span>
-                      {opt.sub && (
-                        <span title={opt.sub} className="ml-1.5 min-w-0 shrink-[3] truncate text-[11.5px] text-muted-foreground">{opt.sub}</span>
+                      {opt.badges?.length ? (
+                        <div className="min-w-0 flex-1">
+                          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                            <span className="min-w-0 flex-1 truncate">{opt.label}</span>
+                            {opt.badges.map((badge) => (
+                              <span
+                                key={badge}
+                                className="shrink-0 whitespace-nowrap rounded-full bg-warning/10 px-1.5 py-0.5 text-[10.5px] font-medium leading-none text-warning-foreground"
+                              >
+                                {badge}
+                              </span>
+                            ))}
+                          </div>
+                          {opt.sub && (
+                            <span title={opt.sub} className="mt-1 block min-w-0 truncate text-[11.5px] text-muted-foreground">{opt.sub}</span>
+                          )}
+                        </div>
+                      ) : (
+                        <>
+                          <span className="min-w-0 truncate">{opt.label}</span>
+                          {opt.sub && (
+                            <span title={opt.sub} className="ml-1.5 min-w-0 shrink-[3] truncate text-[11.5px] text-muted-foreground">{opt.sub}</span>
+                          )}
+                        </>
                       )}
                       {isSelected && (
                         <Icon name="check" className="ml-auto size-[15px] shrink-0 text-primary" />

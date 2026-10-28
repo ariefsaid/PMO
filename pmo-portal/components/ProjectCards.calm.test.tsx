@@ -45,6 +45,26 @@ const money = (over: Partial<ProjectMoneyRead> = {}): ProjectMoneyRead => ({
 }) as ProjectMoneyRead;
 
 describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
+  it('AC-1242: top-aligns the Budget used label and keeps the risk warning outside the bar row once', () => {
+    render(<ProjectCard
+      project={project}
+      onOpen={vi.fn()}
+      deliverySummary={{ deliveryPct: 40, committedSpend: 0, budget: 0 }}
+      projectMoney={money({
+        actuals: {
+          currency: 'USD', total: '950.00', asOf: null, excludesRestrictedRows: false,
+          categories: [{ category: 'Labor', mapped: true, amount: '950.00' }],
+        },
+        activeBudgetAmount: '1000.00',
+      })}
+    />);
+    const card = screen.getByTestId('project-card');
+    const bars = screen.getByTestId('project-card-bars');
+    expect(bars).toHaveClass('items-start');
+    expect(within(bars).queryByText('At risk')).not.toBeInTheDocument();
+    expect(within(card).getAllByText('At risk')).toHaveLength(1);
+  });
+
   it('a card with no Active budget says "No active budget" once, and has no Budget used row', () => {
     render(<ProjectCard project={project} onOpen={vi.fn()} deliverySummary={{ deliveryPct: 40, committedSpend: 0, budget: 0 }}
       projectMoney={money({ activeBudgetAmount: null, activeBudgetCurrency: null, hasActiveBudget: false })} />);

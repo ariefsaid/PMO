@@ -106,7 +106,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
       {((deliverySummary && deliverySummary.deliveryPct != null) || budgetUsedPct != null) && (
         <div
           data-testid="project-card-bars"
-          className="grid grid-cols-[auto_1fr] items-center gap-x-2.5 gap-y-1.5"
+          className="grid grid-cols-[auto_1fr] items-start gap-x-2.5 gap-y-1.5"
         >
           {deliverySummary && deliverySummary.deliveryPct != null && (
             <>
@@ -129,7 +129,6 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
                   tone={atRisk ? 'destructive' : budgetUsedPct >= 70 ? 'warning' : undefined}
                   aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent: budgetUsedPct })}
                 />
-                {atRisk && <span className="text-[11px] font-semibold text-warning">{t('uxs02.atRisk', 'At risk')}</span>}
               </div>
             </>
           )}
@@ -191,9 +190,12 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
       client={project.client ? companyDisplayName(project.client) : null}
       clientId={project.client_id}
       status={
-        <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>
-          {project.status}
-        </StatusPill>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>
+            {project.status}
+          </StatusPill>
+          {atRisk && <StatusPill variant="warn">{t('uxs02.atRisk', 'At risk')}</StatusPill>}
+        </div>
       }
       body={body}
       foot={foot}

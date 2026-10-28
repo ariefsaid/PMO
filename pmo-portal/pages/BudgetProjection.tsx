@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ListState, GateNotice, Button, StatusPill, NumberField, DataTable, useToast, type Column } from '@/src/components/ui';
-import { summarizeProjection } from '@/src/lib/budget/budgetProjection';
+import { chooseDefaultBudgetFiscalYear, summarizeProjection } from '@/src/lib/budget/budgetProjection';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
@@ -165,22 +165,43 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
   });
   const fiscalYears = useMemo(() => yearsQuery.data ?? [], [yearsQuery.data]);
 
-  // Derived, never an effect: the user's pick wins; otherwise the year the ACTIVE version was pushed
-  // against; otherwise the newest on record; otherwise `null` = "no fiscal year on record" (a real
-  // state, not a placeholder). A pick that is no longer offered falls back the same way.
+  // The projection RPC is the source of truth for whether a listed year has spending. FY labels are
+  // client-defined strings, so use the repository's newest-first order and never parse their names.
+  const defaultYearQuery = useQuery<string | null>({
+    queryKey: [
+      'budget-default-fiscal-year',
+      projectId,
+      fiscalYears.map(({ fiscalYear, isActivePush }) => ({ fiscalYear, isActivePush })),
+    ],
+    queryFn: async () => {
+      const yearsWithSpending = new Set<string>();
+      for (const year of fiscalYears) {
+        const rows = await fetchBudgetProjection(projectId, year.fiscalYear);
+        qc.setQueryData(['budget-projection', projectId, year.fiscalYear], rows);
+        if (rows.some((row) => row.actualsToDate !== null && row.actualsToDate !== 0)) {
+          yearsWithSpending.add(year.fiscalYear);
+          break;
+        }
+      }
+      return chooseDefaultBudgetFiscalYear(fiscalYears, yearsWithSpending);
+    },
+    enabled: yearsQuery.isSuccess,
+  });
+
+  // A user's pick wins; otherwise wait for the data-backed default. A pick that is no longer offered
+  // falls back to the same rule. With no listed year, null is the real "no year on record" state.
   const [pickedYear, setPickedYear] = useState<string | null>(null);
   const fiscalYear = useMemo<string | null>(() => {
     if (pickedYear && fiscalYears.some((y) => y.fiscalYear === pickedYear)) return pickedYear;
-    return fiscalYears.find((y) => y.isActivePush)?.fiscalYear ?? fiscalYears[0]?.fiscalYear ?? null;
-  }, [pickedYear, fiscalYears]);
+    return defaultYearQuery.data ?? null;
+  }, [pickedYear, fiscalYears, defaultYearQuery.data]);
 
   const queryKey = useMemo(() => ['budget-projection', projectId, fiscalYear] as const, [projectId, fiscalYear]);
   const { data, isPending, isError, refetch } = useQuery<BudgetProjectionCellRow[]>({
     queryKey,
     queryFn: () => fetchBudgetProjection(projectId, fiscalYear),
-    // Never read the projection off a GUESSED year: until the real years are known (or their read has
-    // failed) there is no honest year to ask for.
-    enabled: yearsQuery.isSuccess,
+    // Never read the projection off a guessed year or while spending checks establish the default.
+    enabled: yearsQuery.isSuccess && fiscalYear !== null,
   });
 
   // ⚑ C-3/C-5 — the push status is read at PROJECT grain, independently of the fiscal year and of the
@@ -403,20 +424,16 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
     }
   };
 
-  // ⚑ Error BEFORE loading: the projection query is `enabled` on the fiscal-year read, and a DISABLED
-  // react-query stays `pending` forever — so checking loading first would render an eternal skeleton
-  // instead of naming a failed year read.
-  //
-  // A failed fiscal-year read is reported, never worked around: falling back to a guessed year would
-  // put a zeroed money screen in front of the user with no sign anything went wrong (H-4).
-  if (yearsQuery.isError || isError) {
+  // Errors BEFORE loading: selection depends on both the fiscal-year list and its spending reads.
+  // A failed read is reported, never worked around with a guessed year that could show zeroed figures.
+  if (yearsQuery.isError || defaultYearQuery.isError || isError) {
     return (
       <ListState
         variant="error"
         title={t('financeCopy.budgetProjectionLoadFailed', "Couldn't load the budget projection")}
         sub={t('financeCopy.theRequestFailedCheckYourConnectionAndTryAgain', "The request failed. Check your connection and try again.")}
         onRetry={() => {
-          void (yearsQuery.isError ? yearsQuery.refetch() : refetch());
+          void (yearsQuery.isError ? yearsQuery.refetch() : defaultYearQuery.isError ? defaultYearQuery.refetch() : refetch());
         }}
       />
     );
@@ -429,7 +446,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
   // "budgeted in 2027". A failed phasing read is deliberately NOT gated on: it is not pending, so the
   // ladder's fail-OPEN path takes over (say the weaker true thing), rather than wedging the whole money
   // grid behind an explanatory read.
-  if (yearsQuery.isPending || isPending || categoryPhasingQuery.isPending) {
+  if (yearsQuery.isPending || defaultYearQuery.isPending || (fiscalYear !== null && isPending) || categoryPhasingQuery.isPending) {
     return (
       <div className="rounded-lg border border-border bg-card">
         <ListState variant="loading" rows={5} testId="budget-projection-loading" />
@@ -569,7 +586,14 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
       cell: (row) => money(row.pmoBudgetAmount, reasonsFor(row).budgetReason, orgCurrency) },
     { key: 'finalCost', header: t('uxs04.forecastFinalCost', 'Forecast final cost'), kind: 'money', align: 'num', size: 160,
       cell: (row) => money(row.projectedFinalCost, reasonsFor(row).derivedReason, orgCurrency) },
-    { key: 'remaining', header: t('uxs04.forecastRemainingOver', 'Forecast remaining / (overrun)'), kind: 'money', align: 'num', size: 180,
+    { key: 'remaining', header: (
+      <span
+        title={t('uxs04.forecastRemainingOver', 'Forecast remaining / (overrun)')}
+        aria-label={t('uxs04.forecastRemainingOver', 'Forecast remaining / (overrun)')}
+      >
+        {t('projectTabs:budgetForecast.remainingShort', 'Remaining')}
+      </span>
+    ), kind: 'money', align: 'num', size: 180,
       cell: (row) => row.projectedVariance !== null && row.projectedVariance < 0
         ? <span className="text-destructive-text">{formatCurrencyAuto(row.projectedVariance, orgCurrency)}</span>
         : money(row.projectedVariance, reasonsFor(row).derivedReason, orgCurrency) },
@@ -605,7 +629,14 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
         </div>
       ) : formatCurrencyAuto(row.pmoEtc, orgCurrency),
     },
-    { key: 'used', header: t('uxs04.forecastBudgetUsed', 'Forecast budget used'), kind: 'percent', align: 'num', size: 120,
+    { key: 'used', header: (
+      <span
+        title={t('uxs04.forecastBudgetUsed', 'Forecast budget used')}
+        aria-label={t('uxs04.forecastBudgetUsed', 'Forecast budget used')}
+      >
+        {t('projectTabs:budgetForecast.budgetUsedShort', '% used')}
+      </span>
+    ), kind: 'percent', align: 'num', size: 120,
       cell: (row) => row.projectedUtilization === null
         ? <Unavailable reason={reasonsFor(row).derivedReason} />
         : pct(row.projectedUtilization * 100) },
