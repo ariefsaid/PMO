@@ -621,7 +621,7 @@ describe('ProjectDetailHeader — Actual tile derives from mapped project financ
     financeBox.data.actuals.categories.push({ category: 'Materials', mapped: false, amount: null });
     renderHeader();
     const actualTile = Array.from(document.querySelectorAll('[data-testid="stat-tile"]')).find((el) => el.textContent?.includes('Actual'));
-    expect(actualTile?.textContent).toContain('Incomplete — see spending details');
+    expect(actualTile?.textContent).toContain('Partial');
     expect(actualTile?.textContent).not.toContain('$1,780,000');
   });
 
@@ -830,9 +830,7 @@ describe('ProjectDetailHeader — compact strip (AC-RD-HDR-001)', () => {
     renderHeader('Finance');
     const tile = tileFor('Actual');
     const value = tile.children[1];
-    expect(value).toHaveTextContent('Incomplete — see spending details');
-    expect(value.textContent).not.toBe('—');
-    expect(value).not.toHaveTextContent('$');
+    expect(value).toBeEmptyDOMElement();
     expect(tile.children[2]).toHaveTextContent(/^Partial$/);
     expect(tile).not.toHaveTextContent(/coverage|Updated/i);
   });

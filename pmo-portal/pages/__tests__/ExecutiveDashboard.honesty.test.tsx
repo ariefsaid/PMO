@@ -117,8 +117,8 @@ describe('ExecutiveDashboard honesty — labels match values (AC-IXD-DASH-001/00
     renderPage();
     const tile = screen.getByTestId('kpi-pipeline-projected-margin');
     expect(within(tile).getByText(/Pipeline forecast margin/i)).toBeInTheDocument();
-    // It shows ONLY the weighted pipeline projected margin (20.0%) — no on-hand option.
-    expect(tile).toHaveTextContent('20.0%');
+    // It shows ONLY the weighted pipeline projected margin (20%) — no on-hand option.
+    expect(tile).toHaveTextContent('20%');
     // No dual-lens toggle remains (one metric name = one number).
     expect(within(tile).queryByRole('tab', { name: /On-hand/i })).toBeNull();
     expect(within(tile).queryByRole('tab', { name: /Weighted/i })).toBeNull();

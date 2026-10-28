@@ -175,12 +175,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const contractUnavailable = t('project:moneyDisplay.contractUnavailable', "The contract value hasn't been entered.");
   const purchaseOrdersUnavailable = t('project:moneyDisplay.purchaseOrdersUnavailable', 'Purchase order totals are still being confirmed.');
   const actualFigure: React.ReactNode = moneyPosition.headlineState === 'available' && actualPosition.amount !== null && actualPosition.currency
-    ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language, { wholeUnits: true }) ?? <UnknownFigure reason={actualUnavailable} />
-    : moneyPosition.headlineState === 'loading'
-      ? <UnknownFigure reason={t('uxs01.actualLoading', 'Loading Actual…')} />
-      : moneyPosition.headlineState === 'partial'
-        ? <UnknownFigure reason={t('uxs01.actualPartial', 'Incomplete — see spending details')} />
-        : <UnknownFigure reason={actualUnavailable} />;
+    ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language, { wholeUnits: true })
+    : null;
   const attributedActual = actualPosition.basis === 'erp' && actualPosition.complete && authorizedActuals
     ? attributedSplit({ attributed: authorizedActuals.attributed_total })
     : null;
@@ -286,7 +282,11 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           </span>}
           {/* A PMO-basis Actual is the committed figure; name other currencies once, here only when no PMO tile does. */}
           {actualPosition.basis === 'pmo' && commitmentSource !== 'pmo' && <OtherCurrencyCommitments positions={committedOtherCurrencies} />}</>
-        : moneyPosition.headlineState === 'partial' ? t('dashboard:spend.partial', 'Partial') : undefined },
+        : moneyPosition.headlineState === 'partial'
+          ? t('dashboard:spend.partial', 'Partial')
+          : moneyPosition.headlineState === 'loading'
+            ? t('uxs01.actualLoading', 'Loading Actual…')
+            : actualUnavailable },
     ...(contractAfterCostLabel === null
       ? []
       : [{

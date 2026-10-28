@@ -4353,7 +4353,8 @@
   },
   "uxs34": {
     "cumulativeScope": "Cumulative amounts · since project start through {{month}}",
-    "backlogReason": "A foreign-currency invoice needs reconciliation before this balance can be known."
+    "backlogReason": "A foreign-currency invoice needs reconciliation before this balance can be known.",
+    "backlogUnavailable": "The foreign-currency invoice backlog needs reconciliation before this balance can be known."
   },
   "comments": {
     "title": "Comments",

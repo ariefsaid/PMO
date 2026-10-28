@@ -85,6 +85,7 @@ const ManagementPack: React.FC = () => {
         : undefined;
   const invalidRange = (error as { code?: string } | null)?.code === '22023';
   const backlogReason = t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.');
+  const backlogUnavailable = t('uxs34.backlogUnavailable', 'The foreign-currency invoice backlog needs reconciliation before this balance can be known.');
   const backlogNeedsReview = pack?.totals.some((total) => total.months.some((month) => month.backlog === null)) ?? false;
 
   const setMonth = (key: 'from' | 'to', value: string) => {
@@ -300,7 +301,7 @@ const ManagementPack: React.FC = () => {
             <h2 className="mb-2 text-sm font-semibold">{tot.currency}</h2>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {KPI_MEASURES.map((k) => {
-                const figure = moneyFigure(m[k] === null ? null : fromCents(m[k]), tot.currency, backlogReason,
+                const figure = moneyFigure(m[k] === null ? null : fromCents(m[k]), tot.currency, backlogUnavailable,
                   { labelHasCurrency: true });
                 return <KPITile key={k} label={label[k]} value={figure.value}
                   exactValue={figure.exactValue} icon="dollar" tone="blue" />;

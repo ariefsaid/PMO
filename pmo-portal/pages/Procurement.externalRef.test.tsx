@@ -85,7 +85,7 @@ describe('Procurement index — external reference search (#769)', () => {
 
   it("AC-EXT-001: the list search matches a record's external reference (case-insensitive)", async () => {
     renderPage();
-    await userEvent.type(screen.getByPlaceholderText(/Filter requests/i), 'prq-0026100001');
+    await userEvent.type(screen.getByPlaceholderText(/Filter procurement records/i), 'prq-0026100001');
     expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
     expect(screen.queryByText('Crane hire — 6 weeks')).not.toBeInTheDocument();
   });

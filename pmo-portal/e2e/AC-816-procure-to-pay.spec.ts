@@ -165,7 +165,7 @@ test('AC-816 full procure-to-pay happy path: Draft→Requested→Approved→Orde
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Received', { timeout: 10_000 });
 
-  await page.getByRole('button', { name: 'Mark Vendor Invoiced' }).click();
+  await page.getByRole('button', { name: 'Mark Supplier Invoiced' }).click();
   // The inline capture replaces the action button (not a bare transition).
   await expect(page.getByTestId('vi-inline-capture')).toBeVisible({ timeout: 5_000 });
   // The invoice's receipt status — N1: "Paid" is NOT offered here ("Mark as Paid" is the sole

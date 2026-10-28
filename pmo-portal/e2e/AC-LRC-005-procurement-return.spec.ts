@@ -46,7 +46,7 @@ test(
     await expect(page).toHaveURL(/[?&]status=Paid/);
     await expect(page.getByText('PV Modules — Atlas 2.8 MW')).toBeVisible();
     await expect(page.getByText('String Inverters & Combiner Boxes')).not.toBeVisible();
-    const search = page.getByRole('searchbox', { name: /Filter requests/i });
+    const search = page.getByRole('searchbox', { name: /Filter procurement records/i });
     await search.fill('Meridian');
     await expect(page).toHaveURL(/[?&]q=Meridian/);
     await expect(page.getByText('PV Modules — Atlas 2.8 MW')).not.toBeVisible();

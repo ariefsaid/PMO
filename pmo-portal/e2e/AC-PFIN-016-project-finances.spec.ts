@@ -14,7 +14,7 @@ import { signIn, requireServiceRoleKey, waitForFonts } from './helpers';
 //  2. It navigates to the filtered invoice list (/sales-invoices?attribution=unassigned).
 //  3. Finance opens the invoice's row menu → "Assign project" → picks the project → Save.
 //  4. The attribution persists: DB link + the invoice leaves the unassigned filter + the project
-//     Overview finance section reads USD 100.00 invoiced / 75.00 settled / 25.00 outstanding,
+//     Overview finance section reads USD 100 invoiced / 75 settled / 25 outstanding,
 //     "No budget" — and the same goal survives a reload.
 //  5. No adapter command (ERP push) is issued: PMO attribution only. The spy routes ONLY the
 //     adapter-dispatch endpoint — never the assignment RPC or read-model responses.
@@ -136,10 +136,10 @@ test('AC-PFIN-016: Finance assigns an adopted invoice to a project — attributi
   await expect(section).toBeVisible({ timeout: 20_000 });
   const usd = page.getByTestId('project-finances-USD');
   await expect(usd).toBeVisible({ timeout: 20_000 });
-  await expect(usd).toContainText('$100.00'); // Invoiced
-  await expect(usd).toContainText('$75.00');  // Settled (100 − 25 outstanding)
-  await expect(usd).toContainText('$25.00');  // Outstanding
-  await expect(usd).not.toContainText('$0.00'); // no zero-masking of unknowns
+  await expect(usd).toContainText('$100'); // Invoiced
+  await expect(usd).toContainText('$75');  // Settled (100 − 25 outstanding)
+  await expect(usd).toContainText('$25');  // Outstanding
+  await expect(usd).not.toContainText('$0'); // no zero-masking of unknowns
   // PD-C: the budget gap is no longer restated in Project finances (Overview shows no budget card).
   await expect(section).not.toContainText('No budget');
 
@@ -147,9 +147,9 @@ test('AC-PFIN-016: Finance assigns an adopted invoice to a project — attributi
   await page.reload();
   await expect(page.getByTestId('project-finances')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('project-finances-USD')).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByTestId('project-finances-USD')).toContainText('$100.00');
-  await expect(page.getByTestId('project-finances-USD')).toContainText('$75.00');
-  await expect(page.getByTestId('project-finances-USD')).toContainText('$25.00');
+  await expect(page.getByTestId('project-finances-USD')).toContainText('$100');
+  await expect(page.getByTestId('project-finances-USD')).toContainText('$75');
+  await expect(page.getByTestId('project-finances-USD')).toContainText('$25');
   await expect(page.getByTestId('project-finances')).not.toContainText('No budget');
 
   // ── Step 6: no adapter command was ever dispatched ──────────────────────────────────────────
@@ -168,7 +168,7 @@ test('AC-PFIN-015 support: project finance mobile layout', async ({ page }) => {
   const usd = page.getByTestId('project-finances-USD');
   await expect(usd).toBeVisible({ timeout: 20_000 });
   await waitForFonts(page);
-  await expect(usd).toContainText('$25.00');
+  await expect(usd).toContainText('$25');
   const fits = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
   expect(fits).toBe(true);
 

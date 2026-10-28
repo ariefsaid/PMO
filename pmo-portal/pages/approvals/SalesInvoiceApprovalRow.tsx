@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ApprovalRow, Button, Icon, ProjectNameLink, TaxBasisLabel } from '@/src/components/ui';
 import { useInvoiceProjectOptions } from '@/src/hooks/useFkOptions';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
-import { formatCurrencyAuto } from '@/src/lib/format';
+import { formatCurrencyCents } from '@/src/lib/format';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { invoiceGross, invoiceNet, nativeInvoiceSummary } from '@/src/lib/revenue/nativeInvoice';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
@@ -20,7 +20,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
   const { data: profiles } = useAssignableProfiles();
   const projectName = useMemo(() => projects?.find((p) => p.value === inv.project_id)?.contractualName ?? null, [projects, inv.project_id]);
   const authorName = useMemo(() => profiles?.find((p) => p.id === inv.author_user_id)?.full_name ?? null, [profiles, inv.author_user_id]);
-  const money = (n: number | null) => (n != null ? formatCurrencyAuto(n, inv.currency) : '—');
+  const money = (n: number | null) => (n != null ? formatCurrencyCents(n, inv.currency) : '—');
   const net = invoiceNet(inv);
   const lines = inv.native_lines ?? [];
 
@@ -111,7 +111,7 @@ export const SalesInvoiceApprovalRow: React.FC<{ inv: SalesInvoiceRow; onApprove
     <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
       <span className="min-w-0 truncate">{nativeInvoiceSummary(inv) ?? '—'}</span>
       <span className="inline-flex items-baseline gap-1.5">
-        <span className="tabular font-medium text-foreground">{inv.amount != null ? formatCurrencyAuto(inv.amount, inv.currency) : '—'}</span>
+        <span className="tabular font-medium text-foreground">{inv.amount != null ? formatCurrencyCents(inv.amount, inv.currency) : '—'}</span>
         <TaxBasisLabel
           treatment={inv.tax_treatment}
           taxRate={inv.tax_rate}

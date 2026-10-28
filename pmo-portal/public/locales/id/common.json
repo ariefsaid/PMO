@@ -4353,7 +4353,8 @@
   },
   "uxs34": {
     "cumulativeScope": "Jumlah kumulatif · sejak awal proyek hingga {{month}}",
-    "backlogReason": "Tagihan dalam mata uang asing perlu direkonsiliasi sebelum saldo ini dapat diketahui."
+    "backlogReason": "Tagihan dalam mata uang asing perlu direkonsiliasi sebelum saldo ini dapat diketahui.",
+    "backlogUnavailable": "Backlog tagihan dalam mata uang asing perlu direkonsiliasi sebelum saldo ini dapat diketahui."
   },
   "comments": {
     "title": "Komentar",
