@@ -88,10 +88,24 @@ export interface WinRate {
   losses_count: number;
   /** #774: declined-to-bid deals in the period — NOT part of either win-rate denominator. */
   declined_count?: number;
+  /** Open pipeline bids created in the selected period (current status, not a decision date). */
+  open_count?: number;
+  /** Current open bids whose current stage began at least 90 days ago. */
+  stale_count?: number;
   wins_value: number | null;
   losses_value: number | null;
   win_rate_count: number;
   win_rate_value: number | null;
+  /** Count and value inputs for both win-rate and all-bid conversion, kept separate by currency. */
+  bids_by_currency?: Array<{
+    currency: string;
+    wins_count: number;
+    losses_count: number;
+    open_count: number;
+    wins_value: number;
+    losses_value: number;
+    open_value: number;
+  }>;
   value_by_currency?: Array<{
     currency: string;
     wins_value: number;
@@ -156,6 +170,8 @@ export interface PipelineProject extends ProjectClassification {
    * Optional only for defensive typing; the RPC always supplies it for a real project.
    */
   last_update?: string;
+  /** Last recorded project status change, falling back to created_at when no status event exists. */
+  stage_started_at?: string;
   /**
    * The project manager's full name (profiles.full_name resolved via the pm join).
    * AVAILABILITY: same as last_update — supplied for open pipeline rows by get_sales_pipeline()

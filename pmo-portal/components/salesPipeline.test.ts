@@ -7,6 +7,7 @@ import {
   openOpportunity,
   dealJourneySteps,
   formatPercent,
+  isStaleBid,
 } from './salesPipeline';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 
@@ -143,5 +144,14 @@ describe('salesPipeline presentation helpers (AC-SP-204)', () => {
     expect(formatPercent(0.5)).toBe('50%');
     expect(formatPercent(0.25)).toBe('25%');
     expect(formatPercent(0)).toBe('0%');
+  });
+
+  it('AC-1441: marks an open bid stale at 90 days in its current stage, but not terminal or undated rows', () => {
+    const now = Date.now();
+    const atDaysAgo = (days: number) => new Date(now - days * 24 * 60 * 60 * 1000).toISOString();
+    expect(isStaleBid({ status: 'Tender Submitted', stage_started_at: atDaysAgo(90) })).toBe(true);
+    expect(isStaleBid({ status: 'Tender Submitted', stage_started_at: atDaysAgo(89) })).toBe(false);
+    expect(isStaleBid({ status: 'Tender Submitted' })).toBe(false);
+    expect(isStaleBid({ status: 'Ongoing Project', stage_started_at: atDaysAgo(120) })).toBe(false);
   });
 });

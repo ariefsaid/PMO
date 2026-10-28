@@ -9,6 +9,7 @@ import {
   projectStatusGroup,
 } from '@/src/lib/db/projectTransitions';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
+import { OPEN_BID_STATUSES, STALE_BID_THRESHOLD_DAYS } from '@/src/lib/dashboardConstants';
 
 /**
  * Kanban column model (OD-SP-1 / FR-SPD-014). Seven columns in fixed order: the five open
@@ -96,6 +97,15 @@ export const SALES_COLUMNS: readonly SalesColumn[] = [
  * positive from missing data, per the honest-dashboard rule.
  */
 export const ATTENTION_THRESHOLD_DAYS = 30;
+
+/** An open bid is stale after 90 days without a move to a new pipeline stage. */
+export function isStaleBid(
+  project: Pick<PipelineProject, 'status' | 'stage_started_at'>,
+): boolean {
+  if (!OPEN_BID_STATUSES.has(project.status as string)) return false;
+  const ageInDays = daysSince(project.stage_started_at);
+  return ageInDays !== null && ageInDays >= STALE_BID_THRESHOLD_DAYS;
+}
 
 /**
  * Returns the number of days since the given ISO timestamp, or null if the
