@@ -69,4 +69,4 @@ begin
 end $$;
 revoke all on function public.refresh_procurement_recorded_total(uuid, boolean) from public, anon, authenticated;
 
-drop function if exists public.procurement_document_total(uuid, uuid, smallint, numeric, numeric, text);
+drop function if exists public.procurement_document_total(uuid, jsonb);

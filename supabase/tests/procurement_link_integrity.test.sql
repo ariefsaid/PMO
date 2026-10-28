@@ -10,7 +10,7 @@
 --   (g) a native purchase value reconciles linked ERP documents and PMO records, including ERP cancellation.
 -- The two-session lock proofs for (f) are in procurement_unlink_lock_order.test.sql.
 begin;
-select plan(54);
+select plan(61);
 
 create extension if not exists dblink;
 
@@ -271,6 +271,53 @@ reset request.jwt.claims;
 select is((select total_value from procurements where id = '03720000-0000-0000-0000-000000000e11'), 300::numeric,
   'cancelling a linked ERP order does not replace an item-derived purchase total');
 reset role;
+
+-- G3 regressions: batch refresh, delayed mirror recovery, and ERP-origin precedence.
+reset role;
+insert into procurements (id, org_id, title, requested_by_id, project_id, currency, total_value, status, origin)
+select ('03720000-0000-0000-0000-000000000e' || n)::uuid, org_id, 'G3 regression ' || n,
+       requested_by_id, project_id, currency, 0, 'Draft', case when n = '14' then 'erp_link' else null end
+  from procurements cross join unnest(array['12','13','14']) n
+ where id = '03720000-0000-0000-0000-000000000e10';
+insert into erp_purchase_documents (org_id, erp_doctype, erp_name, supplier, currency, net_total, grand_total, erp_docstatus, project_ids, erp_modified)
+select '03720000-0000-0000-0000-00000000000a', kind, name, 'SUP-1', 'IDR', amount, amount, 1,
+       array['03720000-0000-0000-0000-0000000000d1']::uuid[], '2026-02-01'
+  from (values ('Purchase Order','PO-BATCH-A',100), ('Purchase Order','PO-BATCH-B',50),
+               ('Purchase Order','PO-RECOVER',100), ('Purchase Order','PO-ORIGIN',100),
+               ('Purchase Invoice','PINV-ORIGIN',150)) d(kind,name,amount);
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"03720000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((select count(*)::int from jsonb_array_elements(link_erp_purchase_documents('[
+ {"erp_name":"PO-BATCH-A","procurement_id":"03720000-0000-0000-0000-000000000e12"},
+ {"erp_name":"PO-BATCH-B","procurement_id":"03720000-0000-0000-0000-000000000e12"},
+ {"erp_name":"PO-RECOVER","procurement_id":"03720000-0000-0000-0000-000000000e13"},
+ {"erp_name":"PO-ORIGIN","procurement_id":"03720000-0000-0000-0000-000000000e14"},
+ {"erp_name":"PINV-ORIGIN","procurement_id":"03720000-0000-0000-0000-000000000e14"}]') -> 'results') r where r->>'outcome' = 'link'), 5, 'fixture: all G3 regression documents link');
+select is((select total_value from procurements where id = '03720000-0000-0000-0000-000000000e12'), 150::numeric,
+  'fixture: the batch purchase starts with both linked orders');
+select is((select total_value from procurements where id = '03720000-0000-0000-0000-000000000e13'), 100::numeric,
+  'fixture: the recovery purchase starts with its linked order');
+reset role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select upsert_erp_purchase_documents('03720000-0000-0000-0000-00000000000a', $$[
+ {"erp_doctype":"Purchase Order","erp_name":"PO-BATCH-A","supplier":"SUP-1","currency":"IDR","grand_total":100,"net_total":100,"erp_docstatus":2,"erp_project":"ERP-A","erp_modified":"2026-02-02"},
+ {"erp_doctype":"Purchase Order","erp_name":"PO-BATCH-B","supplier":"SUP-1","currency":"IDR","grand_total":50,"net_total":50,"erp_docstatus":2,"erp_project":"ERP-A","erp_modified":"2026-02-02"},
+ {"erp_doctype":"Purchase Order","erp_name":"PO-MAN","supplier":"SUP-1","currency":"IDR","grand_total":100,"net_total":100,"erp_docstatus":2,"erp_project":"ERP-A","erp_modified":"2026-02-02"}
+]$$::jsonb);
+select is((select total_value from procurements where id = '03720000-0000-0000-0000-000000000e12'), 0::numeric,
+  'AC-G3-001 cancelling two linked orders in one upsert refreshes their combined derived value');
+select is((select total_value from procurements where id = '03720000-0000-0000-0000-0000000000e9'), 800::numeric,
+  'a typed purchase value stays unchanged by the same batch cancellation');
+insert into external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id)
+values ('03720000-0000-0000-0000-00000000000a','procurement','03720000-0000-0000-0000-000000000f13','erpnext','PO-RECOVER');
+insert into purchase_orders (id, procurement_id, org_id, status, amount, currency, po_number)
+values ('03720000-0000-0000-0000-000000000f13','03720000-0000-0000-0000-000000000e13',
+        '03720000-0000-0000-0000-00000000000a','Issued',100,'IDR','PO-RECOVER');
+select is((select total_value from procurements where id = '03720000-0000-0000-0000-000000000e13'), 100::numeric,
+  'AC-G3-002 a PMO mirror recovered after linking counts the canonical ERP order once');
+select is((select total_value from procurements where id = '03720000-0000-0000-0000-000000000e14'), 100::numeric,
+  'AC-G3-003 ERP-origin purchases retain order-first value over a larger invoice');
+reset request.jwt.claims;
 
 -- (a) the org purchase rules are read for active members only.
 update organizations set procurement_gates = '{"approval_before_order": true}' where id = '03720000-0000-0000-0000-00000000000a';

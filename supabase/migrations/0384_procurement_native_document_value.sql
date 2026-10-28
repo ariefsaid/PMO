@@ -3,15 +3,10 @@
 -- order total and pre-tax invoice total. Otherwise use linked receipts, then payments. Cancellations,
 -- currency mismatches and superseded invoices do not count. Rollback: rollback/0384_procurement_native_document_value_down.sql
 
--- Shared basis. The optional ERP-document override lets the AFTER UPDATE trigger compare the purchase
--- total to the basis immediately before a mirrored ERP document change.
+-- The optional old-row map reconstructs the whole statement's pre-update basis.
 create function public.procurement_document_total(
   p_procurement_id uuid,
-  p_override_document_id uuid default null,
-  p_override_docstatus smallint default null,
-  p_override_net_total numeric default null,
-  p_override_grand_total numeric default null,
-  p_override_currency text default null
+  p_override_documents jsonb default '{}'::jsonb
 ) returns numeric
 language sql volatile security definer set search_path = public, pg_catalog as $$
   with purchase as (
@@ -19,20 +14,31 @@ language sql volatile security definer set search_path = public, pg_catalog as $
       from public.procurements p
      where p.id = p_procurement_id
   ), erp_candidates as (
-    select d.id, d.erp_doctype,
-           case when d.id = p_override_document_id then p_override_docstatus else d.erp_docstatus end as docstatus,
-           case when d.id = p_override_document_id then p_override_currency else d.currency end as currency,
-           case when d.id = p_override_document_id then coalesce(p_override_net_total, p_override_grand_total)
+    select d.id, d.erp_doctype, d.erp_name,
+           case when p_override_documents ? d.id::text
+                then (p_override_documents -> d.id::text ->> 'erp_docstatus')::smallint else d.erp_docstatus end as docstatus,
+           case when p_override_documents ? d.id::text
+                then p_override_documents -> d.id::text ->> 'currency' else d.currency end as currency,
+           case when p_override_documents ? d.id::text
+                then coalesce((p_override_documents -> d.id::text ->> 'net_total')::numeric,
+                              (p_override_documents -> d.id::text ->> 'grand_total')::numeric)
                 else coalesce(d.net_total, d.grand_total) end as amount,
            p.currency as purchase_currency
       from purchase p
       join public.procurement_erp_links l on l.procurement_id = p.id and l.org_id = p.org_id
       join public.erp_purchase_documents d on d.id = l.erp_purchase_document_id and d.org_id = p.org_id
+  -- A recovered PMO mirror defers to its linked ERP identity, including cancellation state.
   ), documents as (
     select 'Purchase Order'::text as doctype, po.amount
       from purchase p
       join public.purchase_orders po on po.procurement_id = p.id and po.org_id = p.org_id
      where p.origin is distinct from 'erp_link'
+       and not exists (
+         select 1 from erp_candidates e
+         join public.external_refs x on x.org_id = p.org_id and x.domain = 'procurement'
+           and x.external_tier = 'erpnext' and x.external_record_id = e.erp_name
+           and x.pmo_record_id = po.id::text
+         where e.erp_doctype = 'Purchase Order')
        and po.amount is not null and po.currency is not distinct from p.currency
        and coalesce(po.erp_docstatus, 1) <> 2 and po.erp_cancelled_at is null
     union all
@@ -41,6 +47,12 @@ language sql volatile security definer set search_path = public, pg_catalog as $
       from purchase p
       join public.procurement_invoices i on i.procurement_id = p.id and i.org_id = p.org_id
      where p.origin is distinct from 'erp_link'
+       and not exists (
+         select 1 from erp_candidates e
+         join public.external_refs x on x.org_id = p.org_id and x.domain = 'procurement'
+           and x.external_tier = 'erpnext' and x.external_record_id = e.erp_name
+           and x.pmo_record_id = i.id::text
+         where e.erp_doctype = 'Purchase Invoice')
        and i.amount is not null and i.currency is not distinct from p.currency
        and coalesce(i.erp_docstatus, 1) <> 2 and i.erp_cancelled_at is null
        and not (i.vi_number is not null and exists (
@@ -53,6 +65,12 @@ language sql volatile security definer set search_path = public, pg_catalog as $
       from purchase p
       join public.payments pay on pay.procurement_id = p.id and pay.org_id = p.org_id
      where p.origin is distinct from 'erp_link'
+       and not exists (
+         select 1 from erp_candidates e
+         join public.external_refs x on x.org_id = p.org_id and x.domain = 'procurement'
+           and x.external_tier = 'erpnext' and x.external_record_id = e.erp_name
+           and x.pmo_record_id = pay.id::text
+         where e.erp_doctype = 'Payment Entry')
        and pay.amount is not null and pay.currency is not distinct from p.currency
        and coalesce(pay.erp_docstatus, 1) <> 2 and pay.erp_cancelled_at is null
     union all
@@ -75,14 +93,28 @@ language sql volatile security definer set search_path = public, pg_catalog as $
   end
     from totals
 $$;
-revoke all on function public.procurement_document_total(uuid, uuid, smallint, numeric, numeric, text)
+revoke all on function public.procurement_document_total(uuid, jsonb)
   from public, anon, authenticated;
 
 -- Existing 0372 callers take the before/after value through this helper; for native purchases the
--- shared basis now includes PMO records as well as linked ERP documents.
+-- shared basis now includes PMO records as well as linked ERP documents. ERP-origin purchases retain
+-- 0372's linked-only, order-first rule.
 create or replace function public.erp_linked_documents_total(p_procurement_id uuid) returns numeric
 language sql volatile set search_path = public, pg_catalog as $$
-  select coalesce(public.procurement_document_total(p_procurement_id), 0)
+  with docs as (
+    select d.erp_doctype, coalesce(d.net_total, d.grand_total) as amount
+      from public.procurement_erp_links l join public.erp_purchase_documents d on d.id = l.erp_purchase_document_id
+     where l.procurement_id = p_procurement_id and d.erp_docstatus = 1
+  )
+  select case when exists (select 1 from public.procurements p
+                           where p.id = p_procurement_id and p.origin = 'erp_link') then
+    coalesce(
+      (select sum(amount) from docs where erp_doctype = 'Purchase Order'   having count(*) > 0),
+      (select sum(amount) from docs where erp_doctype = 'Purchase Invoice' having count(*) > 0),
+      (select sum(amount) from docs where erp_doctype = 'Purchase Receipt' having count(*) > 0),
+      (select sum(amount) from docs where erp_doctype = 'Payment Entry'    having count(*) > 0),
+      0)
+    else coalesce(public.procurement_document_total(p_procurement_id), 0) end
 $$;
 revoke all on function public.erp_linked_documents_total(uuid) from public, anon, authenticated;
 
@@ -129,26 +161,32 @@ begin
 end $$;
 revoke all on function public.refresh_procurement_recorded_total(uuid, boolean) from public, anon, authenticated;
 
--- Recompute on each mirrored ERP value/cancellation change, but only while the purchase still holds
--- the pre-change derived total. Typed, item-derived and approved totals stay untouched.
+-- A transition table retains every old document in the statement. Refresh each affected purchase
+-- once, comparing its stored value with the whole old basis so typed totals still stay untouched.
 create function public.refresh_native_purchase_total_on_erp_document_update() returns trigger
 language plpgsql security definer set search_path = public, pg_catalog as $$
-declare v_procurement_id uuid; v_before numeric;
+declare v_purchase record; v_before numeric;
 begin
   if auth.uid() is null and coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then return null; end if;
 
-  for v_procurement_id in
-    select l.procurement_id
-      from public.procurement_erp_links l
-     where l.org_id = old.org_id and l.erp_purchase_document_id = old.id
+  for v_purchase in
+    select l.procurement_id, l.org_id, jsonb_object_agg(o.id::text, to_jsonb(o)) as old_documents
+      from old_documents o
+      join new_documents n on n.id = o.id and n.org_id = o.org_id
+      join public.procurement_erp_links l on l.org_id = o.org_id and l.erp_purchase_document_id = o.id
+     where o.erp_docstatus is distinct from n.erp_docstatus
+        or o.net_total is distinct from n.net_total
+        or o.grand_total is distinct from n.grand_total
+        or o.currency is distinct from n.currency
+     group by l.procurement_id, l.org_id
+     order by l.procurement_id
   loop
     begin
-      v_before := coalesce(public.procurement_document_total(
-        v_procurement_id, old.id, old.erp_docstatus, old.net_total, old.grand_total, old.currency), 0);
-      perform public.refresh_native_purchase_total_from_links(v_procurement_id, v_before);
+      v_before := coalesce(public.procurement_document_total(v_purchase.procurement_id, v_purchase.old_documents), 0);
+      perform public.refresh_native_purchase_total_from_links(v_purchase.procurement_id, v_before);
     exception when others then
       if auth.uid() is not null then raise; end if;
-      perform public.log_audit('procurement.total_refresh_skipped', old.org_id, null, v_procurement_id,
+      perform public.log_audit('procurement.total_refresh_skipped', v_purchase.org_id, null, v_purchase.procurement_id,
         jsonb_build_object('record', 'erp_purchase_documents', 'reason', sqlerrm));
     end;
   end loop;
@@ -157,10 +195,7 @@ end $$;
 revoke all on function public.refresh_native_purchase_total_on_erp_document_update() from public, anon, authenticated;
 
 create trigger procurement_erp_document_refresh_native_total
-  after update of erp_docstatus, net_total, grand_total, currency on public.erp_purchase_documents
-  for each row
-  when (old.erp_docstatus is distinct from new.erp_docstatus
-        or old.net_total is distinct from new.net_total
-        or old.grand_total is distinct from new.grand_total
-        or old.currency is distinct from new.currency)
+  after update on public.erp_purchase_documents
+  referencing old table as old_documents new table as new_documents
+  for each statement
   execute function public.refresh_native_purchase_total_on_erp_document_update();
