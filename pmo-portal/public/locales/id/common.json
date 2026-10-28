@@ -4682,7 +4682,7 @@
       "summaryUpdated": "{{kind}} diperbarui",
       "summaryRecorded": "Peristiwa riwayat",
       "viewDetails": "Lihat detail perubahan",
-      "groupSummary": "{{count}} peristiwa sistem"
+      "groupSummary": "{{what}} · {{count}} catatan"
     }
   },
   "uxs27": {

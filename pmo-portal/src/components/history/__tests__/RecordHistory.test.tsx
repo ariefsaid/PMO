@@ -243,8 +243,8 @@ describe('RecordHistory — formatting (AC-CHG-015)', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Load older' }));
     await waitFor(() => expect(screen.getAllByTestId('history-group')).toHaveLength(2));
     const groups = screen.getAllByTestId('history-group');
-    const firstGroup = within(groups[0]).getByRole('button', { name: '2 system events' });
-    const secondGroup = within(groups[1]).getByRole('button', { name: '2 system events' });
+    const firstGroup = within(groups[0]).getByRole('button', { name: /created · 2 records$/ });
+    const secondGroup = within(groups[1]).getByRole('button', { name: /created · 2 records$/ });
     expect(firstGroup).toHaveAttribute('aria-expanded', 'false');
     expect(secondGroup).toHaveAttribute('aria-expanded', 'false');
 

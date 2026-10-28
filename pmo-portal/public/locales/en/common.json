@@ -4682,7 +4682,7 @@
       "summaryUpdated": "{{kind}} updated",
       "summaryRecorded": "History event",
       "viewDetails": "View details",
-      "groupSummary": "{{count}} system events"
+      "groupSummary": "{{what}} · {{count}} records"
     }
   },
   "uxs27": {
