@@ -481,6 +481,7 @@ describe('company hub — behaviour carried over from the previous dashboard', (
     const current = figureState.result!;
     current.dashboard = { ...(current.dashboard as Record<string, unknown>), procurements_by_status: [{ status: 'Approved', count: 1 }, { status: 'Vendor Invoiced', count: 2 }] };
     renderBahasaPage();
+    expect(screen.getByRole('group', { name: 'Nilai pipeline tertimbang per tahap' })).toBeInTheDocument();
     const pay = screen.getAllByRole('link', { name: /Pembayaran/ });
     expect(pay.length).toBeGreaterThan(0);
     for (const link of pay) expect(link).toHaveAttribute('href', '/procurement?stage=pay');

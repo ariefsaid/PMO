@@ -124,6 +124,18 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
     expect(screen.getByTestId('win-rate-reason-USD')).toHaveTextContent(/No decided bid value recorded/i);
   });
 
+  it('AC-UXA-003: localizes the decided-bid count and accessible rate in Bahasa', async () => {
+    i18next.addResourceBundle('id', 'dashboard', idDashboard, true, true);
+    await act(async () => { await i18next.changeLanguage('id'); });
+    oracle = populatedOracle;
+    render(<WinRateCard currency="USD" />);
+    expect(screen.getByText('2 menang dari 3 yang diputuskan')).toBeInTheDocument();
+    const decidedRate = screen.getByRole('progressbar', { name: 'Tingkat kemenangan USD dari tender yang diputuskan' });
+    expect(decidedRate).toHaveAttribute('aria-valuetext', '66.7%');
+    expect(screen.getByText('Menang')).toBeInTheDocument();
+    expect(screen.getByText('Kalah atau masih terbuka')).toBeInTheDocument();
+  });
+
   it('AC-1106: renders the currency breakdown with Indonesian catalogue copy', async () => {
     i18next.addResourceBundle('id', 'dashboard', idDashboard, true, true);
     await act(async () => { await i18next.changeLanguage('id'); });

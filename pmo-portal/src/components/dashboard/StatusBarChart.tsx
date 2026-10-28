@@ -83,11 +83,36 @@ export function StatusBarChart<S extends string>({
   const summary = labelFor
     ? t('dashboard.procurementStatus.summary', '{{label}}, {{total}} {{noun}}, most in {{status}}.', { label, total, noun, status: displayStatus })
     : `${label}, ${total} ${noun}, most in ${topStatus}.`;
+  const chartDataDescription = t('dashboard:executive.chartDataTableDescription', 'The chart values are listed in the following data table.');
+  const chartDataTable = (
+    <table className="sr-only" aria-label={t('dashboard:executive.chartDataTableLabel', 'Data for {{label}}', { label })}>
+      <thead>
+        <tr>
+          <th scope="col">{t('dashboard:executive.chartTableStatus', 'Status')}</th>
+          <th scope="col">{t('dashboard:executive.chartTableCount', 'Count')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.map((datum) => (
+          <tr key={datum.status}>
+            <th scope="row">{labelFor?.(datum.status) ?? datum.status}</th>
+            <td>{datum.count}</td>
+          </tr>
+        ))}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th scope="row">{t('dashboard:executive.chartTableTotal', 'Total')}</th>
+          <td>{total}</td>
+        </tr>
+      </tfoot>
+    </table>
+  );
 
   if (compactSegments) {
     return (
       <figure className="m-0 grid gap-2">
-        <div role="group" aria-label={label} className="flex h-8 overflow-hidden rounded-md bg-secondary">
+        <div role="group" aria-label={label} aria-describedby={descriptionId} className="flex h-8 overflow-hidden rounded-md bg-secondary">
           {data.map((datum) => {
             const name = labelFor?.(datum.status) ?? datum.status;
             return hrefFor ? (
@@ -116,6 +141,8 @@ export function StatusBarChart<S extends string>({
             return hrefFor ? <Link key={datum.status} to={hrefFor(datum.status)} className="inline-flex items-center gap-1.5 hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">{entry}</Link> : <span key={datum.status} className="inline-flex items-center gap-1.5">{entry}</span>;
           })}
         </figcaption>
+        <p id={descriptionId} className="sr-only">{chartDataDescription}</p>
+        {chartDataTable}
         <span className="sr-only">{summary}</span>
       </figure>
     );
@@ -172,31 +199,8 @@ export function StatusBarChart<S extends string>({
       </ResponsiveContainer>
       </div>
 
-      <p id={descriptionId} className="sr-only">
-        {t('dashboard:executive.chartDataTableDescription', 'The chart values are listed in the following data table.')}
-      </p>
-      <table className="sr-only" aria-label={t('dashboard:executive.chartDataTableLabel', 'Data for {{label}}', { label })}>
-        <thead>
-          <tr>
-            <th scope="col">{t('dashboard:executive.chartTableStatus', 'Status')}</th>
-            <th scope="col">{t('dashboard:executive.chartTableCount', 'Count')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((datum) => (
-            <tr key={datum.status}>
-              <th scope="row">{labelFor?.(datum.status) ?? datum.status}</th>
-              <td>{datum.count}</td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr>
-            <th scope="row">{t('dashboard:executive.chartTableTotal', 'Total')}</th>
-            <td>{total}</td>
-          </tr>
-        </tfoot>
-      </table>
+      <p id={descriptionId} className="sr-only">{chartDataDescription}</p>
+      {chartDataTable}
 
       <figcaption role="group" aria-label={label} className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[11.5px] text-muted-foreground">
         {data.map((d) => {
