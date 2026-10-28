@@ -745,7 +745,9 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   // Read-only Draft precheck for the activation confirmation. It uses this function's caller-bound
   // PMO reads and the same server-side ERP calendar/map dependencies as the real push; it never enters
   // the adapter, money outbox, or write path. The actual transition remains activate_budget_version's
-  // existing authority, and an ERP outage is returned as an explicit unverified result.
+  // existing authority, and an ERP outage is returned as an explicit unverified result. Defer its
+  // service-role client until after the dispatch gates below, alongside the ordinary dispatch client.
+  let budgetActivationPrecheckVersionId: string | undefined;
   if (body && typeof body === 'object' && (body as { action?: unknown }).action === 'budget-activation-precheck') {
     const versionId = (body as { versionId?: unknown }).versionId;
     if (typeof versionId !== 'string' || !isCanonicalUuid(versionId)) {
@@ -754,25 +756,11 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
         headers,
       });
     }
-    const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
-    try {
-      const result = await runBudgetActivationPrecheck(
-        buildBudgetGateDeps(callerClient, serviceClient, orgId, versionId, createErpAuthPairCache()),
-        await orgEmploysErpnext(serviceClient, orgId),
-      );
-      return new Response(JSON.stringify(result), { status: 200, headers });
-    } catch (err) {
-      const gateError = err instanceof BudgetGateError ? err : null;
-      if (!gateError) console.error('[adapter-dispatch] budget activation precheck could not read readiness data');
-      return new Response(JSON.stringify({
-        error: gateError?.code ?? 'commit-rejected',
-        message: gateError?.message ?? 'budget activation precheck could not read current budget data',
-      }), { status: gateError ? 422 : 500, headers });
-    }
+    budgetActivationPrecheckVersionId = versionId;
   }
 
   let command = body as AdapterCommand;
-  if (!command?.domain || !command?.operation || !command?.record?.id) {
+  if (!budgetActivationPrecheckVersionId && (!command?.domain || !command?.operation || !command?.record?.id)) {
     return new Response(
       JSON.stringify({ error: 'BAD_REQUEST', message: 'domain, operation, and record.id are required' }),
       { status: 400, headers },
@@ -887,6 +875,22 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   // record) AND, for 'tasks', to resolve the per-request ClickUp binding/mapping at adapter-select time.
   // Never used for adapter.commit() — org_id never crosses into the adapter (AC-EAS-023).
   const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
+  if (budgetActivationPrecheckVersionId) {
+    try {
+      const result = await runBudgetActivationPrecheck(
+        buildBudgetGateDeps(callerClient, serviceClient, orgId, budgetActivationPrecheckVersionId, createErpAuthPairCache()),
+        await orgEmploysErpnext(serviceClient, orgId),
+      );
+      return new Response(JSON.stringify(result), { status: 200, headers });
+    } catch (err) {
+      const gateError = err instanceof BudgetGateError ? err : null;
+      if (!gateError) console.error('[adapter-dispatch] budget activation precheck could not read readiness data');
+      return new Response(JSON.stringify({
+        error: gateError?.code ?? 'commit-rejected',
+        message: gateError?.message ?? 'budget activation precheck could not read current budget data',
+      }), { status: gateError ? 422 : 500, headers });
+    }
+  }
   if (command.domain === CLICKUP_TASKS_DOMAIN) {
     const taskAuthorization = await authorizeClickUpTaskCommand(serviceClient as never, orgId, userId, command);
     if (!taskAuthorization.ok) {
