@@ -38,7 +38,7 @@ import { canAttributeInvoice } from '@/src/lib/invoiceProjectAssignment';
 import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
-import { currencySymbol, formatCurrencyCents, formatDateOnly, formatInstantDate, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrencyAuto, formatCurrencyCents, formatDateOnly, formatInstantDate, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { SalesInvoiceRow, SalesInvoiceStatus } from '@/src/lib/db/revenue';
 import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
@@ -579,7 +579,7 @@ const SalesInvoices: React.FC = () => {
                     {viewTarget.erp_outstanding_amount == null
                       ? t('uxs17.outstandingUnavailable', 'Outstanding amount not available')
                       : <>
-                        {formatCurrencyCents(viewTarget.erp_outstanding_amount, viewTarget.currency)}
+                        {formatCurrencyAuto(viewTarget.erp_outstanding_amount, viewTarget.currency)}
                         <FxEquivalent amount={viewTarget.erp_outstanding_amount} currency={viewTarget.currency} date="latest" />
                       </>}
                   </dd>
@@ -769,7 +769,7 @@ const SalesInvoices: React.FC = () => {
         <span className="flex w-full flex-col items-end gap-0.5 text-right md:inline-flex md:w-auto md:flex-row md:flex-wrap md:items-baseline md:justify-end md:gap-x-1.5">
           <span className="inline-flex items-baseline justify-end gap-1">
             <span className="tabular text-right text-[13px]">
-              {inv.amount != null ? formatCurrencyCents(inv.amount, inv.currency) : '—'}
+              {inv.amount != null ? formatCurrencyAuto(inv.amount, inv.currency) : '—'}
             </span>
             {showCode && <span className="text-xs text-muted-foreground">{inv.currency}</span>}
           </span>
@@ -778,7 +778,7 @@ const SalesInvoices: React.FC = () => {
           {/* I-4: a PMO invoice states what the client owes in full, so Outstanding reconciles by eye. */}
           {inv.pmo_native && invoiceGross(inv) != null && (
             <span className="w-full text-right text-xs text-muted-foreground md:basis-full">
-              {t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: formatCurrencyCents(invoiceGross(inv)!, inv.currency) })}
+              {t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: formatCurrencyAuto(invoiceGross(inv)!, inv.currency) })}
               <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />
             </span>
           )}
@@ -800,19 +800,19 @@ const SalesInvoices: React.FC = () => {
       return (
         <span className="flex w-full flex-col items-end gap-0.5 text-right">
           <span className="tabular text-[13px]">
-            {inv.erp_outstanding_amount != null ? formatCurrencyCents(inv.erp_outstanding_amount, inv.currency) : '—'}
+            {inv.erp_outstanding_amount != null ? formatCurrencyAuto(inv.erp_outstanding_amount, inv.currency) : '—'}
           </span>
           {inv.erp_outstanding_amount != null && <FxEquivalent amount={inv.erp_outstanding_amount} currency={inv.currency} date="latest" />}
           {/* I-4: what a PMO invoice has been paid so far (total due − paid = outstanding). */}
           {paid != null && (
             <span className="text-xs text-muted-foreground">
-              {t('financeCopy.paidToDateAmount', 'Paid {{amount}}', { amount: formatCurrencyCents(paid, inv.currency) })}
+              {t('financeCopy.paidToDateAmount', 'Paid {{amount}}', { amount: formatCurrencyAuto(paid, inv.currency) })}
             </span>
           )}
           {/* #784 DD-NAR-17: a receipt above the balance is kept; the excess is shown, never hidden. */}
           {overpaid != null && (
             <span className="text-xs text-muted-foreground">
-              {t('financeCopy.overpaidBy', 'Overpaid by {{amount}}', { amount: formatCurrencyCents(overpaid, inv.currency) })}
+              {t('financeCopy.overpaidBy', 'Overpaid by {{amount}}', { amount: formatCurrencyAuto(overpaid, inv.currency) })}
             </span>
           )}
         </span>

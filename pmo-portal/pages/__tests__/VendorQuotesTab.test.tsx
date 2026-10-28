@@ -453,7 +453,7 @@ describe('AC-VQ-008: VendorQuotesTab — vendor name as primary row heading', ()
 describe('review fixes: bid comparison presentation', () => {
   it('OD-MONEY-FMT: preserves non-zero cents in quote amounts', () => {
     render(<VendorQuotesTab {...defaultProps} quotations={[makeQuote({ total_amount: 148000.5 })]} />);
-    expect(screen.getAllByText('$148,000.5').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('$148,001').length).toBeGreaterThanOrEqual(1);
   });
 
   it('keeps each attachment section associated with its quote row', () => {

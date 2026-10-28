@@ -1,31 +1,17 @@
 import React from 'react';
-import { Tooltip } from './Tooltip';
 
 export interface FigureContentProps {
   value: React.ReactNode;
-  /** Exact amount behind a short figure: the hover title, and what screen readers read (once). */
+  /** Full whole-unit amount behind a short figure: hover title and screen-reader text. */
   exactValue?: string;
-  /** Why the figure is unknown: the visible figure becomes "—", the reason opens on hover, focus or tap. */
+  /** Why the figure is unknown: omit the amount and show this plain-language reason. */
   unavailableReason?: string;
-  /** False inside a link (no interactive-in-interactive): the link's own name must carry the reason. */
-  reveal?: boolean;
 }
 
 /** The figure contract shared by KPITile and StatTiles (DESIGN.md Unknowable-Is-Not-Zero rule). */
-export const FigureContent: React.FC<FigureContentProps> = ({ value, exactValue, unavailableReason, reveal = true }) => {
+export const FigureContent: React.FC<FigureContentProps> = ({ value, exactValue, unavailableReason }) => {
   if (unavailableReason) {
-    if (!reveal) return <span aria-hidden="true" title={unavailableReason}>—</span>;
-    return (
-      <Tooltip content={unavailableReason}>
-        <button
-          type="button"
-          aria-label={unavailableReason}
-          className="touch-target pointer-events-auto relative z-10 cursor-help rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          —
-        </button>
-      </Tooltip>
-    );
+    return <span role="status" className="text-sm font-normal text-muted-foreground">{unavailableReason}</span>;
   }
   if (exactValue) {
     return (

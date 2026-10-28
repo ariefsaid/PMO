@@ -18,7 +18,7 @@ import {
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
-import { formatCurrency, formatCurrencyCents, formatDateOnly, formatNumberExact, currencySymbol } from '@/src/lib/format';
+import { formatCurrency, formatCurrencyAuto, formatDateOnly, formatNumberExact, currencySymbol } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   isOverCommitmentRefusal,
@@ -241,7 +241,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       }
       const state = deriveWorkOrderBillingState(row.status, f);
       if (state === 'not-billable') return <span data-testid={`wo-billing-${row.id}`}>—</span>;
-      const money = (amount: number) => formatCurrencyCents(amount, f.currency);
+      const money = (amount: number) => formatCurrencyAuto(amount, f.currency);
       const line = 'text-[11px] tabular text-muted-foreground';
       return (
         <div className="flex flex-col items-start gap-0.5 whitespace-normal" data-testid={`wo-billing-${row.id}`}>
@@ -707,7 +707,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                       <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">{label}</dt>
                       <dd className="mt-0.5 text-[15px] font-bold tabular">
                         {totals.complete
-                          ? formatCurrencyCents(value, currency)
+                          ? formatCurrencyAuto(value, currency)
                           : t('projectDetail.workOrders.billing.unavailable', 'Unavailable')}
                       </dd>
                     </div>

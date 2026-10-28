@@ -19,6 +19,17 @@ describe('formatExactMoney', () => {
     expect(formatExactMoney('1.00', 'usd', 'en-US')).toBeNull();
     expect(formatExactMoney('1.00', 'USD', 'not_a_locale')).toBeNull();
   });
+
+  it('AC-MONEY-DISPLAY: rounds exact decimals to whole units without converting through Number', () => {
+    expect(formatExactMoney('1467628320.47', 'IDR', 'en-US', { wholeUnits: true })).toBe('IDR 1,467,628,320');
+    expect(formatExactMoney('9007199254740993.99', 'USD', 'en-US', { wholeUnits: true })).toBe('$9,007,199,254,740,994');
+    expect(formatExactMoney('-1.50', 'USD', 'en-US', { wholeUnits: true })).toBe('−$2');
+    expect(formatExactMoney('1.49', 'USD', 'en-US', { wholeUnits: true })).toBe('$1');
+  });
+
+  it('omits a repeated currency when the containing block already names it', () => {
+    expect(formatExactMoney('1467628320.47', 'IDR', 'en-US', { wholeUnits: true, omitCurrency: true })).toBe('1,467,628,320');
+  });
 });
 
 describe('formatCurrency', () => {
@@ -169,12 +180,12 @@ describe('formatCurrencyCents — ERP money, always 2 dp (#477)', () => {
   });
 });
 
-describe('formatCurrencyAuto — default-fraction KPI money (#477)', () => {
-  it('renders 0–3 fraction digits with no padding: $1,234 / $1,234.5 / $1,234.56', () => {
+describe('formatCurrencyAuto — whole-unit display (#1437)', () => {
+  it('rounds all read-only money to whole currency units', () => {
     expect(formatCurrencyAuto(1234, 'USD')).toBe('$1,234');
-    expect(formatCurrencyAuto(1234.5, 'USD')).toBe('$1,234.5');
-    expect(formatCurrencyAuto(1234.56, 'USD')).toBe('$1,234.56');
-    expect(formatCurrencyAuto(1234567.89, 'USD')).toBe('$1,234,567.89');
+    expect(formatCurrencyAuto(1234.5, 'USD')).toBe('$1,235');
+    expect(formatCurrencyAuto(1234.56, 'USD')).toBe('$1,235');
+    expect(formatCurrencyAuto(1234567.89, 'USD')).toBe('$1,234,568');
   });
 });
 
@@ -184,13 +195,13 @@ describe('#477 review — money formatters agree on where a negative sign goes',
   // screen (RevenueByProject KPI tiles vs its table cells) disagreed. Negative money is reachable —
   // open AR goes negative on an overpayment/credit.
   it('all three put the minus BEFORE the symbol', () => {
-    expect(formatCurrencyAuto(-1234.5, 'USD')).toBe('-$1,234.5');
+    expect(formatCurrencyAuto(-1234.5, 'USD')).toBe('-$1,235');
     expect(formatCurrencyCents(-1234.5, 'USD')).toBe('-$1,234.50');
     expect(formatCurrencyFine(-0.0123, 'USD')).toBe('-$0.0123');
   });
-  it('formatCurrencyAuto stays byte-identical to the welded form for POSITIVES', () => {
+  it('formatCurrencyAuto agrees with the whole-unit display formatter for POSITIVES', () => {
     for (const v of [0, 1234, 1234.5, 1234.56, 1234.567, 1234567.89]) {
-      expect(formatCurrencyAuto(v, 'USD')).toBe(`$${v.toLocaleString('en-US')}`);
+      expect(formatCurrencyAuto(v, 'USD')).toBe(formatCurrency(v, 'USD'));
     }
   });
 });
@@ -272,7 +283,7 @@ describe('FR-L10N-020..023: currency-aware money formatters', () => {
   });
   it('AC-L10N-020: formatCurrencyCents/Auto/Fine take the record currency', () => {
     expect(formatCurrencyCents(1234.5, 'EUR')).toBe('€1,234.50');
-    expect(formatCurrencyAuto(1234.5, 'EUR')).toBe('€1,234.5');
+    expect(formatCurrencyAuto(1234.5, 'EUR')).toBe('€1,235');
     expect(formatCurrencyFine(0.0123, 'IDR')).toBe('IDR\u00A00.0123');
   });
   it('AC-L10N-022: formatCompactCurrency has no welded $ or K/M — currency + Intl compact unit', () => {

@@ -1,44 +1,52 @@
-import { formatExactMoney, formatShortMoney } from './format';
+import { formatExactMoney, formatNumberWhole, formatShortAmount, formatShortMoney } from './format';
 import { getNumberLocale } from './locale/activeLocale';
 
-/** Exact dashboard money formatting (zero fraction omitted, non-zero kept); null means no coverage. */
+/** Whole-unit dashboard money formatting; null means no coverage. */
 export function formatDashboardMoney(value: number | null, currency: string, locale: string = getNumberLocale()): string | null {
   return value === null || !Number.isFinite(value)
     ? null
-    : formatExactMoney(String(value), currency, locale, { trimZeroFraction: true });
+    : formatExactMoney(String(value), currency, locale, { wholeUnits: true });
 }
 
-/** The KPITile / StatTiles figure contract: visible short form, exact amount as metadata. */
+/** The KPITile / StatTiles contract: visible short form, full whole-unit amount as metadata. */
 export interface MoneyFigure {
-  /** Short locale form; "—" when unknown. */
+  /** Short locale form; empty when unknown so the reason can take its place. */
   value: string;
-  /** Exact amount for the tile's `title` and screen-reader text. */
+  /** Full whole-unit amount for the tile's `title` and screen-reader text. */
   exactValue?: string;
-  /** Why the figure is unknown; the figure stays "—" (never 0, never prose). */
+  /** Why the figure is unknown; render this once as plain text, never as a dash or zero. */
   unavailableReason?: string;
 }
 
-/** `code`: name the currency by ISO code — for a figure outside the org currency ("USD 3.4M"). */
+/** `code`: name the currency by ISO code ("USD 3.4M") for a figure outside the org currency. */
 export interface ShortMoneyOptions { code?: boolean }
 
 /**
- * OD-MONEY-FMT: KPI cards show the short form, the exact amount rides in metadata. A number is a
- * display amount; a string is an exact decimal (kept exact in the title, `Number` only for the
- * short form). Money follows the viewer's NUMBER locale (format.ts seam). Unknown or malformed →
- * "—" with `unavailableReason`. Below 1,000 the exact form is shown as-is (nothing to shorten).
+ * Owner ruling #1437: whole units on read-only surfaces; KPI cards use the short form and retain a
+ * whole-unit amount with its currency in metadata. A string remains exact through rounding and a
+ * number uses the same viewer number locale. Unknown or malformed values leave the figure empty
+ * and carry one plain-language reason for the surrounding block.
+ *
+ * `labelHasCurrency` (#1437: the currency is said ONCE, in the block heading): when the tile's
+ * label already names the currency ("Recognised to date · IDR"), the visible figure renders bare
+ * ("1.2B") instead of repeating it; the exact `title`/screen-reader amount keeps the code.
  */
 export function moneyFigure(
   amount: number | string | null,
   currency: string,
   unavailableReason: string,
-  opts: ShortMoneyOptions = {},
+  opts: ShortMoneyOptions & { labelHasCurrency?: boolean } = {},
 ): MoneyFigure {
   const exact = typeof amount === 'string'
-    ? formatExactMoney(amount, currency, getNumberLocale(), { trimZeroFraction: true })
+    ? formatExactMoney(amount, currency, getNumberLocale(), { wholeUnits: true })
     : formatDashboardMoney(amount, currency);
   const numeric = typeof amount === 'string' ? Number(amount) : amount;
   if (exact === null || numeric === null || !Number.isFinite(numeric)) {
-    return { value: '—', unavailableReason };
+    return { value: '', unavailableReason };
+  }
+  if (opts.labelHasCurrency === true) {
+    const short = Math.abs(numeric) < 1_000 ? formatNumberWhole(numeric) : formatShortAmount(numeric);
+    return { value: short, exactValue: exact };
   }
   const short = Math.abs(numeric) < 1_000 ? exact : formatShortMoney(numeric, currency, opts);
   // The short form is never longer than the exact one; a figure already exact has no twin.

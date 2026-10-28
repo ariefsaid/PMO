@@ -200,14 +200,11 @@
     "operatorRecovery": "Open organization ERP setup"
   },
   "uxs02": {
-    "unavailable": "Unavailable",
     "activeBudget": "Active budget",
     "noActiveBudget": "No active budget",
     "zeroActiveBudget": "{{budget}} Active budget; usage unavailable",
     "riskUnavailableTitle": "Couldn't check project budget risk",
     "riskUnavailableSub": "Project spending and Active budget information could not be checked.",
-    "incompleteCoverage": "Incomplete source coverage",
-    "restrictedRowsExcluded": "Restricted rows excluded",
     "budgetUsed": "{{percent}}% of Active budget",
     "budgetSummary": "{{actual}} of {{budget}} Active budget",
     "currencyMismatch": "Budget currency differs from Actual",
@@ -4356,7 +4353,6 @@
   },
   "uxs34": {
     "cumulativeScope": "Cumulative amounts · since project start through {{month}}",
-    "backlogUnavailable": "Unavailable",
     "backlogReason": "A foreign-currency invoice needs reconciliation before this balance can be known."
   },
   "comments": {
@@ -4563,8 +4559,8 @@
     "invoiced":"Invoiced", "settled":"Settled", "outstanding":"Outstanding",
     "settlementNote":"Settled against invoices (cash, withholding and credits), not cash received.",
     "margin":"Margin",
-    "differentCurrencies":"Unavailable — different currencies", "workUnavailable":"Billed-work revenue unavailable",
-    "restricted":"Actuals exclude restricted rows", "actualsUnavailable":"Not available yet",
+    "differentCurrencies":"Amounts are in different currencies.", "workUnavailable":"Billed-work revenue could not be determined.",
+    "restricted":"Actuals exclude restricted rows", "actualsUnavailable":"Actual spending is still being confirmed.",
     "category":"Category", "unavailable":"Unavailable",
     "loading":"Loading project finances…", "error":"Couldn't load project finances.", "retry":"Retry",
     "mixedTaxBases":"Mixed tax bases",
@@ -4574,7 +4570,7 @@
     "recordedSpending": "Recorded spending",
     "pmoPurchaseOrders": "PMO purchase orders",
     "pmoCoverage": "Committed PMO purchase orders",
-    "actualUnavailable": "Unavailable",
+    "actualUnavailable": "Actual spending is still being confirmed.",
     "actualLoading": "Loading Actual…",
     "actualPartial": "Incomplete — see spending details",
     "completeCoverage": "Complete category coverage",
@@ -4591,8 +4587,8 @@
     "onBudget": "On budget",
     "cashReceived": "Cash received",
     "cashReceivedScope": "Receipt cash linked to this project's invoices",
-    "cashReceivedUnavailable": "Unavailable — receipt-backed cash data is not available yet",
-    "cashReceivedInvalid": "Unavailable — receipt-backed cash data could not be verified",
+    "cashReceivedUnavailable": "Receipt-linked cash hasn't been reported yet.",
+    "cashReceivedInvalid": "Receipt-linked cash could not be verified.",
     "cashReceivedIncomplete": "Incomplete — receipt allocation cannot establish cash"
   },
   "invoiceProject": {

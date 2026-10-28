@@ -165,7 +165,7 @@ const AtRiskBlock: React.FC<{
             {t('dashboard.kpi.totalSpend.label', 'Recorded spending')}
           </span>
           <span className="tabular mt-[3px] block min-w-0 break-words text-[17px] font-bold">
-            <FigureContent {...spendFigure} reveal={false} />
+            <FigureContent {...spendFigure} />
           </span>
           {(actualProjectCount < actualProjectTotal || actualCoverageCount < actualCoverageTotal) && <span className="mt-1 inline-flex rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning-foreground">{t('dashboard:spend.partial', 'Partial')}</span>}
           <span className="mt-1 block text-[11px] text-muted-foreground">

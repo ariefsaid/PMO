@@ -37,9 +37,9 @@ export interface KPITileProps<L extends string = string> {
   tone: KPITone;
   label: string;
   value: React.ReactNode;
-  /** Exact amount metadata for compact money figures. */
+  /** Full whole-unit amount metadata for compact money figures. */
   exactValue?: string;
-  /** Why the metric is unavailable; the figure remains an em dash. */
+  /** Why the metric is unknown; omit the numeric figure and show this message once. */
   unavailableReason?: string;
   /** Negative values turn destructive (DESIGN.md). */
   negative?: boolean;
@@ -52,7 +52,7 @@ export interface KPITileProps<L extends string = string> {
   vs?: string;
   /** Skeleton while the metric query loads. */
   loading?: boolean;
-  /** When true, renders an em-dash "—" instead of the value (fetch error state). */
+  /** When true, omits the value (fetch error state); the surrounding block carries the error. */
   error?: boolean;
   /** Replaces the foot with a segmented on-hand/weighted lens toggle. */
   dual?: KPIDualLens<L>;
@@ -147,11 +147,7 @@ export function KPITile<L extends string = string>({
           {head}
           {loading ? (
             <div data-testid="kpi-skeleton" className="skel h-[23px] w-2/3" />
-          ) : error ? (
-            <span className="text-[23px] font-bold leading-none tracking-[-0.02em] tabular text-muted-foreground">
-              —
-            </span>
-          ) : (
+          ) : error ? null : (
             <div
               className={cn(
                 'min-w-0 break-words text-[23px] font-bold leading-none tracking-[-0.02em] tabular',
@@ -186,11 +182,7 @@ export function KPITile<L extends string = string>({
 
       {loading ? (
         <div data-testid="kpi-skeleton" className="skel h-[23px] w-2/3" />
-      ) : error ? (
-        <span className="text-[23px] font-bold leading-none tracking-[-0.02em] tabular text-muted-foreground">
-          —
-        </span>
-      ) : (
+      ) : error ? null : (
         <div
           className={cn(
             'min-w-0 break-words text-[23px] font-bold leading-none tracking-[-0.02em] tabular',

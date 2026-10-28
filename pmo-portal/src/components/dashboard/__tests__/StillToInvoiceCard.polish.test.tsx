@@ -101,7 +101,7 @@ describe('StillToInvoiceCard dashboard polish', () => {
   it('UIP-010: preserves populated totals, tax basis, work-order details, and canonical links', () => {
     renderCard();
 
-    expect(screen.getByTestId('still-to-invoice-totals')).toHaveTextContent('$1,300.00');
+    expect(screen.getByTestId('still-to-invoice-totals')).toHaveTextContent('$1,300');
     expect(screen.getByTestId('still-to-invoice-totals')).toHaveTextContent('excl. PPN');
     expect(screen.getByTestId('still-to-invoice-totals')).toHaveTextContent('Work orders: 2');
     expect(screen.getByRole('link', { name: /WO-1/ })).toHaveAttribute('href', '/projects/p1/work-orders?wo=wo-1');

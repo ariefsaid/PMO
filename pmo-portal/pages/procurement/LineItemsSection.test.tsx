@@ -98,9 +98,9 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     expect(table).toHaveTextContent('Estimated total');
   });
 
-  it('OD-MONEY-FMT: preserves non-zero cents in line-item amounts and estimated total', () => {
+  it('AC-MONEY-DISPLAY: rounds read-only line-item amounts and estimated total to whole units', () => {
     renderSection({ items: [{ ...items[0], quantity: 2, rate: 1032.25, amount: 2064.5 }] });
-    expect(screen.getAllByText('$2,064.5').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('$2,065').length).toBeGreaterThanOrEqual(1);
   });
 
   it('FR-L10N-020: rows and the footer total render in the PROCUREMENT currency, not USD', () => {
@@ -123,19 +123,20 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     expect(screen.queryByTestId('line-item-add-row')).not.toBeInTheDocument();
   });
 
-  it('AC-PROC-003: derives exact line and section totals from quantity × rate', () => {
+  it('AC-PROC-003: derives exact line and section totals while displaying whole currency units', () => {
     renderSection({ items: [{ ...items[0], quantity: 3, rate: 0.1, amount: 0.3 }] });
-    expect(screen.getAllByText('$0.3').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('$0').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('AC-PROC-003: the inline add-row creates an item with parsed qty × rate', async () => {
+  it('AC-PROC-003: the inline add-row preserves draft cents while creating an item from parsed qty × rate', async () => {
     const { onAdd } = renderSection({ items: [] });
     const row = screen.getByTestId('line-item-add-row');
     await userEvent.type(within(row).getByLabelText(/new item description/i), 'Shielding gas');
     await userEvent.type(within(row).getByLabelText(/new item quantity/i), '6');
-    await userEvent.type(within(row).getByLabelText(/new item unit price/i), '142.50');
+    await userEvent.type(within(row).getByLabelText(/new item unit price/i), '142.51');
+    expect(within(row).getByLabelText('New line total')).toHaveTextContent('$855.06');
     await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
-    expect(onAdd).toHaveBeenCalledWith({ name: 'Shielding gas', quantity: 6, rate: 142.5 });
+    expect(onAdd).toHaveBeenCalledWith({ name: 'Shielding gas', quantity: 6, rate: 142.51 });
   });
 
   it('AC-PROC-003: Add is disabled until a description is entered', () => {

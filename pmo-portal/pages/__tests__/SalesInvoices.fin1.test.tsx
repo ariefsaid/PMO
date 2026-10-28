@@ -146,7 +146,7 @@ describe('FIN-S1 / AC-RD-TBL-INV-001: invoice list default state', () => {
     const row = screen.getByRole('row', { name: /INV-001/ });
     const primary = within(row).getByRole('link', { name: 'INV-001' }).closest('td,th')!;
     expect(primary).toHaveTextContent('Northwind Services');
-    expect(within(row).getAllByText('$1,250,000.50').length).toBeGreaterThan(0);
+    expect(within(row).getAllByText('$1,250,001').length).toBeGreaterThan(0);
   });
 
   it('shows the project under the customer only when its label is known', () => {
@@ -253,6 +253,7 @@ describe('FIN-S1: Pre-ERP history keeps its opening-balance fact in a tooltip, n
     renderAt('/sales-invoices');
     const row = screen.getByRole('row', { name: /INV-001/ });
     expect(within(row).getByText('Pre-ERP').closest('[title]')).toHaveAttribute('title', expect.stringContaining('Carried into the ERP opening balance'));
+    expect(within(row).getByText('Pre-ERP').closest('[title]')).toHaveAttribute('title', expect.stringContaining('$500.00'));
     for (const el of within(row).queryAllByText(/Carried into/)) expect(el).toHaveClass('sr-only');
   });
 });

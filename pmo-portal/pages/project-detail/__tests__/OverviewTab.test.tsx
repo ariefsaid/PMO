@@ -226,11 +226,11 @@ describe('project invoicing summary', () => {
       expect(screen.getByTestId('project-drawdown').compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(screen.queryByTestId('project-invoicing-summary')).not.toBeInTheDocument();
       expect(section).not.toHaveTextContent('$220.00');
-      expect(section).toHaveTextContent('$110.00');
-      expect(section).toHaveTextContent('$100.00');
+      expect(section).toHaveTextContent('Contract invoice position · USD');
+      expect(section).toHaveTextContent('110');
+      expect(section).toHaveTextContent('100');
       expect(screen.queryByTestId('project-contract-basis')).not.toBeInTheDocument();
-      expect(screen.getByTestId('project-invoiced-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
-      expect(screen.getByTestId('project-remaining-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
+      expect(screen.getByTestId('project-finances-contract-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
       view.unmount();
     }
     // Overview and its Project finances summary share the same React Query key; each calls the hook, while the request is cached/deduplicated.
@@ -519,7 +519,7 @@ describe('OverviewTab D15 financial summary — Actual requires authorized compl
     const actualTile = Array.from(tiles).find((el) => el.textContent?.includes('Actual'));
     expect(actualTile).toBeTruthy();
     // This role cannot read the authorized project-finances source; committed PO spend is not a substitute.
-    expect(actualTile!.querySelector('.sr-only')).toHaveTextContent('Unavailable');
+    expect(actualTile!.textContent).toContain('Actual spending is still being confirmed.');
     expect(actualTile!.textContent).not.toContain('$3,700,000');
     expect(actualTile!.textContent).not.toContain('$0');
   });

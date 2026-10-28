@@ -7,7 +7,7 @@ import {
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { currencySymbol, formatCurrencyCents, formatNumber, formatNumberExact, formatUtcMonthYear } from '@/src/lib/format';
+import { currencySymbol, formatCurrencyAuto, formatCurrencyCents, formatNumber, formatNumberExact, formatUtcMonthYear } from '@/src/lib/format';
 import { claimNet, percentOfLot, remainingQuantity, summarizeBilling } from '@/src/lib/progressBilling';
 import type {
   BoqItemInput, BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice,
@@ -90,7 +90,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const claimRows = claims.data ?? [];
   const summary = billing.data ? summarizeBilling(billing.data) : null;
   const excl = t('projectDetail.billing.summary.exclTax', 'excl. PPN');
-  const money = (value: number) => formatCurrencyCents(value, currency);
+  const money = (value: number) => formatCurrencyAuto(value, currency);
   const cents = (value: number | string) => formatCurrencyCents(Number(value), currency);
   const monthLabel = (iso: string) => formatUtcMonthYear(new Date(`${iso}T00:00:00Z`));
 
@@ -191,7 +191,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         ? <span className="tabular">{t('projectTabs:contractQuantities.billing.boq.lumpSum', 'Lump sum')}</span>
         : <span className="tabular">{formatNumberExact(Number(row.quantity))} {row.unit}</span> },
     { key: 'rate', header: t('projectDetail.billing.boq.column.rate', 'Rate'), align: 'num',
-      cell: (row) => <span className="tabular">{cents(row.rate)}</span> },
+      cell: (row) => <span className="tabular">{money(Number(row.rate))}</span> },
     ...(hasLines ? [
       { key: 'ordered', header: t('projectTabs:contractQuantities.billing.boq.column.ordered', 'Ordered'), align: 'num' as const, cell: (row: BoqItemRow) => {
         const f = lineFactsById.get(row.id);
@@ -275,11 +275,11 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         : t('projectDetail.billing.claims.kind.progress', 'Progress')}</span>
     ) },
     { key: 'gross', header: t('projectDetail.billing.claims.column.gross', 'Claimed'), align: 'num',
-      cell: (c) => <span className="tabular">{cents(c.gross_amount)}</span> },
+      cell: (c) => <span className="tabular">{money(Number(c.gross_amount))}</span> },
     { key: 'recovery', header: t('projectDetail.billing.claims.column.recovery', 'Down payment recovered'), align: 'num',
-      cell: (c) => <span className="tabular">{cents(c.dp_recovery_amount)}</span> },
+      cell: (c) => <span className="tabular">{money(Number(c.dp_recovery_amount))}</span> },
     { key: 'net', header: t('projectDetail.billing.claims.column.net', 'Net'), align: 'num',
-      cell: (c) => <span className="tabular">{cents(claimNet(Number(c.gross_amount), Number(c.dp_recovery_amount)))}</span> },
+      cell: (c) => <span className="tabular">{money(claimNet(Number(c.gross_amount), Number(c.dp_recovery_amount)))}</span> },
     { key: 'invoice', header: t('projectDetail.billing.claims.column.invoice', 'Invoice'), cell: (c) => (
       <span>{c.withdrawn_at
         ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn')
