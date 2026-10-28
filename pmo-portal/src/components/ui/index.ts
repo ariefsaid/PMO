@@ -24,6 +24,7 @@ export {
   type ColAlign,
   type SortState,
   type RowMenuItem,
+  type DataTableSelection,
   type DataTableProps,
 } from './DataTable';
 export { ViewToggle, type ViewOption, type ViewToggleProps } from './ViewToggle';

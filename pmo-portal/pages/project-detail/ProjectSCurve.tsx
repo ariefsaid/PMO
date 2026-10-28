@@ -31,7 +31,7 @@ const todayIso = () => new Date().toISOString().slice(0, 10);
  * Both lines share One-Blue (DESIGN.md single-blue identity); style-only distinction.
  */
 const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const { data, isPending, isError, refetch } = useMilestones(projectId);
   // NFR-SCA-004: reuse tasks already loaded on the project-detail page — no extra round-trip.
   const { data: tasksData } = useTasks(projectId);
@@ -181,7 +181,6 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
                 style={{ background: chartTheme.series.primary }}
               />
               {t('projectDetail.scurve.seriesActual', 'Actual to date')}
-              <span className="tabular font-semibold text-foreground">{model.actualToDate}%</span>
             </span>
           </figcaption>
 

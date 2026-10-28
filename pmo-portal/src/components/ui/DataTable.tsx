@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
+import { getCoreRowModel, useReactTable, type ColumnDef, type RowSelectionState, type Updater } from '@tanstack/react-table';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
@@ -9,6 +9,7 @@ import { buttonClasses } from './buttonClasses';
 import { useIsDesktop } from './useIsDesktop';
 import { trackSearchUsed } from '@/src/lib/analytics';
 import { AuthContext } from '@/src/auth/AuthContext';
+import { Checkbox } from './Checkbox';
 
 /** `search_used`'s debounce idle window (2026-07-13 wiring plan) — fire once per
  * search intent, never per keystroke. */
@@ -83,6 +84,14 @@ export interface SortState {
   dir: 'asc' | 'desc';
 }
 
+export interface DataTableSelection<Row> {
+  /** Controlled selection shared across grouped tables when needed. */
+  selectedIds: ReadonlySet<string>;
+  onChange: (ids: Set<string>) => void;
+  /** Accessible name for each checkbox; falls back to the primary title. */
+  rowLabel?: (row: Row) => string;
+}
+
 export interface RowMenuItem {
   label: string;
   onClick: () => void;
@@ -145,6 +154,8 @@ export interface DataTableProps<Row> {
   groupBy?: (row: Row) => string;
   /** Aligned subtotal/total rows rendered in a semantic <tfoot>; values are keyed by column key. */
   totals?: Array<{ key: string; label: React.ReactNode; values?: Record<string, React.ReactNode> }>;
+  /** Optional controlled multi-row selection. */
+  selection?: DataTableSelection<Row>;
 }
 
 /** Whether `ref`'s width is below `below` px — measured before paint, then followed with a ResizeObserver. An unmeasured
@@ -316,8 +327,9 @@ export function DataTable<Row>({
   tableId,
   groupBy,
   totals,
+  selection,
 }: DataTableProps<Row>) {
-  const { t } = useTranslation();
+  const { t } = useTranslation('projects');
   const columns = useMemo(() => allColumns.filter((column) => !column.exportOnly), [allColumns]);
   const userId = useContext(AuthContext)?.currentUser?.id;
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>(() => readColumnSizing(tableId, userId, columns as Column<unknown>[]));
@@ -357,18 +369,36 @@ export function DataTable<Row>({
       ...(columnMaxSize(column) !== undefined ? { maxSize: columnMaxSize(column) } : {}),
     };
   }), [columns]);
+  const currentRowIds = useMemo(() => rows.map((row, index) => rowKey(row) || String(index)), [rowKey, rows]);
+  const rowSelectionState = useMemo<RowSelectionState>(
+    () => Object.fromEntries([...(selection?.selectedIds ?? [])].map((id) => [id, true])),
+    [selection?.selectedIds],
+  );
+  const updateSelection = (updater: Updater<RowSelectionState>) => {
+    if (!selection) return;
+    const nextState = typeof updater === 'function' ? updater(rowSelectionState) : updater;
+    const visibleIds = new Set(currentRowIds);
+    const nextIds = new Set([...selection.selectedIds].filter((id) => !visibleIds.has(id)));
+    for (const [id, isSelected] of Object.entries(nextState)) {
+      if (isSelected) nextIds.add(id);
+    }
+    selection.onChange(nextIds);
+  };
   const table = useReactTable({
     data: rows,
     columns: tableColumns,
-    getRowId: (row, index) => rowKey(row) || String(index),
+    getRowId: (_row, index) => currentRowIds[index] ?? String(index),
     getCoreRowModel: getCoreRowModel(),
     manualSorting: true,
     columnResizeMode: 'onChange',
     enableColumnResizing: isDesktop,
+    enableRowSelection: Boolean(selection),
     state: {
       sorting: sort ? [{ id: columns.find((column) => column.sortKey === sort.key)?.key ?? sort.key, desc: sort.dir === 'desc' }] : [],
       columnSizing,
+      rowSelection: rowSelectionState,
     },
+    onRowSelectionChange: updateSelection,
     onColumnSizingChange: (updater) => {
       setColumnSizing((current) => {
         const next = typeof updater === 'function' ? updater(current) : updater;
@@ -404,7 +434,23 @@ export function DataTable<Row>({
   }, [groupBy, modelRows]);
   const modelHeaders = table.getHeaderGroups()[0]?.headers ?? [];
   const hasHiddenRightContent = useStickyRowMenuSeam(tableBranchRef, tableRef, isDesktop && Boolean(rowMenu));
-  const colSpan = columns.length + (rowMenu ? 1 : 0);
+  const colSpan = columns.length + (rowMenu ? 1 : 0) + (selection ? 1 : 0);
+  const visibleSelectionCount = currentRowIds.filter((id) => selection?.selectedIds.has(id)).length;
+  const selectAllChecked: boolean | 'mixed' = visibleSelectionCount === 0
+    ? false
+    : visibleSelectionCount === currentRowIds.length ? true : 'mixed';
+  const toggleAllRows = (checked: boolean) => {
+    table.setRowSelection((current) => {
+      const next = { ...current };
+      for (const id of currentRowIds) {
+        if (checked) next[id] = true;
+        else delete next[id];
+      }
+      return next;
+    });
+  };
+  const selectionLabel = (row: Row, primaryColumn?: Column<Row>) => selection?.rowLabel?.(row)
+    ?? t('table.selectRow', 'Select {{row}}', { row: primaryColumn?.primaryTitle?.(row) ?? rowKey(row) });
 
   // Shared ListState node — rendered once and reused in both branches via a
   // local variable so the async-state code is one source of truth.
@@ -447,12 +493,17 @@ export function DataTable<Row>({
           ref={tableRef}
           aria-label={accessibleName}
           style={{
-            ...(columns.some((column) => column.size !== undefined || column.kind === 'primary' || column.kind === 'status') ? { minWidth: table.getTotalSize() + (rowMenu ? 40 : 0), tableLayout: 'fixed' as const } : {}),
+            ...(columns.some((column) => column.size !== undefined || column.kind === 'primary' || column.kind === 'status') ? { minWidth: table.getTotalSize() + (rowMenu ? 40 : 0) + (selection ? 40 : 0), tableLayout: 'fixed' as const } : {}),
           }}
           className="w-full border-collapse text-[13.5px]"
         >
           <thead>
             <tr>
+              {selection && <th scope="col" className="sticky top-0 z-[2] h-[38px] w-10 border-b border-border bg-card px-3 text-left">
+                <span onClick={(event) => event.stopPropagation()}>
+                  <Checkbox checked={selectAllChecked} onChange={toggleAllRows} label={t('table.selectAllRows', 'Select all rows')} disabled={currentRowIds.length === 0} />
+                </span>
+              </th>}
               {modelHeaders.map((header, headerIndex) => {
                 const col = columns.find((column) => column.key === header.column.id)!;
                 const sortable = header.column.getCanSort();
@@ -586,6 +637,7 @@ export function DataTable<Row>({
               groupedRows.map((entry, entryIndex) => {
                 if (entry.type === 'heading') return (
                   <tr key={`group-${entry.label}-${entryIndex}`} className="h-[38px] bg-secondary/40">
+                    {selection && <td />}
                     <th scope="row" className="px-3 text-left text-[13.5px] font-semibold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></th>
                     {columns.slice(1).map((column) => <td key={column.key} className={cn('px-3', alignClass(column.align))} />)}
                     {rowMenu && <td className={ROW_MENU_STICKY_CLASS} />}
@@ -635,6 +687,15 @@ export function DataTable<Row>({
                       selected && 'bg-primary/[0.07]'
                     )}
                   >
+                    {selection && <td className="h-[54px] w-10 px-3 py-2 align-middle">
+                      <span onClick={(event) => event.stopPropagation()}>
+                        <Checkbox
+                          checked={modelRow.getIsSelected()}
+                          onChange={(checked) => modelRow.toggleSelected(checked)}
+                          label={selectionLabel(row, columns[0])}
+                        />
+                      </span>
+                    </td>}
                     {modelRow.getVisibleCells().map((cell, colIndex) => {
                       const col = columns.find((column) => column.key === cell.column.id)!;
                       const activatable = onActivate && rowLabel && colIndex === 0;
@@ -691,6 +752,7 @@ export function DataTable<Row>({
           </tbody>
           {totals && totals.length > 0 && <tfoot>
             {totals.map((total) => <tr key={total.key} className="h-11 border-t-[1.5px] border-border bg-secondary/40 font-semibold tabular">
+              {selection && <td />}
               {columns.map((column, index) => <td key={column.key} className={cn('px-3 py-2 align-middle', column.stickyLeft && 'sticky left-0 z-[1] bg-card', alignClass(column.align), column.align === 'num' && 'tabular')}>
                 {total.values?.[column.key] ?? (index === 0 ? total.label : null)}
               </td>)}
@@ -723,6 +785,11 @@ export function DataTable<Row>({
         aria-label={accessibleName}
         className="divide-y divide-border/70"
       >
+        {selection && !state && <li className="flex items-center gap-2 border-b border-border/70 bg-secondary/30 px-4 py-2">
+          <span onClick={(event) => event.stopPropagation()}>
+            <Checkbox checked={selectAllChecked} onChange={toggleAllRows} label={t('table.selectAllRows', 'Select all rows')} disabled={currentRowIds.length === 0} />
+          </span>
+        </li>}
         {state ? (
           <li className="p-0">{listStateNode}</li>
         ) : (
@@ -757,19 +824,28 @@ export function DataTable<Row>({
                       the viewport at phone widths (AC-MOBILE-OVERFLOW-001). Forcing truncate
                       descendants to block lets them clip with an ellipsis within this min-w-0
                       column, independent of text width (no font-metric-dependent 1–6px bleed). */}
-                  <div className="min-w-0 flex-1 font-semibold [&_.truncate]:block">
-                    {onActivate && rowLabel ? (
-                      <button
-                        type="button"
-                        aria-label={accessibleRowLabel(row)}
-                        onClick={() => onActivate(row)}
-                        className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
-                      >
-                        {titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
-                      </button>
-                    ) : (
-                      titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)
-                    )}
+                  <div className="flex min-w-0 flex-1 items-start gap-2">
+                    {selection && <span className="shrink-0" onClick={(event) => event.stopPropagation()}>
+                      <Checkbox
+                        checked={modelRow.getIsSelected()}
+                        onChange={(checked) => modelRow.toggleSelected(checked)}
+                        label={selectionLabel(row, titleCol)}
+                      />
+                    </span>}
+                    <div className="min-w-0 flex-1 font-semibold [&_.truncate]:block">
+                      {onActivate && rowLabel ? (
+                        <button
+                          type="button"
+                          aria-label={accessibleRowLabel(row)}
+                          onClick={() => onActivate(row)}
+                          className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
+                        >
+                          {titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
+                        </button>
+                      ) : (
+                        titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)
+                      )}
+                    </div>
                   </div>
                   {/* rowMenu ⋯ — top-right of the card, .touch-target for ≥44px on coarse pointer */}
                   {hasMenu && menuItems.length > 0 && (
@@ -791,7 +867,7 @@ export function DataTable<Row>({
                         <React.Fragment key={col.key}>
                           <dt
                             className={cn(
-                              'text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground self-start',
+                              'text-[11px] font-semibold text-muted-foreground self-start',
                               stripHiddenClasses(col.colClassName)
                             )}
                           >
@@ -874,7 +950,7 @@ const MENU_GAP = 4; // `mt-1` equivalent between trigger and menu (DESIGN.md spa
  * per row; `ariaLabel` names the trigger for its row (e.g. "Link PINV-1").
  */
 const RowMenu: React.FC<{ items: RowMenuItem[]; label?: string; ariaLabel?: string }> = ({ items, label, ariaLabel }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('projects');
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);

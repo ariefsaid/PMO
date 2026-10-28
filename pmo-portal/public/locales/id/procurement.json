@@ -117,5 +117,175 @@
   },
   "detail": {
     "paidNeedsValue": "Tambahkan item baris atau dokumen bernilai sebelum menandai lunas."
+  },
+  "projectDetail": {
+    "procurement": {
+      "stageBand": {
+        "request": "Permintaan",
+        "ordered": "Dipesan",
+        "received": "Diterima",
+        "pay": "Bayar",
+        "invoiced": "Ditagih",
+        "invoicedNotPaid": "Ditagih, belum dibayar",
+        "paid": "Dibayar",
+        "approved": "Disetujui",
+        "label": "Tahapan pengadaan"
+      },
+      "nextStep": {
+        "approveOrReturn": "Setujui atau kembalikan",
+        "waitingOnApprover": "Menunggu pemberi persetujuan",
+        "approved": "Minta penawaran atau pesan",
+        "delivered": "Catat faktur pemasok",
+        "draft": "Ajukan untuk persetujuan",
+        "gettingQuotes": "Pilih penawaran",
+        "ordered": "Catat pengiriman",
+        "quoteChosen": "Ajukan pesanan",
+        "supplierInvoiced": "Bayar"
+      },
+      "noNextStep": "—",
+      "document": {
+        "purchaseRequest": "Permintaan pembelian",
+        "quotation": "Penawaran",
+        "purchaseOrder": "Pesanan pembelian",
+        "receipt": "Penerimaan",
+        "supplierInvoice": "Faktur pemasok",
+        "payment": "Pembayaran"
+      },
+      "detail": {
+        "budgetLeftTooltip": "Anggaran kategori aktif dikurangi pengeluaran aktual terpetakan dan nilai permintaan pengadaan ini. Sumber: anggaran aktif dan pengeluaran proyek.",
+        "budgetLoading": "Memuat anggaran…",
+        "budgetUnavailable": "Tidak tersedia",
+        "budgetLeft": "Sisa anggaran kategori",
+        "title": "Detail permintaan pengadaan",
+        "openFullRecord": "Buka halaman penuh",
+        "category": "Kategori",
+        "value": "Nilai",
+        "owner": "Pemilik",
+        "timeline": "Linimasa langkah",
+        "timelineHint": "Langkah dapat dilakukan dalam urutan apa pun; langkah yang dilewati tidak dicatat.",
+        "notRecorded": "Belum dicatat",
+        "documents": "Dokumen",
+        "loadingDocuments": "Memuat dokumen tertaut…",
+        "documentsError": "Dokumen tertaut tidak dapat dimuat.",
+        "noDocuments": "Belum ada dokumen tertaut."
+      },
+      "uncategorized": "Tanpa kategori",
+      "unassigned": "Belum ditugaskan",
+      "toast": {
+        "approved": "Permintaan pengadaan disetujui",
+        "returned": "Permintaan pengadaan dikembalikan",
+        "cancelled": "Permintaan pengadaan dibatalkan",
+        "completedMany": "{{count}} catatan diperbarui.",
+        "partial": "Beberapa catatan diperbarui",
+        "partialDetail": "{{updated}} diperbarui; {{failed}} perlu ditinjau.",
+        "linkCopied": "Tautan disalin",
+        "linkCopyFailed": "Tautan tidak dapat disalin"
+      },
+      "rowMenu": {
+        "open": "Buka permintaan pengadaan",
+        "approve": "Setujui",
+        "return": "Kembalikan",
+        "copyLink": "Salin tautan",
+        "cancel": "Batalkan permintaan pengadaan"
+      },
+      "exportEntity": "Pengadaan",
+      "table": {
+        "value": "Nilai",
+        "procurement": "Pengadaan",
+        "category": "Kategori",
+        "stage": "Tahap",
+        "nextStep": "Langkah berikutnya",
+        "accessibleName": "Pengadaan proyek"
+      },
+      "noSupplier": "Tidak ada pemasok",
+      "ownerTooltip": "Diminta oleh {{name}}. Sumber: catatan pengadaan.",
+      "stageCountTooltip": "Jumlah permintaan pengadaan yang saat ini berada di tahap {{stage}}. Sumber: catatan pengadaan proyek.",
+      "forYou": "{{count}} untuk Anda",
+      "selection": {
+        "selectRow": "Pilih {{name}}",
+        "count": "{{count}} dipilih",
+        "clearVisible": "Hapus yang terlihat",
+        "selectVisible": "Pilih yang terlihat",
+        "clear": "Hapus pilihan"
+      },
+      "emptyFiltered": {
+        "title": "Tidak ada permintaan pengadaan yang cocok dengan filter ini.",
+        "sub": "Sesuaikan pencarian atau filter, lalu coba lagi."
+      },
+      "bulk": {
+        "approve": "Setujui",
+        "return": "Kembalikan",
+        "export": "Ekspor"
+      },
+      "searchLabel": "Cari permintaan pengadaan",
+      "search": "Cari permintaan pengadaan…",
+      "filter": {
+        "category": "Filter berdasarkan kategori",
+        "allCategories": "Kategori",
+        "owner": "Filter berdasarkan pemilik",
+        "allOwners": "Pemilik",
+        "clearStage": "Hapus filter tahap"
+      },
+      "confirm": {
+        "cancelManyTitle": "Batalkan permintaan pengadaan ini?",
+        "cancelTitle": "Batalkan permintaan pengadaan ini?",
+        "returnManyTitle": "Kembalikan permintaan ini?",
+        "returnTitle": "Kembalikan permintaan ini?",
+        "cancelDescription": "Permintaan pengadaan ini akan ditandai sebagai dibatalkan.",
+        "returnDescription": "Permintaan ini akan dikembalikan kepada pemintanya."
+      },
+      "stage": {
+        "cancelled": "Dibatalkan",
+        "rejected": "Ditolak"
+      }
+    }
+  },
+  "procurement": {
+    "moneyBasis": {
+      "paid": "Dibayar",
+      "invoiced": "Ditagih",
+      "ordered": "Dipesan",
+      "requested": "Diajukan"
+    },
+    "needsYou": {
+      "none": "—",
+      "approve": "Setujui permintaan",
+      "receive": "Catat pengiriman",
+      "pay": "Bayar faktur",
+      "column": "Alasan perlu tindakan Anda"
+    },
+    "rowMenu": {
+      "nextAction": "Tindakan berikutnya",
+      "recordDocument": "Catat dokumen lain",
+      "linkFile": "Tautkan file",
+      "export": "Ekspor"
+    },
+    "moneyTooltip": "Jumlah tercatat terbesar: dibayar, difakturkan, dipesan, lalu diminta. Sumber: catatan pengadaan.",
+    "moneyUnknown": "Belum dicatat",
+    "unpaidTooltip": "Jumlah faktur dikurangi pembayaran tercatat, atau saldo terutang di ERP.",
+    "unpaidLine": "Belum dibayar {{amount}}",
+    "settlementTooltip": "Jumlah pembayaran yang tercatat dibandingkan dengan faktur yang tercatat.",
+    "settlement": "Dibayar / difakturkan",
+    "nextStepLabel": "Langkah berikutnya",
+    "lineItems": "Item permintaan",
+    "lineItemsUnavailable": "Baris item tidak dapat dimuat.",
+    "noLineItems": "Belum ada baris item yang dicatat.",
+    "openDrawer": "Buka permintaan pengadaan",
+    "needsYouTooltip": "Tindakan yang disarankan berdasarkan peran dan status catatan saat ini. Aturan server tetap menjadi acuan.",
+    "ageInStageTooltip": "Jumlah hari sejak permintaan pengadaan terakhir kali memasuki tahap saat ini.",
+    "ageInStage": "Lama di tahap",
+    "ageInStageDays": "{{count}} hari",
+    "raisedBy": "Dibuat oleh",
+    "stageCountTooltip": "Jumlah permintaan pengadaan yang saat ini berada di tahap {{stage}}. Sumber: catatan pengadaan perusahaan.",
+    "table": {
+      "accessibleName": "Pengadaan"
+    },
+    "empty": {
+      "title": "Belum ada permintaan pengadaan."
+    }
+  },
+  "common": {
+    "loading": "Memuat…",
+    "retry": "Coba lagi"
   }
 }

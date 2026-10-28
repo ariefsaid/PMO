@@ -11,6 +11,7 @@ import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
+import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 // ---------------------------------------------------------------------------
 // Mutable mock state
@@ -67,6 +68,11 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetMutations: () => mutations,
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => ({ data: [], isPending: false, isError: false }) }));
+vi.mock('../project-detail/useProjectPosition', () => ({ useBudgetPosition: () => ({ isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [], unknown: 0 }) }));
+vi.mock('../project-detail/budget/BudgetSummary', () => ({ default: () => null }));
+vi.mock('../project-detail/budget/BudgetErpNotice', () => ({ default: () => null }));
+vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
@@ -85,7 +91,7 @@ const renderPage = () =>
   render(
     <MemoryRouter>
       <ToastProvider>
-        <ProjectBudget projectId="p1" />
+        <ProjectBudget projectId="p1" project={{ id: 'p1', currency: 'USD', tax_treatment: 'exclusive' } as unknown as ProjectWithRefs} />
       </ToastProvider>
     </MemoryRouter>,
   );

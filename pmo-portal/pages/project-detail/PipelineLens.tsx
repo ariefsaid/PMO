@@ -3,22 +3,19 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Trans, useTranslation } from 'react-i18next';
 import {
-  Card,
-  CardHead,
-  CardPad,
   Button,
-  StatTiles,
   LifecycleStepper,
   GateNotice,
-  RecordActionZone,
   Icon,
   ConfirmDialog,
+  RecordActionZone,
   useToast,
   type StatTile,
 } from '@/src/components/ui';
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { listReturnNavigation } from '@/src/lib/listReturnContext';
 import { formatCurrency, formatDecisionDateNumeric } from '@/src/lib/format';
 import {
@@ -71,11 +68,12 @@ export interface PipelineLensProps {
  * journey stepper, and the Advance / Mark won / Mark lost actions with the inline SoD capture).
  */
 const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const { toast } = useToast();
   const { currentUser } = useAuth();
   const queryClient = useQueryClient();
   const may = usePermission();
+  const isDesktop = useIsDesktop();
 
   // A-1 (rbac-visibility §B2): pipeline lifecycle control (Advance / Mark won / Mark lost) is
   // a delivery-led, PM-owned write — Admin·Exec·PM (`edit` on project). Finance·Engineer are
@@ -93,6 +91,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
   // of the Next-actions card (Advance/Lost) and the page header h1 (Won, where the
   // page becomes the delivery layout). A keyboard/SR user is told what changed.
   const nextActionsHeadRef = useRef<HTMLDivElement>(null);
+  const detailsRef = useRef<HTMLDetailsElement>(null);
   // The post-Won focus defer must not fire after unmount (a torn-down page has no document to focus).
   const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (focusTimerRef.current) clearTimeout(focusTimerRef.current); }, []);
@@ -105,6 +104,8 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
   // capture IS the confirm).
   const [confirmAction, setConfirmAction] = useState<'lost' | 'declined' | null>(null);
   const [showWonPanel, setShowWonPanel] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const showDetails = isDesktop || detailsOpen;
   const [contractRef, setContractRef] = useState('');
   const [contractDate, setContractDate] = useState('');
   const [refError, setRefError] = useState<string | null>(null);
@@ -125,6 +126,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
   // ProjectWithRefs carries the column (0187). No org fallback: a per-record figure rendered in the
   // org's denomination is the silent wrong number this seam exists to remove.
   const currency = project.currency;
+  const canSeeMoney = may('view', 'salesInvoice');
   const winProb = cached?.win_probability ?? 0;
   const weighted = cached ? weightedValue(cached) : 0;
 
@@ -170,6 +172,10 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
           h1?.focus();
         }, 80);
       } else {
+        if (!isDesktop) {
+          if (detailsRef.current) detailsRef.current.open = true;
+          setDetailsOpen(true);
+        }
         nextActionsHeadRef.current?.focus();
       }
     } catch (err) {
@@ -221,7 +227,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
   // the decision instead — never a 0% win probability or a zero weighted value.
   const stats: StatTile[] = isTerminal
     ? [
-        valueTile,
+        ...(canSeeMoney ? [valueTile] : []),
         ownerTile,
         {
           label: t('projectDetail.pipeline.stat.decision', 'Decision'),
@@ -232,221 +238,172 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
         },
       ]
     : [
-        valueTile,
+        ...(canSeeMoney ? [valueTile] : []),
         { label: t('projectDetail.pipeline.stat.winProbability', 'Win probability'), value: formatPercent(winProb) },
-        { label: t('projectDetail.pipeline.stat.weighted', 'Weighted'), value: formatCurrency(weighted, currency) },
+        ...(canSeeMoney ? [{ label: t('projectDetail.pipeline.stat.weighted', 'Weighted'), value: formatCurrency(weighted, currency) }] : []),
         ownerTile,
       ];
 
   return (
-    <div>
-      <StatTiles tiles={stats} columns={stats.length} className="mb-4" />
+    <div className="min-w-0">
+      {!isDesktop && <div className="mb-4 space-y-3 md:hidden">
+        <div>
+          <p className="text-xs font-medium text-muted-foreground">{t('projectDetail.pipeline.currentStage', 'Current stage')}</p>
+          <h2 className="text-base font-semibold text-foreground">{project.status}</h2>
+        </div>
+        {!canTransition ? (
+          <p className="line-clamp-1 text-sm text-muted-foreground">{t('projectDetail.pipeline.readOnlyShort', 'Project manager manages this pipeline.')}</p>
+        ) : !isTerminal && nextStage ? (
+          <Button variant="primary" disabled={pending} onClick={() => void runTransition(nextStage)}>
+            {`${t('projectDetail.pipeline.advanceTo', 'Advance to')} ${NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage}`}
+          </Button>
+        ) : !isTerminal && canWin ? (
+          <Button variant="primary" disabled={pending} onClick={() => {
+            setShowWonPanel(true);
+            if (detailsRef.current) detailsRef.current.open = true;
+            setDetailsOpen(true);
+          }}>
+            {t('projectDetail.pipeline.markWon', 'Mark won')}
+          </Button>
+        ) : null}
+      </div>}
 
-      {/* AC-RAM-003 (#688): base grid-cols-1 (explicit, matches the stacked mobile intent) +
-          min-w-0 on EACH grid item. Without it, a grid item's default min-width:auto falls back
-          to its content-based minimum size — which, for the Journey card, is the LifecycleStepper's
-          un-wrapped step row (flex, no wrap, summed children) — forcing the shared single-column
-          track to that width and overflowing the viewport at phone width. min-w-0 lets the track
-          shrink to the container's width; the stepper's own overflow-x-auto then scrolls instead. */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Opportunity journey */}
-        <Card className="min-w-0">
-          <CardHead>{t('projectDetail.pipeline.journeyHeading', 'Project journey')}</CardHead>
-          <CardPad>
+      <details ref={detailsRef} open={isDesktop || detailsOpen} onToggle={(event) => setDetailsOpen(event.currentTarget.open)} className="min-w-0">
+        <summary className="mb-4 cursor-pointer text-sm font-semibold text-foreground md:hidden">
+          {t('projectDetail.pipeline.moreAboutDeal', 'More about this deal')}
+        </summary>
+        {showDetails && <>
+          {stats.length > 0 && (
+            <dl className="mb-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+              {stats.map((tile, index) => (
+                <div key={index} className="min-w-0 border-b border-border pb-2">
+                  <dt className="text-xs text-muted-foreground">{tile.label}</dt>
+                  <dd className="mt-1 break-words text-base font-semibold tabular-nums text-foreground">{tile.value}</dd>
+                  {tile.sub && <dd className="mt-1 text-xs text-muted-foreground">{tile.sub}</dd>}
+                </div>
+              ))}
+            </dl>
+          )}
+
+        <div className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-2">
+          <section className="min-w-0 space-y-3 border-b border-border pb-4 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-5">
+            <h2 className="text-sm font-semibold text-foreground">{t('projectDetail.pipeline.journeyHeading', 'Project journey')}</h2>
             <LifecycleStepper
               variant="bar"
               steps={dealJourneySteps(liveStatus as never)}
               aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')}
+              className="[&_span]:text-xs"
             />
-          </CardPad>
-        </Card>
+          </section>
 
-        {/* Next actions — wrapped in RecordActionZone so the advance/decide verb is sticky
-            on desktop (never below the fold per DESIGN.md §7 RecordActionZone molecule). */}
-        <RecordActionZone className="min-w-0">
-        <Card>
-          {/* N10 (OD-W5-C3-B): wrap CardHead in a focusable div; the focus moves here
-              programmatically after an Advance/Lost transition so a keyboard/SR user is
-              told what changed. tabIndex={-1} keeps it out of the natural tab order. */}
-          <div ref={nextActionsHeadRef} tabIndex={-1} className="outline-none focus-visible:ring-0">
-            <CardHead>{t('projectDetail.pipeline.nextActionsHeading', 'Next actions')}</CardHead>
-          </div>
-          <CardPad className="flex flex-col gap-3">
+          <section className="min-w-0 space-y-3">
+            <div ref={nextActionsHeadRef} tabIndex={-1} className="outline-none focus-visible:ring-0">
+              <h2 className="text-sm font-semibold text-foreground">{t('projectDetail.pipeline.nextActionsHeading', 'Next actions')}</h2>
+            </div>
             {!canTransition ? (
-              // Denied (Finance·Engineer, §C): a clean read-only note in place of the action
-              // cluster — never a wall of disabled buttons (rbac-visibility reading-rule 5).
               <GateNotice variant="ready">
                 {t(
                   'projectDetail.pipeline.readOnlyNotice',
-                  'Pipeline managed by the project owner. You can review this project\u2019s stage and journey here; lifecycle changes are made by the project manager.',
+                  'Pipeline managed by the project owner. You can review this project’s stage and journey here; lifecycle changes are made by the project manager.',
                 )}
               </GateNotice>
             ) : (
               <>
-            {isTerminal ? (
-              projectStatusGroup(liveStatus as never) === 'lost' ? (
-                <GateNotice variant="ready">
-                  {t(
-                    'projectDetail.pipeline.lostNotice',
-                    'This project is marked lost. It has left the active pipeline.',
-                  )}
-                </GateNotice>
-              ) : (
-                <GateNotice variant="ready">
-                  {t(
-                    'projectDetail.pipeline.terminalNotice',
-                    'This project has reached a terminal stage. No further pipeline actions.',
-                  )}
-                </GateNotice>
-              )
-            ) : null}
+                {isTerminal ? (
+                  projectStatusGroup(liveStatus as never) === 'lost' ? (
+                    <GateNotice variant="ready">
+                      {t('projectDetail.pipeline.lostNotice', 'This project is marked lost. It has left the active pipeline.')}
+                    </GateNotice>
+                  ) : (
+                    <GateNotice variant="ready">
+                      {t('projectDetail.pipeline.terminalNotice', 'This project has reached a terminal stage. No further pipeline actions.')}
+                    </GateNotice>
+                  )
+                ) : null}
 
-            {/* Action hierarchy: exactly ONE solid blue (Advance — the primary path); Mark won
-                / Mark lost are quiet outlines distinguished by a leading status dot
-                (color-not-only). The solid destructive fill appears ONLY inside the confirm. */}
-            {!isTerminal && (
-              <div className="flex flex-wrap gap-2">
-                {nextStage && (
-                  <Button variant="primary" disabled={pending} onClick={() => void runTransition(nextStage)}>
-                    {`${t('projectDetail.pipeline.advanceTo', 'Advance to')} ${
-                      NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage
-                    }`}
-                  </Button>
+                {!isTerminal && (
+                  <RecordActionZone>
+                    <div className="flex flex-wrap gap-2">
+                      {isDesktop && nextStage && (
+                        <Button variant="primary" disabled={pending} onClick={() => void runTransition(nextStage)}>
+                          {`${t('projectDetail.pipeline.advanceTo', 'Advance to')} ${NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage}`}
+                        </Button>
+                      )}
+                      {canWin && (
+                        <Button variant="outline" disabled={pending} onClick={() => setShowWonPanel((v) => !v)}>
+                          <span aria-hidden className="size-1.5 rounded-full bg-success" />
+                          {t('projectDetail.pipeline.markWon', 'Mark won')}
+                        </Button>
+                      )}
+                      {canLose && (
+                        <Button variant="outline" disabled={pending} onClick={() => setConfirmAction('lost')}>
+                          <span aria-hidden className="size-1.5 rounded-full bg-destructive" />
+                          {t('projectDetail.pipeline.markLost', 'Mark lost')}
+                        </Button>
+                      )}
+                      {canDecline && (
+                        <Button variant="outline" disabled={pending} onClick={() => setConfirmAction('declined')}>
+                          <span aria-hidden className="size-1.5 rounded-full bg-muted-foreground" />
+                          {t('projectDetail.pipeline.markDeclined', 'Decline to bid')}
+                        </Button>
+                      )}
+                    </div>
+                  </RecordActionZone>
                 )}
-                {canWin && (
-                  <Button variant="outline" disabled={pending} onClick={() => setShowWonPanel((v) => !v)}>
-                    <span aria-hidden className="size-1.5 rounded-full bg-success" />
-                    {t('projectDetail.pipeline.markWon', 'Mark won')}
-                  </Button>
-                )}
-                {canLose && (
-                  <Button variant="outline" disabled={pending} onClick={() => setConfirmAction('lost')}>
-                    <span aria-hidden className="size-1.5 rounded-full bg-destructive" />
-                    {t('projectDetail.pipeline.markLost', 'Mark lost')}
-                  </Button>
-                )}
-                {canDecline && (
-                  <Button variant="outline" disabled={pending} onClick={() => setConfirmAction('declined')}>
-                    <span aria-hidden className="size-1.5 rounded-full bg-muted-foreground" />
-                    {t('projectDetail.pipeline.markDeclined', 'Decline to bid')}
-                  </Button>
-                )}
-              </div>
-            )}
 
-            {/* Inline progressive SoD capture panel (no modal). */}
-            {showWonPanel && canWin && (
-              <div className="flex flex-col gap-3 rounded-md border border-border bg-secondary/40 p-3">
-                <div className="text-[12px] font-semibold text-muted-foreground">
-                  {t('projectDetail.pipeline.recordWonHeading', 'Record the won project')}
-                </div>
-                {/* Confirm against the money (AC-IXD-DASH-005): restate the value being booked to
-                    contract value on win, above the capture inputs. */}
-                {/* ⚑ The note that used to sit here said <Trans> could not be used because the
-                    unit runner never initialises i18next. That stopped being true when the #526
-                    review added an i18next instance to test/setup.ts — the block outlived its
-                    cause by two milestones (#575). One whole sentence, never gluable fragments:
-                    Indonesian reorders this and fragments cannot be reordered. */}
-                <div className="text-[13px] text-foreground">
-                  <Trans
-                    i18nKey="projectDetail.pipeline.bookingOnWin"
-                    defaults="Booking <1>{{amount}}</1> <3></3> to contract value on win"
-                    values={{ amount: formatCurrency(value, currency) }}
-                    components={{
-                      1: <strong className="font-semibold tabular" />,
-                      3: <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} />,
-                    }}
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label htmlFor="won-ref" className="text-[12px] font-semibold">
-                    {t('projectDetail.pipeline.contractRefLabel', 'Customer contract reference')}
-                  </label>
-                  <input
-                    id="won-ref"
-                    value={contractRef}
-                    onChange={(e) => {
-                      setContractRef(e.target.value);
-                      setRefError(null);
-                    }}
-                    aria-invalid={!!refError}
-                    aria-describedby={refError ? 'won-ref-err' : undefined}
-                    placeholder={t('projectDetail.pipeline.contractRefPlaceholder', 'e.g. CPO-2026-0042')}
-                    className={`h-8 rounded-md border bg-background px-2.5 text-[13.5px] outline-none placeholder:text-muted-foreground ${
-                      refError ? 'border-destructive' : 'border-input'
-                    }`}
-                  />
-                  {refError && (
-                    <span id="won-ref-err" className="text-[12px] text-destructive">
-                      {refError}
-                    </span>
-                  )}
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label htmlFor="won-date" className="text-[12px] font-semibold">
-                    {t('projectDetail.pipeline.contractDateLabel', 'Contract date')}
-                  </label>
-                  <input
-                    id="won-date"
-                    type="date"
-                    value={contractDate}
-                    onChange={(e) => {
-                      setContractDate(e.target.value);
-                      setDateError(null);
-                    }}
-                    aria-invalid={!!dateError}
-                    aria-describedby={dateError ? 'won-date-err' : undefined}
-                    className={`h-8 rounded-md border bg-background px-2.5 text-[13.5px] outline-none ${
-                      dateError ? 'border-destructive' : 'border-input'
-                    }`}
-                  />
-                  {dateError && (
-                    <span id="won-date-err" className="text-[12px] text-destructive">
-                      {dateError}
-                    </span>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="primary" size="sm" loading={pending} onClick={submitWon}>
-                    {t('projectDetail.pipeline.confirmWon', 'Confirm won')}
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setShowWonPanel(false)}>
-                    {t('projectDetail.pipeline.cancel', 'Cancel')}
-                  </Button>
-                </div>
-              </div>
-            )}
+                {showWonPanel && canWin && (
+                  <section className="flex flex-col gap-3 border-t border-border pt-3">
+                    <div className="text-xs font-semibold text-muted-foreground">
+                      {t('projectDetail.pipeline.recordWonHeading', 'Record the won project')}
+                    </div>
+                    <div className="text-[13px] text-foreground">
+                      <Trans
+                        i18nKey="projectDetail.pipeline.bookingOnWin"
+                        defaults="Booking <1>{{amount}}</1> <3></3> to contract value on win"
+                        values={{ amount: formatCurrency(value, currency) }}
+                        components={{
+                          1: <strong className="font-semibold tabular" />,
+                          3: <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} />,
+                        }}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label htmlFor="won-ref" className="text-xs font-semibold">{t('projectDetail.pipeline.contractRefLabel', 'Customer contract reference')}</label>
+                      <input id="won-ref" value={contractRef} onChange={(e) => { setContractRef(e.target.value); setRefError(null); }} aria-invalid={!!refError} aria-describedby={refError ? 'won-ref-err' : undefined} placeholder={t('projectDetail.pipeline.contractRefPlaceholder', 'e.g. CPO-2026-0042')} className={`h-8 rounded-md border bg-background px-2.5 text-[13.5px] outline-none placeholder:text-muted-foreground ${refError ? 'border-destructive' : 'border-input'}`} />
+                      {refError && <span id="won-ref-err" className="text-xs text-destructive">{refError}</span>}
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label htmlFor="won-date" className="text-xs font-semibold">{t('projectDetail.pipeline.contractDateLabel', 'Contract date')}</label>
+                      <input id="won-date" type="date" value={contractDate} onChange={(e) => { setContractDate(e.target.value); setDateError(null); }} aria-invalid={!!dateError} aria-describedby={dateError ? 'won-date-err' : undefined} className={`h-8 rounded-md border bg-background px-2.5 text-[13.5px] outline-none ${dateError ? 'border-destructive' : 'border-input'}`} />
+                      {dateError && <span id="won-date-err" className="text-xs text-destructive">{dateError}</span>}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="primary" size="sm" loading={pending} onClick={submitWon}>{t('projectDetail.pipeline.confirmWon', 'Confirm won')}</Button>
+                      <Button variant="ghost" size="sm" onClick={() => setShowWonPanel(false)}>{t('projectDetail.pipeline.cancel', 'Cancel')}</Button>
+                    </div>
+                  </section>
+                )}
 
-            {error && (
-              <div role="alert" className="flex items-start gap-2 text-[13px] text-destructive">
-                <Icon name="alert" className="mt-px size-4 shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
+                {error && (
+                  <div role="alert" className="flex items-start gap-2 text-[13px] text-destructive">
+                    <Icon name="alert" className="mt-px size-4 shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                )}
               </>
             )}
 
-            {/* N10 (OD-W5-C3-B): persistent quiet "Back to Sales Pipeline" wayfinding link —
-                always present in the Next-actions card so after any Advance the user has an
-                obvious exit without it competing with the primary Advance CTA. On terminal
-                transitions (Lost) it is the primary remaining affordance. One-Blue-compliant:
-                a text link (not a solid button). Keyboard-reachable via standard focus order.
-                Uses a plain <a> (not react-router Link) so the component mounts outside a
-                Router context without breaking (the Sales route is a top-level navigation).
-                list-working-set-return (#682, FR-LRC-006): the href is the captured Sales list
-                URL when this project was opened FROM a narrowed Sales Pipeline, otherwise the
-                bare index — `listReturnNavigation` is the single validated resolver, same as
-                the mobile BackBar / desktop breadcrumb elsewhere in the seam. */}
             <a
               href={listReturnNavigation(locationState, 'sales').path}
-              className="mt-1 self-start text-[12.5px] font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+              className="mt-1 inline-flex text-xs font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
             >
-              {t('projectDetail.pipeline.backToSalesPipeline', '\u2190 Back to Sales Pipeline')}
+              {t('projectDetail.pipeline.backToSalesPipeline', '← Back to Sales Pipeline')}
             </a>
-          </CardPad>
-        </Card>
-        </RecordActionZone>
-      </div>
+          </section>
+        </div>
+        </>}
+      </details>
+
 
       {/* Forward Advance has no confirm (OD-UX-1): it commits on a single click + a toast
           (see the Advance button above). Only the terminal Mark-lost confirms. */}

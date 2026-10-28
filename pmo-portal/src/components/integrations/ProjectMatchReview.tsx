@@ -326,11 +326,11 @@ export function ProjectMatchReview({
       aria-labelledby={headingId}
       className='min-w-0 space-y-3'
     >
-      <h3 id={headingId} className='text-sm font-semibold text-foreground'>
+      <h2 id={headingId} className='text-sm font-semibold text-foreground'>
         {projectId
           ? t('uxs09.projectLinkTitle', 'ERPNext Project')
           : t('uxs09.reviewTitle', 'Review existing ERP project matches')}
-      </h3>
+      </h2>
 
       {projectId && currentTarget && (
         currentTargetHref

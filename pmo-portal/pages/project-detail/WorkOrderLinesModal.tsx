@@ -32,7 +32,7 @@ export interface WorkOrderLinesModalProps {
 const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
   workOrder, boqItems, contractLines, allocations, canEdit, onClose, onCreate, onUpdate, onDelete, onError,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const own = new Map(allocations.map((row) => [row.boq_item_id, row]));
   const facts = new Map(contractLines.map((row) => [row.boqItemId, row]));
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(

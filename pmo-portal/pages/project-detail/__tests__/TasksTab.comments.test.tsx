@@ -55,6 +55,7 @@ vi.mock('@/src/lib/db/comments', () => ({
   createComment: (...a: unknown[]) => create(...a),
   archiveComment: vi.fn(),
 }));
+vi.mock('@/src/components/history/RecordHistory', () => ({ RecordHistory: () => null }));
 
 import TasksTab from '../tabs/TasksTab';
 
@@ -107,11 +108,12 @@ describe('TasksTab comments for a non-editor reader', () => {
   it('AC-CMT-001 an Engineer who cannot edit the task opens its comments, reads and posts', async () => {
     const user = userEvent.setup();
     renderTab('Engineer', 'eng-2');
-    expect(screen.queryByRole('button', { name: 'Edit Survey the site' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Comments Survey the site' }));
-    const dialog = await screen.findByRole('dialog');
+    await user.click(screen.getByRole('button', { name: 'All' }));
+    await user.click(screen.getByRole('button', { name: 'Open task Survey the site' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Survey the site' });
+    expect(within(dialog).queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
     expect(await within(dialog).findByText('Blocked on a drawing')).toBeInTheDocument();
-    await user.type(within(dialog).getByRole('textbox'), 'Noted');
+    await user.type(within(dialog).getByRole('textbox', { name: 'Add a comment' }), 'Noted');
     await user.click(within(dialog).getByRole('button', { name: 'Post comment' }));
     await waitFor(() =>
       expect(create).toHaveBeenCalledWith({ entityType: 'task', entityId: 't1', body: 'Noted', mentions: [] }),

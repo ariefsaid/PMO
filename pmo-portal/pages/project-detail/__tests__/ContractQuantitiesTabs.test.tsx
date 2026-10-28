@@ -33,6 +33,7 @@ vi.mock('@/src/auth/usePermission', async () => {
   return { usePermission: () => (action: never, entity: never, ctx: Record<string, unknown> = {}) => can(action, entity, { realRole: h.role, ...ctx } as never) };
 });
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: true, loadOptions: vi.fn() }) }));
+vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
 vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: () => true }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({
@@ -185,7 +186,7 @@ function renderWorkOrders(projectManagerId: string | null = 'u-pm') {
   render(<MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="IDR" clientId="c1" projectManagerId={projectManagerId} /></ToastProvider></MemoryRouter>);
   return userEvent.setup();
 }
-const disclosure = () => screen.getByTestId('wo-quantities-wo-1');
+const disclosure = () => screen.getByTestId('customer-order-wo-1');
 const openDisclosure = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(within(disclosure()).getByText(/Contract lines and BAST/));
 };
@@ -224,7 +225,7 @@ describe('AC-CQ-015 Work orders tab: allocations and BAST list', () => {
   it('AC-CQ-015 the work order\'s own PM may prepare; an Engineer and another PM may not', async () => {
     const user = renderWorkOrders();
     await openDisclosure(user);
-    expect(within(disclosure()).getByRole('button', { name: 'Prepare BAST' })).toBeInTheDocument();
+    expect(within(disclosure()).getByRole('button', { name: 'Record delivery' })).toBeInTheDocument();
     expect(within(disclosure()).queryByRole('button', { name: /^Confirm/ })).toBeNull();
   });
 
@@ -232,16 +233,17 @@ describe('AC-CQ-015 Work orders tab: allocations and BAST list', () => {
     h.role = 'Engineer'; h.userId = 'u-eng';
     const user = renderWorkOrders();
     await openDisclosure(user);
-    expect(within(disclosure()).queryByRole('button', { name: 'Prepare BAST' })).toBeNull();
-    expect(within(disclosure()).queryByRole('button', { name: 'Edit lines' })).toBeNull();
+    expect(within(disclosure()).queryByRole('button', { name: 'Record delivery' })).toBeNull();
+    expect(within(disclosure()).queryByRole('button', { name: 'Allocate contract lines' })).toBeNull();
   });
 
   it('AC-CQ-015 a PM of another project may allocate lines but not prepare a BAST', async () => {
     h.userId = 'u-other';
     const user = renderWorkOrders('u-pm');
     await openDisclosure(user);
-    expect(within(disclosure()).queryByRole('button', { name: 'Prepare BAST' })).toBeNull();
-    expect(within(disclosure()).getByRole('button', { name: 'Edit lines' })).toBeInTheDocument();
+    expect(within(disclosure()).queryByRole('button', { name: 'Record delivery' })).toBeNull();
+    await user.click(within(disclosure()).getByRole('button', { name: 'Actions for WO-001' }));
+    expect(screen.getByRole('menuitem', { name: 'Allocate contract lines' })).toBeInTheDocument();
   });
 
   it('AC-CQ-015 Finance may confirm a Draft prepared by someone else, but Project Manager may not', async () => {
@@ -283,8 +285,9 @@ describe('AC-CQ-015 Work orders tab: allocations and BAST list', () => {
   it('AC-CQ-015 preparing a BAST sends the work order and the cumulative quantities', async () => {
     const user = renderWorkOrders();
     await openDisclosure(user);
-    await user.click(within(disclosure()).getByRole('button', { name: 'Prepare BAST' }));
-    await user.type(screen.getByLabelText(/SURVEY/), '400');
+    await user.click(within(disclosure()).getByRole('button', { name: 'Record delivery' }));
+    expect(screen.getByRole('dialog', { name: /Prepare BAST — WO-001/ })).toBeInTheDocument();
+    await user.type(screen.getByRole('textbox', { name: /accepted to date \(km\)/ }), '400');
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Prepare BAST' }));
     expect(h.acc.prepare.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({
       workOrderId: 'wo-1', isFinal: false, lines: [{ boqItemId: 'b1', quantity: 400 }],
@@ -302,10 +305,12 @@ describe('AC-CQ-015 Work orders tab: allocations and BAST list', () => {
 
   it('AC-CQ-015 a work order with no allocations asks for them first', async () => {
     h.lines = [];
+    h.billing = { data: { ...baseFacts, contractLines: [lineFacts({ boqItemId: 'b1', allocations: [] })] }, isPending: false, isError: false, refetch: vi.fn() };
     const user = renderWorkOrders();
     await openDisclosure(user);
-    expect(within(disclosure()).getByText('No contract lines allocated yet')).toBeInTheDocument();
-    expect(within(disclosure()).queryByRole('button', { name: 'Prepare BAST' })).toBeNull();
+    expect(within(disclosure()).getByText('Allocate contract lines to this work order first.')).toBeInTheDocument();
+    expect(within(disclosure()).getByRole('button', { name: 'Allocate contract lines' })).toBeInTheDocument();
+    expect(within(disclosure()).queryByRole('button', { name: 'Record delivery' })).toBeNull();
   });
 
   it('AC-CQ-015 allocating a line from the work order calls the allocation write for this order only', async () => {
@@ -322,8 +327,10 @@ describe('AC-CQ-015 Work orders tab: allocations and BAST list', () => {
     h.accError = true;
     const user = renderWorkOrders();
     await openDisclosure(user);
-    expect(within(disclosure()).getByText('Couldn’t load the BASTs')).toBeInTheDocument();
-    expect(within(disclosure()).queryByText('No BASTs yet')).toBeNull();
+    const acceptanceRegion = within(disclosure()).getByRole('region', { name: 'Acceptances (BAST)' });
+    expect(within(acceptanceRegion).getByText('Couldn’t load the BASTs')).toBeInTheDocument();
+    expect(within(acceptanceRegion).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(within(acceptanceRegion).queryByText('No BASTs yet')).toBeNull();
   });
 });
 
@@ -359,7 +366,7 @@ describe('AC-CQ-015 Work orders tab: final confirmation and closing value', () =
     await user.click(confirmButton());
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Confirm final BAST' }));
     expect(screen.queryByTestId('wo-closing-wo-1')).toBeNull();
-    expect(screen.queryByText('Closed')).toBeNull();
+    expect(within(disclosure()).getByText('Issued')).toBeInTheDocument();
   });
 
   it('AC-CQ-015 a server refusal stays in the dialog with its figures and nothing is closed', async () => {
@@ -373,14 +380,15 @@ describe('AC-CQ-015 Work orders tab: final confirmation and closing value', () =
     expect(screen.queryByTestId('wo-closing-wo-1')).toBeNull();
   });
 
-  it('AC-CQ-015 a closed order shows the original PO value and the closing value separately', () => {
+  it('AC-CQ-015 a closed order shows the original PO value and the closing value separately', async () => {
     h.workOrders = [wo({ status: 'Closed', closing_value: 49_850_000, closed_at: '2026-10-05T00:00:00Z' })];
     h.woBilling = [woBilling({ status: 'Closed', orderNet: 49_850_000, remaining: 49_850_000 })];
     h.acceptances = [bast('a2', { is_final: true, status: 'Confirmed', confirmed_by: 'u-fin', confirmed_at: '2026-10-05T00:00:00Z', confirm_basis: 'standard' })];
-    renderWorkOrders();
-    expect(screen.getByTestId('wo-value-wo-1')).toHaveTextContent('50,000,000');
-    expect(screen.getByTestId('wo-closing-wo-1')).toHaveTextContent('Closed at');
-    expect(screen.getByTestId('wo-closing-wo-1')).toHaveTextContent('49,850,000');
+    const user = renderWorkOrders();
+    await user.click(screen.getByRole('button', { name: 'View details for WO-001' }));
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).getByText('Order value').parentElement).toHaveTextContent('50,000,000');
+    expect(within(drawer).getByText(/Closed at/)).toHaveTextContent('49,850,000');
   });
 
   it('AC-CQ-015 down payment still held after closing is stated persistently, with the amount and the remedy', async () => {
@@ -408,19 +416,22 @@ describe('AC-CQ-015 Work orders tab: final confirmation and closing value', () =
     expect(screen.queryByTestId('wo-dp-held-notice')).toBeNull();
   });
 
-  it('AC-CQ-015 Close is hidden for a work order with allocations (its final BAST closes it) and kept for one without', () => {
+  it('AC-CQ-015 Close is hidden for a work order with allocations (its final BAST closes it) and kept for one without', async () => {
     h.role = 'Admin'; h.userId = 'u-admin';
     h.workOrders = [wo(), wo({ id: 'wo-2', wo_number: 'WO-002', title: 'Phase 2' })];
     h.woBilling = [woBilling(), woBilling({ workOrderId: 'wo-2' })];
-    renderWorkOrders();
-    const closes = screen.getAllByRole('button', { name: 'Close' });
-    expect(closes).toHaveLength(1);
+    const user = renderWorkOrders();
+    await user.click(screen.getByRole('button', { name: 'Actions for WO-001' }));
+    expect(screen.queryByRole('menuitem', { name: 'Close order' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Actions for WO-002' }));
+    expect(screen.getByRole('menuitem', { name: 'Close order' })).toBeInTheDocument();
   });
 
   it('AC-CQ-015 the Invoice action still follows the server billing facts for a closed order', () => {
+    h.role = 'Finance'; h.userId = 'u-fin';
     h.workOrders = [wo({ status: 'Closed', closing_value: 49_850_000 })];
     h.woBilling = [woBilling({ status: 'Closed', orderNet: 49_850_000, remaining: 9_850_000, invoiced: 40_000_000 })];
     renderWorkOrders();
-    expect(screen.getByRole('button', { name: 'Invoice' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Raise invoice/ })).toBeInTheDocument();
   });
 });

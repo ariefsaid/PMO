@@ -192,6 +192,46 @@ describe('ProjectDetailHeader — content', () => {
     expect(screen.queryByText(/PMO-26-7711/)).not.toBeInTheDocument();
   });
 
+  it('keeps phone identity focused on status and customer', () => {
+    desktopBox.value = false;
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <ProjectDetailHeader project={onHand} compact commitmentSource="not-tracked" ledgerBasis="erp" />
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+    const header = screen.getByTestId('record-header');
+    expect(within(header).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
+    expect(within(header).getByText('Ongoing Project')).toBeInTheDocument();
+    expect(within(header).getByText('Innovate Corp')).toBeInTheDocument();
+    expect(within(header).queryByText('PM Alice Manager')).not.toBeInTheDocument();
+    expect(within(header).queryByText('Jan 1, 2026 – Dec 18, 2026')).not.toBeInTheDocument();
+    expect(within(header).queryByText('PO CPO-2026-001')).not.toBeInTheDocument();
+  });
+
+  it('moves Edit into the compact More menu on phone while keeping the desktop action', async () => {
+    desktopBox.value = false;
+    const onEditProject = vi.fn();
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <ProjectDetailHeader project={onHand} compact onEditProject={onEditProject} commitmentSource="not-tracked" ledgerBasis="erp" />
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+    const header = screen.getByTestId('record-header');
+    const desktopEdit = within(header).getAllByRole('button', { name: /^Edit$/i }).find((button) => button.parentElement?.classList.contains('hidden'))!;
+    expect(desktopEdit.parentElement).toHaveClass('hidden', 'md:inline-flex');
+    const menu = within(header).getByLabelText('More actions').closest('details');
+    expect(menu).not.toBeNull();
+    await userEvent.click(within(menu!).getByLabelText('More actions'));
+    const phoneEdit = within(menu!).getByRole('button', { name: /^Edit$/i });
+    expect(phoneEdit).toHaveClass('md:hidden');
+    await userEvent.click(phoneEdit);
+    expect(onEditProject).toHaveBeenCalledOnce();
+  });
+
   it('keeps the JISDOR caption on one compact line after the original amount', () => {
     renderHeader('Finance');
     const tile = screen.getAllByTestId('stat-tile')[0];
@@ -804,6 +844,16 @@ describe('OD-TAX-4 / #856: the project VAT flag in the contract-value editor', (
 describe('ProjectDetailHeader — compact strip (AC-RD-HDR-001)', () => {
   const tileLabels = () => screen.getAllByTestId('stat-tile').map((tile) => tile.firstElementChild?.textContent);
   const tileFor = (label: string) => screen.getAllByTestId('stat-tile').find((tile) => tile.firstElementChild?.textContent === label)!;
+
+  it('AC-1402-M2: a PM can open the contract-value read-only explanation from the compact header menu', async () => {
+    render(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} compact /></ToastProvider></MemoryRouter>);
+    const menu = screen.getByLabelText('More actions').closest('details');
+    expect(menu).not.toBeNull();
+    await userEvent.click(within(menu!).getByLabelText('More actions'));
+    const explanation = within(menu!).getByTestId('contract-value-read-explanation');
+    await userEvent.click(within(explanation).getByText('Contract value · read-only'));
+    expect(within(explanation).getByText(/locked for project managers after the project is won/i)).toBeInTheDocument();
+  });
 
   it('AC-RD-HDR-001: PMO purchase orders get a tile only when PMO owns purchasing', () => {
     for (const source of ['not-tracked', 'unavailable'] as const) {

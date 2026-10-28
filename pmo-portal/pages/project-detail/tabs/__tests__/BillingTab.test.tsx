@@ -6,7 +6,7 @@ import i18next from 'i18next';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { I18nextProvider } from 'react-i18next';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { formatCurrencyCents } from '@/src/lib/format';
@@ -44,6 +44,7 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, isPending: false, isError: false }) }));
 import BillingTab from '../BillingTab';
+import { summarizeInvoiceSettlement } from '../../ContractCascade';
 
 const FACTS = {
   currency: 'IDR', contractNet: 1_000_000, workBilled: 250_000, dpBilled: 200_000, dpRecovered: 40_000, notSubmitted: 40_000,
@@ -77,14 +78,21 @@ beforeEach(() => {
     .map((name) => [name, { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false }]));
 });
 
-function renderTab(clientId: string | null = 'c1') {
-  render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId={clientId} projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+function renderTab(clientId: string | null = 'c1', initialEntry = '/') {
+  render(<MemoryRouter initialEntries={[initialEntry]}><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId={clientId} projectManagerId="pm-1" /><RouteSearch /></ToastProvider></MemoryRouter>);
   return userEvent.setup();
 }
+
+const RouteSearch = () => {
+  const location = useLocation();
+  return <output data-testid="billing-route-search" aria-hidden="true">{location.search}</output>;
+};
 
 // #891: the withdrawn-claim refusal headline is LOCALIZED — assertions pin the REAL shipped copy.
 const readCatalogue = (lng: 'en' | 'id') =>
   JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/common.json`), 'utf8')) as Record<string, unknown>;
+const readProjectCatalogue = (lng: 'en' | 'id') =>
+  JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/project.json`), 'utf8')) as Record<string, unknown>;
 
 async function renderTabLocalized(lng: 'en' | 'id') {
   const i18n = i18next.createInstance();
@@ -92,7 +100,9 @@ async function renderTabLocalized(lng: 'en' | 'id') {
     lng,
     fallbackLng: 'en',
     defaultNS: 'common',
-    resources: { en: { common: readCatalogue('en') }, id: { common: readCatalogue('id') } },
+    fallbackNS: 'common',
+    ns: ['common', 'project'],
+    resources: { en: { common: readCatalogue('en'), project: readProjectCatalogue('en') }, id: { common: readCatalogue('id'), project: readProjectCatalogue('id') } },
     parseMissingKeyHandler,
     returnEmptyString: false,
   });
@@ -105,6 +115,30 @@ async function renderTabLocalized(lng: 'en' | 'id') {
 }
 
 describe('BillingTab', () => {
+  it('AC-1402 counts only fully-paid invoices when any submitted invoice balance is unknown', () => {
+    const invoices = [
+      { status: 'Unpaid', amount: 10_000.01, erp_outstanding_amount: 4_000.01 },
+      { status: 'Paid', amount: 2_000, erp_outstanding_amount: 0 },
+      { status: 'Unpaid', amount: 5_000, erp_outstanding_amount: null },
+      { status: 'Draft', amount: 500, erp_outstanding_amount: null },
+      { status: 'Cancelled', amount: 900, erp_outstanding_amount: 0 },
+    ] as const;
+
+    expect(summarizeInvoiceSettlement(invoices)).toEqual({
+      invoiced: 17_000.01,
+      paid: 2_000,
+      unpaid: null,
+      balancesKnown: false,
+    });
+  });
+
+  it('AC-1402 adds partial payments only when every invoice balance is known', () => {
+    expect(summarizeInvoiceSettlement([
+      { status: 'Unpaid', amount: 10_000.01, erp_outstanding_amount: 4_000.01 },
+      { status: 'Paid', amount: 2_000, erp_outstanding_amount: 0 },
+    ])).toEqual({ invoiced: 12_000.01, paid: 8_000, unpaid: 4_000.01, balancesKnown: true });
+  });
+
   it('AC-PB-008 the summary shows contract, billed, assessed, the gap, DP held, not yet billed and not submitted, net of tax', () => {
     renderTab();
     expect(screen.getByTestId('billing-contract')).toHaveTextContent(money(1_000_000));
@@ -114,6 +148,16 @@ describe('BillingTab', () => {
     expect(screen.getByTestId('billing-dp-held')).toHaveTextContent(money(160_000));
     expect(screen.getByTestId('billing-remaining')).toHaveTextContent(money(750_000));
     expect(screen.getByTestId('billing-not-submitted')).toHaveTextContent(money(40_000));
+  });
+
+  it('AC-1402 an Engineer does not see contract totals, claim amounts, or BoQ rates on a direct billing route', () => {
+    h.role = 'Engineer';
+    renderTab('c1', '/projects/p1/billing?open=k1&openType=billingClaim');
+
+    expect(screen.queryByTestId('billing-contract')).not.toBeInTheDocument();
+    expect(screen.queryByText(money(50_000))).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Billing claims' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Raise invoice' })).not.toBeInTheDocument();
   });
 
   it("AC-PB-008 the not-submitted figure says it counts claims only — never mistaken for the Work orders tab's not yet submitted, which also counts draft invoices (#785 Discover)", () => {
@@ -143,6 +187,24 @@ describe('BillingTab', () => {
     expect(screen.getByTestId('boq-remaining-b1')).toHaveTextContent('5');
     expect(screen.getByTestId('boq-assessed-b2')).toHaveTextContent('—');
     expect(screen.getByTestId('boq-remaining-b2')).toHaveTextContent('Over-claimed');
+  });
+
+  it('AC-1402 opens a claim drawer from the row with sourced amounts and evidence', async () => {
+    const user = renderTab();
+    await user.click(screen.getAllByRole('button', { name: /Open Progress claim from/ })[0]);
+
+    expect(screen.getByRole('heading', { name: 'Progress' })).toBeInTheDocument();
+    expect(screen.getByTestId('billing-route-search')).toHaveTextContent('open=k1&openType=billingClaim');
+    expect(screen.getByText('No evidence attached yet.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open full page' })).toBeInTheDocument();
+  });
+
+  it('AC-1402 restores a billing record drawer from the open URL', async () => {
+    renderTab('c1', '/projects/p1/billing?open=b1&openType=billingBoq');
+
+    const drawer = await screen.findByRole('dialog');
+    expect(within(drawer).getByRole('heading', { name: 'Route survey' })).toBeInTheDocument();
+    expect(within(drawer).getByRole('link', { name: 'Open full page' })).toBeInTheDocument();
   });
 
   it('AC-PB-008 a claim without evidence can be evidenced but not raised', () => {
@@ -227,7 +289,8 @@ describe('BillingTab', () => {
     h.connected = false;
     renderTab();
     expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+    const summaryHeader = screen.getByRole('heading', { name: /Billing summary/ }).parentElement?.parentElement;
+    expect(within(summaryHeader!).queryByRole('button', { name: 'Raise invoice' })).toBeNull();
   });
 
   it('AC-PB-008 Finance gets no billing buttons when the project has no client', () => {
@@ -275,16 +338,18 @@ describe('BillingTab', () => {
       expect(screen.getByText('Bill of quantities').closest('details')).toBeNull();
     });
 
-    it('SUB-B "New claim" is hidden while "Start invoice" is offered, and shown when it is not', () => {
+    it('M18 "New claim" is hidden while "Raise invoice" is offered, and shown when it is not', () => {
       renderTab();
-      expect(screen.getByRole('button', { name: 'Start invoice' })).toBeInTheDocument();
+      const summaryHeader = screen.getByRole('heading', { name: /Billing summary/ }).parentElement?.parentElement;
+      expect(within(summaryHeader!).getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
     });
 
     it('SUB-B Finance without a resolved revenue route keeps the "New claim" button', () => {
       h.routeReady = false;
       renderTab();
-      expect(screen.queryByRole('button', { name: 'Start invoice' })).toBeNull();
+      const summaryHeader = screen.getByRole('heading', { name: /Billing summary/ }).parentElement?.parentElement;
+      expect(within(summaryHeader!).queryByRole('button', { name: 'Raise invoice' })).toBeNull();
       expect(screen.getByRole('button', { name: 'New claim' })).toBeInTheDocument();
     });
   });

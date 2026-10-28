@@ -56,7 +56,7 @@ const Figure: React.FC<{
 );
 
 const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const { data, isPending, isError, refetch } = useProjectDrawdown(projectId);
 
   /**

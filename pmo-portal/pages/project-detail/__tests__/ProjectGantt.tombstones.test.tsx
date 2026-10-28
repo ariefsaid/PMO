@@ -54,9 +54,9 @@ function makeMilestone(overrides: Partial<MilestoneWithProgress> & { id: string;
   };
 }
 
-/** The Gantt's figure carries the structural summary as its aria-label (role="img"). */
+/** The Gantt's figure carries the structural summary as its accessible name. */
 function ganttSummary(): string {
-  return screen.getByRole('img').getAttribute('aria-label') ?? '';
+  return screen.getByRole('figure').getAttribute('aria-label') ?? '';
 }
 
 describe('AC-CUA-072 Gantt hides dependency edges whose endpoint is tombstoned', () => {

@@ -1,60 +1,57 @@
 import React, { useState, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { Link, useSearchParams } from 'react-router';
 import { useProjectBudget, useBudgetVersions, useBudgetMutations, useBudgetActivationMode } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
-import { BudgetDocumentLinks } from '@/src/components/m365/BudgetDocumentLinks';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
-import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
+import { useUsers } from '@/src/hooks/useUsers';
+import { useProjectProcurements } from '@/src/hooks/useProcurements';
+import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import {
-  formatCurrency,
   formatCurrencyAuto,
   formatMoneyInputValue,
+  formatInstantDate,
   parseMoneyInputAtScale,
 } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { budgetVersionVariant } from '@/src/lib/status/statusVariants';
 import {
   Button,
-  Badge,
-  StatusPill,
+  Icon,
   ListState,
   Toolbar,
   DataTable,
   type Column,
+  type RowMenuItem,
   ConfirmDialog,
   useToast,
   NumberField,
+  TaxBasisLabel,
+  StatusPill,
+  Tooltip,
+  KPITile,
+  ViewToggle,
+  ProgressBar,
+  Drawer,
 } from '@/src/components/ui';
-import { budgetVersionVariant } from '@/src/lib/status/statusVariants';
 import type { BudgetVersionWithItems, BudgetLineItemRow, NewLineItem } from '@/src/lib/db/budgets';
+import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { useBudgetPosition } from './project-detail/useProjectPosition';
+import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
+import BudgetErpNotice from './project-detail/budget/BudgetErpNotice';
+import { buildBudgetSummaryRows, type BudgetSummaryRow } from './project-detail/budget/budgetModel';
 import { Constants, type Enums } from '@/src/lib/supabase/database.types';
+import BudgetProjection from './BudgetProjection';
+import { AttributedSpendingNote } from './project-detail/AttributedSpendingNote';
+import { fetchBudgetPushStatus, type BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 const BUDGET_CATEGORIES = Constants.public.Enums.budget_category;
-
-function budgetStatusLabel(status: Enums<'budget_status'>, t: (key: string, fallback: string) => string): string {
-  const labels: Record<Enums<'budget_status'>, string> = {
-    Draft: t('financeCopy.statusDraft', 'Draft'),
-    Active: t('financeCopy.statusActive', 'Active'),
-    Archived: t('financeCopy.statusArchived', 'Archived'),
-  };
-  return labels[status];
-}
-
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
-
-const StatusBadge: React.FC<{ status: Enums<'budget_status'> }> = ({ status }) => {
-  const { t } = useTranslation();
-  return (
-    <span data-testid={`version-status-${status.toLowerCase()}`}>
-      <StatusPill variant={budgetVersionVariant(status)}>{budgetStatusLabel(status, t)}</StatusPill>
-    </span>
-  );
-};
 
 // ---------------------------------------------------------------------------
 // Line-item editor (for Draft versions)
@@ -94,7 +91,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
   updateIsPending = false,
   onSaveError,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('finance');
   const [adding, setAdding] = useState(false);
   const [newCategory, setNewCategory] = useState<Enums<'budget_category'>>('Labor');
   const [newDesc, setNewDesc] = useState('');
@@ -478,6 +475,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
         rowKey={(row) => (row.kind === 'new' ? '__new__' : row.li.id)}
         tableId="budget-line-items-editor"
         accessibleName={t('financeCopy.lineItemsSection', 'Line items')}
+        className="rounded-none border-0 bg-transparent"
         totals={[{
           key: 'total',
           label: t('financeCopy.total', "Total"),
@@ -503,185 +501,11 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
 };
 
 // ---------------------------------------------------------------------------
-// Version card
-// ---------------------------------------------------------------------------
-interface VersionCardProps {
-  version: BudgetVersionWithItems;
-  canWrite: boolean;
-  /** OD-BUDGET-6: whether this user may activate this Draft (a second person). */
-  canActivate: boolean;
-  /** Why Activate is withheld from a writer, when it is (shown in place of the button). */
-  activateBlockedReason?: string | null;
-  /** Each callback STAGES a confirm at the page level — none writes on click. */
-  onActivate: (id: string) => void;
-  onArchive: (id: string) => void;
-  onClone: (id: string) => void;
-  onDeleteDraft: (id: string) => void;
-  onCreateLineItem: (versionId: string, item: NewLineItem) => Promise<unknown>;
-  onDeleteLineItem: (id: string) => void;
-  /** Routine inline update — no confirm required (OD-UX-1). */
-  onUpdateLineItem: (id: string, patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'fiscal_year'>>) => Promise<unknown>;
-  onUpdateLineItemSuccess: () => void;
-  /** B-0.6/0.7: passed through to LineItemEditor. */
-  createIsPending?: boolean;
-  updateIsPending?: boolean;
-  onLineItemSaveError?: (err: unknown) => void;
-}
-
-const VersionCard: React.FC<VersionCardProps> = ({
-  version,
-  canWrite,
-  canActivate,
-  activateBlockedReason,
-  onActivate,
-  onArchive,
-  onClone,
-  onDeleteDraft,
-  onCreateLineItem,
-  onDeleteLineItem,
-  onUpdateLineItem,
-  onUpdateLineItemSuccess,
-  createIsPending,
-  updateIsPending,
-  onLineItemSaveError,
-}) => {
-  const { t } = useTranslation();
-  // SUB-D: a read-only table drops the Fiscal year column while every line is Un-phased (the Draft editor keeps it).
-  const showFiscalYear = version.line_items.some((li) => li.fiscal_year);
-  const readOnlyColumns: Column<BudgetLineItemRow>[] = [
-    {
-      key: 'category', header: t('financeCopy.category', "Category"), kind: 'text', size: 170,
-      cell: (li) => budgetCategoryLabel(li.category as Enums<'budget_category'>, t),
-    },
-    {
-      key: 'description', header: t('financeCopy.description', "Description"), kind: 'meta', size: 260,
-      cell: (li) => <span className="text-muted-foreground">{li.description ?? '—'}</span>,
-    },
-    // FR-BFY-061: an Active/Archived version's phasing is VISIBLE but not editable —
-    // `enforce_draft_line_item` (0005) rejects the write, and re-phasing goes through
-    // clone → edit → activate (OD-BUDGET-5). An affordance the DB refuses is worse than none.
-    ...(showFiscalYear ? [{
-      key: 'fiscal_year', header: t('financeCopy.fiscalYear', "Fiscal year"), kind: 'text' as const, size: 150,
-      cell: (li: BudgetLineItemRow) => (
-        <span className="text-muted-foreground">
-          {li.fiscal_year ?? <span className="italic">{t('financeCopy.unPhased', "Un-phased")}</span>}
-        </span>
-      ),
-    }] : []),
-    {
-      key: 'amount', header: t('financeCopy.budgeted', "Budgeted"), kind: 'money', align: 'num', size: 184,
-      cell: (li) => <span className="font-medium">{formatCurrencyAuto(Number(li.budgeted_amount), version.currency)}</span>,
-    },
-  ];
-  return (
-    <div data-testid="version-card" className="rounded-lg border border-border bg-card p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3">
-          <span className="font-mono text-[13px] text-muted-foreground">v{version.version}</span>
-          <span className="font-semibold">{version.name}</span>
-          <StatusBadge status={version.status} />
-          {version.activation_basis === 'sole_operator' && (
-            <Badge>{t('financeCopy.activatedBySoleOperator', 'Activated by sole operator')}</Badge>
-          )}
-        </div>
-        <span
-          data-testid={version.status === 'Active' ? 'derived-budget' : undefined}
-          className="ml-auto shrink-0 whitespace-nowrap font-bold tabular"
-        >
-          {formatCurrency(version.total, version.currency)}
-        </span>
-      </div>
-
-      {/* Actions gated by role (cosmetic — RLS is the real gate). Each action
-          stages a ConfirmDialog at the page level; none mutates on a single
-          click (owner rule, B2-B5). */}
-      {canWrite && (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {version.status === 'Draft' && (
-            <>
-              {canActivate && (
-                <Button variant="success" size="sm" onClick={() => onActivate(version.id)}>
-                  {t('financeCopy.activate', "Activate")}</Button>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onDeleteDraft(version.id)}
-                className="text-destructive-text hover:bg-destructive/10"
-              >
-                {t('financeCopy.deleteDraft', "Delete draft")}</Button>
-              {activateBlockedReason && (
-                <p data-testid="activate-blocked-reason" className="basis-full text-[13px] text-muted-foreground">
-                  {activateBlockedReason}
-                </p>
-              )}
-            </>
-          )}
-          {version.status === 'Active' && (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onArchive(version.id)}
-                className="text-warning-foreground hover:bg-warning/18"
-              >
-                {t('financeCopy.archive', "Archive")}</Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onClone(version.id)}
-                className="text-primary-text hover:bg-primary/10"
-              >
-                {t('financeCopy.cloneToRevise', "Clone to revise")}</Button>
-            </>
-          )}
-          {version.status === 'Archived' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onClone(version.id)}
-              className="text-primary-text hover:bg-primary/10"
-            >
-              {t('financeCopy.cloneToRevise', "Clone to revise")}</Button>
-          )}
-        </div>
-      )}
-
-      {/* Line-item editor for Draft; read-only view for others */}
-      {version.status === 'Draft' && canWrite ? (
-        <LineItemEditor
-          lineItems={version.line_items}
-          currency={version.currency}
-          onCreateLineItem={(item) => onCreateLineItem(version.id, item)}
-          onDeleteLineItem={onDeleteLineItem}
-          onUpdateLineItem={onUpdateLineItem}
-          onSaveSuccess={onUpdateLineItemSuccess}
-          createIsPending={createIsPending}
-          updateIsPending={updateIsPending}
-          onSaveError={onLineItemSaveError}
-        />
-      ) : (
-        version.line_items.length > 0 && (
-          <div className="relative mt-4">
-            <DataTable
-              rows={version.line_items}
-              columns={readOnlyColumns}
-              rowKey={(li) => li.id}
-              tableId="budget-version-line-items"
-              accessibleName={t('financeCopy.lineItemsSection', 'Line items')}
-            />
-          </div>
-        )
-      )}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
 // Main page component (NFR-BV-UI-001)
 // ---------------------------------------------------------------------------
 interface ProjectBudgetProps {
   projectId: string;
+  project: ProjectWithRefs;
 }
 
 /** A staged, not-yet-committed budget mutation awaiting the ConfirmDialog
@@ -694,237 +518,387 @@ type PendingBudgetConfirm =
   | { kind: 'deleteDraft'; id: string; label: string }
   | { kind: 'deleteLineItem'; id: string; label: string };
 
-const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
-  const { t } = useTranslation();
-  // Cosmetic gate on the REAL role (ADR-0016): budget line-item write = the shipped
-  // WRITE_ROLES (Admin·Exec·PM·Finance). RLS is the real authority.
+const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => {
+  const { t } = useTranslation('finance');
   const can = usePermission();
   const canWrite = can('edit', 'budgetLine');
+  const canReadMoney = can('view', 'salesInvoice');
+  const canReadProcurements = can('view', 'procurement');
+  const canManageAccounting = can('manage', 'orgAccounting');
+  const { realRole } = useEffectiveRole();
+  const canViewBudgetEnforcement = realRole === 'Admin' || realRole === 'Finance';
   const { currentUser } = useAuth();
+  const usersQuery = useUsers();
+  const erpBindingQuery = useErpnextBinding();
   const currentUserId = currentUser?.id ?? null;
   const { toast } = useToast();
-  // The derived total (useProjectBudget) has no version of its own to carry a currency —
-  // fall back to the org default until a version is selected (FR-L10N-020).
-  const orgCurrency = useOrgCurrency();
+  const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedForecast = searchParams.get('budgetView') === 'forecast';
+  const setBudgetView = (nextView: 'actual' | 'forecast') => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('open');
+    if (nextView === 'forecast') next.set('budgetView', 'forecast');
+    else next.delete('budgetView');
+    setSearchParams(next, { replace: true });
+  };
+  const openCategory = (row: BudgetSummaryRow) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('open', row.category);
+    setSearchParams(next);
+  };
+  const closeCategory = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('open');
+    setSearchParams(next, { replace: true });
+  };
 
   const budgetQuery = useProjectBudget(projectId);
   const versionsQuery = useBudgetVersions(projectId);
   const mutations = useBudgetMutations(projectId);
+  const position = useBudgetPosition(project);
+  const procurementsQuery = useProjectProcurements(canReadProcurements ? projectId : null);
+  const pushStatusQuery = useQuery<BudgetPushStatusRow[]>({
+    queryKey: ['budget-push-status', projectId],
+    queryFn: () => fetchBudgetPushStatus(projectId),
+    enabled: canViewBudgetEnforcement && Boolean(projectId),
+  });
 
   const [newVersionName, setNewVersionName] = useState('');
   const [showNewVersionForm, setShowNewVersionForm] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  // Confirm-before-write: a chosen action is staged here and only commits when
-  // the ConfirmDialog's Confirm is pressed (B1-B5 + delete-line-item, §6.5).
+  const [versionsOpen, setVersionsOpen] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState<PendingBudgetConfirm | null>(null);
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
+  const [draftEditorOpen, setDraftEditorOpen] = useState(false);
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(() => new Set());
 
-  // Derive versions early so useMemo is unconditional (Rules of Hooks).
-  // Memoized to give a stable array reference (avoids react-hooks/exhaustive-deps warning on
-  // the selected memo below).
   const versions = useMemo<BudgetVersionWithItems[]>(
     () => (versionsQuery.data ?? []) as BudgetVersionWithItems[],
-    [versionsQuery.data]
+    [versionsQuery.data],
   );
-  const derivedTotal = budgetQuery.data ?? 0;
+  const activeVersion = versions.find((version) => version.status === 'Active');
+  const draftVersion = versions.find((version) => version.status === 'Draft');
+  const hasActiveErpBinding = erpBindingQuery.data?.status === 'active';
+  const view = requestedForecast && hasActiveErpBinding && activeVersion ? 'forecast' : 'actual';
+  const orderedVersions = [...versions].sort((a, b) => a.version - b.version);
+  const selectedVersion = view === 'forecast'
+    ? activeVersion
+    : versions.find((version) => version.id === selectedVersionId) ?? activeVersion ?? draftVersion ?? orderedVersions.at(-1);
+  const activationModeQuery = useBudgetActivationMode(draftVersion?.id);
 
-  // AC-BD-02/03: default-resolution priority: explicit pick → Active → highest Draft → highest Archived → first
-  const selected = useMemo<BudgetVersionWithItems | null>(() => {
-    if (versions.length === 0) return null;
-    const byId = selectedId ? versions.find((v) => v.id === selectedId) : undefined;
-    if (byId) return byId;
-    return (
-      versions.find((v) => v.status === 'Active') ??
-      [...versions].reverse().find((v) => v.status === 'Draft') ??
-      [...versions].reverse().find((v) => v.status === 'Archived') ??
-      versions[0]
-    );
-  }, [versions, selectedId]);
-
-  const activationModeQuery = useBudgetActivationMode(selected?.id);
-
-  // Loading state
   if (budgetQuery.isPending || versionsQuery.isPending) {
-    return (
-      <div data-testid="budget-loading" className="rounded-lg border border-border bg-card">
-        <ListState variant="loading" rows={4} />
-      </div>
-    );
+    return <div data-testid="budget-loading"><ListState variant="loading" rows={4} /></div>;
   }
-
-  // Error state
   if (budgetQuery.isError || versionsQuery.isError) {
     return (
       <ListState
         variant="error"
         title={t('financeCopy.budgetLoadFailed', "Couldn't load budget")}
-        sub={t('financeCopy.somethingWentWrongFetchingTheBudgetData', "Something went wrong fetching the budget data.")}
+        sub={t('financeCopy.somethingWentWrongFetchingTheBudgetData', 'Something went wrong fetching the budget data.')}
         onRetry={() => {
-          budgetQuery.refetch();
-          versionsQuery.refetch();
+          void budgetQuery.refetch();
+          void versionsQuery.refetch();
         }}
       />
     );
   }
 
-  // Server mode only widens the cosmetic affordance for the current sole operator; the RPC remains authoritative.
   const soleOperator = activationModeQuery.data === 'sole_operator';
-  const canActivate =
-    !!selected &&
-    (soleOperator || can('transition', 'budgetVersion', {
-      currentUserId,
-      record: { status: selected.status, created_by: selected.created_by, editor_ids: selected.editor_ids },
-    }));
-  const activateBlockedReason =
-    !selected || !canWrite || canActivate || selected.status !== 'Draft'
-      ? null
-      : selected.editor_ids?.includes(currentUserId ?? '')
-        ? t('financeCopy.activateEditorBlocked', 'You edited this version, so someone else must activate it.')
-        : selected.created_by == null
-          ? t('financeCopy.activateNeedsAdminOrFinance', 'No drafter is recorded for this version, so only Admin or Finance can activate it.')
-          : selected.created_by === currentUserId
-            ? t('financeCopy.activateEditorBlocked', 'You edited this version, so someone else must activate it.')
-            : null;
-
-  // Human-readable label for a version id (confirm copy). Falls back to the id.
+  const canActivate = !!draftVersion && (soleOperator || can('transition', 'budgetVersion', {
+    currentUserId,
+    record: { status: draftVersion.status, created_by: draftVersion.created_by, editor_ids: draftVersion.editor_ids },
+  }));
+  const activateBlockedReason = !draftVersion || canActivate ? null
+    : draftVersion.created_by == null
+      ? t('financeCopy.activateNeedsAdminOrFinance', 'No drafter is recorded for this version, so only Admin or Finance can activate it.')
+      : draftVersion.editor_ids?.includes(currentUserId ?? '') || draftVersion.created_by === currentUserId
+        ? t('financeCopy.activateEditorBlocked', 'You drafted or edited this version, so someone else must activate it.')
+        : t('projectDetail.budget.activationSeparationNextStep', 'The drafter and activator must be different people. Ask an eligible Admin or Finance user who did not edit this draft to activate it.');
   const versionLabel = (id: string): string => {
-    const v = versions.find((x) => x.id === id);
-    return v ? `${v.name} (v${v.version})` : id;
+    const version = versions.find((item) => item.id === id);
+    return version ? version.name + ' (v' + version.version + ')' : id;
+  };
+  const requestCreate = (name: string) => setPendingConfirm({ kind: 'create', name });
+  const requestActivate = (id: string) => setPendingConfirm({ kind: 'activate', id, label: versionLabel(id), soleOperator });
+  const requestClone = (id: string) => setPendingConfirm({ kind: 'clone', id, label: versionLabel(id) });
+  const requestArchive = (id: string) => setPendingConfirm({ kind: 'archive', id, label: versionLabel(id) });
+  const requestDeleteDraft = (id: string) => setPendingConfirm({ kind: 'deleteDraft', id, label: versionLabel(id) });
+  const requestDeleteLineItem = (id: string) => setPendingConfirm({ kind: 'deleteLineItem', id, label: id });
+
+  const canSeeActuals = canReadMoney && position.canSeeActual;
+  const canSeeCommitments = canReadMoney && canReadProcurements && !procurementsQuery.isPending && !procurementsQuery.isError;
+  const summaryRows = selectedVersion && canReadMoney ? buildBudgetSummaryRows({
+    lines: selectedVersion.line_items,
+    actuals: position.rows,
+    procurements: procurementsQuery.data,
+    canReadProcurements: canSeeCommitments,
+    currency: project.currency,
+  }) : [];
+  const enrichedRows = summaryRows.map((row) => {
+    const actualKnown = canSeeActuals && row.spent !== null;
+    const committedKnown = canSeeCommitments && row.committed !== null;
+    const left = actualKnown && committedKnown ? row.budget - (row.spent ?? 0) - (row.committed ?? 0) : null;
+    const used = row.budget > 0 && actualKnown && committedKnown
+      ? ((row.spent ?? 0) + (row.committed ?? 0)) / row.budget * 100
+      : null;
+    return { ...row, left, used };
+  });
+  const selectedCategory = view === 'actual'
+    ? enrichedRows.find((row) => row.category === searchParams.get('open')) ?? null
+    : null;
+  const totalBudget = activeVersion?.total ?? null;
+  const tableBudgetTotal = selectedVersion?.total ?? null;
+  const totalSpent = enrichedRows.length > 0 && enrichedRows.every((row) => row.spent !== null && canSeeActuals)
+    ? enrichedRows.reduce((sum, row) => sum + (row.spent ?? 0), 0)
+    : null;
+  const totalCommitted = enrichedRows.length > 0 && enrichedRows.every((row) => row.committed !== null && canSeeCommitments)
+    ? enrichedRows.reduce((sum, row) => sum + (row.committed ?? 0), 0)
+    : null;
+  const totalLeft = tableBudgetTotal !== null && totalSpent !== null && totalCommitted !== null
+    ? tableBudgetTotal - totalSpent - totalCommitted
+    : null;
+  const tableLeftTotal = tableBudgetTotal !== null && totalSpent !== null && totalCommitted !== null
+    ? tableBudgetTotal - totalSpent - totalCommitted
+    : null;
+  const authorName = (version: BudgetVersionWithItems) => version.created_by != null && version.created_by === currentUserId
+    ? t('common.you', 'You')
+    : usersQuery.data?.find((user) => user.id === version.created_by)?.full_name
+      ?? t('projectDetail.budget.authorUnavailable', 'Author unavailable');
+  const dateLabel = (version: BudgetVersionWithItems) => version.created_at
+    ? formatInstantDate(version.created_at)
+    : t('projectDetail.budget.dateUnavailable', 'Date unavailable');
+  const getStatus = (row: { used: number | null; left: number | null }) => {
+    if (row.used === null || row.left === null) return { variant: 'neutral' as const, label: t('projectDetail.budget.unavailable', 'Unavailable') };
+    if (row.left < 0) return { variant: 'lost' as const, label: t('projectDetail.budget.overBudget', 'Over budget') };
+    if (row.used >= 90) return { variant: 'lost' as const, label: t('projectDetail.budget.atRisk', 'At risk') };
+    if (row.used >= 70) return { variant: 'warn' as const, label: t('projectDetail.budget.watch', 'Watch') };
+    return { variant: 'won' as const, label: t('projectDetail.budget.onTrack', 'On track') };
+  };
+  const formatAmount = (value: number | null) => value === null ? '—' : formatCurrencyAuto(value, project.currency);
+  const actualSource = t('projectDetail.budget.actualsSource', 'Source: project finance by category; this is an as-of aggregate, with no transaction trend in this view.');
+  const exportRows = (rows: BudgetSummaryRow[], filename: string) => {
+    const header = ['Category', 'Budget', 'Spent', 'Committed', 'Left'];
+    const csv = [header, ...rows.map((row) => {
+      const left = canSeeActuals && row.spent !== null && canSeeCommitments && row.committed !== null
+        ? row.budget - row.spent - row.committed
+        : null;
+      return [budgetCategoryLabel(row.category, t), row.budget, row.spent ?? '', row.committed ?? '', left ?? ''];
+    })].map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${filename}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  const openDraftEditor = () => {
+    if (draftVersion) {
+      setBudgetView('actual');
+      setSelectedVersionId(draftVersion.id);
+      setDraftEditorOpen(true);
+    }
+  };
+  const adjustInDraft = () => {
+    if (draftVersion) openDraftEditor();
+    else {
+      closeCategory();
+      setBudgetView('actual');
+      if (activeVersion && canWrite) requestClone(activeVersion.id);
+      else if (canWrite) setShowNewVersionForm(true);
+    }
   };
 
-  // Stage a confirm without writing. The page renders one ConfirmDialog from
-  // pendingConfirm; commitConfirm() runs the real mutation only on Confirm.
-  const requestCreate = (name: string) => setPendingConfirm({ kind: 'create', name });
-  const requestActivate = (id: string) =>
-    setPendingConfirm({ kind: 'activate', id, label: versionLabel(id), soleOperator });
-  const requestClone = (id: string) =>
-    setPendingConfirm({ kind: 'clone', id, label: versionLabel(id) });
-  const requestArchive = (id: string) =>
-    setPendingConfirm({ kind: 'archive', id, label: versionLabel(id) });
-  const requestDeleteDraft = (id: string) =>
-    setPendingConfirm({ kind: 'deleteDraft', id, label: versionLabel(id) });
-  const requestDeleteLineItem = (id: string) =>
-    setPendingConfirm({ kind: 'deleteLineItem', id, label: id });
+  const actualColumns: Column<(typeof enrichedRows)[number]>[] = [
+    {
+      key: 'category',
+      header: t('financeCopy.category', 'Category'),
+      kind: 'primary',
+      rowHeader: true,
+      size: 250,
+      cell: (row) => {
+        const name = budgetCategoryLabel(row.category, t);
+        return <button type="button" className="min-w-0 truncate text-left font-medium text-foreground underline-offset-2 hover:underline" aria-label={t('projectDetail.budget.openCategory', 'Open {{category}} budget details', { category: name })} onClick={(event) => { event.stopPropagation(); openCategory(row); }}>{name}</button>;
+      },
+      secondaryCell: () => null,
+    },
+    {
+      key: 'budget', header: t('financeCopy.budget', 'Budget'), kind: 'money', align: 'num', size: 125, minSize: 100,
+      cell: (row) => <Tooltip content={t('projectDetail.budget.budgetSource', 'Source: selected budget version line items, grouped by category.')}><span>{formatAmount(row.budget)}</span></Tooltip>,
+    },
+    {
+      key: 'spent', header: t('projectDetail.budget.spent', 'Spent'), kind: 'money', align: 'num', size: 125, minSize: 100,
+      cell: (row) => <Tooltip content={actualSource}><span>{canSeeActuals ? formatAmount(row.spent) : '—'}</span></Tooltip>,
+    },
+    {
+      key: 'committed', header: t('projectDetail.budget.committed', 'Committed'), kind: 'money', align: 'num', size: 125, minSize: 100,
+      cell: (row) => <Tooltip content={t('projectDetail.budget.committedSource', 'Source: ordered, received, vendor-invoiced, and paid procurement totals in the project currency.')}><span>{canSeeCommitments ? formatAmount(row.committed) : '—'}</span></Tooltip>,
+    },
+    {
+      key: 'left', header: t('projectDetail.budget.left', 'Left'), kind: 'money', align: 'num', size: 125, minSize: 100,
+      cell: (row) => <Tooltip content={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')}><span className={row.left !== null && row.left < 0 ? 'text-destructive-text' : undefined}>{formatAmount(row.left)}</span></Tooltip>,
+    },
+    {
+      key: 'used', header: t('projectDetail.budget.percentUsed', '% used'), kind: 'percent', align: 'num', size: 100, minSize: 80,
+      cell: (row) => row.used === null
+        ? <Tooltip content={t('projectDetail.budget.utilizationUnknown', 'Utilization is unavailable when budget, spending, or commitments are unknown, or when budget is zero.')}><span>—</span></Tooltip>
+        : <Tooltip content={t('projectDetail.budget.utilizationFormula', 'Calculated as (spent + committed) divided by budget.')}><span tabIndex={0}><ProgressBar compact value={Math.round(row.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(row.category, t) })} /></span></Tooltip>,
+    },
+    {
+      key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', size: 125, minSize: 112,
+      cell: (row) => { const status = getStatus(row); return <StatusPill variant={status.variant}>{status.label}</StatusPill>; },
+    },
+  ];
+  const actualTotals = enrichedRows.length ? [{
+    key: 'total', label: t('financeCopy.total', 'Total'),
+    values: {
+      budget: <Tooltip content={t('projectDetail.budget.budgetSource', 'Source: selected budget version line items, grouped by category.')}><span tabIndex={0}>{formatAmount(tableBudgetTotal)}</span></Tooltip>,
+      spent: <Tooltip content={actualSource}><span tabIndex={0}>{formatAmount(totalSpent)}</span></Tooltip>,
+      committed: <Tooltip content={t('projectDetail.budget.committedSource', 'Source: ordered, received, vendor-invoiced, and paid procurement totals in the project currency.')}><span tabIndex={0}>{formatAmount(totalCommitted)}</span></Tooltip>,
+      left: <Tooltip content={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')}><span tabIndex={0}>{formatAmount(tableLeftTotal)}</span></Tooltip>,
+      used: tableBudgetTotal && totalSpent !== null && totalCommitted !== null
+        ? <Tooltip content={t('projectDetail.budget.utilizationFormula', 'Calculated as (spent + committed) divided by budget.')}><span tabIndex={0}>{Math.round((totalSpent + totalCommitted) / tableBudgetTotal * 100)}%</span></Tooltip>
+        : '—',
+    },
+  }] : [];
+  const categoryMenu = (row: (typeof enrichedRows)[number]): RowMenuItem[] => [
+    ...(canWrite ? [{ label: t('projectDetail.budget.adjustInDraft', 'Adjust in a draft'), onClick: adjustInDraft }] : []),
+    { label: t('projectDetail.budget.exportCategory', 'Export category'), onClick: () => exportRows([row], `Budget_${row.category}`) },
+  ];
+  const versionRows = orderedVersions.slice().reverse();
+  const versionColumns: Column<BudgetVersionWithItems>[] = [
+    {
+      key: 'version', header: t('projectDetail.budget.version', 'Version'), kind: 'primary', rowHeader: true,
+      cell: (version) => <span><span className="font-mono text-xs text-muted-foreground">v{version.version}</span> <span className="font-semibold">{version.name}</span></span>,
+      secondaryCell: (version) => <span className="text-xs text-muted-foreground">{dateLabel(version)} · {authorName(version)}</span>,
+    },
+    { key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', cell: (version) => <StatusPill variant={budgetVersionVariant(version.status)}>{version.status}</StatusPill> },
+    { key: 'total', header: t('financeCopy.total', 'Total'), kind: 'money', align: 'num', cell: (version) => <Tooltip content={t('projectDetail.budget.versionTotalSource', 'Source: sum of the budget line items in this version.')}><span tabIndex={0}>{formatAmount(version.total)}</span></Tooltip> },
+    { key: 'change', header: t('projectDetail.budget.change', 'Change'), kind: 'money', align: 'num', cell: (version) => {
+      const index = orderedVersions.findIndex((item) => item.id === version.id);
+      const previous = index > 0 ? orderedVersions[index - 1] : null;
+      return previous ? <Tooltip content={t('projectDetail.budget.versionChangeSource', 'Calculated as this version total minus the prior numbered version total.')}><span tabIndex={0} className={version.total > previous.total ? 'text-destructive-text' : undefined}>{version.total > previous.total ? t('projectDetail.budget.changeIncrease', '+') : ''}{formatCurrencyAuto(version.total - previous.total, version.currency)}</span></Tooltip> : '—';
+    } },
+    { key: 'accounting', header: t('projectDetail.budget.accountingSystem', 'Accounting system'), cell: (version) => {
+      if (version.status !== 'Active') return '—';
+      if (!canViewBudgetEnforcement) return '—';
+      if (pushStatusQuery.isPending) return <span className="text-muted-foreground">{t('projectDetail.budget.checkingPushState', 'Checking')}</span>;
+      if (pushStatusQuery.isError) return <span className="text-muted-foreground">{t('projectDetail.budget.pushStateUnavailable', 'Unavailable')}</span>;
+      const states = (pushStatusQuery.data ?? []).filter((row) => row.pushState !== null);
+      if (!states.length) return <StatusPill variant="neutral">{t('projectDetail.budget.pushNotEnforced', 'Not enforced')}</StatusPill>;
+      const labels: Record<string, { label: string; variant: 'won' | 'warn' | 'lost' | 'progress' }> = {
+        pushed: { label: t('financeCopy.enforcedByERPNext', 'Enforced by ERPNext'), variant: 'won' },
+        pending: { label: t('projectDetail.budget.pushQueued', 'Queued'), variant: 'progress' },
+        pushing: { label: t('projectDetail.budget.pushSending', 'Sending'), variant: 'progress' },
+        failed: { label: t('projectDetail.budget.pushFailed', 'Not sent'), variant: 'lost' },
+        held: { label: t('projectDetail.budget.pushHeld', 'On hold'), variant: 'warn' },
+        'never-pushed': { label: t('projectDetail.budget.neverPushed', 'No ERP budget yet'), variant: 'lost' },
+        'unstamped-activation': { label: t('projectDetail.budget.activationDateNeeded', 'Add an activation date'), variant: 'lost' },
+      };
+      return <span className="flex flex-wrap gap-x-3 gap-y-1">{states.map((row, index) => {
+        const state = labels[row.pushState ?? ''] ?? { label: t('projectDetail.budget.pushNotEnforced', 'Not enforced'), variant: 'lost' as const };
+        return <StatusPill key={`${row.fiscalYear ?? 'project'}-${index}`} variant={state.variant}>{state.label}{row.fiscalYear ? ` · ${row.fiscalYear}` : ''}</StatusPill>;
+      })}</span>;
+    } },
+  ];
+  const versionMenu = (version: BudgetVersionWithItems): RowMenuItem[] => [
+    { label: t('projectDetail.budget.openVersion', 'Open version'), onClick: () => { setBudgetView('actual'); setSelectedVersionId(version.id); setVersionsOpen(true); } },
+    { label: t('projectDetail.budget.compare', 'Compare'), onClick: () => setVersionsOpen(true) },
+    ...(canWrite && !draftVersion && (version.status === 'Active' || version.status === 'Archived') ? [{ label: t('financeCopy.cloneToRevise', 'Clone to revise'), onClick: () => requestClone(version.id) }] : []),
+    ...(canWrite && version.status === 'Active' ? [{ label: t('financeCopy.archive', 'Archive'), onClick: () => requestArchive(version.id), danger: true }] : []),
+    ...(canWrite && version.status === 'Draft' && canActivate ? [{ label: t('financeCopy.activate', 'Activate'), onClick: () => requestActivate(version.id) }] : []),
+    ...(canWrite && version.status === 'Draft' ? [{ label: t('financeCopy.deleteDraft', 'Delete draft'), onClick: () => requestDeleteDraft(version.id), danger: true }] : []),
+  ];
 
-  // Commit the staged mutation and toast on resolve (§6.7). The RPC contract is
-  // byte-for-byte preserved — the confirm only gates WHEN each mutateAsync runs.
   const commitBudgetConfirm = async () => {
-    const c = pendingConfirm;
-    if (!c) return;
+    const confirm = pendingConfirm;
+    if (!confirm) return;
     try {
-      switch (c.kind) {
+      switch (confirm.kind) {
         case 'create': {
-          const created = await mutations.createVersion.mutateAsync({ projectId, name: c.name });
-          setSelectedId(created.id);
+          await mutations.createVersion.mutateAsync({ projectId, name: confirm.name });
           setShowNewVersionForm(false);
           setNewVersionName('');
           setPendingConfirm(null);
-          toast(t('financeCopy.budgetVersionCreated', 'Budget version created'), c.name, 'success');
+          toast(t('financeCopy.budgetVersionCreated', 'Budget version created'), confirm.name, 'success');
           break;
         }
         case 'activate': {
-          const { pushState } = await mutations.activate.mutateAsync(c.id);
+          const { pushState } = await mutations.activate.mutateAsync(confirm.id);
+          void queryClient.invalidateQueries({ queryKey: ['budget-push-status', projectId] });
           setPendingConfirm(null);
-          // ⚑ HIGH-C: PMO's transition succeeded either way (ADR-0059 §3.2 — the ERPNext push is a
-          // CONSEQUENCE of activation, never its precondition), but a push that did not land must be
-          // said out loud. Otherwise ERPNext keeps enforcing the previous budget (or none) while this
-          // screen reports a clean success — and when the dispatch never reached the edge function
-          // there is no mirror row for the sweep backstop to re-drive either. The recovery affordance
-          // is the Budget projection's "Retry the push".
           if (pushState === 'failed') {
             toast(
               t('financeCopy.versionActivatedERPNotUpdated', 'Version activated — but ERPNext was not updated'),
-              t('financeCopy.budgetActiveRetryFromProjection', "{{version}}. PMO's budget is active; retry the push from the Budget projection.", { version: c.label }),
+              t('projectDetail.budget.erpReviewHint', "{{version}}. The budget is active; ask Finance or an administrator to review ERP enforcement.", { version: confirm.label }),
               'warning',
             );
           } else if (pushState === 'nothing-to-push') {
-            // ⚑ FU-2 round 2: the version has NO line items, so the fan-out attempted no fiscal year and
-            // created no ERP `Budget`. Announcing a push would be a statement about money that never
-            // moved; announcing a failure would invent an attempt. Nothing was sent — say that, and name
-            // the act that changes it. (The per-year `never-pushed` banner agrees rather than contradicts.)
             toast(
               t('financeCopy.versionActivatedNothingSent', 'Version activated — nothing was sent to ERPNext'),
-              t('financeCopy.noBudgetLinesToPush', '{{version}} has no budget lines, so no ERPNext Budget was created. Add lines and activate a new version to enforce one.', { version: c.label }),
+              t('financeCopy.noBudgetLinesToPush', '{{version}} has no budget lines, so no ERPNext Budget was created. Add lines and activate a new version to enforce one.', { version: confirm.label }),
               'warning',
             );
           } else {
-            toast(t('financeCopy.versionActivated', 'Version activated'), c.label, 'success');
+            toast(t('financeCopy.versionActivated', 'Version activated'), confirm.label, 'success');
           }
           break;
         }
         case 'clone': {
-          const newDraftId = await mutations.cloneVersion.mutateAsync(c.id);
+          const newDraftId = await mutations.cloneVersion.mutateAsync(confirm.id);
           setPendingConfirm(null);
-          // Auto-open the new draft (N9: clone auto-opens new draft)
-          setSelectedId(newDraftId);
-          toast(t('financeCopy.versionCloned', 'Version cloned'), t('financeCopy.newDraftFrom', 'New draft from {{version}}', { version: c.label }), 'success');
+          setSelectedVersionId(newDraftId);
+          setDraftEditorOpen(false);
+          setBudgetView('actual');
+          toast(t('financeCopy.versionCloned', 'Version cloned'), t('financeCopy.newDraftFrom', 'New draft from {{version}}', { version: confirm.label }), 'success');
           break;
         }
         case 'archive':
-          await mutations.archive.mutateAsync(c.id);
+          await mutations.archive.mutateAsync(confirm.id);
+          void queryClient.invalidateQueries({ queryKey: ['budget-push-status', projectId] });
           setPendingConfirm(null);
-          toast(t('financeCopy.versionArchived', 'Version archived'), c.label, 'success');
+          toast(t('financeCopy.versionArchived', 'Version archived'), confirm.label, 'success');
           break;
         case 'deleteDraft':
-          await mutations.deleteDraft.mutateAsync(c.id);
+          await mutations.deleteDraft.mutateAsync(confirm.id);
           setPendingConfirm(null);
-          toast(t('financeCopy.draftDeleted', 'Draft deleted'), c.label, 'success');
+          toast(t('financeCopy.draftDeleted', 'Draft deleted'), confirm.label, 'success');
           break;
         case 'deleteLineItem':
-          await mutations.deleteLineItem.mutateAsync(c.id);
+          await mutations.deleteLineItem.mutateAsync(confirm.id);
           setPendingConfirm(null);
           toast(t('financeCopy.lineItemDeleted', 'Line item deleted'), undefined, 'success');
           break;
       }
-    } catch (err) {
+    } catch (error) {
       setPendingConfirm(null);
-      toast(t('financeCopy.actionFailed', 'Action failed'), err instanceof Error ? err.message : undefined, 'warning');
+      toast(t('financeCopy.actionFailed', 'Action failed'), error instanceof Error ? error.message : undefined, 'warning');
     }
   };
 
-  // The single page-level ConfirmDialog, derived from pendingConfirm. Destructive
-  // (modal+scrim) for archive / delete-draft / delete-line-item; default
-  // (popover severity) for create / activate / clone (§6.5 + §3.1).
-  const confirmInFlight =
-    mutations.createVersion.isPending ||
-    mutations.activate.isPending ||
-    mutations.cloneVersion.isPending ||
-    mutations.archive.isPending ||
-    mutations.deleteDraft.isPending ||
-    mutations.deleteLineItem.isPending;
-
-  const confirmCopy: Record<
-    PendingBudgetConfirm['kind'],
-    { tone: 'default' | 'destructive'; title: string; confirmLabel: string }
-  > = {
-    create: { tone: 'default', title: t('financeCopy.createBudgetVersion', "Create budget version?"), confirmLabel: t('financeCopy.createVersion', 'Create version') },
-    activate: { tone: 'default', title: t('financeCopy.makeThisTheActiveBudget', "Make this the active budget?"), confirmLabel: t('financeCopy.activateVersion', 'Activate version') },
-    clone: { tone: 'default', title: t('financeCopy.cloneToANewDraft', "Clone to a new draft?"), confirmLabel: t('financeCopy.cloneVersion', 'Clone version') },
-    archive: { tone: 'destructive', title: t('financeCopy.archiveThisVersion', "Archive this version?"), confirmLabel: t('financeCopy.archiveVersion', 'Archive version') },
-    deleteDraft: { tone: 'destructive', title: t('financeCopy.deleteThisDraft', "Delete this draft?"), confirmLabel: t('financeCopy.deleteDraft', 'Delete draft') },
-    deleteLineItem: { tone: 'destructive', title: t('financeCopy.deleteThisLineItem', "Delete this line item?"), confirmLabel: t('financeCopy.delete', 'Delete') },
+  const confirmInFlight = mutations.createVersion.isPending || mutations.activate.isPending || mutations.cloneVersion.isPending ||
+    mutations.archive.isPending || mutations.deleteDraft.isPending || mutations.deleteLineItem.isPending;
+  const confirmCopy: Record<PendingBudgetConfirm['kind'], { tone: 'default' | 'destructive'; title: string; confirmLabel: string }> = {
+    create: { tone: 'default', title: t('financeCopy.createBudgetVersion', 'Create budget version?'), confirmLabel: t('financeCopy.createVersion', 'Create version') },
+    activate: { tone: 'default', title: t('financeCopy.makeThisTheActiveBudget', 'Make this the active budget?'), confirmLabel: t('financeCopy.activateVersion', 'Activate version') },
+    clone: { tone: 'default', title: t('financeCopy.cloneToANewDraft', 'Clone to a new draft?'), confirmLabel: t('financeCopy.cloneVersion', 'Clone version') },
+    archive: { tone: 'destructive', title: t('financeCopy.archiveThisVersion', 'Archive this version?'), confirmLabel: t('financeCopy.archiveVersion', 'Archive version') },
+    deleteDraft: { tone: 'destructive', title: t('financeCopy.deleteThisDraft', 'Delete this draft?'), confirmLabel: t('financeCopy.deleteDraft', 'Delete draft') },
+    deleteLineItem: { tone: 'destructive', title: t('financeCopy.deleteThisLineItem', 'Delete this line item?'), confirmLabel: t('financeCopy.delete', 'Delete') },
   };
-
-  // Each handler receives its OWN narrowed variant (a per-kind mapped type), so
-  // no fragile in-body re-narrowing (`c.kind === 'create' ? c.name : ''`) is
-  // needed and no empty-string '""' can render (item J). The call site dispatches
-  // through a single helper that ties the handler to the matching variant.
-  type ConfirmDescriptions = {
-    [K in PendingBudgetConfirm['kind']]: (c: Extract<PendingBudgetConfirm, { kind: K }>) => string;
-  };
+  type ConfirmDescriptions = { [K in PendingBudgetConfirm['kind']]: (confirm: Extract<PendingBudgetConfirm, { kind: K }>) => string };
   const confirmDescriptions: ConfirmDescriptions = {
-    create: (c) => t('financeCopy.confirmCreateDescription', 'This creates a new Draft budget version named "{{name}}".', { name: c.name }),
-    activate: (c) => c.soleOperator
+    create: (confirm) => t('financeCopy.confirmCreateDescription', 'This creates a new Draft budget version named "{{name}}".', { name: confirm.name }),
+    activate: (confirm) => confirm.soleOperator
       ? t('financeCopy.confirmSoleOperatorActivation', "You're the only person in this organisation, so you can activate a budget you prepared yourself. Once a colleague joins, a second person will need to activate it.")
-      : t('financeCopy.confirmActivateDescription', 'This makes {{version}} the live active budget and supersedes the current active version.', { version: c.label }),
-    clone: (c) => t('financeCopy.confirmCloneDescription', 'This copies {{version}} into a new editable Draft.', { version: c.label }),
-    archive: (c) => t('financeCopy.confirmArchiveDescription', 'This removes {{version}} as the active budget. You can clone it later to revise.', { version: c.label }),
-    deleteDraft: (c) => t('financeCopy.confirmDeleteDraftDescription', 'This permanently deletes the draft {{version}}. This cannot be undone.', { version: c.label }),
+      : t('financeCopy.confirmActivateDescription', 'This makes {{version}} the live active budget and supersedes the current active version.', { version: confirm.label }),
+    clone: (confirm) => t('financeCopy.confirmCloneDescription', 'This copies {{version}} into a new editable Draft.', { version: confirm.label }),
+    archive: (confirm) => t('financeCopy.confirmArchiveDescription', 'This removes {{version}} as the active budget. You can clone it later to revise.', { version: confirm.label }),
+    deleteDraft: (confirm) => t('financeCopy.confirmDeleteDraftDescription', 'This permanently deletes the draft {{version}}. This cannot be undone.', { version: confirm.label }),
     deleteLineItem: () => t('financeCopy.confirmDeleteLineItemDescription', 'This permanently removes the line item from the draft. This cannot be undone.'),
   };
-  const describeConfirm = (c: PendingBudgetConfirm): string =>
-    // Safe: the union is keyed by `kind`, so the handler at c.kind accepts c.
-    (confirmDescriptions[c.kind] as (x: PendingBudgetConfirm) => string)(c);
-
+  const describeConfirm = (confirm: PendingBudgetConfirm): string =>
+    (confirmDescriptions[confirm.kind] as (value: PendingBudgetConfirm) => string)(confirm);
   const budgetConfirm = pendingConfirm && (
     <ConfirmDialog
       open
@@ -933,154 +907,248 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
       description={describeConfirm(pendingConfirm)}
       confirmLabel={confirmCopy[pendingConfirm.kind].confirmLabel}
       loading={confirmInFlight}
-      restoreFocusFallback={() => document.querySelector<HTMLElement>('#budget-version-select')}
+      restoreFocusFallback={() => document.querySelector<HTMLElement>('#budget-primary-action, #budget-versions-trigger')}
       onCancel={() => setPendingConfirm(null)}
       onConfirm={() => void commitBudgetConfirm()}
     />
   );
 
-  const hasActive = versions.some((v) => v.status === 'Active');
-  const head = (
-    // AC-W6-IXD-BUDHEAD (B-3): the redundant <h2>Project Budget</h2> duplicated the
-    // selected "Budget" tab label (which already names the section). Dropped — the
-    // useful "Active budget: $X" line is promoted as the quiet section lead. The tab
-    // is the section heading; no orphaned hierarchy (the page <h1> is the project name).
-    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-      <div>
-        {/* UX-033: the Active amount is announced ONCE, in the version header below. This line exists only
-            to keep it in view while another version is open — and DD-MONEY-4: with no Active version it says
-            so, instead of presenting a Draft or $0 as the budget. */}
-        {versions.length === 0 ? null : !hasActive ? (
-          <p className="text-sm text-muted-foreground">{t('uxs04.noActiveBudget', 'No active budget')}</p>
-        ) : selected?.status !== 'Active' ? (
-          <p className="text-sm text-muted-foreground">
-            {t('financeCopy.activeBudget', "Active budget:")}{' '}
-            <span data-testid="derived-budget" className="font-semibold tabular text-foreground">
-              {formatCurrency(derivedTotal, selected?.currency ?? orgCurrency)}
-            </span>
-          </p>
-        ) : null}
+  const draftEditor = draftVersion && canWrite && draftEditorOpen && selectedVersion?.id === draftVersion.id ? (
+    <section aria-label={t('projectDetail.budget.draftEditor', 'Draft budget editor')} className="min-w-0 space-y-3" data-testid="budget-draft-editor">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">{draftVersion.name} · v{draftVersion.version}</h3>
+        <Button variant="ghost" size="sm" onClick={() => setDraftEditorOpen(false)}>{t('common.close', 'Close')}</Button>
       </div>
-      {canWrite && (
-        <Button variant="outline" onClick={() => setShowNewVersionForm(true)}>
-          {t('financeCopy.newVersion', "+ New version")}</Button>
-      )}
-    </div>
-  );
+      <LineItemEditor
+        key={draftVersion.id}
+        lineItems={draftVersion.line_items}
+        currency={draftVersion.currency}
+        onCreateLineItem={(item) => mutations.createLineItem.mutateAsync({ versionId: draftVersion.id, item })}
+        onDeleteLineItem={requestDeleteLineItem}
+        onUpdateLineItem={(id, patch) => mutations.updateLineItem.mutateAsync({ id, patch })}
+        onSaveSuccess={() => toast(t('financeCopy.lineItemUpdated', 'Line item updated'), undefined, 'success')}
+        createIsPending={mutations.createLineItem.isPending}
+        updateIsPending={mutations.updateLineItem.isPending}
+        onSaveError={(error) => {
+          const { headline, detail } = classifyMutationError(error);
+          toast(headline, detail, 'warning');
+        }}
+      />
+    </section>
+  ) : null;
 
-  // Empty state
-  if (versions.length === 0) {
+  if (!canReadMoney) {
     return (
-      <div data-testid="budget-empty" className="flex flex-col gap-4">
-        {head}
-        {showNewVersionForm && canWrite && (
-          <NewVersionForm
-            onSubmit={requestCreate}
-            onCancel={() => setShowNewVersionForm(false)}
-            value={newVersionName}
-            onChange={setNewVersionName}
-          />
-        )}
-        <div className="rounded-lg border border-border bg-card">
-          <ListState
-            variant="empty"
-            icon="dollar"
-            title={t('financeCopy.noBudgetVersionsYet', "No budget versions yet")}
-            sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', "Create a Draft version to start planning the project budget.")}
-          />
-        </div>
-        {budgetConfirm}
-      </div>
+      <section className="rounded-lg border border-border bg-card p-4" data-testid="budget-option-a">
+        <h2 className="text-base font-semibold">{t('projectDetail.budget.title', 'Project budget')}</h2>
+        <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.budget.noMoneyAccess', 'Budget details are available to project management and finance.')}</p>
+      </section>
     );
   }
 
-  // Normal state: version selector + single card (AC-BD-01/04/05)
-  const selectFieldCls =
-    'h-8 rounded-md border border-input bg-background px-2.5 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
-
   return (
-    <div className="flex flex-col gap-4">
-      {head}
+    <div className="flex min-w-0 flex-col gap-5" data-testid={versions.length === 0 ? 'budget-empty' : 'budget-option-a'}>
+      <header className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-foreground">{t('projectDetail.budget.title', 'Project budget')}</h2>
+        </div>
+      </header>
 
-      {showNewVersionForm && canWrite && (
-        <NewVersionForm
-          onSubmit={requestCreate}
-          onCancel={() => setShowNewVersionForm(false)}
-          value={newVersionName}
-          onChange={setNewVersionName}
-        />
+      {draftVersion && (
+        <section aria-label={t('projectDetail.budget.draftWaiting', 'Draft waiting for approval')} className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4" data-testid="budget-draft-banner">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <StatusPill variant="draft">{t('financeCopy.statusDraft', 'Draft')}</StatusPill>
+              <h3 className="font-semibold">{t('projectDetail.budget.draftWaiting', 'Draft waiting for approval')}</h3>
+              <span className="text-sm text-muted-foreground">{draftVersion.name} · v{draftVersion.version}</span>
+            </div>
+            {!canActivate && <p role="status" className="mt-1 text-sm text-muted-foreground">{activateBlockedReason ?? t('projectDetail.budget.waitingForFinance', 'Waiting for approval by finance')}</p>}
+            {canActivate && <p className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.draftReady', 'This draft is ready for an eligible approver to activate.')}</p>}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {canWrite && <Button variant="outline" size="sm" onClick={() => { setSelectedVersionId(draftVersion.id); setDraftEditorOpen(true); }}>{t('projectDetail.budget.editDraft', 'Edit draft')}</Button>}
+            {canActivate && <Button variant="success" size="sm" onClick={() => requestActivate(draftVersion.id)}>{t('projectDetail.budget.activateVersionNamed', 'Activate v{{version}}', { version: draftVersion.version })}</Button>}
+          </div>
+        </section>
       )}
+      {!activeVersion && <p role="status" className="text-sm text-muted-foreground">{t('projectDetail.budget.noActiveBudget', 'No active budget')}</p>}
 
-      {/* AC-BD-01: Version selector bar — SUB-D: only when there is a version to switch to. */}
-      {versions.length > 1 && (
-        <Toolbar
-          standalone
-          className="flex flex-wrap items-center gap-2 py-2"
-          data-testid="version-selector"
-        >
-          {/* A1: visible label wired to select */}
-          <label
-            htmlFor="budget-version-select"
-            className="text-[12px] font-semibold text-muted-foreground"
-          >
-            {t('financeCopy.version', "Version")}</label>
-          {/* A2/A3: native select — keyboard nav, focus ring, type-ahead all free */}
-          <select
-            id="budget-version-select"
-            aria-label={t('financeCopy.version', "Version")}
-            value={selected?.id ?? ''}
-            onChange={(e) => setSelectedId(e.target.value)}
-            className={`${selectFieldCls} min-w-[200px] max-w-xs`}
-          >
-            {versions.map((v) => (
-              // A4/N1/N2: status in text (not color only), no em-dash, no emoji
-              <option key={v.id} value={v.id}>
-                {`v${v.version} · ${v.name}`}
-              </option>
-            ))}
-          </select>
-        </Toolbar>
-      )}
+      {showNewVersionForm && canWrite && <NewVersionForm onSubmit={requestCreate} onCancel={() => setShowNewVersionForm(false)} value={newVersionName} onChange={setNewVersionName} />}
 
-      {/* AC-BD-05: exactly ONE VersionCard */}
-      <div className="flex flex-col gap-4">
-        {selected && (
-          <VersionCard
-            key={selected.id}
-            version={selected}
-            canWrite={canWrite}
-            canActivate={canActivate}
-            activateBlockedReason={activateBlockedReason}
-            onActivate={requestActivate}
-            onArchive={requestArchive}
-            onClone={requestClone}
-            onDeleteDraft={requestDeleteDraft}
-            // create/update line-item stay direct (Open-Q#3: a form submit is
-            // already a deliberate two-step, not a single click).
-            onCreateLineItem={(versionId, item) =>
-              mutations.createLineItem.mutateAsync({ versionId, item })
-            }
-            onDeleteLineItem={requestDeleteLineItem}
-            // Inline edit is routine (OD-UX-1): single-click Save + toast, no confirm.
-            onUpdateLineItem={(id, patch) =>
-              mutations.updateLineItem.mutateAsync({ id, patch })
-            }
-            onUpdateLineItemSuccess={() =>
-              toast(t('financeCopy.lineItemUpdated', 'Line item updated'), undefined, 'success')
-            }
-            // B-0.7: thread isPending into Save buttons (double-submit guard).
-            createIsPending={mutations.createLineItem.isPending}
-            updateIsPending={mutations.updateLineItem.isPending}
-            // B-0.6: surface mutation errors via toast (no silent no-op).
-            onLineItemSaveError={(err) => {
-              const { headline, detail } = classifyMutationError(err);
-              toast(headline, detail, 'warning');
-            }}
-          />
-        )}
-        {selected && <BudgetDocumentLinks key={`evidence-${selected.id}`} versionId={selected.id} status={selected.status} />}
+      {versions.length === 0 && <ListState variant="empty" icon="dollar" title={t('financeCopy.noBudgetVersionsYet', 'No budget versions yet')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} action={canWrite ? { label: t('projectDetail.budget.createBudget', 'Create budget'), onClick: () => setShowNewVersionForm(true) } : undefined} />}
+
+      <div className="grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-4">
+        <KPITile icon="dollar" tone="blue" label={t('financeCopy.budget', 'Budget')} value={formatAmount(totalBudget)} help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items, grouped by category.')} />
+        <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} value={formatAmount(totalSpent)} unavailableReason={totalSpent === null ? t('projectDetail.budget.spendingUnavailable', 'Spending is unknown or unavailable.') : undefined} help={actualSource} />
+        <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} value={formatAmount(totalCommitted)} unavailableReason={totalCommitted === null ? t('projectDetail.budget.commitmentsUnavailable', 'Commitments are unknown or unavailable.') : undefined} help={t('projectDetail.budget.committedSource', 'Source: ordered, received, vendor-invoiced, and paid procurement totals in the project currency.')} />
+        <KPITile icon="down" tone={totalLeft !== null && totalLeft < 0 ? 'red' : 'green'} label={t('projectDetail.budget.left', 'Left')} value={formatAmount(totalLeft)} negative={totalLeft !== null && totalLeft < 0} unavailableReason={totalLeft === null ? t('projectDetail.budget.leftUnavailable', 'Left is unknown while spending or commitments are unavailable.') : undefined} help={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')} />
       </div>
 
+      <section aria-label={t('projectDetail.budget.budgetVsActual', 'Budget vs actual')} className="min-w-0 space-y-3 rounded-lg border border-border bg-card p-3 sm:p-4">
+        {selectedRows.size > 0 && view === 'actual' ? (
+          <div className="flex min-w-0 flex-wrap items-center gap-2" role="toolbar" aria-label={t('projectDetail.budget.selectedCategories', 'Selected categories')}>
+            <span className="text-sm font-medium">{t('projectDetail.budget.selectedCount', '{{count}} selected', { count: selectedRows.size })}</span>
+            {canWrite && <Button variant="outline" size="sm" onClick={adjustInDraft}>{t('projectDetail.budget.adjustInDraft', 'Adjust in a draft')}</Button>}
+            <Button variant="outline" size="sm" onClick={() => exportRows(enrichedRows.filter((row) => selectedRows.has(row.category)), 'ProjectBudgetSelected')}>{t('projectDetail.budget.exportRows', 'Export rows')}</Button>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedRows(new Set())}>{t('common.clear', 'Clear')}</Button>
+          </div>
+        ) : <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+          <ViewToggle
+            ariaLabel={t('projectDetail.budget.budgetView', 'Budget view')}
+            value={view}
+            onChange={(next) => { setBudgetView(next); setSelectedRows(new Set()); if (next === 'forecast') setDraftEditorOpen(false); }}
+            options={[
+              { value: 'actual', label: t('projectDetail.budget.budgetVsActual', 'Budget vs actual') },
+              ...(hasActiveErpBinding && activeVersion ? [{ value: 'forecast' as const, label: t('projectDetail.budget.forecast', 'Forecast') }] : []),
+            ]}
+          />
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>{t('projectDetail.budget.version', 'Version')}</span>
+              <select aria-label={t('projectDetail.budget.version', 'Version')} value={selectedVersion?.id ?? ''} disabled={view === 'forecast'} onChange={(event) => { setSelectedVersionId(event.target.value); setDraftEditorOpen(false); }} className="h-9 max-w-52 rounded-md border border-input bg-background px-2 text-sm text-foreground disabled:opacity-70">
+                {versions.map((version) => <option key={version.id} value={version.id}>v{version.version} · {version.status}</option>)}
+              </select>
+            </label>
+            <span className="text-xs text-muted-foreground">{view === 'actual' ? t('projectDetail.budget.wholeProject', 'Whole project') : t('projectDetail.budget.fiscalYearInForecast', 'Fiscal year in forecast')}</span>
+            <span className="text-xs text-muted-foreground">{project.currency} · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-xs" /></span>
+            {canWrite && activeVersion && !draftVersion && <Button variant="outline" size="sm" onClick={() => requestClone(activeVersion.id)}>{t('projectDetail.budget.updateBudget', 'Update budget')}</Button>}
+            {view === 'actual' && <Button variant="outline" size="sm" onClick={() => exportRows(enrichedRows, 'ProjectBudget')}>{t('projectDetail.budget.export', 'Export')}</Button>}
+          </div>
+        </div>}
+        {view === 'actual' ? (
+          selectedVersion ? <>
+            {selectedVersion.status !== 'Active' && <p className="text-sm text-muted-foreground">{t('projectDetail.budget.viewingVersion', 'Viewing {{status}} v{{version}}; project spending and commitments reflect the current project totals.', { status: selectedVersion.status, version: selectedVersion.version })}</p>}
+            {draftEditor}
+            <DataTable
+              rows={enrichedRows}
+              columns={actualColumns}
+              rowKey={(row) => row.category}
+              onActivate={openCategory}
+              selectedKey={selectedCategory?.category}
+              selection={{
+                selectedIds: selectedRows,
+                onChange: setSelectedRows,
+                rowLabel: (row) => t('projectDetail.budget.selectCategory', 'Select {{category}}', { category: budgetCategoryLabel(row.category, t) }),
+              }}
+              rowMenu={categoryMenu}
+              tableId="project-budget-option-a"
+              accessibleName={t('projectDetail.budget.actualTable', 'Budget vs actual by category')}
+              cardBelow={600}
+              totals={actualTotals}
+              emptyTitle={t('projectDetail.budget.noCategories', 'No budget categories in this version')}
+              emptySub={t('projectDetail.budget.noCategoriesSub', 'Add budget lines to show the category breakdown.')}
+            />
+            {position.actualsPending && <p role="status" className="text-sm text-muted-foreground">{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</p>}
+            {position.actualsError && <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">{t('projectDetail.budget.actualsError', "Couldn't check spending.")}<Button variant="ghost" size="sm" onClick={() => void position.refetchActuals()}>{t('common.retry', 'Retry')}</Button></p>}
+            {canSeeActuals && position.unknown > 0 && !position.actualsPending && !position.actualsError && <p className="text-sm text-muted-foreground">{t('projectDetail.cost.spendingUnlinked', "Spending isn't linked yet.")} {canManageAccounting ? <a href="/administration/accounting#budget-account-map" className="font-medium text-primary-text underline underline-offset-2">{t('projectDetail.cost.finishSetup', 'Finish spending setup')}</a> : t('projectDetail.cost.askAdmin', 'An administrator can finish the setup.')}</p>}
+          </> : <ListState variant="empty" title={t('projectDetail.budget.noActiveBudget', 'No active budget')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} />
+        ) : activeVersion ? <><AttributedSpendingNote projectId={projectId} /><BudgetProjection projectId={projectId} currency={project.currency} canEdit={canWrite} committedByCategory={Object.fromEntries(summaryRows.map((row) => [row.category, canSeeCommitments ? row.committed : null]))} canReadCommitments={canSeeCommitments} onAdjustInDraft={adjustInDraft} onExport={(rows) => {
+          const headers = ['Category', 'Budget', 'Spent', 'Cost to finish', 'Forecast final', 'Forecast remaining'];
+          const csv = [headers, ...rows.map((row) => [budgetCategoryLabel(row.category, t), row.pmoBudgetAmount ?? '', row.actualsToDate ?? '', row.pmoEtc, row.projectedFinalCost ?? '', row.projectedVariance ?? ''])].map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\r\n');
+          const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+          const link = document.createElement('a'); link.href = url; link.download = 'ProjectBudgetForecast.csv'; link.click(); URL.revokeObjectURL(url);
+        }} /></> : <ListState variant="empty" title={t('projectDetail.budget.forecastNeedsActive', 'Activate a budget to view its forecast')} />}
+      </section>
+
+      <section aria-label={t('projectDetail.budget.versionsTitle', 'Budget versions')} className="min-w-0 space-y-3 rounded-lg border border-border bg-card p-3 sm:p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold">{t('projectDetail.budget.versionsTitle', 'Budget versions')}</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            {canWrite && versions.length > 0 && !draftVersion && <Button variant="outline" size="sm" onClick={() => setShowNewVersionForm(true)}>{t('projectDetail.budget.newVersion', 'New version')}</Button>}
+            {versions.length > 0 && <Button id="budget-versions-trigger" variant="ghost" size="sm" onClick={() => setVersionsOpen(true)}>{t('projectDetail.budget.manageVersions', 'Manage versions')}</Button>}
+          </div>
+        </div>
+        {versions.length > 0 ? <DataTable
+          rows={versionRows}
+          columns={versionColumns}
+          rowKey={(version) => version.id}
+          onActivate={(version) => { setBudgetView('actual'); setSelectedVersionId(version.id); setVersionsOpen(true); }}
+          selectedKey={selectedVersion?.id}
+          rowMenu={versionMenu}
+          tableId="project-budget-versions-card"
+          accessibleName={t('projectDetail.budget.versionsTitle', 'Budget versions')}
+          cardBelow={600}
+        /> : null}
+      </section>
+
+      {canViewBudgetEnforcement && <details className="rounded-lg border border-border bg-card p-3 sm:p-4">
+        <summary className="touch-target cursor-pointer text-sm font-semibold">{t('projectDetail.budget.sourcesEnforcement', 'Sources and budget enforcement')}</summary>
+        <div className="mt-3 space-y-3">
+          <p className="text-sm text-muted-foreground">{t('projectDetail.budget.sourceDescription', 'Budget totals come from version line items. Spent comes from project finance. Commitments come from qualifying procurement records. Forecasts use the ERP ledger and estimates for the selected client fiscal year.')}</p>
+          <BudgetErpNotice
+            projectId={projectId}
+            activeVersion={activeVersion}
+            hasDraft={Boolean(draftVersion)}
+            onRecover={() => {
+              setBudgetView('actual');
+              if (draftVersion) {
+                setSelectedVersionId(draftVersion.id);
+                setDraftEditorOpen(true);
+              } else if (activeVersion) {
+                requestClone(activeVersion.id);
+              }
+            }}
+          />
+        </div>
+      </details>}
+
+      <Drawer
+        open={Boolean(selectedCategory)}
+        title={selectedCategory ? budgetCategoryLabel(selectedCategory.category, t) : ''}
+        icon={<Icon name="dollar" />}
+        status={selectedCategory && (() => { const status = getStatus(selectedCategory); return <StatusPill variant={status.variant}>{status.label}</StatusPill>; })()}
+        onClose={closeCategory}
+        width="lg"
+        nestedOpen={Boolean(pendingConfirm)}
+        headerActions={selectedCategory && <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+          {canWrite && <Button variant="primary" size="sm" onClick={adjustInDraft}>{t('projectDetail.budget.adjustInDraft', 'Adjust in a draft')}</Button>}
+          <Link className="touch-target inline-flex min-h-9 items-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent" to={`/projects/${encodeURIComponent(projectId)}/budget`}>{t('projectDetail.budget.openFullPage', 'Open full page')}</Link>
+        </div>}
+        footer={selectedCategory && <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button variant="ghost" size="sm" onClick={() => exportRows([selectedCategory], `Budget_${selectedCategory.category}`)}>{t('projectDetail.budget.export', 'Export')}</Button>
+        </div>}
+      >
+        {selectedCategory && <div className="space-y-5">
+          <dl className="grid grid-cols-2 gap-3 text-sm">
+            {[
+              [t('financeCopy.budget', 'Budget'), formatAmount(selectedCategory.budget), t('projectDetail.budget.budgetSource', 'Source: selected budget version line items, grouped by category.')],
+              [t('projectDetail.budget.spent', 'Spent'), canSeeActuals ? formatAmount(selectedCategory.spent) : '—', actualSource],
+              [t('projectDetail.budget.committed', 'Committed'), canSeeCommitments ? formatAmount(selectedCategory.committed) : '—', t('projectDetail.budget.committedSource', 'Source: ordered, received, vendor-invoiced, and paid procurement totals in the project currency.')],
+              [t('projectDetail.budget.left', 'Left'), formatAmount(selectedCategory.left), t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')],
+              [t('projectDetail.budget.costToFinish', 'Cost to finish'), t('projectDetail.budget.forecastOnlyFigure', 'Available in Forecast by fiscal year.'), t('projectDetail.budget.forecastOnlyFigure', 'Available in Forecast by fiscal year.')],
+              [t('projectDetail.budget.forecastFinal', 'Forecast final'), t('projectDetail.budget.forecastOnlyFigure', 'Available in Forecast by fiscal year.'), t('projectDetail.budget.forecastOnlyFigure', 'Available in Forecast by fiscal year.')],
+            ].map(([label, value, source]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><Tooltip content={source}><dd tabIndex={0} className="mt-1 font-semibold tabular-nums">{value}</dd></Tooltip></div>)}
+          </dl>
+          {selectedCategory.used !== null && <div><Tooltip content={t('projectDetail.budget.utilizationFormula', 'Calculated as (spent + committed) divided by budget.')}><span tabIndex={0} className="text-sm font-medium">{t('projectDetail.budget.percentUsed', '% used')}</span></Tooltip><ProgressBar value={Math.round(selectedCategory.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(selectedCategory.category, t) })} /></div>}
+          <section aria-labelledby="budget-records-heading" className="space-y-2">
+            <h3 id="budget-records-heading" className="text-sm font-semibold">{t('projectDetail.budget.recordsBehindSpending', 'Records behind the spending')}</h3>
+            <p className="text-sm text-muted-foreground">{t('projectDetail.budget.ledgerRowsUnavailable', 'Transaction-level ledger records are unavailable in the project finance summary.')}</p>
+          </section>
+          <section aria-labelledby="budget-category-lines-heading" className="space-y-2">
+            <h3 id="budget-category-lines-heading" className="text-sm font-semibold">{t('projectDetail.budget.budgetLineItems', 'Budget line items')}</h3>
+            <ul className="divide-y divide-border" aria-label={t('projectDetail.budget.budgetLineItems', 'Budget line items')}>
+              {selectedCategory.lines.map((line) => <li key={line.id ?? `${line.category}-${line.description}`} className="flex min-w-0 items-start justify-between gap-3 py-2 text-sm"><span className="min-w-0 break-words text-muted-foreground">{line.description || '—'}<span className="ml-2 text-xs">{t('financeCopy.fiscalYear', 'Fiscal year')}: {line.fiscal_year ?? t('financeCopy.unPhased', 'Un-phased')}</span></span><Tooltip content={t('projectDetail.budget.budgetLineSource', 'Source: selected budget version line item.')}><span tabIndex={0} className="shrink-0 tabular-nums">{formatAmount(Number(line.budgeted_amount))}</span></Tooltip></li>)}
+              {selectedCategory.lines.length === 0 && <li className="py-2 text-sm text-muted-foreground">{t('projectDetail.budget.noLineItems', 'No budget line items are recorded for this category.')}</li>}
+            </ul>
+          </section>
+          <section aria-labelledby="budget-notes-heading" className="space-y-2">
+            <h3 id="budget-notes-heading" className="text-sm font-semibold">{t('projectDetail.budget.notes', 'Notes')}</h3>
+            <p className="text-sm text-muted-foreground">{t('projectDetail.budget.categoryNotesUnavailable', 'No category notes are recorded.')}</p>
+          </section>
+        </div>}
+      </Drawer>
+
+      <BudgetVersionsDrawer
+        open={versionsOpen}
+        onClose={() => setVersionsOpen(false)}
+        versions={versions}
+        canWrite={canWrite}
+        hasDraft={Boolean(draftVersion)}
+        nestedOpen={Boolean(pendingConfirm)}
+        onArchive={requestArchive}
+        onClone={requestClone}
+        onDeleteDraft={requestDeleteDraft}
+      />
       {budgetConfirm}
     </div>
   );
@@ -1096,7 +1164,7 @@ const NewVersionForm: React.FC<{
   value: string;
   onChange: (v: string) => void;
 }> = ({ onSubmit, onCancel, value, onChange }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('finance');
   return (
     <Toolbar standalone className="items-center">
     <input

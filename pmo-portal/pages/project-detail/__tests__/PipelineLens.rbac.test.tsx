@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -22,6 +23,7 @@ const { transitionProject } = vi.hoisted(() => ({
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => false }));
 vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, transitionProject };
@@ -73,15 +75,17 @@ const renderAs = (realRole: Role) =>
 beforeEach(() => transitionProject.mockClear());
 
 describe('PipelineLens — RBAC write-affordance gate (A-1)', () => {
-  it('AC-W2-RBAC-002: a PM sees Advance / Mark won / Mark lost (authorized)', () => {
+  it('AC-W2-RBAC-002: a PM sees Advance / Mark won / Mark lost (authorized)', async () => {
     renderAs('Project Manager');
+    await userEvent.click(screen.getByText('More about this deal'));
     expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark won/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark lost/i })).toBeInTheDocument();
   });
 
-  it('AC-W2-RBAC-001: an Engineer sees the stage + journey but NO lifecycle control (denied)', () => {
+  it('AC-W2-RBAC-001: an Engineer sees the stage + journey but NO lifecycle control (denied)', async () => {
     renderAs('Engineer');
+    await userEvent.click(screen.getByText('More about this deal'));
     // The deal still renders its stats + journey (read-only surface).
     expect(screen.getByRole('list', { name: /Project stage journey/i })).toBeInTheDocument();
     // No reject-bound lifecycle control is rendered.
@@ -90,6 +94,36 @@ describe('PipelineLens — RBAC write-affordance gate (A-1)', () => {
     expect(screen.queryByRole('button', { name: /Mark lost/i })).not.toBeInTheDocument();
     // A clean read-only note explains who manages the pipeline (not a wall of dead buttons).
     expect(screen.getByText(/managed by the project owner/i)).toBeInTheDocument();
+  });
+
+  it('keeps deal value and weighted money out of the Engineer delivery lens', async () => {
+    renderAs('Engineer');
+    await userEvent.click(screen.getByText('More about this deal'));
+    expect(screen.queryByText('Value')).not.toBeInTheDocument();
+    expect(screen.queryByText('Weighted')).not.toBeInTheDocument();
+    expect(screen.queryByText('$1,200,000')).not.toBeInTheDocument();
+  });
+
+  it('leads the phone view with the current stage and one next action, with detail closed', async () => {
+    renderAs('Project Manager');
+    expect(screen.getByText('Tender Submitted')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
+    const details = screen.getByText('More about this deal').closest('details');
+    expect(details).not.toHaveAttribute('open');
+    expect(details).not.toHaveTextContent('Weighted');
+    await userEvent.click(screen.getByText('More about this deal'));
+    expect(details).toHaveTextContent('Weighted');
+    expect(screen.getByRole('list', { name: /Project stage journey/i })).toBeInTheDocument();
+  });
+
+  it('keeps the full read-only explanation inside the phone disclosure and the summary to one line', async () => {
+    renderAs('Engineer');
+    const summary = screen.getByText('More about this deal');
+    const details = summary.closest('details');
+    expect(details).not.toHaveAttribute('open');
+    await userEvent.click(summary);
+    expect(details).toHaveTextContent('lifecycle changes are made by the project manager');
+    expect(screen.getByText('Project manager manages this pipeline.')).toHaveClass('line-clamp-1');
   });
 
   it('AC-W2-RBAC-001: Finance is read-only on the pipeline lens too (denied)', () => {

@@ -42,7 +42,7 @@ describe('ErpPurchasesSection', () => {
     ] });
     renderSection();
 
-    expect(screen.getByRole('heading', { name: 'ERPNext documents not in a purchase' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^ERPNext documents not in a purchase\s*3$/ })).toBeInTheDocument();
     expect(screen.getByText(/Already counted in Actuals/)).toBeInTheDocument();
     for (const name of ['PINV-PAID', 'PINV-LATE', 'PINV-SHARED']) expect(screen.getAllByText(name).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('button', { name: /^Link PINV-/ })).toHaveLength(3);
@@ -95,7 +95,7 @@ describe('ErpPurchasesSection', () => {
     const refetch = vi.fn();
     both({ data: undefined, isError: true, refetch });
     renderSection();
-    expect(screen.getByRole('heading', { name: 'ERPNext documents not in a purchase' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^ERPNext documents not in a purchase(?:\s*\d+)?$/ })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Retry|Try again/ }));
     expect(refetch).toHaveBeenCalled();
   });

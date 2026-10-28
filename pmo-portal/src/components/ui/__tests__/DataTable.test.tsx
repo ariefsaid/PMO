@@ -55,14 +55,83 @@ const columns: Column<Row>[] = [
 ];
 
 describe('DataTable', () => {
+  it('maps controlled selection to row checkboxes without activating the selected row', async () => {
+    const onChange = vi.fn();
+    const onActivate = vi.fn();
+    const selectedIds = new Set(['PRJ-1']);
+    const { rerender, unmount } = render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(row) => row.id}
+        onActivate={onActivate}
+        rowLabel={(row) => `Open ${row.name}`}
+        selection={{
+          selectedIds,
+          onChange,
+          rowLabel: (row) => `Select ${row.name}`,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('checkbox', { name: 'Select Beta' })).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByRole('checkbox', { name: 'Select all rows' })).toHaveAttribute('aria-checked', 'mixed');
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Beta' }));
+    expect(onChange).toHaveBeenCalledWith(new Set(['PRJ-1', 'PRJ-2']));
+    expect(onActivate).not.toHaveBeenCalled();
+
+    rerender(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(row) => row.id}
+        selection={{ selectedIds: new Set(['PRJ-1', 'PRJ-2']), onChange, rowLabel: (row) => `Select ${row.name}` }}
+      />,
+    );
+    expect(screen.getByRole('checkbox', { name: 'Select all rows' })).toHaveAttribute('aria-checked', 'true');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select all rows' }));
+    expect(onChange).toHaveBeenLastCalledWith(new Set());
+
+    rerender(
+      <DataTable
+        rows={rows}
+        columns={[{ ...columns[0], primaryTitle: (row) => row.name }, columns[1]]}
+        rowKey={(row) => row.id}
+        selection={{ selectedIds: new Set(), onChange }}
+      />,
+    );
+    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toHaveAttribute('aria-checked', 'false');
+
+    unmount();
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(row) => row.id}
+        selection={{ selectedIds: new Set(), onChange, rowLabel: (row) => `Select ${row.name}` }}
+      />,
+    );
+    expect(screen.getByTestId('dt-card-branch')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Beta' }));
+    expect(onChange).toHaveBeenLastCalledWith(new Set(['PRJ-2']));
+  });
+
   it('UXS-006: localizes shared accessible row and action names', async () => {
     const i18n = i18next.createInstance();
     await i18n.init({
       lng: 'id',
       fallbackLng: 'en',
+      defaultNS: 'projects',
+      ns: ['projects'],
       resources: {
-        en: { translation: { table: { actions: 'Actions', openRow: 'Open {{name}}', rowActions: 'Row actions' } } },
-        id: { translation: { table: { actions: 'Tindakan', openRow: 'Buka {{name}}', rowActions: 'Tindakan baris' } } },
+        en: { projects: { table: { actions: 'Actions', openRow: 'Open {{name}}', rowActions: 'Row actions' } } },
+        id: { projects: { table: { actions: 'Tindakan', openRow: 'Buka {{name}}', rowActions: 'Tindakan baris' } } },
       },
       interpolation: { escapeValue: false },
     });

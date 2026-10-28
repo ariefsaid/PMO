@@ -9,12 +9,13 @@ export interface ProjectBillingStartProps {
   onWorkOrder: () => void;
   /** The existing quantity-claim path is offered only when its current gate allows it. */
   onQuantity?: () => void;
+  buttonLabel?: string;
 }
 
 const methodClassName = 'flex min-h-12 w-full flex-col items-start justify-center rounded-md border border-input bg-background px-3 py-2.5 text-left transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
-const ProjectBillingStart: React.FC<ProjectBillingStartProps> = ({ projectId, clientId, onWorkOrder, onQuantity }) => {
-  const { t } = useTranslation();
+const ProjectBillingStart: React.FC<ProjectBillingStartProps> = ({ projectId, clientId, onWorkOrder, onQuantity, buttonLabel }) => {
+  const { t } = useTranslation('project');
   const [open, setOpen] = useState(false);
 
   if (!clientId) return null;
@@ -22,7 +23,7 @@ const ProjectBillingStart: React.FC<ProjectBillingStartProps> = ({ projectId, cl
   return (
     <>
       <Button variant="primary" size="sm" onClick={() => setOpen(true)}>
-        {t('uxs15.startInvoice', 'Start invoice')}
+        {buttonLabel ?? t('uxs15.startInvoice', 'Start invoice')}
       </Button>
       <Drawer
         open={open}

@@ -55,7 +55,7 @@ const clampPct = (value: number) => Math.max(0, Math.min(100, value));
 const percentStyle = (value: number) => `${Number(value.toFixed(2))}%`;
 
 const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenEmpty = false, summary = false }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const location = useLocation();
   const may = usePermission();
   const { toast } = useToast();
@@ -365,7 +365,7 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
   canEdit,
   onEdit,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const weightShare = totalWeight > 0 ? Math.round((milestone.weight / totalWeight) * 100) : null;
   const overdue = isOverdueMilestone(milestone);
   // The date is formatted by format.ts FIRST; i18next only ever sees the finished string.
@@ -464,7 +464,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
   onDelete,
   onUpdateInputPct,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [inputVal, setInputVal] = useState('');
