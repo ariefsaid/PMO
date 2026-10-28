@@ -1,5 +1,5 @@
 begin;
-select plan(20);
+select plan(21);
 
 insert into public.organizations (id,name,default_currency) values
   ('02970000-0000-0000-0000-000000000001','Dashboard money language test org','USD');
@@ -86,6 +86,10 @@ select is((select (value->>'known_amount')::numeric
            from json_array_elements(get_executive_dashboard()->'on_hand_realized_margin_by_currency') value
            where value->>'currency'='USD'),180::numeric,
   'AC-UX-S03-08: per-currency aggregate preserves known realized margin subtotal');
+select is((select (value->>'known_billed_revenue')::numeric
+           from json_array_elements(get_executive_dashboard()->'on_hand_realized_margin_by_currency') value
+           where value->>'currency'='USD'),300::numeric,
+  'AC-1414: margin percentage denominator includes billed revenue only for projects with known margin');
 select is((get_executive_dashboard()->>'on_hand_actual_coverage_count')::int,1,
   'AC-UX-S03-09: aggregate coverage count includes only known Actual');
 select is((get_executive_dashboard()->>'on_hand_actual_coverage_total')::int,3,

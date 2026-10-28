@@ -73,9 +73,8 @@ describe('Executive dashboard Bahasa', () => {
   it('AC-UXA-003: localizes desktop and mobile dashboard widgets while preserving displayed values and raw destinations', () => {
     renderDashboard();
     expect(screen.getByRole('heading', { name: 'Dashboard Eksekutif' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Paket dewan (segera hadir)' })).toBeInTheDocument();
     expect(screen.getByText('Kesehatan portofolio di seluruh kontrak berjalan — margin saat ini, proyeksi pipeline, dan eksposur pelaksanaan.')).toBeInTheDocument();
-    expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('2 proyek aktif');
+    expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('2 proyek yang sedang berjalan');
     // OD-MONEY-FMT: short figure visible; the exact amount stays in the Bahasa format (title + sr text).
     expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('US$8 jt');
     expect(screen.getByTestId('kpi-on-hand-margin').querySelector('[title="US$8.000.000"]')).not.toBeNull();
@@ -85,17 +84,21 @@ describe('Executive dashboard Bahasa', () => {
     expect(screen.getByText('Tingkat kemenangan')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Menurut jumlah' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '12 bulan terakhir' })).toBeInTheDocument();
-    expect(screen.getByText('2 menang dari 3 proyek selesai')).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'Tingkat kemenangan 66,7%' })).toBeInTheDocument();
+    expect(screen.getByText('2 menang dari 3 yang diputuskan')).toBeInTheDocument();
+    const decidedRate = screen.getByRole('progressbar', { name: 'Tingkat kemenangan USD dari tender yang diputuskan' });
+    expect(decidedRate).toHaveAttribute('aria-valuetext', '66,7%');
     expect(screen.getByText('Menang')).toBeInTheDocument();
-    expect(screen.getByText('Kalah')).toBeInTheDocument();
+    expect(screen.getByText('Kalah atau masih terbuka')).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'Pengeluaran dibanding kontrak' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Project North' })).toHaveAttribute('href', '/projects/p1');
     expect(screen.getByRole('progressbar', { name: 'Project North: 42% dari kontrak' })).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'Margin proyeksi pipeline' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Nilai pipeline tertimbang per tahap' })).toBeInTheDocument();
     expect(screen.getByText('Tender diajukan')).toBeInTheDocument();
     expect(screen.getByText('Negosiasi')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: /Pengadaan menurut status, 9 catatan pengadaan, terbanyak pada Diminta/i })).toBeInTheDocument();
+    const procurementChart = screen.getByRole('img', { name: 'Pengadaan menurut status' });
+    expect(procurementChart).toHaveAccessibleDescription('Nilai grafik tercantum dalam tabel data berikut.');
+    const procurementTable = screen.getByRole('table', { name: 'Data untuk Pengadaan menurut status' });
+    expect(within(procurementTable).getByRole('row', { name: 'Diminta 2' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Disetujui/ })).toHaveAttribute('href', '/procurement?status=Approved');
     expect(screen.getByRole('link', { name: /Penerimaan Barang/ })).toHaveAttribute('href', '/procurement?status=Received');
     expect(screen.getByRole('link', { name: /Faktur pemasok/ })).toHaveAttribute('href', '/procurement?status=Vendor%20Invoiced');

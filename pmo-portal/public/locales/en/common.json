@@ -1245,14 +1245,8 @@
     }
   },
   "dashboard": {
-    "winRate": {
-      "title": "Win rate", "basisCount": "By count", "basisValue": "By value", "basis": "Win-rate basis", "periodAll": "All time", "periodYtd": "YTD", "periodQuarter": "Last quarter", "periodTrailing": "Trailing 12 mo", "period": "Time frame",
-      "errorTitle": "Couldn't load win rate", "errorSub": "Something went wrong. Try again.", "emptyTitle": "No closed projects in this window", "emptySub": "Try a wider time frame to see your win rate.",
-      "result": "{{wins}} won of {{total}} closed", "currencyResult": "{{currency}} {{percent}} — {{wins}} won of {{total}} closed", "noRecordedLosses": "{{currency}} — no recorded losses; {{wins}} won", "progress": "Win rate {{percent}}", "won": "Won", "lost": "Lost", "declined": "{{n}} declined to bid — not counted in the win rate"
-    },
     "bva": { "atRisk": "At risk" },
-    "projectedMargin": { "group": "Pipeline projected margin", "summary": "probability-adjusted across {{count}} open {{stageNoun}}", "stage": "stage", "stages": "stages", "barLabel": "{{stage}}: {{value}} weighted" },
-    "procurementStatus": { "summary": "{{label}}, {{total}} {{noun}}, most in {{status}}." },
+    "projectedMargin": { "group": "Weighted pipeline value by stage", "barLabel": "{{stage}}: {{value}} weighted" },
     "pm": {
       "title": "My Dashboard", "subtitle": "Your projects, budget health, and approvals queue.", "kpiBand": "My KPIs",
       "myProjects": "My projects", "openMyProjects": "Open my projects",
@@ -1304,8 +1298,7 @@
     "chart": {
       "pipelineMargin": {
         "empty": "No open pipeline",
-        "error": "Couldn't load the pipeline",
-        "title": "Pipeline forecast margin"
+        "error": "Couldn't load the pipeline"
       },
       "procStatus": {
         "chartLabel": "Procurement by status",
@@ -1344,22 +1337,21 @@
       "aboutMetric": "About this metric",
       "helpLabel": "Help: {{label}}",
       "totalContractValue": {
-        "help": "Total contract value across the active portfolio.",
+        "help": "Total contract value across Ongoing projects.",
         "label": "Total contract value",
-        "linkLabel": "Open active projects to see total contract value",
-        "mobileVs": "Signed value of the {{count}} projects still in delivery"
+        "linkLabel": "Open Ongoing, Won, Pending KoM, and On Hold projects to see total contract value"
       },
       "totalSpend": {
         "help": "On-hand portfolio Actual recorded to date.",
-        "label": "Recorded spending",
-        "linkLabel": "Open active projects to see spend breakdown"
+        "label": "On-hand recorded spending",
+        "linkLabel": "Open Ongoing, Won, Pending KoM, and On Hold projects to review spending"
       }
     },
     "mobile": {
       "needsAttention": "Needs attention",
-      "riskSummary": "of {{count}} active projects flagged over budget or behind schedule",
-      "noRiskSummary": "of {{count}} active projects · all on track",
-      "spendLink": "Open spend breakdown · {{amount}} spent to date",
+      "riskSummary": "of {{count}} active delivery projects flagged over budget or behind schedule",
+      "noRiskSummary": "of {{count}} active delivery projects · all on track",
+      "spendLink": "Open Ongoing, Won, Pending KoM, and On Hold projects · on-hand spending {{amount}} to date",
       "breakdown": "Breakdown",
       "approvals": "Approvals",
       "awaitingApproval": "Awaiting your approval",
@@ -4665,7 +4657,7 @@
     "notAvailableYet":"Not available yet",
     "marginToDate":"Margin to date", "attentionAndApprovals":"Attention and approvals",
     "realizedMargin":"Margin on billed work", "realizedMarginKnown":"Known margin on billed work", "contractRemaining":"Contract remaining after known Actual",
-    "coverage":"Actual available for {{known}} of {{total}} delivery projects", "coverageCategories":"Actual coverage: {{known}} of {{total}} mapped cost categories", "actualIncompleteCategories":"Actual incomplete: {{count}} cost categories not mapped", "openAccountingMap":"Review accounting mappings", "mixedCurrencyTotalUnavailable":"Unavailable for mixed currencies", "recordedOutcomesOnly":"Recorded outcomes only; unrecorded decisions are not counted.", "pmoPurchasing":"Procurement", "pmoPurchasingScope":"ERP-native purchases are outside this PMO procurement chart.",
+    "coverage":"Actual available for {{known}} of {{total}} active delivery projects", "coverageCategories":"Actual coverage: {{known}} of {{total}} mapped cost categories", "actualIncompleteCategories":"Actual incomplete: {{count}} cost categories not mapped", "openAccountingMap":"Review accounting mappings", "mixedCurrencyTotalUnavailable":"Unavailable for mixed currencies", "pmoPurchasing":"PMO purchasing requests", "pmoPurchasingScope":"ERP-native purchases are outside this PMO request chart.",
     "activeBudget":"Active budget", "actual":"Actual", "variance":"Variance", "utilization":"Utilization", "atRisk":"At risk",
     "activeBudgetReviewEmpty":"No active budgets ready for review", "activeBudgetReviewEmptySub":"Active, positive-value budgets appear here.",
     "actualSourceCurrency":"Source currency: {{currency}}", "actualAsOf":"As of {{date}}",

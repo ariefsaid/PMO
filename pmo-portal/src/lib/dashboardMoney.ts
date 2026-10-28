@@ -1,4 +1,4 @@
-import { formatExactMoney, formatNumberWhole, formatShortAmount, formatShortMoney } from './format';
+import { formatExactMoney, formatNumberWhole, formatPercent, formatShortAmount, formatShortMoney } from './format';
 import { getNumberLocale } from './locale/activeLocale';
 
 /** Whole-unit dashboard money formatting; null means no coverage. */
@@ -6,6 +6,17 @@ export function formatDashboardMoney(value: number | null, currency: string, loc
   return value === null || !Number.isFinite(value)
     ? null
     : formatExactMoney(String(value), currency, locale, { wholeUnits: true });
+}
+
+/** Margin as a share of billed revenue from the same known-margin project set. */
+export function formatDashboardPercent(
+  numerator: number | null,
+  denominator: number | null,
+  locale: string = getNumberLocale(),
+): string | null {
+  if (numerator === null || denominator === null || denominator <= 0
+    || !Number.isFinite(numerator) || !Number.isFinite(denominator)) return null;
+  return formatPercent(numerator / denominator, locale);
 }
 
 /** The KPITile / StatTiles contract: visible short form, full whole-unit amount as metadata. */

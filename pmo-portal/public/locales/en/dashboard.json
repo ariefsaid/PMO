@@ -73,10 +73,56 @@
     }
   },
   "uxs03": {
-    "pmoPurchasing": "Procurement",
-    "pmoPurchasingScope": "ERP-native purchases are outside this PMO procurement chart."
+    "pmoPurchasing": "PMO purchasing requests",
+    "pmoPurchasingScope": "ERP-native purchases are outside this PMO request chart."
   },
   "uxs19": {
     "dashboardEmpty": "No procurement records to show"
+  },
+  "winRate": {
+    "title": "Win rate",
+    "basisCount": "By count",
+    "basisValue": "By value",
+    "basis": "Win-rate basis",
+    "periodAll": "All time",
+    "periodYtd": "YTD",
+    "periodQuarter": "Last quarter",
+    "periodTrailing": "Trailing 12 mo",
+    "period": "Time frame",
+    "errorTitle": "Couldn't load win rate",
+    "errorSub": "Something went wrong. Try again.",
+    "emptyTitle": "No closed projects in this window",
+    "emptySub": "Try a wider time frame to see your win rate.",
+    "won": "Won",
+    "declined": "{{n}} declined to bid — not counted in the win rate",
+    "decidedLabel": "Win rate on decided bids",
+    "allBidsLabel": "Conversion of all bids",
+    "decidedProgress": "{{currency}} win rate on decided bids",
+    "allBidsProgress": "{{currency}} conversion of all bids",
+    "currencyLabel": "{{currency}} bids",
+    "ratio": "{{won}} won of {{total}} {{outcomes}}",
+    "decidedOutcomes": "decided",
+    "allOutcomes": "bids",
+    "openCount": "{{n}} still open",
+    "staleCount": "{{n}} stale ({{days}}+ days)",
+    "periodRule": "Decided bids use their decision date; open bids use their creation date for this period; the stale count is current and age starts at the last stage change, falling back to project creation if none was recorded.",
+    "notWon": "Lost or still open",
+    "unavailable": "No rate available",
+    "noBids": "No bids in this period to calculate a rate.",
+    "noDecidedBids": "No decided bids in this currency for this period.",
+    "noBidValue": "No bid value recorded for this currency in this period.",
+    "noDecidedValue": "No decided bid value recorded for this currency in this period."
+  },
+  "executive": {
+    "spendingContractPercent": "{{percent}}% of contract",
+    "activeBudgetAmount": "Active budget: {{amount}}",
+    "noActiveBudget": "No active budget",
+    "knownMarginPercentage": "{{percent}} of billed revenue for projects with known margin",
+    "ongoingProjectsCount": "{{count}} Ongoing projects",
+    "chartDataTableDescription": "The chart values are listed in the following data table.",
+    "chartDataTableLabel": "Data for {{label}}",
+    "chartTableStatus": "Status",
+    "chartTableCount": "Count",
+    "chartTableTotal": "Total"
   }
 }

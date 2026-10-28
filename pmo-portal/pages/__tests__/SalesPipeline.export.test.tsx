@@ -76,6 +76,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
     refetch: vi.fn(),
   }),
   useLostDeals: () => ({ data: [] }),
+  useWonDeals: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 
 import SalesPipeline from '../SalesPipeline';

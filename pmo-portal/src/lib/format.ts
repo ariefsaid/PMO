@@ -359,13 +359,21 @@ export function pct(v: number | null): string {
   return v == null ? '—' : `${formatNumberWhole(v)}%`;
 }
 
-/** Format a nullable ratio (0.25 → 25.0%) using the viewer's number locale. */
-export function formatPercent(value: number | null, fractionDigits = 1): string {
+/** Format a nullable ratio (0.25 → 25.0%) in a number locale, with an optional precision. */
+export function formatPercent(value: number | null, fractionDigits?: number): string;
+export function formatPercent(value: number | null, locale?: string, fractionDigits?: number): string;
+export function formatPercent(
+  value: number | null,
+  localeOrDigits: string | number = 1,
+  requestedDigits = 1,
+): string {
   if (value == null) return '—';
+  const locale = typeof localeOrDigits === 'string' ? localeOrDigits : getNumberLocale();
+  const fractionDigits = typeof localeOrDigits === 'number' ? localeOrDigits : requestedDigits;
   if (!Number.isInteger(fractionDigits) || fractionDigits < 0 || fractionDigits > 20) {
     throw new RangeError('Percentage fraction digits must be an integer from 0 to 20.');
   }
-  return numberFormatterFor(`percent-${fractionDigits}`, getNumberLocale(), undefined, {
+  return numberFormatterFor(`percent-${fractionDigits}`, locale, undefined, {
     style: 'percent',
     minimumFractionDigits: 0,
     maximumFractionDigits: fractionDigits,
