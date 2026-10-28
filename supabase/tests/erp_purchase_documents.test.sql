@@ -138,7 +138,7 @@ select ok(
                        'mark_erp_purchase_documents','stamp_erp_purchase_document_mark_org',
                        'api_client_request_guard',  -- names the link/mark RPCs in its allow-lists; reads no table
                        -- AMENDED BY 0372: the linked-documents total (0361 §4's basis, moved into one helper) — a commitment reader.
-                       'erp_linked_documents_total'))
+                       'erp_linked_documents_total','procurement_document_total'))
   and not exists (select 1 from pg_views where schemaname = 'public' and definition ilike '%erp_purchase_documents%'
                     and viewname not in ('erp_purchase_documents_linked','erp_purchase_orphans','erp_purchase_orphans_all')),
   'AC-EPR-006 (re-baselined by AC-PFE-005) ERP purchases never feed actuals; only the named link/commitment readers touch the table');

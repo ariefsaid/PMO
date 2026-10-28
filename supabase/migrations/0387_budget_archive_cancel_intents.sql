@@ -21,7 +21,8 @@ create table public.budget_archive_cancel_intents (
   request_id uuid not null references public.budget_archive_requests(id) on delete cascade,
   project_id uuid not null references public.projects(id) on delete cascade,
   budget_version_id uuid not null references public.budget_versions(id) on delete cascade,
-  source_mirror_id uuid not null references public.budget_version_account_erp_mirror(id) on delete cascade,
+  -- Provenance only: the snapshot below must survive disposal of this external-side mirror.
+  source_mirror_id uuid not null,
   actor_user_id uuid not null references public.profiles(id),
   fiscal_year text not null,
   erp_account text not null,
