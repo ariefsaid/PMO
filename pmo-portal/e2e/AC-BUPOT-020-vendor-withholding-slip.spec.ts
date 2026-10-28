@@ -109,7 +109,7 @@ SELECT
 }
 
 async function openDocuments(page: import('@playwright/test').Page, caseId: string) {
-  await page.goto(`/procurement/${caseId}/documents`);
+  await page.goto(`/procurement/${caseId}/files`);
   await expect(page.getByTestId('procurement-loading')).toBeHidden({ timeout: 20_000 });
   await expect(page.getByTestId('procurement-ledger')).toBeVisible({ timeout: 20_000 });
 }
@@ -201,14 +201,14 @@ test('AC-BUPOT-020 #961 open-case-scroll opens, scrolls, and focuses the linked 
     await expect(page.locator('tr').filter({ hasText: viA }).getByText(localizedExact('Not recorded', 'Belum dicatat'))).toBeVisible({ timeout: 20_000 });
     await openDocuments(page, ids.caseB);
     await expect(page.locator('tr').filter({ hasText: viB }).getByText(localizedExact('Not recorded', 'Belum dicatat'))).toBeVisible({ timeout: 20_000 });
-    await page.goto(`/procurement/${ids.caseA}/documents?bupot=${encodeURIComponent(slipId)}`);
+    await page.goto(`/procurement/${ids.caseA}/files?bupot=${encodeURIComponent(slipId)}`);
     await expect(page.getByLabel(localized('Bukti potong details', 'Detail bukti potong'))).toBeVisible({ timeout: 20_000 });
     await expect(page.getByLabel(localized('Bukti potong details', 'Detail bukti potong')).getByText(slipNumber)).toBeVisible();
     await expect(page.getByLabel(localized('Bukti potong details', 'Detail bukti potong')).getByText(localized('Voided in PMO', 'Dibatalkan di PMO'))).toHaveCount(2);
 
     const retainedDetails = page.getByLabel(localized('Bukti potong details', 'Detail bukti potong'));
     await retainedDetails.getByRole('button', { name: new RegExp(`(?:Open bill .*${viB}.* in case BUPOT case B ${suffix}|Buka tagihan .*${viB}.* di kasus BUPOT case B ${suffix})`, 'i') }).click();
-    await expect(page).toHaveURL(new RegExp(`/procurement/${ids.caseB}/documents\\?bupot=${slipId}&bupotBill=${ids.billB}`));
+    await expect(page).toHaveURL(new RegExp(`/procurement/${ids.caseB}/files\\?bupot=${slipId}&bupotBill=${ids.billB}`));
     const destinationRow = page.locator(`#invoice-${ids.billB}`);
     await expect(destinationRow).toBeVisible({ timeout: 20_000 });
     await expect.poll(() => destinationRow.evaluate((row) => row === document.activeElement), { timeout: 10_000 }).toBe(true);

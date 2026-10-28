@@ -53,6 +53,12 @@ import { useBudgetPosition } from '@/pages/project-detail/useProjectPosition';
  */
 export interface ProcurementBlockProps {
   projectId?: string;
+  /** Narrows the rows after the role scope (the route's "Needs you" tab). */
+  rowFilter?: (row: ProcurementWithRefs) => boolean;
+  /** Overrides the default newest-created order for route-owned work queues. */
+  rowOrder?: (a: ProcurementWithRefs, b: ProcurementWithRefs) => number;
+  /** False when the host page already shows "New procurement" as its primary action. */
+  showCreate?: boolean;
 }
 
 export const ProcurementStageBand: React.FC<React.PropsWithChildren<{ label: string }>> = ({ label, children }) => (
@@ -275,7 +281,7 @@ function ProcurementBudgetLeft({
   );
 }
 
-export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId }) => {
+export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, rowFilter, rowOrder, showCreate = true }) => {
   const { t } = useTranslation('procurement');
   const { currentUser, role } = useAuth();
   const navigate = useNavigate();
@@ -291,8 +297,9 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
   const ownScoped = !projectId && role === 'Engineer';
   const rows = useMemo(() => [...(data ?? [])]
     .filter((row) => !ownScoped || row.requested_by_id === currentUser?.id)
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-  [data, ownScoped, currentUser?.id]);
+    .filter((row) => !rowFilter || rowFilter(row))
+    .sort(rowOrder ?? ((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())),
+  [data, ownScoped, currentUser?.id, rowFilter, rowOrder]);
   const canSeeMoney = may('view', 'procurement');
   const canApprove = may('transition', 'procurement');
   const canCreate = may('create', 'procurement');
@@ -901,7 +908,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
                 </Button>
               )}
               <span className="flex-1" />
-              {canCreate && (
+              {canCreate && showCreate && (
                 <Button size="sm" onClick={() => navigate(projectId ? `/procurement/new?project=${encodeURIComponent(projectId)}` : '/procurement/new')}>
                   <Icon name="plus" />{t('projectDetail.procurement.newRequest', 'New procurement')}
                 </Button>

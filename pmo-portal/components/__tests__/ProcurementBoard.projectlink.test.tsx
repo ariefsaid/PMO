@@ -11,7 +11,7 @@
  *   the project via the procurement detail page which links there.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import ProcurementBoard from '../ProcurementBoard';
@@ -64,7 +64,8 @@ describe('AC-JR-W1-04 / AC-C-PR-2: ProcurementBoard card — single activation t
 
   it('AC-C-PR-2: renders em-dash when project is null', () => {
     wrap([row({ project: null, project_id: null })]);
-    expect(screen.getByText('—')).toBeInTheDocument();
+    const card = screen.getByRole('button', { name: /Open Structural Steel/i });
+    expect(within(card).getByText('—')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Open /i })).toBeNull();
   });
 });
