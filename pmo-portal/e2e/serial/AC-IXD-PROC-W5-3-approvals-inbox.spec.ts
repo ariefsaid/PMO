@@ -83,7 +83,8 @@ test(
     await expect(dialog).toContainText(new RegExp(`Approve ${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\?`, 'i'), { timeout: 10_000 });
     await dialog.getByRole('button', { name: /^approve$/i }).click();
     await expect(page).toHaveURL(/\/approvals(?:\?|$)/, { timeout: 5_000 });
-    await expect(visibleToast(page, /request approved/i)).toContainText(/request approved/i, { timeout: 15_000 });
+    const approvalToast = visibleToast(page, 'Procurement approved');
+    await expect(approvalToast.getByText('Procurement approved', { exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(queue.getByRole('button')).toHaveCount(initialCount - 1, { timeout: 15_000 });
   },
 );

@@ -59,7 +59,7 @@ test(
     await waitReady(page);
     await expectNoHorizontalOverflow(page);
 
-    await page.getByRole('tab', { name: /^Vendor$/i }).click();
+    await page.getByRole('tab', { name: /^Supplier$/i }).click();
     await expect(page).toHaveURL(/[?&]type=Vendor/);
     const searchEn = page.getByRole('searchbox', { name: /Search companies/i });
     await searchEn.fill('e');
@@ -77,7 +77,7 @@ test(
     await expect(page).toHaveURL(/[?&]type=Vendor/, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=e(&|$)/);
     await waitReady(page);
-    await expect(page.getByRole('tab', { name: /^Vendor$/i })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('tab', { name: /^Supplier$/i })).toHaveAttribute('aria-selected', 'true');
     await expect(searchEn).toHaveValue('e');
     await expectNoHorizontalOverflow(page);
 
@@ -114,7 +114,7 @@ test(
     await expect(page).toHaveURL(/[?&]type=Vendor/, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=e(&|$)/);
     await waitReady(page);
-    await expect(page.getByRole('tab', { name: /^Vendor$/i })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('tab', { name: /^Pemasok$/i })).toHaveAttribute('aria-selected', 'true');
     await expect(searchId).toHaveValue('e');
     await expectNoHorizontalOverflow(page);
   },
