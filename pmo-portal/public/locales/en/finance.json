@@ -169,7 +169,9 @@
     "applyPayment": "Apply to an invoice",
     "calculation": "How this figure is calculated",
     "rowActions": "Invoice actions",
-    "paymentActions": "Payment actions"
+    "paymentActions": "Payment actions",
+    "figures": "Receivables figures",
+    "evidenceLoadError": "Couldn't load the invoice lines from the accounting system."
   },
   "invoices": {
     "description": "Client invoices.",
@@ -381,8 +383,6 @@
       "ledgerRowsUnavailable": "Transaction-level ledger records are unavailable in the project finance summary.",
       "notes": "Notes",
       "categoryNotesUnavailable": "No category notes are recorded.",
-      "authorUnavailable": "Author unavailable",
-      "dateUnavailable": "Date unavailable",
       "actualsSource": "Source: project finance by category; this is an as-of aggregate, with no transaction trend in this view.",
       "projectTeam": "Project team",
       "openCategory": "Open {{category}} budget details",
@@ -391,7 +391,7 @@
       "versionCreated": "Version created {{date}}",
       "budgetSource": "Source: selected budget version line items, grouped by category.",
       "committed": "Committed",
-      "committedSource": "Source: ordered, received, vendor-invoiced, and paid procurement totals in the project currency.",
+      "committedSource": "Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.",
       "left": "Left",
       "leftFormula": "Calculated as budget minus spent and committed.",
       "percentUsed": "% used",
@@ -406,7 +406,6 @@
       "changeIncrease": "+",
       "accountingSystem": "Accounting system",
       "checkingPushState": "Checking",
-      "pushStateUnavailable": "Unavailable",
       "pushNotEnforced": "Not enforced",
       "pushQueued": "Queued",
       "pushSending": "Sending",
@@ -451,11 +450,16 @@
       "manageVersions": "Manage versions",
       "sourcesEnforcement": "Sources and budget enforcement",
       "sourceDescription": "Budget totals come from version line items. Spent comes from project finance. Commitments come from qualifying procurement records. Forecasts use the ERP ledger and estimates for the selected client fiscal year.",
-      "forecastOnlyFigure": "Available in Forecast by fiscal year.",
       "budgetLineItems": "Budget line items",
       "budgetLineSource": "Source: selected budget version line item.",
       "noLineItems": "No budget line items are recorded for this category.",
-      "figures": "Budget figures"
+      "figures": "Budget figures",
+      "notBudgeted": "Not budgeted",
+      "pushStateError": "Couldn't check",
+      "categoryActions": "{{category}} actions",
+      "categoryFigures": "Figures",
+      "forecastPointer": "Cost to finish and forecast final are set per fiscal year in Forecast.",
+      "openForecast": "Open Forecast"
     },
     "cost": {
       "spendingChecking": "Checking spending…",

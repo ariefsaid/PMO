@@ -7,7 +7,6 @@ const items: AttentionItem[] = [
   {
     id: 'overdue-client-invoices',
     tone: 'lost',
-    icon: 'alert',
     count: 3,
     label: 'Client invoices overdue',
     sub: 'Oldest is 38 days late',
@@ -17,7 +16,6 @@ const items: AttentionItem[] = [
   {
     id: 'waiting-approvals',
     tone: 'warn',
-    icon: 'check',
     count: 5,
     label: 'Waiting for your approval',
     href: '/approvals',

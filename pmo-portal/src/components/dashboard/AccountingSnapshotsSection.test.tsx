@@ -108,6 +108,17 @@ describe('AccountingSnapshotsSection — empty state (unflipped default)', () =>
 });
 
 describe('AccountingSnapshotsSection — populated state', () => {
+  it('starts the actuals ledger closed behind its row count on an index page, and opens on click', async () => {
+    render(<AccountingSnapshotsSection {...emptyProps} showApAging={false} showArAging={false} actualsCollapsed actuals={actualsRows} />);
+    const summary = screen.getByText('1 ledger rows').closest('summary') as HTMLElement;
+    const details = summary.closest('details') as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(within(summary).getByRole('heading', { name: 'Actuals (ERP ledger)' })).toBeInTheDocument();
+    summary.click();
+    expect(details.open).toBe(true);
+    expect(within(details).getByText('Cost of Goods Sold')).toBeInTheDocument();
+  });
+
   it('AC-RD-FIN-001: keeps a missing Net unknown with a non-visible reason', () => {
     render(<AccountingSnapshotsSection {...emptyProps} actuals={[{ ...actualsRows[0]!, net: null }]} />);
     const actuals = screen.getByText('Actuals (ERP ledger)').closest('.rounded-lg.border') as HTMLElement;

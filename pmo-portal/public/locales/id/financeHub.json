@@ -11,7 +11,6 @@
     "newInvoice": "Buat faktur",
     "ageing": "Saldo menurut umur",
     "attention": "Perlu tindakan Anda",
-    "loading": "Memuat…",
     "loadingFigure": "Memuat angka",
     "retry": "Coba lagi",
     "figureHelp": "Cara angka ini dihitung",
@@ -20,16 +19,12 @@
     "noOpenReceivables": "Tidak ada saldo tertunggak",
     "noSupplierInvoices": "Tidak ada faktur pemasok yang menunggu",
     "receivablesHint": "Jumlah saldo tertunggak yang diketahui pada faktur terbuka, termasuk pajak. Faktur draf dan dibatalkan tidak dihitung.",
-    "payablesHint": "Jumlah faktur pemasok yang telah dicatat dan menunggu pembayaran, dikelompokkan menurut mata uang.",
+    "payablesHint": "Saldo faktur pemasok yang belum dibayar (nilai faktur dikurangi pembayaran), dikelompokkan menurut mata uang. Saldo yang tidak diketahui dihitung jumlahnya, tidak dijumlahkan.",
     "reportsHint": "Pendapatan yang diperoleh dikurangi pendapatan yang telah difakturkan hingga bulan pilihan terbaru, sebelum pajak.",
     "statementsHint": "Laba bersih dari periode laba rugi perusahaan terbaru yang tersedia.",
     "receivableBucketHint": "Saldo tertunggak yang diketahui dikelompokkan berdasarkan hari keterlambatan. Belum jatuh tempo mencakup saldo yang jatuh tempo hari ini atau setelahnya.",
-    "payableBucketHint": "Jumlah faktur pemasok dikelompokkan menurut hari kalender sejak faktur dicatat.",
-    "findingLoading": "Memuat posisi keuangan saat ini…",
-    "findingError": "Posisi keuangan saat ini tidak dapat dimuat.",
-    "findingEmpty": "Tidak ada yang terlambat atau menunggu.",
+    "payableBucketHint": "Saldo pemasok yang belum dibayar dan diketahui, dikelompokkan menurut hari kalender sejak faktur dicatat.",
     "finding": "{{overdue}} terlambat pada {{count}} faktur{{oldest}} · {{payables}} yang harus dibayar kepada pemasok",
-    "findingHint": "Jumlah dan saldo terlambat memakai faktur terbuka yang melewati tanggal jatuh tempo hasil perhitungan. Umur tertua memakai jumlah hari keterlambatan terbesar; total utang pemasok memakai faktur tercatat yang masih menunggu pembayaran.",
     "unknownAmount": "Jumlah tidak tersedia",
     "oldest": "; terlama {{client}}, terlambat {{days}} hari",
     "unknownClient": "klien tidak diketahui",
@@ -76,30 +71,22 @@
         "noBalance": "Tidak ada saldo",
         "receivablesMeaning_one": "piutang Anda · {{count}} faktur · termasuk pajak",
         "receivablesMeaning_other": "piutang Anda · {{count}} faktur · termasuk pajak",
-        "payablesMeaning": "utang kepada {{count}} pemasok · terlama {{days}} hari",
         "reportsMeaning": "pendapatan belum ditagih · hingga {{month}}",
         "noProgressProjects_one": "Belum ada progres pada {{count}} proyek",
         "noProgressProjects_other": "Belum ada progres pada {{count}} proyek",
-        "noSuppliers": "Tidak ada faktur pemasok yang menunggu"
+        "noSuppliers": "Tidak ada faktur pemasok yang menunggu",
+        "payablesSuppliers_one": "utang kepada {{count}} pemasok",
+        "payablesSuppliers_other": "utang kepada {{count}} pemasok"
       },
       "currency": {
-        "other": "+ {{amount}} dalam mata uang lain",
-        "otherList": "{{amounts}}"
+        "other": "+ {{amount}} dalam mata uang lain"
       },
       "statements": {
-        "notAvailable": "Belum tersedia",
         "noStatement": "Laba bersih belum tersedia untuk suatu periode",
         "netProfit": "laba bersih {{month}}"
       },
       "finding": {
-        "overdue_one": "{{amount}} jatuh tempo dari {{count}} faktur, terlama {{days}} hari",
-        "overdue_other": "{{amount}} jatuh tempo dari {{count}} faktur, terlama {{days}} hari",
-        "noOverdue": "Tidak ada faktur jatuh tempo",
-        "payables": "{{amount}} untuk dibayar ke pemasok",
-        "noPayables": "Tidak ada faktur pemasok untuk dibayar",
-        "unknownBalance": "Saldo tidak diketahui",
-        "otherOverdue": "{{amount}} jatuh tempo",
-        "otherPayables": "{{amount}} untuk dibayar ke pemasok"
+        "unknownBalance": "Saldo tidak diketahui"
       },
       "overdue": {
         "heading_one": "Jatuh tempo · {{amount}} dari {{count}} faktur",
@@ -137,7 +124,8 @@
         "review": "Tinjau",
         "markReceived": "Tandai diterima",
         "apply": "Terapkan",
-        "openPayables": "Buka utang pemasok"
+        "openPayables": "Buka utang pemasok",
+        "payablesOldest": "Terlama {{days}} hari"
       },
       "payables": {
         "procurement": "Pengadaan",
@@ -145,7 +133,10 @@
         "updatedDateHint": "Tanggal faktur tidak tersedia; waktu tunggu diukur dari tanggal terakhir diperbarui.",
         "supplierCount_one": "{{count}} pemasok",
         "supplierCount_other": "{{count}} pemasok",
-        "oldestMeaning": "Hari kalender sejak faktur pemasok dicatat"
+        "oldestMeaning": "Hari kalender sejak faktur pemasok dicatat",
+        "amountUnknown": "Belum ada nilai faktur pemasok yang tercatat, jadi saldo yang belum dibayar tidak diketahui.",
+        "unknownCount_one": "{{count}} saldo tidak diketahui",
+        "unknownCount_other": "{{count}} saldo tidak diketahui"
       },
       "attention": {
         "finance": "Perlu perhatian",
@@ -193,6 +184,9 @@
       "progress": "Progres",
       "earned": "Diperoleh",
       "invoices": "Faktur"
-    }
+    },
+    "noProgressNote": "Belum ada progres tercatat, jadi pendapatan yang diperoleh mengikuti nilai yang sudah ditagih.",
+    "backlogUnknownNote": "Sisa nilai kontrak tidak ditampilkan jika faktur mata uang asing perlu direkonsiliasi sebelum saldonya dapat diketahui.",
+    "reviewInvoices": "Tinjau faktur"
   }
 }

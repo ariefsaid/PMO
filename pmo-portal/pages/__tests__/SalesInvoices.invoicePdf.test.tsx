@@ -85,7 +85,7 @@ async function toastWith(text: RegExp | string, role: 'status' | 'alert' = 'stat
   if (visuals.length !== 1) throw new Error(`expected one visible toast, found ${visuals.length}`);
   const visual = visuals[0];
   const kind = (['info', 'success', 'warning'] as const).find((k) =>
-    visual.className.includes({ info: 'border-l-primary', success: 'border-l-success', warning: 'border-l-warning' }[k]),
+    visual.className.includes({ info: '[&_svg]:text-muted-foreground', success: '[&_svg]:text-success', warning: '[&_svg]:text-warning-foreground' }[k]),
   );
   return { el, kind };
 }

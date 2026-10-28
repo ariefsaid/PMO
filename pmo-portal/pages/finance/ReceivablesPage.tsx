@@ -7,7 +7,10 @@ import { useFinancePosition } from '@/src/hooks/useFinancePosition';
 import { useSalesInvoices, useIncomingPayments } from '@/src/hooks/useRevenue';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { formatCurrency, formatDateOnly } from '@/src/lib/format';
+import { formatDateOnly } from '@/src/lib/format';
+import { moneyFigure, shortMoney, type MoneyFigure } from '@/src/lib/dashboardMoney';
+import { FigureContent } from '@/src/components/ui/FigureContent';
+import { KPIRow } from '@/src/components/ui/KPITile';
 import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import type { CurrencyTotals } from '@/src/lib/finance/financePosition';
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
@@ -40,14 +43,21 @@ function addDays(day: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-function leadCurrencyAmount(values: CurrencyTotals, currency: string): string {
-  return formatCurrency((values[currency] ?? 0) / 100, currency);
+/** Figure tiles show short money (F11); the exact amount rides as hover/screen-reader metadata. */
+function leadCurrencyAmount(values: CurrencyTotals, currency: string): MoneyFigure {
+  return moneyFigure((values[currency] ?? 0) / 100, currency, '');
 }
 
 function otherCurrencyAmounts(values: CurrencyTotals, leadCurrency: string): string[] {
   return Object.entries(values)
     .filter(([currency, amount]) => currency !== leadCurrency && amount !== 0)
-    .map(([currency, cents]) => formatCurrency(cents / 100, currency));
+    .map(([currency, cents]) => shortMoney(cents / 100, currency, '—', { code: true }));
+}
+
+/** Signed short delta; an unchanged month carries no sign (O8). */
+function signedShort(cents: number, currency: string, opts: { code?: boolean } = {}): string {
+  const amount = shortMoney(Math.abs(cents) / 100, currency, '—', opts);
+  return cents > 0 ? `+${amount}` : cents < 0 ? `−${amount}` : amount;
 }
 
 function dueSoonTotals(invoices: { erp_outstanding_amount: number | null; currency: string }[]): CurrencyTotals {
@@ -88,7 +98,7 @@ function Figure({
   tone,
 }: {
   title: string;
-  value: string;
+  value: MoneyFigure | null;
   detail: string;
   secondaryDetail?: string;
   help: string;
@@ -96,14 +106,14 @@ function Figure({
 }) {
   const { t } = useTranslation();
   return (
-    <section className="min-w-0 bg-card p-3 sm:p-4" aria-label={title}>
+    <section className="min-w-0 p-3 sm:p-4" aria-label={title}>
       <div className="flex items-start justify-between gap-2">
         <h2 className="text-xs font-semibold text-muted-foreground">{title}</h2>
         <Tooltip content={help}>
           <button type="button" aria-label={t('finance:receivables.calculation', 'How this figure is calculated')} className="touch-target inline-grid size-5 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button>
         </Tooltip>
       </div>
-      <p data-figure-value className="mt-2 break-words text-[20px] font-semibold leading-tight tabular sm:text-[23px]">{value}</p>
+      <p data-figure-value className="mt-2 break-words text-[20px] font-semibold leading-tight tabular sm:text-[23px]">{value ? <FigureContent value={value.value} exactValue={value.exactValue} /> : '—'}</p>
       <p className={`mt-1 min-h-5 text-xs ${tone === 'good' ? 'text-[hsl(var(--success-text))]' : tone === 'bad' ? 'text-destructive-text' : 'text-muted-foreground'}`}>{detail}</p>
       {secondaryDetail && <p className="mt-1 text-xs text-muted-foreground">{secondaryDetail}</p>}
     </section>
@@ -146,15 +156,15 @@ export default function ReceivablesPage() {
   const lastMonthCash = useMemo(() => today ? monthlyCash(payments, previousMonthStart(today), monthStart(today)) : {}, [payments, today]);
   const cashValue = leadCurrencyAmount(thisMonthCash, orgCurrency);
   const cashDeltaCents = (thisMonthCash[orgCurrency] ?? 0) - (lastMonthCash[orgCurrency] ?? 0);
-  const cashDelta = `${cashDeltaCents >= 0 ? '+' : '−'}${formatCurrency(Math.abs(cashDeltaCents) / 100, orgCurrency)}`;
+  const cashDelta = signedShort(cashDeltaCents, orgCurrency);
   const cashOtherDelta = Object.keys({ ...thisMonthCash, ...lastMonthCash })
     .filter((currency) => currency !== orgCurrency)
     .map((currency) => {
       const delta = (thisMonthCash[currency] ?? 0) - (lastMonthCash[currency] ?? 0);
-      return delta === 0 ? null : `${delta >= 0 ? '+' : '−'}${formatCurrency(Math.abs(delta) / 100, currency)}`;
+      return delta === 0 ? null : signedShort(delta, currency, { code: true });
     })
     .filter((amount): amount is string => amount !== null);
-  const cashIsGood = cashDeltaCents >= 0;
+  const cashIsGood = cashDeltaCents > 0;
   const cashIsBad = cashDeltaCents < 0;
 
   const changeView = (nextView: ReceivablesView) => setSearchParams((current) => {
@@ -191,24 +201,24 @@ export default function ReceivablesPage() {
         </Button>}
       </header>
 
-      <div className="mb-5 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border xl:grid-cols-4">
+      <KPIRow aria-label={t('finance:receivables.figures', 'Receivables figures')} className="mb-5 grid-cols-2 xl:grid-cols-4">
         <Figure
           title={t('finance:receivables.owed', 'Owed to you')}
-          value={dataPending ? '—' : owedValue}
+          value={dataPending ? null : owedValue}
           detail={dataPending ? t('finance:receivables.loading', 'Loading finance figures…') : t('finance:receivables.invoiceClients', '{{invoices}} invoices · {{clients}} {{clientLabel}}', { invoices: openInvoices.length, clients: clientsCount, clientLabel: t(clientsCount === 1 ? 'finance:receivables.clientSingular' : 'finance:receivables.clientPlural', clientsCount === 1 ? 'client' : 'clients') })}
           secondaryDetail={!dataPending && owedOtherCurrencies.length ? t('finance:receivables.otherCurrencies', '{{amounts}} in other currencies', { amounts: owedOtherCurrencies.join(' · ') }) : undefined}
           help={t('finance:receivables.owedHelp', 'Known outstanding balances on submitted and unpaid client invoices, including tax.')}
         />
         <Figure
           title={t('finance:receivables.overdue', 'Overdue')}
-          value={dataPending ? '—' : overdueValue}
+          value={dataPending ? null : overdueValue}
           detail={dataPending ? t('finance:receivables.loading', 'Loading finance figures…') : t('finance:receivables.overdueDetails', '{{percent}} of owed · {{count}} {{invoiceLabel}} · oldest {{days}} days', { percent: overduePercent, count: finance.position.overdue.length, days: oldestOverdueDays, invoiceLabel: t(finance.position.overdue.length === 1 ? 'finance:receivables.invoiceSingular' : 'finance:receivables.invoicePlural', finance.position.overdue.length === 1 ? 'invoice' : 'invoices') })}
           secondaryDetail={!dataPending && overdueOtherCurrencies.length ? t('finance:receivables.otherCurrencies', '{{amounts}} in other currencies', { amounts: overdueOtherCurrencies.join(' · ') }) : undefined}
           help={t('finance:receivables.overdueHelp', 'Known overdue balances divided by known owed balances in the same currency. Invoice count includes invoices with an unknown balance.')}
         />
         <Figure
           title={t('finance:receivables.dueNext30', 'Due in next 30 days')}
-          value={dataPending ? '—' : leadCurrencyAmount(dueSoonByCurrency, orgCurrency)}
+          value={dataPending ? null : leadCurrencyAmount(dueSoonByCurrency, orgCurrency)}
           detail={dataPending ? t('finance:receivables.loading', 'Loading finance figures…') : dueSoon[0]
             ? t('finance:receivables.dueDetails', '{{count}} invoices · next due {{date}}', { count: dueSoon.length, date: formatDateOnly(dueSoon[0].due) })
             : t('finance:receivables.noneDue', 'No invoices due in the next 30 days')}
@@ -217,13 +227,13 @@ export default function ReceivablesPage() {
         />
         <Figure
           title={t('finance:receivables.receivedThisMonth', 'Received this month')}
-          value={dataPending ? '—' : cashValue}
+          value={dataPending ? null : cashValue}
           detail={dataPending ? t('finance:receivables.loading', 'Loading finance figures…') : `${cashDelta} ${t('finance:receivables.receivedVsLastMonth', 'vs last month')}`}
           secondaryDetail={!dataPending && cashOtherDelta.length ? t('finance:receivables.otherCurrencyDeltas', '{{amounts}} vs last month', { amounts: cashOtherDelta.join(' · ') }) : undefined}
           help={t('finance:receivables.receivedHelp', 'Cash received on non-cancelled payments dated in this calendar month, compared with the previous calendar month.')}
           tone={dataPending ? undefined : cashIsGood ? 'good' : cashIsBad ? 'bad' : undefined}
         />
-      </div>
+      </KPIRow>
 
       <AgeingStrip kind="receivables" values={finance.position.receivablesAgeing} />
 

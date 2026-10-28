@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { amountFromDashboard, selectCollectedTotals, selectInvoicedTotals, selectUnbilledTotals } from './useCompanyFigures';
+import { amountFromDashboard, exactFromDashboard, selectCollectedTotals, selectInvoicedTotals, selectUnbilledTotals } from './useCompanyFigures';
 import type { ManagementPack } from '@/src/lib/reports/managementPack';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import type { UnbilledWorkOrderTotal } from '@/src/lib/db/workOrderBilling';
@@ -35,14 +35,19 @@ describe('company period totals', () => {
     expect(selectCollectedTotals(payments, '2026-01', '2026-01')).toEqual({ totals: [], unknownCurrencies: ['USD'] });
   });
 
-  it('preserves each known project currency and marks an unknown currency amount with a dash', () => {
-    const formatted = amountFromDashboard([
+  it('shows the known currency and names an unknown currency amount only in the exact text, never as a dash', () => {
+    const rows = [
       { currency: 'IDR', contract_value: 1_000_000 },
       { currency: 'USD', contract_value: null },
-    ], 'contract_value', 'IDR', (_key, fallback) => fallback);
+    ];
+    const t = (_key: string, fallback: string, options?: Record<string, unknown>) => fallback.replace('{{currency}}', String(options?.currency ?? ''));
+    const formatted = amountFromDashboard(rows, 'contract_value', 'IDR', t);
+    const exact = exactFromDashboard(rows, 'contract_value', 'IDR', t);
 
-    expect(formatted).toContain('USD —');
     expect(formatted).toMatch(/\d/);
+    expect(formatted).not.toContain('—');
+    expect(formatted).not.toContain('USD');
+    expect(exact?.exactValue).toContain('USD amount unknown');
   });
 
   it('formats unbilled totals from their remaining amount by currency', () => {

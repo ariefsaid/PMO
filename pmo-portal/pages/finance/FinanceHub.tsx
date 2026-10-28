@@ -12,20 +12,27 @@ import { useManagementPack } from '@/src/hooks/useManagementPack';
 import { useFinancialStatement, useFinancialStatementCatalogue } from '@/src/hooks/useFinancialStatements';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { useProjects } from '@/src/hooks/useProjects';
-import { formatCurrency, formatMonthYear } from '@/src/lib/format';
+import { formatMonthYear, formatShortMoney } from '@/src/lib/format';
 import { formatCurrencyWithCode } from '@/src/lib/finance/format';
+import { moneyFigure, type MoneyFigure } from '@/src/lib/dashboardMoney';
+import { FigureContent } from '@/src/components/ui/FigureContent';
 import type { FinancialStatementNativePayload } from '@/src/lib/financialStatements';
 
 function currencyEntries(values: Record<string, number>, preferred?: string | null) {
   return Object.entries(values).sort(([left], [right]) => left === preferred ? -1 : right === preferred ? 1 : left.localeCompare(right));
 }
 
-function currencyLead(values: Record<string, number>, preferred?: string | null): { lead: string; others: string[] } {
+/** Area cards are figure tiles (F11): short lead amount, exact amount kept as metadata. */
+function currencyLead(values: Record<string, number>, preferred?: string | null): { lead: MoneyFigure | null; others: MoneyFigure[] } {
   const entries = currencyEntries(values, preferred);
   const [primary, ...rest] = entries;
   return {
-    lead: primary ? formatCurrency(primary[1] / 100, primary[0]) : '',
-    others: rest.filter(([, cents]) => cents !== 0).map(([currency, cents]) => formatCurrencyWithCode(cents / 100, currency)),
+    lead: primary ? moneyFigure(primary[1] / 100, primary[0], '') : null,
+    // Secondary currencies always name their ISO code, short with the exact amount as metadata.
+    others: rest.filter(([, cents]) => cents !== 0).map(([currency, cents]) => ({
+      value: Math.abs(cents) < 100_000 ? formatCurrencyWithCode(cents / 100, currency) : formatShortMoney(cents / 100, currency, { code: true }),
+      exactValue: formatCurrencyWithCode(cents / 100, currency),
+    })),
   };
 }
 
@@ -54,8 +61,9 @@ function netProfit(payload: FinancialStatementNativePayload): number | null {
 interface AreaCardProps {
   title: string;
   to: string;
-  amount: string;
-  otherCurrencies?: string[];
+  /** Omitted when the figure cannot be known; the meaning line then states why (C4). */
+  amount?: MoneyFigure;
+  otherCurrencies?: MoneyFigure[];
   meaning: string;
   extra?: string;
   hint: string;
@@ -77,11 +85,11 @@ const AreaCard: React.FC<AreaCardProps> = ({ title, to, amount, otherCurrencies 
         <button type="button" onClick={retry} className="mt-2 min-h-11 text-left text-sm text-destructive underline underline-offset-2">{t('financeHub:hub.retry', 'Retry')}</button>
       ) : (
         <>
-          <div className="mt-2 flex min-w-0 items-center gap-1">
-            <span className="truncate text-[20px] font-bold tabular" title={amount}>{amount}</span>
+          {amount && <div className="mt-2 flex min-w-0 items-center gap-1">
+            <span className="truncate text-[20px] font-bold tabular"><FigureContent value={amount.value} exactValue={amount.exactValue} /></span>
             <Tooltip content={hint}><button type="button" aria-label={t('financeHub:hub.figureHelp', 'How this figure is calculated')} className="touch-target inline-grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip>
-          </div>
-          {otherCurrencies.map((value) => <div key={value} className="truncate text-xs text-muted-foreground">{t('financeHub:hub.fix.currency.other', { defaultValue: '+ {{amount}} in other currencies', amount: value })}</div>)}
+          </div>}
+          {otherCurrencies.map((other) => <div key={other.value} className="truncate text-xs text-muted-foreground" title={other.exactValue}>{t('financeHub:hub.fix.currency.other', { defaultValue: '+ {{amount}} in other currencies', amount: other.value })}</div>)}
           <div className="mt-1 text-sm text-muted-foreground">{meaning}</div>
           {extra && <div className="mt-0.5 text-sm text-muted-foreground">{extra}</div>}
         </>
@@ -119,31 +127,8 @@ const FinanceHub: React.FC = () => {
     return <AccessDenied title={t('financeHub:hub.noAccessTitle', 'Finance')} sub={t('financeHub:hub.noAccessDescription', 'Finance is available to Finance, Executive and Admin roles.')} onBack={() => navigate('/')} />;
   }
 
-  const overdueCount = finance.position.overdue.length;
-  const overdueMoney = currencyLead(finance.position.overdueTotals, orgCurrency);
   const payableMoney = currencyLead(finance.position.payablesTotals, orgCurrency);
-  const oldestOverdue = finance.position.overdue[0];
-  const primaryOverdue = overdueMoney.lead || t('financeHub:hub.fix.finding.unknownBalance', 'Balance unknown');
-  const overduePhrase = overdueCount > 0
-    ? t('financeHub:hub.fix.finding.overdue', { defaultValue: '{{amount}} overdue from {{count}} invoices, oldest {{days}} days', amount: primaryOverdue, count: overdueCount, days: oldestOverdue?.daysOverdue ?? 0 })
-    : t('financeHub:hub.fix.finding.noOverdue', 'No overdue invoices');
-  const payablePhrase = finance.position.payables.length > 0
-    ? t('financeHub:hub.fix.finding.payables', { defaultValue: '{{amount}} to pay suppliers', amount: payableMoney.lead || t('financeHub:hub.fix.finding.unknownBalance', 'Balance unknown') })
-    : t('financeHub:hub.fix.finding.noPayables', 'No supplier invoices to pay');
-  const otherMoney = [
-    ...overdueMoney.others.map((amount) => t('financeHub:hub.fix.finding.otherOverdue', { defaultValue: '{{amount}} overdue', amount })),
-    ...payableMoney.others.map((amount) => t('financeHub:hub.fix.finding.otherPayables', { defaultValue: '{{amount}} to pay suppliers', amount })),
-  ];
-  const noWaiting = overdueCount === 0 && finance.position.drafts.all.length === 0 && finance.position.toSend.length === 0 &&
-    finance.position.unappliedPayments.length === 0 && finance.position.payables.length === 0;
-  const finding = finance.isPending
-    ? t('financeHub:hub.findingLoading', 'Loading the current money position…')
-    : finance.isError
-      ? t('financeHub:hub.findingError', "Couldn't load the current money position.")
-      : noWaiting
-        ? t('financeHub:hub.findingEmpty', 'Nothing overdue or waiting.')
-        : `${overduePhrase} · ${payablePhrase}`;
-
+  const noBalance = { value: t('financeHub:hub.fix.area.noBalance', 'No balance') };
   const receivableValues = Object.fromEntries(Object.entries(finance.position.receivablesAgeing).map(([currency, buckets]) => [
     currency, buckets.notDue + buckets.d1_30 + buckets.d31_60 + buckets.d61_90 + buckets.over90,
   ]));
@@ -163,8 +148,8 @@ const FinanceHub: React.FC = () => {
   const statementResult = statement.data?.state === 'complete' && statement.data.result?.viewKind === 'account_breakdown' ? statement.data.result : null;
   const net = statementResult ? netProfit(statementResult.payload) : null;
   const statementAmount = net !== null && statement.data?.generation
-    ? formatCurrency(net, statement.data.generation.currency)
-    : t('financeHub:hub.fix.statements.notAvailable', 'Not available yet');
+    ? moneyFigure(net, statement.data.generation.currency, '')
+    : undefined;
 
   const areas = (
     <section aria-labelledby="finance-hub-areas">
@@ -172,7 +157,7 @@ const FinanceHub: React.FC = () => {
       <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2 min-[1100px]:grid-cols-4">
         {hasRevenue && <AreaCard
           title={t('financeHub:hub.receivables', 'Receivables')} to="/finance/receivables"
-          amount={receivableMoney.lead || t('financeHub:hub.fix.area.noBalance', 'No balance')}
+          amount={receivableMoney.lead ?? noBalance}
           otherCurrencies={receivableMoney.others}
           meaning={t('financeHub:hub.fix.area.receivablesMeaning', { defaultValue: 'owed to you · {{count}} invoices · tax included', count: finance.position.receivablesCount })}
           hint={t('financeHub:hub.receivablesHint', 'Sum of known outstanding balances on open invoices, including tax. Draft and cancelled invoices are excluded.')}
@@ -180,17 +165,18 @@ const FinanceHub: React.FC = () => {
         />}
         {hasProcurement && <AreaCard
           title={t('financeHub:hub.payables', 'Payables')} to="/finance/payables"
-          amount={payableMoney.lead || t('financeHub:hub.fix.area.noBalance', 'No balance')}
+          // Unknown is not zero: invoices waiting with no known balance show no figure, never "No balance".
+          amount={payableMoney.lead ?? (finance.position.payables.length > 0 ? undefined : noBalance)}
           otherCurrencies={payableMoney.others}
           meaning={finance.position.payables.length > 0
-            ? t('financeHub:hub.fix.area.payablesMeaning', { defaultValue: 'to pay {{count}} suppliers · oldest {{days}} days', count: supplierCount, days: finance.position.payables[0]?.ageDays ?? 0 })
+            ? t('financeHub:hub.fix.area.payablesSuppliers', { defaultValue: 'to pay {{count}} suppliers', count: supplierCount })
             : t('financeHub:hub.fix.area.noSuppliers', 'No supplier invoices waiting')}
-          hint={t('financeHub:hub.payablesHint', 'Sum of recorded supplier invoices waiting for payment, grouped by currency.')}
+          hint={t('financeHub:hub.payablesHint', 'Unpaid supplier invoice balances (invoice amount less payments made), grouped by currency. Unknown balances are counted, not added.')}
           loading={finance.isPending} error={finance.isError} retry={finance.retry}
         />}
         {hasRevenue && <AreaCard
           title={t('financeHub:hub.reports', 'Reports')} to="/finance/reports"
-          amount={report.isPending ? t('financeHub:hub.loading', 'Loading…') : reportMoney.lead || t('financeHub:hub.fix.area.noBalance', 'No balance')}
+          amount={reportMoney.lead ?? noBalance}
           otherCurrencies={reportMoney.others}
           meaning={t('financeHub:hub.fix.area.reportsMeaning', { defaultValue: 'earned, not yet invoiced · through {{month}}', month: report.data?.to ? shortMonthLabel(report.data.to) : '—' })}
           extra={report.data && reportContractRows.length > 0 && invoicedBasisCount === reportContractRows.length
@@ -200,7 +186,7 @@ const FinanceHub: React.FC = () => {
         />}
         {may('view', 'financialStatements') && <AreaCard
           title={t('financeHub:hub.statements', 'Statements')} to="/finance/statements"
-          amount={statementUnavailable ? t('financeHub:hub.fix.statements.notAvailable', 'Not available yet') : statementAmount}
+          amount={statementUnavailable ? undefined : statementAmount}
           meaning={latestStatementPeriod && net !== null
             ? t('financeHub:hub.fix.statements.netProfit', { defaultValue: 'net profit {{month}}', month: monthLabel(latestStatementPeriod.currentStart) })
             : t('financeHub:hub.fix.statements.noStatement', 'Net profit is not available for a period yet')}
@@ -235,10 +221,6 @@ const FinanceHub: React.FC = () => {
       <header className="mb-4 flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-[24px] font-bold tracking-[-0.02em]">{t('financeHub:hub.title', 'Finance')}</h1>
-          <Tooltip content={t('financeHub:hub.findingHint', 'Overdue count and balance use open invoices past their derived due date. Supplier totals use recorded invoices still waiting to be paid.') }>
-            <p tabIndex={0} className="mt-1 text-sm text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" aria-live="polite">{finding}</p>
-          </Tooltip>
-          {!finance.isPending && !finance.isError && otherMoney.length > 0 && <p className="mt-0.5 text-xs text-muted-foreground">{t('financeHub:hub.fix.currency.otherList', { defaultValue: '{{amounts}}', amounts: otherMoney.join(' · ') })}</p>}
         </div>
         {canAct && <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background p-3 sm:static sm:inset-auto sm:z-auto sm:border-0 sm:bg-transparent sm:p-0"><Button variant="primary" onClick={() => navigate('/finance/receivables?create=1')} className="w-full shrink-0 sm:w-auto"><Icon name="plus" />{t('financeHub:hub.newInvoice', 'New invoice')}</Button></div>}
       </header>

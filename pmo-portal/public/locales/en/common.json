@@ -302,12 +302,12 @@
     "unavailable": "Unavailable",
     "view": "View bukti potong",
     "record": "Record bukti potong",
-    "setVendor": "Set vendor",
-    "vendorRequired": "Set a vendor on the request before recording this slip.",
-    "vendorSet": "Vendor set",
-    "vendorAlreadySet": "A vendor was already set. Refresh to see it.",
-    "selectVendor": "Select a vendor…",
-    "saveVendor": "Save vendor",
+    "setVendor": "Set supplier",
+    "vendorRequired": "Set a supplier on this procurement before recording this slip.",
+    "vendorSet": "Supplier set",
+    "vendorAlreadySet": "A supplier was already set. Refresh to see it.",
+    "selectVendor": "Select a supplier…",
+    "saveVendor": "Save supplier",
     "cancelSetVendor": "Cancel",
     "history": "Bukti potong history",
     "state": {
@@ -324,13 +324,13 @@
     "withheld": "Withheld",
     "type": "PPh type",
     "identity": {
-      "vendorReference": "Vendor invoice reference",
+      "vendorReference": "Supplier invoice reference",
       "systemNumber": "System VI number",
       "case": "Case",
       "project": "Project",
       "pmoNumber": "PMO project number",
       "billDate": "Bill date",
-      "referenceMissing": "Vendor invoice reference not recorded",
+      "referenceMissing": "Supplier invoice reference not recorded",
       "systemNumberMissing": "System VI number unavailable",
       "contextPending": "Details loading",
       "contextUnavailable": "Details unavailable",
@@ -341,7 +341,7 @@
     },
     "confirmUnknown": "Confirm as {{type}} from issued slip",
     "recordTitle": "Record bukti potong",
-    "vendor": "Vendor",
+    "vendor": "Supplier",
     "slipNumber": "Issued slip number",
     "slipDate": "Slip date",
     "taxPeriod": "Tax period",
@@ -392,10 +392,10 @@
     "amountExceedsBase": "Issued withholding cannot exceed the tax base.",
     "invalidTaxPeriod": "Choose a tax month no later than the current month.",
     "invalidFactsCopy": "Review the entered facts and try again.",
-    "vendorUnavailable": "Vendor details unavailable",
+    "vendorUnavailable": "Supplier details not recorded",
     "noBillHistory": "No withholding slips recorded for this bill.",
     "selectedBills": "Selected bills ({{count}})",
-    "candidateEmpty": "No eligible bills for this vendor, currency and PPh type.",
+    "candidateEmpty": "No eligible bills for this supplier, currency and PPh type.",
     "candidateError": "Unable to load eligible bills. Your entries are kept. Retry loading.",
     "retry": "Retry",
     "openBillCase": "Open bill {{bill}} in case {{case}}",
@@ -1357,8 +1357,6 @@
       "emptyTitle": "No closed projects in this window",
       "emptySub": "Try a wider time frame to see your win rate.",
       "result": "{{wins}} won of {{total}} closed",
-      "currencyResult": "{{currency}} {{percent}}% — {{wins}} won of {{total}} closed",
-      "noRecordedLosses": "{{currency}} — no recorded losses; {{wins}} won",
       "progress": "Win rate {{percent}}%",
       "won": "Won",
       "lost": "Lost",
@@ -1959,7 +1957,7 @@
       "toggle": "Show preview for {{title}}",
       "loadErrorSub": "Something went wrong fetching the preview.",
       "lineItems": "Line items",
-      "viewFullRequest": "View full request"
+      "viewFullRequest": "View full procurement"
     },
     "filter": {
       "paid": "Paid"
@@ -1969,8 +1967,8 @@
       "paid": "Payment",
       "po": "Purchase Order",
       "pr": "Purchase Request",
-      "vi": "Vendor Invoice",
-      "vq": "Vendor Quote"
+      "vi": "Supplier invoice",
+      "vq": "Supplier quote"
     }
   },
   "procurementLedger": {
@@ -2002,23 +2000,23 @@
   },
   "procurementDetail": {
     "accessDenied": {
-      "sub": "This procurement request either doesn't exist or isn't visible to your role. If you raised it, open it from your own requests.",
+      "sub": "This procurement either doesn't exist or isn't visible to your role. If you raised it, open it from your own procurements.",
       "title": "You don't have access to this record"
     },
     "action": {
       "approve": "Approve",
-      "cancelRequest": "Cancel request",
+      "cancelRequest": "Cancel procurement",
       "confirmReceipt": "Confirm Receipt",
       "generatePurchaseOrder": "Generate Purchase Order",
       "markAsPaid": "Mark as Paid",
-      "markVendorInvoiced": "Mark Vendor Invoiced",
+      "markVendorInvoiced": "Record supplier invoice",
       "reject": "Reject",
       "selectQuote": "Compare and select a quote",
-      "submitRequest": "Submit Request"
+      "submitRequest": "Submit for approval"
     },
     "recordKinds": {
       "goodsReceipt": "Goods Receipt",
-      "vendorInvoice": "Vendor Invoice"
+      "vendorInvoice": "Supplier invoice"
     },
     "statusOption": {
       "draft": "Draft",
@@ -2038,7 +2036,7 @@
       "scheduled": "Scheduled"
     },
     "vendorInvoice": {
-      "enterDetails": "Enter invoice details to mark as Vendor Invoiced:",
+      "enterDetails": "Enter the supplier invoice details:",
       "invoiceNumber": "Invoice #",
       "optional": "optional",
       "invoicePlaceholder": "e.g. INV-2291",
@@ -2067,27 +2065,27 @@
     "paymentLinksToInvoice": "Links to invoice",
     "noInvoiceSelected": "— none —",
     "recordGoodsReceipt": "Record goods receipt",
-    "recordVendorInvoice": "Record vendor invoice",
+    "recordVendorInvoice": "Record supplier invoice",
     "addRecord": "Add {{record}}",
-    "paymentBillRequired": "Select the vendor invoice this payment closes.",
+    "paymentBillRequired": "Select the supplier invoice this payment closes.",
     "paymentApproverCannotPay": "Separation of duties: the approver cannot pay their own procurement.",
-    "withholdingNeedsAmount": "Enter the bill amount to calculate the vendor withholding.",
+    "withholdingNeedsAmount": "Enter the bill amount to calculate the supplier withholding.",
     "confirm": {
       "approveBody": "Approve <money/>?",
-      "cancelTitle": "Cancel this request?",
-      "destructiveTitle": "{{action}} this request",
+      "cancelTitle": "Cancel this procurement?",
+      "destructiveTitle": "{{action}} this procurement",
       "grBody": "This records a {{status}} goods receipt against {{request}}.",
       "grTitle": "Record this goods receipt?",
-      "keepRequest": "Keep request",
+      "keepRequest": "Keep procurement",
       "markPaidBody": "Record {{amount}} as paid? This records payment evidence; it does not transfer funds.",
       "moneyOnProject": "<amount>{{amount}}</amount> on <project/>",
       "moneyOnProjectRequestedBy": "<amount>{{amount}}</amount> on <project/>, requested by <person>{{name}}</person>",
       "moneyRequestedBy": "<amount>{{amount}}</amount>, requested by <person>{{name}}</person>",
       "saveGR": "Save GR",
-      "saveVI": "Save vendor invoice",
-      "terminal": "This is a terminal action for this request and cannot be undone.",
-      "viBody": "This records a vendor invoice against {{request}}.",
-      "viTitle": "Record this vendor invoice?"
+      "saveVI": "Save supplier invoice",
+      "terminal": "This is a terminal action for this procurement and cannot be undone.",
+      "viBody": "This records a supplier invoice against {{request}}.",
+      "viTitle": "Record this supplier invoice?"
     },
     "detail": {
       "approvedBy": "Approved by",
@@ -2108,7 +2106,7 @@
     },
     "tabsLabel": "Procurement sections",
     "quotes": {
-      "emptyTitle": "No quotes recorded. Add a vendor quote to compare bids."
+      "emptyTitle": "No quotes recorded. Add a supplier quote to compare bids."
     },
     "toast": {
       "grRecorded": "Goods receipt recorded",
@@ -2119,12 +2117,12 @@
       "movedTo": "Moved to",
       "quotationAdded": "Quotation added",
       "quoteSelected": "Quote selected",
-      "quoteSelectedDetail": "The request advanced to Quote Selected",
-      "requestUpdated": "Request updated",
-      "viRecorded": "Vendor invoice recorded"
+      "quoteSelectedDetail": "The procurement advanced to Quote Selected",
+      "requestUpdated": "Procurement updated",
+      "viRecorded": "Supplier invoice recorded"
     },
     "route": {
-      "note": "Approval for this request is routed to {{names}}: {{why}}",
+      "note": "Approval for this procurement is routed to {{names}}: {{why}}",
       "nameJoiner": " or ",
       "why": {
         "projectApprover": "they are the approver set for this project.",
@@ -2138,7 +2136,7 @@
         "budgetChanged": "the project budget it fits was activated after it was submitted, or by the person deciding it.",
         "amountInvalid": "its amount includes a negative value, so it cannot be checked against the project budget."
       },
-      "adminOnly": "Approval for this request needs an Admin: no one in the senior approver set can act on it."
+      "adminOnly": "Approval for this procurement needs an Admin: no one in the senior approver set can act on it."
     },
     "erpTaxTemplate": {
       "label": "ERPNext tax template",
@@ -2151,12 +2149,12 @@
       "withheld": "Tax withheld (PPh)"
     },
     "vendorTax": {
-      "erpRequiredHint": "Enter the VAT amount from the vendor's invoice (0 if none) and, if tax is withheld, its type and amount.",
+      "erpRequiredHint": "Enter the VAT amount from the supplier's invoice (0 if none) and, if tax is withheld, its type and amount.",
       "itemsNet": "Items total, before tax: {{amount}}",
       "none": "None",
       "pph23": "PPh 23",
       "pph4_2": "PPh 4(2)",
-      "suggestedFrom": "Vendor default {{rate}}% of {{base}}",
+      "suggestedFrom": "Supplier default {{rate}}% of {{base}}",
       "vatAmount": "VAT amount",
       "withheldAmount": "PPh amount",
       "withheldError": "Enter the tax withheld as an amount no larger than the invoice amount (enter the amount first).",
@@ -2913,7 +2911,6 @@
         "paid": "Paid",
         "stillToInvoice": "Still to invoice",
         "summaryTitle": "Billing against work orders",
-        "unavailable": "Unavailable",
         "notSubmitted": "Not yet submitted",
         "lineNet": "Net value {{amount}}"
       },
@@ -4246,7 +4243,6 @@
   }
 },
   "uxs34": {
-    "backlogUnavailable": "Unavailable",
     "backlogReason": "A foreign-currency invoice needs reconciliation before this balance can be known."
   },
   "comments": {
@@ -4473,10 +4469,7 @@
     "outstanding": "Outstanding",
     "settlementNote": "Settled against invoices (cash, withholding and credits), not cash received.",
     "margin": "Margin",
-    "differentCurrencies": "Unavailable — different currencies",
-    "workUnavailable": "Billed-work revenue unavailable",
     "restricted": "Actuals exclude restricted rows",
-    "actualsUnavailable": "Not available yet",
     "category": "Category",
     "unavailable": "Unavailable",
     "loading": "Loading project finances…",
@@ -4501,10 +4494,7 @@
     "categoryDetails": "Recorded spending by category",
     "contractRemainingAfterCost": "Contract remaining after cost",
     "cashReceived": "Cash received",
-    "cashReceivedScope": "Receipt cash linked to this project's invoices",
-    "cashReceivedUnavailable": "Unavailable — receipt-backed cash data is not available yet",
-    "cashReceivedInvalid": "Unavailable — receipt-backed cash data could not be verified",
-    "cashReceivedIncomplete": "Incomplete — receipt allocation cannot establish cash"
+    "cashReceivedScope": "Receipt cash linked to this project's invoices"
   },
   "invoiceProject": {
     "assign": "Assign project",
@@ -4649,7 +4639,6 @@
     "daysOverdue": "{{count}} days overdue",
     "billEvidence": "Bill evidence",
     "evidenceLoading": "Loading invoice evidence…",
-    "evidenceUnavailable": "Bill evidence is temporarily unavailable.",
     "evidenceRetry": "Retry invoice evidence",
     "invoiceLines": "Invoice lines",
     "linesUnknown": "Line details are not available.",
@@ -4746,23 +4735,23 @@
       "draft": "Draft",
       "requested": "Purchase Request",
       "approved": "Approved",
-      "vendorQuoted": "Vendor Quote",
+      "vendorQuoted": "Supplier quote",
       "quoteSelected": "Quote Selected",
       "ordered": "Purchase Order",
       "received": "Goods Receipt",
-      "vendorInvoiced": "Vendor Invoice",
+      "vendorInvoiced": "Supplier invoice",
       "paid": "Paid",
       "rejected": "Rejected",
       "cancelled": "Cancelled"
     },
     "nextStep": {
-      "draft": "Submit request",
+      "draft": "Submit for approval",
       "requested": "Await approval",
-      "approved": "Request vendor quotes",
+      "approved": "Request supplier quotes",
       "vendorQuoted": "Select quote",
       "quoteSelected": "Prepare purchase order",
       "ordered": "Record receipt",
-      "received": "Record vendor invoice",
+      "received": "Record supplier invoice",
       "vendorInvoiced": "Record payment"
     },
     "nextStepPrefix": "Next:",

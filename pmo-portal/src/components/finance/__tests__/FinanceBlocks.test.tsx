@@ -5,7 +5,6 @@ import { MemoryRouter, useLocation } from 'react-router';
 import type { FinancePosition } from '@/src/lib/finance/financePosition';
 import { FinanceAttention } from '../FinanceAttention';
 import { AgeingStrip } from '../AgeingStrip';
-import { PayablesList } from '../PayablesList';
 
 const withLayout = (path: string) => `${path}${path.includes('?') ? '&' : '?'}layout=c`;
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrencyState: () => ({ currency: 'IDR', isResolved: true, isError: false }) }));
@@ -19,7 +18,7 @@ const emptyPosition: FinancePosition = {
   receivablesCount: 0,
   overdue: [], overdueTotals: {}, overdueUnknownCount: 0,
   drafts: { canApprove: [], awaitingOther: [], all: [] }, toSend: [],
-  unappliedPayments: [], unappliedTotals: {}, payables: [], payablesTotals: {},
+  unappliedPayments: [], unappliedTotals: {}, payables: [], payablesTotals: {}, payablesUnknownCount: 0,
   receivablesAgeing: {}, payablesAgeing: {},
 };
 
@@ -128,12 +127,15 @@ describe('Finance blocks', () => {
     expect(screen.queryByRole('button', { name: /Review|Mark received|Apply/ })).not.toBeInTheDocument();
   });
 
-  it('uses the supplier invoice empty state when no procurement is awaiting payment', () => {
-    render(
-      <MemoryRouter>
-        <PayablesList position={emptyPosition} isPending={false} isError={false} onRetry={() => {}} withLayout={withLayout} />
-      </MemoryRouter>,
-    );
-    expect(screen.getByText('No supplier invoices waiting to be paid.')).toBeInTheDocument();
+  it('SEC-RS-2: a waiting supplier invoice with an unknown balance reads as unknown, not as a blank amount', () => {
+    const position: FinancePosition = {
+      ...emptyPosition,
+      payables: [{ procurement: { id: 'proc-1', vendor_id: 'supplier-1', vendor: { name: 'Supplier A' } } as never, ageDays: 40, amount: null }],
+      payablesTotals: {},
+      payablesUnknownCount: 1,
+    };
+    render(<MemoryRouter><FinanceAttention position={position} scope="all" isPending={false} isError={false} onRetry={() => {}} withLayout={(path: string) => path} orgCurrency="IDR" projects={new Map()} canAct /></MemoryRouter>);
+
+    expect(screen.getByText('Balance unknown · oldest 40 days')).toBeInTheDocument();
   });
 });

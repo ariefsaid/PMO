@@ -15,7 +15,7 @@ const h = vi.hoisted(() => ({
   position: {
     receivablesCount: 0, overdue: [], overdueTotals: {}, overdueUnknownCount: 0,
     drafts: { canApprove: [], awaitingOther: [], all: [] }, toSend: [],
-    unappliedPayments: [], unappliedTotals: {}, payables: [], payablesTotals: {},
+    unappliedPayments: [], unappliedTotals: {}, payables: [], payablesTotals: {}, payablesUnknownCount: 0,
     receivablesAgeing: { IDR: { notDue: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
     payablesAgeing: {},
   } as FinancePosition,
@@ -89,7 +89,7 @@ beforeEach(async () => {
     overdue: [{ invoice: invoice({ id: 'overdue', erp_outstanding_amount: 10 }), daysOverdue: 5, outstanding: 1000 }],
     overdueTotals: { IDR: 1000 }, overdueUnknownCount: 0,
     drafts: { canApprove: [], awaitingOther: [], all: [] }, toSend: [], unappliedPayments: [], unappliedTotals: {},
-    payables: [], payablesTotals: {},
+    payables: [], payablesTotals: {}, payablesUnknownCount: 0,
     receivablesAgeing: { IDR: { notDue: 8000, d1_30: 1000, d31_60: 0, d61_90: 0, over90: 1000 } },
     payablesAgeing: {},
   };
@@ -147,6 +147,26 @@ describe('Receivables page', () => {
     const delta = within(cash).getByText(/60/);
     expect(delta).toHaveClass('text-[hsl(var(--success-text))]');
     expect(within(cash).queryByText(/999/)).not.toBeInTheDocument();
+  });
+
+  it('O8: an unchanged month is not coloured as good news', () => {
+    h.payments = [payment(), payment({ id: 'payment-previous', date: '2026-09-05', amount: 100, received_amount: 100, withheld_amount: 0 })];
+    renderPage();
+    const cash = screen.getByRole('region', { name: 'Received this month' });
+    const delta = within(cash).getByText(/vs last month/);
+    expect(delta).not.toHaveTextContent('+');
+    expect(delta).not.toHaveClass('text-[hsl(var(--success-text))]');
+    expect(delta).toHaveClass('text-muted-foreground');
+  });
+
+  it('F11: receivables figures are one joined strip with short amounts and the exact amount kept', () => {
+    h.position = { ...h.position, receivablesAgeing: { IDR: { notDue: 6_240_000_000, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } } };
+    renderPage();
+    const strip = screen.getByRole('region', { name: 'Receivables figures' });
+    const owed = within(strip).getByRole('region', { name: 'Owed to you' });
+    const short = within(owed).getByText('IDR 62.4M');
+    expect(short.getAttribute('title')).toMatch(/^IDR\s62,400,000$/);
+    expect(within(owed).getByText(/^IDR\s62,400,000$/)).toHaveClass('sr-only');
   });
 
   it('keeps the invoices and payments view in the URL', async () => {

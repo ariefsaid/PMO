@@ -41,7 +41,6 @@ function attentionItems(items: NeedsItem[], detail: string): AttentionItem[] {
   return items.map((item) => ({
     id: item.id,
     tone: item.tone,
-    icon: item.id.startsWith('timesheet-') ? 'clock' : item.id === 'engineer-tasks' ? 'tasks' : 'expenses',
     count: item.count,
     label: item.label,
     href: item.href,

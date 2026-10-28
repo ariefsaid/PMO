@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
+import { totalsByCurrency } from '@/pages/procurement/list/model';
 import { buildFinancePosition, isProcurementReadyToPay } from './financePosition';
 
 const today = '2026-10-27';
@@ -81,6 +82,8 @@ function procurement(id: string, ageDays: number, overrides: Record<string, unkn
     project: null,
     vendor: { name: 'Supplier' },
     requested_by: null,
+    procurement_invoices: [{ amount: 100 }],
+    payments: [],
     ...overrides,
   } as unknown as ProcurementWithRefs;
 }
@@ -174,8 +177,8 @@ describe('buildFinancePosition', () => {
         payment('usd-cash', 10, { currency: 'USD', received_amount: 10 }),
       ],
       procurements: [
-        procurement('idr-po', 5, { currency: 'IDR', total_value: 75 }),
-        procurement('usd-po', 5, { currency: 'USD', total_value: 20 }),
+        procurement('idr-po', 5, { currency: 'IDR', procurement_invoices: [{ amount: 75 }] }),
+        procurement('usd-po', 5, { currency: 'USD', procurement_invoices: [{ amount: 20 }] }),
       ],
       today,
       canApproveDraft: () => false,
@@ -184,5 +187,45 @@ describe('buildFinancePosition', () => {
     expect(position.overdueTotals).toEqual({ IDR: 10_000, USD: 2_500 });
     expect(position.unappliedTotals).toEqual({ IDR: 5_000, USD: 1_000 });
     expect(position.payablesTotals).toEqual({ IDR: 7_500, USD: 2_000 });
+  });
+
+  it('SEC-RS-2: Payables total equals the Procurement list unpaid total for the same rows', () => {
+    const rows = [
+      // Supplier invoice above the PO value (tax-inclusive), partly paid; a scheduled payment is not paid.
+      procurement('partial', 10, {
+        total_value: 1000,
+        procurement_invoices: [{ amount: 1110 }],
+        payments: [{ amount: 400, status: 'Paid' }, { amount: 200, status: 'Scheduled' }],
+      }),
+      // Supplier invoiced below the PO value, unpaid.
+      procurement('under', 40, { total_value: 900, procurement_invoices: [{ amount: 850 }] }),
+      procurement('usd', 5, { currency: 'USD', total_value: 50, procurement_invoices: [{ amount: 60 }], payments: [{ amount: 60, status: 'Paid' }] }),
+    ];
+    const position = calculate([], rows);
+    const list = totalsByCurrency(rows, 'Finance', 'pay');
+
+    expect(list).toEqual([
+      { currency: 'IDR', amount: 1560, unknown: false },
+      { currency: 'USD', amount: 0, unknown: false },
+    ]);
+    expect(position.payablesTotals).toEqual({ IDR: 156_000, USD: 0 });
+    for (const total of list) expect(position.payablesTotals[total.currency]).toBe(Math.round((total.amount ?? NaN) * 100));
+    expect(position.payables.find((row) => row.procurement.id === 'partial')?.amount).toBe(71_000);
+    expect(position.payablesAgeing.IDR).toEqual({ d0_30: 71_000, d31_60: 85_000, d61_90: 0, over90: 0 });
+    expect(position.payablesUnknownCount).toBe(0);
+  });
+
+  it('SEC-RS-2: an unknown supplier balance stays unknown, never zero, and is left out of known totals', () => {
+    const rows = [
+      procurement('known', 5, { procurement_invoices: [{ amount: 300 }] }),
+      procurement('no-invoice', 5, { total_value: 999, procurement_invoices: [] }),
+    ];
+    const position = calculate([], rows);
+
+    expect(position.payables.find((row) => row.procurement.id === 'no-invoice')?.amount).toBeNull();
+    expect(position.payablesUnknownCount).toBe(1);
+    expect(position.payablesTotals).toEqual({ IDR: 30_000 });
+    expect(position.payablesAgeing.IDR).toEqual({ d0_30: 30_000, d31_60: 0, d61_90: 0, over90: 0 });
+    expect(totalsByCurrency(rows, 'Finance', 'pay')).toEqual([{ currency: 'IDR', amount: null, unknown: true }]);
   });
 });

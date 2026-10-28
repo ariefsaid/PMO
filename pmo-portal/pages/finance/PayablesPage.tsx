@@ -9,7 +9,10 @@ import { useFinancePosition } from '@/src/hooks/useFinancePosition';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import type { FinancePosition } from '@/src/lib/finance/financePosition';
-import { formatCurrency, formatDateOnly } from '@/src/lib/format';
+import { formatCurrency, formatDateOnly, formatShortMoney } from '@/src/lib/format';
+import { moneyFigure } from '@/src/lib/dashboardMoney';
+import { FigureContent } from '@/src/components/ui/FigureContent';
+import { KPIRow } from '@/src/components/ui/KPITile';
 import { formatCurrencyWithCode } from '@/src/lib/finance/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 
@@ -19,8 +22,10 @@ function initials(name: string | null | undefined): string {
   return (name ?? '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('');
 }
 
+/** Known unpaid balances by currency; unknown balances are counted separately, never as zero. */
 function currencyTotals(rows: PayableRow[]): Record<string, number> {
   return rows.reduce<Record<string, number>>((totals, row) => {
+    if (row.amount === null) return totals;
     const currency = row.procurement.currency;
     totals[currency] = (totals[currency] ?? 0) + row.amount;
     return totals;
@@ -74,7 +79,7 @@ const PayablesPage: React.FC = () => {
       size: 210,
       cell: (row) => {
         const manager = projectManagers.get(row.procurement.project_id ?? '') ?? '';
-        return <div className="flex min-w-0 items-center gap-2"><span className="min-w-0 whitespace-normal break-words text-muted-foreground">{row.procurement.project ? projectDisplayName(row.procurement.project) : '—'}</span>{manager && <span role="img" aria-label={manager} title={manager} className="grid size-[22px] shrink-0 place-items-center rounded-full bg-[hsl(var(--avatar-2))] text-[9px] font-semibold text-white">{initials(manager)}</span>}</div>;
+        return <div className="flex min-w-0 items-center gap-2"><span className="min-w-0 whitespace-normal break-words text-muted-foreground">{row.procurement.project ? projectDisplayName(row.procurement.project) : '—'}</span>{manager && <span role="img" aria-label={manager} title={manager} className="grid size-[22px] shrink-0 place-items-center rounded-full bg-[hsl(var(--avatar-2))] text-[11px] font-semibold text-white">{initials(manager)}</span>}</div>;
       },
       exportValue: (row) => row.procurement.project ? projectDisplayName(row.procurement.project) : '',
     },
@@ -103,8 +108,10 @@ const PayablesPage: React.FC = () => {
       kind: 'money',
       align: 'num',
       size: 140,
-      cell: (row) => formatCurrency(row.amount / 100, row.procurement.currency),
-      exportValue: (row) => row.amount / 100,
+      cell: (row) => row.amount === null
+        ? <span title={t('financeHub:hub.fix.payables.amountUnknown', 'No supplier invoice amount on record, so the unpaid balance is unknown.')}>—<span className="sr-only">{t('financeHub:hub.fix.payables.amountUnknown', 'No supplier invoice amount on record, so the unpaid balance is unknown.')}</span></span>
+        : formatCurrency(row.amount / 100, row.procurement.currency),
+      exportValue: (row) => (row.amount === null ? '' : row.amount / 100),
     },
   ], [projectManagers, t]);
 
@@ -126,24 +133,26 @@ const PayablesPage: React.FC = () => {
       description={t('financeHub:hub.payablesDescription', 'Supplier invoices waiting to be paid.')}
       count={finance.position.payables.length}
     >
-      <section aria-label={t('financeHub:hub.payablesFigures', 'Payables figures')} className="mb-5 grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2">
-        <article className="min-w-0 bg-card p-4">
-          <div className="flex items-center gap-1 text-sm font-medium text-muted-foreground">{t('financeHub:hub.toPaySuppliers', 'To pay suppliers')}<Tooltip content={t('financeHub:hub.payablesHint', 'Sum of recorded supplier invoices waiting for payment, grouped by currency.')}><button type="button" aria-label={t('financeHub:hub.figureHelp', 'How this figure is calculated')} className="-my-1 inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
+      <KPIRow aria-label={t('financeHub:hub.payablesFigures', 'Payables figures')} className="mb-5 sm:grid-cols-2">
+        <article className="min-w-0 p-4">
+          <div className="flex items-center gap-1 text-sm font-medium text-muted-foreground">{t('financeHub:hub.toPaySuppliers', 'To pay suppliers')}<Tooltip content={t('financeHub:hub.payablesHint', 'Unpaid supplier invoice balances (invoice amount less payments made), grouped by currency. Unknown balances are counted, not added.')}><button type="button" aria-label={t('financeHub:hub.figureHelp', 'How this figure is calculated')} className="-my-1 inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
           {finance.isPending ? <div role="status" className="mt-2 h-7 w-36 animate-pulse rounded bg-muted" /> : (() => {
             const totals = Object.entries(finance.position.payablesTotals).sort(([left], [right]) => left === orgCurrency ? -1 : right === orgCurrency ? 1 : left.localeCompare(right));
             const [lead, ...others] = totals;
             return <>
-              <div className="mt-1 text-[20px] font-bold tabular">{lead ? formatCurrency(lead[1] / 100, lead[0]) : t('financeHub:hub.fix.area.noBalance', 'No balance')}</div>
-              {others.map(([currency, cents]) => <div key={currency} className="text-xs text-muted-foreground">{t('financeHub:hub.fix.currency.other', { defaultValue: '+ {{amount}} in other currencies', amount: formatCurrencyWithCode(cents / 100, currency) })}</div>)}
+              {/* F11: the figure tile shows the short amount; the exact amount stays for hover and screen readers. */}
+              <div className="mt-1 text-[20px] font-bold tabular">{lead ? (() => { const figure = moneyFigure(lead[1] / 100, lead[0], ''); return <FigureContent value={figure.value} exactValue={figure.exactValue} />; })() : t('financeHub:hub.fix.area.noBalance', 'No balance')}</div>
+              {others.map(([currency, cents]) => <div key={currency} className="text-xs text-muted-foreground" title={formatCurrencyWithCode(cents / 100, currency)}>{t('financeHub:hub.fix.currency.other', { defaultValue: '+ {{amount}} in other currencies', amount: Math.abs(cents) < 100_000 ? formatCurrencyWithCode(cents / 100, currency) : formatShortMoney(cents / 100, currency, { code: true }) })}</div>)}
               {(() => {
                 const count = new Set(finance.position.payables.map(({ procurement }) => procurement.vendor_id ?? procurement.id)).size;
                 return <div className="mt-1 text-sm text-muted-foreground">{t('financeHub:hub.fix.payables.supplierCount', { defaultValue: count === 1 ? '{{count}} supplier' : '{{count}} suppliers', count })}</div>;
               })()}
+              {finance.position.payablesUnknownCount > 0 && <div className="text-xs text-muted-foreground">{t('financeHub:hub.fix.payables.unknownCount', { defaultValue: finance.position.payablesUnknownCount === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: finance.position.payablesUnknownCount })}</div>}
             </>;
           })()}
           
         </article>
-        <article className="min-w-0 bg-card p-4">
+        <article className="min-w-0 p-4">
           <div className="flex items-center gap-1 text-sm font-medium text-muted-foreground">{t('financeHub:hub.oldestWaiting', 'Oldest waiting')}<Tooltip content={t('financeHub:hub.oldestPayableHint', 'Calendar days since the supplier invoice was recorded, using the oldest payable invoice.')}><button type="button" aria-label={t('financeHub:hub.figureHelp', 'How this figure is calculated')} className="-my-1 inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
           {finance.isPending ? <div role="status" className="mt-2 h-7 w-24 animate-pulse rounded bg-muted" /> : <>
             <div className="mt-1 text-[20px] font-bold tabular">{oldest ? t('financeHub:hub.daysWaiting', '{{count}} days', { count: oldest.ageDays }) : '—'}</div>
@@ -151,7 +160,7 @@ const PayablesPage: React.FC = () => {
           </>}
           
         </article>
-      </section>
+      </KPIRow>
       {!finance.isPending && !finance.isError && <AgeingStrip kind="payables" values={finance.position.payablesAgeing} />}
       <div className="min-w-0" data-testid="finance-payables-table-card">
       <Toolbar data-testid="finance-payables-table-toolbar" className="gap-2 sm:gap-3">

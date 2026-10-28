@@ -11,7 +11,6 @@
     "newInvoice": "New invoice",
     "ageing": "Balances by age",
     "attention": "Needs you",
-    "loading": "Loading…",
     "loadingFigure": "Loading figure",
     "retry": "Retry",
     "figureHelp": "How this figure is calculated",
@@ -20,16 +19,12 @@
     "noOpenReceivables": "No balance outstanding",
     "noSupplierInvoices": "No supplier invoices waiting",
     "receivablesHint": "Sum of known outstanding balances on open invoices, including tax. Draft and cancelled invoices are excluded.",
-    "payablesHint": "Sum of recorded supplier invoices waiting for payment, grouped by currency.",
+    "payablesHint": "Unpaid supplier invoice balances (invoice amount less payments made), grouped by currency. Unknown balances are counted, not added.",
     "reportsHint": "Earned revenue minus invoiced revenue through the latest selected month, before tax.",
     "statementsHint": "Net profit from the latest available company profit and loss statement period.",
     "receivableBucketHint": "Known outstanding balances grouped by days past due. Not yet due includes balances due today or later.",
-    "payableBucketHint": "Supplier invoice amounts grouped by calendar days since the invoice was recorded.",
-    "findingLoading": "Loading the current money position…",
-    "findingError": "Couldn't load the current money position.",
-    "findingEmpty": "Nothing overdue or waiting.",
+    "payableBucketHint": "Known unpaid supplier balances grouped by calendar days since the invoice was recorded.",
     "finding": "{{overdue}} overdue across {{count}} invoices{{oldest}} · {{payables}} to pay suppliers",
-    "findingHint": "Overdue count and balance use open invoices past their derived due date. The oldest value is the greatest days past due; supplier payable total uses recorded supplier invoices still waiting to be paid.",
     "unknownAmount": "Amount unavailable",
     "oldest": "; oldest is {{client}}, {{days}} days late",
     "unknownClient": "unknown client",
@@ -76,30 +71,22 @@
         "noBalance": "No balance",
         "receivablesMeaning_one": "owed to you · {{count}} invoice · tax included",
         "receivablesMeaning_other": "owed to you · {{count}} invoices · tax included",
-        "payablesMeaning": "to pay {{count}} suppliers · oldest {{days}} days",
         "reportsMeaning": "earned, not yet invoiced · through {{month}}",
         "noProgressProjects_one": "No progress recorded on {{count}} project",
         "noProgressProjects_other": "No progress recorded on {{count}} projects",
-        "noSuppliers": "No supplier invoices waiting"
+        "noSuppliers": "No supplier invoices waiting",
+        "payablesSuppliers_one": "to pay {{count}} supplier",
+        "payablesSuppliers_other": "to pay {{count}} suppliers"
       },
       "currency": {
-        "other": "+ {{amount}} in other currencies",
-        "otherList": "{{amounts}}"
+        "other": "+ {{amount}} in other currencies"
       },
       "statements": {
-        "notAvailable": "Not available yet",
         "noStatement": "Net profit is not available for a period yet",
         "netProfit": "net profit {{month}}"
       },
       "finding": {
-        "overdue_one": "{{amount}} overdue from {{count}} invoice, oldest {{days}} days",
-        "overdue_other": "{{amount}} overdue from {{count}} invoices, oldest {{days}} days",
-        "noOverdue": "No overdue invoices",
-        "payables": "{{amount}} to pay suppliers",
-        "noPayables": "No supplier invoices to pay",
-        "unknownBalance": "Balance unknown",
-        "otherOverdue": "{{amount}} overdue",
-        "otherPayables": "{{amount}} to pay suppliers"
+        "unknownBalance": "Balance unknown"
       },
       "overdue": {
         "heading_one": "Overdue · {{amount}} from {{count}} invoice",
@@ -137,7 +124,8 @@
         "review": "Review",
         "markReceived": "Mark received",
         "apply": "Apply",
-        "openPayables": "Open payables"
+        "openPayables": "Open payables",
+        "payablesOldest": "Oldest {{days}} days"
       },
       "payables": {
         "procurement": "Procurement",
@@ -145,7 +133,10 @@
         "updatedDateHint": "Invoice date is missing; waiting time is measured from the last updated date.",
         "supplierCount_one": "{{count}} supplier",
         "supplierCount_other": "{{count}} suppliers",
-        "oldestMeaning": "Calendar days since the supplier invoice was recorded"
+        "oldestMeaning": "Calendar days since the supplier invoice was recorded",
+        "amountUnknown": "No supplier invoice amount on record, so the unpaid balance is unknown.",
+        "unknownCount_one": "{{count}} balance unknown",
+        "unknownCount_other": "{{count}} balances unknown"
       },
       "attention": {
         "finance": "Needs attention",
@@ -193,6 +184,9 @@
       "progress": "Progress",
       "earned": "Earned",
       "invoices": "Invoices"
-    }
+    },
+    "noProgressNote": "No progress is recorded yet, so earned revenue follows what has been invoiced.",
+    "backlogUnknownNote": "Backlog is left out where a foreign-currency invoice needs reconciliation before the balance can be known.",
+    "reviewInvoices": "Review invoices"
   }
 }

@@ -11,7 +11,8 @@ export function useFinancePosition(enabled = true) {
   const may = usePermission();
   const invoices = useSalesInvoices(undefined, { enabled });
   const payments = useIncomingPayments(undefined, enabled);
-  const procurements = useProcurements({ enabled });
+  // Shared-details select: the supplier invoice and payment rows behind the unpaid balance.
+  const procurements = useProcurements({ withSharedDetails: true, enabled });
   const orgDay = useFxOrgDay(enabled);
 
   const position = useMemo(() => buildFinancePosition({

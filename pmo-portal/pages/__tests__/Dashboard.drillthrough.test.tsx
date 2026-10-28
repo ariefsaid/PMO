@@ -159,7 +159,8 @@ describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
 
     const marginTile = companyFigureTile('Margin on billed work');
     expect(marginTile).toHaveTextContent('$1M');
-    expect(marginTile).toHaveTextContent(/Percent of billed work: —/);
+    // C4: the always-empty percent line is not rendered as a value; the help tooltip states why it is unknown.
+    expect(marginTile).not.toHaveTextContent(/Percent of billed work/);
     expect(within(marginTile).getByRole('link')).toHaveAttribute('href', '/sales-invoices');
   });
 

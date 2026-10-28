@@ -351,7 +351,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
 
     expect(screen.queryByText('Loading invoice evidence…')).not.toBeInTheDocument();
-    expect(screen.getByText('Bill evidence is temporarily unavailable.')).toBeInTheDocument();
+    expect(screen.getByText("Couldn't load the invoice lines from the accounting system.")).toBeInTheDocument();
   });
 
   it('AC-1405 gives an unreceived unpaid record exactly one primary action', () => {
@@ -897,5 +897,60 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(financeTestI18n.t('financeCopy.newInvoiceTitle')).not.toBe('New invoice');
     expect(within(dialog).getByRole('button', { name: financeTestI18n.t('financeCopy.createInvoice') })).toBeInTheDocument();
     expect(financeTestI18n.t('financeCopy.createInvoice')).not.toBe('Create invoice');
+  });
+});
+
+describe('Receivables list restructure fixes (2026-10-28 rulings audit)', () => {
+  it('C6: a list whose invoices share one tax basis states it once in the Amount header, not under every amount', () => {
+    h.invoices.data = [
+      nativeInvoice({ id: 'a', pmo_number: 'INV-A', status: 'Unpaid', received_date: '2026-10-01', erp_outstanding_amount: 1_110_000 }),
+      nativeInvoice({ id: 'b', pmo_number: 'INV-B', status: 'Unpaid', received_date: '2026-10-01', erp_outstanding_amount: 1_110_000 }),
+    ];
+    renderPage('/finance/receivables', true);
+    const header = screen.getByRole('columnheader', { name: /Amount/ });
+    expect(within(header).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+    expect(screen.getAllByTestId('tax-basis')).toHaveLength(1);
+  });
+
+  it('C6: mixed tax bases keep the basis on each amount', () => {
+    h.invoices.data = [
+      nativeInvoice({ id: 'a', pmo_number: 'INV-A', status: 'Unpaid', received_date: '2026-10-01', erp_outstanding_amount: 1_110_000 }),
+      nativeInvoice({ id: 'b', pmo_number: 'INV-B', status: 'Unpaid', received_date: '2026-10-01', erp_outstanding_amount: 1_000_000, tax_treatment: 'inclusive' }),
+    ];
+    renderPage('/finance/receivables', true);
+    expect(within(rowFor('INV-A')).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+    expect(within(rowFor('INV-B')).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
+  });
+
+  it('L6: an invoice whose total due equals its amount does not repeat the figure', () => {
+    h.invoices.data = [nativeInvoice({ id: 'a', pmo_number: 'INV-A', status: 'Unpaid', tax_amount: 0, tax_treatment: 'inclusive', received_date: '2026-10-01', erp_outstanding_amount: 1_000_000 })];
+    renderPage('/finance/receivables', true);
+    expect(rowFor('INV-A')).not.toHaveTextContent('Total due');
+  });
+
+  it('C4: a PMO invoice drawer does not claim its bill evidence is unavailable', () => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', received_date: '2026-10-12', erp_outstanding_amount: 500_000 })];
+    renderPage('/finance/receivables?open=si-n1', true);
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).queryByText(/unavailable/i)).not.toBeInTheDocument();
+  });
+
+  it('P5: on a phone the status filter is one select, so no status chip is clipped', async () => {
+    mockPhoneViewport();
+    h.invoices.data = [nativeInvoice({ pmo_number: 'INV-1', status: 'Unpaid', received_date: '2026-10-01', erp_outstanding_amount: 500_000 })];
+    const user = userEvent.setup();
+    renderPage('/finance/receivables', true);
+    expect(screen.queryByRole('tablist', { name: 'Filter by status' })).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by status' }), 'Cancelled');
+    expect(screen.getByTestId('location')).toHaveTextContent('status=Cancelled');
+  });
+
+  it('O9: a paid phone card shows the invoice total, not "0 of" the total', () => {
+    mockPhoneViewport();
+    h.invoices.data = [nativeInvoice({ pmo_number: 'INV-PAID', status: 'Paid', received_date: '2026-10-01', erp_outstanding_amount: 0 })];
+    renderPage('/finance/receivables', true);
+    const card = rowFor('INV-PAID');
+    expect(card).toHaveTextContent(/1,110,000/);
+    expect(card.textContent).not.toMatch(/IDR\s0(?![\d,.])/);
   });
 });

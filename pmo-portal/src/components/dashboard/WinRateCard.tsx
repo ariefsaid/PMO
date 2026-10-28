@@ -4,6 +4,7 @@ import { useWinRate, type WinRateRange } from '@/src/hooks/useDashboard';
 import { ViewToggle, type ViewOption } from '@/src/components/ui/ViewToggle';
 import { ListState } from '@/src/components/ui/ListState';
 import { formatCurrency } from '@/src/lib/format';
+import { shortMoney } from '@/src/lib/dashboardMoney';
 import { toIso } from '@/src/lib/calendar/monthMatrix';
 import { Tooltip } from '@/src/components/ui/Tooltip';
 import { Icon } from '@/src/components/ui/icons';
@@ -56,6 +57,31 @@ function buildWinRateRange(period: PeriodKey): WinRateRange {
  * dot + text (color-not-only). Zero closed deals shows an honest empty message
  * rather than a fabricated 0%.
  */
+/** One win-rate figure: the 34px rate over its progress bar. Count and value modes share this form (S6). */
+const RateFigure: React.FC<{ percent: number | null; barPercent?: number; caption: string; label: string; testId?: string }> = ({ percent, barPercent, caption, label, testId }) => {
+  const bar = Math.round(barPercent ?? percent ?? 0);
+  return (
+    <>
+      <div className="mb-3 flex items-baseline gap-2.5">
+        <span data-testid={testId} aria-live={testId ? 'polite' : undefined} className="text-[34px] font-bold leading-none tracking-[-0.02em] tabular">
+          {percent !== null ? `${percent.toFixed(1)}%` : '—'}
+        </span>
+        <span className="text-xs text-muted-foreground">{caption}</span>
+      </div>
+      <span
+        role="progressbar"
+        aria-label={label}
+        aria-valuenow={bar}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        className="block h-3 overflow-hidden rounded-full bg-secondary"
+      >
+        <span className="block h-full rounded-full bg-success" style={{ width: `${bar}%` }} />
+      </span>
+    </>
+  );
+};
+
 export interface WinRateCardProps {
   currency: string;
   /** Omit the standalone card frame when this content sits in an area panel. */
@@ -104,6 +130,9 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
 
   const fmt = (n: number, valueCurrency = currency) =>
     mode === 'count' ? String(n) : formatCurrency(n, valueCurrency);
+  // Per-currency value rows: a row with no recorded loss has no measurable rate (C7: no trivial 100% line).
+  const measurableRows = (valueRows ?? []).filter((row) => row.win_rate_value !== null && row.wins_value + row.losses_value > 0);
+  const valueText = (amount: number, valueCurrency: string) => shortMoney(amount, valueCurrency, '—', { code: valueCurrency !== currency });
 
   return (
     <section aria-label={t('dashboard.winRate.title', 'Win rate')} className={embedded ? 'grid gap-3' : 'rounded-lg border border-border bg-card p-4'}>
@@ -145,49 +174,37 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
       ) : (
         <>
           {valueRows ? (
-            <div aria-live="polite" className="space-y-2" data-testid="win-rate-value-breakdown">
-              {valueRows.filter((row) => row.wins_value + row.losses_value > 0).map((row) => (
-                <p key={row.currency} data-testid={`win-rate-value-${row.currency}`} className="text-sm text-muted-foreground">
-                  {row.win_rate_value === null
-                    ? t('dashboard.winRate.noRecordedLosses', '{{currency}} — no recorded losses; {{wins}} won', { currency: row.currency, wins: fmt(row.wins_value, row.currency) })
-                    : t('dashboard.winRate.currencyResult', '{{currency}} {{percent}}% — {{wins}} won of {{total}} closed', {
-                      currency: row.currency,
-                      percent: (row.win_rate_value * 100).toFixed(1),
-                      wins: fmt(row.wins_value, row.currency),
-                      total: fmt(row.wins_value + row.losses_value, row.currency),
-                    })}
-                </p>
-              ))}
-            </div>
+            measurableRows.length === 0 ? (
+              <p aria-live="polite" className="text-sm text-muted-foreground" data-testid="win-rate-value-breakdown">
+                {t('dashboard:winRateValue.noMeasurable', 'No recorded losses yet, so a win rate by value cannot be measured.')}
+              </p>
+            ) : (
+              <div aria-live="polite" className="grid gap-4" data-testid="win-rate-value-breakdown">
+                {measurableRows.map((row) => (
+                  <div key={row.currency} data-testid={`win-rate-value-${row.currency}`}>
+                    <RateFigure
+                      percent={(row.win_rate_value as number) * 100}
+                      caption={t('dashboard.winRate.result', '{{wins}} won of {{total}} closed', {
+                        wins: valueText(row.wins_value, row.currency),
+                        total: valueText(row.wins_value + row.losses_value, row.currency),
+                      })}
+                      label={t('dashboard:winRateValue.progress', '{{currency}} win rate {{percent}}%', { currency: row.currency, percent: ((row.win_rate_value as number) * 100).toFixed(1) })}
+                    />
+                  </div>
+                ))}
+              </div>
+            )
           ) : (
-          <>
-          <div className="mb-3 flex items-baseline gap-2.5">
-            <span
-              data-testid="kpi-win-rate"
-              aria-live="polite"
-              className="text-[34px] font-bold leading-none tracking-[-0.02em] tabular"
-            >
-              {rate !== null ? `${(rate * 100).toFixed(1)}%` : '—'}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {t('dashboard.winRate.result', '{{wins}} won of {{total}} closed', { wins: fmt(wins), total: fmt(total) })}
-            </span>
-          </div>
-
-          <span
-            role="progressbar"
-            aria-label={t('dashboard.winRate.progress', 'Win rate {{percent}}%', { percent: rate !== null ? (rate * 100).toFixed(1) : 0 })}
-            aria-valuenow={wonPct}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            className="block h-3 overflow-hidden rounded-full bg-secondary"
-          >
-            <span className="block h-full rounded-full bg-success" style={{ width: `${wonPct}%` }} />
-          </span>
-          </>
+            <RateFigure
+              testId="kpi-win-rate"
+              percent={rate === null ? null : rate * 100}
+              barPercent={wonPct}
+              caption={t('dashboard.winRate.result', '{{wins}} won of {{total}} closed', { wins: fmt(wins), total: fmt(total) })}
+              label={t('dashboard.winRate.progress', 'Win rate {{percent}}%', { percent: rate !== null ? (rate * 100).toFixed(1) : 0 })}
+            />
           )}
 
-          <div className="mt-2.5 flex gap-4 text-xs text-muted-foreground">
+          {(!valueRows || measurableRows.length > 0) && <div className="mt-2.5 flex gap-4 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <span aria-hidden className="size-1.5 rounded-full bg-success" />
               {t('dashboard.winRate.won', 'Won')}
@@ -196,7 +213,7 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
               <span aria-hidden className="size-1.5 rounded-full bg-secondary-foreground/40" />
               {t('dashboard.winRate.lost', 'Lost')}
             </span>
-          </div>
+          </div>}
           {declinedNote}
           <p className="mt-2 text-xs text-muted-foreground">{t('uxs03.recordedOutcomesOnly', 'Recorded outcomes only; unrecorded decisions are not counted.')}</p>
         </>

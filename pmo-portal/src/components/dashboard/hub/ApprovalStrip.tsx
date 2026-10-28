@@ -25,7 +25,7 @@ export const ApprovalStrip: React.FC<ApprovalStripProps> = ({ items }) => {
             to={item.href}
             className="inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-full border border-border bg-card px-3 text-sm text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
-            <Icon name={item.icon} className={`size-4 shrink-0 ${TONE_ICON_STYLES[item.tone]}`} />
+            {item.icon && <Icon name={item.icon} className={`size-4 shrink-0 ${TONE_ICON_STYLES[item.tone]}`} />}
             <span className="font-bold tabular-nums">{item.count}</span>
             {' '}
             <span>{item.label}</span>

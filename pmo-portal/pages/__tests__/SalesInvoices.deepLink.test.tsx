@@ -369,7 +369,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     salesInvoicesState.data[0] = { ...SEED_INVOICES[0], pmo_native: false, status: 'Unpaid' };
     invoiceEvidenceState.isError = true;
     renderAt('/sales-invoices/inv-1');
-    expect(screen.getByText('Bill evidence is temporarily unavailable.')).toBeInTheDocument();
+    expect(screen.getByText("Couldn't load the invoice lines from the accounting system.")).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Retry invoice evidence' }));
     expect(invoiceEvidenceState.refetch).toHaveBeenCalled();
   });

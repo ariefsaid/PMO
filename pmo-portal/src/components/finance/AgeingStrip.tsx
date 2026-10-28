@@ -44,7 +44,7 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, values }) => {
     : t('finance:area.payablesAgeingTitle', 'Supplier invoices by age · since invoice date');
   const hint = kind === 'receivables'
     ? t('financeHub:hub.receivableBucketHint', 'Known outstanding balances grouped by days past due. Not yet due includes balances due today or later.')
-    : t('financeHub:hub.payableBucketHint', 'Supplier invoice amounts grouped by calendar days since the invoice was recorded.');
+    : t('financeHub:hub.payableBucketHint', 'Known unpaid supplier balances grouped by calendar days since the invoice was recorded.');
   const currencies = Object.entries(values).sort(([left], [right]) => {
     if (isResolved && left === orgCurrency) return -1;
     if (isResolved && right === orgCurrency) return 1;

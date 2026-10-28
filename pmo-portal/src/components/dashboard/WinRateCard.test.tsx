@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { WinRateCard } from './WinRateCard';
 import i18next from 'i18next';
 import idCommon from '../../../public/locales/id/common.json';
+import idDashboard from '../../../public/locales/id/dashboard.json';
 
 const populatedOracle = {
   wins_count: 2, losses_count: 1, wins_value: 8_000_000, losses_value: 650_000,
@@ -41,7 +42,10 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
     render(<WinRateCard currency="USD" />);
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
     fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
-    expect(screen.getByTestId('win-rate-value-USD')).toHaveTextContent(/USD 92.5%/);
+    // S6: value mode keeps the figure + bar form; only the numbers change.
+    const usd = screen.getByTestId('win-rate-value-USD');
+    expect(within(usd).getByText('92.5%')).toBeInTheDocument();
+    expect(within(usd).getByRole('progressbar', { name: 'USD win rate 92.5%' })).toHaveAttribute('aria-valuenow', '92');
     fireEvent.click(screen.getByTestId('win-rate-toggle-count'));
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
   });
@@ -69,13 +73,47 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
     render(<WinRateCard currency="USD" />);
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
     fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
-    expect(screen.getByTestId('win-rate-value-IDR')).toHaveTextContent(/IDR.*92\.5%.*won of.*closed/i);
-    expect(screen.getByTestId('win-rate-value-USD')).toHaveTextContent(/USD.*No recorded losses/i);
-    expect(screen.queryByTestId('kpi-win-rate')).toBeNull();
+    const idr = screen.getByTestId('win-rate-value-IDR');
+    // C7: the percent is never prefixed by a currency; the currency names the bar.
+    expect(within(idr).getByText('92.5%')).toBeInTheDocument();
+    expect(idr).not.toHaveTextContent(/IDR\s*92\.5%/);
+    expect(idr).toHaveTextContent(/IDR 8M won of IDR 8\.7M closed/);
+    expect(within(idr).getByRole('progressbar', { name: 'IDR win rate 92.5%' })).toBeInTheDocument();
+    // C7: a currency with no recorded loss has no measurable rate, so it gets no trivial 100% line.
+    expect(screen.queryByTestId('win-rate-value-USD')).toBeNull();
+    expect(screen.getAllByRole('progressbar')).toHaveLength(1);
+  });
+
+  it('S6: value mode draws one bar per currency with a measurable rate', () => {
+    oracle = {
+      ...populatedOracle,
+      value_by_currency: [
+        { currency: 'IDR', wins_value: 8_000_000, losses_value: 650_000, win_rate_value: 0.924855 },
+        { currency: 'USD', wins_value: 3_000, losses_value: 1_000, win_rate_value: 0.75 },
+      ],
+    };
+    render(<WinRateCard currency="USD" />);
+    fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
+    expect(screen.getByRole('progressbar', { name: 'IDR win rate 92.5%' })).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'USD win rate 75.0%' })).toHaveAttribute('aria-valuenow', '75');
+    expect(screen.getByTestId('win-rate-value-USD')).toHaveTextContent(/\$3K won of \$4K closed/);
+    expect(screen.getByText('Won')).toBeInTheDocument();
+  });
+
+  it('C7: value mode with no measurable currency says so once instead of drawing empty bars', () => {
+    oracle = {
+      ...populatedOracle,
+      value_by_currency: [{ currency: 'USD', wins_value: 1_000, losses_value: 0, win_rate_value: null }],
+    };
+    render(<WinRateCard currency="USD" />);
+    fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    expect(screen.getByText('No recorded losses yet, so a win rate by value cannot be measured.')).toBeInTheDocument();
   });
 
   it('AC-1106: renders the currency breakdown with Indonesian catalogue copy', async () => {
     i18next.addResourceBundle('id', 'common', idCommon, true, true);
+    i18next.addResourceBundle('id', 'dashboard', idDashboard, true, true);
     await i18next.changeLanguage('id');
     oracle = {
       ...populatedOracle,
@@ -87,11 +125,14 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
         { currency: 'USD', wins_value: 1_000, losses_value: 0, win_rate_value: null },
       ],
     };
-    render(<WinRateCard currency="USD" />);
-    fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
-    expect(screen.getByTestId('win-rate-value-IDR')).toHaveTextContent('IDR 92.5%');
-    expect(screen.getByTestId('win-rate-value-USD')).toHaveTextContent(/USD — belum ada kekalahan tercatat/i);
-    await i18next.changeLanguage('en');
+    try {
+      render(<WinRateCard currency="USD" />);
+      fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
+      expect(screen.getByTestId('win-rate-value-IDR')).toHaveTextContent(/menang dari/);
+      expect(screen.getByRole('progressbar', { name: 'Tingkat kemenangan IDR 92.5%' })).toBeInTheDocument();
+    } finally {
+      await i18next.changeLanguage('en');
+    }
   });
 
   it('AC-1117: changing the period re-queries with a new range key', () => {

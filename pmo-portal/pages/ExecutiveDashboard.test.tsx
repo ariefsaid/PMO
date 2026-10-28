@@ -21,6 +21,12 @@ const needsState = vi.hoisted(() => ({
 const projectsState = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
 const procurementsState = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
 const budgetReviewState = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
+const pipelineState = vi.hoisted(() => ({ data: { stages: [] as unknown[], projects: [] as unknown[] }, isPending: false, isError: false, refetch: vi.fn() }));
+const arAgingState = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
+const financePositionState = vi.hoisted(() => ({
+  position: { receivablesAgeing: {} as Record<string, unknown>, payablesAgeing: {} as Record<string, unknown> },
+  isPending: false, isError: false, retry: vi.fn(),
+}));
 const defaultToday = [
   { id: 'contract-on-hand', label: 'Contract on hand', value: '$1,000', subline: 'Left after spending: $500', href: '/projects', unavailableReason: 'Contract amount is not available.' },
   { id: 'billed-margin', label: 'Known margin on billed work', value: '$200', subline: 'Known margin: amount shown · Percent of billed work: —', href: '/sales-invoices' },
@@ -42,7 +48,7 @@ vi.mock('@/src/components/dashboard/restructure/useNeedsYou', () => ({
 }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }) }));
 vi.mock('@/src/hooks/useDashboard', () => ({
-  useSalesPipeline: () => ({ data: { stages: [], projects: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+  useSalesPipeline: () => pipelineState,
   useFinanceBudgetReview: () => budgetReviewState,
   useWinRate: () => ({ data: { wins_count: 2, losses_count: 1, wins_value: 500, losses_value: 250, win_rate_count: 2 / 3, win_rate_value: 2 / 3 }, isPending: false, isError: false, refetch: vi.fn() }),
 }));
@@ -51,9 +57,10 @@ vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => projectsState }))
 vi.mock('@/src/hooks/useErpSnapshots', () => ({
   useActualsSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useApAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useArAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useArAgingSnapshot: () => arAgingState,
 }));
-vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useFinancePosition', () => ({ useFinancePosition: () => financePositionState }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD', useOrgCurrencyState: () => ({ currency: 'USD', isResolved: true }) }));
 vi.mock('@/src/hooks/useProjectStatusLabel', () => ({ useProjectStatusLabel: () => (status: string) => status, useProcurementStatusLabel: () => (status: string) => status }));
 vi.mock('@/src/components/dashboard/EngineerDashboard', () => ({ EngineerDashboard: () => <div data-testid="engineer-dashboard">Engineer work</div> }));
 vi.mock('@/src/components/dashboard/PMDashboard', () => ({ PMDashboard: () => <div data-testid="pm-dashboard">My projects</div> }));
@@ -87,6 +94,13 @@ beforeEach(() => {
   projectsState.data = [];
   procurementsState.data = [];
   budgetReviewState.data = [];
+  pipelineState.data = { stages: [], projects: [] };
+  arAgingState.data = [];
+  financePositionState.position = { receivablesAgeing: {}, payablesAgeing: {} };
+  needsState.areaItems = [
+    { id: 'at-risk', count: 2, label: 'projects at risk', href: '/projects?filter=at-risk', tone: 'warn' },
+    { id: 'ready-to-bill', count: 1, label: 'work order still to invoice', href: '/projects', tone: 'neutral' },
+  ];
   figureState.result = {
     today: defaultToday.map((figure) => figure.id === 'contract-on-hand' && state.unknownContract ? { ...figure, value: null } : figure),
     period: periodFigures,
@@ -112,8 +126,54 @@ describe('company area hub (#1403)', () => {
     const atRisk = screen.getByRole('link', { name: '2 projects at risk' });
     expect(atRisk).toHaveAttribute('href', '/projects?filter=at-risk');
     expect(atRisk).toHaveTextContent('2');
-    expect(screen.getByRole('link', { name: /work order still to invoice/i })).toHaveAttribute('href', '/projects');
-    expect(screen.getAllByText(/Percent of billed work: —/)).toHaveLength(1);
+    // L6: the still-to-invoice figure lives in its tile, which links to the work; the panel does not repeat it.
+    expect(screen.getByRole('link', { name: 'Open related records for Still to invoice on work orders.' })).toHaveAttribute('href', '/projects');
+    expect(screen.queryByRole('link', { name: /work order still to invoice/i })).not.toBeInTheDocument();
+    // C4: an always-empty "Percent of billed work: —" line is not shown as a value.
+    expect(screen.queryByText(/Percent of billed work/)).not.toBeInTheDocument();
+  });
+
+  it('L6: overdue and supplier amounts appear once, in their tiles, not again in the area panels', () => {
+    state.role = 'Finance';
+    needsState.areaItems = [
+      { id: 'overdue-invoices', count: 2, label: 'client invoices overdue', amount: '$400', href: '/sales-invoices?overdue=true', tone: 'lost' },
+      { id: 'supplier-invoices', count: 1, label: 'supplier invoice to pay', amount: '$100', href: '/procurement?status=Vendor+Invoiced', tone: 'warn' },
+      { id: 'procurement-approvals', count: 3, label: 'procurements awaiting approval', href: '/procurement?status=Requested', tone: 'warn' },
+    ] as typeof needsState.areaItems;
+    renderPage();
+    expect(screen.getAllByText(/\$400/)).toHaveLength(1);
+    expect(screen.getAllByText(/\$100/)).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Open related records for Owed by clients · overdue.' })).toHaveAttribute('href', '/sales-invoices?overdue=true');
+    // A complementary item with no tile stays in its panel.
+    expect(screen.getByRole('link', { name: /3 procurements awaiting approval/ })).toHaveAttribute('href', '/procurement?status=Requested');
+  });
+
+  it('L2: the position basis is said once for the page, not repeated in each panel', () => {
+    renderPage();
+    expect(screen.getAllByText(/record currency/i)).toHaveLength(1);
+    expect(screen.queryByText(/Selected period:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Invoice amounts exclude tax/)).not.toBeInTheDocument();
+  });
+
+  it('F10/L2: pipeline by stage is a table with its column headers above the rows and no always-empty column', () => {
+    pipelineState.data = {
+      stages: [{ status: 'Tender', count: 2 }, { status: 'Negotiation', count: 1 }],
+      projects: [
+        { status: 'Tender', currency: 'USD', contract_value: 1_000 },
+        { status: 'Tender', currency: 'USD', contract_value: 500 },
+        { status: 'Negotiation', currency: 'USD', contract_value: 2_000 },
+      ],
+    };
+    renderPage();
+    const table = screen.getByRole('table', { name: 'Pipeline by stage' });
+    const headers = within(table).getAllByRole('columnheader').map((cell) => cell.textContent);
+    expect(headers).toEqual(expect.arrayContaining(['Stage', 'Count', 'Gross']));
+    expect(headers).not.toContain('Forecast margin');
+    const rows = within(table).getAllByRole('row');
+    expect(within(rows[0]).getAllByRole('columnheader').length).toBeGreaterThan(0);
+    expect(within(table).getByText('$1,500')).toBeInTheDocument();
+    fireEvent.click(within(table).getByRole('button', { name: 'Open Tender opportunities' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/sales?status=Tender');
   });
 
   it('F2: keeps mixed-currency figures visible once in the KPI band and removes position repeats from panels', () => {
@@ -236,6 +296,34 @@ describe('company area hub (#1403)', () => {
     expect(screen.getByRole('heading', { name: 'Budget review' })).toBeInTheDocument();
   });
 
+  it('C4/O12: finance review tables carry no always-empty column and name the status they show', () => {
+    state.role = 'Finance';
+    procurementsState.data = [{
+      id: 'procurement-1', title: 'Supplier invoice 42', status: 'Vendor Invoiced', total_value: 250,
+      currency: 'USD', updated_at: '2026-10-20T00:00:00.000Z', vendor_invoiced_at: '2026-10-20T00:00:00.000Z',
+      project: { name: 'Project North' }, vendor: { name: 'Supplier One' },
+    }];
+    budgetReviewState.data = [{ id: 'budget-1', name: 'Budget 1', client_name: null, status: 'Ongoing Project', currency: 'USD', budget: 1_000, budget_currency: 'USD', spent: 500, variance: -500, actual_currency: 'USD', actual_complete: true, actual_coverage_count: 1, actual_coverage_total: 1, actual_as_of: null }];
+    renderPage();
+    expect(screen.queryByRole('columnheader', { name: 'Due state' })).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Project status' })).toBeInTheDocument();
+  });
+
+  it('L12: with no accounting ageing synced, Finance sees the same PMO client and supplier ageing as the finance hub', () => {
+    state.role = 'Finance';
+    financePositionState.position = {
+      receivablesAgeing: { USD: { notDue: 100_00, d1_30: 50_00, d31_60: 0, d61_90: 0, over90: 0 } },
+      payablesAgeing: { USD: { d0_30: 70_00, d31_60: 0, d61_90: 0, over90: 0 } },
+    };
+    renderPage();
+    expect(screen.queryByText('No aging data to show yet.')).not.toBeInTheDocument();
+    const billing = screen.getAllByRole('heading', { name: 'Billing and collections' })[0]?.closest('.rounded-lg.border');
+    const clientAgeing = screen.getByRole('region', { name: 'Client balances by age · tax included' });
+    expect(clientAgeing.closest('.rounded-lg.border')).toBe(billing);
+    expect(within(clientAgeing).getByText('$100')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Supplier invoices by age · since invoice date' })).toBeInTheDocument();
+  });
+
   it('F2: Finance budget review shows the top five active budgets by RPC variance order', () => {
     state.role = 'Finance';
     budgetReviewState.data = [
@@ -317,5 +405,94 @@ describe('company area hub (#1403)', () => {
     renderPage();
     expect(screen.getByTestId('pm-dashboard')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Company figures' })).not.toBeInTheDocument();
+  });
+});
+
+// Ported from the deleted ExecutiveDashboard.{atRiskLink,bahasa,honesty}.test.tsx: the behaviours
+// those files pinned, re-asserted against the company hub.
+describe('company hub — behaviour carried over from the previous dashboard', () => {
+  it('AC-IFW-DASH-02: the at-risk doorway is its own link, not nested inside another link or button', () => {
+    renderPage();
+    const atRisk = screen.getByRole('link', { name: '2 projects at risk' });
+    expect(atRisk.parentElement?.closest('a, button')).toBeNull();
+    expect(atRisk.querySelector('a, button')).toBeNull();
+  });
+
+  it('AC-FAA-006: a pipeline-only portfolio keeps the company figures and says there is no delivery project to compare', () => {
+    const current = figureState.result!;
+    current.isEmpty = false;
+    current.dashboard = { ...(current.dashboard as Record<string, unknown>), top_projects: [], projects_by_status: [{ status: 'Tender Submitted', count: 2 }], procurements_by_status: [] };
+    renderPage();
+    expect(screen.queryByText('No company activity yet')).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Company figures' })).toBeInTheDocument();
+    expect(screen.getByText('No delivery projects to compare yet')).toBeInTheDocument();
+  });
+
+  it('AC-FAA-006: the company empty state appears only when there is no project or procurement evidence at all', () => {
+    const current = figureState.result!;
+    current.isEmpty = true;
+    current.dashboard = { ...(current.dashboard as Record<string, unknown>), top_projects: [], projects_by_status: [{ status: 'Lost', count: 2 }], procurements_by_status: [] };
+    const withEvidence = renderPage();
+    expect(screen.queryByText('No company activity yet')).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Company figures' })).toBeInTheDocument();
+    withEvidence.unmount();
+
+    current.dashboard = { ...(current.dashboard as Record<string, unknown>), projects_by_status: [], procurements_by_status: [] };
+    needsState.areaItems = [];
+    renderPage();
+    expect(screen.getByText('No company activity yet')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Company figures' })).not.toBeInTheDocument();
+  });
+
+  it('keeps loading and error ahead of any empty or value state for the company figures', () => {
+    const current = figureState.result!;
+    current.todayPending = true;
+    current.isEmpty = true;
+    current.dashboard = undefined;
+    const pending = renderPage();
+    expect(screen.queryByText('No company activity yet')).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Company figures' })).not.toHaveTextContent('$1,000');
+    pending.unmount();
+
+    current.todayPending = false;
+    current.todayError = true;
+    current.dashboardError = true;
+    renderPage();
+    expect(screen.getByText("Couldn't load company position figures")).toBeInTheDocument();
+    expect(screen.queryByText('No company activity yet')).not.toBeInTheDocument();
+    expect(screen.queryByText('No delivery projects to compare yet')).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Company figures' })).not.toHaveTextContent('$1,000');
+  });
+
+  it('AC-UXA-003: Bahasa labels the purchasing stages while each stage link keeps its raw status destination', () => {
+    const current = figureState.result!;
+    current.dashboard = { ...(current.dashboard as Record<string, unknown>), procurements_by_status: [{ status: 'Approved', count: 1 }, { status: 'Vendor Invoiced', count: 2 }] };
+    renderBahasaPage();
+    const invoiced = screen.getAllByRole('link', { name: /Ditagihkan pemasok/ });
+    expect(invoiced.length).toBeGreaterThan(0);
+    for (const link of invoiced) expect(link).toHaveAttribute('href', '/procurement?status=Vendor%20Invoiced');
+    expect(screen.getAllByRole('link', { name: /Approved/ })[0]).toHaveAttribute('href', '/procurement?status=Approved');
+    expect(screen.queryByText('Supplier invoiced')).not.toBeInTheDocument();
+  });
+
+  it('AC-UXA-003: Bahasa error and empty states read in Bahasa, never the English fallback', () => {
+    needsState.isError = true;
+    const current = figureState.result!;
+    current.todayError = true;
+    const failed = renderBahasaPage();
+    expect(screen.getByText('Tidak dapat memuat persetujuan dan item perhatian')).toBeInTheDocument();
+    expect(screen.getByText('Tidak dapat memuat angka posisi perusahaan')).toBeInTheDocument();
+    expect(screen.queryByText("Couldn't load approvals and attention items")).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+    failed.unmount();
+
+    needsState.isError = false;
+    needsState.areaItems = [];
+    current.todayError = false;
+    current.isEmpty = true;
+    current.dashboard = { ...(current.dashboard as Record<string, unknown>), projects_by_status: [], procurements_by_status: [] };
+    renderBahasaPage();
+    expect(screen.getByText('Belum ada aktivitas perusahaan')).toBeInTheDocument();
+    expect(screen.queryByText('No company activity yet')).not.toBeInTheDocument();
   });
 });

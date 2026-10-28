@@ -79,7 +79,10 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
     ...(scope === 'all' && position.payables.length > 0 ? [{
       key: 'payables', count: position.payables.length,
       label: t('financeHub:hub.fix.waiting.payables', { defaultValue: '{{count}} supplier invoices waiting to be paid', count: position.payables.length }),
-      detail: [t('financeHub:hub.fix.waiting.payablesDetail', { defaultValue: '{{amount}} · oldest {{days}} days', amount: currencyLines(position.payablesTotals, orgCurrency)[0] ?? '', days: position.payables[0]?.ageDays ?? 0 }), ...currencyLines(position.payablesTotals, orgCurrency).slice(1)],
+      // L6: the known amount lives on the Payables figure; this row adds the age (or says the balance is unknown).
+      detail: currencyLines(position.payablesTotals, orgCurrency).length > 0
+        ? [t('financeHub:hub.fix.waiting.payablesOldest', { defaultValue: 'Oldest {{days}} days', days: position.payables[0]?.ageDays ?? 0 })]
+        : [t('financeHub:hub.fix.waiting.payablesDetail', { defaultValue: '{{amount}} · oldest {{days}} days', amount: t('financeHub:hub.fix.finding.unknownBalance', 'Balance unknown'), days: position.payables[0]?.ageDays ?? 0 })],
       hint: t('financeHub:hub.fix.waiting.payablesHint', 'Recorded supplier invoices still waiting to be paid.'), to: '/finance/payables', action: t('financeHub:hub.fix.waiting.openPayables', 'Open payables'),
     }] : []),
   ];

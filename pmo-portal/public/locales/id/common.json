@@ -302,12 +302,12 @@
     "unavailable": "Tidak tersedia",
     "view": "Lihat bukti potong",
     "record": "Catat bukti potong",
-    "setVendor": "Tentukan vendor",
-    "vendorRequired": "Atur vendor pada permintaan ini sebelum mencatat bukti potong.",
-    "vendorSet": "Vendor ditetapkan",
-    "vendorAlreadySet": "Vendor sudah ditetapkan. Muat ulang untuk melihatnya.",
-    "selectVendor": "Pilih vendor…",
-    "saveVendor": "Simpan vendor",
+    "setVendor": "Tentukan pemasok",
+    "vendorRequired": "Atur pemasok pada pengadaan ini sebelum mencatat bukti potong.",
+    "vendorSet": "Pemasok ditetapkan",
+    "vendorAlreadySet": "Pemasok sudah ditetapkan. Muat ulang untuk melihatnya.",
+    "selectVendor": "Pilih pemasok…",
+    "saveVendor": "Simpan pemasok",
     "cancelSetVendor": "Batalkan",
     "history": "Riwayat bukti potong",
     "state": {
@@ -324,13 +324,13 @@
     "withheld": "Dipotong",
     "type": "Jenis PPh",
     "identity": {
-      "vendorReference": "Referensi faktur vendor",
+      "vendorReference": "Referensi faktur pemasok",
       "systemNumber": "Nomor VI sistem",
       "case": "Kasus",
       "project": "Proyek",
       "pmoNumber": "Nomor proyek PMO",
       "billDate": "Tanggal tagihan",
-      "referenceMissing": "Referensi faktur vendor belum dicatat",
+      "referenceMissing": "Referensi faktur pemasok belum dicatat",
       "systemNumberMissing": "Nomor VI sistem tidak tersedia",
       "contextPending": "Detail sedang dimuat",
       "contextUnavailable": "Detail tidak tersedia",
@@ -341,7 +341,7 @@
     },
     "confirmUnknown": "Konfirmasi sebagai {{type}} berdasarkan bukti potong terbit",
     "recordTitle": "Catat bukti potong",
-    "vendor": "Vendor",
+    "vendor": "Pemasok",
     "slipNumber": "Nomor slip terbit",
     "slipDate": "Tanggal slip",
     "taxPeriod": "Masa pajak",
@@ -392,10 +392,10 @@
     "amountExceedsBase": "Jumlah potongan pada bukti potong tidak boleh melebihi dasar pengenaan pajak.",
     "invalidTaxPeriod": "Pilih masa pajak yang tidak melebihi bulan berjalan.",
     "invalidFactsCopy": "Periksa data yang dimasukkan lalu coba lagi.",
-    "vendorUnavailable": "Detail vendor tidak tersedia",
+    "vendorUnavailable": "Detail pemasok belum dicatat",
     "noBillHistory": "Belum ada bukti potong yang dicatat untuk tagihan ini.",
     "selectedBills": "Tagihan dipilih ({{count}})",
-    "candidateEmpty": "Tidak ada tagihan yang memenuhi syarat untuk vendor, mata uang, dan jenis PPh ini.",
+    "candidateEmpty": "Tidak ada tagihan yang memenuhi syarat untuk pemasok, mata uang, dan jenis PPh ini.",
     "candidateError": "Tagihan yang memenuhi syarat tidak dapat dimuat. Isian Anda tetap tersimpan. Coba muat lagi.",
     "retry": "Coba lagi",
     "openBillCase": "Buka tagihan {{bill}} di kasus {{case}}",
@@ -1357,8 +1357,6 @@
       "emptyTitle": "Tidak ada proyek selesai dalam periode ini",
       "emptySub": "Pilih periode lebih panjang untuk melihat tingkat kemenangan.",
       "result": "{{wins}} menang dari {{total}} proyek selesai",
-      "currencyResult": "{{currency}} {{percent}}% — {{wins}} menang dari {{total}} proyek selesai",
-      "noRecordedLosses": "{{currency}} — belum ada kekalahan tercatat; {{wins}} menang",
       "progress": "Tingkat kemenangan {{percent}}%",
       "won": "Menang",
       "lost": "Kalah",
@@ -1959,7 +1957,7 @@
       "toggle": "Tampilkan pratinjau untuk {{title}}",
       "loadErrorSub": "Terjadi kesalahan saat mengambil pratinjau.",
       "lineItems": "Rincian barang",
-      "viewFullRequest": "Lihat permintaan lengkap"
+      "viewFullRequest": "Lihat pengadaan lengkap"
     },
     "filter": {
       "paid": "Lunas"
@@ -1969,8 +1967,8 @@
       "paid": "Pembayaran",
       "po": "Purchase Order",
       "pr": "Permintaan Pembelian",
-      "vi": "Invoice Vendor",
-      "vq": "Penawaran Vendor"
+      "vi": "Faktur pemasok",
+      "vq": "Penawaran pemasok"
     }
   },
   "procurementLedger": {
@@ -2002,23 +2000,23 @@
   },
   "procurementDetail": {
     "accessDenied": {
-      "sub": "Permintaan pengadaan ini tidak ada atau tidak terlihat untuk role Anda. Jika Anda yang mengajukannya, buka dari permintaan Anda sendiri.",
+      "sub": "Pengadaan ini tidak ada atau tidak terlihat untuk role Anda. Jika Anda yang mengajukannya, buka dari pengadaan Anda sendiri.",
       "title": "Anda tidak memiliki akses ke data ini"
     },
     "action": {
       "approve": "Setujui",
-      "cancelRequest": "Batalkan permintaan",
+      "cancelRequest": "Batalkan pengadaan",
       "confirmReceipt": "Konfirmasi penerimaan",
       "generatePurchaseOrder": "Buat Purchase Order",
       "markAsPaid": "Tandai Lunas",
-      "markVendorInvoiced": "Tandai invoice diterima",
+      "markVendorInvoiced": "Catat faktur pemasok",
       "reject": "Tolak",
       "selectQuote": "Bandingkan dan pilih penawaran",
-      "submitRequest": "Ajukan permintaan"
+      "submitRequest": "Ajukan untuk persetujuan"
     },
     "recordKinds": {
       "goodsReceipt": "Penerimaan barang",
-      "vendorInvoice": "Faktur vendor"
+      "vendorInvoice": "Faktur pemasok"
     },
     "statusOption": {
       "draft": "Draf",
@@ -2038,7 +2036,7 @@
       "scheduled": "Dijadwalkan"
     },
     "vendorInvoice": {
-      "enterDetails": "Masukkan detail faktur untuk menandai tahap vendor ditagih:",
+      "enterDetails": "Masukkan detail faktur pemasok:",
       "invoiceNumber": "No. faktur",
       "optional": "opsional",
       "invoicePlaceholder": "cth. INV-2291",
@@ -2067,27 +2065,27 @@
     "paymentLinksToInvoice": "Terkait ke faktur",
     "noInvoiceSelected": "— tidak ada —",
     "recordGoodsReceipt": "Catat penerimaan barang",
-    "recordVendorInvoice": "Catat faktur vendor",
+    "recordVendorInvoice": "Catat faktur pemasok",
     "addRecord": "Tambah {{record}}",
-    "paymentBillRequired": "Pilih faktur vendor yang ditutup oleh pembayaran ini.",
+    "paymentBillRequired": "Pilih faktur pemasok yang ditutup oleh pembayaran ini.",
     "paymentApproverCannotPay": "Pemisahan tugas: penyetuju tidak dapat membayar pengadaan yang disetujuinya sendiri.",
-    "withholdingNeedsAmount": "Masukkan jumlah tagihan untuk menghitung pemotongan pajak vendor.",
+    "withholdingNeedsAmount": "Masukkan jumlah tagihan untuk menghitung pemotongan pajak pemasok.",
     "confirm": {
       "approveBody": "Setujui <money/>?",
-      "cancelTitle": "Batalkan permintaan ini?",
-      "destructiveTitle": "{{action}} permintaan ini",
+      "cancelTitle": "Batalkan pengadaan ini?",
+      "destructiveTitle": "{{action}} pengadaan ini",
       "grBody": "Ini mencatat penerimaan barang berstatus {{status}} untuk {{request}}.",
       "grTitle": "Catat penerimaan barang ini?",
-      "keepRequest": "Pertahankan permintaan",
+      "keepRequest": "Pertahankan pengadaan",
       "markPaidBody": "Catat {{amount}} sebagai dibayar? Ini mencatat bukti pembayaran, bukan mentransfer dana.",
       "moneyOnProject": "<amount>{{amount}}</amount> pada <project/>",
       "moneyOnProjectRequestedBy": "<amount>{{amount}}</amount> pada <project/>, diminta oleh <person>{{name}}</person>",
       "moneyRequestedBy": "<amount>{{amount}}</amount>, diminta oleh <person>{{name}}</person>",
       "saveGR": "Simpan GR",
-      "saveVI": "Simpan faktur vendor",
-      "terminal": "Ini tindakan akhir untuk permintaan ini dan tidak dapat dibatalkan.",
-      "viBody": "Ini mencatat invoice vendor untuk {{request}}.",
-      "viTitle": "Catat invoice vendor ini?"
+      "saveVI": "Simpan faktur pemasok",
+      "terminal": "Ini tindakan akhir untuk pengadaan ini dan tidak dapat dibatalkan.",
+      "viBody": "Ini mencatat faktur pemasok untuk {{request}}.",
+      "viTitle": "Catat faktur pemasok ini?"
     },
     "detail": {
       "approvedBy": "Disetujui oleh",
@@ -2103,7 +2101,7 @@
     },
     "tabsLabel": "Bagian pengadaan",
     "quotes": {
-      "emptyTitle": "Belum ada penawaran tercatat. Tambahkan penawaran vendor untuk membandingkannya."
+      "emptyTitle": "Belum ada penawaran tercatat. Tambahkan penawaran pemasok untuk membandingkannya."
     },
     "toast": {
       "grRecorded": "Penerimaan barang dicatat",
@@ -2114,12 +2112,12 @@
       "movedTo": "Dipindahkan ke",
       "quotationAdded": "Penawaran ditambahkan",
       "quoteSelected": "Penawaran dipilih",
-      "quoteSelectedDetail": "Permintaan maju ke Penawaran Dipilih",
-      "requestUpdated": "Permintaan diperbarui",
-      "viRecorded": "Invoice vendor dicatat"
+      "quoteSelectedDetail": "Pengadaan maju ke Penawaran Dipilih",
+      "requestUpdated": "Pengadaan diperbarui",
+      "viRecorded": "Faktur pemasok dicatat"
     },
     "route": {
-      "note": "Persetujuan permintaan ini diarahkan ke {{names}}: {{why}}",
+      "note": "Persetujuan pengadaan ini diarahkan ke {{names}}: {{why}}",
       "nameJoiner": " atau ",
       "why": {
         "projectApprover": "mereka adalah penyetuju yang ditetapkan untuk proyek ini.",
@@ -2133,7 +2131,7 @@
         "budgetChanged": "anggaran proyek yang menampungnya diaktifkan setelah permintaan diajukan, atau oleh orang yang memutuskannya.",
         "amountInvalid": "nilainya mengandung angka negatif, jadi tidak dapat dicek terhadap anggaran proyek."
       },
-      "adminOnly": "Persetujuan permintaan ini memerlukan Admin: tidak ada anggota penyetuju senior yang dapat memprosesnya."
+      "adminOnly": "Persetujuan pengadaan ini memerlukan Admin: tidak ada anggota penyetuju senior yang dapat memprosesnya."
     },
     "groupRef": {
       "label": "Ref. grup",
@@ -2151,12 +2149,12 @@
       "withheld": "Pajak dipotong (PPh)"
     },
     "vendorTax": {
-      "erpRequiredHint": "Masukkan jumlah PPN dari faktur vendor (0 jika tidak ada) dan, jika ada pajak dipotong, jenis dan jumlahnya.",
+      "erpRequiredHint": "Masukkan jumlah PPN dari faktur pemasok (0 jika tidak ada) dan, jika ada pajak dipotong, jenis dan jumlahnya.",
       "itemsNet": "Total item, sebelum pajak: {{amount}}",
       "none": "Tidak ada",
       "pph23": "PPh 23",
       "pph4_2": "PPh 4(2)",
-      "suggestedFrom": "Default vendor {{rate}}% dari {{base}}",
+      "suggestedFrom": "Default pemasok {{rate}}% dari {{base}}",
       "vatAmount": "Jumlah PPN",
       "withheldAmount": "Jumlah PPh",
       "withheldError": "Masukkan pajak dipotong sebagai jumlah yang tidak melebihi jumlah faktur (isi jumlah faktur terlebih dahulu).",
@@ -2913,7 +2911,6 @@
         "paid": "Dibayar",
         "stillToInvoice": "Sisa untuk ditagih",
         "summaryTitle": "Penagihan per Work Order",
-        "unavailable": "Tidak tersedia",
         "notSubmitted": "Belum dikirim",
         "lineNet": "Nilai neto {{amount}}"
       },
@@ -4246,7 +4243,6 @@
   }
 },
   "uxs34": {
-    "backlogUnavailable": "Belum tersedia",
     "backlogReason": "Tagihan dalam mata uang asing perlu direkonsiliasi sebelum saldo ini dapat diketahui."
   },
   "comments": {
@@ -4473,10 +4469,7 @@
     "outstanding": "Belum dibayar",
     "settlementNote": "Penyelesaian tagihan (kas, potongan pajak, dan kredit), bukan kas diterima.",
     "margin": "Margin",
-    "differentCurrencies": "Tidak tersedia — mata uang berbeda",
-    "workUnavailable": "Pendapatan pekerjaan ditagihkan belum tersedia",
     "restricted": "Aktual tidak mencakup baris terbatas",
-    "actualsUnavailable": "Belum tersedia",
     "category": "Kategori",
     "unavailable": "Tidak tersedia",
     "loading": "Memuat keuangan proyek…",
@@ -4501,10 +4494,7 @@
     "categoryDetails": "Pengeluaran tercatat menurut kategori",
     "contractRemainingAfterCost": "Sisa kontrak setelah biaya",
     "cashReceived": "Kas diterima",
-    "cashReceivedScope": "Kas kuitansi yang tertaut ke faktur proyek ini",
-    "cashReceivedUnavailable": "Tidak tersedia — data kas berbasis kuitansi belum tersedia",
-    "cashReceivedInvalid": "Tidak tersedia — data kas berbasis kuitansi tidak dapat diverifikasi",
-    "cashReceivedIncomplete": "Belum lengkap — alokasi kuitansi belum dapat memastikan kas"
+    "cashReceivedScope": "Kas kuitansi yang tertaut ke faktur proyek ini"
   },
   "invoiceProject": {
     "assign": "Tetapkan proyek",
@@ -4649,7 +4639,6 @@
     "daysOverdue": "Terlambat {{count}} hari",
     "billEvidence": "Bukti faktur",
     "evidenceLoading": "Memuat bukti faktur…",
-    "evidenceUnavailable": "Bukti faktur sementara tidak tersedia.",
     "evidenceRetry": "Coba lagi memuat bukti faktur",
     "invoiceLines": "Rincian faktur",
     "linesUnknown": "Rincian baris tidak tersedia.",
@@ -4746,23 +4735,23 @@
       "draft": "Draf",
       "requested": "Permintaan Pembelian",
       "approved": "Disetujui",
-      "vendorQuoted": "Penawaran Vendor",
+      "vendorQuoted": "Penawaran pemasok",
       "quoteSelected": "Penawaran Dipilih",
       "ordered": "Purchase Order",
       "received": "Penerimaan Barang",
-      "vendorInvoiced": "Invoice Vendor",
+      "vendorInvoiced": "Faktur pemasok",
       "paid": "Dibayar",
       "rejected": "Ditolak",
       "cancelled": "Dibatalkan"
     },
     "nextStep": {
-      "draft": "Ajukan permintaan",
+      "draft": "Ajukan untuk persetujuan",
       "requested": "Menunggu persetujuan",
-      "approved": "Minta penawaran vendor",
+      "approved": "Minta penawaran pemasok",
       "vendorQuoted": "Pilih penawaran",
       "quoteSelected": "Siapkan purchase order",
       "ordered": "Catat penerimaan",
-      "received": "Catat invoice vendor",
+      "received": "Catat faktur pemasok",
       "vendorInvoiced": "Catat pembayaran"
     },
     "nextStepPrefix": "Langkah berikutnya:",

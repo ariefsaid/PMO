@@ -10,6 +10,8 @@ export interface DashboardFigure {
   label: string;
   /** Null means the source cannot prove a value; it is rendered as an explained dash. */
   value: React.ReactNode | null;
+  /** Exact amount behind a short figure (hover + screen reader). */
+  exactValue?: string;
   subline?: React.ReactNode;
   href?: string;
   unavailableReason?: string;

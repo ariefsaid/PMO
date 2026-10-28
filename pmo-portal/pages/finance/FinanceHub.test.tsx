@@ -65,6 +65,7 @@ function positionFixture(): FinancePosition {
     unappliedTotals: {},
     payables: [{ procurement: { id: 'procurement-1', vendor_id: 'supplier-1', vendor: { name: 'Supplier A' } } as never, ageDays: 100, amount: 6_240_000_000 }],
     payablesTotals: { IDR: 6_240_000_000 },
+    payablesUnknownCount: 0,
     receivablesAgeing: { IDR: { notDue: 3_820_000_000, d1_30: 1_220_000_000, d31_60: 1_430_000_000, d61_90: 0, over90: 1_850_000_000 } },
     payablesAgeing: { IDR: { d0_30: 2_100_000_000, d31_60: 940_000_000, d61_90: 1_200_000_000, over90: 2_000_000_000 } },
   };
@@ -88,11 +89,11 @@ afterEach(() => {
 });
 
 describe('Finance hub', () => {
-  it('AC-1405-HUB-001: shows a plain whole-unit finding and four area cards with their meaning lines', () => {
+  it('AC-1405-HUB-001: shows whole-unit figures and four area cards with their meaning lines', () => {
     renderHub();
 
     expect(screen.getByRole('heading', { name: 'Finance', level: 1 })).toBeInTheDocument();
-    expect(screen.getByText(/IDR 45,000,000 overdue from 5 invoices, oldest 104 days/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Overdue · IDR\s45,000,000 from 5 invoices/ })).toBeInTheDocument();
     expect(screen.queryByText(/\.00\b/)).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Receivables/ })).toHaveAttribute('href', '/finance/receivables');
     expect(screen.getByRole('link', { name: /Payables/ })).toHaveAttribute('href', '/finance/payables');
@@ -102,8 +103,23 @@ describe('Finance hub', () => {
     expect(screen.getByText(/to pay 1 supplier/)).toBeInTheDocument();
     expect(screen.getByText(/earned, not yet invoiced · through Oct/)).toBeInTheDocument();
     expect(screen.getByText('No progress recorded on 2 projects')).toBeInTheDocument();
-    expect(screen.getByText('Not available yet')).toBeInTheDocument();
-    expect(screen.getByText('+ USD 5,000 in other currencies')).toBeInTheDocument();
+    expect(screen.getByText('+ USD 5K in other currencies')).toBeInTheDocument();
+  });
+
+  it('L6: each overdue and supplier figure is shown once on the hub', () => {
+    renderHub();
+    // Overdue is owned by the attention block; payables by the Payables area card.
+    expect(screen.getAllByText(/45,000,000/)).toHaveLength(1);
+    expect(screen.getAllByText(/62,400,000/)).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Open Payables' }).closest('article')).toHaveTextContent('IDR 62.4M');
+    expect(screen.getByText(/1 supplier invoices? waiting to be paid/)).toBeInTheDocument();
+  });
+
+  it('F11: area cards show short amounts with the exact amount kept for hover and screen readers', () => {
+    renderHub();
+    const receivables = screen.getByRole('link', { name: 'Open Receivables' }).closest('article') as HTMLElement;
+    expect(within(receivables).getByText('IDR 83.2M').getAttribute('title')).toMatch(/^IDR\s83,200,000$/);
+    expect(within(receivables).getByText('IDR 83,200,000')).toHaveClass('sr-only');
   });
 
   it('AC-1405-HUB-002: Finance can create an invoice, while Executive stays read-only', () => {
@@ -132,12 +148,14 @@ describe('Finance hub', () => {
     expect(screen.queryByRole('button', { name: /New invoice|Review|Mark received|Apply|Open payables/ })).not.toBeInTheDocument();
   });
 
-  it('AC-1405-HUB-006: no statement catalogue renders a finite unavailable state instead of a loading skeleton', () => {
+  it('AC-1405-HUB-006: no statement catalogue states the reason once, shows no placeholder value, and does not spin', () => {
     renderHub();
 
-    const statements = screen.getByRole('link', { name: /Statements/ }).closest('article') ?? screen.getByRole('link', { name: /Statements/ }).parentElement;
-    expect(statements).toHaveTextContent('Not available yet');
-    expect(statements).not.toHaveAttribute('aria-busy', 'true');
+    const statements = screen.getByRole('link', { name: /Statements/ }).closest('article') as HTMLElement;
+    // C4: "Not available yet" is never shown as a value; the reason is said once and the card links to Statements.
+    expect(statements).not.toHaveTextContent('Not available yet');
+    expect(statements).toHaveTextContent('Net profit is not available for a period yet');
+    expect(within(statements).queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('AC-1405-HUB-007: statement catalogue errors offer a retry action', () => {

@@ -32,7 +32,8 @@ vi.mock('@/src/hooks/useUserViews', () => ({ useUserViews: () => ({ data: [] }) 
 vi.mock('@/src/hooks/useOrgFeatures', () => ({
   useOrgFeatures: () => ({ data: { crm: true, procurement: true, timesheets: true, revenue: true } }),
 }));
-vi.mock('@/src/lib/features', () => ({
+vi.mock('@/src/lib/features', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/lib/features')>()),
   isFeatureEnabled: () => false,
   FEATURE_ENV_DEFAULT: { crm: true, procurement: true, timesheets: true, revenue: true },
 }));

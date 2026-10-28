@@ -16,11 +16,15 @@ export function useManagementPack(range: ManagementPackRange, enabled = true) {
   });
 }
 
-/** #765: record a month-end percent complete; every cached pack window is refreshed on success. */
+/** #765: record a month-end percent complete; every cached pack window and project billing summary
+ *  (which shows the latest percent) is refreshed on success. */
 export function useRecordProjectProgress() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: ProjectProgressInput) => repositories.reports.recordProgress(input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['managementPack'] }),
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['managementPack'] }),
+      qc.invalidateQueries({ queryKey: ['project-billing'] }),
+    ]),
   });
 }

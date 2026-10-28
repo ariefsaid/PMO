@@ -109,7 +109,6 @@ export const PMProjectArea: React.FC<PMProjectAreaProps> = ({
       items.push({
         id: 'budget-risk',
         tone: 'warn',
-        icon: 'alert',
         count: 1,
         label: t('hub.pm.projectAtRisk', 'Budget is at least 90% spent'),
         href: `/projects/${project.id}`,
@@ -120,7 +119,6 @@ export const PMProjectArea: React.FC<PMProjectAreaProps> = ({
       items.push({
         id: 'overdue-tasks',
         tone: 'lost',
-        icon: 'clock',
         count: overdueTaskCount,
         label: t('hub.pm.overdueTasks', overdueTaskCount === 1 ? 'overdue task' : 'overdue tasks', { count: overdueTaskCount }),
         href: `/projects/${project.id}/tasks`,
@@ -131,7 +129,6 @@ export const PMProjectArea: React.FC<PMProjectAreaProps> = ({
       items.push({
         id: `procurement-${procurement.id}`,
         tone: 'warn',
-        icon: 'check',
         count: 1,
         label: t('hub.pm.procurementApproval', 'Procurement waiting for your approval'),
         sub: [procurement.title, procurement.vendor?.name].filter(Boolean).join(' · ') || undefined,

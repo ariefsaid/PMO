@@ -26,6 +26,7 @@ import { ON_HAND_STATUSES, INTERNAL_STATUSES } from '@/src/lib/db/projectTransit
 import { repositories } from '@/src/lib/repositories';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
+import { supplierUnpaid } from '@/pages/procurement/blocks/procurementMoney';
 
 export type NeedsTone = 'warn' | 'neutral' | 'lost';
 
@@ -59,6 +60,8 @@ export interface SupplierInvoiceNeeds {
 export interface NeedsYouFacts {
   approvals?: number;
   atRiskProjects?: number;
+  /** Active projects with no active budget: their risk cannot be judged, so a zero at-risk count is not "all clear". */
+  riskUncheckedProjects?: number;
   procurementsAwaitingApproval?: number;
   overdueInvoices?: OverdueInvoiceNeeds;
   supplierInvoices?: SupplierInvoiceNeeds;
@@ -97,6 +100,11 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
       id: 'at-risk', count: facts.atRiskProjects,
       label: counted(t, 'needs.atRisk', 'project at risk', 'projects at risk', facts.atRiskProjects),
       href: '/projects?filter=at-risk', tone: 'warn',
+    });
+    if (facts.riskUncheckedProjects !== undefined) add({
+      id: 'risk-unchecked', count: facts.riskUncheckedProjects,
+      label: counted(t, 'needs.riskUnchecked', "project without an active budget; risk can't be checked yet", "projects without an active budget; risk can't be checked yet", facts.riskUncheckedProjects),
+      href: '/projects', tone: 'neutral',
     });
     if (facts.procurementsAwaitingApproval !== undefined) add({
       id: 'procurement-approvals', count: facts.procurementsAwaitingApproval,
@@ -215,7 +223,9 @@ export function selectSupplierInvoices(rows: ProcurementWithRefs[] | undefined):
   const totals = new Map<string, number>();
   let unknownBalances = 0;
   for (const row of invoiced) {
-    if (Number.isFinite(row.total_value)) totals.set(row.currency, (totals.get(row.currency) ?? 0) + row.total_value);
+    // Same unpaid basis as the Procurement list and Finance payables.
+    const unpaid = supplierUnpaid(row);
+    if (!unpaid.unknown && unpaid.amount !== null) totals.set(row.currency, (totals.get(row.currency) ?? 0) + unpaid.amount);
     else unknownBalances += 1;
   }
   return { count: invoiced.length, knownTotals: [...totals].map(([currency, amount]) => ({ currency, amount })), unknownBalances };
@@ -265,7 +275,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     queryFn: () => repositories.revenue.listInvoices(),
     enabled: Boolean(orgId && companyRole),
   });
-  const procurementsQuery = useProcurements({ enabled: Boolean(orgId && (companyRole || role === 'Project Manager')) });
+  const procurementsQuery = useProcurements({ withSharedDetails: true, enabled: Boolean(orgId && (companyRole || role === 'Project Manager')) });
   const workOrdersQuery = useUnbilledWorkOrders(Boolean(orgId && companyRole));
   const budgetReviewQuery = useQuery({
     queryKey: ['finance-budget-review', orgId],
@@ -369,6 +379,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const facts: NeedsYouFacts = {
     approvals: role === 'Project Manager' ? approvalsWithoutTimesheets : approvalsCount,
     atRiskProjects: companyRole ? dashboardQuery.data?.projects_at_risk : undefined,
+    riskUncheckedProjects: companyRole ? dashboardQuery.data?.risk_unchecked_projects : undefined,
     procurementsAwaitingApproval: procurementApprovalRole ? procApprovals.length : undefined,
     overdueInvoices: companyRole ? invoiceNeeds : undefined,
     supplierInvoices: companyRole ? supplierNeeds : undefined,

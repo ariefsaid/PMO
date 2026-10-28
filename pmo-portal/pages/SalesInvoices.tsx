@@ -21,6 +21,7 @@ import {
   MenuButton,
   Tooltip,
   TaxBasisLabel,
+  SelectField,
   Badge,
   useToast,
   type Column,
@@ -64,6 +65,8 @@ import type { CommandIntent } from '@/src/lib/repositories/types';
 import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceApprovalRow';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { BulkBar } from '@/src/components/finance/receivables/BulkBar';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
+import { isTaxTreatment } from '@/src/lib/taxTreatment';
 
 /** Status filter segments. "PartlyPaid" is a display state of a PMO invoice (DD-NAR-3), never a stored status. */
 type StatusFilter = 'All' | SalesInvoiceStatus | 'PartlyPaid';
@@ -208,15 +211,18 @@ const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
     };
   }, [invoice.id, invoice.si_number, payments.data]);
 
+  const hasReceipts = payments.isError || paymentEvidence.allocations.length > 0 || paymentEvidence.hasUnknown;
+  // C4: a PMO-native or unposted invoice has no accounting-system lines to read — genuine absence, not an outage.
+  if (!canFetchEvidence && !hasReceipts) return null;
   return (
     <section aria-labelledby="invoice-evidence-heading" className="mb-5 border-b border-border pb-4">
       <h2 id="invoice-evidence-heading" className="mb-3 text-base font-semibold">{t('uxs17.billEvidence', 'Bill evidence')}</h2>
-      {evidence.isPending && canFetchEvidence && !pendingTimedOut ? (
+      {!canFetchEvidence ? null : evidence.isPending && !pendingTimedOut ? (
         <p className="text-sm text-muted-foreground">{t('uxs17.evidenceLoading', 'Loading invoice evidence…')}</p>
-      ) : !canFetchEvidence || evidence.isError || pendingTimedOut ? (
+      ) : evidence.isError || pendingTimedOut ? (
         <div role="alert" className="flex flex-wrap items-center gap-3">
-          <p className="text-sm text-muted-foreground">{t('uxs17.evidenceUnavailable', 'Bill evidence is temporarily unavailable.')}</p>
-          {canFetchEvidence && <Button variant="outline" size="sm" onClick={() => void evidence.refetch()}>{t('uxs17.evidenceRetry', 'Retry invoice evidence')}</Button>}
+          <p className="text-sm text-muted-foreground">{t('finance:receivables.evidenceLoadError', "Couldn't load the invoice lines from the accounting system.")}</p>
+          <Button variant="outline" size="sm" onClick={() => void evidence.refetch()}>{t('uxs17.evidenceRetry', 'Retry invoice evidence')}</Button>
         </div>
       ) : (
         <div className="grid gap-5 sm:grid-cols-[minmax(0,2fr)_minmax(12rem,1fr)]">
@@ -253,7 +259,7 @@ const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
           ) : null}
         </div>
       )}
-      {(payments.isError || paymentEvidence.allocations.length > 0 || paymentEvidence.hasUnknown) && (
+      {hasReceipts && (
       <div className="mt-5 border-t border-border/70 pt-3">
         <h3 className="mb-1 text-sm font-medium">{t('uxs17.appliedReceipts', 'Applied receipts')}</h3>
         {payments.isError ? (
@@ -667,6 +673,15 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       .sort((a, b) => b.age - a.age || a.index - b.index)
       .map(({ invoice }) => invoice);
   }, [filtered, organizationToday, searchParams]);
+  // P5: on a phone the status chips become one select, so no chip is clipped at the scroll edge.
+  const isDesktop = useIsDesktop();
+  // C6: when every listed amount shares one tax basis, the Amount header states it once.
+  const sharedTaxBasis = useMemo(() => {
+    if (!embedded) return null;
+    const priced = sortedInvoices.filter((inv) => inv.amount != null);
+    const first = priced[0]?.tax_treatment;
+    return isTaxTreatment(first) && priced.every((inv) => inv.tax_treatment === first) ? first : null;
+  }, [embedded, sortedInvoices]);
 
   const state: 'loading' | 'empty' | 'error' | undefined = isPending || mode === undefined
     ? 'loading'
@@ -865,7 +880,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
         : preErp;
       return (
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-          {embedded ? <span className={draftLabel ? 'truncate text-[13px] text-foreground' : 'truncate font-mono text-[13px] text-foreground'} title={draftLabel ?? number ?? ''}>{draftLabel ?? number ?? '—'}</span> : <Link
+          {embedded ? <span className={draftLabel ? 'min-w-0 break-words text-[13px] text-foreground' : 'min-w-0 break-all font-mono text-[13px] text-foreground'}>{draftLabel ?? number ?? '—'}</span> : <Link
             to={`/sales-invoices/${encodeURIComponent(inv.id)}${location.search}`}
             state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }}
             className={draftLabel ? 'truncate text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline' : 'truncate font-mono text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline'}
@@ -921,7 +936,9 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   };
   const amountColumn: Column<SalesInvoiceRow> = {
     key: 'amount',
-    header: t('financeCopy.amount', "Amount"),
+    header: sharedTaxBasis
+      ? <span className="inline-flex items-baseline gap-1">{t('financeCopy.amount', "Amount")}<TaxBasisLabel treatment={sharedTaxBasis} showDetails={false} className="normal-case tracking-normal" /></span>
+      : t('financeCopy.amount', "Amount"),
     kind: 'money',
     align: 'num',
     size: embedded ? 140 : 200,
@@ -941,9 +958,9 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
             {showCode && <span className="text-xs text-muted-foreground">{inv.currency}</span>}
           </span>
           {inv.amount != null && <FxEquivalent amount={inv.amount} currency={inv.currency} date={inv.invoice_date} />}
-          {inv.amount != null ? <TaxBasisLabel treatment={inv.tax_treatment} showDetails={false} className="w-full text-right md:w-auto" taxBaseUnknown={inv.erp_docstatus != null} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} /> : null}
+          {inv.amount != null && !sharedTaxBasis ? <TaxBasisLabel treatment={inv.tax_treatment} showDetails={false} className="w-full text-right md:w-auto" taxBaseUnknown={inv.erp_docstatus != null} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} /> : null}
           {/* I-4: a PMO invoice states what the client owes in full, so Outstanding reconciles by eye. */}
-          {inv.pmo_native && invoiceGross(inv) != null && (
+          {inv.pmo_native && invoiceGross(inv) != null && invoiceGross(inv) !== inv.amount && (
             <span className="w-full text-right text-xs text-muted-foreground md:basis-full">
               {t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: listMoney(invoiceGross(inv)!, inv.currency) })}
               <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />
@@ -1020,11 +1037,11 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       const manager = inv.project_id ? projectsById.get(inv.project_id)?.pm?.full_name?.trim() : null;
       const managerInitial = manager?.charAt(0).toLocaleUpperCase() ?? '—';
       return <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="truncate font-medium" title={inv.customer_name ?? ''}>{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
-        <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground" title={project ?? ''}>
-          <span className="min-w-0 flex-1 truncate">{project ?? '—'}</span>
+        <span className="min-w-0 break-words font-medium">{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
+        <span className="flex min-w-0 flex-wrap items-center gap-1 text-xs text-muted-foreground">
+          <span className="min-w-0 break-words">{project ?? '—'}</span>
           <span aria-hidden="true" className="inline-grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground" title={manager ?? t('finance:receivables.unassignedProjectManager', 'Unassigned PM')}>{managerInitial}</span>
-          <span className="max-w-[82px] shrink truncate" title={manager ?? t('finance:receivables.unassignedProjectManager', 'Unassigned PM')}>{manager ?? t('finance:receivables.unassignedProjectManager', 'Unassigned PM')}</span>
+          <span className="min-w-0 break-words">{manager ?? t('finance:receivables.unassignedProjectManager', 'Unassigned PM')}</span>
         </span>
       </span>;
     },
@@ -1035,7 +1052,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     header: t('finance:receivables.delivery', 'Delivery'),
     kind: 'date',
     size: embedded ? 124 : 165,
-    cell: (inv) => <span className="block truncate">{inv.received_date
+    cell: (inv) => <span className="block min-w-0 whitespace-normal break-words">{inv.received_date
       ? t('finance:receivables.deliveryReceived', 'Received {{date}}', { date: formatDateOnly(inv.received_date) })
       : inv.status === 'Draft'
         ? t('finance:receivables.deliveryDraft', 'Draft by {{name}}', { name: inv.author_user_id ? profilesById.get(inv.author_user_id)?.full_name ?? t('finance:receivables.authorUnavailable', 'unknown') : t('finance:receivables.authorUnavailable', 'unknown') })
@@ -1217,7 +1234,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
               ? 'flex min-w-0 shrink-0 items-center gap-2 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
               : 'min-w-0 max-w-full overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'}
           >
-            <ViewToggle<StatusFilter>
+            {isDesktop ? <ViewToggle<StatusFilter>
               options={statusFilters.map((f) => ({ value: f, label: salesInvoiceStatusLabel(f, t) }))}
               value={statusFilter}
               onChange={(v) => {
@@ -1225,7 +1242,17 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
                 trackFilterApplied('status', statusFilters.length, 'salesInvoices');
               }}
               ariaLabel={t('financeCopy.filterByStatus', "Filter by status")}
-            />
+            /> : <SelectField
+              label={t('financeCopy.filterByStatus', "Filter by status")}
+              hideLabel
+              value={statusFilter}
+              options={statusFilters.map((f) => ({ value: f, label: salesInvoiceStatusLabel(f, t) }))}
+              onChange={(v) => {
+                updateListParam('status', v);
+                trackFilterApplied('status', statusFilters.length, 'salesInvoices');
+              }}
+              className="h-11 min-w-[10rem] text-[16px]"
+            />}
             <div className={embedded ? 'flex shrink-0 items-center gap-2' : 'mt-2 flex flex-wrap items-end gap-2'}>
               {requestedCustomerId && (
                 <div data-testid="customer-filter" className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5">
@@ -1390,10 +1417,13 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
                 {statusColumn.cell(inv)}
                 <span className="shrink-0 text-xs text-muted-foreground">{due ? formatDateOnly(due) : '—'}</span>
               </div>
-              <span className="shrink-0 text-right text-xs tabular">
-                <span>{outstanding == null ? '—' : formatCurrency(outstanding, inv.currency)}</span>
-                {total != null && <span className="ml-1 text-muted-foreground">{t('finance:receivables.ofTotal', 'of {{total}}', { total: formatCurrency(total, inv.currency) })}</span>}
-              </span>
+              {/* O9: a settled, cancelled or untouched invoice shows its total; only a part-paid balance reads "X of total". */}
+              {total != null && (outstanding == null || outstanding === total || outstanding === 0 || inv.status === 'Paid' || inv.status === 'Cancelled')
+                ? <span className="shrink-0 text-right text-xs tabular">{formatCurrency(total, inv.currency)}</span>
+                : <span className="shrink-0 text-right text-xs tabular">
+                  <span>{outstanding == null ? '—' : formatCurrency(outstanding, inv.currency)}</span>
+                  {total != null && <span className="ml-1 text-muted-foreground">{t('finance:receivables.ofTotal', 'of {{total}}', { total: formatCurrency(total, inv.currency) })}</span>}
+                </span>}
             </div>;
           } : undefined}
           selection={embedded ? {

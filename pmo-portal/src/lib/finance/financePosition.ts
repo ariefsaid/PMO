@@ -2,6 +2,7 @@ import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
 import { knownUnappliedCash } from '@/src/lib/revenue/receiptAllocation';
+import { supplierUnpaid } from '@/pages/procurement/blocks/procurementMoney';
 
 export type CurrencyTotals = Record<string, number>;
 
@@ -43,8 +44,11 @@ export interface FinancePosition {
   toSend: SalesInvoiceRow[];
   unappliedPayments: Array<{ payment: IncomingPaymentRow; amount: number }>;
   unappliedTotals: CurrencyTotals;
-  payables: Array<{ procurement: ProcurementWithRefs; ageDays: number; amount: number }>;
+  /** Unpaid supplier balance in cents; null when the balance is unknown. */
+  payables: Array<{ procurement: ProcurementWithRefs; ageDays: number; amount: number | null }>;
+  /** Known unpaid balances only; `payablesUnknownCount` counts the rest. */
   payablesTotals: CurrencyTotals;
+  payablesUnknownCount: number;
   receivablesAgeing: Record<string, AgeingBuckets>;
   payablesAgeing: Record<string, PayablesAgeingBuckets>;
 }
@@ -153,13 +157,19 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
   const payables: FinancePosition['payables'] = [];
   const payablesTotals: CurrencyTotals = {};
   const payablesAgeing: Record<string, PayablesAgeingBuckets> = {};
+  let payablesUnknownCount = 0;
   for (const procurement of procurements) {
     if (!isProcurementReadyToPay(procurement)) continue;
     const ageDays = calendarAgeDays(procurement.vendor_invoiced_at ?? procurement.updated_at, today);
     if (ageDays == null) continue;
-    const amount = Number(procurement.total_value);
-    if (!Number.isFinite(amount)) continue;
-    const amountCents = cents(amount);
+    // Same unpaid basis as the Procurement list: supplier invoices less Paid payments.
+    const unpaid = supplierUnpaid(procurement);
+    if (unpaid.unknown || unpaid.amount === null) {
+      payablesUnknownCount += 1;
+      payables.push({ procurement, ageDays, amount: null });
+      continue;
+    }
+    const amountCents = cents(unpaid.amount);
     payables.push({ procurement, ageDays, amount: amountCents });
     add(payablesTotals, procurement.currency, amountCents);
     const buckets = payablesAgeing[procurement.currency] ??= { d0_30: 0, d31_60: 0, d61_90: 0, over90: 0 };
@@ -178,6 +188,7 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
     unappliedTotals,
     payables,
     payablesTotals,
+    payablesUnknownCount,
     receivablesAgeing,
     payablesAgeing,
   };

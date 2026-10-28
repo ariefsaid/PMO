@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -67,6 +67,7 @@ function payablesFixture(): FinancePosition {
       amount: 6_240_000_000,
     }],
     payablesTotals: { IDR: 6_240_000_000 },
+    payablesUnknownCount: 0,
     receivablesAgeing: {},
     payablesAgeing: { IDR: { d0_30: 0, d31_60: 0, d61_90: 0, over90: 6_240_000_000 } },
   };
@@ -76,9 +77,9 @@ function Location() {
   return <output aria-label="Current path">{useLocation().pathname}</output>;
 }
 
-function renderPage(role = 'Finance') {
+function renderPage(role = 'Finance', position: FinancePosition = payablesFixture()) {
   state.role = role;
-  state.position = payablesFixture();
+  state.position = position;
   return render(
     <MemoryRouter initialEntries={['/finance/payables']}>
       <Routes>
@@ -121,6 +122,13 @@ describe('Payables page', () => {
     expect(screen.getAllByRole('button', { name: 'How this figure is calculated' })).toHaveLength(2);
   });
 
+  it('F11: the to-pay figure is short with its exact amount kept, while the table total stays full', () => {
+    renderPage();
+    const figures = screen.getByRole('region', { name: 'Payables figures' });
+    expect(within(figures).getByText('IDR 62.4M').getAttribute('title')).toMatch(/^IDR\s62,400,000$/);
+    expect(within(screen.getByRole('table', { name: 'Supplier invoices waiting to be paid' })).getAllByText(/62,400,000/).length).toBeGreaterThan(0);
+  });
+
   it('AC-1405-PAY-004: keeps search and export in the table card beside the table', () => {
     renderPage();
 
@@ -150,5 +158,28 @@ describe('Payables page', () => {
 
     expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Record payment|Edit|Cancel|Pay supplier/i })).not.toBeInTheDocument();
+  });
+
+  it('uses the supplier invoice empty state when no procurement is awaiting payment (ported from PayablesList)', () => {
+    renderPage('Finance', { ...payablesFixture(), payables: [], payablesTotals: {}, payablesAgeing: {} });
+
+    expect(screen.getByText('No supplier invoices waiting to be paid.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Open supplier invoice for/ })).not.toBeInTheDocument();
+  });
+
+  it('SEC-RS-2: an unknown supplier balance shows as unknown with its reason, never as zero, and is counted', () => {
+    const base = payablesFixture();
+    const unknownRow = {
+      ...base.payables[0],
+      procurement: { ...base.payables[0].procurement, id: 'procurement-2', title: 'Crane hire', code: 'PR-105', vendor: { name: 'Bumi Rental' }, vendor_id: 'supplier-2' },
+      ageDays: 12,
+      amount: null,
+    } as FinancePosition['payables'][number];
+    renderPage('Finance', { ...base, payables: [base.payables[0], unknownRow], payablesUnknownCount: 1 });
+
+    const row = screen.getByRole('row', { name: /Bumi Rental/ });
+    expect(row).not.toHaveTextContent(/IDR\s?0\b|Rp\s?0\b/);
+    expect(within(row).getByTitle('No supplier invoice amount on record, so the unpaid balance is unknown.')).toHaveTextContent('—');
+    expect(screen.getByText('1 balance unknown')).toBeInTheDocument();
   });
 });

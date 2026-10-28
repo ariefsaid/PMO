@@ -27,6 +27,8 @@ export interface AccountingSnapshotsSectionProps {
   showApAging?: boolean;
   showArAging?: boolean;
   embedded?: boolean;
+  /** Index pages: the actuals ledger starts collapsed behind its row count. */
+  actualsCollapsed?: boolean;
   actuals: ErpActualsSnapshotRow[];
   actualsPending?: boolean;
   actualsError?: boolean;
@@ -180,6 +182,7 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
   errorLabel,
   detail,
   embedded = false,
+  collapsedSummary,
 }: {
   title: string;
   emptyLabel: string;
@@ -197,6 +200,8 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
   /** One shared snapshot fact line (e.g. aging report date + basis), shown once under the provenance. */
   detail?: string;
   embedded?: boolean;
+  /** Index pages: the block starts closed behind this one-line summary (native disclosure). */
+  collapsedSummary?: string;
 }) {
   const first = rows[0];
   const content = <>
@@ -219,6 +224,17 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
       <DataTable<Row> rows={rows} columns={columns} rowKey={rowKey} embedded tableId={tableId} />
     )}
   </>;
+  if (collapsedSummary) return (
+    <Card seam>
+      <details>
+        <summary className="flex cursor-pointer items-center gap-2.5 px-4 py-[13px] text-sm font-semibold">
+          <h2 className="text-sm font-semibold">{title}</h2>
+          <span className="text-[13px] font-normal text-muted-foreground">{collapsedSummary}</span>
+        </summary>
+        <div className="border-t border-border px-4 pb-4 pt-2">{content}</div>
+      </details>
+    </Card>
+  );
   return (
     embedded
       ? <section className="grid gap-2"><h3 className="text-sm font-semibold">{title}</h3>{content}</section>
@@ -245,6 +261,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
   showApAging = true,
   showArAging = true,
   embedded = false,
+  actualsCollapsed = false,
 }) => {
   const { t } = useTranslation('dashboard');
   // Actuals rows carry no currency field and are org-denominated. Aging rows must keep the source
@@ -270,6 +287,9 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       emptyLabel={t('dashboard.actualsSnapshotEmpty', 'No actuals snapshot yet')}
       emptyDescription={`${t('dashboard.snapshots.unavailable', 'No accounting snapshot has been synced yet.')} ${t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}`}
       rows={actuals}
+      collapsedSummary={actualsCollapsed && !actualsPending && !actualsError && actuals.length > 0
+        ? t('dashboard:finance.actualsRows', '{{count}} ledger rows', { count: actuals.length })
+        : undefined}
       pending={actualsPending}
       isError={actualsError}
       onRetry={onRetryActuals}
