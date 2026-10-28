@@ -65,8 +65,8 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
         </span>
       ) : undefined
     }
-    // Phone identity gets a complete row before status; desktop PageHeader is unchanged.
-    className={cn('[&_h1]:basis-full sm:[&_h1]:basis-0', className)}
+    // A full mobile basis still shrinks beside status unless shrink is disabled; restore it on desktop.
+    className={cn('[&_h1]:basis-full [&_h1]:shrink-0 sm:[&_h1]:basis-0 sm:[&_h1]:shrink', className)}
   />
 );
 
