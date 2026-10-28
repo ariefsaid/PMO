@@ -33,4 +33,17 @@ describe('FigureGroup', () => {
     fireEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(retry).toHaveBeenCalledOnce();
   });
+
+  it('L2: a multi-currency figure puts each currency on its own line, never wrapped mid-pair', () => {
+    renderGroup({ figures: [{ id: 'invoiced', label: 'Invoiced', value: 'IDR 114.7M · $11.8M', lines: ['IDR 114.7M', '$11.8M'] }] });
+    expect(screen.getByText('IDR 114.7M')).toHaveClass('block');
+    expect(screen.getByText('$11.8M')).toHaveClass('block');
+    expect(screen.queryByText('IDR 114.7M · $11.8M')).not.toBeInTheDocument();
+  });
+
+  it('O15: a single figure spans the group instead of sitting in a half-width column', () => {
+    renderGroup({ figures: [{ id: 'won', label: 'Won', value: '3 · $14.4M' }] });
+    const cell = screen.getByText('3 · $14.4M').closest('.border-b') as HTMLElement;
+    expect(cell.parentElement).toHaveClass('grid-cols-1');
+  });
 });

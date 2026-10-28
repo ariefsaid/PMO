@@ -12,7 +12,7 @@ export interface AreaPanelProps {
 }
 
 export const AreaPanel: React.FC<AreaPanelProps> = ({ title, openHref, openLabel, meta, children }) => (
-  <Card>
+  <Card className="min-w-0">
     <CardHead
       level={2}
       actions={
@@ -27,7 +27,7 @@ export const AreaPanel: React.FC<AreaPanelProps> = ({ title, openHref, openLabel
     >
       {title}
     </CardHead>
-    <div className="grid gap-3 p-4">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 p-4">
       {meta != null && <p className="text-xs text-muted-foreground">{meta}</p>}
       {children}
     </div>

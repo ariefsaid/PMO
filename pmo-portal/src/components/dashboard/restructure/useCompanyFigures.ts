@@ -15,6 +15,7 @@ import type { ManagementPack } from '@/src/lib/reports/managementPack';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import type { UnbilledWorkOrderTotal } from '@/src/lib/db/workOrderBilling';
 import { selectOverdueInvoices, selectSupplierInvoices } from './useNeedsYou';
+import { orderByCurrency } from './currencyOrder';
 
 export interface CompanyFiguresResult {
   today: DashboardFigure[];
@@ -87,15 +88,24 @@ export function currencyFigure(
   unavailable: string,
   unknownLabel: (currency: string) => string = (currency) => `${currency} unknown`,
 ): { value: string; exactValue: string } | null {
-  const known = rows.filter((row): row is { currency: string; amount: number } => row.amount !== null && Number.isFinite(row.amount));
+  const ordered = orderByCurrency(rows, orgCurrency);
+  const known = ordered.filter((row): row is { currency: string; amount: number } => row.amount !== null && Number.isFinite(row.amount));
   if (known.length === 0) return null;
   const figures = known.map(({ currency, amount }) => moneyFigure(amount, currency, unavailable, { code: currency !== orgCurrency }));
-  const unknown = rows.filter((row) => !known.includes(row as { currency: string; amount: number })).map((row) => unknownLabel(row.currency));
+  const unknown = ordered.filter((row) => !known.includes(row as { currency: string; amount: number })).map((row) => unknownLabel(row.currency));
   return {
     value: figures.map((figure) => figure.value).join(' · '),
     exactValue: [...figures.map((figure) => figure.exactValue ?? figure.value), ...unknown].join(' · '),
   };
 }
+
+/** One short figure per known currency, in the shared currency order (the lines behind a joined `value`). */
+const currencyLines = (
+  rows: Array<{ currency: string; amount: number | null }>,
+  orgCurrency: string,
+  unavailable: string,
+): string[] => orderByCurrency(rows.filter((row) => row.amount !== null && Number.isFinite(row.amount)), orgCurrency)
+  .map((row) => moneyFigure(row.amount as number, row.currency, unavailable, { code: row.currency !== orgCurrency }).value);
 
 const currencyText = (
   rows: Array<{ currency: string; amount: number | null }>,
@@ -233,7 +243,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
       : winRate.data?.wins_value === null || winRate.data?.wins_value === undefined ? null : moneyFigure(winRate.data.wins_value, orgCurrency, moneyReason).value;
     const rate = winRate.data?.win_rate_count;
     return [
-      { id: 'invoiced', label: t('figures.invoiced', 'Invoiced · excl. tax'), value: invoiced === undefined ? null : (invoiceCurrencyTotals.length ? currencyText(invoiceCurrencyTotals, orgCurrency, moneyReason) : moneyFigure(0, orgCurrency, moneyReason).value), unavailableReason: t('figures.invoicedUnknown', 'Invoiced totals are unavailable for this period.'), href: '/sales-invoices' },
+      { id: 'invoiced', label: t('figures.invoiced', 'Invoiced · excl. tax'), value: invoiced === undefined ? null : (invoiceCurrencyTotals.length ? currencyText(invoiceCurrencyTotals, orgCurrency, moneyReason) : moneyFigure(0, orgCurrency, moneyReason).value), lines: currencyLines(invoiceCurrencyTotals, orgCurrency, moneyReason), unavailableReason: t('figures.invoicedUnknown', 'Invoiced totals are unavailable for this period.'), href: '/sales-invoices' },
       { id: 'collected', label: t('figures.collected', 'Collected'), value: collected === undefined ? null : (() => {
         const unknownCurrencies = new Set(collected.unknownCurrencies);
         const known = collectedCurrencyTotals.filter((row) => !unknownCurrencies.has(row.currency));
@@ -242,8 +252,8 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
           ...collected.unknownCurrencies.map((currency) => ({ currency, amount: null })),
         ];
         return displayRows.length ? currencyText(displayRows, orgCurrency, moneyReason) : moneyFigure(0, orgCurrency, moneyReason).value;
-      })(), unavailableReason: t('figures.collectedUnknown', 'Incoming payment totals are unavailable for this period.'), title: collected?.unknownCurrencies.length ? t('figures.collectedUnknown', 'Incoming payment totals are unavailable for this period.') : undefined, href: '/incoming-payments' },
-      { id: 'won', label: t('figures.won', 'Won'), value: wonCount === undefined ? null : `${wonCount}${wonMoney ? ` · ${wonMoney}` : ''}`, unavailableReason: t('figures.wonUnknown', 'Won project results are unavailable for this period.'), subline: wonCount === undefined ? undefined : t('figures.wonCount', '{{count}} projects won', { count: wonCount }), href: '/projects?status=Won' },
+      })(), lines: currencyLines(collectedCurrencyTotals.filter((row) => !(collected?.unknownCurrencies ?? []).includes(row.currency)), orgCurrency, moneyReason), unavailableReason: t('figures.collectedUnknown', 'Incoming payment totals are unavailable for this period.'), title: collected?.unknownCurrencies.length ? t('figures.collectedUnknown', 'Incoming payment totals are unavailable for this period.') : undefined, href: '/incoming-payments' },
+      { id: 'won', label: t('figures.won', 'Won'), value: wonCount === undefined ? null : `${wonCount}${wonMoney ? ` · ${wonMoney}` : ''}`, unavailableReason: t('figures.wonUnknown', 'Won project results are unavailable for this period.'), href: '/projects?status=Won' },
       { id: 'win-rate', label: t('figures.winRate', 'Win rate'), value: rate === undefined || (winRate.data?.wins_count ?? 0) + (winRate.data?.losses_count ?? 0) === 0 ? null : `${(rate * 100).toFixed(1)}%`, unavailableReason: t('figures.winRateNoResults', 'No closed project results were recorded in this period.'), subline: rate === undefined ? undefined : t('figures.winRateBasis', 'By project count'), href: '/sales' },
     ];
   }, [collected, collectedCurrencyTotals, invoiced, invoiceCurrencyTotals, moneyReason, orgCurrency, t, winCurrencyTotals, winRate.data]);

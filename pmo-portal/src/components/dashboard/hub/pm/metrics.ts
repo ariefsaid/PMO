@@ -5,6 +5,7 @@ import type { PMDashboardProject } from '@/src/lib/db/dashboard';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import { isActualComplete } from '@/src/lib/projectFinances';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
+import { orderByCurrency } from '../../restructure/currencyOrder';
 
 export type ProjectMoneyField = 'contract_value' | 'contract_remaining' | 'realized_margin';
 
@@ -26,10 +27,10 @@ export function projectMoneyFigure(
     totals.set(project.currency, (totals.get(project.currency) ?? 0) + amount);
   }
 
-  const grouped = [...totals].map(([currency, amount]) => ({ currency, amount }));
+  const grouped = orderByCurrency([...totals].map(([currency, amount]) => ({ currency, amount })), orgCurrency);
   const figures = grouped.map(({ currency, amount }) => ({
     currency,
-    figure: moneyFigure(amount, currency, unavailableReason, { code: grouped.length > 1 || currency !== orgCurrency }),
+    figure: moneyFigure(amount, currency, unavailableReason, { code: currency !== orgCurrency }),
   }));
   if (figures.some(({ figure }) => figure.unavailableReason)) {
     return { value: '—', unavailableReason };

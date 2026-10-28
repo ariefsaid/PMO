@@ -29,7 +29,7 @@ const base = {
   procurements_by_status: [],
   top_projects: [],
 };
-const h = vi.hoisted(() => ({ dash: null as unknown }));
+const h = vi.hoisted(() => ({ dash: null as unknown, win: null as unknown, pack: { totals: [] as unknown[] } }));
 
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
   useUnbilledWorkOrders: () => ({ data: { totals: [], incompleteCount: 0 }, isPending: false, isError: false, refetch: vi.fn() }),
@@ -47,7 +47,7 @@ vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({
   useInvoicesAwaitingViewer: () => ({ rows: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useManagementPack', () => ({
-  useManagementPack: () => ({ data: { totals: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+  useManagementPack: () => ({ data: h.pack, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 // The needs-you hook reads the same dashboard RPC directly; serve it the same fixture.
 vi.mock('@/src/lib/db/dashboard', async (importOriginal) => ({
@@ -59,7 +59,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   usePMDashboardProjects: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useFinanceBudgetReview: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useSalesPipeline: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
-  useWinRate: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+  useWinRate: () => ({ data: h.win, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useErpSnapshots', () => ({
@@ -86,7 +86,7 @@ const tile = (label: string) => {
   return element as HTMLElement;
 };
 
-beforeEach(() => { h.dash = { ...base }; });
+beforeEach(() => { h.dash = { ...base }; h.win = null; h.pack = { totals: [] }; });
 
 describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
   it('AC-IXD-DASH-002: no figure carries the ambiguous "Projected margin" name; forecast margin appears once, on the pipeline', () => {
@@ -142,5 +142,27 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     // The remainder is short per known currency; the unknown one is not shown as zero.
     expect(contract).toHaveTextContent('IDR 800M');
     expect(contract).not.toHaveTextContent(/\$0\b/);
+  });
+
+  it('L6: Won reads "3 · $14.4M" once — no second "3 projects won" line — and spans the Sales panel', () => {
+    h.win = { wins_count: 3, losses_count: 2, wins_value: 14_400_000, losses_value: 0, win_rate_count: 0.6, win_rate_value: 0.5, value_by_currency: [{ currency: 'USD', wins_value: 14_400_000, losses_value: 0 }] };
+    renderExec();
+    const sales = screen.getByRole('heading', { name: 'Sales' }).closest('.rounded-lg.border') as HTMLElement;
+    expect(within(sales).getByText('3 · $14.4M')).toBeInTheDocument();
+    expect(within(sales).queryByText(/projects? won/)).not.toBeInTheDocument();
+    expect(within(sales).getByText('3 · $14.4M').closest('.border-b')?.parentElement).toHaveClass('grid-cols-1');
+  });
+
+  it('L2: Billing puts one currency per line, the organisation currency first', () => {
+    const january = `${new Date().getFullYear()}-01`;
+    h.pack = { totals: [
+      { currency: 'IDR', months: [{ month: january, invoiced: 11_470_000_000 }] },
+      { currency: 'USD', months: [{ month: january, invoiced: 1_180_000_000 }] },
+    ] };
+    renderExec();
+    const billing = screen.getByRole('heading', { name: 'Billing and collections' }).closest('.rounded-lg.border') as HTMLElement;
+    const lines = within(billing).getAllByText(/114\.7M|11\.8M/);
+    expect(lines.map((line) => line.textContent?.replace(/\u00a0/g, ' '))).toEqual(['$11.8M', 'IDR 114.7M']);
+    for (const line of lines) expect(line).toHaveClass('block');
   });
 });

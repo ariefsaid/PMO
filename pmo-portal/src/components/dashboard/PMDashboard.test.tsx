@@ -21,6 +21,8 @@ const state = vi.hoisted(() => ({
     refetch: vi.fn(),
   },
   projectDetails: {} as Record<string, unknown>,
+  /** Per-project finances the project Overview reads (its margin gate); a project absent here has none loaded. */
+  finances: {} as Record<string, unknown>,
 }));
 
 vi.mock('@/src/hooks/useDashboard', () => ({
@@ -40,6 +42,9 @@ vi.mock('@/src/components/dashboard/restructure/useNeedsYou', () => ({
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProject: (id: string) => state.projectDetails[id] ?? { data: null, isPending: false, isError: false, refetch: vi.fn() },
+}));
+vi.mock('@/src/hooks/useProjectFinances', () => ({
+  useProjectFinances: (id: string) => ({ data: state.finances[id], isPending: false, isError: false }),
 }));
 // useProjectStatusLabel stays REAL (a pure i18n lookup): English defaults equal the enum, and the
 // Bahasa port below asserts the translated status a PM actually reads.
@@ -74,6 +79,23 @@ const makeProject = (overrides: Partial<PMDashboardProject> & Pick<PMDashboardPr
     ...rest,
   };
 };
+
+/**
+ * The finances payload the project Overview derives its margin from. A project whose margin is known
+ * has every category mapped (margin = billed revenue less spending); otherwise a category is unmapped.
+ */
+const financesFor = (project: PMDashboardProject, over: { mapped?: boolean } = {}) => ({
+  project_id: project.id, contract_invoiced: null, remaining_to_invoice: null, budget: null,
+  invoices: [{
+    currency: project.currency, invoice_count: 1, invoiced: null, settled: null, outstanding: null, missing_amount: 0,
+    missing_outstanding: 0, tax_basis: 'exclusive', work_revenue: `${(project.realized_margin ?? 0) + (project.spent ?? 0)}.00`, missing_work: 0,
+  }],
+  actuals: {
+    currency: project.currency, as_of: null, total: `${project.spent ?? 0}.00`, excludes_restricted_rows: false,
+    categories: [{ category: 'Materials', mapped: over.mapped ?? project.realized_margin != null, amount: `${project.spent ?? 0}.00` }],
+  },
+});
+const loadFinances = (list: PMDashboardProject[]) => Object.fromEntries(list.map((project) => [project.id, financesFor(project)]));
 
 const projects = [
   makeProject({ id: 'p1', name: 'Project One', status: 'Ongoing Project' }),
@@ -133,6 +155,7 @@ beforeEach(() => {
     isError: false,
     refetch: vi.fn(),
   }]));
+  state.finances = loadFinances(projects);
   for (const query of [state.projects, state.delivery, state.timesheets, state.procurements, state.needs]) {
     query.refetch.mockReset();
   }
@@ -238,9 +261,10 @@ describe('Project Manager area hub', () => {
     renderDashboard();
 
     const unknownContract = screen.getByTestId('kpi-my-contract-value');
-    const unknownMargin = screen.getByTestId('kpi-margin-to-date');
     expect(within(unknownContract).getByText('—')).toBeInTheDocument();
-    expect(within(unknownMargin).getByText('—')).toBeInTheDocument();
+    // C4: an unknown margin is left out of the band, and the reason is said once under it.
+    expect(screen.queryByTestId('kpi-margin-to-date')).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Some projects have incomplete spending/)).toHaveLength(1);
     const unknownReason = within(unknownContract).getByRole('button', { name: /one or more project contract values are unavailable/i });
     fireEvent.focus(unknownReason);
     expect(screen.getByRole('tooltip')).toHaveTextContent(/one or more project contract values are unavailable/i);
@@ -351,6 +375,7 @@ const areaFor = (name: string) => {
 describe('PMDashboard — ported baseline cases (delivery scope, money, risk, status)', () => {
   beforeEach(() => {
     state.projects.data = baseline;
+    state.finances = loadFinances(baseline);
     state.delivery.data = {};
     state.needs.items = [];
     state.needs.pmOverdueTasksByProject = {};
@@ -432,11 +457,11 @@ describe('PMDashboard — ported baseline cases (delivery scope, money, risk, st
     expect(within(projectA).getByText('$250K')).toBeInTheDocument();
     expect(within(projectA).queryByText('$3M')).not.toBeInTheDocument();
 
-    // A delivery project without a billed-work margin explains why — never a fabricated percentage.
+    // C4: a delivery project without a billed-work margin has no margin figure (and no dash) — never a fabricated percentage.
     const projectB = areaFor('My Project B');
     expect(projectB.textContent).not.toMatch(/\d+\.\d+%/);
-    fireEvent.focus(within(projectB).getByRole('button', { name: 'Help: margin to date' }));
-    expect(screen.getByRole('tooltip')).toHaveTextContent(/Billed-work margin is unavailable/);
+    expect(within(projectB).queryByText('Margin to date')).not.toBeInTheDocument();
+    expect(within(projectB).queryByText('—')).not.toBeInTheDocument();
   });
 });
 
@@ -509,5 +534,71 @@ describe('PMDashboard — ported Bahasa (AC-UXA-001)', () => {
     renderDashboard('id');
     expect(screen.getByText('Tidak dapat memuat proyek dan hal yang perlu ditangani')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Coba lagi' })).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Integration rulings re-check (2026-10-28): L12(e)/(h), C4, O4.
+// ---------------------------------------------------------------------------
+describe('PMDashboard — rulings re-check', () => {
+  const meridian = makeProject({
+    id: 'mer', name: 'Meridian', status: 'Ongoing Project', contract_value: 5_300_000, spent: 1_800_000,
+    realized_margin: 2_500_000, budget: 4_500_000,
+  });
+
+  it('L12(e): the card margin follows the project Overview gate — left out while a budget category has no linked spending', () => {
+    state.projects.data = [meridian];
+    // The dashboard RPC says 2.5M, but the Overview derivation leaves it out (a category is unmapped).
+    state.finances = { mer: financesFor(meridian, { mapped: false }) };
+    renderDashboard();
+    const card = areaFor('Meridian');
+    expect(within(card).queryByText('Margin to date')).not.toBeInTheDocument();
+    expect(card).not.toHaveTextContent('$2.5M');
+  });
+
+  it('L12(e): when the Overview gate passes the card shows that same margin', () => {
+    state.projects.data = [meridian];
+    state.finances = { mer: financesFor(meridian, { mapped: true }) };
+    renderDashboard();
+    expect(within(areaFor('Meridian')).getByText('$2.5M')).toBeInTheDocument();
+  });
+
+  it('C4: unknown project number, client and spending are left out — no "—" in the card — and the reason is said once on the page', () => {
+    const unknown = makeProject({
+      id: 'u', name: 'Unknown Spend', status: 'Ongoing Project', client_name: null, spent: null,
+      actual_complete: false, realized_margin: null, contract_remaining: null,
+    });
+    state.projects.data = [unknown];
+    state.finances = { u: financesFor(unknown) };
+    state.projectDetails = { u: { data: { pmo_project_number: null }, isPending: false, isError: false, refetch: vi.fn() } };
+    renderDashboard();
+    const card = areaFor('Unknown Spend');
+    expect(within(card).queryByText('—')).not.toBeInTheDocument();
+    expect(within(card).queryByText('Contract spent')).not.toBeInTheDocument();
+    expect(card).toHaveTextContent('USD');
+    expect(screen.getAllByText(/Some projects have incomplete spending/)).toHaveLength(1);
+    expect(screen.queryByText(/Contract remaining is unavailable/)).not.toBeInTheDocument();
+  });
+
+  it('O4: a card with open items leads with them, before its figures; a card with none says so after its figures', () => {
+    state.projects.data = [projects[0], projects[1]];
+    state.needs.pmOverdueTasksByProject = { p1: 2 };
+    renderDashboard();
+    const busy = areaFor('Project One');
+    const overdue = within(busy).getByRole('link', { name: /2 overdue tasks/i });
+    expect(overdue.compareDocumentPosition(within(busy).getByText('Contract')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const quiet = areaFor('Project Two');
+    const nothing = within(quiet).getByText('Nothing needs you here.');
+    expect(within(quiet).getByText('Contract').compareDocumentPosition(nothing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('L12(h): a two-currency contract total names the organisation currency first, like the company dashboard', () => {
+    state.projects.data = [
+      makeProject({ id: 'idr', name: 'Rupiah job', status: 'Ongoing Project', currency: 'IDR', actual_currency: 'IDR', budget_currency: 'IDR', contract_value: 269_000_000 }),
+      makeProject({ id: 'usd', name: 'Dollar job', status: 'Ongoing Project', contract_value: 33_100_000 }),
+    ];
+    renderDashboard();
+    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$33.1M · IDR 269M');
   });
 });

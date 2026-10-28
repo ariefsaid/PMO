@@ -25,6 +25,7 @@ import {
   projectAtRisk,
   projectMoneyFigure,
   atRiskCount,
+  projectSpendOfContractPct,
   sumAwaitingTimesheetHours,
 } from './hub/pm/metrics';
 
@@ -96,6 +97,10 @@ export const PMDashboard: React.FC = () => {
     orgCurrency,
     t('hub.pm.marginUnavailable', 'Billed-work margin is unavailable for one or more projects.'),
   );
+  // C4: figures the system cannot know are left out of the band, and the reason is said once under it.
+  const marginKnown = marginFigure.unavailableReason === undefined;
+  const contractLeftKnown = contractLeftFigure.value !== '—';
+  const spendingIncomplete = !marginKnown || !contractLeftKnown || projects.some((project) => projectSpendOfContractPct(project) === null);
   const atRisk = atRiskCount(projects);
   const atRiskValue = atRisk === null
     ? '—'
@@ -166,7 +171,7 @@ export const PMDashboard: React.FC = () => {
 
       <ApprovalStrip items={approvalItems} />
 
-      <KPIRow aria-label={t('hub.pm.kpiBand', 'My project figures')} className="grid-cols-2 min-[1180px]:grid-cols-5">
+      <KPIRow aria-label={t('hub.pm.kpiBand', 'My project figures')} className={marginKnown || projectsErrorReason ? 'grid-cols-2 min-[1180px]:grid-cols-5' : 'grid-cols-2 min-[1180px]:grid-cols-4'}>
         <KPITile
           testId="kpi-my-projects"
           tone="violet"
@@ -187,9 +192,9 @@ export const PMDashboard: React.FC = () => {
           value={projectsErrorReason ? '—' : contractFigure.value}
           exactValue={projectsErrorReason ? undefined : contractFigure.exactValue}
           unavailableReason={projectsErrorReason ?? contractFigure.unavailableReason}
-          vs={projectsErrorReason ?? (contractLeftFigure.value === '—'
-            ? t('hub.pm.contractLeftUnavailable', 'Contract remaining is unavailable until project spending is complete.')
-            : t('hub.pm.contractLeft', '{{value}} left after spending', { value: contractLeftFigure.value }))}
+          vs={projectsErrorReason ?? (contractLeftKnown
+            ? t('hub.pm.contractLeft', '{{value}} left after spending', { value: contractLeftFigure.value })
+            : undefined)}
           loading={projectsQuery.isPending}
           to={PROJECTS_HREF}
           linkLabel={t('hub.pm.openMyProjects', 'Open my projects')}
@@ -210,19 +215,21 @@ export const PMDashboard: React.FC = () => {
           linkLabel={t('hub.pm.openAtRisk', 'Open at-risk projects')}
           help={t('hub.pm.atRiskHelp', 'Counts your delivery projects when actual spending is at least 90% of a positive budget in the same currency. Unknown spending or budget data makes the total unavailable.')}
         />
-        <KPITile
-          testId="kpi-margin-to-date"
-          tone="blue"
-          icon="chart-column"
-          label={t('hub.pm.marginToDate', 'Margin to date')}
-          value={projectsErrorReason ? '—' : marginFigure.value}
-          exactValue={projectsErrorReason ? undefined : marginFigure.exactValue}
-          unavailableReason={projectsErrorReason ?? marginFigure.unavailableReason}
-          loading={projectsQuery.isPending}
-          to={PROJECTS_HREF}
-          linkLabel={t('hub.pm.openMarginProjects', 'Open projects with billed-work margin')}
-          help={t('hub.pm.marginHelp', 'Margin on billed work to date: billed-work revenue less recorded actual spending, grouped by project currency.')}
-        />
+        {(marginKnown || projectsErrorReason) && (
+          <KPITile
+            testId="kpi-margin-to-date"
+            tone="blue"
+            icon="chart-column"
+            label={t('hub.pm.marginToDate', 'Margin to date')}
+            value={projectsErrorReason ? '—' : marginFigure.value}
+            exactValue={projectsErrorReason ? undefined : marginFigure.exactValue}
+            unavailableReason={projectsErrorReason ?? marginFigure.unavailableReason}
+            loading={projectsQuery.isPending}
+            to={PROJECTS_HREF}
+            linkLabel={t('hub.pm.openMarginProjects', 'Open projects with billed-work margin')}
+            help={t('hub.pm.marginHelp', 'Margin on billed work to date: billed-work revenue less recorded actual spending, grouped by project currency.')}
+          />
+        )}
         <KPITile
           testId="kpi-team-hours"
           tone="violet"
@@ -236,6 +243,9 @@ export const PMDashboard: React.FC = () => {
           help={t('hub.pm.teamHoursHelp', 'Sum of hours in team timesheets currently waiting for your approval.')}
         />
       </KPIRow>
+      {spendingIncomplete && !projectsErrorReason && !projectsQuery.isPending && projects.length > 0 && (
+        <p className="-mt-2 text-xs text-muted-foreground">{t('hub.pm.spendingIncompleteNote', 'Some projects have incomplete spending, so margin, contract left and contract spent are shown only where they are known.')}</p>
+      )}
 
       {primaryLoading ? (
         <ListState variant="loading" />

@@ -39,6 +39,21 @@ describe('AttentionList', () => {
     expect(screen.getByText('2 items')).toBeInTheDocument();
   });
 
+  it('N14: a row with a help tooltip lays out like a row without one (full width, chevron at the far right)', () => {
+    render(
+      <MemoryRouter>
+        <AttentionList compact items={[
+          { id: 'a', tone: 'lost', count: 1, label: 'budget running over', href: '/projects', tooltip: 'Over its recorded spend' },
+          { id: 'b', tone: 'warn', count: 1, label: 'project at risk', href: '/projects?filter=at-risk' },
+        ]}
+        />
+      </MemoryRouter>,
+    );
+    const withTooltip = screen.getByRole('link', { name: /budget running over/i });
+    expect(withTooltip.parentElement).toHaveClass('flex', 'w-full');
+    expect(withTooltip).toHaveClass('w-full');
+  });
+
   it('renders nothing when there are no items', () => {
     const { container } = render(
       <MemoryRouter>

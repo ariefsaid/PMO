@@ -258,7 +258,12 @@
       "noRecentEntries": "No recent time entries",
       "noRecentEntriesSub": "Recorded hours will appear here.",
       "retrySub": "Retry to check your latest time entries.",
-      "explain": "Explain {{label}}"
+      "explain": "Explain {{label}}",
+      "noHoursWeek": "No hours this week",
+      "logHoursShort": "Log hours",
+      "daysLate_one": "{{count}} day late",
+      "daysLate_other": "{{count}} days late",
+      "noHoursByProject": "No hours to show by project this week."
     },
     "pm": {
       "title": "My dashboard",
@@ -325,7 +330,8 @@
       "procurementApproval": "Procurement waiting for your approval",
       "procurementApprovalHelp": "Open this procurement to review its approval request.",
       "atRiskAtLeast": "At least {{count}}",
-      "riskPartial": "At 90% or more of budget; other projects have incomplete budget or spending data"
+      "riskPartial": "At 90% or more of budget; other projects have incomplete budget or spending data",
+      "spendingIncompleteNote": "Some projects have incomplete spending, so margin, contract left and contract spent are shown only where they are known."
     },
     "company": {
       "title": "Dashboard",
@@ -460,7 +466,19 @@
       "basis": "Position today in each record currency; sales and billing results cover {{period}}.",
       "openStage": "Open {{stage}} opportunities",
       "projectStatus": "Project status",
-      "pmoAgeingSource": "From invoices recorded in PMO; the accounting system has no ageing synced yet."
+      "pmoAgeingSource": "From invoices recorded in PMO; the accounting system has no ageing synced yet.",
+      "spendIncomplete_one": "{{count}} project has incomplete spending",
+      "spendIncomplete_other": "{{count}} projects have incomplete spending",
+      "unpaid": "Unpaid",
+      "unpaidUnknown": "No supplier invoice amount recorded",
+      "unpaidUnknownNote_one": "{{count}} supplier invoice has no recorded amount yet",
+      "unpaidUnknownNote_other": "{{count}} supplier invoices have no recorded amount yet",
+      "budgetSpendIncomplete_one": "{{count}} has incomplete spending",
+      "budgetSpendIncomplete_other": "{{count}} have incomplete spending",
+      "stageRequest": "Request",
+      "stageOrder": "Order",
+      "stageReceive": "Receive",
+      "stagePay": "Pay"
     }
   },
   "restructure": {

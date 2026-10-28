@@ -2,6 +2,8 @@ import React, { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useProject } from '@/src/hooks/useProjects';
+import { useProjectFinances } from '@/src/hooks/useProjectFinances';
+import { deriveMargin } from '@/src/lib/projectFinances';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { DeliveryPctChip } from '@/components/DeliveryPctChip';
 import { pillVariantForProjectStatus } from '@/components/projects';
@@ -57,10 +59,6 @@ const MiniFigure: React.FC<FigureProps> = ({ label, value, helpLabel, help, exac
   </div>
 );
 
-const metaValue = (value: string | null | undefined, unavailable: string) => (
-  value ? <span>{value}</span> : <span title={unavailable} aria-label={unavailable}>—</span>
-);
-
 const statusVariant = (status: string) => {
   const variant = pillVariantForProjectStatus(status);
   return variant === 'progress' ? 'neutral' : variant;
@@ -86,8 +84,14 @@ export const PMProjectArea: React.FC<PMProjectAreaProps> = ({
     t('hub.pm.contractUnavailable', 'This project contract value is unavailable.'),
     { code: currencyCodeNeeded },
   );
+  // L12(e): the margin shows only when the project Overview's own gate lets it (billed-work revenue
+  // complete, spending linked for every budget category, one currency) — the same derivation, same figure.
+  const finances = useProjectFinances(project.id);
+  const marginBucket = finances.data?.invoices.find((bucket) => bucket.currency === project.currency);
+  const derivedMargin = marginBucket && finances.data?.actuals ? deriveMargin(marginBucket, finances.data.actuals) : null;
+  const marginAmount = derivedMargin && derivedMargin.reason === null && derivedMargin.amount !== null ? Number(derivedMargin.amount) : null;
   const margin = moneyFigure(
-    project.realized_margin ?? null,
+    marginAmount,
     projectCurrency,
     t('hub.pm.marginUnavailable', 'Billed-work margin is unavailable for this project.'),
     { code: currencyCodeNeeded },
@@ -145,12 +149,7 @@ export const PMProjectArea: React.FC<PMProjectAreaProps> = ({
       {contract.unavailableReason && <><br /><br />{contract.unavailableReason}</>}
     </>
   );
-  const marginHelp = (
-    <>
-      {t('hub.pm.projectMarginHelp', 'Profit on billed work to date: billed-work revenue less recorded actual spending.')}
-      {margin.unavailableReason && <><br /><br />{margin.unavailableReason}</>}
-    </>
-  );
+  const marginHelp = t('hub.pm.projectMarginHelp', 'Profit on billed work to date: billed-work revenue less recorded actual spending.');
   const spendingHelp = (
     <>
       {contractSpentPct === null
@@ -158,16 +157,21 @@ export const PMProjectArea: React.FC<PMProjectAreaProps> = ({
         : t('hub.pm.contractSpendHelp', '{{spent}} spent of {{contract}} contract.', { spent: spent.exactValue ?? spent.value, contract: contract.exactValue ?? contract.value })}
     </>
   );
+  // C4: a number, client or budget that is not known is left out of the line, not shown as a dash.
+  const metaParts: React.ReactNode[] = [
+    projectNumber,
+    project.client_name,
+    <span key="currency" title={t('hub.pm.projectCurrencyHelp', 'Currency used for this project’s contract and margin figures.')}>{projectCurrency}</span>,
+    (project.budget == null || project.budget <= 0) ? t('hub.pm.budgetNotSet', 'Budget not set') : null,
+  ].filter(Boolean);
   const projectMeta = (
     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-      <span>{metaValue(projectNumber, projectQuery.isError
-        ? t('hub.pm.projectNumberLoadError', 'Project number could not be loaded.')
-        : t('hub.pm.projectNumberUnavailable', 'Project number is not available.'))}</span>
-      <span aria-hidden="true">·</span>
-      <span>{metaValue(project.client_name, t('hub.pm.clientUnavailable', 'Client name is not available.'))}</span>
-      <span aria-hidden="true">·</span>
-      <span title={t('hub.pm.projectCurrencyHelp', 'Currency used for this project’s contract and margin figures.')}>{projectCurrency}</span>
-      {(project.budget == null || project.budget <= 0) && <><span aria-hidden="true">·</span><span>{t('hub.pm.budgetNotSet', 'Budget not set')}</span></>}
+      {metaParts.map((part, index) => (
+        <React.Fragment key={index}>
+          {index > 0 && <span aria-hidden="true">·</span>}
+          <span>{part}</span>
+        </React.Fragment>
+      ))}
     </span>
   );
 
@@ -175,6 +179,20 @@ export const PMProjectArea: React.FC<PMProjectAreaProps> = ({
   const deliveryHelp = t('hub.pm.deliveryHelp', 'Progress from recorded project milestones.');
   const formattedStatus = status || project.status;
 
+  const contractKnown = contract.unavailableReason === undefined;
+  const marginKnown = margin.unavailableReason === undefined;
+  const attention = (
+    <section aria-label={t('hub.pm.attentionLabel', 'What needs you on {{project}}', { project: project.name })}>
+      {hasNoAttention ? (
+        <p className="py-1 text-sm text-muted-foreground">{t('hub.pm.nothingNeedsYou', 'Nothing needs you here.')}</p>
+      ) : (
+        <AttentionList items={attentionItems} compact />
+      )}
+    </section>
+  );
+
+  // O4: each card leads with what is notable for THAT project — its open items first — then the figures
+  // that are known. A card with nothing open says so at the foot, under its figures.
   return (
     <AreaPanel
       title={(
@@ -190,21 +208,53 @@ export const PMProjectArea: React.FC<PMProjectAreaProps> = ({
       openLabel={t('hub.pm.openProject', 'Open project')}
       meta={projectMeta}
     >
-      <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
-        <MiniFigure
-          label={t('hub.pm.contract', 'Contract')}
-          value={contract.value}
-          exactValue={contract.exactValue}
-          helpLabel={t('hub.pm.projectContractHelpLabel', 'Help: contract value')}
-          help={contractHelp}
-        />
-        <MiniFigure
-          label={t('hub.pm.marginToDate', 'Margin to date')}
-          value={margin.value}
-          exactValue={margin.exactValue}
-          helpLabel={t('hub.pm.projectMarginHelpLabel', 'Help: margin to date')}
-          help={marginHelp}
-        />
+      {!hasNoAttention && attention}
+
+      {contractSpentPct !== null && (
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1">
+              <span className="text-xs font-medium text-muted-foreground">{t('hub.pm.contractSpent', 'Contract spent')}</span>
+              <HelpTip label={t('hub.pm.contractSpendHelpLabel', 'Help: percent of contract spent')}>{spendingHelp}</HelpTip>
+            </div>
+            <Tooltip content={spendingHelp}>
+              <span tabIndex={0} className="mt-1 inline-flex max-w-full rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">
+                <ProgressBar
+                  value={contractSpentPct}
+                  showValue
+                  aria-label={t('hub.pm.contractSpentAria', '{{name}}: {{percent}}% of contract spent', { name: displayName, percent: contractSpentPct })}
+                  className="w-full"
+                />
+              </span>
+            </Tooltip>
+          </div>
+          {spent.value !== '—' && contract.value !== '—' && (
+            <span className="self-end pb-0.5 text-xs text-muted-foreground" title={spent.exactValue}>
+              {spent.value} / {contract.value}
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-border pt-3 sm:grid-cols-3">
+        {contractKnown && (
+          <MiniFigure
+            label={t('hub.pm.contract', 'Contract')}
+            value={contract.value}
+            exactValue={contract.exactValue}
+            helpLabel={t('hub.pm.projectContractHelpLabel', 'Help: contract value')}
+            help={contractHelp}
+          />
+        )}
+        {marginKnown && (
+          <MiniFigure
+            label={t('hub.pm.marginToDate', 'Margin to date')}
+            value={margin.value}
+            exactValue={margin.exactValue}
+            helpLabel={t('hub.pm.projectMarginHelpLabel', 'Help: margin to date')}
+            help={marginHelp}
+          />
+        )}
         <div className="min-w-0">
           <div className="flex min-h-6 items-center gap-1">
             <span className="text-xs text-muted-foreground">{t('hub.pm.status', 'Status')}</span>
@@ -221,41 +271,7 @@ export const PMProjectArea: React.FC<PMProjectAreaProps> = ({
         )}
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-border pt-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-1">
-            <span className="text-xs font-medium text-muted-foreground">{t('hub.pm.contractSpent', 'Contract spent')}</span>
-            <HelpTip label={t('hub.pm.contractSpendHelpLabel', 'Help: percent of contract spent')}>{spendingHelp}</HelpTip>
-          </div>
-          {contractSpentPct === null ? (
-            <span className="text-sm font-semibold tabular text-muted-foreground" aria-label={t('hub.pm.contractSpendUnavailable', 'The spending percentage is unavailable because the contract or actual spending basis is incomplete.')}>—</span>
-          ) : (
-            <Tooltip content={spendingHelp}>
-              <span tabIndex={0} className="mt-1 inline-flex max-w-full rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">
-                <ProgressBar
-                  value={contractSpentPct}
-                  showValue
-                  aria-label={t('hub.pm.contractSpentAria', '{{name}}: {{percent}}% of contract spent', { name: displayName, percent: contractSpentPct })}
-                  className="w-full"
-                />
-              </span>
-            </Tooltip>
-          )}
-        </div>
-        {spent.value !== '—' && contract.value !== '—' && (
-          <span className="self-end pb-0.5 text-xs text-muted-foreground" title={spent.exactValue}>
-            {spent.value} / {contract.value}
-          </span>
-        )}
-      </div>
-
-      <section aria-label={t('hub.pm.attentionLabel', 'What needs you on {{project}}', { project: project.name })}>
-        {hasNoAttention ? (
-          <p className="py-1 text-sm text-muted-foreground">{t('hub.pm.nothingNeedsYou', 'Nothing needs you here.')}</p>
-        ) : (
-          <AttentionList items={attentionItems} compact />
-        )}
-      </section>
+      {hasNoAttention && attention}
     </AreaPanel>
   );
 };

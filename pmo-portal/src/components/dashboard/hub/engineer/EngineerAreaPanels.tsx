@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { formatDateOnly, formatNumberExact } from '@/src/lib/format';
+import { overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import type { MyTask } from '@/src/hooks/useMyTasks';
 import type { ExpenseClaimWithRefs } from '@/src/lib/db/expenseClaims';
@@ -48,6 +49,20 @@ function attentionItems(items: NeedsItem[], detail: string): AttentionItem[] {
   }));
 }
 
+/** N18: with no hours this week the Time panel is one line with its doorway, not an empty chart. */
+function NoHoursLine() {
+  const { t } = useTranslation('dashboard');
+  return (
+    <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+      <span>{t('hub.engineer.noHoursWeek', 'No hours this week')}</span>
+      <span aria-hidden="true">·</span>
+      <Link to="/timesheets" className="inline-flex min-h-11 items-center font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+        {t('hub.engineer.logHoursShort', 'Log hours')}
+      </Link>
+    </p>
+  );
+}
+
 export function EngineerTimePanel({
   attention,
   loading,
@@ -89,15 +104,15 @@ export function EngineerTimePanel({
           ) : (
             <p className="text-sm text-muted-foreground">{t('hub.engineer.noTimeAttention', 'No timesheet needs your attention.')}</p>
           )}
-          <div className="grid gap-2">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold">{t('hub.engineer.hoursByDay', 'Hours by day this week')}</h3>
-              <FigureHelp
-                label={t('hub.engineer.hoursByDay', 'Hours by day this week')}
-                content={t('hub.engineer.hoursByDayHelp', 'Each bar sums your current week’s timesheet entries for that day.')}
-              />
-            </div>
-            {hasHours ? (
+          {hasHours ? (
+            <div className="grid gap-2">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold">{t('hub.engineer.hoursByDay', 'Hours by day this week')}</h3>
+                <FigureHelp
+                  label={t('hub.engineer.hoursByDay', 'Hours by day this week')}
+                  content={t('hub.engineer.hoursByDayHelp', 'Each bar sums your current week’s timesheet entries for that day.')}
+                />
+              </div>
               <div role="group" aria-label={t('hub.engineer.hoursByDay', 'Hours by day this week')} className="grid gap-0.5">
                 {days.map((day) => (
                   <HoursBar
@@ -110,60 +125,68 @@ export function EngineerTimePanel({
                   />
                 ))}
               </div>
-            ) : (
-              <div className="grid gap-2">
-                <p className="text-sm text-muted-foreground">{t('hub.engineer.noHours', 'No hours logged this week')}</p>
-              </div>
-            )}
-          </div>
+            </div>
+          ) : <NoHoursLine />}
         </>
       )}
-      <Link to="/timesheets" className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-        {t('hub.engineer.logHours', 'Log hours in Timesheets')}
-        <Icon name="chev" className="size-4" />
-      </Link>
+      {(loading || error || hasHours) && (
+        <Link to="/timesheets" className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          {t('hub.engineer.logHours', 'Log hours in Timesheets')}
+          <Icon name="chev" className="size-4" />
+        </Link>
+      )}
     </AreaPanel>
   );
 }
 
-function TaskRows({ rows }: { rows: MyTask[] }) {
+/** A task opens in its project's task drawer; a task with no project falls back to My Tasks. */
+const taskHref = (task: MyTask) => task.project_id ? `/projects/${task.project_id}/tasks?open=${encodeURIComponent(task.id)}` : '/my-tasks';
+
+function TaskRows({ rows, today }: { rows: MyTask[]; today: string | null }) {
   const { t } = useTranslation('dashboard');
   return (
-    <ul className="divide-y divide-border">
-      {rows.slice(0, 5).map((task) => (
-        <li key={task.id}>
-          <Link
-            to="/my-tasks"
-            className="flex min-h-11 items-center justify-between gap-3 py-2 text-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-medium">{task.name}</span>
-              <span className="block truncate text-xs text-muted-foreground">
-                {task.project_name ?? t('hub.engineer.noProject', 'No project')} · {t('hub.engineer.dueDate', 'Due {{date}}', { date: formatDateOnly(task.end_date) })}
+    <ul className="min-w-0 divide-y divide-border">
+      {rows.slice(0, 5).map((task) => {
+        // N15: an overdue task says how late it is, in red; a task due this week says its date.
+        const late = today && task.end_date && task.end_date < today ? overdueAgeDays(task.end_date, today) : null;
+        return (
+          <li key={task.id} className="min-w-0">
+            <Link
+              to={taskHref(task)}
+              className="flex min-h-11 min-w-0 items-center justify-between gap-3 py-2 text-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">{task.name}</span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {task.project_name ?? t('hub.engineer.noProject', 'No project')}
+                  {late === null && <> · {t('hub.engineer.dueDate', 'Due {{date}}', { date: formatDateOnly(task.end_date) })}</>}
+                </span>
               </span>
-            </span>
-            <Icon name="chev" className="size-4 shrink-0 text-muted-foreground" />
-          </Link>
-        </li>
-      ))}
+              {late !== null && (
+                <span className="shrink-0 whitespace-nowrap text-xs font-medium text-destructive-text">
+                  {t('hub.engineer.daysLate', { count: late, defaultValue: '{{count}} days late', defaultValue_one: '{{count}} day late' })}
+                </span>
+              )}
+              <Icon name="chev" className="size-4 shrink-0 text-muted-foreground" />
+            </Link>
+          </li>
+        );
+      })}
     </ul>
   );
 }
 
 export function EngineerTasksPanel({
-  attention,
   overdue,
   dueThisWeek,
+  today,
   loading,
   error,
   onRetry,
-}: PanelState & { attention: NeedsItem[]; overdue: MyTask[]; dueThisWeek: MyTask[] }) {
+}: PanelState & { overdue: MyTask[]; dueThisWeek: MyTask[]; today: string | null }) {
   const { t } = useTranslation('dashboard');
-  const items = useMemo(
-    () => attentionItems(attention, t('hub.engineer.taskAttentionHelp', 'Open assigned tasks with due dates before today or through Sunday this week.')),
-    [attention, t],
-  );
 
+  // L6: the "Tasks due" tile carries the overdue / due-this-week count; this panel lists the rows without restating it.
   return (
     <AreaPanel
       title={t('hub.engineer.tasks', 'Tasks')}
@@ -175,18 +198,17 @@ export function EngineerTasksPanel({
       ) : error ? (
         <ListState variant="error" title={t('hub.engineer.tasksError', "Couldn't load your tasks")} onRetry={onRetry} />
       ) : (
-        <div className="grid gap-3">
-          {items.length > 0 && <AttentionList items={items} compact />}
+        <div className="grid min-w-0 gap-3">
           {overdue.length > 0 && (
-            <section aria-label={t('hub.engineer.overdue', 'Overdue')}>
+            <section aria-label={t('hub.engineer.overdue', 'Overdue')} className="min-w-0">
               <h3 className="mb-1 text-sm font-semibold">{t('hub.engineer.overdue', 'Overdue')}</h3>
-              <TaskRows rows={overdue} />
+              <TaskRows rows={overdue} today={today} />
             </section>
           )}
           {dueThisWeek.length > 0 && (
-            <section aria-label={t('hub.engineer.dueThisWeek', 'Due this week')}>
+            <section aria-label={t('hub.engineer.dueThisWeek', 'Due this week')} className="min-w-0">
               <h3 className="mb-1 text-sm font-semibold">{t('hub.engineer.dueThisWeek', 'Due this week')}</h3>
-              <TaskRows rows={dueThisWeek} />
+              <TaskRows rows={dueThisWeek} today={today} />
             </section>
           )}
           {overdue.length === 0 && dueThisWeek.length === 0 && (
@@ -280,13 +302,13 @@ export function EngineerProjectHoursPanel({
         <ListState variant="error" title={t('hub.engineer.timesheetsError', "Couldn't load your timesheets")} onRetry={onRetry} />
       ) : (
         <>
-          <h3 className="flex items-center gap-2 text-sm font-semibold">
+          {projects.length > 0 && <h3 className="flex items-center gap-2 text-sm font-semibold">
             {t('hub.engineer.projectHours', 'Hours by project')}
             <FigureHelp
               label={t('hub.engineer.projectHours', 'Hours by project')}
               content={t('hub.engineer.projectHoursHelp', 'Each bar sums your current week’s timesheet entries for that project.')}
             />
-          </h3>
+          </h3>}
           {projects.length > 0 ? (
             <div role="group" aria-label={t('hub.engineer.byProject', 'This week by project')} className="grid gap-0.5">
               {projects.map((project) => {
@@ -312,7 +334,7 @@ export function EngineerProjectHoursPanel({
               })}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">{t('hub.engineer.noProjectHours', 'No project hours logged this week.')}</p>
+            <p className="text-sm text-muted-foreground">{t('hub.engineer.noHoursByProject', 'No hours to show by project this week.')}</p>
           )}
         </>
       )}

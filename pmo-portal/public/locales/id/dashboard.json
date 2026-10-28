@@ -258,7 +258,12 @@
       "noRecentEntries": "Belum ada entri waktu terbaru",
       "noRecentEntriesSub": "Jam yang dicatat akan muncul di sini.",
       "retrySub": "Coba lagi untuk memeriksa entri waktu terbaru.",
-      "explain": "Jelaskan {{label}}"
+      "explain": "Jelaskan {{label}}",
+      "noHoursWeek": "Belum ada jam minggu ini",
+      "logHoursShort": "Catat jam",
+      "daysLate_one": "terlambat {{count}} hari",
+      "daysLate_other": "terlambat {{count}} hari",
+      "noHoursByProject": "Belum ada jam untuk ditampilkan per proyek minggu ini."
     },
     "pm": {
       "title": "Dasbor saya",
@@ -325,7 +330,8 @@
       "procurementApproval": "Pengadaan menunggu persetujuan Anda",
       "procurementApprovalHelp": "Buka pengadaan ini untuk meninjau permintaan persetujuannya.",
       "atRiskAtLeast": "Setidaknya {{count}}",
-      "riskPartial": "Pada 90% atau lebih dari anggaran; proyek lain memiliki data anggaran atau pengeluaran yang belum lengkap"
+      "riskPartial": "Pada 90% atau lebih dari anggaran; proyek lain memiliki data anggaran atau pengeluaran yang belum lengkap",
+      "spendingIncompleteNote": "Sebagian proyek memiliki pengeluaran yang belum lengkap, sehingga margin, sisa kontrak, dan kontrak terpakai hanya ditampilkan jika diketahui."
     },
     "company": {
       "title": "Dasbor",
@@ -460,7 +466,19 @@
       "basis": "Posisi hari ini dalam mata uang setiap catatan; hasil penjualan dan penagihan mencakup {{period}}.",
       "openStage": "Buka peluang {{stage}}",
       "projectStatus": "Status proyek",
-      "pmoAgeingSource": "Dari faktur yang tercatat di PMO; sistem akuntansi belum menyinkronkan umur saldo."
+      "pmoAgeingSource": "Dari faktur yang tercatat di PMO; sistem akuntansi belum menyinkronkan umur saldo.",
+      "spendIncomplete_one": "{{count}} proyek memiliki pengeluaran yang belum lengkap",
+      "spendIncomplete_other": "{{count}} proyek memiliki pengeluaran yang belum lengkap",
+      "unpaid": "Belum dibayar",
+      "unpaidUnknown": "Jumlah faktur pemasok belum tercatat",
+      "unpaidUnknownNote_one": "{{count}} faktur pemasok belum memiliki jumlah tercatat",
+      "unpaidUnknownNote_other": "{{count}} faktur pemasok belum memiliki jumlah tercatat",
+      "budgetSpendIncomplete_one": "{{count}} memiliki pengeluaran yang belum lengkap",
+      "budgetSpendIncomplete_other": "{{count}} memiliki pengeluaran yang belum lengkap",
+      "stageRequest": "Permintaan",
+      "stageOrder": "Pesanan",
+      "stageReceive": "Penerimaan",
+      "stagePay": "Pembayaran"
     }
   },
   "restructure": {

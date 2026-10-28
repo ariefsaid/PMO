@@ -160,7 +160,6 @@ export const EngineerDashboard: React.FC = () => {
     date: formatDateOnly(addDays(weekStart, 4)),
   }) : undefined;
   const weekAttention = needsYou.items.filter((item) => item.id === 'timesheet-not-submitted' || item.id === 'timesheet-returned');
-  const taskAttention = needsYou.items.filter((item) => item.id === 'engineer-tasks');
   const expenseAttention = needsYou.items.filter((item) => item.id === 'returned-expenses');
 
   return (
@@ -249,9 +248,9 @@ export const EngineerDashboard: React.FC = () => {
           hasHours={hoursThisWeek > 0}
         />
         <EngineerTasksPanel
-          attention={taskAttention}
           overdue={overdueTasks}
           dueThisWeek={dueTasks}
+          today={organizationDay.day}
           loading={taskLoading}
           error={taskDataError || tasks.isError}
           onRetry={refresh}

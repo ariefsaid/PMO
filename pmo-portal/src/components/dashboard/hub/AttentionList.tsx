@@ -56,7 +56,7 @@ const AttentionRows: React.FC<{ items: AttentionItem[]; compact?: boolean }> = (
 
       return (
         <li key={item.id}>
-          {item.tooltip ? <Tooltip content={item.tooltip}>{link}</Tooltip> : link}
+          {item.tooltip ? <Tooltip block content={item.tooltip}>{link}</Tooltip> : link}
         </li>
       );
     })}

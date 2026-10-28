@@ -155,15 +155,40 @@ describe('Engineer area hub', () => {
     renderDashboard();
 
     expect(screen.getByRole('heading', { name: 'Overdue' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Finalize drawings/ })).toHaveAttribute('href', '/my-tasks');
+    // N15: each task opens in its project's task drawer, not the My Tasks list.
+    expect(screen.getByRole('link', { name: /Finalize drawings/ })).toHaveAttribute('href', '/projects/p1/tasks?open=overdue');
     expect(screen.getByRole('heading', { name: 'Due this week' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Prepare handover/ })).toHaveAttribute('href', '/my-tasks');
+    expect(screen.getByRole('link', { name: /Prepare handover/ })).toHaveAttribute('href', '/projects/p1/tasks?open=due');
     expect(screen.queryByText('Close punch list')).not.toBeInTheDocument();
     expect(screen.queryByText('Plan next phase')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Travel receipt/ })).toHaveAttribute('href', '/expenses');
     expect(screen.queryByText('Open draft')).not.toBeInTheDocument();
     expect(screen.queryByText('Another person’s claim')).not.toBeInTheDocument();
     expect(screen.queryByText('Cash advance')).not.toBeInTheDocument();
+  });
+
+  it('N15: an overdue task says how late it is in red; a task due this week says its date', () => {
+    renderDashboard();
+
+    const overdue = screen.getByRole('link', { name: /Finalize drawings/ });
+    const late = within(overdue).getByText('3 days late');
+    expect(late).toHaveClass('text-destructive-text');
+    expect(overdue).not.toHaveTextContent(/Due /);
+    expect(screen.getByRole('link', { name: /Prepare handover/ })).toHaveTextContent(/Due /);
+  });
+
+  it('N15: a task with no project still opens My Tasks', () => {
+    state.tasks.data = [{ ...tasks[0], project_id: null, project_name: null }];
+    renderDashboard();
+    expect(screen.getByRole('link', { name: /Finalize drawings/ })).toHaveAttribute('href', '/my-tasks');
+  });
+
+  it('L6: the Tasks panel lists rows; the count lives in the Tasks due tile, not repeated as a doorway row', () => {
+    renderDashboard();
+    const panel = screen.getByRole('heading', { name: 'Tasks', level: 2 }).closest('.rounded-lg.border') as HTMLElement;
+    expect(within(panel).queryByRole('link', { name: /tasks overdue or due this week/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId('kpi-tasks-due')).toHaveTextContent('2');
+    expect(screen.getByRole('link', { name: 'Open tasks due this week' })).toHaveAttribute('href', '/my-tasks');
   });
 
   it('opens a recent entry in Timesheets and includes its description and status', () => {
@@ -221,8 +246,12 @@ describe('Engineer area hub', () => {
     renderDashboard();
 
     expect(screen.getByTestId('kpi-hours-week')).toHaveTextContent('0');
-    expect(screen.getAllByText('No hours logged this week').length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('link', { name: 'Log hours in Timesheets' }).every((link) => link.getAttribute('href') === '/timesheets')).toBe(true);
+    // N18 / L6: no hours is ONE line with its doorway, not an empty chart plus a repeated sentence.
+    expect(screen.getAllByText('No hours this week')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Log hours' })).toHaveAttribute('href', '/timesheets');
+    expect(screen.queryByRole('group', { name: 'Hours by day this week' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Mon')).not.toBeInTheDocument();
+    expect(screen.queryByText('No hours logged this week')).not.toBeInTheDocument();
   });
 
   it('keeps Recent entries table content inside the area panel without a second frame', () => {
@@ -242,7 +271,6 @@ describe('Engineer area hub', () => {
     expect(timesheet).toHaveTextContent('Due Fri');
     expect(timesheet).not.toHaveTextContent('—');
     expect(screen.getByRole('link', { name: 'Open timesheet status' })).toHaveAttribute('href', '/timesheets');
-    expect(screen.getByRole('link', { name: /2 tasks overdue or due this week/i })).toHaveAttribute('href', '/my-tasks');
   });
 
   it('shows unknown values when a source has no loaded data', () => {
@@ -267,7 +295,7 @@ describe('Engineer area hub', () => {
 
     expect(screen.getByRole('heading', { name: 'Dasbor saya' })).toBeInTheDocument();
     expect(screen.getByText('Minggu Anda dan hal yang perlu diperhatikan')).toBeInTheDocument();
-    expect(screen.getAllByText('Tidak ada jam yang dicatat minggu ini').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Belum ada jam minggu ini').length).toBeGreaterThan(0);
   });
 });
 
@@ -331,8 +359,8 @@ describe('Engineer area hub — ported baseline cases', () => {
     renderDashboard('id');
     expect(screen.getByTestId('kpi-timesheet-status')).toHaveTextContent('Belum dimulai');
     expect(screen.getByTestId('kpi-timesheet-status')).not.toHaveTextContent('—');
-    expect(screen.getAllByText('Tidak ada jam yang dicatat minggu ini').length).toBeGreaterThan(0);
-    expect(screen.getByRole('link', { name: 'Catat jam di Timesheets' })).toHaveAttribute('href', '/timesheets');
+    expect(screen.getAllByText('Belum ada jam minggu ini').length).toBeGreaterThan(0);
+    expect(screen.getByRole('link', { name: 'Catat jam' })).toHaveAttribute('href', '/timesheets');
     expect(screen.getByText('Belum ada entri waktu terbaru')).toBeInTheDocument();
   });
 

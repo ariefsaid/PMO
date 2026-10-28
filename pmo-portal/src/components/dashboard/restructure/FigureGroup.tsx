@@ -10,6 +10,8 @@ export interface DashboardFigure {
   label: string;
   /** Null means the source cannot prove a value; it is rendered as an explained dash. */
   value: React.ReactNode | null;
+  /** Per-currency pieces of `value`: with more than one, each currency sits on its own line (never wrapped mid-pair). */
+  lines?: string[];
   /** Exact amount behind a short figure (hover + screen reader). */
   exactValue?: string;
   subline?: React.ReactNode;
@@ -59,12 +61,14 @@ export const FigureGroup: React.FC<FigureGroupProps> = ({
         <h2 className="text-[18px] font-semibold leading-[1.3]">{heading}</h2>
         {basis && <span className="text-[12px] text-muted-foreground">{basis}</span>}
       </div>}
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))] gap-x-4">
+      <div className={figures.length === 1 ? 'grid grid-cols-1 gap-x-4' : 'grid grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))] gap-x-4'}>
         {figures.map((figure) => {
           const value = figure.value === null ? (
             <span title={figure.unavailableReason ?? t('figures.unknownReason', 'The source could not provide this figure.')}>—
               <span className="sr-only"> {figure.unavailableReason ?? t('figures.unknownReason', 'The source could not provide this figure.')}</span>
             </span>
+          ) : figure.lines && figure.lines.length > 1 ? (
+            <span title={figure.title}>{figure.lines.map((line) => <span key={line} className="block">{line}</span>)}</span>
           ) : (
             <span title={figure.title}>{figure.value}</span>
           );

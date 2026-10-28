@@ -28,9 +28,12 @@ import { AccountingSnapshotsSection } from '@/src/components/dashboard/Accountin
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
 import { StatusBarChart } from '@/src/components/dashboard/StatusBarChart';
-import { procurementStatusTone } from '@/src/components/dashboard/procurementStatusTone';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
 import { formatCurrency } from '@/src/lib/format';
+import { supplierUnpaid } from '@/pages/procurement/blocks/procurementMoney';
+import { stageForStatus, PROCUREMENT_STAGES, type ProcurementStage } from '@/pages/procurement/blocks/stage';
+import { chartTheme } from '@/src/components/ui/chartTheme';
+import { orderByCurrency } from '../../restructure/currencyOrder';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { ACTIVE_PROJECT_STATUSES } from '@/src/lib/db/projects';
 import type { ExecutiveDashboard as DashboardData, BudgetReviewRow, PipelineStage, PipelineProject } from '@/src/lib/db/dashboard';
@@ -90,10 +93,13 @@ function ProjectSpendTable({ dashboard, projects, pending, error, retry }: {
     const percent = comparable ? Math.round(row.spent! / row.contract_value! * 100) : null;
     return { row, percent };
   }).sort((a, b) => (b.percent ?? -1) - (a.percent ?? -1)).slice(0, 5);
+  const incomplete = rows.filter(({ percent }) => percent === null).length;
   const state = pending ? 'loading' : error ? 'error' : rows.length === 0 ? 'empty' : undefined;
   if (state) return <ListState variant={state} rows={3} title={state === 'empty' ? t('dashboard:hub.company.noProjects', 'No delivery projects to compare yet') : state === 'error' ? t('dashboard:hub.company.projectsError', "Couldn't load delivery projects") : undefined} onRetry={retry} />;
   return <div className="grid gap-2">
     <p className="text-xs text-muted-foreground">{t('dashboard:hub.company.topContractProjectsAttentionOrder', 'Largest 5 projects by contract, most attention first')}</p>
+    {/* C4: a project whose spending is not known has no spending line; the reason is said once, here. */}
+    {incomplete > 0 && <p className="text-xs text-muted-foreground">{t('dashboard:hub.company.spendIncomplete', { count: incomplete, defaultValue: '{{count}} projects have incomplete spending', defaultValue_one: '{{count}} project has incomplete spending' })}</p>}
     <ul className="divide-y divide-border" aria-label={t('dashboard:hub.company.spendingVsContract', 'Spending vs contract')}>
       {rows.map(({ row, percent }) => {
         const name = projectDisplayName(row);
@@ -116,7 +122,7 @@ function ProjectSpendTable({ dashboard, projects, pending, error, retry }: {
             <StatusPill variant={statusVariant(row.status)}>{statusLabel(row.status)}</StatusPill>
             <MenuButton ariaLabel={t('dashboard:hub.company.rowActionsFor', 'Row actions for {{name}}', { name })} items={menu} />
           </div>
-          {percent == null ? <span className="text-xs text-muted-foreground" title={t('dashboard:hub.company.usedUnknown', 'Recorded spending is incomplete or uses a different currency.')}>{t('dashboard:hub.company.spentLabel', 'Spent')} —<span className="sr-only"> {t('dashboard:hub.company.usedUnknown', 'Recorded spending is incomplete or uses a different currency.')}</span></span> : <Tooltip block content={t('dashboard:hub.company.spentOfContract', 'Spent {{spent}} of {{contract}} contract', { spent, contract })}><div className="flex w-full items-center gap-2"><ProgressBar value={percent} widthless className="min-w-0 flex-1 [&>span:first-child]:flex-1" aria-label={t('dashboard:hub.company.usedNamedAria', '{{name}}: {{percent}}% of contract used', { name, percent })} /><span className="w-10 text-right text-xs tabular">{percent}%</span></div></Tooltip>}
+          {percent != null && <Tooltip block content={t('dashboard:hub.company.spentOfContract', 'Spent {{spent}} of {{contract}} contract', { spent, contract })}><div className="flex w-full items-center gap-2"><ProgressBar value={percent} widthless className="min-w-0 flex-1 [&>span:first-child]:flex-1" aria-label={t('dashboard:hub.company.usedNamedAria', '{{name}}: {{percent}}% of contract used', { name, percent })} /><span className="w-10 text-right text-xs tabular">{percent}%</span></div></Tooltip>}
         </li>;
       })}
     </ul>
@@ -130,10 +136,12 @@ function PipelineStages({ stages, projects, pending, error, retry }: { stages: P
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
   const statusLabel = useProjectStatusLabel();
+  const orgCurrency = useOrgCurrency();
   const rows: StageRow[] = stages.map((stage) => {
     const totals = new Map<string, number>();
     projects.filter((project) => project.status === stage.status).forEach((project) => totals.set(project.currency, (totals.get(project.currency) ?? 0) + project.contract_value));
-    return { status: stage.status, count: stage.count, gross: [...totals].map(([currency, amount]) => formatCurrency(amount, currency)).join(' · ') || null };
+    const ordered = orderByCurrency([...totals].map(([currency, amount]) => ({ currency, amount })), orgCurrency);
+    return { status: stage.status, count: stage.count, gross: ordered.map(({ currency, amount }) => formatCurrency(amount, currency)).join(' · ') || null };
   });
   const grossUnknown = t('dashboard:hub.company.stageGrossUnknown', 'The pipeline source did not provide comparable project values for this stage.');
   const columns: Column<StageRow>[] = [
@@ -142,7 +150,14 @@ function PipelineStages({ stages, projects, pending, error, retry }: { stages: P
     { key: 'gross', header: t('dashboard:hub.company.gross', 'Gross'), kind: 'money', align: 'num', cell: (row) => row.gross ?? <span title={grossUnknown}>—<span className="sr-only"> {grossUnknown}</span></span>, exportValue: (row) => row.gross ?? '' },
   ];
   const openStage = (row: StageRow) => navigate(`/sales?status=${encodeURIComponent(row.status)}`);
-  return <DataTable rows={rows} columns={columns} rowKey={(row) => row.status} onActivate={openStage} rowLabel={(row) => t('dashboard:hub.company.openStage', 'Open {{stage}} opportunities', { stage: statusLabel(row.status) })} accessibleName={t('dashboard:hub.company.pipelineByStage', 'Pipeline by stage')} state={pending ? 'loading' : error ? 'error' : rows.length === 0 ? 'empty' : undefined} onRetry={retry} emptyTitle={t('dashboard:hub.company.noPipeline', 'No open pipeline stages')} errorTitle={t('dashboard:hub.company.pipelineError', "Couldn't load pipeline stages")} tableId="dashboard-company-pipeline-stages" embedded />;
+  // L2: on a phone each stage is ONE line ("Leads · 1 · $1.8M"), not a stacked Count / Gross pair.
+  const stageLine = (row: StageRow) => <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-sm">
+    <span className="font-medium">{statusLabel(row.status)}</span>
+    <span className="font-normal text-muted-foreground" aria-hidden="true">·</span>
+    <span className="font-normal tabular">{row.count}</span>
+    {row.gross && <><span className="font-normal text-muted-foreground" aria-hidden="true">·</span><span className="font-normal tabular">{row.gross}</span></>}
+  </span>;
+  return <DataTable rows={rows} columns={columns} rowKey={(row) => row.status} onActivate={openStage} rowLabel={(row) => t('dashboard:hub.company.openStage', 'Open {{stage}} opportunities', { stage: statusLabel(row.status) })} accessibleName={t('dashboard:hub.company.pipelineByStage', 'Pipeline by stage')} mobileCardTitle={stageLine} mobileCardDetails={() => null} state={pending ? 'loading' : error ? 'error' : rows.length === 0 ? 'empty' : undefined} onRetry={retry} emptyTitle={t('dashboard:hub.company.noPipeline', 'No open pipeline stages')} errorTitle={t('dashboard:hub.company.pipelineError', "Couldn't load pipeline stages")} tableId="dashboard-company-pipeline-stages" embedded />;
 }
 
 function ReadyToPayTable({ rows, pending, error, retry }: { rows: ProcurementWithRefs[]; pending: boolean; error: boolean; retry: () => void }) {
@@ -153,14 +168,18 @@ function ReadyToPayTable({ rows, pending, error, retry }: { rows: ProcurementWit
   const ready = rows.filter((row) => row.status === 'Vendor Invoiced');
   const columns: Column<ProcurementWithRefs>[] = [
     { key: 'procurement', header: t('dashboard:hub.company.procurement', 'Procurement'), rowHeader: true, cell: (row) => <span className="font-medium">{row.title}</span>, exportValue: (row) => row.title },
-    { key: 'project', header: t('dashboard:hub.company.project', 'Project'), cell: (row) => row.project?.name ?? <span title={t('dashboard:hub.company.projectUnknown', 'Project is not linked to this procurement.')}>—</span>, exportValue: (row) => row.project?.name ?? '' },
-    { key: 'supplier', header: t('dashboard:hub.company.supplier', 'Supplier'), cell: (row) => row.vendor?.name ?? <span title={t('dashboard:hub.company.supplierUnknown', 'Supplier is not recorded on this procurement.')}>—</span>, exportValue: (row) => row.vendor?.name ?? '' },
-    { key: 'amount', header: t('dashboard:hub.company.amount', 'Amount'), kind: 'money', align: 'num', cell: (row) => formatCurrency(row.total_value, row.currency), exportValue: (row) => row.total_value },
+    { key: 'project', header: t('dashboard:hub.company.project', 'Project'), cell: (row) => row.project?.name ?? <span className="sr-only">{t('dashboard:hub.company.projectUnknown', 'Project is not linked to this procurement.')}</span>, exportValue: (row) => row.project?.name ?? '' },
+    { key: 'supplier', header: t('dashboard:hub.company.supplier', 'Supplier'), cell: (row) => row.vendor?.name ?? <span className="sr-only">{t('dashboard:hub.company.supplierUnknown', 'Supplier is not recorded on this procurement.')}</span>, exportValue: (row) => row.vendor?.name ?? '' },
+    // L12(a): the unpaid balance is the procurement record's own (supplier invoices less payments), never the order value.
+    { key: 'amount', header: t('dashboard:hub.company.unpaid', 'Unpaid'), kind: 'money', align: 'num', cell: (row) => { const unpaid = supplierUnpaid(row); return unpaid.unknown || unpaid.amount === null ? <span className="sr-only">{t('dashboard:hub.company.unpaidUnknown', 'No supplier invoice amount recorded')}</span> : formatCurrency(unpaid.amount, row.currency); }, exportValue: (row) => { const unpaid = supplierUnpaid(row); return unpaid.unknown || unpaid.amount === null ? '' : unpaid.amount; } },
     { key: 'age', header: t('dashboard:hub.company.daysSinceInvoice', 'Days since invoiced'), align: 'num', cell: (row) => { const stamp = row.vendor_invoiced_at ?? row.updated_at; const days = Math.max(0, Math.floor((Date.now() - new Date(stamp).getTime()) / 86400000)); return <span title={t('dashboard:hub.company.invoiceAgeHelp', 'Uses the recorded supplier invoice date; legacy rows use their last update.')}>{days}</span>; }, exportValue: (row) => Math.max(0, Math.floor((Date.now() - new Date(row.vendor_invoiced_at ?? row.updated_at).getTime()) / 86400000)) },
     { key: 'status', header: t('dashboard:hub.company.status', 'Status'), cell: (row) => <StatusPill variant="warn">{displayStatus(row.status)}</StatusPill>, exportValue: (row) => displayStatus(row.status) },
   ];
   return <DataTable rows={ready} columns={columns} rowKey={(row) => row.id} onActivate={(row) => navigate(`/procurement/${row.id}`)} rowLabel={(row) => t('dashboard:hub.company.openProcurementNamed', 'Open {{name}}', { name: row.title })} rowMenu={(row) => [{ label: t('dashboard:hub.company.openProcurement', 'Open procurement'), onClick: () => navigate(`/procurement/${row.id}`) }]} state={pending ? 'loading' : error ? 'error' : ready.length === 0 ? 'empty' : undefined} onRetry={retry} emptyTitle={t('dashboard:hub.company.nothingReadyToPay', 'No supplier invoices are awaiting payment')} errorTitle={t('dashboard:hub.company.readyToPayError', "Couldn't load ready-to-pay records")} tableId="dashboard-company-ready-to-pay" embedded />;
 }
+
+/** Spending is shown only when it is complete and in the budget's currency (C4: otherwise the cell is left out). */
+const budgetSpendKnown = (row: BudgetReviewRow) => row.spent !== null && row.actual_complete && row.actual_currency === row.currency;
 
 function BudgetReviewTable({ rows, pending, error, retry }: { rows: BudgetReviewRow[]; pending: boolean; error: boolean; retry: () => void }) {
   const { t } = useTranslation('dashboard');
@@ -169,9 +188,9 @@ function BudgetReviewTable({ rows, pending, error, retry }: { rows: BudgetReview
   const columns: Column<BudgetReviewRow>[] = [
     { key: 'project', header: t('dashboard:hub.company.project', 'Project'), rowHeader: true, cell: (row) => <span className="font-medium">{projectDisplayName(row)}</span>, exportValue: (row) => projectDisplayName(row) },
     { key: 'budget', header: t('dashboard:hub.company.budget', 'Budget'), kind: 'money', align: 'num', cell: (row) => formatCurrency(row.budget, row.currency), exportValue: (row) => row.budget },
-    { key: 'spent', header: t('dashboard:hub.company.spent', 'Spent'), kind: 'money', align: 'num', cell: (row) => row.spent === null || !row.actual_complete || row.actual_currency !== row.currency ? <span title={t('dashboard:hub.company.spentUnknown', 'Recorded spending is incomplete or uses a different currency.')}>—</span> : formatCurrency(row.spent, row.currency), exportValue: (row) => row.spent ?? '' },
-    { key: 'used', header: t('dashboard:hub.company.percentUsed', '% used'), kind: 'percent', cell: (row) => { const pct = row.actual_complete && row.spent !== null && row.budget > 0 && row.actual_currency === row.currency && row.budget_currency === row.currency ? Math.round(row.spent / row.budget * 100) : null; return pct === null ? <span title={t('dashboard:hub.company.budgetUsedUnknown', 'Budget or recorded spending cannot be compared.')}>—</span> : <div className="flex min-w-24 items-center gap-2"><ProgressBar value={pct} widthless className="min-w-10 flex-1" aria-label={t('dashboard:hub.company.usedAria', '{{percent}}% of contract used', { percent: pct })} /><span>{pct}%</span></div>; }, exportValue: (row) => row.spent !== null && row.budget > 0 ? row.spent / row.budget : '' },
-    { key: 'variance', header: t('dashboard:hub.company.variance', 'Variance'), kind: 'money', align: 'num', cell: (row) => row.variance === null ? <span title={t('dashboard:hub.company.varianceUnknown', 'Recorded spending or budget currency is incomplete.')}>—</span> : formatCurrency(row.variance, row.currency), exportValue: (row) => row.variance ?? '' },
+    { key: 'spent', header: t('dashboard:hub.company.spent', 'Spent'), kind: 'money', align: 'num', cell: (row) => budgetSpendKnown(row) ? formatCurrency(row.spent!, row.currency) : <span className="sr-only">{t('dashboard:hub.company.spentUnknown', 'Recorded spending is incomplete or uses a different currency.')}</span>, exportValue: (row) => row.spent ?? '' },
+    { key: 'used', header: t('dashboard:hub.company.percentUsed', '% used'), kind: 'percent', cell: (row) => { const pct = row.actual_complete && row.spent !== null && row.budget > 0 && row.actual_currency === row.currency && row.budget_currency === row.currency ? Math.round(row.spent / row.budget * 100) : null; return pct === null ? <span className="sr-only">{t('dashboard:hub.company.budgetUsedUnknown', 'Budget or recorded spending cannot be compared.')}</span> : <div className="flex min-w-24 items-center gap-2"><ProgressBar value={pct} widthless className="min-w-10 flex-1" aria-label={t('dashboard:hub.company.usedAria', '{{percent}}% of contract used', { percent: pct })} /><span>{pct}%</span></div>; }, exportValue: (row) => row.spent !== null && row.budget > 0 ? row.spent / row.budget : '' },
+    { key: 'variance', header: t('dashboard:hub.company.variance', 'Variance'), kind: 'money', align: 'num', cell: (row) => row.variance === null ? <span className="sr-only">{t('dashboard:hub.company.varianceUnknown', 'Recorded spending or budget currency is incomplete.')}</span> : formatCurrency(row.variance, row.currency), exportValue: (row) => row.variance ?? '' },
     { key: 'status', header: t('dashboard:hub.company.projectStatus', 'Project status'), cell: (row) => <StatusPill variant={statusVariant(row.status)}>{statusLabel(row.status)}</StatusPill>, exportValue: (row) => statusLabel(row.status) },
     { key: 'review', header: t('dashboard:hub.company.review', 'Review'), cell: (row) => <Link to={`/projects/${row.id}/budget`} className="inline-flex min-h-11 items-center text-primary-text hover:underline">{t('dashboard:hub.company.reviewBudget', 'Review budget')}</Link>, exportValue: () => '' },
   ];
@@ -187,11 +206,11 @@ function FinanceTableCard<Row>({ title, rows, columns, help, children }: { title
 }
 
 /** PMO-computed ageing (the finance hub's source), shown when the accounting system has no ageing synced (L12). */
-function PmoAgeing({ kind, values }: { kind: 'receivables' | 'payables'; values: React.ComponentProps<typeof AgeingStrip>['values'] }) {
+function PmoAgeing({ kind, values, showSource = true }: { kind: 'receivables' | 'payables'; values: React.ComponentProps<typeof AgeingStrip>['values']; showSource?: boolean }) {
   const { t } = useTranslation('dashboard');
   return <div className="grid gap-1">
     <AgeingStrip kind={kind} values={values} />
-    <p className="-mt-3 text-xs text-muted-foreground">{t('dashboard:hub.company.pmoAgeingSource', 'From invoices recorded in PMO; the accounting system has no ageing synced yet.')}</p>
+    {showSource && <p className="-mt-3 text-xs text-muted-foreground">{t('dashboard:hub.company.pmoAgeingSource', 'From invoices recorded in PMO; the accounting system has no ageing synced yet.')}</p>}
   </div>;
 }
 
@@ -210,14 +229,17 @@ function ClientAgingBlock() {
 function FinanceAccountingBlocks() {
   const actuals = useActualsSnapshot();
   const apAging = useApAgingSnapshot();
+  const arAging = useArAgingSnapshot();
   const finance = useFinancePosition();
   const projects = useProjects();
   const projectNames = React.useMemo(() => new Map((projects.data ?? []).map((project) => [project.id, projectDisplayName(project)])), [projects.data]);
   const pmo = finance.position.payablesAgeing;
   const pmoStandsIn = snapshotEmpty(apAging) && !finance.isPending && !finance.isError && Object.keys(pmo).length > 0;
+  const receivablesStandIn = snapshotEmpty(arAging) && !finance.isPending && !finance.isError && Object.keys(finance.position.receivablesAgeing).length > 0;
   return <>
     <AccountingSnapshotsSection showActuals actualsCollapsed showApAging={!pmoStandsIn} showArAging={false} actualProjectNames={projectNames} actuals={actuals.data ?? []} actualsPending={actuals.isPending} actualsError={actuals.isError} onRetryActuals={() => void actuals.refetch()} apAging={apAging.data ?? []} apAgingPending={apAging.isPending || (snapshotEmpty(apAging) && finance.isPending)} apAgingError={apAging.isError} onRetryApAging={() => void apAging.refetch()} arAging={[]} />
-    {pmoStandsIn && <Card><div className="p-4"><PmoAgeing kind="payables" values={pmo} /></div></Card>}
+    {/* L6: the "from PMO invoices" note is said once — under the client ageing when that stands in too. */}
+    {pmoStandsIn && <Card><div className="p-4"><PmoAgeing kind="payables" values={pmo} showSource={!receivablesStandIn} /></div></Card>}
   </>;
 }
 
@@ -229,7 +251,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const figures = useCompanyFigures(periodState.period);
   const needs = useNeedsYou(role);
   const projects = useProjects();
-  const procurements = useProcurements();
+  // Shared-details select: the supplier invoice and payment rows behind each unpaid balance (same cache as the figures).
+  const procurements = useProcurements({ withSharedDetails: true });
   const pipeline = useSalesPipeline();
   const budgetReview = useFinanceBudgetReview();
   const orgCurrency = useOrgCurrency();
@@ -265,7 +288,17 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     return reasons[id] ?? t('dashboard:hub.company.help.period', 'Period result from the selected date range.');
   };
   const todayError = figures.todayError;
-  const invoiceStatus = (data?.procurements_by_status ?? []).map((row) => ({ status: row.status as ProcurementWithRefs['status'], count: row.count }));
+  // L12(g): purchasing is grouped by the four stages every procurement screen uses — Request · Order · Receive · Pay.
+  const stageCounts = PROCUREMENT_STAGES.map((stage) => ({
+    status: stage,
+    count: (data?.procurements_by_status ?? []).filter((row) => stageForStatus(row.status) === stage).reduce((sum, row) => sum + row.count, 0),
+  }));
+  const stageName = (stage: ProcurementStage) => ({
+    Request: t('dashboard:hub.company.stageRequest', 'Request'),
+    Order: t('dashboard:hub.company.stageOrder', 'Order'),
+    Receive: t('dashboard:hub.company.stageReceive', 'Receive'),
+    Pay: t('dashboard:hub.company.stagePay', 'Pay'),
+  })[stage];
   const pipelineStages = pipeline.data?.stages ?? [];
   const commonTodayFigures = ['contract-on-hand', 'billed-margin', 'pipeline', 'client-overdue', 'supplier-payables', 'still-to-invoice'].map((id) => todayFigure(id)).filter((figure): figure is DashboardFigure => Boolean(figure));
   const periodMini = (id: string) => periodFigure(id) ?? { id, label: id, value: null };
@@ -298,7 +331,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
         <section className="grid gap-2">
           <div className="flex items-center gap-2"><h3 className="text-sm font-semibold">{t('dashboard:hub.company.purchasingByStage', 'Purchasing by stage')}</h3><Tooltip content={t('dashboard:hub.company.help.purchasesScope', 'Purchases made directly in the accounting system are not counted in this PMO procurement view.')}><button type="button" aria-label={t('dashboard:hub.company.purchasesScopeLabel', 'About purchasing by stage')} className="touch-target grid size-7 place-items-center rounded-full text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button></Tooltip></div>
           <p className="text-xs text-muted-foreground">{t('dashboard:hub.company.accountingPurchasesExcluded', 'Purchases made directly in the accounting system are not counted.')}</p>
-          {figures.dashboardError ? <ListState variant="error" title={t('dashboard:hub.company.purchasesError', "Couldn't load purchasing stages")} onRetry={figures.dashboardRetry} /> : figures.dashboardPending ? <ListState variant="loading" rows={3} /> : invoiceStatus.length === 0 ? <ListState variant="empty" icon="cart" title={t('dashboard:hub.company.noPurchases', 'No procurements to show')} /> : <StatusBarChart data={invoiceStatus} toneFor={procurementStatusTone} label={t('dashboard:hub.company.purchasingByStage', 'Purchasing by stage')} noun={t('dashboard:hub.company.procurementPlural', 'procurements')} hrefFor={(status) => `/procurement?status=${encodeURIComponent(status)}`} labelFor={displayProcurementStatus} compactSegments />}
+          {figures.dashboardError ? <ListState variant="error" title={t('dashboard:hub.company.purchasesError', "Couldn't load purchasing stages")} onRetry={figures.dashboardRetry} /> : figures.dashboardPending ? <ListState variant="loading" rows={3} /> : stageCounts.every((row) => row.count === 0) ? <ListState variant="empty" icon="cart" title={t('dashboard:hub.company.noPurchases', 'No procurements to show')} /> : <StatusBarChart data={stageCounts} toneFor={() => chartTheme.series.neutral} label={t('dashboard:hub.company.purchasingByStage', 'Purchasing by stage')} noun={t('dashboard:hub.company.procurementPlural', 'procurements')} hrefFor={(stage) => `/procurement?stage=${stage.toLowerCase()}`} labelFor={stageName} compactSegments />}
         </section>
       </AreaPanel>;
     }
@@ -308,18 +341,21 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     { key: 'title', header: t('dashboard:hub.company.procurement', 'Procurement'), cell: (row) => row.title, exportValue: (row) => row.title },
     { key: 'project', header: t('dashboard:hub.company.project', 'Project'), cell: (row) => row.project?.name ?? '—', exportValue: (row) => row.project?.name ?? '' },
     { key: 'supplier', header: t('dashboard:hub.company.supplier', 'Supplier'), cell: (row) => row.vendor?.name ?? '—', exportValue: (row) => row.vendor?.name ?? '' },
-    { key: 'amount', header: t('dashboard:hub.company.amount', 'Amount'), cell: (row) => formatCurrency(row.total_value, row.currency), exportValue: (row) => row.total_value },
+    { key: 'amount', header: t('dashboard:hub.company.unpaid', 'Unpaid'), cell: (row) => { const unpaid = supplierUnpaid(row); return unpaid.unknown || unpaid.amount === null ? '' : formatCurrency(unpaid.amount, row.currency); }, exportValue: (row) => { const unpaid = supplierUnpaid(row); return unpaid.unknown || unpaid.amount === null ? '' : unpaid.amount; } },
     { key: 'age', header: t('dashboard:hub.company.daysSinceInvoice', 'Days since invoiced'), cell: (row) => Math.max(0, Math.floor((Date.now() - new Date(row.vendor_invoiced_at ?? row.updated_at).getTime()) / 86400000)), exportValue: (row) => Math.max(0, Math.floor((Date.now() - new Date(row.vendor_invoiced_at ?? row.updated_at).getTime()) / 86400000)) },
     { key: 'status', header: t('dashboard:hub.company.status', 'Status'), cell: (row) => displayProcurementStatus(row.status), exportValue: (row) => displayProcurementStatus(row.status) },
   ];
   const activeStatuses = new Set<string>(ACTIVE_PROJECT_STATUSES);
   const budgetRows = (budgetReview.data ?? []).filter((row) => activeStatuses.has(row.status)).slice(0, 5);
+  const budgetIncomplete = budgetRows.filter((row) => !budgetSpendKnown(row)).length;
+  const readyToPayRows = (procurements.data ?? []).filter((row) => row.status === 'Vendor Invoiced');
+  const unpaidUnknown = readyToPayRows.filter((row) => { const unpaid = supplierUnpaid(row); return unpaid.unknown || unpaid.amount === null; }).length;
   const budgetColumns: Column<BudgetReviewRow>[] = [
     { key: 'project', header: t('dashboard:hub.company.project', 'Project'), cell: (row) => projectDisplayName(row), exportValue: (row) => projectDisplayName(row) },
     { key: 'budget', header: t('dashboard:hub.company.budget', 'Budget'), cell: (row) => formatCurrency(row.budget, row.currency), exportValue: (row) => row.budget },
-    { key: 'spent', header: t('dashboard:hub.company.spent', 'Spent'), cell: (row) => row.spent == null ? '—' : formatCurrency(row.spent, row.currency), exportValue: (row) => row.spent ?? '' },
+    { key: 'spent', header: t('dashboard:hub.company.spent', 'Spent'), cell: (row) => budgetSpendKnown(row) ? formatCurrency(row.spent!, row.currency) : '', exportValue: (row) => budgetSpendKnown(row) ? row.spent! : '' },
     { key: 'used', header: t('dashboard:hub.company.percentUsed', '% used'), kind: 'percent', cell: (row) => row.actual_complete && row.spent !== null && row.budget > 0 && row.actual_currency === row.currency && row.budget_currency === row.currency ? row.spent / row.budget : '', exportValue: (row) => row.actual_complete && row.spent !== null && row.budget > 0 && row.actual_currency === row.currency && row.budget_currency === row.currency ? row.spent / row.budget : '' },
-    { key: 'variance', header: t('dashboard:hub.company.variance', 'Variance'), cell: (row) => row.variance == null ? '—' : formatCurrency(row.variance, row.currency), exportValue: (row) => row.variance ?? '' },
+    { key: 'variance', header: t('dashboard:hub.company.variance', 'Variance'), cell: (row) => row.variance == null ? '' : formatCurrency(row.variance, row.currency), exportValue: (row) => row.variance ?? '' },
     { key: 'status', header: t('dashboard:hub.company.projectStatus', 'Project status'), cell: (row) => projectStatusLabel(row.status), exportValue: (row) => projectStatusLabel(row.status) },
     { key: 'review', header: t('dashboard:hub.company.review', 'Review'), cell: () => t('dashboard:hub.company.reviewBudget', 'Review budget'), exportValue: (row) => `/projects/${row.id}/budget` },
   ];
@@ -339,8 +375,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       </KPIRow>
     <HubGrid>{order.map(area)}</HubGrid>
     {finance && <section aria-label={t('dashboard:hub.company.financeReview', 'Finance review tables')} className="grid grid-cols-1 gap-4">
-      <FinanceTableCard title={t('dashboard:hub.company.readyToPay', 'Ready to pay')} rows={(procurements.data ?? []).filter((row) => row.status === 'Vendor Invoiced')} columns={invoiceColumns} help={t('dashboard:hub.company.readyToPayHelp', 'Days since invoiced uses the recorded supplier invoice date; legacy rows use their last update. The procurement record has no supplier invoice due date, so due state is unknown.')}><div className="overflow-x-auto"><ReadyToPayTable rows={procurements.data ?? []} pending={procurements.isPending} error={procurements.isError} retry={() => void procurements.refetch()} /></div></FinanceTableCard>
-      <FinanceTableCard title={t('dashboard:hub.company.budgetReview', 'Budget review')} rows={budgetRows} columns={budgetColumns} help={t('dashboard:hub.company.budgetReviewHelp', 'Percent used is recorded spending divided by the active budget when actuals are complete and currencies match. Variance is spending minus budget; positive means over budget.')}><div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2"><p className="text-xs text-muted-foreground">{t('dashboard:hub.company.topBudgetsByVariance', 'Top 5 active budgets by variance')}</p><Link to="/projects" className="inline-flex min-h-11 items-center text-sm font-medium text-primary-text hover:underline">{t('dashboard:hub.company.viewAllBudgets', 'View all')}</Link></div><div className="overflow-x-auto"><BudgetReviewTable rows={budgetRows} pending={budgetReview.isPending} error={budgetReview.isError} retry={() => void budgetReview.refetch()} /></div></FinanceTableCard>
+      <FinanceTableCard title={t('dashboard:hub.company.readyToPay', 'Ready to pay')} rows={readyToPayRows} columns={invoiceColumns} help={t('dashboard:hub.company.readyToPayHelp', 'Days since invoiced uses the recorded supplier invoice date; legacy rows use their last update. The procurement record has no supplier invoice due date, so due state is unknown.')}>{unpaidUnknown > 0 && <p className="px-4 pt-2 text-xs text-muted-foreground">{t('dashboard:hub.company.unpaidUnknownNote', { count: unpaidUnknown, defaultValue: '{{count}} supplier invoices have no recorded amount yet', defaultValue_one: '{{count}} supplier invoice has no recorded amount yet' })}</p>}<div className="overflow-x-auto"><ReadyToPayTable rows={procurements.data ?? []} pending={procurements.isPending} error={procurements.isError} retry={() => void procurements.refetch()} /></div></FinanceTableCard>
+      <FinanceTableCard title={t('dashboard:hub.company.budgetReview', 'Budget review')} rows={budgetRows} columns={budgetColumns} help={t('dashboard:hub.company.budgetReviewHelp', 'Percent used is recorded spending divided by the active budget when actuals are complete and currencies match. Variance is spending minus budget; positive means over budget.')}><div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2"><p className="text-xs text-muted-foreground">{t('dashboard:hub.company.topBudgetsByVariance', 'Top 5 active budgets by variance')}{budgetIncomplete > 0 && ` · ${t('dashboard:hub.company.budgetSpendIncomplete', { count: budgetIncomplete, defaultValue: '{{count}} have incomplete spending', defaultValue_one: '{{count}} has incomplete spending' })}`}</p><Link to="/projects" className="inline-flex min-h-11 items-center text-sm font-medium text-primary-text hover:underline">{t('dashboard:hub.company.viewAllBudgets', 'View all')}</Link></div><div className="overflow-x-auto"><BudgetReviewTable rows={budgetRows} pending={budgetReview.isPending} error={budgetReview.isError} retry={() => void budgetReview.refetch()} /></div></FinanceTableCard>
       <FinanceAccountingBlocks />
     </section>}
   </div>;

@@ -475,14 +475,14 @@ describe('company hub — behaviour carried over from the previous dashboard', (
     expect(screen.getByRole('region', { name: 'Company figures' })).not.toHaveTextContent('$1,000');
   });
 
-  it('AC-UXA-003: Bahasa labels the purchasing stages while each stage link keeps its raw status destination', () => {
+  it('AC-UXA-003 / L12(g): Bahasa labels the four purchasing stages while each stage link keeps its stage destination', () => {
     const current = figureState.result!;
     current.dashboard = { ...(current.dashboard as Record<string, unknown>), procurements_by_status: [{ status: 'Approved', count: 1 }, { status: 'Vendor Invoiced', count: 2 }] };
     renderBahasaPage();
-    const invoiced = screen.getAllByRole('link', { name: /Ditagihkan pemasok/ });
-    expect(invoiced.length).toBeGreaterThan(0);
-    for (const link of invoiced) expect(link).toHaveAttribute('href', '/procurement?status=Vendor%20Invoiced');
-    expect(screen.getAllByRole('link', { name: /Approved/ })[0]).toHaveAttribute('href', '/procurement?status=Approved');
+    const pay = screen.getAllByRole('link', { name: /Pembayaran/ });
+    expect(pay.length).toBeGreaterThan(0);
+    for (const link of pay) expect(link).toHaveAttribute('href', '/procurement?stage=pay');
+    expect(screen.getAllByRole('link', { name: /Permintaan/ })[0]).toHaveAttribute('href', '/procurement?stage=request');
     expect(screen.queryByText('Supplier invoiced')).not.toBeInTheDocument();
   });
 
@@ -541,11 +541,11 @@ describe('company hub — ported baseline cases', () => {
     const panel = purchasingPanel();
     expect(panel).toHaveTextContent('Purchases made directly in the accounting system are not counted.');
     expect(within(panel).getAllByRole('group', { name: 'Purchasing by stage' }).length).toBeGreaterThan(0);
-    expect(within(panel).getAllByRole('link', { name: /: 1$/ })).toHaveLength(5);
+    // L12(g): five raw statuses fold into the four stages Request · Order · Receive · Pay.
+    expect(within(panel).getAllByRole('link', { name: /: \d+$/ }).map((link) => link.getAttribute('aria-label'))).toEqual(['Request: 3', 'Order: 1', 'Receive: 0', 'Pay: 1']);
   });
 
-  it('AC-S19-004 / AC-JR-W1-10: stage links read the shared status labels and keep the raw, encoded status filter', () => {
-    labelState.real = true;
+  it('AC-S19-004 / AC-JR-W1-10 / L12(g): the four stage links carry the stage drill-down filter the procurement list reads', () => {
     (figureState.result!.dashboard as Record<string, unknown>).procurements_by_status = [
       { status: 'Draft', count: 1 }, { status: 'Requested', count: 1 }, { status: 'Vendor Quoted', count: 1 },
       { status: 'Ordered', count: 1 }, { status: 'Received', count: 1 }, { status: 'Vendor Invoiced', count: 1 },
@@ -553,14 +553,11 @@ describe('company hub — ported baseline cases', () => {
     ];
     renderPage();
     const panel = purchasingPanel();
-    const expected: Array<[RegExp, string]> = [
-      [/^Draft/, '/procurement?status=Draft'],
-      [/^Purchase Request/, '/procurement?status=Requested'],
-      [/^Supplier quoted/, '/procurement?status=Vendor%20Quoted'],
-      [/^Purchase Order/, '/procurement?status=Ordered'],
-      [/^Goods Receipt/, '/procurement?status=Received'],
-      [/^Supplier invoiced/, '/procurement?status=Vendor%20Invoiced'],
-      [/^Paid/, '/procurement?status=Paid'],
+    const expected: Array<[string, string]> = [
+      ['Request: 3', '/procurement?stage=request'],
+      ['Order: 1', '/procurement?stage=order'],
+      ['Receive: 1', '/procurement?stage=receive'],
+      ['Pay: 2', '/procurement?stage=pay'],
     ];
     for (const [name, href] of expected) {
       const links = within(panel).getAllByRole('link', { name });
