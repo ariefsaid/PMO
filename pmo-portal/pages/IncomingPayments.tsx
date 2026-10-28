@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ListPage,
@@ -17,22 +17,25 @@ import {
   FormSection,
   Button,
   Icon,
+  Drawer,
+  MenuButton,
   useToast,
   type Column,
   type ComboboxOption,
   type RowMenuItem,
 } from '@/src/components/ui';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ExportButton, withCurrencyColumn } from '@/src/components/export';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useIncomingPayments, useSalesInvoices, useRevenueMutations } from '@/src/hooks/useRevenue';
-import { useClientCompanyOptions } from '@/src/hooks/useFkOptions';
+import { useClientCompanyOptions, useInvoiceProjectOptions } from '@/src/hooks/useFkOptions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import {
   currencySymbol,
+  formatCurrency,
   formatCurrencyCents,
   formatDateOnly,
   formatMoneyInputValue,
@@ -43,6 +46,7 @@ import type { IncomingPaymentRow, IncomingPaymentStatus, SalesInvoiceRow } from 
 import { incomingPaymentStatusVariant, salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
 import { invoiceNumber, receiptNumber } from '@/src/lib/revenue/nativeInvoice';
+import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
 import { type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
@@ -50,6 +54,7 @@ import { useCommandIntent, useCommandIntentMap } from '@/src/hooks/useCommandInt
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { displayAllocations, knownUnappliedCash } from '@/src/lib/revenue/receiptAllocation';
 import { ReceiptRecord } from './incoming-payments/ReceiptRecord';
+import { BulkBar } from '@/src/components/finance/receivables/BulkBar';
 
 /** Status filter segments. "Received"/"Cancelled" are how a PMO receipt reads (I-5): it is recorded as received, never
  *  Scheduled, and a cancelled one keeps its row (DD-NAR-10). */
@@ -179,12 +184,21 @@ function openInvoiceOptions(
     }));
 }
 
-const IncomingPayments: React.FC = () => {
+interface IncomingPaymentsProps {
+  embedded?: boolean;
+  selectedKeys?: Set<string>;
+  onSelectionChange?: (keys: Set<string>) => void;
+}
+
+const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, selectedKeys, onSelectionChange }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
   const { receiptId } = useParams<{ receiptId: string }>();
+  const location = useLocation();
+  const recordContext = useRecordContext('/incoming-payments', receiptId);
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useIncomingPayments();
   const { createPayment, cancelPayment, pendingPush } = useRevenueMutations();
@@ -193,7 +207,8 @@ const IncomingPayments: React.FC = () => {
   const native = mode === 'native';
   const statusFilters = native ? NATIVE_STATUS_FILTERS : ERP_STATUS_FILTERS;
   // I-5: the invoice each receipt settles, by its number (the list read already holds them).
-  const { data: invoiceList } = useSalesInvoices();
+  const { data: invoiceList, isPending: invoiceListPending } = useSalesInvoices();
+  const projectOptions = useInvoiceProjectOptions().data ?? [];
   const invoiceNumberById = useMemo(
     () => new Map((invoiceList ?? []).map((inv) => [inv.id, invoiceNumber(inv)])),
     [invoiceList],
@@ -202,15 +217,52 @@ const IncomingPayments: React.FC = () => {
   const canView = may('view', 'incomingPayment');
   const canCreate = may('create', 'incomingPayment');
   const canCancel = may('transition', 'incomingPayment');
-  const canRowWrite = canCancel;
 
   const all = useMemo(() => data ?? [], [data]);
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
 
-  const [formTarget, setFormTarget] = useState<{ payment: IncomingPaymentRow | null } | null>(null);
+  const [formTarget, setFormTarget] = useState<{ payment: IncomingPaymentRow | null; initialInvoiceId?: string } | null>(null);
   const [cancelTarget, setCancelTarget] = useState<IncomingPaymentRow | null>(null);
+  const [localSelectedKeys, setLocalSelectedKeys] = useState<Set<string>>(() => new Set());
+  const effectiveSelectedKeys = selectedKeys ?? localSelectedKeys;
+  const handleSelectionChange = (next: Set<string>) => {
+    if (selectedKeys === undefined) setLocalSelectedKeys(next);
+    onSelectionChange?.(next);
+  };
+  const openPaymentId = embedded ? searchParams.get('open') : null;
+  const panelPayment = openPaymentId ? all.find((payment) => payment.id === openPaymentId) ?? null : null;
+  const setQueryValue = (key: string, value: string) => setSearchParams((current) => {
+    const next = new URLSearchParams(current);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    return next;
+  }, { replace: true });
+  const openPaymentPanel = (payment: IncomingPaymentRow) => setQueryValue('open', payment.id);
+  const closePaymentPanel = () => setQueryValue('open', '');
+  const openFullPayment = () => {
+    if (!panelPayment) return;
+    const query = new URLSearchParams(searchParams);
+    query.delete('open');
+    const queryString = query.toString();
+    const listPath = `${location.pathname}${queryString ? `?${queryString}` : ''}${location.hash}`;
+    navigate(`/incoming-payments/${encodeURIComponent(panelPayment.id)}${queryString ? `?${queryString}` : ''}`, { state: { recordContext: { listPath } } });
+  };
+  const panelInvoice = panelPayment?.sales_invoice_id
+    ? (invoiceList ?? []).find((invoice) => invoice.id === panelPayment.sales_invoice_id)
+    : undefined;
+
+  useEffect(() => {
+    if (searchParams.get('create') !== '1' || !canCreate || mode === undefined || invoiceListPending) return;
+    setFormTarget({ payment: null, initialInvoiceId: searchParams.get('invoice') ?? undefined });
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('create');
+      next.delete('invoice');
+      return next;
+    }, { replace: true });
+  }, [canCreate, invoiceListPending, mode, searchParams, setSearchParams]);
 
   // BLOCK 2 (ADR-0058): the cancel confirm dialog is ALWAYS mounted, so its command identity is per
   // (record, verb) — a retry on payment B must never carry payment A's key. Released only after a
@@ -221,11 +273,12 @@ const IncomingPayments: React.FC = () => {
     const q = search.trim().toLowerCase();
     return all
       .filter((p) => matchesStatus(p, statusFilter))
+      .filter((p) => searchParams.get('todo') !== 'unapplied' || (knownUnappliedCash(p) ?? 0) > 0)
       .filter((p) => !q
         || receiptNumber(p)?.toLowerCase().includes(q)
         // #781 (AC-FIN-001): the list search also indexes the resolved customer company name.
         || p.customer_name?.toLowerCase().includes(q));
-  }, [all, search, statusFilter]);
+  }, [all, search, searchParams, statusFilter]);
 
   const state: 'loading' | 'empty' | 'error' | undefined = isPending || mode === undefined
     ? 'loading'
@@ -235,7 +288,7 @@ const IncomingPayments: React.FC = () => {
         ? 'empty'
         : undefined;
 
-  if (!canView) {
+  if (!canView && !embedded) {
     return (
       <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
@@ -258,7 +311,7 @@ const IncomingPayments: React.FC = () => {
     if (state === 'error') {
       return (
         <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
-          <Button variant="ghost" onClick={() => navigate('/incoming-payments')} className="mb-4 -ml-3">
+          <Button variant="ghost" onClick={recordContext.closeRecord} className="mb-4 -ml-3">
             <Icon name="back" className="size-4" />
             {t('uxs06.backToReceipts', 'Back to Incoming Payments')}
           </Button>
@@ -274,7 +327,7 @@ const IncomingPayments: React.FC = () => {
     if (!record) {
       return (
         <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
-          <Button variant="ghost" onClick={() => navigate('/incoming-payments')} className="mb-4 -ml-3">
+          <Button variant="ghost" onClick={recordContext.closeRecord} className="mb-4 -ml-3">
             <Icon name="back" className="size-4" />
             {t('uxs06.backToReceipts', 'Back to Incoming Payments')}
           </Button>
@@ -287,17 +340,22 @@ const IncomingPayments: React.FC = () => {
         </main>
       );
     }
-    return <ReceiptRecord receipt={record} allocations={displayAllocations(record, invoiceNumberOf)} onBack={() => navigate('/incoming-payments')} />;
+    return <ReceiptRecord receipt={record} allocations={displayAllocations(record, invoiceNumberOf)} onBack={recordContext.closeRecord} />;
   }
 
   const notReported = t('uxs06.notReported', 'Not reported');
+  // ponytail: lists read in whole units (G1); exact cents stay on the receipt page.
+  const listMoney = embedded ? formatCurrency : formatCurrencyCents;
   const allColumns: Column<IncomingPaymentRow>[] = [
     {
       key: 'ip_number',
       header: t('financeCopy.payment', "Payment #"),
-      cell: (p) => (
+      cell: (p) => embedded ? (
+        <span className="truncate font-mono text-[13px]" title={receiptNumber(p) ?? ''}>{receiptNumber(p) ?? '—'}</span>
+      ) : (
         <Link
-          to={`/incoming-payments/${encodeURIComponent(p.id)}`}
+          to={`/incoming-payments/${encodeURIComponent(p.id)}${location.search}`}
+          state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }}
           className="truncate font-mono text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline"
           title={receiptNumber(p) ?? ''}
         >
@@ -356,7 +414,7 @@ const IncomingPayments: React.FC = () => {
       align: 'num',
       cell: (p) => (
         <span className="tabular text-right text-[13px]">
-          {p.amount != null ? formatCurrencyCents(p.amount, p.currency) : '—'}
+          {p.amount != null ? listMoney(p.amount, p.currency) : '—'}
         </span>
       ),
       // A NUMBER, not its string: a text cell is unsummable and locale-fragile (#701).
@@ -370,14 +428,14 @@ const IncomingPayments: React.FC = () => {
     },
     {
       key: 'received_amount', header: t('financeCopy.cashReceived', "Cash received"), align: 'num',
-      cell: (p) => p.received_amount != null ? formatCurrencyCents(p.received_amount, p.currency) : '—',
+      cell: (p) => p.received_amount != null ? listMoney(p.received_amount, p.currency) : '—',
       exportValue: (p) => p.received_amount ?? '',
     },
     {
       // S-06 (RF-032): None = known to be zero; Not reported = the source never said. Unknown is not zero.
       key: 'withheld_amount', header: t('financeCopy.taxWithheld', "Tax withheld"), align: 'num',
       cell: (p) => p.withheld_amount == null ? <span className="text-muted-foreground">{notReported}</span>
-        : p.withheld_amount === 0 ? t('uxs06.none', 'None') : formatCurrencyCents(p.withheld_amount, p.currency),
+        : p.withheld_amount === 0 ? t('uxs06.none', 'None') : listMoney(p.withheld_amount, p.currency),
       exportValue: (p) => p.withheld_amount ?? '',
     },
     {
@@ -386,7 +444,7 @@ const IncomingPayments: React.FC = () => {
       cell: (p) => {
         const unapplied = knownUnappliedCash({ ...p, allocation_details: displayAllocations(p, invoiceNumberOf) });
         return unapplied === null ? <span className="text-muted-foreground">{notReported}</span>
-          : unapplied === 0 ? t('uxs06.none', 'None') : <span className="font-medium">{formatCurrencyCents(unapplied, p.currency)}</span>;
+          : unapplied === 0 ? t('uxs06.none', 'None') : <span className="font-medium">{listMoney(unapplied, p.currency)}</span>;
       },
       exportValue: (p) => knownUnappliedCash({ ...p, allocation_details: displayAllocations(p, invoiceNumberOf) }) ?? '',
     },
@@ -405,7 +463,9 @@ const IncomingPayments: React.FC = () => {
   const exportColumns = withCurrencyColumn(allColumns, 'amount', (r) => r.currency);
 
   const rowMenu = (p: IncomingPaymentRow): RowMenuItem[] => {
-    const items: RowMenuItem[] = [];
+    const items: RowMenuItem[] = embedded
+      ? [{ label: t('finance:receivables.viewPayment', 'View payment'), onClick: () => recordContext.openRecord(p.id) }]
+      : [];
     if (canCancel && !p.pmo_native && p.status !== 'Paid')
       items.push({ label: t('financeCopy.cancel', "Cancel"), onClick: () => setCancelTarget(p), danger: true });
     // #784 AC-NAR-006: a PMO receipt is cancelled in PMO while PMO owns revenue (the RPC re-checks all of it).
@@ -434,13 +494,14 @@ const IncomingPayments: React.FC = () => {
 
   return (
     <ListPage
-      title={t('financeCopy.incomingPayments', "Incoming Payments")}
-      description={mode === undefined
+      title={embedded ? t('finance:area.paymentsList', 'Payments received') : t('financeCopy.incomingPayments', "Incoming Payments")}
+      headingLevel={embedded ? 2 : 1}
+      description={embedded ? undefined : mode === undefined
         ? undefined
         : native
           ? t('financeCopy.nativeIncomingPaymentsDescription', 'Customer receipts recorded in PMO against approved invoices.')
           : t('financeCopy.paymentsReceivedFromClientsMirroredFromERPNextLinkedToSalesInvoicesWhenApplicable', "Payments received from clients, mirrored from ERPNext. Linked to sales invoices when applicable.")}
-      primaryAction={mode !== undefined && canCreate ? (
+      primaryAction={!embedded && mode !== undefined && canCreate ? (
         <Button variant="primary" onClick={() => setFormTarget({ payment: null })}>
           <Icon name="plus" />
           {t('financeCopy.receivePayment', "Receive Payment")}</Button>
@@ -458,6 +519,7 @@ const IncomingPayments: React.FC = () => {
           />
         )
       }
+      desktopToolbarClassName={embedded ? '!mb-0 min-w-0 !flex-nowrap overflow-x-auto !rounded-none !border-x-0 !border-t-0 border-b !bg-transparent !px-0 py-2' : undefined}
       search={
         state !== 'loading' && (
           <SearchMini
@@ -474,7 +536,16 @@ const IncomingPayments: React.FC = () => {
       }
       exportAction={
         state !== 'loading' && (
-          <ExportButton rows={filtered} columns={exportColumns} entity="Incoming Payments" />
+          embedded && effectiveSelectedKeys.size > 0
+            ? <BulkBar count={effectiveSelectedKeys.size} onClear={() => handleSelectionChange(new Set())}>
+              <ExportButton
+                rows={all.filter((payment) => effectiveSelectedKeys.has(payment.id))}
+                columns={exportColumns}
+                entity="Incoming Payments"
+                label={t('finance:bulk.exportSelected', 'Export selected')}
+              />
+            </BulkBar>
+            : <ExportButton rows={filtered} columns={exportColumns} entity="Incoming Payments" />
         )
       }
     >
@@ -513,7 +584,37 @@ const IncomingPayments: React.FC = () => {
           rows={filtered}
           columns={columns}
           rowKey={(p) => p.id}
-          rowMenu={canRowWrite ? rowMenu : undefined}
+          rowMenu={rowMenu}
+          onActivate={embedded ? openPaymentPanel : undefined}
+          rowLabel={embedded ? (payment) => t('table.openRow', 'Open {{name}}', { name: receiptNumber(payment) ?? payment.customer_name ?? payment.id }) : undefined}
+          mobileCardTitle={embedded ? (payment) => <span className="flex min-w-0 flex-col gap-0.5">
+            <span className="min-w-0 truncate text-[13px] font-semibold">{payment.customer_name ?? '—'}</span>
+            <span className="min-w-0 truncate font-mono text-xs font-normal text-muted-foreground">{receiptNumber(payment) ?? '—'}</span>
+          </span> : undefined}
+          mobileCardDetails={embedded ? (payment) => {
+            const cancelled = Boolean(payment.cancelled_at || payment.erp_cancelled_at);
+            const statusLabel = cancelled
+              ? t('financeCopy.statusCancelled', 'Cancelled')
+              : incomingPaymentStatusLabel(payment.pmo_native && payment.status === 'Paid' ? 'Received' : payment.status, t);
+            const receivedAmount = payment.received_amount ?? payment.amount;
+            const total = payment.amount;
+            // ponytail: wrap instead of overlap, same as the invoice cards.
+            return <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                <StatusPill variant={cancelled ? salesInvoiceStatusVariant('Cancelled') : incomingPaymentStatusVariant(payment.status)}>{statusLabel}</StatusPill>
+                <span className="shrink-0 text-xs text-muted-foreground">{payment.date ? formatDateOnly(payment.date) : '—'}</span>
+              </div>
+              <span className="shrink-0 text-right text-xs tabular">
+                <span>{receivedAmount == null ? '—' : formatCurrency(receivedAmount, payment.currency)}</span>
+                {total != null && <span className="ml-1 text-muted-foreground">{t('finance:receivables.ofTotal', 'of {{total}}', { total: formatCurrency(total, payment.currency) })}</span>}
+              </span>
+            </div>;
+          } : undefined}
+          selection={embedded ? {
+            selectedIds: effectiveSelectedKeys,
+            onChange: handleSelectionChange,
+            rowLabel: (payment) => t('finance:table.selectRow', 'Select {{name}}', { name: receiptNumber(payment) ?? payment.customer_name ?? payment.id }),
+          } : undefined}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle={t('financeCopy.noPaymentsMatchYourFilters', "No payments match your filters")}
           emptySub={t('financeCopy.tryADifferentStatusOrClearTheSearch', "Try a different status or clear the search.")}
@@ -524,6 +625,7 @@ const IncomingPayments: React.FC = () => {
       {formTarget && (
         <IncomingPaymentFormModal
           payment={formTarget.payment}
+          initialInvoiceId={formTarget.initialInvoiceId}
           pendingPush={pendingPush}
           native={native}
           onClose={() => setFormTarget(null)}
@@ -548,6 +650,49 @@ const IncomingPayments: React.FC = () => {
         onConfirm={onCancelConfirm}
         onCancel={() => setCancelTarget(null)}
       />
+
+      <Drawer
+        open={Boolean(panelPayment)}
+        title={panelPayment ? t('finance:receivables.paymentDrawerTitle', '{{client}} · {{amount}}', {
+          client: panelPayment.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded'),
+          amount: panelPayment.amount == null ? '—' : formatCurrency(panelPayment.amount, panelPayment.currency),
+        }) : ''}
+        subtitle={panelPayment ? <span className="flex flex-wrap items-center gap-2">
+          <span className="font-mono text-xs">{receiptNumber(panelPayment) ?? '—'}</span>
+          {panelInvoice && <span className="font-mono text-xs">{invoiceNumber(panelInvoice) ?? '—'}</span>}
+          {panelInvoice?.project_id && projectOptions.find((project) => project.value === panelInvoice.project_id)?.contractualName && <span className="text-xs">{projectOptions.find((project) => project.value === panelInvoice.project_id)?.contractualName}</span>}
+        </span> : undefined}
+        icon={<Icon name="dollar" />}
+        status={panelPayment ? <StatusPill variant={panelPayment.cancelled_at || panelPayment.erp_cancelled_at ? salesInvoiceStatusVariant('Cancelled') : incomingPaymentStatusVariant(panelPayment.status)}>
+          {panelPayment.cancelled_at || panelPayment.erp_cancelled_at ? t('finance:receivables.statusCancelled', 'Cancelled') : incomingPaymentStatusLabel(panelPayment.pmo_native && panelPayment.status === 'Paid' ? 'Received' : panelPayment.status, t)}
+        </StatusPill> : undefined}
+        headerActions={panelPayment ? <>
+          <Button type="button" variant="outline" size="sm" onClick={openFullPayment}>{t('finance:receivables.openFullRecord', 'Open full page')}</Button>
+          <MenuButton items={rowMenu(panelPayment)} ariaLabel={t('finance:receivables.paymentActions', 'Payment actions')} />
+        </> : undefined}
+        onClose={closePaymentPanel}
+        width="lg"
+        loading={cancelPayment.isPending}
+        nestedOpen={Boolean(formTarget || cancelTarget)}
+      >
+        {panelPayment && <div className="space-y-5 p-4 sm:p-5">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-y border-border py-4 text-sm">
+            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.cash', 'Cash received')}</dt><dd className="mt-1 tabular">{panelPayment.received_amount == null ? notReported : formatCurrencyCents(panelPayment.received_amount, panelPayment.currency)}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.withheld', 'Tax withheld')}</dt><dd className="mt-1 tabular">{panelPayment.withheld_amount == null ? notReported : formatCurrencyCents(panelPayment.withheld_amount, panelPayment.currency)}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.notApplied', 'Not yet applied')}</dt><dd className="mt-1 tabular">{knownUnappliedCash({ ...panelPayment, allocation_details: displayAllocations(panelPayment, invoiceNumberOf) }) == null ? notReported : formatCurrencyCents(knownUnappliedCash({ ...panelPayment, allocation_details: displayAllocations(panelPayment, invoiceNumberOf) })!, panelPayment.currency)}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.withholdingSlip', 'Withholding slip')}</dt><dd className="mt-1 font-mono">{panelPayment.withholding_slip_number ?? '—'}</dd></div>
+          </dl>
+          <section aria-labelledby="receivable-payment-invoices">
+            <h2 id="receivable-payment-invoices" className="mb-2 text-sm font-semibold">{t('finance:receivables.settledInvoices', 'Invoices settled')}</h2>
+            {displayAllocations(panelPayment, invoiceNumberOf)?.length ? <ul className="divide-y divide-border/70">
+              {displayAllocations(panelPayment, invoiceNumberOf)!.map((allocation, index) => <li key={`${allocation.invoice_id ?? allocation.invoice_number ?? 'invoice'}-${index}`} className="flex justify-between gap-3 py-2 text-sm">
+                <span className="font-mono">{allocation.invoice_number ?? (allocation.invoice_id ? invoiceNumberOf(allocation.invoice_id) : null) ?? '—'}</span>
+                <span className="tabular">{allocation.amount != null && allocation.currency && Number.isFinite(Number(allocation.amount)) ? formatCurrencyCents(Number(allocation.amount), allocation.currency) : notReported}</span>
+              </li>)}
+            </ul> : <p className="text-sm text-muted-foreground">{t('finance:receivables.notApplied', 'Not yet applied')}</p>}
+          </section>
+        </div>}
+      </Drawer>
     </ListPage>
   );
 };
@@ -556,6 +701,7 @@ const IncomingPayments: React.FC = () => {
 
 interface IncomingPaymentFormModalProps {
   payment: IncomingPaymentRow | null;
+  initialInvoiceId?: string;
   onClose: () => void;
   /** `intent` is the modal's OWN command identity — stable for this form session (BLOCK 2). */
   onCreate: (
@@ -577,6 +723,7 @@ interface IncomingPaymentFormModalProps {
 
 const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
   payment,
+  initialInvoiceId,
   onClose,
   onCreate,
   pendingPush,
@@ -595,10 +742,11 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
   const intent = useCommandIntent();
   const { data: invoices } = useSalesInvoices();
   const invoiceDateOf = (id: string | null) => (id ? invoices?.find((inv) => inv.id === id)?.invoice_date ?? null : null);
+  const initialInvoice = initialInvoiceId ? invoices?.find((invoice) => invoice.id === initialInvoiceId) : undefined;
   const form = useEntityForm<FormValues>({
     initialValues: {
-      customerId: '',
-      salesInvoiceId: null,
+      customerId: initialInvoice?.customer_id ?? '',
+      salesInvoiceId: initialInvoice?.id ?? null,
       paidAmount: '0',
       receivedAmount: '0',
       withheldAmount: '0',

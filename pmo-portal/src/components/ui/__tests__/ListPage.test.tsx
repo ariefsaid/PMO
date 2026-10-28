@@ -21,6 +21,13 @@ describe('ListPage shell', () => {
     expect(within(header).getByRole('button', { name: 'New company' })).toBeInTheDocument();
   });
 
+  it('renders an embedded title as an h2 at the compact subheading size', () => {
+    render(<ListPage title="Invoices" headingLevel={2} />);
+    const title = screen.getByRole('heading', { level: 2, name: 'Invoices' });
+    expect(title.className).toContain('text-[18px]');
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
+  });
+
   it('renders the toolbar slots in the canonical order: filters · search · secondaryFilter · export · import, view right-aligned', () => {
     render(
       <ListPage

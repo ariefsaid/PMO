@@ -5,14 +5,14 @@ import { buildManagementPack, type ManagementPack } from '@/src/lib/reports/mana
 import type { ManagementPackFacts, ManagementPackRange, ProjectProgressInput } from '@/src/lib/db/managementPack';
 
 /** #765: the management pack for a window (org-scoped cache key; never threads org_id to the server). */
-export function useManagementPack(range: ManagementPackRange) {
+export function useManagementPack(range: ManagementPackRange, enabled = true) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<ManagementPackFacts, Error, ManagementPack>({
     queryKey: ['managementPack', orgId, range.from ?? 'default', range.to ?? 'default'],
     queryFn: () => repositories.reports.managementPack(range),
     select: buildManagementPack,
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId) && enabled,
   });
 }
 

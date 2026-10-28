@@ -136,6 +136,7 @@ vi.mock('@/src/hooks/useFkOptions', () => ({
   useClientCompanyOptions: () => ({ data: [] }),
 }));
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [], isPending: false }) }));
 vi.mock('@/pages/approvals/SalesInvoiceApprovalRow', () => ({
   SalesInvoiceApprovalPreview: ({ inv }: { inv: SalesInvoiceRow }) => <div>Invoice preview {inv.si_number}</div>,
 }));
@@ -167,6 +168,7 @@ const renderAt = (url: string) =>
             <Location />
             <Routes>
               <Route path="/sales-invoices" element={<SalesInvoices />} />
+              <Route path="/finance/receivables" element={<SalesInvoices embedded />} />
               <Route path="/sales-invoices/:invoiceId" element={<SalesInvoices />} />
             </Routes>
           </ToastProvider>
@@ -185,12 +187,12 @@ describe('SalesInvoices — deep link (#787)', () => {
   });
   it('filters to overdue unpaid invoices and shows age against the organization day', async () => {
     const user = userEvent.setup();
-    renderAt('/sales-invoices');
+    renderAt('/finance/receivables');
     await user.click(screen.getByRole('button', { name: 'Overdue only' }));
     const table = screen.getByRole('table').textContent ?? '';
     expect(table).toContain('ACC-SINV-2026-00001');
     expect(table).not.toContain('ACC-SINV-2026-00002');
-    expect(table).toContain('77 days overdue');
+    expect(table).toContain('Partly paid · 77 days late');
   });
 
   it('FIN-S1 search finds an invoice by its project label', async () => {
@@ -346,7 +348,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(screen.getByText('Ready to send')).toBeInTheDocument();
     expect(screen.getByText('Download the PDF and send it to your client yourself.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download approved PDF' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Record received date' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mark received' })).toBeInTheDocument();
     expect(screen.queryByText('Sent')).not.toBeInTheDocument();
   });
 

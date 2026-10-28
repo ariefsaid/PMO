@@ -53,8 +53,10 @@ vi.mock('@/src/hooks/useFxRates', () => ({ useFxRate: () => ({ data: null, isPen
 vi.mock('@/src/hooks/useRevenue', () => ({
   useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSalesInvoices: () => hoisted.salesInvoicesState,
+  useIncomingPayments: () => ({ data: [], isPending: false, isError: false }),
   useRevenueMutations: () => ({
     create: { mutateAsync: hoisted.createMutate, isPending: false },
+    setReceivedDate: { mutateAsync: vi.fn(), isPending: false },
     submitInvoice: { mutateAsync: vi.fn(), isPending: false },
     cancelInvoice: { mutateAsync: vi.fn(), isPending: false },
     pendingPush: { status: 'idle', lastError: null, lastPushAt: null },

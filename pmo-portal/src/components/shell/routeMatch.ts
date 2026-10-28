@@ -6,6 +6,7 @@ import type { RunContext } from '@/src/lib/agent/runtime/port';
 import type { ListReturnNavigation } from '@/src/lib/listReturnContext';
 import { UserRole } from '../../../types';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
+import type { OrgFeatureKey } from '@/src/lib/features';
 
 export interface ModuleDef {
   module: string;
@@ -24,6 +25,8 @@ export interface ModuleDef {
   roles?: UserRole[];
   /** Canonical shell copy key shared by rail, palette, and breadcrumbs. */
   labelKey?: string;
+  /** Optional organization entitlement needed to expose this destination in navigation. */
+  feature?: OrgFeatureKey;
 }
 
 /** The module IA — the index + detail routes the rail and ⌘K palette read. */
@@ -149,15 +152,35 @@ export const MODULES: ModuleDef[] = [
     path: '/approvals',
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
   },
-  // Administration: Exec·Admin (shown in Rail's foot section for those roles only).
   {
-    module: 'financial-statements',
-    icon: 'table',
-    label: 'Financial statements', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
-    labelKey: 'shell.nav.financialStatements',
-    path: '/financial-statements',
-    roles: [UserRole.Admin, UserRole.Executive, UserRole.Finance],
+    module: 'finance',
+    icon: 'dollar',
+    label: 'Finance', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'financeHub:nav.finance',
+    path: '/finance',
+    roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
+  {
+    module: 'finance-receivables', icon: 'invoices', label: 'Receivables', // i18n-exempt: translated at render via labelKey
+    labelKey: 'financeHub:hub.receivables', feature: 'revenue',
+    path: '/finance/receivables', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
+  },
+  {
+    module: 'finance-payables', icon: 'procurement', label: 'Payables', // i18n-exempt: translated at render via labelKey
+    labelKey: 'financeHub:hub.payables', feature: 'procurement',
+    path: '/finance/payables', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
+  },
+  {
+    module: 'finance-reports', icon: 'reports', label: 'Reports', // i18n-exempt: translated at render via labelKey
+    labelKey: 'financeHub:hub.reports', feature: 'revenue',
+    path: '/finance/reports', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
+  },
+  {
+    module: 'finance-statements', icon: 'reports', label: 'Statements', // i18n-exempt: translated at render via labelKey
+    labelKey: 'financeHub:hub.statements',
+    path: '/finance/statements', roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
+  },
+  // Administration: Exec·Admin (shown in Rail's foot section for those roles only).
   {
     module: 'administration',
     icon: 'admin',
@@ -249,6 +272,12 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   // FR-PFE-041: the org-wide list of ERPNext documents not yet in a purchase is part of Procurement.
   '/erp-purchases': '/procurement',
 };
+
+/** Finance record routes remain addressable while their list parent is the Receivables area. */
+export function railParentForPath(pathname: string): string | undefined {
+  if (/^\/(sales-invoices|incoming-payments)\/[^/]+$/.test(pathname)) return '/finance/receivables';
+  return RAIL_PARENT_FOR_PATH[pathname];
+}
 
 const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }> = {
   '/erp-purchases': { label: 'ERPNext documents not in a purchase', i18nKey: 'finance:erpLinks.orphansTitle' }, // i18n-exempt: fallback label is replaced from i18nKey at render
@@ -362,6 +391,40 @@ export function breadcrumbForPath(
 ): BreadcrumbPart[] {
   const administrationBreadcrumb = administrationBreadcrumbForPath(pathname, navigate);
   if (administrationBreadcrumb) return administrationBreadcrumb;
+
+  if (pathname === '/finance') {
+    return [{ label: 'Finance', // i18n-exempt: translated from i18nKey by Breadcrumb
+      i18nKey: 'financeHub:nav.finance' }];
+  }
+  const invoiceRecord = /^\/sales-invoices\/[^/]+$/.test(pathname);
+  const paymentRecord = /^\/incoming-payments\/[^/]+$/.test(pathname);
+  if (invoiceRecord || paymentRecord) {
+    return [
+      { label: 'Finance', // i18n-exempt: translated from i18nKey by Breadcrumb
+        i18nKey: 'financeHub:nav.finance', href: '/finance', onClick: () => navigate?.('/finance') },
+      { label: 'Receivables', // i18n-exempt: translated from i18nKey by Breadcrumb
+        i18nKey: 'financeHub:hub.receivables', href: paymentRecord ? '/finance/receivables?view=payments' : '/finance/receivables', onClick: () => navigate?.(paymentRecord ? '/finance/receivables?view=payments' : '/finance/receivables') },
+      { label: paymentRecord ? 'Payment record' : 'Invoice record', i18nKey: paymentRecord ? 'financeHub:nav.paymentRecord' : 'shell.nav.invoiceRecord' },
+    ];
+  }
+  const financeArea = pathname.match(/^\/finance\/(receivables|payables|reports|statements)$/)?.[1];
+  if (financeArea) {
+    const labels: Record<string, string> = {
+      receivables: 'Receivables',
+      payables: 'Payables',
+      reports: 'Reports',
+      statements: 'Statements',
+    };
+    return [
+      {
+        label: 'Finance', // i18n-exempt: translated from i18nKey by Breadcrumb
+        i18nKey: 'financeHub:nav.finance',
+        href: '/finance',
+        onClick: () => navigate?.('/finance'),
+      },
+      { label: labels[financeArea], i18nKey: `financeHub:hub.${financeArea}` },
+    ];
+  }
 
   const childCrumb = CHILD_PAGE_CRUMB[pathname];
   const childParent = MODULES.find((m) => m.path === RAIL_PARENT_FOR_PATH[pathname]);

@@ -4,12 +4,12 @@ import { getCoreRowModel, useReactTable, type ColumnDef, type RowSelectionState,
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
+import { Checkbox } from './Checkbox';
 import { ListState } from './ListState';
 import { buttonClasses } from './buttonClasses';
 import { useIsDesktop } from './useIsDesktop';
 import { trackSearchUsed } from '@/src/lib/analytics';
 import { AuthContext } from '@/src/auth/AuthContext';
-import { Checkbox } from './Checkbox';
 
 /** `search_used`'s debounce idle window (2026-07-13 wiring plan) — fire once per
  * search intent, never per keystroke. */
@@ -121,6 +121,9 @@ export interface DataTableProps<Row> {
   rowLabel?: (row: Row) => string;
   /** Optional accessible name for the active table or mobile list structure. */
   accessibleName?: string;
+  /** Compact mobile title and details for record cards that do not need a field-by-field definition list. */
+  mobileCardTitle?: (row: Row) => React.ReactNode;
+  mobileCardDetails?: (row: Row) => React.ReactNode;
   /** Optional DOM target id for a row that a route will scroll to and focus programmatically. */
   rowTarget?: (row: Row) => string | undefined;
   selectedKey?: string;
@@ -154,6 +157,8 @@ export interface DataTableProps<Row> {
   tableId?: string;
   /** Optional grouping key; each distinct group is introduced by an aligned in-table row. */
   groupBy?: (row: Row) => string;
+  /** Optional value shown beside each group label (for example, the group's open balance). */
+  groupHeader?: (label: string, rows: Row[]) => React.ReactNode;
   /** Aligned subtotal/total rows rendered in a semantic <tfoot>; values are keyed by column key. */
   totals?: Array<{ key: string; label: React.ReactNode; values?: Record<string, React.ReactNode> }>;
   /** Optional controlled multi-row selection. */
@@ -327,8 +332,11 @@ export function DataTable<Row>({
   embedded = false,
   cardBelow,
   accessibleName,
+  mobileCardTitle,
+  mobileCardDetails,
   tableId,
   groupBy,
+  groupHeader,
   totals,
   selection,
 }: DataTableProps<Row>) {
@@ -433,19 +441,22 @@ export function DataTable<Row>({
       else groups.set(group, [modelRow]);
     }
     return Array.from(groups, ([label, groupRows]) => ({ type: 'group' as const, label, rows: groupRows }))
-      .flatMap((group) => [{ type: 'heading' as const, label: group.label, count: group.rows.length }, ...group.rows.map((modelRow) => ({ type: 'data' as const, modelRow, group: group.label }))]);
+      .flatMap((group) => [{ type: 'heading' as const, label: group.label, count: group.rows.length, rows: group.rows }, ...group.rows.map((modelRow) => ({ type: 'data' as const, modelRow, group: group.label }))]);
   }, [groupBy, modelRows]);
   const modelHeaders = table.getHeaderGroups()[0]?.headers ?? [];
   const hasHiddenRightContent = useStickyRowMenuSeam(tableBranchRef, tableRef, isDesktop && Boolean(rowMenu));
   const colSpan = columns.length + (rowMenu ? 1 : 0) + (selection ? 1 : 0);
-  const visibleSelectionCount = currentRowIds.filter((id) => selection?.selectedIds.has(id)).length;
+  // Select-all acts on the rows the user can see: a collapsed group's rows, and rows outside `rows`, keep their state.
+  const visibleSelectionIds = groupedRows.flatMap((entry) =>
+    entry.type !== 'data' || (entry.group && collapsedGroups.has(entry.group)) ? [] : [entry.modelRow.id]);
+  const visibleSelectionCount = visibleSelectionIds.filter((id) => selection?.selectedIds.has(id)).length;
   const selectAllChecked: boolean | 'mixed' = visibleSelectionCount === 0
     ? false
-    : visibleSelectionCount === currentRowIds.length ? true : 'mixed';
+    : visibleSelectionCount === visibleSelectionIds.length ? true : 'mixed';
   const toggleAllRows = (checked: boolean) => {
     table.setRowSelection((current) => {
       const next = { ...current };
-      for (const id of currentRowIds) {
+      for (const id of visibleSelectionIds) {
         if (checked) next[id] = true;
         else delete next[id];
       }
@@ -453,7 +464,7 @@ export function DataTable<Row>({
     });
   };
   const selectionLabel = (row: Row, primaryColumn?: Column<Row>) => selection?.rowLabel?.(row)
-    ?? t('table.selectRow', 'Select {{row}}', { row: primaryColumn?.primaryTitle?.(row) ?? rowKey(row) });
+    ?? t('table.selectRow', 'Select {{row}}', { row: primaryColumn?.primaryTitle?.(row) ?? rowLabel?.(row)?.replace(/^Open\s+/i, '') ?? rowKey(row) });
 
   // Shared ListState node — rendered once and reused in both branches via a
   // local variable so the async-state code is one source of truth.
@@ -504,7 +515,7 @@ export function DataTable<Row>({
             <tr>
               {selection && <th scope="col" className="sticky top-0 z-[2] h-[38px] w-10 border-b border-border bg-card px-3 text-left">
                 <span onClick={(event) => event.stopPropagation()}>
-                  <Checkbox checked={selectAllChecked} onChange={toggleAllRows} label={t('table.selectAllRows', 'Select all rows')} disabled={currentRowIds.length === 0} />
+                  <Checkbox checked={selectAllChecked} onChange={toggleAllRows} label={t('table.selectAllRows', 'Select all rows')} disabled={state !== undefined || visibleSelectionIds.length === 0} />
                 </span>
               </th>}
               {modelHeaders.map((header, headerIndex) => {
@@ -640,8 +651,8 @@ export function DataTable<Row>({
               groupedRows.map((entry, entryIndex) => {
                 if (entry.type === 'heading') return (
                   <tr key={`group-${entry.label}-${entryIndex}`} className="h-[38px] bg-secondary/40">
-                    {selection && <td />}
-                    <th scope="row" className="px-3 text-left text-[13.5px] font-semibold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></th>
+                    {selection && <td className="px-3" />}
+                    <th scope="row" className="px-3 text-left text-[13.5px] font-semibold text-foreground"><div className="flex flex-wrap items-center justify-between gap-x-4"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button>{groupHeader?.(entry.label, entry.rows.map((modelRow) => modelRow.original))}</div></th>
                     {columns.slice(1).map((column) => <td key={column.key} className={cn('px-3', alignClass(column.align))} />)}
                     {rowMenu && <td className={ROW_MENU_STICKY_CLASS} />}
                   </tr>
@@ -676,7 +687,7 @@ export function DataTable<Row>({
                             // other interactive control added to a cell in the future.
                             if (
                               (e.target as HTMLElement).closest(
-                                'button, a, select, input, textarea, label, [role="menuitem"], [contenteditable]'
+                                'button, a, select, input, textarea, label, [role="checkbox"], [role="menuitem"], [contenteditable]'
                               )
                             )
                               return;
@@ -790,14 +801,14 @@ export function DataTable<Row>({
       >
         {selection && !state && <li className="flex items-center gap-2 border-b border-border/70 bg-secondary/30 px-4 py-2">
           <span onClick={(event) => event.stopPropagation()}>
-            <Checkbox checked={selectAllChecked} onChange={toggleAllRows} label={t('table.selectAllRows', 'Select all rows')} disabled={currentRowIds.length === 0} />
+            <Checkbox checked={selectAllChecked} onChange={toggleAllRows} label={t('table.selectAllRows', 'Select all rows')} disabled={visibleSelectionIds.length === 0} />
           </span>
         </li>}
         {state ? (
           <li className="p-0">{listStateNode}</li>
         ) : (
           groupedRows.map((entry, entryIndex) => {
-            if (entry.type === 'heading') return <li key={`group-${entry.label}-${entryIndex}`} className="bg-secondary/40 px-4 py-2 text-[13.5px] font-semibold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></li>;
+            if (entry.type === 'heading') return <li key={`group-${entry.label}-${entryIndex}`} className="flex flex-wrap items-center justify-between gap-x-4 bg-secondary/40 px-4 py-2 text-[13.5px] font-semibold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button>{groupHeader?.(entry.label, entry.rows.map((modelRow) => modelRow.original))}</li>;
             if (entry.group && collapsedGroups.has(entry.group)) return null;
             const modelRow = entry.modelRow;
             const row = modelRow.original;
@@ -843,10 +854,10 @@ export function DataTable<Row>({
                           onClick={() => onActivate(row)}
                           className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
                         >
-                          {titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
+                          {mobileCardTitle ? mobileCardTitle(row) : titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
                         </button>
                       ) : (
-                        titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)
+                        mobileCardTitle ? mobileCardTitle(row) : titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)
                       )}
                     </div>
                   </div>
@@ -861,7 +872,7 @@ export function DataTable<Row>({
                 {/* Remaining columns as a definition list. A cell that renders nothing for THIS row
                     (null/undefined/false — e.g. a fact that only one record type carries) is left out of
                     the card: a label with no value is noise, and a <dt> without its <dd> is invalid. */}
-                {restCols.length > 0 && (
+                {mobileCardDetails ? mobileCardDetails(row) : restCols.length > 0 && (
                   <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
                     {restCols.map((col) => {
                       const content = col.cell(row);

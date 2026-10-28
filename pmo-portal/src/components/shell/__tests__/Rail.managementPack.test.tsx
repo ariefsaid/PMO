@@ -17,23 +17,23 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
 
 const renderRail = () => render(<MemoryRouter><Rail /></MemoryRouter>);
 
-describe('AC-MMP-015 Management pack in the rail', () => {
-  it('AC-MMP-015: Finance sees Management pack linking to /reports when Revenue is on', () => {
+describe('Finance area in the rail', () => {
+  it('Finance sees the Finance destination with Revenue enabled', () => {
     effectiveRole = 'Finance';
     revenue = true;
     renderRail();
-    expect(screen.getByRole('link', { name: /Management pack/ })).toHaveAttribute('href', '/reports');
+    expect(screen.getByRole('link', { name: 'Finance' })).toHaveAttribute('href', '/finance');
   });
 
-  it('AC-MMP-015: Engineers do not, and nobody does when Revenue is off', () => {
+  it('Engineers do not see Finance; Finance sees it when Revenue is off', () => {
     effectiveRole = 'Engineer';
     revenue = true;
     const { unmount } = renderRail();
-    expect(screen.queryByRole('link', { name: /Management pack/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Finance' })).toBeNull();
     unmount();
     effectiveRole = 'Finance';
     revenue = false;
     renderRail();
-    expect(screen.queryByRole('link', { name: /Management pack/ })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Finance' })).toHaveAttribute('href', '/finance');
   });
 });

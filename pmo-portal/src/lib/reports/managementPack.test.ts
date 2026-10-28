@@ -96,6 +96,13 @@ describe('AC-MMP-008 unbilled (DD-MMP-3)', () => {
     expect(row.months.map((m) => m.invoicedToDate)).toEqual([c(300_000), c(300_000), c(600_000), c(600_000)]);
     expect(row.months.map((m) => m.unbilled)).toEqual([0, c(180_000), -c(120_000), c(60_000)]);
   });
+
+  it('AC-1405-REPORT-001: invoice counts use dated monthly facts and accumulate through the as-at month', () => {
+    const row = buildManagementPack(scenario).rows[0];
+    expect(row.months.map((month) => month.invoiceCount)).toEqual([1, 0, 1, 0]);
+    expect(row.months.map((month) => month.invoiceCountToDate)).toEqual([2, 2, 3, 3]);
+    expect(buildManagementPack(scenario).totals[0]?.months.map((month) => month.invoiceCountToDate)).toEqual([2, 2, 3, 3]);
+  });
 });
 
 describe('AC-MMP-009 backlog (DD-MMP-3)', () => {
@@ -126,7 +133,7 @@ describe('AC-MMP-009 backlog (DD-MMP-3)', () => {
     expect(pack.totals.map((t) => t.currency)).toEqual(['EUR', 'IDR', 'USD']);
     const noActivity = buildManagementPack(facts({
       projects: [],
-      invoiced_before: [before(null, 'JPY', 0, 1)],
+      invoiced_before: [before(null, 'JPY', 0, 0)],
     }));
     expect(noActivity.totals).toEqual([]);
   });

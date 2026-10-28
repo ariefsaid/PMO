@@ -3178,11 +3178,6 @@
       "client": "Client Project Code"
     }
   },
-  "revenueByProject": {
-    "currencyErrorSub": "Try again to view revenue.",
-    "currencyErrorTitle": "Couldn't load organization currency",
-    "subtitle": "Project revenue, net of tax, in each invoice's own currency, with a separate Unassigned group for invoices not linked to a project."
-  },
   "financialStatements": {
     "amounts": "Amounts",
     "asAt": "As at",
@@ -3786,13 +3781,7 @@
   },
   "uxs05": {
     "customerReference": "Customer reference",
-    "overdueDay": "{{count}} day overdue",
-    "overdueDays": "{{count}} days overdue",
     "overdueOnly": "Overdue only"
-  },
-  "uxs37": {
-    "billedWorkTaxBasis": "net of tax",
-    "openReceivablesTaxBasis": "gross, tax included"
   },
   "financeCopy": {
     "viewInvoice": "View invoice",
@@ -3809,7 +3798,6 @@
     "projectNotRecorded": "Project not recorded",
     "customerNotRecorded": "Customer not recorded",
     "unnamedInvoice": "invoice",
-    "continueToApprove": "Continue to approve",
     "nativeNewInvoiceSubtitle": "Raises a draft. A different Finance or Admin user approves it.",
     "nativeProjectRequired": "Project is required: it decides the invoice's VAT.",
     "nativeSelectProject": "Select project…",
@@ -3952,17 +3940,6 @@
     "cancelPayment": "Cancel payment",
     "salesInvoiceOptional": "Sales Invoice (optional)",
     "linkToSalesInvoice": "Link to sales invoice…",
-    "youDonTHaveAccessToRevenueByProject": "You don't have access to Revenue by Project",
-    "theRevenuePerProjectViewIsAvailableToFinanceProjectManagersAndExecutives": "The revenue per project view is available to Finance, Project Managers, and Executives.",
-    "unassigned": "Unassigned",
-    "totalRevenue": "Total Revenue",
-    "openAR": "Open AR",
-    "invoices": "Invoices",
-    "revenueByProject": "Revenue by Project",
-    "noRevenueDataYet": "No revenue data yet",
-    "createSalesInvoicesToSeeRevenuePerProject": "No invoice revenue has been recorded yet. New Invoice starts billing; revenue appears here after invoices are recorded.",
-    "noRevenueData": "No revenue data",
-    "invoicesWithAmountsWillAppearHere": "Invoices with amounts will appear here.",
     "name": "Name",
     "updated": "Updated",
     "myViews": "My Views",
@@ -4061,7 +4038,6 @@
     "selectOrSearchItem": "Select or search item…",
     "searchItemCodeOrName": "Search item code or name…",
     "describeWorkOrGoods": "Describe the work or goods…",
-    "currency": "Currency",
     "draftInvoiceLabel": "Draft · {{customer}}",
     "preErpBadge": "Pre-ERP",
     "totalDueAmount": "Total due {{amount}}",
@@ -4217,63 +4193,60 @@
     "clear": "Clear classifications"
   },
   "managementPack": {
-    "actions": "Actions",
-    "retry": "Retry",
-    "title": "Monthly management pack",
-    "description": "Planned, recognised and invoiced revenue per project and month. All figures exclude tax.",
-    "from": "From",
-    "asAt": "As at",
-    "noAccessTitle": "You don't have access to the management pack",
-    "noAccessSub": "The management pack is available to Finance, Project Managers, Executives and Admins.",
-    "errorTitle": "Couldn't load the management pack",
-    "errorSub": "The request failed. Check your connection and try again.",
-    "invalidRange": "Choose a start month on or before the as-at month, at most 24 months apart.",
-    "emptyTitle": "No projects to report",
-    "emptySub": "Won and ongoing projects, and any project invoiced in this period, appear here.",
-    "projectsAsAt": "Projects as at {{month}}",
-    "monthlyTotals": "Monthly totals",
-    "unassigned": "Unassigned",
-    "otherCurrency": "Invoiced in {{currency}}, not the contract currency",
-    "recordProgress": "Record progress",
-    "billedAhead": "billed ahead",
-    "undated": "{{count}} invoices have no date and are not counted",
-    "total": "Total",
-    "basis": {
-      "invoiced": "Invoiced",
-      "progress": "{{pct}}% complete",
-      "progressShort": "Progress"
-    },
-    "col": {
-      "month": "Month",
-      "projectNumber": "Project number",
-      "project": "Project",
-      "client": "Client",
-      "currency": "Currency",
-      "taxBasis": "Tax basis",
-      "contract": "Contract",
-      "planned": "Planned",
-      "recognised": "Recognised",
-      "invoiced": "Invoiced",
-      "recognisedToDate": "Recognised to date",
-      "invoicedToDate": "Invoiced to date",
-      "unbilled": "Unbilled",
-      "backlog": "Backlog",
-      "basis": "Basis"
-    },
-    "progressModal": {
-      "title": "Record progress",
-      "month": "Month",
-      "monthInvalid": "Choose a month.",
-      "pct": "Percent complete to date",
-      "pctHelper": "Phase delivery: {{pct}}%",
-      "pctInvalid": "Enter a number from 0 to 100, with at most two decimals.",
-      "note": "Note",
-      "save": "Save progress",
-      "saved": "Progress saved"
-    }
+  "actions": "Actions",
+  "retry": "Retry",
+  "description": "Planned, recognised and invoiced revenue per project and month. All figures exclude tax.",
+  "from": "From",
+  "asAt": "As at",
+  "noAccessTitle": "You don't have access to the management pack",
+  "noAccessSub": "Finance reports are available to Finance, Executive and Admin roles.",
+  "errorTitle": "Couldn't load the management pack",
+  "errorSub": "The request failed. Check your connection and try again.",
+  "invalidRange": "Choose a start month on or before the as-at month, at most 24 months apart.",
+  "emptyTitle": "No projects to report",
+  "emptySub": "Won and ongoing projects, and any project invoiced in this period, appear here.",
+  "projectsAsAt": "Projects as at {{month}}",
+  "monthlyTotals": "Monthly totals",
+  "unassigned": "Unassigned",
+  "otherCurrency": "Invoiced in {{currency}}, not the contract currency",
+  "recordProgress": "Record progress",
+  "billedAhead": "billed ahead",
+  "undated": "{{count}} invoices have no date and are not counted",
+  "total": "Total",
+  "basis": {
+    "invoiced": "Invoiced",
+    "progressShort": "Progress"
   },
+  "col": {
+    "month": "Month",
+    "projectNumber": "Project number",
+    "project": "Project",
+    "client": "Client",
+    "currency": "Currency",
+    "taxBasis": "Tax basis",
+    "contract": "Contract",
+    "planned": "Planned",
+    "recognised": "Recognised",
+    "invoiced": "Invoiced",
+    "recognisedToDate": "Recognised to date",
+    "invoicedToDate": "Invoiced to date",
+    "unbilled": "Unbilled",
+    "backlog": "Backlog",
+    "basis": "Basis"
+  },
+  "progressModal": {
+    "title": "Record progress",
+    "month": "Month",
+    "monthInvalid": "Choose a month.",
+    "pct": "Percent complete to date",
+    "pctHelper": "Phase delivery: {{pct}}%",
+    "pctInvalid": "Enter a number from 0 to 100, with at most two decimals.",
+    "note": "Note",
+    "save": "Save progress",
+    "saved": "Progress saved"
+  }
+},
   "uxs34": {
-    "cumulativeScope": "Cumulative amounts · since project start through {{month}}",
     "backlogUnavailable": "Unavailable",
     "backlogReason": "A foreign-currency invoice needs reconciliation before this balance can be known."
   },
@@ -4856,8 +4829,7 @@
   },
   "uxs26": {
     "invoiceEmptyProjectManager": "No client invoices have been recorded yet. Finance manages invoice creation.",
-    "receiptsEmptyProjectManager": "No client receipts have been recorded yet. Finance records client payments.",
-    "revenueEmptyProjectManager": "No invoice revenue has been recorded yet. Finance manages invoice creation."
+    "receiptsEmptyProjectManager": "No client receipts have been recorded yet. Finance records client payments."
   },
   "m365Documents": {
     "link": "Link from Microsoft 365",

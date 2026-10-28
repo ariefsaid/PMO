@@ -5,6 +5,8 @@ import { useIsDesktop } from './useIsDesktop';
 export interface ListPageProps {
   /** Page H1 (the entity noun — "Companies", "Projects", "Pipeline", …). */
   title: React.ReactNode;
+  /** Embedded pages use a compact h2 while standalone list routes remain h1. */
+  headingLevel?: 1 | 2;
   /** One-line page subtitle below the title. */
   description?: React.ReactNode;
   /**
@@ -65,6 +67,7 @@ export interface ListPageProps {
  */
 export const ListPage: React.FC<ListPageProps> = ({
   title,
+  headingLevel = 1,
   description,
   count,
   primaryAction,
@@ -98,7 +101,11 @@ export const ListPage: React.FC<ListPageProps> = ({
       >
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-[24px] font-bold tracking-[-0.02em]">{title}</h1>
+            {headingLevel === 2 ? (
+              <h2 className="text-[18px] font-semibold">{title}</h2>
+            ) : (
+              <h1 className="text-[24px] font-bold tracking-[-0.02em]">{title}</h1>
+            )}
             {count !== undefined && (
               <span
                 data-testid="list-page-count"
