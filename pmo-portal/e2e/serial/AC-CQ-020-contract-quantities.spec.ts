@@ -142,8 +142,8 @@ test('AC-CQ-020 PM allocates 1,000 and prepares final BAST 997; distinct Finance
     await page.reload();
     await expect(page.getByTestId(`wo-closing-${workOrderId}`)).toContainText(CLOSING, { timeout: 60_000 });
     await expect(page.getByRole('row').filter({ hasText: woNumber })).toContainText('Closed');
-    await expect(page.getByTestId('wo-billing-total-still')).toContainText(CLOSING);
-    await expect(page.getByTestId('wo-billing-total-still')).not.toContainText(/50[.,]000[.,]000/);
+    await expect(page.getByTestId(`wo-still-${workOrderId}`)).toContainText(CLOSING);
+    await expect(page.getByTestId(`wo-still-${workOrderId}`)).not.toContainText(/50[.,]000[.,]000/);
 
     // --- ...and the Billing tab: contract balance 903 km, earned 49,850,000 -----------------------------------
     await page.goto(`/projects/${projectId}/billing`);
@@ -153,7 +153,7 @@ test('AC-CQ-020 PM allocates 1,000 and prepares final BAST 997; distinct Finance
 
     // Navigate away and back: the closing value is the server's, not a stale client figure.
     await page.goto(`/projects/${projectId}/work-orders`);
-    await expect(page.getByTestId('wo-billing-total-still')).toContainText(CLOSING, { timeout: 60_000 });
+    await expect(page.getByTestId(`wo-still-${workOrderId}`)).toContainText(CLOSING, { timeout: 60_000 });
   } finally {
     // A Confirmed BAST (and the closed order that references it) is immutable by design, so nothing is deleted.
     // Archiving the unique project keeps the leftover out of every live project list.

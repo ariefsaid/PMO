@@ -738,4 +738,26 @@ describe('WorkOrdersTab — billing summary disclosure (M19)', () => {
     expect(disclosure).toHaveTextContent('Claims raised, not yet submitted');
     expect(within(disclosure).getByText('No assessment yet')).toBeInTheDocument();
   });
+
+  it('N13 billing ahead of the assessed work reads "Billed ahead of progress" with a positive amount, never a negative gap', () => {
+    h.projectBilling.data = {
+      currency: 'USD', contractNet: 1_000_000, workBilled: 310_000, dpBilled: 0, dpRecovered: 0, notSubmitted: 0,
+      assessment: { month: '2026-10-01', pctComplete: 10 }, claimedByBoqItem: {}, assessedByBoqItem: {}, earnedValue: 0, contractLines: [],
+    };
+    renderTab();
+    const gap = screen.getByTestId('claims-gap');
+    expect(gap).toHaveTextContent('Billed ahead of progress');
+    expect(gap).toHaveTextContent('210,000');
+    expect(gap).not.toHaveTextContent('-');
+  });
+
+  it('C4 (AC-PB-016) without an assessment the claims summary leaves the gap out — no "—" placeholder', () => {
+    h.projectBilling.data = {
+      currency: 'USD', contractNet: 1_000_000, workBilled: 250_000, dpBilled: 100_000, dpRecovered: 25_000, notSubmitted: 0,
+      assessment: null, claimedByBoqItem: {}, assessedByBoqItem: {}, earnedValue: 0, contractLines: [],
+    };
+    renderTab();
+    expect(screen.queryByTestId('claims-gap')).toBeNull();
+    expect(screen.getByText('Down payment held')).toBeInTheDocument();
+  });
 });

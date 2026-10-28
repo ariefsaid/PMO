@@ -312,8 +312,11 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
     </>
   ) : null;
 
-  const usedPercent = pos.budget > 0 && pos.spent !== null ? pctOf(pos.spent, pos.budget) : null;
-  const remaining = pos.spent === null ? null : pos.budget - pos.spent;
+  // L12: "used" and "remaining" mean what the Budget tab's "% used" and "Left" mean — spent plus committed — whenever
+  // the committed figure is known, so the Overview and the Budget tab never show two different headrooms.
+  const spentAndCommitted = pos.spent === null ? null : pos.spent + (committedFigure ?? 0);
+  const usedPercent = pos.budget > 0 && spentAndCommitted !== null ? pctOf(spentAndCommitted, pos.budget) : null;
+  const remaining = spentAndCommitted === null ? null : pos.budget - spentAndCommitted;
   const atRisk = isMoneyAtRisk({
     status: project.status as string,
     budget: pos.budget,
@@ -353,10 +356,10 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
             const detail = t('projectDetail.cost.categoryTooltip', 'Active budget and mapped actual spending for this category. Source: the active budget and project finance records.');
             return (
               <li key={r.category} className="border-b border-border/70 last:border-b-0">
-                <Tooltip content={detail} className="w-full">
+                <Tooltip content={detail} block>
                   <Link to={`/projects/${project.id}/budget`} onClick={onOpenBudget ? (event) => { event.preventDefault(); onOpenBudget(); } : undefined}
                     aria-label={t('projectDetail.cost.openCategory', 'Open {{category}} in Budget', { category: label(r.category) })}
-                    className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 py-3 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[minmax(8rem,0.8fr)_minmax(5rem,auto)_minmax(5rem,1fr)]">
+                    className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 py-3 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[minmax(8rem,0.8fr)_minmax(5rem,auto)_minmax(5rem,1fr)]">
                     <span className="truncate text-sm font-medium text-foreground">{label(r.category)}</span>
                     <span className={cn('text-right text-xs tabular-nums sm:order-last', over ? 'font-semibold text-destructive-text' : 'text-muted-foreground')}>
                       {r.actual === null
@@ -457,8 +460,9 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
                   <span>{t('projectDetail.milestones.taskCount', '{{done}} of {{total}} tasks', { done: doneTasks, total: phaseTasks.length || milestone.task_count })}</span>
                   {blockingTasks.map((task) => <Link key={task.id} to={`/projects/${projectId}/tasks?open=${encodeURIComponent(task.id)}`} className="font-semibold text-primary-text hover:underline">{task.name}</Link>)}
                 </span>
-                <Tooltip content={t('projectDetail.delivery.phaseProgressTooltip', 'Manual phase progress when set; otherwise done phase tasks divided by the phase task count. Source: the project phase plan.')}>
-                  <span tabIndex={0} className="flex min-w-0">
+                {/* N3: a block tooltip trigger spans the row, so the bar keeps its full track on phone (it collapsed to the label). */}
+                <Tooltip block content={t('projectDetail.delivery.phaseProgressTooltip', 'Manual phase progress when set; otherwise done phase tasks divided by the phase task count. Source: the project phase plan.')}>
+                  <span tabIndex={0} className="flex w-full min-w-0">
                     {/* Delivery progress stays primary until the phase is complete, then success. */}
                     <ProgressBar value={pct} tone={milestone.effective_pct >= 100 ? 'success' : 'primary'} showValue widthless className="w-full"
                       aria-label={t('projectDetail.delivery.phaseProgressAria', '{{name}} {{pct}}% complete', { name: milestone.name, pct })} />

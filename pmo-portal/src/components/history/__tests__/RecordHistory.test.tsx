@@ -157,7 +157,7 @@ describe('RecordHistory — formatting (AC-CHG-015)', () => {
     });
     renderIt({ includeChildren: true, kindFilters: true });
     expect(await screen.findByText('Sales invoice · SI-2026-01')).toBeInTheDocument();
-    expect(screen.getByText('Vendor bill · VI-2026-01')).toBeInTheDocument();
+    expect(screen.getByText('Supplier invoice · VI-2026-01')).toBeInTheDocument();
     expect(repo.recordHistory.lookupNames).toHaveBeenCalledWith({
       sales_invoice: ['si-1'], procurement_invoice: ['vi-1'],
     });

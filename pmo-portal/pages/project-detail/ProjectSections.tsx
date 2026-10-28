@@ -179,7 +179,8 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
         idBase="project-detail"
         // Tabs scrolls the active item with inline:nearest; this margin keeps its label clear of the right fade.
         // The end padding lets the last tab scroll fully clear of the right fade, so no label is ever clipped (P5).
-        className="mb-0! pr-8 max-md:[&_[role=tab][aria-selected=true]]:scroll-mr-7"
+        // P5: tighter phone padding lets the next tab peek into the fade, so the row reads as scrollable.
+        className="mb-0! pr-8 max-md:[&_[role=tab]]:px-2.5 max-md:[&_[role=tab][aria-selected=true]]:scroll-mr-7"
       />
       <div role="tabpanel" id={tabPanelId('project-detail', panel)} aria-labelledby={tabId('project-detail', panel)} className="pt-8">
         <Suspended>

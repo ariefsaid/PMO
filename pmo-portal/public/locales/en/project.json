@@ -219,7 +219,8 @@
         "error": "Couldn't load billing",
         "dpHeld": "Down payment held",
         "title": "Billing summary",
-        "gap": "Work done, not yet billed"
+        "gap": "Work done, not yet billed",
+        "billedAhead": "Billed ahead of progress"
       },
       "source": {
         "contract": "Source: net contract value from the project billing summary.",
@@ -760,7 +761,8 @@
       "orders": "Customer orders",
       "empty": "No contract lines or customer orders yet.",
       "noOrders": "No customer orders yet."
-    }
+    },
+    "loadingTitle": "Loading project"
   },
   "common": {
     "retry": "Retry",

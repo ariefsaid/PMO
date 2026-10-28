@@ -56,7 +56,7 @@ export const ProjectAttention: React.FC<{
       <ul className="divide-y divide-border/70 border-y border-border/70">
         {visibleItems.map((item) => (
           <li key={item.key}>
-            <Tooltip content={item.explanation ?? t('projectDetail.attention.rowTooltip', 'Status is based on project records and their current workflow state.')} className="w-full">
+            <Tooltip content={item.explanation ?? t('projectDetail.attention.rowTooltip', 'Status is based on project records and their current workflow state.')} block>
               <Link to={item.to} className="touch-target flex items-baseline gap-x-4 py-3 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 <span className="min-w-0 flex-1">
                   <span className="text-sm font-semibold text-foreground">{item.what}</span>

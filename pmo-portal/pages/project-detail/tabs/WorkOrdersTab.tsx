@@ -898,7 +898,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                       {/* AC-BWO-004: what is still to invoice leads, ahead of invoiced and paid. */}
                       {billingRow?.figuresComplete && row.status !== 'Draft' && row.status !== 'Cancelled' && <div className="min-w-0 text-xs">
                           <dt className="sr-only">{t('common:projectDetail.workOrders.billing.stillToInvoice', 'Still to invoice')}</dt>
-                          <dd className="cursor-help text-muted-foreground tabular-nums"><Tooltip content={t('projectDetail.workOrders.billing.pendingNote', 'Drafts and unraised claims count as not yet invoiced.') }><span>{billingRow.remaining < 0
+                          <dd data-testid={`wo-still-${row.id}`} className="cursor-help text-muted-foreground tabular-nums"><Tooltip content={t('projectDetail.workOrders.billing.pendingNote', 'Drafts and unraised claims count as not yet invoiced.') }><span>{billingRow.remaining < 0
                             ? t('common:projectDetail.workOrders.billing.lineOver', 'Over by {{amount}}', { amount: formatNumberWhole(Math.abs(billingRow.remaining)) })
                             : t('common:projectDetail.workOrders.billing.lineRemaining', 'Still to invoice {{amount}}', { amount: formatNumberWhole(billingRow.remaining) })}</span></Tooltip></dd>
                         </div>}
@@ -1072,14 +1072,17 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         </CardHead>
         <CardPad>
           <dl className="mb-4 grid grid-cols-2 gap-x-4 gap-y-3 border-b border-border pb-4 sm:grid-cols-3">
-            <div>
-              <dt className="text-xs text-muted-foreground">{t('projectDetail.billing.summary.gap', 'Work done, not yet billed')}</dt>
-              <dd className="mt-1 w-fit cursor-help text-base font-semibold tabular-nums"><Tooltip content={t('projectDetail.billing.claims.source.unbilled', 'Computed as earned work from the latest assessment or accepted quantities, less work billed to date.') }><span>{summary?.unbilledWork === null || summary?.unbilledWork === undefined ? '—' : formatNumberWhole(summary.unbilledWork)}</span></Tooltip></dd>
-            </div>
-            <div>
+            {/* C4: an unknown figure is left out, never a "—"; N13: billing ahead of the work done reads as that, not a negative. */}
+            {summary?.unbilledWork !== null && summary?.unbilledWork !== undefined && <div data-testid="claims-gap">
+              <dt className="text-xs text-muted-foreground">{summary.unbilledWork < 0
+                ? t('projectDetail.billing.summary.billedAhead', 'Billed ahead of progress')
+                : t('projectDetail.billing.summary.gap', 'Work done, not yet billed')}</dt>
+              <dd className="mt-1 w-fit cursor-help text-base font-semibold tabular-nums"><Tooltip content={t('projectDetail.billing.claims.source.unbilled', 'Computed as earned work from the latest assessment or accepted quantities, less work billed to date.') }><span>{formatNumberWhole(Math.abs(summary.unbilledWork))}</span></Tooltip></dd>
+            </div>}
+            {summary && <div>
               <dt className="text-xs text-muted-foreground">{t('projectDetail.billing.summary.dpHeld', 'Down payment held')}</dt>
-              <dd className="mt-1 w-fit cursor-help text-base font-semibold tabular-nums"><Tooltip content={t('projectDetail.billing.claims.source.dpHeld', 'Computed as invoiced down payment less recovered down payment.') }><span>{summary ? formatNumberWhole(summary.dpHeld) : '—'}</span></Tooltip></dd>
-            </div>
+              <dd className="mt-1 w-fit cursor-help text-base font-semibold tabular-nums"><Tooltip content={t('projectDetail.billing.claims.source.dpHeld', 'Computed as invoiced down payment less recovered down payment.') }><span>{formatNumberWhole(summary.dpHeld)}</span></Tooltip></dd>
+            </div>}
           </dl>
           <p className="mb-4 text-xs text-muted-foreground">
             {t('projectDetail.billing.claims.evidenceFirst', 'Claims need evidence attached before an invoice draft can be raised.')}

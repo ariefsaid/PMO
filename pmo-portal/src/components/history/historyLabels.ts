@@ -115,7 +115,7 @@ export function kindLabels(t: TFunction): Record<string, string> {
     company: t('history.kind.company', 'Company'),
     contact: t('history.kind.contact', 'Contact'),
     sales_invoice: t('history.kind.sales_invoice', 'Sales invoice'),
-    procurement_invoice: t('history.kind.procurement_invoice', 'Vendor bill'),
+    procurement_invoice: t('history.kind.procurement_invoice', 'Supplier invoice'),
     vendor_withholding_slip: t('history.kind.vendor_withholding_slip', 'Bukti potong'),
     vendor_withholding_slip_bill: t('history.kind.vendor_withholding_slip_bill', 'Bukti potong bill link'),
   };
@@ -171,7 +171,7 @@ export function auditActionLabels(t: TFunction): Record<string, string> {
     'progress_claim.create': t('history.action.progress_claim_create', 'Progress claim created'),
     'progress_claim.withdraw': t('history.action.progress_claim_withdraw', 'Progress claim withdrawn'),
     'progress_claim.evidence.attach': t('history.action.progress_claim_evidence_attach', 'Progress claim evidence attached'),
-    'procurement_invoice.create': t('history.action.procurement_invoice_create', 'Vendor invoice created'),
+    'procurement_invoice.create': t('history.action.procurement_invoice_create', 'Supplier invoice created'),
     'procurement.approval_route': t('history.action.procurement_approval_route', 'Approval route recorded'),
     'incoming_payment.create': t('history.action.incoming_payment_create', 'Incoming payment recorded'),
     'incoming_payment.cancel': t('history.action.incoming_payment_cancel', 'Incoming payment cancelled'),

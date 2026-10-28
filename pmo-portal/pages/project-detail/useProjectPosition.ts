@@ -215,7 +215,8 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
     const late = (milestones.data ?? []).filter((m) => m.target_date && m.target_date < attnToday() && m.effective_pct < 100 && (m.effective_pct > 0 || m.task_count > 0));
     if (late.length) {
       const worst = late.reduce((w, m) => (m.target_date! < w.target_date! ? m : w));
-      out.push({ key: 'phases', tone: 'warn', to: `${base}/tasks`,
+      // N16: late reads red here as it does on the phase rows and Tasks — one lateness colour.
+      out.push({ key: 'phases', tone: 'danger', to: `${base}/tasks`,
         what: late.length === 1
           ? t('projectDetail.attention.phaseWhat', '{{name}} is late', { name: worst.name })
           : t('projectDetail.attention.phasesWhat', '{{count}} phases late', { count: late.length }),

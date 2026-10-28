@@ -4384,7 +4384,7 @@
       "company": "Perusahaan",
       "contact": "Kontak",
       "sales_invoice": "Faktur penjualan",
-      "procurement_invoice": "Tagihan vendor",
+      "procurement_invoice": "Faktur pemasok",
       "vendor_withholding_slip": "Bukti potong",
       "vendor_withholding_slip_bill": "Tautan tagihan bukti potong"
     },
@@ -4427,7 +4427,7 @@
       "progress_claim_create": "Klaim progres dibuat",
       "progress_claim_withdraw": "Klaim progres ditarik",
       "progress_claim_evidence_attach": "Bukti klaim progres dilampirkan",
-      "procurement_invoice_create": "Invoice vendor dibuat",
+      "procurement_invoice_create": "Faktur pemasok dibuat",
       "procurement_approval_route": "Rute persetujuan dicatat",
       "incoming_payment_create": "Pembayaran masuk dicatat",
       "incoming_payment_cancel": "Pembayaran masuk dibatalkan",

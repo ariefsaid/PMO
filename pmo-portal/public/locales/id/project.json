@@ -219,7 +219,8 @@
         "error": "Data penagihan tidak dapat dimuat",
         "dpHeld": "Uang muka tertahan",
         "title": "Ringkasan penagihan",
-        "gap": "Pekerjaan selesai, belum ditagih"
+        "gap": "Pekerjaan selesai, belum ditagih",
+        "billedAhead": "Ditagih melebihi progres"
       },
       "source": {
         "contract": "Sumber: nilai kontrak bersih dari ringkasan penagihan proyek.",
@@ -760,7 +761,8 @@
       "orders": "Pesanan pelanggan",
       "empty": "Belum ada baris kontrak atau pesanan pelanggan.",
       "noOrders": "Belum ada pesanan pelanggan."
-    }
+    },
+    "loadingTitle": "Memuat proyek"
   },
   "common": {
     "retry": "Coba lagi",

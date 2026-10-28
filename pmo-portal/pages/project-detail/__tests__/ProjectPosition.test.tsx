@@ -216,6 +216,8 @@ describe('project money position', () => {
 
     const { result } = renderHook(() => useProjectAttention(project(), 'pm'));
     expect(result.current.items.map((item) => item.key)).toEqual(['budget', 'ar', 'phases', 'approve']);
+    // N16: a late phase carries the same red as the phase rows, not the warning tone.
+    expect(result.current.items.find((item) => item.key === 'phases')?.tone).toBe('danger');
     expect(result.current.items.slice(0, 2).every((item) => item.tone === 'danger')).toBe(true);
     expect(result.current.items[0]).toMatchObject({ what: 'Project over budget', to: '/projects/p1/budget' });
     expect(result.current.items[1]?.size).toContain('40 USD unpaid');
@@ -655,6 +657,8 @@ describe('overview restructure rulings (L5/L6/L10/C4/L12)', () => {
     ];
     renderWithQueryClient(<MemoryRouter><CostBlock project={project()} /></MemoryRouter>);
     expect(screen.getByText('Plus 362 committed in purchase orders')).toBeInTheDocument();
+    // L12: the Overview's use and headroom are the Budget tab's (spent + committed): 462 of 1,000.
+    expect(screen.getByText(/46% used/)).toHaveTextContent('538 remaining');
   });
 });
 

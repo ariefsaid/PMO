@@ -137,6 +137,8 @@ const ProjectDetail: React.FC = () => {
       return (
         <>
           <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+          {/* O18: the page keeps a level-one heading while the project loads. */}
+          <h1 className="sr-only">{t('projectDetail.loadingTitle', 'Loading project')}</h1>
           <ListState variant="loading" rows={6} />
         </>
       );
