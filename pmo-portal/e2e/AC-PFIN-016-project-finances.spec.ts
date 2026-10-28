@@ -1,5 +1,5 @@
 // @e2e-isolation: self-isolated — owns its project/invoice/ref and cleans them up.
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { signIn, requireServiceRoleKey, waitForFonts } from './helpers';
 
@@ -35,6 +35,16 @@ if (!svcKey) {
   );
 }
 const admin = createClient(SUPABASE_URL, svcKey, { auth: { persistSession: false } });
+
+async function expectUsdSettlement(usd: Locator): Promise<void> {
+  await expect(usd.getByRole('heading', { name: 'USD', exact: true })).toBeVisible();
+  const amountFor = (label: string) => usd.locator('dl > div').filter({ hasText: label }).locator('dd').first();
+  await expect(amountFor('Invoiced')).toHaveText('100');
+  await expect(amountFor('Settled')).toHaveText('75');
+  await expect(amountFor('Outstanding')).toHaveText('25');
+  // Unknown actual spending remains an explanation instead of a fabricated zero margin.
+  await expect(amountFor('Margin')).toHaveText('Actual spending is still being confirmed.');
+}
 
 let PROJECT_ID: string;
 let INVOICE_ID: string;
@@ -136,10 +146,7 @@ test('AC-PFIN-016: Finance assigns an adopted invoice to a project — attributi
   await expect(section).toBeVisible({ timeout: 20_000 });
   const usd = page.getByTestId('project-finances-USD');
   await expect(usd).toBeVisible({ timeout: 20_000 });
-  await expect(usd).toContainText('$100'); // Invoiced
-  await expect(usd).toContainText('$75');  // Settled (100 − 25 outstanding)
-  await expect(usd).toContainText('$25');  // Outstanding
-  await expect(usd).not.toContainText('$0'); // no zero-masking of unknowns
+  await expectUsdSettlement(usd);
   // PD-C: the budget gap is no longer restated in Project finances (Overview shows no budget card).
   await expect(section).not.toContainText('No budget');
 
@@ -147,9 +154,7 @@ test('AC-PFIN-016: Finance assigns an adopted invoice to a project — attributi
   await page.reload();
   await expect(page.getByTestId('project-finances')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('project-finances-USD')).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByTestId('project-finances-USD')).toContainText('$100');
-  await expect(page.getByTestId('project-finances-USD')).toContainText('$75');
-  await expect(page.getByTestId('project-finances-USD')).toContainText('$25');
+  await expectUsdSettlement(page.getByTestId('project-finances-USD'));
   await expect(page.getByTestId('project-finances')).not.toContainText('No budget');
 
   // ── Step 6: no adapter command was ever dispatched ──────────────────────────────────────────
@@ -168,7 +173,11 @@ test('AC-PFIN-015 support: project finance mobile layout', async ({ page }) => {
   const usd = page.getByTestId('project-finances-USD');
   await expect(usd).toBeVisible({ timeout: 20_000 });
   await waitForFonts(page);
-  await expect(usd).toContainText('$25');
+  await expect(usd.getByRole('heading', { name: 'USD', exact: true })).toBeVisible();
+  const outstanding = usd.locator('dl > div').filter({ hasText: 'Outstanding' }).locator('dd').first();
+  await expect(outstanding).toHaveText('25');
+  const margin = usd.locator('dl > div').filter({ hasText: 'Margin' }).locator('dd').first();
+  await expect(margin).toHaveText('Actual spending is still being confirmed.');
   const fits = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
   expect(fits).toBe(true);
 
