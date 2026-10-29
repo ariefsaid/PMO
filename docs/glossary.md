@@ -14,10 +14,11 @@ handover/commissioning. One of the nine business spines (see `docs/roadmap-spine
 target date, and a weight. Created free-form per project — there is no org-level milestone
 taxonomy. Progress is held in two columns: a *calculated* percent (derived from its tasks'
 completion; empty when it has no tasks) and an *input* percent (typed by the PM, optional).
-The effective percent is the input value when present, otherwise the calculated one; both
-are shown side by side, so any divergence between the PM's figure and task-derived progress
-is self-evident. A project's overall delivery progress is the weight-weighted rollup of its
-milestones' effective percent.
+The effective percent is the input value when present, otherwise the calculated one, or zero
+when neither exists. Calculated progress excludes subtasks and archived tasks. Both values are
+shown side by side, so any divergence between the PM's figure and task-derived progress is
+self-evident. A project's overall delivery progress is the weight-weighted rollup of its
+milestones' effective percent; it is unavailable (null) when no milestone has a progress signal.
 ⚠ Deliberate deviation from strict PM vocabulary: here a milestone is a *work chunk that
 progresses*, not a zero-duration checkpoint event.
 **Shown to users as "Phase" / "Fase"** (DD-VOCAB-1); "milestone" stays the model, code and spec term.

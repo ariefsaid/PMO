@@ -1,3 +1,4 @@
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables, TablesUpdate, Enums } from '@/src/lib/supabase/database.types';
@@ -99,14 +100,14 @@ type RawTask = TaskRow & {
  * failure.
  */
 export async function listTasks(projectId: string): Promise<TaskWithRefs[]> {
-  const { data, error } = await supabase
+  const rows = await fetchAllPages((from, to) => supabase
     .from('tasks')
     .select(SELECT)
     .eq('project_id', projectId)
     .is('tombstoned_at', null)
-    .order('created_at', { ascending: true });
-  if (error) throwWrite(error);
-  const rows = (data ?? []) as unknown as RawTask[];
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+    .range(from, to)) as unknown as RawTask[];
   return rows.map((t) => ({
     ...t,
     assignee: t.assignee ?? null,
@@ -120,14 +121,14 @@ export async function listTasks(projectId: string): Promise<TaskWithRefs[]> {
  * listTasks. RLS scopes rows; ordered by created_at so items read in the order they were minuted.
  */
 export async function listTasksByMeeting(meetingId: string): Promise<TaskWithRefs[]> {
-  const { data, error } = await supabase
+  const rows = await fetchAllPages((from, to) => supabase
     .from('tasks')
     .select(SELECT)
     .eq('meeting_id', meetingId)
     .is('tombstoned_at', null)
-    .order('created_at', { ascending: true });
-  if (error) throwWrite(error);
-  const rows = (data ?? []) as unknown as RawTask[];
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+    .range(from, to)) as unknown as RawTask[];
   return rows.map((t) => ({
     ...t,
     assignee: t.assignee ?? null,
