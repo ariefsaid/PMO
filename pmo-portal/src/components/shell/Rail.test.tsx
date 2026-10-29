@@ -6,13 +6,16 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
+import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 
 // ── Mocks (hoisted before imports) ──────────────────────────────────────────
 // Use vi.hoisted() so these refs are available when vi.mock factories run.
-const { featureEnabled, userViewsData } = vi.hoisted(() => {
+const { featureEnabled, userViewsData, roleState, eligibility } = vi.hoisted(() => {
   const featureEnabled: Record<string, boolean> = { userViews: true };
   const userViewsData: { id: string; name: string; description: string | null }[] = [];
-  return { featureEnabled, userViewsData };
+  const roleState = { role: 'Admin' };
+  const eligibility = { pending: [] as unknown[], corrections: [] as unknown[] };
+  return { featureEnabled, userViewsData, roleState, eligibility };
 });
 
 vi.mock('@/src/lib/features', async (importOriginal) => ({
@@ -46,8 +49,15 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
 }));
 
 vi.mock('@/src/auth/impersonation', () => ({
-  useEffectiveRole: () => ({ effectiveRole: 'Admin', realRole: 'Admin' }),
+  useEffectiveRole: () => ({ effectiveRole: roleState.role, realRole: roleState.role }),
 }));
+
+vi.mock('@/src/hooks/useTimesheetApproval', () => ({
+  useTimesheetsAwaitingApproval: () => ({ data: eligibility.pending }),
+  useReopenableApprovedTimesheets: () => ({ data: eligibility.corrections }),
+}));
+vi.mock('./ApprovalsNavCount', () => ({ ApprovalsNavCount: () => null }));
+vi.mock('@/src/hooks/useFinancePosition', () => ({ useFinancePosition: () => ({ isPending: true }) }));
 
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
 
@@ -112,5 +122,21 @@ describe('Rail — My Views group (AC-VR-014, AC-VR-015, AC-VR-017)', () => {
     const group = screen.getByRole('group', { name: /my views/i });
     const links = within(group).getAllByRole('link');
     expect(links).toHaveLength(8);
+  });
+});
+
+
+describe('timesheet approval navigation', () => {
+  it('shows the entry for an engineer with an eligible correction and hides it when none exist', () => {
+    roleState.role = 'Engineer';
+    eligibility.corrections = [{ id: 'eligible' }];
+    const auth = {} as AuthContextValue;
+    const tree = () => <AuthContext.Provider value={auth}><MemoryRouter><Rail /></MemoryRouter></AuthContext.Provider>;
+    const view = render(tree());
+    expect(screen.getByRole('link', { name: 'Approvals' })).toHaveAttribute('href', '/approvals');
+    eligibility.corrections = [];
+    view.rerender(tree());
+    expect(screen.queryByRole('link', { name: 'Approvals' })).not.toBeInTheDocument();
+    roleState.role = 'Admin';
   });
 });

@@ -91,7 +91,7 @@ it('loads the approved correction queue for the signed-in user', async () => {
   const { Wrapper } = makeWrapper();
   const { result } = renderHook(() => useReopenableApprovedTimesheets(), { wrapper: Wrapper });
   await waitFor(() => expect(result.current.isSuccess).toBe(true));
-  expect(repositories.timesheet.listReopenableApproved).toHaveBeenCalledWith('u1');
+  expect(repositories.timesheet.listReopenableApproved).toHaveBeenCalledWith('u1', 'Project Manager');
   expect(result.current.data).toEqual([]);
 });
 

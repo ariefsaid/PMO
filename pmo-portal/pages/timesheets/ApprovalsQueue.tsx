@@ -90,18 +90,20 @@ export interface TimesheetApprovalPreviewProps {
   sheet: TimesheetAwaitingApproval;
   surface?: 'panel' | 'inline';
   showSodNotice?: boolean;
+  eligibleFromQueue?: boolean;
 }
 
 export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> = ({
   sheet,
   surface = 'panel',
   showSodNotice = surface === 'panel',
+  eligibleFromQueue = false,
 }) => {
   const { t } = useTranslation();
   const { approve, reject } = useTimesheetMutations();
   const { toast } = useToast();
   const may = usePermission();
-  const isApprover = may('transition', 'approval');
+  const isApprover = eligibleFromQueue || may('transition', 'approval');
   const [pending, setPending] = useState<PendingApproval | null>(null);
   const actions = timesheetActions(sheet.status as TimesheetStatus, false, isApprover);
   const total = sumHours(sheet);

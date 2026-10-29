@@ -627,12 +627,14 @@ const ApprovalsPage: React.FC = () => {
   const isLargeScreen = useIsLargeScreen();
 
   const canApproveProcurement = may('transition', 'procurement');
-  const canApproveTimesheets = may('transition', 'approval');
+  const hasTimesheetRole = may('transition', 'approval');
   const canApproveExpenses = ['Admin', 'Executive', 'Finance', 'Project Manager'].includes(realRole ?? '');
   const canApproveInvoices = may('transition', 'salesInvoice');
 
   const { data: procurements, isPending: procPending, isError: procError, refetch: refetchProc } = useProcurements();
   const { data: timesheets, isPending: tsPending, isError: tsError, refetch: refetchTimesheets } = useTimesheetsAwaitingApproval();
+  const { data: correctionSheets } = useReopenableApprovedTimesheets();
+  const canApproveTimesheets = hasTimesheetRole || Boolean(timesheets?.length || correctionSheets?.length);
   // #784 C-1: the same source the "Customer invoices awaiting you" section lists, so the page never claims "all caught
   // up" above a waiting invoice.
   const invoices = useInvoicesAwaitingViewer();
@@ -651,7 +653,7 @@ const ApprovalsPage: React.FC = () => {
     [procurements, selfId, realRole],
   );
   const timesheetRows = useMemo(() => timesheets ?? [], [timesheets]);
-  const timesheetBulk = useTimesheetBulkApprove(timesheetRows);
+  const timesheetBulk = useTimesheetBulkApprove(timesheetRows, true);
 
   const canShowExpenses = canApproveExpenses && (expenseRows.length > 0 || expenseQuery.isPending || expenseQuery.isError);
   const canShowInvoices = canApproveInvoices && (invoices.rows.length > 0 || invoices.isPending || invoices.isError);
@@ -945,7 +947,7 @@ const ApprovalsPage: React.FC = () => {
               selectedItem.kind === 'procurement' ? (
                 <ProcurementApprovalPreview row={selectedItem.row} surface="panel" />
               ) : (
-                <TimesheetApprovalPreview sheet={selectedItem.row} surface="panel" />
+                <TimesheetApprovalPreview sheet={selectedItem.row} surface="panel" eligibleFromQueue />
               )
             ) : (
               previewFallback
@@ -956,8 +958,8 @@ const ApprovalsPage: React.FC = () => {
 
       {activeScope === 'all' && canShowExpenses && <ExpenseClaimApprovalSection />}
       {activeScope === 'all' && canShowInvoices && <SalesInvoiceApprovalSection />}
-      {canApproveTimesheets && <PushAttentionSection />}
-      {canApproveTimesheets && <EmployeeLinkConfirmSection />}
+      {hasTimesheetRole && <PushAttentionSection />}
+      {hasTimesheetRole && <EmployeeLinkConfirmSection />}
       {canApproveTimesheets && <ReopenableApprovedSection hasPending={allPopulation.length > 0 || procPending || tsPending || expenseQuery.isPending || invoices.isPending} />}
     </div>
   );

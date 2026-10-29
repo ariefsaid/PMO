@@ -34,8 +34,8 @@ const ownTimesheetsKey = (orgId: string | undefined, userId: string | undefined)
   ['timesheets', orgId, userId] as const;
 
 /** Cache key for the Slice-A re-openable Approved queue (AC-TSC-R3). */
-const reopenableApprovedKey = (orgId: string | undefined, userId: string | undefined) =>
-  ['timesheets-reopenable-approved', orgId, userId] as const;
+const reopenableApprovedKey = (orgId: string | undefined, userId: string | undefined, role: string | null) =>
+  ['timesheets-reopenable-approved', orgId, userId, role] as const;
 
 /** Cache key for the P3b Approvals "needs attention" ERP-push surface (FR-TSP-085). */
 const pushesAttentionKey = (orgId: string | undefined) => ['timesheet-pushes-attention', orgId] as const;
@@ -71,17 +71,17 @@ export function useTimesheetsAwaitingApproval() {
 /**
  * Returns other users' APPROVED timesheets joined to their ERP mirror, so an approver can see which
  * are re-openable now (no ERP document) vs pushed/in-flight (honest note, not a disabled button).
- * Cache key: ['timesheets-reopenable-approved', orgId, userId]. RLS scopes both halves; disabled when
+ * Cache key includes org, user and real role. RLS scopes both halves; disabled when
  * orgId/userId are absent. (FR-TSC-060 / F5.)
  */
 export function useReopenableApprovedTimesheets() {
-  const { currentUser } = useAuth();
+  const { currentUser, role } = useAuth();
   const orgId = currentUser?.org_id;
   const userId = currentUser?.id;
 
   return useQuery<ReopenableApprovedTimesheet[]>({
-    queryKey: reopenableApprovedKey(orgId, userId),
-    queryFn: () => repositories.timesheet.listReopenableApproved(userId!),
+    queryKey: reopenableApprovedKey(orgId, userId, role),
+    queryFn: () => repositories.timesheet.listReopenableApproved(userId!, role),
     enabled: Boolean(orgId && userId),
   });
 }
@@ -141,7 +141,7 @@ export function useTimesheetMutations() {
     mutationFn: ({ id }) => repositories.timesheet.reopen(id),
     onSuccess: () => {
       invalidateBoth();
-      queryClient.invalidateQueries({ queryKey: reopenableApprovedKey(orgId, userId) });
+      queryClient.invalidateQueries({ queryKey: ['timesheets-reopenable-approved', orgId, userId] });
       queryClient.invalidateQueries({ queryKey: pushesAttentionKey(orgId) });
     },
   });
@@ -154,7 +154,7 @@ export function useTimesheetMutations() {
   const attestNoErpDocument = useMutation<void, Error, { id: string; reason: string }>({
     mutationFn: ({ id, reason }) => repositories.timesheet.attestNoErpDocument(id, reason),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: reopenableApprovedKey(orgId, userId) });
+      queryClient.invalidateQueries({ queryKey: ['timesheets-reopenable-approved', orgId, userId] });
       queryClient.invalidateQueries({ queryKey: pushesAttentionKey(orgId) });
     },
   });

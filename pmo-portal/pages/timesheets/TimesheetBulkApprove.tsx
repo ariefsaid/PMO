@@ -18,11 +18,12 @@ export function weekLabel(weekStart: string, t: TFunction): string {
   return `${t('approvals.weekOf', 'Week of')} ${formatMonthDay(new Date(y, (m ?? 1) - 1, d ?? 1))}`;
 }
 
-export function useTimesheetBulkApprove(sheets: TimesheetAwaitingApproval[]) {
+export function useTimesheetBulkApprove(sheets: TimesheetAwaitingApproval[], eligibleFromQueue = false) {
   const { t } = useTranslation();
   const { approve } = useTimesheetMutations();
   const { toast } = useToast();
-  const isApprover = usePermission()('transition', 'approval');
+  const may = usePermission();
+  const isApprover = eligibleFromQueue || may('transition', 'approval');
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);

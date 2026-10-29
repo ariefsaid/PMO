@@ -12,7 +12,7 @@ import type { Role } from '@/src/auth/AuthContext';
  *     Rows PREVIEW IN PLACE (expand) with adjacent Approve/Reject — no drill-in
  *     (intent-fix-wave IF-A / AC-IFW-PROC-01, replacing the CW-6 route-away).
  *   Timesheet section: the enhanced ApprovalsQueue.
- *   Role-awareness: Finance → procurement only; PM/Exec/Admin → both; Engineer → no-access.
+ *   Role-awareness: eligible managers also receive their timesheet queue.
  */
 const navigateMock = vi.fn();
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
@@ -20,6 +20,9 @@ const navigateMock = vi.fn();
 // syntax error and hides every real error beneath it.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
+const { authorityFrom } = vi.hoisted(() => ({ authorityFrom: vi.fn() }));
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: authorityFrom } }));
+
 vi.mock('react-router', async () => {
   const actual = await vi.importActual<typeof import('react-router')>('react-router');
   return { ...actual, useNavigate: () => navigateMock };
@@ -102,6 +105,7 @@ vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecisio
 vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceApprovalSection: () => null }));
 vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingViewer: () => invoiceState }));
 import ApprovalsPage from '../Approvals';
+import { listTimesheetsAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 
 const renderAs = (realRole: Role, initialPath = '/approvals') =>
   render(
@@ -187,16 +191,14 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(screen.getByRole('tab', { name: /Expense claims/i })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('Finance All pending excludes hook-returned timesheets from its count and selectable queue', () => {
+  it('Finance All pending includes eligible timesheets in its count and selectable queue', () => {
     procState.data = [];
     expenseState.data = [{ claim: { id: 'ex1', created_at: '2026-06-03', status: 'Submitted', claimant_id: 'other', claim_number: 'EXP-1', title: 'Travel', amount: 250, currency: 'USD', claimant: { full_name: 'Colleague' } }, route: { route: 'project', approvers: [{ id: 'me' }] } }];
     renderAs('Finance');
 
-    expect(screen.getByRole('tab', { name: /All pending/i })).toHaveTextContent('1');
+    expect(screen.getByRole('tab', { name: /All pending/i })).toHaveTextContent('2');
     const queue = screen.getByRole('region', { name: /Approvals queue/i });
-    expect(within(queue).queryByRole('button', { name: /Anita Rao/i })).not.toBeInTheDocument();
-    expect(within(queue).queryByText('Timesheets')).not.toBeInTheDocument();
-    expect(screen.getByRole('region', { name: /Approval preview/i })).toHaveTextContent(/Select an approval item/i);
+    expect(within(queue).getByRole('button', { name: /Anita Rao/i })).toBeInTheDocument();
   });
 
   it('keeps the desktop preview loading while an eligible expense read is pending', () => {
@@ -270,14 +272,16 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
-  it('Finance sees ONLY the procurement queue group (no timesheet approval, no extra filters)', () => {
+  it('Finance with no eligible timesheets sees the procurement queue', () => {
+    tsState.data = [];
     renderAs('Finance');
     expect(screen.getByRole('region', { name: /Approvals queue/i })).toBeInTheDocument();
     // A single-module role gets no tab-switcher (nothing to switch to).
     expect(screen.queryByRole('tab', { name: /Timesheets/i })).not.toBeInTheDocument();
   });
 
-  it('Engineer (cannot approve anything) gets the no-access surface', () => {
+  it('Engineer with no eligible timesheets gets the no-access surface', () => {
+    tsState.data = [];
     renderAs('Engineer');
     expect(screen.queryByText(/Purchase requests awaiting you/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Timesheets awaiting you/i)).not.toBeInTheDocument();
@@ -296,5 +300,29 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     procState.data = [];
     renderAs('Project Manager', '/approvals?scope=procurement');
     expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+  });
+});
+
+
+describe('submitted query drives the rendered action', () => {
+  it.each([
+    ['Engineer', 'me', 'other', true], ['Engineer', 'another', 'other', false],
+    ['Finance', 'me', 'other', true], ['Project Manager', 'another', 'other', false],
+    ['Executive', null, 'other', true], ['Executive', 'another', 'other', false],
+    ['Admin', 'another', 'other', true], ['Admin', 'me', 'me', false],
+  ] as const)('%s projects record authority to its approval action', async (role, managerId, ownerId, expected) => {
+    const row = { id: 'authority', user_id: ownerId, status: 'Submitted', week_start_date: '2026-06-01', owner: { full_name: 'Team member', manager_id: managerId }, entries: [] };
+    authorityFrom.mockImplementation(() => {
+      const result = { data: [row], error: null };
+      const builder: Record<string, unknown> = {};
+      for (const op of ['select', 'eq', 'neq', 'order', 'or']) builder[op] = () => builder;
+      builder.then = (resolve: (value: typeof result) => void) => Promise.resolve(result).then(resolve);
+      return builder;
+    });
+    tsState.data = await listTimesheetsAwaitingApproval('me', role);
+    procState.data = [];
+    renderAs(role);
+    expect(Boolean(screen.queryByRole('button', { name: /Team member/i }))).toBe(expected);
+    if (expected) expect(await screen.findByRole('button', { name: /^Approve$/i })).toBeInTheDocument();
   });
 });
