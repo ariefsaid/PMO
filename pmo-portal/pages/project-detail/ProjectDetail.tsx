@@ -49,9 +49,12 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
       {/* L6: the contract value lives once on the screen — in Money position (Overview) / Contract & billing. */}
       {progress !== null && (
         <Tooltip content={t('projectDetail.facts.progressTooltip', 'Weighted average of phase completion using each phase weight; source: project phase plan.')}>
-          <span tabIndex={0} className="inline-flex min-w-40 items-center gap-2">
+          {/* Owner tidy ruling 2026-10-29: the segment is content-sized (compact bar,
+              label and value tight) so the meta row keeps ONE consistent gap before
+            "Updated" — the old min-w-40 left dead slack that read as a hole. */}
+          <span tabIndex={0} className="inline-flex items-center gap-2">
             <span>{t('projectDetail.facts.progress', 'Progress')}</span>
-            <ProgressBar value={progress} tone={progress >= 100 ? 'success' : 'primary'} showValue widthless aria-label={t('projectDetail.facts.progressAria', 'Project progress {{percent}}%', { percent: progress })} />
+            <ProgressBar value={progress} tone={progress >= 100 ? 'success' : 'primary'} showValue compact aria-label={t('projectDetail.facts.progressAria', 'Project progress {{percent}}%', { percent: progress })} />
           </span>
         </Tooltip>
       )}
