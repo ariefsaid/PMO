@@ -226,7 +226,7 @@ describe('the rows', () => {
       const view = renderTab(role);
       await user.click(screen.getByRole('button', { name: 'Actions for Phase 1 fabrication' }));
       await user.click(screen.getByRole('menuitem', { name: 'Allocate contract lines' }));
-      expect(screen.getByRole('dialog', { name: 'Contract lines — Phase 1 fabrication' })).toBeInTheDocument();
+      expect(screen.getByRole('dialog', { name: 'Contract lines: Phase 1 fabrication' })).toBeInTheDocument();
       view.unmount();
     }
   });

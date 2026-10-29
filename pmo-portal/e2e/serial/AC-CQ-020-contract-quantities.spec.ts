@@ -101,7 +101,7 @@ test('AC-CQ-020 PM allocates 1,000 and prepares final BAST 997; distinct Finance
     await signIn(page, 'pm@acme.test');
     await openQuantities(page, projectId, woNumber);
     await page.getByRole('button', { name: 'Edit lines' }).click();
-    const linesDialog = page.getByRole('dialog', { name: new RegExp(`Contract lines — ${woNumber}`) });
+    const linesDialog = page.getByRole('dialog', { name: new RegExp(`Contract lines: ${woNumber}`) });
     await expect(linesDialog).toBeVisible();
     await linesDialog.getByLabel(new RegExp(`${itemCode} — ${itemDescription}`)).fill('1000');
     await linesDialog.getByRole('button', { name: `Save ${itemCode}` }).click();
