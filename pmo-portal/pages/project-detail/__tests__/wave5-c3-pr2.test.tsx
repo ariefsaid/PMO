@@ -190,7 +190,7 @@ const renderLens = (project: ProjectWithRefs = pipelineRow, locationState?: unkn
   render(
     <ImpersonationProvider realRole="Project Manager">
       <ToastProvider>
-        <PipelineLens project={project} locationState={locationState} />
+        <MemoryRouter><PipelineLens project={project} locationState={locationState} /></MemoryRouter>
       </ToastProvider>
     </ImpersonationProvider>,
   );
