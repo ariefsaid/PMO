@@ -3,8 +3,9 @@ import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
+const project = vi.hoisted(() => ({ transition: vi.fn().mockResolvedValue(undefined), listPipelineStageConfig: vi.fn().mockResolvedValue([{ status: 'Leads', win_probability: 0.1 }, { status: 'Negotiation', win_probability: 0.75 }]) }));
 const integrations = vi.hoisted(()=>({getBinding:vi.fn(async()=>null),ensureErpProject:vi.fn()}));
-vi.mock('@/src/lib/repositories',()=>({repositories:{integrations}}));
+vi.mock('@/src/lib/repositories',()=>({repositories:{integrations,project}}));
 
 // ---------------------------------------------------------------------------
 // Mock the DAL
@@ -22,7 +23,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 import { usePipelineStageConfig, useProjectTransition } from './useProjectTransitions';
-import { listPipelineStageConfig, transitionProject } from '@/src/lib/db/projectTransitions';
+
 import { useAuth } from '@/src/auth/useAuth';
 
 // ---------------------------------------------------------------------------
@@ -52,7 +53,7 @@ describe('usePipelineStageConfig', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(listPipelineStageConfig).toHaveBeenCalledTimes(1);
+    expect(project.listPipelineStageConfig).toHaveBeenCalledTimes(1);
     expect(result.current.data).toMatchObject([
       { status: 'Leads', win_probability: 0.1 },
       { status: 'Negotiation', win_probability: 0.75 },
@@ -65,7 +66,7 @@ describe('usePipelineStageConfig', () => {
     const { Wrapper } = makeWrapper();
     const { result } = renderHook(() => usePipelineStageConfig(), { wrapper: Wrapper });
     expect(result.current.fetchStatus).toBe('idle');
-    expect(listPipelineStageConfig).not.toHaveBeenCalled();
+    expect(project.listPipelineStageConfig).not.toHaveBeenCalled();
   });
 });
 
@@ -89,7 +90,7 @@ describe('useProjectTransition', () => {
     await act(async () => {
       await result.current.mutateAsync({ id: 'proj-1', to: 'PQ Submitted' });
     });
-    expect(transitionProject).toHaveBeenCalledWith('proj-1', 'PQ Submitted', undefined);
+    expect(project.transition).toHaveBeenCalledWith('proj-1', 'PQ Submitted', undefined);
 
     const calls = invalidateSpy.mock.calls.map(c => JSON.stringify(c[0]));
     expect(
@@ -106,7 +107,7 @@ describe('useProjectTransition', () => {
         opts: { customerContractRef: 'CPO-9', contractDate: '2026-03-01' },
       });
     });
-    expect(transitionProject).toHaveBeenCalledWith(
+    expect(project.transition).toHaveBeenCalledWith(
       'proj-2',
       'Won, Pending KoM',
       { customerContractRef: 'CPO-9', contractDate: '2026-03-01' },
@@ -116,6 +117,28 @@ describe('useProjectTransition', () => {
     expect(
       winCalls.some(c => c.includes('"projects"') && c.includes('"org-1"')),
     ).toBe(true);
+  });
+
+  it('refreshes cached project projections for the current organization after a transition', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const roots = ['projects', 'project', 'sales-pipeline', 'lost-deals', 'won-deals', 'win-rate', 'dashboard'];
+    for (const root of roots) {
+      qc.setQueryData([root, 'org-1', 'detail'], 'old');
+      qc.setQueryData([root, 'org-2', 'detail'], 'other');
+    }
+    const { result } = renderHook(() => useProjectTransition(), { wrapper: Wrapper });
+    await act(async () => { await result.current.mutateAsync({ id: 'p1', to: 'PQ Submitted' }); });
+    for (const root of roots) {
+      expect(qc.getQueryState([root, 'org-1', 'detail'])?.isInvalidated).toBe(true);
+      expect(qc.getQueryState([root, 'org-2', 'detail'])?.isInvalidated).toBe(false);
+    }
+  });
+
+  it('routes transitions through the project repository', async () => {
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useProjectTransition(), { wrapper: Wrapper });
+    await act(async () => { await result.current.mutateAsync({ id: 'p1', to: 'PQ Submitted' }); });
+    expect(project.transition).toHaveBeenCalledWith('p1', 'PQ Submitted', undefined);
   });
 
   it('exposes mutateAsync function', () => {

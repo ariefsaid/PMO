@@ -1,3 +1,4 @@
+import { procurementKeys } from './procurementQueryKeys';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
@@ -18,8 +19,9 @@ function useInvalidateLinks() {
   const qc = useQueryClient();
   const orgId = useAuth().currentUser?.org_id;
   return () => Promise.all(
-    ['erp-purchases', 'erp-purchases-any', 'linked-erp-documents', 'procurements', 'procurement', 'project-committed-spend']
-      .map((root) => qc.invalidateQueries({ queryKey: [root, orgId] })),
+    ['erp-purchases', 'erp-purchases-any', 'linked-erp-documents', 'procurement', 'project-committed-spend']
+      .map((root) => qc.invalidateQueries({ queryKey: [root, orgId] }))
+      .concat(qc.invalidateQueries({ queryKey: procurementKeys.all(orgId) })),
   );
 }
 

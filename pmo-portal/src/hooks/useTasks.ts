@@ -1,3 +1,4 @@
+import { invalidateTaskProjections } from './taskQueryKeys';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
@@ -64,13 +65,7 @@ export function useTaskMutations(projectId: string) {
   const qc = useQueryClient();
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: ['tasks', orgId, projectId] });
-    // Milestone calculated_pct + project delivery_pct re-derive from task Done counts —
-    // invalidate both so the MilestoneStrip and DeliveryPctChip update immediately.
-    void qc.invalidateQueries({ queryKey: ['milestones', orgId, projectId] });
-    void qc.invalidateQueries({ queryKey: ['projects-delivery'] });
-  };
+  const invalidate = () => invalidateTaskProjections(qc, orgId, projectId);
 
   // ADR-0056 / AC-CUA-060 — the per-task pending-push state for externally-owned writes. Keyed by
   // task id; only ever populated when `routeTaskWrite(projectId) === 'external'` (PMO-owned writes stay idle

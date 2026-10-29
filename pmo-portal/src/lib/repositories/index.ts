@@ -47,6 +47,8 @@ import {
 } from './types';
 import {
   listProjects,
+  listProjectsByClient,
+  getProject,
   createProject,
   updateProjectHeader,
   archiveProject,
@@ -57,7 +59,7 @@ import {
   proposeProjectNumber,
 } from '@/src/lib/db/projects';
 import { getOpportunity } from '@/src/lib/db/opportunity';
-import { transitionProject } from '@/src/lib/db/projectTransitions';
+import { transitionProject, listPipelineStageConfig } from '@/src/lib/db/projectTransitions';
 import {
   listClientCompanies,
   listCompanies,
@@ -128,6 +130,7 @@ import {
 import {
   listTasks,
   listTasksByMeeting,
+  listMyTasks,
   getTask,
   createTask,
   updateTask,
@@ -397,6 +400,9 @@ async function throwInvokeError(
 
 const project: ProjectRepository = {
   list: (params) => wrap(() => listProjects(params)),
+  listByClient: (id) => wrap(() => listProjectsByClient(id)),
+  getWithRefs: (id) => wrap(() => getProject(id)),
+  listPipelineStageConfig: () => wrap(() => listPipelineStageConfig()),
   listIdentity: () => wrap(() => listProjectIdentity()),
   get: (id) => wrap(() => getOpportunity(id)),
   transition: (id, to, opts) => wrap(() => transitionProject(id, to, opts)),
@@ -532,6 +538,7 @@ const usage: UsageRepository = {
 const task: TaskRepository = {
   list: (projectId) => wrap(() => listTasks(projectId)),
   listByMeeting: (meetingId) => wrap(() => listTasksByMeeting(meetingId)),
+  listByAssignee: (userId) => wrap(() => listMyTasks(userId)),
   get: (id) => wrap(() => getTask(id)),
   create: (input) => wrap(() => createTask(input)),
   update: (id, patch, projectId) =>

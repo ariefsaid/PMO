@@ -16,8 +16,9 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
 
-const { milestoneDatesForProjects, repoCreate, repoUpdateHeader } = vi.hoisted(() => ({
+const { milestoneDatesForProjects, repoCreate, repoUpdateHeader, repoList } = vi.hoisted(() => ({
   milestoneDatesForProjects: vi.fn().mockResolvedValue([]),
+  repoList: vi.fn().mockResolvedValue([{ id: 'p1', name: 'X', client: null, pm: null }]),
   repoCreate: vi.fn().mockResolvedValue({ id: 'new' }),
   repoUpdateHeader: vi.fn().mockResolvedValue(undefined),
 }));
@@ -25,6 +26,7 @@ vi.mock('@/src/lib/repositories', () => ({
   repositories: {
     milestone: { milestoneDatesForProjects },
     project: {
+      list: repoList,
       create: repoCreate,
       updateHeader: repoUpdateHeader,
       archive: vi.fn(),
@@ -41,7 +43,6 @@ import {
   useProjectsMilestoneDates,
   useProjectMutations,
 } from './useProjects';
-import { listProjects } from '@/src/lib/db/projects';
 import { listClientCompanies } from '@/src/lib/db/companies';
 import { listProjectManagers } from '@/src/lib/db/profiles';
 
@@ -59,7 +60,7 @@ describe('useProjects', () => {
     const { result } = renderHook(() => useProjects(), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.[0].name).toBe('X');
-    expect(listProjects).toHaveBeenCalled();
+    expect(repoList).toHaveBeenCalled();
   });
 });
 
@@ -125,6 +126,8 @@ describe('useProjectMutations — cache invalidation (AC-EC-003)', () => {
   it('AC-EC-003: a project create invalidates sales-pipeline and lost-deals (plus projects/opportunity)', async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const spy = vi.spyOn(qc, 'invalidateQueries');
+    qc.setQueryData(['won-deals', 'org-1'], 'old');
+    qc.setQueryData(['won-deals', 'org-2'], 'other');
     const Wrapper = ({ children }: { children: React.ReactNode }) => (
       <QueryClientProvider client={qc}>{children}</QueryClientProvider>
     );
@@ -139,6 +142,8 @@ describe('useProjectMutations — cache invalidation (AC-EC-003)', () => {
     expect(keys).toContain('opportunity');
     expect(keys).toContain('sales-pipeline');
     expect(keys).toContain('lost-deals');
+    expect(qc.getQueryState(['won-deals', 'org-1'])?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(['won-deals', 'org-2'])?.isInvalidated).toBe(false);
   });
 
   it('AC-EC-003: a header update invalidates sales-pipeline and lost-deals too', async () => {

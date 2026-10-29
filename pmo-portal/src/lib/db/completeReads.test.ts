@@ -27,7 +27,7 @@ const h = vi.hoisted(() => {
   return { from: vi.fn(query), rpc: vi.fn(query) };
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: h }));
-import { listTasks, listTasksByMeeting } from './tasks';
+import { listTasks, listTasksByMeeting, listMyTasks } from './tasks';
 import { listIncidents } from './incidents';
 import { listMeetingsForContact, listMeetingAttendees, listMeetingGrants } from './meetings';
 import { listMilestones, getProjectsDeliverySummary, getProjectsMilestoneDates } from './milestones';
@@ -35,6 +35,7 @@ import { listMilestones, getProjectsDeliverySummary, getProjectsMilestoneDates }
 describe('complete list reads', () => {
   it.each([
     ['project tasks', () => listTasks('p')], ['meeting tasks', () => listTasksByMeeting('m')],
+    ['assignee tasks', () => listMyTasks('u')],
     ['incidents', () => listIncidents()], ['contact meetings', () => listMeetingsForContact('c')],
     ['attendees', () => listMeetingAttendees('m')], ['grants', () => listMeetingGrants('m')],
     ['milestones', () => listMilestones('p')], ['calendar milestones', () => getProjectsMilestoneDates(['p'])],
