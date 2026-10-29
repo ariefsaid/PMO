@@ -86,8 +86,11 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
   const hasUnknownMoney = contract == null || activeBudgetUnknown || actualFigure === null;
   const body = (
     <>
-      {/* Body: money rows. Each fact once: no freshness, coverage or "x of y" prose on the card. */}
-      <dl className="grid min-w-0 grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1.5 text-[12px]">
+      {/* Body: ONE two-column fact grid — every label shares the same fixed left column and every
+          value starts at the same x (director rendered-review fix). Money rows first, then the
+          delivery/usage bars as rows of the same grid; a bar row appears only when it has a figure
+          and its percent denominator is explicit. Each fact once: no freshness or coverage prose. */}
+      <dl className="grid min-w-0 grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5 text-[12px]">
         <div className="contents">
           <dt className="text-muted-foreground">{t('projects.columns.contract', 'Contract')}</dt>
           <dd data-testid="project-card-contract" className="min-w-0 font-semibold tabular">
@@ -107,44 +110,36 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
           <dt className="text-muted-foreground">{t('projects.columns.actual', 'Actual')}</dt>
           <dd data-testid="project-card-actual" className="min-w-0 font-semibold tabular">{actualFigure}</dd>
         </div>
-      </dl>
-      {hasUnknownMoney && <p role="status" data-testid="project-card-money-unavailable" className="text-xs text-muted-foreground">
-        {t('projects:moneyFiguresUnavailable', 'Some project financial figures are still being confirmed.')}
-      </p>}
-
-      {/* Delivery progress and Active-budget utilization use separate, explicit denominators;
-          a row appears only when it has a figure. */}
-      {((deliverySummary && deliverySummary.deliveryPct != null) || budgetUsedPct != null) && (
-        <div
-          data-testid="project-card-bars"
-          className="grid grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5"
-        >
-          {deliverySummary && deliverySummary.deliveryPct != null && (
-            <>
-              <span className="text-[12px] font-semibold text-muted-foreground">{t('projects.card.delivery', 'Delivery')}</span>
+        {deliverySummary && deliverySummary.deliveryPct != null && (
+          <div className="contents">
+            <dt className="text-muted-foreground">{t('projects.card.delivery', 'Delivery')}</dt>
+            <dd>
               <ProgressBar
                 value={Math.round(deliverySummary.deliveryPct)}
                 showValue
                 tone={Math.round(deliverySummary.deliveryPct) >= 100 ? 'success' : 'primary'}
                 aria-label={t('projects.card.deliveryPercent', 'Delivery {{percent}}%', { percent: Math.round(deliverySummary.deliveryPct) })}
               />
-            </>
-          )}
-          {budgetUsedPct != null && (
-            <>
-              <span className="text-[12px] font-semibold text-muted-foreground">{t('projects.columns.budgetUsed', 'Budget used')}</span>
-              <div className="flex flex-col gap-0.5">
-                <ProgressBar
-                  value={budgetUsedPct}
-                  showValue
-                  tone={atRisk ? 'destructive' : budgetUsedPct >= 70 ? 'warning' : undefined}
-                  aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent: budgetUsedPct })}
-                />
-              </div>
-            </>
-          )}
-        </div>
-      )}
+            </dd>
+          </div>
+        )}
+        {budgetUsedPct != null && (
+          <div className="contents">
+            <dt className="text-muted-foreground">{t('projects.columns.budgetUsed', 'Budget used')}</dt>
+            <dd>
+              <ProgressBar
+                value={budgetUsedPct}
+                showValue
+                tone={atRisk ? 'destructive' : budgetUsedPct >= 70 ? 'warning' : undefined}
+                aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent: budgetUsedPct })}
+              />
+            </dd>
+          </div>
+        )}
+      </dl>
+      {hasUnknownMoney && <p role="status" data-testid="project-card-money-unavailable" className="text-xs text-muted-foreground">
+        {t('projects:moneyFiguresUnavailable', 'Some project financial figures are still being confirmed.')}
+      </p>}
 
       {(project.pmo_project_number || project.code || project.customer_contract_ref) && (
         <details>

@@ -459,6 +459,13 @@ export function DataTable<Row>({
   );
   const modelHeaders = table.getHeaderGroups()[0]?.headers ?? [];
   const hasHiddenRightContent = useStickyRowMenuSeam(tableBranchRef, tableRef, isDesktop && Boolean(rowMenu));
+  // A column hidden with CSS (colClassName "hidden", e.g. the Age column on a project tab) must
+  // not drive the table's min width: its size still sits in getTotalSize(), and counting it makes
+  // the table overflow by that amount even when every visible column fits — which then trips the
+  // sticky actions column's scroll shadow over content that is not actually scrolled under it.
+  const hiddenColumnSize = columns
+    .filter((column) => /(^|\s)hidden($|\s)/.test(column.colClassName ?? ''))
+    .reduce((sum, column) => sum + (column.size ?? 0), 0);
   const colSpan = columns.length + (rowMenu ? 1 : 0) + (selection ? 1 : 0);
   // Select-all acts on the rows the user can see: a collapsed group's rows, and rows outside `rows`, keep their state.
   const visibleSelectionIds = groupedRows.flatMap((entry) =>
@@ -521,7 +528,7 @@ export function DataTable<Row>({
           ref={tableRef}
           aria-label={accessibleName}
           style={{
-            ...(columns.some((column) => column.size !== undefined || column.kind === 'primary' || column.kind === 'status') ? { minWidth: table.getTotalSize() + (rowMenu ? 40 : 0) + (selection ? 40 : 0), tableLayout: 'fixed' as const } : {}),
+            ...(columns.some((column) => column.size !== undefined || column.kind === 'primary' || column.kind === 'status') ? { minWidth: Math.max(0, table.getTotalSize() - hiddenColumnSize) + (rowMenu ? 40 : 0) + (selection ? 40 : 0), tableLayout: 'fixed' as const } : {}),
           }}
           className="w-full border-collapse text-control"
         >
@@ -563,7 +570,7 @@ export function DataTable<Row>({
                       >
                         <span id={`datatable-header-label-${tableInstanceId}-${col.key}`}>{col.header}</span>
                         {col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}
-                        {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="inline-flex flex-col opacity-40 [&_svg]:size-3"><Icon name="up" /><Icon name="down" /></span>}
+                        {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="opacity-40 [&_svg]:size-3"><Icon name="sort" /></span>}
                       </button>
                     ) : (
                       <><span id={`datatable-header-label-${tableInstanceId}-${col.key}`}>{col.header}</span>{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
