@@ -169,6 +169,13 @@
     "rowActions": "Invoice actions",
     "paymentActions": "Payment actions",
     "figures": "Receivables figures",
+    "projectSearchLoading": "Loading projects for search…",
+    "businessDayLoading": "Loading the business day; overdue results cannot be calculated yet.",
+    "projectSearchUnavailable": "Project search is unavailable.",
+    "retryProjects": "Retry projects",
+    "businessDayUnavailable": "Business day unavailable; overdue results cannot be calculated.",
+    "retryBusinessDay": "Retry business day",
+    "overdueUnavailable": "Overdue results are unavailable",
     "evidenceLoadError": "Couldn't load the invoice lines from the accounting system.",
     "amount": "Amount",
     "outstandingUnknown": "The outstanding balance is not known yet: the accounting system has not reported it for this invoice."

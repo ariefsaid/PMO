@@ -417,3 +417,26 @@ describe('SalesInvoices — deep link (#787)', () => {
     }
   });
 });
+
+it('shows native invoice lines when accounting evidence is disabled', () => {
+  salesInvoicesState.data[0] = { ...SEED_INVOICES[0], pmo_native: true, native_lines: [{ item_code: 'NATIVE', description: 'Native service', qty: 2, rate: 125, amount: 250 }] };
+  invoiceEvidenceState.isPending = true;
+  renderAt('/sales-invoices/inv-1');
+  expect(screen.getByText('Native service')).toBeInTheDocument();
+  expect(screen.queryByText('Loading invoice evidence…')).not.toBeInTheDocument();
+});
+
+it('explains unavailable invoice line evidence for an unposted invoice', () => {
+  salesInvoicesState.data[0] = { ...SEED_INVOICES[0], pmo_native: false, erp_docstatus: null };
+  invoiceEvidenceState.isPending = true;
+  renderAt('/sales-invoices/inv-1');
+  expect(screen.getByText('Line details are not available.')).toBeInTheDocument();
+  expect(screen.queryByText('Loading invoice evidence…')).not.toBeInTheDocument();
+});
+
+it('opens the received-date dialog from an issued invoice detail', async () => {
+  salesInvoicesState.data[0] = { ...SEED_INVOICES[0], status: 'Submitted', pmo_native: false, erp_docstatus: 1, received_date: null };
+  renderAt('/sales-invoices/inv-1');
+  await userEvent.click(screen.getByRole('button', { name: 'Mark received' }));
+  expect(screen.getByRole('dialog')).toBeInTheDocument();
+});
