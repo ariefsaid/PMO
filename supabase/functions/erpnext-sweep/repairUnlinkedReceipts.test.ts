@@ -1,3 +1,4 @@
+import '../_shared/testing/publicErpDns.ts';
 // Luna BLOCK 6 (second half) [Deno unit] — the late-link SELF-HEAL.
 //
 // A Receive Payment Entry adopted BEFORE the Sales Invoice it cites resolves `sales_invoice_id` to
@@ -276,4 +277,57 @@ Deno.test('live resolver leaves absent references unresolved and propagates look
     try { await resolveReceiptSalesInvoice(client as never, 'org', 'SI'); } catch (error) { failed = error instanceof Error && error.message.includes('read failed'); }
     assert(failed, `${mode} reaches the caller`);
   }
+});
+
+Deno.test('live repair retains unresolved allocation evidence and reports lookup failures', async () => {
+  const { repairOrgLinksLive } = await import('./index.ts');
+  let mode = 'other';
+  let details: unknown = [{ invoice_id: 'existing', invoice_number: 'old', amount: '1', currency: null }];
+  let linked: unknown = null;
+  const client = { from(table: string) {
+    const filters: Record<string, unknown> = {};
+    let patch: Record<string, unknown> | null = null;
+    let inValues: string[] = [];
+    const q = {
+      select: () => q, eq: (key: string, value: unknown) => { filters[key] = value; return q; },
+      not: () => q, or: () => q, order: () => q, limit: () => q, is: () => q, filter: () => q,
+      in: (_key: string, values: string[]) => { inValues = values; return q; },
+      update: (value: Record<string, unknown>) => { patch = value; return q; },
+      maybeSingle: async () => {
+        if (table === 'external_refs') return { data: { pmo_record_id: 'record' }, error: null };
+        if (table === 'sales_invoices' && mode === 'error') return { data: null, error: { message: 'read failed', code: 'XX000' } };
+        const invoiceOrg = mode === 'same-org' ? 'org-a' : mode === 'cross-org' ? 'org-b' : null;
+        return { data: invoiceOrg && (!filters.org_id || filters.org_id === invoiceOrg) ? { id: 'record', currency: null } : null, error: null };
+      },
+      then: (resolve: (value: unknown) => void) => {
+        if (patch) {
+          if ('allocation_details' in patch) details = patch.allocation_details;
+          if ('sales_invoice_id' in patch) linked = patch.sales_invoice_id;
+          return resolve({ error: null });
+        }
+        return resolve({ data: table === 'incoming_payments' ? [{ id: 'receipt', allocation_checked_at: null }] : inValues.includes('receipt') ? [{ pmo_record_id: 'receipt', external_record_id: 'PE' }] : [], error: null });
+      },
+    }; return q;
+  } };
+  const oldGet = Deno.env.get;
+  const oldFetch = globalThis.fetch;
+  (Deno.env as unknown as { get: (key: string) => string | undefined }).get = (key) => ({ EXTERNAL_CONNECT_ENABLED: 'true', TEST_KEY: 'key', TEST_SECRET: 'secret' } as Record<string, string>)[key];
+  globalThis.fetch = (async () => new Response(JSON.stringify({ data: { references: [{ reference_doctype: 'Sales Invoice', reference_name: 'SI', allocated_amount: 10 }] } }), { status: 200 })) as typeof fetch;
+  const org = { orgId: 'org-a', siteUrl: 'https://erp.example.test', secretRef: 'test', company: 'Example', config: {}, ownedDomains: ['revenue'], versionMajor: 15 };
+  try {
+    const absent = await repairOrgLinksLive(client as never, org);
+    assert(!absent.error && linked === null, `unrelated mapping is not linked: ${JSON.stringify(absent)} ${JSON.stringify(linked)}`);
+    assert(JSON.stringify(details) === JSON.stringify([{ invoice_id: null, invoice_number: 'SI', amount: '10.00', currency: null }]), 'invoice evidence remains unresolved');
+    mode = 'cross-org';
+    const crossOrg = await repairOrgLinksLive(client as never, org);
+    assert(!crossOrg.error && linked === null && JSON.stringify(details).includes('"invoice_id":null'), 'other organization invoice remains unresolved');
+    details = [{ invoice_id: 'existing' }];
+    mode = 'error';
+    const failed = await repairOrgLinksLive(client as never, org);
+    assert(Boolean(failed.error?.includes('read failed')), `lookup failure is reported: ${JSON.stringify(failed)}`);
+    assert(JSON.stringify(details) === JSON.stringify([{ invoice_id: 'existing' }]) && linked === null, 'failed read does not replace existing details or link');
+    mode = 'same-org';
+    const resolved = await repairOrgLinksLive(client as never, org);
+    assert(resolved.repaired === 1 && linked === 'record', 'same organization invoice links');
+  } finally { globalThis.fetch = oldFetch; (Deno.env as unknown as { get: typeof Deno.env.get }).get = oldGet; }
 });

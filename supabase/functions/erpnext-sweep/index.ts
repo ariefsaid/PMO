@@ -1755,18 +1755,10 @@ export async function listReceiptRepairCandidates(serviceClient: SupabaseClient,
 }
 
 export async function resolveReceiptSalesInvoice(serviceClient: SupabaseClient, orgId: string, siErpName: string): Promise<string | null> {
-  const { data, error } = await serviceClient.from('external_refs').select('pmo_record_id')
-    .eq('org_id', orgId).eq('domain', 'revenue').eq('external_record_id', siErpName).maybeSingle();
-  if (error) throw new AppError(error.message, error.code);
-  const id = (data as { pmo_record_id?: string } | null)?.pmo_record_id;
-  if (!id) return null;
-  const { data: invoice, error: invoiceError } = await serviceClient.from('sales_invoices').select('id')
-    .eq('org_id', orgId).eq('id', id).maybeSingle();
-  if (invoiceError) throw new AppError(invoiceError.message, invoiceError.code);
-  return invoice ? id : null;
+  return (await salesInvoiceLookup(serviceClient, orgId)(siErpName))?.id ?? null;
 }
 
-async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ repaired: number; error?: string }> {
+export async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ repaired: number; error?: string }> {
   if (!org.ownedDomains.includes('revenue')) return { repaired: 0 };
   try {
     const client = await erpClientForOrg(serviceClient, org, cache);
