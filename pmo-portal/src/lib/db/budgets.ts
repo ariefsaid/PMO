@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { AppError, assertWriteLanded, toAppError } from '@/src/lib/appError';
 import { activateAndPush } from '@/src/lib/budget/budgetPushConsequence';
@@ -177,13 +178,18 @@ export async function listBudgetArchiveLiveTargets(versionIds: readonly string[]
   // A failed binding read disables the optional cancel choice, while the mirror query below still
   // powers the action-required banner and preserves the ability to archive PMO's version.
   const cancellationAvailable = !bindingError && binding?.version_major === 16 && typeof binding.activated_at === 'string';
-  const { data, error } = await supabase
-    .from('budget_push_mirror_rows')
-    .select('id,budget_version_id,fiscal_year,erp_account,erp_budget_name,erp_docstatus,erp_cancelled_at,push_state,budget_intent,activated_at_witness')
-    .in('budget_version_id', [...versionIds])
-    .neq('erp_account', '')
-    .is('erp_cancelled_at', null);
-  if (error) throw toAppError(error);
+  const data = await fetchAllPages(async (from, to) => {
+    const result = await supabase
+      .from('budget_push_mirror_rows')
+      .select('id,budget_version_id,fiscal_year,erp_account,erp_budget_name,erp_docstatus,erp_cancelled_at,push_state,budget_intent,activated_at_witness')
+      .in('budget_version_id', [...versionIds])
+      .neq('erp_account', '')
+      .is('erp_cancelled_at', null)
+      .order('id')
+      .range(from, to);
+    if (result.error) throw toAppError(result.error);
+    return result;
+  });
   const targets = ((data ?? []) as unknown as Array<Partial<BudgetArchiveMirrorTarget>>)
     .filter((row): row is BudgetArchiveMirrorTarget =>
       typeof row.id === 'string' &&
@@ -555,14 +561,17 @@ export async function archiveVersion(versionId: string, cancelErp: boolean): Pro
  * `classifyMutationError` toast surfaces it — it is not a silent no-op.
  */
 export async function listBudgetDocumentLinks(versionId: string): Promise<BudgetDocumentLinkRow[]> {
-  const { data, error } = await supabase
-    .from('budget_version_document_links')
-    .select('*')
-    .eq('budget_version_id', versionId)
-    .order('ms_linked_at')
-    .order('id');
-  if (error) throw toAppError(error);
-  return data ?? [];
+  return fetchAllPages(async (from, to) => {
+    const result = await supabase
+      .from('budget_version_document_links')
+      .select('*')
+      .eq('budget_version_id', versionId)
+      .order('ms_linked_at')
+      .order('id')
+      .range(from, to);
+    if (result.error) throw toAppError(result.error);
+    return result;
+  });
 }
 
 export async function addBudgetDocumentLink(
