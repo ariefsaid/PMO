@@ -23,8 +23,8 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
 }));
 vi.mock('@/pages/procurement/VendorWithholdingSlipModal', () => ({ VendorWithholdingSlipModal: ({ invoice, onSave }: { invoice: { id: string }; onSave: (input: { slipId: string }) => void }) => <div role="dialog" aria-label="Record modal"><span>{invoice.id}</span><button onClick={() => onSave({ slipId: 'new-slip' })}>Save evidence</button></div> }));
 vi.mock('@/pages/procurement/VendorWithholdingSlipDetails', () => ({ VendorWithholdingSlipDetails: ({ slipId, onClose, onOpenProcurement, suppressArrivalFocus }: { slipId: string; onClose: () => void; onOpenProcurement?: (procurementId: string, slipId: string, invoiceId: string) => void; suppressArrivalFocus?: boolean }) => <div data-testid="slip-detail" data-suppress-arrival-focus={suppressArrivalFocus ? 'true' : 'false'}>Details: {slipId}<button onClick={onClose}>Close slip</button><button onClick={() => onOpenProcurement?.('case-b', slipId, 'invoice-2')}>Open bill in case</button></div> }));
-vi.mock('@/pages/procurement/ProcurementLedger', () => ({ ProcurementLedger: ({ invoices, onRecordWithholdingSlip, onWithholdingHistory, onSetVendor, vendorMissing, canWriteWithholdingSlip, targetInvoiceId }: { invoices: { id: string; vi_number?: string }[]; onRecordWithholdingSlip: (invoice: { id: string }) => void; onWithholdingHistory: (invoiceId: string) => void; onSetVendor?: () => void; vendorMissing: boolean; canWriteWithholdingSlip: boolean; targetInvoiceId?: string }) => <section aria-label="Bill row" data-target-invoice={targetInvoiceId}><span>{invoices[0]?.vi_number}</span>{vendorMissing && onSetVendor ? <button onClick={onSetVendor}>Set vendor</button> : canWriteWithholdingSlip ? <button onClick={() => onRecordWithholdingSlip(invoices[0])}>Record bukti potong</button> : null}<button onClick={() => onWithholdingHistory(invoices[0].id)}>Bill history</button></section> }));
-vi.mock('@/src/hooks/useFkOptions', () => ({ useVendorOptions: () => ({ data: [{ value: 'vendor-new', label: 'New vendor' }] }), useProjectOptions: () => ({ data: [] }) }));
+vi.mock('@/pages/procurement/ProcurementLedger', () => ({ ProcurementLedger: ({ invoices, onRecordWithholdingSlip, onWithholdingHistory, onSetVendor, vendorMissing, canWriteWithholdingSlip, targetInvoiceId }: { invoices: { id: string; vi_number?: string }[]; onRecordWithholdingSlip: (invoice: { id: string }) => void; onWithholdingHistory: (invoiceId: string) => void; onSetVendor?: () => void; vendorMissing: boolean; canWriteWithholdingSlip: boolean; targetInvoiceId?: string }) => <section aria-label="Bill row" data-target-invoice={targetInvoiceId}><span>{invoices[0]?.vi_number}</span>{vendorMissing && onSetVendor ? <button onClick={onSetVendor}>Set supplier</button> : canWriteWithholdingSlip ? <button onClick={() => onRecordWithholdingSlip(invoices[0])}>Record bukti potong</button> : null}<button onClick={() => onWithholdingHistory(invoices[0].id)}>Bill history</button></section> }));
+vi.mock('@/src/hooks/useFkOptions', () => ({ useVendorOptions: () => ({ data: [{ value: 'vendor-new', label: 'New supplier' }] }), useProjectOptions: () => ({ data: [] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'requester', org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.realRole, effectiveRole: h.effectiveRole }) }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: false }) }));
@@ -67,15 +67,15 @@ beforeEach(() => {
 });
 
 describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
-  it('lets Finance set only the missing vendor on a billed request, then permits slip recording', async () => {
+  it('lets Finance set only the missing supplier on a billed procurement record, then permits slip recording', async () => {
     const vendorlessBilled = { ...procurement, vendor_id: null };
     h.detail.data = vendorlessBilled;
     const view = renderAt('/procurement/proc-001/files');
-    fireEvent.click(screen.getByRole('button', { name: 'Set vendor' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Set supplier' }));
 
     fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
-    expect(await screen.findByRole('option', { name: 'New vendor' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('option', { name: 'New vendor' }));
+    expect(await screen.findByRole('option', { name: 'New supplier' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('option', { name: 'New supplier' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save supplier' }));
 
     await waitFor(() => expect(h.updateVendor).toHaveBeenCalledWith('vendor-new'));
@@ -85,34 +85,34 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
     expect(screen.getByRole('dialog', { name: 'Record modal' })).toHaveTextContent('invoice-1');
   });
 
-  it('hides Set vendor from Engineer under the live procurements_update role policy', () => {
+  it('hides Set supplier from Engineer under the live procurements_update role policy', () => {
     h.realRole = 'Engineer'; h.effectiveRole = 'Engineer';
     h.detail.data = { ...procurement, vendor_id: null };
     renderAt('/procurement/proc-001/files');
-    expect(screen.queryByRole('button', { name: 'Set vendor' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Set supplier' })).not.toBeInTheDocument();
   });
 
-  it('hides Set vendor while an Admin is impersonating another role', () => {
+  it('hides Set supplier while an Admin is impersonating another role', () => {
     h.realRole = 'Admin'; h.effectiveRole = 'Engineer';
     h.detail.data = { ...procurement, vendor_id: null };
     renderAt('/procurement/proc-001/files');
-    expect(screen.queryByRole('button', { name: 'Set vendor' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Set supplier' })).not.toBeInTheDocument();
   });
 
-  it('shows Set vendor to Finance under the live procurements_update role policy', () => {
+  it('shows Set supplier to Finance under the live procurements_update role policy', () => {
     h.realRole = 'Finance'; h.effectiveRole = 'Finance';
     h.detail.data = { ...procurement, vendor_id: null };
     renderAt('/procurement/proc-001/files');
-    expect(screen.getByRole('button', { name: 'Set vendor' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Set supplier' })).toBeInTheDocument();
   });
 
-  it('shows the stale-vendor recovery message and refetches after a conditional write conflict', async () => {
+  it('shows the stale-supplier recovery message and refetches after a conditional write conflict', async () => {
     h.detail.data = { ...procurement, vendor_id: null };
     h.updateVendor.mockRejectedValueOnce(Object.assign(new Error('A vendor was already set.'), { code: 'VENDOR_ALREADY_SET' }));
     renderAt('/procurement/proc-001/files');
-    fireEvent.click(screen.getByRole('button', { name: 'Set vendor' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Set supplier' }));
     fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
-    fireEvent.click(await screen.findByRole('option', { name: 'New vendor' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'New supplier' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save supplier' }));
     await waitFor(() => expect(h.toast).toHaveBeenCalledWith('A supplier was already set. Refresh to see it.', undefined, 'warning'));
     expect(h.detail.refetch).toHaveBeenCalled();

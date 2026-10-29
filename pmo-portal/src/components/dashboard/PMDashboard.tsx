@@ -193,9 +193,9 @@ export const PMDashboard: React.FC = () => {
           value={projectsErrorReason ? '—' : contractFigure.value}
           exactValue={projectsErrorReason ? undefined : contractFigure.exactValue}
           unavailableReason={projectsErrorReason ?? contractFigure.unavailableReason}
-          vs={projectsErrorReason ?? (contractLeftKnown
+          vs={!projectsErrorReason && contractLeftKnown
             ? t('hub.pm.contractLeft', '{{value}} left after spending', { value: contractLeftFigure.value })
-            : undefined)}
+            : undefined}
           loading={projectsQuery.isPending}
           to={PROJECTS_HREF}
           linkLabel={t('hub.pm.openMyProjects', 'Open my projects')}

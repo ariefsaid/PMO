@@ -98,6 +98,37 @@ describe('ProjectFinancesSection attributed cost (#1271 AC-3)', () => {
 });
 
 describe('ProjectFinancesSection reading states', () => {
+  it('AC-MONEY-DISPLAY: whole units are shown on the project spending block', () => {
+    h.query.data = payload({ actuals: { currency: 'USD', as_of: '2026-10-14T00:00:00Z', total: '120.49', excludes_restricted_rows: false,
+      categories: [{ category: 'Labor', mapped: true, amount: '120.49' }] } });
+    render(<ProjectFinancesSection project={project} />);
+    expect(screen.getAllByText('120')).toHaveLength(2);
+    expect(screen.queryByText('$120.49')).not.toBeInTheDocument();
+  });
+
+  it('AC-MONEY-DISPLAY: Admin gets one plain setup line and a link when no spending can be shown', () => {
+    h.role = 'Admin';
+    h.effectiveRole = 'Admin';
+    h.query.data = payload({ actuals: { currency: 'USD', as_of: null, total: null, excludes_restricted_rows: false,
+      categories: [{ category: 'Labor', mapped: false, amount: null }, { category: 'Materials', mapped: false, amount: null }] } });
+    render(<MemoryRouter><ProjectFinancesSection project={project} /></MemoryRouter>);
+    const prompt = screen.getByTestId('spending-setup-prompt');
+    expect(prompt).toHaveTextContent('Recorded spending will appear after account setup is complete.');
+    expect(within(prompt).getByRole('link', { name: 'Open spending setup' })).toHaveAttribute('href', '/administration/accounting#budget-account-map');
+    expect(screen.queryByRole('heading', { name: /Recorded spending/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
+    expect(screen.queryByText('Spending setup details')).not.toBeInTheDocument();
+  });
+
+  it('AC-MONEY-DISPLAY: project users do not see an empty spending block or setup internals', () => {
+    h.query.data = payload({ actuals: { currency: 'USD', as_of: null, total: null, excludes_restricted_rows: false,
+      categories: [{ category: 'Labor', mapped: false, amount: null }] } });
+    render(<ProjectFinancesSection project={project} />);
+    expect(screen.queryByRole('heading', { name: /Recorded spending/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/account setup|spending setup/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
+  });
+
   it('AC-PFIN-015 renders the finance section from translated English and Indonesian catalogues without raw keys', async () => {
     await localeI18n.init({
       lng: 'en', fallbackLng: 'en', defaultNS: 'common', fallbackNS: 'common', ns: ['common', 'project', 'finance'],
@@ -138,7 +169,7 @@ describe('ProjectFinancesSection reading states', () => {
       'Remaining to invoice', 'Only invoices linked to this project are included.', 'No active budget']) {
       expect(screen.queryByText(gone)).not.toBeInTheDocument();
     }
-    expect(screen.getByText("Spending hasn't been updated yet.")).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Recorded spending/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
@@ -196,17 +227,18 @@ describe('ProjectFinancesSection reading states', () => {
     expect(screen.queryByText(/^\$?0(\.00)?$/)).not.toBeInTheDocument();
   });
 
-  it('AC-PFIN-015 shows unavailable category detail in plain words, not system terms (#1045)', () => {
+  it('AC-PFIN-015 shows Finance one plain-language handoff when no spending data can be shown', () => {
     h.role = 'Finance';
     h.query.data = payload({
       actuals: { currency: 'IDR', as_of: '2026-10-16T00:00:00Z', total: null, excludes_restricted_rows: false,
         categories: [{ category: 'Labor', mapped: false, amount: null }] },
     });
     render(<ProjectFinancesSection project={project} />);
-    fireEvent.click(screen.getByText('Spending setup details'));
-    expect(screen.getByText('Labor — Spending setup is not complete for this category.')).toBeInTheDocument();
+    expect(screen.getByTestId('spending-setup-prompt')).toHaveTextContent('Ask an administrator to complete spending setup.');
+    expect(screen.queryByRole('heading', { name: /Recorded spending/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('Spending setup details')).not.toBeInTheDocument();
     expect(screen.queryByText('Show category details')).not.toBeInTheDocument();
-    expect(screen.queryByText(/GL|mapping/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/GL|ERP|mapping|Labor/i)).not.toBeInTheDocument();
   });
 
   it('AC-PFIN-015/017 keeps currencies separate and does not infer settlement when outstanding is missing', () => {
@@ -233,6 +265,27 @@ describe('ProjectFinancesSection reading states', () => {
     expect(screen.getAllByText('Settled')[0]).toHaveAttribute('title', 'Settled against invoices (cash, withholding and credits), not cash received.');
   });
 
+  it('AC-MONEY-DISPLAY states a single currency and tax basis per project-finance block', () => {
+    h.query.data = payload({
+      contract_invoiced: '100.50', remaining_to_invoice: '119.50',
+      invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '100.50', settled: '50.25', outstanding: '50.25', missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive', work_revenue: '100.50', missing_work: 0 }],
+      actuals: { currency: 'USD', as_of: '2026-10-14T00:00:00Z', total: '40.49', excludes_restricted_rows: false,
+        categories: [{ category: 'Labor', mapped: true, amount: '40.49' }] },
+    });
+    render(<ProjectFinancesSection project={{ ...project, status: 'Ongoing Project' } as ProjectWithRefs} />);
+    expect(screen.getByRole('heading', { name: 'Contract invoice position · USD' })).toBeInTheDocument();
+    expect(screen.getByTestId('project-finances-contract-basis')).toHaveTextContent('incl. PPN');
+    expect(screen.queryByTestId('project-invoiced-basis')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('project-remaining-basis')).not.toBeInTheDocument();
+    expect(screen.getByText('Recorded spending · USD')).toBeInTheDocument();
+    const invoiceBucketElement = screen.getByTestId('project-finances-USD');
+    const invoiceBucket = within(invoiceBucketElement);
+    expect(invoiceBucket.getAllByText('101')).toHaveLength(2);
+    expect(invoiceBucket.getAllByText('50')).toHaveLength(2);
+    expect(invoiceBucketElement).not.toHaveTextContent('$');
+    expect(within(invoiceBucketElement).getAllByRole('term')).toHaveLength(5);
+  });
+
   it('AC-PFIN-013/015 keeps billing detail distinct and gives honest restricted/unavailable spending explanations', () => {
     h.query.data = payload({
       invoices: [
@@ -247,7 +300,7 @@ describe('ProjectFinancesSection reading states', () => {
     expect(within(screen.getByTestId('project-finances-IDR')).getByText('Gross margin is left out because spending and billed work use different currencies.')).toBeInTheDocument();
     expect(screen.queryByText('Contract value')).not.toBeInTheDocument();
     expect(screen.queryByText('Budget')).not.toBeInTheDocument();
-    expect(screen.getByText('Recorded spending')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Recorded spending/ })).toBeInTheDocument();
     fireEvent.click(screen.getByText('Show category details'));
     expect(screen.getByText('labor')).toBeInTheDocument();
 
@@ -289,12 +342,13 @@ describe('ProjectFinancesSection reading states', () => {
       const promptRegion = screen.queryByTestId('spending-setup-prompt');
       if (prompt === 'link') {
         expect(promptRegion).not.toBeNull();
-        const setupLink = within(promptRegion!).getByRole('link', { name: 'Finish spending setup' });
+        expect(promptRegion).toHaveTextContent('Recorded spending will appear after account setup is complete.');
+        const setupLink = within(promptRegion!).getByRole('link', { name: 'Open spending setup' });
         expect(setupLink).toHaveAttribute('href', '/administration/accounting#budget-account-map');
         expect(setupLink).toHaveClass('text-primary-text');
-        expect(screen.queryByText('Ask an administrator to finish spending setup.')).not.toBeInTheDocument();
+        expect(screen.queryByText('Ask an administrator to complete spending setup.')).not.toBeInTheDocument();
       } else if (prompt === 'handoff') {
-        expect(promptRegion).toHaveTextContent('Ask an administrator to finish spending setup.');
+        expect(promptRegion).toHaveTextContent('Ask an administrator to complete spending setup.');
         expect(within(promptRegion!).queryByRole('link')).not.toBeInTheDocument();
       } else expect(promptRegion).not.toBeInTheDocument();
       expect(screen.queryAllByTestId('spending-setup-prompt')).toHaveLength(prompt ? 1 : 0);
@@ -312,7 +366,7 @@ describe('ProjectFinancesSection reading states', () => {
     h.query.data = payload({ invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '100.00', settled: '40.00', outstanding: '60.00', missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive', work_revenue: '90.00', missing_work: 0 }], actuals: { currency: 'USD', as_of: '2026-10-14T00:00:00Z', total: null,
       excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: false, amount: null }] } });
     for (const [language, prompt, scope] of [
-      ['en', 'Ask an administrator to finish spending setup.', 'Only invoices linked to this project are included.'],
+      ['en', 'Ask an administrator to complete spending setup.', 'Only invoices linked to this project are included.'],
       ['id', 'Minta administrator menyelesaikan penyiapan pengeluaran.', 'Hanya faktur yang ditautkan ke proyek ini yang disertakan.'],
     ] as const) {
       await localeI18n.changeLanguage(language);
@@ -333,7 +387,7 @@ describe('ProjectFinancesSection reading states', () => {
     expect(screen.queryByTestId('spending-setup-prompt')).not.toBeInTheDocument();
   });
 
-  it('AC-1044-002 keeps known zero/positive readings available and limits setup detail to Finance/Admin', () => {
+  it('AC-1044-002 keeps known amounts available and gives Finance/Admin one setup prompt', () => {
     h.query.data = payload({ actuals: { currency: 'USD', as_of: '2026-10-14T00:00:00Z', total: '20.00',
       excludes_restricted_rows: false, categories: [
         { category: 'Labor', mapped: true, amount: '0.00' },
@@ -354,17 +408,15 @@ describe('ProjectFinancesSection reading states', () => {
 
     h.role = 'Finance';
     const financeView = render(<ProjectFinancesSection project={project} />);
-    const setup = screen.getByText('Spending setup details').closest('details')!;
-    expect(setup).not.toHaveAttribute('open');
-    fireEvent.click(screen.getByText('Spending setup details'));
-    expect(within(setup).getByText(/Equipment — Spending setup is not complete for this category/)).toBeInTheDocument();
+    expect(screen.getByTestId('spending-setup-prompt')).toHaveTextContent('Ask an administrator to complete spending setup.');
+    expect(screen.queryByText('Spending setup details')).not.toBeInTheDocument();
     financeView.unmount();
 
     h.role = 'Admin';
     render(<MemoryRouter><ProjectFinancesSection project={project} /></MemoryRouter>);
-    const adminSetup = screen.getByText('Spending setup details').closest('details')!;
-    fireEvent.click(screen.getByText('Spending setup details'));
-    expect(within(adminSetup).getByText(/Equipment — Spending setup is not complete for this category/)).toBeInTheDocument();
+    expect(within(screen.getByTestId('spending-setup-prompt')).getByRole('link', { name: 'Open spending setup' })).toHaveAttribute(
+      'href', '/administration/accounting#budget-account-map',
+    );
   });
 
   it('AC-1044-002 omits an empty category disclosure for delivery roles', () => {
@@ -380,12 +432,10 @@ describe('ProjectFinancesSection reading states', () => {
     h.query.data = payload({ actuals: { currency: 'USD', as_of: null, total: null, excludes_restricted_rows: false,
       categories: [{ category: 'Labor', mapped: true, amount: null }] } });
     const { rerender } = render(<ProjectFinancesSection project={project} />);
-    expect(screen.getByText("Spending hasn't been updated yet.")).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Recorded spending/ })).not.toBeInTheDocument();
     expect(screen.queryByTestId('spending-setup-prompt')).not.toBeInTheDocument();
-    const readingDetails = screen.getByText('Spending setup details').closest('details')!;
-    fireEvent.click(screen.getByText('Spending setup details'));
-    expect(within(readingDetails).getByText('Labor — Spending hasn\'t been updated yet.')).toBeInTheDocument();
-    expect(screen.queryByText('$0.00')).not.toBeInTheDocument();
+    expect(screen.queryByText('Spending setup details')).not.toBeInTheDocument();
+    expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
 
     h.query.isPending = true;
     rerender(<ProjectFinancesSection project={project} />);
@@ -411,12 +461,12 @@ describe('ProjectFinancesSection reading states', () => {
     });
     render(<ProjectFinancesSection project={project} />);
 
-    expect(screen.getByText('Recorded spending')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Recorded spending/ })).toBeInTheDocument();
     expect(screen.getByText('Partial coverage · 1 of 3 categories recorded')).toBeInTheDocument();
     expect(screen.getByText(/Updated Oct 14, 2026/)).toBeInTheDocument();
     // PD-C: no invoices → one line instead of cash/invoiced/remaining.
     expect(screen.getByTestId('project-no-invoices')).toBeInTheDocument();
-    expect(screen.getByText('Ask an administrator to finish spending setup.')).toBeInTheDocument();
+    expect(screen.getByText('Ask an administrator to complete spending setup.')).toBeInTheDocument();
     expect(screen.queryByText('GL actuals')).not.toBeInTheDocument();
     expect(screen.getByText('Show category details')).toBeInTheDocument();
   });
@@ -430,10 +480,10 @@ describe('ProjectFinancesSection reading states', () => {
     });
     render(<MemoryRouter><ProjectFinancesSection project={project} /></MemoryRouter>);
 
-    expect(screen.getByRole('link', { name: 'Finish spending setup' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Open spending setup' })).toHaveAttribute(
       'href', '/administration/accounting#budget-account-map',
     );
-    expect(screen.queryByText('Ask an administrator to finish spending setup.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ask an administrator to complete spending setup.')).not.toBeInTheDocument();
   });
 
   it('UX-032 explains settlement only when at least one settlement is known', () => {
@@ -506,13 +556,16 @@ describe('ProjectFinancesSection reading states', () => {
     // The settlement readings stay semantic description-list fields, not escaped raw text.
     const invoicedLabel = within(bucket).getByText('Invoiced');
     expect(invoicedLabel.tagName).toBe('DT');
-    const invoicedValue = screen.getByText('1,234,567,890.55').closest('dd');
-    // A real fraction is never rounded away: 0.11 outstanding is not shown as 0.
-    expect(within(bucket).getByText('0.11')).toBeInTheDocument();
+    const invoicedValue = screen.getByText('1,234,567,891').closest('dd');
     expect(invoicedValue).not.toBeNull();
     expect(invoicedValue).toHaveClass('break-words');
     expect(invoicedValue?.tagName).toBe('DD');
-    // Invoiced, Settled, Outstanding, Billed-work revenue; the unknown margin is left out with its reason (C4).
-    expect(within(bucket).getAllByRole('term')).toHaveLength(4);
+    // Invoiced, Settled, Outstanding, Billed-work revenue and Margin remain semantic fields; C4 keeps an unknown margin explained.
+    expect(within(bucket).getAllByRole('term').map((term) => term.textContent)).toEqual([
+      'Invoiced', 'Settled', 'Outstanding', 'Billed-work revenue', 'Margin',
+    ]);
+    expect(within(bucket).getByText('Margin').parentElement).toHaveTextContent(
+      'Gross margin is left out until spending is linked for every budget category.',
+    );
   });
 });

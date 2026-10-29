@@ -1,8 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, within, act } from '@testing-library/react';
 import { WinRateCard } from './WinRateCard';
 import i18next from 'i18next';
-import idCommon from '../../../public/locales/id/common.json';
 import idDashboard from '../../../public/locales/id/dashboard.json';
 
 const populatedOracle = {
@@ -11,14 +10,22 @@ const populatedOracle = {
   value_by_currency: [
     { currency: 'USD', wins_value: 8_000_000, losses_value: 650_000, win_rate_value: 0.924855 },
   ],
+  open_count: 3,
+  stale_count: 1,
+  bids_by_currency: [
+    { currency: 'USD', wins_count: 2, losses_count: 1, open_count: 3, wins_value: 8_000_000, losses_value: 650_000, open_value: 1_000_000 },
+  ],
 };
 const zeroOracle = {
   wins_count: 0, losses_count: 0, wins_value: 0, losses_value: 0,
   win_rate_count: 0, win_rate_value: 0,
 };
 
-type Oracle = Omit<typeof populatedOracle, 'value_by_currency'> & {
+type Oracle = Omit<typeof populatedOracle, 'value_by_currency' | 'bids_by_currency' | 'open_count' | 'stale_count'> & {
   value_by_currency?: Array<{ currency: string; wins_value: number; losses_value: number; win_rate_value: number | null }>;
+  bids_by_currency?: Array<{ currency: string; wins_count: number; losses_count: number; open_count: number; wins_value: number; losses_value: number; open_value: number }>;
+  open_count?: number;
+  stale_count?: number;
   declined_count?: number;
 };
 let oracle: Oracle = populatedOracle;
@@ -37,26 +44,61 @@ vi.mock('@/src/hooks/useDashboard', async (orig) => {
 
 describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', () => {
   beforeEach(() => { lastRange = null; oracle = populatedOracle; });
+  afterEach(async () => {
+    await act(async () => { await i18next.changeLanguage('en'); });
+  });
 
   it('AC-1117: defaults to count basis and uses the RPC currency row for value basis', () => {
     render(<WinRateCard currency="USD" />);
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
     fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
-    // S6: value mode keeps the figure + bar form; only the numbers change.
-    const usd = screen.getByTestId('win-rate-value-USD');
-    expect(within(usd).getByText('92.5%')).toBeInTheDocument();
-    expect(within(usd).getByRole('progressbar', { name: 'USD win rate 92.5%' })).toHaveAttribute('aria-valuenow', '92');
+    const usdRow = screen.getByTestId('win-rate-currency-USD');
+    expect(usdRow).toHaveTextContent('92.5%');
+    expect(usdRow).toHaveTextContent('82.9%');
     fireEvent.click(screen.getByTestId('win-rate-toggle-count'));
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
   });
 
+  it('AC-1380/AC-1441: count and value use per-currency bars for decided win rate and all-bid conversion', () => {
+    oracle = {
+      ...populatedOracle,
+      wins_count: 3,
+      wins_value: 8_001_000,
+      value_by_currency: [
+        { currency: 'IDR', wins_value: 8_000_000, losses_value: 650_000, win_rate_value: 0.924855 },
+        { currency: 'USD', wins_value: 1_000, losses_value: 0, win_rate_value: null },
+      ],
+      bids_by_currency: [
+        { currency: 'IDR', wins_count: 2, losses_count: 1, open_count: 3, wins_value: 8_000_000, losses_value: 650_000, open_value: 1_000_000 },
+        { currency: 'USD', wins_count: 1, losses_count: 0, open_count: 0, wins_value: 1_000, losses_value: 0, open_value: 0 },
+      ],
+    };
+    render(<WinRateCard currency="USD" />);
+
+    expect(screen.getByTestId('win-rate-currency-IDR')).toBeInTheDocument();
+    expect(screen.getByTestId('win-rate-currency-USD')).toHaveTextContent(/1 won of 1 decided/i);
+    expect(screen.getByTestId('win-rate-currency-IDR')).toHaveTextContent('66.7%');
+    expect(screen.getAllByRole('progressbar')).toHaveLength(4);
+    expect(screen.getByTestId('win-rate-open-count')).toHaveTextContent('3 still open');
+    expect(screen.getByTestId('win-rate-stale-count')).toHaveTextContent('1 stale');
+
+    fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
+    const idrRow = screen.getByTestId('win-rate-currency-IDR');
+    expect(idrRow).toHaveTextContent('IDR');
+    expect(idrRow).toHaveTextContent('92.5%');
+    expect(idrRow).not.toHaveTextContent(/IDR\s+92\.5%/);
+    expect(within(idrRow).getAllByRole('progressbar')).toHaveLength(2);
+    expect(screen.getByTestId('win-rate-open-count')).toHaveTextContent('3 still open');
+    expect(screen.getAllByRole('progressbar')).toHaveLength(4);
+  });
+
   it('retains aggregate value-rate rendering for legacy RPC payloads without currency rows', () => {
-    const { value_by_currency: _rows, ...legacyPayload } = populatedOracle;
+    const { value_by_currency: _rows, bids_by_currency: _bids, open_count: _open, stale_count: _stale, ...legacyPayload } = populatedOracle;
     oracle = legacyPayload;
     render(<WinRateCard currency="USD" />);
     fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
-    expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('92.5%');
-    expect(screen.queryByTestId('win-rate-value-breakdown')).not.toBeInTheDocument();
+    expect(screen.getByTestId('win-rate-currency-USD')).toHaveTextContent('92.5%');
+    expect(screen.getAllByRole('progressbar')).toHaveLength(2);
   });
 
   it('AC-1106: renders mixed-currency value rates separately and labels unmeasured loss rate', () => {
@@ -69,52 +111,34 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
         { currency: 'IDR', wins_value: 8_000_000, losses_value: 650_000, win_rate_value: 0.924855 },
         { currency: 'USD', wins_value: 1_000, losses_value: 0, win_rate_value: null },
       ],
+      bids_by_currency: [
+        { currency: 'IDR', wins_count: 2, losses_count: 1, open_count: 3, wins_value: 8_000_000, losses_value: 650_000, open_value: 1_000_000 },
+        { currency: 'USD', wins_count: 1, losses_count: 0, open_count: 0, wins_value: 0, losses_value: 0, open_value: 0 },
+      ],
     };
     render(<WinRateCard currency="USD" />);
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
     fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
-    const idr = screen.getByTestId('win-rate-value-IDR');
-    // C7: the percent is never prefixed by a currency; the currency names the bar.
-    expect(within(idr).getByText('92.5%')).toBeInTheDocument();
-    expect(idr).not.toHaveTextContent(/IDR\s*92\.5%/);
-    expect(idr).toHaveTextContent(/IDR 8M won of IDR 8\.7M closed/);
-    expect(within(idr).getByRole('progressbar', { name: 'IDR win rate 92.5%' })).toBeInTheDocument();
-    // C7: a currency with no recorded loss has no measurable rate, so it gets no trivial 100% line.
-    expect(screen.queryByTestId('win-rate-value-USD')).toBeNull();
-    expect(screen.getAllByRole('progressbar')).toHaveLength(1);
+    expect(within(screen.getByTestId('win-rate-currency-IDR')).getByTestId('kpi-win-rate')).toHaveTextContent('92.5%');
+    expect(screen.getByTestId('win-rate-currency-IDR')).toHaveTextContent('82.9%');
+    expect(screen.getByTestId('win-rate-reason-USD')).toHaveTextContent(/No decided bid value recorded/i);
   });
 
-  it('S6: value mode draws one bar per currency with a measurable rate', () => {
-    oracle = {
-      ...populatedOracle,
-      value_by_currency: [
-        { currency: 'IDR', wins_value: 8_000_000, losses_value: 650_000, win_rate_value: 0.924855 },
-        { currency: 'USD', wins_value: 3_000, losses_value: 1_000, win_rate_value: 0.75 },
-      ],
-    };
+  it('AC-UXA-003: localizes the decided-bid count and accessible rate in Bahasa', async () => {
+    i18next.addResourceBundle('id', 'dashboard', idDashboard, true, true);
+    await act(async () => { await i18next.changeLanguage('id'); });
+    oracle = populatedOracle;
     render(<WinRateCard currency="USD" />);
-    fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
-    expect(screen.getByRole('progressbar', { name: 'IDR win rate 92.5%' })).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'USD win rate 75.0%' })).toHaveAttribute('aria-valuenow', '75');
-    expect(screen.getByTestId('win-rate-value-USD')).toHaveTextContent(/\$3K won of \$4K closed/);
-    expect(screen.getByText('Won')).toBeInTheDocument();
-  });
-
-  it('C7: value mode with no measurable currency says so once instead of drawing empty bars', () => {
-    oracle = {
-      ...populatedOracle,
-      value_by_currency: [{ currency: 'USD', wins_value: 1_000, losses_value: 0, win_rate_value: null }],
-    };
-    render(<WinRateCard currency="USD" />);
-    fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
-    expect(screen.queryByRole('progressbar')).toBeNull();
-    expect(screen.getByText('No recorded losses yet, so a win rate by value cannot be measured.')).toBeInTheDocument();
+    expect(screen.getByText('2 menang dari 3 yang diputuskan')).toBeInTheDocument();
+    const decidedRate = screen.getByRole('progressbar', { name: 'Tingkat kemenangan USD dari tender yang diputuskan' });
+    expect(decidedRate).toHaveAttribute('aria-valuetext', '66.7%');
+    expect(screen.getByText('Menang')).toBeInTheDocument();
+    expect(screen.getByText('Kalah atau masih terbuka')).toBeInTheDocument();
   });
 
   it('AC-1106: renders the currency breakdown with Indonesian catalogue copy', async () => {
-    i18next.addResourceBundle('id', 'common', idCommon, true, true);
     i18next.addResourceBundle('id', 'dashboard', idDashboard, true, true);
-    await i18next.changeLanguage('id');
+    await act(async () => { await i18next.changeLanguage('id'); });
     oracle = {
       ...populatedOracle,
       wins_value: null as unknown as number,
@@ -124,15 +148,19 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
         { currency: 'IDR', wins_value: 8_000_000, losses_value: 650_000, win_rate_value: 0.924855 },
         { currency: 'USD', wins_value: 1_000, losses_value: 0, win_rate_value: null },
       ],
+      bids_by_currency: [
+        { currency: 'IDR', wins_count: 2, losses_count: 1, open_count: 3, wins_value: 8_000_000, losses_value: 650_000, open_value: 1_000_000 },
+        { currency: 'USD', wins_count: 1, losses_count: 0, open_count: 0, wins_value: 0, losses_value: 0, open_value: 0 },
+      ],
     };
-    try {
-      render(<WinRateCard currency="USD" />);
-      fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
-      expect(screen.getByTestId('win-rate-value-IDR')).toHaveTextContent(/menang dari/);
-      expect(screen.getByRole('progressbar', { name: 'Tingkat kemenangan IDR 92.5%' })).toBeInTheDocument();
-    } finally {
-      await i18next.changeLanguage('en');
-    }
+    render(<WinRateCard currency="USD" />);
+    fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
+    expect(screen.getByTestId('win-rate-currency-IDR')).toHaveTextContent('92.5%');
+    expect(screen.getByTestId('win-rate-reason-USD')).toHaveTextContent(/Nilai tender yang diputuskan tidak tercatat/i);
+    const decidedRate = within(screen.getByTestId('win-rate-currency-IDR')).getAllByRole('progressbar')[0];
+    expect(decidedRate).toHaveAccessibleName('Tingkat kemenangan IDR dari tender yang diputuskan');
+    expect(decidedRate).toHaveAttribute('aria-valuetext', '92.5%');
+    expect(screen.getByText('Kalah atau masih terbuka')).toBeInTheDocument();
   });
 
   it('AC-1117: changing the period re-queries with a new range key', () => {
@@ -140,6 +168,17 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
     const initial = lastRange?.key;
     fireEvent.click(screen.getByTestId('win-rate-period-q'));
     expect(lastRange?.key).not.toBe(initial);
+  });
+
+  it('keeps the redesign heading and embedded frame while honoring a parent period range', () => {
+    const parentRange = { key: 'company-period:2026-01:2026-10' };
+    const { container } = render(<WinRateCard currency="USD" embedded range={parentRange} hidePeriodControl />);
+    const section = screen.getByRole('region', { name: 'Win rate' });
+    expect(section).not.toHaveClass('rounded-lg', 'border');
+    expect(screen.getByRole('heading', { name: 'Win rate', level: 3 })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: /Time frame/i })).not.toBeInTheDocument();
+    expect(container.querySelector('section.rounded-lg.border')).toBeNull();
+    expect(lastRange?.key).toBe(parentRange.key);
   });
 
   it('announces the rate politely and groups the basis + frame segs for a11y', () => {
@@ -150,20 +189,13 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
     expect(screen.getByRole('group', { name: /Time frame/i })).toBeInTheDocument();
   });
 
-  it('uses a heading without a second card frame when embedded in an area panel', () => {
-    const { container } = render(<WinRateCard currency="USD" embedded />);
-    const section = screen.getByRole('region', { name: 'Win rate' });
-    expect(section).not.toHaveClass('rounded-lg', 'border');
-    expect(screen.getByRole('heading', { name: 'Win rate', level: 3 })).toBeInTheDocument();
-    expect(container.querySelector('section.rounded-lg.border')).toBeNull();
-  });
-
-  it('AC-RF-004: limits the metric to recorded outcomes and keeps a basis-aware readout', () => {
+  it('AC-1441: keeps decided rate distinct from conversion across all bids', () => {
     render(<WinRateCard currency="USD" />);
-    expect(screen.getByText(/2 won of 3 closed/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 won of 3 decided/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 won of 6 bids/i)).toBeInTheDocument();
     expect(screen.getByText('Won')).toBeInTheDocument();
-    expect(screen.getByText('Lost')).toBeInTheDocument();
-    expect(screen.getByText('Recorded outcomes only; unrecorded decisions are not counted.')).toBeInTheDocument();
+    expect(screen.getByText('Lost or still open')).toBeInTheDocument();
+    expect(screen.getByTestId('win-rate-period-rule')).toHaveTextContent(/decision date.*creation date.*stale count is current.*last stage change/i);
   });
 
   // AC-DEC-002 (#774): declined-to-bid deals sit outside both denominators but are still reported.

@@ -14,6 +14,8 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 import type { BudgetProjectionCellRow } from '@/src/lib/repositories/budgetProjection';
+import enProjectTabs from '../public/locales/en/projectTabs.json';
+import idProjectTabs from '../public/locales/id/projectTabs.json';
 
 const { fetchMock, upsertEtcMock, yearsMock, phasingMock } = vi.hoisted(() => ({
   fetchMock: vi.fn(),
@@ -107,12 +109,57 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     expect(row.getByRole('progressbar', { name: /forecast utilization/i })).toHaveAttribute('aria-valuenow', '75');
   });
 
-  it('H-4 defaults to the fiscal year the Active version was pushed against, not the calendar year', async () => {
+  it('H-4 uses the client-listed fiscal year instead of the calendar year', async () => {
     renderForecast();
     await rowFor('Labor');
     expect(fetchMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR);
     expect(fetchMock).not.toHaveBeenCalledWith('proj-1', String(new Date().getFullYear()));
     expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(ERP_FISCAL_YEAR);
+  });
+
+  it('AC-1424 defaults to the first listed year with recorded spending before a later active-push year', async () => {
+    const firstWithSpending = 'FY-2026';
+    const laterActivePush = 'FY-2028';
+    yearsMock.mockResolvedValue([
+      { fiscalYear: firstWithSpending, isActivePush: false },
+      { fiscalYear: laterActivePush, isActivePush: true },
+      { fiscalYear: 'FY-2024', isActivePush: false },
+    ]);
+    fetchMock.mockImplementation(async (_projectId: string, year: string) => {
+      if (year === firstWithSpending) return [{ ...ROW, actualsToDate: 12_000 }];
+      if (year === laterActivePush) return [{ ...ROW, actualsToDate: 95_000 }];
+      return [{ ...ROW, actualsToDate: 0 }];
+    });
+
+    renderForecast();
+
+    expect(await rowFor('Labor')).toHaveTextContent('$12,000');
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(firstWithSpending);
+    expect(fetchMock).toHaveBeenCalledWith('proj-1', firstWithSpending);
+    expect(fetchMock).not.toHaveBeenCalledWith('proj-1', laterActivePush);
+  });
+
+  it.each([
+    ['en', 'Remaining', 'Forecast remaining / (overrun)', '% used', 'Forecast budget used'],
+    ['id', 'Sisa', 'Perkiraan sisa / (kelebihan)', '% terpakai', 'Perkiraan anggaran terpakai'],
+  ])('AC-1440: keeps forecast headers short with their full meaning available in %s', async (locale, remaining, remainingMeaning, used, usedMeaning) => {
+    // The redesigned page uses projectTabs for the short labels. Load the shipped locale files
+    // into this focused finance test instance so the ID row proves the real user-facing strings.
+    financeTestI18n.addResourceBundle('en', 'projectTabs', enProjectTabs, true, true);
+    financeTestI18n.addResourceBundle('id', 'projectTabs', idProjectTabs, true, true);
+    await financeTestI18n.changeLanguage(locale);
+    renderForecast();
+    const table = await screen.findByRole('table');
+    const remainingHeader = table.querySelector('th[data-col-key="remaining"]') as HTMLElement;
+    const usedHeader = table.querySelector('th[data-col-key="status"]') as HTMLElement;
+    const remainingLabel = remainingHeader.querySelector('[title]');
+    const usedLabel = usedHeader.querySelector('[title]');
+    expect(remainingHeader).toHaveAccessibleName(remainingMeaning);
+    expect(remainingLabel).toHaveAttribute('title', remainingMeaning);
+    expect(remainingLabel).toHaveTextContent(remaining);
+    expect(usedHeader).toHaveAccessibleName(usedMeaning);
+    expect(usedLabel).toHaveAttribute('title', usedMeaning);
+    expect(usedLabel).toHaveTextContent(used);
   });
 
   it('H-4 offers only fiscal years that exist for this project — never a synthesized calendar year', async () => {
@@ -169,8 +216,15 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
   });
 
   it('shows an error state with retry on a failed fetch', async () => {
-    fetchMock.mockRejectedValue(new Error('boom'));
+    const user = userEvent.setup();
     renderForecast();
+    await rowFor('Labor');
+
+    // Let fiscal-year discovery and its default-year scan succeed first. Fail the user's
+    // subsequent forecast read for a different listed year, so this exercises forecast Retry.
+    fetchMock.mockRejectedValueOnce(new Error('boom'));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), PRIOR_ERP_FISCAL_YEAR);
+
     expect(await screen.findByText('Forecast could not be loaded')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
@@ -237,11 +291,11 @@ describe('BudgetProjection — an unobtainable figure is never rendered as money
     expect(totalRow).not.toHaveTextContent('$75,000');
   });
 
-  it('T5 full amounts: zero fraction suppressed, a non-zero fraction kept', async () => {
+  it('T5 read-only money rounds to whole units and suppresses a zero fraction', async () => {
     fetchMock.mockResolvedValue([{ ...ROW, pmoBudgetAmount: 400000.5, actualsToDate: 180000 }]);
     renderForecast();
     const row = within(await rowFor('Labor'));
-    expect(row.getByText('$400,000.5')).toBeInTheDocument();
+    expect(row.getByText('$400,001')).toBeInTheDocument();
     expect(row.getByText('$180,000')).toBeInTheDocument();
   });
 
@@ -286,7 +340,8 @@ describe('BudgetProjection — a NULL budget says WHICH kind of absence it is', 
     fetchMock.mockResolvedValue([{ ...NO_BUDGET, attributionKnown: false }]);
     phasingMock.mockResolvedValue(phasing({ Labor: ['2026-2027'] }, { Labor: true }));
     renderForecast();
-    const incomplete = await screen.findByTestId('forecast-incomplete');
+    await screen.findByText(/Labor: Budget attribution is stale or incomplete/);
+    const incomplete = screen.getByTestId('forecast-incomplete');
     expect(incomplete).toHaveTextContent(/Labor: Budget attribution is stale or incomplete/);
     expect(incomplete).not.toHaveTextContent(/Budgeted in another fiscal year/);
   });
@@ -295,7 +350,8 @@ describe('BudgetProjection — a NULL budget says WHICH kind of absence it is', 
     fetchMock.mockResolvedValue([{ ...NO_BUDGET, attributionKnown: false }]);
     phasingMock.mockResolvedValue(phasing({ Labor: [ERP_FISCAL_YEAR] }, { Labor: true }));
     renderForecast();
-    const incomplete = await screen.findByTestId('forecast-incomplete');
+    await screen.findByText(/Review the line phasing/);
+    const incomplete = screen.getByTestId('forecast-incomplete');
     expect(incomplete).toHaveTextContent(/Review the line phasing/);
     expect(incomplete).not.toHaveTextContent(/No budget line is recorded/);
   });
@@ -304,7 +360,8 @@ describe('BudgetProjection — a NULL budget says WHICH kind of absence it is', 
     fetchMock.mockResolvedValue([{ ...NO_BUDGET, attributionKnown: true, projectedVariance: -75000 }]);
     phasingMock.mockResolvedValue(phasing({ Materials: [ERP_FISCAL_YEAR] }, { Materials: true }));
     renderForecast();
-    const incomplete = await screen.findByTestId('forecast-incomplete');
+    await screen.findByText(/Labor: No budget line is recorded for this category/);
+    const incomplete = screen.getByTestId('forecast-incomplete');
     expect(incomplete).toHaveTextContent(/Labor: No budget line is recorded for this category/);
     expect(incomplete).not.toHaveTextContent(/phasing/);
     expect(within(await rowFor('Labor')).getByText('-$75,000')).toBeInTheDocument();

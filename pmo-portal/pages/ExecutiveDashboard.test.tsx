@@ -29,7 +29,7 @@ const financePositionState = vi.hoisted(() => ({
 }));
 const defaultToday = [
   { id: 'contract-on-hand', label: 'Contract on hand', value: '$1,000', subline: 'Left after spending: $500', href: '/projects', unavailableReason: 'Contract amount is not available.' },
-  { id: 'billed-margin', label: 'Known margin on billed work', value: '$200', subline: 'Known margin: amount shown · Percent of billed work: —', href: '/sales-invoices' },
+  { id: 'billed-margin', label: 'Known margin on billed work', value: '$200', subline: 'Known margin amount shown', href: '/sales-invoices' },
   { id: 'pipeline', label: 'Pipeline (weighted)', value: '$300', subline: 'Gross: $600 · Forecast margin: 20%', href: '/sales' },
   { id: 'client-overdue', label: 'Owed by clients · overdue', value: '2', subline: '$400 · Oldest 14 days overdue', href: '/sales-invoices?overdue=true' },
   { id: 'supplier-payables', label: 'Owed to suppliers', value: '$100', href: '/procurement?status=Vendor+Invoiced' },
@@ -218,7 +218,7 @@ describe('company area hub (#1403)', () => {
     const delivery = screen.getByRole('heading', { name: 'Delivery' }).closest('.rounded-lg.border');
     const purchasing = screen.getByRole('heading', { name: 'Purchasing' }).closest('.rounded-lg.border');
     expect(sales).not.toBeNull();
-    expect(screen.getByRole('heading', { name: 'Pipeline by stage' }).closest('.rounded-lg.border')).toBe(sales);
+    expect(screen.getByRole('group', { name: 'Weighted pipeline value by stage' }).closest('.rounded-lg.border')).toBe(sales);
     expect(screen.getByRole('region', { name: 'Win rate' }).closest('.rounded-lg.border')).toBe(sales);
     expect(screen.getByRole('heading', { name: 'Spending vs contract' }).closest('.rounded-lg.border')).toBe(delivery);
     expect(screen.getByRole('heading', { name: 'Purchasing by stage' }).closest('.rounded-lg.border')).toBe(purchasing);
@@ -238,10 +238,11 @@ describe('company area hub (#1403)', () => {
     projectsState.data = topProjects.map((project) => ({ id: project.id, pm: { full_name: `Manager ${project.id.slice(-1)}` } }));
     renderPage();
 
-    expect(screen.getByRole('link', { name: 'Project 6' })).toHaveAttribute('href', '/projects/project-6');
+    const projectList = screen.getByRole('list', { name: 'Spending vs contract' });
+    expect(within(projectList).getByRole('link', { name: /^Open Project 6; recorded spending \$990 to date\.$/ })).toHaveAttribute('href', '/projects/project-6');
     expect(screen.getByText('Manager 6 · $1,006')).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: 'Project 6: 98% of contract used' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Project 1' })).not.toBeInTheDocument();
+    expect(within(projectList).queryByRole('link', { name: /^Open Project 1;/ })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'View all 6 projects' })).toHaveAttribute('href', '/projects');
 
     const user = userEvent.setup();
@@ -269,7 +270,9 @@ describe('company area hub (#1403)', () => {
     renderPage();
     const link = screen.getByRole('link', { name: 'Open related records for Contract on hand.' });
     expect(link).toHaveAttribute('href', '/projects');
-    expect(screen.getByRole('button', { name: 'Contract amount is not available.' })).toHaveTextContent('—');
+    const unknownContract = screen.getByText('Contract amount is not available.', { exact: true });
+    expect(unknownContract).toHaveAttribute('role', 'status');
+    expect(unknownContract).not.toHaveTextContent(/\$|\d|—/);
   });
 
   it('AC-DASH-1403-03: the period picker writes the selected period into the URL', () => {
@@ -297,7 +300,7 @@ describe('company area hub (#1403)', () => {
     }];
     projectsState.data = [{ id: 'project-1', pm: { full_name: 'Project Manager' } }];
     renderPage();
-    fireEvent.click(screen.getByRole('link', { name: 'Project North' }));
+    fireEvent.click(screen.getByRole('link', { name: /^Open Project North; recorded spending \$200 to date\.$/ }));
     expect(screen.getByTestId('location')).toHaveTextContent('/projects/project-1');
   });
 
@@ -481,6 +484,7 @@ describe('company hub — behaviour carried over from the previous dashboard', (
     const current = figureState.result!;
     current.dashboard = { ...(current.dashboard as Record<string, unknown>), procurements_by_status: [{ status: 'Approved', count: 1 }, { status: 'Vendor Invoiced', count: 2 }] };
     renderBahasaPage();
+    expect(screen.getByRole('group', { name: 'Nilai pipeline tertimbang per tahap' })).toBeInTheDocument();
     const pay = screen.getAllByRole('link', { name: /Pembayaran/ });
     expect(pay.length).toBeGreaterThan(0);
     for (const link of pay) expect(link).toHaveAttribute('href', '/procurement?stage=pay');

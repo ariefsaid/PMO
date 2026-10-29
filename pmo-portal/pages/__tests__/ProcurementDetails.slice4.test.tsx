@@ -731,7 +731,7 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
     expect(mockTransition).not.toHaveBeenCalled();
   });
 
-  it('Cancel Request opens a ConfirmDialog with "Keep request" dismiss label', async () => {
+  it('Cancel procurement opens a ConfirmDialog with "Keep procurement" dismiss label', async () => {
     const { default: userEvent } = await import('@testing-library/user-event');
     // Requester can cancel at Draft
     authState.userId = 'u-other';
@@ -768,7 +768,7 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
     expect(dialog!.textContent).toContain('Record $1,090 as paid? This records payment evidence; it does not transfer funds.');
   });
 
-  it('Submit Request (routine) commits directly — no ConfirmDialog', async () => {
+  it('Submit for approval (routine) commits directly — no ConfirmDialog', async () => {
     const { default: userEvent } = await import('@testing-library/user-event');
     authState.userId = 'u-other'; // the requester
     roleState.realRole = 'Engineer';

@@ -26,6 +26,30 @@ describe('BvACard (Exec — real top_projects)', () => {
     ).toBeInTheDocument();
   });
 
+  it('D-005: shows one contract percentage beside the bar and lists budget separately', () => {
+    renderCard([{
+      ...projects[0],
+      id: 'sample-project',
+      name: 'Sample project',
+      contract_value: 1_000,
+      budget: 880,
+      spent: 920,
+    }]);
+
+    const row = screen.getByRole('link', { name: 'Sample project' }).closest('[data-row]') as HTMLElement;
+    const bar = within(row).getByRole('progressbar');
+    expect(bar).toHaveAttribute('aria-valuenow', '92');
+    expect(within(row).getByText('92% of contract')).toBeInTheDocument();
+    expect(within(row).getByText('Active budget: $880')).toBeInTheDocument();
+    expect(row).not.toHaveTextContent('104%');
+  });
+
+  it('D-005: names an absent active budget instead of showing an unknown amount', () => {
+    renderCard([{ ...projects[0], budget: null }]);
+
+    expect(screen.getByText('No active budget')).toBeInTheDocument();
+  });
+
   it('exposes a per-row accessible contract comparison percentage', () => {
     renderCard();
     // Innovate spent 2.1M of 5M contract = 42%

@@ -77,7 +77,7 @@ const ALL_ITEMS: NavItem[] = [
   { to: '/companies', text: 'Companies', icon: 'companies', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Contacts (CRM v1): master-data directory of people, mirrors Companies — Exec·PM·Finance·Admin (Engineer = ○).
   // Without CRM there is no Companies item, so PM and Finance keep a direct path to vendors.
-  { to: '/companies?type=Vendor', text: 'Vendors', icon: 'companies', group: 'Delivery', unlessFeature: 'crm', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/companies?type=Vendor', text: 'Suppliers', icon: 'companies', group: 'Delivery', unlessFeature: 'crm', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/contacts', text: 'Contacts', icon: 'contacts', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
   // Gated behind the `incidents` feature flag (UI-hide-first); currently hidden (features.ts).
@@ -220,7 +220,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
     '/approvals': t('shell.nav.approvals', 'Approvals'),
     '/companies': t('shell.nav.companies', 'Companies'),
     // No rail item any more (FIN-S9), but the breadcrumb and command palette share this key.
-    '/companies?type=Vendor': t('shell.nav.vendors', 'Vendors'),
+    '/companies?type=Vendor': t('shell.nav.vendors', 'Suppliers'),
     '/contacts': t('shell.nav.contacts', 'Contacts'),
     '/incidents': t('shell.nav.incidents', 'Incidents'),
     '/meetings': t('shell.nav.meetings', 'Meetings'),
@@ -229,7 +229,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
     '/incoming-payments': t('shell.nav.incomingPayments', 'Incoming Payments'),
     '/revenue-by-project': t('shell.nav.revenueByProject', 'Revenue by Project'),
     '/financial-statements': t('shell.nav.financialStatements', 'Financial statements'),
-    '/reports': t('shell.nav.managementPack', 'Management pack'),
+    '/reports': t('shell.nav.managementPack', 'Reports'),
   };
   const navLabels: Record<string, string> = Object.fromEntries(
     items.map((item) => {

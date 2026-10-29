@@ -6,10 +6,10 @@ import { KPITile } from '../KPITile';
 
 /**
  * W2-4a — KPITile error prop.
- * AC-W2-4-03: KPITile renders "—" when `error` is set, not the value, and not the skeleton.
+ * AC-MONEY-DISPLAY: KPITile omits unknown money when `error` is set, not the value or a dash.
  */
 describe('KPITile — error prop (AC-W2-4-03)', () => {
-  it('AC-W2-4-03: renders "—" when error=true, not the value or skeleton', () => {
+  it('AC-MONEY-DISPLAY: omits the figure when error=true, not the value, a dash, or the skeleton', () => {
     render(
       <MemoryRouter>
         <KPITile
@@ -23,8 +23,7 @@ describe('KPITile — error prop (AC-W2-4-03)', () => {
       </MemoryRouter>,
     );
 
-    // Should show em-dash, not the real value
-    expect(screen.getByTestId('kpi-test')).toHaveTextContent('—');
+    expect(screen.getByTestId('kpi-test')).not.toHaveTextContent('—');
     expect(screen.queryByText('42')).toBeNull();
     // Should NOT show skeleton
     expect(screen.queryByTestId('kpi-skeleton')).toBeNull();
@@ -46,7 +45,7 @@ describe('KPITile — error prop (AC-W2-4-03)', () => {
     expect(screen.queryByTestId('kpi-skeleton')).toBeNull();
   });
 
-  it('AC-W2-4-03: link variant with error renders "—" instead of value', () => {
+  it('AC-MONEY-DISPLAY: link variant with error also omits a dash instead of the value', () => {
     render(
       <MemoryRouter>
         <KPITile
@@ -61,7 +60,7 @@ describe('KPITile — error prop (AC-W2-4-03)', () => {
         />
       </MemoryRouter>,
     );
-    expect(screen.getByTestId('kpi-link-test')).toHaveTextContent('—');
+    expect(screen.getByTestId('kpi-link-test')).not.toHaveTextContent('—');
     expect(screen.queryByText('5')).toBeNull();
   });
 });

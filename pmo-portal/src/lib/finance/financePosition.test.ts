@@ -205,8 +205,8 @@ describe('buildFinancePosition', () => {
     const list = totalsByCurrency(rows, 'Finance', 'pay');
 
     expect(list).toEqual([
-      { currency: 'IDR', amount: 1560, unknown: false },
-      { currency: 'USD', amount: 0, unknown: false },
+      { currency: 'IDR', amount: 1560, unknown: false, knownAmount: 1560, unknownCount: 0 },
+      { currency: 'USD', amount: 0, unknown: false, knownAmount: 0, unknownCount: 0 },
     ]);
     expect(position.payablesTotals).toEqual({ IDR: 156_000, USD: 0 });
     for (const total of list) expect(position.payablesTotals[total.currency]).toBe(Math.round((total.amount ?? NaN) * 100));
@@ -226,6 +226,8 @@ describe('buildFinancePosition', () => {
     expect(position.payablesUnknownCount).toBe(1);
     expect(position.payablesTotals).toEqual({ IDR: 30_000 });
     expect(position.payablesAgeing.IDR).toEqual({ d0_30: 30_000, d31_60: 0, d61_90: 0, over90: 0 });
-    expect(totalsByCurrency(rows, 'Finance', 'pay')).toEqual([{ currency: 'IDR', amount: null, unknown: true }]);
+    expect(totalsByCurrency(rows, 'Finance', 'pay')).toEqual([
+      { currency: 'IDR', amount: null, unknown: true, knownAmount: 300, unknownCount: 1 },
+    ]);
   });
 });

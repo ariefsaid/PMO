@@ -1,6 +1,6 @@
 /**
  * AC-EXT-002 (#769) — the Procurement export carries an "External references" column joining every
- * record's external reference (PR, PO, vendor invoice, in that order). Oracle: the workbook the real
+ * record's external reference (PR, PO, supplier invoice, in that order). Oracle: the workbook the real
  * Export button downloads, parsed back with exceljs (same harness as exportCurrencyColumn.test.tsx).
  */
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';

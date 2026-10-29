@@ -128,7 +128,9 @@ One pass, no review-and-fix rounds before the owner sees it:
 
 1. Render the brief's screenshot set (busiest record, top role and most restricted role, 1440
    and 390) and every other state once (empty, loading, error, each tab, drawer, role, dark).
-2. Run impeccable's detector and axe; fix what they flag.
+2. Run impeccable's detector (advisory findings on) and axe; fix what they flag. Then check every
+   screen by eye against `docs/private/restructure/_reference/owner-design-comments.md`, the owner's
+   past rulings: a pattern the owner rejected once is a defect, even when the detector is silent.
 3. Tick the feature floor and the aspiration's affordances (a)–(f) against the render; fix gaps.
 4. Send the owner the URL and the screenshot set, with one line on what was checked.
 

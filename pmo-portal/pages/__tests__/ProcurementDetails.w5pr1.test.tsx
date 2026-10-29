@@ -9,7 +9,7 @@
  *      is present but NOT primary — both are reachable (OD-W5-2).
  *  (c) SoD-blocked state: GateNotice renders INSIDE the decision area when the
  *      viewer cannot approve; NO action buttons appear in that area (D6).
- *  (d) "Cancel request" (destructive) renders AFTER/BELOW the primary CTA —
+ *  (d) "Cancel procurement" (destructive) renders AFTER/BELOW the primary CTA —
  *      never before it in DOM order (D8).
  *
  * All states: normal / SoD-blocked / terminal (Paid — no decision actions).

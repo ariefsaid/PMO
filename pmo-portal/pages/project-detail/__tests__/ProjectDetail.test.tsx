@@ -73,6 +73,8 @@ vi.mock('@/src/hooks/useBudget', () => ({
   // line-items). Return 4,700,000 to match the seed project so the 50% util assertion holds.
   useProjectBudget: () => ({ data: 4_700_000, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => ({ data: budgetVersionsBox.value, isPending: false, isError: false, refetch: vi.fn() }),
+  useBudgetActivationPrecheck: () => ({ data: undefined, isPending: false, isError: false }),
+  useBudgetArchiveTargets: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetActivationMode: () => ({ data: undefined, isPending: false, isError: false }),
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: vi.fn() }, activate: { mutateAsync: vi.fn() },
@@ -152,10 +154,27 @@ vi.mock('react-router', async (orig) => {
 const LAZY_TAB_TIMEOUT = 5000;
 const freshClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
+const preloadTab = async (path: string | { pathname: string }) => {
+  const pathname = typeof path === 'string' ? path : path.pathname;
+  const tab = pathname.split('/')[3] ?? 'overview';
+  switch (tab) {
+    case 'budget': await import('../tabs/BudgetTab'); break;
+    case 'procurement': await import('../tabs/ProcurementTab'); break;
+    case 'tasks': await import('../tabs/TasksTab'); break;
+    case 'documents': await import('../tabs/DocumentsTab'); break;
+    case 'work-orders': await import('../tabs/WorkOrdersTab'); break;
+    case 'billing': await import('../tabs/BillingTab'); break;
+    // The approved redesign renders OverviewContent inside ProjectSections; it is not a lazy tab module.
+    default: break;
+  }
+};
+
 // list-working-set-return (#682, AC-LRC-003): a plain string entry is the direct-link case (no
 // captured list context); an { pathname, state } entry lets a test seed a validated
 // `pmoListReturn` context as though the record were opened from a narrowed Projects list.
 const renderAt = async (path: string | { pathname: string; state?: unknown }) => {
+  // These tests cover the settled shell; route-chunk loading has separate coverage.
+  await preloadTab(path);
   const view = render(
     <QueryClientProvider client={freshClient()}>
       <MemoryRouter initialEntries={[path]}>

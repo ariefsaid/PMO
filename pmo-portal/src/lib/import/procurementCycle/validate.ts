@@ -143,7 +143,7 @@ function validateRowFields(
       const vendorRaw = row.vendor?.trim() ?? '';
       const vendorErr = vendorRaw
         ? refValidate(vendorLookup, true)(vendorRaw)
-        : 'Vendor is required.';
+        : 'Supplier is required.';
       if (vendorErr) errors.push(vendorErr);
       const amtErr = validateRequiredAmount(row.amount);
       if (amtErr) errors.push(amtErr);

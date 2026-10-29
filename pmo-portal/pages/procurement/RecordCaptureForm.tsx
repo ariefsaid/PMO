@@ -102,7 +102,7 @@ interface KindConfig {
 const GROUP_REF_KINDS: ReadonlySet<RecordKind> = new Set<RecordKind>(['purchase_request', 'purchase_order', 'vendor_invoice']);
 
 const DEFAULT_REF_LABEL = 'External ref';
-const DEFAULT_REF_PLACEHOLDER = 'e.g. VENDOR-PO-001';
+const DEFAULT_REF_PLACEHOLDER = 'e.g. SUPPLIER-PO-001';
 
 const KIND_LABEL: Record<RecordKind, string> = {
   purchase_request: 'Purchase Request',
@@ -120,7 +120,7 @@ function localizedRecordKindLabel(kind: RecordKind, t: TFunction): string {
     case 'purchase_order': return t('procurementLedger.types.purchaseOrder', 'Purchase Order');
     case 'payment': return t('procurementLedger.types.payment', 'Payment');
     case 'goods_receipt': return t('procurementDetail.recordKinds.goodsReceipt', 'Goods Receipt');
-    case 'vendor_invoice': return t('procurementDetail.recordKinds.vendorInvoice', 'Supplier invoice');
+    case 'vendor_invoice': return t('procurementDetail.recordKinds.vendorInvoice', 'Supplier Invoice');
   }
 }
 

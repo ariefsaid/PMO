@@ -71,6 +71,14 @@ export function budgetAccountPushKey(identity: string, activatedAt: string | nul
   return `bud16:${identity}:${epoch}`;
 }
 
+/** Distinct recovery identity for an operator-requested archive cancellation of an existing v16 Budget. */
+export function budgetAccountArchiveKey(identity: string, activatedAt: string | null | undefined): string {
+  if (!parseBudgetIdentity(identity).erpAccount || !activatedAt) reject();
+  const epoch = timestamptzEpochMs(activatedAt);
+  if (!Number.isFinite(epoch) || epoch < 0) reject();
+  return `bud16-archive:${identity}:${epoch}`;
+}
+
 export function isBudgetAccountPushKey(key: string): boolean {
   if (!key.startsWith('bud16:')) return false;
   const end = key.lastIndexOf(':');
@@ -78,6 +86,19 @@ export function isBudgetAccountPushKey(key: string): boolean {
   if (!/^[0-9]{4,20}$/.test(epoch)) return false;
   try {
     return parseBudgetIdentity(key.slice(6, end)).erpAccount !== null;
+  } catch {
+    return false;
+  }
+}
+
+export function isBudgetAccountArchiveKey(key: string): boolean {
+  const prefix = 'bud16-archive:';
+  if (!key.startsWith(prefix)) return false;
+  const end = key.lastIndexOf(':');
+  const epoch = key.slice(end + 1);
+  if (!/^[0-9]{4,20}$/.test(epoch)) return false;
+  try {
+    return parseBudgetIdentity(key.slice(prefix.length, end)).erpAccount !== null;
   } catch {
     return false;
   }

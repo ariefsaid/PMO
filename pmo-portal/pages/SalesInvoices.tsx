@@ -45,7 +45,7 @@ import { canAttributeInvoice } from '@/src/lib/invoiceProjectAssignment';
 import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
-import { currencySymbol, formatCurrency, formatCurrencyCents, formatDateOnly, formatInstantDate, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrency, formatCurrencyAuto, formatCurrencyCents, formatDateOnly, formatInstantDate, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { IncomingPaymentRow, SalesInvoiceRow, SalesInvoiceStatus } from '@/src/lib/db/revenue';
 import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
@@ -768,7 +768,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
                     {viewTarget.erp_outstanding_amount == null
                       ? t('uxs17.outstandingUnavailable', 'Outstanding amount not available')
                       : <>
-                        {formatCurrencyCents(viewTarget.erp_outstanding_amount, viewTarget.currency)}
+                        {formatCurrencyAuto(viewTarget.erp_outstanding_amount, viewTarget.currency)}
                         <FxEquivalent amount={viewTarget.erp_outstanding_amount} currency={viewTarget.currency} date="latest" />
                       </>}
                   </dd>
@@ -860,7 +860,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   const projectLabelOf = (inv: SalesInvoiceRow) => projectOptions?.find((option) => option.value === inv.project_id)?.contractualName;
   const showEfaktur = all.some((inv) => inv.efaktur_number || inv.efaktur_date);
   // Lists show whole units (G1); exact cents stay on the record page.
-  const listMoney = embedded ? formatCurrency : formatCurrencyCents;
+  const listMoney = embedded ? formatCurrency : formatCurrencyAuto;
   const invoiceColumn: Column<SalesInvoiceRow> = {
     key: 'si_number',
     header: embedded ? t('finance:receivables.invoiceColumn', 'Invoice') : t('financeCopy.invoice', "Invoice #"),

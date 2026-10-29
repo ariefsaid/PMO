@@ -112,6 +112,7 @@ vi.mock('@/src/hooks/useProjectsDelivery', () => ({
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineState,
   useLostDeals: () => lostState,
+  useWonDeals: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 // usePipelineView/useProcurementView stay REAL (sessionStorage-backed, cleared in beforeEach) —
 // Procurement's real default is already 'table'; SalesPipeline's real default is 'kanban', so

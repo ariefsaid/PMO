@@ -50,7 +50,7 @@ describe('OrgProcurementGates', () => {
     h.get.mockResolvedValue(OFF);
     renderIt();
     const toggle = await screen.findByRole('switch', { name: 'Receipt required before invoice' });
-    expect(toggle).toHaveAccessibleDescription('When on, a vendor invoice needs a goods receipt first.');
+    expect(toggle).toHaveAccessibleDescription('When on, a supplier invoice needs a goods receipt first.');
     expect(screen.getByRole('switch', { name: 'Approval required before payment' }))
       .toHaveAccessibleDescription('When on, a payment needs an approved amount first.');
   });

@@ -13,7 +13,7 @@ describe('AttributedSpendingNote', () => {
   it('M10: names project-wide attributed spending apart from ERP-tagged spending', () => {
     state.data = { actuals: { currency: 'USD', tagged_total: '100.00', attributed_total: '50.00' } };
     render(<AttributedSpendingNote projectId="project-1" />);
-    expect(screen.getByTestId('budget-attributed-note')).toHaveTextContent('Across all years, $50.00 of recorded spending is attributed by cost rules, not tagged to this project in the ERP.');
+    expect(screen.getByTestId('budget-attributed-note')).toHaveTextContent('Across all years, $50 of recorded spending is attributed by cost rules, not tagged to this project in the ERP.');
   });
 
   it('M10: leaves the forecast context quiet when there is no attributed amount', () => {

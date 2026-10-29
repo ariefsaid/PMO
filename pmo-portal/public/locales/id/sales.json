@@ -1,6 +1,20 @@
 {
   "pipeline": {
     "endCustomerLine": "untuk {{name}}",
-    "mixedCurrency": "Mata uang campuran, jadi tidak ada total tunggal"
+    "mixedCurrency": "Mata uang campuran, jadi tidak ada total tunggal",
+    "staleBid": "Tender tidak aktif · tahap tidak berubah selama 90+ hari"
+  },
+  "scope": {
+    "won": "Menang"
+  },
+  "wonError": {
+    "sub": "Terjadi kesalahan saat mengambil proyek yang menang.",
+    "title": "Gagal memuat proyek yang menang"
+  },
+  "tableEmpty": {
+    "won": {
+      "sub": "Proyek yang ditandai menang akan muncul di sini.",
+      "title": "Tidak ada proyek yang menang"
+    }
   }
 }

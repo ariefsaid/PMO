@@ -227,6 +227,7 @@ describe('AC-CQ-015 Work orders tab: allocations and BAST list', () => {
     const user = renderWorkOrders();
     await openDisclosure(user);
     expect(within(disclosure()).getByRole('button', { name: 'Record delivery' })).toBeInTheDocument();
+    expect(within(disclosure()).getByRole('button', { name: 'Prepare BAST' })).toBeInTheDocument();
     expect(within(disclosure()).queryByRole('button', { name: /^Confirm/ })).toBeNull();
   });
 

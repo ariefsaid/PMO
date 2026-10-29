@@ -111,9 +111,11 @@ describe('PipelineLens — RBAC write-affordance gate (A-1)', () => {
     const details = screen.getByText('More about this deal').closest('details');
     expect(details).not.toHaveAttribute('open');
     expect(details).not.toHaveTextContent('Weighted');
+    const journey = screen.getByRole('list', { name: /Project stage journey/i });
+    expect(journey.closest('details')).toBeNull();
     await userEvent.click(screen.getByText('More about this deal'));
     expect(details).toHaveTextContent('Weighted');
-    expect(screen.getByRole('list', { name: /Project stage journey/i })).toBeInTheDocument();
+    expect(journey).toBeInTheDocument();
   });
 
   it('keeps the full read-only explanation inside the phone disclosure and the summary to one line', async () => {

@@ -1,0 +1,23 @@
+{
+  "title": "Ask your agent",
+  "visibility": "I only see what you can see.",
+  "readOnly": "Answers are read-only for now.",
+  "examples": {
+    "projectSchedule": "Which of my projects are behind schedule?",
+    "openOpportunities": "How many open opportunities do I have this quarter?",
+    "companiesWithoutProjects": "List my companies with no active projects."
+  },
+  "suggestions": {
+    "projectStatus": "Summarize this project’s status",
+    "projectOverdueTasks": "What tasks on this project are overdue?",
+    "projectBudget": "Show this project’s budget vs actuals",
+    "procurementSummary": "Summarize this procurement case",
+    "procurementNextStep": "What’s the next step on this case?",
+    "procurementOpenItems": "Which items on this case are still open?",
+    "companyActiveWork": "Summarize this company’s active work",
+    "companyOpportunities": "List this company’s open opportunities",
+    "companyProjects": "What projects does this company have?",
+    "contactActivity": "Summarize recent activity with this contact",
+    "contactOpenItems": "What open items involve this contact?"
+  }
+}

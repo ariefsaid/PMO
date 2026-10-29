@@ -26,14 +26,24 @@ orca orchestration worker-start --spec "<brief or path>" --agent <harness> \
 
 ## Model routing (defaults; right-size per task)
 
+**Cheapest first (owner, 2026-10-28):** spend quota in this order and stop at the first model that can do
+the job well: Gemini Flash → GLM-5.3-flash → GPT (Luna, then Terra, then Sol) → Claude (Sonnet, then Opus). Claude
+tokens are preserved for the Opus orchestrator: no Opus while Sol has quota; no Opus or Sol where Sonnet
+or Luna will do; no Luna where GLM will do. Only a used-up quota moves work up a rung, not habit. Routing applies before `worker-start`: never stop a running worker to re-route it; stop only on the owner's explicit "stop".
+
 | Work | Model · harness · effort |
 |---|---|
-| Build a bounded code or UI slice | GPT-6 Luna · codex · xhigh |
-| Spec, plan, hard fix round, design/rendered review | GPT-6.1 Sol · codex · medium |
+| Quick, cheap, mechanical (formatting, lookups, summaries, transcript harvests) | Gemini Flash (latest) · antigravity |
+| Bounded build with a precise brief; code or security review of a build; read-only audits | GLM-5.3-flash · pi (Z.AI provider) · max — see GLM launch below |
+| Build a slice GLM can't (judgement, UI craft) | GPT-6 Luna · codex · xhigh |
+| Spec, plan, review (spec, code, design/rendered, money or security judgement), hard fix round | GPT-6.1 Terra · codex · medium |
+| Orchestrator level: lane orchestrators supervising workers | GPT-6.1 Sol · codex · medium |
 | Complex assessment, second opinion on design or money | Gemini Argon · antigravity · high (quota-limited: reserve it) |
-| Cross-family code or security review of a build | GLM-5.3-flash · pi or zcode · max |
-| Quick, cheap, mechanical (formatting, lookups, summaries) | Gemini Flash (latest) · antigravity, or Claude Haiku · claude |
-| Claude work when it fits best | Sonnet 5.5 · claude · medium/high; Opus 5.5 · claude · medium for design, money or security judgement |
+| Only when GPT quota is out, or the job needs Claude | Sonnet 5.5 · claude · medium/high; then Opus 5.5 · claude |
+
+**GLM launch** (full recipes and gotchas: `docs/orca-model-launch.md`). `--agent pi` ignores `--model` and runs pi's own default provider, which is not GLM, and
+`zcode` does not start under Orca. Start GLM by opening a terminal in the worker's worktree that runs
+`pi --provider zai --model glm-5.3-flash:max`, then `orca orchestration worker-start --terminal <handle>`.
 
 Money-path, SoD and auth/token-custody work stays **Director-dispatched per issue** (one worker per
 step, adversarial review, mutation checks) — now through Orca workers instead of pi.

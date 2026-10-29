@@ -4,7 +4,7 @@
  * AC-W3-N1 — VI form must NOT offer "Paid" as a status option; Mark as Paid
  *             remains the sole authority for the PR→Paid transition.
  * AC-W3-D10 — Draft PR with no line items blocks Submit Request + shows a gate.
- * AC-W3-O3  — "Mark Vendor Invoiced" opens an inline capture that performs the
+ * AC-W3-O3  — "mark supplier invoiced" opens an inline capture that performs the
  *             transition + VI-create together; cancel leaves status unchanged.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -183,7 +183,7 @@ const baseProcurement = {
   statusEvents: [],
 };
 
-/** A Received PR ready for "Mark Vendor Invoiced" with a different user as approver (not u-finance). */
+/** A Received PR ready for "mark supplier invoiced" with a different user as approver (not u-finance). */
 const receivedProcurement = {
   ...baseProcurement,
   status: 'Received' as const,
@@ -232,7 +232,7 @@ describe('AC-W3-N1: VI form does not offer "Paid" status; Mark as Paid is the so
     toast.mockClear();
   });
 
-  it('AC-W3-N1: the VI capture (now inline on Mark Vendor Invoiced) offers Received and Scheduled but NOT Paid', async () => {
+  it('AC-W3-N1: the VI capture (now inline on mark supplier invoiced) offers Received and Scheduled but NOT Paid', async () => {
     detailState.data = { ...receivedProcurement };
     detailState.isPending = false;
     detailState.isError = false;
@@ -267,7 +267,7 @@ describe('AC-W3-N1: VI form does not offer "Paid" status; Mark as Paid is the so
 // ---------------------------------------------------------------------------
 // AC-W3-D10 — Draft with no line items blocks Submit Request
 // ---------------------------------------------------------------------------
-describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => {
+describe('AC-W3-D10: Draft PR with zero line items gates Submit for approval', () => {
   // The viewer (u-finance) is the requester: submit is the requester's act (OD-PROC-1), so the
   // line-item gate is exercised for the person who can actually submit.
   const REQUESTER = { requested_by_id: 'u-finance' };
@@ -277,7 +277,7 @@ describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => 
     toast.mockClear();
   });
 
-  it('AC-W3-D10: a Draft PR with NO line items shows the add-line-items gate message and no enabled Submit Request button', () => {
+  it('AC-W3-D10: a Draft PR with NO line items shows the add-line-items gate message and no enabled Submit for approval button', () => {
     detailState.data = { ...baseProcurement, ...REQUESTER, items: [], total_value: 0, currency: 'USD' };
     detailState.isPending = false;
     detailState.isError = false;
@@ -294,7 +294,7 @@ describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => 
     expect(screen.getByText(/add at least one line item before submitting/i)).toBeInTheDocument();
   });
 
-  it('AC-W3-D10: a Draft PR with ≥1 line item (total > 0) shows an enabled Submit Request', () => {
+  it('AC-W3-D10: a Draft PR with ≥1 line item (total > 0) shows an enabled Submit for approval', () => {
     detailState.data = {
       ...baseProcurement,
       ...REQUESTER,
@@ -362,10 +362,10 @@ describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => 
 });
 
 // ---------------------------------------------------------------------------
-// AC-W3-O3 — "Mark Vendor Invoiced" opens inline capture; submit fires both
+// AC-W3-O3 — "mark supplier invoiced" opens inline capture; submit fires both
 //             transition + createInvoice; cancel leaves status unchanged.
 // ---------------------------------------------------------------------------
-describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs transition + VI-create together', () => {
+describe('AC-W3-O3: mark supplier invoiced opens inline capture and performs transition + VI-create together', () => {
   beforeEach(() => {
     mockEffectiveRole = 'Finance';
     orgDefault.value = 'exclusive';
@@ -377,7 +377,7 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     toast.mockClear();
   });
 
-  it('AC-W3-O3: clicking "Mark Vendor Invoiced" opens the inline capture form (ref + date + status)', async () => {
+  it('AC-W3-O3: clicking "mark supplier invoiced" opens the inline capture form (ref + date + status)', async () => {
     detailState.data = { ...receivedProcurement };
     detailState.isPending = false;
     detailState.isError = false;

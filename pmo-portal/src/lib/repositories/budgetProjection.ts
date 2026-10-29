@@ -112,7 +112,7 @@ export interface BudgetFiscalYearRow {
   /** The ERPNext `Fiscal Year` NAME as stored — '2026' for a calendar client, '2025-2026' for a Jul–Jun
    *  one. PMO never parses, orders-by-parsing, or synthesizes this: it is the client's own label. */
   fiscalYear: string;
-  /** True for the year the project's ACTIVE budget version was pushed against — the sensible default. */
+  /** True for the year the project's ACTIVE budget version was pushed against — a fallback if no listed year has spending. */
   isActivePush: boolean;
 }
 

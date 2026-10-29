@@ -1,8 +1,11 @@
 {
   "coverage": {
+    "readError": "Project spending could not be read.",
+    "unknown": "Actual is unknown on {{count}} of {{total}} projects.",
     "partial": "Actual is partial on {{partial}} of {{total}} projects.",
     "partialUpdated": "Actual is partial on {{partial}} of {{total}} projects. Updated {{date}}."
   },
+  "moneyFiguresUnavailable": "Some project financial figures are still being confirmed.",
   "actual": {
     "restrictedTag": "Restricted excluded"
   },

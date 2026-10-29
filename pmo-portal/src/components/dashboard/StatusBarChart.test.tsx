@@ -1,9 +1,11 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, describe, it, expect } from 'vitest';
+import { act, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import i18next from 'i18next';
 import { chartTheme, tintStatusFill, STATUS_BAR_TINT } from '@/src/components/ui/chartTheme';
 import { procurementStatusTone } from './procurementStatusTone';
 import { StatusBarChart } from './StatusBarChart';
+import idDashboard from '../../../public/locales/id/dashboard.json';
 
 const data = [
   { status: 'Draft' as const, count: 1 },
@@ -11,8 +13,10 @@ const data = [
   { status: 'Paid' as const, count: 5 },
 ];
 
+afterEach(async () => { await act(async () => { await i18next.changeLanguage('en'); }); });
+
 describe('StatusBarChart (new AC — status-toned procurement chart)', () => {
-  it('exposes an aria-label insight summary naming the top status by count', () => {
+  it('D-009: gives the chart a short name and exposes its values in an accessible table', () => {
     render(
       <StatusBarChart
         data={data}
@@ -21,10 +25,16 @@ describe('StatusBarChart (new AC — status-toned procurement chart)', () => {
         noun="requests"
       />,
     );
-    const region = screen.getByRole('img', { name: /Procurement by status/i });
-    // top status by count = Paid (5), total = 9
-    expect(region).toHaveAccessibleName(/9 requests/i);
-    expect(region).toHaveAccessibleName(/most in Paid/i);
+    const region = screen.getByRole('img', { name: 'Procurement by status' });
+    expect(region).toHaveAttribute('aria-describedby');
+    expect(region).toHaveAccessibleDescription('The chart values are listed in the following data table.');
+
+    const table = screen.getByRole('table', { name: 'Data for Procurement by status' });
+    expect(within(table).getByText('Draft')).toBeInTheDocument();
+    expect(within(table).getByText('9')).toBeInTheDocument();
+    expect(within(table).getByText('Paid')).toBeInTheDocument();
+    expect(within(table).getByText('5')).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: 'Paid 5' })).toBeInTheDocument();
   });
 
   it('DA-2: exposes only the visual as an image and keeps drill-down legend links independently reachable', () => {
@@ -51,14 +61,38 @@ describe('StatusBarChart (new AC — status-toned procurement chart)', () => {
     expect(legendItems.map((item) => item.textContent?.replace(/\s/g, ''))).toEqual(['Draft1', 'Ordered3', 'Paid5']);
   });
 
+  it('AC-UXA-003: keeps the localized value table accessible in the compact purchasing chart', async () => {
+    i18next.addResourceBundle('id', 'dashboard', idDashboard, true, true);
+    await act(async () => { await i18next.changeLanguage('id'); });
+    render(
+      <MemoryRouter>
+        <StatusBarChart
+          data={[{ status: 'Requested', count: 2 }, { status: 'Approved', count: 1 }]}
+          toneFor={() => chartTheme.series.neutral}
+          label="Pembelian berdasarkan tahap"
+          labelFor={(status) => status === 'Requested' ? 'Permintaan Pembelian' : 'Disetujui'}
+          noun="pengadaan"
+          hrefFor={(status) => `/procurement?status=${status}`}
+          compactSegments
+        />
+      </MemoryRouter>,
+    );
+    const chart = screen.getAllByRole('group', { name: 'Pembelian berdasarkan tahap' })[0];
+    expect(chart).toHaveAccessibleDescription('Nilai grafik tercantum dalam tabel data berikut.');
+    const table = screen.getByRole('table', { name: 'Data untuk Pembelian berdasarkan tahap' });
+    expect(within(table).getByRole('row', { name: 'Permintaan Pembelian 2' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Permintaan Pembelian: 2' })).toHaveAttribute('href', '/procurement?status=Requested');
+  });
+
   it('renders a dot+text legend entry per status (color-not-only)', () => {
     render(
       <StatusBarChart data={data} toneFor={procurementStatusTone} label="Procurement by status" noun="requests" />,
     );
     // each status name appears as text in the legend (not color-only)
-    expect(screen.getByText('Draft')).toBeInTheDocument();
-    expect(screen.getByText('Ordered')).toBeInTheDocument();
-    expect(screen.getByText('Paid')).toBeInTheDocument();
+    const legend = screen.getByRole('group', { name: 'Procurement by status' });
+    expect(within(legend).getByText('Draft')).toBeInTheDocument();
+    expect(within(legend).getByText('Ordered')).toBeInTheDocument();
+    expect(within(legend).getByText('Paid')).toBeInTheDocument();
   });
 
   it('AS-4 regression: the figcaption pairs every status text with its dot (never color alone)', () => {

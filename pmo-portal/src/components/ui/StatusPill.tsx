@@ -68,11 +68,14 @@ const STYLES: Record<StatusVariant, PillStyle> = {
 export interface StatusPillProps extends React.HTMLAttributes<HTMLSpanElement> {
   variant: StatusVariant;
   children: React.ReactNode;
+  /** Let a longer translated label wrap inside a constrained card or table cell. */
+  wrap?: boolean;
 }
 
 export const StatusPill: React.FC<StatusPillProps> = ({
   variant,
   children,
+  wrap = false,
   className,
   style,
   ...rest
@@ -81,8 +84,9 @@ export const StatusPill: React.FC<StatusPillProps> = ({
   return (
     <span
       className={cn(
-        'inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full px-2 text-control font-normal whitespace-nowrap',
+        'inline-flex h-6 items-center gap-1.5 rounded-full px-2 text-control font-normal',
         s.surfaceCls,
+        wrap ? 'min-w-0 max-w-full' : 'shrink-0 whitespace-nowrap',
         s.labelCls,
         className
       )}
@@ -95,7 +99,7 @@ export const StatusPill: React.FC<StatusPillProps> = ({
         className={cn('size-1.5 shrink-0 rounded-full', s.dotCls)}
         style={{ background: s.dot }}
       />
-      {children}
+      {wrap ? <span className="min-w-0 break-words">{children}</span> : children}
     </span>
   );
 };

@@ -12,7 +12,8 @@ vi.mock('@/src/lib/db/budgets', () => ({
   createBudgetVersion: vi.fn().mockResolvedValue({ id: 'v-new' }),
   cloneVersion: vi.fn().mockResolvedValue('v-clone'),
   activateVersion: vi.fn().mockResolvedValue(undefined),
-  archiveVersion: vi.fn().mockResolvedValue(undefined),
+  archiveVersion: vi.fn().mockResolvedValue({ cancelErp: false, liveTargetCount: 0, queuedCount: 0 }),
+  listBudgetArchiveLiveTargets: vi.fn().mockResolvedValue([]),
   deleteDraftVersion: vi.fn().mockResolvedValue(undefined),
   createLineItem: vi.fn().mockResolvedValue({ id: 'li-new' }),
   updateLineItem: vi.fn().mockResolvedValue(undefined),
@@ -140,16 +141,16 @@ describe('useBudgetMutations', () => {
     expectBothKeysInvalidated(invalidateSpy);
   });
 
-  it('archive calls archiveVersion(versionId) and invalidates both keys (T13)', async () => {
+  it('archive calls archiveVersion(versionId, cancelErp) and invalidates budget read keys (T13)', async () => {
     const { qc, Wrapper } = makeWrapper();
     const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
     const { result } = renderHook(() => useBudgetMutations('p-1'), { wrapper: Wrapper });
 
     await act(async () => {
-      await result.current.archive.mutateAsync('v-active');
+      await result.current.archive.mutateAsync({ versionId: 'v-active', cancelErp: true });
     });
 
-    expect(archiveVersion).toHaveBeenCalledWith('v-active');
+    expect(archiveVersion).toHaveBeenCalledWith('v-active', true);
     expectBothKeysInvalidated(invalidateSpy);
   });
 

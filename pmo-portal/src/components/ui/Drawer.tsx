@@ -200,8 +200,8 @@ export const Drawer: React.FC<DrawerProps> = ({
           // edge (inner cards keep their own radius); the left border is the only seam.
           'drawer-anim relative z-[810] flex h-full flex-col border-l border-border bg-popover',
           'motion-reduce:animate-none',
-          'w-full',
-          width === 'lg' ? 'sm:w-[min(560px,92vw)]' : 'sm:w-[min(var(--drawer-width),92vw)]',
+          'max-md:w-full',
+          width === 'lg' ? 'md:w-[min(560px,92vw)]' : 'md:w-[min(420px,92vw)]',
         )}
       >
         {/* Header */}

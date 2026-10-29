@@ -6,7 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 
 /**
  * AC-IXD-PROC-005 — at the terminal Paid state there are no persistent
- * "Create Goods Receipt" / "Create Vendor Invoice" primary buttons (their stages
+ * "Create Goods Receipt" / "create supplier invoice" primary buttons (their stages
  * have passed); any GR/VI already created shows as a quiet read-only summary
  * (IxD #14 carry-in / SP-3). The GR form is gated to Ordered | Received, the VI
  * form to Vendor Invoiced only.

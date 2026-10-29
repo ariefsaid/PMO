@@ -8,7 +8,7 @@
  * B-IMP-2 (AC-S6-2): SoD pre-announce on draft state for the author
  *   When the PR is in Draft and the current user is the requester (author),
  *   show inline copy "Submitting hands this to another approver — you can't
- *   approve your own request." so the author understands SoD before submitting.
+ *   approve your own procurement record." so the author understands SoD before submitting.
  *
  * C-IMP-1 (AC-S6-3): BackBar on success render at <=921px
  *   The BackBar is rendered (conditionally visible via CSS) on the success render
@@ -20,6 +20,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import { useTranslation } from 'react-i18next';
+import { BahasaProvider } from '@/test/bahasa';
+import enProcurementRecord from '../../public/locales/en/procurementRecord.json';
+import idProcurementRecord from '../../public/locales/id/procurementRecord.json';
 
 // ---------------------------------------------------------------------------
 // Stub ProcurementFilesSubsection — it calls useQueryClient() internally.
@@ -225,6 +229,26 @@ const renderPage = (id = 'proc-s6-001', state?: unknown) =>
   );
 
 // ---------------------------------------------------------------------------
+const ProcurementRecordCatalogue = ({ children }: { children: React.ReactNode }) => {
+  const { i18n } = useTranslation();
+  i18n.addResourceBundle('en', 'procurementRecord', enProcurementRecord, true, true);
+  i18n.addResourceBundle('id', 'procurementRecord', idProcurementRecord, true, true);
+  return <>{children}</>;
+};
+
+const renderBahasaPage = (id = 'proc-s6-001') =>
+  render(
+    <BahasaProvider>
+      <ProcurementRecordCatalogue>
+        <MemoryRouter initialEntries={[`/procurement/${id}`]}>
+          <Routes>
+            <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
+          </Routes>
+        </MemoryRouter>
+      </ProcurementRecordCatalogue>
+    </BahasaProvider>,
+  );
+
 // AC-S6-3: BackBar on success render at <=921px (C-IMP-1)
 // ---------------------------------------------------------------------------
 describe('AC-S6-3 (C-IMP-1): BackBar present in success render DOM for mobile back-nav', () => {
@@ -292,6 +316,14 @@ describe('AC-S6-2 (B-IMP-2): SoD pre-announce shown to author on Draft', () => {
     renderPage();
     const notice = screen.getByTestId('sod-pre-announce');
     expect(notice).toHaveTextContent(/can.?t approve your own procurement/i);
+  });
+
+  it('AC-S6-2: localizes the procurement-record SoD pre-announce in Bahasa', () => {
+    detailState.data = { ...draftByAlice };
+    renderBahasaPage();
+    expect(screen.getByTestId('sod-pre-announce')).toHaveTextContent(
+      'Mengirim ini ke peninjau lain — Anda tidak dapat menyetujui catatan pengadaan Anda sendiri.',
+    );
   });
 
   it('AC-S6-2: the pre-announce is NOT shown when the viewer is NOT the author (Draft, different user)', () => {
@@ -388,7 +420,7 @@ describe('C1/O18: the no-access page names the record a procurement and carries 
     renderPage();
     expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
     const page = screen.getByTestId('procurement-no-access');
-    expect(page).toHaveTextContent('This procurement either doesn\'t exist');
+    expect(page).toHaveTextContent('This procurement record either doesn\'t exist');
     expect(page).not.toHaveTextContent(/request/i);
     detailState.isError = false;
     detailState.error = null;

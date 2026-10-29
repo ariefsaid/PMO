@@ -199,7 +199,7 @@ describe('AC-IXD-DASH-W5-C2B — N16: Ready to pay table', () => {
   it('AC-IXD-DASH-W5-C2B-N16-5: row has an accessible label to navigate to PR detail', () => {
     renderPane();
     // The row button must reference the PR title so screen reader users know where it goes
-    const btn = screen.getByRole('button', { name: /Open Scaffolding Invoice/i });
+    const btn = screen.getByRole('button', { name: /Open procurement record: Scaffolding Invoice/i });
     expect(btn).toBeInTheDocument();
   });
 

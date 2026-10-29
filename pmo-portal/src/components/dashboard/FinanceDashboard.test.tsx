@@ -139,11 +139,31 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
 
   it('labels PMO purchasing scope and explains an empty request chart', () => {
     const previous = procurements.splice(0);
-    renderPane();
-    expect(screen.getByText('PMO purchasing requests')).toBeInTheDocument();
-    expect(screen.getByText('ERP-native purchases are outside this PMO request chart.')).toBeInTheDocument();
-    expect(screen.getByText('No procurement activity yet')).toBeInTheDocument();
-    procurements.push(...previous);
+    try {
+      renderPane();
+      expect(screen.getByText('Procurement')).toBeInTheDocument();
+      expect(screen.getByText('ERP-native purchases are outside this PMO procurement chart.')).toBeInTheDocument();
+      expect(screen.getByText('No procurement activity yet')).toBeInTheDocument();
+    } finally {
+      procurements.push(...previous);
+    }
+  });
+  it('AC-FIN-STATUS-001: uses the shared localized procurement labels in lifecycle order', () => {
+    const previous = procurements.splice(0);
+    procurements.push(
+      { id: 'paid', status: 'Paid', total_value: 1, currency: 'USD', vendor_invoiced_at: null, updated_at: iso(0) },
+      { id: 'invoiced', status: 'Vendor Invoiced', total_value: 1, currency: 'USD', vendor_invoiced_at: null, updated_at: iso(0) },
+      { id: 'ordered', status: 'Ordered', total_value: 1, currency: 'USD', vendor_invoiced_at: null, updated_at: iso(0) },
+      { id: 'draft', status: 'Draft', total_value: 1, currency: 'USD', vendor_invoiced_at: null, updated_at: iso(0) },
+    );
+    try {
+      render(<BahasaProvider locale="id"><MemoryRouter><FinanceDashboard /></MemoryRouter></BahasaProvider>);
+      const legend = document.querySelector('figcaption')!;
+      const labels = Array.from(legend.children).map((item) => item.textContent?.replace(/\d+$/, '').trim());
+      expect(labels).toEqual(['Draf', 'Pesanan pembelian', 'Faktur pemasok', 'Dibayar']);
+    } finally {
+      procurements.splice(0, procurements.length, ...previous);
+    }
   });
   it('AC-RD-SPEND-001: calls an incomplete portfolio sum recorded spending and marks it partial', () => {
     dash.on_hand_actual_project_count = 2;
@@ -160,23 +180,26 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
     expect(screen.getByTestId('kpi-spend')).toHaveTextContent('$4M');
     expect(screen.getByTestId('kpi-spend').querySelector('[title="$4,000,000"]')).not.toBeNull();
   });
-  it('does not treat a missing vendor invoice amount as zero', () => {
+  it('does not treat a missing supplier invoice amount as zero', () => {
     procurements[0]!.total_value = null as unknown as number;
     renderPane();
-    expect(within(screen.getByTestId('kpi-outstanding')).getByRole('button', { name: 'Not available yet' })).toHaveTextContent('—');
-    expect(screen.getByTestId('kpi-outstanding')).not.toHaveTextContent('$150,000');
+    const outstanding = screen.getByTestId('kpi-outstanding');
+    expect(within(outstanding).getByRole('status')).toHaveTextContent('Not available yet');
+    expect(within(outstanding).queryByText('—')).not.toBeInTheDocument();
+    expect(within(outstanding).queryByRole('button', { name: 'Not available yet' })).not.toBeInTheDocument();
+    expect(outstanding).not.toHaveTextContent('$150,000');
   });
   it('AC-RD-FIN-003: localizes finance money labels and names vendor balances as payables in Bahasa', () => {
     render(<BahasaProvider locale="id"><MemoryRouter><FinanceDashboard /></MemoryRouter></BahasaProvider>);
     expect(screen.getByTestId('kpi-revenue')).toHaveTextContent('Nilai kontrak berjalan');
     expect(screen.getByTestId('kpi-spend')).toHaveTextContent('Pengeluaran tercatat');
-    expect(screen.getByTestId('kpi-outstanding')).toHaveTextContent('Utang kepada vendor');
+    expect(screen.getByTestId('kpi-outstanding')).toHaveTextContent('Utang kepada pemasok');
     expect(screen.queryByText('Outstanding invoices')).not.toBeInTheDocument();
     expect(screen.queryByText('Total project spend')).not.toBeInTheDocument();
     expect(screen.getByText('Aktual (buku besar ERP)')).toBeInTheDocument();
     expect(screen.getByText('Utang pemasok (AP)')).toBeInTheDocument();
     const rendered = document.body.textContent ?? '';
-    for (const englishLabel of ['PRs awaiting you', 'Total project spend', 'Outstanding invoices', 'vendor-invoiced, awaiting payment', 'Ready to pay', 'Actuals (ERP ledger)', 'AP aging', 'Fiscal year', 'Total outstanding']) {
+    for (const englishLabel of ['PRs awaiting you', 'Total project spend', 'Outstanding invoices', 'supplier-invoiced, awaiting payment', 'Ready to pay', 'Actuals (ERP ledger)', 'AP aging', 'Fiscal year', 'Total outstanding']) {
       expect(rendered).not.toContain(englishLabel);
     }
   });

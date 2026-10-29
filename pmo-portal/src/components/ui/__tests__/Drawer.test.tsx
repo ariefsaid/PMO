@@ -20,6 +20,24 @@ const baseProps = {
 };
 
 describe('Drawer: render gating + a11y (AC-W5-C6-DRAWER)', () => {
+  it('AC-1416: record drawers use the full viewport width on phones and keep each desktop width preset', () => {
+    const { rerender } = render(
+      <Drawer {...baseProps}>
+        <p>body</p>
+      </Drawer>,
+    );
+    expect(screen.getByRole('dialog').className).toContain('max-md:w-full');
+    expect(screen.getByRole('dialog').className).toContain('md:w-[min(420px,92vw)]');
+
+    rerender(
+      <Drawer {...baseProps} width="lg">
+        <p>body</p>
+      </Drawer>,
+    );
+    expect(screen.getByRole('dialog').className).toContain('max-md:w-full');
+    expect(screen.getByRole('dialog').className).toContain('md:w-[min(560px,92vw)]');
+  });
+
   it('renders nothing when !open', () => {
     render(
       <Drawer {...baseProps} open={false}>
@@ -305,13 +323,32 @@ describe('Drawer: nested ConfirmDialog inert-the-panel (AC-W5-C6-DRAWER)', () =>
   });
 });
 
-describe('Drawer: phone layout (AC-W5-C6-DRAWER)', () => {
-  it('fills the viewport below the sm breakpoint for every record drawer', () => {
+describe('Drawer: responsive width (AC-W5-C6-DRAWER)', () => {
+  it('fills the viewport below the md breakpoint for every record drawer', () => {
     render(
       <Drawer {...baseProps}>
         <p>body</p>
       </Drawer>,
     );
     expect(screen.getByRole('dialog').className).toContain('w-full');
+    expect(screen.getByRole('dialog').className).toContain('md:w-[min(420px,92vw)]');
+  });
+
+  it('width="lg" applies the wider preset', () => {
+    render(
+      <Drawer {...baseProps} width="lg">
+        <p>body</p>
+      </Drawer>,
+    );
+    expect(screen.getByRole('dialog').className).toContain('md:w-[min(560px,92vw)]');
+  });
+
+  it('default (sm) applies the 420px preset', () => {
+    render(
+      <Drawer {...baseProps}>
+        <p>body</p>
+      </Drawer>,
+    );
+    expect(screen.getByRole('dialog').className).toContain('md:w-[min(420px,92vw)]');
   });
 });

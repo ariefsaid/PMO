@@ -1,5 +1,5 @@
 /**
- * RecordCaptureForm — Goods Receipt + Vendor Invoice folding (refactor:
+ * RecordCaptureForm — Goods Receipt + Supplier Invoice folding (refactor:
  * procurement-detail-dedup). These specs lock the BEHAVIORAL CONTRACT the GR/VI
  * standalone forms previously hand-rolled inline in ProcurementDetails.tsx:
  *   - the `onStage` path stages (does NOT create directly) — no toast, no onCreate
@@ -99,7 +99,7 @@ describe('RecordCaptureForm — Goods Receipt kind', () => {
   });
 });
 
-describe('RecordCaptureForm — Vendor Invoice kind', () => {
+describe('RecordCaptureForm — Supplier Invoice kind', () => {
   it('exposes the PRESERVED VI data-testids (form/ref/amount/status/date/save), default status Received, options exclude Paid', () => {
     renderForm({ kind: 'vendor_invoice' });
     const form = screen.getByTestId('form-create-vi');
@@ -118,7 +118,7 @@ describe('RecordCaptureForm — Vendor Invoice kind', () => {
     const { onCreate } = renderForm({ kind: 'vendor_invoice', onStage });
     await userEvent.type(screen.getByTestId('vi-ref-input'), 'INV-7');
     await userEvent.type(screen.getByTestId('vi-amount-input'), '1,250.50');
-    // #505: the tax facts are now part of recording a vendor invoice — a deliberate step added to
+    // #505: the tax facts are now part of recording a supplier invoice — a deliberate step added to
     // the journey, not a workaround. The GOAL oracle below is unchanged.
     await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'inclusive');
     await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '123.95');

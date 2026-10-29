@@ -789,9 +789,9 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     h.invoices.data = [nativeInvoice({ status: 'Unpaid', pmo_number: 'INV-2610070001', erp_outstanding_amount: 610_000 })];
     renderPage();
     const row = rowFor('INV-2610070001');
-    expect(row).toHaveTextContent(/Total due .*1,110,000\.00/);
-    expect(row).toHaveTextContent(/Paid .*500,000\.00/);
-    expect(row).toHaveTextContent(/610,000\.00/);
+    expect(row).toHaveTextContent(/Total due .*1,110,000/);
+    expect(row).toHaveTextContent(/Paid .*500,000/);
+    expect(row).toHaveTextContent(/610,000/);
   });
 
   it('AC-NAR-001 (M-2) a PMO Draft with no number yet reads "Draft · <customer>"', () => {

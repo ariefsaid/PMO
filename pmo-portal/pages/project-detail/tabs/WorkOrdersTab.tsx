@@ -848,7 +848,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                   const percentDone = deliveredQuantity === null || line.allocation.quantity <= 0 ? null : Math.round(deliveredQuantity / line.allocation.quantity * 100);
                   return <div className="min-w-24">
                     <Tooltip content={t('projectDetail.cascade.source.lineDelivered', 'Source: total quantity accepted on confirmed BASTs for this work order.') }>
-                      <span className={cn('cursor-help tabular-nums', short && 'text-warning-foreground')}>{deliveredQuantity === null ? '—' : formatNumberExact(deliveredQuantity)}</span>
+                      <span data-testid={`contract-accepted-${line.allocation.boqItemId}`} className={cn('cursor-help tabular-nums', short && 'text-warning-foreground')}>
+                        {deliveredQuantity === null ? '—' : `${formatNumberExact(deliveredQuantity)} ${line.item?.unit ?? ''}`}
+                      </span>
                     </Tooltip>
                     {percentDone !== null && <Tooltip content={t('projectDetail.cascade.source.lineDeliveryProgress', 'Accepted quantity ÷ ordered quantity. A final short delivery is flagged.') }>
                       <span className="mt-1 block w-full max-w-24 cursor-help"><ProgressBar value={percentDone} widthless aria-label={t('projectDetail.cascade.deliveryProgress', 'Delivered percentage')} /></span>
@@ -902,6 +904,15 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                             ? t('common:projectDetail.workOrders.billing.lineOver', 'Over by {{amount}}', { amount: formatNumberWhole(Math.abs(billingRow.remaining)) })
                             : t('common:projectDetail.workOrders.billing.lineRemaining', 'Still to invoice {{amount}}', { amount: formatNumberWhole(billingRow.remaining) })}</span></Tooltip></dd>
                         </div>}
+                      {row.status === 'Closed' && row.closing_value !== null && row.closing_value !== undefined && <div className="min-w-0 text-xs">
+                        <dt className="sr-only">{t('projectDetail.workOrders.closingValue', 'Closing value')}</dt>
+                        <dd data-testid={`wo-closing-${row.id}`} className="text-muted-foreground tabular-nums">
+                          {t('projectTabs:contractQuantities.workOrders.closing.closedAt', 'Closed at {{amount}} (excl. PPN)', {
+                            amount: formatCurrency(Number(row.closing_value), currency),
+                            interpolation: { escapeValue: false },
+                          })}
+                        </dd>
+                      </div>}
                       {hasInvoiced && settlement?.invoiced !== null && settlement?.invoiced !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('common:projectDetail.workOrders.billing.invoiced', 'Invoiced')} value={formatNumberWhole(settlement.invoiced)} detail={settlement.balancesKnown
                         ? t('common:projectDetail.workOrders.billing.lineInvoiced', 'Invoiced {{invoiced}} · paid {{paid}}', { invoiced: formatNumberWhole(settlement.invoiced), paid: formatNumberWhole(settlement.paid) })
                         : t('projectDetail.cascade.source.invoiced', 'Source: non-draft, non-cancelled invoice amounts.')} />}
@@ -1038,7 +1049,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                               onRetry={() => void acceptancesQuery.refetch()}
                               currentUserId={currentUser?.id ?? null}
                               projectManagerId={projectManagerId}
-                              hasAllocations={false}
+                              hasAllocations={rawLines.length > 0}
                               onPrepare={() => setBastFor({ row, draft: null })}
                               onEdit={(acceptance) => setBastFor({ row, draft: acceptance })}
                               onWithdraw={setWithdrawFor}
@@ -1095,7 +1106,13 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               <MoneyFigure label={t('projectDetail.billing.summary.billed', 'Billed to date')} value={formatNumberWhole(summary.workBilled)} detail={t('projectDetail.billing.source.billed', 'Source: work and down-payment claims billed to date.')} />
               <MoneyFigure label={t('projectDetail.billing.summary.contract', 'Contract value')} value={formatNumberWhole(summary.contractNet)} detail={t('projectDetail.billing.source.contract', 'Source: net contract value from the project billing summary.')} />
               <MoneyFigure label={t('projectDetail.billing.summary.remaining', 'Contract not yet billed')} value={formatNumberWhole(summary.remaining)} detail={t('projectDetail.billing.source.remaining', 'Computed as net contract value less claims billed to date.')} />
-              <MoneyFigure label={t('projectDetail.billing.summary.assessed', 'Assessed to date')} value={summary.assessedToDate === null ? '—' : formatNumberWhole(summary.assessedToDate)} detail={t('projectDetail.billing.source.assessed', 'Source: earned contract line value or the latest recorded progress assessment.')} />
+              <MoneyFigure
+                testId={summary.contractLines.length > 0 ? 'work-orders-earned' : undefined}
+                label={summary.contractLines.length > 0
+                  ? t('projectTabs:contractQuantities.billing.summary.earned', 'Earned to date')
+                  : t('projectDetail.billing.summary.assessed', 'Assessed to date')}
+                value={summary.assessedToDate === null ? '—' : formatNumberWhole(summary.assessedToDate)}
+                detail={t('projectDetail.billing.source.assessed', 'Source: earned contract line value or the latest recorded progress assessment.')} />
               {summary.assessment && <p className="col-span-2 text-xs text-muted-foreground sm:col-span-3" data-testid="work-orders-assessment-period">
                 {t('projectDetail.billing.summary.assessedAsOf', 'as of {{month}}, {{pct}}% complete', { month: formatUtcMonthYear(new Date(`${summary.assessment.month}T00:00:00Z`)), pct: formatNumberExact(summary.assessment.pctComplete) })}
               </p>}
@@ -1515,8 +1532,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   );
 };
 
-const MoneyFigure: React.FC<{ label: string; value: string; detail?: string; destructive?: boolean }> = ({ label, value, detail, destructive = false }) => (
-  <div className="min-w-20">
+const MoneyFigure: React.FC<{ label: string; value: string; detail?: string; destructive?: boolean; testId?: string }> = ({ label, value, detail, destructive = false, testId }) => (
+  <div className="min-w-20" data-testid={testId}>
     <dt className="text-xs text-muted-foreground"><Tooltip content={detail ?? 'Source: billing records for this customer order.'}><span className="cursor-help">{label}</span></Tooltip></dt>
     <dd className={`cursor-help text-lg font-semibold tabular-nums ${destructive ? 'text-destructive-text' : 'text-foreground'}`}><Tooltip content={detail ?? 'Source: billing records for this customer order.'}><span>{value}</span></Tooltip></dd>
   </div>

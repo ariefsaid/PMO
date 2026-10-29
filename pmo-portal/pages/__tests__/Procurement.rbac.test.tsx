@@ -10,8 +10,8 @@ import type { Role } from '@/src/auth/AuthContext';
 
 /**
  * A-3 Engineer own-scoped procurement (AC-W2-RBAC-006, rbac-visibility §A/§E + OD-W2-1):
- *   An Engineer who reaches /procurement sees it scoped to THEIR OWN requests — the page reads
- *   as "your requests" (copy) AND the list is actually narrowed to rows they requested
+ *   An Engineer who reaches /procurement sees it scoped to THEIR OWN procurement records — the page reads
+ *   as "your procurement records" (copy) AND the list is actually narrowed to rows they requested
  *   (requested_by_id === their uid), since procurements_select RLS is org-wide, not requester-
  *   scoped (so the FE narrows the cached list for clarity). It still offers "New procurement"
  *   (any member may raise). NO approve/edit/manage affordances appear here (the index has none;
@@ -94,7 +94,7 @@ beforeEach(() => {
 });
 
 describe('Procurement — Engineer own-scoped view (A-3)', () => {
-  it('AC-W2-RBAC-006: an Engineer reads as "your requests" (own-scoped) and can Raise request', () => {
+  it('AC-W2-RBAC-006: an Engineer reads as "your procurement records" (own-scoped) and can create one', () => {
     renderAs('Engineer');
     // Own-scoped copy: the page describes the Engineer's OWN procurements, not the org index.
     expect(screen.getByRole('heading', { level: 1, name: 'Your procurements' })).toBeInTheDocument();

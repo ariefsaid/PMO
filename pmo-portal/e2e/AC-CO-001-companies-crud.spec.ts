@@ -86,7 +86,7 @@ test(
     await expect(dialog).not.toBeVisible({ timeout: 15_000 });
     const createRow = companyRow(page, coName);
     await expect(createRow).toBeVisible({ timeout: 15_000 });
-    await expect(createRow.getByText('Vendor')).toBeVisible();
+    await expect(createRow.getByText('Supplier')).toBeVisible();
 
     // ── Step 3: AC-CO-004 — edit the company ──────────────────────────────────
     await openRowMenu(page, createRow);

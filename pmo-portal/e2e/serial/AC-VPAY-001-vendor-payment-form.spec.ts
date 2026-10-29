@@ -27,6 +27,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { formatMoneyInputValue } from '../../src/lib/format';
 import { login } from '../helpers';
 import { SAR_CURRENCY } from './_sarHelpers';
 import { runFullSweep } from './_sweepHelpers';
@@ -127,6 +128,8 @@ async function seed(admin: SupabaseClient, s: Seed): Promise<void> {
       id: s.procurementId,
       org_id: ORG_ID, title: `AC-VPAY-001 case ${suffix}`, vendor_id: s.companyId,
       status: 'Vendor Invoiced', currency: SAR_CURRENCY, approved_by_id: approverId,
+      // #1332/#0368 requires a recorded approved amount before an approved purchase can be paid.
+      approved_total_value: 1_090_000,
     })
     .select('id').single();
   if (procErr) throw new Error(`seed procurement failed: ${procErr.message}`);
@@ -217,7 +220,8 @@ test('AC-VPAY-001 finance pays an ERP-owned bill through the ledger form: PE lan
     await expect(page.getByTestId('payment-status-select')).toHaveCount(0);
     await page.getByTestId('payment-invoice-select').selectOption(s.piRecordId);
     // DD-VPAY-10: the amount prefills the bill's ERP outstanding — accepted as-is.
-    await expect(page.getByTestId('payment-amount-input')).toHaveValue('1090000');
+    // #1455 added useMoneyInputMask to this field; assert its exact English number display.
+    await expect(page.getByTestId('payment-amount-input')).toHaveValue(formatMoneyInputValue(1_090_000, 'en-US'));
     await page.getByTestId('payment-save-btn').click();
 
     // The real served dispatch commits (no page.route). PMO's payments row mirrors the PE —

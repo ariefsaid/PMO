@@ -728,6 +728,9 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
 
   const heading = t('projectDetail.procurement.title', 'Procurement');
   const hasUnfilteredRows = rows.length > 0;
+  const hasVisibleErpPurchases = canSeeMoney && (
+    erp.isError || (erp.data ?? []).some((row) => row.procurementId === null || Number(row.outstanding ?? 0) > 0)
+  );
   const globalErrorSub = projectId
     ? t('projectDetail.procurement.error.sub', "Something went wrong fetching this project's procurement.")
     : t('procurement.error.sub', 'Something went wrong fetching procurement.');
@@ -912,7 +915,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
             : t('procurement.empty.title', 'No procurement yet.')}
         emptySub={hasUnfilteredRows
           ? t('projectDetail.procurement.emptyFiltered.sub', 'Adjust the search or filters and try again.')
-          : projectId && erp.data?.length
+          : projectId && hasVisibleErpPurchases
             ? t('uxs19.projectEmptyScope', 'Purchases recorded in ERPNext appear below.')
             // The company list says what it leaves out, so an empty list is not read as "no purchases at all".
             : !projectId ? t('procurement.empty.scopeNote', 'Purchases recorded only in the accounting system are not listed here.') : undefined}

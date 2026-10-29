@@ -7,7 +7,7 @@ export interface StatTile {
   value: React.ReactNode;
   /** Exact money value when the visible figure is compact. */
   exactValue?: string;
-  /** Unavailable reason; visible figure is always an em dash. */
+  /** Unavailable reason; omit the number and show this in plain words. */
   unavailableReason?: string;
   /** Positive → success, negative → destructive coloring on the value. */
   tone?: 'pos' | 'neg';

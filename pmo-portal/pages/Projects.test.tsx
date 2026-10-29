@@ -19,6 +19,7 @@ import { ToastProvider } from '@/src/components/ui';
 import Projects from './Projects';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { BahasaProvider } from '@/test/bahasa';
 
 const seed = [
   { id: 'p1', name: 'Innovate Corp HQ Fit-Out', code: 'PRJ-001', status: 'Ongoing Project',
@@ -134,6 +135,18 @@ const renderPage = (role = 'Project Manager', initialPath = '/projects') => {
   );
 };
 
+const renderBahasaPage = (role = 'Project Manager', initialPath = '/projects') => {
+  roleBox.value = role;
+  return render(
+    <BahasaProvider>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <LocationProbe />
+        <ToastProvider><Projects /></ToastProvider>
+      </MemoryRouter>
+    </BahasaProvider>,
+  );
+};
+
 describe('Projects index — kanban view (AC-PK-008)', () => {
   beforeEach(() => {
     sessionStorage.clear();
@@ -177,6 +190,17 @@ describe('Projects index — kanban view (AC-PK-008)', () => {
     const cards = screen.getAllByTestId('project-card');
     expect(cards.length).toBeGreaterThan(0);
     for (const card of cards) expect(board).toContainElement(card);
+  });
+
+  it('AC-PRJ-L10N-001: Bahasa localizes the project status, Board tab, and row Edit action', async () => {
+    renderBahasaPage('Admin', '/projects?view=table');
+    expect(await screen.findByText('Proyek berjalan')).toBeInTheDocument();
+    const row = screen.getByText('Proyek berjalan').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: 'Tindakan baris' }));
+    expect(await screen.findByRole('menuitem', { name: 'Ubah' })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Papan' }));
+    expect(screen.getByTestId('project-kanban-board')).toBeInTheDocument();
   });
 });
 
@@ -249,12 +273,12 @@ describe('Projects index — IA-3 (real data)', () => {
     expect(pill.querySelector('[data-pill-dot]')).not.toBeNull();
   });
 
-  it('CW-7: a zero/missing-budget project renders an em-dash, never literal NaN% or $NaN', () => {
+  it('CW-7: a zero/missing-budget project states why usage cannot be shown, never literal NaN% or $NaN', () => {
     // Seed p2/p3 carry budget 0 (zero-divide) — the budget-used cell must guard the math.
     renderPage();
     // No NaN leaks anywhere on the rendered index.
     expect(document.body.textContent).not.toMatch(/NaN/);
-    // The zero-budget rows fall back to a muted em-dash in the Budget used column.
+    // Zero-budget rows have an explanatory label instead of a dash in the Budget used column.
     expect(screen.queryByRole('button', { name: /optional columns/i })).not.toBeInTheDocument();
   });
 
@@ -373,11 +397,11 @@ describe('Projects table — compact layout (#1)', () => {
     projectsState.isError = false;
   });
 
-  it('#1: PM column avatar is 18px (compact) — not 22px — to fit at 1180px', () => {
+  it('#1: the compact PM cell renders an identified avatar (look-pinning class oracle retired — avatars restyled in 129022a3e; behavior kept per the recomposition rule)', () => {
     renderPage();
     const tableBody = document.querySelector('tbody')!;
-    const pmAvatar = within(tableBody as HTMLElement).getAllByRole('img', { name: 'Alice Manager' })[0];
-    expect(pmAvatar).toHaveClass('rounded-full', 'size-[18px]');
+    // Behavior oracle: the PM column renders an avatar carrying the manager's accessible name.
+    expect(within(tableBody as HTMLElement).getAllByRole('img', { name: 'Alice Manager' })[0]).toBeInTheDocument();
   });
 
   it('#1: Progress column cell uses compact ProgressBar (min-w-[80px] wrapper) to fit narrow columns', () => {
@@ -603,21 +627,21 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     resetActiveLocale();
   });
 
-  it('formats exact Actual with the selected number locale rather than the translation language', () => {
+  it('formats whole-unit Actual with the selected number locale rather than the translation language', () => {
     setActiveLocale({ locale: 'id', numberLocale: 'id', timezone: 'Asia/Jakarta' });
     renderPage();
     const body = document.querySelector('tbody')!;
-    expect(within(body).getByText('US$125.000,00')).toBeInTheDocument();
+    expect(within(body).getByText('US$125.000')).toBeInTheDocument();
   });
 
   it('AC-S02-008: displays canonical Actual, freshness and Active-budget utilization instead of committedSpend', () => {
     renderPage();
     expect(screen.getByRole('columnheader', { name: 'Actual' })).toBeInTheDocument();
     const body = document.querySelector('tbody')!;
-    expect(within(body).getByText('$125,000.00')).toBeInTheDocument();
+    expect(within(body).getByText('$125,000')).toBeInTheDocument();
     const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Actual');
     const actualCell = body.querySelector('tr')!.cells[actualHeaderIndex];
-    expect(actualCell.textContent).toContain('$125,000.00');
+    expect(actualCell.textContent).toContain('$125,000');
     // PL-A: the cell is the amount only — source and freshness are not repeated per row.
     expect(actualCell.querySelector('[title]')).toBeNull();
     expect(actualCell.textContent).not.toMatch(/ERP actual|Updated/);
@@ -634,7 +658,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Actual');
     const actualCell = body.querySelector('tr')!.cells[actualHeaderIndex];
     expect(actualCell.querySelector('[title]')).toBeNull();
-    expect(actualCell.textContent).toBe('$125,000.00');
+    expect(actualCell.textContent).toBe('$125,000');
   });
 
   it('AC-S02-009: unknown Actual and missing Active budget stay unavailable, never zero or at risk', async () => {
@@ -651,14 +675,30 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Actual'));
     const budgetHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Budget used'));
     const row = body.querySelector('tr')!;
-    expect(row.cells[actualHeaderIndex].textContent).toContain('—');
-    expect(row.cells[actualHeaderIndex].querySelector('[title]')).toHaveAttribute('title', 'Incomplete source coverage');
-    expect(row.cells[budgetHeaderIndex].textContent).toContain('—');
-    expect(row.cells[budgetHeaderIndex].querySelector('[title]')).toHaveAttribute('title', 'No active budget');
+    expect(row.cells[actualHeaderIndex]).toBeEmptyDOMElement();
+    expect(row.cells[actualHeaderIndex].querySelector('[title]')).toBeNull();
+    expect(row.cells[budgetHeaderIndex]).toHaveTextContent('No active budget');
+    expect(row.cells[budgetHeaderIndex].textContent).not.toContain('—');
+    expect(row.cells[budgetHeaderIndex].querySelector('[title]')).toBeNull();
     // The coverage explanation is the one table note, not a per-row string.
     expect(screen.getAllByText(/Actual is partial on 1 of 2 projects/)).toHaveLength(1);
     expect(within(body).queryByText('At risk')).not.toBeInTheDocument();
     expect(within(body).queryByText('$0')).not.toBeInTheDocument();
+  });
+
+  it('AC-MONEY-DISPLAY: failed collection reads leave money cells empty and explain once', () => {
+    projectMoneyState.data = {};
+    projectMoneyState.isError = true;
+    renderPage();
+    const body = document.querySelector('tbody')!;
+    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Actual'));
+    const budgetHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Budget used'));
+    for (const row of body.querySelectorAll('tr')) {
+      expect(row.cells[actualHeaderIndex]).toBeEmptyDOMElement();
+      expect(row.cells[budgetHeaderIndex]).toBeEmptyDOMElement();
+    }
+    expect(screen.getAllByText('Project spending could not be read.')).toHaveLength(1);
+    expect(within(body).queryByText('Unavailable')).not.toBeInTheDocument();
   });
 
   it('AC-S02-012: known zero Actual is distinct from unavailable and uses the Active-budget denominator', () => {
@@ -668,7 +708,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     };
     renderPage();
     const body = document.querySelector('tbody')!;
-    expect(within(body).getByText('$0.00')).toBeInTheDocument();
+    expect(within(body).getByText('$0')).toBeInTheDocument();
     expect(within(body).queryByText('Unavailable')).not.toBeInTheDocument();
     expect(within(body).getByLabelText(/0% of Active budget/)).toBeInTheDocument();
   });
@@ -703,9 +743,15 @@ describe('Projects table — Actual uses the canonical collection money read (AC
       const body = document.querySelector('tbody')!;
       expect(within(body).queryByLabelText(/90% of Active budget/i)).not.toBeInTheDocument();
       const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Actual');
-      const actualTitle = body.querySelector('tr')!.cells[actualHeaderIndex].querySelector('[title]');
-      expect(actualTitle).toHaveAttribute('title', actuals.excludesRestrictedRows ? 'Restricted rows excluded' : 'Incomplete source coverage');
-      expect(body.querySelector('tr')!.cells[actualHeaderIndex].textContent).not.toContain('$450,000');
+      const actualCell = body.querySelector('tr')!.cells[actualHeaderIndex];
+      expect(actualCell.textContent).not.toContain('—');
+      expect(actualCell.querySelector('[title]')).toBeNull();
+      expect(actualCell.textContent).not.toContain('$450,000');
+      if (actuals.excludesRestrictedRows) {
+        expect(actualCell).toHaveTextContent('Restricted excluded');
+      } else {
+        expect(actualCell).toBeEmptyDOMElement();
+      }
       unmountAll();
     }
   });

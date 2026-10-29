@@ -101,6 +101,7 @@ describe('vendor recovery writes only vendor_id', () => {
     await expect(updateProcurementVendor('pr1', 'vendor-1')).rejects.toMatchObject({
       code: 'VENDOR_ALREADY_SET',
       name: 'ProcurementVendorAlreadySetError',
+      message: 'A supplier was already set.',
     });
   });
 });

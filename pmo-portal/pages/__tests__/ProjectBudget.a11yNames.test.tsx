@@ -30,6 +30,8 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetState,
   useBudgetVersions: () => versionsState,
   useBudgetActivationMode: () => ({ data: undefined, isPending: false, isError: false }),
+  useBudgetActivationPrecheck: () => ({ data: undefined, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }),
+  useBudgetArchiveTargets: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn().mockResolvedValue({ data: [] }) }),
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: vi.fn().mockResolvedValue({ id: 'v-new' }), isPending: false },
     cloneVersion: { mutateAsync: vi.fn(), isPending: false },

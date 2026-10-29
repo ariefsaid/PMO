@@ -50,8 +50,8 @@ describe('useVendorOptions — vendor FK picker', () => {
     await waitFor(() => expect(result.current.data).toBeDefined());
     expect(repo.company.list).toHaveBeenCalledWith({ type: 'Vendor' });
     expect(result.current.data).toEqual([
-      { value: 'v1', label: 'Apex Supply', sub: 'Vendor' },
-      { value: 'v2', label: 'Bolt Co', sub: 'Vendor' },
+      { value: 'v1', label: 'Apex Supply', sub: 'Supplier' },
+      { value: 'v2', label: 'Bolt Co', sub: 'Supplier' },
     ]);
   });
 

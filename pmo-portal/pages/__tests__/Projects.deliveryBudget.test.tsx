@@ -133,8 +133,8 @@ describe('Projects delivery progress + budget used', () => {
     expect(screen.getAllByText(/Actual is partial on/)).toHaveLength(1);
     expect(screen.getByText('Actual is partial on 1 of 25 projects.')).toBeInTheDocument();
     expect(screen.queryByText('Incomplete source coverage')).not.toBeInTheDocument();
-    expect(screen.getByText('$1,234,568.00')).toBeInTheDocument();
-    expect(document.querySelectorAll('tbody tr')[1].querySelector('[title*="$7,654,321.00"]')).not.toBeNull();
+    expect(screen.getByText('$1,234,568')).toBeInTheDocument();
+    expect(document.querySelectorAll('tbody tr')[1].querySelector('[title*="$7,654,321"]')).not.toBeNull();
     expect(screen.queryByText(/\$1\.2M of \$7\.7M/)).not.toBeInTheDocument();
   });
 
@@ -143,7 +143,7 @@ describe('Projects delivery progress + budget used', () => {
 
     expect(screen.getAllByLabelText('Delivery 50%')).toHaveLength(1);
     expect(screen.getByText('Budget used')).toBeInTheDocument();
-    expect(screen.getByLabelText('53% of Active budget').closest('[title]')).toHaveAttribute('title', '$2,000,000.00 of $3,800,000.00 Active budget');
+    expect(screen.getByLabelText('53% of Active budget').closest('[title]')).toHaveAttribute('title', '$2,000,000 of $3,800,000 Active budget');
     expect(screen.getByText('53%')).toBeInTheDocument();
     // PL-A: a project without phases shows a dash (its reason is the title), not prose.
     expect(screen.queryByText('No phases yet')).not.toBeInTheDocument();
@@ -183,7 +183,7 @@ describe('Projects delivery progress + budget used', () => {
     const noMilestonesRow = screen.getByText('No Milestones Yet').closest('tr')!;
     const budgetColumn = screen.getAllByRole('columnheader').findIndex((header) => header.textContent === 'Budget used');
     const budgetCell = within(noMilestonesRow).getAllByRole('cell')[budgetColumn];
-    expect(within(budgetCell).getByText('Unavailable')).toBeInTheDocument();
+    expect(budgetCell).toBeEmptyDOMElement();
     expect(within(budgetCell).queryByText(/\$0 of \$0/i)).not.toBeInTheDocument();
   });
 });

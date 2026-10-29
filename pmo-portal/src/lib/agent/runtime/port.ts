@@ -232,7 +232,14 @@ export interface SupabaseLikeWithWrites extends SupabaseLike {
       select(): { single(): PromiseLike<{ data: unknown; error: unknown }> };
     };
     update(patch: object): {
-      eq(column: string, value: string): PromiseLike<{ data: unknown; error: unknown }>;
+      // The real supabase-js builder stays chainable after .eq() — an update may .select() the
+      // affected rows back. Write actions that must PROVE a row changed (#1315) use it: RLS
+      // filters a refused UPDATE to 0 rows with no error, so only the returned rows distinguish
+      // "updated" from "silently refused". Kept PromiseLike-intersected so existing callers
+      // awaiting .eq() directly are unaffected.
+      eq(column: string, value: string): {
+        select(columns?: string): PromiseLike<{ data: unknown; error: unknown }>;
+      } & PromiseLike<{ data: unknown; error: unknown }>;
     };
   };
 }

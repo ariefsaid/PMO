@@ -12,6 +12,7 @@ import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { pillVariantForProjectStatus } from './projects';
 import ProjectCardShell from './ProjectCardShell';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 
 export interface ProjectCardProps {
   project: ProjectWithRefs;
@@ -39,17 +40,19 @@ export interface ProjectCardProps {
  */
 const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySummary, projectMoney, onEdit }) => {
   const { t } = useTranslation();
+  const projectStatusLabel = useProjectStatusLabel();
   // FR-L10N-020: every figure on this card belongs to THIS project, so the currency is the
   // project's own — not the org default. Two projects in different currencies render correctly
   // side by side in the same list, which is the whole point of the per-record column (0187).
   const currency = project.currency;
-  const contract = project.contract_value ?? 0;
+  const contract = project.contract_value;
   const actual = projectMoney?.actuals.total == null ? null : Number(projectMoney.actuals.total);
   const activeBudget = projectMoney?.hasActiveBudget && projectMoney.activeBudgetAmount != null
     ? Number(projectMoney.activeBudgetAmount)
     : null;
-  const activeBudgetLabel = !projectMoney || (projectMoney.hasActiveBudget && activeBudget == null)
-    ? t('uxs02.unavailable', 'Unavailable')
+  const activeBudgetUnknown = !projectMoney || (projectMoney.hasActiveBudget && activeBudget == null);
+  const activeBudgetLabel = activeBudgetUnknown
+    ? null
     : projectMoney.hasActiveBudget
       ? formatCurrency(activeBudget!, projectMoney.activeBudgetCurrency ?? currency)
       : t('uxs02.noActiveBudget', 'No active budget');
@@ -77,36 +80,41 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
 
   // Actual is shown only when complete — the same rule as the table: unknown is never a partial total.
   const showActual = actual != null && actualIsComplete;
+  const actualFigure = showActual
+    ? formatExactMoney(projectMoney?.actuals.total ?? null, projectMoney?.actuals.currency ?? currency, getNumberLocale(), { wholeUnits: true })
+    : null;
+  const hasUnknownMoney = contract == null || activeBudgetUnknown || actualFigure === null;
   const body = (
     <>
       {/* Body: money rows. Each fact once: no freshness, coverage or "x of y" prose on the card. */}
       <dl className="grid grid-cols-3 gap-2 text-[12px]">
         <div>
           <dt className="text-muted-foreground">{t('projects.columns.contract', 'Contract')}</dt>
-          <dd className="font-semibold tabular">{formatCurrency(contract, currency)}</dd>
-          {/* OD-TAX-1 §2 — the card's headline money figure states its basis (plain; rate/DPP live on the record). */}
-          <dd>
-            <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} />
+          <dd data-testid="project-card-contract" className="font-semibold tabular">
+            {contract == null ? null : formatCurrency(contract, currency)}
           </dd>
+          {/* OD-TAX-1 §2 — the card's headline money figure states its basis (plain; rate/DPP live on the record). */}
+          {contract != null && <dd><TaxBasisLabel treatment={project.tax_treatment} showDetails={false} /></dd>}
         </div>
         <div>
           <dt className="text-muted-foreground">{t('uxs02.activeBudget', 'Active budget')}</dt>
-          <dd className="font-semibold tabular text-muted-foreground">{activeBudgetLabel}</dd>
+          <dd data-testid="project-card-active-budget" className="font-semibold tabular text-muted-foreground">{activeBudgetLabel}</dd>
         </div>
         <div>
           <dt className="text-muted-foreground">{t('projects.columns.actual', 'Actual')}</dt>
-          <dd className="font-semibold tabular">
-            {showActual ? formatExactMoney(projectMoney?.actuals.total ?? null, projectMoney?.actuals.currency ?? currency, getNumberLocale()) ?? t('uxs02.unavailable', 'Unavailable') : t('uxs02.unavailable', 'Unavailable')}
-          </dd>
+          <dd data-testid="project-card-actual" className="font-semibold tabular">{actualFigure}</dd>
         </div>
       </dl>
+      {hasUnknownMoney && <p role="status" data-testid="project-card-money-unavailable" className="text-[11px] text-muted-foreground">
+        {t('projects:moneyFiguresUnavailable', 'Some project financial figures are still being confirmed.')}
+      </p>}
 
       {/* Delivery progress and Active-budget utilization use separate, explicit denominators;
           a row appears only when it has a figure. */}
       {((deliverySummary && deliverySummary.deliveryPct != null) || budgetUsedPct != null) && (
         <div
           data-testid="project-card-bars"
-          className="grid grid-cols-[auto_1fr] items-center gap-x-2.5 gap-y-1.5"
+          className="grid grid-cols-[auto_1fr] items-start gap-x-2.5 gap-y-1.5"
         >
           {deliverySummary && deliverySummary.deliveryPct != null && (
             <>
@@ -129,7 +137,6 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
                   tone={atRisk ? 'destructive' : budgetUsedPct >= 70 ? 'warning' : undefined}
                   aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent: budgetUsedPct })}
                 />
-                {atRisk && <span className="text-[11px] font-semibold text-warning">{t('uxs02.atRisk', 'At risk')}</span>}
               </div>
             </>
           )}
@@ -191,9 +198,12 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
       client={project.client ? companyDisplayName(project.client) : null}
       clientId={project.client_id}
       status={
-        <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>
-          {project.status}
-        </StatusPill>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>
+            {projectStatusLabel(project.status as string)}
+          </StatusPill>
+          {atRisk && <StatusPill variant="warn">{t('uxs02.atRisk', 'At risk')}</StatusPill>}
+        </div>
       }
       body={body}
       foot={foot}

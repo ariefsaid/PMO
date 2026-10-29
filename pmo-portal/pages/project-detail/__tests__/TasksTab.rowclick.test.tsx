@@ -133,7 +133,8 @@ describe('TasksTab — row click opens the shared task drawer (AC-1402)', () => 
     renderTab('Project Manager');
     await userEvent.click(screen.getByText('Survey the site').closest('tr')!);
     const dialog = await screen.findByRole('dialog', { name: 'Survey the site' });
-    expect(dialog.className).toContain('sm:w-[min(560px,92vw)]');
+    expect(dialog.className).toContain('md:w-[min(560px,92vw)]');
+    expect(dialog.className).toContain('max-md:w-full');
     const edit = within(dialog).getByRole('button', { name: 'Edit' });
     const fullPage = within(dialog).getByRole('link', { name: 'Open full page' });
     const more = within(dialog).getByRole('button', { name: 'More task actions' });

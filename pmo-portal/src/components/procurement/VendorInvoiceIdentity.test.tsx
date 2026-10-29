@@ -5,7 +5,7 @@ import { financeTestI18n, financeTestI18nReady } from '@/pages/__tests__/finance
 import { VendorInvoiceIdentity } from './VendorInvoiceIdentity';
 import { vendorInvoiceIdentityAccessibleLabel } from './vendorInvoiceIdentityLabels';
 
-describe('vendor invoice recognition identity', () => {
+describe('supplier invoice recognition identity', () => {
   it.each(['en', 'id'] as const)('shows complete facts and localized fallbacks in %s without an ID fallback', async (locale) => {
     await financeTestI18nReady;
     await financeTestI18n.changeLanguage(locale);

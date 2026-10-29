@@ -11,6 +11,7 @@ import {
   SALES_COLUMNS,
   pillVariantForStatus,
   formatPercent,
+  isStaleBid,
   type SalesColumn,
 } from './salesPipeline';
 
@@ -43,6 +44,7 @@ const DealCard: React.FC<{
   selected: boolean;
   onActivate: () => void;
 }> = ({ project, selected, onActivate }) => {
+  const { t } = useTranslation();
   const statusLabel = useProjectStatusLabel();
   const displayName = projectDisplayName(project);
   const initial = (project.client_name ?? displayName).trim().charAt(0).toUpperCase() || '•';
@@ -57,7 +59,7 @@ const DealCard: React.FC<{
       pmoProjectNumber={null}
       code={null}
       status={
-        <StatusPill variant={pillVariantForStatus(project.status)}>{statusLabel(project.status)}</StatusPill>
+        <StatusPill variant={pillVariantForStatus(project.status)} wrap>{statusLabel(project.status)}</StatusPill>
       }
       body={
         // #696: the money row WRAPS. A column is ~258px wide, and in Bahasa (longer grouped
@@ -65,17 +67,24 @@ const DealCard: React.FC<{
         // fit on one line — non-wrapping, they overran the card and gave every column's card list
         // its own sideways scrollbar. `min-w-0` lets each group shrink to the card, `shrink-0` keeps
         // the pill whole when it drops to its own line.
-        <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <span className="text-[15px] font-bold tabular">
-              {formatCurrency(project.contract_value, project.currency)}
-            </span>
-            {/* OD-TAX-1 §2: the basis comes from THIS deal's row (0208), never the org default.
-                It sits IMMEDIATELY after the contract value — a label whose job is to remove
-                ambiguity must not sit where it could be read as qualifying another number. */}
-            <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} />
+        <div className="min-w-0 space-y-1">
+          <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <span className="text-[15px] font-bold tabular">
+                {formatCurrency(project.contract_value, project.currency)}
+              </span>
+              {/* OD-TAX-1 §2: the basis comes from THIS deal's row (0208), never the org default.
+                  It sits IMMEDIATELY after the contract value — a label whose job is to remove
+                  ambiguity must not sit where it could be read as qualifying another number. */}
+              <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} />
+            </div>
+            <Badge className="shrink-0 px-1.5">{formatPercent(project.win_probability)}</Badge>
           </div>
-          <Badge className="shrink-0 px-1.5">{formatPercent(project.win_probability)}</Badge>
+          {isStaleBid(project) && (
+            <Badge role="status" data-testid={`stale-bid-${project.id}`} className="px-1.5">
+              {t('sales:pipeline.staleBid', 'Stale bid · stage unchanged for 90+ days')}
+            </Badge>
+          )}
         </div>
       }
       onOpen={onActivate}
@@ -92,6 +101,7 @@ const CompactDealCard: React.FC<{
   onActivate: () => void;
   hideStatus: boolean;
 }> = ({ project, onActivate, hideStatus }) => {
+  const { t } = useTranslation();
   const statusLabel = useProjectStatusLabel();
   const displayName = projectDisplayName(project);
   const initial = (project.client_name ?? displayName).trim().charAt(0).toUpperCase() || '•';
@@ -112,20 +122,27 @@ const CompactDealCard: React.FC<{
       )}
       className="min-w-0 p-3 [&_button]:block [&_button]:overflow-visible [&_button]:[-webkit-line-clamp:unset] [&_span.truncate]:overflow-visible [&_span.truncate]:text-clip [&_span.truncate]:whitespace-normal [&_span.truncate]:break-words"
       body={
-        <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
-            <span className="break-words text-[15px] font-bold tabular">
-              {formatCurrency(project.contract_value, project.currency)}
-            </span>
-            <TaxBasisLabel
-              treatment={project.tax_treatment}
-              taxRate={project.tax_rate}
-              taxBaseNumerator={project.tax_base_numerator}
-              taxBaseDenominator={project.tax_base_denominator}
-              showDetails={false}
-            />
+        <div className="min-w-0 space-y-1">
+          <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+              <span className="break-words text-[15px] font-bold tabular">
+                {formatCurrency(project.contract_value, project.currency)}
+              </span>
+              <TaxBasisLabel
+                treatment={project.tax_treatment}
+                taxRate={project.tax_rate}
+                taxBaseNumerator={project.tax_base_numerator}
+                taxBaseDenominator={project.tax_base_denominator}
+                showDetails={false}
+              />
+            </div>
+            <Badge className="shrink-0 px-1.5">{formatPercent(project.win_probability)}</Badge>
           </div>
-          <Badge className="shrink-0 px-1.5">{formatPercent(project.win_probability)}</Badge>
+          {isStaleBid(project) && (
+            <Badge role="status" data-testid={`stale-bid-${project.id}`} className="px-1.5">
+              {t('sales:pipeline.staleBid', 'Stale bid · stage unchanged for 90+ days')}
+            </Badge>
+          )}
         </div>
       }
       onOpen={onActivate}
@@ -216,7 +233,7 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
       {/* Kanban scroll wrapper — onScroll is passed directly to <Kanban> so it lands on
           the actual .kanban-scroll element. scroll events do NOT bubble, so attaching the
           handler to any ancestor wrapper would never fire on a swipe gesture. */}
-      <Kanban aria-label={t('sales.board.ariaLabel', 'Sales pipeline board')} onScroll={onScroll}>
+      <Kanban aria-label={t('sales.board.ariaLabel', 'Sales pipeline board')} className="px-2" onScroll={onScroll}>
         {SALES_COLUMNS.map((col, colIdx) => {
           const colProjects = byColumn(col);
           const colTitle = stageLabel(col);

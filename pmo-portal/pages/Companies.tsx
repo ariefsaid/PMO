@@ -63,7 +63,7 @@ const TYPE_FILTERS: TypeFilter[] = ['All', 'Internal', 'Client', 'Vendor'];
  */
 const typeLabels = (t: TFunction): Record<CompanyType, string> => ({
   Client: t('companies.type.client', 'Client'),
-  Vendor: t('companies.type.vendor', 'Vendor'),
+  Vendor: t('companies.type.vendor', 'Supplier'),
   Internal: t('companies.type.internal', 'Internal'),
 });
 
@@ -262,7 +262,7 @@ const Companies: React.FC = () => {
       title={t('companies.title', 'Companies')}
       description={t(
         'companies.description',
-        'Clients and vendors used across projects and procurement. Master data shared by the whole organisation.',
+        'Clients and suppliers used across projects and procurement. Master data shared by the whole organisation.',
       )}
       primaryAction={
         canCreate && (
@@ -375,7 +375,7 @@ const Companies: React.FC = () => {
           title={t('companies.states.emptyTitle', 'No companies yet')}
           sub={t(
             'companies.states.emptySub',
-            'Add your first client or vendor to start linking projects and purchase requests to a directory.',
+            'Add your first client or supplier to start linking projects and procurement records to a directory.',
           )}
           stateId="companies-empty"
           role={realRole ?? undefined}
@@ -572,7 +572,7 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
       subtitle={
         isEdit
           ? t('companies.form.editSubtitle', 'Update this company record')
-          : t('companies.form.newSubtitle', 'Add a client or vendor to the directory')
+          : t('companies.form.newSubtitle', 'Add a client or supplier to the directory')
       }
       submitLabel={
         isEdit

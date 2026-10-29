@@ -16,6 +16,12 @@ if (!routes.length || routes.some((route) => !route.startsWith('/'))) {
   console.error('usage: scripts/ux-proof.sh /route [/route ...]');
   process.exit(2);
 }
+const widths = process.env.UX_PROOF_WIDTHS
+  ? process.env.UX_PROOF_WIDTHS.split(',').map((value) => Number(value.trim()))
+  : [390, 1440];
+if (!widths.length || widths.some((width) => !Number.isInteger(width) || width < 320)) {
+  throw new Error('UX_PROOF_WIDTHS must be a comma-separated list of integer viewport widths >= 320.');
+}
 
 const base = (process.env.SHOT_BASE || 'http://localhost:5173').replace(/\/$/, '');
 const area = (process.env.AREA || 'misc').replace(/[^a-zA-Z0-9_-]/g, '-');
@@ -49,7 +55,7 @@ try {
   for (const route of routes) {
     let detectorCount = 0;
     let seriousAxe = 0;
-    for (const width of [390, 1440]) {
+    for (const width of widths) {
       const height = width === 390 ? 844 : 900;
       for (const theme of ['light', 'dark']) {
         const stem = `${slug(route)}-${width}-${theme}`;

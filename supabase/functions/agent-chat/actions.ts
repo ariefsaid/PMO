@@ -351,12 +351,27 @@ export const updateTaskStatusAction: AgentAction & {
     // (NFR-AW-SEC-002). DeputyContext itself is intentionally NOT widened to
     // SupabaseLikeWithWrites — that would leak write capability into read-only actions.
     const sb = ctx.supabase as SupabaseLikeWithWrites;
-    const { error } = await sb
+    // .select() returns the UPDATED rows — the refused-write oracle (#1315). RLS
+    // (tasks_update_own_status, migration 0355) silently FILTERS an update the caller may not
+    // perform: PostgREST resolves with zero rows and NO error, so without the row check the
+    // assistant claimed the status was set when nothing changed. A real db error still takes
+    // the db-error branch first; only "no error AND no row" reports the permission/not-found
+    // refusal to the model, which then tells the user the truth instead of a false success.
+    const { data, error } = await sb
       .from('tasks')
       .update({ status: v.value.status })
-      .eq('id', v.value.taskId);
+      .eq('id', v.value.taskId)
+      .select('id,status');
     if (error) return { error: 'update_task_status db error', code: (error as { code?: string }).code };
-    return { taskId: v.value.taskId, status: v.value.status };
+    const updatedRows = Array.isArray(data) ? data as Array<{ id?: unknown; status?: unknown }> : [];
+    const updated = updatedRows[0];
+    if (!updated) {
+      return { error: "You can't change this task's status — the task was not found or you don't have permission to change it." };
+    }
+    if (typeof updated.id !== 'string' || typeof updated.status !== 'string') {
+      return { error: 'update_task_status db error' };
+    }
+    return { taskId: updated.id, status: updated.status };
   },
 };
 

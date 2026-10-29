@@ -21,11 +21,11 @@ const vendorLookup = makeRefLookup(
     { id: 'vend-1', name: 'Acme Supplies' },
     { id: 'vend-2', name: 'Acme Supplies' }, // duplicate — ambiguous
   ],
-  'Vendor',
+  'Supplier',
 );
 const vendorLookupOk = makeRefLookup(
   [{ id: 'vend-1', name: 'Acme Supplies' }],
-  'Vendor',
+  'Supplier',
 );
 
 function row(overrides: Partial<CycleRow> & Pick<CycleRow, 'caseRef' | 'type' | 'rowNumber'>): CycleRow {
@@ -98,7 +98,7 @@ describe('validateGroups — AC-CYCLE-VAL-002: PR required fields', () => {
 });
 
 describe('validateGroups — AC-CYCLE-VAL-003: Quotation required fields', () => {
-  it('Quotation row requires vendor, amount, and date', () => {
+  it('Quotation row requires a supplier, amount, and date', () => {
     const rows: CycleRow[] = [
       row({ caseRef: 'C2', type: 'Quotation', title: 'A Quotation Case', rowNumber: 1 }),
     ];
@@ -106,7 +106,7 @@ describe('validateGroups — AC-CYCLE-VAL-003: Quotation required fields', () =>
     const [result] = validateGroups([group], { projectLookup, vendorLookup: vendorLookupOk });
     expect(result.rows[0].valid).toBe(false);
     const errs = result.rows[0].errors.join(' ');
-    expect(errs).toMatch(/vendor/i);
+    expect(errs).toMatch(/supplier/i);
     expect(errs).toMatch(/amount/i);
     expect(errs).toMatch(/date/i);
   });
@@ -454,7 +454,7 @@ describe('validateGroups — #505: VI tax treatment + tax amount are required', 
     row({
       caseRef: 'CASE-TAX',
       type: 'VI',
-      title: 'Vendor Invoice',
+      title: 'Supplier Invoice',
       status: 'Received',
       date: '2025-01-15',
       amount: '5000',

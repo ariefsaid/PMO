@@ -5,9 +5,11 @@ import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { PMDashboard } from '../PMDashboard';
 
+const { projectsRefetch } = vi.hoisted(() => ({ projectsRefetch: vi.fn() }));
+
 /**
- * W2-4d — PMDashboard KPI band shows "—" (not 0/$0/0) when projects fetch errors.
- * AC-W2-4-04: "My projects", "My contract value", and "At risk" tiles show "—" on error.
+ * W2-4d — PMDashboard KPI band omits unavailable values when projects fetch errors.
+ * AC-W2-4-04: the error state explains the failed read and offers retry without a fabricated value.
  */
 
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
@@ -19,7 +21,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
     data: undefined,
     isPending: false,
     isError: true,
-    refetch: vi.fn(),
+    refetch: projectsRefetch,
   }),
 }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
@@ -29,7 +31,7 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetsAwaitingApproval: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
-  useProcurements: () => ({ data: [], isPending: false }),
+  useProcurements: () => ({ data: [], isPending: false, refetch: vi.fn() }),
 }));
 vi.mock('../restructure/useNeedsYou', () => ({
   useNeedsYou: () => ({ items: [], pmOverdueTasksByProject: {}, isPending: false, isError: false }),
@@ -49,21 +51,23 @@ const renderPMDashboard = () =>
   );
 
 describe('PMDashboard — KPI band on projects fetch error (AC-W2-4-04)', () => {
-  it('AC-W2-4-04: shows "—" (not 0/$0/0) in the three data-driven KPI tiles on error', () => {
+  it('AC-W2-4-04: omits KPI values, explains the project error once, and keeps page retry available', () => {
     renderPMDashboard();
 
     const myProjects = screen.getByTestId('kpi-my-projects');
     const contractValue = screen.getByTestId('kpi-my-contract-value');
     const atRisk = screen.getByTestId('kpi-at-risk');
 
-    // Each tile should show em-dash, not a fabricated 0/$0/0
-    expect(within(myProjects).getByText('—')).toBeInTheDocument();
-    expect(within(contractValue).getByText('—')).toBeInTheDocument();
-    expect(within(atRisk).getByText('—')).toBeInTheDocument();
+    // Each tile omits its unavailable figure; ListState carries the explanation.
+    expect(within(myProjects).queryByText('—')).toBeNull();
+    expect(within(contractValue).queryByText('—')).toBeNull();
+    expect(within(atRisk).queryByText('—')).toBeNull();
 
     // Must NOT show fabricated zeros
     expect(within(myProjects).queryByText('0')).toBeNull();
     expect(within(contractValue).queryByText('$0')).toBeNull();
-    expect(within(contractValue).getByRole('button', { name: /project data could not be loaded/i })).toBeInTheDocument();
+    screen.getByRole('button', { name: 'Retry' }).click();
+    expect(projectsRefetch).toHaveBeenCalledOnce();
+    expect(within(contractValue).getAllByText(/project data could not be loaded/i)).toHaveLength(1);
   });
 });

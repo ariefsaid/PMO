@@ -221,7 +221,7 @@ describe('AC-IXD-DASH-W5-C2A — Finance dashboard KPI drills', () => {
     const tile = screen.getByTestId('kpi-outstanding');
     const label = within(tile).getByRole('link').getAttribute('aria-label');
     expect(label).toBeTruthy();
-    expect(label!.toLowerCase()).toContain('vendor');
+    expect(label!.toLowerCase()).toContain('supplier');
   });
 
   it('AC-UX-017: the margin-to-date tile is not a link that implies cash or profit finality', () => {

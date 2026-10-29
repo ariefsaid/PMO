@@ -91,12 +91,13 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     h.invoices = { data: [{ id: 'si-overdue', work_order_id: 'wo-1', status: 'Unpaid', amount: 500, erp_outstanding_amount: 300, erp_due_date: '2020-01-01', si_number: 'INV-OVERDUE' }], isPending: false, isError: false, refetch: vi.fn() };
     renderCascade();
 
+    const section = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
     // C6: the currency is named once in the Contract heading; callout figures are bare numbers.
-    expect(screen.getByText('Can invoice').parentElement).toHaveTextContent(/^Can invoice200$/);
-    expect(screen.getByText('300').parentElement).toHaveTextContent(/^Overdue300$/);
-    expect(screen.queryByText(/^IDR \d/)).not.toBeInTheDocument();
-    expect(screen.getByText('Can invoice')).toBeInTheDocument();
-    expect(screen.getByText('Overdue')).toBeInTheDocument();
+    expect(within(section).getByText('Can invoice').parentElement).toHaveTextContent(/^Can invoice200$/);
+    expect(within(section).getByText('300').parentElement).toHaveTextContent(/^Overdue300$/);
+    expect(within(section).queryByText(/^IDR\s*\d/)).not.toBeInTheDocument();
+    expect(within(section).getByText('Can invoice')).toBeInTheDocument();
+    expect(within(section).getByText('Overdue')).toBeInTheDocument();
   });
 
   it('AC-1402 opens the not-yet-ordered contract line in an addressable quantity-history drawer', async () => {
@@ -112,6 +113,14 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(within(drawer).getByRole('link', { name: 'Open full page' })).toBeInTheDocument();
   });
 
+  it('AC-CQ-020 exposes the remaining contract quantity on its visible not-yet-ordered row', () => {
+    h.boq = { data: [{ id: 'b1', quantity: 1_900, rate: 50_000, item_code: 'KM-1', description: 'Cable route', unit: 'km' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.billing = { data: { contractNet: 95_000_000, dpBilled: 0, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 903, allocations: [] }] }, isPending: false, isError: false, refetch: vi.fn() };
+    renderCascade();
+
+    expect(screen.getByTestId('contract-balance-b1')).toHaveTextContent(/903\s*km/);
+  });
+
   it('AC-1402 does not render contract money for an Engineer', () => {
     h.canViewMoney = false;
     h.boq = { data: [{ id: 'b1', quantity: 10, rate: 100, item_code: 'L-1', description: 'Line', unit: 'ea' }], isPending: false, isError: false, refetch: vi.fn() };
@@ -123,22 +132,24 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(screen.queryByText('Can invoice')).not.toBeInTheDocument();
   });
 
-  it('M4 opens the detailed drawdown disclosure from the cascade headroom line', async () => {
-    const user = userEvent.setup();
+  it('M4 shows the detailed drawdown figures directly beside the contract cascade', () => {
     renderCascade();
-    await user.click(screen.getByRole('button', { name: /Drawdown headroom/ }));
-    expect(screen.getByTestId('drawdown-ceiling')).toHaveTextContent('500,000');
-    expect(screen.getByTestId('drawdown-committed')).toHaveTextContent('200,000');
-    expect(screen.getByTestId('drawdown-draft')).toHaveTextContent('50,000');
+
+    const drawdown = screen.getByTestId('project-drawdown');
+    expect(drawdown).toBeVisible();
+    expect(within(drawdown).getByTestId('drawdown-ceiling')).toHaveTextContent('500,000');
+    expect(within(drawdown).getByTestId('drawdown-committed')).toHaveTextContent('200,000');
+    expect(within(drawdown).getByTestId('drawdown-draft')).toHaveTextContent('50,000');
+    expect(screen.queryByRole('button', { name: 'Drawdown headroom' })).not.toBeInTheDocument();
   });
 
-  it('L6: the not-yet-ordered value is shown once; the drawdown toggle carries no second copy of it', () => {
+  it('L6: the not-yet-ordered value is shown once without a retired drawdown toggle', () => {
     h.boq = { data: [{ id: 'b1', quantity: 10, rate: 100, item_code: 'L-1', description: 'Line', unit: 'ea' }], isPending: false, isError: false, refetch: vi.fn() };
     h.billing = { data: { contractNet: 1_000, dpBilled: 0, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 6, allocations: [{ boqItemId: 'b1', workOrderId: 'wo-1', quantity: 4, acceptedQuantity: 4, claimedQuantity: 2 }] }] }, isPending: false, isError: false, refetch: vi.fn() };
     h.orderBilling = { data: [{ status: 'Issued', orderNet: 400, lineCount: 1, figuresComplete: true, remaining: 0 }], isPending: false, isError: false, refetch: vi.fn() };
     renderCascade();
     const section = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
     expect(within(section).getAllByText('600')).toHaveLength(1);
-    expect(within(section).getByRole('button', { name: 'Drawdown headroom' })).toBeInTheDocument();
+    expect(within(section).queryByRole('button', { name: 'Drawdown headroom' })).not.toBeInTheDocument();
   });
 });

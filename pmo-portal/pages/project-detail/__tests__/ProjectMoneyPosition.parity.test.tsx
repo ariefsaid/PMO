@@ -16,6 +16,7 @@ import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProjectFinances } from '@/src/lib/projectFinances';
+import { formatExactMoney } from '@/src/lib/format';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const h = vi.hoisted(() => ({
@@ -86,6 +87,10 @@ const renderOverviewMoney = () => {
   );
 };
 const costBlock = () => screen.getByRole('region', { name: /Budget vs actual/ });
+const definitionValueText = (scope: HTMLElement, label: string) => {
+  const term = within(scope).getByText(label, { exact: true });
+  return term.parentElement?.querySelector(':scope > dd')?.textContent ?? null;
+};
 
 beforeEach(() => {
   h.getProjectFinances.mockReset();
@@ -104,16 +109,21 @@ describe('project money position consumer parity (AC-PMP-003)', () => {
     expect(await within(costBlock()).findByText(/25% used/)).toBeInTheDocument();
     await userEvent.click(await screen.findByRole('button', { name: 'Details' }));
     const section = await screen.findByTestId('project-finances');
-    // The section names the currency once and shows the same reading in the viewer's number format;
-    // contract remaining after cost is the same reading subtracted from the contract (100 − 10.10).
-    const decimal = numberLocale === 'id-ID' ? ',' : '.';
-    expect(section).toHaveTextContent(new RegExp(`Recorded spending · USD\\s*10\\${decimal}1(?!\\d)`));
-    expect(section).toHaveTextContent(new RegExp(`Contract remaining after cost\\s*89\\${decimal}9(?!\\d)`));
-    // Receipt cash is its own figure: the project-currency bucket in the strip, never added to settlement.
-    // The strip carries the project-currency bucket (a known 0); the drill-down adds only the other currency.
-    const stripCash = screen.getAllByText('Cash received', { exact: true }).find((label) => !section.contains(label))!;
-    expect(stripCash.parentElement!).toHaveTextContent(/Cash received\s*0$/);
-    expect(section).toHaveTextContent(/Cash received\s*IDR\s*7[.,]5/);
+    // Whole-unit display: the independent ERP reading 10.10 appears as 10; 100 − 10.10 = 89.90 appears as 90.
+    const expectedRecorded = formatExactMoney('10.10', 'USD', numberLocale, { wholeUnits: true, omitCurrency: true }) ?? 'invalid expected format';
+    const expectedRemaining = formatExactMoney('89.90', 'USD', numberLocale, { wholeUnits: true, omitCurrency: true }) ?? 'invalid expected format';
+    const expectedSettled = formatExactMoney('25.00', 'USD', numberLocale, { wholeUnits: true, omitCurrency: true }) ?? 'invalid expected format';
+    const expectedProjectCash = formatExactMoney('0', 'USD', numberLocale, { wholeUnits: true, omitCurrency: true }) ?? 'invalid expected format';
+    const expectedForeignCash = formatExactMoney('7.50', 'IDR', numberLocale, { wholeUnits: true }) ?? 'invalid expected format';
+    const recordedHeading = within(section).getByRole('heading', { name: 'Recorded spending · USD' });
+    // The amount is the paragraph's direct text; the following span is the separate Updated date.
+    expect(recordedHeading.nextElementSibling?.firstChild?.textContent).toBe(expectedRecorded);
+    expect(definitionValueText(section, 'Contract remaining after cost')).toBe(expectedRemaining);
+    expect(definitionValueText(within(section).getByTestId('project-finances-USD'), 'Settled')).toBe(expectedSettled);
+    // Project-currency receipt cash stays a known 0 in the strip; foreign receipt cash remains separate from settlement.
+    const stripCash = screen.getAllByText('Cash received', { exact: true }).find((label) => !section.contains(label));
+    expect(stripCash?.parentElement?.querySelector(':scope > dd')?.textContent).toBe(expectedProjectCash);
+    expect(definitionValueText(section, 'Cash received')).toBe(expectedForeignCash);
   });
 
   it('AC-PMP-003 a mapped category with no ERP amount is never reported as complete spending', async () => {

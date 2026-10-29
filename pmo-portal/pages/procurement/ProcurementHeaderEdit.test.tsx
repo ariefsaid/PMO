@@ -3,6 +3,10 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [{ value: 'proj-1', label: 'North Terminal', sub: 'HQ Fit-Out' }] }),
@@ -70,6 +74,43 @@ describe('AC-PROC-002 ProcurementHeaderEdit (Draft-header inline edit)', () => {
     renderEdit();
     await userEvent.clear(screen.getByLabelText(/title/i));
     expect(screen.getByRole('button', { name: /save procurement/i })).toBeDisabled();
+  });
+
+  it('AC-PROC-002: a blank title shows the required-title message from the Bahasa catalogue', async () => {
+    const idProcurement = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/procurement.json'), 'utf8'));
+    const i18n = i18next.createInstance();
+    await i18n.init({
+      lng: 'id',
+      fallbackLng: 'id',
+      ns: ['procurement'],
+      defaultNS: 'procurement',
+      resources: { id: { procurement: idProcurement } },
+      interpolation: { escapeValue: false },
+    });
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ToastProvider>
+          <ProcurementHeaderEdit
+            title="Welding consumables"
+            projectId="proj-1"
+            projectName="HQ Fit-Out"
+            vendorId={null}
+            vendorName={null}
+            onSave={vi.fn().mockResolvedValue(undefined)}
+            onError={vi.fn()}
+            onClose={vi.fn()}
+          />
+        </ToastProvider>
+      </I18nextProvider>,
+    );
+
+    const title = screen.getByLabelText(/title/i);
+    await userEvent.clear(title);
+    await userEvent.tab();
+
+    expect(await screen.findByText('Judul pengadaan wajib diisi.')).toBeInTheDocument();
+    expect(screen.queryByText('A procurement title is required.')).not.toBeInTheDocument();
   });
 
   it('AC-PROC-002: Cancel closes the panel', async () => {

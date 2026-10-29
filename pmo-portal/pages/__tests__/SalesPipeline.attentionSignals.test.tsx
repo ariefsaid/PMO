@@ -126,6 +126,7 @@ const lostState: { data: unknown[] } = { data: [] };
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineState,
   useLostDeals: () => lostState,
+  useWonDeals: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 
 vi.mock('@/src/hooks/useCompanies', () => ({

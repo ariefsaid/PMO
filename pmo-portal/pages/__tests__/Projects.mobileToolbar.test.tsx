@@ -67,6 +67,9 @@ vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
   useProjectsDeliverySummary: () => ({ data: {} }),
 }));
+vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({
+  useProjectsMoneyCollection: () => ({ data: {}, isPending: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: '22222222-2222-2222-2222-222222222222', org_id: 'org-1' }, role: roleBox.value }),
 }));
@@ -179,6 +182,24 @@ describe('AC-PRJUX-001 — loaded mobile composition', () => {
 
     // header primary action preserved
     expect(screen.getByRole('button', { name: /new project/i })).toBeInTheDocument();
+  });
+
+  it('AC-1242: selects the trailing At risk filter and Board view from the phone toolbar', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    const statusTabs = screen.getByRole('tablist', { name: /status filter/i });
+    const atRiskTab = within(statusTabs).getByRole('tab', { name: /^At risk$/i });
+    await user.click(atRiskTab);
+    expect(atRiskTab).toHaveAttribute('aria-selected', 'true');
+
+    const viewTabs = screen.getByRole('tablist', { name: /projects view/i });
+    const boardTab = within(viewTabs).getByRole('tab', { name: /^Board$/i });
+    await user.click(boardTab);
+    expect(boardTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('project-kanban-board')).toBeInTheDocument();
+
+    // Leave the persisted view at its default so later tests start from the same state.
+    await user.click(within(viewTabs).getByRole('tab', { name: /^Table$/i }));
   });
 });
 

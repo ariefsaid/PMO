@@ -12,12 +12,13 @@ import { useProjects } from '@/src/hooks/useProjects';
 import { useRevenuePerProject } from '@/src/hooks/useRevenue';
 import { useExport } from '@/src/components/export/useExport';
 import { RecordProgressModal } from '@/src/components/reports/RecordProgressModal';
+import { BoardPackAction } from '@/src/components/reports/BoardPackAction';
 import { fromCents, type PackMonth, type PackRow, type PackTotalsMonth } from '@/src/lib/reports/managementPack';
 import {
   buildManagementPackExport, managementPackFileStem, type ManagementPackExportLabels,
 } from '@/src/lib/reports/managementPackExport';
 import { monthInputToIso } from '@/src/lib/reports/months';
-import { formatCurrency, formatUtcMonthYear } from '@/src/lib/format';
+import { formatCurrency, formatNumberMax2, formatUtcMonthYear } from '@/src/lib/format';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { moneyFigure } from '@/src/lib/dashboardMoney';
 import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
@@ -71,7 +72,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
           <h2 className="text-heading font-semibold">
-            {t('managementPack.noAccessTitle', "You don't have access to the management pack")}
+            {t('managementPack.noAccessTitle', "You don't have access to Reports")}
           </h2>
           <p className="mt-2 text-muted-foreground">
             {t('managementPack.noAccessSub', 'Finance reports are available to Finance, Executive and Admin roles.')}
@@ -95,6 +96,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         ? 'empty'
         : undefined;
   const invalidRange = (error as { code?: string } | null)?.code === '22023';
+  const backlogReason = t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.');
 
   const setMonth = (key: 'from' | 'to', value: string) => {
     const next = new URLSearchParams(params);
@@ -143,7 +145,6 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
 
   // C4 + Unknowable-Is-Not-Zero: an unknown backlog is an explained dash (reason on hover and for screen
   // readers), never the word "Unavailable" as a value; the page states the reason once with its fix link.
-  const backlogReason = t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.');
   const backlogUnknown = <span title={backlogReason}>—<span className="sr-only"> {backlogReason}</span></span>;
 
   const measureCell = (key: Measure) => (row: PackRow) => {
@@ -209,8 +210,8 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         const missingLatest = latest?.month !== pack?.to;
         return (
           <span className="flex min-w-0 flex-col gap-1">
-            {latest ? <ProgressBar value={latest.pctComplete} tone={latest.pctComplete <= 90 ? 'primary' : latest.pctComplete <= 100 ? 'warning' : 'destructive'} compact aria-label={t('financeHub:managementPack.progressValue', 'Progress {{percent}}%', { percent: latest.pctComplete })} /> : <span className="text-xs text-muted-foreground">{t('financeHub:hub.fix.reports.invoicedBasis', 'Invoiced basis')}</span>}
-            {latest && <span className="whitespace-nowrap text-xs text-muted-foreground">{Math.round(latest.pctComplete)}% · {shortMonth(latest.month)}</span>}
+            {latest ? <ProgressBar value={latest.pctComplete} tone={latest.pctComplete <= 90 ? 'primary' : latest.pctComplete <= 100 ? 'warning' : 'destructive'} compact aria-label={t('financeHub:managementPack.progressValue', 'Progress {{percent}}%', { percent: formatNumberMax2(latest.pctComplete) })} /> : <span className="text-xs text-muted-foreground">{t('financeHub:hub.fix.reports.invoicedBasis', 'Invoiced basis')}</span>}
+            {latest && <span className="whitespace-nowrap text-xs text-muted-foreground"><span>{t('financeHub:managementPack.progressComplete', '{{percent}}% complete', { percent: formatNumberMax2(latest.pctComplete) })}</span><span> · {shortMonth(latest.month)}</span></span>}
             {latest && missingLatest && pack?.to && <StatusPill variant="warn">{t('financeHub:hub.fix.reports.noProgressForMonth', { defaultValue: 'No entry for {{month}}', month: shortMonth(pack.to) })}</StatusPill>}
           </span>
         );
@@ -312,7 +313,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     return month ? [{ currency: tot.currency, month }] : [];
   });
   /** Whole-unit short figure for a cents amount (F11: tiles short, exact as metadata; C5: no fraction). */
-  const shortFigure = (cents: number, currency: string) => moneyFigure(Math.round(fromCents(cents)), currency, '', { code: currency !== orgCurrency });
+  const shortFigure = (cents: number, currency: string) => moneyFigure(Math.round(fromCents(cents)), currency, '', { labelHasCurrency: true });
   const figureSpecs: Array<{
     key: string;
     label: string;
@@ -347,52 +348,56 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       amount: (month) => month.backlog,
     },
   ];
-  /** One figure per tile: each currency short, joined (never summed); an unknown currency is left out and explained once below. */
-  const tileFigure = (spec: (typeof figureSpecs)[number]) => {
-    const known = latestTotals.flatMap(({ currency, month }) => {
-      const cents = spec.amount(month);
-      return cents === null ? [] : [shortFigure(cents, currency)];
-    });
-    if (known.length === 0) return { value: null, unavailableReason: backlogReason };
-    const value = known.map((figure) => figure.value).join(' · ');
-    const exactValue = known.map((figure) => figure.exactValue ?? figure.value).join(' · ');
-    return { value, exactValue: exactValue === value ? undefined : exactValue };
+  /** Each KPI set sits under one currency heading; a null figure stays blank and the report note explains it once. */
+  const tileFigure = (spec: (typeof figureSpecs)[number], month: PackTotalsMonth, currency: string) => {
+    const cents = spec.amount(month);
+    if (cents === null) return { value: '' };
+    const figure = shortFigure(cents, currency);
+    return { value: figure.value, exactValue: figure.exactValue };
   };
-  const lead = latestTotals[0];
   const backlogUnknownSomewhere = latestTotals.some(({ month }) => month.backlog === null)
     || filteredRows.some((row) => row.kind === 'contract' && latestMonth(row)?.backlog === null);
   const showFigures = Boolean(pack) && !isError && latestTotals.length > 0;
 
   return (
     <ListPage
-      title={t('finance:area.reportTitle', 'Revenue by project and month')}
+      title={embedded
+        ? t('finance:area.reportTitle', 'Revenue by project and month')
+        : t('finance:area.reports', 'Reports')}
       headingLevel={embedded ? 2 : 1}
       description={embedded ? undefined : t('managementPack.description', 'Planned, recognised and invoiced revenue per project and month. All figures exclude tax.')}
+      primaryAction={!embedded ? <BoardPackAction /> : undefined}
     >
       {isPending && !pack ? (
         <KPIRow aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-5 grid-cols-2 xl:grid-cols-4">
           {figureSpecs.map((spec) => <KPITile key={spec.key} loading tone="blue" icon="grid" label={spec.label} value="" />)}
         </KPIRow>
       ) : showFigures && (
-        <KPIRow aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-5 grid-cols-2 xl:grid-cols-4">
-          {figureSpecs.map((spec) => {
-            const figure = tileFigure(spec);
-            return (
-              <KPITile
-                key={spec.key}
-                icon="grid"
-                tone="blue"
-                label={spec.label}
-                help={spec.help}
-                helpLabel={t('financeHub:managementPack.figures.calculationHelp', 'How this figure is calculated')}
-                value={figure.value ?? '—'}
-                exactValue={figure.exactValue}
-                unavailableReason={figure.value === null ? figure.unavailableReason : undefined}
-                vs={lead && spec.subline ? spec.subline(lead.month, lead.currency) : undefined}
-              />
-            );
-          })}
-        </KPIRow>
+        <section aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-5">
+          {latestTotals.map(({ currency, month }) => (
+            <section key={currency} aria-labelledby={`management-pack-figures-${currency}`} className="mb-5 last:mb-0">
+              <h2 id={`management-pack-figures-${currency}`} className="mb-2 text-sm font-semibold">{currency}</h2>
+              <KPIRow className="grid-cols-2 xl:grid-cols-4">
+                {figureSpecs.map((spec) => {
+                  const figure = tileFigure(spec, month, currency);
+                  return (
+                    <KPITile
+                      key={spec.key}
+                      icon="grid"
+                      tone="blue"
+                      label={spec.label}
+                      help={spec.help}
+                      helpLabel={t('financeHub:managementPack.figures.calculationHelp', 'How this figure is calculated')}
+                      value={figure.value}
+                      exactValue={figure.exactValue}
+                      vs={spec.subline ? spec.subline(month, currency) : undefined}
+                    />
+                  );
+                })}
+              </KPIRow>
+            </section>
+          ))}
+        </section>
       )}
 
       <div data-testid="management-pack-table-card" className="min-w-0">
@@ -408,7 +413,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       {state === 'error' && (
         <ListState
           variant="error"
-          title={t('managementPack.errorTitle', "Couldn't load the management pack")}
+          title={t('managementPack.errorTitle', "Couldn't load Reports")}
           sub={invalidRange
             ? t('managementPack.invalidRange', 'Choose a start month on or before the as-at month, at most 24 months apart.')
             : t('managementPack.errorSub', 'The request failed. Check your connection and try again.')}

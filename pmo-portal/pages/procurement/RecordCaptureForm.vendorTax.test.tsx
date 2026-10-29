@@ -183,7 +183,7 @@ describe('standalone bill (PMO authors the tax) — AC-VWH-030', () => {
   });
 });
 
-describe('vendor invoice Bahasa copy (PR-2/PR-3)', () => {
+describe('supplier invoice Bahasa copy (PR-2/PR-3)', () => {
   beforeEach(() => { vi.spyOn(ownership, 'routeDomainWrite').mockReturnValue('pmo'); });
 
   it('shows localized invoice, status, tax treatment, and helper copy', async () => {

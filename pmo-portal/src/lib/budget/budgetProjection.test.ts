@@ -9,7 +9,7 @@
  * arithmetic in SQL `numeric` for the real read path — AC-BUD-050 and AC-BUD-053 must agree.
  */
 import { describe, it, expect } from 'vitest';
-import { deriveProjectionCell } from './budgetProjection';
+import { chooseDefaultBudgetFiscalYear, deriveProjectionCell } from './budgetProjection';
 
 describe('budgetProjection (FR-BUD-151 — PMO forward view, never pushed)', () => {
   it('AC-BUD-050 EAC = actuals + etc; variance = PMO budget − EAC; utilization = EAC / PMO budget', () => {
@@ -325,5 +325,25 @@ describe('summarizeProjection (UX-036/S-04: unknown is never 0)', () => {
     expect(s.remaining).toBeNull();
     expect(s.finalCost).toBe(430000);
     expect(s.unknownBudget).toEqual(['Labor']);
+  });
+});
+describe('AC-1424 default budget fiscal year selection', () => {
+  const years = [
+    { fiscalYear: 'FY-2028', isActivePush: true },
+    { fiscalYear: 'FY-2026', isActivePush: false },
+    { fiscalYear: 'FY-2024', isActivePush: false },
+  ];
+
+  it('chooses the first listed year with recorded spending without parsing client labels', () => {
+    expect(chooseDefaultBudgetFiscalYear(years, new Set(['FY-2026', 'FY-2024']))).toBe('FY-2026');
+  });
+
+  it('falls back to the active-push year when no listed year has spending', () => {
+    expect(chooseDefaultBudgetFiscalYear(years, new Set())).toBe('FY-2028');
+  });
+
+  it('falls back to the first listed year, or null for an empty list, when there is no spending or active push', () => {
+    expect(chooseDefaultBudgetFiscalYear(years.map((year) => ({ ...year, isActivePush: false })), new Set())).toBe('FY-2028');
+    expect(chooseDefaultBudgetFiscalYear([], new Set())).toBeNull();
   });
 });

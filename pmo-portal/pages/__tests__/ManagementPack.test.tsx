@@ -7,9 +7,11 @@ import { ToastProvider } from '@/src/components/ui';
 import { buildManagementPack } from '@/src/lib/reports/managementPack';
 import type { ManagementPackFacts } from '@/src/lib/db/managementPack';
 import { BahasaProvider } from '../../test/bahasa';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const h = vi.hoisted(() => ({
   role: 'Finance' as string,
+  revenue: true,
   userId: 'u-fin',
   query: { data: undefined as unknown, isPending: false, isError: false, error: null as unknown, refetch: vi.fn() },
   exportTable: vi.fn(),
@@ -19,6 +21,7 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => true }));
+vi.mock('@/src/auth/useFeature', () => ({ useFeature: () => h.revenue }));
 vi.mock('@/src/hooks/useManagementPack', () => ({
   useManagementPack: () => h.query,
   useRecordProjectProgress: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -64,7 +67,9 @@ const renderPage = (embedded = false) =>
   render(<MemoryRouter><ToastProvider><ManagementPack embedded={embedded} /></ToastProvider></MemoryRouter>);
 
 beforeEach(() => {
+  resetActiveLocale();
   h.role = 'Finance';
+  h.revenue = true;
   h.userId = 'u-fin';
   h.query = { data: buildManagementPack(facts), isPending: false, isError: false, error: null, refetch: vi.fn() };
   h.exportTable.mockReset();
@@ -73,11 +78,18 @@ beforeEach(() => {
   h.salesInvoices = [];
 });
 
+afterEach(() => resetActiveLocale());
+
 describe('AC-MMP-012 who sees the pack and who records progress', () => {
+  it('AC-MMP-015: mounts the Board pack action in the Finance Reports header', () => {
+    renderPage();
+    expect(within(screen.getByTestId('list-page-header')).getByRole('button', { name: 'Board pack' })).toBeInTheDocument();
+  });
+
   it('AC-MMP-012: an Engineer gets the no-access message', () => {
     h.role = 'Engineer';
     renderPage();
-    expect(screen.getByRole('heading', { name: "You don't have access to the management pack" })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: "You don't have access to Reports" })).toBeInTheDocument();
   });
 
   it('AC-MMP-012: an open project with no progress entry can record its first entry; closed projects cannot', async () => {
@@ -127,7 +139,7 @@ describe('SP-1 — a Project Manager is denied the report page', () => {
     h.role = 'Project Manager';
     h.userId = 'u-pm';
     renderPage();
-    expect(screen.getByRole('heading', { name: "You don't have access to the management pack" })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: "You don't have access to Reports" })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Report figures' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Actions for Alpha/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New invoice' })).not.toBeInTheDocument();
@@ -145,7 +157,7 @@ describe('AC-MMP-013 honest states', () => {
   it('AC-MMP-013: a failed load shows the error and no figures', () => {
     h.query = { data: undefined, isPending: false, isError: true, error: new Error('boom'), refetch: vi.fn() };
     renderPage();
-    expect(screen.getByText("Couldn't load the management pack")).toBeInTheDocument();
+    expect(screen.getByText("Couldn't load Reports")).toBeInTheDocument();
     expect(screen.queryAllByTestId(/^pack-cell-/)).toHaveLength(0);
     expect(screen.queryByText(/[^\d]0[.,]00\b/)).toBeNull();
   });
@@ -256,7 +268,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     expect(screen.queryByText(/No progress is recorded yet/)).not.toBeInTheDocument();
   });
 
-  it('Reports figures are one joined strip with short amounts and the exact amount kept', () => {
+  it('Reports figures group by currency and keep the exact amount behind a short figure', () => {
     h.query.data = buildManagementPack({
       ...facts,
       projects: [{ ...project('p1', 'Alpha', 'u-pm'), contract_net: 90_000_000 }],
@@ -265,8 +277,10 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     renderPage();
     const figures = screen.getByRole('region', { name: 'Report figures' });
     expect(within(figures).queryAllByRole('article')).toHaveLength(0);
-    const short = within(figures).getAllByText('IDR 62.4M')[0];
-    expect(short.getAttribute('title')).toMatch(/^IDR\s62,400,000$/);
+    const idr = screen.getByRole('heading', { level: 2, name: 'IDR' }).closest<HTMLElement>('section[aria-labelledby]')!;
+    const invoiced = within(idr).getByText('Invoiced to date').closest<HTMLElement>('div.relative.flex.flex-col')!;
+    const short = within(invoiced).getByTitle(/^IDR[\s\u00a0]62,400,000$/);
+    expect(short).toHaveTextContent('62.4M');
   });
 
   it.each([
@@ -285,7 +299,8 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
 
     expect(progress).toHaveAttribute('aria-valuenow', String(percent));
     expect(within(progress).getByTestId('progress-fill')).toHaveClass(tone);
-    expect(row.getByText(`${percent}% · Apr`)).toBeInTheDocument();
+    expect(row.getByText(`${percent}% complete`)).toBeInTheDocument();
+    expect(row.getByText(/·\s*Apr/)).toBeInTheDocument();
   });
 
   it('AC-1405-REPORT-008: the toolbar and table share one card, and money figures use whole units by currency', () => {
@@ -302,9 +317,14 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     expect(tableCard).toContainElement(screen.getByRole('button', { name: 'Export' }));
     expect(tableCard).toContainElement(screen.getByRole('table', { name: 'Project' }));
 
-    const figures = screen.getByRole('region', { name: 'Report figures' });
-    expect(figures).toHaveTextContent(/IDR\s250 · \$12,345/);
-    expect(figures).not.toHaveTextContent(/[.,]00\b/);
+    const idr = screen.getByRole('heading', { level: 2, name: 'IDR' }).closest<HTMLElement>('section[aria-labelledby]')!;
+    const usd = screen.getByRole('heading', { level: 2, name: 'USD' }).closest<HTMLElement>('section[aria-labelledby]')!;
+    const idrInvoiced = within(idr).getByText('Invoiced to date').closest<HTMLElement>('div.relative.flex.flex-col')!;
+    const usdInvoiced = within(usd).getByText('Invoiced to date').closest<HTMLElement>('div.relative.flex.flex-col')!;
+    expect(within(idrInvoiced).getByTitle(/^IDR[\s\u00a0]250$/)).toHaveTextContent('250');
+    expect(within(usdInvoiced).getByTitle('$12,345')).toHaveTextContent('12.3K');
+    expect(idr).not.toHaveTextContent(/[.,]00\b/);
+    expect(usd).not.toHaveTextContent(/[.,]00\b/);
     expect(screen.getByRole('columnheader', { name: 'Invoices' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Actions' })).toBeInTheDocument();
   });
@@ -315,11 +335,13 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
       invoiced: [...facts.invoiced, { project_id: 'p1', currency: 'USD', month: '2026-04-01', net: 50, invoice_count: 1 }],
     });
     renderPage();
-    const figures = screen.getByRole('region', { name: 'Report figures' });
+    const idr = screen.getByRole('heading', { level: 2, name: 'IDR' }).closest<HTMLElement>('section[aria-labelledby]')!;
+    const backlogLabel = within(idr).getByText('Backlog of contract total');
+    const backlogTile = backlogLabel.closest<HTMLElement>('div.relative.flex.flex-col')!;
     // C4: no "Unavailable" value anywhere; the backlog tile shows only what is known.
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
-    expect(figures).not.toHaveTextContent(/IDR\s*—/);
-    expect(within(figures).getByRole('button', { name: /^How this figure is calculated: Backlog of contract total/ })).toBeInTheDocument();
+    expect(within(backlogTile).getByRole('button', { name: 'How this figure is calculated: Backlog of contract total' })).toBeInTheDocument();
+    expect(backlogTile.querySelector('.tabular')).toBeEmptyDOMElement();
     expect(screen.getAllByText(/Backlog is left out where a foreign-currency invoice needs reconciliation/)).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Review invoices' })).toHaveAttribute('href', '/finance/receivables');
   });
@@ -338,7 +360,12 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     expect(footRows.some((row) => /\$|USD/.test(row.textContent ?? ''))).toBe(true);
   });
 
-  it('RF-036: labels contract-currency backlog and subtotal unavailable pending reconciliation', () => {
+  it('money display: introduces each KPI currency once as a section heading', () => {
+    renderPage();
+    expect(screen.getByRole('heading', { level: 2, name: 'IDR' })).toBeInTheDocument();
+  });
+
+  it('RF-036: leaves unknown contract-currency backlog and subtotal blank with one reconciliation reason', () => {
     h.query.data = buildManagementPack({
       ...facts,
       invoiced: [...facts.invoiced, { project_id: 'p1', currency: 'USD', month: '2026-04-01', net: 50, invoice_count: 1 }],
@@ -351,7 +378,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
   });
 
-  it('AC-MIP-006: earlier zero-net foreign invoices show unavailable contract backlog and subtotal', () => {
+  it('AC-MIP-006: earlier zero-net foreign invoices leave contract backlog and subtotal blank', () => {
     h.query.data = buildManagementPack({
       ...facts,
       invoiced_before: [earlierInvoice('p1', 'USD', 0, 2)],
@@ -371,11 +398,30 @@ describe('AC-V24P-017 real Bahasa balance-availability explanations', () => {
   const renderBahasa = () =>
     render(<BahasaProvider><MemoryRouter><ToastProvider><ManagementPack /></ToastProvider></MemoryRouter></BahasaProvider>);
 
-  // Alpha's name can label more than one row (contract + per-currency); take the row carrying the backlog cell.
-  const alphaContractRow = () =>
-    screen.getAllByRole('row').find((r) => within(r).queryByText('Alpha') && within(r).queryByTitle(ID_REASON))!;
+  it('AC-REPORTS-001: the finance report page title is localized as Laporan', () => {
+    renderBahasa();
+    expect(screen.getByRole('heading', { name: 'Laporan' })).toBeInTheDocument();
+  });
 
-  it('AC-V24P-017: unavailable backlog shows the Bahasa label and reason on the row and an aggregate cell, never English', () => {
+  it('AC-REPORTS-PCT-001: progress percentages keep their precision and use the Bahasa number locale', () => {
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    h.query.data = buildManagementPack({
+      ...facts,
+      progress: [{ project_id: 'p1', month: '2026-04-01', pct_complete: 55.25, entered_at: '2026-04-30T10:00:00Z', entered_by_name: 'Finance' }],
+    });
+    renderBahasa();
+    const row = within(screen.getByText('Alpha').closest('tr')!);
+    expect(row.getByText('55,25% selesai')).toBeInTheDocument();
+  });
+
+  // Alpha's name can label more than one row (contract + per-currency); take the row with the actual contract amount.
+  const alphaContractRow = () =>
+    screen.getAllByRole('row').find((r) => {
+      const row = within(r);
+      return Boolean(row.queryByText('Alpha') && row.queryByTestId('pack-cell-contract')?.textContent?.includes('1,000'));
+    })!;
+
+  it('AC-V24P-017: unknown backlog is blank in Bahasa with one localized reason and link', () => {
     h.query.data = buildManagementPack({
       ...facts,
       invoiced: [...facts.invoiced, { project_id: 'p1', currency: 'USD', month: '2026-04-01', net: 50, invoice_count: 1 }],
@@ -392,14 +438,14 @@ describe('AC-V24P-017 real Bahasa balance-availability explanations', () => {
     expect(screen.queryByTitle(/needs reconciliation/)).toBeNull();
   });
 
-  it('AC-V24P-017: a known zero-or-positive backlog shows no unavailable copy in Bahasa', () => {
+  it('AC-V24P-017: a known zero-or-positive backlog shows no unknown reason in Bahasa', () => {
     renderBahasa();
     expect(screen.queryByTitle(ID_REASON)).toBeNull();
-    const row = within(screen.getByText('Alpha').closest('tr')!);
+    const row = within(alphaContractRow());
     expect(row.getByTestId('pack-cell-backlog')).toHaveTextContent(/750/);
   });
 
-  it('AC-V24P-017: earlier zero-net foreign invoices stay unavailable in Bahasa and keep the null backing figure', () => {
+  it('AC-V24P-017: earlier zero-net foreign invoices keep backlog blank with one localized reason', () => {
     h.query.data = buildManagementPack({ ...facts, invoiced_before: [earlierInvoice('p1', 'USD', 0, 2)] });
     renderBahasa();
     const projectRow = alphaContractRow();

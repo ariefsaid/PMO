@@ -333,6 +333,7 @@ const MONEY_ONLY_READS = [
   '/rest/v1/timesheet_erp_mirror',
   '/rest/v1/timesheets?',
   '/rest/v1/expense_posting_erp_mirror',
+  '/rest/v1/budget_archive_cancel_intents?',
 ];
 const MONEY_ONLY_RPCS = [
   '/rest/v1/rpc/claim_erp_sweep_lock',
