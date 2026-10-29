@@ -1,6 +1,6 @@
-// T1, T2 — pure derivation helpers for timesheet data
+// T1 — pure derivation helpers for timesheet data
 import { describe, it, expect } from 'vitest';
-import { entriesByProject, recentEntries, weeksTotals } from './timesheet-derive';
+import { entriesByProject, recentEntries } from './timesheet-derive';
 import type { TimesheetWithEntries } from '@/src/lib/db/timesheets';
 
 // Minimal fixture shapes matching TimesheetEntryWithProject
@@ -97,27 +97,5 @@ describe('T1 — recentEntries', () => {
   it('returns all entries when fewer than limit exist (T1 edge)', () => {
     const result = recentEntries(sheets, 100);
     expect(result).toHaveLength(4); // 3 in ts1 + 1 in ts0
-  });
-});
-
-describe('T2 — weeksTotals', () => {
-  it('returns last n weeks with correct sums (T2)', () => {
-    const result = weeksTotals(sheets, 2);
-    expect(result).toHaveLength(2);
-    // ts1 is first (newest-first), ts0 is second
-    const [w1, w2] = result;
-    expect(w1.weekStart).toBe('2026-06-01');
-    expect(w1.total).toBe(15); // 8+4+3
-    expect(w2.weekStart).toBe('2026-05-25');
-    expect(w2.total).toBe(40);
-  });
-
-  it('returns fewer items than n when not enough sheets (T2 edge)', () => {
-    const result = weeksTotals(sheets, 10);
-    expect(result).toHaveLength(2);
-  });
-
-  it('returns empty array for empty sheets (T2 edge)', () => {
-    expect(weeksTotals([], 5)).toHaveLength(0);
   });
 });

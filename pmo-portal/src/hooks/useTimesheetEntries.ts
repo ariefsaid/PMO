@@ -2,11 +2,10 @@ import { useRef, useState } from 'react';
 import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import {
-  saveTimesheetWeek,
-  listTimesheets,
-  TimesheetWriteError,
+  type TimesheetWriteError,
   type TimesheetEntryWithProject,
 } from '@/src/lib/db/timesheets';
+import { repositories } from '@/src/lib/repositories';
 import type { EntryDiff } from '@/src/lib/timesheet-edit';
 
 /** Cache key for the signed-in user's own timesheet list (same key as useTimesheets). */
@@ -53,7 +52,7 @@ export function useTimesheetEntryMutations(): {
     refreshInFlight.current = true;
     try {
       await queryClient.cancelQueries({ queryKey: ownTimesheetsKey(orgId, userId) });
-      const sheets = await listTimesheets(userId);
+      const sheets = await repositories.timesheet.list(userId);
       const sheet = sheets.find((item) => item.id === origin.id && item.week_start_date === origin.week);
       if (!sheet) throw new Error('Timesheet unavailable');
       if (origin.failed) {
@@ -79,7 +78,7 @@ export function useTimesheetEntryMutations(): {
       // in a single transaction (harden #1). The RPC re-targets the upserts at the resolved sheet
       // id server-side and returns that id so chained callers (auto-save-then-submit, AC-W3-O1)
       // can submit immediately without waiting for the invalidation refetch to settle.
-      saveTimesheetWeek(currentTimesheetId, weekStartDate, diff.upserts, diff.deletes),
+      repositories.timesheet.saveWeek(currentTimesheetId, weekStartDate, diff.upserts, diff.deletes),
     onSuccess: invalidateOwn,
   });
 
@@ -88,7 +87,7 @@ export function useTimesheetEntryMutations(): {
       pendingSheet.current = { id: timesheetId, week: weekStartDate, entryIds, failed: false };
       setReconciledDelete(null);
       setIsReconciling(true);
-      await saveTimesheetWeek(timesheetId, weekStartDate, [], entryIds);
+      await repositories.timesheet.saveWeek(timesheetId, weekStartDate, [], entryIds);
     },
     onSettled: async (_data, error) => {
       if (pendingSheet.current) pendingSheet.current.failed = Boolean(error);

@@ -6,7 +6,8 @@ import { overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import type { MyTask } from '@/src/hooks/useMyTasks';
 import type { ExpenseClaimWithRefs } from '@/src/lib/db/expenseClaims';
-import type { FlatEntry, ProjectHoursSummary } from '@/src/lib/timesheet-derive';
+import type { TimesheetEntryWithProject } from '@/src/lib/db/timesheets';
+import type { ProjectHoursSummary } from '@/src/lib/timesheet-derive';
 import { AttentionList, type AttentionItem } from '@/src/components/dashboard/hub/AttentionList';
 import { AreaPanel } from '@/src/components/dashboard/hub/AreaPanel';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
@@ -360,12 +361,12 @@ export function EngineerRecentEntriesPanel({
   onRetry,
   onOpenTimesheets,
 }: PanelState & {
-  entries: FlatEntry[];
+  entries: TimesheetEntryWithProject[];
   statusBySheet: Map<string, string>;
   onOpenTimesheets: () => void;
 }) {
   const { t } = useTranslation('dashboard');
-  const columns: Column<FlatEntry>[] = [
+  const columns: Column<TimesheetEntryWithProject>[] = [
     {
       key: 'day',
       header: t('hub.engineer.day', 'Day'),
@@ -399,7 +400,7 @@ export function EngineerRecentEntriesPanel({
       header: t('hub.engineer.statusLabel', 'Status'),
       kind: 'status',
       cell: (entry) => {
-        const status = statusBySheet.get(entry.sheetId);
+        const status = statusBySheet.get(entry.timesheet_id);
         return status
           ? <StatusPill variant={workflowVariant(status)}>{statusLabel(status, t)}</StatusPill>
           : <span className="text-muted-foreground" title={t('hub.engineer.statusUnavailableReason', 'The timesheet status is unavailable.')}>—</span>;

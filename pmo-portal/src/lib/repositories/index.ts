@@ -179,6 +179,7 @@ import {
 } from '@/src/lib/db/procurementCrud';
 import {
   listTimesheets,
+  saveTimesheetWeek,
   createDraftTimesheet,
   upsertTimesheetEntries,
   deleteTimesheetEntry,
@@ -188,8 +189,9 @@ import {
   approveTimesheet,
   rejectTimesheet,
   listTimesheetsAwaitingApproval,
+  reopenTimesheet, attestTimesheetNoErpDocument, listReopenableApprovedTimesheets,
 } from '@/src/lib/db/timesheetTransition';
-import { approvedTimesheetForPush } from '@/src/lib/db/timesheetPush';
+import { approvedTimesheetForPush, listPushesNeedingAttention, confirmEmployeeLink, getPushState } from '@/src/lib/db/timesheetPush';
 import {
   deriveProjectBudget,
   listBudgetVersions,
@@ -802,6 +804,14 @@ const revenue: RevenueRepository = {
 export { timesheetPushKey };
 
 const timesheet: TimesheetRepository = {
+  // Preserve the established error contracts for these existing timesheet operations.
+  saveWeek: saveTimesheetWeek,
+  reopen: reopenTimesheet,
+  attestNoErpDocument: attestTimesheetNoErpDocument,
+  listReopenableApproved: listReopenableApprovedTimesheets,
+  listPushesNeedingAttention,
+  confirmEmployeeLink,
+  getPushState,
   list: (userId, params) => wrap(() => listTimesheets(userId, params)),
   createDraft: (weekStartDate, userId) => wrap(() => createDraftTimesheet(weekStartDate, userId)),
   upsertEntries: (entries) => wrap(() => upsertTimesheetEntries(entries)),

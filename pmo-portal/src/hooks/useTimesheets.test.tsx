@@ -4,37 +4,26 @@ import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react
 import React from 'react';
 
 vi.mock('@/src/lib/db/timesheets', () => ({
-  listTimesheets: vi.fn().mockResolvedValue([
-    { id: 'ts1', user_id: 'u1', week_start_date: '2026-06-01', status: 'Draft', entries: [] },
-  ]),
-  createDraftTimesheet: vi.fn(),
-  upsertTimesheetEntries: vi.fn(),
-  deleteTimesheetEntry: vi.fn(),
-  saveTimesheetWeek: vi.fn(),
   TimesheetWriteError: class TimesheetWriteError extends Error {
-    code?: string;
-    constructor(message: string, code?: string) {
-      super(message);
-      this.name = 'TimesheetWriteError';
-      this.code = code;
-    }
+    constructor(message: string, public code?: string) { super(message); this.name = 'TimesheetWriteError'; }
   },
 }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { timesheet: {
+  list: vi.fn().mockResolvedValue([{ id: 'ts1', user_id: 'u1', week_start_date: '2026-06-01', status: 'Draft', entries: [] }]),
+  saveWeek: vi.fn(), createDraft: vi.fn(), upsertEntries: vi.fn(), deleteEntry: vi.fn(),
+} } }));
+const auth = vi.hoisted(() => ({ currentUser: { id: 'u1', org_id: 'org-1' } }));
 vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Engineer' }),
+  useAuth: () => ({ currentUser: auth.currentUser, role: 'Engineer' }),
 }));
 
 import { useTimesheets } from './useTimesheets';
 import { useTimesheetEntryMutations } from './useTimesheetEntries';
-import {
-  listTimesheets,
-  createDraftTimesheet,
-  upsertTimesheetEntries,
-  deleteTimesheetEntry,
-  saveTimesheetWeek,
-  TimesheetWriteError,
-} from '@/src/lib/db/timesheets';
+import { repositories } from '@/src/lib/repositories';
+import { TimesheetWriteError } from '@/src/lib/db/timesheets';
 import type { EntryDiff } from '@/src/lib/timesheet-edit';
+
+const { list: listTimesheets, saveWeek: saveTimesheetWeek, createDraft: createDraftTimesheet, upsertEntries: upsertTimesheetEntries, deleteEntry: deleteTimesheetEntry } = repositories.timesheet;
 
 const wrap = ({ children }: { children: React.ReactNode }) => (
   <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
@@ -51,6 +40,7 @@ function makeWrapper() {
 }
 
 beforeEach(() => {
+  auth.currentUser = { id: 'u1', org_id: 'org-1' };
   vi.mocked(createDraftTimesheet).mockReset();
   vi.mocked(upsertTimesheetEntries).mockReset();
   vi.mocked(deleteTimesheetEntry).mockReset();
@@ -78,6 +68,19 @@ const DIFF: EntryDiff = {
   ],
   deletes: [],
 };
+
+it('keeps timesheet caches scoped when the signed-in identity changes', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  vi.mocked(listTimesheets).mockImplementation(async (id) => [{ id, user_id: id, week_start_date: '2026-06-01', status: 'Draft', entries: [] }] as never);
+  const { result, rerender } = renderHook(() => useTimesheets(), { wrapper });
+  await waitFor(() => expect(result.current.data?.[0].id).toBe('u1'));
+  auth.currentUser = { id: 'u2', org_id: 'org-2' };
+  rerender();
+  await waitFor(() => expect(result.current.data?.[0].id).toBe('u2'));
+  expect(client.getQueryData<{ id: string }[]>(['timesheets', 'org-1', 'u1'])?.[0].id).toBe('u1');
+  expect(client.getQueryData<{ id: string }[]>(['timesheets', 'org-2', 'u2'])?.[0].id).toBe('u2');
+});
 
 describe('useTimesheetEntryMutations.saveWeek', () => {
   // harden #1: the Save is now ONE atomic RPC (create-draft + upsert + delete in one transaction).

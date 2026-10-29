@@ -1,4 +1,5 @@
 import { projectCodedPickerLabel, projectDisplayName } from '@/src/lib/projectDisplayName';
+import { format, startOfWeek } from 'date-fns';
 import React, { useMemo, useRef, useState } from 'react';
 import {
   Button,
@@ -45,21 +46,6 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatFullDate, formatMonthDay, formatNumberExact, formatWeekday } from '@/src/lib/format';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 
-// ── Date helpers (preserved verbatim — week logic unchanged) ─────────────────
-const getWeekStartDate = (date: Date): Date => {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  return new Date(d.setDate(diff));
-};
-
-const formatDate = (date: Date): string => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-};
-
 // Timesheet status pill comes from the single status registry (`workflowVariant`):
 // Draft = neutral, Submitted = neutral grey `progress` (NOT the action-blue, per the
 // Freed-Blue Status Rule), Approved = green `won`, Rejected = red `lost`.
@@ -103,8 +89,8 @@ const TimesheetsPage: React.FC = () => {
 
   const [currentDate, setCurrentDate] = useState(new Date());
 
-  const weekStartDate = getWeekStartDate(new Date(currentDate));
-  const weekStartString = formatDate(weekStartDate);
+  const weekStartDate = startOfWeek(currentDate, { weekStartsOn: 1 });
+  const weekStartString = format(weekStartDate, 'yyyy-MM-dd');
 
   const weekDates = useMemo(
     () =>
@@ -134,7 +120,7 @@ const TimesheetsPage: React.FC = () => {
   // Entries for the same project on the same day are summed regardless of note text.
   const gridRows = useMemo<TimesheetGridRow[]>(() => {
     const map = new Map<string, TimesheetGridRow>();
-    const dateStrings = weekDates.map(formatDate);
+    const dateStrings = weekDates.map((date) => format(date, 'yyyy-MM-dd'));
     for (const e of currentWeekEntries) {
       const key = `${e.project_id}`;
       let row = map.get(key);
@@ -177,7 +163,7 @@ const TimesheetsPage: React.FC = () => {
   const { saveWeek, deleteRow, isReconciling, retryDeleteRefresh, reconciledDelete } = useTimesheetEntryMutations();
   const { data: allProjects, isPending: projectsPending, isError: projectsError, refetch: refetchProjects } = useProjects();
 
-  const weekDateStrings = useMemo(() => weekDates.map(formatDate), [weekDates]);
+  const weekDateStrings = useMemo(() => weekDates.map((date) => format(date, 'yyyy-MM-dd')), [weekDates]);
 
   // AC-IFW-TASKS-02: consume ?project=<id> from the URL (set by MyTasks "Log time" link).
   // Declared before the seedRows/seedKey block so the reseed can re-include the prefilled
