@@ -72,7 +72,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
   return (
     <nav
       aria-label={t('shell.breadcrumb.label', 'Breadcrumb')}
-      className={cn('flex min-w-0 items-center gap-[7px] text-[13.5px]', className)}
+      className={cn('flex min-w-0 items-center gap-2 text-[13.5px]', className)}
     >
       {visibleParts.map((part, i) => {
         const last = i === parts.length - 1;

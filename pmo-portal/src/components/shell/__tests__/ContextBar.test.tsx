@@ -73,6 +73,7 @@ describe('ContextBar', () => {
   it('the ⌘K trigger advertises its shortcut and opens the palette', async () => {
     renderBar();
     const trigger = screen.getByRole('button', { name: /command palette/i });
+    expect(trigger.className.split(/\s+/)).toContain('px-3');
     expect(trigger).toHaveAttribute('aria-keyshortcuts');
     await userEvent.click(trigger);
     expect(onOpenPalette).toHaveBeenCalled();

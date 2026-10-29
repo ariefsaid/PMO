@@ -334,7 +334,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             onChange={(e) => setQuery(e.target.value)}
             className="flex-1 border-none bg-transparent text-[15px] text-foreground outline-none placeholder:text-muted-foreground"
           />
-          <span className="rounded-[5px] border border-border bg-secondary px-[7px] py-0.5 text-[11px] font-semibold text-muted-foreground">
+          <span className="rounded-[5px] border border-border bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
             Esc
           </span>
         </div>
@@ -379,7 +379,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                 <div
                   key={i}
                   data-testid="cmdk-skeleton-row"
-                  className="cmdk-row flex items-center gap-[11px] rounded-[7px] px-2.5 py-[9px]"
+                  className="cmdk-row flex items-center gap-3 rounded-[7px] px-3 py-2"
                 >
                   <span className="cmdk-skeleton size-7 shrink-0 rounded-[7px] bg-secondary" />
                   <span className="cmdk-skeleton h-3.5 flex-1 rounded-[4px] bg-secondary" />
@@ -412,7 +412,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                           onClose();
                         }}
                         className={cn(
-                          'cmdk-row flex cursor-pointer items-center gap-[11px] rounded-[7px] px-2.5 py-[9px] text-sm',
+                          'cmdk-row flex cursor-pointer items-center gap-3 rounded-[7px] px-3 py-2 text-sm',
                           isSel ? 'bg-primary/10 text-foreground' : 'hover:bg-accent'
                         )}
                       >
@@ -459,7 +459,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                       onClose();
                     }}
                     className={cn(
-                      'cmdk-row flex cursor-pointer items-center gap-[11px] rounded-[7px] px-2.5 py-[9px] text-sm',
+                      'cmdk-row flex cursor-pointer items-center gap-3 rounded-[7px] px-3 py-2 text-sm',
                       isSel ? 'bg-primary/10 text-foreground' : 'hover:bg-accent'
                     )}
                   >

@@ -9,6 +9,11 @@ import { Breadcrumb } from '../Breadcrumb';
 import { BackBar } from '../BackBar';
 
 describe('Breadcrumb', () => {
+  it('DS-SPACING: uses the shared compact group gap', () => {
+    render(<Breadcrumb parts={[{ label: 'Projects' }, { label: 'Alpha' }]} />);
+    expect(screen.getByRole('navigation', { name: /breadcrumb/i }).className.split(/\s+/)).toContain('gap-2');
+  });
+
   it('renders parts; the last is current (not a link), others navigate', async () => {
     const onNavigate = vi.fn();
     render(
