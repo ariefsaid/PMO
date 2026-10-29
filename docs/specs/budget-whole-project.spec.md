@@ -258,3 +258,7 @@ These close the open questions raised while drafting; they override any proposal
 1. **No project end date:** a project without an end date gets a whole-project budget covering **only its start fiscal year** (a one-year project by default). PMO sends ERPNext one Budget per account for that single year.
 2. **Budget-wide amount per year:** the per-year amounts are converted to percentages of their total, and every category without its own override follows those percentages.
 3. **When the project dates change:** PMO never changes a live ERPNext budget on its own. It flags the mismatch on the budget ("the project now runs to <date>; this budget covers <years>") and offers a ready new Draft version with the new span, carrying the lines and re-spreading by the chosen rule. Activating it cancels the old ERP budgets through the archive-cancellation path (#1460) and sends the new ones. The same applies when dates shrink.
+
+The ERP child-row names/percentage-versus-amount representation are a technical discovery item,
+not an unanswered owner decision: the required externally observable result is one explicit
+figure per year reconciling to the whole-range account total, proven against ERPNext v16.
