@@ -686,7 +686,7 @@
       "erpCard": {
         "title": "Dari sistem akuntansi · belum ditautkan ke permintaan pengadaan",
         "qualifier": "Biaya ini sudah dihitung dalam pengeluaran proyek. Penautan menghubungkan dokumennya tanpa menambah pengeluaran.",
-        "alreadyInSpending": "Sudah masuk pengeluaran"
+        "alreadyInSpending": "Sudah dihitung dalam Aktual."
       }
     },
     "tasks": {
