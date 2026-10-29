@@ -908,7 +908,7 @@ export function DataTable<Row>({
                     (null/undefined/false — e.g. a fact that only one record type carries) is left out of
                     the card: a label with no value is noise, and a <dt> without its <dd> is invalid. */}
                 {mobileCardDetails ? mobileCardDetails(row) : restCols.length > 0 && (
-                  <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
+                  <dl className="grid grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
                     {restCols.map((col) => {
                       const content = col.cell(row);
                       if (content == null || content === false) return null;
@@ -927,9 +927,15 @@ export function DataTable<Row>({
                               // [&_.truncate]:block — see the title note above: inline truncate
                               // cells (e.g. a contact email) don't clip and bleed at 360px.
                               'min-w-0 break-words text-control text-foreground [&_.truncate]:block',
-                              col.align === 'num' && 'tabular text-right',
+                              // ONE value alignment in cards: every value starts at the label
+                              // column's x — money keeps its tabular figures but loses the
+                              // desktop column's right alignment here (director fix).
+                              col.align === 'num' && 'tabular',
                               col.align === 'center' && 'text-center',
-                              stripHiddenClasses(col.colClassName)
+                              stripHiddenClasses(col.colClassName),
+                              // A cell whose desktop column stacks right-aligned (money cells
+                              // render `flex-col items-end`) left-aligns its block on cards.
+                              '[&>div]:items-start',
                             )}
                           >
                             {content}
@@ -944,12 +950,12 @@ export function DataTable<Row>({
           })
         )}
         {!state && totals?.map((total) => <li key={`total-${total.key}`} className="min-h-[var(--table-row-min-height)] border-t-[1.5px] border-border bg-secondary/40 px-[var(--table-cell-inset)] py-3 text-control font-semibold tabular">
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
+          <dl className="grid grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
             {columns.map((column, index) => {
               const value = total.values && Object.prototype.hasOwnProperty.call(total.values, column.key)
                 ? total.values[column.key]
                 : index === 0 ? total.label : null;
-              return value == null ? null : <React.Fragment key={column.key}><dt className="text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0', column.align === 'num' && 'text-right tabular')}>{value}</dd></React.Fragment>;
+              return value == null ? null : <React.Fragment key={column.key}><dt className="text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0', column.align === 'num' && 'tabular')}>{value}</dd></React.Fragment>;
             })}
           </dl>
         </li>)}

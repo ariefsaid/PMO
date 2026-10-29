@@ -476,7 +476,11 @@ const Projects: React.FC = () => {
         return (
           <span className="block min-w-0" onClick={(event) => event.stopPropagation()}>
             <CompanyNameLink companyId={p.client_id} name={p.client ? companyDisplayName(p.client) : null} className="inline max-w-[180px] align-baseline text-[12px]" />
-            {ids && <> · {p.pmo_project_number && <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>}<span className="font-mono" title={ids}>{ids}</span></>}
+            {/* The ' · ' separator belongs to the desktop table's single-line cell. In the card
+                branch (<md) the client link is forced block (the truncate-to-block clip rule), so
+                the separator would lead its own wrapped line as a stray dot — hidden there; the
+                identifiers line reads clean (director fix). */}
+            {ids && <><span aria-hidden="true" className="hidden md:inline"> · </span>{p.pmo_project_number && <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>}<span className="font-mono" title={ids}>{ids}</span></>}
             {p.end_client && <span className="block truncate text-[11px] text-muted-foreground">{companyDisplayName(p.end_client)}</span>}
           </span>
         );
@@ -547,7 +551,9 @@ const Projects: React.FC = () => {
         });
         const initials = label.trim().split(/\s+/).slice(0, 2).map((part) => part.charAt(0)).join('').toUpperCase() || '?';
         return (
-          <span className="flex items-center justify-center">
+          // Left-aligned with the other card values (director fix): the avatar started at a
+          // different x than the Status pill and Contract amount inside the card's shared grid.
+          <span className="flex items-center">
             <span
               role="img"
               aria-label={label}

@@ -18,7 +18,9 @@ export const AreaPanel: React.FC<AreaPanelProps> = ({ title, openHref, openLabel
       actions={
         <Link
           to={openHref}
-          className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          // One-line header row: the 44px touch minimum is a coarse-pointer rule, so it must not
+          // inflate the desktop header height and sink the link below the title (director fix).
+          className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring pointer-coarse:min-h-11"
         >
           <span>{openLabel}</span>
           <Icon name="chev" className="size-4" />

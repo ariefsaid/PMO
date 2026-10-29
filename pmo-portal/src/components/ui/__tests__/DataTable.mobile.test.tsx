@@ -183,7 +183,7 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(label).toHaveClass('self-start');
   });
 
-  it('numeric columns carry the tabular and text-right classes on their <dd>', () => {
+  it('numeric columns keep the tabular figures on their <dd>, left-aligned like every card value', () => {
     mockViewport(false);
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
     const cardBranch = getCardBranch()!;
@@ -193,8 +193,10 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(valueDt).toBeTruthy();
     const valueDd = valueDt!.nextElementSibling as HTMLElement;
     expect(valueDd.tagName).toBe('DD');
+    // Director one-alignment fix: card values all start at the label column's x — the numeric
+    // column keeps its tabular figures but not the desktop column's right alignment.
     expect(valueDd.className).toContain('tabular');
-    expect(valueDd.className).toContain('text-right');
+    expect(valueDd.className).not.toContain('text-right');
   });
 
   // ── Activation (rowLabel + onActivate) ───────────────────────────────────
