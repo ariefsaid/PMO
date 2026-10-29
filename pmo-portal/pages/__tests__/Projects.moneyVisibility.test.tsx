@@ -17,7 +17,7 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
 });
 vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassificationOptions: () => ({ data: { serviceLines: [], sectors: [] }, isPending: false, isError: false }) }));
 
-import { render, screen, waitFor, cleanup } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -41,8 +41,10 @@ const seed = [
 
 const projectsState = { data: seed, isPending: false, isError: false, refetch: vi.fn() };
 // Mutable role box (hoisted) — drives the REAL policy (ADR-0016) through the mocked auth seams.
-const { roleBox, projectMutations, projectMoneyState } = vi.hoisted(() => ({
+const { roleBox, projectMutations, projectMoneyState, deliveryState, tasksState } = vi.hoisted(() => ({
   roleBox: { value: 'Project Manager' },
+  tasksState: { data: [{ project_id: 'p1' }, { project_id: 'p2' }], isPending: false, isError: false },
+  deliveryState: { data: {} as Record<string, { deliveryPct: number | null }>, isPending: false, isError: false },
   projectMutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     updateHeader: { mutateAsync: vi.fn(), isPending: false },
@@ -75,10 +77,10 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 // An Engineer lands on "My Projects" (B-11); the fixture tasks make both seeded projects the
 // Engineer's assigned work, so the gated rows are the ones they actually see.
-vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: [{ project_id: 'p1' }, { project_id: 'p2' }] }) }));
+vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => tasksState }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
-  useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }),
+  useProjectsDeliverySummary: () => deliveryState,
 }));
 vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({ useProjectsMoneyCollection: () => projectMoneyState }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: roleBox.value, realRole: roleBox.value, canImpersonate: false, viewAs: vi.fn() }) }));
@@ -154,6 +156,9 @@ beforeEach(() => {
   projectsState.isPending = false;
   projectsState.isError = false;
   hoisted.captured = [];
+  projectMoneyState.data = {}; projectMoneyState.isPending = false; projectMoneyState.isError = false;
+  deliveryState.data = {}; deliveryState.isPending = false; deliveryState.isError = false;
+  tasksState.data = [{ project_id: 'p1' }, { project_id: 'p2' }]; tasksState.isPending = false; tasksState.isError = false;
   URL.createObjectURL = vi.fn(() => 'blob:test');
   URL.revokeObjectURL = vi.fn();
   vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
@@ -162,6 +167,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   resetActiveLocale();
 });
 
@@ -218,6 +224,98 @@ describe('Projects persona money visibility — contract figure gated on the sha
     expect(row('Alpha Reach HQ Fit-Out').getCell(col(ws, 'Currency')).value).toBe('USD');
     expect(row('Beta IDR Rollout').getCell(col(ws, 'Contract')).value).toBe(15_000_000_000);
     expect(row('Beta IDR Rollout').getCell(col(ws, 'Currency')).value).toBe('IDR');
+  });
+
+  it('exports canonical actual and unclamped delivery and budget percentages in the workbook', async () => {
+    deliveryState.data = { p1: { deliveryPct: 77.6 } };
+    projectMoneyState.data = { p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '104.25', asOf: null, excludesRestrictedRows: false, complete: true, categories: [{ category: 'Labor', mapped: true, amount: '104.25' }] }, activeBudgetAmount: '100.00', activeBudgetCurrency: 'USD', hasActiveBudget: true } };
+    renderPage('Project Manager');
+    const ws = await exportWorkbook();
+    expect(ws.getRow(2).getCell(col(ws, 'Actual')).value).toBe('$104.25 USD');
+    expect(ws.getRow(2).getCell(col(ws, 'Progress')).value).toBe(78);
+    expect(ws.getRow(2).getCell(col(ws, 'Budget used')).value).toBe(104);
+    expect(ws.getRow(3).getCell(col(ws, 'Actual')).value).toBe('');
+    expect(ws.getRow(3).getCell(col(ws, 'Progress')).value).toBe('');
+    expect(ws.getRow(3).getCell(col(ws, 'Budget used')).value).toBe('');
+  });
+
+  it('keeps exact large Actual amounts as currency-qualified workbook text', async () => {
+    projectMoneyState.data = { p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '9007199254740993.99', asOf: null, excludesRestrictedRows: false, complete: true, categories: [{ category: 'Labor', mapped: true, amount: '9007199254740993.99' }] }, activeBudgetAmount: null, activeBudgetCurrency: null, hasActiveBudget: false } };
+    renderPage('Project Manager');
+    const ws = await exportWorkbook();
+    expect(ws.getRow(2).getCell(col(ws, 'Actual')).value).toBe('$9,007,199,254,740,993.99 USD');
+  });
+
+  it('exports zero and meaningful unavailable reasons without inventing values', async () => {
+    deliveryState.data = { p1: { deliveryPct: 0 }, p2: { deliveryPct: null } };
+    projectMoneyState.data = {
+      p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '0.00', asOf: null, excludesRestrictedRows: false, complete: true, categories: [{ category: 'Labor', mapped: true, amount: '0.00' }] }, activeBudgetAmount: '100.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+      p2: { ledgerBasis: 'erp', actuals: { currency: 'IDR', total: '50.00', asOf: null, excludesRestrictedRows: true, complete: false, categories: [{ category: 'Labor', mapped: true, amount: '50.00' }] }, activeBudgetAmount: '100.00', activeBudgetCurrency: 'IDR', hasActiveBudget: true },
+    };
+    renderPage('Project Manager');
+    const ws = await exportWorkbook();
+    expect(ws.getRow(2).getCell(col(ws, 'Actual')).value).toBe('$0.00 USD');
+    expect(ws.getRow(2).getCell(col(ws, 'Progress')).value).toBe(0);
+    expect(ws.getRow(2).getCell(col(ws, 'Budget used')).value).toBe(0);
+    expect(ws.getRow(3).getCell(col(ws, 'Actual')).value).toBe('Restricted excluded');
+    expect(ws.getRow(3).getCell(col(ws, 'Budget used')).value).toBe('');
+  });
+
+  it('exports budget availability reasons as readable text', async () => {
+    projectMoneyState.data = {
+      p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '50.00', asOf: null, excludesRestrictedRows: false, complete: true, categories: [{ category: 'Labor', mapped: true, amount: '50.00' }] }, activeBudgetAmount: null, activeBudgetCurrency: null, hasActiveBudget: false },
+      p2: { ledgerBasis: 'erp', actuals: { currency: 'IDR', total: '50.00', asOf: null, excludesRestrictedRows: false, complete: true, categories: [{ category: 'Labor', mapped: true, amount: '50.00' }] }, activeBudgetAmount: '100.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+    };
+    renderPage('Project Manager');
+    const ws = await exportWorkbook();
+    expect(ws.getRow(2).getCell(col(ws, 'Budget used')).value).toBe('No active budget');
+    expect(ws.getRow(3).getCell(col(ws, 'Budget used')).value).toBe('Budget currency differs from Actual');
+  });
+
+  it('exports blank unavailable values even when failed reads retain cached data', async () => {
+    deliveryState.data = { p1: { deliveryPct: 78 } }; deliveryState.isError = true;
+    projectMoneyState.data = { p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '104.00', asOf: null, excludesRestrictedRows: false, complete: true, categories: [{ category: 'Labor', mapped: true, amount: '104.00' }] }, activeBudgetAmount: '100.00', activeBudgetCurrency: 'USD', hasActiveBudget: true } };
+    projectMoneyState.isError = true;
+    renderPage('Project Manager');
+    const ws = await exportWorkbook();
+    for (const header of ['Actual', 'Progress', 'Budget used']) expect(ws.getRow(2).getCell(col(ws, header)).value).toBe('');
+  });
+
+  it('exports only columns shown on the table, plus the contract currency', async () => {
+    renderPage('Project Manager');
+    expect(screen.queryByRole('columnheader', { name: 'Progress' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Budget used' })).not.toBeInTheDocument();
+    const ws = await exportWorkbook();
+    expect(headersOf(ws)).not.toContain('Progress');
+    expect(headersOf(ws)).not.toContain('Budget used');
+  });
+
+  it.each([[false, 'error'], [true, 'error'], [false, 'pending'], [true, 'pending']] as const)('blocks stale assignment export and exports fresh rows on mobile=%s during %s', async (mobile, state) => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({ matches: !mobile, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() })));
+    tasksState.data = [{ project_id: 'p1' }];
+    tasksState.isError = state === 'error';
+    tasksState.isPending = state === 'pending';
+    const { rerender } = renderPage('Engineer');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /more/i }));
+    const button = screen.getByRole('button', { name: /export/i });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(hoisted.captured).toHaveLength(0);
+    await user.click(screen.getByRole('tab', { name: /^all$/i }));
+    if (!screen.queryByRole('button', { name: /export/i })) await user.click(screen.getByRole('button', { name: /more/i }));
+    expect(screen.getByRole('button', { name: /export/i })).toBeEnabled();
+    const all = await exportWorkbook();
+    expect([2, 3].map((r) => all.getRow(r).getCell(col(all, 'Project')).value)).toEqual(['Alpha Reach HQ Fit-Out', 'Beta IDR Rollout']);
+    hoisted.captured = [];
+    await user.click(screen.getByRole('tab', { name: /my projects/i }));
+    tasksState.isError = false;
+    tasksState.isPending = false;
+    tasksState.data = [{ project_id: 'p2' }];
+    rerender(<MemoryRouter initialEntries={['/projects']}><ToastProvider><Projects /></ToastProvider></MemoryRouter>);
+    const fresh = await exportWorkbook();
+    expect(fresh.getRow(2).getCell(col(fresh, 'Project')).value).toBe('Beta IDR Rollout');
+    expect(fresh.rowCount).toBe(2);
   });
 
   it('Engineer export carries no Contract column, no Currency column, and no contract amount anywhere', async () => {
