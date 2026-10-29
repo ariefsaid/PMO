@@ -117,17 +117,33 @@ export const RESERVED_STATUSES: ProcurementRow['status'][] = [
   'Quote Selected',
 ];
 
-export async function getProjectReservedSpend(projectId: string): Promise<number> {
-  const { data, error } = await supabase
-    .from('procurements')
-    .select('total_value')
-    .eq('project_id', projectId)
-    .in('status', RESERVED_STATUSES);
+export interface ProjectReservedSpend {
+  amount: number;
+  projectCurrency: string | null;
+  budgetCurrency: string | null;
+  otherCurrencies: Array<{ currency: string | null; amount: number }>;
+}
+
+export async function getProjectReservedSpend(projectId: string): Promise<ProjectReservedSpend> {
+  const { data, error } = await supabase.rpc('project_reserved_position', { p_project_id: projectId });
   if (error) throw new Error(error.message);
-  return (data ?? []).reduce(
-    (sum, row) => sum + Number((row as { total_value: number }).total_value ?? 0),
-    0,
-  );
+  if (!data?.length) throw new Error('Project budget position unavailable');
+  const { project_currency: projectCurrency, budget_currency: budgetCurrency, positions } = data[0];
+  if (!Array.isArray(positions)) throw new Error('Project budget position unavailable');
+  const amounts = positions.map((position) => {
+    if (!position || typeof position !== 'object' || Array.isArray(position) ||
+        !(typeof position.currency === 'string' || position.currency === null) ||
+        !['string', 'number'].includes(typeof position.amount) || !Number.isFinite(Number(position.amount)) ||
+        Math.abs(Number(position.amount)) >= 2 ** 46) {
+      throw new Error('Project budget position unavailable');
+    }
+    return { currency: position.currency, amount: Number(position.amount) };
+  });
+  const own = projectCurrency ? amounts.find((row) => row.currency === projectCurrency) : undefined;
+  return {
+    amount: own?.amount ?? 0, projectCurrency, budgetCurrency,
+    otherCurrencies: amounts.filter((row) => (!projectCurrency || row.currency !== projectCurrency) && row.amount !== 0),
+  };
 }
 
 /**

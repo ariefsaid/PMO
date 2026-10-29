@@ -17,10 +17,14 @@
  * `reserved` is the TOTAL reserved for the project (incl. this case when its status is in
  * RESERVED_STATUSES). All figures are presentation-agnostic; the panel formats + renders.
  */
+import { decimalUnits } from '@/src/lib/taxNormalize';
 import { RESERVED_STATUSES } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 
 export interface BudgetSignalInput {
+  projectCurrency: string | null | undefined;
+  budgetCurrency: string | null | undefined;
+  requestCurrency: string | null | undefined;
   /** Σ Active budget-version line items for the project. */
   budget: number;
   /** Σ PO total_value in Ordered..Paid (the dashboard committed-spend basis). */
@@ -51,21 +55,37 @@ export interface BudgetSignal {
 }
 
 export function computeBudgetSignal(input: BudgetSignalInput): BudgetSignal {
-  const { budget, committed, reserved, totalValue, status } = input;
+  const { budget, committed, reserved, totalValue, status, projectCurrency, budgetCurrency, requestCurrency } = input;
+  if (!projectCurrency || !budgetCurrency || !requestCurrency ||
+      projectCurrency !== budgetCurrency || projectCurrency !== requestCurrency) {
+    throw new Error('Budget comparison requires matching currencies');
+  }
 
-  const available = budget - committed - reserved; // FR-RB-010
-  const caseInReserved = RESERVED_STATUSES.includes(status); // FR-RB-013/014
-
-  // FR-RB-013 — subtract thisRequest only when the case is NOT already inside Reserved.
-  const afterRequest = available - (caseInReserved ? 0 : totalValue);
-  // FR-RB-014 — the tile shows OTHER reserved (excluding this case).
-  const otherReserved = reserved - (caseInReserved ? totalValue : 0);
-
-  // FR-RB-040 — advisory only when NOT already reserved (Draft/Requested) AND over available.
-  const overAvailable = !caseInReserved && totalValue > available;
-  const overAvailableAmount = overAvailable ? totalValue - available : 0;
-  // FR-RB-041 — when already reserved, surface project-level over-budget instead.
-  const overBudgetReserved = caseInReserved && available < 0;
+  const inputs = [budget, committed, reserved, totalValue];
+  // Below 2^46, every cent can round-trip through the existing number-based inputs.
+  if (inputs.some((value) => !Number.isFinite(value) || Math.abs(value) >= 2 ** 46)) {
+    throw new Error('Budget position cannot be represented exactly');
+  }
+  const values = inputs.map((value) => decimalUnits(value, 2));
+  if (values.some((value) => value === null || value > BigInt(Number.MAX_SAFE_INTEGER) || value < -BigInt(Number.MAX_SAFE_INTEGER))) {
+    throw new Error('Budget position cannot be represented exactly');
+  }
+  const [budgetCents, committedCents, reservedCents, requestCents] = values as bigint[];
+  const availableCents = budgetCents - committedCents - reservedCents;
+  const caseInReserved = RESERVED_STATUSES.includes(status);
+  const afterCents = availableCents - (caseInReserved ? 0n : requestCents);
+  const otherReservedCents = reservedCents - (caseInReserved ? requestCents : 0n);
+  if ([availableCents, afterCents, otherReservedCents].some((value) => value > BigInt(Number.MAX_SAFE_INTEGER) || value < -BigInt(Number.MAX_SAFE_INTEGER))) {
+    throw new Error('Budget position cannot be represented exactly');
+  }
+  const available = Number(availableCents) / 100;
+  const afterRequest = Number(afterCents) / 100;
+  const otherReserved = Number(otherReservedCents) / 100;
+  const overAvailable = !caseInReserved && requestCents > availableCents;
+  const overage = overAvailable ? requestCents - availableCents : 0n;
+  if (overage > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('Budget position cannot be represented exactly');
+  const overAvailableAmount = Number(overage) / 100;
+  const overBudgetReserved = caseInReserved && availableCents < 0n;
 
   return {
     available,

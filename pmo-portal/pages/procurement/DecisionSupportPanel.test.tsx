@@ -37,6 +37,9 @@ const committedState = {
 };
 const reservedState = {
   data: 0 as number | undefined,
+  projectCurrency: 'USD' as string | null,
+  budgetCurrency: 'USD' as string | null,
+  otherCurrencies: [] as Array<{currency: string | null; amount: number}>,
   isPending: false,
   isError: false,
 };
@@ -96,6 +99,9 @@ beforeEach(() => {
   committedState.isPending = false;
   committedState.isError = false;
   reservedState.data = 0;
+  reservedState.projectCurrency = 'USD';
+  reservedState.budgetCurrency = 'USD';
+  reservedState.otherCurrencies = [];
   reservedState.isPending = false;
   reservedState.isError = false;
   viewerRole = 'Project Manager';
@@ -359,6 +365,8 @@ describe('AC-RB-004 — Available = Budget − Committed − Reserved', () => {
     budgetState.data = 1000;
     committedState.data = 300;
     reservedState.data = 200;
+    reservedState.projectCurrency = 'EUR';
+    reservedState.budgetCurrency = 'EUR';
     renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested', currency: 'EUR' });
     const availableLabel = screen.getByText(/^available$/i);
     const availableTile = availableLabel.closest('[data-testid="stat-tile"]') as HTMLElement;
@@ -502,4 +510,52 @@ describe('AC-RB-014 — already-reserved: no false advisory; over-budget info in
     expect(advisory.textContent).toMatch(/over budget/i);
     expect(advisory.textContent).toMatch(/\$200\b/);
   });
+});
+
+describe('currency-aware budget position', () => {
+  it('does not compare a foreign request with the project budget', () => {
+    budgetState.data = 1000;
+    committedState.data = 100;
+    renderPanel({ projectId: 'proj-1', totalValue: 200, projectName: 'Project', currency: 'EUR' });
+    expect(screen.getByText(/comparison unavailable/i)).toBeInTheDocument();
+    expect(screen.queryByText(/headroom remaining/i)).not.toBeInTheDocument();
+  });
+});
+
+  it('reports foreign reserved demand separately from project headroom', () => {
+    budgetState.data = 1000;
+    committedState.data = 100;
+    reservedState.data = 200;
+    reservedState.otherCurrencies = [{ currency: 'EUR', amount: 300 }];
+    renderPanel({ projectId: 'proj-1', totalValue: 50, projectName: 'Project' });
+    expect(screen.getByText(/\$700/)).toBeInTheDocument();
+    expect(screen.getByText(/€300/)).toBeInTheDocument();
+  });
+
+  it('marks the comparison unavailable when a budget currency is missing', () => {
+    budgetState.data = 1000;
+    reservedState.budgetCurrency = null;
+    renderPanel({ projectId: 'proj-1', totalValue: 50, projectName: 'Project' });
+    expect(screen.getByText(/comparison unavailable/i)).toBeInTheDocument();
+    expect(screen.queryByText(/headroom remaining/i)).not.toBeInTheDocument();
+  });
+
+it('does not compare a budget in a different currency to project commitments', () => {
+  budgetState.data = 1000;
+  reservedState.budgetCurrency = 'EUR';
+  renderPanel({ projectId: 'proj-1', totalValue: 50, projectName: 'Project' });
+  expect(screen.getByText(/comparison unavailable/i)).toBeInTheDocument();
+});
+
+it('does not compare amounts when the project currency is missing', () => {
+  budgetState.data = 1000;
+  reservedState.projectCurrency = null;
+  renderPanel({ projectId: 'proj-1', totalValue: 50, projectName: 'Project' });
+  expect(screen.getByText(/comparison unavailable/i)).toBeInTheDocument();
+});
+
+it('marks an amount outside exact representation as unavailable', () => {
+  budgetState.data = 100_000_000_000_000;
+  renderPanel({ projectId: 'proj-1', totalValue: 50, projectName: 'Project' });
+  expect(screen.getByText(/comparison unavailable/i)).toBeInTheDocument();
 });

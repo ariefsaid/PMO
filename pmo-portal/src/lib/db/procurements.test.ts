@@ -165,33 +165,39 @@ describe('getProjectCommittedSpend', () => {
 // AC-RB-001 — getProjectReservedSpend (reserved basis, ADR-0034)
 // ---------------------------------------------------------------------------
 describe('getProjectReservedSpend', () => {
-  it('AC-RB-001: sums total_value over Approved/Vendor Quoted/Quote Selected for the project', async () => {
-    const { mockEq, mockIn } = makeChainedBuilder({
-      data: [{ total_value: 80000 }, { total_value: 40000 }, { total_value: 30000 }],
-      error: null,
-    });
-    const total = await getProjectReservedSpend('proj-1');
-    expect(mockFrom).toHaveBeenCalledWith('procurements');
-    expect(mockSelect).toHaveBeenCalledWith('total_value');
-    expect(mockEq).toHaveBeenCalledWith('project_id', 'proj-1');
-    expect(mockIn).toHaveBeenCalledWith('status', ['Approved', 'Vendor Quoted', 'Quote Selected']);
-    expect(total).toBe(150000);
+  beforeEach(() => rpcSpy.mockReset());
+  const emptyPosition = { project_currency: 'USD', budget_currency: 'USD', positions: [] };
+  it('AC-RB-001: returns the project reserved position from the server', async () => {
+    rpcSpy.mockResolvedValueOnce({ data: [{ ...emptyPosition, positions: [{ currency: 'USD', amount: 150000 }] }], error: null });
+    const result = await getProjectReservedSpend('proj-1');
+    expect(rpcSpy).toHaveBeenCalledWith('project_reserved_position', { p_project_id: 'proj-1' });
+    expect(result.amount).toBe(150000);
   });
-
   it('AC-RB-001: returns 0 when there are no reserved procurements', async () => {
-    makeChainedBuilder({ data: [], error: null });
-    await expect(getProjectReservedSpend('proj-1')).resolves.toBe(0);
+    rpcSpy.mockResolvedValueOnce({ data: [emptyPosition], error: null });
+    expect((await getProjectReservedSpend('proj-1')).amount).toBe(0);
   });
-
   it('AC-RB-001: sends no org_id (RLS scopes it)', async () => {
-    makeChainedBuilder({ data: [], error: null });
+    rpcSpy.mockResolvedValueOnce({ data: [emptyPosition], error: null });
     await getProjectReservedSpend('proj-1');
-    expect(JSON.stringify(mockSelect.mock.calls)).not.toContain('org_id');
+    expect(JSON.stringify(rpcSpy.mock.calls)).not.toContain('org_id');
   });
-
   it('AC-RB-001: throws on PostgREST error', async () => {
-    makeChainedBuilder({ data: null, error: { message: 'kaboom' } });
+    rpcSpy.mockResolvedValueOnce({ data: null, error: { message: 'kaboom' } });
     await expect(getProjectReservedSpend('proj-1')).rejects.toThrow('kaboom');
+  });
+  it('treats an inaccessible project or malformed position as unavailable', async () => {
+    rpcSpy.mockResolvedValueOnce({ data: [], error: null });
+    await expect(getProjectReservedSpend('proj-1')).rejects.toThrow('unavailable');
+    rpcSpy.mockResolvedValueOnce({ data: [{ ...emptyPosition, positions: [{ currency: 'USD', amount: 'invalid' }] }], error: null });
+    await expect(getProjectReservedSpend('proj-1')).rejects.toThrow('unavailable');
+    rpcSpy.mockResolvedValueOnce({ data: [{ ...emptyPosition, positions: [{ currency: 'USD', amount: '100000000000000' }] }], error: null });
+    await expect(getProjectReservedSpend('proj-1')).rejects.toThrow('unavailable');
+  });
+  it('keeps an unknown currency separate', async () => {
+    rpcSpy.mockResolvedValueOnce({ data: [{ project_currency: null, budget_currency: null, positions: [{ currency: null, amount: '10.25' }] }], error: null });
+    const result = await getProjectReservedSpend('proj-1');
+    expect(result).toEqual({ amount: 0, projectCurrency: null, budgetCurrency: null, otherCurrencies: [{ currency: null, amount: 10.25 }] });
   });
 });
 
@@ -218,5 +224,20 @@ describe('listProcurementsByProject', () => {
     expect(mockSelect).toHaveBeenCalledWith(expect.stringContaining('status_events:procurement_status_events(to_status,created_at)'));
     expect(mockEq).toHaveBeenCalledWith('project_id', 'proj-1');
     expect(out.map((r) => r.id)).toEqual(['pr1']);
+  });
+});
+
+describe('project reserved positions', () => {
+  it('preserves currency positions and explicit budget and project currencies', async () => {
+    makeChainedBuilder({ data: [{ total_value: 250.25 }, { total_value: 19.75 }], error: null });
+    rpcSpy.mockResolvedValueOnce({ data: [
+      { project_currency: 'USD', budget_currency: 'USD', positions: [
+        { currency: 'USD', amount: 250.25 }, { currency: 'EUR', amount: 19.75 },
+      ] },
+    ], error: null });
+    await expect(getProjectReservedSpend('proj-1')).resolves.toEqual({
+      amount: 250.25, projectCurrency: 'USD', budgetCurrency: 'USD',
+      otherCurrencies: [{ currency: 'EUR', amount: 19.75 }],
+    });
   });
 });

@@ -11,7 +11,7 @@ import { computeBudgetSignal } from './computeBudgetSignal';
 
 describe('computeBudgetSignal — Available = Budget − Committed − Reserved (AC-RB-004)', () => {
   it('AC-RB-004: budget 1000 / committed 300 / reserved 200 → available $500', () => {
-    const s = computeBudgetSignal({
+    const s = computeBudgetSignal({ projectCurrency: 'USD', budgetCurrency: 'USD', requestCurrency: 'USD',
       budget: 1000,
       committed: 300,
       reserved: 200,
@@ -22,7 +22,7 @@ describe('computeBudgetSignal — Available = Budget − Committed − Reserved 
   });
 
   it('AC-RB-004: available is negative when committed + reserved exceed budget', () => {
-    const s = computeBudgetSignal({
+    const s = computeBudgetSignal({ projectCurrency: 'USD', budgetCurrency: 'USD', requestCurrency: 'USD',
       budget: 1000,
       committed: 800,
       reserved: 400,
@@ -35,7 +35,7 @@ describe('computeBudgetSignal — Available = Budget − Committed − Reserved 
 
 describe('computeBudgetSignal — otherReserved excludes this case (AC-RB-005)', () => {
   it('AC-RB-005: total reserved 200, this case 50 (Approved → in reserved) → otherReserved 150', () => {
-    const s = computeBudgetSignal({
+    const s = computeBudgetSignal({ projectCurrency: 'USD', budgetCurrency: 'USD', requestCurrency: 'USD',
       budget: 1000,
       committed: 0,
       reserved: 200,
@@ -47,7 +47,7 @@ describe('computeBudgetSignal — otherReserved excludes this case (AC-RB-005)',
   });
 
   it('AC-RB-005: at Requested the case is NOT in reserved → otherReserved equals total reserved', () => {
-    const s = computeBudgetSignal({
+    const s = computeBudgetSignal({ projectCurrency: 'USD', budgetCurrency: 'USD', requestCurrency: 'USD',
       budget: 1000,
       committed: 0,
       reserved: 200,
@@ -63,7 +63,7 @@ describe('computeBudgetSignal — the double-count boundary (AC-RB-006 / AC-RB-0
   // Same discriminating numbers as the panel's rendered AC-RB-006/007 tests:
   // budget 700, committed 100, reserved 100 → available 500; thisRequest 120.
   it('AC-RB-006: Requested (caseInReserved=false) → afterRequest = available − totalValue = $380', () => {
-    const s = computeBudgetSignal({
+    const s = computeBudgetSignal({ projectCurrency: 'USD', budgetCurrency: 'USD', requestCurrency: 'USD',
       budget: 700,
       committed: 100,
       reserved: 100,
@@ -76,7 +76,7 @@ describe('computeBudgetSignal — the double-count boundary (AC-RB-006 / AC-RB-0
   });
 
   it('AC-RB-007: Approved (caseInReserved=true) → afterRequest = available = $500 (NOT $380, no double-subtract)', () => {
-    const s = computeBudgetSignal({
+    const s = computeBudgetSignal({ projectCurrency: 'USD', budgetCurrency: 'USD', requestCurrency: 'USD',
       budget: 700,
       committed: 100,
       reserved: 100,
@@ -91,7 +91,7 @@ describe('computeBudgetSignal — the double-count boundary (AC-RB-006 / AC-RB-0
 
 describe('computeBudgetSignal — advisory flags (FR-RB-040 / FR-RB-041)', () => {
   it('FR-RB-040: overAvailable when NOT in reserved AND request exceeds available', () => {
-    const s = computeBudgetSignal({
+    const s = computeBudgetSignal({ projectCurrency: 'USD', budgetCurrency: 'USD', requestCurrency: 'USD',
       budget: 700,
       committed: 100,
       reserved: 100,
@@ -105,7 +105,7 @@ describe('computeBudgetSignal — advisory flags (FR-RB-040 / FR-RB-041)', () =>
   });
 
   it('FR-RB-040: no overAvailable when request fits within available', () => {
-    const s = computeBudgetSignal({
+    const s = computeBudgetSignal({ projectCurrency: 'USD', budgetCurrency: 'USD', requestCurrency: 'USD',
       budget: 700,
       committed: 100,
       reserved: 100,
@@ -117,7 +117,7 @@ describe('computeBudgetSignal — advisory flags (FR-RB-040 / FR-RB-041)', () =>
   });
 
   it('FR-RB-040: never overAvailable when the case is already in reserved (Approved)', () => {
-    const s = computeBudgetSignal({
+    const s = computeBudgetSignal({ projectCurrency: 'USD', budgetCurrency: 'USD', requestCurrency: 'USD',
       budget: 700,
       committed: 100,
       reserved: 100,
@@ -129,7 +129,7 @@ describe('computeBudgetSignal — advisory flags (FR-RB-040 / FR-RB-041)', () =>
   });
 
   it('FR-RB-041: overBudgetReserved when in reserved AND available is negative', () => {
-    const s = computeBudgetSignal({
+    const s = computeBudgetSignal({ projectCurrency: 'USD', budgetCurrency: 'USD', requestCurrency: 'USD',
       budget: 1000,
       committed: 800,
       reserved: 400, // available = -200
@@ -141,7 +141,7 @@ describe('computeBudgetSignal — advisory flags (FR-RB-040 / FR-RB-041)', () =>
   });
 
   it('FR-RB-041: no overBudgetReserved when in reserved AND available is non-negative', () => {
-    const s = computeBudgetSignal({
+    const s = computeBudgetSignal({ projectCurrency: 'USD', budgetCurrency: 'USD', requestCurrency: 'USD',
       budget: 1000,
       committed: 300,
       reserved: 200, // available = 500
@@ -150,4 +150,17 @@ describe('computeBudgetSignal — advisory flags (FR-RB-040 / FR-RB-041)', () =>
     });
     expect(s.overBudgetReserved).toBe(false);
   });
+});
+
+it('keeps decimal budget positions exact', () => {
+  const result = computeBudgetSignal({ projectCurrency: 'USD', budgetCurrency: 'USD', requestCurrency: 'USD', budget: 1, committed: 0.1, reserved: 0.2, totalValue: 0.3, status: 'Requested' });
+  expect(result.available).toBe(0.7);
+  expect(result.afterRequest).toBe(0.4);
+});
+
+it('requires matching project, budget and request currencies', () => {
+  expect(() => computeBudgetSignal({
+    budget: 1000, committed: 100, reserved: 200, totalValue: 50, status: 'Requested',
+    projectCurrency: 'USD', budgetCurrency: 'USD', requestCurrency: 'EUR',
+  })).toThrow();
 });

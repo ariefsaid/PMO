@@ -9724,6 +9724,14 @@ export type Database = {
         Args: { p_boq_item_id: string; p_entry_id: string }
         Returns: boolean
       }
+      project_reserved_position: {
+        Args: { p_project_id: string }
+        Returns: {
+          project_currency: string | null
+          budget_currency: string | null
+          positions: Json
+        }[]
+      }
       project_committed_spend: {
         Args: { p_project_id: string }
         Returns: {
