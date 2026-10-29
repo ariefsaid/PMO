@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { QueryClient } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { formatCurrency } from '@/src/lib/format';
@@ -13,8 +14,9 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
  * date inputs, so the user confirms against the actual figure before committing the win.
  */
 
-const { transitionProject, invalidateQueries } = vi.hoisted(() => ({
+const { transitionProject, repositoryTransition, invalidateQueries } = vi.hoisted(() => ({
   transitionProject: vi.fn().mockResolvedValue(undefined),
+  repositoryTransition: vi.fn().mockResolvedValue(undefined),
   invalidateQueries: vi.fn().mockResolvedValue(undefined),
 }));
 // FR-L10N-020: this component reads useOrgCurrency for its ACROSS-record aggregates. Pinned here
@@ -24,6 +26,11 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, transitionProject };
+});
+
+vi.mock('@/src/lib/repositories', async (orig) => {
+  const actual = await orig() as typeof import('@/src/lib/repositories');
+  return { ...actual, repositories: { ...actual.repositories, project: { ...actual.repositories.project, transition: repositoryTransition } } };
 });
 
 const CONTRACT_VALUE = 1200000;
@@ -83,7 +90,8 @@ const renderLens = () =>
 
 beforeEach(() => {
   transitionProject.mockClear();
-  invalidateQueries.mockClear();
+  repositoryTransition.mockClear();
+  invalidateQueries.mockReset().mockResolvedValue(undefined);
 });
 
 describe('PipelineLens — mark-won shows the booked value (AC-IXD-DASH-005)', () => {
@@ -110,11 +118,21 @@ describe('PipelineLens — mark-won shows the booked value (AC-IXD-DASH-005)', (
 
 describe('PipelineLens — a transition refreshes the detail page (AC-OVERFETCH-001)', () => {
   it('AC-OVERFETCH-001: Advance invalidates the project detail key the page reads', async () => {
+    const client = new QueryClient();
+    client.setQueryData(['won-deals', 'org-1'], 'old');
+    client.setQueryData(['win-rate', 'org-1', 'year'], 'old');
+    client.setQueryData(['won-deals', 'org-2'], 'other');
+    invalidateQueries.mockImplementation((options) => client.invalidateQueries(options));
     renderLens();
     await userEvent.click(screen.getByRole('button', { name: /Advance/i }));
-    await vi.waitFor(() => expect(transitionProject).toHaveBeenCalled());
+    await vi.waitFor(() => expect(repositoryTransition).toHaveBeenCalledWith('d1', expect.any(String)));
     await vi.waitFor(() =>
       expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['project', 'org-1', 'd1'] }),
     );
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['won-deals', 'org-1'] });
+    expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['win-rate', 'org-1'] });
+    expect(client.getQueryState(['won-deals', 'org-1'])?.isInvalidated).toBe(true);
+    expect(client.getQueryState(['win-rate', 'org-1', 'year'])?.isInvalidated).toBe(true);
+    expect(client.getQueryState(['won-deals', 'org-2'])?.isInvalidated).toBe(false);
   });
 });

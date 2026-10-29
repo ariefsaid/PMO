@@ -10,6 +10,7 @@ const h = vi.hoisted(() => {
   builder.select = (s: unknown) => { selects.push(s); return builder; };
   builder.eq = () => builder;
   builder.is = () => builder;
+  builder.range = () => builder;
   builder.order = () => builder;
   builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
   return { from: vi.fn(() => builder), result, selects };

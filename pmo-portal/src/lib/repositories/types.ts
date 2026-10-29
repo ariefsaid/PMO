@@ -52,7 +52,7 @@ import type { ExpenseReceiptRow } from '@/src/lib/db/expenseReceipts';
 import type { ExpenseAccountMapRow, ExpensePostingRow } from './expensePostings';
 import type { ErpLinkResponse, ErpLinkRow, ErpPurchaseRow } from './erpPurchases';
 import type { ProcurementGates } from '@/src/lib/db/orgs';
-import type { TransitionProjectOpts, ProjectStatus } from '@/src/lib/db/projectTransitions';
+import type { TransitionProjectOpts, ProjectStatus, PipelineStageConfig } from '@/src/lib/db/projectTransitions';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import type {
   ProjectDocumentRow,
@@ -127,7 +127,7 @@ import type {
   NewLineItem,
   ImportProvenance,
 } from '@/src/lib/db/budgets';
-import type { TaskRow, TaskWithRefs, TaskInput, TaskPatch, TaskStatus } from '@/src/lib/db/tasks';
+import type { TaskRow, TaskWithRefs, TaskInput, TaskPatch, TaskStatus, MyTask } from '@/src/lib/db/tasks';
 import type {
   IncidentRow,
   IncidentInput,
@@ -195,6 +195,9 @@ export interface ProjectRepository {
   list(
     params?: { status?: ProjectRow['status']; statuses?: ProjectRow['status'][]; pmId?: string } & PageParams,
   ): Promise<ProjectWithRefs[]>;
+  listByClient(clientId: string): Promise<ProjectWithRefs[]>;
+  getWithRefs(id: string): Promise<ProjectWithRefs | null>;
+  listPipelineStageConfig(): Promise<PipelineStageConfig[]>;
   listIdentity(): Promise<Array<Pick<ProjectRow, 'id' | 'name'>>>;
   get(id: string): Promise<OpportunityRow | null>;
   transition(id: string, to: ProjectStatus, opts?: TransitionProjectOpts): Promise<void>;
@@ -281,6 +284,7 @@ export interface TaskRepository {
   list(projectId: string): Promise<TaskWithRefs[]>;
   /** Tasks minuted out of one meeting (the /action seam, migration 0206). */
   listByMeeting(meetingId: string): Promise<TaskWithRefs[]>;
+  listByAssignee(userId: string): Promise<MyTask[]>;
   /** A single task by id, or null when not found / not readable. */
   get(id: string): Promise<TaskWithRefs | null>;
   /** Create a task (org_id stamped by RLS, never sent). */
@@ -288,7 +292,7 @@ export interface TaskRepository {
   /** Update structure fields (name/assignee/dates/status) — managers. */
   update(id: string, patch: TaskPatch, projectId?: string): Promise<void>;
   /** Update ONLY the status column — the assignee (Engineer own-task) path. */
-  updateStatus(id: string, status: TaskStatus, projectId?: string): Promise<void>;
+  updateStatus(id: string, status: TaskStatus, projectId?: string | null): Promise<void>;
   /** Hard-delete a task (cascades dependencies). */
   delete(id: string, projectId?: string): Promise<void>;
   /** PMO-owned reversible soft archive. */

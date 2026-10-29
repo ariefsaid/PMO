@@ -38,6 +38,8 @@ describe('useErpPurchaseLinks', () => {
   it('a real link refreshes orphans, purchases, committed spend and linked lists; a dry run refreshes nothing', async () => {
     const client = newClient();
     const spy = vi.spyOn(client, 'invalidateQueries');
+    client.setQueryData(['procurements', 'org-a', 'by-vendor', 'v1'], 'old');
+    client.setQueryData(['procurements', 'org-b', 'by-vendor', 'v1'], 'other');
     const { result } = renderHook(() => useLinkErpDocuments(), { wrapper: wrap(client) });
     mock.link.mockResolvedValueOnce({ dry_run: true, counts: { link: 1, skip: 0, refused: 0 }, results: [] });
     await act(() => result.current.mutateAsync({ rows: [{ erp_name: 'PINV-1' }], dryRun: true }));
@@ -46,6 +48,8 @@ describe('useErpPurchaseLinks', () => {
     mock.link.mockResolvedValueOnce({ dry_run: false, counts: { link: 1, skip: 0, refused: 0 }, results: [] });
     await act(() => result.current.mutateAsync({ rows: [{ erp_name: 'PINV-1' }] }));
     expect(invalidatedKeys(spy).sort()).toEqual([...MOVED].sort());
+    expect(client.getQueryState(['procurements', 'org-a', 'by-vendor', 'v1'])?.isInvalidated).toBe(true);
+    expect(client.getQueryState(['procurements', 'org-b', 'by-vendor', 'v1'])?.isInvalidated).toBe(false);
   });
 
   it('unlink refreshes the same figures', async () => {

@@ -12,6 +12,7 @@ import {
   useToast,
   type StatTile,
 } from '@/src/components/ui';
+import { invalidateProjectProjections } from '@/src/hooks/projectQueryKeys';
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
@@ -19,7 +20,6 @@ import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { listReturnNavigation } from '@/src/lib/listReturnContext';
 import { formatCurrency, formatDecisionDateNumeric } from '@/src/lib/format';
 import {
-  transitionProject,
   LEGAL_PROJECT_TRANSITIONS,
   PIPELINE_STATUSES,
   projectStatusGroup,
@@ -30,6 +30,7 @@ import {
   dealJourneySteps,
 } from '../../components/salesPipeline';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { repositories } from '@/src/lib/repositories';
 import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
 
 // ⛔ NOT TRANSLATED, deliberately: these are pipeline STAGE names -- the same vocabulary
@@ -139,8 +140,8 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
     try {
       // Preserve the RPC contract byte-for-byte: a stage advance / loss passes
       // exactly two args (no opts); only the Won path carries the SoD opts.
-      if (opts) await transitionProject(project.id, to as never, opts);
-      else await transitionProject(project.id, to as never);
+      if (opts) await repositories.project.transition(project.id, to as never, opts);
+      else await repositories.project.transition(project.id, to as never);
       // AC-SETUP-001: a native win stays successful; ERP linking is a separate, retryable step.
       const erpPending =
         to === 'Won, Pending KoM' &&
@@ -151,6 +152,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
       await queryClient.invalidateQueries({ queryKey: ['projects', currentUser?.org_id] });
       await queryClient.invalidateQueries({ queryKey: ['project', currentUser?.org_id, project.id] });
       await queryClient.invalidateQueries({ queryKey: ['opportunity', currentUser?.org_id, project.id] });
+      invalidateProjectProjections(queryClient, currentUser?.org_id);
       setShowWonPanel(false);
       setContractRef('');
       setContractDate('');

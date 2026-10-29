@@ -2,10 +2,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UseQueryResult, UseMutationResult } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { useState } from 'react';
+import { invalidateProjectProjections } from './projectQueryKeys';
+import { repositories } from '@/src/lib/repositories';
 import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
 import {
-  listPipelineStageConfig,
-  transitionProject,
   type PipelineStageConfig,
   type ProjectStatus,
   type TransitionProjectOpts,
@@ -26,7 +26,7 @@ export function usePipelineStageConfig(): UseQueryResult<PipelineStageConfig[]> 
 
   return useQuery<PipelineStageConfig[]>({
     queryKey: ['pipeline-stage-config', orgId],
-    queryFn: listPipelineStageConfig,
+    queryFn: () => repositories.project.listPipelineStageConfig(),
     enabled: Boolean(orgId),
   });
 }
@@ -54,15 +54,13 @@ export function useProjectTransition(): UseMutationResult<void, Error, Transitio
   const [erpSetupPending, setErpSetupPending] = useState(false);
 
   const mutation = useMutation<void, Error, TransitionVars>({
-    mutationFn: ({ id, to, opts }) => transitionProject(id, to, opts),
+    mutationFn: ({ id, to, opts }) => repositories.project.transition(id, to, opts),
     onSuccess: async (_data, { id, to }) => {
       setErpSetupPending(to === 'Won, Pending KoM' && await synchronizeErpProject(id, orgId) === 'pending');
-      queryClient.invalidateQueries({ queryKey: ['projects', orgId] });
+      invalidateProjectProjections(queryClient, orgId);
       queryClient.invalidateQueries({ queryKey: ['integrations', 'bindings', orgId] });
       queryClient.invalidateQueries({ queryKey: ['integrations', 'project-erp', orgId] });
       queryClient.invalidateQueries({ queryKey: ['integrations', 'setup', orgId] });
-      queryClient.invalidateQueries({ queryKey: ['opportunity'] });
-      queryClient.invalidateQueries({ queryKey: ['project'] });
     },
   });
   return { ...mutation, erpSetupPending };

@@ -1,80 +1,10 @@
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
+import { invalidateTaskProjections } from './taskQueryKeys';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/src/lib/supabase/client';
 import { useAuth } from '@/src/auth/useAuth';
-import { updateTaskStatus, type TaskStatus } from '@/src/lib/db/tasks';
+import type { MyTask, TaskStatus } from '@/src/lib/db/tasks';
+import { repositories } from '@/src/lib/repositories';
 import { toAppError } from '@/src/lib/appError';
-
-/**
- * A task row joined with its project name — the shape the My Tasks page consumes.
- * This is a cross-project, assignee-scoped read: the RLS `tasks_select` policy
- * already gates to the org; the client-side `assignee_id = self` filter scopes to own.
- * No new RLS migration is needed — org-scoped rows are already returned, and we filter
- * on assignee_id client-side (a simple equality filter on a column we own).
- *
- * The plan (B-1) notes: "only add a small DAL helper if needed — do NOT add a new RLS
- * migration". RLS already scopes to the org; the assignee filter is a client-side WHERE.
- */
-export interface MyTask {
-  id: string;
-  name: string;
-  status: TaskStatus;
-  assignee_id: string | null;
-  /** #525: NULL for a task that was never given a project — it is a real state, not missing data. */
-  project_id: string | null;
-  /** NULL exactly when `project_id` is; the UI renders a heading, not a project link (FR-FCT-041). */
-  project_name: string | null;
-  /** The contractual title behind a short `project_name` (hover + search). */
-  project_contractual_name?: string | null;
-  /** Meeting-linked tasks without a project still have a canonical record doorway. */
-  meeting_id?: string | null;
-  start_date: string | null;
-  end_date: string | null;
-}
-
-/**
- * Fetch all tasks assigned to the signed-in user across projects.
- * org_id is NEVER sent — RLS (tasks_select) scopes to the org. The assignee_id
- * filter is applied client-side after the RLS-scoped result set (no new policy needed).
- * The project name is joined via `projects(name)` in the select. Excludes tombstoned rows
- * (`.is('tombstoned_at', null)`, AC-CUA-002/C5c) — a ClickUp-native delete (C3) must not
- * remain in the cross-project My Tasks list either.
- */
-async function listMyTasks(userId: string): Promise<MyTask[]> {
-  const { data, error } = await supabase
-    .from('tasks')
-    .select('id, name, status, assignee_id, project_id, meeting_id, start_date, end_date, project:projects!tasks_project_id_fkey(name, short_name)')
-    .eq('assignee_id', userId)
-    .is('tombstoned_at', null)
-    .order('created_at', { ascending: true });
-  if (error) throw toAppError(error);
-  // Map the joined `project` shape onto `project_name`.
-  return ((data ?? []) as unknown as Array<{
-    id: string;
-    name: string;
-    status: string;
-    assignee_id: string | null;
-    project_id: string | null;
-    meeting_id: string | null;
-    start_date: string | null;
-    end_date: string | null;
-    project: { name: string; short_name?: string | null } | null;
-  }>).map((t) => ({
-    id: t.id,
-    name: t.name,
-    status: t.status as TaskStatus,
-    assignee_id: t.assignee_id,
-    project_id: t.project_id,
-    meeting_id: t.meeting_id,
-    // ⚑ NOT `?? '—'`. A project-less task has no project NAME either, and collapsing that to a dash
-    // would make it indistinguishable from a project whose name failed to load — the UI needs to
-    // tell them apart to decide between a link and a plain heading (FR-FCT-041).
-    project_name: t.project ? projectDisplayName(t.project) : null,
-    ...(t.project && projectDisplayName(t.project) !== t.project.name ? { project_contractual_name: t.project.name } : {}),
-    start_date: t.start_date,
-    end_date: t.end_date,
-  }));
-}
+export type { MyTask } from '@/src/lib/db/tasks';
 
 /**
  * B-1: own-assigned cross-project task list.
@@ -87,14 +17,13 @@ export function useMyTasks() {
   const orgId = currentUser?.org_id;
   return useQuery<MyTask[]>({
     queryKey: ['my-tasks', orgId, userId],
-    queryFn: () => listMyTasks(userId!),
+    queryFn: () => repositories.task.listByAssignee(userId!),
     enabled: Boolean(userId) && Boolean(orgId),
   });
 }
 
 /**
- * Status mutation for an Engineer's own task — routed through the `updateTaskStatus` DAL helper
- * (`db/tasks.ts`), not a raw `supabase.from('tasks').update(...)` call, so this quick-status write
+ * Status mutation for an Engineer's own task — routed through the task repository so this write
  * inherits the ADR-0056 `routeTaskWrite()` seam + pending-push behavior instead of bypassing
  * `dispatchTaskCommand` when the org's `tasks` domain is externally-owned (AC-CUA-001/060/061).
  * PMO-owned orgs (the fail-closed default) keep the exact pre-P1 direct-DAL path (assignee-only
@@ -104,13 +33,12 @@ export function useMyTaskMutations() {
   const qc = useQueryClient();
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  const userId = currentUser?.id;
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['my-tasks', orgId, userId] });
+  const invalidate = (_data: unknown, vars: { projectId?: string | null }) => invalidateTaskProjections(qc, orgId, vars.projectId);
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status, projectId }: { id: string; status: TaskStatus; projectId?: string | null }) => {
       try {
-        await updateTaskStatus(id, status, projectId);
+        await repositories.task.updateStatus(id, status, projectId);
       } catch (err) {
         throw toAppError(err);
       }
