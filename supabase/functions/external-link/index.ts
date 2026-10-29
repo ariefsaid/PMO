@@ -67,16 +67,6 @@ interface LinkBody {
   companyId?: string;
 }
 
-interface LinkResponse {
-  ok: true;
-  binding?: {
-    id: string;
-    direction?: 'push-seed' | 'pull-adopt';
-    listId?: string;
-  };
-  companyId?: string;
-}
-
 // Memoized JWKS resolver
 let _jwks: JwksResolver | null = null;
 function getJwks(supabaseUrl: string): JwksResolver {
@@ -378,6 +368,14 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
     return errorResponse('Profile not found', 'FORBIDDEN', 403);
   }
 
+  const { data: actorState, error: actorError } = await serviceClient.rpc('actor_authorization_state', {
+    p_org_id: profile.org_id,
+    p_user_id: userId,
+  });
+  if (actorError || !actorState || actorState.active !== true || profile.status !== 'active') {
+    return errorResponse('Active organization member required', 'FORBIDDEN', 403);
+  }
+
   // 4. Check platform operator status
   const { data: isOperator } = await serviceClient
     .from('platform_operators')
@@ -385,7 +383,7 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
     .eq('user_id', userId)
     .maybeSingle();
 
-  const isAdmin = profile.role === 'Admin';
+  const isAdmin = actorState.role === 'Admin';
   const isPlatformOperator = !!isOperator;
 
   // 5. Parse body - tier FIRST, then tier-specific auth
@@ -442,19 +440,8 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
       return errorResponse('Project not found in this org', 'NOT_FOUND', 404);
     }
 
-    // ClickUp tier-specific auth: Admin OR Operator OR (PM of this project AND PM profile active)
-    const isPmOfProject = project.project_manager_id === userId;
-    let pmProfileActive = false;
-    if (isPmOfProject) {
-      const { data: pmProfile } = await serviceClient
-        .from('profiles')
-        .select('status')
-        .eq('id', userId)
-        .single();
-      pmProfileActive = pmProfile?.status === 'active';
-    }
-
-    const allowed = isAdmin || isPlatformOperator || (isPmOfProject && pmProfileActive);
+    const allowed = isAdmin || isPlatformOperator ||
+      (actorState.role === 'Project Manager' && project.project_manager_id === userId);
     if (!allowed) {
       return errorResponse(
         'Admin, Operator, or Project Manager of this project (with active profile) required',
@@ -543,26 +530,16 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
       );
     }
 
-    // Insert external_project_bindings row
-    const { data: bindingRow, error: insertError } = await serviceClient
-      .from('external_project_bindings')
-      .insert({
-        org_id: profile.org_id,
-        project_id: projectId,
-        external_tier: 'clickup',
-        external_container_id: listId,
-        config: {
-          direction,
-          statusMap,
-          memberMap,
-        },
-        linked_by: userId,
-        linked_at: new Date().toISOString(),
-      })
-      .select('id')
-      .single();
+    const { data: bindingId, error: insertError } = await serviceClient.rpc('link_external_project', {
+      p_org_id: profile.org_id,
+      p_actor_id: userId,
+      p_project_id: projectId,
+      p_container_id: listId,
+      p_config: { direction, statusMap, memberMap },
+    });
 
     if (insertError) {
+      if (insertError.code === '42501') return errorResponse('Current authority required', 'FORBIDDEN', 403);
       // Handle unique constraint violation (already linked)
       if (insertError.code === '23505') {
         return errorResponse('Project already linked to a ClickUp List', 'CONFLICT', 409);
@@ -576,7 +553,7 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
       p_action: 'integration.link',
       p_org_id: profile.org_id,
       p_actor_id: userId,
-      p_entity_id: bindingRow.id,
+      p_entity_id: bindingId,
       p_detail: jsonbBuildObject({
         tier: 'clickup',
         project_id: projectId,
@@ -589,7 +566,7 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
 
     return json({
       ok: true,
-      binding: { id: bindingRow.id, direction, listId },
+      binding: { id: bindingId, direction, listId },
     });
   }
 
@@ -639,15 +616,15 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
       return errorResponse('Company validation failed', 'CONFIG_REJECTED', 422);
     }
 
-    // Update external_org_bindings.config.company
-    const newConfig = { ...(binding.config as Record<string, unknown>), company: companyId };
-    const { error: updateError } = await serviceClient
-      .from('external_org_bindings')
-      .update({ config: newConfig })
-      .eq('org_id', profile.org_id)
-      .eq('external_tier', 'erpnext');
+    const { data: updated, error: updateError } = await serviceClient.rpc('link_external_company', {
+      p_org_id: profile.org_id,
+      p_actor_id: userId,
+      p_company: companyId,
+      p_site_url: binding.site_url,
+    });
 
-    if (updateError) {
+    if (updateError?.code === '42501') return errorResponse('Current authority required', 'FORBIDDEN', 403);
+    if (updateError || !updated) {
       console.error('external_org_bindings config update failed', updateError);
       return errorResponse('Failed to update ERPNext binding', 'INTERNAL', 500);
     }
