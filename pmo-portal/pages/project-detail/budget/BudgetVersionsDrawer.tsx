@@ -12,6 +12,7 @@ interface BudgetVersionsDrawerProps {
   open: boolean;
   onClose: () => void;
   versions: BudgetVersionWithItems[];
+  fallbackCurrency: string;
   canWrite: boolean;
   hasDraft: boolean;
   nestedOpen?: boolean;
@@ -34,6 +35,7 @@ export default function BudgetVersionsDrawer({
   open,
   onClose,
   versions,
+  fallbackCurrency,
   canWrite,
   hasDraft,
   nestedOpen = false,
@@ -88,7 +90,7 @@ export default function BudgetVersionsDrawer({
                     )}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {formatCurrencyAuto(version.total, version.currency)}
+                    {formatCurrencyAuto(version.total, version.currency || fallbackCurrency)}
                     {' · '}{version.activated_at ? formatInstantDate(version.activated_at) : t('projectDetail.budget.notActivated', 'Not activated')}
                   </p>
                 </div>

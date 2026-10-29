@@ -803,6 +803,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     ? enrichedRows.find((row) => row.category === searchParams.get('open')) ?? null
     : null;
   const totalBudget = activeVersion?.total ?? null;
+  // When the active version has no recorded currency, use the project currency for display.
+  const activeBudgetCurrency = activeVersion?.currency || project.currency;
   const tableBudgetTotal = selectedVersion?.total ?? null;
   const totalSpent = enrichedRows.length > 0 && enrichedRows.every((row) => row.spent !== null && canSeeActuals)
     ? enrichedRows.reduce((sum, row) => sum + (row.spent ?? 0), 0)
@@ -836,10 +838,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   // C5 + money precision: no trailing .00 on whole amounts, but a real fraction (1,234.5) is never rounded away.
   const formatAmount = (value: number | null) => value === null ? '—' : formatNumberMax2(value);
   // F11: KPI tiles carry the short amount; the full amount stays on hover and for screen readers.
-  const tileAmount = (value: number | null) => {
+  const tileAmount = (value: number | null, currency = project.currency) => {
     if (value === null) return { value: '—' };
-    const short = formatShortMoney(value, project.currency);
-    const exact = formatCurrency(value, project.currency);
+    const short = formatShortMoney(value, currency);
+    const exact = formatCurrency(value, currency);
     return short === exact ? { value: short } : { value: short, exactValue: exact };
   };
   const budgetUnit = <span className="text-xs text-muted-foreground">{project.currency}{project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-xs" /></>}</span>;
@@ -1192,7 +1194,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       {versions.length === 0 && <ListState variant="empty" icon="dollar" title={t('financeCopy.noBudgetVersionsYet', 'No budget versions yet')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} action={canWrite ? { label: t('projectDetail.budget.createBudget', 'Create budget'), onClick: () => { dismissActivationNotice(); setShowNewVersionForm(true); } } : undefined} />}
 
       <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="grid-cols-2 lg:grid-cols-4">
-        <KPITile icon="dollar" tone="blue" label={t('financeCopy.budget', 'Budget')} {...tileAmount(totalBudget)} help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items, grouped by category.')} />
+        <KPITile icon="dollar" tone="blue" label={t('financeCopy.budget', 'Budget')} {...tileAmount(totalBudget, activeBudgetCurrency)} help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items, grouped by category.')} />
         <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent)} unavailableReason={totalSpent === null ? t('projectDetail.budget.spendingUnavailable', 'Spending is unknown or unavailable.') : undefined} help={actualSource} />
         <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} {...tileAmount(totalCommitted)} unavailableReason={totalCommitted === null ? t('projectDetail.budget.commitmentsUnavailable', 'Commitments are unknown or unavailable.') : undefined} help={t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')} />
         <KPITile icon="down" tone={totalLeft !== null && totalLeft < 0 ? 'red' : 'green'} label={t('projectDetail.budget.left', 'Left')} {...tileAmount(totalLeft)} negative={totalLeft !== null && totalLeft < 0} unavailableReason={totalLeft === null ? t('projectDetail.budget.leftUnavailable', 'Left is unknown while spending or commitments are unavailable.') : undefined} help={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')} />
@@ -1370,6 +1372,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         open={versionsOpen}
         onClose={() => setVersionsOpen(false)}
         versions={versions}
+        fallbackCurrency={project.currency}
         canWrite={canWrite}
         hasDraft={Boolean(draftVersion)}
         nestedOpen={Boolean(pendingConfirm)}
