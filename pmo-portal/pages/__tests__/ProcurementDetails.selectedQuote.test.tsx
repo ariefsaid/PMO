@@ -184,12 +184,18 @@ const quoteRow = (quoteNumber: string): HTMLElement => {
   if (!row) throw new Error(`Expected vendor quote row ${quoteNumber}`);
   return row;
 };
+const selectedQuoteRow = (quoteNumber: string): HTMLElement => {
+  const row = quoteRow(quoteNumber);
+  expect(within(row).getByText('Selected')).toBeInTheDocument();
+  expect(within(row).getByText('Lowest price')).toBeInTheDocument();
+  return row;
+};
 
 describe('AC-IXD-PROC-004: the Selected-quote summary binds to the chosen quotation', () => {
   it('AC-IXD-PROC-004: at Quote Selected the chosen quote row shows the selected amount + vendor (not the other bid)', () => {
     detailState.data = { ...base, status: 'Quote Selected' };
     renderPage('quotes');
-    const row = quoteRow('VQ-2606040001');
+    const row = selectedQuoteRow('VQ-2606040001');
     // formatCurrency(48000) = "$48,000" (the selected quote's amount)
     expect(row).toHaveTextContent('$48,000');
     // names the selected vendor, not the rejected bid
@@ -211,7 +217,7 @@ describe('AC-IXD-PROC-004: the Selected-quote summary binds to the chosen quotat
       ],
     };
     renderPage('quotes');
-    const row = quoteRow('VQ-2606040001');
+    const row = selectedQuoteRow('VQ-2606040001');
     expect(row).toHaveTextContent('$48,000');
     expect(row).toHaveTextContent('Apex Supply');
   });
