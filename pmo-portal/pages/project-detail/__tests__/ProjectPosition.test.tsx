@@ -8,6 +8,7 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 const state = vi.hoisted(() => ({
   role: 'Project Manager',
+  orgDay: '2026-10-27',
   forceInvoiceView: false,
   orgCurrency: 'IDR',
   fxRateCalls: [] as unknown[][],
@@ -60,7 +61,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoices: () => ({ data: state.invoices, isPending: state.invoicesPending, isError: state.invoicesError, refetch: state.invoicesRefetch }),
 }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({
-  useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }),
+  useFxOrgDay: () => ({ day: state.orgDay, isPending: false, isError: false, retry: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({
   useOrgCurrencyState: () => ({ currency: state.orgCurrency, isResolved: true, isError: false }),
@@ -109,6 +110,7 @@ const invoice = (overrides: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   state.role = 'Project Manager';
+  state.orgDay = '2026-10-27';
   state.forceInvoiceView = false;
   state.orgCurrency = 'IDR';
   state.fxRateCalls = [];
@@ -215,11 +217,12 @@ describe('project money position', () => {
   });
 
   it('collects over-budget, overdue, late-phase and waiting-request actions with danger items first', () => {
-    const twoDaysAgo = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
+    const twoDaysAgo = new Date(`${state.orgDay}T00:00:00Z`);
+    twoDaysAgo.setUTCDate(twoDaysAgo.getUTCDate() - 2);
     state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
     state.finances = actuals([{ category: 'Labor', mapped: true, amount: '130' }]);
     state.invoices = [invoice({ id: 'inv-1', erp_due_date: '2026-10-20', erp_outstanding_amount: '40' })];
-    state.milestones = [{ id: 'm1', name: 'Design', target_date: twoDaysAgo, effective_pct: 40, task_count: 2 }];
+    state.milestones = [{ id: 'm1', name: 'Design', target_date: twoDaysAgo.toISOString().slice(0, 10), effective_pct: 40, task_count: 2 }];
     state.procurements = [{
       id: 'req-1', status: 'Requested', requested_by_id: 'another-user',
       approvalRoute: { route: 'flat', approvers: [] },

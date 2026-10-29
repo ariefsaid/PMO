@@ -13,7 +13,7 @@ import { useTasks } from '@/src/hooks/useTasks';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useMilestones } from '@/src/hooks/useMilestones';
-import { completionPct, formatCurrency, formatDateOnly, formatNumberWhole } from '@/src/lib/format';
+import { completionPct, formatDateOnly, formatNumberWhole } from '@/src/lib/format';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { deriveMargin } from '@/src/lib/projectFinances';
@@ -163,7 +163,7 @@ export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) 
               </dd>
               <dd className="text-right text-sm">
                 {step.key === 'contract'
-                  ? <span data-testid="contract-value-amount">{explain(step.source, formatCurrency(step.value, project.currency))}</span>
+                  ? <span data-testid="contract-value-amount">{explain(step.source, whole(step.value))}</span>
                   : explain(step.source, whole(step.value))}
               </dd>
               {step.key === 'contract' && contractValue !== null && (

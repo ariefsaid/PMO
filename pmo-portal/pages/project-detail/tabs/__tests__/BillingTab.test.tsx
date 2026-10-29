@@ -287,12 +287,12 @@ describe('BillingTab', () => {
     expect(screen.queryByRole('button', { name: 'Record progress' })).toBeNull();
   });
 
-  it('AC-PB-008 Finance gets no billing buttons without an ERP connection', () => {
+  it('AC-PB-008 Finance can start an invoice without ERP but cannot create a new claim', () => {
     h.connected = false;
     renderTab();
     expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
     const summaryHeader = screen.getByRole('heading', { name: /Billing summary/ }).parentElement?.parentElement;
-    expect(within(summaryHeader!).queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+    expect(within(summaryHeader!).getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
   });
 
   it('AC-PB-008 Finance gets no billing buttons when the project has no client', () => {
