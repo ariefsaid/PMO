@@ -73,7 +73,8 @@ test('AC-FAA-010: long Indonesian money values stay fully visible in Executive K
   await expectMoneyFits(desktopTile, visibleAmount, expectedShortAmount, expectedExactAmount);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  const phoneSpendLink = desktopTile.getByRole('link');
+  // #1403: KPITile keeps its full-surface link beside the content wrapper, so scope to the tile root.
+  const phoneSpendLink = desktopTile.locator('..').getByRole('link');
   await expect(phoneSpendLink).toBeVisible();
   await waitForFonts(page);
   await expectMoneyFits(desktopTile, visibleAmount, expectedShortAmount, expectedExactAmount);
