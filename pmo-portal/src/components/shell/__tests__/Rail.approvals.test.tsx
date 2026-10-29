@@ -42,7 +42,8 @@ vi.mock('@/src/lib/features', async (importOriginal) => ({
 import { Rail } from '../Rail';
 
 /** Explicit per-case seeding for the two timesheet queues Rail reads (OD-TS-5: an assigned
- *  manager may hold ANY role, so both queues are seeded for every role under test). */
+ *  manager may hold ANY role, so both queue caches are seeded for every role under test; Rail's
+ *  eligibility hooks themselves mount only for Engineer. */
 interface QueueSeeds {
   /** Rows in the awaiting-approval (pending) queue; defaults to the two-row shared fixture. */
   pending?: unknown[];
@@ -55,10 +56,11 @@ function renderRail(onNavigate = vi.fn(), role = 'Admin', queues: QueueSeeds = {
   const pendingRows = queues.pending ?? approvalsData.timesheets;
   const correctionRows = queues.corrections ?? [];
   const queryClient = new QueryClient();
-  // The real hooks behind both queues mount inside Rail for every role and poll on a 60s interval.
-  // Keep the seeded settled rows fresh for the life of a case: data this fresh never refetches at
-  // mount, and the poll is off — a case sees exactly the queue state it seeded, not a background
-  // transition into pending/error.
+  // Rail's Engineer-only eligibility wrapper mounts both real queue hooks. Other roles still get
+  // seeded cache entries.
+  // staleTime: Infinity keeps seeded data fresh at mount; each hook's explicit 60s
+  // refetchInterval overrides the false interval default below, so polling remains enabled. These
+  // short cases finish before it fires and do not test a later refetch.
   queryClient.setQueryDefaults(['timesheets-awaiting'], { staleTime: Infinity, refetchInterval: false });
   queryClient.setQueryDefaults(['timesheets-reopenable-approved'], { staleTime: Infinity, refetchInterval: false });
   queryClient.setQueryData(['external-domain-ownership', 'synthetic-org'], []);
