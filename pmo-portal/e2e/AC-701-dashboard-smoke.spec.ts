@@ -17,7 +17,7 @@ async function pinViewerLocale(page: import('@playwright/test').Page) {
 test('AC-701 Executive sees real org-scoped KPI values from the RPC', async ({ page }) => {
   await pinViewerLocale(page);
   await login(page, 'exec@acme.test');
-  await page.goto('/');
+  await expect(page).toHaveURL(/\/$/);
   // #1403 owner ruling: active-contract tile removed; on-hand is the company figure
   const companyFigures = page.getByRole('region', { name: 'Company figures' });
   const contractTile = companyFigures.getByText('Contract on hand', { exact: true }).locator('xpath=../..');
