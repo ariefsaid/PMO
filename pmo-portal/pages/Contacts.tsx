@@ -249,7 +249,9 @@ const Contacts: React.FC = () => {
           )}{' '}
           <Link
             to="/meetings"
-            className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            // Inline-in-prose link: a persistent underline keeps it distinguishable from
+            // the surrounding text without relying on colour (axe link-in-text-block).
+            className="text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             {t('contacts.descriptionMeetingsLink', 'Meetings module')}
           </Link>

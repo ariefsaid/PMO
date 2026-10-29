@@ -259,7 +259,10 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
                   data-testid={`calendar-cell-${cell.iso}`}
                   className={cn(
                     'min-h-[88px] border-b border-r border-border p-1',
-                    !cell.inMonth && 'bg-secondary/30 text-muted-foreground/60',
+                    // Adjacent-month cells de-emphasise through the surface tint alone;
+                    // the day number keeps the full muted token so it stays ≥4.5:1 (axe
+                    // color-contrast on the 11px figure).
+                    !cell.inMonth && 'bg-secondary/30 text-muted-foreground',
                     cell.isToday && cell.inMonth && 'ring-1 ring-inset ring-primary',
                   )}
                 >
