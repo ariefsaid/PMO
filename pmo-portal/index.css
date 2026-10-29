@@ -163,9 +163,12 @@
   --control-height-sm: 30px;
   --table-head-height: 52px;
   --table-row-min-height: 52px;
-  --table-cell-inset: 16px;
+  --space-page-gutter: 24px;
+  --space-section-inset: 24px;
+  --space-content-inset: 16px;
+  --table-cell-inset: var(--space-content-inset);
   --drawer-width: 448px;
-  --drawer-body-inset: 16px;
+  --drawer-body-inset: var(--space-content-inset);
   --space-section: 32px;
   --space-group: 16px;
   --rail-w: 224px;
@@ -444,6 +447,13 @@
     }
   }
 
+}
+
+/* The page content keeps a 16px gutter at phone and compact-tablet widths. */
+@media (max-width: 921px) {
+  :root {
+    --space-page-gutter: 16px;
+  }
 }
 
 /* ≤920px: collapse the rail column so the grid snaps to full-width and the

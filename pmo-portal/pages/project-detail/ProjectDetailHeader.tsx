@@ -242,7 +242,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
           <StatTiles tiles={tiles.slice(0, 1)} columns={1} variant="bare"
             className="grid-cols-1! [&>div]:min-w-0 [&>div]:col-span-1 [&>div]:py-0 md:[&>div]:py-1" />
           <StatTiles tiles={tiles.slice(1)} columns={Math.min(tiles.length - 1, 4)} variant="bare"
-            className={`gap-x-3 gap-y-2 [&>div]:min-w-0 ${REST_SPAN[tiles.length - 1] ?? REST_SPAN[4]}`} />
+            className={`[&>div]:min-w-0 ${REST_SPAN[tiles.length - 1] ?? REST_SPAN[4]}`} />
         </div>
       </details>
     </div>

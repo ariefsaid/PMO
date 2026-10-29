@@ -13,9 +13,9 @@ export const overlayMobileContainerClassName =
   'confirm-sheet-anim relative z-[810] w-full rounded-t-overlay border border-border bg-popover motion-reduce:animate-none';
 
 export const overlayHeaderClassName =
-  'flex items-center gap-2.5 border-b border-border bg-secondary px-4 py-3';
+  'flex items-center gap-2 border-b border-border bg-secondary px-[var(--space-content-inset)] py-3';
 
-export const overlayBodyClassName = 'px-[var(--drawer-body-inset)] py-4';
+export const overlayBodyClassName = 'px-[var(--space-content-inset)] py-[var(--space-content-inset)]';
 
 export const overlayFooterClassName =
-  'flex flex-wrap items-center justify-end gap-2 border-t border-border px-4 pt-2 pb-4';
+  'flex flex-wrap items-center justify-end gap-2 border-t border-border px-[var(--space-content-inset)] pt-2 pb-4';

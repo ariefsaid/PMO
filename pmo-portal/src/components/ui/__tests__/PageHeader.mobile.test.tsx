@@ -27,7 +27,7 @@ describe('AC-G3D-MOBILE-PH: PageHeader @390 overflow prevention', () => {
         actions={<button type="button">Edit</button>}
       />,
     );
-    // The outermost flex row (items-start gap-3.5) must include flex-wrap.
+    // The outermost header row must include flex-wrap before it can overflow.
     const row = container.querySelector('.flex.items-start');
     expect(row).toBeInTheDocument();
     expect(row?.className).toMatch(/flex-wrap/);

@@ -205,7 +205,7 @@ export const Drawer: React.FC<DrawerProps> = ({
         )}
       >
         {/* Header */}
-        <div className="flex items-start gap-2.5 border-b border-border bg-secondary px-4 py-3">
+        <div className="flex items-start gap-2 border-b border-border bg-secondary px-[var(--space-content-inset)] py-3">
           {useRecordHeader ? (
             <div className="min-w-0 flex-1">
               {/* Visually-hidden a11y anchor — RecordHeader's own h1 carries no stable
@@ -250,11 +250,11 @@ export const Drawer: React.FC<DrawerProps> = ({
         </div>
 
         {/* Body (scrollable) */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-[var(--drawer-body-inset)] py-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-[var(--space-content-inset)] py-[var(--space-content-inset)]">{children}</div>
 
         {/* Optional footer action row */}
         {footer && (
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-4 pt-2 pb-4">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-[var(--space-content-inset)] pt-2 pb-4">
             {footer}
           </div>
         )}

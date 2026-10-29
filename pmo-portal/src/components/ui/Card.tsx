@@ -23,7 +23,7 @@ export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
  * The Flat-By-Default Rule: a card is defined by its 1px border + surface tone,
  * never a rest shadow. The state-lift shadow appears only on interactive hover.
  *
- * `variant="bare"` drops the frame so a section reads as heading + content on the canvas.
+ * `variant="bare"` drops the frame and separates sibling content groups on the canvas.
  */
 export const Card: React.FC<CardProps> = ({
   interactive = false,
@@ -37,6 +37,7 @@ export const Card: React.FC<CardProps> = ({
   <div
     className={cn(
       variant === 'framed' && 'rounded-lg border border-border bg-card',
+      variant === 'bare' && 'space-y-[var(--space-group)]',
       clip && 'overflow-hidden',
       seam && 'rounded-b-none',
       interactive &&
@@ -71,13 +72,13 @@ export const CardHead = React.forwardRef<HTMLHeadingElement, CardHeadProps>(({
   return (
     <div
       className={cn(
-        'flex items-center gap-2.5 border-b border-border px-4 py-3 font-semibold',
+        'flex items-center gap-2 border-b border-border px-[var(--space-content-inset)] py-3 font-semibold',
         className
       )}
     >
       <Heading
         ref={ref}
-        className={cn('flex min-w-0 flex-1 items-center gap-2.5', level === 2 ? 'text-section' : 'text-group')}
+        className={cn('flex min-w-0 flex-1 items-center gap-2', level === 2 ? 'text-section' : 'text-group')}
         {...rest}
       >
         {children}
@@ -95,7 +96,7 @@ export const CardPad: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
   children,
   ...rest
 }) => (
-  <div className={cn('p-4', className)} {...rest}>
+  <div className={cn('p-[var(--space-content-inset)]', className)} {...rest}>
     {children}
   </div>
 );

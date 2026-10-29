@@ -271,9 +271,8 @@ export const AppShell: React.FC<AppShellProps> = ({
         inert={railOpen || undefined}
       >
         {banner}
-        {/* C3: max-[921px]:px-4 narrows the gutter at 375px for more card
-            width (16px vs 24px). max-[921px]:pt-4 matches. */}
-        <div className="mx-auto max-w-[1600px] px-6 pb-16 pt-5 max-[921px]:px-4 max-[921px]:pt-4">
+        {/* Page gutters come from the shared token: 24px on wide screens, 16px below 922px. */}
+        <div className="mx-auto max-w-[1600px] px-[var(--space-page-gutter)] pb-16 pt-5 max-[921px]:pt-4">
           {children}
         </div>
       </main>

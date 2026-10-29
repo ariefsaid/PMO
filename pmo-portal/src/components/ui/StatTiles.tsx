@@ -82,7 +82,7 @@ export const StatTiles: React.FC<StatTilesProps> = ({
         smColsClass,
         // framed = the hairline-gap card strip; bare = borderless on the canvas
         isBare
-          ? 'gap-x-8 gap-y-5'
+          ? 'gap-[var(--space-group)]'
           : 'rounded-lg border border-border bg-border gap-px',
         className,
       )}
@@ -99,7 +99,7 @@ export const StatTiles: React.FC<StatTilesProps> = ({
             className={cn(
               isBare
                 ? 'py-1'
-                : 'bg-card px-3 py-3 first:rounded-l-lg last:rounded-r-lg',
+                : 'bg-card px-[var(--space-content-inset)] py-3 first:rounded-l-lg last:rounded-r-lg',
               isLastOdd && 'col-span-2 sm:col-span-1',
             )}
           >

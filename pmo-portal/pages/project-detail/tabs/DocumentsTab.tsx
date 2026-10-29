@@ -913,7 +913,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         </GateNotice>
       )}
 
-      <Toolbar className="mb-3.5 min-w-0 border-0 bg-transparent px-0 py-0">
+      <Toolbar standalone className="min-w-0 border-0 bg-transparent px-0 py-0">
         <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
           {/* B7: search earns its place only beyond about ten documents; the filters cover a short register. */}
           {(all.length > SEARCH_THRESHOLD || search) && <SearchMini

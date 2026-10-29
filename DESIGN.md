@@ -74,6 +74,9 @@ rounded:
   full: "999px"
 spacing:
   base: "4px"
+  page-gutter: "24px desktop / 16px phone"
+  section-inset: "24px where a group needs an inset"
+  content-inset: "16px"
   group: "16px"
   section: "32px"
 motion:
@@ -208,7 +211,7 @@ Inter remains self-hosted and is used without stylistic alternates. The root rem
 
 **Controls:** the default height is 38px and compact height is 30px. Coarse-pointer hit targets remain at least 44px without shrinking the visual type scale.
 
-**Shared layout aliases:** table headers are 52px with 52px minimum rows and 16px cell insets; the default drawer is 448px wide with 16px body insets. Group and section spacing are 16px and 32px. These aliases support later primitive wiring; fixed component classes change only when their owning UI lane consumes them.
+**Shared layout roles:** pages use a 24px desktop gutter and 16px phone gutter. Sections are separated by 32px; related groups by 16px. Content insets are 16px, with a 24px section inset where a group needs one. Table headers are 52px with 52px minimum rows and 16px cell insets; the default drawer is 448px wide with 16px body insets. The app shell, headers, cards, toolbars, figure groups, tables, drawers and overlays consume these roles.
 
 **Elevation:** panels, drawers, and modals stay flat by default. `--shadow-xs` is for tooltips, `--shadow-sm` for dropdowns, and `--shadow-lg` for toasts; each uses a soft offset shadow tinted to its theme. `--shadow-overlay` is `none`. Do not add a global card shadow.
 

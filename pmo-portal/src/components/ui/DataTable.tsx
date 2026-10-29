@@ -639,7 +639,7 @@ export function DataTable<Row>({
                           style={{ right: headerIndex === modelHeaders.length - 1 ? 0 : -12, width: 24, height: 'var(--table-head-height)' }}
                           className="datatable-resize-handle pointer-events-auto absolute top-0 z-[4] cursor-col-resize opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
                         >
-                          <span aria-hidden className={cn('datatable-resize-indicator pointer-events-none absolute inset-y-2 left-[11px] w-[2px]', header.column.getIsResizing() ? 'bg-ring' : 'bg-[hsl(var(--input))] group-hover:bg-muted-foreground/60')} />
+                          <span aria-hidden className={cn('datatable-resize-indicator pointer-events-none absolute inset-y-2 left-3 w-[2px]', header.column.getIsResizing() ? 'bg-ring' : 'bg-[hsl(var(--input))] group-hover:bg-muted-foreground/60')} />
                         </div>
                       );
                     })()}
@@ -983,7 +983,7 @@ function PrimaryCell({ title, titleText, secondary }: { title: React.ReactNode; 
  * portaled menu both stopPropagation so neither the ⋯ nor a menu item ever
  * fires the row's onActivate.
  */
-const GUTTER = 16; // matches the `max-[921px]:px-4` shell gutter (DESIGN.md spacing.4)
+const GUTTER = 16; // matches the compact page gutter (DESIGN.md spacing role)
 const MENU_GAP = 4; // `mt-1` equivalent between trigger and menu (DESIGN.md spacing.1)
 
 /**
@@ -1196,8 +1196,8 @@ export const Toolbar: React.FC<
 > = ({ standalone = false, className, children, ...rest }) => (
   <div
     className={cn(
-      'flex flex-wrap items-center gap-2 border border-border bg-card px-[var(--table-cell-inset)] py-2.5',
-      standalone ? 'mb-3.5 rounded-lg' : 'rounded-t-lg border-b-0',
+      'flex flex-wrap items-center gap-2 border border-border bg-card px-[var(--space-content-inset)] py-2',
+      standalone ? 'mb-[var(--space-group)] rounded-lg' : 'rounded-t-lg border-b-0',
       className
     )}
     {...rest}
@@ -1274,7 +1274,7 @@ export const SearchMini: React.FC<SearchMiniProps> = ({
   return (
     <div
       className={cn(
-        'touch-target relative flex h-[var(--control-height)] min-w-[190px] items-center gap-[7px] rounded-md border border-input bg-card px-2.5 text-control [&_svg]:size-[15px] [&_svg]:text-muted-foreground',
+        'touch-target relative flex h-[var(--control-height)] min-w-[190px] items-center gap-2 rounded-md border border-input bg-card px-3 text-control [&_svg]:size-[15px] [&_svg]:text-muted-foreground',
         containerClassName
       )}
       onClick={() => inputRef.current?.focus()}
@@ -1303,7 +1303,7 @@ export const TableFoot: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
 }) => (
   <div
     className={cn(
-      'flex flex-wrap items-center gap-4 border-t-[1.5px] border-border bg-secondary/40 px-[var(--table-cell-inset)] py-[11px] text-control tabular',
+      'flex flex-wrap items-center gap-4 border-t-[1.5px] border-border bg-secondary/40 px-[var(--space-content-inset)] py-3 text-control tabular',
       className
     )}
     {...rest}

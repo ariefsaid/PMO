@@ -593,6 +593,11 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     const linkAction = screen.getByRole('button', { name: /Link from Microsoft 365/i });
     expect(linkAction).toBeEnabled();
     expect(screen.getByRole('button', { name: /Add document/i })).toBeEnabled();
+
+    const filter = screen.getByRole('combobox', { name: 'Filter by category' });
+    const toolbar = filter.parentElement?.parentElement;
+    expect(toolbar?.className).toContain('mb-[var(--space-group)]');
+    expect(toolbar?.className).not.toContain('mb-3.5');
   });
 
   it('AC-DOC-M365: linked folder contents remain expandable and the footer opens SharePoint', async () => {

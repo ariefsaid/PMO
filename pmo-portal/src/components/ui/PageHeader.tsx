@@ -48,12 +48,12 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   <div
     data-testid={dataTestId}
     className={cn(
-      surface === 'card' && 'mb-4 rounded-lg border border-border bg-card px-5 py-[18px]',
+      surface === 'card' && 'mb-[var(--space-section)] rounded-lg border border-border bg-card px-[var(--space-content-inset)] py-[var(--space-content-inset)]',
       className,
     )}
   >
     {/* Narrow widths: the record name gets width priority; the action zone can wrap below. */}
-    <div className="flex flex-wrap items-start gap-3.5">
+    <div className="flex flex-wrap items-start gap-[var(--space-group)]">
       {icon && (
         <span
           className="grid size-11 shrink-0 place-items-center rounded-[10px] text-[17px] font-bold text-primary-foreground [&_svg]:size-5"
@@ -63,7 +63,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
         </span>
       )}
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <h1 className={cn('min-w-0 flex-1 break-words text-page font-semibold', !actionsBelow && 'sm:truncate')}>{name}</h1>
           {status}
         </div>

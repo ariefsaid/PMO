@@ -60,7 +60,7 @@ describe('Card', () => {
 
   it('CardPad applies 16px padding', () => {
     render(<CardPad>inner</CardPad>);
-    expect(screen.getByText('inner').className).toContain('p-4');
+    expect(screen.getByText('inner').className).toContain('p-[var(--space-content-inset)]');
   });
 
   // ── content-over-containers (monochrome-calm reskin, L2-RECORD) ──────────

@@ -285,7 +285,7 @@ export const NumberField: React.FC<NumberFieldProps> = ({
             className={cn(
               inputBase,
               'tabular text-right',
-              prefix && 'pl-[22px]',
+              prefix && 'pl-6',
               error && inputInvalid,
               className,
             )}

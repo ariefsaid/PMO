@@ -345,7 +345,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
             style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width, zIndex: 820 }}
             className="overflow-hidden rounded-md border border-border bg-popover shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]"
           >
-            <div className="flex items-center gap-2 border-b border-border px-[11px] py-2.5">
+            <div className="flex items-center gap-2 border-b border-border px-3 py-2">
               <Icon name="search" className="size-[15px] shrink-0 text-muted-foreground" />
               <input
                 ref={searchRef}
@@ -363,7 +363,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
             </div>
 
             {state === 'loading' && (
-              <div data-testid="combo-loading" className="px-[9px] py-1.5" aria-busy="true">
+              <div data-testid="combo-loading" className="px-2 py-1.5" aria-busy="true">
                 <div className="skel skel-line" style={{ width: '72%' }} />
                 <div className="skel skel-line" style={{ width: '58%' }} />
                 <div className="skel skel-line" style={{ width: '65%' }} />
@@ -391,7 +391,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
                 id={listId}
                 role="listbox"
                 aria-label={t('combobox.listLabel', { defaultValue: '{{noun}}s', noun })}
-                className="max-h-[220px] overflow-y-auto p-[5px]"
+                className="max-h-[220px] overflow-y-auto p-1.5"
               >
                 {filtered.map((opt, i) => {
                   const isSelected = opt.value === value;
@@ -405,7 +405,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
                       onMouseEnter={() => setActive(i)}
                       onClick={() => select(opt)}
                       className={cn(
-                        'flex cursor-pointer gap-2.5 rounded-sm px-[9px] text-[13.5px]',
+                        'flex cursor-pointer gap-2 rounded-sm px-2 text-[13.5px]',
                         opt.badges?.length ? 'min-h-[34px] items-start py-1.5' : 'h-[34px] items-center',
                         isSelected && 'bg-primary/[0.07]',
                         isActive && !isSelected && 'bg-accent',
