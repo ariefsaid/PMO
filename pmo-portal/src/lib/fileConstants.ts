@@ -1,8 +1,6 @@
 /**
- * Shared file constraints — single source of truth for client + server (OD-DOC-5).
- * The bucket's `file_size_limit` and `allowed_mime_types` in the migration (0025)
- * mirror these values. Changing the cap/type requires changing this constant AND
- * the bucket setting (a migration).
+ * Shared client file constraints (OD-DOC-5). Bucket limits are configured separately
+ * in the storage migration and must remain aligned with the upload rules.
  */
 
 /** Maximum file size in bytes (5 MB). NFR-DOC-001. */
@@ -17,28 +15,6 @@ export const ALLOWED_FILE_TYPES: readonly string[] = [
   '.docx', '.xlsx', '.pptx',
   '.dwg', '.dxf',
   '.csv', '.txt',
-] as const;
-
-/**
- * MIME types matching the bucket's `allowed_mime_types` (migration 0025).
- * Used for server-side bucket enforcement (defense-in-depth) and pgTAP reference.
- * NOTE: application/octet-stream is intentionally absent — browsers report CAD files
- * as octet-stream, which must NOT be in the bucket list. Use FILE_MIME_BY_EXT for
- * the explicit Content-Type on upload.
- */
-export const ALLOWED_MIME_TYPES: readonly string[] = [
-  'application/pdf',
-  'image/png',
-  'image/jpeg',
-  'image/webp',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'image/vnd.dxf',
-  'application/dxf',
-  'application/acad',
-  'text/csv',
-  'text/plain',
 ] as const;
 
 /**
