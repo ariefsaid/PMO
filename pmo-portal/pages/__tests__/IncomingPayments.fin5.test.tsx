@@ -45,6 +45,7 @@ vi.mock('@/src/components/ui', async (importOriginal) => {
 });
 
 import IncomingPayments from '../IncomingPayments';
+import { receiptColumns } from '../incoming-payments/receiptColumns';
 import { FinanceI18nTestProvider } from './financeI18nTestProvider';
 import { financeTestI18n } from './financeI18nTestInstance';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
@@ -104,6 +105,32 @@ beforeEach(async () => {
 const columnHeaders = () => screen.getAllByRole('columnheader').map((th) => th.textContent?.trim()).filter((name) => name && name !== 'Actions');
 
 describe('FIN-S5: receipts list', () => {
+  it('filters ERP receipts by their displayed cancellation status', async () => {
+    h.route = 'external';
+    h.payments.data = [receipt({ id: 'cancelled', pmo_native: false, pmo_number: null, ip_number: 'ERP-CANCELLED', status: 'Scheduled', erp_cancelled_at: '2026-10-07' }), receipt({ id: 'live', pmo_native: false, pmo_number: null, ip_number: 'ERP-LIVE', status: 'Scheduled' })];
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('tab', { name: 'Expected' }));
+    expect(screen.getByText('ERP-LIVE')).toBeInTheDocument();
+    expect(screen.queryByText('ERP-CANCELLED')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: 'Cancelled' }));
+    expect(screen.getByText('ERP-CANCELLED')).toBeInTheDocument();
+    expect(screen.queryByText('ERP-LIVE')).not.toBeInTheDocument();
+  });
+
+  it('exports the same cancellation status shown in the receipt list', () => {
+    const { exportColumns } = receiptColumns({
+      t: financeTestI18n.t,
+      embedded: false,
+      location: { pathname: '/incoming-payments', search: '', hash: '', state: null, key: 'test' },
+      invoiceNumberById: new Map(),
+    });
+    const status = exportColumns.find((column) => column.key === 'status');
+    expect(status?.exportValue?.(receipt({ status: 'Scheduled', pmo_native: false, erp_cancelled_at: '2026-10-07' }))).toBe('Cancelled');
+    expect(status?.exportValue?.(receipt({ status: 'Scheduled', pmo_native: false }))).toBe('Expected');
+    expect(status?.exportValue?.(receipt())).toBe('Received');
+  });
+
   it('shows seven columns and keeps cash received, tax withheld, not-yet-applied and slip out of the default list', () => {
     h.payments.data = [receipt({ withheld_amount: 5_000, withholding_slip_number: 'SLIP-9' })];
     renderPage();

@@ -492,6 +492,42 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     expect(within(listbox).queryByRole('option', { name: /SI-BOREALIS/ })).not.toBeInTheDocument();
   });
 
+  it('clears the invoice and amounts when the customer changes', async () => {
+    hoisted.ownershipState.data = [];
+    hoisted.invoicesState.data = [invoice({ id: 'si-a', si_number: 'SI-ACME', pmo_native: true })];
+    const user = userEvent.setup();
+    renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-ACME');
+    await user.click(screen.getByRole('button', { name: 'Tax withheld' }));
+    await user.clear(screen.getByLabelText(/Withheld tax amount/));
+    await user.type(screen.getByLabelText(/Withheld tax amount/), '20');
+    await user.type(screen.getByLabelText('Withholding-slip number'), 'SLIP-1');
+    await pick(user, 'Customer', 'Borealis Marine');
+    expect(screen.getByLabelText(/Amount settled/)).toHaveValue('0');
+    expect(screen.getByLabelText(/Cash received/)).toHaveValue('0');
+    expect(screen.getByLabelText(/Withheld tax amount/)).toHaveValue('0');
+    expect(screen.getByLabelText('Withholding-slip number')).toHaveValue('');
+    expect(screen.getByRole('combobox', { name: /Sales Invoice/ })).not.toHaveValue('SI-ACME');
+    expect(hoisted.createPaymentMutate).not.toHaveBeenCalled();
+  });
+
+  it('checks the selected invoice customer again before creating a receipt', async () => {
+    hoisted.ownershipState.data = [];
+    hoisted.invoicesState.data = [invoice({ id: 'si-a', si_number: 'SI-ACME', pmo_native: true })];
+    const user = userEvent.setup();
+    const view = renderPage();
+    await openForm(user);
+    await pick(user, 'Customer', 'Acme Energy');
+    await pick(user, /Sales Invoice/, 'SI-ACME');
+    hoisted.invoicesState.data = [invoice({ id: 'si-a', si_number: 'SI-ACME', customer_id: 'cust-2', pmo_native: true })];
+    view.rerender(<FinanceI18nTestProvider><ImpersonationProvider realRole="Finance"><MemoryRouter><ToastProvider><IncomingPayments /></ToastProvider></MemoryRouter></ImpersonationProvider></FinanceI18nTestProvider>);
+    await user.click(screen.getByRole('button', { name: 'Record payment' }));
+    expect(hoisted.createPaymentMutate).not.toHaveBeenCalled();
+    expect(screen.getAllByText(/choose the invoice this receipt settles/i).length).toBeGreaterThan(0);
+  });
+
   it('enables "Record payment" once the form is filled, and submits what the user entered', async () => {
     hoisted.invoicesState.data = [invoice({ id: 'si-a', si_number: 'SI-ACME', customer_id: 'cust-1' })];
     const user = userEvent.setup();
