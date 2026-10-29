@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
+import { awaitingApprovalKey } from '@/src/hooks/approvalsQueryKeys';
 import { MemoryRouter } from 'react-router';
 
 const { approvalsData, userId, roleState } = vi.hoisted(() => ({
@@ -40,13 +41,31 @@ vi.mock('@/src/lib/features', async (importOriginal) => ({
 
 import { Rail } from '../Rail';
 
-function renderRail(onNavigate = vi.fn(), role = 'Admin') {
+/** Explicit per-case seeding for the two timesheet queues Rail reads (OD-TS-5: an assigned
+ *  manager may hold ANY role, so both queues are seeded for every role under test). */
+interface QueueSeeds {
+  /** Rows in the awaiting-approval (pending) queue; defaults to the two-row shared fixture. */
+  pending?: unknown[];
+  /** Rows in the re-openable-approved (correction) queue; defaults to empty. */
+  corrections?: unknown[];
+}
+
+function renderRail(onNavigate = vi.fn(), role = 'Admin', queues: QueueSeeds = {}) {
   roleState.activeRole = role;
+  const pendingRows = queues.pending ?? approvalsData.timesheets;
+  const correctionRows = queues.corrections ?? [];
   const queryClient = new QueryClient();
+  // The real hooks behind both queues mount inside Rail for every role and poll on a 60s interval.
+  // Keep the seeded settled rows fresh for the life of a case: data this fresh never refetches at
+  // mount, and the poll is off — a case sees exactly the queue state it seeded, not a background
+  // transition into pending/error.
+  queryClient.setQueryDefaults(['timesheets-awaiting'], { staleTime: Infinity, refetchInterval: false });
+  queryClient.setQueryDefaults(['timesheets-reopenable-approved'], { staleTime: Infinity, refetchInterval: false });
   queryClient.setQueryData(['external-domain-ownership', 'synthetic-org'], []);
   queryClient.setQueryData(['procurements', 'synthetic-org'], approvalsData.procurements);
   queryClient.setQueryData(['expense-claims-awaiting', 'synthetic-org'], approvalsData.expenses);
-  queryClient.setQueryData(['timesheets-awaiting', 'synthetic-org', userId, roleState.activeRole], approvalsData.timesheets);
+  queryClient.setQueryData(awaitingApprovalKey('synthetic-org', userId, roleState.activeRole as AuthContextValue['role']), pendingRows);
+  queryClient.setQueryData(['timesheets-reopenable-approved', 'synthetic-org', userId, roleState.activeRole], correctionRows);
   queryClient.setQueryData(['salesInvoices', 'synthetic-org', 'native-drafts'], [
     { ...approvalsData.invoices[0], author_user_id: 'someone-else', author_user_ids: ['someone-else'] },
   ]);
@@ -91,11 +110,20 @@ describe('Rail — persistent approvals access (UX-001)', () => {
   });
 
   it('does not render an empty pinned strip for Engineer', () => {
-    renderRail(vi.fn(), 'Engineer');
+    renderRail(vi.fn(), 'Engineer', { pending: [], corrections: [] });
 
     const rail = screen.getByRole('complementary');
     expect(rail.querySelector('[data-rail-pinned-approvals]')).not.toBeInTheDocument();
     expect(within(rail).queryByRole('link', { name: /Approvals/i })).not.toBeInTheDocument();
+  });
+
+  it('shows the pinned Approvals strip and pending count for an Engineer with an assigned queue', () => {
+    renderRail(vi.fn(), 'Engineer', { pending: approvalsData.timesheets, corrections: [] });
+
+    const rail = screen.getByRole('complementary');
+    expect(rail.querySelector('[data-rail-pinned-approvals]')).toBeInTheDocument();
+    const approvals = within(rail).getByRole('link', { name: /Approvals,.*2 pending/i });
+    expect(approvals).toHaveAttribute('href', '/approvals');
   });
 
   it('does not present an unknown count as zero when a queue source is unavailable', async () => {
