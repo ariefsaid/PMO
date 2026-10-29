@@ -81,3 +81,50 @@ it.each([true, false])('reconciles an uncertain deletion before submitting (comm
   }
   expect(mocks.save.mock.invocationCallOrder[1]).toBeLessThan(mocks.submit.mock.invocationCallOrder[0]);
 });
+
+it.each([false, true])('shows refresh status until deletion is reconciled (committed: %s)', async (committed) => {
+  const now = new Date();
+  now.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  const date = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const week = date(now);
+  const next = new Date(now); next.setDate(next.getDate() + 1);
+  const entry = (id: string, day: string, hours: number) => ({ id, timesheet_id: 'sheet', project_id: 'p1', entry_date: day, hours, notes: null, project: { name: 'First project', code: null } });
+  const sheet = { id: 'sheet', user_id: 'u1', week_start_date: week, status: 'Draft', entries: [entry('e1', week, 8), entry('e2', date(next), 2)] };
+  mocks.offline = false; mocks.list.mockReset(); mocks.save.mockReset(); mocks.submit.mockReset();
+  let deleted = false;
+  const other = { ...entry('e3', week, 2), project_id: 'p2', project: { name: 'Other project', code: null } };
+  mocks.list.mockImplementation(async () => { if (mocks.offline) throw new Error('Offline'); return [{ ...sheet, entries: deleted ? [other] : [...sheet.entries, other] }]; });
+  let rejectDelete!: (error: Error) => void;
+  mocks.save.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectDelete = reject; }));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  render(<QueryClientProvider client={client}><ImpersonationProvider realRole="Project Manager"><MemoryRouter><ToastProvider><Timesheets /></ToastProvider></MemoryRouter></ImpersonationProvider></QueryClientProvider>);
+  const user = userEvent.setup();
+  const hours = await screen.findByLabelText('First project, Mon hours');
+  await user.clear(hours); await user.type(hours, '9');
+  await user.clear(screen.getByLabelText('First project, Tue hours'));
+  await user.type(screen.getByLabelText('First project, Wed hours'), '4');
+  await user.click(screen.getByRole('button', { name: /add note to First project/i }));
+  await user.type(screen.getByLabelText('First project note'), 'Draft note');
+  await user.click(screen.getByRole('button', { name: /delete First project row/i }));
+  await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: /delete row/i }));
+  await waitFor(() => expect(mocks.save).toHaveBeenCalledOnce());
+  expect(screen.getByTestId('timesheets-save-status')).not.toHaveTextContent('All changes saved');
+  expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent('Refresh this week before continuing');
+  deleted = committed; mocks.offline = true; onlineManager.setOnline(false); rejectDelete(new Error('Response lost'));
+  const retry = await screen.findByRole('button', { name: /retry week refresh/i });
+  expect(screen.getByTestId('timesheets-save-status')).not.toHaveTextContent('All changes saved');
+  expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent('Refresh this week before continuing');
+  mocks.offline = false; onlineManager.setOnline(true);
+  await user.click(retry);
+  await waitFor(() => expect(screen.queryByRole('button', { name: /retry week refresh/i })).not.toBeInTheDocument());
+  if (committed) {
+    expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent('All changes saved');
+    expect(screen.queryByLabelText('First project, Mon hours')).not.toBeInTheDocument();
+    return;
+  }
+  expect(screen.getByTestId('timesheets-save-status')).toHaveTextContent('Unsaved changes');
+  expect(screen.getByLabelText('First project, Mon hours')).toHaveValue('9');
+  expect(screen.getByLabelText('First project, Tue hours')).toHaveValue('');
+  expect(screen.getByLabelText('First project, Wed hours')).toHaveValue('4');
+  expect(screen.getByLabelText('First project note')).toHaveValue('Draft note');
+});
