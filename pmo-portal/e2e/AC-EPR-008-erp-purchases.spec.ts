@@ -34,7 +34,8 @@ test('AC-EPR-008: a project shows its ERPNext purchases and the org list names t
     await signIn(page, 'finance@acme.test');
     await page.goto(`/projects/${projectId}/procurement`);
 
-    const section = page.getByRole('region', { name: 'ERPNext documents not in a purchase' });
+    // #1402 copy: the exact current title includes this fixture's single ERP-row badge.
+    const section = page.getByRole('region', { name: 'From the accounting system · not linked to a procurement 1', exact: true });
     await expect(section.getByText(/Already counted in Actuals/)).toBeVisible();
     const row = section.locator('tr', { hasText: invoiceName });
     await expect(row).toContainText(supplier);

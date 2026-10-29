@@ -15,6 +15,8 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { useFinanceBudgetReview, useSalesPipeline } from '@/src/hooks/useDashboard';
 import { useProcurements } from '@/src/hooks/useProcurements';
+import { useCompanies } from '@/src/hooks/useCompanies';
+import { useCompanyCollections } from '@/src/hooks/useCompanyCollections';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useActualsSnapshot, useApAgingSnapshot, useArAgingSnapshot } from '@/src/hooks/useErpSnapshots';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -247,10 +249,13 @@ const snapshotEmpty = (query: { data?: unknown[]; isPending: boolean; isError: b
 function ClientAgingBlock() {
   const arAging = useArAgingSnapshot();
   const finance = useFinancePosition();
+  const { data: clientCompanies } = useCompanies('Client');
+  const clientCompanyIds = React.useMemo(() => (clientCompanies ?? []).map((company) => company.id), [clientCompanies]);
+  const { customerLinks } = useCompanyCollections(clientCompanyIds);
   const pmo = finance.position.receivablesAgeing;
   if (snapshotEmpty(arAging) && finance.isPending) return <ListState variant="loading" rows={2} />;
   if (snapshotEmpty(arAging) && !finance.isError && Object.keys(pmo).length > 0) return <PmoAgeing kind="receivables" values={pmo} />;
-  return <AccountingSnapshotsSection showActuals={false} showApAging={false} showArAging embedded actuals={[]} apAging={[]} arAging={arAging.data ?? []} arAgingPending={arAging.isPending} arAgingError={arAging.isError} onRetryArAging={() => void arAging.refetch()} />;
+  return <AccountingSnapshotsSection showActuals={false} showApAging={false} showArAging embedded actuals={[]} apAging={[]} arAging={arAging.data ?? []} arAgingPending={arAging.isPending} arAgingError={arAging.isError} onRetryArAging={() => void arAging.refetch()} customerLinks={customerLinks} />;
 }
 
 function FinanceAccountingBlocks() {

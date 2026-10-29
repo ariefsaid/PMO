@@ -12,10 +12,8 @@ import { login } from '../helpers';
 // NOTE (feat/ui-polish confirm-gate):
 //   • Clicking "Create" in the NewVersionForm now STAGES a ConfirmDialog with
 //     confirmLabel="Create version". Must click that confirm before the version exists.
-//   • ProjectBudget now renders ONE VersionCard at a time via a version <select>
-//     (aria-label="Version"). S-04 (#1080, 14445735) deliberately removed the status
-//     from option text because the selected version card already carries its status badge.
-//     Select by version name, then assert Draft on the card.
+//   • The created Draft appears in the Draft waiting for approval banner; its Edit draft action
+//     opens the line-item editor.
 //   • "Activate" also stages a ConfirmDialog (confirmLabel="Activate version").
 test('AC-732 PM creates a Draft, adds line-items {600000,400000}, a second person activates, project shows formatCurrency(1000000)', async ({ page }) => {
   // This journey owns the PMO activation + derived-value contract, not the live ERPNext boundary.
@@ -67,7 +65,7 @@ test('AC-732 PM creates a Draft, adds line-items {600000,400000}, a second perso
   await expect(page.getByTestId('budget-loading')).not.toBeVisible({ timeout: 10_000 });
 
   // --- Step 1: Create a new Draft version (confirm-gated) ---
-  await page.getByRole('button', { name: '+ New version' }).click();
+  await page.getByRole('button', { name: 'New version', exact: true }).click();
 
   // Fill in version name
   const nameInput = page.getByPlaceholder('Version name (e.g. Budget v1)');
@@ -85,62 +83,52 @@ test('AC-732 PM creates a Draft, adds line-items {600000,400000}, a second perso
   // Wait for the dialog to close (mutation committed)
   await expect(createDialog).not.toBeVisible({ timeout: 10_000 });
 
-  // --- Step 2: SELECT the new version in the version dropdown ---
-  // ProjectBudget renders ONE card at a time; the newly created Draft may not be
-  // auto-selected if an Active version exists. Wait for the option to appear in the
-  // select (React Query refetch after mutation), then select it by its value (UUID).
-  const versionSelect = page.getByLabel('Version', { exact: true });
-  await expect(versionSelect).toBeVisible({ timeout: 10_000 });
-
-  // S-04 (#1080, 14445735) intentionally leaves status out of options; the card owns it.
-  const draftOption = page.locator('option', { hasText: 'E2E Test Budget' });
-  await expect(draftOption).toBeAttached({ timeout: 10_000 });
-  const draftOptionValue = await draftOption.getAttribute('value');
-  expect(draftOptionValue, 'New budget version option not found in select').toBeTruthy();
-  await versionSelect.selectOption(draftOptionValue!);
-
-  // The version card for the newly selected Draft should now be visible
-  const draftCard = page.getByTestId('version-card');
-  await expect(draftCard.getByTestId('version-status-draft')).toBeVisible({ timeout: 10_000 });
-  await expect(draftCard).toContainText('E2E Test Budget');
+  // --- Step 2: open the newly created Draft from its current banner action ---
+  const draftBanner = page.getByRole('region', { name: 'Draft waiting for approval' });
+  await expect(draftBanner).toBeVisible({ timeout: 10_000 });
+  await expect(draftBanner.getByText('Draft', { exact: true })).toBeVisible();
+  await expect(draftBanner).toContainText('E2E Test Budget');
+  await draftBanner.getByRole('button', { name: 'Edit draft', exact: true }).click();
+  const draftEditor = page.getByRole('region', { name: 'Draft budget editor' });
+  await expect(draftEditor).toBeVisible();
 
   // --- Step 3: Add first line-item (600,000) ---
-  await draftCard.getByRole('button', { name: '+ Add line item' }).click();
+  await draftEditor.getByRole('button', { name: '+ Add line item', exact: true }).click();
 
   // Fill amount for first item (Labor is default)
-  await draftCard.getByPlaceholder('Amount').fill('600000');
-  await draftCard.getByRole('button', { name: 'Save' }).click();
+  await draftEditor.getByPlaceholder('Amount').fill('600000');
+  await draftEditor.getByRole('button', { name: 'Save' }).click();
 
   // Wait for line-item row to appear (the cell in the table)
-  await expect(draftCard.locator('tbody').getByRole('cell', { name: '$600,000' })).toBeVisible({ timeout: 10_000 });
+  await expect(draftEditor.locator('tbody').getByRole('cell', { name: '$600,000' })).toBeVisible({ timeout: 10_000 });
 
   // --- Step 4: Add second line-item (400,000) ---
-  await draftCard.getByRole('button', { name: '+ Add line item' }).click();
+  await draftEditor.getByRole('button', { name: '+ Add line item', exact: true }).click();
 
   // Select Materials category for variety
-  await draftCard.getByLabel('Line item category').selectOption('Materials');
-  await draftCard.getByPlaceholder('Amount').fill('400000');
-  await draftCard.getByRole('button', { name: 'Save' }).click();
+  await draftEditor.getByLabel('Line item category').selectOption('Materials');
+  await draftEditor.getByPlaceholder('Amount').fill('400000');
+  await draftEditor.getByRole('button', { name: 'Save' }).click();
 
   // Wait for second line-item to appear
-  await expect(draftCard.locator('tbody').getByRole('cell', { name: '$400,000' })).toBeVisible({ timeout: 10_000 });
+  await expect(draftEditor.locator('tbody').getByRole('cell', { name: '$400,000' })).toBeVisible({ timeout: 10_000 });
 
   // --- Step 5: the drafter cannot activate their own version (OD-BUDGET-6) ---
-  await expect(draftCard.getByRole('button', { name: 'Activate' })).toHaveCount(0);
-  await expect(draftCard.getByTestId('activate-blocked-reason')).toHaveText(
-    'You edited this version, so someone else must activate it.',
+  await expect(draftBanner.getByRole('button', { name: 'Activate' })).toHaveCount(0);
+  // copy corrected: drafter or editor (#1405)
+  await expect(draftBanner.getByRole('status')).toHaveText(
+    'You drafted or edited this version, so someone else must activate it.',
   );
 
   // --- Step 6: a second person (Finance) opens the same Draft and activates it (confirm-gated) ---
   await login(page, 'finance@acme.test');
   await page.goto('/projects/40000000-0000-0000-0000-000000000001/budget');
   await expect(page.getByTestId('budget-loading')).not.toBeVisible({ timeout: 10_000 });
-  await expect(page.getByLabel('Version', { exact: true })).toBeVisible({ timeout: 10_000 });
-  await page.getByLabel('Version', { exact: true }).selectOption(draftOptionValue!);
-  const financeCard = page.getByTestId('version-card');
-  await expect(financeCard.getByTestId('version-status-draft')).toBeVisible({ timeout: 10_000 });
-  await expect(financeCard).toContainText('E2E Test Budget');
-  await financeCard.getByRole('button', { name: 'Activate' }).click();
+  const financeBanner = page.getByRole('region', { name: 'Draft waiting for approval' });
+  await expect(financeBanner).toBeVisible({ timeout: 10_000 });
+  await expect(financeBanner.getByText('Draft', { exact: true })).toBeVisible();
+  await expect(financeBanner).toContainText('E2E Test Budget');
+  await financeBanner.getByRole('button', { name: /^Activate v\d+$/ }).click();
 
   // Confirm inside the dialog (confirmLabel="Activate version" per confirmCopy.activate)
   const activateDialog = page.getByRole('dialog');
@@ -172,9 +160,13 @@ test('AC-732 PM creates a Draft, adds line-items {600000,400000}, a second perso
   // --- Step 7: Assert the now-active card shows Active status ---
   // After activation the selector auto-selects the newly active version.
   // The visible card (single-card view) now shows Active status.
-  const activatedCard = page.getByTestId('version-card').filter({ hasText: 'E2E Test Budget' });
-  await expect(activatedCard.getByTestId('version-status-active')).toBeVisible({ timeout: 10_000 });
+  const activatedVersion = page.getByRole('region', { name: 'Budget versions' })
+    .getByRole('row').filter({ hasText: 'E2E Test Budget' });
+  await expect(activatedVersion.getByRole('cell', { name: 'Active', exact: true })).toBeVisible({ timeout: 10_000 });
 
   // --- Step 8: Assert derived budget shows $1,000,000 ---
-  await expect(page.getByTestId('derived-budget')).toHaveText('$1,000,000', { timeout: 10_000 });
+  const budgetFigure = page.getByRole('region', { name: 'Budget figures' })
+    .getByText('Budget', { exact: true }).locator('xpath=../..');
+  await expect(budgetFigure).toBeVisible({ timeout: 10_000 });
+  await expect(budgetFigure.locator('[title]')).toHaveAttribute('title', '$1,000,000');
 });

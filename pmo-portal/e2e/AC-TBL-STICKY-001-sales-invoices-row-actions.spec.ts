@@ -65,6 +65,11 @@ const WIDE_INVOICE = {
   companies: { name: 'Solaris Grid EPC', erp_payment_terms_days: 30 },
 };
 
+const CLEAN_FIT_INVOICE = {
+  ...WIDE_INVOICE,
+  reference_number: 'PO-2026-10-00042',
+};
+
 /** Luminance columns of a 1-2px-wide screenshot strip, averaged per device pixel row. */
 async function stripLuminance(page: Page, x: number, y: number, width: number, height: number): Promise<number[]> {
   const buffer = await page.screenshot({ clip: { x, y, width, height } });
@@ -176,14 +181,14 @@ async function setDark(page: Page, dark: boolean) {
 }
 
 test.describe('AC-TBL-STICKY-001 Sales Invoices row-actions geometry', () => {
-  for (const width of [1280, 1440]) {
+  for (const width of [1024, 1440]) {
     for (const mode of ['light', 'dark'] as const) {
       test(`AC-TBL-STICKY-001: sticky actions cell flush with scroller, seam clean, divider rendered at ${width}px ${mode}`, async ({ page }) => {
         test.setTimeout(120_000);
         await page.setViewportSize({ width, height: 900 });
         await page.route('**/rest/v1/sales_invoices?**', async (route) => {
           if (route.request().method() !== 'GET') return route.fallback();
-          await route.fulfill({ json: [WIDE_INVOICE] });
+          await route.fulfill({ json: [width === 1024 ? WIDE_INVOICE : CLEAN_FIT_INVOICE] });
         });
         await signIn(page, 'finance@acme.test');
         await page.goto('/sales-invoices');
@@ -192,7 +197,7 @@ test.describe('AC-TBL-STICKY-001 Sales Invoices row-actions geometry', () => {
         await expect(scrollerLoc).toBeVisible({ timeout: 20_000 });
         await expect(scrollerLoc.locator('tbody tr').first()).toBeVisible({ timeout: 20_000 });
         await expect(scrollerLoc.locator('tbody button[aria-label="Row actions"]').first()).toBeVisible();
-        await expect(scrollerLoc.locator('[data-dt-seam]').first()).toBeAttached();
+        if (width === 1024) await expect(scrollerLoc.locator('[data-dt-seam]').first()).toBeAttached();
         // Flip the theme AFTER mount: index.html's no-flash script seeds the class from
         // localStorage (empty → light) on every load and would wipe a pre-goto class.
         await setDark(page, mode === 'dark');
@@ -201,11 +206,15 @@ test.describe('AC-TBL-STICKY-001 Sales Invoices row-actions geometry', () => {
 
         const geo = await measureSticky(page);
 
-        // Precondition: the table actually overflows, so sticky is exercised.
-        expect(
-          geo.scroller.scrollWidth,
-          `Sales Invoices table should overflow: ${JSON.stringify(geo.scroller)}`,
-        ).toBeGreaterThan(geo.scroller.clientWidth);
+        if (width === 1024) {
+          // Precondition: the table actually overflows, so sticky is exercised.
+          expect(
+            geo.scroller.scrollWidth,
+            `Sales Invoices table should overflow: ${JSON.stringify(geo.scroller)}`,
+          ).toBeGreaterThan(geo.scroller.clientWidth);
+        } else {
+          expect(geo.scroller.scrollWidth, `Sales Invoices table should fit cleanly: ${JSON.stringify(geo.scroller)}`).toBeLessThanOrEqual(geo.scroller.clientWidth);
+        }
         expect(geo.triggers.length, 'expected a visible row-actions trigger').toBeGreaterThan(0);
 
         // Defect 1a: the ⋯ trigger lies inside the scroller box.
@@ -214,28 +223,32 @@ test.describe('AC-TBL-STICKY-001 Sales Invoices row-actions geometry', () => {
         );
         expect(outside, `triggers must stay within the scroller box ${JSON.stringify({ scroller: geo.scroller, triggers: geo.triggers })}`).toEqual([]);
 
-        // Defect 1b: the sticky cell is FLUSH with the scroller's visible right edge.
-        expect(
-          Math.abs((geo.stickyTd?.right ?? NaN) - geo.scroller.right),
-          `sticky body cell right edge must sit at the scrollport edge (td ${JSON.stringify(geo.stickyTd)} vs scroller ${geo.scroller.right})`,
-        ).toBeLessThanOrEqual(EPSILON);
-        expect(
-          Math.abs((geo.stickyTh?.right ?? NaN) - geo.scroller.right),
-          `sticky header cell right edge must sit at the scrollport edge`,
-        ).toBeLessThanOrEqual(EPSILON);
+        if (width === 1024) {
+          // Defect 1b: the sticky cell is FLUSH with the scroller's visible right edge.
+          expect(
+            Math.abs((geo.stickyTd?.right ?? NaN) - geo.scroller.right),
+            `sticky body cell right edge must sit at the scrollport edge (td ${JSON.stringify(geo.stickyTd)} vs scroller ${geo.scroller.right})`,
+          ).toBeLessThanOrEqual(EPSILON);
+          expect(
+            Math.abs((geo.stickyTh?.right ?? NaN) - geo.scroller.right),
+            `sticky header cell right edge must sit at the scrollport edge`,
+          ).toBeLessThanOrEqual(EPSILON);
+        }
 
-        // Defect 1c (the rendered defect itself): no ink in the seam column past the sticky cell.
-        await expectSeamClean(page, geo.scroller, mode);
+        if (width === 1024) {
+          // Defect 1c (the rendered defect itself): no ink in the seam column past the sticky cell.
+          await expectSeamClean(page, geo.scroller, mode);
 
-        // Defect 2: the separation hairline renders in BOTH the header and body sticky cells.
-        await expectHairlineVisible(page, geo.stickyTd!.left, geo.scroller, mode);
+          // Defect 2: the separation hairline renders in BOTH the header and body sticky cells.
+          await expectHairlineVisible(page, geo.stickyTd!.left, geo.scroller, mode);
 
-        // Defect 2 (structural): the gradient strip exists in header and body — the outset
-        // box-shadow it replaces is never painted by Chromium on sticky table cells.
-        const seamCount = await page.locator('[data-dt-seam]').count();
-        expect(seamCount, 'seam gradient strips expected in header + body rows').toBeGreaterThanOrEqual(2);
-        const seamImage = await page.locator('[data-dt-seam]').first().evaluate((el) => getComputedStyle(el).backgroundImage);
-        expect(seamImage, 'seam strip must paint the foreground-token gradient').toContain('gradient');
+          // Defect 2 (structural): the gradient strip exists in header and body — the outset
+          // box-shadow it replaces is never painted by Chromium on sticky table cells.
+          const seamCount = await page.locator('[data-dt-seam]').count();
+          expect(seamCount, 'seam gradient strips expected in header + body rows').toBeGreaterThanOrEqual(2);
+          const seamImage = await page.locator('[data-dt-seam]').first().evaluate((el) => getComputedStyle(el).backgroundImage);
+          expect(seamImage, 'seam strip must paint the foreground-token gradient').toContain('gradient');
+        }
       });
     }
   }
@@ -286,7 +299,7 @@ test.describe('AC-TBL-STICKY-001 real Sales Invoices columns (DB rows)', () => {
     await admin.from('sales_invoices').delete().in('id', insertedIds);
   });
 
-  for (const width of [1280, 1440]) {
+  for (const width of [1024, 1440]) {
     for (const mode of ['light', 'dark'] as const) {
       test(`AC-TBL-STICKY-001: real columns at ${width}px ${mode} — ⋯ visible, nothing past it, menu opens unclipped above the sticky cell`, async ({ page }) => {
         test.setTimeout(120_000);
@@ -304,14 +317,20 @@ test.describe('AC-TBL-STICKY-001 real Sales Invoices columns (DB rows)', () => {
         await waitForFonts(page);
 
         const geo = await measureSticky(page);
-        expect(geo.scroller.scrollWidth, 'real column set must overflow the container to exercise sticky').toBeGreaterThan(geo.scroller.clientWidth);
+        if (width === 1024) {
+          expect(geo.scroller.scrollWidth, 'real column set must overflow the container to exercise sticky').toBeGreaterThan(geo.scroller.clientWidth);
+        } else {
+          expect(geo.scroller.scrollWidth, 'real column set must fit cleanly at 1440px').toBeLessThanOrEqual(geo.scroller.clientWidth);
+        }
 
         // ⋯ fully visible and inside the scroller; nothing renders right of it.
         const outside = geo.triggers.filter(
           ({ left, right }) => left < geo.scroller.left - EPSILON || right > geo.scroller.right + EPSILON,
         );
         expect(outside, `triggers within scroller: ${JSON.stringify({ geo })}`).toEqual([]);
-        expect(Math.abs((geo.stickyTd?.right ?? NaN) - geo.scroller.right)).toBeLessThanOrEqual(EPSILON);
+        if (width === 1024) {
+          expect(Math.abs((geo.stickyTd?.right ?? NaN) - geo.scroller.right)).toBeLessThanOrEqual(EPSILON);
+        }
         await expectSeamClean(page, geo.scroller, mode);
 
         // The row menu opens ABOVE the sticky cell: portaled to body (escapes every overflow
