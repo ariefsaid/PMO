@@ -75,16 +75,18 @@ export function computeBudgetSignal(input: BudgetSignalInput): BudgetSignal {
   const caseInReserved = RESERVED_STATUSES.includes(status);
   const afterCents = availableCents - (caseInReserved ? 0n : requestCents);
   const otherReservedCents = reservedCents - (caseInReserved ? requestCents : 0n);
-  if ([availableCents, afterCents, otherReservedCents].some((value) => value > BigInt(Number.MAX_SAFE_INTEGER) || value < -BigInt(Number.MAX_SAFE_INTEGER))) {
-    throw new Error('Budget position cannot be represented exactly');
-  }
-  const available = Number(availableCents) / 100;
-  const afterRequest = Number(afterCents) / 100;
-  const otherReserved = Number(otherReservedCents) / 100;
   const overAvailable = !caseInReserved && requestCents > availableCents;
   const overage = overAvailable ? requestCents - availableCents : 0n;
-  if (overage > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('Budget position cannot be represented exactly');
-  const overAvailableAmount = Number(overage) / 100;
+  // The returned number must preserve cents under the same bound as the inputs.
+  const toMoney = (cents: bigint): number => {
+    const limit = (2n ** 46n) * 100n;
+    if (cents <= -limit || cents >= limit) throw new Error('Budget position cannot be represented exactly');
+    return Number(cents) / 100;
+  };
+  const available = toMoney(availableCents);
+  const afterRequest = toMoney(afterCents);
+  const otherReserved = toMoney(otherReservedCents);
+  const overAvailableAmount = toMoney(overage);
   const overBudgetReserved = caseInReserved && availableCents < 0n;
 
   return {

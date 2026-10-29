@@ -164,3 +164,14 @@ it('requires matching project, budget and request currencies', () => {
     projectCurrency: 'USD', budgetCurrency: 'USD', requestCurrency: 'EUR',
   })).toThrow();
 });
+
+it('rejects derived positions at the cent representation boundary', () => {
+  const base = { projectCurrency: 'USD', budgetCurrency: 'USD', requestCurrency: 'USD', status: 'Requested' as const };
+  const limit = 2 ** 46;
+  expect(computeBudgetSignal({ ...base, budget: limit - 0.01, committed: 0, reserved: 0, totalValue: 0 }).available).toBe(limit - 0.01);
+  expect(() => computeBudgetSignal({ ...base, budget: 1, committed: limit - 1, reserved: 2.01, totalValue: 0 })).toThrow();
+  expect(() => computeBudgetSignal({ ...base, budget: limit - 1, committed: -1, reserved: -0.01, totalValue: 0 })).toThrow();
+  expect(() => computeBudgetSignal({ ...base, budget: 0, committed: limit - 1, reserved: 0, totalValue: 1.01 })).toThrow();
+  expect(() => computeBudgetSignal({ ...base, status: 'Approved', budget: 0, committed: 0, reserved: limit - 1, totalValue: -1.01 })).toThrow();
+  expect(() => computeBudgetSignal({ ...base, budget: 0, committed: limit - 1, reserved: 0, totalValue: 1.01 })).toThrow();
+});

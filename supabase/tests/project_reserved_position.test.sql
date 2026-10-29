@@ -1,5 +1,5 @@
 begin;
-select plan(9);
+select plan(12);
 insert into organizations (id, name, default_currency) values
  ('f0300000-0000-0000-0000-000000000001','Reserved position A','USD'),
  ('f0300000-0000-0000-0000-000000000002','Reserved position B','USD');
@@ -13,7 +13,9 @@ insert into profiles (id, org_id, full_name, email, role, status) values
  ('f0300000-0000-0000-0000-000000000013','f0300000-0000-0000-0000-000000000001','E','reserved-engineer@example.test','Engineer','active');
 insert into projects (id, org_id, name, status, currency) values
  ('f0300000-0000-0000-0000-000000000021','f0300000-0000-0000-0000-000000000001','A','Ongoing Project','USD'),
- ('f0300000-0000-0000-0000-000000000022','f0300000-0000-0000-0000-000000000001','Many','Ongoing Project','USD');
+ ('f0300000-0000-0000-0000-000000000022','f0300000-0000-0000-0000-000000000001','Many','Ongoing Project','USD'),
+ ('f0300000-0000-0000-0000-000000000023','f0300000-0000-0000-0000-000000000001','Excluded','Ongoing Project','USD'),
+ ('f0300000-0000-0000-0000-000000000024','f0300000-0000-0000-0000-000000000001','Empty','Ongoing Project','USD');
 insert into procurements (org_id, project_id, title, status, total_value, currency, requested_by_id)
 select 'f0300000-0000-0000-0000-000000000001','f0300000-0000-0000-0000-000000000021',
  'Reserved ' || n, 'Approved', 0.25, 'USD','f0300000-0000-0000-0000-000000000011'
@@ -29,8 +31,17 @@ insert into procurements (org_id, project_id, title, status, total_value, curren
  ('f0300000-0000-0000-0000-000000000001','f0300000-0000-0000-0000-000000000021','EUR','Quote Selected',19.75,'EUR','f0300000-0000-0000-0000-000000000011'),
  ('f0300000-0000-0000-0000-000000000001','f0300000-0000-0000-0000-000000000021','Quoted','Vendor Quoted',7.75,'EUR','f0300000-0000-0000-0000-000000000011'),
  ('f0300000-0000-0000-0000-000000000001','f0300000-0000-0000-0000-000000000021','Draft','Requested',500,'USD','f0300000-0000-0000-0000-000000000011');
+-- Exercise every valid non-reserved status through the installed RPC.
+insert into procurements (org_id, project_id, title, status, total_value, currency, requested_by_id)
+select 'f0300000-0000-0000-0000-000000000001', 'f0300000-0000-0000-0000-000000000023',
+       'Excluded ' || status::text, status, 1, 'USD', 'f0300000-0000-0000-0000-000000000011'
+from unnest(enum_range(null::public.procurement_status)) status
+where status::text not in ('Approved', 'Vendor Quoted', 'Quote Selected');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"f0300000-0000-0000-0000-000000000011","role":"authenticated"}';
+select is((select positions from public.project_reserved_position('f0300000-0000-0000-0000-000000000023')), '[]'::jsonb, 'AC-RB-001 all valid non-reserved statuses are excluded from the RPC');
+select is((select positions from public.project_reserved_position('f0300000-0000-0000-0000-000000000024')), '[]'::jsonb, 'empty project has an empty position set');
+select is((select row(project_currency, budget_currency)::text from public.project_reserved_position('f0300000-0000-0000-0000-000000000024')), '(USD,)'::text, 'empty project retains currency metadata');
 select is((select (p->>'amount')::numeric from public.project_reserved_position('f0300000-0000-0000-0000-000000000021') r cross join lateral jsonb_array_elements(r.positions) p where p->>'currency' = 'USD'),260.25::numeric,'all 1001 reserved rows and the additional request contribute');
 select is((select (p->>'amount')::numeric from public.project_reserved_position('f0300000-0000-0000-0000-000000000021') r cross join lateral jsonb_array_elements(r.positions) p where p->>'currency' = 'EUR'),27.50::numeric,'foreign currency has a separate position');
 select is((select project_currency from public.project_reserved_position('f0300000-0000-0000-0000-000000000021') limit 1),'USD'::text,'project currency is explicit');
