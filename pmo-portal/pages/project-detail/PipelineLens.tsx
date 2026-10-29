@@ -1,5 +1,6 @@
 import TaxBasisLabel from '@/src/components/ui/TaxBasisLabel';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Trans, useTranslation } from 'react-i18next';
 import {
@@ -399,12 +400,13 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
               </>
             )}
 
-            <a
-              href={listReturnNavigation(locationState, 'sales').path}
+            <Link
+              to={listReturnNavigation(locationState, 'sales').path}
+              state={listReturnNavigation(locationState, 'sales').state}
               className="mt-1 inline-flex text-xs font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
             >
               {t('projectDetail.pipeline.backToSalesPipeline', '← Back to Sales Pipeline')}
-            </a>
+            </Link>
           </section>
         </div>
         </>}
