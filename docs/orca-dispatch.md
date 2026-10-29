@@ -26,7 +26,8 @@ orca orchestration worker-start --spec "<brief or path>" --agent <harness> \
 
 ## Model routing (defaults; right-size per task)
 
-**Intelligence ranking (owner, 2026-10-29):** Sol > Terra > Gemini 3.8 Flash > Luna. Match the model to
+**Intelligence ranking (owner, 2026-10-29):** Sol > Terra > Gemini 3.8 Flash > GLM-5.3-flash > Luna. GLM runs at most
+**2 parallel tasks**. Match the model to
 the task's difficulty (e.g. money, auth and data-loss fixes → Terra; bounded UI fixes and refactors →
 Flash; mechanical deletions and renames → Luna; orchestration and final review → Sol).
 
