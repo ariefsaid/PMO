@@ -44,6 +44,15 @@ describe('AC-EXP-051 receipts', () => {
     await expect(prepareExpenseReceiptUpload('claim-1', 'evil.exe')).rejects.toThrow('File type not allowed (.exe)');
     expect(h.from).not.toHaveBeenCalled();
   });
+  it('preserves claim read and storage errors and reports a missing upload URL', async () => {
+    h.result.value = { data: null, error: { message: 'Read denied', code: '42501' } };
+    await expect(prepareExpenseReceiptUpload('claim-1', 'receipt.pdf')).rejects.toMatchObject({ message: 'Read denied', code: '42501' });
+    h.result.value = { data: { org_id: 'org-9' }, error: null };
+    h.storageFrom.mockReturnValueOnce({ createSignedUploadUrl: async () => ({ data: null, error: { name: 'StorageError', message: 'Storage denied' } }) } as never);
+    await expect(prepareExpenseReceiptUpload('claim-1', 'receipt.pdf')).rejects.toMatchObject({ message: 'Storage denied', code: '42501' });
+    h.storageFrom.mockReturnValueOnce({ createSignedUploadUrl: async () => ({ data: null, error: null }) } as never);
+    await expect(prepareExpenseReceiptUpload('claim-1', 'receipt.pdf')).rejects.toThrow('Could not create upload URL');
+  });
   it('AC-EXP-051 confirm inserts only claim_id, file_path and title', async () => {
     h.result.value = { data: { id: 'f1' }, error: null };
     await confirmExpenseReceiptUpload('claim-1', 'org/claim-1/f/r.pdf', '  ');

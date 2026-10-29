@@ -132,6 +132,26 @@ describe('AC-S29-003 expense capture DAL', () => {
       .rejects.toThrow('Could not create a stable receipt upload URL.');
   });
 
+  it('keeps the same sanitized object key across retries', async () => {
+    mockClaimRead({ data: { org_id: 'org-29' }, error: null });
+    const createSignedUploadUrl = vi.fn(async (path: string) => ({ data: { signedUrl: 'signed-upload', path }, error: null }));
+    h.storageFrom.mockReturnValue({ createSignedUploadUrl });
+    const first = await prepareExpenseCaptureReceiptUpload('claim-29', 'file-29', '../Taxi Receipt.PDF');
+    const retry = await prepareExpenseCaptureReceiptUpload('claim-29', 'file-29', '../Taxi Receipt.PDF');
+    expect(first.path).toBe('org-29/claim-29/file-29/taxi-receipt.pdf');
+    expect(retry).toEqual(first);
+  });
+
+  it('preserves claim read errors and the stable URL error when a URL is missing', async () => {
+    mockClaimRead({ data: null, error: { message: 'Read denied', code: '42501' } });
+    await expect(prepareExpenseCaptureReceiptUpload('claim-29', 'file-29', 'receipt.pdf'))
+      .rejects.toMatchObject({ message: 'Read denied', code: '42501' });
+    mockClaimRead({ data: { org_id: 'org-29' }, error: null });
+    h.storageFrom.mockReturnValue({ createSignedUploadUrl: vi.fn().mockResolvedValue({ data: { path: receiptPath }, error: null }) });
+    await expect(prepareExpenseCaptureReceiptUpload('claim-29', 'file-29', 'receipt.pdf'))
+      .rejects.toThrow('Could not create a stable receipt upload URL.');
+  });
+
   it('AC-S29-003 inserts receipt metadata with the caller-stable file ID and normalized title', async () => {
     const single = vi.fn().mockResolvedValue({ data: receiptRow, error: null });
     const select = vi.fn().mockReturnValue({ single });
