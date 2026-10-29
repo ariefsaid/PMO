@@ -1,3 +1,4 @@
+import { toStorageAppError } from '@/src/lib/storageError';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { sanitizeFilename } from '@/src/lib/storageKey';
@@ -19,8 +20,8 @@ export const RECEIPT_INPUT_ACCEPT = RECEIPT_EXTENSIONS.join(',');
 function throwWrite(error: { message: string; code?: string }): never {
   throw new AppError(error.message, error.code);
 }
-function throwStorage(error: { message: string; name?: string }): never {
-  throwWrite({ message: error.message, code: error.name === 'StorageError' ? '42501' : undefined });
+function throwStorage(error: { message: string; status?: number | string; statusCode?: string; code?: string }): never {
+  throw toStorageAppError(error);
 }
 
 export function receiptExtension(fileName: string): string {
