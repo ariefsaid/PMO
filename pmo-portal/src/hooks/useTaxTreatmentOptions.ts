@@ -32,8 +32,8 @@ export function useTaxTreatmentOptions(): {
         value: o.value,
         label:
           o.value === 'inclusive'
-            ? t('tax.treatment.inclusive', 'Inclusive — the amount already includes tax')
-            : t('tax.treatment.exclusive', 'Exclusive — tax is on top of the amount'),
+            ? t('tax.treatment.inclusive', 'Inclusive: the amount already includes tax')
+            : t('tax.treatment.exclusive', 'Exclusive: tax is on top of the amount'),
       })),
       placeholder: t('tax.treatment.choose', '— choose —'),
     }),

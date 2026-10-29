@@ -187,7 +187,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       // one situation this confirm can hit — name it in the user's language (BW001's precedent,
       // InvoiceWorkOrderModal).
       fail(err, {
-        '55000': t('projectDetail.billing.claims.errors.claimWithdrawn', "This claim was withdrawn — its invoice can't be raised."),
+        '55000': t('projectDetail.billing.claims.errors.claimWithdrawn', "This claim was withdrawn. Its invoice can't be raised."),
       });
     } finally {
       setRaiseFor(null);

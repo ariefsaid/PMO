@@ -418,7 +418,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       if (confirmFor.acceptance.is_final && result && result.dpHeld > 0) setDpHeldAfterClose(result.dpHeld);
       toast(
         result && result.closingValue !== null
-          ? t('projectTabs:contractQuantities.workOrders.acceptances.toast.closed', 'Final BAST confirmed — closed at {{amount}}', { amount: formatCurrency(result.closingValue, currency), interpolation: { escapeValue: false } })
+          ? t('projectTabs:contractQuantities.workOrders.acceptances.toast.closed', 'Final BAST confirmed: closed at {{amount}}', { amount: formatCurrency(result.closingValue, currency), interpolation: { escapeValue: false } })
           : t('projectTabs:contractQuantities.workOrders.acceptances.toast.confirmed', 'BAST confirmed'),
         undefined,
         'success',
@@ -471,7 +471,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       toast(t('projectDetail.billing.claims.toast.raised', 'Invoice raised in the ERP'), undefined, 'success');
     } catch (err) {
       failClaim(err, {
-        '55000': t('projectDetail.billing.claims.errors.claimWithdrawn', "This claim was withdrawn — its invoice can't be raised."),
+        '55000': t('projectDetail.billing.claims.errors.claimWithdrawn', "This claim was withdrawn. Its invoice can't be raised."),
       });
     } finally {
       setRaiseFor(null);
@@ -507,7 +507,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         title: t('projectDetail.workOrders.confirm.close.title', 'Close this work order?'),
         description: t(
           'projectDetail.workOrders.confirm.close.body',
-          'Closing is final. The value stays in the drawdown — closed work orders count as committed, exactly as issued ones do.',
+          'Closing is final. The value stays in the drawdown. Closed work orders count as committed, exactly as issued ones do.',
         ),
         confirmLabel: t('projectDetail.workOrders.confirm.close.confirm', 'Close work order'),
         tone: 'default' as const,
@@ -517,7 +517,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       title: t('projectDetail.workOrders.confirm.cancel.title', 'Cancel this work order?'),
       description: t(
         'projectDetail.workOrders.confirm.cancel.body',
-        'Cancelling is final and cannot be undone — it is how a work order is withdrawn, since there is no delete. Its value stops counting towards the drawdown.',
+        'Cancelling is final and cannot be undone. It is how a work order is withdrawn, since there is no delete. Its value stops counting towards the drawdown.',
       ),
       confirmLabel: t('projectDetail.workOrders.confirm.cancel.confirm', 'Cancel work order'),
       tone: 'destructive' as const,
@@ -611,7 +611,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       {canViewBilling && dpNotice !== null && (
         <div role="status" data-testid="wo-dp-held-notice" className="border-b border-border pb-3 text-[13px] text-muted-foreground">
           {t('projectTabs:contractQuantities.workOrders.closing.dpHeld',
-            '{{amount}} of the down payment is still held after closing. Finance should recover the rest with the next progress claim, or refund it explicitly — closing does not clear it.',
+            '{{amount}} of the down payment is still held after closing. Finance should recover the rest with the next progress claim, or refund it explicitly. Closing does not clear it.',
             { amount: formatCurrency(dpNotice, currency), interpolation: { escapeValue: false } })}
         </div>
       )}
@@ -1018,7 +1018,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                     {(hasOrderLines || bastList.length > 0 || canPrepare || row.status === 'Issued') && (
                       <details className="group">
                         <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-                          {t('projectTabs:contractQuantities.workOrders.quantities.summary', 'Contract lines and BAST — {{wo}}', { wo: row.wo_number ?? row.title })}
+                          {t('projectTabs:contractQuantities.workOrders.quantities.summary', 'Contract lines and BAST: {{wo}}', { wo: row.wo_number ?? row.title })}
                           <span className="ml-2">{t('projectTabs:contractQuantities.workOrders.quantities.counts', '{{lines}} lines · {{basts}} BAST', { lines: rawLines.length, basts: bastList.length })}</span>
                         </summary>
                         <div className="mt-3 flex flex-col gap-4">

@@ -1005,13 +1005,13 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           setPendingConfirm(null);
           if (pushState === 'failed') {
             activationNoticeId.current = toast(
-              t('financeCopy.versionActivatedERPNotUpdated', 'Version activated — but ERPNext was not updated'),
+              t('financeCopy.versionActivatedERPNotUpdated', 'Version activated, but ERPNext was not updated'),
               t('projectDetail.budget.erpReviewHint', "{{version}}. The budget is active; ask Finance or an administrator to review ERP enforcement.", { version: confirm.label }),
               'warning',
             );
           } else if (pushState === 'nothing-to-push') {
             toast(
-              t('financeCopy.versionActivatedNothingSent', 'Version activated — nothing was sent to ERPNext'),
+              t('financeCopy.versionActivatedNothingSent', 'Version activated: nothing was sent to ERPNext'),
               t('financeCopy.noBudgetLinesToPush', '{{version}} has no budget lines, so no ERPNext Budget was created. Add lines and activate a new version to enforce one.', { version: confirm.label }),
               'warning',
             );

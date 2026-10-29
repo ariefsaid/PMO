@@ -322,7 +322,7 @@ describe('AC-S6-2 (B-IMP-2): SoD pre-announce shown to author on Draft', () => {
     detailState.data = { ...draftByAlice };
     renderBahasaPage();
     expect(screen.getByTestId('sod-pre-announce')).toHaveTextContent(
-      'Mengirim ini ke peninjau lain — Anda tidak dapat menyetujui catatan pengadaan Anda sendiri.',
+      'Mengirim ini ke peninjau lain. Anda tidak dapat menyetujui catatan pengadaan Anda sendiri.',
     );
   });
 

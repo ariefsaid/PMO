@@ -222,7 +222,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
           </span>}
           {actualPosition.basis === 'pmo' && commitmentSource !== 'pmo' && <OtherCurrencyCommitments positions={committedOtherCurrencies} />}</>
         : moneyPosition.headlineState === 'partial'
-          ? <span aria-label={t('uxs01.actualPartial', 'Incomplete — see spending details')}>{t('dashboard:spend.partial', 'Partial')}</span>
+          ? <span aria-label={t('uxs01.actualPartial', 'Incomplete: see spending details')}>{t('dashboard:spend.partial', 'Partial')}</span>
           : undefined },
     ...(contractAfterCostLabel === null ? [] : [{
       label: t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'),

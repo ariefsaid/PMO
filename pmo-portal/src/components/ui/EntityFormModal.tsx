@@ -362,7 +362,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
                       <p className="text-support">{visibleSaveError.action}</p>
                     )}
                     <p className="text-support text-muted-foreground">
-                      {t('entityForm.nothingSaved', 'Nothing was saved — your entries are still here.')}
+                      {t('entityForm.nothingSaved', 'Nothing was saved: your entries are still here.')}
                     </p>
                   </div>
                 </div>

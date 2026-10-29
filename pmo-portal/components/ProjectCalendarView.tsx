@@ -98,7 +98,7 @@ function deriveEvents(
         project: projectName,
         phase: m.name,
       }),
-      ariaLabel: t('projects.calendar.phaseEventAriaLabel', '{{project}} — Phase: {{phase}}', {
+      ariaLabel: t('projects.calendar.phaseEventAriaLabel', '{{project}} (Phase: {{phase}})', {
         project: projectName,
         phase: m.name,
       }),

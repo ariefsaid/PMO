@@ -1357,7 +1357,7 @@ const DocumentTitleCell: React.FC<{
             <span className="text-[11px] text-muted-foreground">
               {`${t(
                 'projectDetail.documents.supersededNotice',
-                'Read-only — continue on Rev',
+                'Read-only: continue on Rev',
               )} ${childDoc.revision}`}
             </span>
           )}

@@ -231,7 +231,7 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
             </div>
           ) : paymentRecordInErp ? null : (
             <span className="text-[13px] text-muted-foreground">
-              {t('procurementLedger.capture.next', '+ Capture {{record}} — the next record for this phase.', { record: label })}
+              {t('procurementLedger.capture.next', '+ Capture {{record}}: the next record for this phase.', { record: label })}
             </span>
           )}
           {paymentRecordInErp ? (

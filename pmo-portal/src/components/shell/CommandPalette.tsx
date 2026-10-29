@@ -437,7 +437,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                   })}
                   {group.overflow > 0 && (
                     <div className="px-2.5 py-1.5 text-[11.5px] text-muted-foreground">
-                      {t('shell.palette.moreResults', '+{{count}} more — refine your search', { count: group.overflow })}
+                      {t('shell.palette.moreResults', '+{{count}} more: refine your search', { count: group.overflow })}
                     </div>
                   )}
                   {group.name === 'Records' && referenceQuerySettled && referenceSearch.data?.hasMore && (
