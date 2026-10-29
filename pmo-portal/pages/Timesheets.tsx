@@ -305,7 +305,9 @@ const TimesheetsPage: React.FC = () => {
               role="status"
               className="text-[13px] text-muted-foreground"
             >
-              {dirty
+              {deleteRow.isPending || isReconciling
+                ? t('timesheets:reconcile.message', 'Refresh this week before continuing.')
+                : dirty
                 ? t('uxs28.save.dirty', 'Unsaved changes')
                 : currentWeekEntries.length > 0
                   ? t('uxs28.save.saved', 'All changes saved')
