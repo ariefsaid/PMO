@@ -37,7 +37,8 @@ const { pipelineState, lostState, wonState } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
-vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => true }));
+let desktop = true;
+vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => desktop }));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineState,
   useLostDeals: () => lostState,
@@ -54,18 +55,23 @@ vi.mock('@/src/hooks/useProjects', () => ({
 
 import SalesPipeline from '../SalesPipeline';
 
-const renderDesktop = () =>
-  render(
+const page = (path = '/sales?view=kanban') => (
     <ImpersonationProvider realRole="Project Manager">
-      <MemoryRouter initialEntries={['/sales?view=kanban']}>
+      <MemoryRouter initialEntries={[path]}>
         <ToastProvider>
           <SalesPipeline />
         </ToastProvider>
       </MemoryRouter>
-    </ImpersonationProvider>,
+    </ImpersonationProvider>
   );
+const renderDesktop = () => render(page());
+
+const lostDeal = { id: 'lost-recovered', name: 'Recovered Lost Deal', client_name: 'Recovered Client', status: 'Loss Tender', currency: 'USD', contract_value: 20000, win_probability: 0, last_update: '2020-01-01T00:00:00Z' };
 
 beforeEach(() => {
+  desktop = true;
+  lostState.data = [];
+  lostState.refetch.mockReset();
   pipelineState.isPending = false;
   pipelineState.isError = false;
   lostState.isPending = false;
@@ -80,13 +86,14 @@ describe('SalesPipeline — PGA05-006: lost query pending and error on desktop b
     lostState.isPending = true;
     renderDesktop();
 
+    expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
     // While lost deals is loading, the page should show loading state, not empty
     expect(screen.queryByText(/No projects yet/i)).not.toBeInTheDocument();
   });
 
   it('displays lost error and retry button on desktop board when lost deals query fails', async () => {
     lostState.isError = true;
-    renderDesktop();
+    const rendered = renderDesktop();
 
     // Must NOT say "No projects yet"
     expect(screen.queryByText(/No projects yet/i)).not.toBeInTheDocument();
@@ -96,7 +103,26 @@ describe('SalesPipeline — PGA05-006: lost query pending and error on desktop b
     const retryBtn = screen.getByRole('button', { name: /retry/i });
     expect(retryBtn).toBeInTheDocument();
 
+    lostState.refetch.mockImplementation(() => { lostState.isError = false; lostState.data = [lostDeal]; rendered.rerender(page()); });
     await userEvent.click(retryBtn);
     expect(lostState.refetch).toHaveBeenCalled();
+    expect(screen.getByText('Recovered Lost Deal')).toBeInTheDocument();
   });
+
+  it.each([
+    ['desktop Lost table', true, '/sales?view=table&scope=Lost'],
+    ['desktop Needs attention table', true, '/sales?view=table&scope=Needs+attention'],
+    ['mobile Lost list', false, '/sales?view=table&scope=Lost'],
+    ['mobile Needs attention list', false, '/sales?view=table&scope=Needs+attention'],
+  ])('recovers the %s after retry', async (_label, isDesktop, path) => {
+    desktop = isDesktop;
+    lostState.isError = true;
+    const rendered = render(page(path));
+    expect(screen.getByText(/Couldn't load lost projects/i)).toBeInTheDocument();
+    lostState.refetch.mockImplementation(() => { lostState.isError = false; lostState.data = [lostDeal]; rendered.rerender(page(path)); });
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(screen.getByText('Recovered Lost Deal')).toBeInTheDocument();
+    expect(screen.getByText('Recovered Client')).toBeInTheDocument();
+  });
+
 });
