@@ -181,9 +181,10 @@ function fakeReleaseClient(result: { data: unknown; error: { code?: string; mess
 Deno.test('releaseSiSubmitClearance: releases by CLEARANCE ID — the dispatch\'s own grant, not "whatever clearance this user holds"', async () => {
   const { client, calls } = fakeReleaseClient({ data: null, error: null });
 
-  const released = await releaseSiSubmitClearance(client, 'si-1', 'clr-1');
+  const result = await releaseSiSubmitClearance(client, 'si-1', 'clr-1');
 
-  assertEquals(released, true);
+  // The dispatch awaits the release for its SIDE EFFECT only — the caller gets no verdict back.
+  assertEquals(result, undefined);
   assertEquals(calls.length, 1);
   assertEquals(calls[0].fn, 'release_sales_invoice_submit_clearance');
   // The id is what fences it: a concurrent submit's clearance carries a different id and survives.
@@ -196,9 +197,9 @@ Deno.test('releaseSiSubmitClearance: a failing release is swallowed (the TTL is 
   const logs: unknown[][] = [];
   console.error = (...args: unknown[]) => { logs.push(args); };
   try {
-    const released = await releaseSiSubmitClearance(client, 'si-1', 'clr-1');
-    assertEquals(released, false, 'the caller learns it failed…');
-    assert(logs.length === 1, '…and it is observable in the function logs, never silent');
+    const result = await releaseSiSubmitClearance(client, 'si-1', 'clr-1');
+    assertEquals(result, undefined, 'a failed release still resolves (no verdict is returned)…');
+    assert(logs.length === 1, '…and the failure is observable in the function logs, never silent');
   } finally {
     console.error = originalError;
   }

@@ -13,12 +13,9 @@
 import { KIND_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
+// The per-domain money-write role map itself lives in _shared/moneyWriteRoles.ts (#919) so read-only
+// functions can apply the SAME rule without loading this dispatch guard.
 import { moneyWriteRolesForDomain } from '../_shared/moneyWriteRoles.ts';
-
-// The per-domain money-write role map itself lives in _shared/moneyWriteRoles.ts (#919) so
-// read-only functions can apply the SAME rule without loading this dispatch guard. Re-exported
-// here so every existing importer (and the authGuard unit proof) keeps its import path.
-export { moneyWriteRolesForDomain };
 
 /**
  * P3b (FR-TSP-011) — the domains whose ACTOR rule is enforced by a DB gate instead of by a role list.
@@ -73,7 +70,9 @@ export async function checkErpnextCommandAuthorization(
   client: AuthorizationClient,
   orgId: string,
   userId: string,
-  command: { domain: string; operation: string; record: { erp_doc_kind?: unknown; id: string } },
+  // The authorization-relevant projection of the command: which domain it writes and what kind of
+  // ERP document it names. The guards read nothing else, so callers pass nothing else.
+  command: { domain: string; record: { erp_doc_kind?: unknown } },
 ): Promise<AuthorizationResult> {
   // (a) Employment on the ERPNEXT tier — the org must actually employ this domain externally.
   //
@@ -214,8 +213,7 @@ export async function checkOutboxReplayAuthorization(
   const payload = candidate.payload ?? {};
   const result = await checkErpnextCommandAuthorization(client, orgId, candidate.actorUserId, {
     domain: candidate.domain,
-    operation: candidate.operation,
-    record: { id: candidate.pmoRecordId, erp_doc_kind: payload.erp_doc_kind },
+    record: { erp_doc_kind: payload.erp_doc_kind },
   });
   if (result.ok) return result;
   return {
