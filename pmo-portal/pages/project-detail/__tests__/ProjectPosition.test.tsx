@@ -215,6 +215,12 @@ describe('project money position', () => {
   });
 
   it('collects over-budget, overdue, late-phase and waiting-request actions with danger items first', () => {
+    // Pin the clock: the org day is mocked as a fixed '2026-10-27' while the
+    // milestone target is computed from `Date.now()`, so this suite silently went
+    // red when the real calendar crossed the mock's horizon. Pinned to the mocked
+    // org day; `twoDaysAgo` (= '2026-10-25') follows the fake clock.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-27T08:00:00.000Z'));
     const twoDaysAgo = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
     state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
     state.finances = actuals([{ category: 'Labor', mapped: true, amount: '130' }]);

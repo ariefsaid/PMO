@@ -74,8 +74,11 @@ export interface ProcurementBlockProps {
 
 /** Four stage tiles: a 2×2 grid on phones (nothing clipped), one row from `sm` up. */
 export const ProcurementStageBand: React.FC<React.PropsWithChildren<{ label: string }>> = ({ label, children }) => (
-  <section aria-label={label} className="panel-card p-1.5 sm:p-2">
-    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">{children}</div>
+  // Owner tidy ruling 2026-10-29: one surface level — the stage tiles are segments
+  // of this band, not cards inside it (hairline gaps between the segments, the
+  // panel edge closes the group; no nested rounded borders).
+  <section aria-label={label} className="panel-card overflow-hidden">
+    <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-4 [&>*]:bg-card">{children}</div>
   </section>
 );
 
@@ -534,19 +537,23 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
       unpaid ? `${unpaid}. ${t('procurement.unpaidTooltip', 'Invoice amount less recorded payments, or the ERP outstanding balance.')}` : null,
     ].filter(Boolean).join(' ');
     if (amount === undefined) return <span className="text-xs text-muted-foreground">{t('procurement.moneyUnknown', 'Not recorded')}</span>;
+    // Owner tidy ruling 2026-10-29: the stage word under the amount is gone — the
+    // Stage pill in its own column already says it (the balance stays in the tooltip).
     return (
-      <span className={inline ? 'inline-flex items-baseline gap-1.5' : 'block space-y-0.5 text-right'}>
+      <span className={inline ? 'inline-flex items-baseline gap-1.5' : 'block text-right'}>
         <Tooltip content={tip}>
           <span tabIndex={0} className="rounded-sm font-medium tabular focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
             {formatCurrency(amount, row.currency)}
           </span>
         </Tooltip>
-        <span className={inline ? 'text-xs text-muted-foreground' : 'block text-xs text-muted-foreground'}>{moneyBasisText(money.mostReal!.kind, t)}</span>
       </span>
     );
   }, [erp.data, role, t]);
 
   const columns = useMemo<Column<ProcurementWithRefs>[]>(() => {
+    // Owner tidy ruling 2026-10-29: when every row in view is uncategorized the
+    // Category column carries no information — hide it until a category appears.
+    const hideCategory = filteredRows.length > 0 && filteredRows.every((row) => !row.budget_category);
     const valueColumn: Column<ProcurementWithRefs> = {
       key: 'value',
       header: <Tooltip content={t('procurement.moneyTooltip', 'Most recorded amount: paid, invoiced, ordered, then requested. Source: procurement records.')}><span tabIndex={0}>{t('projectDetail.procurement.table.value', 'Value')}</span></Tooltip>,
@@ -584,6 +591,16 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         const money = moneyFor(row, erp.data);
         return money.invoiced.unknown || money.paid.unknown ? '' : `${money.paid.amount ?? 0} / ${money.invoiced.amount ?? 0}`;
       },
+    };
+    const categoryColumn: Column<ProcurementWithRefs> = {
+      key: 'category',
+      header: t('projectDetail.procurement.table.category', 'Category'),
+      kind: 'text',
+      size: 110,
+      minSize: 100,
+      sortKey: 'category',
+      cell: (row) => categoryLabel(row.budget_category),
+      exportValue: (row) => categoryLabel(row.budget_category),
     };
     const tableColumns: Column<ProcurementWithRefs>[] = [
       {
@@ -638,16 +655,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         },
         exportValue: (row) => row.title,
       },
-      {
-        key: 'category',
-        header: t('projectDetail.procurement.table.category', 'Category'),
-        kind: 'text',
-        size: 110,
-        minSize: 100,
-        sortKey: 'category',
-        cell: (row) => categoryLabel(row.budget_category),
-        exportValue: (row) => categoryLabel(row.budget_category),
-      },
+      ...(hideCategory ? [] : [categoryColumn]),
       ...(canSeeMoney ? [valueColumn] : []),
       ...(canSeeMoney ? [settlementColumn] : []),
       {
@@ -670,11 +678,13 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         key: 'next-step',
         header: t('projectDetail.procurement.table.nextStep', 'Next step'),
         kind: 'text',
-        size: 125,
-        minSize: 105,
+        // Owner tidy ruling 2026-10-29: an action label is never truncated — the
+        // column gets the width it needs and wraps to two lines instead.
+        size: 210,
+        minSize: 150,
         cell: (row) => {
           const next = nextStepText(row.status, canDecideRow(row), t);
-          return <Tooltip content={next}><span title={next} className={`block min-w-0 w-full max-w-full truncate ${row.status === 'Requested' && canDecideRow(row) ? 'font-medium text-primary-text' : 'text-muted-foreground'}`}>{next}</span></Tooltip>;
+          return <Tooltip content={next}><span title={next} className={`block min-w-0 w-full max-w-full line-clamp-2 break-words ${row.status === 'Requested' && canDecideRow(row) ? 'font-medium text-primary-text' : 'text-muted-foreground'}`}>{next}</span></Tooltip>;
         },
         exportValue: (row) => nextStepText(row.status, canDecideRow(row), t),
       },
@@ -722,7 +732,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
       },
     ];
     return tableColumns;
-  }, [canSeeMoney, t, categoryLabel, canDecideRow, stageDateTooltip, erp.data, expandedId, detailQuery.data, detailQuery.isError, detailQuery.isPending, project, projectId, setSelected, rowAmount]);
+  }, [canSeeMoney, t, categoryLabel, canDecideRow, stageDateTooltip, erp.data, expandedId, detailQuery.data, detailQuery.isError, detailQuery.isPending, project, projectId, setSelected, rowAmount, filteredRows]);
 
   const exportColumns = columns;
   const selectedForExport = selectedRows;
@@ -843,7 +853,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
                   type="button"
                   aria-pressed={selectedStage === key}
                   onClick={() => setSelectedStage((current) => current === key ? null : key)}
-                  className={`flex min-h-[68px] w-full min-w-0 flex-col items-start justify-center rounded-md border px-3 py-2 text-left transition-colors focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selectedStage === key ? 'border-primary bg-accent ring-1 ring-primary/30' : 'border-border bg-card hover:bg-accent/40'}`}
+                  className={`flex min-h-[68px] w-full min-w-0 flex-col items-start justify-center px-3 py-2 text-left transition-colors focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selectedStage === key ? 'bg-accent outline outline-1 -outline-offset-1 outline-primary/30' : 'bg-card hover:bg-accent/40'}`}
                 >
                   <span className="flex w-full min-w-0 items-center justify-between gap-1 text-xs font-semibold text-muted-foreground">
                     <span className="truncate">{stageLabel}</span>
