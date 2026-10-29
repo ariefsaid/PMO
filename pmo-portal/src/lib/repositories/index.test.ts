@@ -250,7 +250,9 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
 
   it('each repository exposes its expected methods', () => {
     expect(Object.keys(repositories.project).sort()).toEqual(
-      ['archive', 'create', 'delete', 'get', 'getVatEditability', 'list', 'listIdentity', 'proposeNumber', 'setContractValue', 'transition', 'updateHeader'].sort(),
+      // 'getWithRefs'/'listByClient'/'listPipelineStageConfig' added with 2d97e91d5 (project &
+      // task projection refresh). Exhaustive API-seam contract — extend only deliberately.
+      ['archive', 'create', 'delete', 'get', 'getVatEditability', 'getWithRefs', 'list', 'listByClient', 'listIdentity', 'listPipelineStageConfig', 'proposeNumber', 'setContractValue', 'transition', 'updateHeader'].sort(),
     );
     expect(Object.keys(repositories.company).sort()).toEqual(
       ['archive', 'create', 'delete', 'get', 'list', 'listClients', 'setProjectNumberSegment', 'setTaxDefaults', 'update'].sort(),
@@ -279,10 +281,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     expect(Object.keys(repositories.task).sort()).toEqual(
       // 'archive'/'unarchive' added deliberately with the PMO task-archive affordance (ADR-0018
       // soft-archive). 'listByMeeting' added deliberately with #526 (the /action seam, migration
-      // 0206 — the meeting detail lists its minuted tasks). This list is an exhaustive API-seam
-      // contract (ADR-0017) — extending the repository surface must be an explicit change here,
-      // never an accident.
-      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'listByMeeting', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
+      // 0206 — the meeting detail lists its minuted tasks). 'listByAssignee' added with 2d97e91d5
+      // (My Tasks projection). This list is an exhaustive API-seam contract (ADR-0017) — extending
+      // the repository surface must be an explicit change here, never an accident.
+      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'listByAssignee', 'listByMeeting', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
     );
     expect(Object.keys(repositories.meeting).sort()).toEqual(
       // #526 (OD-MTG-1/2): grants are add/revoke ONLY — no update method on purpose (a grant is
