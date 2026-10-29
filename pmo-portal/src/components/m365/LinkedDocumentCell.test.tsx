@@ -285,25 +285,33 @@ describe('LinkedDocumentCell versions and approved history', () => {
 describe('LinkedDocumentCell drift and verification state', () => {
   const verified = '2026-10-10T08:00:00Z';
 
-  it('AC-M365DOC-064 drifted shows a warn pill "Changed since approval" with the last successful check time', () => {
+  it('AC-M365DOC-064 approved file content is compared with its issue-time baseline', () => {
     view(ref(), projectOwner({ drift_state: 'drifted', last_verified_at: verified }));
-    expect(screen.getByText('Changed since approval')).toBeInTheDocument();
+    expect(screen.getByText('File content differs from its issue-time baseline.')).toBeInTheDocument();
     expect(screen.getByText(`Checked ${formatInstantDate(verified)}`)).toBeInTheDocument();
     expect(screen.queryByText(/Unchanged/)).not.toBeInTheDocument();
   });
 
-  it('AC-M365DOC-064 an Issued file that drifted says "Changed since issue", not approval', () => {
+  it('AC-M365DOC-064 an Issued file uses the same issue-time content baseline', () => {
     view(ref(), projectOwner({ status: 'Issued', drift_state: 'drifted', last_verified_at: verified }));
-    expect(screen.getByText('Changed since issue')).toBeInTheDocument();
-    expect(screen.queryByText(/approval/)).not.toBeInTheDocument();
+    expect(screen.getByText('File content differs from its issue-time baseline.')).toBeInTheDocument();
   });
 
   it('AC-M365DOC-064 clean is quiet text with its as-of time, not a pill', () => {
     view(ref(), projectOwner({ drift_state: 'clean', last_verified_at: verified }));
-    const clean = screen.getByText(`Unchanged since approval. Verified ${formatInstantDate(verified)}.`);
+    const clean = screen.getByText(
+      `File content matches its issue-time baseline. Verified ${formatInstantDate(verified)}.`,
+    );
     expect(clean).toHaveClass('text-muted-foreground');
-    expect(screen.queryByText('Changed since approval')).not.toBeInTheDocument();
+    expect(screen.queryByText('File content differs from its issue-time baseline.')).not.toBeInTheDocument();
     expect(screen.queryByText('Not verified')).not.toBeInTheDocument();
+  });
+
+  it('AC-M365DOC-064 an Issued clean file uses its issue-time baseline', () => {
+    view(ref(), projectOwner({ status: 'Issued', drift_state: 'clean', last_verified_at: verified }));
+    expect(
+      screen.getByText(`File content matches its issue-time baseline. Verified ${formatInstantDate(verified)}.`),
+    ).toBeInTheDocument();
   });
 
   it('AC-M365DOC-064 not_verified states why and since when, and never reads as clean', () => {

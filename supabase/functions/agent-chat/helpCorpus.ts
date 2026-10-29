@@ -30,11 +30,13 @@ Reference material. Answer only for what the asking user's role can do; if an ac
 
 **Task** — the smallest unit of tracked work. Belongs to a project and may sit under one milestone. Engineers log hours against tasks.
 
-**Document** — a controlled record in a project's document register (drawing, specification, report, contract) with a category, a revision mark, and a lifecycle (Draft → … → Approved). It holds one file, changeable only while Draft; once issued, content changes need a new revision.
+**Document** — a controlled file register entry has one source at most: a PMO-held upload, a linked Microsoft 365 file, or no source yet. A linked folder is reference-only, not an issuable or approvable file. PMO locks uploads at issue; linked files use the issue-time baseline.
 
-**Revision** — a successive issue of the same document (Rev A → Rev B). Each revision is its own register entry with its own lifecycle, created from its predecessor — that act links the lineage. Older revisions become "Superseded" but stay readable.
+**Content drift** — linked file content differs from its frozen issue-time baseline; each check reuses it. Result: Changed, Unchanged, or Not verified. A rename is not content drift; drift keeps the document's status.
 
-**Superseded** — terminal document status meaning "replaced by a newer Approved revision of the same document". Read-only, reached automatically.
+**Revision** — each issue is a register entry created from its predecessor. Approval supersedes only the immediate predecessor, and only from Issued or Approved; a Closed predecessor and earlier ancestors keep their status.
+
+**Superseded** — terminal, read-only status for a revision replaced by an Approved successor. Only its immediate Issued or Approved predecessor transitions.
 
 **Committed spend** — the sum of all procurement records (Purchase Orders, etc.) in statuses Ordered, Received, Vendor Invoiced, or Paid for a project — the single live spend number on the project header ("Committed"), the Finance dashboard, and the Delivery summary.
 
@@ -46,9 +48,9 @@ Reference material. Answer only for what the asking user's role can do; if an ac
 
 **RFQ (Request for Quotation)** — a procurement record asking vendors for pricing. One RFQ may gather many Quotations; a Quotation may cite its RFQ.
 
-**System-assigned number** — the ID PMO mints for a procurement record (e.g. PR-250619-0001), unique per org, gap-tolerant.
+**System-assigned number** — PMO mints one at standard creation, using a per-org daily sequence and type prefix.
 
-**External reference number** — the ID the document carries in the outside world (vendor quotation number, real PO number, supplier invoice number), captured alongside the system-assigned number so a record is findable from both sides.
+**External reference number** — optional, free-form outside identifier for lookup from either side.
 
 **Active contract value** — the sum of signed contract values across projects currently in delivery. Smaller than "revenue on hand" because revenue also accrues on completed work.
 

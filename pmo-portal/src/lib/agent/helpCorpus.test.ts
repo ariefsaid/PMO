@@ -20,6 +20,21 @@ it('help corpus contains the load-bearing anchors (term + role-scoped screen)', 
   expect(HELP_CORPUS).toContain('Engineer');
 });
 
+it('gives grounded document source, revision, and verification guidance', () => {
+  expect(HELP_CORPUS).toMatch(/PMO-held upload/);
+  expect(HELP_CORPUS).toMatch(/linked Microsoft 365 file/);
+  expect(HELP_CORPUS).toMatch(/no source yet/);
+  expect(HELP_CORPUS).toMatch(/one source at most/);
+  expect(HELP_CORPUS).toMatch(/folder.*reference-only/);
+  expect(HELP_CORPUS).toMatch(/not an issuable or approvable file/);
+  expect(HELP_CORPUS).toMatch(/issue-time baseline/);
+  expect(HELP_CORPUS).toMatch(/Changed, Unchanged, or Not verified/);
+  expect(HELP_CORPUS).toMatch(/rename is not content drift/);
+  expect(HELP_CORPUS).toMatch(/immediate predecessor/);
+  expect(HELP_CORPUS).toMatch(/Issued or Approved/);
+  expect(HELP_CORPUS).toMatch(/Closed predecessor and earlier ancestors keep their status/);
+});
+
 it('NFR-DH-SEC-003 help corpus contains no internal-only citations or data-row shapes', () => {
   expect(HELP_CORPUS).not.toMatch(/ADR-\d|OD-[A-Z]|NFR-|FR-DH|AC-DH|STRIDE|OWASP|\bRLS\b|\borg_id\b/);
   expect(HELP_CORPUS).not.toMatch(/\{"id":/);
