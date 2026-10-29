@@ -36,6 +36,9 @@ export interface ProjectCalendarViewProps {
   projects: ProjectWithRefs[];
   /** From useProjectsMilestoneDates (undefined while loading). */
   milestoneDates: MilestoneDate[] | undefined;
+  isPending?: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
   onOpenProject: (id: string) => void;
   /** Test seam: force the initial displayed month (defaults to todayCursor()). */
   initialCursor?: MonthCursor;
@@ -167,6 +170,9 @@ const EventChip: React.FC<{ event: CalEvent; onOpen: (id: string) => void }> = (
 const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
   projects,
   milestoneDates,
+  isPending,
+  isError,
+  onRetry,
   onOpenProject,
   initialCursor,
   cursor: controlledCursor,
@@ -230,6 +236,9 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
         />
       </div>
     ) : null;
+
+  if (isPending) return <ListState variant="loading" rows={3} />;
+  if (isError) return <ListState variant="error" title={t('projectDetail.milestones.errorTitle', "Couldn't load phases")} onRetry={onRetry} />;
 
   if (isDesktop) {
     const weeks = buildMonthMatrix(cursor.year, cursor.month);

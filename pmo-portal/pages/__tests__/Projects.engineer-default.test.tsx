@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -16,15 +16,17 @@ import { ToastProvider } from '@/src/components/ui';
  */
 
 // vi.hoisted must be first to avoid TDZ errors when referenced in vi.mock factories.
-const { projectsState, myTasksState } = vi.hoisted(() => ({
+const { projectsState, myTasksState, milestoneState, clientsState } = vi.hoisted(() => ({
   projectsState: {
     data: null as Array<Record<string, unknown>> | null,
     isPending: true,
     isError: false,
     refetch: vi.fn(),
   },
+  milestoneState: { data: undefined as undefined | [], isPending: false, isError: false, refetch: vi.fn() },
+  clientsState: { data: [], isPending: false, isError: false, refetch: vi.fn() },
   // B-11 fix: the Engineer's "My Projects" derives from their assigned tasks.
-  myTasksState: { data: [] as Array<Record<string, unknown>> },
+  myTasksState: { data: [] as Array<Record<string, unknown>>, isPending: false, isError: false, refetch: vi.fn() },
 }));
 
 // Stub the ProjectStatusControl — B-11 is about filter defaults, not status transitions.
@@ -41,9 +43,9 @@ vi.mock('@/src/hooks/useCompanies', () => ({
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
-  useClientCompanies: () => ({ data: [] }),
+  useClientCompanies: () => clientsState,
   useProjectManagers: () => ({ data: [] }),
-  useProjectsMilestoneDates: () => ({ data: [], isPending: false }),
+  useProjectsMilestoneDates: () => milestoneState,
   useProjectMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -76,10 +78,10 @@ const renderAsEngineer = () =>
     </ImpersonationProvider>,
   );
 
-const renderAsPM = () =>
+const renderAsPM = (url = '/projects') =>
   render(
     <ImpersonationProvider realRole="Project Manager">
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[url]}>
         <ToastProvider>
           <Projects />
         </ToastProvider>
@@ -120,10 +122,76 @@ beforeEach(() => {
     },
   ];
   // The Engineer (u-eng) is assigned a task on p1 only — so "My Projects" must show p1, hide p2.
+  milestoneState.isPending = false;
+  milestoneState.isError = false;
+  clientsState.isError = false;
+  clientsState.refetch.mockClear();
+  myTasksState.isPending = false;
+  myTasksState.isError = false;
+  myTasksState.refetch.mockClear();
   myTasksState.data = [{ id: 't1', project_id: 'p1', assignee_id: 'u-eng' }];
 });
 
 describe('Projects page — Engineer default filter (B-11, AC-W2-IXD-009)', () => {
+  it('waits for assignments before showing My Projects results', () => {
+    myTasksState.isPending = true;
+    myTasksState.data = [];
+    renderAsEngineer();
+    expect(screen.queryByText(/no projects match these filters/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('Northwind ERP')).not.toBeInTheDocument();
+  });
+
+  it('allows an Engineer to view all projects while assignments are pending', () => {
+    myTasksState.isPending = true;
+    myTasksState.data = [];
+    renderAsEngineer();
+    fireEvent.click(screen.getByRole('tab', { name: /^all$/i }));
+    expect(screen.getByText('Northwind ERP')).toBeInTheDocument();
+    expect(screen.getByText('Acme Internal')).toBeInTheDocument();
+  });
+
+  it('allows retry when assignments cannot be read', () => {
+    myTasksState.isError = true;
+    myTasksState.data = [];
+    const { rerender } = renderAsEngineer();
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(myTasksState.refetch).toHaveBeenCalledOnce();
+    myTasksState.isError = false;
+    myTasksState.data = [{ id: 't1', project_id: 'p1' }];
+    rerender(<ImpersonationProvider realRole="Engineer"><MemoryRouter><ToastProvider><Projects /></ToastProvider></MemoryRouter></ImpersonationProvider>);
+    expect(screen.getByText('Northwind ERP')).toBeInTheDocument();
+    expect(screen.queryByText('Acme Internal')).not.toBeInTheDocument();
+  });
+
+  it('shows loading while calendar milestone dates are pending', () => {
+    milestoneState.isPending = true;
+    renderAsPM('/projects?view=calendar');
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(screen.queryByText(/no events this month/i)).not.toBeInTheDocument();
+  });
+
+  it('shows the empty calendar when no projects match and the dates query is disabled', () => {
+    milestoneState.isPending = true;
+    renderAsPM('/projects?view=calendar&q=unmatched');
+    expect(screen.getByText(/no events this month/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('liststate-loading')).not.toBeInTheDocument();
+  });
+
+  it('offers retry when calendar milestone dates fail', () => {
+    milestoneState.isError = true;
+    renderAsPM('/projects?view=calendar');
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(milestoneState.refetch).toHaveBeenCalledOnce();
+  });
+
+  it('offers retry for failed desktop filter options', () => {
+    clientsState.isError = true;
+    renderAsPM();
+    fireEvent.click(screen.getByRole('button', { name: /^filters/i }));
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(clientsState.refetch).toHaveBeenCalledOnce();
+  });
+
   it('AC-W2-IXD-009: Engineer sees "My Projects" tab selected by default', () => {
     renderAsEngineer();
     // "My Projects" filter tab should be selected (aria-selected=true or pressed state).

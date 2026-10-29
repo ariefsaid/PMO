@@ -220,6 +220,15 @@ describe('Projects persona money visibility — contract figure gated on the sha
     expect(row('Beta IDR Rollout').getCell(col(ws, 'Currency')).value).toBe('IDR');
   });
 
+  it('exports only columns shown on the table, plus the contract currency', async () => {
+    renderPage('Project Manager');
+    expect(screen.queryByRole('columnheader', { name: 'Progress' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Budget used' })).not.toBeInTheDocument();
+    const ws = await exportWorkbook();
+    expect(headersOf(ws)).not.toContain('Progress');
+    expect(headersOf(ws)).not.toContain('Budget used');
+  });
+
   it('Engineer export carries no Contract column, no Currency column, and no contract amount anywhere', async () => {
     renderPage('Engineer');
     const ws = await exportWorkbook();
