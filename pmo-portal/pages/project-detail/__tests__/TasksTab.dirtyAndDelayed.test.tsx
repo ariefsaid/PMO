@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
@@ -8,6 +8,11 @@ import { ToastProvider } from '@/src/components/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
+import {
+  clearOwnershipCache,
+  setProjectBindings,
+  setTaskOwnership,
+} from '@/src/lib/adapterSeam/ownershipCache';
 
 const { listState, milestoneState, mutations } = vi.hoisted(() => ({
   listState: {
@@ -157,6 +162,16 @@ const renderTab = (hash = '') => {
 
 describe('TasksTab delayed scroll (PGB-024) and phase/parent dirty warnings (PGB-025)', () => {
   beforeEach(() => {
+    // Unmount the previous case's tree first: TasksTab subscribes to the module-level ownership
+    // cache via useSyncExternalStore, so clearing/reseeding under a still-mounted observer would
+    // re-render it outside act().
+    cleanup();
+    // Seed the ownership cache as synced with no external ownership or project bindings, exactly
+    // as useOwnershipCacheSync does once both queries resolve for a PMO-native org — without this
+    // the task route stays 'unknown' and the tab correctly hides its write affordances.
+    clearOwnershipCache();
+    setTaskOwnership([]);
+    setProjectBindings([]);
     vi.clearAllMocks();
     listState.data = seedTasks;
     listState.isPending = false;
