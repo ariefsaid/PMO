@@ -10,6 +10,7 @@ import {
   isOwnershipCacheSynced,
   subscribeOwnershipCache,
   routeDomainWrite,
+  taskRouteState,
 } from '@/src/lib/adapterSeam/ownershipCache';
 import type { RevenueMode } from './useRevenueMode';
 
@@ -22,16 +23,16 @@ import type { RevenueMode } from './useRevenueMode';
  */
 export function useOwnershipCacheSync(): void {
   const { currentUser } = useAuth();
-  const { data: ownership } = useExternalDomainOwnership();
+  const { data: ownership, isError: ownershipError } = useExternalDomainOwnership();
   const orgId = currentUser?.org_id;
-  const { data: projectBindings } = useQuery({
+  const { data: projectBindings, isError: bindingsError } = useQuery({
     queryKey: ['integrations', 'project-bindings', orgId],
     queryFn: () => repositories.integrations.listProjectBindings(orgId!),
     enabled: Boolean(orgId),
   });
 
   useLayoutEffect(() => {
-    if (ownership && projectBindings) {
+    if (orgId && ownership && projectBindings && !ownershipError && !bindingsError) {
       setTaskOwnership(ownership);
       setProjectBindings(projectBindings.map(({ project_id, external_tier }) => ({
         projectId: project_id,
@@ -40,7 +41,7 @@ export function useOwnershipCacheSync(): void {
     } else {
       clearOwnershipCache();
     }
-  }, [ownership, projectBindings]);
+  }, [orgId, ownership, projectBindings, ownershipError, bindingsError]);
 
   // Own-org-only, session-scoped: clear on unmount so a later session (sign-out → sign-in as a
   // different org) never inherits a stale map, even for the instant before the next fetch resolves.
@@ -65,4 +66,9 @@ export function useRevenueRouteReady(mode: RevenueMode | undefined): boolean {
   const synced = useOwnershipCacheSynced();
   if (!synced || mode === undefined) return false;
   return (mode === 'erp') === (routeDomainWrite('revenue') === 'external');
+}
+
+/** Subscribe to the actual per-project route, including binding changes after loading. */
+export function useTaskRouteState(projectId: string) {
+  return useSyncExternalStore(subscribeOwnershipCache, () => taskRouteState(projectId));
 }
