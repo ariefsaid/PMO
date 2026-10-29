@@ -157,7 +157,7 @@ const withDocumentCount = (count: number) => [
   })),
 ];
 
-const renderTab = (role: Role = 'Admin', uid = 'admin-1', initialEntry = '/', showBack = false) => {
+const renderTab = (role: Role = 'Admin', uid = 'admin-1', initialEntry = '/', showBack = false, onCountChange?: (count: number | null) => void) => {
   realRole = role;
   currentUserId = uid;
   return render(
@@ -165,7 +165,7 @@ const renderTab = (role: Role = 'Admin', uid = 'admin-1', initialEntry = '/', sh
       <MemoryRouter initialEntries={[initialEntry]}>
         <RouteSearch />
         {showBack && <RouteBack />}
-        <DocumentsTab projectId="p1" />
+        <DocumentsTab projectId="p1" onCountChange={onCountChange} />
       </MemoryRouter>
     </ToastProvider></QueryClientProvider>,
   );
@@ -202,6 +202,12 @@ beforeEach(() => {
 });
 
 describe('DocumentsTab — register rows (AC-DOC-001)', () => {
+  it('reports the loaded document register count from its existing query', () => {
+    const onCountChange = vi.fn();
+    renderTab('Admin', 'admin-1', '/', false, onCountChange);
+    expect(onCountChange).toHaveBeenCalledWith(seed.length);
+  });
+
   it('AC-DOC-001: renders the seeded document rows with code + title + status', () => {
     renderTab();
     expect(screen.getByText('Site Plan')).toBeInTheDocument();

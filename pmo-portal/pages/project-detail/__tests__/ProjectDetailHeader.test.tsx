@@ -129,6 +129,23 @@ beforeEach(() => {
 afterEach(() => resetActiveLocale());
 
 describe('ProjectDetailHeader — content', () => {
+  it('keeps the project status beside its title and customer on the next line in the compact header', () => {
+    roleBox.value = 'Project Manager';
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <ProjectDetailHeader project={onHand} compact />
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+    const header = screen.getByTestId('record-header');
+    const title = within(header).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' });
+    const status = within(header).getByText('Ongoing Project');
+    expect(title.parentElement?.className).toContain('flex-nowrap');
+    expect(title.parentElement).toContainElement(status);
+    expect(within(header).getByText('Innovate Corp').parentElement).not.toBe(title.parentElement);
+  });
+
   it('AC-MONEY-DISPLAY: actual figures show rounded whole currency units', () => {
     financeBox.data = { actuals: { currency: 'USD', total: '1800000.49', excludes_restricted_rows: false,
       categories: [{ category: 'Labor', mapped: true, amount: '1800000.49' }] } };

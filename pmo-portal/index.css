@@ -57,7 +57,7 @@
   --foreground: 218.1818 12.3596% 17.451%;
   --card: 0 0% 100%;
   --surface-panel: var(--card);
-  --panel-border: 217.5 13% 57%;
+  --panel-border: var(--border);
   --card-foreground: 218.1818 12.3596% 17.451%;
   --popover: 0 0% 100%;
   --popover-foreground: 218.1818 12.3596% 17.451%;
@@ -199,7 +199,7 @@
   --foreground: 211.2 20.6612% 76.2745%;
   --card: 210 12.1212% 12.9412%;
   --surface-panel: var(--card);
-  --panel-border: 210 10% 42%;
+  --panel-border: var(--border);
   --card-foreground: 211.2 20.6612% 76.2745%;
   --popover: 210 12.1212% 12.9412%;
   --popover-foreground: 211.2 20.6612% 76.2745%;
@@ -419,8 +419,8 @@
   --text-metric--line-height: var(--line-metric);
 }
 
-/* One framed section answers one question on the canvas. The stronger boundary keeps
-   the panel legible in both themes even when the surface step is intentionally subtle. */
+/* One framed section answers one question on the canvas. The quiet hairline works with
+   the canvas/panel surface step to keep the group legible in both themes. */
 @layer components {
   .panel-card {
     min-width: 0;

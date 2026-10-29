@@ -17,11 +17,11 @@ describe('Card', () => {
     expect(screen.getByText('body').className).toContain('panel-card-seam');
   });
 
-  it('CardHead renders a titled header with a bottom border and a navigable heading level', () => {
+  it('CardHead renders a titled header without a divider and keeps a navigable heading level', () => {
     render(<CardHead>Pipeline</CardHead>);
     // Default sits one level under the page h1 (no h1 -> h3 skip); explicit level for nested cards.
     const heading = screen.getByRole('heading', { name: 'Pipeline', level: 2 });
-    expect(heading.closest('[class*="border-b"]')?.className).toContain('border-b');
+    expect(heading.parentElement?.parentElement).not.toHaveClass('border-b');
   });
 
   it('CardHead actions sit beside the heading: its accessible name is the title only', async () => {

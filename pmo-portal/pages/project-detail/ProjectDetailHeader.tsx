@@ -340,10 +340,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       : t('projectDetail.header.po', 'PO {{ref}}', { ref: project.customer_contract_ref })
     : null;
   const meta = compact ? (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
-      <span className="inline-flex items-center"><StatusPill variant={pillVariantForProjectStatus(status)}>{project.status}</StatusPill></span>
-      {customerName && <span className="inline-flex items-center">{customerName}</span>}
-    </div>
+    customerName ? <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground"><span className="inline-flex items-center">{customerName}</span></div> : null
   ) : (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       {customerName && <span className="font-medium text-foreground">{customerName}</span>}
@@ -688,7 +685,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         icon={compact ? null : (projectDisplayName(project).trim().charAt(0) || '•').toUpperCase()}
         iconColor={projectIconColor()}
         name={<span title={project.name}>{projectDisplayName(project)}</span>}
-        status={compact ? null : <StatusPill variant={pillVariantForProjectStatus(status)}>{project.status}</StatusPill>}
+        status={<StatusPill variant={pillVariantForProjectStatus(status)}>{project.status}</StatusPill>}
         // Phone keeps identity/status; the persistent Details rail below the
         // selected work already carries these codes, customer and PO facts.
         meta={meta}

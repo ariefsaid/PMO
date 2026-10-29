@@ -68,6 +68,8 @@ export interface ProcurementBlockProps {
   toolbarExtra?: React.ReactNode;
   /** Clears the host page's filters too when the user clears a zero-match table. */
   onClearFilters?: () => void;
+  /** Reports the already-loaded project list count to its host tab. */
+  onCountChange?: (count: number | null) => void;
 }
 
 /** Four stage tiles: a 2×2 grid on phones (nothing clipped), one row from `sm` up. */
@@ -304,7 +306,7 @@ function ProcurementBudgetLeft({
   );
 }
 
-export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, rowFilter, rowOrder, showCreate = true, toolbarExtra, onClearFilters }) => {
+export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, rowFilter, rowOrder, showCreate = true, toolbarExtra, onClearFilters, onCountChange }) => {
   const { t } = useTranslation('procurement');
   // The state main action reuses the record page's labels, which live in the common catalogue.
   const { t: tCommon } = useTranslation();
@@ -319,6 +321,9 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
   const projectQuery = useProjectProcurements(projectId);
   const procurementQuery = projectId ? projectQuery : companyQuery;
   const { data, isPending, isError, refetch } = procurementQuery;
+  React.useEffect(() => {
+    onCountChange?.(isPending || isError || data == null ? null : data.length);
+  }, [data, isError, isPending, onCountChange]);
   const ownScoped = !projectId && role === 'Engineer';
   const scopedRows = useMemo(() => (data ?? []).filter((row) => !ownScoped || row.requested_by_id === currentUser?.id),
     [data, ownScoped, currentUser?.id]);
@@ -567,7 +572,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         return (
           <Tooltip content={t('procurement.settlementTooltip', 'Recorded paid amount compared with recorded invoices.')}>
             <span tabIndex={0} className="inline-flex min-w-0 w-full items-center gap-1.5 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-              <span aria-hidden="true" className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-secondary"><span className={`block h-full ${percent >= 100 ? 'bg-success' : 'bg-muted-foreground/55'}`} style={{ width: `${percent}%` }} /></span>
+              <span aria-hidden="true" className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-secondary"><span className={`block h-full ${percent >= 100 ? 'bg-success' : 'bg-primary'}`} style={{ width: `${percent}%` }} /></span>
               <span className="shrink-0 text-xs tabular text-muted-foreground" title={`${formatCurrency(paid, row.currency)} / ${formatCurrency(money.invoiced.amount, row.currency)}`}>
                 {percent}%
               </span>

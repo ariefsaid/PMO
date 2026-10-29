@@ -100,7 +100,7 @@ const WinRateFigure: React.FC<{
           aria-valuemax={100}
           className="block h-3 min-w-12 flex-1 overflow-hidden rounded-full bg-secondary"
         >
-          <span className="block h-full rounded-full bg-success" style={{ width: `${figure.rate === null ? 0 : figure.rate * 100}%` }} />
+          <span className="block h-full rounded-full bg-primary" style={{ width: `${figure.rate === null ? 0 : figure.rate * 100}%` }} />
         </span>
         {detail && <span className="min-w-0 break-words text-[11px] text-muted-foreground">{detail}</span>}
       </div>

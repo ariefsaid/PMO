@@ -138,8 +138,8 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                       className="block h-full rounded-full"
                       style={{
                         width: `${Math.max(0, Math.min(100, s.barPct))}%`,
-                        // One-Blue: bars are neutral; the action blue marks only the selected stage.
-                        background: s.barColor ?? (selected ? chartTheme.series.primary : chartTheme.axis),
+                        // The funnel is one series across stages: keep every bar in the primary channel.
+                        background: s.barColor ?? chartTheme.series.primary,
                       }}
                     />
                   </div>

@@ -122,7 +122,7 @@ const LocationProbe = () => {
   return <output data-testid="location-probe">{`${location.search}|${navigationType}`}</output>;
 };
 
-const renderTab = (role: Role = 'Project Manager', userId = 'pm-1', initialEntry = '/projects/p1/tasks', showLocation = false) => {
+const renderTab = (role: Role = 'Project Manager', userId = 'pm-1', initialEntry = '/projects/p1/tasks', showLocation = false, onCountChange?: (count: number | null) => void) => {
   realRole = role;
   currentUserId = userId;
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -131,7 +131,7 @@ const renderTab = (role: Role = 'Project Manager', userId = 'pm-1', initialEntry
       <MemoryRouter initialEntries={[initialEntry]}>
         {showLocation && <LocationProbe />}
         <ToastProvider>
-          <TasksTab projectId="p1" />
+          <TasksTab projectId="p1" onCountChange={onCountChange} />
         </ToastProvider>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -169,6 +169,12 @@ beforeEach(() => {
 });
 
 describe('TasksTab — task-first ClickUp setup (AC-S21-001)', () => {
+  it('reports the loaded project task count without another query', () => {
+    const onCountChange = vi.fn();
+    renderTab('Project Manager', 'pm-1', '/projects/p1/tasks', false, onCountChange);
+    expect(onCountChange).toHaveBeenCalledWith(3);
+  });
+
   it('SUB-F: a disconnected, unlinked ClickUp renders no card or prompt — just the task register', () => {
     renderTab();
 

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -61,6 +61,7 @@ import { formatDateOnly } from '@/src/lib/format';
 
 export interface DocumentsTabProps {
   projectId: string;
+  onCountChange?: (count: number | null) => void;
   /** The PROJECT's code (loaded by the parent), used to suggest convention folders in the picker. */
   projectCode?: string | null;
 }
@@ -132,7 +133,7 @@ interface PendingTransition {
   verb: string;
 }
 
-const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = null }) => {
+const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = null, onCountChange }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { t } = useTranslation('project');
   const isDesktop = useIsDesktop();
@@ -141,6 +142,9 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useDocuments(projectId);
+  useEffect(() => {
+    onCountChange?.(isPending || isError || data == null ? null : data.length);
+  }, [data, isError, isPending, onCountChange]);
   const { data: orgProfiles } = useAssignableProfiles();
   const { create, update, transition, remove, link, unlink } = useDocumentMutations(projectId);
   const { upload, replace, progress, uploadErrors, cancelUpload, clearUploadError } = useFileUpload(projectId);

@@ -11,7 +11,7 @@ colors:
   foreground: "hsl(218.1818 12.3596% 17.451%)"
   card: "hsl(0 0% 100%)"
   surface-panel: "hsl(0 0% 100%)"
-  panel-border: "hsl(217.5 13% 57%)"
+  panel-border: "hsl(217.5 12.9032% 87.8431%)"
   surface-table-head: "hsl(210 40% 96.0784%)"
   card-foreground: "hsl(218.1818 12.3596% 17.451%)"
   popover: "hsl(0 0% 100%)"
@@ -123,7 +123,7 @@ Colors use bare HSL triplets so Tailwind slash-alpha utilities continue to work.
 | `--foreground` | `218.1818 12.3596% 17.451%` | `211.2 20.6612% 76.2745%` | default text |
 | `--card` / `--popover` | `0 0% 100%` | `210 12.1212% 12.9412%` | work surfaces |
 | `--surface-panel` | `var(--card)` | `var(--card)` | framed panel surface |
-| `--panel-border` | `217.5 13% 57%` | `210 10% 42%` | panel boundary, ≥3:1 against canvas |
+| `--panel-border` | `var(--border)` | `var(--border)` | quiet panel hairline, paired with the canvas/panel surface step |
 | `--surface-table-head` | `var(--background)` | `var(--background)` | table header follows the canvas |
 | `--card-foreground` / `--popover-foreground` | `218.1818 12.3596% 17.451%` | `211.2 20.6612% 76.2745%` | text on work surfaces |
 | `--secondary` | `220 11.1111% 94.7059%` | `210 13.7255% 20%` | quiet surface |
@@ -254,7 +254,7 @@ Status text applies them as `hsl(var(--token))`. See §6 for the verified contra
 
 ### Cards / Containers
 - **Corner:** `lg` radius (8px). When a card sits above a toolbar+table assembly, top corners round and the seam squares (`var(--radius) var(--radius) 0 0`).
-- **Canvas and panel:** the page content uses `surface-canvas`; `Card` uses `surface-panel` with a dedicated `panel-border` that is at least 3:1 against the canvas. Panels stay flat at rest.
+- **Canvas and panel:** the page content uses `surface-canvas`; `Card` uses `surface-panel` with a quiet `panel-border` hairline. The two surfaces and the hairline work together to distinguish panels from the canvas. Panels stay flat at rest.
 - **Border:** use a panel only to group one question; never put a panel inside another panel. `bare` content belongs inside a panel, not as a replacement for section grouping.
 - **Padding:** 24px desktop / 16px phone for panel headers and content. Tables remain flush against the panel edge, with the header row using `surface-table-head`.
 - **CardHead:** a 16px/600 real heading (default `h2`), optional subline, and right-aligned action slot. Keep the page outline gap-free and keep card titles in heading navigation. `CardFoot` is an optional footer separated by a divider.
@@ -497,15 +497,14 @@ The source ships these as **shadcn-HSL bare triplets on `:root`** (light) + `.da
 6. **Focus:** keep the global `*:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px;
    border-radius: var(--control-radius-sm) }` rather than per-component focus styles.
 7. **Charts (recharts):** theme via `chartTheme` (`src/components/ui/chartTheme.ts`) — axis/grid in
-   `muted-foreground`/`border`, primary series in `primary`, status series in success/warning/destructive,
-   categorical in violet. **`chartTheme.ts` still holds legacy hardcoded categorical hues** (the old
-   blue/violet/green/amber/red literals) — a known follow-up to re-tone in a chart surface slice; the
-   axis/grid/series already derive from tokens. Time-series use a time/value axis (`type='number'` +
+   `muted-foreground`/`border`, single-series bars in the primary channel, status series in
+   success/warning/destructive, and multi-series charts in ordered `chart-1`…`chart-8` channels with a
+   matching legend. Time-series use a time/value axis (`type='number'` +
    `scale='time'`, `dataKey` = epoch-ms), never a categorical index; date math via date-fns (UTC-stable).
 
 ## Accessibility posture
 
-Text uses at least 4.5:1 contrast (3:1 for large text); meaningful non-text boundaries and chart marks use at least 3:1. Disabled text and controls are exempt, but disabled styling never carries essential information. Check the actual foreground, rendered surface, and alpha together.
+Text uses at least 4.5:1 contrast (3:1 for large text); interactive control boundaries and meaningful chart marks use at least 3:1. Panel borders are quiet grouping cues paired with the canvas/panel surface step; they never define an interactive boundary. Disabled text and controls are exempt, but disabled styling never carries essential information. Check the actual foreground, rendered surface, and alpha together.
 
 `--input` is the strong standalone control boundary. `--border` and `--input-subtle` are quiet separators only and must not be the sole cue for an interactive control. Status text uses its matching status surface. `--warning-icon` is the legible marker role; `--warning-foreground` pairs with `--status-warning-surface`. The `--primary-text` role is for canvas/card text, while active navigation uses `--nav-active-text` against `--nav-selected-surface`.
 

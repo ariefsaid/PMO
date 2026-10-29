@@ -232,6 +232,7 @@ const TaskActionsDisclosure: React.FC<{ items: RowMenuItem[] }> = ({ items }) =>
 export interface TasksTabProps {
   projectId: string;
   projectName?: string;
+  onCountChange?: (count: number | null) => void;
 }
 
 const TasksTab: React.FC<TasksTabProps> = (props) => {
@@ -247,7 +248,7 @@ const TasksTab: React.FC<TasksTabProps> = (props) => {
  * static), enforced by the column-pinned RLS (migration 0016) — the FE is the
  * clarity projection, RLS is the authority.
  */
-const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
+const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', onCountChange }) => {
   const { t } = useTranslation('project');
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -257,6 +258,9 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '' }
   const today = organizationDay ?? localTodayIso();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useTasks(projectId);
+  useEffect(() => {
+    onCountChange?.(isPending || isError || data == null ? null : data.length);
+  }, [data, isError, isPending, onCountChange]);
   const { data: assignableProfiles } = useAssignableProfiles();
   const { create, update, updateStatus, remove, archive, addDependency, removeDependency, pendingPushByTask = {} } =
     useTaskMutations(projectId);

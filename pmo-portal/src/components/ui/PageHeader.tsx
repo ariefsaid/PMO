@@ -14,6 +14,8 @@ export interface PageHeaderProps {
   meta?: React.ReactNode;
   /** Status pill or other badge node. */
   status?: React.ReactNode;
+  /** Keep a record's status in the title row at every width. */
+  statusInline?: boolean;
   /** Optional stat strip below the title. */
   stats?: PageStat[];
   /** Trailing action buttons. */
@@ -38,6 +40,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   name,
   meta,
   status,
+  statusInline = false,
   stats,
   actions,
   className,
@@ -63,9 +66,13 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
         </span>
       )}
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h1 className={cn('min-w-0 flex-1 break-words text-page font-semibold', !actionsBelow && 'sm:truncate')}>{name}</h1>
-          {status}
+        <div className={cn('flex min-w-0 items-center gap-2', statusInline ? 'flex-nowrap' : 'flex-wrap')}>
+          <h1 className={cn(
+            'min-w-0 text-page font-semibold',
+            statusInline ? 'flex-[0_1_auto] truncate' : 'flex-1 break-words',
+            !actionsBelow && 'sm:truncate',
+          )}>{name}</h1>
+          {status && <span className={cn(statusInline && 'shrink-0')}>{status}</span>}
         </div>
         {meta && <div className="mt-0.5 text-support text-muted-foreground">{meta}</div>}
       </div>

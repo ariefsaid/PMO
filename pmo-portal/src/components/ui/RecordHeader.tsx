@@ -56,6 +56,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
     iconColor={iconColor}
     name={name}
     status={status}
+    statusInline
     meta={meta}
     stats={stats}
     actions={
@@ -65,9 +66,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
         </span>
       ) : undefined
     }
-    // A full mobile basis still shrinks beside status unless shrink is disabled; restore it on desktop.
     className={cn(
-      '[&_h1]:basis-full [&_h1]:shrink-0 sm:[&_h1]:basis-0 sm:[&_h1]:shrink',
       variant === 'drawer' && '[&_h1]:text-control [&_h1]:font-semibold [&_h1]:leading-5',
       className,
     )}

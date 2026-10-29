@@ -72,7 +72,7 @@ export const CardHead = React.forwardRef<HTMLHeadingElement, CardHeadProps>(({
   const Heading = `h${level}` as const;
   return (
     <div
-      className={cn('flex items-start gap-2 border-b border-border px-[var(--panel-inset)] py-4', className)}
+      className={cn('flex items-start gap-2 px-[var(--panel-inset)] py-4', className)}
     >
       <div className="min-w-0 flex-1">
         <Heading

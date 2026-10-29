@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, MobileActionBar, Tabs, tabId, tabPanelId, type TabItem } from '@/src/components/ui';
@@ -33,6 +33,9 @@ interface Props {
   isPipeline: boolean;
   header: React.ReactNode;
 }
+
+type CountedArea = 'procurement' | 'tasks' | 'documents';
+type ProjectTabCounts = Partial<Record<CountedArea, number>>;
 
 function useLens(): Lens {
   const { realRole } = useEffectiveRole();
@@ -107,12 +110,12 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
 };
 
 /** One area's working surface, identical in every layout. */
-const AreaContent: React.FC<{ project: ProjectWithRefs; area: Exclude<Area, 'overview'> }> = ({ project, area }) => {
+const AreaContent: React.FC<{ project: ProjectWithRefs; area: Exclude<Area, 'overview'>; onCountChange?: (count: number | null) => void }> = ({ project, area, onCountChange }) => {
   switch (area) {
     case 'budget': return <BudgetTab projectId={project.id} />;
-    case 'procurement': return <ProcurementTab projectId={project.id} />;
-    case 'tasks': return <TasksTab projectId={project.id} projectName={project.name} />;
-    case 'documents': return <DocumentsTab projectId={project.id} projectCode={project.code} />;
+    case 'procurement': return <ProcurementTab projectId={project.id} onCountChange={onCountChange} />;
+    case 'tasks': return <TasksTab projectId={project.id} projectName={project.name} onCountChange={onCountChange} />;
+    case 'documents': return <DocumentsTab projectId={project.id} projectCode={project.code} onCountChange={onCountChange} />;
     case 'activity': return <ProjectActivity projectId={project.id} />;
     case 'contract': {
       return (
@@ -161,9 +164,33 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
   const { t } = useTranslation('project');
   const labels = useAreaLabels();
   const areas = useVisibleAreas(isPipeline).filter((a) => a !== 'activity');
+  const [loadedCounts, setLoadedCounts] = useState<{ projectId: string; values: ProjectTabCounts }>(() => ({ projectId: project.id, values: {} }));
+  const updateCount = useCallback((key: CountedArea, count: number | null) => {
+    setLoadedCounts((current) => {
+      const values = current.projectId === project.id ? current.values : {};
+      const nextCount = count ?? undefined;
+      if (values[key] === nextCount) return current;
+      const next = { ...values };
+      if (nextCount === undefined) delete next[key];
+      else next[key] = nextCount;
+      return { projectId: project.id, values: next };
+    });
+  }, [project.id]);
+  const reportProcurementCount = useCallback((count: number | null) => updateCount('procurement', count), [updateCount]);
+  const reportTaskCount = useCallback((count: number | null) => updateCount('tasks', count), [updateCount]);
+  const reportDocumentCount = useCallback((count: number | null) => updateCount('documents', count), [updateCount]);
+  const currentCounts = loadedCounts.projectId === project.id ? loadedCounts.values : {};
   // A deep link to an area this role or stage doesn't have lands on the Overview (AC-PB-008, SUB-A).
   const panel: Area = (areas as Area[]).includes(area) ? area : 'overview';
-  const items: TabItem<Area>[] = areas.map((a) => ({ value: a, label: labels[a] }));
+  const items: TabItem<Area>[] = areas.map((a) => {
+    if (a === 'procurement' || a === 'tasks' || a === 'documents') {
+      return { value: a, label: labels[a], count: currentCounts[a] ?? null, countPresentation: 'inline' };
+    }
+    return { value: a, label: labels[a] };
+  });
+  const onCountChange = panel === 'procurement' ? reportProcurementCount
+    : panel === 'tasks' ? reportTaskCount
+      : panel === 'documents' ? reportDocumentCount : undefined;
   return (
     <>
       {header}
@@ -182,7 +209,7 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
         <Suspended>
           {panel === 'overview'
             ? <OverviewContent project={project} isPipeline={isPipeline} onOpen={setArea} />
-            : <AreaContent project={project} area={panel} />}
+            : <AreaContent project={project} area={panel} onCountChange={onCountChange} />}
         </Suspended>
       </div>
       {/* Activity is about the project as a whole, so it lives on Overview only (owner, 2026-10-27). */}

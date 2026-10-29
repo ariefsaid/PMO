@@ -11,6 +11,8 @@ export interface TabItem<V extends string = string> {
    * Count badge). Omit (or pass null/undefined) for tabs that carry no count.
    */
   count?: number | null;
+  /** Display a project-section count as a quiet inline value instead of a badge. */
+  countPresentation?: 'badge' | 'inline';
   /** Optional secondary tab detail (e.g. a money total), still exposed in the tab name. */
   detail?: string;
 }
@@ -136,6 +138,9 @@ export function Tabs<V extends string = string>({
             type="button"
             role="tab"
             id={tabId(idBase, t.value)}
+            aria-label={t.count != null && t.countPresentation === 'inline'
+              ? [t.label, t.count, t.detail].filter((part) => part != null && part !== '').join(' ')
+              : undefined}
             aria-selected={active}
             aria-controls={active ? tabPanelId(idBase, t.value) : undefined}
             tabIndex={active ? 0 : -1}
@@ -154,7 +159,12 @@ export function Tabs<V extends string = string>({
             )}
           >
             {t.label}
-            {t.count != null && (
+            {t.count != null && t.countPresentation === 'inline' && (
+              <span className="ml-1.5 tabular text-support font-normal text-muted-foreground">
+                {t.count}
+              </span>
+            )}
+            {t.count != null && t.countPresentation !== 'inline' && (
               // Count badge: neutral fill + accessible neutral text, full radius, text-[11px]
               // (DESIGN.md §5 Count badge). The number is part of the tab's accessible
               // name (a11y: count read in label, not color-only).

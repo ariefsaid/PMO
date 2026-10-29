@@ -8,10 +8,11 @@ import { ErpPurchasesSection } from '../ErpPurchasesSection';
 
 export interface ProcurementTabProps {
   projectId: string;
+  onCountChange?: (count: number | null) => void;
 }
 
 /** Project-detail composition: shared PMO list/drawer plus its existing unlinked ERP section. */
-const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
+const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId, onCountChange }) => {
   const { t } = useTranslation('project');
   const may = usePermission();
   const canSeeMoney = may('view', 'procurement');
@@ -22,7 +23,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
 
   return (
     <div className="space-y-[var(--space-panel-gap)]">
-      <ProcurementBlock projectId={projectId} />
+      <ProcurementBlock projectId={projectId} onCountChange={onCountChange} />
       {showErp && (
         <div>
           <ErpPurchasesSection
