@@ -260,6 +260,11 @@ describe('erpnext/bodies — R9-frozen toBody', () => {
 });
 
 describe('erpnext/bodies — fromDoc canonical mapping (decimal-string money, header total is the oracle)', () => {
+  it('rounds ERP decimal text at the invoice mirror boundary', () => {
+    expect(piFromDoc({ name: 'PI-1', grand_total: '10.075', outstanding_amount: '-10.075' }))
+      .toMatchObject({ amount: '10.08', erp_outstanding_amount: '-10.08' });
+  });
+
   it('piFromDoc maps grand_total/outstanding_amount/docstatus (never sums lines)', () => {
     const canonical = piFromDoc({
       name: 'ACC-PINV-2026-00002',
