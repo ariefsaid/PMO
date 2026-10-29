@@ -25,12 +25,18 @@ vi.mock('@/src/components/dashboard/restructure/useNeedsYou', () => ({ useNeedsY
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => state.orgDay }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: state.userId, org_id: 'org-1' } }) }));
 
-const entry = (id: string, entry_date: string, hours: number, notes: string | null) => ({
+const entry = (
+  id: string,
+  entry_date: string,
+  hours: number,
+  notes: string | null,
+  timesheetId = 'current',
+) => ({
   id,
   hours,
   entry_date,
   project_id: 'p1',
-  timesheet_id: 'current',
+  timesheet_id: timesheetId,
   org_id: 'org-1',
   notes,
   project: { name: 'Cedar Works', code: 'PRJ-1' },
@@ -40,7 +46,7 @@ const sheets = [
   {
     id: 'future', status: 'Draft', week_start_date: '2026-06-08', user_id: 'eng-1', org_id: 'org-1',
     submitted_at: null, approved_at: null, approved_by: null,
-    entries: [entry('future-entry', '2026-06-08', 99, 'Future week')],
+    entries: [entry('future-entry', '2026-06-08', 99, 'Future week', 'future')],
   },
   {
     id: 'current', status: 'Rejected', week_start_date: '2026-06-01', user_id: 'eng-1', org_id: 'org-1',
@@ -50,7 +56,7 @@ const sheets = [
   {
     id: 'previous', status: 'Approved', week_start_date: '2026-05-25', user_id: 'eng-1', org_id: 'org-1',
     submitted_at: null, approved_at: null, approved_by: null,
-    entries: [entry('e0', '2026-05-25', 40, 'Earlier work')],
+    entries: [entry('e0', '2026-05-25', 40, 'Earlier work', 'previous')],
   },
 ];
 
@@ -200,6 +206,7 @@ describe('Engineer area hub', () => {
     expect(screen.getAllByText('Cedar Works').length).toBeGreaterThan(0);
     expect(screen.getAllByText('8 h').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Returned').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Approved').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('button', { name: /Open timesheet entry for Cedar Works: Site handover/ }));
     expect(screen.getByLabelText('Current path')).toHaveTextContent('/timesheets');
@@ -380,7 +387,7 @@ describe('Engineer area hub — ported baseline cases', () => {
   });
 
   it('T9: shows up to 8 recent entries under the "Recent entries" heading', () => {
-    const many = Array.from({ length: 10 }, (_, index) => entry(`old-${index}`, `2026-05-${String(20 + index).padStart(2, '0')}`, 1, `Task ${index}`));
+    const many = Array.from({ length: 10 }, (_, index) => entry(`old-${index}`, `2026-05-${String(20 + index).padStart(2, '0')}`, 1, `Task ${index}`, 'previous'));
     state.timesheets.data = [{ ...sheets[2], entries: many }];
     renderDashboard();
     expect(screen.getByRole('heading', { name: 'Recent entries' })).toBeInTheDocument();
