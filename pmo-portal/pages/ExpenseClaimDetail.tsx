@@ -68,7 +68,7 @@ const ExpenseClaimDetail: React.FC = () => {
   }
 
   const route = routeQuery.data ?? null;
-  const outstanding = outstandingQuery.data ?? null;
+  const outstanding = outstandingQuery.isError ? null : outstandingQuery.data ?? null;
   const actions = availableExpenseActions({
     claim, userId, realRole, route, advanceOutstanding: claim.kind === 'advance' ? outstanding : null,
   });
