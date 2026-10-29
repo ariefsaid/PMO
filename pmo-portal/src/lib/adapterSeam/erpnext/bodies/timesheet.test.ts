@@ -64,6 +64,25 @@ describe('erpnext/bodies/timesheet — tsToBody (spike §9)', () => {
     expect(body.time_logs[0].from_time).toBe('2026-07-20 09:00:00');
   });
 
+  it('sends exact fractional durations with resolved costing dimensions', () => {
+    const rec = { id: 'ts-1', entries: [
+      { project_id: 'p-b', entry_date: '2026-07-20', hours: '0.02' },
+      { project_id: 'p-a', entry_date: '2026-07-20', hours: '0.01' },
+    ] };
+    expect(tsToBody(rec, ctx())).toEqual({ employee: 'HR-EMP-00001', time_logs: [
+      { from_time: '2026-07-20 09:00:00', to_time: '2026-07-20 09:00:36', activity_type: 'Execution', project: 'PROJ-0001' },
+      { from_time: '2026-07-20 09:00:36', to_time: '2026-07-20 09:01:48', activity_type: 'Execution', project: 'PROJ-0002' },
+    ] });
+  });
+
+  it('applies the default day boundary before building an ERP body', () => {
+    const entry = { project_id: 'p-a', entry_date: '2026-07-20', hours: '15' };
+    const config = ctx({ config: { default_activity_type: 'Execution' } });
+    const body = tsToBody({ id: 'ts-1', entries: [entry] }, config) as { time_logs: Array<{ to_time: string }> };
+    expect(body.time_logs[0].to_time).toBe('2026-07-21 00:00:00');
+    expect(() => tsToBody({ id: 'ts-1', entries: [{ ...entry, hours: '15.01' }] }, config)).toThrow('daily-hours-exceed-24');
+  });
+
   it('AC-TSP-032 THROWS rather than omitting an unresolved employee (ERP would accept a phantom — spike §8)', () => {
     expect(() => tsToBody(record(), ctx({ refs: { 'project:p-a': 'PROJ-0001', 'project:p-b': 'PROJ-0002' } }))).toThrow(
       /employee/,
