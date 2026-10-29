@@ -1,5 +1,5 @@
 import TaxBasisLabel from '@/src/components/ui/TaxBasisLabel';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Trans, useTranslation } from 'react-i18next';
 import {
@@ -112,10 +112,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
   const [refError, setRefError] = useState<string | null>(null);
   const [dateError, setDateError] = useState<string | null>(null);
 
-  const legalTargets = useMemo(
-    () => LEGAL_PROJECT_TRANSITIONS[liveStatus] ?? [],
-    [liveStatus],
-  );
+  const legalTargets = LEGAL_PROJECT_TRANSITIONS[liveStatus] ?? [];
   const canWin = legalTargets.includes('Won, Pending KoM');
   const canLose = legalTargets.includes('Loss Tender');
   const canDecline = legalTargets.includes('Declined');
