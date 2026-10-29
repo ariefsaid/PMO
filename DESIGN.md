@@ -4,7 +4,7 @@ description: >
   A cool-neutral operator workspace with clear canvas and work-surface roles,
   indigo actions, differentiated status colors, and a first-class dark theme.
   The reference design system is the visual target; WCAG AA, accessibility,
-  Inter, and PMO's existing icon family take precedence.
+  Hanken Grotesk, and PMO's existing icon family take precedence.
 colors:
   background: "hsl(210 40% 96.0784%)"
   surface-canvas: "hsl(210 40% 96.0784%)"
@@ -60,7 +60,7 @@ colors:
   chart-7: "hsl(83.913 80.2326% 33.7255%)"
   chart-8: "hsl(292.2581 68.8889% 55.8824%)"
 typography:
-  fontFamily: "Inter, system-ui, -apple-system, Segoe UI, sans-serif"
+  fontFamily: "\"Hanken Grotesk\", system-ui, -apple-system, Segoe UI, sans-serif"
   page-title: { size: "24px", weight: 600, lineHeight: 1.34 }
   heading: { size: "20px", weight: 600, lineHeight: 1.43 }
   group: { size: "16px", weight: 600, lineHeight: 1.5 }
@@ -105,11 +105,11 @@ components:
 ---
 # Design System: PMO Portal
 
-This file defines shared color, type, shape, elevation, and component tokens. The reference design system is the visual target. WCAG AA contrast, accessible interaction, the self-hosted Inter font, and PMO's existing icon family take precedence whenever they conflict. Composition remains governed by owner-approved rendered screens.
+This file defines shared color, type, shape, elevation, and component tokens. The reference design system is the visual target. WCAG AA contrast, accessible interaction, the self-hosted Hanken Grotesk font, and PMO's existing icon family take precedence whenever they conflict. Composition remains governed by owner-approved rendered screens.
 
 ## 1. Overview
 
-The visual language separates a cool slate workspace from elevated work surfaces. Indigo identifies actions and navigation; distinct status pairs communicate state; chart channels stay categorical. Inter remains the single UI face, figures use tabular numerals, and the PMO icon set remains unchanged. Both light and dark themes are first-class.
+The visual language separates a cool slate workspace from elevated work surfaces. Indigo identifies actions and navigation; distinct status pairs communicate state; chart channels stay categorical. Hanken Grotesk remains the single UI face, figures use tabular numerals, and the PMO icon set remains unchanged. Both light and dark themes are first-class.
 
 ## 2. Colors — light | dark token tables
 
@@ -199,7 +199,7 @@ Colors use bare HSL triplets so Tailwind slash-alpha utilities continue to work.
 
 ## 3. Typography
 
-Inter remains self-hosted and is used without stylistic alternates. The root remains 16px so rem-based utilities keep their established scale. Semantic roles use regular 400 and medium 600 weights; all changing or comparable figures use `tabular-nums`.
+Hanken Grotesk remains self-hosted and is used without stylistic alternates. The root remains 16px so rem-based utilities keep their established scale. Semantic roles use regular 400 and medium 600 weights; all changing or comparable figures use `tabular-nums`.
 
 | Role | Size / line height | Weight |
 |---|---:|---:|
@@ -446,7 +446,7 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
   groups one job's content, never a card inside a card.
 - **Do** apply `tabular-nums` to every figure (currency, %, counts, deltas, ages).
 - **Do** use 38px default and 30px compact controls, with 6px and 4px control radii; retain 44px coarse-pointer targets.
-- **Do** use `font-mono` only for machine IDs/codes and the `⌘K` chip; other UI text uses default Inter forms.
+- **Do** use `font-mono` only for machine IDs/codes and the `⌘K` chip; other UI text uses default Hanken Grotesk forms.
 - **Do** expose the global `:focus-visible` ring on every focusable element; keep `role`/`aria-*` on tabs,
   checkboxes, nav, dialogs.
 - **Do** reserve violet/status hues for non-interactive meaning — never as action colors.

@@ -9,36 +9,32 @@
 @import "tailwindcss";
 
 /* =============================================================================
-   Inter variable webfont — SELF-HOSTED (2026-07-28, IMPORTANT-7 Discover-pass fix,
-   ADR-0068). Previously loaded from fonts.googleapis.com/fonts.gstatic.com via
-   <link> tags in index.html: that made an uncontrolled, undisclosed third-party
-   request (IP + User-Agent + Referer to Google) on EVERY page — including
-   `/privacy` itself, before any consent choice, and even for a fully opted-out
-   session (the opt-out only ever gated PostHog, never the font fetch). Files
-   live at `public/fonts/` (served at `/fonts/*` by Vite) — pulled once from
-   Google's own variable-font endpoint (opsz 14..32 + wght 100..900, so 400/500/
-   600 all resolve from the SAME file, matching what the CDN link used to serve)
-   and committed to the repo; the browser now never contacts Google at all.
-   `latin` + `latin-ext` subsets only (no cyrillic/greek/vietnamese) — sufficient
-   for this English-language product UI; rendered glyphs are unchanged.
+   Hanken Grotesk variable webfont — SELF-HOSTED (owner decision 2026-10-29,
+   "Go hanken"; replaces the Inter webfont from ADR-0068/IMPORTANT-7). Still zero
+   third-party font requests: files live at `public/fonts/` (served at `/fonts/*`
+   by Vite) and were pulled once from Google's own variable-font endpoint
+   (wght 100..900, so 400/500/600 all resolve from the SAME file) and committed
+   to the repo beside the OFL licence text (`HankenGrotesk-OFL.txt`). The browser
+   never contacts any font CDN at runtime (CSP). `latin` + `latin-ext` subsets
+   only — sufficient for this product UI.
    ============================================================================= */
 @font-face {
-  font-family: 'Inter';
+  font-family: 'Hanken Grotesk';
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
-  src: url('/fonts/Inter-latin.woff2') format('woff2');
+  src: url('/fonts/HankenGrotesk-latin.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
     U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-  font-family: 'Inter';
+  font-family: 'Hanken Grotesk';
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
-  src: url('/fonts/Inter-latin-ext.woff2') format('woff2');
+  src: url('/fonts/HankenGrotesk-latin-ext.woff2') format('woff2');
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
-    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113,
     U+2C60-2C7F, U+A720-A7FF;
 }
 
@@ -141,7 +137,7 @@
   --shadow-lg: 0 25px 30px -10px hsl(var(--scrim) / 16%), 0 15px 15px -10px hsl(var(--scrim) / 16%);
   --shadow-overlay: none;
 
-  /* Type scale: semantic roles share Inter and retain tabular figures. */
+  /* Type scale: semantic roles share Hanken Grotesk and retain tabular figures. */
   --type-micro: 10px;
   --line-micro: 1.2;
   --type-support: 12px;
@@ -442,7 +438,7 @@
   html, body {
     background: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-family: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
     font-feature-settings: normal;
     line-height: var(--line-control);
     -webkit-font-smoothing: antialiased;
