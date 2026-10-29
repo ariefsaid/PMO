@@ -178,7 +178,8 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
                 className="h-0.5 w-4 shrink-0 rounded-full"
                 style={{ background: chartTheme.series.primary }}
               />
-              {t('projectDetail.scurve.seriesActual', 'Actual to date')}
+              <span>{t('projectDetail.scurve.seriesActual', 'Actual to date')}</span>{' '}
+              <span className="font-semibold text-foreground tabular-nums">{actualText}</span>
             </span>
           </figcaption>
 

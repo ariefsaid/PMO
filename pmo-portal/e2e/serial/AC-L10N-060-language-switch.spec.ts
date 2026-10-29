@@ -62,7 +62,8 @@ test('AC-L10N-060: switching to Bahasa Indonesia re-renders money and dates, and
   await page.goto(`/projects/${PROJECT_ID}`);
   await expect(page.locator('main')).toBeVisible();
   await expect(page.getByText(MONEY_ID, { exact: true }).first()).toBeVisible();
-  await page.getByTestId('project-detail-rail').locator('summary').click();
+  await page.getByLabel('Tindakan lainnya', { exact: true }).click();
+  await page.getByRole('button', { name: 'Detail proyek', exact: true }).click();
   await expect(page.getByText(DATE_ID, { exact: true }).first()).toBeVisible();
 });
 
