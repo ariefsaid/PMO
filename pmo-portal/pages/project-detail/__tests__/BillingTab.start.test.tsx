@@ -7,6 +7,8 @@ import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
   role: 'Finance' as string,
+  erpConnected: true,
+  revenueMode: 'erp' as 'native' | 'erp',
   routeReady: true,
   billing: { data: null as unknown, isPending: false, isError: false, refetch: vi.fn() },
   boq: [] as unknown[],
@@ -24,8 +26,8 @@ vi.mock('@/src/auth/usePermission', async () => {
       can(action, entity, { realRole: h.role, ...ctx } as never),
   };
 });
-vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: true, loadOptions: vi.fn() }) }));
-vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'erp' }));
+vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: h.erpConnected, loadOptions: vi.fn() }) }));
+vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => h.revenueMode }));
 vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: () => h.routeReady }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({
   useProjectBilling: () => h.billing,
@@ -46,6 +48,8 @@ import { financeTestI18n } from '../../__tests__/financeI18nTestInstance';
 
 beforeEach(() => {
   h.role = 'Finance';
+  h.erpConnected = true;
+  h.revenueMode = 'erp';
   h.routeReady = true;
   h.billing = { data: null, isPending: false, isError: false, refetch: vi.fn() };
   h.boq = [];
@@ -58,12 +62,12 @@ beforeEach(() => {
   );
 });
 
-const renderTab = (role: string = 'Finance', clientId: string | null = 'client-synthetic') => {
+const renderTab = (role: string = 'Finance', clientId: string | null = 'client-synthetic', mode: 'full' | 'contract-tools' = 'full') => {
   h.role = role;
   return render(
     <MemoryRouter initialEntries={['/projects/project-synthetic/billing']}>
       <ToastProvider>
-        <BillingTab projectId="project-synthetic" currency="IDR" clientId={clientId} projectManagerId="pm-synthetic" />
+        <BillingTab projectId="project-synthetic" currency="IDR" clientId={clientId} projectManagerId="pm-synthetic" mode={mode} />
         <RouteProbe />
       </ToastProvider>
     </MemoryRouter>,
@@ -76,6 +80,39 @@ const RouteProbe: React.FC = () => {
 };
 
 describe('AC-S15-001 / M18 project billing start', () => {
+  it('AC-S15-004: keeps the existing contract invoice route on Contract & billing', async () => {
+    const user = userEvent.setup();
+    renderTab('Finance', 'client-synthetic', 'contract-tools');
+
+    const contractInvoice = screen.getByRole('link', { name: 'Contract invoice' });
+    expect(contractInvoice).toHaveAttribute('href', '/sales-invoices?create=1&project=project-synthetic');
+    await user.click(contractInvoice);
+
+    expect(screen.getByTestId('route')).toHaveTextContent('/sales-invoices?create=1&project=project-synthetic');
+  });
+
+  it.each([
+    { reason: 'a role without invoice-create permission', role: 'Engineer' },
+    { reason: 'an unresolved revenue route', routeReady: false },
+    { reason: 'a project without a customer', clientId: null },
+  ])('does not show the Contract & billing invoice route for $reason', ({ role, routeReady, clientId }) => {
+    if (routeReady !== undefined) h.routeReady = routeReady;
+    renderTab(role ?? 'Finance', clientId === undefined ? 'client-synthetic' : clientId, 'contract-tools');
+
+    expect(screen.queryByRole('link', { name: 'Contract invoice' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the Contract & billing invoice route available in native revenue mode when ERP is disconnected', () => {
+    h.erpConnected = false;
+    h.revenueMode = 'native';
+    renderTab('Finance', 'client-synthetic', 'contract-tools');
+
+    expect(screen.getByRole('link', { name: 'Contract invoice' })).toHaveAttribute(
+      'href',
+      '/sales-invoices?create=1&project=project-synthetic',
+    );
+  });
+
   it('lets Finance choose a billing method from Raise invoice on the tab', async () => {
     const user = userEvent.setup();
     renderTab();

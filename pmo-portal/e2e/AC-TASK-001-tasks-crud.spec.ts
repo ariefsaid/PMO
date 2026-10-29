@@ -42,15 +42,11 @@ async function gotoTasks(page: Page) {
 }
 
 /**
- * Locate the DataTable row via the activation button rendered in the first cell.
- * B-2 wired `rowLabel={(t) => \`Edit ${t.name}\`}`, so the cell's accessible name
- * is now "Edit <name>" — the old exact cell-name match no longer works.
- * Per the BDD authoring rule this is a deliberate-UX-change → update the locator
- * to the new doorway while keeping the goal-oracle intact.
+ * Locate the DataTable row via its current record-opening button.
  */
 function taskRow(page: Page, name: string) {
   return page.locator('table tbody tr').filter({
-    has: page.getByRole('button', { name: `Edit ${name}`, exact: true }),
+    has: page.getByRole('button', { name: `Open task ${name}`, exact: true }),
   });
 }
 
@@ -89,8 +85,12 @@ test(
 
     // ── Step 3: AC-TASK-005 — change the task's status via the inline control ──
     const statusCtl = createdRow.getByLabel(`Status for ${taskName}`);
+    const statusButton = createdRow.getByRole('button', { name: `Status for ${taskName}` });
+    await statusButton.click();
     await statusCtl.selectOption('In Progress');
     // GOAL ORACLE: the control reflects the new status (the row persisted the change)
+    await expect(statusButton).toHaveText('In Progress', { timeout: 15_000 });
+    await statusButton.click();
     await expect(statusCtl).toHaveValue('In Progress', { timeout: 15_000 });
 
     // ── Step 4: AC-TASK-004 — edit (rename) the task ────────────────────────
@@ -137,10 +137,20 @@ test(
 
     // GOAL ORACLE 2: the Engineer's OWN seeded task ("Fit-out", assigned to them) exposes an
     // editable status control, and changing it persists (the own-status RLS path).
+    const doneGroups = page.getByRole('button', { name: /^\d+ done$/ });
+    for (let index = 0; index < await doneGroups.count(); index++) {
+      await doneGroups.nth(index).click();
+    }
     const ownStatus = page.getByLabel(/status for fit-out/i);
-    await expect(ownStatus).toBeVisible({ timeout: 10_000 });
-    await expect(ownStatus).toBeEnabled();
+    const ownStatusButton = page.getByRole('button', { name: /status for fit-out/i });
+    await expect(ownStatusButton).toBeVisible({ timeout: 10_000 });
+    await expect(ownStatusButton).toBeEnabled();
+    await ownStatusButton.click();
     await ownStatus.selectOption('Done');
+    const doneGroup = page.getByRole('button', { name: /^\d+ done$/ });
+    await expect(doneGroup).toHaveText('2 done', { timeout: 15_000 });
+    if (await doneGroup.getAttribute('aria-expanded') !== 'true') await doneGroup.click();
+    await page.getByRole('button', { name: /status for fit-out/i }).click();
     await expect(ownStatus).toHaveValue('Done', { timeout: 15_000 });
   },
 );

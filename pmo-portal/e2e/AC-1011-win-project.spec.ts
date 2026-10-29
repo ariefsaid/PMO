@@ -60,5 +60,7 @@ test('AC-1011: a PM wins a deal — open it from the Pipeline, Mark won, enter c
   // PL-A: the list no longer repeats references per row; the contract ref lives on the record.
   await expect(wonRow.getByText('More project references')).toHaveCount(0);
   await wonRow.getByRole('button', { name: DEAL_NAME }).click();
+  await page.getByLabel('More actions').click();
+  await page.getByRole('button', { name: 'Project details', exact: true }).click();
   await expect(page.getByText('CPO-E2E-1').first()).toBeVisible({ timeout: 10_000 });
 });

@@ -75,7 +75,8 @@ async function stub(page: Page, bahasa: boolean) {
 }
 
 const CASES = [
-  { lang: 'English', bahasa: false, invoice: 'Invoice', widths: [1024, 1280, 1440] },
+  // #1402 copy: English invoice action ships as "Raise invoice"; same action/geometry oracle.
+  { lang: 'English', bahasa: false, invoice: 'Raise invoice', widths: [1024, 1280, 1440] },
   { lang: 'Bahasa Indonesia', bahasa: true, invoice: 'Tagih', widths: [1024, 1440] },
 ] as const;
 
@@ -88,7 +89,11 @@ test.describe('AC-BWO-004 work-order billing geometry beside the record panel (#
         await signIn(page, 'finance@acme.test');
         await page.goto(`/projects/${PID}/work-orders`);
         if (bahasa) await expect(page.locator('html')).toHaveAttribute('lang', 'id', { timeout: 60_000 });
-        await expect(page.getByText('WO-2610070002').first()).toBeVisible({ timeout: 60_000 });
+        const billableWorkOrder = page.getByRole('button', {
+          name: bahasa ? 'Lihat detail WO-2610070002' : 'View details for WO-2610070002',
+          exact: true,
+        });
+        await expect(billableWorkOrder).toBeVisible({ timeout: 60_000 });
         await expect(page.getByRole('button', { name: invoice }).first()).toBeVisible();
         await waitForFonts(page);
 
