@@ -211,15 +211,6 @@ export function isActualComplete(input: {
     && !input.excludesRestrictedRows;
 }
 
-export function deriveContractRemainingAfterCost(
-  contractValue: number | null,
-  actuals: ProjectFinances['actuals'],
-  currency: string,
-): ExactMoney | null {
-  if (!hasCompleteActuals(actuals)) return null;
-  return deriveContractRemainingFromPosition(contractValue, { amount: actuals.total, currency: actuals.currency }, currency);
-}
-
 export function deriveContractRemainingFromPosition(
   contractValue: number | null,
   actual: { amount: ExactMoney | null; currency: string | null },
