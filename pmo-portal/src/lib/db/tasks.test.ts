@@ -32,6 +32,7 @@ const h = vi.hoisted(() => {
   builder.in = chain('in');
   builder.is = chain('is');
   builder.order = chain('order');
+  builder.range = () => builder;
   builder.insert = chain('insert');
   builder.update = chain('update');
   builder.match = chain('match');

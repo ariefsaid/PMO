@@ -1,3 +1,4 @@
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables, TablesUpdate } from '@/src/lib/supabase/database.types';
@@ -58,13 +59,12 @@ function throwWrite(error: PostgrestErrorLike): never {
 /**
  * List milestones for a project with server-derived calculated %, effective %, and task_count
  * (AC-DEL-008..010 consume this shape). Uses the get_project_milestones security-invoker RPC
- * (D-3; FR-DEL-004/005/012). Ordered by sort_order, then created_at.
+ * (D-3; FR-DEL-004/005/012). Ordered by sort_order, then id.
  */
 export async function listMilestones(projectId: string): Promise<MilestoneWithProgress[]> {
-  const { data, error } = await supabase.rpc('get_project_milestones', {
+  const data = await fetchAllPages((from, to) => supabase.rpc('get_project_milestones', {
     p_project_id: projectId,
-  });
-  if (error) throwWrite(error);
+  }).order('sort_order', { ascending: true }).order('id', { ascending: true }).range(from, to));
   const rows = (data ?? []) as Array<{
     id: string;
     project_id: string;
@@ -95,8 +95,8 @@ export async function getProjectsDeliverySummary(
   ids: string[],
 ): Promise<Record<string, ProjectDeliverySummary>> {
   if (ids.length === 0) return {};
-  const { data, error } = await supabase.rpc('get_projects_delivery', { p_ids: ids });
-  if (error) throwWrite(error);
+  const data = await fetchAllPages((from, to) => supabase.rpc('get_projects_delivery', { p_ids: ids })
+    .order('project_id', { ascending: true }).range(from, to));
   const map: Record<string, ProjectDeliverySummary> = {};
   for (const row of data ?? []) {
     if (row.project_id != null) {
@@ -144,8 +144,8 @@ export interface MilestoneDate {
  */
 export async function getProjectsMilestoneDates(ids: string[]): Promise<MilestoneDate[]> {
   if (ids.length === 0) return [];
-  const { data, error } = await supabase.rpc('get_projects_milestone_dates', { p_ids: ids });
-  if (error) throwWrite(error);
+  const data = await fetchAllPages((from, to) => supabase.rpc('get_projects_milestone_dates', { p_ids: ids })
+    .order('target_date', { ascending: true }).order('id', { ascending: true }).range(from, to));
   const rows = (data ?? []) as Array<{
     id: string;
     project_id: string;
