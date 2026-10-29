@@ -1,0 +1,16 @@
+{
+  "discardWeek": {
+    "title": "Discard unsaved changes?",
+    "description": "Your unsaved hours for this week will be discarded.",
+    "confirm": "Discard changes"
+  },
+  "reconcile": {
+    "message": "Refresh this week before continuing.",
+    "retry": "Retry week refresh"
+  },
+  "picker": {
+    "loading": "Loading projects…",
+    "error": "Could not load projects.",
+    "retry": "Retry projects"
+  }
+}

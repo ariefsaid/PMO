@@ -68,7 +68,7 @@ const formatDate = (date: Date): string => {
 const PICKER_NAME_MAX = 36;
 
 const TimesheetsPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'timesheets']);
   const isDesktop = useIsDesktop();
   const { data: sheets, isPending, isError, refetch } = useTimesheets();
   const { submit, reopen } = useTimesheetMutations();
@@ -174,8 +174,8 @@ const TimesheetsPage: React.FC = () => {
     currentTimesheet == null ||
     (currentTimesheet.user_id === signedInUserId && currentTimesheet.status === 'Draft');
 
-  const { saveWeek, deleteRow } = useTimesheetEntryMutations();
-  const { data: allProjects } = useProjects();
+  const { saveWeek, deleteRow, isReconciling, retryDeleteRefresh, reconciledDelete } = useTimesheetEntryMutations();
+  const { data: allProjects, isPending: projectsPending, isError: projectsError, refetch: refetchProjects } = useProjects();
 
   const weekDateStrings = useMemo(() => weekDates.map(formatDate), [weekDates]);
 
@@ -365,8 +365,18 @@ const TimesheetsPage: React.FC = () => {
   // Delete-row confirm (mandatory destructive ConfirmDialog — FR-TSE-008/009).
   const [confirmDeleteRowId, setConfirmDeleteRowId] = useState<string | null>(null);
   const rowToDelete = editRows.find((r) => r.project_id === confirmDeleteRowId) ?? null;
+  const pendingDeletedRow = useRef<{ sheetId: string; row: EditRow } | null>(null);
+  React.useEffect(() => {
+    const pending = pendingDeletedRow.current;
+    if (!pending || !reconciledDelete || reconciledDelete.timesheetId !== pending.sheetId) return;
+    pendingDeletedRow.current = null;
+    if (reconciledDelete.entries.length === 0) return;
+    setEditRows((rows) => rows.some((row) => row.project_id === pending.row.project_id)
+      ? rows
+      : [...rows, pending.row]);
+  }, [reconciledDelete]);
   const confirmDeleteRow = () => {
-    if (!confirmDeleteRowId) return;
+    if (!confirmDeleteRowId || isReconciling || deleteRow.isPending) return;
     const rowIdToDelete = confirmDeleteRowId;
     const persistedEntryIds = currentWeekEntries
       .filter((e) => e.project_id === rowIdToDelete)
@@ -381,28 +391,19 @@ const TimesheetsPage: React.FC = () => {
 
     // Capture the row before removal so we can restore it on failure.
     const removedRow = editRows.find((r) => r.project_id === rowIdToDelete);
+    if (removedRow && currentTimesheet) pendingDeletedRow.current = { sheetId: currentTimesheet.id, row: removedRow };
 
     // Remove optimistically from edit state; restore on server error (resilience F5).
     setEditRows((rows) => rows.filter((r) => r.project_id !== rowIdToDelete));
     deleteRow.mutate(
-      { entryIds: persistedEntryIds },
+      { timesheetId: currentTimesheet!.id, weekStartDate: weekStartString, entryIds: persistedEntryIds },
       {
-        onSuccess: () => toast(
-            t('timesheets.toast.rowDeleted.headline', 'Row deleted'),
-            t('timesheets.toast.rowDeleted.detail', 'Removed this project from the week'),
-            'success',
-          ),
+        onSuccess: () => {
+          pendingDeletedRow.current = null;
+          toast(t('timesheets.toast.rowDeleted.headline', 'Row deleted'),
+            t('timesheets.toast.rowDeleted.detail', 'Removed this project from the week'), 'success');
+        },
         onError: (err) => {
-          // Restore the removed row so the user's data is not silently lost — unless the user
-          // already re-added the project while the delete was in flight (#596): appending then
-          // yields two rows for one project, and the next Save sends two upserts for the same
-          // cell, which Postgres refuses. Their re-added row wins; the server still holds the
-          // old entries and the next diff reconciles against them.
-          if (removedRow) {
-            setEditRows((rows) =>
-              rows.some((r) => r.project_id === removedRow.project_id) ? rows : [...rows, removedRow],
-            );
-          }
           toast(t('timesheets.toast.deleteFailed', 'Delete failed'), err.message, 'warning');
         },
       }
@@ -446,10 +447,16 @@ const TimesheetsPage: React.FC = () => {
     [currentWeekEntries]
   );
 
-  const stepWeek = (delta: number) => {
+  const [pendingWeekDelta, setPendingWeekDelta] = useState<number | null>(null);
+  const moveWeek = (delta: number) => {
     const next = new Date(currentDate);
     next.setDate(next.getDate() + delta * 7);
     setCurrentDate(next);
+  };
+  const stepWeek = (delta: number) => {
+    if (deleteRow.isPending || isReconciling || saveWeek.isPending || submit.isPending) return;
+    if (dirty || JSON.stringify(editRows) !== JSON.stringify(seedRows)) setPendingWeekDelta(delta);
+    else moveWeek(delta);
   };
 
   const weekRangeLabel = `${formatMonthDay(weekStartDate)} – ${formatFullDate(weekDates[6])}`;
@@ -638,6 +645,7 @@ const TimesheetsPage: React.FC = () => {
             variant="outline"
             size="icon"
             aria-label={t('timesheets.previousWeek', 'Previous week')}
+            disabled={deleteRow.isPending || isReconciling || saveWeek.isPending || submit.isPending}
             onClick={() => stepWeek(-1)}
           >
             <Icon name="back" />
@@ -645,11 +653,21 @@ const TimesheetsPage: React.FC = () => {
           <span className="px-2 text-[13px] font-medium tabular text-muted-foreground">
             {t('timesheets.weekOf', 'Week of')} {formatMonthDay(weekStartDate)}
           </span>
-          <Button variant="outline" size="icon" aria-label={t('timesheets.nextWeek', 'Next week')} onClick={() => stepWeek(1)}>
+          <Button variant="outline" size="icon" aria-label={t('timesheets.nextWeek', 'Next week')} disabled={deleteRow.isPending || isReconciling || saveWeek.isPending || submit.isPending} onClick={() => stepWeek(1)}>
             <Icon name="chev" />
           </Button>
         </span>
       </Toolbar>
+      {pendingWeekDelta !== null && (
+        <ConfirmDialog
+          open tone="destructive"
+          title={t('timesheets:discardWeek.title', 'Discard unsaved changes?')}
+          description={t('timesheets:discardWeek.description', 'Your unsaved hours for this week will be discarded.')}
+          confirmLabel={t('timesheets:discardWeek.confirm', 'Discard changes')}
+          onCancel={() => setPendingWeekDelta(null)}
+          onConfirm={() => { moveWeek(pendingWeekDelta); setPendingWeekDelta(null); }}
+        />
+      )}
     </>
   );
 
@@ -761,23 +779,34 @@ const TimesheetsPage: React.FC = () => {
                   so capping its width is safe; options still show in full. Use the shared
                   DS SelectField so dark mode keeps the tokened field shell. */}
               <div className="min-w-0 max-w-[160px] flex-1">
-                <SelectField
-                  id="ts-add-project"
-                  hideLabel
-                  label={t('timesheets.addAProject', 'Add a project')}
-                  value=""
-                  onChange={(value) => {
-                    if (value) addProject(value);
-                  }}
-                  disabled={pickerOptions.length === 0}
-                  options={pickerOptions.map((p) => ({ value: p.id, label: projectCodedPickerLabel(p, PICKER_NAME_MAX) }))}
-                  placeholder={
-                    pickerOptions.length === 0
-                      ? t('timesheets.picker.none', 'No projects to add')
-                      : t('timesheets.picker.select', 'Select a project…')
-                  }
-                  className="touch-target min-w-0 max-w-[160px] text-[13px]"
-                />
+                {projectsPending ? (
+                  <span role="status">{t('timesheets:picker.loading', 'Loading projects…')}</span>
+                ) : projectsError ? (
+                  <span role="alert">
+                    {t('timesheets:picker.error', 'Could not load projects.')}
+                    <Button variant="outline" onClick={() => refetchProjects()}>
+                      {t('timesheets:picker.retry', 'Retry projects')}
+                    </Button>
+                  </span>
+                ) : (
+                  <SelectField
+                    id="ts-add-project"
+                    hideLabel
+                    label={t('timesheets.addAProject', 'Add a project')}
+                    value=""
+                    onChange={(value) => {
+                      if (value) addProject(value);
+                    }}
+                    disabled={pickerOptions.length === 0}
+                    options={pickerOptions.map((p) => ({ value: p.id, label: projectCodedPickerLabel(p, PICKER_NAME_MAX) }))}
+                    placeholder={
+                      pickerOptions.length === 0
+                        ? t('timesheets.picker.none', 'No projects to add')
+                        : t('timesheets.picker.select', 'Select a project…')
+                    }
+                    className="touch-target min-w-0 max-w-[160px] text-[13px]"
+                  />
+                )}
               </div>
             </div>
           )}
@@ -855,14 +884,11 @@ const TimesheetsPage: React.FC = () => {
                 {t('timesheets.enterHoursToSubmit', 'Enter hours to submit')}
               </span>
             )}
-            {/* Save = secondary (outline): a routine reversible write, single-click + quiet toast.
-                Both commits are locked while a row delete is in flight (#596): a Save diffed against
-                the pre-delete server entries deletes cells the delete loop is about to delete, the
-                loop's 0-row assertion then fails, and the restore duplicates the row. */}
+            {/* Wait for the row transaction and refresh before committing this buffer. */}
             <Button
               variant="outline"
               onClick={commitSave}
-              disabled={!dirty || !editValid || saveWeek.isPending || deleteRow.isPending}
+              disabled={!dirty || !editValid || saveWeek.isPending || deleteRow.isPending || isReconciling}
               loading={saveWeek.isPending}
             >
               <Icon name="check" />
@@ -873,7 +899,7 @@ const TimesheetsPage: React.FC = () => {
             <Button
               variant="primary"
               onClick={() => setConfirmSubmit(true)}
-              disabled={!canSubmit || submit.isPending || deleteRow.isPending}
+              disabled={!canSubmit || submit.isPending || deleteRow.isPending || isReconciling}
               loading={submit.isPending}
             >
               <Icon name="check" />
@@ -886,8 +912,8 @@ const TimesheetsPage: React.FC = () => {
       {editable && !isDesktop && (
         <MobileActionStrip
           total={editTotals.weekly}
-          canSave={dirty && editValid && !saveWeek.isPending && !deleteRow.isPending}
-          canSubmit={canSubmit && !submit.isPending && !deleteRow.isPending}
+          canSave={dirty && editValid && !saveWeek.isPending && !deleteRow.isPending && !isReconciling}
+          canSubmit={canSubmit && !submit.isPending && !deleteRow.isPending && !isReconciling}
           showSubmitHint={!editBufferHasHours && currentWeekEntries.length === 0}
           saving={saveWeek.isPending}
           submitting={submit.isPending}
@@ -900,6 +926,14 @@ const TimesheetsPage: React.FC = () => {
           TOTAL column + daily-total row + header weekly total are the single source of truth; the
           rollups live on the Engineer dashboard only (plan task 16). */}
 
+      {isReconciling && !deleteRow.isPending && (
+        <div role="alert">
+          {t('timesheets:reconcile.message', 'Refresh this week before continuing.')}
+          <Button variant="outline" onClick={() => void retryDeleteRefresh()}>
+            {t('timesheets:reconcile.retry', 'Retry week refresh')}
+          </Button>
+        </div>
+      )}
       {submitConfirm}
 
       {rowToDelete && (

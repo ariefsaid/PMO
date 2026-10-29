@@ -1,0 +1,16 @@
+{
+  "discardWeek": {
+    "title": "Buang perubahan yang belum disimpan?",
+    "description": "Jam minggu ini yang belum disimpan akan dibuang.",
+    "confirm": "Buang perubahan"
+  },
+  "reconcile": {
+    "message": "Muat ulang minggu ini sebelum melanjutkan.",
+    "retry": "Coba muat ulang minggu"
+  },
+  "picker": {
+    "loading": "Memuat proyek…",
+    "error": "Proyek tidak dapat dimuat.",
+    "retry": "Coba muat proyek lagi"
+  }
+}
