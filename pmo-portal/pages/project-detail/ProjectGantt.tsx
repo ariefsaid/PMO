@@ -23,7 +23,7 @@
  *   - Bar status is always a text label (never color-only).
  *   - Respects prefers-reduced-motion (no bar-grow transition when set).
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListState, StatusPill, Button, useIsNarrow, type RowMenuItem } from '@/src/components/ui';
 import { ViewToggle } from '@/src/components/ui/ViewToggle';
@@ -179,6 +179,18 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
   // or filtered out, fall back to the first available task row so keyboard users can still tab in.
   const [focusedRowKey, setFocusedRowKey] = useState<string | null>(null);
   const rowRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
+  const currentRowKeys = useRef(taskRowKeys);
+  const restoreFocus = useRef(false);
+  currentRowKeys.current = taskRowKeys;
+
+  useLayoutEffect(() => {
+    if (restoreFocus.current && document.activeElement === document.body &&
+        !document.querySelector('[role="dialog"][aria-modal="true"], dialog[open]')) {
+      const first = taskRowKeys[0];
+      if (first) rowRefs.current.get(first)?.focus();
+    }
+    restoreFocus.current = false;
+  });
 
   const activeRowKey =
     focusedRowKey && taskRowKeys.includes(focusedRowKey)
@@ -367,7 +379,12 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
                   row={row}
                   rovingActive={row.key === activeRowKey}
                   activatable={!!activate}
-                  setRef={(el) => rowRefs.current.set(row.key, el)}
+                  setRef={(el) => {
+                    const previous = rowRefs.current.get(row.key);
+                    if (!el && previous && !currentRowKeys.current.includes(row.key) &&
+                        previous.contains(document.activeElement)) restoreFocus.current = true;
+                    rowRefs.current.set(row.key, el);
+                  }}
                   onFocus={() => setFocusedRowKey(row.key)}
                   onArrow={(delta) => moveFocus(delta, row.key)}
                   onActivate={activate ? () => activate(row.bar.id) : undefined}

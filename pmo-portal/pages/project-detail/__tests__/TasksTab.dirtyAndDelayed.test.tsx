@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
@@ -144,6 +144,7 @@ const renderTab = (hash = '') => {
             path="/projects/:projectId/tasks"
             element={
               <ToastProvider>
+                <Link to="/projects/p1/tasks">Clear hash</Link><Link to="/projects/p1/tasks#task-task-2">Second hash</Link>
                 <TasksTab projectId="p1" />
               </ToastProvider>
             }
@@ -205,6 +206,36 @@ describe('TasksTab delayed scroll (PGB-024) and phase/parent dirty warnings (PGB
 
     unmount();
     expect(cancelRafSpy).toHaveBeenCalled();
+  });
+
+  it('clears the highlight after query data refresh without scrolling again', async () => {
+    const scrollIntoView = vi.fn();
+    window.HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    const result = renderTab('#task-task-1');
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
+    expect(screen.getByText('Top task 1')).toHaveClass('task-highlight');
+    listState.data = [...seedTasks];
+    result.rerender(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={['/projects/p1/tasks#task-task-1']}><Routes><Route path="/projects/:projectId/tasks" element={<ToastProvider><Link to="/projects/p1/tasks">Clear hash</Link><Link to="/projects/p1/tasks#task-task-2">Second hash</Link><TasksTab projectId="p1" /></ToastProvider>} /></Routes></MemoryRouter></QueryClientProvider>);
+    await waitFor(() => expect(screen.getByText('Top task 1')).not.toHaveClass('task-highlight'), { timeout: 3000 });
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    result.unmount();
+  });
+
+  it('clears the previous highlight when the hash changes and clears the new one', async () => {
+    const scrollIntoView = vi.fn();
+    window.HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    const result = renderTab('#task-task-1');
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
+    await userEvent.click(screen.getByRole('link', { name: 'Clear hash' }));
+    expect(screen.getByText('Top task 1')).not.toHaveClass('task-highlight');
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole('link', { name: 'Second hash' }));
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('Top task 1')).not.toHaveClass('task-highlight');
+    expect(screen.getByText('Top task 2')).toHaveClass('task-highlight');
+    await waitFor(() => expect(screen.getByText('Top task 2')).not.toHaveClass('task-highlight'), { timeout: 3000 });
+    expect(scrollIntoView).toHaveBeenCalledTimes(2);
+    result.unmount();
   });
 
   it('PGB-025: warns of unsaved changes when closing task dialog after only phase is changed', async () => {

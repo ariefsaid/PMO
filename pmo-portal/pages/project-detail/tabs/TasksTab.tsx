@@ -328,6 +328,16 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '' }
   const scrolledRef = useRef<string | null>(null);
 
   useEffect(() => {
+    setHighlightedTaskId(null);
+  }, [location.hash]);
+
+  useEffect(() => {
+    if (!highlightedTaskId) return;
+    const timerId = setTimeout(() => setHighlightedTaskId(null), 2000);
+    return () => clearTimeout(timerId);
+  }, [highlightedTaskId]);
+
+  useEffect(() => {
     const hash = location.hash; // e.g. "#task-abc-123"
     if (!hash.startsWith('#task-')) {
       scrolledRef.current = null;
@@ -338,21 +348,17 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '' }
     if (scrolledRef.current === taskId) return;
     // Attempt to scroll — the element may not yet be rendered (data still loading).
     // requestAnimationFrame gives the list one paint cycle.
-    let timerId: ReturnType<typeof setTimeout> | undefined;
     const rafId = requestAnimationFrame(() => {
       const el = document.getElementById(`task-${taskId}`);
       if (el) {
         scrolledRef.current = taskId;
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setHighlightedTaskId(taskId);
-        // Remove highlight after 2 s so it is genuinely transient.
-        timerId = setTimeout(() => setHighlightedTaskId(null), 2000);
       }
     });
 
     return () => {
       cancelAnimationFrame(rafId);
-      if (timerId) clearTimeout(timerId);
     };
   // Re-run when data loads (in case the element wasn't mounted on initial render).
   }, [location.hash, data, view]);

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within, fireEvent } from '@testing-library/react';
+import { render, screen, within, fireEvent, act } from '@testing-library/react';
 import React from 'react';
 import ProjectGantt from '../ProjectGantt';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
@@ -48,7 +48,8 @@ describe('ProjectGantt roving focus fallback when focused row is removed (PGB-02
     expect(rowB).toHaveAttribute('tabindex', '-1');
 
     // Simulate focus on Task B
-    fireEvent.focus(rowB);
+    act(() => rowB.focus());
+    expect(rowB).toHaveFocus();
     expect(rowB).toHaveAttribute('tabindex', '0');
     expect(rowA).toHaveAttribute('tabindex', '-1');
 
@@ -59,7 +60,44 @@ describe('ProjectGantt roving focus fallback when focused row is removed (PGB-02
     const updatedGrid = screen.getByRole('grid');
     const updatedRowA = within(updatedGrid).getByText('Task A').closest('[role="row"]') as HTMLElement;
     expect(updatedRowA).toHaveAttribute('tabindex', '0');
+    expect(updatedRowA).toHaveFocus();
   });
+  it('preserves focus when the active row remains', () => {
+    const taskA = makeTask({ id: 'task-a', name: 'Task A' });
+    const taskB = makeTask({ id: 'task-b', name: 'Task B' });
+    const { rerender } = render(<ProjectGantt tasks={[taskA, taskB]} milestones={[]} onActivateTask={vi.fn()} />);
+    const rowB = within(screen.getByRole('grid')).getByText('Task B').closest('[role="row"]') as HTMLElement;
+    act(() => rowB.focus());
+    rerender(<ProjectGantt tasks={[taskB]} milestones={[]} onActivateTask={vi.fn()} />);
+    expect(rowB).toHaveFocus();
+  });
+
+  it('leaves focus in an active dialog when a row disappears', () => {
+    const taskA = makeTask({ id: 'task-a', name: 'Task A' });
+    const taskB = makeTask({ id: 'task-b', name: 'Task B' });
+    const content = (tasks: TaskWithRefs[]) => <><div role="dialog" aria-modal="true"><button>Dialog control</button></div><ProjectGantt tasks={tasks} milestones={[]} onActivateTask={vi.fn()} /></>;
+    const { rerender } = render(content([taskA, taskB]));
+    const rowB = within(screen.getByRole('grid')).getByText('Task B').closest('[role="row"]') as HTMLElement;
+    act(() => rowB.focus());
+    const control = screen.getByRole('button', { name: 'Dialog control' });
+    act(() => control.focus());
+    rerender(content([taskA]));
+    expect(control).toHaveFocus();
+  });
+
+  it('does not move focus from an outside control when the row disappears', () => {
+    const taskA = makeTask({ id: 'task-a', name: 'Task A' });
+    const taskB = makeTask({ id: 'task-b', name: 'Task B' });
+    const content = (tasks: TaskWithRefs[]) => <><button>Outside</button><ProjectGantt tasks={tasks} milestones={[]} onActivateTask={vi.fn()} /></>;
+    const { rerender } = render(content([taskA, taskB]));
+    const rowB = within(screen.getByRole('grid')).getByText('Task B').closest('[role="row"]') as HTMLElement;
+    act(() => rowB.focus());
+    const outside = screen.getByRole('button', { name: 'Outside' });
+    act(() => outside.focus());
+    rerender(content([taskA]));
+    expect(outside).toHaveFocus();
+  });
+
 });
 
 describe('Gantt viewport ticks (LIB02-005)', () => {
