@@ -200,7 +200,7 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(screen.getByRole('heading', { name: 'Money position' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Budget vs actual' })).toBeInTheDocument();
     // L6: the contract value is shown once on the screen — in Money position, not again in the header facts.
-    expect(within(screen.getByRole('region', { name: /Money position/ })).getByText('5,000,000')).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: /Money position/ })).getByText('$5,000,000')).toBeInTheDocument();
     expect(within(screen.getByLabelText('Project facts')).queryByText(/5,000,000/)).not.toBeInTheDocument();
     view.unmount();
   });
