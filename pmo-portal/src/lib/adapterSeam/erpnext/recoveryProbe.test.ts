@@ -505,3 +505,36 @@ describe('#762 probeErpByPaymentComposite — a withholding receipt also matches
     expect(await probe({ ...withholdingDoc, references: [{ reference_name: 'ACC-SINV-0001', allocated_amount: 980 }] })).toBeNull();
   });
 });
+
+it('checks every candidate page before adopting a unique payment', async () => {
+  const names = Array.from({ length: 21 }, (_, i) => `PE-${String(i + 1).padStart(2, '0')}`);
+  const fetchImpl = async (url: string) => {
+    const parsed = new URL(url);
+    const filters = JSON.parse(parsed.searchParams.get('filters') ?? '[]') as Array<[string, string, string]>;
+    if (filters.some(([field]) => field === 'reference_no')) return new Response(JSON.stringify({ data: [] }));
+    if (parsed.searchParams.has('filters')) {
+      const after = filters.find(([field, op]) => field === 'name' && op === '>')?.[2] ?? '';
+      return new Response(JSON.stringify({ data: names.filter((name) => name > after).slice(0, 20).map((name) => ({ name })) }));
+    }
+    const name = decodeURIComponent(parsed.pathname.split('/').at(-1)!);
+    return new Response(JSON.stringify({ name, references: [{ reference_name: name === 'PE-01' || name === 'PE-21' ? 'SI-1' : 'other' }] }));
+  };
+  const result = await probeErpByPaymentComposite(
+    { client: client(fetchImpl), doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: () => ({ id: 'x' }), pmoRecordId: 'pmo' },
+    'key', { partyType: 'Customer', party: 'Customer', paidAmount: '10', piNames: [], siNames: ['SI-1'], createdAfter: '2026-01-01', paymentType: 'Receive' },
+  );
+  expect(result).toBeNull();
+});
+
+it('does not adopt when a candidate page has an invalid name', async () => {
+  const fetchImpl = async (url: string) => {
+    const decoded = decodeURIComponent(url);
+    if (decoded.includes('"reference_no","like"')) return new Response(JSON.stringify({ data: [] }));
+    if (decoded.includes('filters=')) return new Response(JSON.stringify({ data: [{ name: 'PE-01' }, {}] }));
+    return new Response(JSON.stringify({ references: [{ reference_name: 'SI-1' }] }));
+  };
+  await expect(probeErpByPaymentComposite(
+    { client: client(fetchImpl), doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: () => ({ id: 'x' }), pmoRecordId: 'pmo' },
+    'key', { partyType: 'Customer', party: 'Customer', paidAmount: '10', piNames: [], siNames: ['SI-1'], createdAfter: '2026-01-01', paymentType: 'Receive' },
+  )).rejects.toThrow();
+});

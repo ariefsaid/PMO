@@ -68,7 +68,7 @@ Deno.test('BLOCK 6: a genuine on-account receipt (no references at all) is never
 
 Deno.test('BLOCK 6: one unreadable doc does not abort the pass (the other receipts still self-heal)', async () => {
   const docs: Record<string, Record<string, unknown>> = {
-    'ACC-PAY-0001': { name: 'ACC-PAY-0001', references: [{ reference_name: 'ACC-SINV-0007' }] },
+    'ACC-PAY-0001': { name: 'ACC-PAY-0001', references: [{ reference_doctype: 'Sales Invoice', reference_name: 'ACC-SINV-0007' }] },
   };
   const links: Array<{ ipId: string; siPmoId: string }> = [];
   const result = await repairUnlinkedReceipts({
@@ -155,4 +155,125 @@ Deno.test('S-06: a bounded oldest-first batch reaches later candidates on the ne
   }
   assert(reached[0].join(',') === 'oldest,next' && reached[1].join(',') === 'newest',
     `later candidates reached: ${JSON.stringify(reached)}`);
+});
+
+Deno.test('repair resolves the first mapped Sales Invoice allocation and retains all allocations', async () => {
+  const linked: string[] = [];
+  let mirrored: unknown;
+  const result = await repairUnlinkedReceipts({
+    listUnlinkedReceipts: async () => [{ id: 'receipt', erpName: 'PE' }],
+    fetchDoc: async () => ({ references: [
+      { reference_doctype: 'Sales Order', reference_name: 'SO' },
+      { reference_doctype: 'Sales Invoice', reference_name: 'SI-A', allocated_amount: 1 },
+      { reference_doctype: 'Sales Invoice', reference_name: 'SI-B', allocated_amount: 2 },
+    ] }),
+    resolveSalesInvoicePmoId: async (name) => name === 'SI-B' ? 'invoice-b' : null,
+    link: async (_id, invoice) => { linked.push(invoice); },
+    mirrorAllocations: async (_id, allocations) => { mirrored = allocations; },
+  });
+  assert(result.repaired === 1 && linked.join() === 'invoice-b', `links ${linked}`);
+  assert(Array.isArray(mirrored) && mirrored.length === 2, 'both invoice allocations remain');
+});
+
+Deno.test('repair stamps missing references and continues to the next candidate', async () => {
+  const stamped: string[] = [];
+  const reached: string[] = [];
+  await repairUnlinkedReceipts({
+    listUnlinkedReceipts: async () => [...Array.from({ length: 100 }, (_, i) => ({ id: `missing-${i}`, erpName: null })), { id: 'valid', erpName: 'PE' }],
+    fetchDoc: async (name) => { reached.push(name); return { references: [] }; },
+    resolveSalesInvoicePmoId: async () => null,
+    link: async () => {},
+    stampAllocationCheck: async (id) => { stamped.push(id); },
+  });
+  assert(stamped.length === 101 && reached.join() === 'PE', 'every candidate rotates and only referenced receipts are fetched');
+});
+
+Deno.test('candidate selection retains missing references in a saturated page', async () => {
+  const { listReceiptRepairCandidates } = await import('./index.ts');
+  const rows = Array.from({ length: 100 }, (_, i) => ({ id: `r${i}`, allocation_checked_at: null }));
+  const client = {
+    from(table: string) {
+      const query = {
+        select: () => query, eq: () => query, not: () => query, or: () => query,
+        order: () => query, limit: () => query, is: () => query, filter: () => query, in: () => query,
+        then: (resolve: (result: unknown) => void) => resolve({ data: table === 'incoming_payments' ? rows : [], error: null }),
+      };
+      return query;
+    },
+  };
+  const candidates = await listReceiptRepairCandidates(client as never, 'org');
+  assert(candidates.length === 100 && candidates.every((row) => row.erpName === null), 'all missing-reference candidates remain eligible to rotate');
+});
+
+Deno.test('candidate selection reaches a referenced receipt after rotating a full page', async () => {
+  const { listReceiptRepairCandidates } = await import('./index.ts');
+  const checked = new Set<string>();
+  const ids = [...Array.from({ length: 100 }, (_, i) => `missing-${i}`), 'valid'];
+  const client = {
+    from(table: string) {
+      let wanted: string[] = [];
+      const query = {
+        select: () => query, eq: () => query, not: () => query, or: () => query,
+        order: () => query, limit: () => query, is: () => query, filter: () => query,
+        in: (_column: string, values: string[]) => { wanted = values; return query; },
+        then: (resolve: (result: unknown) => void) => resolve({ data: table === 'incoming_payments'
+          ? ids.filter((id) => !checked.has(id)).slice(0, 100).map((id) => ({ id, allocation_checked_at: null }))
+          : wanted.includes('valid') ? [{ pmo_record_id: 'valid', external_record_id: 'PE' }] : [], error: null }),
+      };
+      return query;
+    },
+  };
+  const fetched: string[] = [];
+  for (let run = 0; run < 2; run++) await repairUnlinkedReceipts({
+    listUnlinkedReceipts: () => listReceiptRepairCandidates(client as never, 'org'),
+    stampAllocationCheck: async (id) => { checked.add(id); },
+    fetchDoc: async (name) => { fetched.push(name); return { references: [] }; },
+    resolveSalesInvoicePmoId: async () => null, link: async () => {},
+  });
+  assert(fetched.join() === 'PE' && checked.size === 101, 'the referenced receipt is reached on the next scan');
+});
+
+Deno.test('repair ignores malformed and non-invoice references', async () => {
+  const d = deps({ unlinked: [{ id: 'receipt', erpName: 'PE' }], docs: { PE: { references: [
+    { reference_name: 'SI' }, { reference_doctype: 'Sales Order', reference_name: 'SI' },
+  ] } }, mapped: { SI: 'invoice' } });
+  const result = await repairUnlinkedReceipts(d);
+  assert(result.repaired === 0 && d.links.length === 0, 'only typed Sales Invoice references may link');
+});
+
+Deno.test('live resolver accepts only a Sales Invoice in the same organization', async () => {
+  const { resolveReceiptSalesInvoice } = await import('./index.ts');
+  const filters: Array<[string, string, string]> = [];
+  let invoiceExists = true;
+  const client = {
+    from(table: string) {
+      const chain = {
+        select: () => chain,
+        eq: (column: string, value: string) => { filters.push([table, column, value]); return chain; },
+        maybeSingle: async () => ({ data: table === 'external_refs' ? { pmo_record_id: 'record' } : invoiceExists ? { id: 'record' } : null, error: null }),
+      };
+      return chain;
+    },
+  };
+  assert(await resolveReceiptSalesInvoice(client as never, 'org-a', 'SI') === 'record', 'mapped invoice is resolved');
+  assert(filters.some(([table, column, value]) => table === 'sales_invoices' && column === 'org_id' && value === 'org-a'), 'invoice lookup is org scoped');
+  invoiceExists = false;
+  assert(await resolveReceiptSalesInvoice(client as never, 'org-a', 'SI') === null, 'mapping without an invoice is not linked');
+});
+
+Deno.test('live resolver leaves absent references unresolved and propagates lookup errors', async () => {
+  const { resolveReceiptSalesInvoice } = await import('./index.ts');
+  let mode: 'missing' | 'ref-error' | 'invoice-error' = 'missing';
+  const client = { from(table: string) {
+    const chain = { select: () => chain, eq: () => chain, maybeSingle: async () => ({
+      data: table === 'external_refs' && mode === 'invoice-error' ? { pmo_record_id: 'record' } : null,
+      error: (table === 'external_refs' && mode === 'ref-error') || (table === 'sales_invoices' && mode === 'invoice-error') ? { message: 'read failed', code: 'XX000' } : null,
+    }) }; return chain;
+  } };
+  assert(await resolveReceiptSalesInvoice(client as never, 'org', 'SI') === null, 'unknown reference remains unresolved');
+  for (mode of ['ref-error', 'invoice-error'] as const) {
+    let failed = false;
+    try { await resolveReceiptSalesInvoice(client as never, 'org', 'SI'); } catch (error) { failed = error instanceof Error && error.message.includes('read failed'); }
+    assert(failed, `${mode} reaches the caller`);
+  }
 });
