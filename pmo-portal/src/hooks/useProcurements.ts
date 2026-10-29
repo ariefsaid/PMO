@@ -50,8 +50,8 @@ export function useProjectProcurements(projectId: string | null | undefined) {
 }
 
 /**
- * Committed spend for ONE project (OD-W5-4): Σ PO total_value in Ordered..Paid — the same basis the
- * dashboards use. Powers the DecisionSupportPanel's "Committed spend" figure. Org-scoped via RLS.
+ * Committed spend for one project: the SQL open-commitment position, including the ERP ledger
+ * treatment in ADR-0093. Powers the DecisionSupportPanel. Org-scoped via RLS.
  */
 export type CommitmentSource = 'pmo' | 'not-tracked' | 'unavailable';
 export type CommittedOtherCurrencies = ProjectCommittedSpend['otherCurrencies'];
@@ -95,9 +95,11 @@ export function useProjectCommittedSpend(projectId: string | null | undefined, i
 export function useProjectReservedSpend(projectId: string | null | undefined) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery<number>({
+  const query = useQuery({
     queryKey: ['project-reserved-spend', orgId, projectId],
     queryFn: () => getProjectReservedSpend(projectId as string),
     enabled: Boolean(orgId && projectId),
   });
+  return { ...query, data: query.data?.amount, projectCurrency: query.data?.projectCurrency,
+    budgetCurrency: query.data?.budgetCurrency, otherCurrencies: query.data?.otherCurrencies ?? [] };
 }

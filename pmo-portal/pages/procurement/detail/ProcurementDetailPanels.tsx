@@ -176,19 +176,26 @@ export const ProcurementBudgetSignal: React.FC<ProcurementBudgetSignalProps> = (
   }
   if (!budget.data) return <span className="text-[12px] font-normal text-muted-foreground">{t('money.noBudget', 'No active project budget')}</span>;
 
-  const { available, afterRequest } = computeBudgetSignal({
-    budget: budget.data,
-    committed: committed.data ?? 0,
-    reserved: reserved.data ?? 0,
-    totalValue,
-    status,
-  });
+  if (!currency || !reserved.projectCurrency || !reserved.budgetCurrency ||
+      currency !== reserved.projectCurrency || reserved.budgetCurrency !== reserved.projectCurrency) {
+    return <span className="text-[12px] font-normal text-muted-foreground">{t('money.currencyUnavailable', 'Budget comparison unavailable for these currencies')}</span>;
+  }
+
+  let signal;
+  try {
+    signal = computeBudgetSignal({ budget: budget.data, committed: committed.data ?? 0, reserved: reserved.data ?? 0, totalValue, status, projectCurrency: reserved.projectCurrency, budgetCurrency: reserved.budgetCurrency, requestCurrency: currency });
+  } catch {
+    return <span className="text-[12px] font-normal text-muted-foreground">{t('money.amountUnavailable', 'Budget comparison unavailable for these amounts')}</span>;
+  }
+  const { available, afterRequest } = signal;
   const label = t('money.budgetSignal', 'Available {{available}} · after this procurement {{after}}', {
     available: formatCurrency(available, currency),
     after: formatCurrency(afterRequest, currency),
   });
+  const otherPositions = [...(reserved.otherCurrencies ?? []), ...(committed.otherCurrencies ?? [])];
+  const otherCurrencyNotice = otherPositions.length ? t('money.otherCurrenciesExcluded', ' · Other currencies excluded from comparison') : '';
   return <Tooltip content={t('money.budgetSignalTooltip', 'Available = project budget less committed and reserved spend. “After this procurement” includes it at its current stage. Source: project budget, committed procurement spend, and reserved procurement spend.')} title={t('money.projectBudget', 'Project budget signal')}>
-    <span tabIndex={0} className="text-[12px] font-normal text-muted-foreground underline decoration-dotted underline-offset-2">{label}</span>
+    <span tabIndex={0} className="text-[12px] font-normal text-muted-foreground underline decoration-dotted underline-offset-2">{label}{otherCurrencyNotice}</span>
   </Tooltip>;
 };
 
