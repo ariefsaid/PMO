@@ -423,7 +423,7 @@ const SalesPipeline: React.FC = () => {
             className={`tabular text-[12.5px] ${stale ? 'font-semibold text-warning-foreground' : 'text-muted-foreground'}`}
             title={
               stale
-                ? t('sales.lastTouch.stale', 'Untouched for {{days}} days — needs attention', {
+                ? t('sales.lastTouch.stale', 'Untouched for {{days}} days: needs attention', {
                     days: String(days),
                   })
                 : undefined
@@ -769,7 +769,7 @@ const SalesPipeline: React.FC = () => {
               : scope === 'Lost' && !narrowedWithinScope
               ? t('sales.tableEmpty.lost.sub', 'Projects marked lost will appear here.')
               : scope === 'Needs attention' && !narrowedWithinScope
-                ? t('sales.tableEmpty.needsAttention.sub', 'No project has been untouched for {{days}}+ days — pipeline is active.', { days: String(ATTENTION_THRESHOLD_DAYS) })
+                ? t('sales.tableEmpty.needsAttention.sub', 'No project has been untouched for {{days}}+ days. Pipeline is active.', { days: String(ATTENTION_THRESHOLD_DAYS) })
                 : t('uxs24.stageEmptyBody', 'Choose another stage or clear filters to see more projects.')}
             action={filtersActive
               ? { label: t('sales.tableEmpty.clearFilters', 'Clear filters'), onClick: clearFilters }
@@ -829,7 +829,7 @@ const SalesPipeline: React.FC = () => {
               : !narrowedWithinScope && scope === 'Needs attention'
                 ? t(
                     'sales.tableEmpty.needsAttention.sub',
-                    'No project has been untouched for {{days}}+ days — pipeline is active.',
+                    'No project has been untouched for {{days}}+ days. Pipeline is active.',
                     { days: String(ATTENTION_THRESHOLD_DAYS) },
                   )
                 : t('sales.tableEmpty.search.sub', 'Try a different name or customer.')

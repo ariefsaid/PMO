@@ -245,7 +245,7 @@ const Contacts: React.FC = () => {
         <>
           {t(
             'contacts.description',
-            'People at the companies you work with. Master data shared by the whole organisation — log calls and emails against each contact. Minuted meetings live in the',
+            'People at the companies you work with. Master data shared by the whole organisation. Log calls and emails against each contact. Minuted meetings live in the',
           )}{' '}
           <Link
             to="/meetings"
@@ -412,7 +412,7 @@ const Contacts: React.FC = () => {
         }
         description={t(
           'contacts.confirm.deleteDescription',
-          'This permanently removes the contact and all of their logged activity. This cannot be undone — archive instead to keep the history.',
+          'This permanently removes the contact and all of their logged activity. This cannot be undone. Archive instead to keep the history.',
         )}
         confirmLabel={t('contacts.confirm.deleteConfirm', 'Delete contact')}
         loading={remove.isPending}

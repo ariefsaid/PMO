@@ -139,7 +139,7 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
   const declined = wr?.declined_count ?? 0;
   const declinedNote = declined > 0 && (
     <p data-testid="win-rate-declined" className="mt-2 text-xs text-muted-foreground">
-      {t('dashboard.winRate.declined', '{{n}} declined to bid — not counted in the win rate', { n: declined })}
+      {t('dashboard.winRate.declined', '{{n}} declined to bid, not counted in the win rate', { n: declined })}
     </p>
   );
 

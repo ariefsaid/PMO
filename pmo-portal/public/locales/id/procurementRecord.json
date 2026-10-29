@@ -7,28 +7,73 @@
     "returned": "Dikembalikan",
     "supplierNotChosen": "Pemasok belum dipilih"
   },
-  "tabs": { "timeline": "Linimasa", "items": "Item baris", "quotes": "Penawaran", "files": "Berkas", "details": "Detail" },
-  "details": { "supplier": "Pemasok", "budgetCategory": "Kategori anggaran", "accountingStatus": "Status sistem akuntansi", "accountingStatusValue": "{{orders}} · {{docs}}", "purchaseOrders_one": "{{count}} pesanan pembelian", "purchaseOrders_other": "{{count}} pesanan pembelian", "documentsLinked_one": "{{count}} dokumen tertaut", "documentsLinked_other": "{{count}} dokumen tertaut" },
-  "items": { "countLabel": "item baris" },
-  "action": {
-    "submit": "Ajukan untuk persetujuan", "recordOrder": "Catat pesanan", "chooseQuote": "Pilih penawaran",
-    "recordReceipt": "Catat penerimaan", "recordInvoice": "Catat faktur pemasok", "recordPayment": "Catat pembayaran",
-    "return": "Kembalikan", "rework": "Ajukan ulang", "addQuote": "Tambah penawaran", "requestQuotes": "Minta penawaran"
+  "tabs": {
+    "timeline": "Linimasa",
+    "items": "Item baris",
+    "quotes": "Penawaran",
+    "files": "Berkas",
+    "details": "Detail"
   },
-  "meta": { "raisedBy": "Diajukan oleh" },
-  "quotes": { "chosen": "Dipilih", "validUntil": "Berlaku sampai", "vsChosen": "dibandingkan pilihan" },
+  "details": {
+    "supplier": "Pemasok",
+    "budgetCategory": "Kategori anggaran",
+    "accountingStatus": "Status sistem akuntansi",
+    "accountingStatusValue": "{{orders}} · {{docs}}",
+    "purchaseOrders_one": "{{count}} pesanan pembelian",
+    "purchaseOrders_other": "{{count}} pesanan pembelian",
+    "documentsLinked_one": "{{count}} dokumen tertaut",
+    "documentsLinked_other": "{{count}} dokumen tertaut"
+  },
+  "items": {
+    "countLabel": "item baris"
+  },
+  "action": {
+    "submit": "Ajukan untuk persetujuan",
+    "recordOrder": "Catat pesanan",
+    "chooseQuote": "Pilih penawaran",
+    "recordReceipt": "Catat penerimaan",
+    "recordInvoice": "Catat faktur pemasok",
+    "recordPayment": "Catat pembayaran",
+    "return": "Kembalikan",
+    "rework": "Ajukan ulang",
+    "addQuote": "Tambah penawaran",
+    "requestQuotes": "Minta penawaran"
+  },
+  "meta": {
+    "raisedBy": "Diajukan oleh"
+  },
+  "quotes": {
+    "chosen": "Dipilih",
+    "validUntil": "Berlaku sampai",
+    "vsChosen": "dibandingkan pilihan"
+  },
   "close": "Tutup",
-  "approval": { "withinLimit": "Dalam batas Anda", "goesTo": "Diteruskan ke {{name}}", "note": "Catatan persetujuan (opsional)" },
-  "sod": { "approverHint": "Anda dapat menyetujui atau menolak pengadaan ini. Pemohon tidak dapat menyetujui pengadaannya sendiri — pemisahan tugas memerlukan peninjau lain.", "approverCannotPay": "Pembayaran harus dirilis oleh pengguna keuangan lain — penyetuju tidak dapat juga membayar pengadaan ini.", "payerHint": "Merilis pembayaran — penyetuju tidak dapat juga membayar (pemisahan tugas).", "preAnnounce": "Mengirim ini ke peninjau lain — Anda tidak dapat menyetujui catatan pengadaan Anda sendiri." },
-  "gate": { "addLineItem": "Tambahkan setidaknya satu item baris sebelum mengajukan." },
+  "approval": {
+    "withinLimit": "Dalam batas Anda",
+    "goesTo": "Diteruskan ke {{name}}",
+    "note": "Catatan persetujuan (opsional)"
+  },
+  "sod": {
+    "approverHint": "Anda dapat menyetujui atau menolak pengadaan ini. Pemohon tidak dapat menyetujui pengadaannya sendiri. Pemisahan tugas memerlukan peninjau lain.",
+    "approverCannotPay": "Pembayaran harus dirilis oleh pengguna keuangan lain. Penyetuju tidak dapat juga membayar pengadaan ini.",
+    "payerHint": "Merilis pembayaran: penyetuju tidak dapat juga membayar (pemisahan tugas).",
+    "preAnnounce": "Mengirim ini ke peninjau lain. Anda tidak dapat menyetujui catatan pengadaan Anda sendiri."
+  },
+  "gate": {
+    "addLineItem": "Tambahkan setidaknya satu item baris sebelum mengajukan."
+  },
   "waiting": {
     "approval": "Menunggu persetujuan",
     "engineerApproval": "Menunggu persetujuan dari manajer proyek atau Finance",
     "payment": "Pembayaran: menunggu Finance"
   },
   "record": {
-    "purchaseRequest": "Permintaan pembelian", "quoteRequest": "Permintaan penawaran", "purchaseOrder": "Pesanan pembelian",
-    "receipt": "Penerimaan", "supplierInvoice": "Faktur pemasok", "payment": "Pembayaran"
+    "purchaseRequest": "Permintaan pembelian",
+    "quoteRequest": "Permintaan penawaran",
+    "purchaseOrder": "Pesanan pembelian",
+    "receipt": "Penerimaan",
+    "supplierInvoice": "Faktur pemasok",
+    "payment": "Pembayaran"
   },
   "recordAnother": "Catat dokumen lain",
   "recordMenu": "Catat dokumen lain",
@@ -111,8 +156,13 @@
     "cancelled": "Dibatalkan",
     "paid": "Dibayar",
     "record": {
-      "PR": "Permintaan pembelian", "RFQ": "Permintaan penawaran", "Quote": "Penawaran", "PO": "Pesanan pembelian",
-      "GR": "Penerimaan", "Invoice": "Faktur pemasok", "Payment": "Pembayaran"
+      "PR": "Permintaan pembelian",
+      "RFQ": "Permintaan penawaran",
+      "Quote": "Penawaran",
+      "PO": "Pesanan pembelian",
+      "GR": "Penerimaan",
+      "Invoice": "Faktur pemasok",
+      "Payment": "Pembayaran"
     }
   }
 }

@@ -350,7 +350,7 @@ export default function ProcurementCreate() {
               <Combobox
                 label={t('supplier', 'Supplier')}
                 noun="supplier"
-                placeholder={t('selectSupplier', 'Optional — select a supplier…')}
+                placeholder={t('selectSupplier', 'Optional: select a supplier…')}
                 value={supplierId}
                 selectedOption={supplierOptions.find((option) => option.value === supplierId) ?? null}
                 onChange={setSupplierId}

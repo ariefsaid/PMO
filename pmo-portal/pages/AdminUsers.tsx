@@ -670,11 +670,11 @@ const InviteFormModal: React.FC<{
         isOperator
           ? t(
               'admin.users.inviteForm.subtitleOperator',
-              "Invite someone by email — they'll set their own password and role takes effect immediately.",
+              "Invite someone by email. They'll set their own password and role takes effect immediately.",
             )
           : t(
               'admin.users.inviteForm.subtitle',
-              "Invite someone to your workspace by email — they'll set their own password.",
+              "Invite someone to your workspace by email. They'll set their own password.",
             )
       }
       submitLabel={t('admin.users.invite', 'Invite user')}

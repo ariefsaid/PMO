@@ -494,7 +494,7 @@ const MeetingDetail: React.FC = () => {
                   <span className="text-muted-foreground">
                     {task.assignee
                       ? `${t('meetingDetail.minutes.ownerLabel', 'Owner')}: ${task.assignee.full_name}`
-                      : t('meetingDetail.minutes.unassigned', 'Unassigned — assign an owner')}
+                      : t('meetingDetail.minutes.unassigned', 'Unassigned: assign an owner')}
                   </span>
                   {task.end_date && (
                     <span className="text-muted-foreground">
@@ -799,7 +799,7 @@ const ActionItemModal: React.FC<ActionItemModalProps> = ({
       title={t('meetingDetail.action.modalTitle', 'New action item')}
       subtitle={t(
         'meetingDetail.action.modalSubtitle',
-        'This creates a real task. Its name is visible to everyone who can see tasks — edit it before publishing.',
+        'This creates a real task. Its name is visible to everyone who can see tasks. Edit it before publishing.',
       )}
       submitLabel={t('meetingDetail.action.modalSubmit', 'Create task')}
       onSubmit={handleSubmit}

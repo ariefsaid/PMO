@@ -195,8 +195,8 @@ describe('supplier invoice Bahasa copy (PR-2/PR-3)', () => {
     expect(screen.getByRole('option', { name: 'Dijadwalkan' })).toBeInTheDocument();
     expect(screen.getByLabelText('Tanggal faktur')).toBeInTheDocument();
     expect(screen.getByLabelText('Perlakuan pajak')).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Inklusif — termasuk PPN' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Eksklusif — PPN ditambahkan' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Inklusif: termasuk PPN' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Eksklusif: PPN ditambahkan' })).toBeInTheDocument();
     expect(screen.getByText(/Inklusif: PPN sudah termasuk dalam jumlah tagihan/)).toBeInTheDocument();
     expect(screen.getByText('Jumlah pajak')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Simpan faktur pemasok' })).toBeInTheDocument();

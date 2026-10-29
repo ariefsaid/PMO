@@ -72,7 +72,7 @@ export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
   if (!loading && !hasError && total === 0) return null;
 
   const vs = hasError
-    ? t('dashboard.kpi.awaitingApproval.unavailable', 'unavailable — check connection')
+    ? t('dashboard.kpi.awaitingApproval.unavailable', 'unavailable: check connection')
     : total === 1
         ? t('dashboard.kpi.awaitingApproval.one', '{{count}} item waiting', { count: total })
         : t('dashboard.kpi.awaitingApproval.many', '{{count}} items waiting', { count: total });

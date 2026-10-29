@@ -514,7 +514,7 @@ describe('PMDashboard — ported Bahasa (AC-UXA-001)', () => {
     expect(openMine.length).toBeGreaterThan(0);
     for (const link of openMine) expect(link).toHaveAttribute('href', '/projects?filter=My+Projects');
     // The status is translated for the reader; the stored enum is unchanged.
-    expect(screen.getByText('Menang — menunggu rapat awal')).toBeInTheDocument();
+    expect(screen.getByText('Menang, menunggu rapat awal')).toBeInTheDocument();
     expect(baseline.find((project) => project.id === 'b2')?.status).toBe('Won, Pending KoM');
     // Money follows the Indonesian number locale: short on the tile, exact in the title.
     const contract = screen.getByTestId('kpi-my-contract-value');
