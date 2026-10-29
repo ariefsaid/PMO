@@ -316,7 +316,10 @@
     "pipeline": {
       "currentStage": "Tahap saat ini",
       "readOnlyShort": "Manajer proyek mengelola alur ini.",
-      "moreAboutDeal": "Selengkapnya tentang peluang ini"
+      "moreAboutDeal": "Selengkapnya tentang peluang ini",
+      "statLoading": "Memuat…",
+      "statUnavailable": "Tidak tersedia",
+      "retry": "Coba lagi"
     },
     "activity": {
       "title": "Aktivitas",

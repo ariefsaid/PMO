@@ -316,7 +316,10 @@
     "pipeline": {
       "currentStage": "Current stage",
       "readOnlyShort": "Project manager manages this pipeline.",
-      "moreAboutDeal": "More about this deal"
+      "moreAboutDeal": "More about this deal",
+      "statLoading": "Loading…",
+      "statUnavailable": "Unavailable",
+      "retry": "Retry"
     },
     "activity": {
       "title": "Activity",

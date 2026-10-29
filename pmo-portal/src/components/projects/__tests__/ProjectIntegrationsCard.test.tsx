@@ -115,7 +115,6 @@ describe('ProjectIntegrationsCard', () => {
     it('renders ClickUp tier card with Connected (org) status and Link button when org connected but project not linked', async () => {
       wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" />);
 
-      await waitFor(() => expect(screen.getByText('External Integrations')).toBeInTheDocument());
       await waitFor(() => expect(screen.getByText('ClickUp')).toBeInTheDocument());
       // ERPNext tier should NOT be rendered
       expect(screen.queryByText('ERPNext')).not.toBeInTheDocument();
@@ -134,7 +133,7 @@ describe('ProjectIntegrationsCard', () => {
         projectBindings: [],
       } as any);
 
-      const { container } = wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" compact />);
+      const { container } = wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" />);
 
       expect(container).toBeEmptyDOMElement();
       expect(screen.queryByText('ClickUp')).not.toBeInTheDocument();
@@ -518,7 +517,7 @@ describe('ProjectIntegrationsCard', () => {
         isBindingsPending: true,
       } as any);
 
-      const { container } = wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" compact />);
+      const { container } = wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" />);
 
       expect(container).toBeEmptyDOMElement();
     });
@@ -669,7 +668,7 @@ describe('ProjectIntegrationsCard', () => {
         refetchLists: vi.fn(),
       } as any);
 
-      const { container } = wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" compact />);
+      const { container } = wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" />);
 
       // Quiet state: nothing at all
       expect(container).toBeEmptyDOMElement();

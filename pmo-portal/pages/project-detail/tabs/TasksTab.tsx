@@ -840,7 +840,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
 
       {/* Setup stays available after the task register so it does not block daily task work. */}
       <div ref={integrationsRef}>
-        <ProjectIntegrationsCard projectId={projectId} projectName={projectName} compact />
+        <ProjectIntegrationsCard projectId={projectId} projectName={projectName} />
       </div>
 
       <TaskRecordDrawer

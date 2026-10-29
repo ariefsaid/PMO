@@ -1,23 +1,15 @@
 import ProjectClassificationFilters from '../components/ProjectClassificationFilters';
-import { activeClassificationCount, matchesProjectClassification } from '@/src/lib/projectClassification';
+import { activeClassificationCount } from '@/src/lib/projectClassification';
 import React, { useMemo, useState } from 'react';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import {
   Button,
-  Funnel,
   ListPage,
   SearchMini,
   ViewToggle,
   ListState,
-  DataTable,
-  Badge,
-  StatusPill,
-  ProgressBar,
   Icon,
   AccessDenied,
-  type FunnelStage,
-  type Column,
-  TaxBasisLabel,
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -25,10 +17,7 @@ import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { useProjectStatusLabel, useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
 import { usePermission } from '@/src/auth/usePermission';
 import { useSalesPipeline, useLostDeals, useWonDeals } from '@/src/hooks/useDashboard';
-import { formatCurrency } from '@/src/lib/format';
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
-import SalesKanbanBoard from '../components/SalesKanbanBoard';
 import { readPipelineView, writePipelineView } from '@/src/hooks/usePipelineView';
 import type { PipelineView } from '@/src/hooks/usePipelineView';
 import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
@@ -36,30 +25,20 @@ import { useListReturn } from '@/src/hooks/useListReturn';
 import { parseListWorkingSet } from '@/src/lib/listWorkingSet';
 import {
   SALES_COLUMNS,
-  weightedValue,
-  pillVariantForStatus,
-  formatPercent,
   openOpportunity,
-  daysSince,
-  isNeedsAttention,
-  isStaleBid,
-  ATTENTION_THRESHOLD_DAYS,
   type OpenFunnelStage,
 } from '../components/salesPipeline';
 import { ExportButton } from '@/src/components/export';
-
-/** The five open pipeline columns (Won/Lost excluded — terminal, not forecast). */
-const OPEN_COLUMNS = SALES_COLUMNS.filter((c) => !c.terminal);
-
-/**
- * Table scope filters (Model B, AC-IXD-PROJ-007): open, terminal Won, and terminal Lost deals.
- * N14 (AC-IXD-PIPE-W5-C5): "Needs attention" segment shows deals from BOTH scopes (open ∪ lost)
- * whose days-since-last_update >= ATTENTION_THRESHOLD_DAYS. get_sales_pipeline() now projects
- * last_update + the owner for open rows (migration 0020), so open deals carry real aging — the
- * filter and the Owner / Last touch columns work on open deals, not just lost ones.
- */
-type DealScope = 'Open' | 'Won' | 'Lost' | 'Needs attention';
-const DEAL_SCOPES: DealScope[] = ['Open', 'Won', 'Lost', 'Needs attention'];
+import {
+  type DealScope,
+  DEAL_SCOPES,
+  filterPipelineTable,
+  filterPipelineBoard,
+} from './sales-pipeline/pipelineListModel';
+import { projectFunnelModel, OPEN_COLUMNS } from './sales-pipeline/pipelineFunnelModel';
+import { PipelineFunnel } from './sales-pipeline/PipelineFunnel';
+import { buildPipelineColumns } from './sales-pipeline/pipelineColumns';
+import { PipelineResults } from './sales-pipeline/PipelineResults';
 
 const SalesPipeline: React.FC = () => {
   const { t } = useTranslation();
@@ -85,7 +64,8 @@ const SalesPipeline: React.FC = () => {
   const { data, isPending, isError, refetch } = useSalesPipeline();
   // Terminal deal rows use the projects RLS path (get_sales_pipeline returns only OPEN stages),
   // so both terminal kanban columns and their table scopes are reachable.
-  const { data: lostDeals, isError: lostError, refetch: refetchLost } = useLostDeals();
+  // PGA05-006: capture isPending for lostDeals so loading state is respected.
+  const { data: lostDeals, isPending: lostPending, isError: lostError, refetch: refetchLost } = useLostDeals();
   const { data: wonDeals, isPending: wonPending, isError: wonError, refetch: refetchWon } = useWonDeals();
   const navigate = useNavigate();
   // list-working-set-return (#682): `scope`/`status`/`q`/`view` are URL-owned. D-1
@@ -100,7 +80,7 @@ const SalesPipeline: React.FC = () => {
   );
   const { openRecord } = useListReturn({ list: 'sales', contentReady: !isPending && !isError });
 
-  const scope = workingSet.scope;
+  const scope: DealScope = workingSet.scope as DealScope;
   // The phone has one presentation — the stage list — so a stored `table` view is not honoured
   // there and no Board/Table toggle is offered.
   const view: PipelineView = isDesktop ? workingSet.view : 'kanban';
@@ -133,89 +113,39 @@ const SalesPipeline: React.FC = () => {
   // The RPC returns open stages only; terminal Won and Lost rows use their RLS-backed project reads.
   const kanbanProjects = useMemo(() => [...openProjects, ...won, ...lost], [openProjects, won, lost]);
 
-  // The table is scoped by Open / Won / Lost / Needs attention, then by search.
-  // "Needs attention" (N14): spans open ∪ lost rows whose days-since-last_update >=
-  // ATTENTION_THRESHOLD_DAYS. Open rows now carry last_update from the RPC (migration 0020),
-  // so a stale open deal is flagged just like a stale lost one.
-  const filtered = useMemo(() => {
-    let base: PipelineProject[];
-    if (scope === 'Won') {
-      base = won;
-    } else if (scope === 'Lost') {
-      base = lost;
-    } else if (scope === 'Needs attention') {
-      base = [...openProjects, ...lost].filter(isNeedsAttention);
-    } else {
-      base = openProjects;
-    }
-    // When a funnel stage is selected, intersect the scope with that stage's status.
-    // Selecting a funnel stage implies we're looking at open deals for that stage.
-    if (selectedStatus !== null) {
-      base = base.filter((p) => p.status === selectedStatus);
-    }
-    base = base.filter((project) => matchesProjectClassification(project, workingSet));
-    const q = search.trim().toLowerCase();
-    if (!q) return base;
-    return base.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        (p.short_name ?? '').toLowerCase().includes(q) ||
-        (p.pmo_project_number ?? '').toLowerCase().includes(q) ||
-        (p.code ?? '').toLowerCase().includes(q) ||
-        (p.client_name ?? '').toLowerCase().includes(q) ||
-        (p.end_client_name ?? '').toLowerCase().includes(q) ||
-        (p.client_legal_name ?? '').toLowerCase().includes(q) ||
-        (p.end_client_legal_name ?? '').toLowerCase().includes(q),
-    );
-  }, [openProjects, won, lost, scope, search, selectedStatus, workingSet]);
-
-  // Funnel band — always the five open stages in fixed order, even when the RPC
-  // omits empty stages (edge (b): render zero-value stages, never blank). Each
-  // band cell is keyed to its column status so probs/values never drift.
-  const stageByStatus = useMemo(
-    () => new Map(stages.map((s) => [s.status as string, s])),
-    [stages],
-  );
-  // Money of unlike currencies is never added: a stage that holds deals in more than one currency
-  // (and a pipeline that does) has no honest total, so it renders "—" with the reason (RD-017).
-  const currenciesOf = (statuses: readonly string[]) =>
-    new Set(openProjects.filter((p) => statuses.includes(p.status)).map((p) => p.currency));
-  const pipelineCurrencies = currenciesOf(OPEN_COLUMNS.flatMap((c) => c.statuses));
-  const mixedPipeline = pipelineCurrencies.size > 1;
-  const mixedReason = t('sales:pipeline.mixedCurrency', 'Mixed currencies, so no single total');
-  const unknownTotal = (
-    <span title={mixedReason}>
-      —<span className="sr-only"> {mixedReason}</span>
-    </span>
-  );
-  const totalWeighted = OPEN_COLUMNS.reduce(
-    (sum, c) => sum + (stageByStatus.get(c.statuses[0])?.weighted_value ?? 0),
-    0,
-  );
-  const maxWeighted = Math.max(
-    0,
-    ...OPEN_COLUMNS.map((c) => stageByStatus.get(c.statuses[0])?.weighted_value ?? 0),
+  // Table rows scoped by Open / Won / Lost / Needs attention and funnel stage, then filtered by shared search (XG02-006, OE04-004)
+  const filtered = useMemo(
+    () =>
+      filterPipelineTable({
+        openProjects,
+        wonProjects: won,
+        lostProjects: lost,
+        scope,
+        selectedStatus,
+        workingSet,
+        search,
+      }),
+    [openProjects, won, lost, scope, selectedStatus, workingSet, search],
   );
 
-  const funnelStages: FunnelStage[] = OPEN_COLUMNS.map((col) => {
-    const s = stageByStatus.get(col.statuses[0]);
-    const weighted = s?.weighted_value ?? 0;
-    const stageCurrencies = currenciesOf(col.statuses);
-    // One currency: show it in that currency (not the org default). None: a true zero in the org's.
-    const stageCurrency = stageCurrencies.size === 1 ? [...stageCurrencies][0] : orgCurrency;
-    const mixedStage = stageCurrencies.size > 1;
-    return {
-      name: stageLabel(col),
-      dotColor: col.dotColor,
-      prob: s ? formatPercent(s.win_probability) : undefined,
-      value: mixedStage ? unknownTotal : formatCurrency(s?.total_value ?? 0, stageCurrency),
-      weighted: mixedStage
-        ? undefined
-        : t('sales.funnel.weighted', '{{value}} weighted', { value: formatCurrency(weighted, stageCurrency) }),
-      // Bars compare magnitudes, which is only meaningful in one currency.
-      barPct: mixedPipeline ? undefined : maxWeighted > 0 ? (weighted / maxWeighted) * 100 : 0,
-    };
-  });
+  // Board rows span open ∪ won ∪ lost, filtered by classification and shared search (XG02-006, OE04-004)
+  const kanbanFiltered = useMemo(
+    () =>
+      filterPipelineBoard({
+        openProjects,
+        wonProjects: won,
+        lostProjects: lost,
+        workingSet,
+        search,
+      }),
+    [openProjects, won, lost, workingSet, search],
+  );
+
+  // Funnel projection model computing currency-safe stage totals and weighted forecast (XG02-006)
+  const funnelProjection = useMemo(
+    () => projectFunnelModel(stages, openProjects, orgCurrency),
+    [stages, openProjects, orgCurrency],
+  );
 
   // Display labels for the scope segments. The VALUES stay literal — they drive `filtered`'s
   // branch and terminal-query error gates below.
@@ -244,266 +174,28 @@ const SalesPipeline: React.FC = () => {
       ...(nextScope !== 'Open' ? { view: 'table' as const } : {}),
     }));
 
-  const identifiers = (r: PipelineProject) =>
-    [r.pmo_project_number, r.code].filter((v): v is string => Boolean(v));
-  const identifierLabels = (r: PipelineProject) =>
-    [
-      r.pmo_project_number && `${t('projects.identifiers.pmo', 'PMO Project Number')}: ${r.pmo_project_number}`,
-      r.code && `${t('projects.identifiers.client', 'Client Project Code')}: ${r.code}`,
-    ].filter(Boolean).join(' · ');
   /** Board title for the stage (Pre-Qual, not "PQ Submitted"); other statuses use their own label. */
-  const stageName = (status: PipelineProject['status']) => {
-    const col = status === 'Declined' ? undefined : SALES_COLUMNS.find((c) => c.statuses.includes(status));
-    return col ? stageLabel(col) : projectStatusLabel(status);
-  };
+  const stageName = React.useCallback(
+    (status: PipelineProject['status']) => {
+      const col = status === 'Declined' ? undefined : SALES_COLUMNS.find((c) => c.statuses.includes(status));
+      return col ? stageLabel(col) : projectStatusLabel(status);
+    },
+    [stageLabel, projectStatusLabel],
+  );
 
-  const tableColumns: Column<PipelineProject>[] = [
-    {
-      key: 'opp',
-      header: t('sales.column.project', 'Project'),
-      kind: 'primary',
-      size: 280,
-      cell: (r) => <span title={r.name}>{projectDisplayName(r)}</span>,
-      primaryTitle: (r) => r.name,
-      // One mono line: the PMO number and the client's code; the labels ride in the title.
-      secondaryCell: (r) =>
-        identifiers(r).length > 0 ? (
-          <span className="font-mono" title={identifierLabels(r)}>{identifiers(r).join(' · ')}</span>
-        ) : undefined,
-      exportValue: (r) => r.name,
-    },
-    {
-      key: 'customer',
-      header: t('sales.column.customer', 'Customer'),
-      kind: 'text',
-      size: 160,
-      // #758: the end customer (who the work is ultimately for) is a second line, not a column.
-      cell: (r) => (
-        <span className="block min-w-0">
-          <span className="block truncate" title={r.client_name ?? undefined}>{r.client_name ?? '—'}</span>
-          {r.end_client_name && (
-            <span className="block truncate text-[12px] text-muted-foreground" title={r.end_client_name}>
-              {t('sales:pipeline.endCustomerLine', 'for {{name}}', { name: r.end_client_name })}
-            </span>
-          )}
-        </span>
-      ),
-      exportValue: (r) => r.client_name ?? '',
-    },
-    {
-      key: 'stage',
-      header: t('sales.column.stage', 'Stage'),
-      kind: 'status',
-      size: 132,
-      cell: (r) => (
-        <span className="inline-flex flex-wrap items-center gap-1.5">
-          <StatusPill variant={pillVariantForStatus(r.status)}>{stageName(r.status)}</StatusPill>
-          {isStaleBid(r) && (
-            <Badge role="status" data-testid={`stale-bid-${r.id}`}>
-              {t('sales:pipeline.staleBid', 'Stale bid · stage unchanged for 90+ days')}
-            </Badge>
-          )}
-        </span>
-      ),
-      exportValue: (r) => r.status,
-    },
-    {
-      key: 'value',
-      header: t('sales.column.value', 'Value'),
-      kind: 'money',
-      size: 184,
-      align: 'num',
-      // Per-ROW here, unlike the stage totals above — each deal renders in its OWN currency
-      // (migration 0201), so a mixed-currency list stays honest row by row. `exportValue` stays a
-      // bare numeric amount so a spreadsheet can sum the column; the per-record ISO code is
-      // carried by the adjacent export-only Currency column (see exportColumns below).
-      // OD-TAX-1 §2: the basis rides with the figure, taken from THIS deal's row (0208).
-      cell: (r) => (
-        <span className="inline-flex items-baseline gap-1.5">
-          {formatCurrency(r.contract_value, r.currency)}
-          <TaxBasisLabel treatment={r.tax_treatment} taxRate={r.tax_rate} taxBaseNumerator={r.tax_base_numerator} taxBaseDenominator={r.tax_base_denominator} showDetails={false} />
-        </span>
-      ),
-      exportValue: (r) => r.contract_value,
-    },
-    {
-      key: 'weighted',
-      header: t('sales.column.weighted', 'Weighted'),
-      kind: 'money',
-      size: 152,
-      align: 'num',
-      cell: (r) => (
-        <span className="text-muted-foreground">{formatCurrency(weightedValue(r), r.currency)}</span>
-      ),
-      exportValue: (r) => weightedValue(r),
-    },
-    {
-      key: 'win',
-      header: t('sales.column.winPct', 'Win %'),
-      kind: 'percent',
-      size: 96,
-      align: 'num',
-      cell: (r) => {
-        const pct = Math.round(r.win_probability * 100);
-        return (
-          <ProgressBar
-            value={pct}
-            tone="primary"
-            showValue
-            aria-label={`${t('sales.winProbability', 'Win probability')} ${pct}%`}
-            className="ml-auto"
-          />
-        );
-      },
-      exportValue: (r) => Math.round(r.win_probability * 100),
-    },
-    {
-      /**
-       * N14 Owner column (AC-IXD-PIPE-W5-C5).
-       * DATA AVAILABILITY: pm_name (the project manager / owner) is supplied for BOTH open
-       * pipeline rows (get_sales_pipeline → profiles.full_name, migration 0020) and lost deals
-       * (useLostDeals, full ProjectWithRefs row). A project with no PM renders "—" (honest).
-       */
-      key: 'owner',
-      header: t('sales.column.owner', 'Owner'),
-      kind: 'meta',
-      size: 128,
-      cell: (r) => {
-        if (!r.pm_name) {
-          return <span className="text-muted-foreground" aria-label={t('sales.ownerUnavailable', 'Owner not available')}>
-              —
-            </span>;
-        }
-        return (
-          <span className="flex items-center gap-1.5">
-            <span
-              aria-hidden
-              className="grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-muted-foreground"
-            >
-              {r.pm_name.trim().charAt(0).toUpperCase()}
-            </span>
-            <span className="whitespace-normal leading-tight">{r.pm_name}</span>
-          </span>
-        );
-      },
-      exportValue: (r) => r.pm_name ?? '',
-    },
-    {
-      /**
-       * N14 Last touch column (AC-IXD-PIPE-W5-C5).
-       * DATA AVAILABILITY: last_update is supplied for BOTH open pipeline rows
-       * (get_sales_pipeline, migration 0020) and lost deals (full row). A row genuinely
-       * missing it renders "—" (defensive, honest).
-       * Aging signal (ATTENTION_THRESHOLD_DAYS = 30d): text + warning color when stale —
-       * text-not-color-only per DESIGN.md accessibility rule.
-       */
-      key: 'last_touch',
-      header: t('sales.column.lastTouch', 'Last touch'),
-      size: 104,
-      align: 'num',
-      cell: (r) => {
-        const days = daysSince(r.last_update);
-        if (days === null) {
-          return <span
-              className="text-muted-foreground"
-              aria-label={t('sales.lastTouchUnavailable', 'Last touch not available')}
-            >
-              —
-            </span>;
-        }
-        const stale = days >= ATTENTION_THRESHOLD_DAYS;
-        const label =
-          days === 0
-            ? t('sales.lastTouch.today', 'today')
-            : days === 1
-              ? t('sales.lastTouch.oneDayAgo', '1 day ago')
-              : `${days} ${t('sales.lastTouch.daysAgo', 'days ago')}`;
-        return (
-          <span
-            className={`tabular text-[12.5px] ${stale ? 'font-semibold text-warning-foreground' : 'text-muted-foreground'}`}
-            title={
-              stale
-                ? t('sales.lastTouch.stale', 'Untouched for {{days}} days: needs attention', {
-                    days: String(days),
-                  })
-                : undefined
-            }
-          >
-            {label}
-          </span>
-        );
-      },
-      exportValue: (r) => {
-        const days = daysSince(r.last_update);
-        if (days === null) return '';
-        return days === 0 ? 'today' : days === 1 ? '1 day ago' : `${days} days ago`;
-      },
-    },
-  ];
+  const { tableColumns, exportColumns } = useMemo(
+    () => buildPipelineColumns({ t, stageName }),
+    [t, stageName],
+  );
 
-  // ── Export (AC-L10N-052) ────────────────────────────────────────────────────
-  // The XLSX download carries each deal's OWN ISO code in its own column, immediately after the
-  // Value cell (and before Weighted). Per Director decision: carry per-row currency, never convert.
-  // The on-screen table stays unchanged — this column is export-only.
-  const exportColumns: Column<PipelineProject>[] = [];
-  for (const col of tableColumns) {
-    exportColumns.push(col);
-    if (col.key === 'customer') {
-      exportColumns.push({
-        key: 'end-customer',
-        // #758 — the end customer is a second line on screen but stays its own column in the download.
-        header: t('sales.column.endCustomer', 'End customer'),
-        cell: (r) => r.end_client_name ?? '—',
-        exportValue: (r) => r.end_client_name ?? '',
-      });
-    }
-    if (col.key === 'value') {
-      exportColumns.push({
-        key: 'currency',
-        // i18n-exempt: export-only column, never rendered — FR-L10N-050 forbids t() on export values.
-        header: 'Currency',
-        cell: (r) => r.currency,
-        exportValue: (r) => r.currency,
-      });
-    }
-  }
-
-  // Search-filtered kanban set (open ∪ won ∪ lost), so board search spans every column.
-  const kanbanFiltered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const classified = kanbanProjects.filter((project) => matchesProjectClassification(project, workingSet));
-    if (!q) return classified;
-    return classified.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        (p.short_name ?? '').toLowerCase().includes(q) ||
-        (p.pmo_project_number ?? '').toLowerCase().includes(q) ||
-        (p.code ?? '').toLowerCase().includes(q) ||
-        (p.client_name ?? '').toLowerCase().includes(q) ||
-        (p.end_client_name ?? '').toLowerCase().includes(q) ||
-        (p.client_legal_name ?? '').toLowerCase().includes(q) ||
-        (p.end_client_legal_name ?? '').toLowerCase().includes(q),
-    );
-  }, [kanbanProjects, search, workingSet]);
-
-  // AC-LRC-012: this DataTable's `empty` branch only renders when the collection has data (the
-  // genuine collection-empty case is `state === 'empty'` below), so a zero-match here is a
-  // FILTERED zero-match ONLY when a control was actually changed from its default — clearing when
-  // nothing is active (e.g. no open deals but terminal ones exist) would be a no-op, so no action then.
   const classificationsActive = activeClassificationCount(workingSet) > 0;
   // The Classification disclosure earns its place only when some deal carries a tag (or a filter is
   // already active, so it can be cleared).
   const hasClassification = classificationsActive || kanbanProjects.some((p) =>
     p.service_line || p.sector || p.location || p.award_type || p.bidding_entity);
   const filtersActive = classificationsActive || search.trim() !== '' || scope !== 'Open' || stageIndex !== null;
-  // A scope-empty message is true only when the SCOPE itself is
-  // empty. When a search or stage narrows a non-empty scope to zero, it is a zero-match instead
-  // (AC-LRC-012) — the scope-empty sentence would deny rows that exist.
   const narrowedWithinScope = classificationsActive || search.trim() !== '' || stageIndex !== null;
-  // AC-LRC-012 (Board): the board has no scope/stage filter of its own (only search narrows
-  // `kanbanProjects` to `kanbanFiltered`), so a zero-match here is always a search zero-match, not
-  // the genuine-empty state (`state === 'empty'` above covers no open, won, or lost deals).
-  const boardZeroMatch = kanbanFiltered.length === 0;
+
   // #682/#683: Clear all is ONE working-set update plus the search reset, so the URL and
   // controls move together (no second event drops the first call). Shared by the table's
   // DataTable `emptyAction` and the board's zero-match ListState below.
@@ -515,16 +207,19 @@ const SalesPipeline: React.FC = () => {
   };
 
   // ── States ────────────────────────────────────────────────────────────────
-  // Empty only when there are no open, won, or lost deals (a terminal-only org still has a Pipeline).
-  const state: 'loading' | 'empty' | 'error' | undefined = isPending
+  // PGA05-006: Empty only when there are no open, won, or lost deals AND no terminal errors.
+  // Gate genuinely empty on lost query completion.
+  const state: 'loading' | 'empty' | 'error' | undefined = isPending || wonPending || lostPending
     ? 'loading'
-    : wonPending
-      ? 'loading'
     : isError || !data
       ? 'error'
-      : openProjects.length === 0 && lost.length === 0 && won.length === 0 && !wonError
+      : openProjects.length === 0 && lost.length === 0 && won.length === 0 && !wonError && !lostError
         ? 'empty'
         : undefined;
+
+  // PGA05-007: active presentation export selection — desktop board exports kanbanFiltered,
+  // table/mobile views export scope-filtered rows.
+  const exportRows = isDesktop && view === 'kanban' ? kanbanFiltered : filtered;
 
   // A-4 page view-gate (after all hooks — Rules of Hooks): a denied role (Engineer) gets the
   // shared access-denied surface, not the pipeline board.
@@ -565,29 +260,17 @@ const SalesPipeline: React.FC = () => {
               <ListState variant="loading" rows={2} />
             </div>
           ) : state === undefined && isDesktop ? (
-            <section aria-label={t('sales.summaryLabel', 'Pipeline summary')} className="panel-card mb-4 p-[var(--panel-inset)]">
-              {/* Narrow viewports scroll the band locally; the shared Funnel owns its own
-                  min-track scroll viewport so each stage's exact amount stays in its stage. */}
-              <Funnel
-                stages={funnelStages}
-                selectedIndex={stageIndex ?? undefined}
-                onSelect={(i) => {
-                  const nextStatus = OPEN_COLUMNS[i]?.statuses[0] as OpenFunnelStage | undefined;
-                  setWorkingSet((ws) => ({
-                    ...ws,
-                    status: ws.status === nextStatus ? '' : (nextStatus ?? ''),
-                  }));
-                }}
-              />
-              <div className="mt-2 flex items-center gap-1.5 px-1 text-[12.5px] text-muted-foreground">
-                <span>{t('sales.weightedForecast', 'Weighted pipeline forecast')}</span>
-                <span data-testid="pipeline-weighted-total" className="font-bold tabular text-foreground">
-                  {mixedPipeline
-                    ? unknownTotal
-                    : formatCurrency(totalWeighted, pipelineCurrencies.size === 1 ? [...pipelineCurrencies][0] : orgCurrency)}
-                </span>
-              </div>
-            </section>
+            <PipelineFunnel
+              projection={funnelProjection}
+              selectedIndex={stageIndex}
+              stageLabel={stageLabel}
+              onSelectStage={(nextStatus) => {
+                setWorkingSet((ws) => ({
+                  ...ws,
+                  status: ws.status === nextStatus ? '' : (nextStatus ?? ''),
+                }));
+              }}
+            />
           ) : null}
         </>
       }
@@ -665,10 +348,10 @@ const SalesPipeline: React.FC = () => {
           />
         )
       }
-      /* B-5 (AC-W2-IXD-008 / W1-E): Export is a live xlsx download of the current table view. */
+      /* PGA05-007: Export live xlsx uses active presentation rows (kanbanFiltered for board, filtered for table) */
       exportAction={
         state !== 'loading' && (
-          <ExportButton rows={filtered} columns={exportColumns} entity="Pipeline" />
+          <ExportButton rows={exportRows} columns={exportColumns} entity="Pipeline" />
         )
       }
       view={
@@ -685,162 +368,28 @@ const SalesPipeline: React.FC = () => {
         )
       }
     >
-      {/* Body */}
-      {state === 'loading' && (
-        <div>
-          <ListState variant="loading" rows={6} />
-        </div>
-      )}
-
-      {state === 'error' && (
-        <ListState
-          variant="error"
-          title={t('sales.error.title', "Couldn't load the sales pipeline")}
-          sub={t('sales.error.sub', 'Something went wrong fetching your pipeline.')}
-          onRetry={() => refetch()}
-        />
-      )}
-
-      {state === 'empty' && (
-        <ListState
-          variant="empty"
-          title={t('sales.empty.title', 'No projects yet')}
-          sub={t('sales.empty.sub', 'Add a project to start tracking the pipeline.')}
-        />
-      )}
-
-      {/* AC-LRC-012: a search that matches no card on the Board shows the same zero-match copy
-          + Clear filters as the Table (state === 'empty' above already covers the genuine
-          no-open-AND-no-lost pipeline, which keeps its own create-first-project state). */}
-      {state === undefined && view === 'kanban' && isDesktop && boardZeroMatch && !wonError && (
-        <ListState
-          variant="empty"
-          title={classificationsActive && search.trim() === ''
-            ? t('sales.boardEmpty.classification.title', 'No projects match these classifications')
-            : t('sales.tableEmpty.search.title', 'No projects match your search')}
-          sub={classificationsActive && search.trim() === ''
-            ? t('sales.boardEmpty.classification.sub', 'Clear a classification filter to see more projects.')
-            : t('sales.tableEmpty.search.sub', 'Try a different name or customer.')}
-          action={{ label: t('sales.tableEmpty.clearFilters', 'Clear filters'), onClick: clearFilters }}
-        />
-      )}
-
-      {state === undefined && view === 'kanban' && isDesktop && (!boardZeroMatch || wonError) && (
-        <>
-          {wonError && (
-            <ListState
-              variant="error"
-              title={t('sales:wonError.title', "Couldn't load won projects")}
-              sub={t('sales:wonError.sub', 'Something went wrong fetching won projects.')}
-              onRetry={() => refetchWon()}
-            />
-          )}
-          <SalesKanbanBoard projects={kanbanFiltered} onOpen={onOpen} selectedStageIndex={stageIndex} />
-        </>
-      )}
-
-      {state === undefined && view === 'kanban' && !isDesktop && (
-        wonError && scope === 'Won' ? (
-          <ListState
-            variant="error"
-            title={t('sales:wonError.title', "Couldn't load won projects")}
-            sub={t('sales:wonError.sub', 'Something went wrong fetching won projects.')}
-            onRetry={() => refetchWon()}
-          />
-        ) : lostError && (scope === 'Lost' || scope === 'Needs attention') ? (
-          <ListState
-            variant="error"
-            title={t('sales.lostError.title', "Couldn't load lost projects")}
-            sub={t('sales.lostError.sub', 'Something went wrong fetching lost projects.')}
-            onRetry={() => refetchLost()}
-          />
-        ) : filtered.length === 0 ? (
-          <ListState
-            variant="empty"
-            title={scope === 'Won' && !narrowedWithinScope
-              ? t('sales:tableEmpty.won.title', 'No won projects')
-              : scope === 'Lost' && !narrowedWithinScope
-              ? t('sales.tableEmpty.lost.title', 'No lost projects')
-              : scope === 'Needs attention' && !narrowedWithinScope
-                ? t('sales.tableEmpty.needsAttention.title', 'No projects need attention')
-                : t('uxs24.stageEmptyTitle', 'No projects in this stage')}
-            sub={scope === 'Won' && !narrowedWithinScope
-              ? t('sales:tableEmpty.won.sub', 'Projects marked won will appear here.')
-              : scope === 'Lost' && !narrowedWithinScope
-              ? t('sales.tableEmpty.lost.sub', 'Projects marked lost will appear here.')
-              : scope === 'Needs attention' && !narrowedWithinScope
-                ? t('sales.tableEmpty.needsAttention.sub', 'No project has been untouched for {{days}}+ days. Pipeline is active.', { days: String(ATTENTION_THRESHOLD_DAYS) })
-                : t('uxs24.stageEmptyBody', 'Choose another stage or clear filters to see more projects.')}
-            action={filtersActive
-              ? { label: t('sales.tableEmpty.clearFilters', 'Clear filters'), onClick: clearFilters }
-              : undefined}
-          />
-        ) : (
-          <SalesKanbanBoard
-            projects={filtered}
-            onOpen={onOpen}
-            presentation="list"
-            selectedStatus={selectedStatus}
-          />
-        )
-      )}
-
-      {state === undefined && view === 'table' && wonError && scope === 'Won' && (
-        <ListState
-          variant="error"
-          title={t('sales:wonError.title', "Couldn't load won projects")}
-          sub={t('sales:wonError.sub', 'Something went wrong fetching won projects.')}
-          onRetry={() => refetchWon()}
-        />
-      )}
-
-      {state === undefined && view === 'table' && lostError && (scope === 'Lost' || scope === 'Needs attention') && (
-        <ListState
-          variant="error"
-          title={t('sales.lostError.title', "Couldn't load lost projects")}
-          sub={t('sales.lostError.sub', 'Something went wrong fetching lost projects.')}
-          onRetry={() => refetchLost()}
-        />
-      )}
-
-      {state === undefined && view === 'table' && !((wonError && scope === 'Won') || (lostError && (scope === 'Lost' || scope === 'Needs attention'))) && (
-        <DataTable<PipelineProject>
-          embedded
-          rows={filtered}
-          columns={tableColumns}
-          rowKey={(r) => r.id}
-          onActivate={onOpen}
-          rowLabel={(r) => `${t('sales.openRow', 'Open')} ${r.name}`}
-          state={filtered.length === 0 ? 'empty' : undefined}
-          emptyTitle={
-            !narrowedWithinScope && scope === 'Won'
-              ? t('sales:tableEmpty.won.title', 'No won projects')
-              : !narrowedWithinScope && scope === 'Lost'
-              ? t('sales.tableEmpty.lost.title', 'No lost projects')
-              : !narrowedWithinScope && scope === 'Needs attention'
-                ? t('sales.tableEmpty.needsAttention.title', 'No projects need attention')
-                : t('sales.tableEmpty.search.title', 'No projects match your search')
-          }
-          emptySub={
-            !narrowedWithinScope && scope === 'Won'
-              ? t('sales:tableEmpty.won.sub', 'Projects marked won will appear here.')
-              : !narrowedWithinScope && scope === 'Lost'
-              ? t('sales.tableEmpty.lost.sub', 'Projects marked lost will appear here.')
-              : !narrowedWithinScope && scope === 'Needs attention'
-                ? t(
-                    'sales.tableEmpty.needsAttention.sub',
-                    'No project has been untouched for {{days}}+ days. Pipeline is active.',
-                    { days: String(ATTENTION_THRESHOLD_DAYS) },
-                  )
-                : t('sales.tableEmpty.search.sub', 'Try a different name or customer.')
-          }
-          emptyAction={
-            filtersActive
-              ? { label: t('sales.tableEmpty.clearFilters', 'Clear filters'), onClick: clearFilters }
-              : undefined
-          }
-        tableId="salespipeline-table" />
-      )}
+      <PipelineResults
+        state={state}
+        view={view}
+        isDesktop={isDesktop}
+        scope={scope}
+        filtered={filtered}
+        kanbanFiltered={kanbanFiltered}
+        tableColumns={tableColumns}
+        onOpen={onOpen}
+        stageIndex={stageIndex}
+        selectedStatus={selectedStatus}
+        wonError={wonError}
+        lostError={lostError}
+        refetchPipeline={refetch}
+        refetchWon={refetchWon}
+        refetchLost={refetchLost}
+        clearFilters={clearFilters}
+        filtersActive={filtersActive}
+        narrowedWithinScope={narrowedWithinScope}
+        classificationsActive={classificationsActive}
+        search={search}
+      />
     </ListPage>
   );
 };
