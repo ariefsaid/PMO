@@ -8,7 +8,7 @@ import { itemsNetTotal } from './itemsNet';
 import { previewInvoiceDraft } from './revenue/nativeInvoice';
 
 const sql = readFileSync('../supabase/tests/line_pricing_parity.test.sql', 'utf8');
-const vectors: Array<{ name: string; items: Array<{ qty: number; rate: number }>; total: number; native: boolean }> =
+const vectors: Array<{ name: string; items: Array<{ qty: number; rate: number }>; total: number; native: boolean; nativeReject?: boolean }> =
   JSON.parse(sql.split('$vectors$')[1]);
 
 describe('shared line-pricing vectors', () => {
@@ -16,6 +16,7 @@ describe('shared line-pricing vectors', () => {
     it(vector.name, () => {
       expect(itemsNetTotal(vector.items)).toBe(vector.total);
       if (vector.native) expect(previewInvoiceDraft(vector.items, null).subtotal).toBe(vector.total);
+      if (vector.nativeReject) expect(previewInvoiceDraft(vector.items, null).reason).toBe('invalid-lines');
     });
   }
 });

@@ -1,10 +1,11 @@
 -- Shared vectors consumed by the SQL, Vitest and Deno parity tests.
 begin;
-select plan(7);
+select plan(9);
 create temporary table line_pricing_vectors (data jsonb);
 insert into line_pricing_vectors values ($vectors$[
  {"name":"decimal tie","items":[{"qty":0.29,"rate":0.5}],"total":0.15,"procurement":true,"native":true},
- {"name":"negative tie","items":[{"qty":-0.29,"rate":0.5}],"total":-0.15,"procurement":false,"native":false},
+ {"name":"negative tie","items":[{"qty":-0.29,"rate":0.5}],"total":-0.15,"procurement":false,"native":false,"nativeReject":true},
+ {"name":"negative rate","items":[{"qty":0.29,"rate":-0.5}],"total":-0.15,"procurement":false,"native":false,"nativeReject":true},
  {"name":"two ties","items":[{"qty":0.01,"rate":0.5},{"qty":0.01,"rate":0.5}],"total":0.02,"procurement":true,"native":true},
  {"name":"native thousandths","items":[{"qty":0.001,"rate":5}],"total":0.01,"procurement":false,"native":true},
  {"name":"upper amount","items":[{"qty":1,"rate":999999999999.99}],"total":999999999999.99,"procurement":true,"native":true},
@@ -43,6 +44,13 @@ begin
 end $$;
 select is((select count(*)::integer from native_pricing_results),(select count(*)::integer from line_pricing_vectors v, jsonb_array_elements(v.data) x where (x->>'native')::boolean),'native invoice writer consumes every eligible vector');
 select is((select count(*)::integer from native_pricing_results where actual is distinct from expected),0,'native invoice writer matches shared decimal vectors');
+select throws_ok(
+  format('select public.create_native_sales_invoice(%L::uuid,%L::uuid,%L::jsonb)',
+    'fa030000-0000-0000-0000-000000000005', 'fa030000-0000-0000-0000-000000000004',
+    (select jsonb_agg(i || jsonb_build_object('item_code','TEST')) from jsonb_array_elements(x->'items') i)::text),
+  '23514', 'each line needs an item code or a description (up to 140 characters each), a quantity above zero with at most 3 decimals, and a rate of zero or more with at most 2 decimals',
+  'native writer rejects ' || (x->>'name'))
+from line_pricing_vectors v, jsonb_array_elements(v.data) x where (x->>'nativeReject')::boolean;
 select throws_ok($$select public.create_native_sales_invoice('fa030000-0000-0000-0000-000000000005','fa030000-0000-0000-0000-000000000004','[{"item_code":"TEST","qty":1,"rate":1000000000000}]'::jsonb)$$,'23514','the invoice total must be above zero','native writer rejects the upper total bound');
 select * from finish();
 rollback;
