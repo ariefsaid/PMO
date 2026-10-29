@@ -12,12 +12,13 @@ begin
   -- Hold standing and role rows through the write, serializing revocation with linking.
   perform 1 from public.profiles where id = p_actor_id for share;
   perform 1 from auth.users where id = p_actor_id for share;
-  perform 1 from public.platform_operators where user_id = p_actor_id for share;
+  select true into v_operator from public.platform_operators
+    where user_id = p_actor_id for share;
+  v_operator := coalesce(v_operator, false);
   v_state := public.actor_authorization_state(p_org_id, p_actor_id);
   if not coalesce((v_state->>'active')::boolean, false) then
     raise exception 'active organization member required' using errcode = '42501';
   end if;
-  select exists(select 1 from public.platform_operators where user_id = p_actor_id) into v_operator;
   if p_project_id is not null then
     select project_manager_id into v_manager from public.projects
       where id = p_project_id and org_id = p_org_id for share;

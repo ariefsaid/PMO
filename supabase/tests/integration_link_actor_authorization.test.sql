@@ -1,5 +1,5 @@
 begin;
-select plan(20);
+select plan(22);
 insert into organizations(id,name) values ('39000000-0000-0000-0000-000000000001','Link test');
 insert into auth.users(id) values ('39000000-0000-0000-0000-000000000011'),('39000000-0000-0000-0000-000000000012'),('39000000-0000-0000-0000-000000000013'),('39000000-0000-0000-0000-000000000014'),('39000000-0000-0000-0000-000000000015');
 update auth.users set banned_until = now() + interval '1 day' where id = '39000000-0000-0000-0000-000000000013';
@@ -11,7 +11,10 @@ insert into profiles(id,org_id,full_name,email,role,status) values
 ('39000000-0000-0000-0000-000000000015','39000000-0000-0000-0000-000000000001','Operator','link-operator@example.invalid','Finance','active');
 insert into platform_operators(user_id) values ('39000000-0000-0000-0000-000000000015');
 insert into projects(id,org_id,name,status,project_manager_id) values ('39000000-0000-0000-0000-000000000021','39000000-0000-0000-0000-000000000001','Link project','Ongoing Project','39000000-0000-0000-0000-000000000014'),
-('39000000-0000-0000-0000-000000000022','39000000-0000-0000-0000-000000000001','Second project','Ongoing Project','39000000-0000-0000-0000-000000000014');
+('39000000-0000-0000-0000-000000000022','39000000-0000-0000-0000-000000000001','Second project','Ongoing Project','39000000-0000-0000-0000-000000000014'),
+('39000000-0000-0000-0000-000000000023','39000000-0000-0000-0000-000000000001','Role project','Ongoing Project','39000000-0000-0000-0000-000000000014'),
+('39000000-0000-0000-0000-000000000024','39000000-0000-0000-0000-000000000001','Assignment project','Ongoing Project','39000000-0000-0000-0000-000000000014'),
+('39000000-0000-0000-0000-000000000025','39000000-0000-0000-0000-000000000001','Operator project','Ongoing Project','39000000-0000-0000-0000-000000000014');
 insert into external_org_bindings(org_id,external_tier,site_url,status,secret_ref,config) values ('39000000-0000-0000-0000-000000000001','erpnext','https://integration.example.test','active','','{}');
 select ok(not has_function_privilege('authenticated','public.link_external_project(uuid,uuid,uuid,text,jsonb)','execute'),'project link is service only');
 select ok(not has_function_privilege('authenticated','public.link_external_company(uuid,uuid,text,text)','execute'),'company link is service only');
@@ -37,18 +40,20 @@ update profiles set status='active' where id='39000000-0000-0000-0000-0000000000
 delete from platform_operators where user_id='39000000-0000-0000-0000-000000000015';
 set local role service_role;
 select throws_ok($$select link_external_company('39000000-0000-0000-0000-000000000001','39000000-0000-0000-0000-000000000015','Acme','https://integration.example.test')$$,'42501',null,'current operator authority is required');
+select throws_ok($$select link_external_project('39000000-0000-0000-0000-000000000001','39000000-0000-0000-0000-000000000015','39000000-0000-0000-0000-000000000025','revoked-operator','{}')$$,'42501',null,'current operator authority is required to link project');
 reset role;
 update profiles set role='Finance' where id='39000000-0000-0000-0000-000000000014';
 set local role service_role;
-select throws_ok($$select link_external_project('39000000-0000-0000-0000-000000000001','39000000-0000-0000-0000-000000000014','39000000-0000-0000-0000-000000000021','b','{}')$$,'42501',null,'current role is required after assignment');
+select throws_ok($$select link_external_project('39000000-0000-0000-0000-000000000001','39000000-0000-0000-0000-000000000014','39000000-0000-0000-0000-000000000023','b','{}')$$,'42501',null,'current role is required after assignment');
 select throws_ok($$select unlink_external_integration('39000000-0000-0000-0000-000000000001','clickup','39000000-0000-0000-0000-000000000021','39000000-0000-0000-0000-000000000014')$$,'42501',null,'current role is required to unlink');
 reset role;
 update profiles set role='Project Manager' where id='39000000-0000-0000-0000-000000000014';
-update projects set project_manager_id='39000000-0000-0000-0000-000000000011' where id='39000000-0000-0000-0000-000000000021';
+update projects set project_manager_id='39000000-0000-0000-0000-000000000011' where id='39000000-0000-0000-0000-000000000024';
 set local role service_role;
-select throws_ok($$select link_external_project('39000000-0000-0000-0000-000000000001','39000000-0000-0000-0000-000000000014','39000000-0000-0000-0000-000000000021','b','{}')$$,'42501',null,'current project assignment is required');
+select throws_ok($$select link_external_project('39000000-0000-0000-0000-000000000001','39000000-0000-0000-0000-000000000014','39000000-0000-0000-0000-000000000024','b','{}')$$,'42501',null,'current project assignment is required');
 select is((select config->>'company' from external_org_bindings where org_id='39000000-0000-0000-0000-000000000001'),'Acme','denials preserve company');
 select is((select count(*)::integer from external_project_bindings where org_id='39000000-0000-0000-0000-000000000001'),2,'denials preserve project links');
+select is((select count(*)::integer from external_project_bindings where project_id in ('39000000-0000-0000-0000-000000000023','39000000-0000-0000-0000-000000000024','39000000-0000-0000-0000-000000000025')),0,'denied project targets remain unlinked');
 reset role;
 select * from finish();
 rollback;

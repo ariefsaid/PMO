@@ -135,8 +135,10 @@ describe('external-link — ClickUp branch', () => {
           pathname: '/rest/v1/rpc/link_external_project',
           response: (call) => {
             const body = call.bodyJson as {
+              p_actor_id: string; p_org_id: string; p_project_id: string;
               p_config: { statusMap: { pmoToClickUp: Record<string, string>; pmoOnlyStatuses?: string[] } };
             };
+            assertEquals([body.p_actor_id, body.p_org_id, body.p_project_id], ['user-1', 'org-1', 'proj-1']);
             // OD-INT-10: the persisted config must record an explicit resolution for all four PMO
             // statuses, never the empty maps this bug used to ship.
             assertEquals(body.p_config.statusMap.pmoToClickUp['To Do'], 'to do');
@@ -165,8 +167,12 @@ describe('external-link — ClickUp branch', () => {
           projectId: 'proj-1',
           listId: 'list-1',
           direction: 'push-seed',
+          actorId: 'spoofed-actor', orgId: 'spoofed-org', p_actor_id: 'spoofed-actor', p_org_id: 'spoofed-org', p_project_id: 'spoofed-project',
         }));
         assertEquals(res.status, 200);
+        assertEquals(restCall(calls, 'profiles', 'GET')[0].url.searchParams.get('id'), 'eq.user-1');
+        assertEquals(restCall(calls, 'projects', 'GET')[0].url.searchParams.get('id'), 'eq.proj-1');
+        assertEquals(restCall(calls, 'projects', 'GET')[0].url.searchParams.get('org_id'), 'eq.org-1');
         assertEquals(rpcCall(calls, 'link_external_project').length, 1);
         assertEquals(rpcCall(calls, 'log_audit').length, 1);
       },
@@ -899,6 +905,7 @@ describe('external-link — ERPNext branch', () => {
 
         { label: 'update company config', method: 'POST', pathname: '/rest/v1/rpc/link_external_company', response: (call) => {
           const body = call.bodyJson as Record<string, unknown>;
+          assertEquals([body.p_actor_id, body.p_org_id, body.p_site_url], ['user-1', 'org-1', 'https://erp.example.com']);
           assertEquals(body.p_company, 'ACME');
           return jsonResponse(true);
         } },
@@ -915,9 +922,12 @@ describe('external-link — ERPNext branch', () => {
         const res = await handleLinkRequest(await authed({
           tier: 'erpnext',
           companyId: 'ACME',
+          actorId: 'spoofed-actor', orgId: 'spoofed-org', p_actor_id: 'spoofed-actor', p_org_id: 'spoofed-org', p_site_url: 'https://spoofed.example.test',
         }));
         assertEquals(res.status, 200);
         assertEquals(await res.json(), { ok: true, companyId: 'ACME' });
+        assertEquals(restCall(calls, 'profiles', 'GET')[0].url.searchParams.get('id'), 'eq.user-1');
+        assertEquals(restCall(calls, 'external_org_bindings', 'GET')[0].url.searchParams.get('org_id'), 'eq.org-1');
         assertEquals(rpcCall(calls, 'link_external_company').length, 1);
         assertEquals(rpcCall(calls, 'log_audit').length, 1);
       },
