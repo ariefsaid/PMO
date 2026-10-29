@@ -534,15 +534,20 @@ describe('AC-IXD-PROC-004: selected-quote binds on the Quote Selected state (PRO
     expect(within(comparisons).getByText('Chosen')).toBeInTheDocument();
   });
 
-  it('PROC-004: the selected quotation row carries the "Selected · best value" pill', () => {
+  it('PROC-004: selected and lowest-price pills appear only on the chosen lowest quote row', () => {
     renderPage('proc-001', 'quotes');
     // VendorQuotesTab (Slice 3) replaced QuotationsSection — testid is now vendor-quotes.
     const section = screen.getByTestId('vendor-quotes');
-    // The chosen $148,000 (VQ-2602050001) row shows "Selected · best value"; the $152,000 one does not.
-    // Both desktop + mobile branches render the pill so at least one match expected.
-    expect(within(section).getAllByText(/Selected · best value/i).length).toBeGreaterThanOrEqual(1);
-    // The VQ number is present in the section
-    expect(within(section).getAllByText('VQ-2602050001').length).toBeGreaterThanOrEqual(1);
+    const quoteRows = Array.from(section.querySelectorAll('tr'));
+    const chosenRow = quoteRows.find((row) => row.textContent?.includes('VQ-2602050001'));
+    expect(chosenRow).toBeInTheDocument();
+    expect(within(chosenRow as HTMLElement).getByText('Selected')).toBeInTheDocument();
+    expect(within(chosenRow as HTMLElement).getByText('Lowest price')).toBeInTheDocument();
+
+    const higherQuoteRow = quoteRows.find((row) => row.textContent?.includes('VQ-2602050002'));
+    expect(higherQuoteRow).toBeInTheDocument();
+    expect(within(higherQuoteRow as HTMLElement).queryByText('Selected')).not.toBeInTheDocument();
+    expect(within(higherQuoteRow as HTMLElement).queryByText('Lowest price')).not.toBeInTheDocument();
   });
 });
 
