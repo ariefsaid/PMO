@@ -22,13 +22,16 @@ import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-const { listState, drawdownState, mutations } = vi.hoisted(() => ({
+const { listState, drawdownState, mutations, lineState, boqState, quantityMutations } = vi.hoisted(() => ({
   listState: {
     data: [] as unknown[],
     isPending: false,
     isError: false,
     refetch: vi.fn(),
   },
+  boqState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+  quantityMutations: { createLine: { mutateAsync: vi.fn() }, updateLine: { mutateAsync: vi.fn() }, deleteLine: { mutateAsync: vi.fn() } },
+  lineState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   drawdownState: {
     data: { committed: 0, draft: 0, ceiling: 1_000_000, currency: 'USD', basis: 'net' } as unknown,
     isPending: false,
@@ -52,16 +55,16 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
 // QueryClientProvider, so the hook is held in its loading state and contributes no figures; billing is covered in
 // WorkOrdersTab.billing.test.tsx.
 vi.mock('@/src/hooks/useProgressBilling', () => ({
-  useBoqItems: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useBoqItems: () => boqState,
   useProjectBilling: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectClaims: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProgressBillingMutations: () => ({}),
 }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useProjectWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectWorkOrderLines: () => lineState,
   useWorkOrderAcceptances: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useWorkOrderAcceptanceMutations: () => ({}),
+  useWorkOrderAcceptanceMutations: () => quantityMutations,
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
@@ -140,6 +143,9 @@ beforeEach(() => {
     m.isPending = false;
   }
   realRole = 'Project Manager';
+  boqState.data = []; boqState.isPending = false; boqState.isError = false; boqState.refetch.mockClear();
+  Object.values(quantityMutations).forEach((m) => { m.mutateAsync.mockReset(); m.mutateAsync.mockResolvedValue(undefined); });
+  lineState.data = []; lineState.isPending = false; lineState.isError = false; lineState.refetch.mockClear();
 });
 
 // ── List states ───────────────────────────────────────────────────────────────
@@ -148,6 +154,31 @@ describe('list states', () => {
   it('M17 explains client-PO drawdown in the empty register', () => {
     renderTab();
     expect(screen.getByText(/No customer orders yet\. Client purchase orders/)).toBeInTheDocument();
+  });
+
+  it('shows quantity source failure and retry even when no orders or lines loaded', async () => {
+    lineState.isError = true;
+    renderTab();
+    expect(screen.getByText(/couldn.t load the contract/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /retry|try again/i }));
+    expect(lineState.refetch).toHaveBeenCalled();
+  });
+
+  it('shows a retry for unavailable quantities even with a draft order', async () => {
+    listState.data = [row()];
+    lineState.isError = true;
+    renderTab();
+    expect(screen.getByText(/couldn.t load the contract/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /retry|try again/i }));
+    expect(lineState.refetch).toHaveBeenCalled();
+  });
+
+  it('withholds the allocation editor until its source reads are confirmed', async () => {
+    listState.data = [row()];
+    lineState.isPending = true;
+    renderTab();
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Phase 1 fabrication' }));
+    expect(screen.queryByRole('menuitem', { name: 'Allocate contract lines' })).not.toBeInTheDocument();
   });
 
   it('renders a loading state, not an empty one, while the list is in flight', () => {
@@ -217,6 +248,56 @@ describe('the rows', () => {
     expect(screen.getByText(/Order date.*Aug 1, 2026/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'View details for Phase 1 fabrication' }));
     expect(within(screen.getByRole('dialog')).getByText('Aug 1, 2026')).toBeInTheDocument();
+  });
+
+  it('retains an allocation draft while a required source fails and recovers', async () => {
+    listState.data = [row()];
+    boqState.data = [{ id: 'b1', item_code: 'SURVEY', description: 'Route survey', unit: 'km', quantity: 10, earning_basis: 'unit_rate' }];
+    const user = userEvent.setup();
+    const tree = () => <MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>;
+    const view = render(tree());
+    await user.click(screen.getByRole('button', { name: 'Actions for Phase 1 fabrication' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Allocate contract lines' }));
+    await user.type(within(screen.getByRole('dialog')).getByLabelText(/SURVEY.*Route survey/), '3.5');
+    lineState.isPending = true;
+    view.rerender(tree());
+    expect(within(screen.getByRole('dialog')).getByLabelText(/SURVEY.*Route survey/)).toHaveValue('3.5');
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save SURVEY' })).toBeDisabled();
+    lineState.isPending = false;
+    lineState.isError = true;
+    view.rerender(tree());
+    expect(within(screen.getByRole('dialog')).getByLabelText(/SURVEY.*Route survey/)).toHaveValue('3.5');
+    expect(within(screen.getByRole('dialog')).getByText(/couldn.t load order allocations/i)).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save SURVEY' })).toBeDisabled();
+    expect(quantityMutations.createLine.mutateAsync).not.toHaveBeenCalled();
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /retry/i }));
+    expect(lineState.refetch).toHaveBeenCalled();
+    lineState.isError = false;
+    view.rerender(tree());
+    expect(within(screen.getByRole('dialog')).getByLabelText(/SURVEY.*Route survey/)).toHaveValue('3.5');
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save SURVEY' }));
+    expect(quantityMutations.createLine.mutateAsync).toHaveBeenCalledWith({ workOrderId: 'wo-1', boqItemId: 'b1', quantity: 3.5 });
+  });
+
+  it('blocks removing an allocation when a source fails while confirmation is open', async () => {
+    listState.data = [row()];
+    boqState.data = [{ id: 'b1', item_code: 'SURVEY', description: 'Route survey', unit: 'km', quantity: 10, earning_basis: 'unit_rate' }];
+    lineState.data = [{ id: 'allocation-1', work_order_id: 'wo-1', boq_item_id: 'b1', quantity: 2 }];
+    const user = userEvent.setup();
+    const tree = () => <MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>;
+    const view = render(tree());
+    await user.click(screen.getByRole('button', { name: 'Actions for Phase 1 fabrication' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Allocate contract lines' }));
+    await user.click(within(screen.getByRole('dialog', { name: /Contract lines/ })).getByRole('button', { name: 'Remove SURVEY' }));
+    lineState.isError = true;
+    view.rerender(tree());
+    const confirmation = screen.getByRole('alertdialog', { name: 'Remove this allocation?' });
+    expect(within(confirmation).getByRole('button', { name: 'Remove allocation' })).toBeDisabled();
+    expect(quantityMutations.deleteLine.mutateAsync).not.toHaveBeenCalled();
+    lineState.isError = false;
+    view.rerender(tree());
+    await user.click(within(screen.getByRole('alertdialog', { name: 'Remove this allocation?' })).getByRole('button', { name: 'Remove allocation' }));
+    expect(quantityMutations.deleteLine.mutateAsync).toHaveBeenCalledWith('allocation-1');
   });
 
   it('M16 lets Admin, Project Manager, and Finance allocate lines on a Draft work order', async () => {

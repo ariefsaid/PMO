@@ -706,7 +706,10 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           />
         ) : (
           <>
-            {!showQuantities && visibleCustomerOrders.length === 0 && visibleDraftOrders.length === 0 && (
+            {visibleCustomerOrders.length === 0 && (lineReadsFailed
+              ? <ListState variant="error" title={t('projectDetail.cascade.error', "Couldn't load the contract")} onRetry={() => { void boq.refetch(); void projectBilling.refetch(); void lines.refetch(); }} />
+              : lineReadsPending ? <ListState variant="loading" rows={3} /> : null)}
+            {!lineReadsPending && !lineReadsFailed && !showQuantities && visibleCustomerOrders.length === 0 && visibleDraftOrders.length === 0 && (
               <p className="py-3 text-sm text-muted-foreground">
                 {t('projectDetail.workOrders.emptyRegister', 'No customer orders yet. Client purchase orders are recorded here and draw down the project contract ceiling when issued.')}
               </p>
@@ -760,7 +763,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                           <MenuButton ariaLabel={t('projectDetail.workOrders.action.orderMenuLabel', 'Actions for {{order}}', { order: row.wo_number ?? row.title })} items={[
                             ...(canEdit ? [{ label: t('projectDetail.workOrders.action.editOrder', 'Edit order'), onClick: () => setFormFor(row) }] : []),
                             ...(canSetValue ? [{ label: t('projectDetail.workOrders.action.setValue', 'Set value'), onClick: () => setValueFor(row) }] : []),
-                            ...(may('create', 'workOrderLine', { record: { status: row.status } }) ? [{ label: t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Allocate contract lines'), onClick: () => setLinesFor(row) }] : []),
+                            ...(!lineReadsPending && !lineReadsFailed && may('create', 'workOrderLine', { record: { status: row.status } }) ? [{ label: t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Allocate contract lines'), onClick: () => setLinesFor(row) }] : []),
                             ...(!issueBlocked && canTransition ? [{ label: t('projectDetail.workOrders.action.issue', 'Issue'), onClick: () => setPending({ row, to: 'Issued' }) }] : []),
                             ...(canTransition ? [{ label: t('projectDetail.workOrders.action.cancelGeneric', 'Cancel'), danger: true, onClick: () => setPending({ row, to: 'Cancelled' }) }] : []),
                             { label: t('projectDetail.workOrders.action.viewPo', 'View customer PO'), onClick: () => openPoDrawer(row) },
@@ -818,7 +821,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 if (hasOrderLines) setClaimFor(row);
                 else setInvoiceFor({ row, remaining: billingRow.remaining });
               };
-              const canEditLines = may('create', 'workOrderLine', { record: { status: row.status } });
+              const canEditLines = !lineReadsPending && !lineReadsFailed && may('create', 'workOrderLine', { record: { status: row.status } });
               const orderActions: RowMenuItem[] = [
                 ...(canPrepare ? [{ label: t('projectDetail.workOrders.action.recordDelivery', 'Record delivery'), onClick: () => setBastFor({ row, draft: null }) }] : []),
                 ...(canConfirm && pendingBast ? [{ label: t('projectTabs:contractQuantities.workOrders.acceptances.confirmDelivery', 'Confirm draft BAST'), onClick: () => setConfirmFor({ acceptance: pendingBast, error: null }) }] : []),
@@ -1022,7 +1025,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                           <span className="ml-2">{t('projectTabs:contractQuantities.workOrders.quantities.counts', '{{lines}} lines · {{basts}} BAST', { lines: rawLines.length, basts: bastList.length })}</span>
                         </summary>
                         <div className="mt-3 flex flex-col gap-4">
-                          {!hasOrderLines && row.status === 'Issued' && <section aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}>
+                          {orderLineFactsReady && !hasOrderLines && row.status === 'Issued' && <section aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}>
                             <p className="text-[13px] text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.acceptances.form.noAllocations', 'Allocate contract lines to this work order first.')}</p>
                             {canEditLines && <Button variant="outline" size="sm" className="mt-2" onClick={() => setLinesFor(row)}>
                               {t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Allocate contract lines')}
@@ -1036,7 +1039,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                                 return <li key={line.id} className="tabular">{item ? `${item.item_code} — ${item.description}` : line.boq_item_id} <span className="font-semibold">{formatNumberExact(Number(line.quantity))}{item ? ` ${item.unit}` : ''}</span></li>;
                               })}
                             </ul>
-                            {may('create', 'workOrderLine', { record: { status: row.status } }) && <Button variant="ghost" size="sm" className="mt-1 px-0 text-xs text-muted-foreground" onClick={() => setLinesFor(row)}>{t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Edit lines')}</Button>}
+                            {canEditLines && <Button variant="ghost" size="sm" className="mt-1 px-0 text-xs text-muted-foreground" onClick={() => setLinesFor(row)}>{t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Edit lines')}</Button>}
                           </section>}
                           <section aria-label={t('projectTabs:contractQuantities.workOrders.acceptances.heading', 'Acceptances (BAST)')}>
                             <h4 className="mb-1 text-xs font-semibold text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.acceptances.heading', 'Acceptances (BAST)')}</h4>
@@ -1203,7 +1206,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           status={<StatusPill variant={selected.order.status === 'Closed' ? 'won' : 'progress'}>{selected.order.status}</StatusPill>}
           onClose={() => closeOpenRecord(selected.key, 'workOrderLine')}
           headerActions={<div className="flex flex-wrap items-center gap-2">
-            {may('create', 'workOrderLine', { record: { status: selected.order.status } }) && <Button variant="outline" size="sm" onClick={() => {
+            {!lineReadsPending && !lineReadsFailed && may('create', 'workOrderLine', { record: { status: selected.order.status } }) && <Button variant="outline" size="sm" onClick={() => {
               closeOpenRecord(selected.key, 'workOrderLine');
               setLinesFor(selected.order);
             }}>{t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Allocate contract lines')}</Button>}
@@ -1323,6 +1326,11 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 
       {linesFor && (
         <WorkOrderLinesModal
+          sources={[
+            { query: boq, name: t('projectDetail.billing.sources.boq', 'contract lines') },
+            { query: projectBilling, name: t('projectDetail.billing.sources.billing', 'billing figures') },
+            { query: lines, name: t('projectDetail.billing.sources.allocations', 'order allocations') },
+          ].map(({ query, name }) => ({ name, pending: query.isPending, error: query.isError, retry: () => { void query.refetch(); } }))}
           workOrder={linesFor}
           boqItems={boqRows}
           contractLines={projectBilling.data?.contractLines ?? []}

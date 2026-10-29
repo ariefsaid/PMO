@@ -19,7 +19,7 @@ import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { useProcurementNextStepLabel, useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatRelativeTime } from '@/src/lib/format';
 import { DecisionSupportPanel } from './DecisionSupportPanel';
 import { pillVariantForStatus } from '../../components/procurement';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
@@ -54,15 +54,6 @@ export const ProcurementListColumns: React.FC = () => {
 
 export interface ProcurementListRowProps {
   row: ProcurementWithRefs;
-}
-
-/** Whole days since an ISO timestamp. */
-function daysAgo(iso: string): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return '—';
-  const days = Math.max(0, Math.floor((Date.now() - then) / 86_400_000));
-  if (days === 0) return 'today';
-  return `${days}d ago`;
 }
 
 /**
@@ -264,7 +255,7 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
           </div>
           <div className={`${columnFields[4].span} min-w-0 tabular`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.age', 'Age')}</dt>
-            <dd>{daysAgo(row.created_at)}</dd>
+            <dd>{formatRelativeTime(row.created_at)}</dd>
           </div>
           <div className={`${columnFields[5].span} min-w-0`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.status', 'Status')}</dt>

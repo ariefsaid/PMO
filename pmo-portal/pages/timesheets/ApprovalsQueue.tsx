@@ -1,6 +1,7 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
   ApprovalRow,
   Button,
@@ -23,17 +24,11 @@ import { TimesheetBulkControls, useTimesheetBulkApprove, weekLabel as bulkWeekLa
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatMonthDay, formatWeekday } from '@/src/lib/format';
+import { formatNumberExact, formatWeekday } from '@/src/lib/format';
 
 /** Sum a sheet's entry hours (entries are number-normalised at the DAL boundary). */
 function sumHours(sheet: TimesheetAwaitingApproval): number {
   return sheet.entries.reduce((sum, e) => sum + e.hours, 0);
-}
-
-function weekLabel(weekStart: string): string {
-  const [y, m, d] = weekStart.split('-').map(Number);
-  const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
-  return `Week of ${formatMonthDay(dt)}`;
 }
 
 function isoDate(d: Date): string {
@@ -43,7 +38,7 @@ function isoDate(d: Date): string {
   return `${y}-${m}-${dd}`;
 }
 
-function buildGrid(sheet: TimesheetAwaitingApproval): { days: TimesheetDay[]; rows: TimesheetGridRow[] } {
+function buildGrid(sheet: TimesheetAwaitingApproval, t: TFunction): { days: TimesheetDay[]; rows: TimesheetGridRow[] } {
   const [y, m, d] = sheet.week_start_date.split('-').map(Number);
   const weekStart = new Date(y, (m ?? 1) - 1, d ?? 1);
   const weekDates = Array.from({ length: 7 }).map((_, i) => {
@@ -70,7 +65,7 @@ function buildGrid(sheet: TimesheetAwaitingApproval): { days: TimesheetDay[]; ro
       row = {
         id: key,
         projectId: key,
-        project: e.project ? projectDisplayName(e.project) : 'Unknown Project',
+        project: e.project ? projectDisplayName(e.project) : t('timesheets:approvalQueue.unknownProject', 'Unknown Project'),
         projectLegalName: e.project?.name,
         code: e.project?.code ?? null,
         hours: [0, 0, 0, 0, 0, 0, 0],
@@ -99,7 +94,7 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
   showSodNotice = surface === 'panel',
   eligibleFromQueue = false,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'timesheets']);
   const { approve, reject } = useTimesheetMutations();
   const { toast } = useToast();
   const may = usePermission();
@@ -107,18 +102,18 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
   const [pending, setPending] = useState<PendingApproval | null>(null);
   const actions = timesheetActions(sheet.status as TimesheetStatus, false, isApprover);
   const total = sumHours(sheet);
-  const name = sheet.owner?.full_name ?? 'Unknown';
-  const { days, rows } = buildGrid(sheet);
+  const name = sheet.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown');
+  const { days, rows } = buildGrid(sheet, t);
   const isInline = surface === 'inline';
 
   const commitApproval = () => {
     if (!pending) return;
     const mutation = pending.kind === 'approve' ? approve : reject;
-    const okHeadline = pending.kind === 'approve' ? 'Timesheet approved' : 'Timesheet returned';
+    const okHeadline = pending.kind === 'approve' ? t('timesheets:approvalQueue.approved', 'Timesheet approved') : t('timesheets:approvalQueue.returned', 'Timesheet returned');
     const okDetail =
       pending.kind === 'approve'
-        ? `${pending.name}'s week approved`
-        : `Sent back to ${pending.name} for changes`;
+        ? t('timesheets:approvalQueue.approvedDetail', "{{name}}'s week approved", { name: pending.name })
+        : t('timesheets:approvalQueue.returnedDetail', 'Sent back to {{name}} for changes', { name: pending.name });
     mutation.mutate(
       { id: pending.id },
       {
@@ -145,7 +140,7 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
           loading={approve.isPending}
         >
           <Icon name="check" />
-          Approve
+          {t('timesheets:approvalQueue.approve', 'Approve')}
         </Button>
       )}
       {actions.reject && (
@@ -155,7 +150,7 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
           onClick={() => setPending({ kind: 'return', id: sheet.id, name })}
           loading={reject.isPending}
         >
-          Return
+          {t('timesheets:approvalQueue.return', 'Return')}
         </Button>
       )}
     </div>
@@ -168,8 +163,8 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-muted-foreground">
-                <span>{weekLabel(sheet.week_start_date)}</span>
-                <span className="tabular font-medium text-foreground">{total.toFixed(1)} h</span>
+                <span>{bulkWeekLabel(sheet.week_start_date, t)}</span>
+                <span className="tabular font-medium text-foreground">{total.toFixed(1)} {t('approvals.bulk.hoursUnit', 'h')}</span>
                 <StatusPill variant={workflowVariant(sheet.status)}>{sheet.status}</StatusPill>
               </div>
               <h2 className="text-lg font-semibold tracking-[-0.01em]">{name}</h2>
@@ -185,7 +180,7 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
 
         <div className={isInline ? undefined : 'min-h-0 flex-1 overflow-y-auto pt-4'}>
           {rows.length === 0 ? (
-            <p className="px-2 py-3 text-[13px] text-muted-foreground">No hours recorded for this week.</p>
+            <p className="px-2 py-3 text-[13px] text-muted-foreground">{t('timesheets:approvalQueue.noHours', 'No hours recorded for this week.')}</p>
           ) : (
             <TimesheetGrid days={days} rows={rows} />
           )}
@@ -201,7 +196,7 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
                 loading={approve.isPending}
               >
                 <Icon name="check" />
-                Approve
+                {t('timesheets:approvalQueue.approve', 'Approve')}
               </Button>
             )}
             {actions.reject && (
@@ -211,7 +206,7 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
                 onClick={() => setPending({ kind: 'return', id: sheet.id, name })}
                 loading={reject.isPending}
               >
-                Return
+                {t('timesheets:approvalQueue.return', 'Return')}
               </Button>
             )}
           </div>
@@ -224,15 +219,15 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
           tone={pending.kind === 'approve' ? 'default' : 'destructive'}
           title={
             pending.kind === 'approve'
-              ? `Approve ${pending.name}'s week?`
-              : `Return ${pending.name}'s timesheet?`
+              ? t('timesheets:approvalQueue.approveTitle', "Approve {{name}}'s week?", { name: pending.name })
+              : t('timesheets:approvalQueue.returnTitle', "Return {{name}}'s timesheet?", { name: pending.name })
           }
           description={
             pending.kind === 'approve'
-              ? `This approves ${pending.name}'s submitted week. You can't approve your own timesheet — separation of duties is enforced.`
-              : `This sends ${pending.name}'s week back for changes. They'll need to correct and resubmit it.`
+              ? t('timesheets:approvalQueue.approveDescription', "This approves {{name}}'s submitted week. You can't approve your own timesheet — separation of duties is enforced.", { name: pending.name })
+              : t('timesheets:approvalQueue.returnDescription', "This sends {{name}}'s week back for changes. They'll need to correct and resubmit it.", { name: pending.name })
           }
-          confirmLabel={pending.kind === 'approve' ? 'Approve' : 'Return timesheet'}
+          confirmLabel={pending.kind === 'approve' ? t('timesheets:approvalQueue.approve', 'Approve') : t('timesheets:approvalQueue.returnConfirm', 'Return timesheet')}
           loading={pending.kind === 'approve' ? approve.isPending : reject.isPending}
           onCancel={() => setPending(null)}
           onConfirm={commitApproval}
@@ -247,7 +242,7 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
  * and the timesheet section of the `/approvals` inbox.
  */
 export const ApprovalsQueue: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'timesheets']);
   const { data: queue, isPending, isError, refetch } = useTimesheetsAwaitingApproval();
   const { approve, reject } = useTimesheetMutations();
   const { toast } = useToast();
@@ -271,11 +266,11 @@ export const ApprovalsQueue: React.FC = () => {
   const commitApproval = () => {
     if (!pending) return;
     const mutation = pending.kind === 'approve' ? approve : reject;
-    const okHeadline = pending.kind === 'approve' ? 'Timesheet approved' : 'Timesheet returned';
+    const okHeadline = pending.kind === 'approve' ? t('timesheets:approvalQueue.approved', 'Timesheet approved') : t('timesheets:approvalQueue.returned', 'Timesheet returned');
     const okDetail =
       pending.kind === 'approve'
-        ? `${pending.name}'s week approved`
-        : `Sent back to ${pending.name} for changes`;
+        ? t('timesheets:approvalQueue.approvedDetail', "{{name}}'s week approved", { name: pending.name })
+        : t('timesheets:approvalQueue.returnedDetail', 'Sent back to {{name}} for changes', { name: pending.name });
     mutation.mutate(
       { id: pending.id },
       {
@@ -305,8 +300,8 @@ export const ApprovalsQueue: React.FC = () => {
     return (
       <ListState
         variant="error"
-        title="Couldn't load the approval queue"
-        sub="Something went wrong fetching timesheets awaiting your approval."
+        title={t('timesheets:approvalQueue.loadError', "Couldn't load the approval queue")}
+        sub={t('timesheets:approvalQueue.loadErrorSub', 'Something went wrong fetching timesheets awaiting your approval.')}
         onRetry={() => refetch()}
       />
     );
@@ -315,11 +310,11 @@ export const ApprovalsQueue: React.FC = () => {
   return (
     <Card className="p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2.5">
-        <h2 className="text-sm font-semibold">Team approvals queue</h2>
+        <h2 className="text-sm font-semibold">{t('timesheets:approvalQueue.heading', 'Team approvals queue')}</h2>
         <span className="flex-1" />
         {sheets.length > 0 && (
-          <StatusPill variant="overdue" aria-label={`${sheets.length} awaiting you`}>
-            {sheets.length} awaiting you
+          <StatusPill variant="overdue" aria-label={t('timesheets:approvalQueue.awaiting', '{{total}} awaiting you', { total: formatNumberExact(sheets.length) })}>
+            {t('timesheets:approvalQueue.awaiting', '{{total}} awaiting you', { total: formatNumberExact(sheets.length) })}
           </StatusPill>
         )}
         <TimesheetBulkControls controller={bulk} sheets={sheets} />
@@ -336,8 +331,8 @@ export const ApprovalsQueue: React.FC = () => {
           <ListState
             variant="empty"
             icon="check"
-            title="Nothing awaiting you"
-            sub="Submitted timesheets from your reports will appear here for review."
+            title={t('timesheets:approvalQueue.empty', 'Nothing awaiting you')}
+            sub={t('timesheets:approvalQueue.emptySub', 'Submitted timesheets from your reports will appear here for review.')}
           />
         </div>
       ) : (
@@ -345,7 +340,7 @@ export const ApprovalsQueue: React.FC = () => {
           {sheets.map((sheet) => {
             const total = sumHours(sheet);
             const actions = timesheetActions(sheet.status as TimesheetStatus, false, isApprover);
-            const name = sheet.owner?.full_name ?? 'Unknown';
+            const name = sheet.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown');
             const isExpanded = expanded.has(sheet.id);
             const panelId = `ts-breakdown-${sheet.id}`;
             const canSelect = approvableIds.has(sheet.id);
@@ -353,8 +348,7 @@ export const ApprovalsQueue: React.FC = () => {
               <div key={sheet.id} data-week-start={sheet.week_start_date}>
                 <ApprovalRow
                   name={name}
-                  week={weekLabel(sheet.week_start_date)}
-                  hours={total}
+                  subtitle={<span>{bulkWeekLabel(sheet.week_start_date, t)} · <span className="tabular">{total.toFixed(1)}</span> {t('approvals.bulk.hoursUnit', 'h')}</span>}
                   onActivate={() => toggleExpanded(sheet.id)}
                   status={<StatusPill variant={workflowVariant(sheet.status)}>{sheet.status}</StatusPill>}
                   disclosure={
@@ -363,7 +357,7 @@ export const ApprovalsQueue: React.FC = () => {
                       size="icon"
                       aria-expanded={isExpanded}
                       aria-controls={panelId}
-                      aria-label={`Show hours for ${name}`}
+                      aria-label={t('timesheets:approvalQueue.showHours', 'Show hours for {{name}}', { name })}
                       onClick={() => toggleExpanded(sheet.id)}
                       className={
                         isExpanded
@@ -390,7 +384,7 @@ export const ApprovalsQueue: React.FC = () => {
                       loading={approve.isPending}
                     >
                       <Icon name="check" />
-                      Approve
+                      {t('timesheets:approvalQueue.approve', 'Approve')}
                     </Button>
                   )}
                   {actions.reject && !selecting && (
@@ -400,7 +394,7 @@ export const ApprovalsQueue: React.FC = () => {
                       onClick={() => setPending({ kind: 'return', id: sheet.id, name })}
                       loading={reject.isPending}
                     >
-                      Return
+                      {t('timesheets:approvalQueue.return', 'Return')}
                     </Button>
                   )}
                 </ApprovalRow>
@@ -422,15 +416,15 @@ export const ApprovalsQueue: React.FC = () => {
           tone={pending.kind === 'approve' ? 'default' : 'destructive'}
           title={
             pending.kind === 'approve'
-              ? `Approve ${pending.name}'s week?`
-              : `Return ${pending.name}'s timesheet?`
+              ? t('timesheets:approvalQueue.approveTitle', "Approve {{name}}'s week?", { name: pending.name })
+              : t('timesheets:approvalQueue.returnTitle', "Return {{name}}'s timesheet?", { name: pending.name })
           }
           description={
             pending.kind === 'approve'
-              ? `This approves ${pending.name}'s submitted week. You can't approve your own timesheet — separation of duties is enforced.`
-              : `This sends ${pending.name}'s week back for changes. They'll need to correct and resubmit it.`
+              ? t('timesheets:approvalQueue.approveDescription', "This approves {{name}}'s submitted week. You can't approve your own timesheet — separation of duties is enforced.", { name: pending.name })
+              : t('timesheets:approvalQueue.returnDescription', "This sends {{name}}'s week back for changes. They'll need to correct and resubmit it.", { name: pending.name })
           }
-          confirmLabel={pending.kind === 'approve' ? 'Approve' : 'Return timesheet'}
+          confirmLabel={pending.kind === 'approve' ? t('timesheets:approvalQueue.approve', 'Approve') : t('timesheets:approvalQueue.returnConfirm', 'Return timesheet')}
           loading={pending.kind === 'approve' ? approve.isPending : reject.isPending}
           onCancel={() => setPending(null)}
           onConfirm={commitApproval}
