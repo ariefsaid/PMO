@@ -268,9 +268,9 @@ jobs:
       # shipper). Mirrors the `integration` job's stack trim (pgTAP doesn't need
       # storage/inbucket — those are e2e-only concerns).
       - name: Start local Supabase stack
-        # Pull from the public ECR mirror: GHCR rate-limits the Supabase images
-        # (`toomanyrequests`, even when authenticated). Same images and tags.
-        run: SUPABASE_INTERNAL_IMAGE_REGISTRY=public.ecr.aws supabase start -x studio,realtime,vector
+        # Pull from Docker Hub: GHCR rate-limits the Supabase images
+        # (`toomanyrequests`, even authenticated) and public ECR hits its data limit.
+        run: SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io supabase start -x studio,realtime,vector
 
       - name: Financial statement script tests (local Supabase required)
         env:
@@ -328,9 +328,9 @@ jobs:
         working-directory: pmo-portal
         run: npm ci
       - name: Start local Supabase stack
-        # Pull from the public ECR mirror: GHCR rate-limits the Supabase images
-        # (`toomanyrequests`, even when authenticated). Same images and tags.
-        run: SUPABASE_INTERNAL_IMAGE_REGISTRY=public.ecr.aws supabase start -x studio,realtime,vector
+        # Pull from Docker Hub: GHCR rate-limits the Supabase images
+        # (`toomanyrequests`, even authenticated) and public ECR hits its data limit.
+        run: SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io supabase start -x studio,realtime,vector
       - name: Reset DB (migrations + seed)
         run: supabase db reset --yes
       - name: Write .env.local for Vite / Playwright
@@ -496,9 +496,9 @@ jobs:
       # shipper). Kept: db/rest/auth/kong + storage (doc-upload e2e+pgTAP) + inbucket
       # (1 magic-link e2e, AC-AUTH-005).
       - name: Start local Supabase stack
-        # Pull from the public ECR mirror: GHCR rate-limits the Supabase images
-        # (`toomanyrequests`, even when authenticated). Same images and tags.
-        run: SUPABASE_INTERNAL_IMAGE_REGISTRY=public.ecr.aws supabase start -x studio,realtime,vector
+        # Pull from Docker Hub: GHCR rate-limits the Supabase images
+        # (`toomanyrequests`, even authenticated) and public ECR hits its data limit.
+        run: SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io supabase start -x studio,realtime,vector
 
       # Applies every migration in order and re-seeds from supabase/seed.sql so tests
       # always start from a clean, known state.
