@@ -480,7 +480,7 @@ describe('#762 probeErpByPaymentComposite — a withholding receipt also matches
     siNames: ['ACC-SINV-0001'], createdAfter: '2026-10-01 00:00:00', paymentType: 'Receive' as const,
     withheldAmount: '20.00', allocatedAmount: '1000.00',
   };
-  const probe = (doc: Record<string, unknown>) => probeErpByPaymentComposite(
+  const probe = (doc: Record<string, unknown>, input = receiptInput) => probeErpByPaymentComposite(
     { client: client(async (url: string) => {
       const decoded = decodeURIComponent(url);
       if (decoded.includes('"reference_no","like"')) return new Response(JSON.stringify({ data: [] }), { status: 200 });
@@ -488,10 +488,18 @@ describe('#762 probeErpByPaymentComposite — a withholding receipt also matches
       return new Response(JSON.stringify({ name: 'ACC-PAY-0001', ...doc }), { status: 200 });
     }), doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: (d) => ({ id: (d as { name: string }).name }),
       pmoRecordId: 'receipt-1' },
-    'idem-wht', receiptInput,
+    'idem-wht', input,
   );
   const withholdingDoc = { references: [{ reference_name: 'ACC-SINV-0001', allocated_amount: 1000 }],
     deductions: [{ amount: 20, description: 'Withholding slip: WHT-001' }] };
+
+  it('compares decimal-text deduction and allocation at cent precision', async () => {
+    expect(await probe({ references: [{ reference_name: 'ACC-SINV-0001', allocated_amount: '1000.004' }],
+      deductions: [{ amount: '10.075' }] }, { ...receiptInput, withheldAmount: '10.08' }))
+      .toEqual({ externalRecordId: 'ACC-PAY-0001', canonical: { id: 'receipt-1' } });
+    expect(await probe({ references: [{ reference_name: 'ACC-SINV-0001', allocated_amount: '1000.005' }],
+      deductions: [{ amount: '10.075' }] }, { ...receiptInput, withheldAmount: '10.08' })).toBeNull();
+  });
 
   it('AC-WHT-002: adopts the landed entry carrying the withheld deduction and the gross allocation', async () => {
     expect(await probe(withholdingDoc)).toEqual({ externalRecordId: 'ACC-PAY-0001', canonical: { id: 'receipt-1' } });

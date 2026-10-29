@@ -16,35 +16,38 @@ const NUMERIC_14_2_INTEGER_DIGIT_LIMIT = 12;
  *  generated `amount` is a display convenience only, never ERP truth. */
 export const PROCUREMENT_ITEMS_AMOUNT_ORACLE_COLUMN = 'erp_line_amount';
 
-/** Formats a currency-range number to exactly 2 decimal places via integer-cents arithmetic —
- *  avoids `Number.prototype.toFixed`'s documented binary-float misrounding (e.g. `(1.005).toFixed(2)`
- *  -> `"1.00"` on most engines) so a mirrored ERP amount round-trips exactly, never a float artifact. */
-function formatCentsExact(num: number): string {
-  const scaledCents = Math.round((Math.abs(num) + Number.EPSILON) * 100);
-  const sign = num < 0 && scaledCents !== 0 ? '-' : '';
-  const wholePart = Math.floor(scaledCents / 100);
-  const centsPart = String(scaledCents % 100).padStart(2, '0');
-  return `${sign}${wholePart}.${centsPart}`;
-}
-
 /**
- * Converts a money/rate/qty value (a JS number OR an already-decimal string, both as ERP/PMO may
- * hand it in) into the canonical 2-decimal-place string. Rejects a non-numeric value or one whose
- * integer part exceeds `numeric(14,2)`'s 12-digit capacity as `commit-rejected` (design decision #4).
+ * Convert decimal text to cents, rounding ties away from zero. Numeric inputs use their canonical
+ * decimal representation; precision already lost before this boundary cannot be recovered.
+ * Values must fit numeric(14,2) after rounding, including a carry into the integer part.
  */
 export function toDecimalString(value: number | string): string {
-  if (typeof value === 'string' && !/^-?\d+(\.\d+)?$/.test(value.trim())) {
+  if (typeof value === 'number' && !Number.isFinite(value)) {
     throw new AdapterError('commit-rejected', `invalid decimal value: ${JSON.stringify(value)}`);
   }
-  const num = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(num)) {
+  // JavaScript uses exponent notation for finite numeric values below 1e-6 or at least 1e21.
+  // The former rounds to zero cents; the latter is outside numeric(14,2).
+  if (typeof value === 'number' && value !== 0 && Math.abs(value) < 1e-6) return '0.00';
+  const text = String(value).trim();
+  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(text);
+  if (!match) {
+    if (typeof value === 'number' && Math.abs(value) >= 1e21) {
+      throw new AdapterError('commit-rejected', `value exceeds numeric(14,2) range: ${value}`);
+    }
     throw new AdapterError('commit-rejected', `invalid decimal value: ${JSON.stringify(value)}`);
   }
-  const integerDigits = Math.floor(Math.abs(num)).toString().length;
-  if (integerDigits > NUMERIC_14_2_INTEGER_DIGIT_LIMIT) {
+  const whole = match[2].replace(/^0+/, '') || '0';
+  if (whole.length > NUMERIC_14_2_INTEGER_DIGIT_LIMIT) {
     throw new AdapterError('commit-rejected', `value exceeds numeric(14,2) range: ${value}`);
   }
-  return formatCentsExact(num);
+  const fraction = (match[3] ?? '').padEnd(3, '0');
+  let cents = BigInt(whole) * 100n + BigInt(fraction.slice(0, 2));
+  if (fraction[2] >= '5') cents += 1n;
+  if (cents >= 100000000000000n) {
+    throw new AdapterError('commit-rejected', `value exceeds numeric(14,2) range: ${value}`);
+  }
+  const sign = match[1] && cents !== 0n ? '-' : '';
+  return `${sign}${cents / 100n}.${String(cents % 100n).padStart(2, '0')}`;
 }
 
 /**
