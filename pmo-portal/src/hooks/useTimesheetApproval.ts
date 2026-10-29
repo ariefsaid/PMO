@@ -1,28 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
-import {
-  listTimesheetsAwaitingApproval,
-  submitTimesheet,
-  approveTimesheet,
-  rejectTimesheet,
-  reopenTimesheet,
-  reopenApprovedTimesheet,
-  attestTimesheetNoErpDocument,
-  listReopenableApprovedTimesheets,
-  type TimesheetAwaitingApproval,
-  type ReopenableApprovedTimesheet,
-} from '@/src/lib/db/timesheetTransition';
+import type { TimesheetAwaitingApproval, ReopenableApprovedTimesheet } from '@/src/lib/db/timesheetTransition';
 import { repositories } from '@/src/lib/repositories';
 import { awaitingApprovalKey } from './approvalsQueryKeys';
 
 export { awaitingApprovalKey } from './approvalsQueryKeys';
-import {
-  listPushesNeedingAttention,
-  confirmEmployeeLink,
-  getPushState,
-  type PushNeedingAttention,
-  type TimesheetPushState,
-} from '@/src/lib/db/timesheetPush';
+import type { PushNeedingAttention, TimesheetPushState } from '@/src/lib/db/timesheetPush';
 import { listEmployeeMatchReview } from '@/src/lib/repositories/employeeMatchReview';
 
 /**
@@ -76,7 +59,7 @@ export function useTimesheetsAwaitingApproval() {
 
   return useQuery<TimesheetAwaitingApproval[]>({
     queryKey: awaitingApprovalKey(orgId, userId, role),
-    queryFn: () => listTimesheetsAwaitingApproval(userId!, role),
+    queryFn: () => repositories.timesheet.listAwaitingApproval(userId!, role),
     enabled: Boolean(orgId && userId),
   });
 }
@@ -98,7 +81,7 @@ export function useReopenableApprovedTimesheets() {
 
   return useQuery<ReopenableApprovedTimesheet[]>({
     queryKey: reopenableApprovedKey(orgId, userId),
-    queryFn: () => listReopenableApprovedTimesheets(userId!),
+    queryFn: () => repositories.timesheet.listReopenableApproved(userId!),
     enabled: Boolean(orgId && userId),
   });
 }
@@ -125,25 +108,25 @@ export function useTimesheetMutations() {
   };
 
   const submit = useMutation<void, Error, { id: string }>({
-    mutationFn: ({ id }) => submitTimesheet(id),
+    mutationFn: ({ id }) => repositories.timesheet.submit(id),
     onSuccess: invalidateBoth,
   });
 
   const approve = useMutation<void, Error, { id: string; notes?: string }>({
     mutationFn: async ({ id, notes }) => {
-      await approveTimesheet(id, notes);
+      await repositories.timesheet.approve(id, notes);
       await pushAfterApprove(id);
     },
     onSuccess: invalidateBoth,
   });
 
   const reject = useMutation<void, Error, { id: string; notes?: string }>({
-    mutationFn: ({ id, notes }) => rejectTimesheet(id, notes),
+    mutationFn: ({ id, notes }) => repositories.timesheet.reject(id, notes),
     onSuccess: invalidateBoth,
   });
 
   const reopen = useMutation<void, Error, { id: string }>({
-    mutationFn: ({ id }) => reopenTimesheet(id),
+    mutationFn: ({ id }) => repositories.timesheet.reopen(id),
     onSuccess: invalidateBoth,
   });
 
@@ -155,7 +138,7 @@ export function useTimesheetMutations() {
   // "Approved — re-open for correction" list, and left a Retry offered for a week that is now Draft
   // (a Retry the server will refuse) — both stale until something unrelated happened to refetch them.
   const reopenApproved = useMutation<void, Error, { id: string }>({
-    mutationFn: ({ id }) => reopenApprovedTimesheet(id),
+    mutationFn: ({ id }) => repositories.timesheet.reopen(id),
     onSuccess: () => {
       invalidateBoth();
       queryClient.invalidateQueries({ queryKey: reopenableApprovedKey(orgId, userId) });
@@ -169,7 +152,7 @@ export function useTimesheetMutations() {
   // invalidates the re-open queue (the row leaves the `outcomeUnknown` state) and the push-attention
   // queue (the mirror moved held → failed and carries a new classified reason).
   const attestNoErpDocument = useMutation<void, Error, { id: string; reason: string }>({
-    mutationFn: ({ id, reason }) => attestTimesheetNoErpDocument(id, reason),
+    mutationFn: ({ id, reason }) => repositories.timesheet.attestNoErpDocument(id, reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: reopenableApprovedKey(orgId, userId) });
       queryClient.invalidateQueries({ queryKey: pushesAttentionKey(orgId) });
@@ -196,7 +179,7 @@ export function usePushesNeedingAttention() {
 
   const query = useQuery<PushNeedingAttention[]>({
     queryKey: pushesAttentionKey(orgId),
-    queryFn: () => listPushesNeedingAttention(),
+    queryFn: () => repositories.timesheet.listPushesNeedingAttention(),
     enabled: Boolean(orgId),
   });
 
@@ -231,7 +214,7 @@ export function useEmployeeLinkConfirm() {
   const profiles = review.data?.profiles ?? [];
 
   const confirm = useMutation<void, Error, { erpEmployeeId: string; profileId: string }>({
-    mutationFn: ({ erpEmployeeId, profileId }) => confirmEmployeeLink(erpEmployeeId, profileId),
+    mutationFn: ({ erpEmployeeId, profileId }) => repositories.timesheet.confirmEmployeeLink(erpEmployeeId, profileId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: proposedLinksKey(orgId) });
       // A confirm may unblock an already-failed push (self-heal, FR-TSP-092) — refresh that queue too.
@@ -261,7 +244,7 @@ export function useEmployeeLinkConfirm() {
 export function useOwnTimesheetPushState(timesheetId: string | undefined) {
   return useQuery<TimesheetPushState | null>({
     queryKey: ['timesheet-push-state', timesheetId],
-    queryFn: () => getPushState(timesheetId!),
+    queryFn: () => repositories.timesheet.getPushState(timesheetId!),
     enabled: Boolean(timesheetId),
   });
 }

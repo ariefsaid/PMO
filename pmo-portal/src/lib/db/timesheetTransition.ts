@@ -128,22 +128,6 @@ export async function reopenTimesheet(id: string): Promise<void> {
 }
 
 /**
- * Slice A (AC-TSC-012, FR-TSC-060) — re-opens an APPROVED timesheet to Draft. A PURE PMO transition:
- * it issues ONLY `transition_timesheet(id,'Draft')` and NO adapter/push/repositories call of any kind.
- * The security-definer RPC enforces the approver-authority + the race-safe precondition (no live ERP
- * doc, no in-flight push) server-side; org_id is NEVER sent (the RPC re-asserts org from auth context).
- * A refusal (P0001 reopen-erp-document-held / reopen-push-in-flight) is surfaced to the caller — it is
- * correct behaviour and Slice B's entry point, not an error to swallow.
- */
-export async function reopenApprovedTimesheet(id: string): Promise<void> {
-  const { error } = await supabase.rpc('transition_timesheet', {
-    p_timesheet_id: id,
-    p_to: 'Draft',
-  });
-  if (error) throw new Error(error.message);
-}
-
-/**
  * Slice A (AC-TSC-R12, FR-TSC-060 — Luna FU-1a round-12 SHOULD-FIX 1) — the product's route out of a
  * post-submit ERP unknown. A thin wrapper over the Admin-only, reason-required, audited
  * `attest_timesheet_no_erp_document` RPC (migrations 0157 §5 / 0159): the Admin certifies "ERPNext

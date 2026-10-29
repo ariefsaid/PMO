@@ -1,3 +1,7 @@
+import type { saveTimesheetWeek } from '@/src/lib/db/timesheets';
+import type { reopenTimesheet, attestTimesheetNoErpDocument, listReopenableApprovedTimesheets } from '@/src/lib/db/timesheetTransition';
+import type { listPushesNeedingAttention, confirmEmployeeLink, getPushState } from '@/src/lib/db/timesheetPush';
+
 import type { RecordHistoryRepository } from './recordHistory';
 import type { OrgVendorTaxAccounts, ProjectClassificationOptions } from '@/src/lib/db/orgs';
 import type { VendorTaxDefaultsInput } from '@/src/lib/vendorWithholding';
@@ -567,6 +571,14 @@ export interface RevenueRepository {
 }
 
 export interface TimesheetRepository {
+  saveWeek: typeof saveTimesheetWeek;
+  reopen: typeof reopenTimesheet;
+  attestNoErpDocument: typeof attestTimesheetNoErpDocument;
+  listReopenableApproved: typeof listReopenableApprovedTimesheets;
+  listPushesNeedingAttention: typeof listPushesNeedingAttention;
+  confirmEmployeeLink: typeof confirmEmployeeLink;
+  getPushState: typeof getPushState;
+
   list(userId: string, params?: PageParams): Promise<TimesheetWithEntries[]>;
   createDraft(weekStartDate: string, userId: string): Promise<TimesheetRow>;
   upsertEntries(entries: EntryUpsert[]): Promise<void>;
