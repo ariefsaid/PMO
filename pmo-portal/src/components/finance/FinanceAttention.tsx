@@ -110,7 +110,7 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
             </h2>
           </Tooltip>
           {overdueCurrencyLines.slice(1).map((amount) => <p key={amount} className="mb-2 text-xs text-muted-foreground">{amount}</p>)}
-          <div className="divide-y divide-border border-y border-border">
+          <div className="divide-y divide-border">
             {position.overdue.slice(0, 5).map(({ invoice, daysOverdue, outstanding }) => {
               const project = invoice.project_id ? projects.get(invoice.project_id) : undefined;
               const pm = project?.pm?.full_name?.trim();
@@ -157,7 +157,7 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
       {waiting.length > 0 && (
         <div>
           {canAct && <h2 className="mb-1 text-sm font-semibold">{t('finance:area.waitingOnYou', 'Waiting on you')}</h2>}
-          <div className="divide-y divide-border border-y border-border">
+          <div className="divide-y divide-border">
             {waiting.map((item) => (
               <div key={item.key} className="flex min-w-0 items-center gap-3 py-2.5">
                 <span className="min-w-0 flex-1">

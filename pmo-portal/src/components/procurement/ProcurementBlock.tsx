@@ -1122,7 +1122,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
                   <Button variant="outline" size="sm" onClick={() => { void detailQuery.refetch(); }}>{t('common.retry', 'Retry')}</Button>
                 </div>
               ) : documents.length > 0 ? (
-                <ul className="divide-y divide-border border-y border-border">
+                <ul className="divide-y divide-border">
                   {documents.map((document) => (
                     <li key={document.label} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-2 text-sm">
                       <span>{document.label}</span>

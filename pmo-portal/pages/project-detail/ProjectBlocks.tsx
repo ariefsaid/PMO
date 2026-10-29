@@ -347,7 +347,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
       )}
       {hasComparisons && committedFigure !== null && <Sub tooltip={t('projectDetail.cost.committedTooltip', 'Ordered, received, supplier-invoiced and paid procurements in the project currency, including those with no budget category; the same total as the Budget tab.')}>{t('projectDetail.cost.committed', 'Plus {{amount}} committed in purchase orders', { amount: whole(committedFigure) })}</Sub>}
       {hasComparisons && rows.length > 0 && (
-        <ul className="mt-6 flex min-w-0 flex-col border-y border-border/70">
+        <ul className="mt-6 flex min-w-0 flex-col">
           {rows.map((r) => {
             const over = r.actual !== null && r.actual > r.budget;
             const pct = r.actual === null ? null : r.budget > 0 ? pctOf(r.actual, r.budget) : r.actual > 0 ? 101 : 0;
@@ -437,7 +437,7 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
           {current?.name ?? t('projectDetail.delivery.allPhasesDone', 'All phases complete')}
         </Headline>
         <Sub>{current ? <>{t('projectDetail.milestones.currentPhaseLabel', 'Current phase')} · {phasesDone}</> : phasesDone}</Sub>
-        <ul className="mt-4 divide-y divide-border/70 border-y border-border/70">
+        <ul className="mt-4 divide-y divide-border/70">
           {all.map((milestone) => {
             const phaseTasks = (tasks.data ?? []).filter((task) => task.milestone_id === milestone.id && !task.parent_task_id);
             const doneTasks = phaseTasks.filter((task) => task.status === 'Done').length;

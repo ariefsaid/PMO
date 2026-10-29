@@ -255,7 +255,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
           </dl>
           <section aria-labelledby="unordered-line-history">
             <h3 id="unordered-line-history" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.quantityHistory', 'Quantity history')}</h3>
-            {selectedUnorderedLine.allocations.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noQuantityHistory', 'No customer order quantities yet.')}</p> : <ul className="divide-y divide-border border-y border-border text-sm">
+            {selectedUnorderedLine.allocations.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noQuantityHistory', 'No customer order quantities yet.')}</p> : <ul className="divide-y divide-border text-sm">
               {selectedUnorderedLine.allocations.map((allocation) => {
                 const order = orders.data?.find((candidate) => candidate.id === allocation.workOrderId);
                 return <li key={allocation.workOrderId} className="flex flex-wrap items-center justify-between gap-2 py-2">

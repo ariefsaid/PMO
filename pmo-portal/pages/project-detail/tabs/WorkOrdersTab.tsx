@@ -1222,7 +1222,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             </dl>
             <section aria-labelledby="line-order-split">
               <h2 id="line-order-split" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.lineSplit', 'Per-order split')}</h2>
-              {split.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noLineSplit', 'No order allocation history is available.')}</p> : <ul className="divide-y divide-border border-y border-border text-sm">
+              {split.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noLineSplit', 'No order allocation history is available.')}</p> : <ul className="divide-y divide-border text-sm">
                 {split.map((allocation) => {
                   const order = rows.find((candidate) => candidate.id === allocation.workOrderId);
                   return <li key={allocation.workOrderId} className="flex flex-wrap items-center justify-between gap-2 py-2">
@@ -1236,7 +1236,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             </section>
             <section aria-labelledby="line-quantity-history">
               <h2 id="line-quantity-history" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.quantityHistory', 'Quantity history')}</h2>
-              {history.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noConfirmedBastHistory', 'No confirmed BAST quantity history yet.')}</p> : <ul className="divide-y divide-border border-y border-border text-sm">
+              {history.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noConfirmedBastHistory', 'No confirmed BAST quantity history yet.')}</p> : <ul className="divide-y divide-border text-sm">
                 {history.map(({ acceptance, quantity }) => <li key={acceptance.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                   <span>{formatDateOnly(acceptance.acceptance_date)} · {acceptance.is_final ? t('projectTabs:contractQuantities.workOrders.acceptances.final', 'Final') : t('projectTabs:contractQuantities.workOrders.acceptances.stage', 'Stage')}</span>
                   <Tooltip content={t('projectDetail.cascade.source.acceptedHistory', 'Source: quantity recorded on this BAST.') }><span className="cursor-help tabular-nums">{formatNumberExact(quantity)} {selected.item?.unit ?? ''}</span></Tooltip>
@@ -1300,7 +1300,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         </dl>
         <section className="border-t border-border px-4 py-3">
           <h3 className="text-sm font-semibold">{t('projectDetail.billing.claims.evidence', 'Evidence')}</h3>
-          {(claimDrawerFor.evidence ?? []).length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p> : <ul className="mt-2 divide-y divide-border border-y border-border text-sm">
+          {(claimDrawerFor.evidence ?? []).length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p> : <ul className="mt-2 divide-y divide-border text-sm">
             {(claimDrawerFor.evidence ?? []).map((evidence) => <li key={evidence.id} className="flex items-center justify-between gap-3 py-2"><span>{evidence.document_id}</span><StatusPill variant={evidence.document_status === 'active' ? 'won' : 'neutral'}>{evidence.document_status}</StatusPill></li>)}
           </ul>}
         </section>

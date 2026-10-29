@@ -438,7 +438,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       </dl>
       {fact && <section className="border-t border-border px-4 py-3" aria-labelledby="billing-boq-history">
         <h3 id="billing-boq-history" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.quantityHistory', 'Quantity history')}</h3>
-        {fact.allocations.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noQuantityHistory', 'No customer order quantities yet.')}</p> : <ul className="divide-y divide-border border-y border-border text-sm">
+        {fact.allocations.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noQuantityHistory', 'No customer order quantities yet.')}</p> : <ul className="divide-y divide-border text-sm">
           {fact.allocations.map((allocation) => {
             const order = workOrders.data?.find((candidate) => candidate.id === allocation.workOrderId);
             return <li key={allocation.workOrderId} className="flex flex-wrap items-center justify-between gap-2 py-2">
@@ -517,7 +517,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     </dl>
     <section className="border-t border-border px-4 py-3">
       <h3 className="text-sm font-semibold">{t('projectDetail.billing.claims.evidence', 'Evidence')}</h3>
-      {claimDetailFor.evidence.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p> : <ul className="mt-2 divide-y divide-border border-y border-border text-sm">
+      {claimDetailFor.evidence.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p> : <ul className="mt-2 divide-y divide-border text-sm">
         {claimDetailFor.evidence.map((evidence) => <li key={evidence.id} className="flex items-center justify-between gap-3 py-2"><span>{evidence.document_id}</span><StatusPill variant={evidence.document_status === 'active' ? 'won' : 'neutral'}>{evidence.document_status}</StatusPill></li>)}
       </ul>}
     </section>
