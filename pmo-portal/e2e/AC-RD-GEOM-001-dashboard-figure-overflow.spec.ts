@@ -14,7 +14,7 @@
  * figures fit any tile even unformatted, so they could never reproduce the bleed this gate guards.
  * Plus the win-rate card at 390px: the period control must end above the headline figure (D-006).
  *
- * Matrix: executive `/` (1440 / 1024 / 390, EN + Bahasa), Finance `/` (1440 / 1024 / 390, plus
+ * Matrix: executive `/` (1440 / 1024 / 390, EN + Bahasa), Finance `/finance` (1440 / 1024 / 390, plus
  * Bahasa 1440), PM `/` (1440 / 1024 / 390), Sales pipeline `/sales` (1440 / 1024 / 390), Revenue by
  * project and Management pack (1440 / 390, plus Bahasa 1440). Later
  * real-data slices add their route to ROUTES so bleeding can't regress.
@@ -60,8 +60,8 @@ interface Route {
 }
 
 const ROUTES: Route[] = [
-  { name: 'executive', user: 'exec@acme.test', path: '/', ready: (p) => p.getByTestId('kpi-total-spend').or(p.getByTestId('mobile-contract-book')), widths: WIDTHS, bahasaWidths: [1440, 390] },
-  { name: 'finance', user: 'finance@acme.test', path: '/', ready: (p) => p.getByTestId('kpi-spend'), widths: WIDTHS, bahasaWidths: [1440] },
+  { name: 'executive', user: 'exec@acme.test', path: '/', ready: (p) => p.getByRole('region', { name: /Company figures|Angka perusahaan/ }), widths: WIDTHS, bahasaWidths: [1440, 390] },
+  { name: 'finance', user: 'finance@acme.test', path: '/finance', ready: (p) => p.getByRole('region', { name: /Finance areas|Area keuangan/ }), widths: WIDTHS, bahasaWidths: [1440] },
   { name: 'pm', user: 'pm@acme.test', path: '/', ready: (p) => p.getByTestId('kpi-my-contract-value'), widths: WIDTHS, bahasaWidths: [] },
   { name: 'sales pipeline', user: 'exec@acme.test', path: '/sales', ready: (p) => p.locator('main .tabular'), widths: WIDTHS, bahasaWidths: [] },
   { name: 'revenue by project', user: 'exec@acme.test', path: '/revenue-by-project', ready: (p) => p.locator('main .tabular'), widths: [1440, 390], bahasaWidths: [1440] },
@@ -119,6 +119,7 @@ async function figureViolations(page: Page): Promise<Violation[]> {
 }
 
 async function expectFiguresContained(page: Page, label: string) {
+  await page.waitForLoadState('networkidle');
   await waitForFonts(page);
   const violations = await figureViolations(page);
   expect(violations, `${label}: every figure fits its own box and its card`).toEqual([]);

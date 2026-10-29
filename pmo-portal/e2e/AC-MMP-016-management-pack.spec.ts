@@ -57,7 +57,8 @@ test('AC-MMP-016: Finance records progress and exports the monthly management pa
     const row = page.locator('tr', { hasText: name });
     await expect(row.getByTestId('pack-cell-invoicedToDate')).toHaveText(/250[.,]000/);
 
-    await row.getByRole('button', { name: 'Record progress' }).click();
+    await row.getByRole('button', { name: `Actions for ${name}` }).click();
+    await page.getByRole('menuitem', { name: 'Record progress', exact: true }).click();
     await page.getByLabel(/Percent complete to date/).fill('50');
     await page.getByRole('button', { name: 'Save progress' }).click();
 

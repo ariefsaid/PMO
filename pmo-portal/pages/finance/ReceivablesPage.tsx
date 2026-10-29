@@ -131,6 +131,7 @@ export default function ReceivablesPage() {
   const dataPending = finance.isPending || invoicesPending || paymentsPending;
   const view: ReceivablesView = searchParams.get('view') === 'payments' ? 'payments' : 'invoices';
   const canCreateInvoice = may('create', 'salesInvoice');
+  const canCreatePayment = may('create', 'incomingPayment');
   const owed = useMemo(() => owedTotals(finance.position), [finance.position]);
   const openInvoices = useMemo(() => invoices.filter((invoice) => OPEN_STATUSES.has(invoice.status) && (invoice.erp_outstanding_amount == null || invoice.erp_outstanding_amount > 0)), [invoices]);
   const clientsCount = new Set(openInvoices.map((invoice) => invoice.customer_id).filter(Boolean)).size;
@@ -181,6 +182,14 @@ export default function ReceivablesPage() {
     next.set('create', '1');
     return next;
   }, { replace: true });
+  const openNewPayment = () => setSearchParams((current) => {
+    const next = new URLSearchParams(current);
+    next.set('view', 'payments');
+    next.set('create', '1');
+    next.delete('open');
+    next.delete('invoice');
+    return next;
+  }, { replace: true });
   const recordPayment = (invoice: SalesInvoiceRow) => setSearchParams((current) => {
     const next = new URLSearchParams(current);
     next.set('view', 'payments');
@@ -197,11 +206,16 @@ export default function ReceivablesPage() {
           <h1 className="text-[24px] font-bold tracking-[-0.02em]">{t('finance:receivables.title', 'Receivables')}</h1>
         </div>
         {/* B4: on a phone the sticky bar owns New invoice. The wrapper hides it: Button's own inline-flex would beat `hidden`. */}
-        {canCreateInvoice && <div data-testid="receivables-header-new-invoice" className="hidden sm:block">
-          <Button type="button" variant="primary" onClick={openNewInvoice}>
-            <Icon name="plus" />{t('finance:area.newInvoice', 'New invoice')}
-          </Button>
-        </div>}
+        <div className="flex flex-wrap items-center gap-2">
+          {canCreatePayment && view === 'payments' && <Button type="button" variant="primary" onClick={openNewPayment}>
+            <Icon name="plus" />{t('financeCopy.receivePayment', 'Receive Payment')}
+          </Button>}
+          {canCreateInvoice && <div data-testid="receivables-header-new-invoice" className="hidden sm:block">
+            <Button type="button" variant={view === 'payments' ? 'outline' : 'primary'} onClick={openNewInvoice}>
+              <Icon name="plus" />{t('finance:area.newInvoice', 'New invoice')}
+            </Button>
+          </div>}
+        </div>
       </header>
 
       <KPIRow aria-label={t('finance:receivables.figures', 'Receivables figures')} className="mb-5 grid-cols-2 xl:grid-cols-4">

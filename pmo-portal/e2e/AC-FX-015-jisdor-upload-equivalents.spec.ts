@@ -133,7 +133,8 @@ test('AC-FX-015 Finance uploads isolated JISDOR rates, sees equivalents, and can
 
   await page.goto(`/projects/${owned.projectId}/overview`);
   await expect(page.getByRole('heading', { name: /FX Project/ })).toBeVisible();
-  await expect(page.getByTestId('contract-value-amount')).toContainText('100');
+  const moneyPosition = page.getByRole('region', { name: 'Money position' });
+  await expect(moneyPosition.getByTestId('contract-value-amount')).toContainText('100');
   await expect(page.getByTitle('≈ Rp 1,623,456 (JISDOR 2026-10-09)', { exact: true })).toBeVisible();
 
   await page.goto(`/sales-invoices/${owned.invoiceId}`);
