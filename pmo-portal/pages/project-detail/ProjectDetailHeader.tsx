@@ -686,6 +686,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         iconColor={projectIconColor()}
         name={<span title={project.name}>{projectDisplayName(project)}</span>}
         status={<StatusPill variant={pillVariantForProjectStatus(status)}>{project.status}</StatusPill>}
+        statusBelowMetaOnMobile
         // Phone keeps identity/status; the persistent Details rail below the
         // selected work already carries these codes, customer and PO facts.
         meta={meta}

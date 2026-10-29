@@ -74,8 +74,8 @@ export interface ProcurementBlockProps {
 
 /** Four stage tiles: a 2×2 grid on phones (nothing clipped), one row from `sm` up. */
 export const ProcurementStageBand: React.FC<React.PropsWithChildren<{ label: string }>> = ({ label, children }) => (
-  <section aria-label={label} className="panel-card overflow-hidden bg-border">
-    <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-4">{children}</div>
+  <section aria-label={label} className="panel-card p-1.5 sm:p-2">
+    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">{children}</div>
   </section>
 );
 
@@ -524,7 +524,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
     );
   }, [t, erp.data]);
 
-  /** B7: one amount per row, the most real one, with its basis; the unpaid balance sits in its tooltip. */
+  /** One amount per row; the unpaid balance remains available in its tooltip. */
   const rowAmount = useCallback((row: ProcurementWithRefs, inline = false) => {
     const money = moneyFor(row, erp.data);
     const amount = money.mostReal?.amount;
@@ -601,7 +601,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
           const items = detailQuery.data?.id === row.id ? detailQuery.data.items : [];
           return (
             <div className="min-w-0 space-y-2">
-              <div className="flex min-w-0 items-start gap-2">
+              <div className="flex min-w-0 items-start gap-1">
                 <button type="button" aria-label={t('table.openRow', 'Open {{name}}', { name: row.title })} onClick={() => setSelected(row)} title={row.title} className="min-w-0 line-clamp-2 break-words text-left font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                   {row.title}
                 </button>
@@ -843,16 +843,16 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
                   type="button"
                   aria-pressed={selectedStage === key}
                   onClick={() => setSelectedStage((current) => current === key ? null : key)}
-                  className={`flex min-h-[68px] w-full min-w-0 flex-col items-start justify-center px-3 py-2 text-left transition-colors focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selectedStage === key ? 'bg-accent' : 'bg-card hover:bg-accent/40'}`}
+                  className={`flex min-h-[68px] w-full min-w-0 flex-col items-start justify-center rounded-md border px-3 py-2 text-left transition-colors focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selectedStage === key ? 'border-primary bg-accent ring-1 ring-primary/30' : 'border-border bg-card hover:bg-accent/40'}`}
                 >
                   <span className="flex w-full min-w-0 items-center justify-between gap-1 text-xs font-semibold text-muted-foreground">
                     <span className="truncate">{stageLabel}</span>
                     {forYou > 0 && <span className="shrink-0 font-medium text-primary-text">{t('projectDetail.procurement.forYou', '{{count}} for you', { count: forYou })}</span>}
                   </span>
-                  <span className="mt-1 flex w-full min-w-0 items-baseline justify-between gap-2">
+                  <span className="mt-1 flex w-full min-w-0 flex-wrap items-baseline justify-start gap-x-2">
                     <span className="text-[18px] font-semibold leading-tight tabular text-foreground">{stageRows.length}</span>
                   {canSeeMoney && currencyTotals.length > 0 && (
-                    <span className="flex min-w-0 flex-wrap justify-end gap-x-2 text-xs text-muted-foreground">
+                    <span className="flex min-w-0 flex-wrap justify-start gap-x-2 text-xs text-muted-foreground">
                       {currencyTotals.map((item) => <span key={item.currency} title={formatCurrency(item.value, item.currency)}>{formatShortMoney(item.value, item.currency)}</span>)}
                     </span>
                   )}

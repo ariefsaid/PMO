@@ -9,6 +9,8 @@ export interface RecordHeaderProps {
   name: React.ReactNode;
   /** Status pill — mandatory on every record (DESIGN.md §7 RecordHeader anatomy). */
   status: React.ReactNode;
+  /** Keep a long record name full width on mobile, with status below its metadata. */
+  statusBelowMetaOnMobile?: boolean;
   meta?: React.ReactNode;
   /** Optional in-header metric strip. */
   stats?: PageStat[];
@@ -40,6 +42,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   iconColor,
   name,
   status,
+  statusBelowMetaOnMobile = false,
   meta,
   stats,
   actions,
@@ -57,6 +60,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
     name={name}
     status={status}
     statusInline
+    statusBelowMetaOnMobile={statusBelowMetaOnMobile}
     meta={meta}
     stats={stats}
     actions={

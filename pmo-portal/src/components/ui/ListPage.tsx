@@ -60,13 +60,10 @@ export interface ListPageProps {
  * every module's list so they read the same:
  *
  *   [title + count] … [primary "New <Entity>"]
- *   toolbar: filters · search · secondaryFilter · export · import   …   view-switcher (right)
+ *   toolbar: status/filter controls · fixed search · view/actions
  *
- * The slot order is fixed and empty slots are held in place (no reflow). Status
- * **filters** render left as text chips; the **view-switcher** renders
- * right-aligned (icon segmented) so the two strips are never confused
- * (filter-vs-view trap). Each page supplies its OWN columns/filters/views as
- * slots — the shell is shared, the content is per-page.
+ * Groups keep search first on phones and place status/filter controls, fixed-width
+ * search, and view/actions on one desktop row.
  */
 export const ListPage: React.FC<ListPageProps> = ({
   title,
@@ -138,15 +135,19 @@ export const ListPage: React.FC<ListPageProps> = ({
             {mobileToolbar}
           </Toolbar>
         ) : (
-          <Toolbar standalone data-testid="list-page-toolbar" className={desktopToolbarClassName}>
-            {filters}
-            {search}
-            {secondaryFilter}
-            {exportAction}
-            {importAction}
-            {view && (
-              <div data-testid="list-page-view" className="ml-auto">
-                {view}
+          <Toolbar standalone data-testid="list-page-toolbar" className={`grid min-w-0 grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-center ${desktopToolbarClassName ?? ''}`}>
+            {search && <div data-testid="list-page-search-group" className="order-1 min-w-0 md:order-2 md:col-start-2 md:row-start-1">{search}</div>}
+            {(filters || secondaryFilter) && (
+              <div data-testid="list-page-filter-group" className="order-2 flex min-w-0 flex-wrap items-center gap-2 md:order-1 md:col-start-1 md:row-start-1">
+                {filters}
+                {secondaryFilter}
+              </div>
+            )}
+            {(view || exportAction || importAction) && (
+              <div data-testid="list-page-action-group" className="order-3 flex min-w-0 flex-wrap items-center gap-2 md:col-start-3 md:row-start-1">
+                {view && <div data-testid="list-page-view" className="shrink-0">{view}</div>}
+                {exportAction}
+                {importAction}
               </div>
             )}
           </Toolbar>

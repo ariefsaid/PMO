@@ -87,25 +87,28 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
   const body = (
     <>
       {/* Body: money rows. Each fact once: no freshness, coverage or "x of y" prose on the card. */}
-      <dl className="grid grid-cols-3 gap-2 text-[12px]">
-        <div>
+      <dl className="grid min-w-0 grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1.5 text-[12px]">
+        <div className="contents">
           <dt className="text-muted-foreground">{t('projects.columns.contract', 'Contract')}</dt>
-          <dd data-testid="project-card-contract" className="font-semibold tabular">
-            {contract == null ? null : formatCurrency(contract, currency)}
+          <dd data-testid="project-card-contract" className="min-w-0 font-semibold tabular">
+            {contract == null ? null : (
+              <span className="inline-flex items-baseline gap-x-1 whitespace-nowrap">
+                {formatCurrency(contract, currency)}
+                <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-[11px] font-normal text-muted-foreground" />
+              </span>
+            )}
           </dd>
-          {/* OD-TAX-1 §2 — the card's headline money figure states its basis (plain; rate/DPP live on the record). */}
-          {contract != null && <dd><TaxBasisLabel treatment={project.tax_treatment} showDetails={false} /></dd>}
         </div>
-        <div>
+        <div className="contents">
           <dt className="text-muted-foreground">{t('uxs02.activeBudget', 'Active budget')}</dt>
-          <dd data-testid="project-card-active-budget" className="font-semibold tabular text-muted-foreground">{activeBudgetLabel}</dd>
+          <dd data-testid="project-card-active-budget" className="min-w-0 font-semibold tabular text-muted-foreground">{activeBudgetLabel}</dd>
         </div>
-        <div>
+        <div className="contents">
           <dt className="text-muted-foreground">{t('projects.columns.actual', 'Actual')}</dt>
-          <dd data-testid="project-card-actual" className="font-semibold tabular">{actualFigure}</dd>
+          <dd data-testid="project-card-actual" className="min-w-0 font-semibold tabular">{actualFigure}</dd>
         </div>
       </dl>
-      {hasUnknownMoney && <p role="status" data-testid="project-card-money-unavailable" className="text-[11px] text-muted-foreground">
+      {hasUnknownMoney && <p role="status" data-testid="project-card-money-unavailable" className="text-xs text-muted-foreground">
         {t('projects:moneyFiguresUnavailable', 'Some project financial figures are still being confirmed.')}
       </p>}
 
@@ -114,7 +117,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
       {((deliverySummary && deliverySummary.deliveryPct != null) || budgetUsedPct != null) && (
         <div
           data-testid="project-card-bars"
-          className="grid grid-cols-[auto_1fr] items-start gap-x-2.5 gap-y-1.5"
+          className="grid grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] items-start gap-x-3 gap-y-1.5"
         >
           {deliverySummary && deliverySummary.deliveryPct != null && (
             <>

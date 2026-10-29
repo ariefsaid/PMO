@@ -36,6 +36,8 @@ export interface ViewToggleProps<V extends string = string> {
   onChange: (value: V) => void;
   ariaLabel: string;
   className?: string;
+  /** Option labels remain accessible while allowing icon-only compact layouts. */
+  labelClassName?: string;
   /**
    * ARIA semantics variant.
    * - `'tabs'` (default): `role="tablist"` container + `role="tab"` + `aria-selected`. Use when
@@ -59,6 +61,7 @@ export function ViewToggle<V extends string = string>({
   onChange,
   ariaLabel,
   className,
+  labelClassName,
   semantics = 'tabs',
 }: ViewToggleProps<V>) {
   const isToggle = semantics === 'toggle';
@@ -106,7 +109,7 @@ export function ViewToggle<V extends string = string>({
             )}
           >
             {opt.icon && <Icon name={opt.icon} />}
-            {opt.label}
+            <span className={labelClassName}>{opt.label}</span>
             {opt.count !== undefined && opt.count > 0 && (
               <Badge className="min-w-0 px-1.5">
                 {opt.count}

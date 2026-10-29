@@ -71,3 +71,25 @@ describe('AC-G3D-MOBILE-PH: PageHeader @390 overflow prevention', () => {
     expect(actionsDiv?.className).toMatch(/shrink-0/);
   });
 });
+
+describe('PageHeader mobile identity layout', () => {
+  it('places status below the full-width title and metadata on mobile', () => {
+    const { container } = render(
+      <PageHeader
+        name="Cascade Foods 6.0 MW Ground-Mount PV"
+        status={<StatusPill variant="progress">Ongoing Project</StatusPill>}
+        meta={<span>PRJ-012 · Cascade Foods</span>}
+        statusBelowMetaOnMobile
+      />,
+    );
+    const row = screen.getByRole('heading').parentElement;
+    const title = screen.getByRole('heading');
+    const status = screen.getByText('Ongoing Project').parentElement;
+    const meta = screen.getByText(/PRJ-012/).parentElement;
+    expect(row?.className).toMatch(/grid/);
+    expect(title.className).toMatch(/col-span-2/);
+    expect(meta?.className).toMatch(/row-start-2/);
+    expect(status?.className).toMatch(/row-start-3/);
+    expect(container.querySelector('h1')).toHaveTextContent('Cascade Foods 6.0 MW Ground-Mount PV');
+  });
+});

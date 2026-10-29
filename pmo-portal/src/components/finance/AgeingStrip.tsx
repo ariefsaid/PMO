@@ -102,7 +102,7 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, values, unknownC
                 const unknown = unknownCounts[currency]?.[key] ?? 0;
                 const unknownLabel = t('financeHub:hub.fix.ageing.unknownCount', { defaultValue: unknown === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: unknown });
                 return (
-                  <div key={key} data-testid={`ageing-bucket-${currency}-${key}`} className="grid min-w-0 grid-cols-[10px_minmax(0,1fr)_auto] items-center gap-x-2">
+                  <div key={key} data-testid={`ageing-bucket-${currency}-${key}`} className="grid min-w-0 grid-cols-[10px_minmax(0,1fr)_auto] items-baseline gap-x-2">
                     <span aria-hidden="true" className={`size-2.5 shrink-0 rounded-full ${BUCKET_COLORS[key]}`} />
                     <span className="min-w-0 break-words text-xs text-muted-foreground">{labels[key]}</span>
                     {unknown > 0 && amount === 0

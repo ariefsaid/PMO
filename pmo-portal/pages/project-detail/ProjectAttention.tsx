@@ -66,7 +66,7 @@ export const ProjectAttention: React.FC<{
           <span tabIndex={0} className="font-normal text-muted-foreground">{visibleItems.length}</span>
         </Tooltip>
         </CardHead>
-        <CardPad flush>
+        <CardPad>
           <ul className="divide-y divide-border/70">
         {visibleItems.map((item) => (
           <li key={item.key}>

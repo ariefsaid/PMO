@@ -40,8 +40,8 @@ export const BlockAction: React.FC<{ onClick?: () => void; to?: string; children
 const Block: React.FC<{ id: string; title: string; unit?: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }> = ({ id, title, unit, action, children }) => (
   <section aria-labelledby={id} className="min-w-0">
     <Card>
-      <CardHead id={id} subline={unit} actions={action}>{title}</CardHead>
-      <CardPad>{children}</CardPad>
+      <CardHead id={id} subline={unit} actions={action} className="pb-2">{title}</CardHead>
+      <CardPad className="pt-2">{children}</CardPad>
     </Card>
   </section>
 );
@@ -213,7 +213,7 @@ export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) 
         </button>
         {financeDetailsOpen && <div className="space-y-4 pt-4"><ProjectFinancesSection project={project} /></div>}
       </div>
-      <div className="mt-6 border-t border-border/70 pt-4"><ProjectProfitLossSection projectId={project.id} /></div>
+      <ProjectProfitLossSection projectId={project.id} />
     </Block>
   );
 };

@@ -38,7 +38,7 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
     : t('projectDetail.facts.noDates', 'Dates not set');
   const updated = project.last_update ? formatRelativeTime(project.last_update) : null;
   return (
-    <section aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="mb-6 flex min-w-0 flex-wrap items-center gap-x-5 gap-y-3 border-b border-border/70 pb-4 text-xs text-muted-foreground">
+    <section aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="mb-6 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border/70 pb-4 text-xs text-muted-foreground">
       {manager && (
         <span className="inline-flex min-w-0 items-center gap-2">
           <span aria-hidden="true" className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-foreground">{initial}</span>
@@ -58,7 +58,7 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
       {phases.isPending && <span>{t('projectDetail.facts.progressLoading', 'Progress loading')}</span>}
       {updated && (
         <Tooltip content={t('projectDetail.facts.updatedTooltip', 'Last updated on {{date}}.', { date: formatInstantDate(project.last_update) })}>
-          <time tabIndex={0} dateTime={project.last_update} className="ml-auto text-muted-foreground">
+          <time tabIndex={0} dateTime={project.last_update} className="text-muted-foreground">
             {t('projectDetail.facts.updated', 'Updated {{when}}', { when: updated })}
           </time>
         </Tooltip>
