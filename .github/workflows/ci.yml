@@ -40,10 +40,11 @@ on:
         type: boolean
         default: false
 
-# Least privilege: the workflow only reads the repo (checkout + diff); it never writes
-# contents, issues, PRs, or packages.
+# Least privilege: the workflow only reads the repo (checkout + diff) and pulls the Supabase
+# images from GHCR; it never writes contents, issues, PRs, or packages.
 permissions:
   contents: read
+  packages: read
 
 # Cancel an in-progress run when a newer commit is pushed to the same branch/PR —
 # avoids paying for superseded runs during iterative pushes.
@@ -267,6 +268,10 @@ jobs:
       # studio (web UI — headless CI), realtime (app has 0 realtime usage), vector (log
       # shipper). Mirrors the `integration` job's stack trim (pgTAP doesn't need
       # storage/inbucket — those are e2e-only concerns).
+      # Authenticated GHCR pulls: anonymous pulls of the Supabase images hit GHCR's
+      # `toomanyrequests` limit on shared runners.
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Start local Supabase stack
         run: supabase start -x studio,realtime,vector
 
@@ -325,6 +330,10 @@ jobs:
       - name: Install Node dependencies
         working-directory: pmo-portal
         run: npm ci
+      # Authenticated GHCR pulls: anonymous pulls of the Supabase images hit GHCR's
+      # `toomanyrequests` limit on shared runners.
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Start local Supabase stack
         run: supabase start -x studio,realtime,vector
       - name: Reset DB (migrations + seed)
@@ -491,6 +500,10 @@ jobs:
       # studio (web UI — headless CI), realtime (app has 0 realtime usage), vector (log
       # shipper). Kept: db/rest/auth/kong + storage (doc-upload e2e+pgTAP) + inbucket
       # (1 magic-link e2e, AC-AUTH-005).
+      # Authenticated GHCR pulls: anonymous pulls of the Supabase images hit GHCR's
+      # `toomanyrequests` limit on shared runners.
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Start local Supabase stack
         run: supabase start -x studio,realtime,vector
 
