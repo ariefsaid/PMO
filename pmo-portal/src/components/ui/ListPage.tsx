@@ -1,6 +1,7 @@
 import React from 'react';
 import { Toolbar } from './DataTable';
 import { useIsDesktop } from './useIsDesktop';
+import { Card } from './Card';
 
 export interface ListPageProps {
   /** Page H1 (the entity noun — "Companies", "Projects", "Pipeline", …). */
@@ -49,6 +50,8 @@ export interface ListPageProps {
   banner?: React.ReactNode;
   /** Body — the table / board / cards / calendar render + list states. */
   children?: React.ReactNode;
+  /** Frame the primary list/board body as a panel on the content canvas. */
+  bodyPanel?: boolean;
   className?: string;
 }
 
@@ -81,6 +84,7 @@ export const ListPage: React.FC<ListPageProps> = ({
   desktopToolbarClassName,
   banner,
   children,
+  bodyPanel = false,
   className,
 }) => {
   const isBelowMd = !useIsDesktop();
@@ -148,7 +152,7 @@ export const ListPage: React.FC<ListPageProps> = ({
           </Toolbar>
         ))}
 
-      {children}
+      {bodyPanel ? <Card className="min-w-0 overflow-hidden">{children}</Card> : children}
     </div>
   );
 };

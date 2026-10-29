@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useFeature } from '@/src/auth/useFeature';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { AccessDenied, Button, Icon, ListState, Tooltip } from '@/src/components/ui';
+import { AccessDenied, Button, Card, CardHead, CardPad, Icon, ListState, Tooltip } from '@/src/components/ui';
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
 import { FinanceAttention } from '@/src/components/finance/FinanceAttention';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
@@ -78,7 +78,7 @@ interface AreaCardProps {
 const AreaCard: React.FC<AreaCardProps> = ({ title, to, amount, otherCurrencies = [], meaning, extra, fix, hint, loading = false, error = false, retry }) => {
   const { t } = useTranslation();
   return (
-    <article className="min-w-0 bg-card p-4">
+    <article className="panel-card min-w-0 p-[var(--panel-inset)]">
       <Link to={to} aria-label={t('financeHub:hub.fix.area.open', { defaultValue: 'Open {{area}}', area: title })} className="flex min-w-0 items-center justify-between gap-3 font-semibold text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
         <span className="truncate">{title}</span><Icon name="chev" className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       </Link>
@@ -165,7 +165,7 @@ const FinanceHub: React.FC = () => {
   const areas = (
     <section aria-labelledby="finance-hub-areas">
       <h2 id="finance-hub-areas" className="mb-3 text-base font-semibold">{t('financeHub:hub.areas', 'Finance areas')}</h2>
-      <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2 min-[1100px]:grid-cols-4">
+      <div className="grid grid-cols-1 gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2">
         {hasRevenue && <AreaCard
           title={t('financeHub:hub.receivables', 'Receivables')} to="/finance/receivables"
           amount={receivableMoney.lead ?? noBalance}
@@ -212,22 +212,26 @@ const FinanceHub: React.FC = () => {
   );
 
   const attention = (
-    <section aria-labelledby="finance-hub-attention">
-      <h2 id="finance-hub-attention" className="mb-2 text-base font-semibold">{realRole === 'Executive' ? t('financeHub:hub.fix.attention.executive', 'Waiting on Finance') : t('financeHub:hub.fix.attention.finance', 'Needs attention')}</h2>
-      <FinanceAttention
+    <Card role="region" aria-labelledby="finance-hub-attention">
+      <CardHead id="finance-hub-attention">{realRole === 'Executive' ? t('financeHub:hub.fix.attention.executive', 'Waiting on Finance') : t('financeHub:hub.fix.attention.finance', 'Needs attention')}</CardHead>
+      <CardPad>
+        <FinanceAttention
         position={finance.position} scope="all" canAct={canAct} isPending={finance.isPending} isError={finance.isError}
         onRetry={finance.retry} withLayout={(path) => path} orgCurrency={orgCurrency}
         projects={new Map((projects.data ?? []).map((project) => [project.id, project]))}
       />
-    </section>
+      </CardPad>
+    </Card>
   );
   const ageings = (
-    <section aria-labelledby="finance-hub-ageings">
-      <h2 id="finance-hub-ageings" className="mb-2 text-base font-semibold">{t('financeHub:hub.ageing', 'Balances by age')}</h2>
-      {finance.isPending ? <ListState variant="loading" rows={2} /> : finance.isError ? (
+    <Card role="region" aria-labelledby="finance-hub-ageings">
+      <CardHead id="finance-hub-ageings">{t('financeHub:hub.ageing', 'Balances by age')}</CardHead>
+      <CardPad>
+        {finance.isPending ? <ListState variant="loading" rows={2} /> : finance.isError ? (
         <ListState variant="error" title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
-      ) : <div className="grid gap-x-6 lg:grid-cols-2"><AgeingStrip kind="receivables" values={finance.position.receivablesAgeing} /><AgeingStrip kind="payables" values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} /></div>}
-    </section>
+        ) : <div className="grid gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2"><AgeingStrip kind="receivables" values={finance.position.receivablesAgeing} /><AgeingStrip kind="payables" values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} /></div>}
+      </CardPad>
+    </Card>
   );
 
   return (
@@ -238,9 +242,11 @@ const FinanceHub: React.FC = () => {
         </div>
         {canAct && <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background p-3 sm:static sm:inset-auto sm:z-auto sm:border-0 sm:bg-transparent sm:p-0"><Button variant="primary" onClick={() => navigate('/finance/receivables?create=1')} className="w-full shrink-0 sm:w-auto"><Icon name="plus" />{t('financeHub:hub.newInvoice', 'New invoice')}</Button></div>}
       </header>
-      <div className="space-y-5">
+      <div className="space-y-[var(--space-panel-gap)]">
         {areas}
-        {realRole === 'Executive' ? <>{ageings}{attention}</> : <>{attention}{ageings}</>}
+        <div className="grid gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2">
+          {realRole === 'Executive' ? <>{ageings}{attention}</> : <>{attention}{ageings}</>}
+        </div>
       </div>
     </div>
   );

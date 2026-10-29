@@ -97,9 +97,9 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
   }
 
   return (
-    <section aria-label={t('finance:area.attention', 'Finance attention')} className="grid min-w-0 gap-6 lg:grid-cols-2">
+    <section aria-label={t('finance:area.attention', 'Finance attention')} className="grid min-w-0 grid-cols-1 gap-6">
       {overdueCount > 0 && (
-        <div className={waiting.length === 0 ? 'lg:col-span-2' : undefined}>
+        <div>
           <Tooltip content={t('financeHub:hub.overdueHint', 'Count of open invoices past their derived due date; total sums known outstanding balances, including tax, by currency.')}>
             <h2 tabIndex={0} className="mb-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
               {overdueCurrencyLines[0]
@@ -155,7 +155,7 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
       )}
 
       {waiting.length > 0 && (
-        <div className={overdueCount === 0 ? 'lg:col-span-2' : undefined}>
+        <div>
           {canAct && <h2 className="mb-1 text-sm font-semibold">{t('finance:area.waitingOnYou', 'Waiting on you')}</h2>}
           <div className="divide-y divide-border border-y border-border">
             {waiting.map((item) => (

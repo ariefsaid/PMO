@@ -22,6 +22,7 @@ import {
   useToast,
   Button,
   buttonClasses,
+  Card,
   MenuButton,
   Checkbox,
   Icon,
@@ -624,9 +625,10 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '' }
 
   return (
     <div>
-      <div className="mb-3.5 flex flex-col gap-3">
+      <Card className="min-w-0 overflow-hidden">
+      <div className="mb-3.5 flex flex-col gap-3 p-[var(--panel-inset)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-[16px] font-bold tracking-[-0.01em]">{t('projectDetail.tasks.heading', 'Tasks')}</h2>
+          <h2 className="text-page font-bold tracking-[-0.02em]">{t('projectDetail.tasks.heading', 'Tasks')}</h2>
           <div className="flex items-center gap-2">
             <div className="relative">
               <Button
@@ -740,9 +742,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '' }
       </div>
 
       {state === 'loading' && (
-        <div className="rounded-lg border border-border bg-card">
-          <ListState variant="loading" rows={5} />
-        </div>
+        <ListState variant="loading" rows={5} className="px-[var(--panel-inset)] pb-[var(--panel-inset)]" />
       )}
 
       {state === 'error' && (
@@ -813,6 +813,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '' }
           rowMenu={rowMenu}
         />
       )}
+      </Card>
 
       {/* Setup stays available after the task register so it does not block daily task work. */}
       <div ref={integrationsRef}>

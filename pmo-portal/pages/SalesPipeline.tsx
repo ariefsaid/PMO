@@ -544,6 +544,7 @@ const SalesPipeline: React.FC = () => {
   return (
     <ListPage
       title={t('shell.nav.sales', 'Sales Pipeline')}
+      bodyPanel
       /* B-3 (AC-W2-IXD-005): the natural place to start a project is the Pipeline where
          pre-win projects live — not the Projects list. Opens the one-step
          create page (#806; same page as Projects). Gated on can('create','project')
@@ -560,11 +561,11 @@ const SalesPipeline: React.FC = () => {
         <>
           {/* Weighted funnel summary band — the Pipeline's stage-summary, above the toolbar. */}
           {state === 'loading' && isDesktop ? (
-            <div className="mb-4">
+            <div className="panel-card mb-4 p-[var(--panel-inset)]">
               <ListState variant="loading" rows={2} />
             </div>
           ) : state === undefined && isDesktop ? (
-            <section aria-label={t('sales.summaryLabel', 'Pipeline summary')} className="mb-4">
+            <section aria-label={t('sales.summaryLabel', 'Pipeline summary')} className="panel-card mb-4 p-[var(--panel-inset)]">
               {/* Narrow viewports scroll the band locally; the shared Funnel owns its own
                   min-track scroll viewport so each stage's exact amount stays in its stage. */}
               <Funnel
@@ -686,7 +687,7 @@ const SalesPipeline: React.FC = () => {
     >
       {/* Body */}
       {state === 'loading' && (
-        <div className="rounded-lg border border-border bg-card">
+        <div>
           <ListState variant="loading" rows={6} />
         </div>
       )}
@@ -804,6 +805,7 @@ const SalesPipeline: React.FC = () => {
 
       {state === undefined && view === 'table' && !((wonError && scope === 'Won') || (lostError && (scope === 'Lost' || scope === 'Needs attention'))) && (
         <DataTable<PipelineProject>
+          embedded
           rows={filtered}
           columns={tableColumns}
           rowKey={(r) => r.id}

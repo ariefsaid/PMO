@@ -708,9 +708,10 @@ const Projects: React.FC = () => {
       <ListPage
         title={t('projects.title', 'Projects')}
         description={pageDescription}
+        bodyPanel
         primaryAction={primaryAction}
       >
-        <div data-testid="projects-loading" className="rounded-lg border border-border bg-card">
+        <div data-testid="projects-loading">
           <ListState variant="loading" rows={6} />
         </div>
       </ListPage>
@@ -722,6 +723,7 @@ const Projects: React.FC = () => {
       <ListPage
         title={t('projects.title', 'Projects')}
         description={pageDescription}
+        bodyPanel
         primaryAction={primaryAction}
       >
         <ListState
@@ -739,6 +741,7 @@ const Projects: React.FC = () => {
       <ListPage
         title={t('projects.title', 'Projects')}
         description={pageDescription}
+        bodyPanel
         primaryAction={primaryAction}
       >
         <ListState
@@ -1010,6 +1013,7 @@ const Projects: React.FC = () => {
     <ListPage
       title={t('projects.title', 'Projects')}
       description={pageDescription}
+      bodyPanel
       primaryAction={primaryAction}
       mobileToolbar={mobileToolbar}
       desktopToolbarClassName="xl:grid xl:grid-cols-[minmax(0,1fr)_220px_auto] xl:items-center xl:gap-x-2 xl:gap-y-2 xl:overflow-visible xl:[&>*:nth-child(1)]:col-start-1 xl:[&>*:nth-child(1)]:row-start-1 xl:[&>*:nth-child(2)]:col-start-2 xl:[&>*:nth-child(2)]:row-start-1 xl:[&>*:nth-child(3)]:col-start-1 xl:[&>*:nth-child(3)]:row-start-2 xl:[&>*:nth-child(4)]:col-start-2 xl:[&>*:nth-child(4)]:row-start-2 xl:[&>*:nth-child(5)]:col-start-3 xl:[&>*:nth-child(5)]:row-span-2"
@@ -1156,6 +1160,7 @@ const Projects: React.FC = () => {
       ) : view === 'table' ? (
         <>
           <DataTable<ProjectWithRefs>
+            embedded
             rows={filtered}
             columns={visibleColumns}
             rowKey={(p) => p.id}

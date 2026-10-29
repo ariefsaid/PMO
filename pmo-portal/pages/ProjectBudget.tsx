@@ -31,6 +31,9 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { budgetVersionVariant } from '@/src/lib/status/statusVariants';
 import {
   Button,
+  Card,
+  CardHead,
+  CardPad,
   Icon,
   ListState,
   Toolbar,
@@ -1147,25 +1150,25 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
 
   if (!canReadMoney) {
     return (
-      <section className="rounded-lg border border-border bg-card p-4" data-testid="budget-option-a">
-        <h2 className="text-base font-semibold">{t('projectDetail.budget.title', 'Project budget')}</h2>
-        <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.budget.noMoneyAccess', 'Budget details are available to project management and finance.')}</p>
-      </section>
+      <Card data-testid="budget-option-a">
+        <CardHead id="budget-title">{t('projectDetail.budget.title', 'Project budget')}</CardHead>
+        <CardPad><p className="text-sm text-muted-foreground">{t('projectDetail.budget.noMoneyAccess', 'Budget details are available to project management and finance.')}</p></CardPad>
+      </Card>
     );
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-5" data-testid={versions.length === 0 ? 'budget-empty' : 'budget-option-a'}>
+    <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]" data-testid={versions.length === 0 ? 'budget-empty' : 'budget-option-a'}>
       <header className="flex min-w-0 flex-wrap items-start justify-between gap-3">
         {/* C6: currency and tax basis are said once, in the page heading; every figure below is a bare number. */}
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-          <h2 className="text-base font-semibold text-foreground">{t('projectDetail.budget.title', 'Project budget')}</h2>
+          <h2 className="text-page font-bold tracking-[-0.02em] text-foreground">{t('projectDetail.budget.title', 'Project budget')}</h2>
           {budgetUnit}
         </div>
       </header>
 
       {draftVersion && (
-        <section aria-label={t('projectDetail.budget.draftWaiting', 'Draft waiting for approval')} className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4" data-testid="budget-draft-banner">
+        <section aria-label={t('projectDetail.budget.draftWaiting', 'Draft waiting for approval')} className="panel-card flex min-w-0 flex-wrap items-center justify-between gap-3 p-[var(--panel-inset)]" data-testid="budget-draft-banner">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <StatusPill variant="draft">{t('financeCopy.statusDraft', 'Draft')}</StatusPill>
@@ -1198,7 +1201,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         <KPITile icon="down" tone={totalLeft !== null && totalLeft < 0 ? 'red' : 'green'} label={t('projectDetail.budget.left', 'Left')} {...tileAmount(totalLeft)} negative={totalLeft !== null && totalLeft < 0} unavailableReason={totalLeft === null ? t('projectDetail.budget.leftUnavailable', 'Left is unknown while spending or commitments are unavailable.') : undefined} help={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')} />
       </KPIRow>
 
-      <section aria-label={t('projectDetail.budget.budgetVsActual', 'Budget vs actual')} className="min-w-0 space-y-3 rounded-lg border border-border bg-card p-3 sm:p-4">
+      <Card role="region" aria-label={t('projectDetail.budget.budgetVsActual', 'Budget vs actual')} className="min-w-0">
+        <CardHead>{t('projectDetail.budget.budgetVsActual', 'Budget vs actual')}</CardHead>
+        <CardPad className="space-y-3">
         {selectedRows.size > 0 && view === 'actual' ? (
           <div className="flex min-w-0 flex-wrap items-center gap-2" role="toolbar" aria-label={t('projectDetail.budget.selectedCategories', 'Selected categories')}>
             <span className="text-sm font-medium">{t('projectDetail.budget.selectedCount', '{{count}} selected', { count: selectedRows.size })}</span>
@@ -1262,16 +1267,16 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
           const link = document.createElement('a'); link.href = url; link.download = 'ProjectBudgetForecast.csv'; link.click(); URL.revokeObjectURL(url);
         }} /></> : <ListState variant="empty" title={t('projectDetail.budget.forecastNeedsActive', 'Activate a budget to view its forecast')} />}
-      </section>
+        </CardPad>
+      </Card>
 
-      <section aria-label={t('projectDetail.budget.versionsTitle', 'Budget versions')} className="min-w-0 space-y-3 rounded-lg border border-border bg-card p-3 sm:p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold">{t('projectDetail.budget.versionsTitle', 'Budget versions')}</h3>
-          <div className="flex flex-wrap items-center gap-2">
+      <Card role="region" aria-label={t('projectDetail.budget.versionsTitle', 'Budget versions')} className="min-w-0">
+        <CardHead actions={<>
             {canWrite && versions.length > 0 && !draftVersion && <Button variant="outline" size="sm" onClick={() => { dismissActivationNotice(); setShowNewVersionForm(true); }}>{t('projectDetail.budget.newVersion', 'New version')}</Button>}
             {versions.length > 0 && <Button id="budget-versions-trigger" variant="ghost" size="sm" onClick={() => setVersionsOpen(true)}>{t('projectDetail.budget.manageVersions', 'Manage versions')}</Button>}
-          </div>
-        </div>
+          </>}>
+          {t('projectDetail.budget.versionsTitle', 'Budget versions')}
+        </CardHead>
         {versions.length > 0 ? <DataTable
           embedded
           rows={versionRows}
@@ -1284,7 +1289,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           accessibleName={t('projectDetail.budget.versionsTitle', 'Budget versions')}
           cardBelow={600}
         /> : null}
-      </section>
+      </Card>
 
       {archivedLiveTargets.length > 0 && (
         <div role="alert" className="rounded-lg border border-warning/30 bg-warning/[0.07] px-3.5 py-3 text-sm text-foreground">

@@ -24,7 +24,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 
   return (
     <header
-      className="z-30 flex items-center gap-3.5 border-b border-border bg-background px-5"
+      className="z-30 flex items-center gap-3.5 border-b border-border bg-[hsl(var(--surface-panel))] px-5"
       style={{ height: 'var(--header-h)', gridArea: 'header' }}
     >
       <button

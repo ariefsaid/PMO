@@ -847,15 +847,15 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   };
 
   return (
-    <div>
-      <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-[16px] font-bold tracking-[-0.01em]">
+    <div className="panel-card min-w-0">
+      <div className="border-b border-border px-[var(--panel-inset)] py-4">
+        <h2 className="text-page font-bold tracking-[-0.02em]">
           {t('projectDetail.documents.heading', 'Document register')}
         </h2>
       </div>
 
       {/* Below the header, so a folder notice never pushes the primary actions down or off-screen (empty for non-writers). */}
-      <div className="mb-3.5 empty:hidden">
+      <div className="empty:hidden px-[var(--panel-inset)] pt-3">
         <RecordFolderAction
           target={{ kind: 'project', id: projectId }}
           hasFolder={all.some((d) => d.source === 'onedrive' && d.ms_item_kind === 'folder')}
@@ -913,7 +913,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         </GateNotice>
       )}
 
-      <Toolbar standalone className="min-w-0 border-0 bg-transparent px-0 py-0">
+      <Toolbar standalone className="min-w-0 border-0 bg-transparent px-[var(--panel-inset)] py-3">
         <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
           {/* B7: search earns its place only beyond about ten documents; the filters cover a short register. */}
           {(all.length > SEARCH_THRESHOLD || search) && <SearchMini
@@ -1030,9 +1030,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       )}
 
       {state === 'loading' && (
-        <div className="rounded-lg border border-border bg-card">
-          <ListState variant="loading" rows={5} />
-        </div>
+        <ListState variant="loading" rows={5} className="px-[var(--panel-inset)] pb-[var(--panel-inset)]" />
       )}
 
       {state === 'error' && (

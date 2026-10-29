@@ -72,8 +72,8 @@ export interface ProcurementBlockProps {
 
 /** Four stage tiles: a 2×2 grid on phones (nothing clipped), one row from `sm` up. */
 export const ProcurementStageBand: React.FC<React.PropsWithChildren<{ label: string }>> = ({ label, children }) => (
-  <section aria-label={label} className="overflow-hidden rounded-lg border border-border bg-border">
-    <div className="grid grid-cols-2 gap-px sm:grid-cols-4">{children}</div>
+  <section aria-label={label} className="panel-card overflow-hidden bg-border">
+    <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-4">{children}</div>
   </section>
 );
 
@@ -90,11 +90,11 @@ export interface ProcurementListProps extends Omit<DataTableProps<ProcurementWit
 
 /** Shared list surface and DataTable contract, including its controlled selection and row menu. */
 export const ProcurementList: React.FC<ProcurementListProps> = ({ label, rows, columns, children, embedded = false, bareEmpty = false, tableId, ...tableProps }) => (
-  <section aria-label={label} className={embedded ? 'overflow-hidden' : 'overflow-hidden rounded-lg border border-border bg-card'}>
+  <section aria-label={label} className={embedded ? 'overflow-hidden' : 'panel-card overflow-hidden'}>
     {children}
     {bareEmpty && tableProps.state === 'empty'
       ? <ListState variant="empty" title={tableProps.emptyTitle} sub={tableProps.emptySub} action={tableProps.emptyAction} />
-      : <DataTable rows={rows} columns={columns} rowKey={(row) => row.id} {...tableProps} className={embedded ? 'rounded-none border-0 bg-transparent' : undefined} tableId={`procurement-block-${tableId}`} />}
+      : <DataTable embedded rows={rows} columns={columns} rowKey={(row) => row.id} {...tableProps} className="rounded-none border-0 bg-transparent" tableId={`procurement-block-${tableId}`} />}
   </section>
 );
 
@@ -863,7 +863,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         label={heading}
         rows={filteredRows}
         columns={columns}
-        embedded={Boolean(projectId)}
+        embedded={false}
         bareEmpty={!hasUnfilteredRows}
         accessibleName={projectId ? t('projectDetail.procurement.table.accessibleName', 'Project procurement') : t('procurement.table.accessibleName', 'Procurement')}
         rowMenu={(row) => rowMenu(row)}

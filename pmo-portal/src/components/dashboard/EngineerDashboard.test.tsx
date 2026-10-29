@@ -185,7 +185,7 @@ describe('Engineer area hub', () => {
 
   it('L6: the Tasks panel lists rows; the count lives in the Tasks due tile, not repeated as a doorway row', () => {
     renderDashboard();
-    const panel = screen.getByRole('heading', { name: 'Tasks', level: 2 }).closest('.rounded-lg.border') as HTMLElement;
+    const panel = screen.getByRole('heading', { name: 'Tasks', level: 2 }).closest('.panel-card') as HTMLElement;
     expect(within(panel).queryByRole('link', { name: /tasks overdue or due this week/i })).not.toBeInTheDocument();
     expect(screen.getByTestId('kpi-tasks-due')).toHaveTextContent('2');
     expect(screen.getByRole('link', { name: 'Open tasks due this week' })).toHaveAttribute('href', '/my-tasks');
@@ -257,7 +257,7 @@ describe('Engineer area hub', () => {
   it('keeps Recent entries table content inside the area panel without a second frame', () => {
     renderDashboard();
     const heading = screen.getByRole('heading', { name: 'Recent entries' });
-    const panel = heading.closest('.rounded-lg.border');
+    const panel = heading.closest('.panel-card');
     expect(panel).not.toBeNull();
     expect(panel?.querySelector('.rounded-b-lg.border')).toBeNull();
   });

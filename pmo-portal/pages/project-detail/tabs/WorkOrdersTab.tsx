@@ -607,7 +607,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   }, [openRecordId, openRecordType, rows, drawerLineRows, invoiceRows, claimRows, canViewBilling]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-[var(--space-panel-gap)]">
       {canViewBilling && dpNotice !== null && (
         <div role="status" data-testid="wo-dp-held-notice" className="border-b border-border pb-3 text-[13px] text-muted-foreground">
           {t('projectTabs:contractQuantities.workOrders.closing.dpHeld',
@@ -629,8 +629,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         </div>
       )}
 
-      <section aria-labelledby="pd-customer-orders" className="min-w-0">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+      <section aria-labelledby="pd-customer-orders" className="panel-card min-w-0">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-[var(--panel-inset)] py-4">
           <div className="flex flex-wrap items-baseline gap-x-2">
             <h2 id="pd-customer-orders" className="text-sm font-semibold text-foreground">
               {t('projectDetail.contract.orders', 'Customer orders')}
@@ -718,7 +718,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             )}
 
             {visibleDraftOrders.length > 0 && (
-              <section aria-labelledby="pd-draft-orders" className="mb-6">
+              <section aria-labelledby="pd-draft-orders" className="mb-6 px-[var(--panel-inset)]">
                 <h3 id="pd-draft-orders" className="mb-2 text-xs font-medium text-muted-foreground">
                   {t('projectDetail.workOrders.drafts', 'Draft orders')}
                 </h3>
@@ -1067,7 +1067,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         )}
       </section>
 
-      {canViewBilling && <Card variant="bare" className="min-w-0">
+      {canViewBilling && <Card className="min-w-0">
         <CardHead level={2} className="text-base" actions={<div className="flex flex-wrap items-center gap-2">
           {canAssess && boqRows.length > 0 && <Button variant="outline" size="sm" onClick={() => setAssessOpen(true)}>
             {t('projectDetail.billing.assessment.record', 'Record progress')}
@@ -1121,6 +1121,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             </dl> : <p className="mt-3 text-sm text-muted-foreground">{t('projectDetail.billing.summary.unavailable', 'Billing summary is unavailable.')}</p>}
           </details>
           <DataTable<ProgressClaimWithInvoice>
+            embedded
             rows={claimRows}
             columns={projectClaimColumns}
             rowKey={(claim) => claim.id}
@@ -1150,7 +1151,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         </CardPad>
       </Card>}
 
-      {canViewBilling && (orderlessInvoices.length > 0 || ((!customerOrders.length && !draftOrders.length) && !invoiceReadReady)) && <section className="min-w-0" role="region" aria-label={t('projectDetail.workOrders.billing.orderlessHeading', 'Invoices without a customer order')} data-testid="orderless-invoices">
+      {canViewBilling && (orderlessInvoices.length > 0 || ((!customerOrders.length && !draftOrders.length) && !invoiceReadReady)) && <section className="panel-card min-w-0" role="region" aria-label={t('projectDetail.workOrders.billing.orderlessHeading', 'Invoices without a customer order')} data-testid="orderless-invoices">
         <div className="mb-3 border-b border-border pb-2">
           <h2 className="text-sm font-semibold text-foreground">{t('projectDetail.workOrders.billing.orderlessHeading', 'Invoices without a customer order')}</h2>
         </div>

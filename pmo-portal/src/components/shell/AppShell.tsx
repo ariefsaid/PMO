@@ -266,7 +266,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         // Companies toolbar search at 375px). min-w-0 lets the track constrain
         // the content so inner `overflow-x-auto` scrollers handle their own width.
         // C3: inert while the mobile drawer is open.
-        className={`${MAIN_SCROLL_CLASS} min-w-0 overflow-y-auto overflow-x-hidden bg-secondary/35 outline-none`}
+        className={`${MAIN_SCROLL_CLASS} min-w-0 overflow-y-auto overflow-x-hidden bg-[hsl(var(--surface-canvas))] outline-none`}
         style={{ gridArea: 'main' }}
         inert={railOpen || undefined}
       >

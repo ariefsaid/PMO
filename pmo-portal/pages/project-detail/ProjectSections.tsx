@@ -64,19 +64,17 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
   if (isPipeline) {
     if (lens === 'delivery') {
       return (
-        <div className="flex min-w-0 flex-col gap-10">
-          <div className={`grid min-w-0 gap-8 ${showDeliveryAttention ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
+        <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
+          <div className={`grid min-w-0 gap-[var(--space-panel-gap)] ${showDeliveryAttention ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
             <MyOpenTasks projectId={project.id} />
-            {showDeliveryAttention && <section className="min-w-0 border-y border-border/70 py-4">
-              <ProjectAttention {...attentionProps} />
-            </section>}
+            {showDeliveryAttention && <ProjectAttention {...attentionProps} className="min-w-0" />}
           </div>
           <DeliveryBlock projectId={project.id} isPipeline />
         </div>
       );
     }
     return (
-      <div className="grid min-w-0 gap-12 xl:grid-cols-2">
+      <div className="grid min-w-0 gap-[var(--space-panel-gap)] xl:grid-cols-2">
         <CostBlock project={project} isPipeline onOpenBudget={() => onOpen('budget')} />
         <DeliveryBlock projectId={project.id} isPipeline={isPipeline} />
         {/* AC-PMP-006: invoices and spending already recorded against a deal stay visible before it is won. */}
@@ -86,20 +84,18 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
   }
   return (
     lens === 'delivery' ? (
-      <div className="flex min-w-0 flex-col gap-10">
-        <div className={`grid min-w-0 gap-8 ${showDeliveryAttention ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
+      <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
+        <div className={`grid min-w-0 gap-[var(--space-panel-gap)] ${showDeliveryAttention ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
           <MyOpenTasks projectId={project.id} />
-          {showDeliveryAttention && <section className="min-w-0 border-y border-border/70 py-4">
-            <ProjectAttention {...attentionProps} />
-          </section>}
+          {showDeliveryAttention && <ProjectAttention {...attentionProps} className="min-w-0" />}
         </div>
         <DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock>
       </div>
     ) : (
-      <div className="flex min-w-0 flex-col gap-10">
+      <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
         {/* Phone reads attention → money → budget; at xl the money block spans both rows of the right column,
             so the budget fills the space under the (usually short) attention list instead of leaving it empty. */}
-        <div className={`grid min-w-0 items-start gap-x-10 gap-y-10 ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
+        <div className={`grid min-w-0 items-start gap-[var(--space-panel-gap)] ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
           <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} className="min-w-0 xl:col-start-1 xl:row-start-1" />
           {canSeeMoney && <div className="min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1"><MoneyBlock project={project} /></div>}
           <div className={`min-w-0 ${canSeeMoney ? 'xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={() => onOpen('budget')} /></div>

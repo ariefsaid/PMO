@@ -354,7 +354,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
 
   return (
     <aside
-      className="flex min-h-0 flex-col border-r border-border bg-nav-surface"
+      className="flex min-h-0 flex-col border-r border-border bg-[hsl(var(--surface-panel))]"
       style={{ gridArea: 'rail' }}
     >
       <div

@@ -370,7 +370,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const evidenceClaim = claimRows.find((c) => c.id === evidenceFor);
 
   const boqCard = (
-    <Card variant="bare">
+    <Card>
       <CardHead
         level={2}
         className="text-base"
@@ -389,8 +389,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       >
         {t('projectDetail.billing.boq.title', 'Bill of quantities')}
       </CardHead>
-      <CardPad>
+      <CardPad flush>
         <DataTable<BoqItemRow>
+          embedded
           rows={boqRows}
           columns={boqColumns}
           rowKey={(row) => row.id}
@@ -451,7 +452,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   })();
 
   const claimsCard = (
-    <Card variant="bare">
+    <Card>
       <CardHead
         level={2}
         className="text-base"
@@ -463,8 +464,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       >
         {t('projectDetail.billing.claims.billingTitle', 'Billing claims')}
       </CardHead>
-      <CardPad>
+      <CardPad flush>
         <DataTable<ProgressClaimWithInvoice>
+          embedded
           rows={claimRows}
           columns={claimColumns}
           rowKey={(row) => row.id}
@@ -563,7 +565,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   return (
     <div className="space-y-6">
       {canViewMoney && <>
-      <Card variant="bare">
+      <Card>
         <CardHead
           level={2}
           className="text-base"

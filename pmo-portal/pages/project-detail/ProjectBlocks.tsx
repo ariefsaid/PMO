@@ -2,7 +2,7 @@ import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import React, { useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, ListState, ProgressBar, TaxBasisLabel, Tooltip } from '@/src/components/ui';
+import { Button, Card, CardHead, CardPad, Icon, ListState, ProgressBar, TaxBasisLabel, Tooltip } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
@@ -39,12 +39,10 @@ export const BlockAction: React.FC<{ onClick?: () => void; to?: string; children
 /** Block chrome: heading, its unit/basis once, an optional action on the same baseline. */
 const Block: React.FC<{ id: string; title: string; unit?: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }> = ({ id, title, unit, action, children }) => (
   <section aria-labelledby={id} className="min-w-0">
-    <div className="mb-4 flex min-h-6 flex-wrap items-baseline gap-x-2">
-      <h2 id={id} className="text-sm font-semibold text-foreground">{title}</h2>
-      {unit && <span className="text-xs text-muted-foreground">{unit}</span>}
-      {action && <span className="ml-auto">{action}</span>}
-    </div>
-    {children}
+    <Card>
+      <CardHead id={id} subline={unit} actions={action}>{title}</CardHead>
+      <CardPad>{children}</CardPad>
+    </Card>
   </section>
 );
 

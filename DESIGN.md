@@ -7,8 +7,11 @@ description: >
   Inter, and PMO's existing icon family take precedence.
 colors:
   background: "hsl(210 40% 96.0784%)"
+  surface-canvas: "hsl(210 40% 96.0784%)"
   foreground: "hsl(218.1818 12.3596% 17.451%)"
   card: "hsl(0 0% 100%)"
+  surface-panel: "hsl(0 0% 100%)"
+  panel-border: "hsl(217.5 13% 57%)"
   surface-table-head: "hsl(210 40% 96.0784%)"
   card-foreground: "hsl(218.1818 12.3596% 17.451%)"
   popover: "hsl(0 0% 100%)"
@@ -77,6 +80,8 @@ spacing:
   page-gutter: "24px desktop / 16px phone"
   section-inset: "24px where a group needs an inset"
   content-inset: "16px"
+  panel-inset: "24px desktop / 16px phone"
+  panel-gap: "24px desktop / 16px phone"
   group: "16px"
   section: "32px"
 motion:
@@ -91,7 +96,7 @@ components:
   button-outline: { bg: "{colors.background}", text: "{colors.foreground}", border: "{colors.input}", radius: "{rounded.control}", height: "38px" }
   button-ghost: { bg: "transparent", text: "{colors.foreground}", radius: "{rounded.control}", height: "38px" }
   button-destructive: { bg: "{colors.destructive-solid}", text: "{colors.destructive-foreground}", radius: "{rounded.control}", height: "38px" }
-  card: { bg: "{colors.card}", text: "{colors.card-foreground}", radius: "{rounded.lg}", padding: "16px" }
+  card: { bg: "{colors.surface-panel}", text: "{colors.card-foreground}", border: "{colors.panel-border}", radius: "{rounded.lg}", padding: "{spacing.panel-inset}" }
   input: { bg: "{colors.background}", text: "{colors.foreground}", border: "{colors.input}", radius: "{rounded.control}", height: "38px" }
   badge-status: { bg: "{colors.status-neutral-surface}", text: "{colors.count-foreground}", radius: "{rounded.full}", height: "20px" }
   table-head: { bg: "{colors.surface-table-head}", height: "52px", inset: "16px" }
@@ -114,8 +119,11 @@ Colors use bare HSL triplets so Tailwind slash-alpha utilities continue to work.
 | Token | Light | Dark | Role |
 |---|---|---|---|
 | `--background` | `210 40% 96.0784%` | `205.7143 13.7255% 10%` | workspace canvas |
+| `--surface-canvas` | `var(--background)` | `var(--background)` | main content canvas |
 | `--foreground` | `218.1818 12.3596% 17.451%` | `211.2 20.6612% 76.2745%` | default text |
 | `--card` / `--popover` | `0 0% 100%` | `210 12.1212% 12.9412%` | work surfaces |
+| `--surface-panel` | `var(--card)` | `var(--card)` | framed panel surface |
+| `--panel-border` | `217.5 13% 57%` | `210 10% 42%` | panel boundary, ≥3:1 against canvas |
 | `--surface-table-head` | `var(--background)` | `var(--background)` | table header follows the canvas |
 | `--card-foreground` / `--popover-foreground` | `218.1818 12.3596% 17.451%` | `211.2 20.6612% 76.2745%` | text on work surfaces |
 | `--secondary` | `220 11.1111% 94.7059%` | `210 13.7255% 20%` | quiet surface |
@@ -211,7 +219,7 @@ Inter remains self-hosted and is used without stylistic alternates. The root rem
 
 **Controls:** the default height is 38px and compact height is 30px. Coarse-pointer hit targets remain at least 44px without shrinking the visual type scale.
 
-**Shared layout roles:** pages use a 24px desktop gutter and 16px phone gutter. Sections are separated by 32px; related groups by 16px. Content insets are 16px, with a 24px section inset where a group needs one. Table headers are 52px with 52px minimum rows and 16px cell insets; the default drawer is 448px wide with 16px body insets. The app shell, headers, cards, toolbars, figure groups, tables, drawers and overlays consume these roles.
+**Shared layout roles:** pages use a 24px desktop gutter and 16px phone gutter. Sections are separated by 32px; related groups by 16px. Panels use a 24px desktop gap and 16px phone gap, with a 24px inset (16px on phone); tables remain flush to the panel edge. Table headers are 52px with 52px minimum rows and 16px cell insets; the default drawer is 448px wide with 16px body insets. The app shell, headers, cards, toolbars, figure groups, tables, drawers and overlays consume these roles.
 
 **Elevation:** panels, drawers, and modals stay flat by default. `--shadow-xs` is for tooltips, `--shadow-sm` for dropdowns, and `--shadow-lg` for toasts; each uses a soft offset shadow tinted to its theme. `--shadow-overlay` is `none`. Do not add a global card shadow.
 
@@ -246,10 +254,10 @@ Status text applies them as `hsl(var(--token))`. See §6 for the verified contra
 
 ### Cards / Containers
 - **Corner:** `lg` radius (8px). When a card sits above a toolbar+table assembly, top corners round and the seam squares (`var(--radius) var(--radius) 0 0`).
-- **Background:** `card` on the canvas; the tone contrast reads as elevated (no rest shadow).
-- **Border:** `border` is a quiet divider, not the only cue for an interactive control. Use `input` for a standalone control boundary. Use a card when it groups one job's content; never a card inside a card.
-- **Padding:** 16px standard; compact cards (kanban) ~11px.
-- **CardHead:** a real heading element (default `h2`, a card is a section under the page `h1`); set `level={3}` only under a real `h2` parent, and keep the page outline gap-free and keep card titles in heading navigation.
+- **Canvas and panel:** the page content uses `surface-canvas`; `Card` uses `surface-panel` with a dedicated `panel-border` that is at least 3:1 against the canvas. Panels stay flat at rest.
+- **Border:** use a panel only to group one question; never put a panel inside another panel. `bare` content belongs inside a panel, not as a replacement for section grouping.
+- **Padding:** 24px desktop / 16px phone for panel headers and content. Tables remain flush against the panel edge, with the header row using `surface-table-head`.
+- **CardHead:** a 16px/600 real heading (default `h2`), optional subline, and right-aligned action slot. Keep the page outline gap-free and keep card titles in heading navigation. `CardFoot` is an optional footer separated by a divider.
 - **KPI Tile** (signature): `card` surface, 16px padding, [30px tinted icon tile] + [label, `muted-foreground`
   12.5px] + [help `?`], a ~23px/700 tabular value, and a foot row with a tinted delta chip + `muted`
   "vs." comparison. **ONE treatment app-wide** (`KPITile`); the in-header metric strip is `StatTiles`.

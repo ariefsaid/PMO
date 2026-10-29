@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Drawer, ListState, StatusPill, Tooltip, ViewToggle } from '@/src/components/ui';
+import { Card, CardHead, CardPad, Drawer, ListState, StatusPill, Tooltip, ViewToggle } from '@/src/components/ui';
 import { CommentsSection } from '@/src/components/comments/CommentsSection';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
 import { useComments } from '@/src/hooks/useComments';
@@ -16,7 +16,9 @@ export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean }>
   const { t } = useTranslation('project');
   const [view, setView] = useState<ActivityView>('all');
   return (
-    <section aria-label={t('projectDetail.activity.title', 'Activity')} className="flex min-w-0 flex-col gap-4">
+    <Card role="region" aria-label={t('projectDetail.activity.title', 'Activity')} className="min-w-0">
+      <CardHead>{t('projectDetail.activity.title', 'Activity')}</CardHead>
+      <CardPad className="flex min-w-0 flex-col gap-4">
       <ViewToggle<ActivityView>
         ariaLabel={t('projectDetail.activity.viewLabel', 'Activity view')}
         value={view}
@@ -31,7 +33,8 @@ export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean }>
       {(view === 'all' || view === 'changes') && (
         <RecordHistory entityType="project" entityId={projectId} includeChildren kindFilters={!compact || view === 'all'} />
       )}
-    </section>
+      </CardPad>
+    </Card>
   );
 };
 
@@ -40,17 +43,18 @@ export const MyOpenTasks: React.FC<{ projectId: string }> = ({ projectId }) => {
   const { t } = useTranslation('project');
   const { currentUser } = useAuth();
   const tasks = useTasks(projectId);
-  if (tasks.isPending) return <ListState variant="loading" rows={3} />;
-  if (tasks.isError) return <ListState variant="error" title={t('projectDetail.myTasks.error', "Couldn't load your tasks")} onRetry={() => void tasks.refetch()} />;
+  if (tasks.isPending) return <Card role="region" aria-labelledby="pd-my-tasks"><CardHead id="pd-my-tasks">{t('projectDetail.myTasks.title', 'My open tasks')}</CardHead><CardPad><ListState variant="loading" rows={3} /></CardPad></Card>;
+  if (tasks.isError) return <Card role="region" aria-labelledby="pd-my-tasks"><CardHead id="pd-my-tasks">{t('projectDetail.myTasks.title', 'My open tasks')}</CardHead><CardPad><ListState variant="error" title={t('projectDetail.myTasks.error', "Couldn't load your tasks")} onRetry={() => void tasks.refetch()} /></CardPad></Card>;
   const today = new Date().toISOString().slice(0, 10);
   const mine = (tasks.data ?? [])
     .filter((task) => task.assignee_id === currentUser?.id && task.status !== 'Done')
     .sort((a, b) => (a.end_date ?? '9999').localeCompare(b.end_date ?? '9999'));
   const overdue = mine.filter((task) => task.end_date && task.end_date < today).length;
   return (
-    <section aria-labelledby="pd-my-tasks" className="min-w-0">
-      <div className="mb-2 flex items-baseline justify-between gap-4">
-        <h2 id="pd-my-tasks" className="text-sm font-semibold text-foreground">
+    <Card role="region" aria-labelledby="pd-my-tasks" className="min-w-0">
+      <CardHead id="pd-my-tasks" actions={<Link to={`/projects/${projectId}/tasks`} className="touch-target inline-flex items-center text-xs font-semibold text-primary-text hover:underline">
+        {t('projectDetail.myTasks.all', 'All tasks')}
+      </Link>}>
           {t('projectDetail.myTasks.title', 'My open tasks')}{' '}
           <Tooltip content={t('projectDetail.myTasks.countTooltip', 'Open tasks assigned to you on this project.')}>
             <span tabIndex={0} className="font-normal text-muted-foreground">{mine.length}</span>
@@ -58,15 +62,12 @@ export const MyOpenTasks: React.FC<{ projectId: string }> = ({ projectId }) => {
           {overdue > 0 && <Tooltip content={t('projectDetail.myTasks.overdueTooltip', 'Open tasks assigned to you with a due date before today.')}>
             <span tabIndex={0} className="ml-2 font-medium text-destructive-text">{t('projectDetail.myTasks.overdueCount', '{{count}} overdue', { count: overdue })}</span>
           </Tooltip>}
-        </h2>
-        <Link to={`/projects/${projectId}/tasks`} className="touch-target inline-flex items-center text-xs font-semibold text-primary-text hover:underline">
-          {t('projectDetail.myTasks.all', 'All tasks')}
-        </Link>
-      </div>
+      </CardHead>
+      <CardPad flush>
       {mine.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t('projectDetail.myTasks.empty', 'Nothing assigned to you here.')}</p>
+        <p className="p-[var(--panel-inset)] text-sm text-muted-foreground">{t('projectDetail.myTasks.empty', 'Nothing assigned to you here.')}</p>
       ) : (
-        <ul className="divide-y divide-border/70 border-y border-border/70">
+        <ul className="divide-y divide-border/70">
           {mine.slice(0, 6).map((task) => (
             <li key={task.id}>
               <Tooltip content={t('projectDetail.myTasks.dueTooltip', 'Task status and due date come from this task record; overdue days are calculated from today.')} block>
@@ -84,7 +85,8 @@ export const MyOpenTasks: React.FC<{ projectId: string }> = ({ projectId }) => {
           ))}
         </ul>
       )}
-    </section>
+      </CardPad>
+    </Card>
   );
 };
 

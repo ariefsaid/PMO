@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router';
-import { Card, CardHead } from '@/src/components/ui/Card';
+import { Card, CardHead, CardPad } from '@/src/components/ui/Card';
 import { Icon } from '@/src/components/ui/icons';
 
 export interface AreaPanelProps {
@@ -27,9 +27,9 @@ export const AreaPanel: React.FC<AreaPanelProps> = ({ title, openHref, openLabel
     >
       {title}
     </CardHead>
-    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 p-4">
+    <CardPad className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3">
       {meta != null && <p className="text-xs text-muted-foreground">{meta}</p>}
       {children}
-    </div>
+    </CardPad>
   </Card>
 );

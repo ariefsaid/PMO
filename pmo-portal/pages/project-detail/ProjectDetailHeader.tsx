@@ -694,7 +694,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         meta={meta}
         actions={primaryAction || menuContent || canEdit || canArchive || canDelete ? actions : undefined}
         variant="drawer"
-        className="mb-1 [&>div]:gap-2 [&_h1]:basis-auto [&>div>div:last-child]:w-auto"
+        className="mb-1 [&>div]:gap-2 [&_h1]:!text-page [&_h1]:!font-bold [&_h1]:basis-auto [&>div>div:last-child]:w-auto"
       />
 
       {/* UIP-006: one compact read strip, with the explicit edit/lock next to Contract.

@@ -21,10 +21,10 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-[var(--space-panel-gap)]">
       <ProcurementBlock projectId={projectId} />
       {showErp && (
-        <div className="border-t border-border pt-4">
+        <div>
           <ErpPurchasesSection
             projectId={projectId}
             className="mt-0"
