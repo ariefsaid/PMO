@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -14,8 +14,10 @@ import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
  */
 const h = vi.hoisted(() => ({
   invoices: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
-  orgDay: { day: '2026-10-18' as string | null, isPending: false },
+  orgDay: { day: '2026-10-18' as string | null, isPending: false, isError: false, retry: vi.fn() },
   mode: 'erp' as 'erp' | 'native',
+  projectsError: false,
+  retryProjects: vi.fn(async () => ({ data: [], error: null })),
   projects: [
     { value: 'project-1', label: 'North Harbor', sub: 'Contractual Harbor Retrofit · CLIENT-PO-1', contractualName: 'Contractual Harbor Retrofit', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: false, customerContractRef: 'CLIENT-PO-1' },
   ],
@@ -38,9 +40,9 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-finance', org_id: 'org-1' }, role: 'Finance' }) }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useClientCompanyOptions: () => ({ data: [{ value: 'cust-1', label: 'Northwind Services' }], isPending: false, isError: false, refetch: vi.fn() }),
-  useInvoiceProjectOptions: () => ({ data: h.projects, isPending: false, isError: false, refetch: vi.fn(async () => ({ data: h.projects, error: null })) }),
+  useInvoiceProjectOptions: () => ({ data: h.projects, isPending: false, isError: h.projectsError, refetch: h.retryProjects }),
 }));
-vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ ...h.orgDay, isError: false, retry: vi.fn() }) }));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => h.orgDay }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => h.mode }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [], isError: false }) }));
 vi.mock('@/src/hooks/useInvoicePdfDownload', () => ({ useInvoicePdfDownload: () => ({ download: vi.fn(), inFlightIds: new Set<string>() }) }));
@@ -93,7 +95,8 @@ const invoice = (id: string, overrides: Partial<SalesInvoiceRow> = {}): SalesInv
 
 const LocationProbe = () => {
   const location = useLocation();
-  return <output data-testid="location">{`${location.pathname}${location.search}`}</output>;
+  const navigate = useNavigate();
+  return <><output data-testid="location">{`${location.pathname}${location.search}`}</output><button onClick={() => navigate('/sales-invoices?q=INV-002')}>Change search URL</button></>;
 };
 
 function renderAt(url: string, role: 'Finance' | 'Project Manager' = 'Finance') {
@@ -122,7 +125,11 @@ beforeEach(() => {
   h.invoices.isError = false;
   h.orgDay.day = '2026-10-18';
   h.orgDay.isPending = false;
+  h.orgDay.isError = false;
+  h.orgDay.retry.mockClear();
   h.mode = 'erp';
+  h.projectsError = false;
+  h.retryProjects.mockClear();
 });
 
 describe('FIN-S1 / AC-RD-TBL-INV-001: invoice list default state', () => {
@@ -256,4 +263,50 @@ describe('FIN-S1: Pre-ERP history keeps its opening-balance fact in a tooltip, n
     expect(within(row).getByText('Pre-ERP').closest('[title]')).toHaveAttribute('title', expect.stringContaining('$500.00'));
     for (const el of within(row).queryAllByText(/Carried into/)) expect(el).toHaveClass('sr-only');
   });
+});
+
+it('offers supported invoice actions without an edit workflow', async () => {
+  renderAt('/sales-invoices');
+  await userEvent.click(screen.getAllByRole('button', { name: /row actions/i })[0]);
+  expect(screen.queryByRole('menuitem', { name: /^edit$/i })).not.toBeInTheDocument();
+});
+
+
+it('allows recovery and clearing an overdue filter when the business day fails', async () => {
+  h.orgDay.day = null;
+  h.orgDay.isError = true;
+  renderAt('/sales-invoices?overdue=true');
+  expect(screen.getByText(/business day unavailable/i)).toBeInTheDocument();
+  expect(screen.queryByText('No invoices match your filters')).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+  expect(h.orgDay.retry).toHaveBeenCalled();
+  await userEvent.click(screen.getByRole('button', { name: /overdue only/i }));
+  expect(screen.getByTestId('location')).not.toHaveTextContent('overdue=true');
+  expect(screen.getByRole('row', { name: /INV-001/ })).toBeInTheDocument();
+});
+
+
+it('keeps search in sync with navigation to another list URL', async () => {
+  h.invoices.data = [invoice('INV-001'), invoice('INV-002')];
+  renderAt('/sales-invoices?q=INV-001');
+  await userEvent.click(screen.getByRole('button', { name: 'Change search URL' }));
+  expect(screen.getByRole('searchbox', { name: /search sales invoices/i })).toHaveValue('INV-002');
+  expect(screen.getByRole('row', { name: /INV-002/ })).toBeInTheDocument();
+  expect(screen.queryByRole('row', { name: /INV-001/ })).not.toBeInTheDocument();
+});
+
+
+it('reports unavailable project search and offers a retry', async () => {
+  h.projectsError = true;
+  renderAt('/sales-invoices?q=Harbor');
+  expect(screen.getByText(/project.*search.*unavailable/i)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: /retry projects/i }));
+  expect(h.retryProjects).toHaveBeenCalled();
+});
+
+it('opens the received-date dialog from the invoice list', async () => {
+  renderAt('/sales-invoices');
+  await userEvent.click(screen.getByRole('button', { name: /row actions/i }));
+  await userEvent.click(screen.getByRole('menuitem', { name: /record received date/i }));
+  expect(screen.getByRole('dialog')).toBeInTheDocument();
 });

@@ -169,6 +169,13 @@
     "rowActions": "Tindakan faktur",
     "paymentActions": "Tindakan pembayaran",
     "figures": "Angka piutang",
+    "projectSearchLoading": "Memuat proyek untuk pencarian…",
+    "businessDayLoading": "Memuat hari kerja; hasil jatuh tempo belum dapat dihitung.",
+    "projectSearchUnavailable": "Pencarian proyek tidak tersedia.",
+    "retryProjects": "Coba lagi proyek",
+    "businessDayUnavailable": "Hari kerja tidak tersedia; hasil jatuh tempo tidak dapat dihitung.",
+    "retryBusinessDay": "Coba lagi hari kerja",
+    "overdueUnavailable": "Hasil jatuh tempo tidak tersedia",
     "evidenceLoadError": "Gagal memuat baris faktur dari sistem akuntansi.",
     "amount": "Jumlah",
     "outstandingUnknown": "Saldo terutang belum diketahui: sistem akuntansi belum melaporkannya untuk faktur ini."

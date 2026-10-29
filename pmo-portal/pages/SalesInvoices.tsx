@@ -1,3 +1,4 @@
+import { SalesInvoiceFormModal } from './sales-invoices/SalesInvoiceFormModal';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -11,10 +12,6 @@ import {
   EntityFormModal,
   type SubmitError,
   TextField,
-  NumberField,
-  Combobox,
-  FormGrid,
-  FormSection,
   Button,
   Icon,
   Drawer,
@@ -25,18 +22,17 @@ import {
   Badge,
   useToast,
   type Column,
-  type ComboboxOption,
   type RowMenuItem,
 } from '@/src/components/ui';
 import { EfakturModal } from '@/src/components/EfakturModal';
 import { EfakturCell } from '@/src/components/EfakturCell';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ExportButton, withCurrencyColumn } from '@/src/components/export';
-import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { usePermission } from '@/src/auth/usePermission';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAssignInvoiceProject, useSalesInvoices, useRevenueMutations, useSalesInvoiceEvidence, useIncomingPayments } from '@/src/hooks/useRevenue';
-import { useClientCompanyOptions, useInvoiceProjectOptions, type InvoiceProjectOption } from '@/src/hooks/useFkOptions';
+import { useClientCompanyOptions, useInvoiceProjectOptions } from '@/src/hooks/useFkOptions';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import type { ProfileRow } from '@/src/lib/db/profiles';
@@ -45,23 +41,18 @@ import { canAttributeInvoice } from '@/src/lib/invoiceProjectAssignment';
 import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
-import { currencySymbol, formatCurrency, formatCurrencyAuto, formatCurrencyCents, formatDateOnly, formatInstantDate, parseMoneyInputAtScale } from '@/src/lib/format';
+import { formatCurrency, formatCurrencyAuto, formatCurrencyCents, formatDateOnly, formatInstantDate } from '@/src/lib/format';
 import type { IncomingPaymentRow, SalesInvoiceRow, SalesInvoiceStatus } from '@/src/lib/db/revenue';
 import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
-import { type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import { useAuth } from '@/src/auth/useAuth';
-import { useEntityForm } from '@/src/components/ui/useEntityForm';
-import { useCommandIntent, useCommandIntentMap } from '@/src/hooks/useCommandIntent';
-import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
+import { useCommandIntentMap } from '@/src/hooks/useCommandIntent';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
-import { invoiceGross, invoiceNumber, isPartlyPaid, overpaidBy, paidToDate, previewInvoiceDraft } from '@/src/lib/revenue/nativeInvoice';
-import { decimalUnits } from '@/src/lib/taxNormalize';
+import { invoiceGross, invoiceNumber, isPartlyPaid, overpaidBy, paidToDate } from '@/src/lib/revenue/nativeInvoice';
 import { displayAllocations } from '@/src/lib/revenue/receiptAllocation';
-import { nativeRevenueDetails, nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
+import { nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
 import { useInvoicePdfDownload } from '@/src/hooks/useInvoicePdfDownload';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
-import type { CommandIntent } from '@/src/lib/repositories/types';
 import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceApprovalRow';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { BulkBar } from '@/src/components/finance/receivables/BulkBar';
@@ -94,89 +85,6 @@ function matchesStatus(inv: SalesInvoiceRow, filter: StatusFilter): boolean {
   if (filter === 'Unpaid' || filter === 'Submitted') return inv.status === filter && !isPartlyPaid(inv);
   return inv.status === filter;
 }
-
-/** Line item as submitted: numeric, ready for the create command. */
-interface LineItem {
-  item_code: string;
-  description?: string;
-  qty: number;
-  rate: number;
-}
-
-/**
- * Line item as edited. The rate is money, so it stays the user's locale-formatted DRAFT until
- * submit (#684) — converting on every keystroke would drop an unfinished decimal separator.
- */
-interface LineItemDraft {
-  item_code: string;
-  description?: string;
-  qty: string;
-  rate: string;
-}
-
-interface FormValues {
-  customerId: string;
-  projectId: string | null;
-  lineItems: LineItemDraft[];
-}
-
-const EMPTY_LINE: LineItemDraft = { item_code: '', qty: '1', rate: '0' };
-
-/**
- * #684 (AC-PLC-009): the ONE parse of a rate draft, used by `validate` and by the submit. Rates are
- * scale-2 money, so a value that would need rounding is refused rather than silently changed.
- */
-const parseRate = (raw: string): number | null => parseMoneyInputAtScale(raw, 2);
-const parseQuantity = (raw: string): number | null => parseMoneyInputAtScale(raw, 3);
-const isValidQuantity = (raw: string): boolean => {
-  const qty = parseQuantity(raw);
-  return qty !== null && Number.isFinite(qty) && qty > 0 && decimalUnits(qty, 3) !== null;
-};
-
-const validate = (
-  v: FormValues,
-  t: (key: string, fallback: string, options?: Record<string, unknown>) => string,
-  native = false,
-  project?: InvoiceProjectOption,
-  connected = false,
-): Partial<Record<keyof FormValues, string>> => {
-  const errors: Partial<Record<keyof FormValues, string>> = {};
-  if (!v.customerId.trim()) errors.customerId = t('financeCopy.customerRequired', 'Customer is required.');
-  // #784 (DD-NAR-7): the project decides a PMO invoice's VAT (OD-TAX-4), so a PMO invoice names one.
-  if (native && !v.projectId) errors.projectId = t('financeCopy.nativeProjectRequired', "Project is required: it decides the invoice's VAT.");
-  // I-2 (DD-TAX-4a): the server refuses a VAT project with no recorded rate — say so before the round trip.
-  else if (native && needsVatRate(project)) errors.projectId = t('financeCopy.vatRateMissing', 'This project has no VAT rate recorded');
-  if (v.lineItems.length === 0) {
-    errors.lineItems = t('financeCopy.invoiceLineRequired', 'At least one line item is required.');
-  } else {
-    for (let i = 0; i < v.lineItems.length; i++) {
-      const item = v.lineItems[i];
-      const rate = parseRate(item.rate);
-      const quantity = parseQuantity(item.qty);
-      let lineError: string | undefined;
-      // FR-NAR-002 (I-3): a PMO line needs an item code OR a description; an ERP line needs its item code.
-      if (native && !connected) {
-        if (!item.item_code.trim() && !item.description?.trim()) {
-          lineError = t('financeCopy.invoiceLineCodeOrDescription', 'Line {{line}}: Enter an item code or a description.', { line: i + 1 });
-        }
-      } else if (!item.item_code.trim()) lineError = t('financeCopy.invoiceLineItemCodeRequired', 'Line {{line}}: Item code is required.', { line: i + 1 });
-      if (quantity === null) {
-        lineError = t('uxs16.invoiceLineQuantityValid', 'Line {{line}}: Quantity must be positive with no more than 3 decimal places.', { line: i + 1 });
-      } else if (quantity <= 0) {
-        lineError = t('financeCopy.invoiceLineQuantityPositive', 'Line {{line}}: Quantity must be positive.', { line: i + 1 });
-      }
-      if (rate === null) {
-        lineError = t('financeCopy.invoiceLineRateValid', 'Line {{line}}: Enter a valid rate with no more than 2 decimal places.', { line: i + 1 });
-      } else if (rate < 0) lineError = t('financeCopy.invoiceLineRateNonNegative', 'Line {{line}}: Rate cannot be negative.', { line: i + 1 });
-      // The summary links to the first invalid line, so its message must identify that same line.
-      if (!errors.lineItems && lineError) errors.lineItems = lineError;
-    }
-  }
-  return errors;
-};
-
-/** DD-TAX-4a: a project subject to VAT with no recorded rate cannot be invoiced in PMO until its rate is recorded. */
-const needsVatRate = (project?: InvoiceProjectOption): boolean => Boolean(project?.subjectToVat && project.taxRate == null);
 
 const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ invoice }) => {
   const { t } = useTranslation();
@@ -212,14 +120,13 @@ const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
   }, [invoice.id, invoice.si_number, payments.data]);
 
   const hasReceipts = payments.isError || paymentEvidence.allocations.length > 0 || paymentEvidence.hasUnknown;
-  // C4: a PMO-native or unposted invoice has no accounting-system lines to read — genuine absence, not an outage.
-  if (!canFetchEvidence && !hasReceipts) return null;
+  const lines = invoice.pmo_native ? invoice.native_lines : canFetchEvidence ? evidence.data?.lines : null;
   return (
     <section aria-labelledby="invoice-evidence-heading" className="mb-5 border-b border-border pb-4">
       <h2 id="invoice-evidence-heading" className="mb-3 text-base font-semibold">{t('uxs17.billEvidence', 'Bill evidence')}</h2>
-      {!canFetchEvidence ? null : evidence.isPending && !pendingTimedOut ? (
+      {canFetchEvidence && evidence.isPending && !pendingTimedOut ? (
         <p className="text-sm text-muted-foreground">{t('uxs17.evidenceLoading', 'Loading invoice evidence…')}</p>
-      ) : evidence.isError || pendingTimedOut ? (
+      ) : canFetchEvidence && (evidence.isError || pendingTimedOut) ? (
         <div role="alert" className="flex flex-wrap items-center gap-3">
           <p className="text-sm text-muted-foreground">{t('finance:receivables.evidenceLoadError', "Couldn't load the invoice lines from the accounting system.")}</p>
           <Button variant="outline" size="sm" onClick={() => void evidence.refetch()}>{t('uxs17.evidenceRetry', 'Retry invoice evidence')}</Button>
@@ -227,12 +134,12 @@ const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
       ) : (
         <div className="grid gap-5 sm:grid-cols-[minmax(0,2fr)_minmax(12rem,1fr)]">
           <div>
-            {evidence.data?.lines != null && evidence.data.lines.length === 0 ? null : <h3 className="text-sm font-medium">{t('uxs17.invoiceLines', 'Invoice lines')}</h3>}
-            {evidence.data?.lines == null ? (
+            {lines != null && lines.length === 0 ? null : <h3 className="text-sm font-medium">{t('uxs17.invoiceLines', 'Invoice lines')}</h3>}
+            {lines == null ? (
               <p className="mt-1 text-sm text-muted-foreground">{t('uxs17.linesUnknown', 'Line details are not available.')}</p>
-            ) : evidence.data.lines.length === 0 ? null : (
+            ) : lines.length === 0 ? null : (
               <ul className="mt-2 divide-y divide-border/70">
-                {evidence.data.lines.map((line, index) => (
+                {lines.map((line, index) => (
                   <li key={`${line.item_code ?? 'line'}-${index}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2 text-sm">
                     <span className="min-w-0 flex-1 break-words">
                       <span className="block">{line.description ?? line.item_code ?? t('uxs17.lineDescriptionUnavailable', 'Description not available')}</span>
@@ -247,7 +154,7 @@ const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
               </ul>
             )}
           </div>
-          {evidence.data?.contact ? (
+          {canFetchEvidence && evidence.data?.contact ? (
             <div>
               <h3 className="text-sm font-medium">{t('uxs17.billingContact', 'Billing contact')}</h3>
               <address className="mt-1 space-y-1 text-sm not-italic">
@@ -373,7 +280,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   const { data: paymentRows = [] } = useIncomingPayments(undefined, embedded);
   const { data: profileRows = [] } = useAssignableProfiles();
   const profilesById = useMemo(() => new Map(profileRows.map((profile) => [profile.id, profile])), [profileRows]);
-  const { day: organizationToday } = useFxOrgDay(true);
+  const { day: organizationToday, isError: orgDayError, retry: retryOrgDay } = useFxOrgDay(true);
   const orgCurrency = useOrgCurrency();
   const { create, setReceivedDate, setEfaktur, submitInvoice, cancelInvoice, pendingPush } = useRevenueMutations();
   const pdfDownload = useInvoicePdfDownload();
@@ -387,6 +294,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   const projectOptionsQuery = useInvoiceProjectOptions();
   const projectOptions = projectOptionsQuery.data;
   const projectOptionsPending = projectOptionsQuery.isPending;
+  const projectOptionsById = useMemo(() => new Map((projectOptions ?? []).map((option) => [option.value, option])), [projectOptions]);
   const projectsQuery = useProjects({ enabled: embedded });
   const projectsById = useMemo(() => new Map((projectsQuery.data ?? []).map((project) => [project.id, project])), [projectsQuery.data]);
   const refetchProjectOptions = projectOptionsQuery.refetch;
@@ -400,7 +308,6 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
 
   const canView = may('view', 'salesInvoice');
   const canCreate = may('create', 'salesInvoice');
-  const canEdit = may('edit', 'salesInvoice');
   const canCancel = may('transition', 'salesInvoice');
   const canRecordReceipt = may('record_received_date', 'salesInvoice');
   const canRecordEfaktur = may('record_efaktur', 'salesInvoice');
@@ -457,6 +364,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   // Search and status live in the list URL so a record address can retain and restore the exact context.
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
+  const urlSearch = searchParams.get('q') ?? '';
+  useEffect(() => setSearch(urlSearch), [urlSearch]);
   const requestedCustomerId = searchParams.get('customer');
   const selectedCustomer = requestedCustomerId
     ? customerOptionsQuery.data?.find((option) => option.value === requestedCustomerId) ?? null
@@ -485,7 +394,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     onSelectionChange?.(next);
   };
 
-  const selectedProject = projectOptions?.find((option) => option.value === searchParams.get('project')) ?? null;
+  const selectedProject = projectOptionsById.get(searchParams.get('project') ?? '') ?? null;
   const requestedGroup = searchParams.get('group');
   const groupMode: InvoiceGroupMode = requestedGroup === 'client' || requestedGroup === 'project' ? requestedGroup : 'none';
 
@@ -511,7 +420,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
 
   const invoiceDisplayLabel = (inv: SalesInvoiceRow) => {
     if (inv.si_number) return inv.si_number;
-    const project = projectOptions?.find((option) => option.value === inv.project_id)?.contractualName;
+    const project = projectOptionsById.get(inv.project_id ?? '')?.contractualName;
     const context = project || inv.customer_name || t('financeCopy.unnamedInvoice', 'invoice');
     return t('financeCopy.draftInvoiceForProject', 'Draft invoice · {{project}}', { project: context });
   };
@@ -524,7 +433,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
         </p>
       );
     }
-    const project = projectOptions?.find((option) => option.value === inv.project_id)?.contractualName;
+    const project = projectOptionsById.get(inv.project_id ?? '')?.contractualName;
     const projectContext = project
       ?? (inv.project_id
         ? projectOptionsPending
@@ -544,7 +453,6 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   };
 
   const [formTarget, setFormTarget] = useState<{
-    invoice: SalesInvoiceRow | null;
     initialContext?: { projectId: string; customerId: string };
   } | null>(null);
   const [contextError, setContextError] = useState<'options' | 'invalid' | null>(null);
@@ -565,7 +473,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     // `?create=1` without a project is the existing global create, with no inferred FK values.
     if (!contextualProjectId) {
       setContextError(null);
-      setFormTarget({ invoice: null });
+      setFormTarget({});
       consumeCreateIntent();
       return;
     }
@@ -577,7 +485,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       return;
     }
 
-    const project = projectOptions?.find((option) => option.value === contextualProjectId);
+    const project = projectOptionsById.get(contextualProjectId);
     const customerId = project?.clientId;
     const customerIsAuthorized = Boolean(customerId && customerOptionsQuery.data?.some((option) => option.value === customerId));
     if (!project || project.archived || !customerId || !customerIsAuthorized) {
@@ -587,7 +495,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     }
 
     setContextError(null);
-    setFormTarget({ invoice: null, initialContext: { projectId: project.value, customerId } });
+    setFormTarget({ initialContext: { projectId: project.value, customerId } });
     consumeCreateIntent();
   }, [
     canCreate,
@@ -599,7 +507,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     formTarget,
     invoiceId,
     mode,
-    projectOptions,
+    projectOptionsById,
     projectOptionsQuery.isError,
     projectOptionsQuery.isPending,
     setSearchParams,
@@ -607,7 +515,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
 
   const openNewInvoice = () => {
     setContextError(null);
-    setFormTarget({ invoice: null });
+    setFormTarget({});
   };
   const [cancelTarget, setCancelTarget] = useState<SalesInvoiceRow | null>(null);
   const [submitTarget, setSubmitTarget] = useState<SalesInvoiceRow | null>(null);
@@ -643,7 +551,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
         if (todo === 'send') return inv.status !== 'Draft' && inv.status !== 'Cancelled' && inv.status !== 'Paid' && !inv.received_date;
         return true;
       })
-      .filter((inv) => searchParams.get('overdue') !== 'true' || (
+      .filter((inv) => searchParams.get('overdue') !== 'true' || !organizationToday || (
         (inv.status === 'Submitted' || inv.status === 'Unpaid')
         && overdueAgeDays(deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date), organizationToday) !== null
         && overdueAgeDays(deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date), organizationToday)! > 0
@@ -655,8 +563,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
         || inv.customer_name?.toLowerCase().includes(q)
         // FIN-S1: the project filter control is gone; the project is reachable through search.
         // AC-002 #1325: either the short label or the contractual title finds the invoice.
-        || [projectOptions?.find((option) => option.value === inv.project_id)].some((o) => o && (o.label.toLowerCase().includes(q) || o.contractualName?.toLowerCase().includes(q))));
-  }, [all, canApproveDraft, currentUser?.id, organizationToday, projectOptions, search, searchParams, statusFilter]);
+        || [projectOptionsById.get(inv.project_id ?? '')].some((o) => o && (o.label.toLowerCase().includes(q) || o.contractualName?.toLowerCase().includes(q))));
+  }, [all, canApproveDraft, currentUser?.id, organizationToday, projectOptionsById, search, searchParams, statusFilter]);
 
   // FIN-S1: "Overdue only" is also the oldest-overdue-first view, so it needs no separate sort control.
   const sortedInvoices = useMemo(() => {
@@ -857,7 +765,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
 
   // FIN-S1 / T4 (AC-RD-TBL-INV-001): one primary cell (number over customer), then at most six more
   // columns. Dates other than Due, and the separate Customer, are export-only below.
-  const projectLabelOf = (inv: SalesInvoiceRow) => projectOptions?.find((option) => option.value === inv.project_id)?.contractualName;
+  const projectLabelOf = (inv: SalesInvoiceRow) => projectOptionsById.get(inv.project_id ?? '')?.contractualName;
   const showEfaktur = all.some((inv) => inv.efaktur_number || inv.efaktur_date);
   // Lists show whole units (G1); exact cents stay on the record page.
   const listMoney = embedded ? formatCurrency : formatCurrencyAuto;
@@ -1128,7 +1036,6 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
         onClick: () => setProjectTarget(inv),
       });
     }
-    if (canEdit) items.push({ label: t('financeCopy.edit', "Edit"), onClick: () => setFormTarget({ invoice: inv }) });
     // #767 AC-DUE-001: receipt is learned after submission, so this is offered in any non-cancelled
     // state to the revenue write set (the RPC enforces it; `can()` is UX only).
     // M-7: not on a Draft — the client cannot have received an invoice that has not been issued.
@@ -1292,7 +1199,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
                 type="button"
                 variant={searchParams.get('overdue') === 'true' ? 'outline' : 'ghost'}
                 aria-pressed={searchParams.get('overdue') === 'true'}
-                disabled={!organizationToday}
+                disabled={!organizationToday && searchParams.get('overdue') !== 'true'}
                 onClick={() => updateListParam('overdue', searchParams.get('overdue') === 'true' ? '' : 'true')}
               >{t('uxs05.overdueOnly', 'Overdue only')}</Button>
               {embedded && <div className="flex flex-wrap items-center gap-2">
@@ -1330,7 +1237,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
         )
       }
       exportAction={
-        state !== 'loading' && (
+        state !== 'loading' && !(searchParams.get('overdue') === 'true' && !organizationToday) && (
           embedded && effectiveSelectedKeys.size > 0
             ? <BulkBar count={effectiveSelectedKeys.size} onClear={() => handleSelectionChange(new Set())}>
               <ExportButton
@@ -1363,6 +1270,10 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
           )}
         </div>
       )}
+      {search.trim() && projectOptionsQuery.isPending && <p role="status" className="text-sm text-muted-foreground">{t('finance:receivables.projectSearchLoading', 'Loading projects for search…')}</p>}
+      {searchParams.get('overdue') === 'true' && !organizationToday && !orgDayError && <p role="status" className="text-sm text-muted-foreground">{t('finance:receivables.businessDayLoading', 'Loading the business day; overdue results cannot be calculated yet.')}</p>}
+      {projectOptionsQuery.isError && <div role="alert" className="flex items-center gap-3 text-sm">{t('finance:receivables.projectSearchUnavailable', 'Project search is unavailable.')} <Button variant="outline" size="sm" onClick={() => void refetchProjectOptions()}>{t('finance:receivables.retryProjects', 'Retry projects')}</Button></div>}
+      {orgDayError && <div role="alert" className="flex items-center gap-3 text-sm">{t('finance:receivables.businessDayUnavailable', 'Business day unavailable; overdue results cannot be calculated.')} <Button variant="outline" size="sm" onClick={retryOrgDay}>{t('finance:receivables.retryBusinessDay', 'Retry business day')}</Button></div>}
       {searchParams.get('attribution') === 'unassigned' && (
         <div className="mb-3 flex items-center gap-2">
           <span className="rounded-full border border-border bg-secondary px-3 py-1 text-sm">
@@ -1441,15 +1352,14 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
           groupBy={groupRowsBy}
           groupHeader={embedded && groupRowsBy ? groupBalance : undefined}
           state={sortedInvoices.length === 0 ? 'empty' : undefined}
-          emptyTitle={t('financeCopy.noInvoicesMatchYourFilters', "No invoices match your filters")}
+          emptyTitle={searchParams.get('overdue') === 'true' && !organizationToday ? t('finance:receivables.overdueUnavailable', 'Overdue results are unavailable') : t('financeCopy.noInvoicesMatchYourFilters', "No invoices match your filters")}
           emptySub={t('financeCopy.tryADifferentStatusOrClearTheSearch', "Try a different status or clear the search.")}
         tableId="salesinvoices-table" />
       )}
 
-      {/* Create / edit modal */}
+      {/* Create modal */}
       {formTarget && (
         <SalesInvoiceFormModal
-          invoice={formTarget.invoice}
           initialContext={formTarget.initialContext}
           pendingPush={pendingPush}
           native={native}
@@ -1464,11 +1374,6 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
             toast(t('financeCopy.invoiceCreated', 'Invoice created'), undefined, 'success');
             setFormTarget(null);
           }}
-          onUpdate={async (_id, _input) => {
-            // In a full implementation, we'd have an update mutation
-            // For now, just close the modal
-            setFormTarget(null);
-          }}
         />
       )}
 
@@ -1477,7 +1382,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
           invoice={projectTarget}
           projects={projectOptions ?? []}
           loadProjects={loadProjectOptions}
-          currentProjectName={projectOptions?.find((option) => option.value === projectTarget.project_id)?.label ?? null}
+          currentProjectName={projectOptionsById.get(projectTarget.project_id ?? '')?.label ?? null}
           loading={assignProject.isPending}
           onClose={() => setProjectTarget(null)}
           onSave={async (projectId) => {
@@ -1635,403 +1540,6 @@ const ReceivedDateModal: React.FC<{
         error={tooEarly ? t('financeCopy.receivedBeforeInvoiceDate', 'Cannot be before the invoice date') : undefined}
         className="w-48"
       />
-    </EntityFormModal>
-  );
-};
-
-// ── Create / edit form modal ────────────────────────────────────────────────
-
-interface SalesInvoiceFormModalProps {
-  invoice: SalesInvoiceRow | null;
-  initialContext?: { projectId: string; customerId: string };
-  onClose: () => void;
-  /** `intent` is the modal's OWN command identity — stable for this form session (BLOCK 2). */
-  onCreate: (
-    input: { customerId: string; projectId: string | null; lineItems: LineItem[] },
-    intent: CommandIntent,
-  ) => Promise<void>;
-  onUpdate: (id: string, input: { customerId: string; projectId: string | null; lineItems: LineItem[] }) => Promise<void>;
-  pendingPush: PendingPushState;
-  /** #784: true while PMO owns revenue — the project is required and lines carry a description. */
-  native: boolean;
-}
-
-const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
-  invoice,
-  initialContext,
-  onClose,
-  onCreate,
-  onUpdate,
-  pendingPush,
-  native,
-}) => {
-  const { t } = useTranslation();
-  const isEdit = !!invoice;
-  // The hook is called unconditionally. Unscoped creation keeps the org default; native project
-  // entry follows the selected authorized project's source currency, and unknown stays explicit.
-  const orgCurrency = useOrgCurrency();
-  const erpItems = useErpItemOptions('sales');
-  // BLOCK 2 (ADR-0058): ONE command identity per form session. This modal is mounted only while the
-  // form is open (`{formTarget && …}`), so its mount IS the session: every retry of a failed submit
-  // reuses this identity (the ERP doc a lost response already committed gets reconciled, not
-  // duplicated), and a success closes the modal → the next "New Invoice" mints a fresh one.
-  const intent = useCommandIntent();
-  // FK options come from the cached hooks ("hooks own data fetching"); the Combobox loader just
-  // hands back the already-fetched list (no re-fetch on popover open).
-  const { data: customerOptions } = useClientCompanyOptions();
-  const { data: projectOptions } = useInvoiceProjectOptions();
-  const projectById = useCallback((id: string | null) => projectOptions?.find((p) => p.value === id), [projectOptions]);
-  const form = useEntityForm<FormValues>({
-    initialValues: {
-      customerId: invoice ? '' : initialContext?.customerId ?? '',
-      projectId: invoice ? null : initialContext?.projectId ?? null,
-      lineItems: [EMPTY_LINE],
-    },
-    validate: (values) => validate(values, t, native, projectById(values.projectId), erpItems.connected),
-    idPrefix: 'sales-invoice-form',
-    requiredFields: native ? ['customerId', 'projectId', 'lineItems'] : ['customerId', 'lineItems'],
-    module: 'salesInvoices',
-  });
-
-  const customerField = form.fieldProps('customerId');
-  const projectField = form.fieldProps('projectId');
-  const selectedProject = projectField.value ? projectById(projectField.value) : undefined;
-  const selectedProjectCurrency = selectedProject?.currency?.trim() || undefined;
-  const taxBaseNumerator = selectedProject?.taxBaseNumerator;
-  const taxBaseDenominator = selectedProject?.taxBaseDenominator;
-  const hasKnownTaxBaseFraction =
-    typeof taxBaseNumerator === 'number' && Number.isInteger(taxBaseNumerator) && taxBaseNumerator > 0 &&
-    typeof taxBaseDenominator === 'number' && Number.isInteger(taxBaseDenominator) &&
-    taxBaseDenominator >= taxBaseNumerator && taxBaseDenominator <= 2_147_483_647;
-  const moneyCurrency = invoice?.currency ?? (native && projectField.value ? selectedProjectCurrency : orgCurrency);
-  const moneyPrefix = moneyCurrency ? currencySymbol(moneyCurrency) : undefined;
-  const projectCurrencyUnavailable = native && Boolean(projectField.value) && !selectedProjectCurrency;
-  // I-2: the project's page is where its contract value and VAT rate are recorded.
-  const vatRateLink = (projectId: string | null) => projectId ? (
-    <Link to={`/projects/${projectId}`} className="font-medium text-primary-text underline underline-offset-2">
-      {t('financeCopy.recordVatRateOnProject', 'Record the VAT rate on the project')}
-    </Link>
-  ) : null;
-  const vatMissing = native && needsVatRate(projectById(projectField.value));
-  const draftTaxFacts = native && selectedProject
-    ? selectedProject.subjectToVat
-      ? selectedProject.taxRate != null && Number.isFinite(selectedProject.taxRate) && selectedProject.taxRate > 0 && hasKnownTaxBaseFraction
-        ? {
-            treatment: 'exclusive' as const,
-            rate: selectedProject.taxRate,
-            fraction: { numerator: taxBaseNumerator!, denominator: taxBaseDenominator! },
-          }
-        : null
-      : { treatment: 'exclusive' as const, rate: 0, fraction: { numerator: 1, denominator: 1 } }
-    : null;
-  const draftReviewCurrencyCandidate = native
-    ? invoice?.currency ?? selectedProjectCurrency
-    : invoice?.currency ?? orgCurrency;
-  const draftReviewCurrency = typeof draftReviewCurrencyCandidate === 'string' && /^[A-Z]{3}$/.test(draftReviewCurrencyCandidate)
-    ? draftReviewCurrencyCandidate
-    : null;
-
-  const errorSummary = form.errors.customerId || form.errors.projectId || form.errors.lineItems
-    ? [
-        ...(form.errors.customerId ? [{ fieldId: customerField.id, message: form.errors.customerId }] : []),
-        ...(form.errors.projectId ? [{ fieldId: projectField.id, message: form.errors.projectId }] : []),
-        ...(form.errors.lineItems ? [{ fieldId: (() => {
-          const requiresItemCode = !native || erpItems.connected;
-          const first = form.values.lineItems.findIndex((item) => (requiresItemCode ? !item.item_code.trim() : !item.item_code.trim() && !item.description?.trim()) || !isValidQuantity(item.qty) || parseRate(item.rate) === null || parseRate(item.rate)! < 0);
-          const index = Math.max(first, 0);
-          const item = form.values.lineItems[index];
-          return item && (parseRate(item.rate) === null || parseRate(item.rate)! < 0)
-            ? `sales-invoice-line-${index}-rate`
-            : item && !isValidQuantity(item.qty)
-              ? `sales-invoice-line-${index}-qty`
-              : native && !erpItems.connected && !item?.item_code.trim() && !item?.description?.trim()
-                ? `sales-invoice-line-${index}-description`
-                : `sales-invoice-line-${index}-item`;
-        })(), message: form.errors.lineItems }] : []),
-      ]
-    : undefined;
-
-  // #559 / AC-ERR-001: a rejected save must leave PERSISTENT evidence in the dialog. The toast
-  // auto-dismisses after 4s, ~700px from where the user is looking, after which the modal is
-  // indistinguishable from a pristine form with data in it — so the save looks like it worked.
-  const [saveError, setSaveError] = useState<SubmitError | null>(null);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    void form.handleSubmit(async (values) => {
-      const lineItems: LineItem[] = [];
-      for (const item of values.lineItems) {
-        const qty = parseQuantity(item.qty);
-        const rate = parseRate(item.rate);
-        // Unreachable after `validate`, which applies the same parse.
-        if (qty === null || !isValidQuantity(item.qty) || rate === null) return;
-        lineItems.push({ item_code: item.item_code, qty, rate, ...(item.description?.trim() ? { description: item.description.trim() } : {}) });
-      }
-      const input = { customerId: values.customerId, projectId: values.projectId, lineItems };
-      try {
-        if (isEdit && invoice) await onUpdate(invoice.id, input);
-        else await onCreate(input, intent);
-      } catch (err) {
-        // I-2: a rejected save is shown ONCE — here, persistently, in the dialog (#559) — not also as a toast. This
-        // is therefore the one `save_failed` capture point for the form (ADR-0067).
-        const { headline, detail } = classifyMutationError(err, nativeRevenueHeadlines(t), { module: 'sales', detailOverrides: nativeRevenueDetails(t) });
-        const code = (err as { code?: unknown } | null)?.code;
-        setSaveError({ headline, detail, ...(code === 'vat-rate-missing' ? { action: vatRateLink(values.projectId) } : {}) });
-      }
-    });
-  };
-
-  const loadCustomers = useCallback(async (): Promise<ComboboxOption[]> => customerOptions ?? [], [customerOptions]);
-  // M-1: a live project of the chosen customer — the loader changes with the customer, so the picker re-loads.
-  const selectedCustomerId = customerField.value;
-  const loadProjects = useCallback(
-    async (): Promise<ComboboxOption[]> => (projectOptions ?? [])
-      .filter((p) => !p.archived && (!selectedCustomerId || p.clientId === selectedCustomerId)),
-    [projectOptions, selectedCustomerId],
-  );
-
-  // Line items live IN the form (BLOCK 1b): a detached useState meant the VALIDATED values and the
-  // SUBMITTED values were different objects — the user's typed lines were dropped and an invoice
-  // worth $0 would have posted for someone who typed $25,000.
-  const lineItems = form.values.lineItems;
-  const addLineItem = () => form.setValue('lineItems', [...lineItems, EMPTY_LINE]);
-  const removeLineItem = (index: number) =>
-    form.setValue('lineItems', lineItems.filter((_, i) => i !== index));
-  const updateLineItem = (index: number, field: keyof LineItemDraft, value: string | number) =>
-    form.setValue('lineItems', lineItems.map((item, i) => (i === index ? { ...item, [field]: value } : item)));
-  const draftPreview = previewInvoiceDraft(
-    lineItems.map((item) => {
-      const parsedRate = parseRate(item.rate);
-      const parsedQty = parseQuantity(item.qty);
-      const requiresItemCode = !native || erpItems.connected;
-      const hasLineIdentity = requiresItemCode
-        ? Boolean(item.item_code.trim())
-        : Boolean(item.item_code.trim() || item.description?.trim());
-      return { qty: parsedQty ?? Number.NaN, rate: parsedRate !== null && hasLineIdentity ? parsedRate : Number.NaN };
-    }),
-    native ? draftTaxFacts : null,
-  );
-
-  return (
-    <EntityFormModal
-      open
-      title={isEdit ? t('financeCopy.editInvoiceTitle', 'Edit invoice') : t('financeCopy.newInvoiceTitle', 'New invoice')}
-      subtitle={native
-        ? t('financeCopy.nativeNewInvoiceSubtitle', 'Raises a draft. A different Finance or Admin user approves it.')
-        : isEdit
-          ? t('financeCopy.editInvoiceSubtitle', 'Update this sales invoice')
-          : t('financeCopy.newInvoiceSubtitle', 'Create a new sales invoice for a client')}
-      submitLabel={isEdit ? t('financeCopy.saveInvoice', 'Save invoice') : t('financeCopy.createInvoice', 'Create invoice')}
-      cancelLabel={t('financeCopy.cancel', 'Cancel')}
-      onSubmit={handleSubmit}
-      submitError={saveError}
-      onClose={onClose}
-      loading={form.isSubmitting}
-      dirty={form.isDirty}
-      submitDisabled={!form.isComplete}
-      errorSummary={errorSummary}
-    >
-      {!native && pendingPush.status !== 'idle' && (
-        <div className="mb-3.5 flex justify-end">
-          <span className="text-xs text-muted-foreground">{t('financeCopy.pushingToERPNext', "Pushing to ERPNext…")}</span>
-        </div>
-      )}
-      <FormSection legend={t('financeCopy.invoiceDetails', 'Invoice details')}>
-        <FormGrid>
-          <Combobox
-            id={customerField.id}
-            label={t('financeCopy.customer', "Customer")}
-            required
-            value={customerField.value}
-            selectedOption={customerOptions?.find((option) => option.value === customerField.value) ?? null}
-            onChange={(value, _option) => {
-              // M-1: a project of another customer cannot stay picked once the customer changes.
-              const project = projectById(projectField.value);
-              if (project && value && project.clientId !== value) form.setValues({ customerId: value, projectId: null });
-              else customerField.onChange(value);
-            }}
-            error={customerField.error}
-            placeholder={t('financeCopy.selectOrSearchCustomer', "Select or search customer…")}
-            loadOptions={loadCustomers}
-            noun="customer"
-          />
-          <Combobox
-            id={projectField.id}
-            label={t('financeCopy.project', "Project")}
-            required={native}
-            value={projectField.value ?? ''}
-            selectedOption={projectOptions?.find((option) => option.value === projectField.value) ?? null}
-            onChange={(value, _option) => projectField.onChange(value ?? '')}
-            // I-2: shown the moment a VAT project with no rate is picked, with the way to fix it.
-            error={vatMissing ? (
-              <>
-                {t('financeCopy.vatRateMissingInline', 'This project has no VAT rate recorded, so it cannot be invoiced yet.')}{' '}
-                {vatRateLink(projectField.value)}
-              </>
-            ) : projectField.error}
-            placeholder={native ? t('financeCopy.nativeSelectProject', 'Select project…') : t('financeCopy.selectProjectOptional', "Select project (optional)…")}
-            loadOptions={loadProjects}
-            noun="project"
-          />
-        </FormGrid>
-      </FormSection>
-
-      <FormSection legend={t('financeCopy.lineItemsSection', 'Line items')}>
-        {lineItems.map((item, index) => (
-          <div key={index} className="flex flex-col sm:flex-row gap-2 mb-2">
-            <div className="min-w-0 flex-1 space-y-2">
-              {native && (
-                <TextField
-                  id={`sales-invoice-line-${index}-description`}
-                  label={t('financeCopy.description', 'Description')}
-                  value={item.description ?? ''}
-                  onChange={(value) => updateLineItem(index, 'description', value)}
-                  maxLength={140}
-                  placeholder={t('financeCopy.describeWorkOrGoods', 'Describe the work or goods…')}
-                />
-              )}
-              {erpItems.connected ? (
-                <Combobox
-                  id={`sales-invoice-line-${index}-item`}
-                  label={t('financeCopy.erpItem', 'ERP item')}
-                  value={item.item_code || null}
-                  selectedOption={item.item_code ? { value: item.item_code, label: item.item_code } : null}
-                  onChange={(code) => updateLineItem(index, 'item_code', code)}
-                  loadOptions={erpItems.loadOptions}
-                  required
-                  noun={t('financeCopy.erpItem', 'ERP item')}
-                  placeholder={t('financeCopy.selectOrSearchItem', 'Select or search item…')}
-                  searchPlaceholder={t('financeCopy.searchItemCodeOrName', 'Search item code or name…')}
-                />
-              ) : (
-                <TextField
-                  id={`sales-invoice-line-${index}-item`}
-                  label={t('financeCopy.itemCode', "Item code")}
-                  value={item.item_code}
-                  onChange={(v) => updateLineItem(index, 'item_code', v)}
-                  // FR-NAR-002 (I-3): a PMO line needs an item code OR a description.
-                  required={!native}
-                  maxLength={native ? 140 : undefined}
-                  placeholder={t('financeCopy.iTEM001', "ITEM-001")}
-                  className="flex-1"
-                />
-              )}
-              {!native && erpItems.connected && (
-                <TextField
-                  id={`sales-invoice-line-${index}-description`}
-                  label={t('financeCopy.description', 'Description')}
-                  value={item.description ?? ''}
-                  onChange={(value) => updateLineItem(index, 'description', value)}
-                  maxLength={native ? 140 : undefined}
-                  placeholder={t('financeCopy.describeWorkOrGoods', 'Describe the work or goods…')}
-                />
-              )}
-            </div>
-            <NumberField
-              id={`sales-invoice-line-${index}-qty`}
-              label={t('financeCopy.qty', "Qty")}
-              value={item.qty}
-              onChange={(v) => updateLineItem(index, 'qty', v)}
-              required
-              min={0}
-              step={0.001}
-              localeAware
-              className="w-full sm:w-24"
-            />
-            <NumberField
-              id={`sales-invoice-line-${index}-rate`}
-              label={t('financeCopy.rate', "Rate")}
-              value={item.rate}
-              onChange={(v) => updateLineItem(index, 'rate', v)}
-              localeAware
-              required
-              min={0}
-              step={0.01}
-              prefix={moneyPrefix}
-              helper={projectCurrencyUnavailable ? t('uxs15.currencyUnavailable', 'Project currency unavailable.') : undefined}
-              className="w-full sm:w-32"
-            />
-            {lineItems.length > 1 && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="self-end mt-5"
-                onClick={() => removeLineItem(index)}
-                aria-label={t('financeCopy.removeLine', 'Remove line {{line}}', { line: index + 1 })}
-              >
-                <Icon name="trash" className="size-4" />
-              </Button>
-            )}
-          </div>
-        ))}
-        <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-          <Icon name="plus" className="size-4 mr-1.5" />
-          {t('financeCopy.addLineItem', "Add line item")}</Button>
-      </FormSection>
-
-      {(draftReviewCurrency || !native || selectedProject) && (
-      <section
-        className="mt-4 border-t border-border pt-4"
-        aria-label={t('uxs16.invoiceDraftReview', 'Invoice draft review')}
-      >
-        <h3 className="text-sm font-semibold">
-          {t('uxs16.invoiceDraftReview', 'Invoice draft review')}
-          {draftReviewCurrency && (
-            <span className="ml-2 text-xs font-normal text-muted-foreground">{draftReviewCurrency}</span>
-          )}
-        </h3>
-        {!draftReviewCurrency ? (
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t('uxs16.currencyUnavailable', 'Currency is unavailable, so draft totals cannot be displayed.')}
-          </p>
-        ) : (
-          <>
-            <dl className="mt-3 grid gap-2.5 text-sm">
-              <div className="flex min-w-0 items-baseline justify-between gap-4">
-                <dt className="text-muted-foreground">{t('uxs16.subtotal', 'Subtotal')}</dt>
-                <dd className="shrink-0 text-right tabular-nums">
-                  {draftPreview.subtotal === null ? '—' : formatCurrencyCents(draftPreview.subtotal, draftReviewCurrency)}
-                </dd>
-              </div>
-              {native && (
-              <>
-              <div className="flex min-w-0 items-baseline justify-between gap-4">
-                <dt className="min-w-0 text-muted-foreground">
-                  <span>{t('uxs16.tax', 'Tax')}</span>
-                </dt>
-                <dd className="shrink-0 text-right tabular-nums">
-                  {draftPreview.tax === null ? '—' : formatCurrencyCents(draftPreview.tax, draftReviewCurrency)}
-                </dd>
-              </div>
-              <div className="flex min-w-0 items-baseline justify-between gap-4 border-t border-border pt-2 font-semibold">
-                <dt>{t('uxs16.total', 'Total')}</dt>
-                <dd className="shrink-0 text-right tabular-nums">
-                  {draftPreview.total === null ? '—' : formatCurrencyCents(draftPreview.total, draftReviewCurrency)}
-                </dd>
-              </div>
-              </>
-              )}
-            </dl>
-            {draftPreview.reason === 'invalid-lines' && (
-              <p className="mt-3 text-sm text-muted-foreground">
-                {t('uxs16.completeLinesForReview', 'Enter valid line details, quantities, and rates to review totals.')}
-              </p>
-            )}
-            {native && draftPreview.reason === 'tax-unavailable' && (
-              <p className="mt-3 text-sm text-muted-foreground">
-                {t('uxs16.projectTaxUnavailable', 'Project tax details are unavailable, so tax and final total cannot be previewed yet.')}{' '}
-                {selectedProject && (
-                  <Link to={`/projects/${selectedProject.value}`} className="font-medium text-primary-text underline underline-offset-2">
-                    {t('uxs16.reviewProjectTax', 'Review project tax settings')}
-                  </Link>
-                )}
-              </p>
-            )}
-          </>
-        )}
-      </section>
-      )}
     </EntityFormModal>
   );
 };
