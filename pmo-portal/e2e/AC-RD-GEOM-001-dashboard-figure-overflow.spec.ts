@@ -22,7 +22,7 @@
  * Bahasa without a write: `I18nProvider` resolves the language only from the signed-in profile,
  * so the profile read is rewritten to `locale: 'id'` (same technique as UXS-006).
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { signIn, waitForFonts } from './helpers';
 import { installIdrDashboardFixture } from './dashboard-idr.fixtures';
 
@@ -118,8 +118,10 @@ async function figureViolations(page: Page): Promise<Violation[]> {
   }, FIGURE_TEXT.source);
 }
 
-async function expectFiguresContained(page: Page, label: string) {
-  await page.waitForLoadState('networkidle');
+async function expectFiguresContained(page: Page, label: string, ready?: Locator) {
+  if (ready) {
+    await expect(ready.first()).toBeVisible();
+  }
   await waitForFonts(page);
   const violations = await figureViolations(page);
   expect(violations, `${label}: every figure fits its own box and its card`).toEqual([]);
@@ -139,7 +141,7 @@ test.describe('AC-RD-GEOM-001: dashboard figures stay inside their boxes', () =>
         await signIn(page, route.user);
         await page.goto(route.path);
         await expect(route.ready(page).first()).toBeVisible();
-        await expectFiguresContained(page, `${route.name} ${width}px en`);
+        await expectFiguresContained(page, `${route.name} ${width}px en`, route.ready(page));
       });
     }
     for (const width of route.bahasaWidths) {
@@ -150,7 +152,7 @@ test.describe('AC-RD-GEOM-001: dashboard figures stay inside their boxes', () =>
         await signIn(page, route.user);
         await page.goto(route.path);
         await expect(route.ready(page).first()).toBeVisible();
-        await expectFiguresContained(page, `${route.name} ${width}px id`);
+        await expectFiguresContained(page, `${route.name} ${width}px id`, route.ready(page));
       });
     }
   }
