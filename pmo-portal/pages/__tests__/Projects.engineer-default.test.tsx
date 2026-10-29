@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -23,8 +23,8 @@ const { projectsState, myTasksState, milestoneState, clientsState } = vi.hoisted
     isError: false,
     refetch: vi.fn(),
   },
-  milestoneState: { data: undefined as undefined | [], isPending: false, isError: false, refetch: vi.fn() },
-  clientsState: { data: [], isPending: false, isError: false, refetch: vi.fn() },
+  milestoneState: { data: undefined as undefined | Array<{ id: string; projectId: string; name: string; targetDate: string }>, isPending: false, isError: false, refetch: vi.fn() },
+  clientsState: { data: [] as Array<{ id: string; name: string }>, isPending: false, isError: false, refetch: vi.fn() },
   // B-11 fix: the Engineer's "My Projects" derives from their assigned tasks.
   myTasksState: { data: [] as Array<Record<string, unknown>>, isPending: false, isError: false, refetch: vi.fn() },
 }));
@@ -122,8 +122,11 @@ beforeEach(() => {
     },
   ];
   // The Engineer (u-eng) is assigned a task on p1 only — so "My Projects" must show p1, hide p2.
+  milestoneState.data = undefined;
+  milestoneState.refetch.mockClear();
   milestoneState.isPending = false;
   milestoneState.isError = false;
+  clientsState.data = [];
   clientsState.isError = false;
   clientsState.refetch.mockClear();
   myTasksState.isPending = false;
@@ -148,6 +151,21 @@ describe('Projects page — Engineer default filter (B-11, AC-W2-IXD-009)', () =
     fireEvent.click(screen.getByRole('tab', { name: /^all$/i }));
     expect(screen.getByText('Northwind ERP')).toBeInTheDocument();
     expect(screen.getByText('Acme Internal')).toBeInTheDocument();
+  });
+
+  it('blocks both exports for failed cached assignments and restores fresh ownership on recovery', () => {
+    myTasksState.isError = true;
+    const { rerender } = renderAsEngineer();
+    fireEvent.click(screen.getByRole('button', { name: /more/i }));
+    const exports = screen.getAllByRole('button', { name: /export/i });
+    expect(exports).toHaveLength(1);
+    exports.forEach((button) => expect(button).toBeDisabled());
+    myTasksState.isError = false;
+    myTasksState.data = [{ id: 't2', project_id: 'p2' }];
+    rerender(<ImpersonationProvider realRole="Engineer"><MemoryRouter><ToastProvider><Projects /></ToastProvider></MemoryRouter></ImpersonationProvider>);
+    expect(screen.getByText('Acme Internal')).toBeInTheDocument();
+    expect(screen.queryByText('Northwind ERP')).not.toBeInTheDocument();
+    screen.getAllByRole('button', { name: /export/i }).forEach((button) => expect(button).toBeEnabled());
   });
 
   it('allows retry when assignments cannot be read', () => {
@@ -177,19 +195,33 @@ describe('Projects page — Engineer default filter (B-11, AC-W2-IXD-009)', () =
     expect(screen.queryByTestId('liststate-loading')).not.toBeInTheDocument();
   });
 
-  it('offers retry when calendar milestone dates fail', () => {
+  it('shows recovered calendar dates after retry', () => {
     milestoneState.isError = true;
-    renderAsPM('/projects?view=calendar');
+    const { rerender } = renderAsPM('/projects?view=calendar&month=2026-10');
     fireEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(milestoneState.refetch).toHaveBeenCalledOnce();
+    milestoneState.isError = false;
+    milestoneState.data = [{ id: 'm1', projectId: 'p1', name: 'Design review', targetDate: '2026-10-15' }];
+    rerender(<ImpersonationProvider realRole="Project Manager"><MemoryRouter initialEntries={['/projects?view=calendar&month=2026-10']}><ToastProvider><Projects /></ToastProvider></MemoryRouter></ImpersonationProvider>);
+    expect(screen.getByRole('button', { name: /Northwind ERP — Phase: Design review/i })).toBeInTheDocument();
+    expect(screen.queryByText(/no events this month/i)).not.toBeInTheDocument();
   });
 
-  it('offers retry for failed desktop filter options', () => {
+  it.each([false, true])('recovers customer filter options on mobile=%s', (mobile) => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({ matches: !mobile, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() })));
     clientsState.isError = true;
-    renderAsPM();
+    const { rerender } = renderAsPM();
     fireEvent.click(screen.getByRole('button', { name: /^filters/i }));
     fireEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(clientsState.refetch).toHaveBeenCalledOnce();
+    clientsState.isError = false;
+    clientsState.data = [{ id: '11111111-1111-1111-1111-111111111111', name: 'Recovered Customer' }];
+    rerender(<ImpersonationProvider realRole="Project Manager"><MemoryRouter><ToastProvider><Projects /></ToastProvider></MemoryRouter></ImpersonationProvider>);
+    const select = screen.getByRole('combobox', { name: /filter by customer/i });
+    expect(within(select).getByRole('option', { name: 'Recovered Customer' })).toBeInTheDocument();
+    fireEvent.change(select, { target: { value: '11111111-1111-1111-1111-111111111111' } });
+    expect(select).toHaveValue('11111111-1111-1111-1111-111111111111');
+    vi.unstubAllGlobals();
   });
 
   it('AC-W2-IXD-009: Engineer sees "My Projects" tab selected by default', () => {

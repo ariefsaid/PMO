@@ -23,7 +23,8 @@ export function projectsToolbar({ model, exportColumns, t, filtersOpen, setFilte
   const { isEngineer, workingSet, setWorkingSet, search,
     setSearch, filter, filterClient, filterEndCustomer, filterPM, view, onViewChange, all, filtered, filterLabels,
     customerFilterOptions, endCustomerFilterOptions, pmFilterOptions, importDescriptor, budgetImportDescriptor,
-    classificationResetToken, classificationCount, hasNonDefaultFilter, clearFilters, refetch } = model;
+    classificationResetToken, classificationCount, hasNonDefaultFilter, clearFilters, refetch, tasksPending, tasksError } = model;
+  const exportDisabled = isEngineer && filter === 'My Projects' && (tasksPending || tasksError);
   const classificationFilterProps = {
     rows: all, value: workingSet, resetToken: classificationResetToken, open: filtersOpen,
     onOpenChange: (next: boolean) => { setFiltersOpen(next); if (next) setMoreOpen(false); },
@@ -46,6 +47,7 @@ export function projectsToolbar({ model, exportColumns, t, filtersOpen, setFilte
     <ExportButton
       key="export"
       rows={filtered}
+      disabled={exportDisabled}
       columns={exportColumns}
       entity="Projects"
       label={t('projects.export', 'Export')}
@@ -271,7 +273,7 @@ export function projectsToolbar({ model, exportColumns, t, filtersOpen, setFilte
     exportAction: (
         <MobileToolbarDisclosure label={t('uxs14.moreActions', 'More actions')} open={moreOpen} onOpenChange={setMoreOpen}>
           <div className="flex flex-wrap gap-2">
-            <ExportButton rows={filtered} columns={exportColumns} entity="Projects" label={t('projects.export', 'Export')} />
+            <ExportButton rows={filtered} disabled={exportDisabled} columns={exportColumns} entity="Projects" label={t('projects.export', 'Export')} />
             <ImportButton entity="project" descriptor={importDescriptor} onImported={() => void refetch()} label={t('projects.import', 'Import')} />
             <ImportButton entity="budgetLine" label={t('projects.importBudgets', 'Import budgets')} descriptor={budgetImportDescriptor} onImported={() => void refetch()} />
           </div>

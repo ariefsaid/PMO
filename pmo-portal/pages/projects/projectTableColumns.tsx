@@ -94,6 +94,59 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       );
     },
   } : null;
+  const actualProjection = (p: ProjectWithRefs): { text: string; exportText?: string; restricted?: boolean } => {
+    const money = projectMoney?.[p.id];
+    if (moneyPending || moneyError || !money) return { text: '' };
+    const actualPosition = deriveActualPosition({
+      ledgerBasis: money.ledgerBasis,
+      committedSpend: money.ledgerBasis === 'pmo' && money.actuals.total != null ? Number(money.actuals.total) : undefined,
+      commitmentPending: moneyPending,
+      commitmentError: moneyError,
+      projectCurrency: p.currency,
+      actuals: {
+        currency: money.actuals.currency,
+        total: money.actuals.total,
+        as_of: money.actuals.asOf,
+        excludes_restricted_rows: money.actuals.excludesRestrictedRows,
+        categories: money.actuals.categories,
+      },
+    });
+    const actual = actualPosition.amount;
+    if (actual == null) {
+      // Incomplete coverage is explained once in the table caveat. Restricted rows have a
+      // distinct row-level cause, so keep that plain-language tag and omit the numeric slot.
+      return money.actuals.excludesRestrictedRows
+        ? { text: t('projects:actual.restrictedTag', 'Restricted excluded'), restricted: true }
+        : { text: '' };
+    }
+    const formatted = formatExactMoney(actual, actualPosition.currency || p.currency, getNumberLocale(), { wholeUnits: true });
+    const currency = actualPosition.currency || p.currency;
+    const exact = formatExactMoney(actual, currency, getNumberLocale());
+    return { text: formatted || '', exportText: exact ? `${exact} ${currency}` : '' };
+  };
+  const budgetExport = (p: ProjectWithRefs): string | number => {
+    const money = projectMoney?.[p.id];
+    const actual = money?.actuals.total == null ? null : Number(money.actuals.total);
+    const activeBudget = money?.hasActiveBudget && money.activeBudgetAmount != null ? Number(money.activeBudgetAmount) : null;
+    if (moneyPending || moneyError || !money) return '';
+    if (!money.hasActiveBudget || activeBudget == null) {
+      return t('uxs02.noActiveBudget', 'No active budget');
+    }
+    if (activeBudget === 0) {
+      const reason = t('uxs02.zeroActiveBudget', '{{budget}} Active budget; usage unavailable', { budget: formatCurrency(activeBudget, money.activeBudgetCurrency ?? p.currency) });
+      return reason;
+    }
+    if (actual == null) return '';
+    if (money.activeBudgetCurrency !== money.actuals.currency || money.actuals.currency !== p.currency) {
+      return t('uxs02.currencyMismatch', 'Budget currency differs from Actual');
+    }
+    const completeCoverage = isActualComplete({ basis: money.ledgerBasis ?? 'erp', readSucceeded: true, complete: money.actuals.complete,
+      categories: money.actuals.categories, excludesRestrictedRows: money.actuals.excludesRestrictedRows });
+    if (!completeCoverage) {
+      return '';
+    }
+    return Math.round((actual / activeBudget) * 100);
+  };
   const columns: Column<ProjectWithRefs>[] = [
     {
       key: 'project',
@@ -220,35 +273,15 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       align: 'num',
       colClassName: 'xl:pr-6',
       caveat: coverageReason ? { reason: coverageReason } : undefined,
+      exportValue: (p) => {
+        const { text, exportText } = actualProjection(p);
+        return exportText ?? text;
+      },
       // RF-008 / S-02: canonical ERP-mapped Actual, never the legacy stored project.spent value.
       cell: (p) => {
         if (moneyPending) return <span className="text-[12px] text-muted-foreground">…</span>;
-        const money = projectMoney?.[p.id];
-        if (moneyError || !money) return null;
-        const actualPosition = deriveActualPosition({
-          ledgerBasis: money.ledgerBasis,
-          committedSpend: money.ledgerBasis === 'pmo' && money.actuals.total != null ? Number(money.actuals.total) : undefined,
-          commitmentPending: moneyPending,
-          commitmentError: moneyError,
-          projectCurrency: p.currency,
-          actuals: {
-            currency: money.actuals.currency,
-            total: money.actuals.total,
-            as_of: money.actuals.asOf,
-            excludes_restricted_rows: money.actuals.excludesRestrictedRows,
-            categories: money.actuals.categories,
-          },
-        });
-        const actual = actualPosition.amount;
-        if (actual == null) {
-          // Incomplete coverage is explained once in the table caveat. Restricted rows have a
-          // distinct row-level cause, so keep that plain-language tag and omit the numeric slot.
-          return money.actuals.excludesRestrictedRows
-            ? <span className="text-muted-foreground text-[11px]">{t('projects:actual.restrictedTag', 'Restricted excluded')}</span>
-            : null;
-        }
-        const formatted = formatExactMoney(actual, actualPosition.currency || p.currency, getNumberLocale(), { wholeUnits: true });
-        return formatted ? <span className="text-muted-foreground">{formatted}</span> : null;
+        const actual = actualProjection(p);
+        return actual.text ? <span className={actual.restricted ? 'text-muted-foreground text-[11px]' : 'text-muted-foreground'}>{actual.text}</span> : null;
       },
     },
     {
@@ -259,6 +292,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       minSize: 96,
       maxSize: 160,
       colClassName: 'xl:pl-6',
+      exportValue: (p) => deliveryError || deliveryPending || deliverySummary?.[p.id]?.deliveryPct == null ? '' : Math.round(deliverySummary[p.id].deliveryPct!),
       cell: (p) => {
         // I7: defer while delivery summary is loading to prevent flash of false empty state.
         if (deliveryError) return <span className="text-[12px] text-muted-foreground">—</span>;
@@ -280,6 +314,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     },
     {
       key: 'budget-used',
+      exportValue: budgetExport,
       header: t('projects.columns.budgetUsed', 'Budget used'),
       kind: 'money',
       size: 160,
@@ -287,27 +322,9 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       maxSize: 320,
       cell: (p) => {
         if (moneyPending) return <span className="text-[12px] text-muted-foreground">…</span>;
-        const money = projectMoney?.[p.id];
-        const actual = money?.actuals.total == null ? null : Number(money.actuals.total);
-        const activeBudget = money?.hasActiveBudget && money.activeBudgetAmount != null ? Number(money.activeBudgetAmount) : null;
-        if (moneyError || !money) return null;
-        if (!money.hasActiveBudget || activeBudget == null) {
-          return <span className="text-muted-foreground">{t('uxs02.noActiveBudget', 'No active budget')}</span>;
-        }
-        if (activeBudget === 0) {
-          const reason = t('uxs02.zeroActiveBudget', '{{budget}} Active budget; usage unavailable', { budget: formatCurrency(activeBudget, money.activeBudgetCurrency ?? p.currency) });
-          return <span className="text-muted-foreground">{reason}</span>;
-        }
-        if (actual == null) return null;
-        if (money.activeBudgetCurrency !== money.actuals.currency || money.actuals.currency !== p.currency) {
-          return <span className="text-muted-foreground">{t('uxs02.currencyMismatch', 'Budget currency differs from Actual')}</span>;
-        }
-        const completeCoverage = isActualComplete({ basis: money.ledgerBasis ?? 'erp', readSucceeded: true, complete: money.actuals.complete,
-          categories: money.actuals.categories, excludesRestrictedRows: money.actuals.excludesRestrictedRows });
-        if (!completeCoverage) {
-          return null;
-        }
-        const percent = Math.round((actual / activeBudget) * 100);
+        const percent = budgetExport(p);
+        if (typeof percent === 'string') return percent ? <span className="text-muted-foreground">{percent}</span> : null;
+        const money = projectMoney![p.id]!;
         const atRisk = isAtRiskActual(p);
         return (
           <div title={t('uxs02.budgetSummary', '{{actual}} of {{budget}} Active budget', { actual: formatExactMoney(money.actuals.total, money.actuals.currency || p.currency, getNumberLocale(), { wholeUnits: true }), budget: formatExactMoney(money.activeBudgetAmount, money.activeBudgetCurrency ?? p.currency, getNumberLocale(), { wholeUnits: true }) })}>
