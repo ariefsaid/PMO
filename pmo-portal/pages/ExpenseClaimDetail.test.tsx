@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   claim: null as unknown,
   route: null as unknown,
   outstanding: null as number | null,
+  outstandingState: 'ready' as 'ready' | 'loading' | 'error',
   projects: [] as Array<{ id: string; name: string; short_name?: string | null }>,
   agingRows: [] as Array<Record<string, unknown>>,
   userId: 'eng',
@@ -27,7 +28,7 @@ vi.mock('@/src/hooks/useExpenseClaims', () => ({
   useExpenseClaim: () => ({ data: h.claim, isPending: false, isError: false, refetch: vi.fn() }),
   useExpenseClaimLines: () => ({ data: [], isPending: false, isError: false }),
   useExpenseClaimRoute: () => ({ data: h.route }),
-  useExpenseAdvanceOutstanding: () => ({ data: h.outstanding }),
+  useExpenseAdvanceOutstanding: () => ({ data: h.outstanding, isPending: h.outstandingState === 'loading', isError: h.outstandingState === 'error' }),
   useExpenseAdvanceAging: () => ({ data: { rows: h.agingRows, truncated: false } }),
   useExpenseClaimMutations: () => h.m,
 }));
@@ -67,6 +68,7 @@ const as = (userId: string, role: string) => { h.userId = userId; h.realRole = r
 beforeEach(() => {
   h.route = null;
   h.outstanding = null;
+  h.outstandingState = 'ready';
   h.projects = [];
   h.agingRows = [];
   h.m.update.mutateAsync.mockReset();
@@ -171,6 +173,19 @@ describe('ExpenseClaimDetail', () => {
     expect(screen.getByTestId('pay-preview-cash')).toHaveTextContent(money(50, 'IDR'));
     // The headline restates the cash actually paid, not the full claim the advance partly covers.
     expect(dialog).toHaveTextContent(`Mark EXP-2610060001 paid: ${money(50, 'IDR')}?`);
+  });
+
+  it.each(['loading', 'error'] as const)('keeps cash payment unknown when the linked advance balance is %s', async (state) => {
+    h.claim = { ...base, status: 'Approved', approved_by_id: 'pm', advance_id: 'adv-1' };
+    h.outstanding = state === 'error' ? 250 : null;
+    h.outstandingState = state;
+    as('f2', 'Finance');
+    renderAt();
+    await userEvent.click(screen.getByRole('button', { name: 'Mark paid' }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('heading')).not.toHaveTextContent(money(300, 'IDR'));
+    expect(within(dialog).getByRole('heading')).not.toHaveTextContent(money(50, 'IDR'));
+    expect(screen.getByTestId('pay-preview-cash')).toHaveTextContent('—');
   });
 
   it('AC-UXS-011 cash-return confirmation keeps the advance and outstanding amount in context', async () => {
@@ -282,6 +297,16 @@ describe('AC-UXS-011 Bahasa confirmations restate identity and amount', () => {
         </MemoryRouter>
       </FinanceI18nTestProvider>,
     );
+
+  it('localizes the payment title when the advance balance is unknown', async () => {
+    await financeTestI18n.changeLanguage('id');
+    h.claim = { ...base, status: 'Approved', approved_by_id: 'pm', advance_id: 'adv-1' };
+    h.outstanding = null;
+    as('f2', 'Finance');
+    renderAtId();
+    await userEvent.click(screen.getByRole('button', { name: 'Tandai dibayar' }));
+    expect(within(screen.getByRole('dialog')).getByRole('heading')).toHaveTextContent('Tandai dibayar · EXP-2610060001');
+  });
 
   it('binds approve, pay, cash-return and cancel to the id catalogue', async () => {
     await financeTestI18n.changeLanguage('id');
