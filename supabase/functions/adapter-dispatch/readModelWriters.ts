@@ -616,43 +616,15 @@ async function resolveLinkOrNull(
  *  thenable PostgrestFilterBuilder shape real supabase-js resolves through with no terminal call).
  *  `ExternalRefsLookupClient` only models the `.maybeSingle()` single-row shape, and the SI-cancel
  *  auto-unlink needs every referencing row, not just one. */
-interface ListSelectClient {
-  from(table: string): { select(columns: string): ListFilterBuilder };
-}
-interface ListFilterBuilder extends PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }> {
-  eq(column: string, value: string): ListFilterBuilder;
-}
-
-/** AC-SAR-022 (Luna re-audit BLOCK 3) — the SI-cancel auto-unlink reconcile, OUTBOUND writer side.
- *  ERPNext returns 200 on an SI cancel even when a Receive Payment Entry references it, silently
- *  auto-unlinking the PE's `references` child table (OQ-SAR-1 #8 — unlike procurement, an active PE
- *  does NOT block the cancel). The PMO mirror must follow: every `incoming_payments` row still citing
- *  the cancelled SI becomes on-account (`sales_invoice_id` -> null), else the read-model shows a
- *  receipt allocated to an invoice ERPNext no longer considers allocated.
- *
- *  The per-row patch comes from `transitionPolicy.reconcileSiCancelAutoUnlink` (the designated pure
- *  helper — imported, never duplicated). Its `siTombstone` half is deliberately unused here: the SI's
- *  own `erp_cancelled_at`/`erp_docstatus`/`erp_modified` tombstone is already written by the caller's
- *  mirror `patch` from the ERP-refetched canonical; this writer applies only the PE-receive half. */
+/** Reconcile all receipt links for a cancelled invoice in one org-scoped update. */
 async function unlinkPeReceivesOnSiCancel(ctx: ReadModelWriterCtx, canonical: PmoRecord): Promise<void> {
-  const { data, error } = await (ctx.serviceClient as unknown as ListSelectClient)
-    .from('incoming_payments')
-    .select('id')
-    .eq('org_id', ctx.orgId)
-    .eq('sales_invoice_id', String(canonical.id));
+  const { peReceivePatch } = reconcileSiCancelAutoUnlink(String(canonical.id), String(canonical.erp_modified ?? ''));
+  if (!peReceivePatch) return;
+  const { error } = await (ctx.serviceClient.from('incoming_payments').update(peReceivePatch)
+    .eq('org_id', ctx.orgId).eq('sales_invoice_id', String(canonical.id)) as unknown as Promise<{
+      error: { message: string; code?: string } | null;
+    }>);
   if (error) throw new AppError(error.message, error.code);
-  const referencing = Array.isArray(data) ? (data as Array<{ id: string }>) : [];
-  const erpModified = (canonical.erp_modified as string | null | undefined) ?? '';
-  for (const row of referencing) {
-    const { peReceivePatch } = reconcileSiCancelAutoUnlink(row.id, erpModified);
-    if (!peReceivePatch) continue;
-    const { error: unlinkError } = await (
-      ctx.serviceClient.from('incoming_payments').update(peReceivePatch).eq('org_id', ctx.orgId).eq('id', row.id) as unknown as Promise<{
-        error: { message: string; code?: string } | null;
-      }>
-    );
-    if (unlinkError) throw new AppError(unlinkError.message, unlinkError.code);
-  }
 }
 
 /** Append a body-writing caller to `sales_invoice_authors` — the APPEND-ONLY authorship SET the

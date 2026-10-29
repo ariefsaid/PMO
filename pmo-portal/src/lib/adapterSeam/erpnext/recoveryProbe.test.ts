@@ -505,3 +505,67 @@ describe('#762 probeErpByPaymentComposite — a withholding receipt also matches
     expect(await probe({ ...withholdingDoc, references: [{ reference_name: 'ACC-SINV-0001', allocated_amount: 980 }] })).toBeNull();
   });
 });
+
+it('checks every candidate page before adopting a unique payment', async () => {
+  const names = Array.from({ length: 21 }, (_, i) => `PE-${String(i + 1).padStart(2, '0')}`);
+  const fetchImpl = async (url: string) => {
+    const parsed = new URL(url);
+    const filters = JSON.parse(parsed.searchParams.get('filters') ?? '[]') as Array<[string, string, string]>;
+    if (filters.some(([field]) => field === 'reference_no')) return new Response(JSON.stringify({ data: [] }));
+    if (parsed.searchParams.has('filters')) {
+      const after = filters.find(([field, op]) => field === 'name' && op === '>')?.[2] ?? '';
+      return new Response(JSON.stringify({ data: names.filter((name) => name > after).slice(0, 20).map((name) => ({ name })) }));
+    }
+    const name = decodeURIComponent(parsed.pathname.split('/').at(-1)!);
+    return new Response(JSON.stringify({ name, references: [{ reference_name: name === 'PE-01' || name === 'PE-21' ? 'SI-1' : 'other' }] }));
+  };
+  const result = await probeErpByPaymentComposite(
+    { client: client(fetchImpl), doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: () => ({ id: 'x' }), pmoRecordId: 'pmo' },
+    'key', { partyType: 'Customer', party: 'Customer', paidAmount: '10', piNames: [], siNames: ['SI-1'], createdAfter: '2026-01-01', paymentType: 'Receive' },
+  );
+  expect(result).toBeNull();
+});
+
+it('does not adopt when a candidate page has an invalid name', async () => {
+  const fetchImpl = async (url: string) => {
+    const decoded = decodeURIComponent(url);
+    if (decoded.includes('"reference_no","like"')) return new Response(JSON.stringify({ data: [] }));
+    if (decoded.includes('filters=')) return new Response(JSON.stringify({ data: [{ name: 'PE-01' }, {}] }));
+    return new Response(JSON.stringify({ references: [{ reference_name: 'SI-1' }] }));
+  };
+  await expect(probeErpByPaymentComposite(
+    { client: client(fetchImpl), doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: () => ({ id: 'x' }), pmoRecordId: 'pmo' },
+    'key', { partyType: 'Customer', party: 'Customer', paidAmount: '10', piNames: [], siNames: ['SI-1'], createdAfter: '2026-01-01', paymentType: 'Receive' },
+  )).rejects.toThrow();
+});
+
+it.each(['boundary', 'duplicate', 'out-of-order', 'malformed', 'query-error'])('does not adopt a candidate when a later page is %s', async (scenario) => {
+  const first = Array.from({ length: 20 }, (_, i) => ({ name: `PE-${String(i + 1).padStart(2, '0')}` }));
+  let page = 0;
+  const adopt = vi.fn(() => ({ id: 'adopted' }));
+  const fetchImpl = async (url: string) => {
+    const parsed = new URL(url);
+    const filters = JSON.parse(parsed.searchParams.get('filters') ?? '[]') as Array<[string, string, string]>;
+    if (filters.some(([field]) => field === 'reference_no')) return new Response(JSON.stringify({ data: [] }));
+    if (parsed.searchParams.has('filters')) {
+      if (page++ === 0) return new Response(JSON.stringify({ data: first }));
+      if (scenario === 'query-error') return new Response('failure', { status: 400 });
+      const data = scenario === 'boundary' ? [{ name: 'PE-20' }] : scenario === 'duplicate' ? [{ name: 'PE-21' }, { name: 'PE-21' }] : scenario === 'out-of-order' ? [{ name: 'PE-22' }, { name: 'PE-21' }] : null;
+      return new Response(JSON.stringify({ data }));
+    }
+    return new Response(JSON.stringify({ references: [{ reference_name: 'SI-1' }] }));
+  };
+  const result = probeErpByPaymentComposite(
+    { client: client(fetchImpl), doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: adopt, pmoRecordId: 'pmo' },
+    'key', { partyType: 'Customer', party: 'Customer', paidAmount: '10', piNames: [], siNames: ['SI-1'], createdAfter: '2026-01-01', paymentType: 'Receive' },
+  );
+  if (scenario === 'query-error') await expect(result).rejects.toThrow();
+  else expect(await result).toBeNull();
+  expect(adopt).not.toHaveBeenCalled();
+});
+
+it('keeps unordered list behavior for default callers', async () => {
+  const { listDocNamesByFilters } = await import('./client.ts');
+  expect(await listDocNamesByFilters(client(async () => new Response(JSON.stringify({ data: [{ name: 'B' }, {}, { name: 'A' }] }))), 'Payment Entry', [])).toEqual(['B', 'A']);
+  expect(await listDocNamesByFilters(client(async () => new Response(JSON.stringify({ data: null }))), 'Payment Entry', [])).toEqual([]);
+});

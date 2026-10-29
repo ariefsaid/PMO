@@ -32,3 +32,32 @@ Deno.test('RF-031 an on-account receipt (empty references) is a KNOWN empty list
   assertEquals(await buildAllocationDetails([], lookup), [], 'known none');
   assertEquals(await buildAllocationDetails(undefined, lookup), undefined, 'unknown coverage: do not write');
 });
+
+Deno.test('allocation lookup resolves only same-organization invoices and propagates read errors', async () => {
+  const { salesInvoiceLookup, allocationDetailsPatch } = await import('./receiptAllocations.ts');
+  let mode = 'other';
+  const client = { from(table: string) {
+    const filters: Record<string, string> = {};
+    const q = { select: () => q, eq: (column: string, value: string) => { filters[column] = value; return q; },
+      maybeSingle: async () => {
+        if (mode === `${table}-error`) return { data: null, error: { message: 'read failed', code: 'XX000' } };
+        if (table === 'external_refs') return { data: mode === 'missing' ? null : { pmo_record_id: 'record' }, error: null };
+        return { data: mode === 'invoice' && filters.org_id === 'org-a' ? { id: 'record', currency: null } : null, error: null };
+      } }; return q;
+  } };
+  const allocations = [{ reference_name: 'SI', allocated_amount: '10.00' }];
+  assertEquals(await allocationDetailsPatch(client as never, 'org-a', {}), {}, 'missing source leaves column alone');
+  assertEquals(await allocationDetailsPatch(client as never, 'org-a', { allocations: [] }), { allocation_details: [] }, 'empty source is known on-account');
+  const resolve = salesInvoiceLookup(client as never, 'org-a');
+  assertEquals(await buildAllocationDetails(allocations, resolve), [{ invoice_id: null, invoice_number: 'SI', amount: '10.00', currency: null }], 'non-invoice remains unresolved');
+  mode = 'invoice';
+  assertEquals(await resolve('SI'), { id: 'record', currency: null }, 'unknown currency retains invoice');
+  assertEquals(await salesInvoiceLookup(client as never, 'org-b')('SI'), null, 'other organization remains unresolved');
+  mode = 'missing';
+  assertEquals(await resolve('SI'), null, 'absent mapping remains unresolved');
+  for (mode of ['external_refs-error', 'sales_invoices-error']) {
+    let failed = false;
+    try { await allocationDetailsPatch(client as never, 'org-a', { allocations }); } catch (error) { failed = error instanceof Error && error.message.includes('read failed'); }
+    assertEquals(failed, true, `${mode} propagates`);
+  }
+});

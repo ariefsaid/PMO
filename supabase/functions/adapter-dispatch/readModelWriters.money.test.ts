@@ -672,46 +672,63 @@ Deno.test({
 // receipt still allocated to an invoice ERPNext has since made on-account).
 // ============================================================================
 
+function receiptStateClient(rows: Array<{ org_id: string; sales_invoice_id: string | null; status: string }>) {
+  const { client: other } = makeFakeClient();
+  return {
+    from(table: string) {
+      if (table !== 'incoming_payments') return other.from(table);
+      return { update: (patch: Record<string, unknown>) => {
+        const filters: Array<[string, string]> = [];
+        const chain = {
+          eq: (column: string, value: string) => { filters.push([column, value]); return chain; },
+          then: (resolve: (value: { error: null }) => void) => {
+            for (const row of rows) {
+              if (filters.every(([column, value]) => row[column as 'org_id' | 'sales_invoice_id'] === value)) Object.assign(row, patch);
+            }
+            resolve({ error: null });
+          },
+        };
+        return chain;
+      } };
+    },
+  };
+}
+
 Deno.test({
   name: "Luna B3 — READ_MODEL_WRITERS['revenue'].upsert (kind sales-invoice, verb cancel) unlinks every referencing incoming_payments row (sales_invoice_id -> null), matching ERPNext's auto-unlink",
   fn: async () => {
-    // Two PE-receives in this org reference the cancelled SI (ERPNext auto-unlinked BOTH).
-    const { client, calls } = makeFakeClient({}, { incoming_payments: [{ id: 'pmo-ip-1' }, { id: 'pmo-ip-2' }] });
+    const rows = [
+      ...Array.from({ length: 1001 }, () => ({ org_id: 'org-1', sales_invoice_id: 'pmo-si-1' as string | null, status: 'Submitted' })),
+      { org_id: 'org-1', sales_invoice_id: 'other', status: 'Submitted' },
+      { org_id: 'org-2', sales_invoice_id: 'pmo-si-1', status: 'Submitted' },
+    ];
+    const client = receiptStateClient(rows);
     const writer = getReadModelWriter('revenue');
     await writer.upsert(
       { serviceClient: client as never, orgId: 'org-1' },
       { id: 'pmo-si-1', si_number: 'ACC-SINV-2026-00001', amount: '50000.00', erp_outstanding_amount: '0.00', erp_docstatus: 2, erp_modified: '2026-07-16 09:00:00.000000', erp_amended_from: null },
       { domain: 'revenue', operation: 'transition', record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', externalRecordId: 'ACC-SINV-2026-00001', verb: 'cancel' } },
     );
-    const unlinkUpdates = calls.filter((c) => c.method === 'update' && c.table === 'incoming_payments');
-    assertEquals(unlinkUpdates.length, 2, 'expected each referencing incoming_payments row to be unlinked');
-    assertEquals(
-      (unlinkUpdates[0].args[0] as Record<string, unknown>).sales_invoice_id,
-      null,
-      'a PE-receive whose SI was cancelled becomes on-account: sales_invoice_id -> null',
-    );
-    // Every unlink is org-scoped + row-scoped (the service-role writer bypasses RLS).
-    const eqCalls = calls.filter((c) => c.method === 'update.eq' && c.table === 'incoming_payments');
-    assertEquals(eqCalls.length, 4, 'expected two scoping .eq() calls (org_id, id) per unlinked row');
-    assert(
-      eqCalls.some((c) => c.args[0] === 'org_id' && c.args[1] === 'org-1'),
-      'the unlink must be scoped to ctx.orgId',
-    );
+    assert(rows.slice(0, 1001).every((row) => row.sales_invoice_id === null && row.status === 'Submitted'), 'all matching receipts become on-account and retain status');
+    assertEquals(rows.slice(1001), [
+      { org_id: 'org-1', sales_invoice_id: 'other', status: 'Submitted' },
+      { org_id: 'org-2', sales_invoice_id: 'pmo-si-1', status: 'Submitted' },
+    ], 'other organizations and invoices remain unchanged');
   },
 });
 
 Deno.test({
-  name: 'Luna B3 — an SI cancel with NO referencing incoming_payments writes no unlink (nothing to reconcile)',
+  name: 'Luna B3 — an SI cancel with no referencing incoming payments succeeds',
   fn: async () => {
-    const { client, calls } = makeFakeClient({}, { incoming_payments: [] });
+    const rows: Array<{ org_id: string; sales_invoice_id: string | null; status: string }> = [];
+    const client = receiptStateClient(rows);
     const writer = getReadModelWriter('revenue');
     await writer.upsert(
       { serviceClient: client as never, orgId: 'org-1' },
       { id: 'pmo-si-2', si_number: 'ACC-SINV-2026-00002', amount: '50000.00', erp_docstatus: 2, erp_modified: '2026-07-16 09:00:00.000000' },
       { domain: 'revenue', operation: 'transition', record: { id: 'pmo-si-2', erp_doc_kind: 'sales-invoice', externalRecordId: 'ACC-SINV-2026-00002', verb: 'cancel' } },
     );
-    const unlinkUpdates = calls.filter((c) => c.method === 'update' && c.table === 'incoming_payments');
-    assertEquals(unlinkUpdates.length, 0, 'no referencing PE-receive -> no unlink write');
+    assertEquals(rows, [], 'an empty set stays empty');
   },
 });
 
@@ -1451,4 +1468,41 @@ Deno.test({
     const patch = calls2.find((c) => c.method === 'update' && c.table === 'procurement_invoices')!.args[0] as Record<string, unknown>;
     assert(!('withheld_pph_type' in patch), 'a template-path update never states a type, even with tax withheld');
   },
+});
+
+Deno.test('invoice cancellation updates all matching receipts with one scoped operation', async () => {
+  const { client, calls } = makeFakeClient({}, { incoming_payments: Array.from({ length: 1001 }, (_, i) => ({ id: `p-${i}` })) });
+  await getReadModelWriter('revenue').upsert(
+    { serviceClient: client as never, orgId: 'org-1' },
+    { id: 'si', si_number: 'SI', amount: '10', erp_docstatus: 2 },
+    { domain: 'revenue', operation: 'transition', record: { id: 'si', erp_doc_kind: 'sales-invoice', externalRecordId: 'SI', verb: 'cancel' } },
+  );
+  const updates = calls.filter((c) => c.table === 'incoming_payments' && c.method === 'update');
+  assertEquals(updates.length, 1);
+  assertEquals(updates[0].args[0], { sales_invoice_id: null });
+  const filters = calls.filter((c) => c.table === 'incoming_payments' && c.method === 'update.eq').map((c) => c.args);
+  assertEquals(filters, [['org_id', 'org-1'], ['sales_invoice_id', 'si']]);
+});
+
+Deno.test('invoice cancellation reports a failed receipt reconciliation', async () => {
+  const { client } = makeFakeClient();
+  const originalFrom = client.from.bind(client);
+  const failureClient = {
+    from(table: string) {
+      if (table !== 'incoming_payments') return originalFrom(table);
+      return { update: () => {
+        const chain = { eq: () => chain, then: (resolve: (value: unknown) => void) => resolve({ error: { message: 'update failed', code: 'XX000' } }) };
+        return chain;
+      } };
+    },
+  };
+  let failed = false;
+  try {
+    await getReadModelWriter('revenue').upsert(
+      { serviceClient: failureClient as never, orgId: 'org-1' },
+      { id: 'si', si_number: 'SI', amount: '10', erp_docstatus: 2 },
+      { domain: 'revenue', operation: 'transition', record: { id: 'si', erp_doc_kind: 'sales-invoice', externalRecordId: 'SI', verb: 'cancel' } },
+    );
+  } catch (error) { failed = error instanceof Error && error.message.includes('update failed'); }
+  assert(failed, 'update failure must reach the caller');
 });
