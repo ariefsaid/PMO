@@ -55,6 +55,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
   const actuals = data.actuals;
   const moneyPosition = buildProjectMoneyPosition({ ledgerBasis: commitments.ledgerBasis,
     committedSpend: commitments.data, commitmentPending: commitments.isPending, commitmentError: commitments.isError,
+    commitmentComplete: commitments.otherCurrencies.length === 0,
     projectCurrency: project.currency, actuals, contractValue: project.contract_value, activeBudget: undefined });
   const actualPosition = moneyPosition.actual;
   const mappedCategories = moneyPosition.coverage.mapped;
@@ -69,7 +70,9 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
       if (known) knownCategories.push(row);
     }
   }
-  const spendingHasData = actualPosition.amount !== null
+  const displayedSpending = actualPosition.amount ?? (actualPosition.basis === 'pmo' && !commitments.isPending
+    && !commitments.isError && Number.isFinite(commitments.data) ? String(commitments.data) : null);
+  const spendingHasData = displayedSpending !== null
     || knownCategories.length > 0
     || (actualPosition.basis === 'unavailable' && actuals.categories.length > 0);
   // #1271 AC-3: tagged vs rule-attributed cost, named only when some of the (complete, ERP-ledger) total is attributed.
@@ -99,7 +102,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
     'actuals-unavailable': t('projectDetail.money.marginOutActuals', 'Gross margin is left out until spending is linked for every budget category.'),
     'restricted-rows': t('projectDetail.money.marginOutRestricted', 'Gross margin is left out because spending excludes restricted rows.'),
   };
-  const recordedSpending = money(actualPosition.amount, actualPosition.currency);
+  const recordedSpending = money(displayedSpending, actualPosition.currency);
   const categoryColumns: Column<(typeof actuals.categories)[number]>[] = [
     { key: 'category', header: t('projectFinances.category', 'Category'), kind: 'primary', rowHeader: true,
       cell: (row) => budgetCategoryLabel(row.category as Parameters<typeof budgetCategoryLabel>[0], t) },
@@ -190,7 +193,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
         {/* PD-C: Recorded spending is the ONE home for coverage — shown only when partial — and
             its freshness is one inline "Updated" beside the amount. */}
         {(recordedSpending !== null || (actualPosition.basis === 'erp' && actualPosition.asOf)) && <p className="break-words font-semibold tabular-nums">
-          {money(actualPosition.amount, actualPosition.currency, actualPosition.currency)}
+          {money(displayedSpending, actualPosition.currency, actualPosition.currency)}
           {actualPosition.basis === 'erp' && actualPosition.asOf && <span className="ml-2 text-xs font-normal text-muted-foreground">
             {t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}
           </span>}

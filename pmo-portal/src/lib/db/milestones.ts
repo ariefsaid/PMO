@@ -25,7 +25,7 @@ export interface MilestoneWithProgress {
 
 export interface ProjectDeliverySummary {
   deliveryPct: number | null;
-  committedSpend: number;
+  committedSpend: number | null;
   budget: number;
 }
 

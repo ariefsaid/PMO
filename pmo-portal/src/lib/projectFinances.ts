@@ -81,6 +81,7 @@ export type ProjectMoneyPositionInput = {
   committedSpend: number | undefined;
   commitmentPending: boolean;
   commitmentError: boolean;
+  commitmentComplete?: boolean;
   actuals: ProjectFinances['actuals'] | undefined;
 };
 
@@ -99,11 +100,12 @@ export function deriveActualPosition(input: {
   committedSpend: number | undefined;
   commitmentPending: boolean;
   commitmentError: boolean;
+  commitmentComplete?: boolean;
   projectCurrency: string;
   actuals: ProjectFinances['actuals'] | undefined;
 }): ActualPosition {
   if (input.ledgerBasis === 'pmo') {
-    if (input.commitmentPending || input.commitmentError || input.committedSpend === undefined || !Number.isFinite(input.committedSpend)) {
+    if (input.commitmentPending || input.commitmentError || input.commitmentComplete === false || input.committedSpend === undefined || !Number.isFinite(input.committedSpend)) {
       return { amount: null, currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: false };
     }
     return { amount: moneyText(BigInt(Math.round(input.committedSpend * 100))), currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: true };
@@ -197,7 +199,7 @@ export function isActualComplete(input: {
   coverageTotal?: number | null;
   budgetedCategories?: readonly string[];
 }): boolean {
-  if (input.basis === 'pmo') return input.readSucceeded;
+  if (input.basis === 'pmo') return input.readSucceeded && input.complete !== false;
   if (input.basis !== 'erp' || !input.readSucceeded) return false;
   if (input.complete !== null && input.complete !== undefined) return input.complete;
   if (input.actuals) return categoriesComplete(input.actuals, input.budgetedCategories);

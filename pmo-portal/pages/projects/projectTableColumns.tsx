@@ -102,6 +102,7 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
       committedSpend: money.ledgerBasis === 'pmo' && money.actuals.total != null ? Number(money.actuals.total) : undefined,
       commitmentPending: moneyPending,
       commitmentError: moneyError,
+      commitmentComplete: money.actuals.complete,
       projectCurrency: p.currency,
       actuals: {
         currency: money.actuals.currency,

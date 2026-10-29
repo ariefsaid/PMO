@@ -25,6 +25,9 @@ function makeBuilder(resolved: { data: unknown; error: unknown }) {
     select: mockSelect,
     range: mockRange,
     eq: mockEq,
+    order: () => builder,
+    gt: () => builder,
+    limit: () => builder,
     then: (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
       Promise.resolve(resolved).then(resolve, reject),
   };
@@ -205,6 +208,24 @@ describe('AC-RB-003: Committed and Reserved sets are disjoint', () => {
   });
   it('AC-RB-003: COMMITTED_STATUSES is exactly Ordered/Received/Vendor Invoiced/Paid (unchanged)', () => {
     expect(COMMITTED_STATUSES).toEqual(['Ordered', 'Received', 'Vendor Invoiced', 'Paid']);
+  });
+});
+
+describe('listProcurementsByProject complete reads', () => {
+  it('returns every project purchase beyond the server cap and rejects a later page failure', async () => {
+    const rows = Array.from({ length: 1001 }, (_, i) => ({ id: String(i).padStart(4, '0'), status: 'Ordered' }));
+    let fail = false;
+    const builder = { select: () => builder, eq: () => builder, order: () => builder,
+      gt: (_column: string, cursor: string) => { after = cursor; return builder; },
+      limit: () => builder,
+      then: (resolve: (value: unknown) => void) => resolve(fail && after ? { data: null, error: { message: 'page failed' } }
+        : { data: rows.filter((row) => !after || row.id > after).slice(0, 1000), error: null }) };
+    let after = '';
+    mockFrom.mockImplementation(() => { after = ''; return builder; });
+    const result = await listProcurementsByProject('proj-1');
+    expect(result).toHaveLength(1001);
+    fail = true;
+    await expect(listProcurementsByProject('proj-1')).rejects.toThrow('page failed');
   });
 });
 
