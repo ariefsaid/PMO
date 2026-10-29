@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, EntityFormModal, FieldError, FormGrid, FormSection, NumberField, SelectField, type SubmitError,
+  Button, EntityFormModal, FieldError, FormGrid, FormSection, ListState, NumberField, SelectField, type SubmitError,
 } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatMoneyInputValue, formatNumberExact, formatUtcMonthYear, parseMoneyInputAtScale } from '@/src/lib/format';
@@ -35,6 +35,7 @@ export interface ProgressClaimModalProps {
   assessmentMonth: string | null;
   /** Customer order that opened the modal; its accepted-minus-claimed quantities are prefilled for review. */
   initialWorkOrderId?: string;
+  sources?: Array<{ name: string; pending: boolean; error: boolean; retry: () => void }>;
   onClose: () => void;
   onSave: (input: Omit<ProgressClaimInput, 'projectId'>) => Promise<void>;
   onError: (err: unknown) => void;
@@ -44,7 +45,7 @@ type Kind = ProgressClaimInput['kind'];
 
 const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
   boqItems, workOrders, allocations, contractLines, contractNet, currencySymbolPrefix, hasDownPayment, claimedByBoqItem, assessedByBoqItem,
-  assessmentMonth, initialWorkOrderId, onClose, onSave, onError,
+  assessmentMonth, initialWorkOrderId, sources = [], onClose, onSave, onError,
 }) => {
   const { t } = useTranslation('project');
   const [kind, setKind] = useState<Kind>('progress');
@@ -123,6 +124,7 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (sources.some((source) => source.pending || source.error)) return;
     const { errs, input } = build();
     setErrors(errs);
     if (!input) return;
@@ -163,8 +165,12 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
       submitError={saveError}
       onClose={onClose}
       loading={saving}
+      submitDisabled={sources.some((source) => source.pending || source.error)}
       dirty={kind !== 'progress' || dpAmount !== '' || recoveryPct !== '' || Object.values(quantities).some((q) => q !== '')}
     >
+      {sources.filter((source) => source.pending || source.error).map((source) => source.error
+        ? <ListState key={source.name} variant="error" title={t('projectDetail.billing.sources.error', "Couldn't load {{source}}", { source: source.name })} onRetry={source.retry} />
+        : <p key={source.name} role="status" className="text-sm text-muted-foreground">{t('projectDetail.billing.sources.loading', 'Loading {{source}}…', { source: source.name })}</p>)}
       <FormSection legend={t('projectDetail.billing.claimForm.kind', 'Claim type')}>
         <FormGrid>
           <SelectField id="claim-kind" label={t('projectDetail.billing.claimForm.kind', 'Claim type')} value={kind}

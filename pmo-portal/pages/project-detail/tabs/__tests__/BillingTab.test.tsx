@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import i18next from 'i18next';
 import { readFileSync } from 'node:fs';
@@ -303,6 +303,35 @@ describe('BillingTab', () => {
     renderTab();
     expect(screen.queryByRole('button', { name: 'New claim' })).not.toBeInTheDocument();
     expect(screen.getByText('Loading customer orders…')).toBeInTheDocument();
+  });
+
+  it('retains a claim draft while a required source fails and recovers', async () => {
+    h.routeReady = false;
+    const user = userEvent.setup();
+    const tree = () => <MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>;
+    const view = render(tree());
+    await user.click(screen.getByRole('button', { name: 'New claim' }));
+    const dialog = screen.getByRole('dialog', { name: 'New billing claim' });
+    await user.type(within(dialog).getByLabelText(/SURVEY.*Route survey/), '2.5');
+    h.ordersState.isPending = true;
+    view.rerender(tree());
+    expect(within(screen.getByRole('dialog')).getByLabelText(/SURVEY.*Route survey/)).toHaveValue('2.5');
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Create claim' })).toBeDisabled();
+    h.ordersState.isPending = false;
+    h.ordersState.isError = true;
+    view.rerender(tree());
+    expect(within(screen.getByRole('dialog')).getByLabelText(/SURVEY.*Route survey/)).toHaveValue('2.5');
+    expect(within(screen.getByRole('dialog')).getByText("Couldn't load customer orders")).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Create claim' })).toBeDisabled();
+    fireEvent.submit(within(screen.getByRole('dialog')).getByRole('button', { name: 'Create claim' }).closest('form')!);
+    expect(h.m.createClaim.mutateAsync).not.toHaveBeenCalled();
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /retry/i }));
+    expect(h.ordersState.refetch).toHaveBeenCalled();
+    h.ordersState.isError = false;
+    view.rerender(tree());
+    expect(within(screen.getByRole('dialog')).getByLabelText(/SURVEY.*Route survey/)).toHaveValue('2.5');
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Create claim' }));
+    expect(h.m.createClaim.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ lines: [{ boqItemId: 'b1', quantity: 2.5 }] }));
   });
 
   it('offers retry for failed customer-order data without opening a claim', async () => {

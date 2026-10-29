@@ -1324,8 +1324,13 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         />
       )}
 
-      {linesFor && !lineReadsPending && !lineReadsFailed && (
+      {linesFor && (
         <WorkOrderLinesModal
+          sources={[
+            { query: boq, name: t('projectDetail.billing.sources.boq', 'contract lines') },
+            { query: projectBilling, name: t('projectDetail.billing.sources.billing', 'billing figures') },
+            { query: lines, name: t('projectDetail.billing.sources.allocations', 'order allocations') },
+          ].map(({ query, name }) => ({ name, pending: query.isPending, error: query.isError, retry: () => { void query.refetch(); } }))}
           workOrder={linesFor}
           boqItems={boqRows}
           contractLines={projectBilling.data?.contractLines ?? []}

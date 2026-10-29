@@ -673,8 +673,10 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         <ProgressAssessmentModal boqItems={boqRows} assessedByBoqItem={summary?.assessedByBoqItem ?? {}} defaultMonth={thisMonth()}
           onClose={() => setAssessOpen(false)} onSave={saveAssessment} onError={fail} />
       )}
-      {claimFormOpen && claimDataReady && (
-        <ProgressClaimModal boqItems={boqRows} workOrders={workOrders.data ?? []}
+      {claimFormOpen && (
+        <ProgressClaimModal sources={claimSources.map(({ query, name }) => ({ name,
+          pending: query.isPending || (!query.isError && query.data == null), error: query.isError, retry: () => { void query.refetch(); } }))}
+          boqItems={boqRows} workOrders={workOrders.data ?? []}
           allocations={allocations.data ?? []} contractLines={summary?.contractLines ?? []} contractNet={summary?.contractNet ?? 0}
           currencySymbolPrefix={currencySymbol(currency)} hasDownPayment={liveDownPayment}
           claimedByBoqItem={summary?.claimedByBoqItem ?? {}} assessedByBoqItem={summary?.assessedByBoqItem ?? {}}
