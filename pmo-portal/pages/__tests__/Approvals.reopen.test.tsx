@@ -33,6 +33,9 @@ const { reopenMutate, attestMutate, reopenableData, roleHolder } = vi.hoisted(()
   roleHolder: { role: 'Admin' as string },
 }));
 
+const { authorityFrom } = vi.hoisted(() => ({ authorityFrom: vi.fn() }));
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: authorityFrom } }));
+
 vi.mock('react-router', async () => {
   const actual = await vi.importActual<typeof import('react-router')>('react-router');
   return { ...actual, useNavigate: () => vi.fn() };
@@ -70,6 +73,7 @@ vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecisio
 vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceApprovalSection: () => null }));
 vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingViewer: () => ({ rows: [], isPending: false, isError: false, refetch: () => undefined }) }));
 import ApprovalsPage from '../Approvals';
+import { listReopenableApprovedTimesheets } from '@/src/lib/db/timesheetTransition';
 
 const renderPage = (role: string = 'Admin') => {
   roleHolder.role = role;
@@ -341,10 +345,42 @@ describe('AC-TSC-R3: Approvals re-open section — surface honesty + the canAppr
     });
   });
 
-  it('AC-TSC-R3: the section is gated behind canApproveTimesheets — absent for a role that cannot approve (Finance)', () => {
+  it('AC-TSC-R3: Finance sees the section when its query returns an eligible sheet', () => {
     reopenableData.push(sheet('ts-gated', 'Gated Owner', null));
-    renderPage('Finance'); // Finance ∉ DELIVERY → may('transition','approval') is false
-    expect(screen.queryByRole('button', { name: /re-open for correction/i })).not.toBeInTheDocument();
+    renderPage('Finance');
+    expect(screen.getByRole('button', { name: /re-open for correction/i })).toBeInTheDocument();
     expect(screen.queryByText(/already pushed to erp/i)).not.toBeInTheDocument();
+  });
+});
+
+it('shows an assigned engineer the correction action', () => {
+  reopenableData.push(sheet('eligible', 'Team member', null));
+  renderPage('Engineer');
+  expect(screen.getByRole('button', { name: /re-open for correction/i })).toBeInTheDocument();
+});
+
+
+describe('correction query drives the rendered action', () => {
+  it.each([
+    ['Engineer', 'me', 'other', true],
+    ['Engineer', 'another', 'other', false],
+    ['Finance', 'me', 'other', true],
+    ['Project Manager', 'another', 'other', false],
+    ['Executive', null, 'other', true],
+    ['Executive', 'another', 'other', false],
+    ['Admin', 'another', 'other', true],
+    ['Admin', 'me', 'me', false],
+  ] as const)('%s and manager %s project the same authority to the action', async (role, managerId, ownerId, expected) => {
+    const row = { ...sheet('tested', 'Team member', null), user_id: ownerId, owner: { full_name: 'Team member', manager_id: managerId } };
+    authorityFrom.mockImplementation((table: string) => {
+      const result = { data: table === 'timesheets' ? [row] : [], error: null };
+      const builder: Record<string, unknown> = {};
+      for (const op of ['select', 'eq', 'neq', 'gte', 'order', 'limit', 'or', 'in']) builder[op] = () => builder;
+      builder.then = (resolve: (value: typeof result) => void) => Promise.resolve(result).then(resolve);
+      return builder;
+    });
+    reopenableData.push(...await listReopenableApprovedTimesheets('me', role));
+    renderPage(role);
+    expect(Boolean(screen.queryByRole('button', { name: /re-open for correction/i }))).toBe(expected);
   });
 });

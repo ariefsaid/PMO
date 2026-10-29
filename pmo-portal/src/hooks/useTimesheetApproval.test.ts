@@ -91,7 +91,7 @@ it('loads the approved correction queue for the signed-in user', async () => {
   const { Wrapper } = makeWrapper();
   const { result } = renderHook(() => useReopenableApprovedTimesheets(), { wrapper: Wrapper });
   await waitFor(() => expect(result.current.isSuccess).toBe(true));
-  expect(repositories.timesheet.listReopenableApproved).toHaveBeenCalledWith('u1');
+  expect(repositories.timesheet.listReopenableApproved).toHaveBeenCalledWith('u1', 'Project Manager');
   expect(result.current.data).toEqual([]);
 });
 
@@ -367,4 +367,27 @@ describe('useOwnTimesheetPushState (I-16/I-17)', () => {
     const { result } = renderHook(() => useOwnTimesheetPushState(undefined), { wrapper: Wrapper });
     expect(result.current.fetchStatus).toBe('idle');
   });
+});
+
+
+it('refreshes mounted correction eligibility after approval and push', async () => {
+  let approved = false;
+  let finishPush!: () => void;
+  pushApprovedMock.mockClear().mockImplementationOnce(() => new Promise<void>(resolve => { finishPush = resolve; }));
+  vi.mocked(repositories.timesheet.listAwaitingApproval).mockImplementation(async () => approved ? [] : [{ id: 'ts-1', user_id: 'other-user', week_start_date: '2026-06-01', status: 'Submitted', entries: [], owner: { full_name: 'Report', manager_id: 'u1' } }] as unknown as Awaited<ReturnType<typeof repositories.timesheet.listAwaitingApproval>>);
+  vi.mocked(repositories.timesheet.listReopenableApproved).mockImplementation(async () => approved ? [{ id: 'ts-1', user_id: 'other-user', week_start_date: '2026-06-01', status: 'Approved', entries: [], owner: { full_name: 'Report', manager_id: 'u1' }, mirror: null, pushCommandState: null }] as unknown as Awaited<ReturnType<typeof repositories.timesheet.listReopenableApproved>> : []);
+  vi.mocked(repositories.timesheet.approve).mockImplementation(async () => { approved = true; });
+  const { Wrapper, qc } = makeWrapper();
+  const invalidate = vi.spyOn(qc, 'invalidateQueries');
+  const { result } = renderHook(() => ({ pending: useTimesheetsAwaitingApproval(), correction: useReopenableApprovedTimesheets(), mutation: useTimesheetMutations() }), { wrapper: Wrapper });
+  await waitFor(() => expect(result.current.pending.data).toHaveLength(1));
+  await waitFor(() => expect(result.current.correction.data).toEqual([]));
+  let approval!: Promise<void>;
+  act(() => { approval = result.current.mutation.approve.mutateAsync({ id: 'ts-1' }); });
+  await waitFor(() => expect(pushApprovedMock).toHaveBeenCalled());
+  expect(invalidate).not.toHaveBeenCalled();
+  await act(async () => { finishPush(); await approval; });
+  await waitFor(() => expect(result.current.pending.data).toHaveLength(0));
+  await waitFor(() => expect(result.current.correction.data).toHaveLength(1));
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: ['timesheets-reopenable-approved', 'org-1', 'u1'] });
 });

@@ -808,8 +808,8 @@ describe('delegation — methods pass args through and return the DAL result', (
     await repositories.timesheet.attestNoErpDocument('t1', 'reason');
     expect(tsTransitionDal.attestTimesheetNoErpDocument).toHaveBeenCalledWith('t1', 'reason');
     vi.mocked(tsTransitionDal.listReopenableApprovedTimesheets).mockResolvedValue([]);
-    await expect(repositories.timesheet.listReopenableApproved('u1')).resolves.toEqual([]);
-    expect(tsTransitionDal.listReopenableApprovedTimesheets).toHaveBeenCalledWith('u1');
+    await expect(repositories.timesheet.listReopenableApproved('u1', 'Project Manager')).resolves.toEqual([]);
+    expect(tsTransitionDal.listReopenableApprovedTimesheets).toHaveBeenCalledWith('u1', 'Project Manager');
     vi.mocked(tsPushDal.listPushesNeedingAttention).mockResolvedValue([]);
     await expect(repositories.timesheet.listPushesNeedingAttention()).resolves.toEqual([]);
     vi.mocked(tsPushDal.confirmEmployeeLink).mockResolvedValue(undefined);

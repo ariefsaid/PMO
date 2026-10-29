@@ -150,8 +150,15 @@ export async function attestTimesheetNoErpDocument(id: string, reason: string): 
 // DAL read — timesheets awaiting approval (AC-903, FR-TS-011)
 // ---------------------------------------------------------------------------
 
+function canDecideTimesheet(sheet: TimesheetAwaitingApproval, selfId: string, role: TimesheetApprovalViewerRole | null): boolean {
+  return sheet.user_id !== selfId && sheet.owner !== null && (
+    sheet.owner.manager_id === selfId || role === 'Admin' ||
+    (role === 'Executive' && sheet.owner.manager_id === null)
+  );
+}
+
 const AWAITING_SELECT =
-  '*, owner:profiles!timesheets_user_id_fkey(full_name,manager_id), entries:timesheet_entries(*, project:projects(name,short_name,code))';
+  '*, owner:profiles!timesheets_user_id_fkey!inner(full_name,manager_id), entries:timesheet_entries(*, project:projects(name,short_name,code))';
 
 /**
  * Returns Submitted timesheets visible to the caller (via RLS) excluding their own (SoD).
@@ -162,23 +169,20 @@ export async function listTimesheetsAwaitingApproval(
   selfId: string,
   viewerRole: TimesheetApprovalViewerRole | null,
 ): Promise<TimesheetAwaitingApproval[]> {
-  const { data, error } = await supabase
+  let query = supabase
     .from('timesheets')
     .select(AWAITING_SELECT)
     .eq('status', 'Submitted')
     .neq('user_id', selfId)
     .order('week_start_date', { ascending: false });
+  if (viewerRole === 'Executive') query = query.or(`manager_id.eq.${selfId},manager_id.is.null`, { referencedTable: 'owner' });
+  else if (viewerRole !== 'Admin') query = query.eq('owner.manager_id', selfId);
+  const { data, error } = await query;
   if (error) throw new Error(error.message);
   // Mirror the RPC's approve authority locally so the queue never advertises an action the server
   // will reject. A missing owner join fails closed rather than being treated as a null manager.
   const approvable = ((data ?? []) as unknown as TimesheetAwaitingApproval[]).filter(sheet =>
-    sheet.user_id !== selfId &&
-    sheet.owner !== null &&
-    (
-      sheet.owner.manager_id === selfId ||
-      viewerRole === 'Admin' ||
-      (viewerRole === 'Executive' && sheet.owner.manager_id === null)
-    )
+    canDecideTimesheet(sheet, selfId, viewerRole)
   );
   // Normalise entry hours to number at the data boundary (mirrors listTimesheets).
   return approvable.map(sheet => ({
@@ -246,25 +250,26 @@ export type ReopenableApprovedTimesheet = TimesheetAwaitingApproval & {
 };
 
 const REOPENABLE_SELECT =
-  '*, owner:profiles!timesheets_user_id_fkey(full_name), entries:timesheet_entries(*, project:projects(name,short_name,code)), mirror:timesheet_erp_mirror!timesheet_erp_mirror_timesheet_id_fkey(ts_number, push_state, erp_cancelled_at, post_submit_unknown_at)';
+  '*, owner:profiles!timesheets_user_id_fkey!inner(full_name,manager_id), entries:timesheet_entries(*, project:projects(name,short_name,code)), mirror:timesheet_erp_mirror!timesheet_erp_mirror_timesheet_id_fkey(ts_number, push_state, erp_cancelled_at, post_submit_unknown_at)';
 
 /**
  * Slice A (FR-TSC-060 / F5) — the Approved sheets an approver may consider re-opening: other users'
  * Approved sheets, joined to their ERP mirror so the surface can tell an UN-PUSHED sheet (re-openable
  * now) from a PUSHED one (honest "already in ERP — correction path coming" note). `timesheets_select`
- * RLS (0007 A2 manager-of clause) + `timesheet_erp_mirror_select` RLS (0136) scope both halves; this
- * fn adds none of its own (RBAC-transparent, matching the other timesheet read hooks). org_id is
- * NEVER sent.
+ * RLS (0007 A2 manager-of clause) + `timesheet_erp_mirror_select` RLS (0136) scope both halves.
+ * The query narrows those reads to the same record-level authority as the transition RPC. org_id
+ * is NEVER sent.
  */
 export async function listReopenableApprovedTimesheets(
   selfId: string,
+  viewerRole: TimesheetApprovalViewerRole | null,
 ): Promise<ReopenableApprovedTimesheet[]> {
   // ⚑ S4 — BOUNDED. The window is served by `timesheets_org_status_week_idx` (status + week_start_date
   // DESC), so this is an index range scan rather than a growing seq scan, and the page limit caps both
   // the payload and the `in` list built from it below. A week older than the window is not offered here;
   // it is not lost (the RPC still governs), it is simply out of the correction surface's scope.
   const windowStart = new Date(Date.now() - REOPENABLE_WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
-  const { data, error } = await supabase
+  let query = supabase
     .from('timesheets')
     .select(REOPENABLE_SELECT)
     .eq('status', 'Approved')
@@ -272,8 +277,11 @@ export async function listReopenableApprovedTimesheets(
     .gte('week_start_date', windowStart)
     .order('week_start_date', { ascending: false })
     .limit(REOPENABLE_PAGE_LIMIT);
+  if (viewerRole === 'Executive') query = query.or(`manager_id.eq.${selfId},manager_id.is.null`, { referencedTable: 'owner' });
+  else if (viewerRole !== 'Admin') query = query.eq('owner.manager_id', selfId);
+  const { data, error } = await query;
   if (error) throw new Error(error.message);
-  const sheets = (data ?? []) as unknown as ReopenableApprovedTimesheet[];
+  const sheets = ((data ?? []) as unknown as ReopenableApprovedTimesheet[]).filter(sheet => canDecideTimesheet(sheet, selfId, viewerRole));
   if (sheets.length === 0) return [];
 
   // The in-flight half. `external_command_outbox_select` (0096) already grants an active org member
