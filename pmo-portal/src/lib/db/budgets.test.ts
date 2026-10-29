@@ -112,6 +112,7 @@ function makeFromBuilder(resolved: { data: unknown; error: unknown }) {
   builder.neq = mockNeq.mockReturnValue(builder);
   builder.order = mockOrder.mockReturnValue(builder);
   builder.limit = mockLimit.mockReturnValue(builder);
+  builder.range = vi.fn().mockReturnValue(builder);
   builder.update = mockUpdate.mockReturnValue(builder);
   builder.delete = mockDelete.mockReturnValue(builder);
   builder.insert = mockInsert.mockReturnValue(builder);
