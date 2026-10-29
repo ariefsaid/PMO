@@ -489,6 +489,25 @@ describe('contract billing block', () => {
     expect(screen.getByText('Remaining to invoice')).toBeInTheDocument();
   });
 
+  it('AC-UNB-001 shows the contract invoice position on a won project', async () => {
+    state.role = 'Finance';
+    state.invoices = [invoice({ currency: 'IDR', amount: 2200 }), invoice({ id: 'inv-2', currency: 'IDR', amount: 900, status: 'Unpaid' })];
+    state.finances = {
+      contract_invoiced: '2900', remaining_to_invoice: '7100',
+      invoices: [{ currency: 'IDR', invoice_count: 2, invoiced: '3100', settled: '0', outstanding: '3100', missing_outstanding: 0, work_revenue: '2900', tax_basis: 'mixed' }],
+      cash_received: { state: 'known', buckets: [] },
+      actuals: { currency: null, total: null, as_of: null, excludes_restricted_rows: false, categories: [] },
+    };
+    renderWithQueryClient(<MemoryRouter><MoneyBlock project={project({ currency: 'IDR', contract_value: 10000, tax_treatment: 'exclusive' })} /></MemoryRouter>);
+
+    expect(screen.getByTestId('contract-value-amount')).toHaveTextContent('10,000');
+    await userEvent.click(screen.getByText('Details', { exact: true }));
+    expect(screen.getByRole('heading', { name: 'Contract invoice position · IDR' })).toBeInTheDocument();
+    expect(screen.getByText('Invoiced against contract').parentElement).toHaveTextContent('2,900');
+    expect(screen.getByText('Remaining to invoice').parentElement).toHaveTextContent('7,100');
+    expect(screen.getByTestId('project-finances-contract-basis')).toHaveTextContent('excl. PPN');
+  });
+
   it('shows the contract-to-paid cascade from BoQ, work-order allocation, and invoice facts', () => {
     state.boqItems = [{ id: 'boq-1', quantity: 10, rate: 100 }];
     state.billing = { contractLines: [{ allocations: [
