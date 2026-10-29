@@ -6,11 +6,12 @@ import { MemoryRouter, useLocation } from 'react-router';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 const h = vi.hoisted(() => ({
-  boq: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+  boq: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   billing: { data: { contractLines: [], contractNet: 500_000, dpBilled: 0, dpRecovered: 0 } as unknown, isPending: false, isError: false, refetch: vi.fn() },
-  orders: { data: [], isPending: false, isError: false, refetch: vi.fn() },
+  orders: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   orderBilling: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   invoices: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
+  childLines: vi.fn(() => ({ data: [], isPending: false, isError: false })),
   canViewMoney: true,
   drawdown: { data: { committed: 200_000, draft: 50_000, ceiling: 500_000, currency: 'IDR', basis: 'net' }, isPending: false, isError: false, refetch: vi.fn() },
 }));
@@ -18,13 +19,23 @@ const h = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useProgressBilling', () => ({
   useBoqItems: () => h.boq,
   useProjectBilling: () => h.billing,
+  useProjectClaims: () => ({ data: [] }),
+  useProgressBillingMutations: () => ({}),
 }));
-vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => h.orders, useProjectDrawdown: () => h.drawdown }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => h.orders, useProjectDrawdown: () => h.drawdown, useWorkOrderMutations: () => ({}) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.orderBilling }));
 vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => h.invoices }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canViewMoney }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: null }) }));
+vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useProjectWorkOrderLines: h.childLines, useWorkOrderAcceptances: () => ({ data: [] }), useWorkOrderAcceptanceMutations: () => ({}) }));
+vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
+vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: () => true }));
 
 import { ContractCascade, summarizeInvoiceSettlement } from '../ContractCascade';
+import WorkOrdersTab from '../tabs/WorkOrdersTab';
+import { ToastProvider } from '@/src/components/ui';
 import { FinanceI18nTestProvider } from '../../__tests__/financeI18nTestProvider';
 
 const project = {
@@ -37,7 +48,7 @@ const RouteSearch = () => {
   const location = useLocation();
   return <output data-testid="cascade-route-search" aria-hidden="true">{location.search}</output>;
 };
-const renderCascade = (initialEntry = '/') => render(<MemoryRouter initialEntries={[initialEntry]}><FinanceI18nTestProvider><ContractCascade project={project} /><RouteSearch /></FinanceI18nTestProvider></MemoryRouter>);
+const renderCascade = (initialEntry = '/', children?: React.ReactNode) => render(<MemoryRouter initialEntries={[initialEntry]}><FinanceI18nTestProvider><ContractCascade project={project}>{children}</ContractCascade><RouteSearch /></FinanceI18nTestProvider></MemoryRouter>);
 
 describe('ContractCascade orderless invoices (AC-1402)', () => {
   beforeEach(() => {
@@ -151,5 +162,49 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     const section = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
     expect(within(section).getAllByText('600')).toHaveLength(1);
     expect(within(section).queryByRole('button', { name: 'Drawdown headroom' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the completed parent error boundary around children', () => {
+    h.boq = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
+    renderCascade('/', <div data-testid="child-content">Customer orders</div>);
+    expect(screen.getByText("Couldn't load the contract")).toBeInTheDocument();
+    expect(screen.queryByTestId('child-content')).not.toBeInTheDocument();
+  });
+
+  it('prioritizes loading over an error while another parent query is pending', () => {
+    h.boq = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
+    h.billing = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    renderCascade('/', <div data-testid="child-content">Customer orders</div>);
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(screen.queryByText("Couldn't load the contract")).not.toBeInTheDocument();
+    expect(screen.getByTestId('child-content')).toBeInTheDocument();
+  });
+
+  it('starts the real customer orders child query while cascade metrics are pending', () => {
+    h.boq = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    h.billing = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    h.orders = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    h.childLines.mockClear();
+    renderCascade('/', <ToastProvider><WorkOrdersTab projectId={project.id} currency={project.currency} /></ToastProvider>);
+    expect(h.childLines).toHaveBeenCalledWith(project.id);
+    expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
+  });
+
+  it('mounts children concurrently while cascade queries are pending', () => {
+    h.boq = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    h.billing = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+    h.orders = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
+
+    const childMounted = vi.fn();
+    const ChildComponent = () => {
+      React.useEffect(() => { childMounted(); }, []);
+      return <div data-testid="concurrent-child">Customer orders content</div>;
+    };
+
+    renderCascade('/', <ChildComponent />);
+
+    expect(screen.getByTestId('concurrent-child')).toBeInTheDocument();
+    expect(childMounted).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
   });
 });

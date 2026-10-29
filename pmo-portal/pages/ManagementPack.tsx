@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
@@ -35,13 +35,47 @@ const money = (cents: number | null, currency: string) =>
 
 const shortMonth = (iso: string) => monthLabel(iso).split(/\s+/)[0] ?? monthLabel(iso);
 
+interface ActionCellProps {
+  row: PackRow;
+  canRecord: (row: PackRow) => boolean;
+  onExportRow: (row: PackRow) => void;
+  navigate: (to: string) => void;
+  setProgressFor: (row: PackRow) => void;
+  ariaLabel: string;
+  labels: {
+    openProject: string;
+    viewInvoices: string;
+    recordProgress: string;
+    exportRow: string;
+  };
+}
+
+const ActionCell: React.FC<ActionCellProps> = React.memo(({
+  row,
+  canRecord,
+  onExportRow,
+  navigate,
+  setProgressFor,
+  ariaLabel,
+  labels,
+}) => {
+  const items = useMemo(() => [
+    ...(row.projectId ? [{ label: labels.openProject, onClick: () => navigate(`/projects/${row.projectId}`) }] : []),
+    { label: labels.viewInvoices, onClick: () => navigate(row.projectId ? `/finance/receivables?project=${encodeURIComponent(row.projectId)}` : '/finance/receivables?attribution=unassigned') },
+    ...(canRecord(row) ? [{ label: labels.recordProgress, onClick: () => setProgressFor(row) }] : []),
+    { label: labels.exportRow, onClick: () => onExportRow(row) },
+  ], [row, canRecord, onExportRow, navigate, setProgressFor, labels]);
+
+  return <MenuButton ariaLabel={ariaLabel} items={items} />;
+});
+
 const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [params, setParams] = useSearchParams();
-  const label: Record<Measure | TotalsMeasure, string> = {
+  const label: Record<Measure | TotalsMeasure, string> = useMemo(() => ({
     planned: t('managementPack.col.planned', 'Planned'),
     recognised: t('managementPack.col.recognised', 'Recognised'),
     invoiced: t('managementPack.col.invoiced', 'Invoiced'),
@@ -49,7 +83,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     recognisedToDate: t('managementPack.col.recognisedToDate', 'Recognised to date'),
     invoicedToDate: t('managementPack.col.invoicedToDate', 'Invoiced to date'),
     backlog: t('managementPack.col.backlog', 'Backlog'),
-  };
+  }), [t]);
   const range = { from: monthInputToIso(params.get('from') ?? ''), to: monthInputToIso(params.get('to') ?? '') };
   const { data: pack, isPending, isError, error, refetch } = useManagementPack(range);
   const currencyState = useOrgCurrencyState();
@@ -67,27 +101,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   const { data: revenueRows, isPending: invoiceCountsPending } = useRevenuePerProject();
   const projectById = useMemo(() => new Map((projects ?? []).map((project) => [project.id, project])), [projects]);
   const invoiceCounts = useMemo(() => new Map((revenueRows ?? []).map((row) => [`${row.project_id ?? ''}|${row.currency}`, row.invoice_count])), [revenueRows]);
-  if (!may('view', 'finance')) {
-    return (
-      <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
-        <div className="text-center">
-          <h2 className="text-heading font-semibold">
-            {t('managementPack.noAccessTitle', "You don't have access to Reports")}
-          </h2>
-          <p className="mt-2 text-muted-foreground">
-            {t('managementPack.noAccessSub', 'Finance reports are available to Finance, Executive and Admin roles.')}
-          </p>
-          <Button variant="outline" onClick={() => navigate('/')} className="mt-4">
-            <Icon name="back" className="size-4 mr-2" />
-            {t('financeCopy.backToDashboard', 'Back to dashboard')}
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
-  const last = pack ? pack.months.length - 1 : -1;
-  const at = (row: PackRow): PackMonth | null => (last >= 0 ? row.months[last] : null);
   const state: 'loading' | 'error' | 'empty' | undefined = isError
     ? 'error'
     : isPending
@@ -127,28 +141,46 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     basisProgress: t('managementPack.basis.progressShort', 'Progress'),
   };
   // One Export (long-format CSV, one row per project × month with its currency and tax basis).
-  const onExport = () => {
-    if (pack) void exportTable(buildManagementPackExport(pack, exportLabels), managementPackFileStem(pack), 'csv');
-  };
-  const onExportRow = (row: PackRow) => {
-    if (!pack) return;
-    void exportTable(buildManagementPackExport({ ...pack, rows: [row], totals: [] }, exportLabels),
-      `${managementPackFileStem(pack)}_${row.projectNumber ?? row.projectName ?? 'row'}`, 'csv');
-  };
+  const packRef = useRef(pack);
+  packRef.current = pack;
 
-  const canRecord = (row: PackRow) =>
+  const exportLabelsRef = useRef(exportLabels);
+  exportLabelsRef.current = exportLabels;
+
+  const onExport = useCallback(() => {
+    const currentPack = packRef.current;
+    if (currentPack) void exportTable(buildManagementPackExport(currentPack, exportLabelsRef.current), managementPackFileStem(currentPack), 'csv');
+  }, [exportTable]);
+
+  const onExportRow = useCallback((row: PackRow) => {
+    const currentPack = packRef.current;
+    if (!currentPack) return;
+    void exportTable(buildManagementPackExport({ ...currentPack, rows: [row], totals: [] }, exportLabelsRef.current),
+      `${managementPackFileStem(currentPack)}_${row.projectNumber ?? row.projectName ?? 'row'}`, 'csv');
+  }, [exportTable]);
+
+  const canRecord = useCallback((row: PackRow) =>
     // R-004: the project's PM records progress too; may('edit','projectProgress') carries that rule.
     row.kind === 'contract' &&
     PROGRESS_RECORDABLE_PROJECT_STATUSES.has(row.projectStatus ?? '') &&
     !!row.projectId &&
-    may('edit', 'projectProgress', { currentUserId: currentUser?.id ?? null, record: { project_manager_id: row.projectManagerId } });
+    may('edit', 'projectProgress', { currentUserId: currentUser?.id ?? null, record: { project_manager_id: row.projectManagerId } }),
+    [may, currentUser?.id]);
 
   // C4 + Unknowable-Is-Not-Zero: an unknown backlog is an explained dash (reason on hover and for screen
   // readers), never the word "Unavailable" as a value; the page states the reason once with its fix link.
-  const backlogUnknown = <span title={backlogReason}>—<span className="sr-only"> {backlogReason}</span></span>;
+  const backlogUnknown = useMemo(
+    () => (
+      <span title={backlogReason}>
+        —<span className="sr-only"> {backlogReason}</span>
+      </span>
+    ),
+    [backlogReason],
+  );
 
-  const measureCell = (key: Measure) => (row: PackRow) => {
-    const m = at(row);
+  const last = pack ? pack.months.length - 1 : -1;
+  const measureCell = useCallback((key: Measure) => (row: PackRow) => {
+    const m = last >= 0 ? row.months[last] : null;
     const value = m ? m[key] : null;
     return (
       <span data-testid={`pack-cell-${key}`} className="tabular text-right text-[13px]">
@@ -158,8 +190,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         )}
       </span>
     );
-  };
-
+  }, [backlogUnknown, t, last]);
 
   const filteredRows = (pack?.rows ?? []).filter((row) => {
     const project = row.projectId ? projectById.get(row.projectId) : undefined;
@@ -168,12 +199,21 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     return haystack.includes(search.trim().toLocaleLowerCase());
   });
   const latestMonth = (row: PackRow) => row.months[row.months.length - 1] ?? null;
-  const invoiceCountFor = (row: PackRow) => invoiceCounts.get(`${row.projectId ?? ''}|${row.currency}`) ?? 0;
+  const invoiceCountFor = useCallback((row: PackRow) => invoiceCounts.get(`${row.projectId ?? ''}|${row.currency}`) ?? 0, [invoiceCounts]);
   const initials = (name: string) => name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '?';
   // O11: when no contract row has recorded progress the whole column would read "Invoiced basis";
   // the page says it once instead and the column is left out.
   const anyProgress = (pack?.rows ?? []).some((row) => row.kind === 'contract' && row.latestProgress != null);
-  const columns: Column<PackRow>[] = [
+  const packTo = pack?.to;
+
+  const actionLabels = useMemo(() => ({
+    openProject: t('financeHub:managementPack.openProject', 'Open project'),
+    viewInvoices: t('financeHub:managementPack.viewInvoices', 'View invoices'),
+    recordProgress: t('managementPack.recordProgress', 'Record progress'),
+    exportRow: t('financeHub:managementPack.exportRow', 'Export row'),
+  }), [t]);
+
+  const columns = useMemo<Column<PackRow>[]>(() => [
     {
       key: 'project',
       header: t('managementPack.col.project', 'Project'),
@@ -207,12 +247,12 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       cell: (row) => {
         if (row.kind !== 'contract') return <span className="text-muted-foreground">—</span>;
         const latest = row.latestProgress;
-        const missingLatest = latest?.month !== pack?.to;
+        const missingLatest = latest?.month !== packTo;
         return (
           <span className="flex min-w-0 flex-col gap-1">
             {latest ? <ProgressBar value={latest.pctComplete} tone={latest.pctComplete <= 90 ? 'primary' : latest.pctComplete <= 100 ? 'warning' : 'destructive'} compact aria-label={t('financeHub:managementPack.progressValue', 'Progress {{percent}}%', { percent: formatNumberMax2(latest.pctComplete) })} /> : <span className="text-xs text-muted-foreground">{t('financeHub:hub.fix.reports.invoicedBasis', 'Invoiced basis')}</span>}
             {latest && <span className="whitespace-nowrap text-xs text-muted-foreground"><span>{t('financeHub:managementPack.progressComplete', '{{percent}}% complete', { percent: formatNumberMax2(latest.pctComplete) })}</span><span> · {shortMonth(latest.month)}</span></span>}
-            {latest && missingLatest && pack?.to && <StatusPill variant="warn">{t('financeHub:hub.fix.reports.noProgressForMonth', { defaultValue: 'No entry for {{month}}', month: shortMonth(pack.to) })}</StatusPill>}
+            {latest && missingLatest && packTo && <StatusPill variant="warn">{t('financeHub:hub.fix.reports.noProgressForMonth', { defaultValue: 'No entry for {{month}}', month: shortMonth(packTo) })}</StatusPill>}
           </span>
         );
       },
@@ -249,14 +289,33 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       header: <span className="sr-only">{t('managementPack.actions', 'Actions')}</span>,
       kind: 'actions',
       size: 52,
-      cell: (row) => <MenuButton ariaLabel={t('financeHub:managementPack.actionsForProject', 'Actions for {{project}}', { project: row.projectName ?? t('managementPack.unassigned', 'Unassigned') })} items={[
-        ...(row.projectId ? [{ label: t('financeHub:managementPack.openProject', 'Open project'), onClick: () => navigate(`/projects/${row.projectId}`) }] : []),
-        { label: t('financeHub:managementPack.viewInvoices', 'View invoices'), onClick: () => navigate(row.projectId ? `/finance/receivables?project=${encodeURIComponent(row.projectId)}` : '/finance/receivables?attribution=unassigned') },
-        ...(canRecord(row) ? [{ label: t('managementPack.recordProgress', 'Record progress'), onClick: () => setProgressFor(row) }] : []),
-        { label: t('financeHub:managementPack.exportRow', 'Export row'), onClick: () => onExportRow(row) },
-      ]} />,
+      cell: (row) => (
+        <ActionCell
+          row={row}
+          canRecord={canRecord}
+          onExportRow={onExportRow}
+          navigate={navigate}
+          setProgressFor={setProgressFor}
+          ariaLabel={t('financeHub:managementPack.actionsForProject', 'Actions for {{project}}', { project: row.projectName ?? t('managementPack.unassigned', 'Unassigned') })}
+          labels={actionLabels}
+        />
+      ),
     },
-  ];
+  ], [
+    t,
+    projectById,
+    anyProgress,
+    packTo,
+    label,
+    measureCell,
+    invoiceCountsPending,
+    invoiceCountFor,
+    canRecord,
+    onExportRow,
+    navigate,
+    setProgressFor,
+    actionLabels,
+  ]);
 
   // T10: one total row per currency (never summed across currencies) — cumulative figures at the as-at
   // month from the pack's own per-currency totals; the contract total adds only rows that carry a contract.
@@ -358,6 +417,25 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   const backlogUnknownSomewhere = latestTotals.some(({ month }) => month.backlog === null)
     || filteredRows.some((row) => row.kind === 'contract' && latestMonth(row)?.backlog === null);
   const showFigures = Boolean(pack) && !isError && latestTotals.length > 0;
+
+  if (!may('view', 'finance')) {
+    return (
+      <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
+        <div className="text-center">
+          <h2 className="text-heading font-semibold">
+            {t('managementPack.noAccessTitle', "You don't have access to Reports")}
+          </h2>
+          <p className="mt-2 text-muted-foreground">
+            {t('managementPack.noAccessSub', 'Finance reports are available to Finance, Executive and Admin roles.')}
+          </p>
+          <Button variant="outline" onClick={() => navigate('/')} className="mt-4">
+            <Icon name="back" className="size-4 mr-2" />
+            {t('financeCopy.backToDashboard', 'Back to dashboard')}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ListPage
