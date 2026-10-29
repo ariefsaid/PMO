@@ -57,3 +57,23 @@ describe('can() — Finance task scope (AC-TASK-FIN-001)', () => {
     }
   });
 });
+
+
+describe('task ownership projection', () => {
+  it.each(['Finance', 'Engineer'] as const)('%s edits own native tasks but external tasks only through status', (realRole) => {
+    const ctx = { realRole, currentUserId: 'me', record: { created_by: 'me', assignee_id: 'me' } };
+    expect(can('edit', 'task', { ...ctx, record: { ...ctx.record, externallyOwned: false } })).toBe(true);
+    expect(can('edit', 'task', { ...ctx, record: { ...ctx.record, externallyOwned: true } })).toBe(false);
+    expect(can('edit', 'taskStatus', ctx)).toBe(true);
+    expect(can('edit', 'task', { ...ctx, realRole: 'Project Manager', record: { ...ctx.record, externallyOwned: true } })).toBe(true);
+  });
+});
+
+describe('view ownership projection', () => {
+  it.each(['edit', 'archive'] as const)('%s permits owner or Admin', (action) => {
+    expect(can(action, 'userView', { realRole: 'Engineer', currentUserId: 'me', record: { user_id: 'me' } })).toBe(true);
+    expect(can(action, 'userView', { realRole: 'Engineer', currentUserId: 'me', record: { user_id: 'other' } })).toBe(false);
+    expect(can(action, 'userView', { realRole: 'Admin', currentUserId: 'me', record: { user_id: 'other' } })).toBe(true);
+    expect(can(action, 'userView', { realRole: 'Engineer', currentUserId: null, record: { user_id: null } })).toBe(false);
+  });
+});

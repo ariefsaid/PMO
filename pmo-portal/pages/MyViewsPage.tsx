@@ -19,6 +19,7 @@ import {
   type RowMenuItem,
 } from '@/src/components/ui';
 import { useUserViews, useUserViewMutations } from '@/src/hooks/useUserViews';
+import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { UserViewRow } from '@/src/lib/db/userViews';
@@ -30,6 +31,7 @@ const MyViewsPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const may = usePermission();
+  const { currentUser } = useAuth();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useUserViews();
   const { archive } = useUserViewMutations();
@@ -40,7 +42,8 @@ const MyViewsPage: React.FC = () => {
   const showAIComposer =
     isFeatureEnabled('userViews') && isFeatureEnabled('aiComposer');
 
-  const canArchive = may('archive', 'userView');
+  const canChange = (row: UserViewRow, action: 'edit' | 'archive') =>
+    may(action, 'userView', { currentUserId: currentUser?.id, record: { user_id: row.user_id } });
 
   const columns: Column<UserViewRow>[] = [
     {
@@ -69,17 +72,17 @@ const MyViewsPage: React.FC = () => {
   ];
 
   const rowMenu = (row: UserViewRow): RowMenuItem[] => [
-    {
+    ...(canChange(row, 'edit') ? [{
       label: t('financeCopy.edit', "Edit"),
       onClick: () => navigate(`/views/${row.id}/edit`),
-    },
-    ...(canArchive
+    }] : []),
+    ...(canChange(row, 'archive')
       ? [{ label: t('financeCopy.archive', "Archive"), onClick: () => setArchiveTarget(row) }]
       : []),
   ];
 
   const handleArchiveConfirm = async () => {
-    if (!archiveTarget) return;
+    if (!archiveTarget || !canChange(archiveTarget, 'archive')) return;
     try {
       await archive.mutateAsync(archiveTarget.id);
       toast(t('financeCopy.viewArchived', 'View archived'), archiveTarget.name, 'success');

@@ -255,6 +255,17 @@ describe('TasksTab — archive affordance (AC-CUA-098/099/100)', () => {
     expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
   });
 
+  it('offers a creator structural edits only for native ownership while retaining assigned status', async () => {
+    const ownership = await import('@/src/lib/adapterSeam/ownershipCache');
+    const route = vi.spyOn(ownership, 'routeTaskWrite').mockReturnValue('external');
+    listState.data = [{ ...seed[0], created_by: 'eng-1' }];
+    renderTab('Engineer', 'eng-1');
+    expect(screen.getByRole('button', { name: /status for survey the site/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /row actions/i }));
+    expect(screen.queryByRole('menuitem', { name: 'Edit' })).not.toBeInTheDocument();
+    route.mockRestore();
+  });
+
   it('AC-CUA-100: archive action is absent while tasks are externally owned', async () => {
     const ownership = await import('@/src/lib/adapterSeam/ownershipCache');
     vi.spyOn(ownership, 'routeTaskWrite').mockReturnValue('external');

@@ -358,16 +358,16 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '' }
   // identity, so an Engineer could create a task and then not edit it: the exact incoherence the
   // ruling exists to prevent, invisible to every non-rendered test (3-lens review, C1).
   const canCreate = may('create', 'task');
+  const externallyOwned = routeTaskWrite(projectId) === 'external';
   const canEditTask = (task: TaskWithRefs): boolean =>
     may('edit', 'task', {
       currentUserId,
-      record: { created_by: task.created_by, assignee_id: task.assignee_id },
+      record: { created_by: task.created_by, assignee_id: task.assignee_id, externallyOwned },
     });
   const canDelete = may('delete', 'task');
 
   // ADR-0056: the per-task pending-push badge wires in ONLY when task writes route externally
   // (ClickUp-owned). PMO-owned orgs stay byte-for-byte — no badge chrome at all (AC-CUA-061).
-  const externallyOwned = routeTaskWrite(projectId) === 'external';
   const canArchive = may('archive', 'task');
 
   // Review fix #5 — one headline for one event: an externally-routed write fails through the SAME
