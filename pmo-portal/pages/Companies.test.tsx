@@ -145,16 +145,15 @@ describe('Companies index — rows + filters (AC-CO-001)', () => {
     const client = pillEl('Client', 'Cascade Port Authority'); // categorical violet (highlighted)
     const vendor = pillEl('Supplier', 'Steelforge Fabrication'); // neutral grey
     const internal = pillEl('Internal', 'Internal Holdings'); // neutral grey
-    const clientDot = client.querySelector('[data-pill-dot]') as HTMLElement;
-    // S1 (ADR-0068): status is a quiet DOT + LABEL — NO filled slab. The category
-    // family is `violet` for the highlighted kind (Client) + `neutral` for the rest;
-    // identity comes from the dot hue + the label word, never a tinted pill.
+    // S1 (ADR-0068) as amended 2026-10-29 (decorative dot ban): status is a quiet
+    // AA label on its paired pale surface — NO filled slab, no leading dot. The
+    // category family is `violet` for the highlighted kind (Client) + `neutral`
+    // for the rest; identity comes from the label token + the label word.
     expect(client.className).not.toMatch(/\bbg-(violet|primary|secondary)\b/);
     expect(client.getAttribute('style') ?? '').toContain('--status-violet-text');
-    expect(clientDot.style.background).toBe('hsl(var(--violet))');
-    // vendor/internal are the quiet neutral grey (muted dot + muted-foreground label)
-    expect(vendor.className).toContain('text-muted-foreground');
-    expect(internal.className).toContain('text-muted-foreground');
+    // vendor/internal are the quiet neutral grey (muted label on the neutral surface)
+    expect(vendor.className).toContain('text-count-foreground');
+    expect(internal.className).toContain('text-count-foreground');
     // Freed-Blue Status Rule (CW-2): a TYPE pill never uses the action-blue.
     expect(client.className).not.toContain('bg-primary');
     expect(vendor.className).not.toContain('bg-primary');
