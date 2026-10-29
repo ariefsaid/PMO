@@ -7,6 +7,7 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import ProjectDetail from '../ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { formatCurrency } from '@/src/lib/format';
 
 vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => ({ data: { project_id: 'p1', contract_invoiced: null, remaining_to_invoice: null, invoices: [], budget: null, actuals: { currency: null, as_of: null, total: null, excludes_restricted_rows: false, categories: [] } }, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useProjectVatEditability', () => ({ useProjectVatEditability: () => ({ data: { eligible: true, reason: null, hasInvoices: false }, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }) }));
@@ -200,7 +201,7 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(screen.getByRole('heading', { name: 'Money position' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Budget vs actual' })).toBeInTheDocument();
     // L6: the contract value is shown once on the screen — in Money position, not again in the header facts.
-    expect(within(screen.getByRole('region', { name: /Money position/ })).getByText('5,000,000')).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: /Money position/ })).getByText(formatCurrency(5_000_000, 'USD'))).toBeInTheDocument();
     expect(within(screen.getByLabelText('Project facts')).queryByText(/5,000,000/)).not.toBeInTheDocument();
     view.unmount();
   });

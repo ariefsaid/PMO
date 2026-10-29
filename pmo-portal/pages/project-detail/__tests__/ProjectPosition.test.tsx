@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { renderWithQueryClient } from '@/test/renderWithQueryClient';
 import { ToastProvider } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { formatCurrency } from '@/src/lib/format';
 
 const state = vi.hoisted(() => ({
   role: 'Project Manager',
@@ -510,7 +511,7 @@ describe('contract billing block', () => {
     expect(screen.getByText('25% invoiced')).toHaveClass('text-2xl');
     expect(screen.getByText('20% paid')).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: 'Delivered is 40% of contract' })).toBeInTheDocument();
-    expect(screen.getByText('1,000')).toBeInTheDocument();
+    expect(screen.getByTestId('contract-value-amount').textContent).toBe(formatCurrency(1_000, 'USD'));
     expect(screen.getByText('500')).toBeInTheDocument();
     expect(screen.getByText('400')).toBeInTheDocument();
     expect(screen.getByText('250')).toBeInTheDocument();

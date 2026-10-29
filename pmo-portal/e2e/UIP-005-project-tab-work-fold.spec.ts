@@ -259,6 +259,7 @@ async function runTabWorkCase(
   }
 }
 
+// #1402: seed.sql:935-950 has Paid USD 1,680,000 + Ordered USD 680,000, for 2,360,000 committed.
 for (const role of ['pm', 'finance'] as const) {
   test(`UIP-006: ${role} contract and committed values remain visible at 1440px`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -266,11 +267,11 @@ for (const role of ['pm', 'finance'] as const) {
     await page.goto(`${projectPath}/overview`);
     const contractAmount = page.getByRole('region', { name: 'Money position' }).getByTestId('contract-value-amount');
     const budgetActual = page.getByRole('region', { name: 'Budget vs actual' });
-    const committedValue = budgetActual.getByText('Plus 2,558,500 committed in purchase orders', { exact: true });
+    const committedValue = budgetActual.getByText('Plus 2,360,000 committed in purchase orders', { exact: true });
     await expect(contractAmount).toBeVisible();
     // #1402 copy (#1437): the block names USD once in its unit; keep the seeded committed total exact.
     await expect(budgetActual.getByText('USD · excl. PPN', { exact: true })).toBeVisible();
-    await expect(committedValue).toHaveText('Plus 2,558,500 committed in purchase orders');
+    await expect(committedValue).toHaveText('Plus 2,360,000 committed in purchase orders');
     // look relation retired: recomposed (#1402)
   });
 
