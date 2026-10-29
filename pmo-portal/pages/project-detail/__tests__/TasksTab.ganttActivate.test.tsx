@@ -68,6 +68,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 import TasksTab from '../tabs/TasksTab';
+import { clearOwnershipCache, setTaskOwnership, setProjectBindings } from '@/src/lib/adapterSeam/ownershipCache';
 
 // Tasks with dates so the Gantt has bars to click
 const seed = [
@@ -117,6 +118,9 @@ const renderTab = (role: Role = 'Project Manager', userId = 'pm-1') => {
 };
 
 beforeEach(() => {
+    clearOwnershipCache();
+    setTaskOwnership([]);
+    setProjectBindings([]);
   listState.data = seed;
   listState.isPending = false;
   listState.isError = false;

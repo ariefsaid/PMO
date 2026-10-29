@@ -43,7 +43,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { classifyExternalError } from '@/src/lib/adapterSeam/pendingPush';
 import { completionPct, formatDateOnly } from '@/src/lib/format';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
-import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import { useTaskRouteState } from '@/src/hooks/useOwnershipCacheSync';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import type { TaskWithRefs, TaskStatus, TaskPriority, TaskInput, TaskPatch } from '@/src/lib/db/tasks';
@@ -357,18 +357,20 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '' }
   // `may('edit','task')` with NO ctx — the record-scoped predicate fails closed on missing
   // identity, so an Engineer could create a task and then not edit it: the exact incoherence the
   // ruling exists to prevent, invisible to every non-rendered test (3-lens review, C1).
-  const canCreate = may('create', 'task');
+  const route = useTaskRouteState(projectId);
+  const routeKnown = route !== 'unknown';
+  const canCreate = routeKnown && may('create', 'task');
+  const externallyOwned = route === 'external';
   const canEditTask = (task: TaskWithRefs): boolean =>
-    may('edit', 'task', {
+    routeKnown && may('edit', 'task', {
       currentUserId,
-      record: { created_by: task.created_by, assignee_id: task.assignee_id },
+      record: { created_by: task.created_by, assignee_id: task.assignee_id, externallyOwned },
     });
-  const canDelete = may('delete', 'task');
+  const canDelete = routeKnown && may('delete', 'task');
 
   // ADR-0056: the per-task pending-push badge wires in ONLY when task writes route externally
   // (ClickUp-owned). PMO-owned orgs stay byte-for-byte — no badge chrome at all (AC-CUA-061).
-  const externallyOwned = routeTaskWrite(projectId) === 'external';
-  const canArchive = may('archive', 'task');
+  const canArchive = routeKnown && may('archive', 'task');
 
   // Review fix #5 — one headline for one event: an externally-routed write fails through the SAME
   // vocabulary the badge renders (classifyExternalError), so the toast and the badge never disagree.
@@ -402,7 +404,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '' }
 
   /** May the current viewer set THIS task's status? Managers: any; Engineer: own only. */
   const canSetStatus = (t: TaskWithRefs): boolean =>
-    may('edit', 'taskStatus', { currentUserId, record: { assignee_id: t.assignee_id } });
+    routeKnown && may('edit', 'taskStatus', { currentUserId, record: { assignee_id: t.assignee_id } });
   useEffect(() => {
     const taskIds = new Set(all.map((task) => task.id));
     setSelectedTaskIds((current) => {
@@ -414,6 +416,9 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '' }
   const canBulkStatus = selectedTasks.length > 0 && selectedTasks.every(canSetStatus);
   const canBulkEdit = selectedTasks.length > 0 && selectedTasks.every(canEditTask);
   const canBulkArchive = canArchive && !externallyOwned && selectedTasks.some((task) => task.archived_at == null);
+  const canApplyBulk = bulkAction === 'status' ? canBulkStatus
+    : bulkAction === 'archive' ? canBulkArchive
+      : canBulkEdit;
   const taskSelection: DataTableSelection<TaskWithRefs> = {
     selectedIds: selectedTaskIds,
     onChange: (ids) => {
@@ -435,7 +440,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '' }
 
   // ── Mutations ───────────────────────────────────────────────────────────
   const onStatusChange = async (task: TaskWithRefs, status: TaskStatus) => {
-    if (status === task.status) return;
+    if (status === task.status || !canSetStatus(task)) return;
     try {
       await updateStatus.mutateAsync({ id: task.id, status });
       toast(
@@ -453,6 +458,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '' }
   };
 
   const onArchive = async (task: TaskWithRefs) => {
+    if (!canArchive || externallyOwned) return;
     try {
       await archive.mutateAsync({ id: task.id, archived: task.archived_at == null });
       toast(
@@ -469,7 +475,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '' }
   };
 
   const onDeleteConfirm = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || !canDelete) return;
     const target = deleteTarget;
     try {
       await remove.mutateAsync(target.id);
@@ -484,7 +490,9 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '' }
 
   const applyBulkAction = async () => {
     if (!bulkAction || !selectedTasks.length || bulkPending) return;
-    if (bulkAction === 'status' && !bulkStatus) return;
+    if ((bulkAction === 'assignee' || bulkAction === 'due') && !canBulkEdit) return;
+    if (bulkAction === 'archive' && !canBulkArchive) return;
+    if (bulkAction === 'status' && (!bulkStatus || !canBulkStatus)) return;
     if (bulkAction === 'assignee' && !bulkAssignee) return;
     if (bulkAction === 'due' && !bulkDueDate && !bulkClearDueDate) return;
 
@@ -704,7 +712,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '' }
           {canBulkArchive && <Button variant="outline" size="sm" aria-pressed={bulkAction === 'archive'} onClick={() => setBulkAction((current) => current === 'archive' ? null : 'archive')}>{t('projectDetail.tasks.bulk.archive', 'Archive')}</Button>}
           <Button variant="ghost" size="sm" onClick={() => { setSelectedTaskIds(new Set()); setBulkAction(null); }}>{t('projectDetail.tasks.bulk.clearSelection', 'Clear selection')}</Button>
         </div>}
-        {view === 'list' && bulkAction && selectedTasks.length > 0 && <div className="flex min-w-0 flex-wrap items-end gap-2 rounded-md border border-border bg-card px-3 py-2.5">
+        {view === 'list' && bulkAction && canApplyBulk && selectedTasks.length > 0 && <div className="flex min-w-0 flex-wrap items-end gap-2 rounded-md border border-border bg-card px-3 py-2.5">
           {bulkAction === 'status' && <SelectField
             hideLabel
             label={t('projectDetail.tasks.bulk.statusLabel', 'New status for selected tasks')}
@@ -833,11 +841,11 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '' }
         onDelete={(task) => setDeleteTarget(task)}
         openTask={openTask}
         onClose={closeTask}
-        nestedOpen={!!formTarget || !!deleteTarget}
+        nestedOpen={!!(formTarget && (formTarget.task ? canEditTask(formTarget.task) : canCreate)) || (!!deleteTarget && canDelete)}
       />
 
       {/* Create / edit modal */}
-      {formTarget && (
+      {formTarget && (formTarget.task ? canEditTask(formTarget.task) : canCreate) && (
         <TaskFormModal
           key={formTarget.task?.id ?? 'new'}
           task={formTarget.task}
@@ -878,7 +886,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '' }
 
       {/* Delete confirm (destructive tone) */}
       <ConfirmDialog
-        open={!!deleteTarget}
+        open={!!deleteTarget && canDelete}
         tone="destructive"
         title={
           deleteTarget

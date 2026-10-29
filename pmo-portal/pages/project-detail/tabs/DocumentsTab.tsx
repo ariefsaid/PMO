@@ -681,6 +681,12 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     const file = e.target.files?.[0];
     if (!file || !activeFileDoc) return;
 
+    const target = all.find((doc) => doc.id === activeFileDoc.docId);
+    if (!target || target.status !== 'Draft' || !canEditDoc(target)) {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setActiveFileDoc(null);
+      return;
+    }
     clearAnyUploadError(activeFileDoc.docId);
     const validation = validateFile(file);
     if (!validation.ok) {
@@ -706,12 +712,16 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   };
 
   const handleUploadClick = (docId: string) => {
+    const doc = all.find((item) => item.id === docId);
+    if (!doc || doc.status !== 'Draft' || !canEditDoc(doc)) return;
     clearAnyUploadError(docId);
     setActiveFileDoc({ docId, mode: 'upload' });
     fileInputRef.current?.click();
   };
 
   const handleReplaceClick = (docId: string) => {
+    const doc = all.find((item) => item.id === docId);
+    if (!doc || doc.status !== 'Draft' || !canEditDoc(doc)) return;
     clearAnyUploadError(docId);
     setActiveFileDoc({ docId, mode: 'replace' });
     fileInputRef.current?.click();
@@ -754,8 +764,8 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         title={doc.title}
         uploadProgress={progress[doc.id] ?? null}
         uploadError={clientUploadErrors[doc.id] ?? uploadErrors[doc.id]?.message ?? null}
-        onUpload={doc.status === 'Draft' && canWriteDocs ? () => handleUploadClick(doc.id) : undefined}
-        onReplace={doc.status === 'Draft' && canWriteDocs ? () => handleReplaceClick(doc.id) : undefined}
+        onUpload={doc.status === 'Draft' && canEditDoc(doc) ? () => handleUploadClick(doc.id) : undefined}
+        onReplace={doc.status === 'Draft' && canEditDoc(doc) ? () => handleReplaceClick(doc.id) : undefined}
         onCancelUpload={progress[doc.id] != null ? () => cancelUpload(doc.id) : undefined}
         onRemoveError={clientUploadErrors[doc.id] || uploadErrors[doc.id] ? () => clearAnyUploadError(doc.id) : undefined}
         onDownload={doc.file_path ? () => void handleDownload(doc) : undefined}

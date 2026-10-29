@@ -1,4 +1,5 @@
 import type { Role } from './AuthContext';
+import { ALL_ROLES, MASTER_DATA_ROLES, REVENUE_WRITE_ROLES } from './coarseRoles';
 import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 
 /**
@@ -105,6 +106,9 @@ export interface PolicyContext {
     viewOnly?: boolean;
     status?: string | null;
     assignee_id?: string | null;
+    /** Project task write ownership and saved-view owner for record-scoped checks. */
+    externallyOwned?: boolean;
+    user_id?: string | null;
     /** Author id — for the document-edit author rule (A-7). */
     author_id?: string | null;
     /** Task creator — DD-TASK-8. Trigger-stamped server-side (`0204`), never client-set, so it is
@@ -129,9 +133,9 @@ export interface PolicyContext {
 
 // ── Role sets (named to mirror the matrix; the single source of truth) ───────
 const ADMIN: Role[] = ['Admin'];
-const ALL: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance', 'Engineer'];
+const ALL: Role[] = [...ALL_ROLES];
 const DELIVERY: Role[] = ['Admin', 'Executive', 'Project Manager']; // delivery write roles
-const MASTER_DATA: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance']; // incl. Finance
+const MASTER_DATA: Role[] = [...MASTER_DATA_ROLES]; // incl. Finance
 const ARCHIVE_ROLES: Role[] = ['Admin', 'Executive'];
 const MONEY_AUTHORITY: Role[] = ['Admin', 'Executive', 'Finance']; // contract_value-on-won SoD
 const CONFIRM_BAST: Role[] = ['Admin', 'Finance']; // BAST confirmation / any-draft withdrawal (DD-CQ-8)
@@ -150,7 +154,7 @@ const MILESTONE_WRITE: Role[] = ['Admin', 'Project Manager']; // OD-DEL-7: PM+Ad
  * the backend; it must never be the ONLY place a ruling lives. PROCUREMENT's ruling is different
  * (Admin·Exec·PM·Finance) — do not fold the two together.
  */
-const REVENUE_WRITE: Role[] = ['Admin', 'Finance'];
+const REVENUE_WRITE: Role[] = [...REVENUE_WRITE_ROLES];
 /** #876 slice 2 (DD-VWH-11): who may set a vendor's default tax treatment — mirrors set_vendor_tax_defaults (0273). */
 const TAX_SETUP: Role[] = ['Admin', 'Finance'];
 /** #1271: who may save / end / preview cost attribution rules — mirrors the 0376 RPC gate. */
@@ -344,7 +348,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     // Owner ruling 2026-10-23 (migration 0355): Finance is scoped exactly like an Engineer on tasks —
     // create, edit what it created, set status on what it is assigned; no edit-all, archive or delete.
     create: allow(ALL),
-    // Record-scoped, mirroring the RLS disjunct in 0204 §3 exactly: a write role, OR the CREATOR.
+    // Record-scoped: a delivery role, or the creator when tasks are locally owned.
     // ⚑ NOT the assignee — the 3-lens review removed the assignee disjunct from `tasks_update` (it
     // was redundant with `tasks_update_own_status` and its only net effect was bypassing the ClickUp
     // guard), so offering the assignee a full Edit form here would promise a write the server
@@ -354,7 +358,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     edit: (role, ctx) => {
       if (has(DELIVERY, role)) return true;
       if (!ctx.currentUserId) return false;
-      return ctx.record?.created_by === ctx.currentUserId;
+      return ctx.record?.externallyOwned !== true && ctx.record?.created_by === ctx.currentUserId;
     },
     archive: allow(DELIVERY), // 0355: Finance lost the write-role path (archived_at is a lifecycle column)
     delete: allow(DELIVERY),
@@ -487,11 +491,11 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     delete: allow(ADMIN),
   },
   userView: {
-    // Any authenticated user may create, edit, and archive their OWN views.
+    // Any authenticated user may create views; owners and Admin may edit or archive.
     // RLS is the real authority (user_views_insert/update/delete, I1).
     create: allow(ALL),
-    edit: allow(ALL),
-    archive: allow(ALL),
+    edit: (role, ctx) => has(ALL, role) && (role === 'Admin' || (!!ctx.currentUserId && ctx.record?.user_id === ctx.currentUserId)),
+    archive: (role, ctx) => has(ALL, role) && (role === 'Admin' || (!!ctx.currentUserId && ctx.record?.user_id === ctx.currentUserId)),
   },
   // Revenue domain — SI submit SoD (OD-SAR-PMO-IS-THE-UI, FR-SAR-195)
   // UX-only: author cannot submit their own draft; different approver-role user can.

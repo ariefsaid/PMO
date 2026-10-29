@@ -80,14 +80,10 @@ const openRowMenu = async (name: string) => {
 };
 
 describe('AdminUsers — self-edit affordance gate (0179 profiles hierarchy write)', () => {
-  it('omits "Edit role" and "Change manager" on the signed-in caller\'s own row', async () => {
+  it('omits self-management actions on the signed-in caller’s row', () => {
     renderPage();
-    await openRowMenu('Sole Admin');
-    // The menu DID open — the own-row Disable (not a self-edit) stays present.
-    expect(await screen.findByRole('menuitem', { name: /^disable$/i })).toBeInTheDocument();
-    // The two self-edit affordances are NOT offered on the caller's own row.
-    expect(screen.queryByRole('menuitem', { name: /edit role/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: /change manager/i })).not.toBeInTheDocument();
+    const row = screen.getByText('Sole Admin').closest('tr') as HTMLElement;
+    expect(within(row).queryByRole('button', { name: /row actions/i })).not.toBeInTheDocument();
   });
 
   it('still offers "Edit role" and "Change manager" on another user\'s row', async () => {

@@ -74,6 +74,8 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 import TasksTab from '../tabs/TasksTab';
+import { clearOwnershipCache, setTaskOwnership, setProjectBindings, setProjectBinding } from '@/src/lib/adapterSeam/ownershipCache';
+import { act } from '@testing-library/react';
 
 const profiles = [
   { id: 'eng-1', full_name: 'Dana Engineer', role: 'Engineer' },
@@ -140,6 +142,9 @@ const renderTab = (role: Role = 'Project Manager', userId = 'pm-1', initialEntry
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  clearOwnershipCache();
+  setTaskOwnership([]);
+  setProjectBindings([]);
   listState.data = seed;
   listState.isPending = false;
   listState.isError = false;
@@ -255,9 +260,55 @@ describe('TasksTab — archive affordance (AC-CUA-098/099/100)', () => {
     expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
   });
 
+  it.each(['Finance', 'Engineer'] as const)('%s updates creator actions when ownership becomes known and bindings change', async (role) => {
+    clearOwnershipCache();
+    listState.data = [{ ...seed[0], created_by: 'eng-1' }];
+    renderTab(role, 'eng-1');
+    await userEvent.click(screen.getByRole('button', { name: /row actions/i }));
+    expect(screen.queryByRole('menuitem', { name: 'Edit' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /status for survey the site/i })).not.toBeInTheDocument();
+    act(() => { setTaskOwnership([]); setProjectBindings([]); });
+    expect(screen.getByRole('button', { name: /status for survey the site/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeInTheDocument();
+    act(() => setProjectBinding('p1', true));
+    expect(screen.queryByRole('menuitem', { name: 'Edit' })).not.toBeInTheDocument();
+    act(() => clearOwnershipCache());
+    expect(screen.queryByRole('menuitem', { name: 'Edit' })).not.toBeInTheDocument();
+    act(() => { setTaskOwnership([]); setProjectBindings([{ projectId: 'p1', externalTier: 'clickup' }]); });
+    expect(screen.queryByRole('menuitem', { name: 'Edit' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /status for survey the site/i })).toBeInTheDocument();
+  });
+
+  it('offers a creator structural edits only for native ownership while retaining assigned status', async () => {
+    setProjectBinding('p1', true);
+    listState.data = [{ ...seed[0], created_by: 'eng-1' }];
+    renderTab('Engineer', 'eng-1');
+    expect(screen.getByRole('button', { name: /status for survey the site/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /row actions/i }));
+    expect(screen.queryByRole('menuitem', { name: 'Edit' })).not.toBeInTheDocument();
+  });
+
+  it('withdraws an open structural bulk action when the binding changes', async () => {
+    listState.data = [{ ...seed[0], created_by: 'eng-1' }];
+    renderTab('Engineer', 'eng-1');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select task Survey the site' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Change due date' }));
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeInTheDocument();
+    act(() => setProjectBinding('p1', true));
+    expect(screen.queryByRole('button', { name: 'Apply' })).not.toBeInTheDocument();
+    expect(mutations.update.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('keeps delivery editing and assignee status for a known external route', async () => {
+    setProjectBinding('p1', true);
+    renderTab('Project Manager', 'pm-1');
+    expect(screen.getByRole('button', { name: /status for survey the site/i })).toBeInTheDocument();
+    await userEvent.click(screen.getAllByRole('button', { name: /row actions/i })[0]);
+    expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeInTheDocument();
+  });
+
   it('AC-CUA-100: archive action is absent while tasks are externally owned', async () => {
-    const ownership = await import('@/src/lib/adapterSeam/ownershipCache');
-    vi.spyOn(ownership, 'routeTaskWrite').mockReturnValue('external');
+    setProjectBinding('p1', true);
     renderTab('Admin');
     await userEvent.click(screen.getAllByRole('button', { name: /Row actions/i })[0]);
     expect(screen.queryByText('Archive')).not.toBeInTheDocument();

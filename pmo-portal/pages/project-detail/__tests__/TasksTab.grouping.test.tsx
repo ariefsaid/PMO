@@ -64,6 +64,7 @@ vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: (
 vi.mock('@/src/components/history/RecordHistory', () => ({ RecordHistory: () => null }));
 
 import TasksTab from '../tabs/TasksTab';
+import { clearOwnershipCache, setTaskOwnership, setProjectBindings } from '@/src/lib/adapterSeam/ownershipCache';
 
 /** A phase's heading row and the text of every row up to the next phase heading. */
 function phase(name: RegExp) {
@@ -90,6 +91,9 @@ const render$ = () => {
 
 describe('TasksTab grouping (AC-DEL-010)', () => {
   beforeEach(() => {
+    clearOwnershipCache();
+    setTaskOwnership([]);
+    setProjectBindings([]);
     vi.clearAllMocks();
     tasksState.isPending = false;
     tasksState.isError = false;

@@ -55,6 +55,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 import TasksTab from '../tabs/TasksTab';
+import { clearOwnershipCache, setTaskOwnership, setProjectBindings } from '@/src/lib/adapterSeam/ownershipCache';
 
 /** A phase's heading row and the text of every row up to the next phase heading (B7: phases share one table). */
 function phase(name: RegExp) {
@@ -80,6 +81,9 @@ const render$ = () => {
 
 describe('TasksTab add task in group (AC-DEL-011)', () => {
   beforeEach(() => {
+    clearOwnershipCache();
+    setTaskOwnership([]);
+    setProjectBindings([]);
     vi.clearAllMocks();
   });
 

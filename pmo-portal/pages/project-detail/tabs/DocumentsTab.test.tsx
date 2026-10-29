@@ -694,6 +694,26 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     );
   });
 
+  it('offers draft attachment actions to the author and Admin', async () => {
+    renderTab('Project Manager', 'pm-1');
+    await userEvent.click(screen.getByText('Site Plan'));
+    expect(within(screen.getByRole('complementary')).getByRole('button', { name: /Upload file for Site Plan/i })).toBeInTheDocument();
+  });
+
+  it('does not offer draft upload to another writer', async () => {
+    listState.data = [seed[0]];
+    renderTab('Finance', 'other');
+    await userEvent.click(screen.getByText('Site Plan'));
+    expect(within(screen.getByRole('complementary')).queryByRole('button', { name: /Upload file for Site Plan/i })).not.toBeInTheDocument();
+  });
+
+  it('does not offer draft attachment actions to another writer', async () => {
+    listState.data = [{ ...seed[0], file_path: 'file.pdf' }];
+    renderTab('Finance', 'other');
+    await userEvent.click(screen.getByText('Site Plan'));
+    expect(within(screen.getByRole('complementary')).queryByRole('button', { name: /Replace file for Site Plan/i })).not.toBeInTheDocument();
+  });
+
   it('C2: a read-only Engineer sees no upload/replace affordance but can still download read-only files', async () => {
     renderTab('Engineer', 'eng-1');
     await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
