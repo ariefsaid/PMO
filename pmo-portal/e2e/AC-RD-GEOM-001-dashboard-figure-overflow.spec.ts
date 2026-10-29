@@ -77,10 +77,10 @@ async function expectFixtureAmount(figure: Locator, amount: number, language: 'e
 const companyReady: Route['ready'] = async (page, _width, language) => {
   const company = page.getByRole('region', { name: language === 'id' ? 'Angka perusahaan' : 'Company figures' });
   await expect(company.locator('.tabular').filter({ hasText: /373[.,]5/ }).first()).toBeVisible();
-  const sales = page.getByRole('region', { name: language === 'id' ? 'Kinerja penjualan' : 'Sales results' });
+  const sales = page.getByRole('region', { name: language === 'id' ? 'Kinerja penjualan' : 'Sales performance' });
   await expect(sales.locator('.tabular').filter({ hasText: /212[.,]6/ }).first()).toBeVisible();
   await expect(page.getByTestId('kpi-win-rate')).toHaveText(/95(?:[.,]0)?%/);
-  const billing = page.getByRole('region', { name: language === 'id' ? 'Posisi penagihan' : 'Billing results' });
+  const billing = page.getByRole('region', { name: language === 'id' ? 'Posisi penagihan' : 'Billing position' });
   await expect(billing.locator('.tabular').first()).toHaveText(shortIdr(FINANCE_FIXTURE.receivable, language));
 };
 const financeReady: Route['ready'] = async (page, _width, language) => {
