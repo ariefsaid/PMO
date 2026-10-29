@@ -1,4 +1,4 @@
-import { expect, request as pwRequest, type Locator, type Page, type TestInfo } from '@playwright/test';
+import { expect, request as pwRequest, test as playwrightTest, type Locator, type Page, type Route, type TestInfo } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,6 +33,45 @@ export const AUTH_DIR = path.join(__dirname, '.auth');
 
 interface CapturedStorageState {
   origins: { origin: string; localStorage?: { name: string; value: string }[] }[];
+}
+
+const appOriginByPage = new WeakMap<Page, string>();
+
+/** Materialize the app origin without booting the SPA before its captured session is installed. */
+async function ensureAppOrigin(page: Page): Promise<void> {
+  const configuredBaseURL = playwrightTest.info().project.use.baseURL;
+  if (typeof configuredBaseURL !== 'string') {
+    throw new Error('signIn: Playwright project must configure baseURL before replaying captured storage.');
+  }
+  const appOrigin = new URL(configuredBaseURL).origin;
+  const knownOrigin = appOriginByPage.get(page);
+  const currentUrl = page.url();
+  if (knownOrigin === appOrigin && currentUrl !== 'about:blank' && new URL(currentUrl).origin === appOrigin) return;
+
+  const isRootDocument = (url: URL) =>
+    url.origin === appOrigin && url.pathname === '/' && !url.search && !url.hash;
+  const serveEmptyOriginDocument = async (route: Route) => {
+    const request = route.request();
+    if (!request.isNavigationRequest() || request.frame() !== page.mainFrame()) {
+      await route.continue();
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: '<!doctype html><html><head></head><body></body></html>',
+    });
+  };
+
+  await page.route(isRootDocument, serveEmptyOriginDocument);
+  try {
+    await page.goto('/');
+  } finally {
+    await page.unroute(isRootDocument, serveEmptyOriginDocument);
+  }
+
+  appOriginByPage.set(page, new URL(page.url()).origin);
 }
 
 /**
@@ -94,9 +133,11 @@ export async function signIn(page: Page, email: string, password = SEED_PASSWORD
     throw new Error(`signIn: captured session fixture for "${email}" at ${statePath} has no localStorage entries.`);
   }
 
-  // First nav may land on /login (localStorage still empty on the first signIn of a fresh
-  // context) — that's fine, it just gives us the app origin to write localStorage against.
-  await page.goto('/');
+  // A fresh page needs the app origin before localStorage can be written. A temporary empty
+  // document provides that origin without paying for an unauthenticated SPA boot; later actor
+  // switches reuse the page's known app origin. The route is removed before the authenticated app
+  // navigation so it cannot affect the spec's own routes, filters, locale, or later user switches.
+  await ensureAppOrigin(page);
   await page.evaluate((items: { name: string; value: string }[]) => {
     localStorage.clear();
     for (const { name, value } of items) localStorage.setItem(name, value);
