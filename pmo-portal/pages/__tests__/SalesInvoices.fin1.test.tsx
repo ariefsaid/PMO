@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
   invoices: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   orgDay: { day: '2026-10-18' as string | null, isPending: false, isError: false, retry: vi.fn() },
   mode: 'erp' as 'erp' | 'native',
+  received: vi.fn(async () => {}),
   projectsError: false,
   retryProjects: vi.fn(async () => ({ data: [], error: null })),
   projects: [
@@ -30,7 +31,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
   useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRevenueMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
-    setReceivedDate: { mutateAsync: vi.fn(), isPending: false },
+    setReceivedDate: { mutateAsync: h.received, isPending: false },
     setEfaktur: { mutateAsync: vi.fn(), isPending: false },
     submitInvoice: { mutateAsync: vi.fn(), isPending: false },
     cancelInvoice: { mutateAsync: vi.fn(), isPending: false },
@@ -96,14 +97,14 @@ const invoice = (id: string, overrides: Partial<SalesInvoiceRow> = {}): SalesInv
 const LocationProbe = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  return <><output data-testid="location">{`${location.pathname}${location.search}`}</output><button onClick={() => navigate('/sales-invoices?q=INV-002')}>Change search URL</button></>;
+  return <><button onClick={() => navigate(-1)}>History back</button><button onClick={() => navigate(1)}>History forward</button><output data-testid="location">{`${location.pathname}${location.search}`}</output><button onClick={() => navigate('/sales-invoices?q=INV-002')}>Change search URL</button></>;
 };
 
-function renderAt(url: string, role: 'Finance' | 'Project Manager' = 'Finance') {
+function renderAt(url: string, role: 'Finance' | 'Project Manager' = 'Finance', entries = [url]) {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
       <ImpersonationProvider realRole={role}>
-        <MemoryRouter initialEntries={[url]}>
+        <MemoryRouter initialEntries={entries} initialIndex={entries.length - 1}>
           <ToastProvider>
             <LocationProbe />
             <Routes>
@@ -130,6 +131,7 @@ beforeEach(() => {
   h.mode = 'erp';
   h.projectsError = false;
   h.retryProjects.mockClear();
+  h.received.mockReset().mockResolvedValue(undefined);
 });
 
 describe('FIN-S1 / AC-RD-TBL-INV-001: invoice list default state', () => {
@@ -304,9 +306,37 @@ it('reports unavailable project search and offers a retry', async () => {
   expect(h.retryProjects).toHaveBeenCalled();
 });
 
-it('opens the received-date dialog from the invoice list', async () => {
+it('records the selected invoice receipt from the list', async () => {
+  h.invoices.data = [invoice('INV-001'), invoice('INV-002')];
+  h.received.mockRejectedValueOnce(new Error('Save failed'));
   renderAt('/sales-invoices');
-  await userEvent.click(screen.getByRole('button', { name: /row actions/i }));
+  await userEvent.click(within(screen.getByRole('row', { name: /INV-002/ })).getByRole('button', { name: /row actions/i }));
   await userEvent.click(screen.getByRole('menuitem', { name: /record received date/i }));
-  expect(screen.getByRole('dialog')).toBeInTheDocument();
+  const dialog = screen.getByRole('dialog');
+  await userEvent.type(within(dialog).getByLabelText('Received'), '2026-10-12');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+  expect(await within(dialog).findByTestId('entity-modal-save-error')).toBeInTheDocument();
+  expect(within(dialog).getByLabelText('Received')).toHaveValue('2026-10-12');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+  expect(h.received).toHaveBeenCalledWith({ siId: 'INV-002', receivedDate: '2026-10-12' });
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+
+it('restores search on history back and forward while typing replaces the current entry', async () => {
+  h.invoices.data = [invoice('INV-001'), invoice('INV-002')];
+  renderAt('/sales-invoices?q=INV-002', 'Finance', ['/sales-invoices?q=INV-001', '/sales-invoices?q=INV-002']);
+  const user = userEvent.setup();
+  const search = screen.getByRole('searchbox', { name: /search sales invoices/i });
+  expect(search).toHaveValue('INV-002');
+  await user.click(screen.getByRole('button', { name: 'History back' }));
+  expect(search).toHaveValue('INV-001');
+  await user.click(screen.getByRole('button', { name: 'History forward' }));
+  expect(search).toHaveValue('INV-002');
+  await user.clear(search);
+  await user.type(search, 'INV');
+  await user.click(screen.getByRole('button', { name: 'History back' }));
+  expect(search).toHaveValue('INV-001');
+  await user.click(screen.getByRole('button', { name: 'History forward' }));
+  expect(search).toHaveValue('INV');
 });

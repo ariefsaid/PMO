@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { Button, Combobox, EntityFormModal, FormGrid, FormSection, Icon, NumberField, TextField, type ComboboxOption, type SubmitError } from '@/src/components/ui';
@@ -53,6 +53,14 @@ export const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
   const projectQuery = useInvoiceProjectOptions();
   const { data: customerOptions, isError: customerOptionsError, refetch: refetchCustomers } = customerQuery;
   const { data: projectOptions, isError: projectOptionsError, refetch: refetchProjects } = projectQuery;
+  // Query error transitions must not replace a picker loader: Combobox reloads when its
+  // source changes, and refetch itself moves the query through pending and error.
+  const customerErrorRef = useRef(customerOptionsError);
+  const projectErrorRef = useRef(projectOptionsError);
+  useLayoutEffect(() => {
+    customerErrorRef.current = customerOptionsError;
+    projectErrorRef.current = projectOptionsError;
+  }, [customerOptionsError, projectOptionsError]);
   const projectOptionsById = useMemo(() => new Map((projectOptions ?? []).map((p) => [p.value, p])), [projectOptions]);
   const projectById = useCallback((id: string | null) => projectOptionsById.get(id ?? ''), [projectOptionsById]);
   const form = useEntityForm<FormValues>({
@@ -155,24 +163,24 @@ export const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
   };
 
   const loadCustomers = useCallback(async (): Promise<ComboboxOption[]> => {
-    if (customerOptions && !customerOptionsError) return customerOptions;
+    if (customerOptions && !customerErrorRef.current) return customerOptions;
     const result = await refetchCustomers();
     if (result.error || !result.data) throw result.error ?? new Error('Customer options unavailable');
     return result.data;
-  }, [customerOptions, customerOptionsError, refetchCustomers]);
+  }, [customerOptions, refetchCustomers]);
   // M-1: a live project of the chosen customer — the loader changes with the customer, so the picker re-loads.
   const selectedCustomerId = customerField.value;
   const loadProjects = useCallback(
     async (): Promise<ComboboxOption[]> => {
       let options = projectOptions;
-      if (!options || projectOptionsError) {
+      if (!options || projectErrorRef.current) {
         const result = await refetchProjects();
         if (result.error || !result.data) throw result.error ?? new Error('Project options unavailable');
         options = result.data;
       }
       return (options ?? []).filter((p) => !p.archived && (!selectedCustomerId || p.clientId === selectedCustomerId));
     },
-    [projectOptions, projectOptionsError, refetchProjects, selectedCustomerId],
+    [projectOptions, refetchProjects, selectedCustomerId],
   );
 
   // Line items live IN the form (BLOCK 1b): a detached useState meant the VALIDATED values and the

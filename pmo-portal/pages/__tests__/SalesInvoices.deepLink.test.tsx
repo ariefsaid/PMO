@@ -12,6 +12,7 @@ import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
 // Mock hooks to provide stable test data
 const hoisted = vi.hoisted(() => ({
+  received: vi.fn(async () => {}),
   projectOptions: [{ value: 'project-1', label: 'Northwind Build', contractualName: 'Northwind Build', sub: 'NW-1', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: false, customerContractRef: 'CLIENT-PO-1' }],
   incomingPaymentsState: {
     data: [{
@@ -96,6 +97,7 @@ const incomingPaymentsState = hoisted.incomingPaymentsState;
 const SEED_INVOICES = structuredClone(salesInvoicesState.data);
 
 beforeEach(() => {
+  hoisted.received.mockReset().mockResolvedValue(undefined);
   salesInvoicesState.data = structuredClone(SEED_INVOICES);
   salesInvoicesState.isPending = false;
   salesInvoicesState.isError = false;
@@ -113,7 +115,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
   useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSalesInvoices: () => salesInvoicesState,
   useRevenueMutations: () => ({
-    setReceivedDate: { mutateAsync: vi.fn(), isPending: false },
+    setReceivedDate: { mutateAsync: hoisted.received, isPending: false },
     setEfaktur: { mutateAsync: vi.fn(), isPending: false },
     create: { mutateAsync: vi.fn(), isPending: false },
     submitInvoice: { mutateAsync: vi.fn(), isPending: false },
@@ -434,9 +436,17 @@ it('explains unavailable invoice line evidence for an unposted invoice', () => {
   expect(screen.queryByText('Loading invoice evidence…')).not.toBeInTheDocument();
 });
 
-it('opens the received-date dialog from an issued invoice detail', async () => {
+it('records the selected invoice receipt from detail', async () => {
   salesInvoicesState.data[0] = { ...SEED_INVOICES[0], status: 'Submitted', pmo_native: false, erp_docstatus: 1, received_date: null };
+  hoisted.received.mockRejectedValueOnce(new Error('Save failed'));
   renderAt('/sales-invoices/inv-1');
   await userEvent.click(screen.getByRole('button', { name: 'Mark received' }));
-  expect(screen.getByRole('dialog')).toBeInTheDocument();
+  const dialog = screen.getByRole('dialog');
+  await userEvent.type(within(dialog).getByLabelText('Received'), '2026-10-12');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+  expect(await within(dialog).findByTestId('entity-modal-save-error')).toBeInTheDocument();
+  expect(within(dialog).getByLabelText('Received')).toHaveValue('2026-10-12');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+  expect(hoisted.received).toHaveBeenCalledWith({ siId: 'inv-1', receivedDate: '2026-10-12' });
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });
