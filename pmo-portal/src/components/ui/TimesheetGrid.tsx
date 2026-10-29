@@ -60,11 +60,6 @@ export interface TimesheetGridProps {
   onDeleteRow?: (rowId: string) => void;
 }
 
-/** Format hours with a tabular figure; trims trailing zeros (8 not 8.00). */
-function fmt(n: number): string {
-  return formatNumberExact(n);
-}
-
 /**
  * Weekly hours grid (DESIGN.md `tsgrid`): project rows × 7 day cells, weekend
  * tinting, per-row + per-day + grand totals. In read-only mode cells are static
@@ -223,7 +218,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
           // Prefer the raw as-typed string so in-progress values survive;
           // fall back to the numeric (blank for 0) when no raw map is given.
           const raw = rawHours?.[r.id]?.[i];
-          const value = raw !== undefined ? raw : h === 0 ? '' : fmt(h);
+          const value = raw !== undefined ? raw : h === 0 ? '' : formatNumberExact(h);
           return (
             <div className={tint(d.weekend)} style={{ minHeight: 54 }}>
               <input
@@ -263,7 +258,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
                 filled ? 'bg-primary/[0.07] font-semibold text-foreground' : 'text-muted-foreground/45'
               )}
             >
-              {filled ? fmt(h) : '·'}
+              {filled ? formatNumberExact(h) : '·'}
             </div>
           </div>
         );
@@ -280,7 +275,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
         const rowTotal = rowTotals.get(r.id) ?? 0;
         return (
           <span data-testid={`tsgrid-row-total-${r.id}`} className="text-sm font-semibold tabular">
-            {rowTotal > 0 ? fmt(rowTotal) : '·'}
+            {rowTotal > 0 ? formatNumberExact(rowTotal) : '·'}
           </span>
         );
       },
@@ -293,9 +288,9 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
     values: {
       ...Object.fromEntries(dailyTotals.map((total, i) => [
         `day-${i}`,
-        <span key={i} data-testid={`tsgrid-daily-total-${i}`} className="text-sm font-semibold tabular">{total > 0 ? fmt(total) : '·'}</span>,
+        <span key={i} data-testid={`tsgrid-daily-total-${i}`} className="text-sm font-semibold tabular">{total > 0 ? formatNumberExact(total) : '·'}</span>,
       ])),
-      total: <span data-testid="tsgrid-grand-total" className="text-sm font-bold tabular">{fmt(grandTotal)}</span>,
+      total: <span data-testid="tsgrid-grand-total" className="text-sm font-bold tabular">{formatNumberExact(grandTotal)}</span>,
     } as Record<string, React.ReactNode>,
   }];
 
@@ -422,7 +417,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
 
                 if (editable) {
                   const raw = rawHours?.[r.id]?.[i];
-                  const value = raw !== undefined ? raw : h === 0 ? '' : fmt(h);
+                  const value = raw !== undefined ? raw : h === 0 ? '' : formatNumberExact(h);
                   return (
                     <div
                       key={i}
@@ -499,7 +494,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                           : 'text-muted-foreground/45'
                       )}
                     >
-                      {filled ? fmt(h) : '·'}
+                      {filled ? formatNumberExact(h) : '·'}
                     </div>
                   </div>
                 );
@@ -525,7 +520,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
             >
               <span className="text-[11px] uppercase tracking-[0.03em]">{t('timesheets.rowTotal', 'Row total')}</span>
               <span className="text-sm text-foreground">
-                {rowTotal > 0 ? fmt(rowTotal) : '·'}
+                {rowTotal > 0 ? formatNumberExact(rowTotal) : '·'}
               </span>
             </div>
           </div>
@@ -541,7 +536,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
           data-testid="tsgrid-grand-total"
           className="text-sm font-bold tabular text-foreground"
         >
-          {fmt(grandTotal)}
+          {formatNumberExact(grandTotal)}
         </span>
       </div>
     </div>
