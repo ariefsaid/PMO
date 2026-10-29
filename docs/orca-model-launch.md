@@ -8,7 +8,7 @@ Gemini Flash → GLM-5.3-flash → GPT Luna → GPT Terra (planners, reviewers) 
 model that does the job well; Opus is for the orchestrator. Only a used-up quota moves work up a
 rung. Route before `worker-start`: never stop a running worker to re-route it.
 
-**Intelligence ranking (owner, 2026-10-29):** GPT Sol > GPT Terra > Gemini 3.8 Flash > GPT Luna. Cost order
+**Intelligence ranking (owner, 2026-10-29):** GPT Sol > GPT Terra > Gemini 3.8 Flash > GLM-5.3-flash > GPT Luna. Cost order
 is separate from capability: pick the cheapest model whose intelligence fits the task, and move a
 slice one rung up the intelligence ranking after two failed attempts.
 
