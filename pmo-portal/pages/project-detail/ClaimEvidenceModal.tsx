@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { EntityFormModal, FormSection, SelectField, type SubmitError } from '@/src/components/ui';
+import { EntityFormModal, FormSection, SelectField, ListState, type SubmitError } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 
@@ -12,6 +12,9 @@ import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 export interface ClaimEvidenceModalProps {
   documents: ProjectDocumentRow[];
   attachedDocumentIds: string[];
+  sourcePending?: boolean;
+  sourceError?: string | null;
+  onRetry?: () => void;
   onClose: () => void;
   onAttach: (documentId: string) => Promise<void>;
   onError: (err: unknown) => void;
@@ -19,7 +22,7 @@ export interface ClaimEvidenceModalProps {
 
 const EVIDENCE_STATUSES = new Set(['Issued', 'Approved']);
 
-const ClaimEvidenceModal: React.FC<ClaimEvidenceModalProps> = ({ documents, attachedDocumentIds, onClose, onAttach, onError }) => {
+const ClaimEvidenceModal: React.FC<ClaimEvidenceModalProps> = ({ documents, attachedDocumentIds, sourcePending = false, sourceError = null, onRetry, onClose, onAttach, onError }) => {
   const { t } = useTranslation('project');
   const [choice, setChoice] = useState('');
   const [saving, setSaving] = useState(false);
@@ -60,10 +63,14 @@ const ClaimEvidenceModal: React.FC<ClaimEvidenceModalProps> = ({ documents, atta
       onClose={onClose}
       loading={saving}
       dirty={choice !== ''}
-      submitDisabled={!choice}
+      submitDisabled={!choice || sourcePending || Boolean(sourceError)}
     >
       <FormSection legend={t('projectDetail.billing.evidence.title', 'Attach billing evidence')}>
-        {eligible.length === 0 ? (
+        {sourceError ? (
+          <ListState variant="error" title={sourceError} onRetry={onRetry} />
+        ) : sourcePending ? (
+          <ListState variant="loading" rows={2} />
+        ) : eligible.length === 0 ? (
           <p className="text-[13px] text-muted-foreground">
             {t('projectDetail.billing.evidence.none', 'No issued or approved document with a file on this project.')}
           </p>

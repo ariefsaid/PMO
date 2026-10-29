@@ -22,13 +22,14 @@ import type { WorkOrderRow } from '@/src/lib/db/workOrders';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-const { listState, drawdownState, mutations } = vi.hoisted(() => ({
+const { listState, drawdownState, mutations, lineState } = vi.hoisted(() => ({
   listState: {
     data: [] as unknown[],
     isPending: false,
     isError: false,
     refetch: vi.fn(),
   },
+  lineState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   drawdownState: {
     data: { committed: 0, draft: 0, ceiling: 1_000_000, currency: 'USD', basis: 'net' } as unknown,
     isPending: false,
@@ -59,7 +60,7 @@ vi.mock('@/src/hooks/useProgressBilling', () => ({
 }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useProjectWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectWorkOrderLines: () => lineState,
   useWorkOrderAcceptances: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useWorkOrderAcceptanceMutations: () => ({}),
 }));
@@ -140,6 +141,7 @@ beforeEach(() => {
     m.isPending = false;
   }
   realRole = 'Project Manager';
+  lineState.data = []; lineState.isPending = false; lineState.isError = false; lineState.refetch.mockClear();
 });
 
 // ── List states ───────────────────────────────────────────────────────────────
@@ -148,6 +150,31 @@ describe('list states', () => {
   it('M17 explains client-PO drawdown in the empty register', () => {
     renderTab();
     expect(screen.getByText(/No customer orders yet\. Client purchase orders/)).toBeInTheDocument();
+  });
+
+  it('shows quantity source failure and retry even when no orders or lines loaded', async () => {
+    lineState.isError = true;
+    renderTab();
+    expect(screen.getByText(/couldn.t load the contract/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /retry|try again/i }));
+    expect(lineState.refetch).toHaveBeenCalled();
+  });
+
+  it('shows a retry for unavailable quantities even with a draft order', async () => {
+    listState.data = [row()];
+    lineState.isError = true;
+    renderTab();
+    expect(screen.getByText(/couldn.t load the contract/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /retry|try again/i }));
+    expect(lineState.refetch).toHaveBeenCalled();
+  });
+
+  it('withholds the allocation editor until its source reads are confirmed', async () => {
+    listState.data = [row()];
+    lineState.isPending = true;
+    renderTab();
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Phase 1 fabrication' }));
+    expect(screen.queryByRole('menuitem', { name: 'Allocate contract lines' })).not.toBeInTheDocument();
   });
 
   it('renders a loading state, not an empty one, while the list is in flight', () => {

@@ -104,6 +104,15 @@
       "invoiceDateSource": "Sumber: tanggal faktur dari akuntansi."
     },
     "billing": {
+      "sources": {
+        "loading": "Memuat {{source}}…",
+        "boq": "baris kontrak",
+        "billing": "angka penagihan",
+        "claims": "tagihan",
+        "orders": "pesanan pelanggan",
+        "allocations": "alokasi pesanan",
+        "error": "Gagal memuat {{source}}"
+      },
       "boq": {
         "lineStatus": "Baris kontrak",
         "source": {
@@ -291,6 +300,8 @@
         "titleEdit": "Ubah baris bill of quantities"
       },
       "evidence": {
+        "documentsError": "Dokumen bukti gagal dimuat",
+        "claimError": "Tagihan gagal dimuat",
         "save": "Lampirkan",
         "none": "Tidak ada dokumen terbit atau disetujui yang memiliki berkas di proyek ini.",
         "subtitle": "Pilih dokumen terbit atau disetujui dari register proyek ini, seperti laporan progres atau berita acara serah terima (BAST) klien.",

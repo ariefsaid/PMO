@@ -13,6 +13,7 @@
  * Strictly DESIGN.md tokens.
  */
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Card,
   CardHead,
@@ -26,6 +27,7 @@ import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { ProcurementApprovalRow } from './ProcurementApprovalRow';
 
 export const ProcurementApprovalSection: React.FC = () => {
+  const { t } = useTranslation('procurement');
   const { currentUser } = useAuth();
   const selfId = currentUser?.id;
   const { realRole } = useEffectiveRole();
@@ -44,7 +46,7 @@ export const ProcurementApprovalSection: React.FC = () => {
   return (
     <Card seam>
       <CardHead className="rounded-t-lg">
-        Procurement records awaiting you ({countLabel})
+        {t('approvalSection.heading', 'Procurement records awaiting you ({{total}})', { total: countLabel })}
       </CardHead>
 
       {isPending && (
@@ -58,8 +60,8 @@ export const ProcurementApprovalSection: React.FC = () => {
       {!isPending && isError && (
         <ListState
           variant="error"
-          title="Couldn't load procurement records"
-          sub="Something went wrong fetching requests awaiting you."
+          title={t('approvalSection.error', "Couldn't load procurement records")}
+          sub={t('approvalSection.errorSub', 'Something went wrong fetching requests awaiting you.')}
           onRetry={() => refetch()}
           className="rounded-b-lg"
         />
@@ -69,8 +71,8 @@ export const ProcurementApprovalSection: React.FC = () => {
         <ListState
           variant="empty"
           icon="inbox"
-          title="No procurement records awaiting your decision"
-          sub="Procurement records that need your approval will appear here."
+          title={t('approvalSection.empty', 'No procurement records awaiting your decision')}
+          sub={t('approvalSection.emptySub', 'Procurement records that need your approval will appear here.')}
           className="rounded-b-lg"
         />
       )}

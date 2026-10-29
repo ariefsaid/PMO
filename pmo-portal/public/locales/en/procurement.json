@@ -1,4 +1,8 @@
 {
+  "quoteComparison": {
+    "selected": "Selected",
+    "lowestPrice": "Lowest price"
+  },
   "lineItems": {
     "erpItem": "ERP item",
     "itemDescription": "Item / description",
@@ -310,7 +314,29 @@
     "selectSupplier": "Select a supplier…",
     "selectionDescription": "The selected quote sets the procurement value and supplier. If it is above the approved amount, the procurement goes back for approval."
   },
+  "approvalSection": {
+    "heading": "Procurement records awaiting you ({{total}})",
+    "error": "Couldn't load procurement records",
+    "errorSub": "Something went wrong fetching requests awaiting you.",
+    "empty": "No procurement records awaiting your decision",
+    "emptySub": "Procurement records that need your approval will appear here."
+  },
   "approvalRow": {
+    "approve": "Approve",
+    "rejectShort": "Reject",
+    "unknownRequester": "Unknown requester",
+    "loadErrorSub": "Something went wrong fetching the budget impact and line items.",
+    "lineItems": "Line items",
+    "requestedBy": "Requested by",
+    "project": "Project",
+    "requested": "Requested",
+    "totalValue": "Total value",
+    "noProject": "No project linked",
+    "approveTitle": "Approve {{title}}?",
+    "rejectTitle": "Reject {{title}}?",
+    "showBudget": "Show budget impact for {{title}}",
+    "approvedDetail": "{{title}} has been approved",
+    "rejectedDetail": "{{title}} has been rejected",
     "open": "Open procurement",
     "details": "Procurement details",
     "loadError": "Couldn't load procurement details",

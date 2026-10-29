@@ -104,6 +104,15 @@
       "invoiceDateSource": "Source: invoice date from accounting."
     },
     "billing": {
+      "sources": {
+        "loading": "Loading {{source}}…",
+        "boq": "contract lines",
+        "billing": "billing figures",
+        "claims": "claims",
+        "orders": "customer orders",
+        "allocations": "order allocations",
+        "error": "Couldn't load {{source}}"
+      },
       "boq": {
         "lineStatus": "Contract line",
         "source": {
@@ -291,6 +300,8 @@
         "titleEdit": "Edit bill of quantities line"
       },
       "evidence": {
+        "documentsError": "Couldn't load evidence documents",
+        "claimError": "Couldn't load the claim",
         "save": "Attach",
         "none": "No issued or approved document with a file on this project.",
         "subtitle": "Choose an issued or approved document from this project's register, such as the progress report or the client's acceptance.",

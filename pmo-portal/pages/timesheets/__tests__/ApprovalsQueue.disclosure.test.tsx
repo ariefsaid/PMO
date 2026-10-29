@@ -14,6 +14,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import React from 'react';
+import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -61,6 +66,20 @@ const renderPM = () =>
 beforeEach(() => {
   queue.isPending = false;
   queue.isError = false;
+});
+
+it('localizes the queue, accessible disclosure and confirmation with the owner name', async () => {
+  const i18n = i18next.createInstance();
+  const resources = Object.fromEntries(['en', 'id'].map((lng) => [lng, Object.fromEntries(['common', 'timesheets'].map((ns) => [ns, JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/${ns}.json`), 'utf8'))]))]));
+  await i18n.init({ lng: 'id', fallbackLng: 'en', defaultNS: 'common', fallbackNS: 'common', resources });
+  render(<I18nextProvider i18n={i18n}><MemoryRouter><ImpersonationProvider realRole="Project Manager"><ToastProvider>
+    <ApprovalsQueue />
+  </ToastProvider></ImpersonationProvider></MemoryRouter></I18nextProvider>);
+  expect(screen.getByText('Antrean persetujuan tim')).toBeInTheDocument();
+  expect(screen.getByLabelText('1 menunggu Anda')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Tampilkan jam untuk Anita Rao' })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Setujui' }));
+  expect(screen.getByRole('dialog')).toHaveTextContent('Setujui minggu Anita Rao?');
 });
 
 describe('AC-JR-W3-01: ApprovalsQueue routes disclosure chevron via disclosure prop (T20)', () => {

@@ -1,4 +1,26 @@
 {
+  "approvalQueue": {
+    "unknownProject": "Proyek tidak diketahui",
+    "approved": "Lembar waktu disetujui",
+    "returned": "Lembar waktu dikembalikan",
+    "approvedDetail": "Minggu {{name}} disetujui",
+    "returnedDetail": "Dikembalikan kepada {{name}} untuk diperbaiki",
+    "approve": "Setujui",
+    "return": "Kembalikan",
+    "noHours": "Tidak ada jam yang dicatat minggu ini.",
+    "approveTitle": "Setujui minggu {{name}}?",
+    "returnTitle": "Kembalikan lembar waktu {{name}}?",
+    "approveDescription": "Setujui minggu yang diajukan {{name}}. Orang lain harus menyetujui lembar waktu Anda.",
+    "returnDescription": "Kembalikan minggu {{name}} untuk diperbaiki dan diajukan ulang.",
+    "returnConfirm": "Kembalikan lembar waktu",
+    "loadError": "Antrean persetujuan gagal dimuat",
+    "loadErrorSub": "Lembar waktu yang menunggu persetujuan gagal dimuat.",
+    "heading": "Antrean persetujuan tim",
+    "awaiting": "{{total}} menunggu Anda",
+    "empty": "Tidak ada yang menunggu Anda",
+    "emptySub": "Lembar waktu yang diajukan anggota tim akan muncul di sini untuk ditinjau.",
+    "showHours": "Tampilkan jam untuk {{name}}"
+  },
   "discardWeek": {
     "title": "Buang perubahan yang belum disimpan?",
     "description": "Jam minggu ini yang belum disimpan akan dibuang.",

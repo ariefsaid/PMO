@@ -198,6 +198,23 @@ describe('UX-081 resolved approval route (S-32)', () => {
     expect(note).toHaveTextContent('These procurement records go to the overhead approvers');
   });
 
+  it('shows escalation for each project whose own approvers are ineligible', async () => {
+    listSpendApprovers.mockResolvedValue([
+      { id: 'org', projectId: null, projectName: null, profileId: 'u-exec', fullName: 'Eve Exec' },
+      { id: 'a', projectId: 'p-a', projectName: 'Project A', profileId: 'u-pm', fullName: 'Pat PM' },
+      { id: 'b', projectId: 'p-b', projectName: 'Project B', profileId: 'u-gone', fullName: 'Gus Gone' },
+    ]);
+    listOrgProfiles.mockResolvedValue([
+      { id: 'u-exec', full_name: 'Eve Exec', role: 'Executive', status: 'active' },
+      { id: 'u-pm', full_name: 'Pat PM', role: 'Project Manager', status: 'active' },
+      { id: 'u-gone', full_name: 'Gus Gone', role: 'Finance', status: 'disabled' },
+    ]);
+    renderPanel('Admin');
+    const projectB = await screen.findByRole('group', { name: 'Project B' });
+    expect(await within(projectB).findByText(/go to the overhead approvers/i)).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'Project A' })).queryByText(/go to the overhead approvers/i)).not.toBeInTheDocument();
+  });
+
   it('UX-081: dead project rows with no senior rows fall back to the flat role rules', async () => {
     listSpendApprovers.mockResolvedValue([
       { id: 'sa-2', projectId: 'p-1', projectName: 'HQ Fit-Out', profileId: 'u-gone', fullName: 'Gus Gone' },
