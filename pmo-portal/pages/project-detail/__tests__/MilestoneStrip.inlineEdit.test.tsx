@@ -221,7 +221,7 @@ describe('MilestoneStrip inline input-% edit (AC-DEL-012)', () => {
     expect(toast).toHaveTextContent(/Engineering design/);
   });
 
-  it('error path: mutation rejection shows warning toast with classified error', async () => {
+  it('error path: mutation rejection shows warning toast with classified error and retains draft for retry (PGB-016)', async () => {
     updateSpy.mockRejectedValue(new Error('Network error'));
     render$();
     const inputEl = await openEdit();
@@ -233,5 +233,27 @@ describe('MilestoneStrip inline input-% edit (AC-DEL-012)', () => {
     const toast = await findToastAnnouncement('alert', /Update failed/);
     expect(toast).toHaveTextContent(/Update failed/);
     expect(toast).toHaveTextContent(/Network error/);
+
+    // PGB-016: Editor remains open with draft preserved and persistent error displayed
+    expect(screen.getByLabelText('Edit progress override')).toBeInTheDocument();
+    expect((screen.getByLabelText('Edit progress override') as HTMLInputElement).value).toBe('90');
+    expect(screen.getByText('Update failed: Network error')).toBeInTheDocument();
+
+    // User can retry saving
+    updateSpy.mockResolvedValueOnce(undefined);
+    fireEvent.click(screen.getByRole('button', { name: /save/i }));
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Edit progress override')).not.toBeInTheDocument();
+    });
+  });
+
+  it('PGB-009: opening inline edit preserves fractional input_pct without rounding', async () => {
+    milestoneState.data = [
+      { ...milestone, input_pct: 33.33 },
+      secondMilestone,
+    ];
+    render$();
+    const inputEl = (await openEdit()) as HTMLInputElement;
+    expect(inputEl.value).toBe('33.33');
   });
 });

@@ -34,13 +34,24 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
   const { t } = useTranslation('project');
   const { data, isPending, isError, refetch } = useMilestones(projectId);
   // NFR-SCA-004: reuse tasks already loaded on the project-detail page — no extra round-trip.
-  const { data: tasksData } = useTasks(projectId);
+  // PGB-014: require both milestones and tasks to settle before building actual history.
+  const {
+    data: tasksData,
+    isPending: isTasksPending,
+    isError: isTasksError,
+    refetch: refetchTasks,
+  } = useTasks(projectId);
   const prefersReducedMotion = usePrefersReducedMotion();
 
-  const model = useMemo(
-    () => buildSCurve(data ?? [], todayIso(), tasksData ?? []),
-    [data, tasksData],
-  );
+  const isAnyPending = isPending || isTasksPending;
+  const isAnyError = isError || isTasksError;
+
+  const model = useMemo(() => {
+    if (isAnyPending || isAnyError || !data || !tasksData) {
+      return { points: [], plannedToDate: null, actualToDate: 0, usesProxyDates: false };
+    }
+    return buildSCurve(data, todayIso(), tasksData);
+  }, [data, tasksData, isAnyPending, isAnyError]);
 
   // FR-SCA-013: suppress the lone dot only when the actual series has ≥2 points.
   const hasActualSeries = model.points.filter((p) => p.actual !== null).length >= 2;
@@ -56,9 +67,9 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
     return evenAxisTicks(tsMin, tsMax);
   }, [model.points]);
 
-  const state: ChartState = isPending
+  const state: ChartState = isAnyPending
     ? 'loading'
-    : isError
+    : isAnyError
       ? 'error'
       : model.points.length === 0
         ? 'empty'
@@ -77,6 +88,11 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
     : t('projectDetail.scurve.summary', 'Project S-curve: actual to date {{actual}}.', {
         actual: actualText,
       });
+
+  const handleRetry = () => {
+    void refetch();
+    void refetchTasks();
+  };
 
   // PD-B: no curve to draw (or not known yet) → render nothing; the phases line already says so.
   if (state === 'loading' || state === 'empty') return null;
@@ -101,7 +117,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
           'projectDetail.scurve.errorSub',
           'The request failed. Check your connection and try again.',
         )}
-        onRetry={() => refetch()}
+        onRetry={handleRetry}
       >
         <figure role="img" aria-label={summary} className="m-0">
           <ResponsiveContainer width="100%" height={240}>

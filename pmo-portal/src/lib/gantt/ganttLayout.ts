@@ -16,6 +16,13 @@ import { SCALE_PX_PER_DAY } from './ganttGeometry';
 /** Zoom granularity for the timeline axis (ADR-0031 §5). */
 export type GanttScale = 'day' | 'week' | 'month' | 'quarter';
 
+export const DEFAULT_MAX_GANTT_TICKS = 1000;
+// Keep the scrollable surface below browser layout limits even for valid dates
+// separated by millennia. Geometry and viewport calculations use the same scale.
+const MAX_TIMELINE_WIDTH = 8_000_000;
+const pixelsPerDay = (scale: GanttScale, spanDays: number): number =>
+  Math.min(SCALE_PX_PER_DAY[scale], MAX_TIMELINE_WIDTH / Math.max(1, spanDays));
+
 /**
  * Optional pixel-aware layout config. When passed to `buildGanttModel`, the model
  * additionally emits a `GanttGeometry` block of absolute-px boxes + dependency edges.
@@ -27,6 +34,14 @@ export interface GanttLayoutConfig {
   rowHeight: number;
   /** Lane-header (milestone band) height in px. */
   laneHeaderHeight: number;
+  /** Optional viewport pixel window for generating ticks only for visible range + overscan (LIB02-005). */
+  viewport?: {
+    scrollLeft: number;
+    viewportWidth: number;
+    overscanPx?: number;
+  };
+  /** Maximum number of ticks to generate (guard against extreme spans). Defaults to DEFAULT_MAX_GANTT_TICKS (1000). */
+  maxTicks?: number;
 }
 
 /** Absolute-px geometry for one laid-out bar within the timeline content box. */
@@ -324,7 +339,14 @@ export function buildGanttModel(
   }
 
   // Build axis ticks at the chosen granularity (month is the default / v1 path).
-  const ticks = buildTicks(spanStart, spanEnd, spanDays, config?.scale ?? 'month');
+  const ticks = buildTicks(
+    spanStart,
+    spanEnd,
+    spanDays,
+    config?.scale ?? 'month',
+    config?.maxTicks ?? DEFAULT_MAX_GANTT_TICKS,
+    config?.viewport,
+  );
 
   // Pixel-aware geometry — only when a config is supplied (v1 callers get null).
   const geometry = config
@@ -356,7 +378,7 @@ function buildGeometry(
   spanDays: number,
   config: GanttLayoutConfig,
 ): GanttGeometry {
-  const pxPerDay = SCALE_PX_PER_DAY[config.scale];
+  const pxPerDay = pixelsPerDay(config.scale, spanDays);
   const contentWidth = spanDays * pxPerDay;
   // Bar height: a touch shorter than the row so there is breathing room (≤28 like v1).
   const barH = Math.min(28, config.rowHeight - 12);
@@ -443,78 +465,160 @@ const MONTH_ABBREVS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
 
 
 /**
- * Dispatches axis-tick generation by scale (ADR-0031 §5):
+ * Resolves the date window to generate ticks for. If a viewport is provided, bounds
+ * tick generation to visible scroll range plus overscan; otherwise covers full span.
+ */
+function resolveTickDateRange(
+  spanStart: string,
+  spanEnd: string,
+  spanDays: number,
+  scale: GanttScale,
+  viewport?: GanttLayoutConfig['viewport'],
+): { tickStart: string; tickEnd: string } {
+  if (!viewport || viewport.viewportWidth <= 0) {
+    return { tickStart: spanStart, tickEnd: spanEnd };
+  }
+  const pxPerDay = pixelsPerDay(scale, spanDays);
+  const totalPx = spanDays * pxPerDay;
+  const overscan = viewport.overscanPx ?? 300;
+  const minX = Math.max(0, viewport.scrollLeft - overscan);
+  const maxX = Math.min(totalPx, viewport.scrollLeft + viewport.viewportWidth + overscan);
+
+  const startOffsetDays = Math.floor(minX / pxPerDay);
+  const endOffsetDays = Math.min(spanDays, Math.ceil(maxX / pxPerDay));
+
+  const startDate = parseLocalDate(spanStart);
+  const vStart = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + startOffsetDays);
+  const vEnd = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + endOffsetDays);
+
+  const vStartIso = toIso(vStart);
+  const vEndIso = toIso(vEnd);
+  const tickStart = vStartIso < spanStart ? spanStart : vStartIso;
+  const tickEnd = vEndIso > spanEnd ? spanEnd : vEndIso;
+
+  return { tickStart, tickEnd };
+}
+
+/**
+ * Dispatches axis-tick generation by scale (ADR-0031 §5 / LIB02-005):
  *   - `month`   → first day of each month (v1 behaviour, verbatim).
  *   - `quarter` → first day of each quarter month (Jan/Apr/Jul/Oct).
- *   - `week`    → every Monday in the span.
+ *   - `week`    → every Monday in the span (steps 7 days directly).
  *   - `day`     → every day (all ticks = daily gridlines), but `showLabel`
  *                 is true only for Mondays so the axis stays legible.
  * Every tick keeps `{iso, left (fraction), label, showLabel}`.
+ * Ticks are bounded by maxTicks (DEFAULT_MAX_GANTT_TICKS) and optional viewport.
  */
 function buildTicks(
   spanStart: string,
   spanEnd: string,
   spanDays: number,
   scale: GanttScale,
+  maxTicks = DEFAULT_MAX_GANTT_TICKS,
+  viewport?: GanttLayoutConfig['viewport'],
 ): GanttAxisTick[] {
+  const { tickStart, tickEnd } = resolveTickDateRange(spanStart, spanEnd, spanDays, scale, viewport);
+
   switch (scale) {
     case 'month':
-      return buildMonthTicks(spanStart, spanEnd, spanDays);
+      return buildMonthTicks(tickStart, tickEnd, spanStart, spanEnd, spanDays, maxTicks);
     case 'quarter':
       // Reuse the month walk, keeping only quarter-start months (0,3,6,9).
-      return buildMonthTicks(spanStart, spanEnd, spanDays).filter((t) => {
+      return buildMonthTicks(tickStart, tickEnd, spanStart, spanEnd, spanDays, maxTicks).filter((t) => {
         const month = Number(t.iso.split('-')[1]); // 1-based
         return month === 1 || month === 4 || month === 7 || month === 10;
       });
     case 'week':
-      return buildDayStepTicks(spanStart, spanEnd, spanDays, {
-        keep: (d) => d.getDay() === 1, // Mondays only
-        showLabel: () => true,
-        label: (d) => `${MONTH_ABBREVS[d.getMonth()]} ${d.getDate()}`,
-      });
+      return buildWeekTicks(tickStart, tickEnd, spanStart, spanDays, maxTicks);
     case 'day':
       // Every day emits a tick (→ daily gridline), but label is shown only on
       // Mondays to prevent collision at typical zoom levels (28px/day).
-      return buildDayStepTicks(spanStart, spanEnd, spanDays, {
-        keep: () => true,
-        showLabel: (d) => d.getDay() === 1, // Monday
-        label: (d) => `${MONTH_ABBREVS[d.getMonth()]} ${d.getDate()}`,
-      });
+      return buildDayStepTicks(
+        tickStart,
+        tickEnd,
+        spanStart,
+        spanDays,
+        {
+          keep: () => true,
+          showLabel: (d) => d.getDay() === 1, // Monday
+          label: (d) => `${MONTH_ABBREVS[d.getMonth()]} ${d.getDate()}`,
+        },
+        maxTicks,
+      );
   }
 }
 
 /**
- * Generic day-stepping tick generator: walks each day in [spanStart, spanEnd] and
+ * Steps weeks directly (by 7 days) starting from the first Monday, rather than
+ * walking every day across the span (LIB02-005).
+ */
+function buildWeekTicks(
+  tickStart: string,
+  tickEnd: string,
+  spanStart: string,
+  spanDays: number,
+  maxTicks: number,
+): GanttAxisTick[] {
+  const ticks: GanttAxisTick[] = [];
+  const start = parseLocalDate(tickStart);
+  const end = parseLocalDate(tickEnd);
+
+  const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const dayOfWeek = cursor.getDay(); // 0 is Sunday, 1 is Monday, ..., 6 is Saturday
+  const daysUntilMonday = dayOfWeek === 1 ? 0 : dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+  cursor.setDate(cursor.getDate() + daysUntilMonday);
+
+  const weekStep = 7 * Math.max(1, Math.ceil((daysBetween(tickStart, tickEnd) + 1) / (7 * maxTicks)));
+  while (cursor <= end && ticks.length < maxTicks) {
+    const iso = toIso(cursor);
+    ticks.push({
+      iso,
+      left: fraction(spanStart, spanDays, iso),
+      label: `${MONTH_ABBREVS[cursor.getMonth()]} ${cursor.getDate()}`,
+      showLabel: true,
+    });
+    cursor.setDate(cursor.getDate() + weekStep);
+  }
+
+  return ticks;
+}
+
+/**
+ * Generic day-stepping tick generator: walks each day in [tickStart, tickEnd] and
  * emits a tick for every day for which `keep(date)` is true.
  * `showLabel` controls whether the axis renders a visible text label for the tick;
  * all ticks still drive gridlines regardless of `showLabel`.
+ * Bounded by maxTicks to guard against extreme date spans (LIB02-005).
  */
 function buildDayStepTicks(
+  tickStart: string,
+  tickEnd: string,
   spanStart: string,
-  spanEnd: string,
   spanDays: number,
   opts: {
     keep: (d: Date) => boolean;
     showLabel: (d: Date) => boolean;
     label: (d: Date) => string;
   },
+  maxTicks: number,
 ): GanttAxisTick[] {
   const ticks: GanttAxisTick[] = [];
-  const start = parseLocalDate(spanStart);
-  const end = parseLocalDate(spanEnd);
+  const start = parseLocalDate(tickStart);
+  const end = parseLocalDate(tickEnd);
 
   const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-  while (cursor <= end) {
+  const dayStep = Math.max(1, Math.ceil((daysBetween(tickStart, tickEnd) + 1) / maxTicks));
+  while (cursor <= end && ticks.length < maxTicks) {
     if (opts.keep(cursor)) {
       const iso = toIso(cursor);
       ticks.push({
         iso,
         left: fraction(spanStart, spanDays, iso),
         label: opts.label(cursor),
-        showLabel: opts.showLabel(cursor),
+        showLabel: dayStep > 1 || opts.showLabel(cursor),
       });
     }
-    cursor.setDate(cursor.getDate() + 1);
+    cursor.setDate(cursor.getDate() + dayStep);
   }
 
   return ticks;
@@ -522,24 +626,26 @@ function buildDayStepTicks(
 
 /**
  * Generates month-start ticks within the span.
- * Each tick is the first day of a month that falls within [spanStart, spanEnd].
+ * Each tick is the first day of a month that falls within [tickStart, tickEnd].
+ * Bounded by maxTicks (LIB02-005).
  */
 function buildMonthTicks(
+  tickStart: string,
+  tickEnd: string,
   spanStart: string,
   spanEnd: string,
   spanDays: number,
+  maxTicks: number,
 ): GanttAxisTick[] {
   const ticks: GanttAxisTick[] = [];
 
-  // Start from the span start month
-  const startDate = parseLocalDate(spanStart);
-  const endDate = parseLocalDate(spanEnd);
+  const startDate = parseLocalDate(tickStart);
+  const endDate = parseLocalDate(tickEnd);
 
-  // Iterate months
   let y = startDate.getFullYear();
   let m = startDate.getMonth(); // 0-based
 
-  while (true) {
+  while (ticks.length < maxTicks) {
     const tickDate = new Date(y, m, 1);
     if (tickDate > endDate) break;
 

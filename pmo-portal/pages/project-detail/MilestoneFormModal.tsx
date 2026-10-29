@@ -82,7 +82,7 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
       sort_order: String(milestone?.sort_order ?? 0),
       target_date: milestone?.target_date ?? '',
       weight: String(milestone?.weight ?? 1),
-      input_pct: milestone?.input_pct != null ? String(Math.round(milestone.input_pct)) : '',
+      input_pct: milestone?.input_pct != null ? String(milestone.input_pct) : '',
     },
     validate: validateWithT,
     idPrefix: 'milestone-form',
@@ -120,7 +120,15 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
 
       try {
         if (isEdit && milestone) {
-          const patch: MilestonePatch = { name, sort_order, target_date, weight, input_pct };
+          const patch: MilestonePatch = {};
+          if (name !== milestone.name) patch.name = name;
+          if (sort_order !== milestone.sort_order) patch.sort_order = sort_order;
+          if (target_date !== (milestone.target_date ?? null)) patch.target_date = target_date;
+          if (weight !== milestone.weight) patch.weight = weight;
+          const initialPctStr = milestone.input_pct != null ? String(milestone.input_pct) : '';
+          if (values.input_pct.trim() !== initialPctStr) {
+            patch.input_pct = input_pct;
+          }
           await onUpdate(milestone.id, patch);
         } else {
           const input: MilestoneInput = { name, sort_order, target_date, weight };

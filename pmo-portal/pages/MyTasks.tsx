@@ -4,18 +4,22 @@ import { useTranslation } from 'react-i18next';
 import { ListState, SearchMini, StatusPill, SelectField, useToast, ViewToggle } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
 import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatDateOnly, formatCalendarDayInTimeZone, zonedDatetimeLocalToInstant } from '@/src/lib/format';
+import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { TaskStatus } from '@/src/lib/db/tasks';
 
-/** AC-IFW-TASKS-01: Today's ISO date string (YYYY-MM-DD) for overdue comparison. */
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+/** AC-IFW-TASKS-01 / PGA03-008: Today's calendar date string (YYYY-MM-DD) in user's timezone. */
+function todayIso(timezone = getActiveLocale().timezone): string {
+  return formatCalendarDayInTimeZone(new Date(), timezone);
 }
 
 /** AC-IFW-TASKS-01: True when a task is overdue (past due date, not Done/Blocked-complete). */
-function isOverdueTask(task: { end_date: string | null; status: string }): boolean {
-  return Boolean(task.end_date && task.end_date < todayIso() && task.status !== 'Done');
+function isOverdueTask(
+  task: { end_date: string | null; status: string },
+  today = todayIso(),
+): boolean {
+  return Boolean(task.end_date && task.end_date < today && task.status !== 'Done');
 }
 
 /**
@@ -24,10 +28,53 @@ function isOverdueTask(task: { end_date: string | null; status: string }): boole
  *   1 = non-overdue open
  *   2 = Done
  */
-function urgencyKey(task: { end_date: string | null; status: string }): number {
+function urgencyKey(
+  task: { end_date: string | null; status: string },
+  today = todayIso(),
+): number {
   if (task.status === 'Done') return 2;
-  if (isOverdueTask(task)) return 0;
+  if (isOverdueTask(task, today)) return 0;
   return 1;
+}
+
+/**
+ * PGA03-008: Reactive today date in the user's timezone that automatically
+ * updates when midnight rolls over without requiring a page refresh.
+ */
+function useZonedToday(): string {
+  const timezone = getActiveLocale().timezone;
+  const [today, setToday] = React.useState(() => todayIso(timezone));
+
+  React.useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    function schedule() {
+      const now = new Date();
+      const current = formatCalendarDayInTimeZone(now, timezone);
+      setToday(current);
+
+      const [yearStr, monthStr, dayStr] = current.split('-');
+      const year = Number(yearStr);
+      const month = Number(monthStr);
+      const day = Number(dayStr);
+      const nextDayDate = new Date(Date.UTC(year, month - 1, day + 1));
+      const nextDayStr = nextDayDate.toISOString().slice(0, 10);
+
+      const nextMidnight = zonedDatetimeLocalToInstant(`${nextDayStr}T00:00:00`, timezone);
+      const msUntilMidnight = nextMidnight ? nextMidnight.getTime() - Date.now() : 86400000;
+      const delay = Math.max(100, msUntilMidnight + 50);
+
+      timer = setTimeout(schedule, delay);
+    }
+
+    schedule();
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [timezone]);
+
+  return today;
 }
 
 /**
@@ -54,6 +101,7 @@ const NO_PROJECT = '\u0000no-project';
 
 const MyTasks: React.FC = () => {
   const { t } = useTranslation();
+  const today = useZonedToday();
   const [commentsTask, setCommentsTask] = React.useState<{ id: string; name: string } | null>(null);
   const [queue, setQueue] = React.useState<'open' | 'completed'>('open');
   const [search, setSearch] = React.useState('');
@@ -106,8 +154,8 @@ const MyTasks: React.FC = () => {
     // Sort within each group
     for (const g of groups) {
       g.items.sort((a, b) => {
-        const ka = urgencyKey(a);
-        const kb = urgencyKey(b);
+        const ka = urgencyKey(a, today);
+        const kb = urgencyKey(b, today);
         if (ka !== kb) return ka - kb;
         // Secondary: end_date asc, nulls last
         if (a.end_date === b.end_date) return 0;
@@ -117,7 +165,7 @@ const MyTasks: React.FC = () => {
       });
     }
     return groups;
-  }, [tasks, visibleTasks, t]);
+  }, [tasks, visibleTasks, t, today]);
 
   return (
     <div>
@@ -254,7 +302,7 @@ const MyTasks: React.FC = () => {
                           </span>
                         )}
                         {/* AC-IFW-TASKS-01: overdue badge — color+shape, not color-only (WCAG AA). */}
-                        {isOverdueTask(task) && (
+                        {isOverdueTask(task, today) && (
                           <StatusPill variant="warn">{t('myTasks.overdue', 'Overdue')}</StatusPill>
                         )}
                       </div>

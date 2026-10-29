@@ -23,7 +23,7 @@
  *   - Bar status is always a text label (never color-only).
  *   - Respects prefers-reduced-motion (no bar-grow transition when set).
  */
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListState, StatusPill, Button, useIsNarrow, type RowMenuItem } from '@/src/components/ui';
 import { ViewToggle } from '@/src/components/ui/ViewToggle';
@@ -99,6 +99,29 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
   const prefersReducedMotion = usePrefersReducedMotion();
   const isNarrow = useIsNarrow();
   const [scale, setScale] = useState<GanttScale>('month');
+  const [scrollport, setScrollport] = useState<HTMLDivElement | null>(null);
+  const [viewport, setViewport] = useState({ scrollLeft: 0, viewportWidth: 1 });
+
+  useEffect(() => {
+    if (!scrollport) return;
+    const update = () => {
+      const next = {
+        scrollLeft: Math.max(0, scrollport.scrollLeft - 16),
+        viewportWidth: Math.max(1, scrollport.clientWidth - TABLE_W),
+      };
+      setViewport((old) => old.scrollLeft === next.scrollLeft && old.viewportWidth === next.viewportWidth ? old : next);
+    };
+    update();
+    scrollport.addEventListener('scroll', update, { passive: true });
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+    observer?.observe(scrollport);
+    window.addEventListener('resize', update);
+    return () => {
+      scrollport.removeEventListener('scroll', update);
+      observer?.disconnect();
+      window.removeEventListener('resize', update);
+    };
+  }, [scrollport]);
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
@@ -118,8 +141,9 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
         scale,
         rowHeight: ROW_H,
         laneHeaderHeight: LANE_HEADER_H,
+        viewport,
       }),
-    [tasks, milestones, today, scale],
+    [tasks, milestones, today, scale, viewport],
   );
 
   // Resolve bar.id → TaskWithRefs (used by onActivateTask) and id → name (deps).
@@ -151,11 +175,15 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
     [flatRows],
   );
 
-  // Roving focus across the grid's task rows.
+  // Roving focus across the grid's task rows. PGB-020: if the focused row was removed
+  // or filtered out, fall back to the first available task row so keyboard users can still tab in.
   const [focusedRowKey, setFocusedRowKey] = useState<string | null>(null);
   const rowRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
 
-  const activeRowKey = focusedRowKey ?? taskRowKeys[0] ?? null;
+  const activeRowKey =
+    focusedRowKey && taskRowKeys.includes(focusedRowKey)
+      ? focusedRowKey
+      : (taskRowKeys[0] ?? null);
 
   // Geometry-indexed lookups for the timeline pane.
   const barBoxById = useMemo(() => {
@@ -300,7 +328,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
           axis/header band (20) > bars/gridlines (default). The sticky cells carry
           an opaque `bg-card`/`bg-secondary` so bars scroll UNDER them, not through.
         */}
-        <div data-gantt-scroll className="flex max-h-[60vh] overflow-auto">
+        <div ref={setScrollport} data-gantt-scroll className="flex max-h-[60vh] overflow-auto">
           {/* Left column — the task TABLE (role=grid). Frozen on horizontal scroll
               via sticky left-0; its own header cell freezes on vertical scroll. */}
           <div

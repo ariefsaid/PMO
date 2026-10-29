@@ -338,17 +338,22 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '' }
     if (scrolledRef.current === taskId) return;
     // Attempt to scroll — the element may not yet be rendered (data still loading).
     // requestAnimationFrame gives the list one paint cycle.
-    const doScroll = () => {
+    let timerId: ReturnType<typeof setTimeout> | undefined;
+    const rafId = requestAnimationFrame(() => {
       const el = document.getElementById(`task-${taskId}`);
       if (el) {
         scrolledRef.current = taskId;
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setHighlightedTaskId(taskId);
         // Remove highlight after 2 s so it is genuinely transient.
-        setTimeout(() => setHighlightedTaskId(null), 2000);
+        timerId = setTimeout(() => setHighlightedTaskId(null), 2000);
       }
+    });
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      if (timerId) clearTimeout(timerId);
     };
-    requestAnimationFrame(doScroll);
   // Re-run when data loads (in case the element wasn't mounted on initial render).
   }, [location.hash, data, view]);
 
@@ -1030,13 +1035,17 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
 
   // milestone_id is tracked separately (not part of useEntityForm, since it's a string | null
   // but not a text field). Default: pre-populated group id for create, or the task's current value.
-  const [milestoneId, setMilestoneId] = useState<string | null>(
-    task?.milestone_id ?? defaultMilestoneId,
-  );
+  const initialMilestoneId = task?.milestone_id ?? defaultMilestoneId;
+  const [milestoneId, setMilestoneId] = useState<string | null>(initialMilestoneId);
 
   // OD-INT-9 — parent_task_id is tracked the same way (string | null, not a text field).
   // Default: the task's current parent when editing, or none (top-level) when creating.
-  const [parentTaskId, setParentTaskId] = useState<string | null>(task?.parent_task_id ?? null);
+  const initialParentTaskId = task?.parent_task_id ?? null;
+  const [parentTaskId, setParentTaskId] = useState<string | null>(initialParentTaskId);
+
+  // PGB-025: Track phase and parent changes as part of form dirty state
+  const phaseDirty = milestoneId !== initialMilestoneId;
+  const parentDirty = parentTaskId !== initialParentTaskId;
 
   const form = useEntityForm<FormValues>({
     initialValues: {
@@ -1182,7 +1191,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
       submitError={saveError}
       onClose={onClose}
       loading={form.isSubmitting}
-      dirty={form.isDirty || depsDirty}
+      dirty={form.isDirty || depsDirty || phaseDirty || parentDirty}
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary}
     >

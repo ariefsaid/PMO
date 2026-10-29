@@ -3,7 +3,7 @@
  * All ACs at this layer (ADR-0010): AC-GANTT-001, 002, 003, 004, 006.
  */
 import { describe, it, expect } from 'vitest';
-import { buildGanttModel, type GanttLayoutConfig } from '../ganttLayout';
+import { buildGanttModel, DEFAULT_MAX_GANTT_TICKS, type GanttLayoutConfig } from '../ganttLayout';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 
@@ -554,5 +554,87 @@ describe('OD-INT-9: subtasks never render as Gantt bars', () => {
     expect(model.span).toBeDefined();
     // Span end must be well before the subtask's 2026-03-31 end (subtask did not extend it).
     expect(model.span!.endIso < '2026-03-31').toBe(true);
+  });
+});
+
+// ── THEME-DATA-56 / LIB02-005: Gantt ticks bounded/overscan and extreme-span guards ──
+
+describe('THEME-DATA-56 / LIB02-005: Gantt ticks bounded/overscan and extreme-span guards', () => {
+  it('keeps an extreme valid span within a scrollable width and reaches its final dated bar', () => {
+    const tasks = [
+      makeTask({ id: 'early', name: 'Early', start_date: '1000-01-01', end_date: '1000-01-02' }),
+      makeTask({ id: 'late', name: 'Late', start_date: '9999-01-01', end_date: '9999-01-02' }),
+    ];
+    const model = buildGanttModel(tasks, [], '2026-01-01', { ...MONTH_CFG, scale: 'day' });
+    expect(model.geometry!.contentWidth).toBeLessThanOrEqual(8_000_000);
+    expect(model.geometry!.bars.find((bar) => bar.id === 'late')!.xStart).toBeGreaterThan(7_900_000);
+  });
+  it('steps week scale directly by 7 days rather than walking every single day', () => {
+    // 60-day span
+    const tasks: TaskWithRefs[] = [
+      makeTask({ id: 't1', name: 'Task 1', start_date: '2026-01-01', end_date: '2026-03-02' }),
+    ];
+    const model = buildGanttModel(tasks, [], '2026-01-15', { ...MONTH_CFG, scale: 'week' });
+    expect(model.ticks.length).toBeGreaterThan(0);
+    // Every tick must be a Monday (day 1) and successive ticks must be 7 days apart
+    for (let i = 0; i < model.ticks.length; i++) {
+      const d = new Date(model.ticks[i].iso);
+      expect(d.getUTCDay()).toBe(1);
+      if (i > 0) {
+        const prev = new Date(model.ticks[i - 1].iso);
+        const diffDays = Math.round((d.getTime() - prev.getTime()) / 86400000);
+        expect(diffDays).toBe(7);
+      }
+    }
+  });
+
+  it('bounds ticks for extreme date spans while preserving access to all dated bars (LIB02-005)', () => {
+    // 10-year span (3652 days)
+    const tasks: TaskWithRefs[] = [
+      makeTask({ id: 't-early', name: 'Early task', start_date: '2026-01-01', end_date: '2026-01-15' }),
+      makeTask({ id: 't-late', name: 'Late task', start_date: '2035-12-01', end_date: '2036-01-01' }),
+    ];
+    const model = buildGanttModel(tasks, [], '2026-06-01', {
+      scale: 'day',
+      rowHeight: 40,
+      laneHeaderHeight: 36,
+    });
+
+    // Model span encompasses the entire range
+    expect(model.span).toEqual({ startIso: '2026-01-01', endIso: '2036-01-01' });
+
+    // Both bars remain present, laid out, and accessible
+    const allBars = model.lanes.flatMap((l) => l.bars);
+    const earlyBar = allBars.find((b) => b.id === 't-early');
+    const lateBar = allBars.find((b) => b.id === 't-late');
+    expect(earlyBar).toBeDefined();
+    expect(lateBar).toBeDefined();
+    expect(model.geometry?.bars.find((b) => b.id === 't-early')).toBeDefined();
+    expect(model.geometry?.bars.find((b) => b.id === 't-late')).toBeDefined();
+
+    // Ticks must be bounded, not allocating 3652+ daily tick objects
+    expect(model.ticks.length).toBeLessThanOrEqual(DEFAULT_MAX_GANTT_TICKS);
+    expect(model.ticks.length).toBeGreaterThan(0);
+  });
+
+  it('bounds ticks to visible viewport with overscan when viewport is configured', () => {
+    const tasks: TaskWithRefs[] = [
+      makeTask({ id: 't1', name: 'Task 1', start_date: '2026-01-01', end_date: '2026-12-31' }),
+    ];
+    // 365 days. Day scale = 28 px/day => ~10220 px width
+    const model = buildGanttModel(tasks, [], '2026-06-01', {
+      scale: 'day',
+      rowHeight: 40,
+      laneHeaderHeight: 36,
+      viewport: {
+        scrollLeft: 2800, // around day 100
+        viewportWidth: 840, // around 30 days
+        overscanPx: 280, // around 10 days
+      },
+    });
+
+    // Only generates ticks around the visible region + overscan (~50 days of ticks), not 365
+    expect(model.ticks.length).toBeLessThan(100);
+    expect(model.ticks.length).toBeGreaterThan(30);
   });
 });
