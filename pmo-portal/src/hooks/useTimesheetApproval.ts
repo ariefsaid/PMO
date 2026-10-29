@@ -29,6 +29,9 @@ async function pushAfterApprove(timesheetId: string): Promise<void> {
 // Query key factories — org+user-scoped (mirrors useTimesheets pattern)
 // ---------------------------------------------------------------------------
 
+// Assignment changes can happen in another session while these observers remain mounted.
+const ELIGIBILITY_REFRESH_MS = 60_000;
+
 /** Cache key for the signed-in user's own timesheet list (same key as useTimesheets). */
 const ownTimesheetsKey = (orgId: string | undefined, userId: string | undefined) =>
   ['timesheets', orgId, userId] as const;
@@ -60,6 +63,7 @@ export function useTimesheetsAwaitingApproval() {
   return useQuery<TimesheetAwaitingApproval[]>({
     queryKey: awaitingApprovalKey(orgId, userId, role),
     queryFn: () => repositories.timesheet.listAwaitingApproval(userId!, role),
+    refetchInterval: ELIGIBILITY_REFRESH_MS,
     enabled: Boolean(orgId && userId),
   });
 }
@@ -82,6 +86,7 @@ export function useReopenableApprovedTimesheets() {
   return useQuery<ReopenableApprovedTimesheet[]>({
     queryKey: reopenableApprovedKey(orgId, userId, role),
     queryFn: () => repositories.timesheet.listReopenableApproved(userId!, role),
+    refetchInterval: ELIGIBILITY_REFRESH_MS,
     enabled: Boolean(orgId && userId),
   });
 }
@@ -117,7 +122,11 @@ export function useTimesheetMutations() {
       await repositories.timesheet.approve(id, notes);
       await pushAfterApprove(id);
     },
-    onSuccess: invalidateBoth,
+    onSuccess: async () => {
+      // Refresh history before the pending row disappears, keeping the correction path reachable.
+      await queryClient.invalidateQueries({ queryKey: ['timesheets-reopenable-approved', orgId, userId] });
+      invalidateBoth();
+    },
   });
 
   const reject = useMutation<void, Error, { id: string; notes?: string }>({

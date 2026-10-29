@@ -38,17 +38,18 @@ const procRows = [
 ];
 
 const procState = { data: procRows as unknown[], isPending: false, isError: false };
+const tsRefetch = vi.fn();
 const tsState = { data: [{ id: 's1', status: 'Submitted', week_start_date: '2026-06-01', owner: { full_name: 'Anita Rao' }, entries: [{ project_id: 'pA', entry_date: '2026-06-01', hours: 8, project: { name: 'Apollo', code: 'PRJ-014' } }] }] as unknown[], isPending: false, isError: false };
 const expenseState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 const invoiceState = { rows: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
-const reopenableState = { data: [] as unknown[], isPending: false, isError: false };
+const reopenableState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ ...procState, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useReopenableApprovedTimesheets: () => reopenableState,
-  useTimesheetsAwaitingApproval: () => ({ ...tsState, refetch: vi.fn() }),
+  useTimesheetsAwaitingApproval: () => ({ ...tsState, refetch: tsRefetch }),
   useTimesheetMutations: () => ({
     approve: { mutate: vi.fn(), isPending: false },
     reject: { mutate: vi.fn(), isPending: false },
@@ -107,16 +108,15 @@ vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingVie
 import ApprovalsPage from '../Approvals';
 import { listTimesheetsAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 
-const renderAs = (realRole: Role, initialPath = '/approvals') =>
-  render(
+const pageAs = (realRole: Role, initialPath = '/approvals') =>
     <MemoryRouter initialEntries={[initialPath]}>
       <ImpersonationProvider realRole={realRole}>
         <ToastProvider>
           <ApprovalsPage />
         </ToastProvider>
       </ImpersonationProvider>
-    </MemoryRouter>,
-  );
+    </MemoryRouter>;
+const renderAs = (realRole: Role, initialPath = '/approvals') => render(pageAs(realRole, initialPath));
 
 beforeEach(() => {
   navigateMock.mockReset();
@@ -133,6 +133,10 @@ beforeEach(() => {
   invoiceState.isPending = false;
   invoiceState.isError = false;
   reopenableState.data = [];
+  reopenableState.isPending = false;
+  reopenableState.isError = false;
+  reopenableState.refetch.mockReset();
+  tsRefetch.mockReset();
 });
 
 describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
@@ -325,4 +329,77 @@ describe('submitted query drives the rendered action', () => {
     expect(Boolean(screen.queryByRole('button', { name: /Team member/i }))).toBe(expected);
     if (expected) expect(await screen.findByRole('button', { name: /^Approve$/i })).toBeInTheDocument();
   });
+});
+
+
+describe('timesheet eligibility availability', () => {
+  it.each(['Engineer', 'Finance'] as const)('%s sees loading rather than a settled outcome while eligibility is pending', (role) => {
+    procState.data = [];
+    tsState.data = [];
+    tsState.isPending = true;
+    renderAs(role);
+    expect(screen.queryByTestId('approvals-caught-up')).not.toBeInTheDocument();
+    expect(screen.queryByText(/you don't have access to approvals/i)).not.toBeInTheDocument();
+  });
+
+  it.each(['Engineer', 'Finance'] as const)('%s can retry a failed correction eligibility read', async (role) => {
+    procState.data = [];
+    tsState.data = [];
+    reopenableState.isError = true;
+    renderAs(role);
+    expect(screen.queryByTestId('approvals-caught-up')).not.toBeInTheDocument();
+    expect(screen.getByText(/couldn't load approved history/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(reopenableState.refetch).toHaveBeenCalled();
+  });
+});
+
+
+it.each(['Engineer', 'Finance'] as const)('%s can retry a failed pending read even with cached data', async (role) => {
+  procState.data = [];
+  tsState.isError = true;
+  const view = renderAs(role);
+  expect(screen.getByText(/couldn't load timesheets/i)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /^approve$/i })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+  expect(tsRefetch).toHaveBeenCalled();
+  tsState.isError = false;
+  view.rerender(pageAs(role));
+  expect(screen.getByRole('button', { name: /^approve$/i })).toBeInTheDocument();
+});
+
+it.each(['Engineer', 'Finance'] as const)('%s sees loading while correction eligibility is pending', (role) => {
+  procState.data = [];
+  tsState.data = [];
+  reopenableState.isPending = true;
+  renderAs(role);
+  expect(screen.queryByTestId('approvals-caught-up')).not.toBeInTheDocument();
+  expect(screen.queryByText(/you don't have access to approvals/i)).not.toBeInTheDocument();
+});
+
+
+it.each(['Engineer', 'Finance'] as const)('%s recovers eligibility after retry and removes failed cached correction actions', async (role) => {
+  procState.data = [];
+  tsState.data = [];
+  reopenableState.data = [{ id: 'approved-week', user_id: 'other', week_start_date: '2026-05-25', status: 'Approved', owner: { full_name: 'Report' }, entries: [], mirror: null, pushCommandState: null }];
+  reopenableState.isError = true;
+  const view = renderAs(role);
+  expect(screen.queryByRole('button', { name: /re-open for correction/i })).not.toBeInTheDocument();
+  expect(screen.getByText(/couldn't load approved history/i)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+  expect(reopenableState.refetch).toHaveBeenCalled();
+  reopenableState.isError = false;
+  view.rerender(pageAs(role));
+  expect(screen.getByRole('button', { name: /re-open for correction/i })).toBeInTheDocument();
+});
+
+it.each(['Engineer', 'Finance'] as const)('%s can retry an initial pending eligibility failure', async (role) => {
+  procState.data = [];
+  tsState.data = [];
+  tsState.isError = true;
+  renderAs(role);
+  expect(screen.queryByTestId('approvals-caught-up')).not.toBeInTheDocument();
+  expect(screen.getByText(/couldn't load timesheets/i)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+  expect(tsRefetch).toHaveBeenCalled();
 });

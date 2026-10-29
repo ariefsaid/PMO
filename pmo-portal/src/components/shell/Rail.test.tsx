@@ -14,7 +14,7 @@ const { featureEnabled, userViewsData, roleState, eligibility } = vi.hoisted(() 
   const featureEnabled: Record<string, boolean> = { userViews: true };
   const userViewsData: { id: string; name: string; description: string | null }[] = [];
   const roleState = { role: 'Admin' };
-  const eligibility = { pending: [] as unknown[], corrections: [] as unknown[] };
+  const eligibility = { pending: [] as unknown[], corrections: [] as unknown[], pendingError: false, correctionError: false };
   return { featureEnabled, userViewsData, roleState, eligibility };
 });
 
@@ -53,8 +53,8 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
-  useTimesheetsAwaitingApproval: () => ({ data: eligibility.pending }),
-  useReopenableApprovedTimesheets: () => ({ data: eligibility.corrections }),
+  useTimesheetsAwaitingApproval: () => ({ data: eligibility.pending, isError: eligibility.pendingError }),
+  useReopenableApprovedTimesheets: () => ({ data: eligibility.corrections, isError: eligibility.correctionError }),
 }));
 vi.mock('./ApprovalsNavCount', () => ({ ApprovalsNavCount: () => null }));
 vi.mock('@/src/hooks/useFinancePosition', () => ({ useFinancePosition: () => ({ isPending: true }) }));
@@ -139,4 +139,15 @@ describe('timesheet approval navigation', () => {
     expect(screen.queryByRole('link', { name: 'Approvals' })).not.toBeInTheDocument();
     roleState.role = 'Admin';
   });
+});
+
+
+it('keeps the approvals recovery route available when eligibility cannot be loaded', () => {
+  roleState.role = 'Engineer';
+  eligibility.pendingError = true;
+  const auth = { currentUser: { id: 'me', org_id: 'org-1' }, role: 'Engineer' } as AuthContextValue;
+  render(<AuthContext.Provider value={auth}><MemoryRouter><Rail /></MemoryRouter></AuthContext.Provider>);
+  expect(screen.getByRole('link', { name: /approvals/i })).toHaveAttribute('href', '/approvals');
+  eligibility.pendingError = false;
+  roleState.role = 'Admin';
 });

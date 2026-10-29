@@ -1,6 +1,6 @@
 /* Shared controller and controls intentionally live together so responsive queues cannot diverge. */
 /* eslint-disable react-refresh/only-export-components */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Button, Checkbox, ConfirmDialog, Icon, useToast } from '@/src/components/ui';
@@ -37,6 +37,15 @@ export function useTimesheetBulkApprove(sheets: TimesheetAwaitingApproval[], eli
     () => new Set([...selected].filter((id) => approvableIds.has(id))),
     [selected, approvableIds],
   );
+  useEffect(() => {
+    setSelected((previous) => {
+      const next = new Set([...previous].filter((id) => approvableIds.has(id)));
+      return next.size === previous.size ? previous : next;
+    });
+  }, [approvableIds]);
+  useEffect(() => {
+    if (confirmOpen && effectiveSelected.size === 0) setConfirmOpen(false);
+  }, [confirmOpen, effectiveSelected]);
   const allSelected = approvableIds.size > 0 && effectiveSelected.size === approvableIds.size;
   const someSelected = effectiveSelected.size > 0 && !allSelected;
   const exitSelection = () => {
@@ -128,7 +137,7 @@ export function TimesheetBulkToolbar({ controller }: { controller: BulkControlle
 
 export function TimesheetBulkConfirm({ controller, sheets }: { controller: BulkController; sheets: TimesheetAwaitingApproval[] }) {
   const { t } = useTranslation();
-  if (!controller.confirmOpen) return null;
+  if (!controller.confirmOpen || controller.effectiveSelected.size === 0) return null;
   const n = controller.effectiveSelected.size;
   const title = n === 1
     ? t('approvals.bulk.confirmTitleOne', 'Approve 1 timesheet?')

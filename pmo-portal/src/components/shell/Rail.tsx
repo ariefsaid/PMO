@@ -160,9 +160,9 @@ export const Rail: React.FC<RailProps> = (props) => {
 };
 
 const RailWithTimesheetEligibility: React.FC<RailProps> = (props) => {
-  const { data: pending } = useTimesheetsAwaitingApproval();
-  const { data: corrections } = useReopenableApprovedTimesheets();
-  return <RailContent {...props} hasEligibleTimesheets={Boolean(pending?.length || corrections?.length)} />;
+  const pending = useTimesheetsAwaitingApproval();
+  const corrections = useReopenableApprovedTimesheets();
+  return <RailContent {...props} hasEligibleTimesheets={Boolean(pending.data?.length || corrections.data?.length || pending.isPending || corrections.isPending || pending.isError || corrections.isError)} />;
 };
 
 const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = ({ onNavigate, railActiveOverride, onOpenAssistant, assistantPanelOpen, operatorAccessError = false, hasEligibleTimesheets = false }) => {
