@@ -6,6 +6,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
 }));
 
 import { AppError } from '@/src/lib/appError';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { supabase } from '@/src/lib/supabase/client';
 import {
   cleanupExpenseCaptureReceiptObject, confirmExpenseCaptureReceiptUpload, createExpenseCapture,
@@ -168,19 +169,44 @@ describe('AC-S29-003 expense capture DAL', () => {
     expect(remove).toHaveBeenCalledWith([receiptPath]);
   });
 
-  it('AC-S29-003 keeps Storage API errors observable as application errors', async () => {
+  it('AC-S29-003 maps verified storage authorization failures for upload, list and cleanup', async () => {
+    const uploadError = { name: 'StorageError', message: 'Storage denied', status: 401 };
+    const listError = { name: 'StorageError', message: 'List denied', status: '403' };
+    const removeError = { name: 'StorageError', message: 'Remove denied', status: 403 };
     h.storageFrom.mockReturnValue({
-      createSignedUploadUrl: vi.fn().mockResolvedValue({ data: null, error: { name: 'StorageError', message: 'Storage denied' } }),
+      createSignedUploadUrl: vi.fn().mockResolvedValue({ data: null, error: uploadError }),
     });
     mockClaimRead({ data: { org_id: 'org-29' }, error: null });
     await expect(prepareExpenseCaptureReceiptUpload('claim-29', 'file-29', 'receipt.pdf'))
-      .rejects.toMatchObject({ message: 'Storage denied', code: '42501' });
+      .rejects.toMatchObject({ message: 'The file service could not complete the request.', code: '42501', cause: uploadError });
 
     h.storageFrom.mockReturnValue({
-      list: vi.fn().mockResolvedValue({ data: null, error: { name: 'StorageError', message: 'List denied' } }),
-      remove: vi.fn().mockResolvedValue({ error: { name: 'StorageError', message: 'Remove denied' } }),
+      list: vi.fn().mockResolvedValue({ data: null, error: listError }),
+      remove: vi.fn().mockResolvedValue({ error: removeError }),
     });
-    await expect(expenseCaptureReceiptObjectExists(receiptPath)).rejects.toMatchObject({ message: 'List denied', code: '42501' });
-    await expect(cleanupExpenseCaptureReceiptObject(receiptPath)).rejects.toMatchObject({ message: 'Remove denied', code: '42501' });
+    await expect(expenseCaptureReceiptObjectExists(receiptPath)).rejects.toMatchObject({ code: '42501', cause: listError });
+    await expect(cleanupExpenseCaptureReceiptObject(receiptPath)).rejects.toMatchObject({ code: '42501', cause: removeError });
+  });
+
+  it('AC-S29-003 safely reports storage failures without a verified status', async () => {
+    const original = { name: 'StorageError', message: 'internal storage detail' };
+    h.storageFrom.mockReturnValue({
+      createSignedUploadUrl: vi.fn().mockResolvedValue({ data: null, error: original }),
+      list: vi.fn().mockResolvedValue({ data: null, error: original }),
+      remove: vi.fn().mockResolvedValue({ error: original }),
+    });
+    mockClaimRead({ data: { org_id: 'org-29' }, error: null });
+    for (const run of [
+      () => prepareExpenseCaptureReceiptUpload('claim-29', 'file-29', 'receipt.pdf'),
+      () => expenseCaptureReceiptObjectExists(receiptPath),
+      () => cleanupExpenseCaptureReceiptObject(receiptPath),
+    ]) {
+      const error = await run().catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(AppError);
+      expect(error).toMatchObject({ message: 'The file service could not complete the request.', code: undefined, cause: original });
+      const classified = classifyMutationError(error, undefined, { suppressCapture: true });
+      expect(classified.headline).toBe('Update failed');
+      expect(classified.detail).not.toContain(original.message);
+    }
   });
 });
