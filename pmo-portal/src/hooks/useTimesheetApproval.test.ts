@@ -3,29 +3,6 @@ import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
-// ---------------------------------------------------------------------------
-// Mock the DAL
-// ---------------------------------------------------------------------------
-vi.mock('@/src/lib/db/timesheetTransition', () => ({
-  listTimesheetsAwaitingApproval: vi.fn().mockResolvedValue([
-    {
-      id: 'ts-1',
-      user_id: 'other-user',
-      week_start_date: '2026-06-01',
-      status: 'Submitted',
-      entries: [],
-      owner: { full_name: 'Dave Engineer' },
-    },
-  ]),
-  submitTimesheet: vi.fn().mockResolvedValue(undefined),
-  approveTimesheet: vi.fn().mockResolvedValue(undefined),
-  rejectTimesheet: vi.fn().mockResolvedValue(undefined),
-  reopenTimesheet: vi.fn().mockResolvedValue(undefined),
-  reopenApprovedTimesheet: vi.fn().mockResolvedValue(undefined),
-  attestTimesheetNoErpDocument: vi.fn().mockResolvedValue(undefined),
-  listReopenableApprovedTimesheets: vi.fn().mockResolvedValue([]),
-}));
-
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
@@ -33,43 +10,36 @@ vi.mock('@/src/auth/useAuth', () => ({
 // P3b (FR-TSP-006, ADR-0059 §3.2): the push is a CONSEQUENCE of approval, dispatched via the
 // repository seam (ADR-0017) — never the DAL directly.
 const pushApprovedMock = vi.fn().mockResolvedValue(undefined);
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { timesheet: { pushApproved: (...args: unknown[]) => pushApprovedMock(...args) } },
-}));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { timesheet: {
+  pushApproved: (...args: unknown[]) => pushApprovedMock(...args),
+  listAwaitingApproval: vi.fn().mockResolvedValue([{ id: 'ts-1', user_id: 'other-user', week_start_date: '2026-06-01', status: 'Submitted', entries: [], owner: { full_name: 'Dave Engineer' } }]),
+  listReopenableApproved: vi.fn().mockResolvedValue([]),
+  submit: vi.fn().mockResolvedValue(undefined), approve: vi.fn().mockResolvedValue(undefined),
+  reject: vi.fn().mockResolvedValue(undefined), reopen: vi.fn().mockResolvedValue(undefined),
+  attestNoErpDocument: vi.fn().mockResolvedValue(undefined),
+  listPushesNeedingAttention: vi.fn().mockResolvedValue([]),
+  confirmEmployeeLink: vi.fn().mockResolvedValue(undefined),
+  getPushState: vi.fn().mockResolvedValue({ push_state: 'failed', push_error: 'external-unreachable', ts_number: null }),
+} } }));
 
 vi.mock('@/src/lib/repositories/employeeMatchReview', () => ({
   listEmployeeMatchReview: vi.fn().mockResolvedValue({ links: [], profiles: [] }),
 }));
 
-// P3b (FR-TSP-085, OQ-TSP-10(C)) — the operator-surface reads/mutation.
-vi.mock('@/src/lib/db/timesheetPush', () => ({
-  listPushesNeedingAttention: vi.fn().mockResolvedValue([]),
-  listProposedEmployeeLinks: vi.fn().mockResolvedValue([]),
-  confirmEmployeeLink: vi.fn().mockResolvedValue(undefined),
-  getPushState: vi.fn().mockResolvedValue({ push_state: 'failed', push_error: 'external-unreachable', ts_number: null }),
-}));
-
 import {
   awaitingApprovalKey,
   useTimesheetsAwaitingApproval,
+  useReopenableApprovedTimesheets,
   useTimesheetMutations,
   usePushesNeedingAttention,
   useEmployeeLinkConfirm,
   useOwnTimesheetPushState,
 } from './useTimesheetApproval';
-import { getPushState } from '@/src/lib/db/timesheetPush';
+import { repositories } from '@/src/lib/repositories';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import { listEmployeeMatchReview } from '@/src/lib/repositories/employeeMatchReview';
-import {
-  listTimesheetsAwaitingApproval,
-  submitTimesheet,
-  approveTimesheet,
-  rejectTimesheet,
-  reopenApprovedTimesheet,
-  attestTimesheetNoErpDocument,
-} from '@/src/lib/db/timesheetTransition';
-import { listPushesNeedingAttention, confirmEmployeeLink } from '@/src/lib/db/timesheetPush';
 
+const { getPushState, listAwaitingApproval: listTimesheetsAwaitingApproval, submit: submitTimesheet, approve: approveTimesheet, reject: rejectTimesheet, reopen: reopenTimesheet, attestNoErpDocument: attestTimesheetNoErpDocument, listPushesNeedingAttention, confirmEmployeeLink } = repositories.timesheet;
 // ---------------------------------------------------------------------------
 // Wrapper factory — each test gets a fresh QueryClient (mirrors useProcurementDetail.test.ts)
 // ---------------------------------------------------------------------------
@@ -116,6 +86,14 @@ describe('useTimesheetsAwaitingApproval', () => {
 // ---------------------------------------------------------------------------
 // C2 — mutations hook: invalidates both keys on success (AC-911 hook)
 // ---------------------------------------------------------------------------
+
+it('loads the approved correction queue for the signed-in user', async () => {
+  const { Wrapper } = makeWrapper();
+  const { result } = renderHook(() => useReopenableApprovedTimesheets(), { wrapper: Wrapper });
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  expect(repositories.timesheet.listReopenableApproved).toHaveBeenCalledWith('u1');
+  expect(result.current.data).toEqual([]);
+});
 
 describe('useTimesheetMutations', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -168,6 +146,13 @@ describe('useTimesheetMutations', () => {
   });
 
   // ── SHOULD-FIX 4 (Luna code review) — a successful re-open must clear the surfaces it invalidated.
+  it('reopens an own timesheet through the same transition', async () => {
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useTimesheetMutations(), { wrapper: Wrapper });
+    await act(async () => { await result.current.reopen.mutateAsync({ id: 'own-sheet' }); });
+    expect(reopenTimesheet).toHaveBeenCalledWith('own-sheet');
+  });
+
   // The re-openable queue is where the button was clicked, and the push-attention queue can still be
   // offering a Retry for the very week that just went back to Draft (a Retry the server now refuses).
   // Invalidating only own/awaiting left BOTH on screen until something else happened to refetch them.
@@ -179,7 +164,7 @@ describe('useTimesheetMutations', () => {
     await act(async () => {
       await result.current.reopenApproved.mutateAsync({ id: 'ts-reopened' });
     });
-    expect(reopenApprovedTimesheet).toHaveBeenCalledWith('ts-reopened');
+    expect(reopenTimesheet).toHaveBeenCalledWith('ts-reopened');
 
     const keys = invalidateSpy.mock.calls.map(c => JSON.stringify(c[0]));
     expect(keys.some(k => k.includes('"timesheets-reopenable-approved"') && k.includes('"org-1"'))).toBe(true);
@@ -242,6 +227,17 @@ describe('useTimesheetMutations — P3b push-after-approve wiring (FR-TSP-006)',
     const approveOrder = vi.mocked(approveTimesheet).mock.invocationCallOrder[0];
     const pushOrder = pushApprovedMock.mock.invocationCallOrder[0];
     expect(approveOrder).toBeLessThan(pushOrder);
+  });
+
+  it('surfaces an approval refusal without attempting a push', async () => {
+    const refusal = new Error('Approval refused');
+    vi.mocked(approveTimesheet).mockRejectedValueOnce(refusal);
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useTimesheetMutations(), { wrapper: Wrapper });
+    await act(async () => {
+      await expect(result.current.approve.mutateAsync({ id: 'ts-refused' })).rejects.toBe(refusal);
+    });
+    expect(pushApprovedMock).not.toHaveBeenCalled();
   });
 
   it("AC-TSP-051: when pushApproved REJECTS, the approve mutation STILL resolves successfully (the sheet shows Approved; no error toast blocks the user — PMO's SoT never depends on ERP liveness)", async () => {

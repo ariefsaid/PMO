@@ -97,6 +97,7 @@ vi.mock('@/src/lib/db/procurementRecords', () => ({
 }));
 vi.mock('@/src/lib/db/timesheets', () => ({
   listTimesheets: vi.fn(),
+  saveTimesheetWeek: vi.fn(),
   createDraftTimesheet: vi.fn(),
   upsertTimesheetEntries: vi.fn(),
   deleteTimesheetEntry: vi.fn(),
@@ -106,6 +107,13 @@ vi.mock('@/src/lib/db/timesheetTransition', () => ({
   approveTimesheet: vi.fn(),
   rejectTimesheet: vi.fn(),
   listTimesheetsAwaitingApproval: vi.fn(),
+  reopenTimesheet: vi.fn(),
+  attestTimesheetNoErpDocument: vi.fn(),
+  listReopenableApprovedTimesheets: vi.fn(),
+}));
+vi.mock('@/src/lib/db/timesheetPush', () => ({
+  approvedTimesheetForPush: vi.fn(), listPushesNeedingAttention: vi.fn(),
+  confirmEmployeeLink: vi.fn(), getPushState: vi.fn(),
 }));
 vi.mock('@/src/lib/db/budgets', () => ({
   deriveProjectBudget: vi.fn(),
@@ -168,6 +176,7 @@ import * as procCeilingDal from '@/src/lib/db/procurementPaymentCeiling';
 import * as procRecordsDal from '@/src/lib/db/procurementRecords';
 import * as timesheetsDal from '@/src/lib/db/timesheets';
 import * as tsTransitionDal from '@/src/lib/db/timesheetTransition';
+import * as tsPushDal from '@/src/lib/db/timesheetPush';
 import * as budgetsDal from '@/src/lib/db/budgets';
 import * as budgetImportSkipDal from '@/src/lib/db/budgetImportSkip';
 import * as tasksDal from '@/src/lib/db/tasks';
@@ -313,7 +322,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ].sort(),
     );
     expect(Object.keys(repositories.timesheet).sort()).toEqual(
-      ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'pushApproved', 'reject', 'submit', 'upsertEntries'].sort(),
+      ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'pushApproved', 'reject', 'submit', 'upsertEntries', 'saveWeek', 'reopen', 'attestNoErpDocument', 'listReopenableApproved', 'listPushesNeedingAttention', 'confirmEmployeeLink', 'getPushState'].sort(),
     );
     expect(Object.keys(repositories.budget).sort()).toEqual(
       ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'listDocumentLinks', 'listVersions', 'removeDocumentLink', 'updateLineItem'].sort(),
@@ -784,6 +793,31 @@ describe('delegation — methods pass args through and return the DAL result', (
     vi.mocked(tsTransitionDal.approveTimesheet).mockResolvedValue(undefined);
     vi.mocked(tsTransitionDal.rejectTimesheet).mockResolvedValue(undefined);
     vi.mocked(tsTransitionDal.listTimesheetsAwaitingApproval).mockResolvedValue([] as never);
+
+    vi.mocked(timesheetsDal.saveTimesheetWeek).mockResolvedValue('t1');
+    await expect(repositories.timesheet.saveWeek(null, '2026-06-01', [], [])).resolves.toBe('t1');
+    expect(timesheetsDal.saveTimesheetWeek).toHaveBeenCalledWith(null, '2026-06-01', [], []);
+    const failure = Object.assign(new Error('Save failed'), { code: '42501' });
+    vi.mocked(timesheetsDal.saveTimesheetWeek).mockRejectedValueOnce(failure);
+    await expect(repositories.timesheet.saveWeek('t1', '2026-06-01', [], [])).rejects.toBe(failure);
+    vi.mocked(tsTransitionDal.reopenTimesheet).mockResolvedValue(undefined);
+    await repositories.timesheet.reopen('t1');
+    expect(tsTransitionDal.reopenTimesheet).toHaveBeenCalledWith('t1');
+
+    vi.mocked(tsTransitionDal.attestTimesheetNoErpDocument).mockResolvedValue(undefined);
+    await repositories.timesheet.attestNoErpDocument('t1', 'reason');
+    expect(tsTransitionDal.attestTimesheetNoErpDocument).toHaveBeenCalledWith('t1', 'reason');
+    vi.mocked(tsTransitionDal.listReopenableApprovedTimesheets).mockResolvedValue([]);
+    await expect(repositories.timesheet.listReopenableApproved('u1')).resolves.toEqual([]);
+    expect(tsTransitionDal.listReopenableApprovedTimesheets).toHaveBeenCalledWith('u1');
+    vi.mocked(tsPushDal.listPushesNeedingAttention).mockResolvedValue([]);
+    await expect(repositories.timesheet.listPushesNeedingAttention()).resolves.toEqual([]);
+    vi.mocked(tsPushDal.confirmEmployeeLink).mockResolvedValue(undefined);
+    await repositories.timesheet.confirmEmployeeLink('employee', 'profile');
+    expect(tsPushDal.confirmEmployeeLink).toHaveBeenCalledWith('employee', 'profile');
+    vi.mocked(tsPushDal.getPushState).mockResolvedValue(null);
+    await expect(repositories.timesheet.getPushState('t1')).resolves.toBeNull();
+    expect(tsPushDal.getPushState).toHaveBeenCalledWith('t1');
 
     await repositories.timesheet.list('u1');
     expect(timesheetsDal.listTimesheets).toHaveBeenCalledWith('u1', undefined);
