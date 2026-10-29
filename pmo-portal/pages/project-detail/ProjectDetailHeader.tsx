@@ -459,6 +459,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   };
 
   const canChangeValue = isDelivery && canEditValue && isFinanceForward;
+  const showCompactContractLock = compact && isDelivery && isOnHand && isFinanceForward && !canEditValue && !valueEditing;
   const copyProjectLink = async () => {
     const href = `${window.location.origin}/projects/${project.id}`;
     try {
@@ -472,6 +473,15 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     <div className="flex items-center gap-2 whitespace-nowrap">
       {primaryAction}
       {secondaryAction}
+      {showCompactContractLock && (
+        <button type="button" aria-expanded={lockReasonOpen} aria-controls="contract-value-lock-reason"
+          onClick={() => setLockReasonOpen(open => !open)}
+          className="inline-flex shrink-0 items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+          <Icon name="lock" className="size-3" />
+          {t('projectDetail.header.readOnly', 'Read-only')}
+          <Icon name="chev" className="size-3 rotate-90" />
+        </button>
+      )}
       {canEdit && (
         <span className="hidden md:inline-flex">
           <Button variant="outline" size="sm" className="touch-target" onClick={onEditProject}>
@@ -692,10 +702,18 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         // Phone keeps identity/status; the persistent Details rail below the
         // selected work already carries these codes, customer and PO facts.
         meta={meta}
-        actions={primaryAction || menuContent || canEdit || canArchive || canDelete ? actions : undefined}
+        actions={primaryAction || menuContent || canEdit || canArchive || canDelete || showCompactContractLock ? actions : undefined}
         variant="drawer"
         className="mb-1 [&>div]:gap-2 [&_h1]:basis-auto [&>div>div:last-child]:w-auto"
       />
+
+      {showCompactContractLock && (
+        <div data-testid="contract-value-lock-lane" className="mb-1" hidden={!lockReasonOpen}>
+          <p id="contract-value-lock-reason" data-testid="contract-value-lock-reason" className="text-xs text-muted-foreground">
+            {t('projectDetail.header.sodLockedNote', 'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.')}
+          </p>
+        </div>
+      )}
 
       {/* UIP-006: one compact read strip, with the explicit edit/lock next to Contract.
           The editor and its confirm remain unchanged; no finance or authority changes. */}
