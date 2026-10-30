@@ -145,7 +145,7 @@ export const AccountMenu: React.FC = () => {
         aria-expanded={open}
         aria-label={t('shell.contextBar.accountMenu', 'Account menu')}
         onClick={() => setOpen((v) => !v)}
-        className="touch-target inline-flex h-8 max-w-[220px] shrink-0 items-center gap-2 rounded-lg border border-input bg-card pl-1.5 pr-2.5 hover:bg-accent"
+        className="touch-target inline-flex h-8 max-w-[220px] shrink-0 items-center gap-2 rounded-lg border border-transparent bg-card pl-1.5 pr-2.5 hover:bg-accent"
       >
         <span
           aria-hidden
