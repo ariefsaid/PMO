@@ -148,9 +148,15 @@ const ProcurementPage: React.FC = () => {
   const [refreshError, setRefreshError] = useState(false);
   const refreshLock = useRef(false);
   const toRefs = (options: { value: string; label: string }[]) => options.map((option) => ({ id: option.value, name: option.label }));
+  const sameRefs = (a: { id: string; name: string }[], b: { id: string; name: string }[]) => a.length === b.length && a.every((x, i) => x.id === b[i].id && x.name === b[i].name);
   // Keep mounted wizards responsive to subsequent query refreshes as well as the opening refresh.
-  useEffect(() => { if (projectQuery.data) setImportRefs((prev) => ({ ...prev, projects: toRefs(projectQuery.data) })); }, [projectQuery.data]);
-  useEffect(() => { if (supplierQuery.data) setImportRefs((prev) => ({ ...prev, suppliers: toRefs(supplierQuery.data) })); }, [supplierQuery.data]);
+  // The updater BAILS OUT (returns prev) only when the mapped id+name pairs are unchanged: a query
+  // refresh hands back a fresh array identity even when the options are identical, and mirroring
+  // that identity into state on every render would re-render → new identity → effect → setState
+  // forever. A RENAME with stable ids must flow through, so names are compared too — an open
+  // wizard's ref lookup would otherwise keep resolving the old name.
+  useEffect(() => { if (projectQuery.data) setImportRefs((prev) => { const next = toRefs(projectQuery.data); return sameRefs(prev.projects, next) ? prev : { ...prev, projects: next }; }); }, [projectQuery.data]);
+  useEffect(() => { if (supplierQuery.data) setImportRefs((prev) => { const next = toRefs(supplierQuery.data); return sameRefs(prev.suppliers, next) ? prev : { ...prev, suppliers: next }; }); }, [supplierQuery.data]);
   const referencesPending = projectQuery.isPending || supplierQuery.isPending || refreshingRefs;
   const referencesError = refreshError || projectQuery.isError || supplierQuery.isError || projectQuery.data === undefined || supplierQuery.data === undefined;
   const refreshReferences = async () => {

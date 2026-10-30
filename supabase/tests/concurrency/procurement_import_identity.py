@@ -65,4 +65,7 @@ try:
         race(mode, mode + '-different', mode + '-different', 20, True)
         race(mode, mode + '-left', mode + '-right', 20, False)
 finally:
-    run(f"delete from public.procurements where id='{CASE}'; delete from public.procurement_import_runs where id in ('{RUN1}','{RUN2}'); delete from public.profiles where id='{USER}'; delete from auth.users where id='{USER}'; delete from public.organizations where id='{ORG}';", check=False)
+    # procurement_doc_counters is seeded per-org when the fixture procurement is inserted and its
+    # org_id FK blocks the organizations delete — clear it first so a re-run can re-seed (the
+    # budget-import sibling never hits this because it inserts no procurements).
+    run(f"delete from procurement_doc_counters where org_id='{ORG}'; delete from public.procurements where id='{CASE}'; delete from public.procurement_import_runs where id in ('{RUN1}','{RUN2}'); delete from public.profiles where id='{USER}'; delete from auth.users where id='{USER}'; delete from public.organizations where id='{ORG}';", check=False)

@@ -143,3 +143,25 @@ begin
     execute format('create trigger zzzz_import_identity before insert or update on public.%I for each row execute function public.procurement_import_identity_stamp()', t);
   end loop;
 end $$;
+
+-- Change-history registry (record_changes_catalog_gate): classify the columns this migration adds.
+-- The import identity pair is server-assigned at insert and immutable afterwards (the zzzz_import_identity
+-- stamp trigger refuses any later change), and import_normalized_ref is generated always — neither is a
+-- user-visible row change, so both are OMITTED, the same treatment import_key/import_batch_id/imported_at
+-- already receive (0260/0271).
+do $$
+declare t text;
+begin
+  foreach t in array array['purchase_requests','rfqs','purchase_orders','procurement_invoices','payments'] loop
+    update public.record_history_config
+       set omit_cols = omit_cols || array(select c from unnest(array['import_identity_version','import_identity_facts']) c
+                                          where not (c = any (omit_cols)))
+     where table_name = t;
+  end loop;
+end $$;
+update public.record_history_config
+   set omit_cols = omit_cols || array(select c from unnest(array['import_normalized_ref']) c
+                                      where not (c = any (omit_cols)))
+ where table_name = 'procurements';
+
+notify pgrst, 'reload schema';

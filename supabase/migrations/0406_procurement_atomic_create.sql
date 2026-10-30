@@ -7,6 +7,9 @@ create table public.procurement_create_intents (
   items jsonb not null
 );
 alter table public.procurement_create_intents enable row level security;
+-- AC-LOW-1 (0005_force_rls): every RLS-enabled table is also FORCED — the definer runs as the owner
+-- (bypassrls), so forcing costs the write path nothing while closing the owner-privilege gap.
+alter table public.procurement_create_intents force row level security;
 revoke all on public.procurement_create_intents from public, anon, authenticated;
 
 create function public.create_procurement_with_items(p_id uuid, p_header jsonb, p_items jsonb)
