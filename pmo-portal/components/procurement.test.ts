@@ -204,6 +204,8 @@ describe('procurement helper — selectedQuotation (PROC-004 selected-quote bind
     valid_until: null,
     // Deliverable 2 — new nullable provenance columns added by migration 0072
     import_batch_id: null,
+    import_identity_facts: null,
+    import_identity_version: null,
     import_key: null,
     imported_at: null,
     // P2 — ERPNext mirror columns (migration 0093+)

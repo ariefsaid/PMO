@@ -66,6 +66,8 @@ const makeQuote = (overrides: Partial<QuotationRow> = {}): QuotationRow => ({
   file_url: null,
   org_id: 'org-1',
   import_batch_id: null,
+  import_identity_facts: null,
+  import_identity_version: null,
   import_key: null,
   imported_at: null,
   erp_amended_from: null,
