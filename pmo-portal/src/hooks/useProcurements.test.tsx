@@ -12,13 +12,14 @@ vi.mock('@/src/lib/db/procurements', () => ({
   ]),
   listProcurementsByProject: vi.fn().mockResolvedValue([{ id: 'pc9', project_id: 'proj-1' }]),
   getProjectCommittedSpend: vi.fn().mockResolvedValue({ amount: 200000, otherCurrencies: [{ currency: 'EUR', amount: 900 }] }),
+  getProjectReservedSpend: vi.fn().mockResolvedValue({ amount: 100, projectCurrency: 'USD', budgetCurrency: 'USD', otherCurrencies: [{ currency: 'EUR', amount: 20 }] }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
 
-import { procurementsKey, useProcurements, useProjectProcurements, useProjectCommittedSpend } from './useProcurements';
-import { listProcurements, listProcurementsByProject, getProjectCommittedSpend } from '@/src/lib/db/procurements';
+import { procurementsKey, useProcurements, useProjectProcurements, useProjectCommittedSpend, useProjectReservedSpend } from './useProcurements';
+import { listProcurements, listProcurementsByProject, getProjectCommittedSpend, getProjectReservedSpend } from '@/src/lib/db/procurements';
 
 const wrap = ({ children }: { children: React.ReactNode }) => (
   <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
@@ -125,5 +126,24 @@ describe('useProjectProcurements (AC-OVERFETCH-002)', () => {
     const { result } = renderHook(() => useProjectProcurements(undefined), { wrapper: wrap });
     expect(result.current.fetchStatus).toBe('idle');
     expect(listProcurementsByProject).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('useProjectReservedSpend', () => {
+  it('carries the project and budget currencies alongside separate positions', async () => {
+    const { result } = renderHook(() => useProjectReservedSpend('proj-1'), { wrapper: wrap });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toBe(100);
+    expect(result.current.projectCurrency).toBe('USD');
+    expect(result.current.budgetCurrency).toBe('USD');
+    expect(result.current.otherCurrencies).toEqual([{ currency: 'EUR', amount: 20 }]);
+    expect(getProjectReservedSpend).toHaveBeenCalledWith('proj-1');
+  });
+  it('does not fetch without a project', () => {
+    vi.mocked(getProjectReservedSpend).mockClear();
+    const { result } = renderHook(() => useProjectReservedSpend(null), { wrapper: wrap });
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(getProjectReservedSpend).not.toHaveBeenCalled();
   });
 });

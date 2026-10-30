@@ -3,7 +3,14 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
-import { ProcurementMoneySummary, ProcurementTimeline } from './ProcurementDetailPanels';
+import { ProcurementBudgetSignal, ProcurementMoneySummary, ProcurementTimeline } from './ProcurementDetailPanels';
+
+vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
+vi.mock('@/src/hooks/useBudget', () => ({ useProjectBudget: () => ({ data: 1000, isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useProcurements', () => ({
+  useProjectCommittedSpend: () => ({ data: 100, isPending: false, isError: false }),
+  useProjectReservedSpend: () => ({ data: 200, projectCurrency: 'USD', budgetCurrency: 'USD', isPending: false, isError: false }),
+}));
 
 const dayOffset = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 
@@ -49,5 +56,17 @@ describe('procurement record panels', () => {
     expect(screen.getByText(/in date order/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Full history' }));
     expect(onFullHistory).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe('procurement budget signal currency', () => {
+  it('shows compatible project headroom', () => {
+    render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Requested" currency="USD" />);
+    expect(screen.getByText(/Available \$700/)).toBeInTheDocument();
+  });
+  it('does not compare a foreign request with project headroom', () => {
+    render(<ProcurementBudgetSignal projectId="p-1" totalValue={50} status="Requested" currency="EUR" />);
+    expect(screen.getByText(/comparison unavailable/i)).toBeInTheDocument();
   });
 });
