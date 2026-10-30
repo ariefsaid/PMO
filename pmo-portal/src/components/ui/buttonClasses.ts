@@ -24,7 +24,7 @@ const variantClasses: Record<ButtonVariant, string> = {
   primary:
     'border-transparent bg-primary font-semibold text-primary-foreground shadow-none hover:bg-primary-hover active:bg-primary-pressed disabled:border-border disabled:bg-secondary disabled:text-secondary-foreground disabled:shadow-none disabled:opacity-100',
   outline:
-    'border-input bg-background font-semibold text-primary-text hover:bg-surface-hover active:bg-surface-pressed disabled:border-border disabled:bg-secondary disabled:text-secondary-foreground disabled:opacity-100',
+    'border-border hover:border-input bg-card font-semibold text-primary-text hover:bg-surface-hover active:bg-surface-pressed disabled:border-border disabled:bg-secondary disabled:text-secondary-foreground disabled:opacity-100',
   ghost:
     'border-transparent bg-transparent text-secondary-foreground hover:bg-surface-hover active:bg-surface-pressed disabled:text-muted-foreground disabled:opacity-100',
   // AC-RAM-004 (#688) regression fix: `bg-destructive-solid`, NOT `bg-destructive` — the raw

@@ -89,7 +89,7 @@
   /* Borders and controls */
   --border: 217.5 12.9032% 87.8431%;
   --border-subtle: 220 11.1111% 94.7059%;
-  --input: 217.5 13.1148% 52.1569%;
+  --input: 0 0% 54.9%;
   --input-subtle: 222.8571 10.7692% 12.7451% / 16.0784%;
 
   /* Status and feedback */
@@ -138,19 +138,19 @@
   --shadow-overlay: none;
 
   /* Type scale: semantic roles share Hanken Grotesk and retain tabular figures. */
-  --type-micro: 10px;
+  --type-micro: 0.625rem;
   --line-micro: 1.2;
-  --type-support: 12px;
+  --type-support: 0.75rem;
   --line-support: 1.34;
-  --type-control: 14px;
+  --type-control: 0.875rem;
   --line-control: 1.43;
-  --type-group: 16px;
+  --type-group: 1.0rem;
   --line-group: 1.5;
-  --type-section: 20px;
+  --type-section: 1.25rem;
   --line-section: 1.43;
-  --type-page: 24px;
+  --type-page: 1.5rem;
   --line-page: 1.34;
-  --type-metric: 24px;
+  --type-metric: 1.5rem;
   --line-metric: 1.34;
 
   /* Shape and control density */
@@ -228,7 +228,7 @@
   /* Borders and controls */
   --border: 210 13.7255% 20%;
   --border-subtle: 206.6667 11.6883% 15.098%;
-  --input: 210.8571 14.2857% 51.9608%;
+  --input: 0 0% 42.35%;
   --input-subtle: 209 50.8475% 76.8627% / 16.0784%;
 
   /* Status and feedback */
@@ -275,19 +275,19 @@
   --shadow-overlay: none;
 
   /* Theme-independent type, shape, density, motion, and avatar tokens. */
-  --type-micro: 10px;
+  --type-micro: 0.625rem;
   --line-micro: 1.2;
-  --type-support: 12px;
+  --type-support: 0.75rem;
   --line-support: 1.34;
-  --type-control: 14px;
+  --type-control: 0.875rem;
   --line-control: 1.43;
-  --type-group: 16px;
+  --type-group: 1.0rem;
   --line-group: 1.5;
-  --type-section: 20px;
+  --type-section: 1.25rem;
   --line-section: 1.43;
-  --type-page: 24px;
+  --type-page: 1.5rem;
   --line-page: 1.34;
-  --type-metric: 24px;
+  --type-metric: 1.5rem;
   --line-metric: 1.34;
   --radius: 8px;
   --panel-radius: 8px;
@@ -431,10 +431,14 @@
 }
 
 @layer base {
-  /* Root font-size stays 16px; semantic type and control tokens define the UI scale. */
+  /* Scale the complete UI, including text authored in pixels. */
   html {
     font-size: 16px;
+    --app-zoom: 1;
+    zoom: var(--app-zoom);
   }
+  html[data-text-size="large"] { --app-zoom: 1.125; }
+  html[data-text-size="larger"] { --app-zoom: 1.25; }
   html, body {
     background: hsl(var(--background));
     color: hsl(var(--foreground));

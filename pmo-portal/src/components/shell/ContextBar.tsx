@@ -46,7 +46,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
         aria-label={t('shell.contextBar.openCommandPalette', 'Open command palette')}
         aria-keyshortcuts="Meta+K Control+K"
         onClick={onOpenPalette}
-        className="touch-target cmdk-trigger flex h-8 min-w-[250px] items-center gap-2 rounded-lg border border-input bg-background px-3 text-[13px] text-muted-foreground transition-[border-color,box-shadow] hover:border-primary/50 hover:shadow-[0_0_0_3px_hsl(var(--primary)/0.06)] max-[921px]:min-w-0 max-[921px]:w-9 max-[921px]:justify-center max-[921px]:px-0 [&_svg]:size-[15px]"
+        className="touch-target cmdk-trigger flex h-8 min-w-[250px] items-center gap-2 rounded-lg border border-border hover:border-input bg-card px-3 text-[13px] text-muted-foreground transition-[border-color,box-shadow] hover:border-primary/50 hover:shadow-[0_0_0_3px_hsl(var(--primary)/0.06)] max-[921px]:min-w-0 max-[921px]:w-9 max-[921px]:justify-center max-[921px]:px-0 [&_svg]:size-[15px]"
       >
         <Icon name="search" />
         <span className="cmdk-label flex-1 text-left max-[921px]:hidden">

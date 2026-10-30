@@ -301,7 +301,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
           className={cn(
             'flex h-8 w-full items-center gap-2 rounded-md border bg-background px-[10px] text-[13.5px] text-foreground',
             'hover:border-primary/50 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground',
-            error ? 'border-destructive' : 'border-input',
+            error ? 'border-destructive' : 'border-border hover:border-input',
           )}
         >
           {selected ? (

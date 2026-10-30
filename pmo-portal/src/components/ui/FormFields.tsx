@@ -128,11 +128,11 @@ export const FieldShell: React.FC<FieldShellProps> = ({
 
 /** The shared input visual shell (token-pure). */
 const inputBase =
-  'h-[var(--control-height)] w-full rounded-md border border-input bg-background px-3 text-control text-foreground ' +
+  'h-[var(--control-height)] w-full rounded-md border border-border hover:enabled:border-input bg-card px-3 text-control text-foreground ' +
   '[@media(pointer:coarse)]:h-11 ' +
   'placeholder:text-muted-foreground disabled:bg-secondary disabled:text-muted-foreground ' +
   'disabled:cursor-not-allowed';
-const inputInvalid = 'border-destructive';
+const inputInvalid = 'border-destructive hover:enabled:border-destructive';
 
 // ---- TextField ------------------------------------------------------------
 
@@ -340,7 +340,7 @@ export const TextArea: React.FC<TextAreaProps> = ({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className={cn(
-          'min-h-16 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-control text-foreground',
+          'min-h-16 w-full resize-y rounded-md border border-border hover:enabled:border-input bg-card px-3 py-2 text-control text-foreground',
           'placeholder:text-muted-foreground disabled:bg-secondary disabled:text-muted-foreground disabled:cursor-not-allowed',
           error && inputInvalid,
           className,

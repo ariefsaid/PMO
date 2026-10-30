@@ -1287,7 +1287,7 @@ export const SearchMini: React.FC<SearchMiniProps> = ({
   return (
     <div
       className={cn(
-        'touch-target relative flex h-[var(--control-height)] min-w-[190px] items-center gap-2 rounded-md border border-input bg-card px-3 text-control [&_svg]:size-[15px] [&_svg]:text-muted-foreground',
+        'touch-target relative flex h-[var(--control-height)] min-w-[190px] items-center gap-2 rounded-md border border-border hover:border-input bg-card px-3 text-control [&_svg]:size-[15px] [&_svg]:text-muted-foreground',
         containerClassName
       )}
       onClick={() => inputRef.current?.focus()}

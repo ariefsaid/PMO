@@ -216,7 +216,7 @@ export const AppShell: React.FC<AppShellProps> = ({
       // Paint containment stops the main scroll content extending the document's scrollable
       // area beyond this viewport-sized shell, while leaving main as the page scroller.
       data-app-shell="root"
-      className="grid h-[100dvh] w-full overflow-hidden [contain:paint]"
+      className="grid h-[calc(100dvh/var(--app-zoom,1))] w-full overflow-hidden [contain:paint]"
       style={{
         // minmax(0, 1fr) (not bare 1fr): a `1fr` track defaults to a min-content
         // MINIMUM, which lets a wide nowrap child (data table / toolbar) blow the
