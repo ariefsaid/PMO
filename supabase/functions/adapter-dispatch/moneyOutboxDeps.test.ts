@@ -717,3 +717,32 @@ Deno.test('AC-TSC-R2 — non-timesheets domains take the generic insert path byt
   assertEquals(row.state, 'pending');
   assertEquals(inserted.length, 1, 'the generic .insert() path ran once');
 });
+
+Deno.test('procurement case snapshots enter the atomic enqueue RPC', async () => {
+  const { client, rpcCalls, inserted } = makeFakeClient();
+  const originalRpc = client.rpc.bind(client);
+  client.rpc = async (fn, args) => {
+    if (fn !== 'insert_procurement_outbox_pending') return originalRpc(fn, args);
+    rpcCalls.push({ fn, args });
+    return { data: { id: 'row-1', domain: 'procurement', pmo_record_id: 'record-1', idempotency_key: 'key-1', state: 'pending', external_record_id: null, canonical: null, claim_generation: 0, payload_digest: 'digest' }, error: null };
+  };
+  const opts = {
+    serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create',
+    payload: { procurementId: 'case-1', erp_doc_kind: 'purchase-order' }, payloadDigest: 'digest', actorUserId: 'actor-1',
+    procurementSnapshot: { caseId: 'case-1', lines: [{ name: 'Item', description: null, quantity: 2, rate: 10 }] },
+  } as unknown as Parameters<typeof createDbMoneyOutboxDeps>[0];
+  const deps = createDbMoneyOutboxDeps(opts);
+  await deps.insertOutboxPending('procurement', 'record-1', 'key-1');
+  assertEquals(inserted.length, 0, 'a case snapshot must use the atomic path');
+  assertEquals(rpcCalls[0]?.fn, 'insert_procurement_outbox_pending');
+  assertEquals(rpcCalls[0]?.args.p_snapshot, [{ name: 'Item', description: null, quantity: 2, rate: 10 }]);
+});
+
+Deno.test('a server-observed receipt input witness is persisted with an explicit-item command', async () => {
+  const { client, inserted } = makeFakeClient();
+  const deps = createDbMoneyOutboxDeps({ serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create',
+    probeByRemarksKey: async () => null, procurementInputDigest: 'a'.repeat(64),
+    payload: { procurementId: 'case-1', erp_doc_kind: 'goods-receipt' } });
+  await deps.insertOutboxPending('procurement', 'record-1', 'key-1');
+  assertEquals((inserted[0] as Record<string, unknown>).procurement_input_digest, 'a'.repeat(64));
+});

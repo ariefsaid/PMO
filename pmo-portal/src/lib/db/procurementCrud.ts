@@ -125,12 +125,7 @@ export interface ProcurementHeaderPatch {
   budgetCategory?: BudgetCategory | null;
 }
 
-/**
- * Updates the editable PR header fields (AC-PROC-002). org_id is NEVER sent —
- * RLS (procurements_update + the 0010 column grants) scopes the write to the
- * caller's org and the client-writable columns. Status and document numbers are
- * unreachable here (revoked by 0010 → minter/transition RPCs only).
- */
+/** Sets a missing supplier using the existing conditional update contract. */
 export async function updateProcurementVendor(id: string, vendorId: string): Promise<void> {
   const { data, error } = await supabase
     .from('procurements')
@@ -142,24 +137,22 @@ export async function updateProcurementVendor(id: string, vendorId: string): Pro
   if (!data?.length) throw new ProcurementVendorAlreadySetError();
 }
 
+/** Updates the editable header through the requester-scoped command (AC-PROC-002). */
 export async function updateProcurementHeader(
   id: string,
   patch: ProcurementHeaderPatch,
 ): Promise<void> {
-  const { data, error } = await supabase
-    .from('procurements')
-    .update({
+  const { data, error } = await supabase.rpc('update_procurement_header', {
+    p_id: id,
+    p_patch: {
       title: patch.title,
       project_id: patch.projectId,
       vendor_id: patch.vendorId,
       ...(patch.budgetCategory !== undefined ? { budget_category: patch.budgetCategory } : {}),
-    })
-    .eq('id', id)
-    .select('id');
+    },
+  });
   if (error) throwWrite(error);
-  // #541: an RLS `using` denial hides the PR row, so the UPDATE touches 0 rows and reports no
-  // error — the header edit is discarded while the UI toasts "Saved".
-  assertWriteLanded(data, 'Purchase request not found or you do not have permission to edit it.');
+  assertWriteLanded(data === true ? [{ id }] : [], 'Purchase request not found or you do not have permission to edit it.');
 }
 
 // ---------------------------------------------------------------------------
@@ -255,6 +248,12 @@ export type ProcurementItemPatch = Partial<ProcurementItemInput>;
  * RLS scopes the write; the Draft-only freeze (0015) hides items once the PR
  * leaves Draft (→ a silent no-op the UI never offers).
  */
+export async function procurementItemValuesEditable(caseId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('procurement_item_values_editable', { p_case: caseId });
+  if (error) throw new ProcurementError(error.message, error.code);
+  return data === true;
+}
+
 export async function updateProcurementItem(
   id: string,
   patch: ProcurementItemPatch,

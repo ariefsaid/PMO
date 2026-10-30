@@ -16,6 +16,8 @@ import type { Role } from '@/src/auth/AuthContext';
  * Two-sided: a PM sees the directory; an Engineer sees the denied region + Back.
  */
 const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }));
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+
 vi.mock('react-router', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useNavigate: () => navigate };

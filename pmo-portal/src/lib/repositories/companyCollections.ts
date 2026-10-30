@@ -2,6 +2,7 @@ import { toAppError } from '@/src/lib/appError';
 import type { ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
 import {
   listCompanyCustomerRefs,
+  listCompanyPartyRefs,
   listCompanyCustomerRefsByErpCustomerIds,
   type CompanyCustomerRef,
 } from '@/src/lib/db/companyCollections';
@@ -12,6 +13,9 @@ export interface CompanyCollectionsComposition {
 }
 
 export const companyCollectionsRepository = {
+  async listPartyIds(companyIds: readonly string[]): Promise<string[]> {
+    try { return await listCompanyPartyRefs(companyIds); } catch (error) { throw toAppError(error); }
+  },
   async listForCompanies(companyIds: readonly string[]): Promise<CompanyCustomerRef[]> {
     try {
       return await listCompanyCustomerRefs(companyIds);

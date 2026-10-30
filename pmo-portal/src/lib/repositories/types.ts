@@ -395,6 +395,7 @@ export interface AgentAttachmentRepository {
 }
 
 export interface ProcurementRepository {
+  itemValuesEditable(id: string): Promise<boolean>;
   list(params?: PageParams): Promise<ProcurementWithRefs[]>;
   get(id: string): Promise<ProcurementDetail>;
   transition(id: string, to: ProcurementStatus, notes?: string): Promise<void>;
@@ -1005,6 +1006,7 @@ export interface ErpSnapshotsRepository {
 
 /** Read-only canonical Customer-reference reads for composing ERP aging by PMO company. */
 export interface CompanyCollectionsRepository {
+  listPartyIds(companyIds: readonly string[]): Promise<string[]>;
   listForCompanies(companyIds: readonly string[]): Promise<CompanyCustomerRef[]>;
   listForErpCustomerIds(erpCustomerIds: readonly string[]): Promise<CompanyCustomerRef[]>;
 }

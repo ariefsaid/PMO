@@ -93,6 +93,22 @@ describe('task FIX-1 — flipped ownership map routes createPurchaseOrder extern
   beforeEach(() => setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]));
   afterEach(() => clearOwnershipCache());
 
+  it('holds and refreshes line eligibility around an external case command', async () => {
+    let resolveCreate!: (value: unknown) => void;
+    procurement.createPurchaseOrder.mockReturnValue(new Promise((resolve) => { resolveCreate = resolve; }));
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const key = ['procurement-item-eligibility', 'org1', 'proc1'];
+    qc.setQueryData(key, true);
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    const Wrapper = ({ children }: { children: React.ReactNode }) => React.createElement(QueryClientProvider, { client: qc }, children);
+    const { result } = renderHook(() => useProcurementRecordMutations('proc1'), { wrapper: Wrapper });
+    let pending!: Promise<unknown>;
+    act(() => { pending = result.current.createPurchaseOrder.mutateAsync({ referenceNumber: 'PO', status: 'Draft', date: '2026-07-13', amount: 100 }); });
+    await waitFor(() => expect(qc.getQueryData(key)).toBe(false));
+    await act(async () => { resolveCreate({ id: 'po-1' }); await pending; });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
+  });
+
   it('cycles pendingPush idle -> pushing -> pushed on success', async () => {
     let resolveCreate!: (v: unknown) => void;
     procurement.createPurchaseOrder.mockReturnValue(new Promise((res) => (resolveCreate = res)));

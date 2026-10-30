@@ -21,7 +21,7 @@ function isExactErpCustomerId(value: string): boolean {
   return value.startsWith(CUSTOMER_PREFIX) && value.slice(CUSTOMER_PREFIX.length).trim().length > 0;
 }
 
-async function listRefsBy(column: 'pmo_record_id' | 'external_record_id', values: readonly string[]): Promise<CompanyCustomerRef[]> {
+async function listRefsBy(column: 'pmo_record_id' | 'external_record_id', values: readonly string[], includeSuppliers = false): Promise<CompanyCustomerRef[]> {
   const matches = uniqueNonBlank(values);
   if (matches.length === 0) return [];
 
@@ -41,7 +41,7 @@ async function listRefsBy(column: 'pmo_record_id' | 'external_record_id', values
     });
 
     for (const row of rows) {
-      if (!isExactErpCustomerId(row.external_record_id)) continue;
+      if (!isExactErpCustomerId(row.external_record_id) && !(includeSuppliers && /^Supplier:.+$/.test(row.external_record_id))) continue;
       refs.push({ companyId: row.pmo_record_id, erpCustomerId: row.external_record_id });
     }
   }
@@ -61,4 +61,10 @@ export function listCompanyCustomerRefs(companyIds: readonly string[]): Promise<
 /** Batch-load mappings for exact ERP Customer document IDs from an aging snapshot. */
 export function listCompanyCustomerRefsByErpCustomerIds(erpCustomerIds: readonly string[]): Promise<CompanyCustomerRef[]> {
   return listRefsBy('external_record_id', erpCustomerIds.filter(isExactErpCustomerId));
+}
+
+/** Visible company IDs with a Customer or Supplier mapping, scoped by RLS. */
+export async function listCompanyPartyRefs(companyIds: readonly string[]): Promise<string[]> {
+  const refs = await listRefsBy('pmo_record_id', companyIds, true);
+  return [...new Set(refs.map((ref) => ref.companyId))].sort();
 }

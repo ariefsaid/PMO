@@ -3411,9 +3411,9 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
   // `actor_user_id` (0108): the ORIGINAL command's verified caller. Without it a sweep-finalized SI
   // mirror lands `author_user_id = NULL`, and the approver≠author SoD check then passes for everyone.
   const { data, error } = await serviceClient.from('external_command_outbox')
-    .select('operation, payload, actor_user_id').eq('id', row.id).maybeSingle();
+    .select('operation, payload, actor_user_id, procurement_input_digest').eq('id', row.id).maybeSingle();
   if (error || !data) throw new AppError(`outbox row ${row.id} not readable for reconcile`, error?.code ?? 'not-found');
-  const rowExtra = data as { operation: 'create' | 'update' | 'transition'; payload: Record<string, unknown> | null; actor_user_id: string | null };
+  const rowExtra = data as { operation: 'create' | 'update' | 'transition'; payload: Record<string, unknown> | null; actor_user_id: string | null; procurement_input_digest: string | null };
   const payload = rowExtra.payload ?? {};
 
   // WIRE 1 / round-7 B6 — RE-ASSERT authorization before replaying a FROZEN command. The recovery pass
@@ -3439,6 +3439,21 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
     payload,
   });
   if (!replayAuth.ok) throw new AppError(replayAuth.message, 'commit-rejected');
+
+  let trustedReceiptSnapshot = false;
+  if (rowExtra.procurement_input_digest != null) {
+    const marker = payload.pmo_gr_snapshot as { raw_digest?: unknown; supplier?: unknown; po?: unknown } | undefined;
+    const { created_after: _createdAfter, ...material } = payload;
+    const digest = await canonicalCommandDigest({ domain: row.domain, operation: rowExtra.operation, record: material });
+    if (row.domain !== 'procurement' || rowExtra.operation !== 'create' || payload.erp_doc_kind !== 'goods-receipt'
+        || !/^[0-9a-f]{64}$/.test(rowExtra.procurement_input_digest)
+        || !marker || marker.raw_digest !== rowExtra.procurement_input_digest
+        || (marker.supplier !== null && typeof marker.supplier !== 'string')
+        || (marker.po !== null && typeof marker.po !== 'string') || row.payloadDigest !== digest) {
+      throw new AppError('receipt snapshot is inconsistent', 'commit-rejected');
+    }
+    trustedReceiptSnapshot = true;
+  }
 
   // ⚑ FR-BFY-075 (review finding 5) — RE-RUN THE BUDGET GATE FOR THE FROZEN YEAR, BEFORE ANY POST.
   //
@@ -3469,7 +3484,7 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
     idempotencyKey: row.idempotencyKey,
   };
   return buildMoneyWriteDepsLive(serviceClient, org,
-    { command, actorUserId: rowExtra.actor_user_id, outboxRecordId: row.pmoRecordId, persistPayload: false }, cache);
+    { command, actorUserId: rowExtra.actor_user_id, outboxRecordId: row.pmoRecordId, persistPayload: false, trustedReceiptSnapshot }, cache);
 }
 
 /**
@@ -3493,7 +3508,7 @@ export function moneyWriteReadModelContext(args: { orgId: string; actorUserId: s
 export async function buildMoneyWriteDepsLive(
   serviceClient: SupabaseClient,
   org: OrgBinding,
-  args: { command: AdapterCommand; actorUserId: string | null; outboxRecordId: string; persistPayload: boolean },
+  args: { command: AdapterCommand; actorUserId: string | null; outboxRecordId: string; persistPayload: boolean; trustedReceiptSnapshot?: boolean },
   cache?: ErpAuthPairCache,
 ): Promise<DispatchMoneyWriteDeps> {
   const command = args.command;
@@ -3525,6 +3540,7 @@ export async function buildMoneyWriteDepsLive(
     // #858: recovery replays the persisted items/taxes (inside the digest) and makes no ERPNext read to rebuild them.
     // Fresh expense commands carry their own frozen payload and must use the ordinary first-build path.
     ...moneyWriteReplayOptions(args.persistPayload),
+    trustedReceiptSnapshot: args.trustedReceiptSnapshot,
   });
 
   const anchorField = entry.anchorField;

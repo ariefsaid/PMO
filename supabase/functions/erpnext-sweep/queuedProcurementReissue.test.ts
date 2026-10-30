@@ -124,3 +124,31 @@ Deno.test('control: a reissue the purchase rules allow goes on to ERP', async ()
   assert(!rpcs.some((c) => c.fn === 'mark_outbox_held'), 'an allowed reissue is not held');
   assert(erpRequests.length > 0, `an allowed reissue reaches ERP, or the refusal test above proves nothing (saw ${erpRequests.length})`);
 });
+
+Deno.test('a verified receipt recovery posts its saved supplier and order references', async () => {
+  const { client } = fakeServiceClient(null);
+  const receipt: AdapterCommand = { domain: 'procurement', operation: 'create', idempotencyKey: KEY,
+    record: { id: ORDER, erp_doc_kind: 'goods-receipt', procurementId: PURCHASE,
+      items: [{ item_code: 'ITEM-1', qty: 1, rate: 100, po_item_child_name: 'saved-child' }],
+      pmo_gr_snapshot: { supplier: 'Saved Supplier', po: 'Saved Order', raw_digest: 'a'.repeat(64) } } };
+  const oldFetch = globalThis.fetch;
+  const oldResolve = Deno.resolveDns;
+  let posted: Record<string, unknown> | undefined;
+  Deno.resolveDns = ((_h: string, t: string) => t === 'A' ? Promise.resolve(['203.0.113.10']) : Promise.reject(new Deno.errors.NotFound('no record'))) as typeof Deno.resolveDns;
+  globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    if (url.hostname === ERP_HOST && init?.method === 'POST') posted = JSON.parse(String(init.body)) as Record<string, unknown>;
+    return Promise.resolve(new Response(JSON.stringify({ exc_type: 'ValidationError' }), { status: 417 }));
+  }) as typeof fetch;
+  try {
+    const deps = await buildMoneyWriteDepsLive(client, org, { command: receipt, actorUserId: ACTOR,
+      outboxRecordId: ORDER, persistPayload: false, trustedReceiptSnapshot: true }, cache());
+    try { await deps.adapter.commit(receipt); } catch { /* The synthetic ERP rejects after observing the request. */ }
+    assert(posted?.supplier === 'Saved Supplier', `expected saved supplier, saw ${String(posted?.supplier)}`);
+    const items = posted?.items as Array<Record<string, unknown>> | undefined;
+    assert(items?.[0]?.purchase_order === 'Saved Order' && items[0].purchase_order_item === 'saved-child', 'expected saved order and item references');
+  } finally {
+    globalThis.fetch = oldFetch;
+    Deno.resolveDns = oldResolve;
+  }
+});
