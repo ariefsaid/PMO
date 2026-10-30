@@ -29,7 +29,7 @@ colors:
   nav-active-text: "hsl(230.8065 49.2063% 49.4118%)"
   ring: "hsl(230.8929 68.2927% 67.8431%)"
   border: "hsl(217.5 12.9032% 87.8431%)"
-  input: "hsl(217.5 13.1148% 52.1569%)"
+  input: "hsl(217.5 13.1148% 55%)"
   success: "hsl(155.1923 65% 31.3725%)"
   success-text: "hsl(154.4828 64.4444% 26.4706%)"
   success-foreground: "hsl(0 0% 100%)"
@@ -175,7 +175,7 @@ Colors use bare HSL triplets so Tailwind slash-alpha utilities continue to work.
 |---|---|---|---|
 | `--border` | `217.5 12.9032% 87.8431%` | `210 13.7255% 20%` | quiet divider only |
 | `--border-subtle` | `220 11.1111% 94.7059%` | `206.6667 11.6883% 15.098%` | secondary divider |
-| `--input` | `217.5 13.1148% 52.1569%` | `210.8571 14.2857% 51.9608%` | standalone control boundary |
+| `--input` | `217.5 13.1148% 55%` | `210.8571 14.2857% 47%` | standalone control boundary |
 | `--input-subtle` | `222.8571 10.7692% 12.7451% / 16.0784%` | `209 50.8475% 76.8627% / 16.0784%` | stroke only when another cue defines the control |
 | `--surface-hover` | `210 14.2857% 97.2549%` | `207.2727 12.0879% 17.8431%` | neutral hover |
 | `--surface-pressed` | `220 11.1111% 94.7059%` | `210 13.7255% 20%` | neutral pressed |

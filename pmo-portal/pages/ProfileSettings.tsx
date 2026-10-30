@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/src/auth/useAuth';
+import { useTextSize, type TextSize } from '@/src/hooks/useTextSize';
 import { profilePreferencesRepository } from '@/src/lib/repositories/profilePreferences';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useOrgLocaleDefaults, useResolvedLocale } from '@/src/hooks/useResolvedLocale';
@@ -43,6 +44,7 @@ function numberExample(numberLocale: string): string {
  */
 export const ProfileSettings: React.FC = () => {
   const { t } = useTranslation();
+  const { textSize, setTextSize } = useTextSize();
   const { currentUser, refreshCurrentUser } = useAuth();
   const resolvedLocale = useResolvedLocale();
   const orgDefaults = useOrgLocaleDefaults();
@@ -219,6 +221,17 @@ export const ProfileSettings: React.FC = () => {
             <p className="mt-2 text-[12px] leading-[1.5] text-muted-foreground">
               {t('profileSettings.number.effective', { defaultValue: 'Effective number format: {{value}}', value: effectiveNumberFormat })}
             </p>
+          </div>
+
+          <div>
+            <SelectField label={t('profilePreferences:textSize.label', 'Text size')}
+              value={textSize} onChange={(value) => setTextSize(value as TextSize)}
+              options={[
+                { value: 'default', label: t('profilePreferences:textSize.default', 'Default') },
+                { value: 'large', label: t('profilePreferences:textSize.large', 'Large') },
+                { value: 'larger', label: t('profilePreferences:textSize.larger', 'Larger') },
+              ]}
+              helper={t('profilePreferences:textSize.help', 'Applied immediately on this device.')} fullWidth />
           </div>
 
           <div className="sm:col-span-2">

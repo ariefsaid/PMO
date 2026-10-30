@@ -9,6 +9,7 @@ import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 import { HELP_URL } from '@/src/lib/legalConfig';
 import { useTheme } from '@/src/hooks/useTheme';
+import { useTextSize, type TextSize } from '@/src/hooks/useTextSize';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 
 const SHOW_LEGAL_SUPPORT = false;
@@ -60,6 +61,7 @@ export const AccountMenu: React.FC = () => {
   const { currentUser, signOut } = useAuth();
   const { realRole, effectiveRole, canImpersonate, viewAs } = useEffectiveRole();
   const { theme, setTheme } = useTheme();
+  const { textSize, setTextSize } = useTextSize();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -234,6 +236,20 @@ export const AccountMenu: React.FC = () => {
             <Icon name="moon" className="text-muted-foreground [&_svg]:size-[15px]" />
             {t('shell.contextBar.themeDark', 'Dark')}
           </button>
+
+          <div className="my-1 border-t border-border" />
+          <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            {t('profilePreferences:textSize.label', 'Text size')}
+          </div>
+          <div role="group" aria-label={t('profilePreferences:textSize.label', 'Text size')}>
+            {(['default', 'large', 'larger'] as TextSize[]).map((size) => (
+              <button key={size} type="button" role="menuitemradio" aria-checked={textSize === size}
+                onClick={() => setTextSize(size)}
+                className={cn(rowBase, textSize === size ? 'bg-primary/10 font-medium text-nav-active-text' : 'text-foreground hover:bg-accent')}>
+                {size === 'default' ? t('profilePreferences:textSize.default', 'Default') : size === 'large' ? t('profilePreferences:textSize.large', 'Large') : t('profilePreferences:textSize.larger', 'Larger')}
+              </button>
+            ))}
+          </div>
 
           {/* Sample-org-only, view-only role preview — gated by the existing canImpersonate. */}
           {canImpersonate && (

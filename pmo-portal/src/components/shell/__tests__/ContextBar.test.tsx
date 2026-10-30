@@ -61,6 +61,8 @@ beforeEach(() => {
   // Theme truth resets between tests (the DOM class is the source of truth).
   document.documentElement.classList.remove('dark');
   localStorage.removeItem('theme');
+  delete document.documentElement.dataset.textSize;
+  localStorage.removeItem('text-size');
 });
 
 describe('ContextBar', () => {
@@ -97,6 +99,15 @@ describe('ContextBar', () => {
 // ── The unified account menu (AC-ACCT-001/002/003/004) ──────────────────────
 // One responsive avatar/identity trigger owns the ONLY account popup at every width.
 describe('ContextBar — unified account menu', () => {
+  it('applies and selects a text size in the account menu', async () => {
+    delete document.documentElement.dataset.textSize;
+    renderBar();
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    await userEvent.click(screen.getByRole('menuitemradio', { name: /^larger$/i }));
+    expect(screen.getByRole('menuitemradio', { name: /^larger$/i })).toHaveAttribute('aria-checked', 'true');
+    expect(document.documentElement.dataset.textSize).toBe('larger');
+    expect(localStorage.getItem('text-size')).toBe('larger');
+  });
   it('keeps legal and support links out of the account menu', async () => {
     renderBar();
     await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
