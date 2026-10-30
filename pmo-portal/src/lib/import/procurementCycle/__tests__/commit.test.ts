@@ -1278,3 +1278,30 @@ it('does not write a case containing an unsupported creation status', async () =
   expect(createPurchaseRequest).not.toHaveBeenCalled();
   expect(createPayment).not.toHaveBeenCalled();
 });
+
+it('originates a Draft case with a PR through validation and commit', async () => {
+  vi.clearAllMocks();
+  vi.mocked(createProcurement).mockResolvedValue({ id: 'draft-case' } as never);
+  vi.mocked(createPurchaseRequest).mockResolvedValue({ id: 'draft-pr' } as never);
+  const rows: CycleRow[] = [{ caseRef: 'D', type: 'PR', title: 'Draft case', project: undefined, caseStatus: 'Draft', vendor: undefined, externalRef: undefined, status: 'Draft', date: undefined, amount: undefined, rowNumber: 1 }];
+  const validated = validateGroups(groupRows(rows).groups, { projectLookup, vendorLookup });
+  expect(validated[0].valid).toBe(true);
+  const result = await commitGroups(validated, { requestedById: REQUESTER, projectLookup, vendorLookup });
+  expect(result.created).toBe(1);
+  expect(createProcurement).toHaveBeenCalledOnce();
+  expect(createPurchaseRequest).toHaveBeenCalledOnce();
+});
+
+it('rejects a later unsupported case status before writing the Draft case or PR', async () => {
+  vi.clearAllMocks();
+  const rows: CycleRow[] = [
+    { caseRef: 'D', type: 'PR', title: 'Draft case', project: undefined, caseStatus: 'Draft', vendor: undefined, externalRef: undefined, status: 'Draft', date: undefined, amount: undefined, rowNumber: 1 },
+    { caseRef: 'D', type: 'PR', title: undefined, project: undefined, caseStatus: 'Ordered', vendor: undefined, externalRef: undefined, status: 'Draft', date: undefined, amount: undefined, rowNumber: 2 },
+  ];
+  const validated = validateGroups(groupRows(rows).groups, { projectLookup, vendorLookup });
+  expect(validated[0].valid).toBe(false);
+  expect(validated[0].groupErrors.join(' ')).toMatch(/status/i);
+  await commitGroups(validated, { requestedById: REQUESTER, projectLookup, vendorLookup });
+  expect(createProcurement).not.toHaveBeenCalled();
+  expect(createPurchaseRequest).not.toHaveBeenCalled();
+});

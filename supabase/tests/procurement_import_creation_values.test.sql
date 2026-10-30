@@ -11,6 +11,14 @@ set local request.jwt.claims = '{"sub":"d0500000-0000-0000-0000-000000000011","r
 select lives_ok(format('select public.create_purchase_request(%L,null,%L,null,null)', 'd0500000-0000-0000-0000-000000000021', s), 'request ' || s) from unnest(array['Draft','Submitted','Approved','Closed']) s;
 select lives_ok(format('select public.create_rfq(%L,null,%L,null,null)', 'd0500000-0000-0000-0000-000000000021', s), 'rfq ' || s) from unnest(array['Draft','Issued','Closed']) s;
 select lives_ok(format('select public.create_purchase_order(%L,null,%L,null,null)', 'd0500000-0000-0000-0000-000000000021', s), 'order ' || s) from unnest(array['Draft','Issued','Acknowledged','Closed']) s;
+select lives_ok($$select public.create_purchase_request('d0500000-0000-0000-0000-000000000021','default-pr',null,null,null)$$,'default request');
+select lives_ok($$select public.create_rfq('d0500000-0000-0000-0000-000000000021','default-rfq',null,null,null)$$,'default rfq');
+select lives_ok($$select public.create_purchase_order('d0500000-0000-0000-0000-000000000021','default-po',null,null,null)$$,'default order');
+select is((select status from public.purchase_requests where reference_number='default-pr'), 'Draft', 'null request status stores default');
+select is((select status from public.rfqs where reference_number='default-rfq'), 'Draft', 'null rfq status stores default');
+select is((select status from public.purchase_orders where reference_number='default-po'), 'Draft', 'null order status stores default');
+select lives_ok(format('select public.create_procurement_receipt(%L,%L,current_date)', 'd0500000-0000-0000-0000-000000000021', s), 'receipt ' || s) from unnest(array['Partial','Complete']) s;
+select is((select array_agg(status::text order by status::text) from public.procurement_receipts where procurement_id='d0500000-0000-0000-0000-000000000021'), array['Complete','Partial'], 'receipt statuses persist');
 select throws_ok($$select public.create_purchase_request('d0500000-0000-0000-0000-000000000021',null,'Other',null,null)$$,'23514',null,'request domain');
 select throws_ok($$select public.create_rfq('d0500000-0000-0000-0000-000000000021',null,'Other',null,null)$$,'23514',null,'rfq domain');
 select throws_ok($$select public.create_purchase_order('d0500000-0000-0000-0000-000000000021',null,'Other',null,null)$$,'23514',null,'order domain');
@@ -19,9 +27,9 @@ select throws_ok($$select public.create_procurement_invoice('d0500000-0000-0000-
 select lives_ok($$select public.create_payment('d0500000-0000-0000-0000-000000000021',null,null,'Scheduled',null,null)$$,'scheduled payment');
 select lives_ok($$select public.create_payment('d0500000-0000-0000-0000-000000000021',null,null,null,null,null)$$,'default payment');
 select throws_ok($$select public.create_payment('d0500000-0000-0000-0000-000000000021',null,null,'Paid',null,null)$$,'P0001',null,'payment origination');
-select is((select array_agg(status order by status) from public.purchase_requests where procurement_id='d0500000-0000-0000-0000-000000000021'), array['Approved','Closed','Draft','Submitted'], 'request statuses persist');
-select is((select array_agg(status order by status) from public.rfqs where procurement_id='d0500000-0000-0000-0000-000000000021'), array['Closed','Draft','Issued'], 'rfq statuses persist');
-select is((select array_agg(status order by status) from public.purchase_orders where procurement_id='d0500000-0000-0000-0000-000000000021'), array['Acknowledged','Closed','Draft','Issued'], 'order statuses persist');
+select is((select array_agg(status order by status) from public.purchase_requests where procurement_id='d0500000-0000-0000-0000-000000000021'), array['Approved','Closed','Draft','Draft','Submitted'], 'request statuses persist');
+select is((select array_agg(status order by status) from public.rfqs where procurement_id='d0500000-0000-0000-0000-000000000021'), array['Closed','Draft','Draft','Issued'], 'rfq statuses persist');
+select is((select array_agg(status order by status) from public.purchase_orders where procurement_id='d0500000-0000-0000-0000-000000000021'), array['Acknowledged','Closed','Draft','Draft','Issued'], 'order statuses persist');
 select is((select array_agg(status::text order by status::text) from public.procurement_invoices where procurement_id='d0500000-0000-0000-0000-000000000021'), array['Received','Scheduled'], 'invoice statuses persist');
 select is((select array_agg(status order by status) from public.payments where procurement_id='d0500000-0000-0000-0000-000000000021'), array['Scheduled','Scheduled'], 'payment defaults persist');
 set local request.jwt.claims = '{"sub":"d0500000-0000-0000-0000-000000000012","role":"authenticated"}';

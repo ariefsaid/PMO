@@ -240,8 +240,9 @@ export function validateGroups(
       groupErrors.push('Case must have at least a title or a project set.');
     }
 
-    if (group.rows.some(row => row.caseStatus?.trim())) {
-      groupErrors.push('Case status cannot be imported by this workflow.');
+    // Draft describes the initial case; later evidence may advance its status.
+    if (group.rows.some(row => row.caseStatus?.trim() && row.caseStatus.trim() !== 'Draft')) {
+      groupErrors.push('Only Draft case status is supported at origination.');
     }
 
     // Per-row validation
