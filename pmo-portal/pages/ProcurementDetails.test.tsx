@@ -119,7 +119,6 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
     createDocument: { mutateAsync: mockCreateDocument, isPending: false },
     deleteDocument: { mutateAsync: mockDeleteDocument, isPending: false },
   }),
-  useProcurementDocuments: () => docsState,
 }));
 
 // FK pickers (header edit project/vendor, quotation vendor) read cached option

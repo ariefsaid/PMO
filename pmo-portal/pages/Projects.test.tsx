@@ -103,7 +103,6 @@ vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({ useProjectsMoneyColle
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: roleBox.value, realRole: roleBox.value, canImpersonate: false, viewAs: vi.fn() }) }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, error: null, isPending: false }),
-  usePipelineStageConfig: () => ({ data: [], isSuccess: true }),
 }));
 // list-working-set-return (#682): the page writes URL changes through the real router navigate
 // (one replace per event), so tests read the REAL location to assert the URL and the record-open

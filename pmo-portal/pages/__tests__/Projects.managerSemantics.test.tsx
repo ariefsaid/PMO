@@ -74,7 +74,6 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, error: null, isPending: false }),
-  usePipelineStageConfig: () => ({ data: [], isSuccess: true }),
 }));
 
 import Projects from '../Projects';

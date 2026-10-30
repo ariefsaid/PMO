@@ -64,7 +64,6 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     setEfaktur: { mutateAsync: spies.setEfaktur, isPending: false },
   }),
 }));
-const docsState = { data: [], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useProcurementCrudMutations: () => ({
     updateHeader: { mutateAsync: vi.fn(), isPending: false },
@@ -75,7 +74,6 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
     createDocument: { mutateAsync: vi.fn(), isPending: false },
     deleteDocument: { mutateAsync: vi.fn(), isPending: false },
   }),
-  useProcurementDocuments: () => docsState,
 }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [] }),
