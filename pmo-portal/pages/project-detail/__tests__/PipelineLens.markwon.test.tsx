@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { QueryClient } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { formatCurrency } from '@/src/lib/format';
@@ -81,11 +82,13 @@ const dealRow = {
 
 const renderLens = () =>
   render(
-    <ImpersonationProvider realRole="Project Manager">
-      <ToastProvider>
-        <PipelineLens project={dealRow} />
-      </ToastProvider>
-    </ImpersonationProvider>,
+    <MemoryRouter>
+      <ImpersonationProvider realRole="Project Manager">
+        <ToastProvider>
+          <PipelineLens project={dealRow} />
+        </ToastProvider>
+      </ImpersonationProvider>
+    </MemoryRouter>,
   );
 
 beforeEach(() => {

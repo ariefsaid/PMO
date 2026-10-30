@@ -268,14 +268,18 @@ test.describe('AC-CUA-090: employed-ClickUp task write-through journey', () => {
       await signIn(page, ADMIN_EMAIL);
       await page.goto(`/projects/${PROJECT_ID}/tasks`);
       await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
-      await page.getByRole('tab', { name: /^board$/i }).click();
+      const boardTab = page.getByRole('tab', { name: 'Board', exact: true });
+      await boardTab.click();
+      await expect(boardTab).toHaveAttribute('aria-selected', 'true');
+      await expect.poll(() => new URL(page.url()).searchParams.get('view')).toBe('board');
 
-      const statusSelect = page.getByLabel(`Status for ${TASK_NAME}`);
-      await expect(statusSelect).toBeVisible({ timeout: 15_000 });
-      await expect(statusSelect).toHaveValue(FROM_STATUS);
+      // #1402: the list row exposes an editable status button; wait for the Board view's native select.
+      const boardStatus = page.getByRole('combobox', { name: `Status for ${TASK_NAME}`, exact: true });
+      await expect(boardStatus).toBeVisible({ timeout: 15_000 });
+      await expect(boardStatus).toHaveValue(FROM_STATUS);
 
       // -- When: change the task's status on the board. --
-      await statusSelect.selectOption(TO_STATUS);
+      await boardStatus.selectOption(TO_STATUS);
 
       // -- Then 1: the card walks pushing -> pushed (AC-CUA-060). --
       await expect(page.getByRole('status', { name: /pushing to external system/i })).toBeVisible({
@@ -291,12 +295,15 @@ test.describe('AC-CUA-090: employed-ClickUp task write-through journey', () => {
       expect(directTaskMutations).toBe(0);
 
       // -- Then 3: the read-model converged -- the committed value renders on the card. --
-      await expect(statusSelect).toHaveValue(TO_STATUS, { timeout: 10_000 });
+      await expect(boardStatus).toHaveValue(TO_STATUS, { timeout: 10_000 });
 
       // -- Then 4: a reload shows the mirrored status (read-model persisted). --
       await page.reload();
       await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
-      await expect(page.getByLabel(`Status for ${TASK_NAME}`)).toHaveValue(TO_STATUS, { timeout: 15_000 });
+      await expect(boardTab).toHaveAttribute('aria-selected', 'true');
+      await expect.poll(() => new URL(page.url()).searchParams.get('view')).toBe('board');
+      await expect(boardStatus).toBeVisible({ timeout: 15_000 });
+      await expect(boardStatus).toHaveValue(TO_STATUS, { timeout: 15_000 });
     },
   );
 });
