@@ -147,3 +147,10 @@ drop function public.import_budget_line_v2(uuid, public.budget_category, text, n
 drop trigger budget_line_items_a_import_identity_guard on public.budget_line_items;
 drop function public.guard_budget_import_identity();
 alter table public.budget_line_items drop column import_origin;
+
+-- Reverse the change-history registry classification that shipped with import_origin, so the
+-- restored schema passes record_changes_catalog_gate (a classification whose column no longer
+-- exists is a gate finding).
+update public.record_history_config
+   set omit_cols = array_remove(omit_cols, 'import_origin')
+ where table_name = 'budget_line_items';

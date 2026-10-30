@@ -33,7 +33,7 @@
 -- and select_procurement_quote — including under an ERPNext domain flip, where ADR-0055's PMO
 -- enhancement (`procurement_quotations.is_selected`) must stay reachable.
 begin;
-select plan(42);
+select plan(48);
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- Fixtures (as postgres — a BYPASSRLS authority, exempt from the origination guards by design).
@@ -370,6 +370,42 @@ select is(
       and p.proname <> 'actor_bypasses_rls'),
   0,
   'AC-UPS-053 no OTHER function carries its own copy of the BYPASSRLS lookup either');
+
+-- 0407: the caller-role overload is the definer-context entry point of the same predicate. The
+-- pins mirror the no-arg form's contract (AC-UPS-050/051): catalog-first search_path, explicit
+-- client EXECUTE, SECURITY INVOKER — plus its behavior: true for a bypass role, false for a
+-- non-bypass role, and fail-closed false for a role that does not exist.
+select is(
+  (select proconfig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'actor_bypasses_rls' and p.pronargs = 1),
+  array['search_path=pg_catalog, public'],
+  'AC-UPS-053 the actor_bypasses_rls(role) overload resolves pg_catalog FIRST — same contract as the no-arg form');
+
+select ok(
+  (select not prosecdef from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'actor_bypasses_rls' and p.pronargs = 1),
+  'AC-UPS-053 the actor_bypasses_rls(role) overload stays SECURITY INVOKER');
+
+select is(
+  (select count(distinct r.rolname)::int
+     from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+     cross join lateral aclexplode(p.proacl) a
+     join pg_roles r on r.oid = a.grantee
+    where n.nspname = 'public' and p.proname = 'actor_bypasses_rls' and p.pronargs = 1
+      and a.privilege_type = 'EXECUTE' and r.rolname in ('authenticated','anon')),
+  2,
+  'AC-UPS-053 the actor_bypasses_rls(role) overload carries an EXPLICIT execute grant to authenticated + anon');
+
+select is(public.actor_bypasses_rls('pg_read_all_data'::name), false,
+  'AC-UPS-053 the overload answers false for a real non-BYPASSRLS role');
+
+select is(public.actor_bypasses_rls('no_such_role_at_all'::name), false,
+  'AC-UPS-053 the overload fails CLOSED for a role that does not exist');
+
+select is(public.actor_bypasses_rls(current_user),
+  (select rolbypassrls from pg_roles where rolname = current_user),
+  'AC-UPS-053 the overload agrees with the catalog for the current role (bypass fixture)');
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- H. I-3 — audit_events indexes. 0173/0174 turned it from low-volume into one row per create on four

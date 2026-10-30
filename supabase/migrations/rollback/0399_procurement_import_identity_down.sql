@@ -14,3 +14,13 @@ drop index public.procurements_import_ref_lookup_idx;
 alter table public.procurements drop column import_normalized_ref;
 drop function public.start_procurement_import_run(uuid);
 drop table public.procurement_import_runs;
+
+-- Reverse the change-history registry classifications that shipped with the dropped columns, so
+-- the restored schema passes record_changes_catalog_gate (a classification whose column no longer
+-- exists is a gate finding).
+update public.record_history_config
+   set omit_cols = array_remove(array_remove(omit_cols, 'import_identity_version'), 'import_identity_facts')
+ where table_name in ('purchase_requests','rfqs','purchase_orders','procurement_invoices','payments');
+update public.record_history_config
+   set omit_cols = array_remove(omit_cols, 'import_normalized_ref')
+ where table_name = 'procurements';

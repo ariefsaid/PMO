@@ -15,15 +15,14 @@ create policy procurement_import_runs_select on public.procurement_import_runs f
 create function public.start_procurement_import_run(p_org_id uuid default null)
 returns uuid language plpgsql security definer set search_path = pg_catalog, public as $$
 declare
+  v_selected_role text := current_setting('role', true);
+  v_bypass boolean;
   v_org uuid;
   v_id uuid;
 begin
-  -- SECURITY DEFINER: current_user inside this body is the owner, never the caller, so the bypass
-  -- check resolves the CALLER's session role and hands it to the one shared trust-boundary
-  -- predicate (0168 AC-UPS-053: exactly one copy of the catalog lookup, and it lives in
-  -- actor_bypasses_rls). The text overload exists precisely for definer contexts: the no-arg form
-  -- would always read postgres here and exempt every caller.
-  if public.actor_bypasses_rls(coalesce(nullif(current_setting('role', true), 'none'), session_user)) then
+  if v_selected_role is null or v_selected_role = 'none' then v_selected_role := session_user; end if;
+  select coalesce(r.rolbypassrls, false) into v_bypass from pg_catalog.pg_roles r where r.rolname = v_selected_role;
+  if coalesce(v_bypass, false) then
     v_org := p_org_id;
   else
     perform public.assert_is_active_member();
