@@ -22,8 +22,8 @@ const RECEIVABLE_BUCKETS = ['notDue', 'd1_30', 'd31_60', 'd61_90', 'over90'] as 
 const PAYABLE_BUCKETS = ['d0_30', 'd31_60', 'd61_90', 'over90'] as const;
 
 const BUCKET_COLORS: Record<BucketKey, string> = {
-  notDue: 'bg-muted-foreground/35',
-  d0_30: 'bg-muted-foreground/35',
+  notDue: 'bg-[hsl(var(--chart-2))]',
+  d0_30: 'bg-[hsl(var(--chart-2))]',
   d1_30: 'bg-warning/55',
   d31_60: 'bg-warning',
   d61_90: 'bg-destructive/70',
