@@ -1,3 +1,4 @@
+import { parseExactCents, formatExactCents } from '@/src/lib/exactDecimal';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DashboardFigure } from './FigureGroup';
@@ -54,7 +55,7 @@ export function selectInvoicedTotals(pack: ManagementPack | undefined, from: str
 }
 
 export interface CollectedTotals {
-  totals: Array<{ currency: string; amount: number }>;
+  totals: Array<{ currency: string; amount: string }>;
   unknownCurrencies: string[];
 }
 
@@ -64,7 +65,7 @@ export function selectCollectedTotals(payments: IncomingPaymentRow[] | undefined
   const [year, month] = to.split('-').map(Number);
   const last = new Date(year, month, 0).getDate();
   const toDate = `${to}-${String(last).padStart(2, '0')}`;
-  const totals = new Map<string, number>();
+  const totals = new Map<string, bigint>();
   const unknownCurrencies = new Set<string>();
   for (const payment of payments) {
     if (payment.status !== 'Paid' || !payment.date || payment.date < fromDate || payment.date > toDate) continue;
@@ -72,9 +73,14 @@ export function selectCollectedTotals(payments: IncomingPaymentRow[] | undefined
       unknownCurrencies.add(payment.currency);
       continue;
     }
-    totals.set(payment.currency, (totals.get(payment.currency) ?? 0) + payment.amount);
+    const cents = parseExactCents(String(payment.amount));
+    if (cents === null) {
+      unknownCurrencies.add(payment.currency);
+      continue;
+    }
+    totals.set(payment.currency, (totals.get(payment.currency) ?? 0n) + cents);
   }
-  return { totals: [...totals].map(([currency, amount]) => ({ currency, amount })), unknownCurrencies: [...unknownCurrencies] };
+  return { totals: [...totals].map(([currency, amount]) => ({ currency, amount: formatExactCents(amount) })), unknownCurrencies: [...unknownCurrencies] };
 }
 
 export function selectUnbilledTotals(totals: UnbilledWorkOrderTotal[] | undefined) {
@@ -85,16 +91,16 @@ export function selectUnbilledTotals(totals: UnbilledWorkOrderTotal[] | undefine
 /** Known currencies as one short figure plus its exact twin; an unknown currency is named only in the
  *  exact text (hover / screen reader), never as a "CUR —" value. Null when no currency is known. */
 export function currencyFigure(
-  rows: Array<{ currency: string; amount: number | null }>,
+  rows: Array<{ currency: string; amount: number | string | null }>,
   orgCurrency: string,
   unavailable: string,
   unknownLabel: (currency: string) => string = (currency) => `${currency} unknown`,
 ): { value: string; exactValue: string } | null {
   const ordered = orderByCurrency(rows, orgCurrency);
-  const known = ordered.filter((row): row is { currency: string; amount: number } => row.amount !== null && Number.isFinite(row.amount));
+  const known = ordered.filter((row): row is { currency: string; amount: number | string } => row.amount !== null && Number.isFinite(Number(row.amount)));
   if (known.length === 0) return null;
   const figures = known.map(({ currency, amount }) => moneyFigure(amount, currency, unavailable, { code: currency !== orgCurrency }));
-  const unknown = ordered.filter((row) => !known.includes(row as { currency: string; amount: number })).map((row) => unknownLabel(row.currency));
+  const unknown = ordered.filter((row) => !known.includes(row as { currency: string; amount: number | string })).map((row) => unknownLabel(row.currency));
   return {
     value: figures.map((figure) => figure.value).join(' · '),
     exactValue: [...figures.map((figure) => figure.exactValue ?? figure.value), ...unknown].join(' · '),
@@ -103,14 +109,14 @@ export function currencyFigure(
 
 /** One short figure per known currency, in the shared currency order (the lines behind a joined `value`). */
 const currencyLines = (
-  rows: Array<{ currency: string; amount: number | null }>,
+  rows: Array<{ currency: string; amount: number | string | null }>,
   orgCurrency: string,
   unavailable: string,
-): string[] => orderByCurrency(rows.filter((row) => row.amount !== null && Number.isFinite(row.amount)), orgCurrency)
-  .map((row) => moneyFigure(row.amount as number, row.currency, unavailable, { code: row.currency !== orgCurrency }).value);
+): string[] => orderByCurrency(rows.filter((row) => row.amount !== null && Number.isFinite(Number(row.amount))), orgCurrency)
+  .map((row) => moneyFigure(row.amount as number | string, row.currency, unavailable, { code: row.currency !== orgCurrency }).value);
 
 const currencyText = (
-  rows: Array<{ currency: string; amount: number | null }>,
+  rows: Array<{ currency: string; amount: number | string | null }>,
   orgCurrency: string,
   unavailable: string,
 ): string | null => currencyFigure(rows, orgCurrency, unavailable)?.value ?? null;
@@ -265,7 +271,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
         const unknownCurrencies = new Set(collected.unknownCurrencies);
         const known = collectedCurrencyTotals.filter((row) => !unknownCurrencies.has(row.currency));
         const displayRows = [
-          ...known.map((row) => ({ ...row, amount: row.amount as number | null })),
+          ...known.map((row) => ({ ...row, amount: row.amount as string | null })),
           ...collected.unknownCurrencies.map((currency) => ({ currency, amount: null })),
         ];
         return displayRows.length ? currencyText(displayRows, orgCurrency, moneyReason) : moneyFigure(0, orgCurrency, moneyReason).value;
