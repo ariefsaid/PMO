@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import ProcurementCreate from './ProcurementCreate';
 import { ProcurementError } from '@/src/lib/db/procurementLifecycle';
 
 const mocks = vi.hoisted(() => ({
   createRequest: vi.fn(),
+  createAtomic: vi.fn(),
   createItem: vi.fn(),
   navigate: vi.fn(),
   toast: vi.fn(),
@@ -35,6 +36,7 @@ vi.mock('@/src/hooks/useFkOptions', () => ({
 }));
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useCreateProcurement: () => ({ mutateAsync: mocks.createRequest, isPending: false }),
+  useCreateProcurementWithItems: () => ({ mutateAsync: mocks.createAtomic, isPending: false }),
   useCreateProcurementItem: () => ({ mutateAsync: mocks.createItem, isPending: false }),
 }));
 vi.mock('@/src/components/ui', async (importOriginal) => ({
@@ -60,6 +62,7 @@ describe('AC-PROC1 one-page request creation', () => {
     mocks.vendorQuery.isPending = false; mocks.vendorQuery.isError = false;
     mocks.vendorQuery.data = [{ value: 'v1', label: 'Supplier One', sub: 'Vendor' }];
     mocks.createRequest.mockResolvedValue({ id: 'new-id' });
+    mocks.createAtomic.mockResolvedValue({ id: 'new-id' });
     mocks.createItem.mockResolvedValue({});
   });
 
@@ -130,6 +133,49 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(screen.queryByText(/already made/i)).not.toBeInTheDocument();
   });
 
+  it('holds navigation and unload while the transactional save is pending', async () => {
+    let resolve!: (value: unknown) => void;
+    mocks.createAtomic.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Pending' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mocks.createAtomic).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: /what do you have/i }));
+    expect(mocks.navigate).not.toHaveBeenCalled();
+    expect(screen.getByText(/saving.*wait/i)).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Leave' })).toBeDisabled();
+    const unload = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(true);
+    resolve({ id: 'new-id' });
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
+  });
+
+  it('starts only one save when submit events arrive together', async () => {
+    mocks.createAtomic.mockImplementationOnce(() => new Promise(() => {}));
+    const view = renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Once' } });
+    const form = view.container.querySelector('form')!;
+    act(() => { fireEvent.submit(form); fireEvent.submit(form); });
+    expect(mocks.createAtomic).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries an uncertain save with the same header and line IDs', async () => {
+    mocks.createAtomic.mockRejectedValueOnce(new Error('network'));
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Retry' } });
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
+    fireEvent.click(screen.getByRole('button', { name: /add line item/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
+    expect(mocks.createAtomic).toHaveBeenCalledTimes(2);
+    expect(mocks.createAtomic.mock.calls[1][0]).toEqual(mocks.createAtomic.mock.calls[0][0]);
+  });
+
   it('AC-PROC1-001 shows the need form fields and line editor but no quotations', () => {
     renderCreate();
     expect(screen.getByRole('heading', { name: /new procurement/i })).toBeVisible();
@@ -150,12 +196,9 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
     fireEvent.click(screen.getByRole('button', { name: /add line item/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(mocks.createItem).toHaveBeenCalledWith({
-      procurementId: 'new-id', input: expect.objectContaining({ id: expect.any(String), name: 'Paper', quantity: 2, rate: 10 }),
-    }));
-    expect(mocks.createRequest).toHaveBeenCalledWith({ title: 'Office supplies', projectId: null, vendorId: null });
-    expect(mocks.createRequest.mock.invocationCallOrder[0]).toBeLessThan(mocks.createItem.mock.invocationCallOrder[0]);
-    expect(mocks.createItem.mock.invocationCallOrder[0]).toBeLessThan(mocks.navigate.mock.invocationCallOrder[0]);
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
+    expect(mocks.createAtomic).toHaveBeenCalledWith({ id: expect.any(String), header: { title: 'Office supplies', projectId: null, vendorId: null }, lines: [expect.objectContaining({ id: expect.any(String), name: 'Paper', quantity: 2, rate: 10 })] });
+    expect(mocks.createItem).not.toHaveBeenCalled();
     expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true });
   });
 
@@ -165,7 +208,7 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Cement order' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id/timeline?record=po', { replace: true }));
-    expect(mocks.createRequest).toHaveBeenCalledWith({ title: 'Cement order', projectId: null, vendorId: null });
+    expect(mocks.createAtomic).toHaveBeenCalledWith({ id: expect.any(String), header: { title: 'Cement order', projectId: null, vendorId: null }, lines: [] });
     expect(mocks.createItem).not.toHaveBeenCalled();
   });
 
@@ -232,51 +275,8 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(mocks.createRequest).not.toHaveBeenCalled();
   });
 
-  it('AC-PROC1-005 keeps failed line data on the saved request and retries only that line', async () => {
-    mocks.createItem.mockRejectedValueOnce(new Error('line write failed'));
-    renderCreate();
-    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Office supplies' } });
-    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
-    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
-    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
-    fireEvent.click(screen.getByRole('button', { name: /add line item/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(/some lines were not saved/i);
-    expect(screen.getByText('Paper')).toBeVisible();
-    expect(screen.queryByText(/procurement\/new-id/)).not.toBeInTheDocument();
-    expect(mocks.createRequest).toHaveBeenCalledTimes(1);
-    expect(mocks.createItem).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
-    expect(mocks.createRequest).toHaveBeenCalledTimes(1);
-    expect(mocks.createItem).toHaveBeenCalledTimes(2);
-    const firstLineId = mocks.createItem.mock.calls[0][0].input.id;
-    const retriedLineId = mocks.createItem.mock.calls[1][0].input.id;
-    expect(firstLineId).toMatch(/^[0-9a-f-]{36}$/i);
-    expect(retriedLineId).toBe(firstLineId);
-    expect(mocks.createItem.mock.calls[1][0]).toEqual({
-      procurementId: 'new-id', input: { id: firstLineId, name: 'Paper', quantity: 2, rate: 10 },
-    });
-  });
-
-  it('shows the reconcile instructions for a conflicting saved line ID', async () => {
-    mocks.createItem.mockRejectedValueOnce(new ProcurementError(
-      'This line ID already has different saved data. Open the saved request to reconcile it before retrying.', '23505',
-    ));
-    renderCreate();
-    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Office supplies' } });
-    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
-    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
-    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
-    fireEvent.click(screen.getByRole('button', { name: /add line item/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(/Open the saved request to reconcile it before retrying/i);
-    expect(screen.queryByText(/Save again to retry/i)).not.toBeInTheDocument();
-  });
-
-  it('AC-PROC1-005 freezes saved request fields after a child write needs retry', async () => {
-    mocks.createItem.mockRejectedValueOnce(new Error('line write failed'));
+  it('AC-PROC1-005 preserves the draft and retries the same atomic request after failure', async () => {
+    mocks.createAtomic.mockRejectedValueOnce(new Error('network'));
     renderCreate();
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Original request' } });
     fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
@@ -284,25 +284,124 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
     fireEvent.click(screen.getByRole('button', { name: /add line item/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(/some lines were not saved/i);
+    expect(await screen.findByRole('alert')).toBeVisible();
+    expect(screen.getByText('Paper')).toBeVisible();
     expect(screen.getByLabelText(/title/i)).toBeDisabled();
     expect(screen.getByLabelText(/project/i)).toBeDisabled();
     expect(screen.getByLabelText(/supplier/i)).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
+    expect(mocks.createAtomic.mock.calls[1][0]).toEqual(mocks.createAtomic.mock.calls[0][0]);
+  });
+
+  it('allows correction when the server definitively rejects invalid input', async () => {
+    mocks.createAtomic.mockRejectedValueOnce(new ProcurementError('Invalid input', '22023'));
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Invalid' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alert');
+    expect(screen.getByLabelText(/title/i)).toBeEnabled();
+  });
+
+  it('permits correcting an overflow line and retrying the draft', async () => {
+    mocks.createAtomic.mockRejectedValueOnce(new ProcurementError('Numeric overflow', '22003'));
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Overflow' } });
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '1000000' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '1000000' } });
+    fireEvent.click(screen.getByRole('button', { name: /add line item/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Paper' }));
+    fireEvent.change(screen.getByLabelText('Edit quantity for Paper'), { target: { value: '2' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' }).at(-1)!);
+    await waitFor(() => expect(screen.queryByLabelText('Edit quantity for Paper')).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
+    expect(mocks.createAtomic.mock.calls[1][0].lines[0].quantity).toBe(2);
+  });
+
+  it.each([
+    ['An order', 'po'], ['A supplier invoice', 'invoice'], ['A scheduled payment', 'payment'],
+  ])('retains %s capture mode through an uncertain save and intake', async (choice, record) => {
+    mocks.createAtomic.mockRejectedValueOnce(new Error('network'));
+    renderCreate('/procurement/new');
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(choice, 'i') }));
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Existing document' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: /what do you have/i }));
+    expect(screen.getByRole('button', { name: /A new need/i })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(choice, 'i') }));
+    expect(screen.getByLabelText(/title/i)).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith(`/procurement/new-id/timeline?record=${record}`, { replace: true }));
+    expect(mocks.createAtomic.mock.calls[1][0]).toEqual(mocks.createAtomic.mock.calls[0][0]);
+  });
+
+  it('allows a stale supplier to be corrected after a definitive reference rejection', async () => {
+    mocks.createAtomic.mockRejectedValueOnce(new ProcurementError('Reference unavailable', '23503'));
+    mocks.vendorQuery.data = [{ value: 'v1', label: 'Supplier One', sub: 'Vendor' }, { value: 'v2', label: 'Supplier Two', sub: 'Vendor' }];
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Supplies' } });
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
+    fireEvent.click(await screen.findByRole('option', { name: /Supplier One/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alert');
+    expect(screen.getByRole('combobox', { name: 'Supplier' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
+    fireEvent.click(await screen.findByRole('option', { name: /Supplier Two/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
+    expect(mocks.createAtomic.mock.calls[1][0].header.vendorId).toBe('v2');
+  });
+
+  it('keeps an uncertain attempt frozen when a later retry rejects a stale reference', async () => {
+    mocks.createAtomic.mockRejectedValueOnce(new Error('network')).mockRejectedValueOnce(new ProcurementError('Reference unavailable', '23503'));
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Original' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mocks.createAtomic).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled());
+    expect(screen.getByLabelText(/title/i)).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
+    expect(mocks.createAtomic.mock.calls[2][0]).toEqual(mocks.createAtomic.mock.calls[0][0]);
+  });
+
+  it('retains the immutable attempt after an authorization denial', async () => {
+    mocks.createAtomic.mockRejectedValueOnce(new ProcurementError('Denied', '42501'));
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Original' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alert');
+    expect(screen.getByLabelText(/title/i)).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
+    expect(mocks.createAtomic.mock.calls[1][0]).toEqual(mocks.createAtomic.mock.calls[0][0]);
+  });
+
+  it('shows server reconciliation instructions for a conflicting ID', async () => {
+    mocks.createAtomic.mockRejectedValueOnce(new ProcurementError('Open the saved request to reconcile it before retrying.', '23505'));
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Office supplies' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/reconcile it before retrying/i);
+    expect(screen.getByRole('button', { name: /open saved request/i })).toBeVisible();
   });
 
   it('AC-PROC1-006 disables line controls while the request is saving', async () => {
-    let resolveLine!: (value: unknown) => void;
-    mocks.createItem.mockImplementationOnce(() => new Promise((resolve) => { resolveLine = resolve; }));
+    let resolveSave!: (value: unknown) => void;
+    mocks.createAtomic.mockImplementationOnce(() => new Promise((resolve) => { resolveSave = resolve; }));
     renderCreate();
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Office supplies' } });
-    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
-    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
-    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
-    fireEvent.click(screen.getByRole('button', { name: /add line item/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(mocks.createItem).toHaveBeenCalled());
+    await waitFor(() => expect(mocks.createAtomic).toHaveBeenCalled());
     expect(screen.getByRole('button', { name: /add line item/i })).toBeDisabled();
-    resolveLine({});
+    resolveSave({ id: 'new-id' });
     await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
   });
 

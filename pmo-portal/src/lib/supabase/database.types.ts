@@ -8149,6 +8149,7 @@ export type Database = {
         Args: { p_org_id?: string | null }
         Returns: string
       }
+      create_procurement_with_items: { Args: { p_id: string; p_header: Json; p_items: Json }; Returns: Database['public']['Tables']['procurements']['Row'] }
       update_procurement_header: { Args: { p_id: string; p_patch: Json }; Returns: boolean }
       procurement_item_values_editable: { Args: { p_case: string }; Returns: boolean }
       budget_version_read_totals: {

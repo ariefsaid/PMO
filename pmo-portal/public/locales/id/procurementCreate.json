@@ -4,6 +4,7 @@
   "denied": "Anda tidak memiliki izin untuk membuat pengadaan.",
   "question": "Apa yang Anda miliki?",
   "questionDescription": "Mulai dari kebutuhan baru atau dokumen yang sudah tersedia.",
+  "continueAttempt": "Penyimpanan mungkin sudah selesai. Lanjutkan dengan pilihan yang sama untuk mencoba lagi.",
   "continueNeed": "Permintaan pembelian tersimpan dengan item yang belum selesai. Lanjutkan kebutuhan yang sama.",
   "choices": {
     "need": {
@@ -44,7 +45,11 @@
   "selectSupplier": "Opsional: pilih pemasok…",
   "budgetCategory": "Kategori anggaran",
   "linesFailed": "Pengadaan tersimpan, tetapi beberapa item belum tersimpan. Simpan lagi untuk mencoba ulang.",
+  "reconcile": "Buka permintaan tersimpan untuk mencocokkan data sebelum mencoba lagi.",
+  "openSavedRequest": "Buka permintaan tersimpan",
   "unsaved": {
+    "saving": "Penyimpanan sedang berlangsung. Harap tunggu hingga selesai.",
+    "uncertain": "Penyimpanan mungkin telah selesai. Tinggalkan halaman ini?",
     "title": "Pengadaan belum tersimpan",
     "description": "Pengadaan ini belum tersimpan. Tinggalkan halaman ini dan buang perubahan?",
     "partialDescription": "Pengadaan Anda tersimpan. Item yang belum tersimpan akan hilang jika Anda keluar.",

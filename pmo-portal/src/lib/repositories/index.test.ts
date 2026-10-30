@@ -84,6 +84,7 @@ vi.mock('@/src/lib/db/procurementPaymentCeiling', () => ({ approveProcurementAmo
 vi.mock('@/src/lib/db/procurementCrud', () => ({
   procurementItemValuesEditable: vi.fn(),
   createProcurement: vi.fn(),
+  createProcurementWithItems: vi.fn(),
   updateProcurementHeader: vi.fn(),
   updateProcurementVendor: vi.fn(),
   createProcurementItem: vi.fn(),
@@ -315,6 +316,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'createReceipt',
         'clearDocumentLink',
         'createRfq',
+        'createWithItems',
         'deleteDocument',
         'deleteItem',
         'get',
@@ -729,6 +731,13 @@ describe('delegation — methods pass args through and return the DAL result', (
       referenceNumber: 'BILL-9', amount: 950,
       taxTreatment: 'inclusive', taxAmount: 94.14, taxRate: 11,
     });
+  });
+
+  it('delegates an atomic procurement creation with stable IDs', async () => {
+    const input = { id: 'request', header: { title: 'T', projectId: null, vendorId: null }, lines: [{ id: 'line', name: 'Item', quantity: 1, rate: 2 }] };
+    vi.mocked(procCrudDal.createProcurementWithItems).mockResolvedValue({ id: 'request' } as never);
+    await expect(repositories.procurement.createWithItems(input)).resolves.toEqual({ id: 'request' });
+    expect(procCrudDal.createProcurementWithItems).toHaveBeenCalledWith(input);
   });
 
   it('procurement CRUD methods (create/header/items/selectQuote/documents) delegate', async () => {
