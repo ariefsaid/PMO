@@ -4,7 +4,7 @@
  * (D-ONB-4 — one lookup implementation, two call sites, no logic duplication).
  */
 import type { ImportSkipLookup } from '@/src/lib/db/procurementImportSkip';
-import { computeCaseImportKey, computeLegacyRecordImportKey } from './importKey';
+import { computeCaseImportKey } from './importKey';
 import { caseDecider, recordDecider, TYPE_TO_TABLE, ambiguousIncomingCases, duplicateRecordRows } from './decisions';
 import type { ImportDecision } from './decisions';
 import { CYCLE_ORDER } from './types';
@@ -60,7 +60,7 @@ export async function buildDryRunConflictReport(
         continue;
       }
       const result: Exclude<ImportDecision, { kind: 'ambiguous' }> = decideRecord
-        ? await decideRecord(table, computeLegacyRecordImportKey(row), false, invoiceId, row.type === 'Payment' && isNewInvoice(invoiceState))
+        ? await decideRecord(table, row, false, invoiceId, row.type === 'Payment' && isNewInvoice(invoiceState))
         : { kind: 'new' as const };
       count(result.kind);
       if (result.kind === 'other') conflicts.push({ caseRef: group.caseRef, rowNumber: row.rowNumber, type: row.type, id: result.id, message: 'Existing source requires reconciliation.' });

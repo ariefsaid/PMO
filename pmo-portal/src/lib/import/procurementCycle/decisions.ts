@@ -52,7 +52,7 @@ export function recordDecider(lookup: ImportSkipLookup, caseId: string, _batch: 
     }
   }
   const indexes = new Map<RecordTableName, Promise<Map<string, ImportRecordMatch[]>>>();
-  return async (table: RecordTableName, key: string, fresh = false, invoiceId: string | null = null, symbolicInvoice = false): Promise<Exclude<ImportDecision, { kind: 'ambiguous' }>> => {
+  return async (table: RecordTableName, row: CycleRow, fresh = false, invoiceId: string | null = null, symbolicInvoice = false): Promise<Exclude<ImportDecision, { kind: 'ambiguous' }>> => {
     if (lookup.listCaseRecords) {
       let index = indexes.get(table);
       if (!index) {
@@ -67,8 +67,7 @@ export function recordDecider(lookup: ImportSkipLookup, caseId: string, _batch: 
         });
         indexes.set(table, index);
       }
-      const row = rows.find(candidate => TYPE_TO_TABLE[candidate.type as CycleType] === table && computeLegacyRecordImportKey(candidate) === key);
-      if (!row) throw new Error('Missing source row');
+      const key = computeLegacyRecordImportKey(row);
       const facts = projectRecordFacts(row, vendorLookup && row.vendor ? refId(vendorLookup, row.vendor) : null, invoiceId);
       const v2Key = computeRecordImportKey(row, facts);
       const snapshot = await index;

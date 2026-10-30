@@ -326,3 +326,100 @@ test('a fresh historical probe gives unknown candidates precedence over an earli
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('historical preview distinguishes missing vendors and rejected duplicates create no stubs', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'history-vendors-'));
+  const file = join(dir, 'procurement_cases.csv');
+  const oldFetch = globalThis.fetch, oldUrl = process.env.SUPABASE_URL, oldKey = process.env.SUPABASE_SERVICE_ROLE_KEY, oldError = console.error, oldLog = console.log;
+  const calls = [], errors = [], logs = [];
+  let failCreate = false;
+  process.env.SUPABASE_URL = 'http://localhost:8888'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-key';
+  console.error = (...args) => errors.push(args.join(' ')); console.log = (...args) => logs.push(args.join(' '));
+  globalThis.fetch = async (input, init = {}) => {
+    const url = new URL(String(input)), method = init.method ?? 'GET', body = init.body ? JSON.parse(init.body) : null;
+    calls.push({ path: url.pathname, method, body });
+    if (failCreate && method === 'POST' && url.pathname.endsWith('/companies')) return new Response(JSON.stringify({ message: 'creation refused' }), { status: 400, headers: { 'content-type': 'application/json' } });
+    let data = [];
+    if (url.pathname.endsWith('/organizations')) data = { id: 'org', name: 'Example' };
+    if (url.pathname.endsWith('/companies') && method === 'GET') data = url.searchParams.get('name') === 'ilike.Known' ? { id: 'known-id' } : null;
+    if (url.pathname.endsWith('/companies') && method === 'POST') data = { id: `vendor-${body.name}` };
+    if (method === 'POST' && url.pathname.endsWith('/procurements')) data = { id: 'case' };
+    if (method === 'POST' && url.pathname.endsWith('/procurement_quotations')) data = { id: `quote-${body.vendor_id}` };
+    if (url.pathname.endsWith('/start_procurement_import_run')) data = '39900000-0000-0000-0000-000000000001';
+    if (url.pathname.endsWith('/normalize_procurement_import_refs')) data = body.p_refs.map(ref => ({ input_ref: ref, normalized_ref: ref.toLowerCase() }));
+    return new Response(JSON.stringify(data), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  const csv = (second) => `case_ref,type,title,terminal_status,total_value,vendor,date,amount\nC,Quotation,Case,Cancelled,,Alpha,2026-01-01,1\nC,Quotation,Case,Cancelled,,${second},2026-01-01,1\n`;
+  try {
+    writeFileSync(file, csv('Beta'));
+    await main(['--org-id', 'org', '--file', file, '--dry-run']);
+    assert.ok(logs.some(line => /Quotation: created: 2, skipped: 0, failed: 0/.test(line)), logs.join('\n'));
+    assert.equal(calls.filter(call => call.method === 'POST' && !call.path.includes('/rpc/')).length, 0);
+    calls.length = 0; errors.length = 0; logs.length = 0;
+    await main(['--org-id', 'org', '--file', file], { promptConfirmFn: async () => 'Example' });
+    assert.equal(calls.filter(call => call.method === 'POST' && call.path.endsWith('/companies')).length, 2);
+    assert.equal(calls.filter(call => call.method === 'POST' && call.path.endsWith('/procurement_quotations')).length, 2);
+    calls.length = 0; errors.length = 0; logs.length = 0;
+    writeFileSync(file, csv('Known'));
+    await main(['--org-id', 'org', '--file', file, '--dry-run']);
+    assert.ok(logs.some(line => /Quotation: created: 2, skipped: 0, failed: 0/.test(line)));
+    assert.equal(calls.filter(call => call.method === 'POST' && !call.path.includes('/rpc/')).length, 0);
+    calls.length = 0; errors.length = 0; logs.length = 0;
+    writeFileSync(file, csv('Alpha'));
+    await main(['--org-id', 'org', '--file', file, '--dry-run']);
+    assert.ok(errors.some(line => /duplicate/.test(line)));
+    assert.equal(calls.filter(call => call.method === 'POST' && !call.path.includes('/rpc/')).length, 0);
+    calls.length = 0; errors.length = 0;
+    await main(['--org-id', 'org', '--file', file], { promptConfirmFn: async () => 'Example' });
+    assert.ok(errors.some(line => /duplicate/.test(line)));
+    assert.equal(calls.filter(call => call.method === 'POST' && call.path.endsWith('/companies')).length, 0);
+    calls.length = 0; errors.length = 0;
+    writeFileSync(file, csv('Beta').replace('2026-01-01,1\n', '2026-01-01,0.30000000000000004\n'));
+    await main(['--org-id', 'org', '--file', file], { promptConfirmFn: async () => 'Example' });
+    assert.ok(errors.length > 0);
+    assert.equal(calls.filter(call => call.method === 'POST' && call.path.endsWith('/companies')).length, 0);
+    calls.length = 0; errors.length = 0; failCreate = true;
+    writeFileSync(file, csv('Beta'));
+    await main(['--org-id', 'org', '--file', file], { promptConfirmFn: async () => 'Example' });
+    assert.ok(errors.some(line => /vendor creation failed/i.test(line)));
+    assert.equal(calls.filter(call => call.method === 'POST' && call.path.endsWith('/procurements')).length, 0);
+  } finally {
+    globalThis.fetch = oldFetch; console.error = oldError; console.log = oldLog;
+    if (oldUrl === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = oldUrl;
+    if (oldKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY; else process.env.SUPABASE_SERVICE_ROLE_KEY = oldKey;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('historical caller rejects excess precision and probes no provisional vendor UUID', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'history-exact-')), file = join(dir, 'procurement_cases.csv');
+  const oldFetch = globalThis.fetch, oldUrl = process.env.SUPABASE_URL, oldKey = process.env.SUPABASE_SERVICE_ROLE_KEY, oldLog = console.log, oldError = console.error;
+  const urls = [], logs = [], errors = [];
+  process.env.SUPABASE_URL = 'http://localhost:8888'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-key';
+  console.log = (...args) => logs.push(args.join(' ')); console.error = (...args) => errors.push(args.join(' '));
+  globalThis.fetch = async (input, init = {}) => {
+    const url = new URL(String(input)), method = init.method ?? 'GET', body = init.body ? JSON.parse(init.body) : null;
+    urls.push({ url: url.toString(), method });
+    let data = [];
+    if (url.pathname.endsWith('/organizations')) data = { id: 'org', name: 'Example' };
+    if (url.pathname.endsWith('/companies') && method === 'GET') data = null;
+    if (url.pathname.endsWith('/normalize_procurement_import_refs')) data = body.p_refs.map(ref => ({ input_ref: ref, normalized_ref: ref.toLowerCase() }));
+    if (url.pathname.endsWith('/lookup_procurement_import_cases')) data = [{ id: 'case', import_key: 'C', normalized_ref: 'c', import_batch_id: null }];
+    return new Response(JSON.stringify(data), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    for (const [amount, valid] of [['300000000000.0001', false], ['0.30000000000000004', false], ['1.2300', true], ['999999999999.99', true], ['1000000000000', false]]) {
+      logs.length = 0; errors.length = 0; urls.length = 0;
+      writeFileSync(file, `case_ref,type,title,terminal_status,total_value,vendor,date,amount\nC,Quotation,Case,Cancelled,,Missing,2026-01-01,${amount}\n`);
+      await main(['--org-id', 'org', '--file', file, '--dry-run']);
+      assert.equal(logs.some(line => /Quotation: created: 1, skipped: 0, failed: 0/.test(line)), valid, amount);
+      assert.ok(!urls.some(item => decodeURIComponent(item.url).includes('provisional-vendor:')), amount);
+      assert.ok(!urls.some(item => item.method === 'POST' && !item.url.includes('/rpc/')), amount);
+    }
+  } finally {
+    globalThis.fetch = oldFetch; console.log = oldLog; console.error = oldError;
+    if (oldUrl === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = oldUrl;
+    if (oldKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY; else process.env.SUPABASE_SERVICE_ROLE_KEY = oldKey;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

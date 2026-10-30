@@ -532,3 +532,9 @@ it('rejects amounts outside the database numeric range during preview', () => {
 });
 
 });
+
+it('rejects source money with nonzero excess precision before import', () => {
+  const rows = ['300000000000.0001', '0.30000000000000004', '1.2300', '999999999999.99', '1000000000000'].map((amount, index) => ({ caseRef: `precision-${index}`, type: 'PR', title: 'Precision', project: undefined, caseStatus: undefined, vendor: undefined, externalRef: undefined, status: undefined, date: undefined, amount, rowNumber: index + 1 }));
+  const results = validateGroups(groupRows(rows).groups, { projectLookup: makeRefLookup([], 'Project'), vendorLookup: makeRefLookup([], 'Vendor') });
+  expect(results.map(result => result.rows[0].valid)).toEqual([false, false, true, true, false]);
+});

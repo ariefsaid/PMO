@@ -239,3 +239,14 @@ it('resolves one existing case regardless of its original batch', async () => {
   expect(report.wouldCreate).toBe(1);
   expect(report.wouldCollide).toBe(0);
 });
+
+it('classifies tax-distinct invoices sharing a legacy key independently', async () => {
+  const group = makeGroup('C');
+  const first = { ...group.group.rows[0], type: 'VI', externalRef: undefined, status: 'Received', taxTreatment: 'exclusive', taxAmount: '1', rowNumber: 1 };
+  const second = { ...first, taxAmount: '2', rowNumber: 2 };
+  group.group.rows = [first, second];
+  group.rows = [1, 2].map(rowNumber => ({ rowNumber, valid: true, errors: [] }));
+  const facts = [null, 'Received', '2025-01-01', '100.00', 'exclusive', '1.00'];
+  const lookup = { findExistingCase: vi.fn(), findExistingRecord: vi.fn(), findCrossBatchCollision: vi.fn(), listCases: vi.fn().mockResolvedValue([{ id: 'case', import_key: 'C', import_batch_id: null }]), listCaseRecords: vi.fn().mockResolvedValue([{ id: 'one', import_key: `pcy2:${JSON.stringify(['f', facts])}`, import_batch_id: 'run', import_identity_version: 2, import_identity_facts: facts }]) };
+  expect(await buildDryRunConflictReport([group], { identity: { kind: 'provisional' }, skipLookup: lookup })).toMatchObject({ wouldCreate: 1, wouldSkip: 2, wouldCollide: 0 });
+});

@@ -299,6 +299,7 @@ export async function main(argv, { promptConfirmFn = promptConfirm } = {}) {
 
       // FR-HIST-012: resolve/stub vendors referenced by this case's rows (for quotations + report).
       const vendorMap = {};
+      const unresolvedVendors = new Map();
       let vendorError = false;
       for (const r of group.rows) {
         const vk = normVendorKey(r.vendor);
@@ -307,12 +308,10 @@ export async function main(argv, { promptConfirmFn = promptConfirm } = {}) {
           const { data, error } = await supabase.from('companies').select('id').eq('org_id', args.orgId).ilike('name', r.vendor.trim()).maybeSingle();
           if (error) throw error;
           if (data) { vendorMap[vk] = data.id; summary.references.resolved++; }
-          else if (dryRun) { vendorMap[vk] = null; }
           else {
-            const created = await supabase.from('companies').insert({ org_id: args.orgId, name: r.vendor.trim(), type: 'Vendor' }).select('id').single();
-            if (created.error || !created.data?.id) throw created.error ?? new Error('Vendor creation returned no ID.');
-            vendorMap[vk] = created.data.id;
-            summary.references.created++;
+            // Only a comparison token: never use it as a database UUID or probe candidate.
+            vendorMap[vk] = `provisional-vendor:${vk}`;
+            unresolvedVendors.set(vk, r.vendor.trim());
           }
         } catch (error) {
           console.error(`✗ ${group.caseRef}: vendor lookup failed; retry this case.`);
@@ -346,6 +345,21 @@ export async function main(argv, { promptConfirmFn = promptConfirm } = {}) {
           summary.recordsByType[row.type].failed++;
         }
         continue;
+      }
+
+      if (!dryRun) {
+        try {
+          for (const [key, name] of unresolvedVendors) {
+            const created = await supabase.from('companies').insert({ org_id: args.orgId, name, type: 'Vendor' }).select('id').single();
+            if (created.error || !created.data?.id) throw created.error ?? new Error('Vendor creation returned no ID.');
+            vendorMap[key] = created.data.id;
+            summary.references.created++;
+          }
+        } catch (error) {
+          console.error(`✗ ${group.caseRef}: vendor creation failed; retry this case.`);
+          summary.cases.failed++;
+          continue;
+        }
       }
 
       const casePayload = {
@@ -438,7 +452,7 @@ export async function main(argv, { promptConfirmFn = promptConfirm } = {}) {
           let cursor;
           for (;;) {
             let query = supabase.from(table).select('id, import_key, import_batch_id, import_identity_version, import_identity_facts')
-              .eq('procurement_id', procurementId).filter('import_key', 'in', exactKeyFilter([...new Set(row.type === 'Payment' && invoiceState === 'new' && !row.externalRef?.trim() ? [oldKey] : [oldKey, recordKey])])).order('id');
+              .eq('procurement_id', procurementId).filter('import_key', 'in', exactKeyFilter([...new Set(((row.type === 'Payment' && invoiceState === 'new') || (row.type === 'Quotation' && unresolvedVendors.has(normVendorKey(row.vendor)) && dryRun)) && !row.externalRef?.trim() ? [oldKey] : [oldKey, recordKey])])).order('id');
             if (cursor) query = query.gt('id', cursor);
             const { data, error } = await query.limit(200);
             if (error) throw error;

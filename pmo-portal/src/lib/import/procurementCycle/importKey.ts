@@ -1,6 +1,6 @@
 /** Versioned record identity, its legacy compatibility candidate, and app creation facts. */
 import type { CaseGroup, CycleRow } from './types';
-import { parseNeutralMoneyInputAtScale } from '@/src/lib/format';
+import { parseMoneyInputAtScale } from '@/src/lib/format';
 
 export function computeCaseImportKey(group: CaseGroup): string {
   return group.caseRef;
@@ -20,7 +20,7 @@ export function projectRecordFacts(row: CycleRow, vendorId: string | null, invoi
   const text = (value: string | undefined) => value?.trim() || null;
   const money = (value: string | undefined) => {
     if (!value?.trim()) return null;
-    const amount = parseNeutralMoneyInputAtScale(value, 2);
+    const amount = parseMoneyInputAtScale(value, 2, 'en-US');
     if (amount === null || amount < 0 || amount >= 1e12) throw new Error('Invalid amount');
     return amount.toFixed(2);
   };

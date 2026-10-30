@@ -11,7 +11,7 @@
  */
 import type { RefLookup } from '@/src/lib/import/refLookup';
 import { refValidate } from '@/src/lib/import/refLookup';
-import { parseNeutralMoneyInputAtScale } from '@/src/lib/format';
+import { parseMoneyInputAtScale } from '@/src/lib/format';
 import type { CaseGroup, CycleRow, ValidatedGroup, ValidatedRow } from './types';
 
 // ─── Lookups provided by caller ───────────────────────────────────────────────
@@ -59,7 +59,7 @@ function validateOptionalDate(raw: string | undefined, label: string): string | 
 const AMOUNT_NOT_A_NUMBER = 'Amount must be a number with no more than 2 decimal places.';
 
 function amountError(raw: string): string | null {
-  const n = parseNeutralMoneyInputAtScale(raw, 2);
+  const n = parseMoneyInputAtScale(raw, 2, 'en-US');
   if (n === null) return AMOUNT_NOT_A_NUMBER;
   if (n < 0) return 'Amount must be ≥ 0.';
   if (n >= 1e12) return 'Amount exceeds the supported range.';
@@ -103,7 +103,7 @@ function validateTaxAmount(raw: string | undefined): string | null {
   if (!raw?.trim()) {
     return 'Tax amount is required for a VI row (enter 0 when there is no tax).';
   }
-  const n = parseNeutralMoneyInputAtScale(raw, 2);
+  const n = parseMoneyInputAtScale(raw, 2, 'en-US');
   if (n === null) return 'Tax amount must be a number with no more than 2 decimal places.';
   if (n < 0) return 'Tax amount must be ≥ 0.';
   if (n >= 1e12) return 'Tax amount exceeds the supported range.';

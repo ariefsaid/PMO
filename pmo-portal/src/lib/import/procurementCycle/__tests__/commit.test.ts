@@ -1236,3 +1236,26 @@ it('reports unattempted records after a header write fails', async () => {
   expect(result.cases[0].records[0]).toMatchObject({ rowNumber: 1, status: 'failed', error: expect.stringMatching(/not attempted/i) });
   expect(createPurchaseRequest).not.toHaveBeenCalled();
 });
+
+it('creates, retries and reclassifies a race for tax-distinct invoices with the same legacy key', async () => {
+  vi.clearAllMocks();
+  const common = { caseRef: 'C', title: 'C', project: undefined, caseStatus: undefined, vendor: undefined, externalRef: undefined, type: 'VI', status: 'Received', date: '2025-01-01', amount: '100', taxTreatment: 'exclusive' };
+  const rows: CycleRow[] = [{ ...common, taxAmount: '1', rowNumber: 1 }, { ...common, taxAmount: '2', rowNumber: 2 }];
+  const group: ValidatedGroup = { valid: true, groupErrors: [], group: { caseRef: 'C', attrs: { title: 'C', project: undefined, caseStatus: undefined }, rows, errors: [] }, rows: rows.map(row => ({ rowNumber: row.rowNumber, valid: true, errors: [] })) };
+  const stored: Array<{ id: string; import_key: string; import_batch_id: string; import_identity_version: number; import_identity_facts: (string | null)[] }> = [];
+  const listCaseRecords = vi.fn().mockImplementation(async (_table: string, _case: string, keys: string[]) => stored.filter(item => keys.includes(item.import_key)));
+  const lookup = makeStubSkipLookup({ listCases: vi.fn().mockResolvedValue([{ id: 'case', import_key: 'C', import_batch_id: BATCH_ID }]), listCaseRecords });
+  vi.mocked(createInvoice).mockImplementation(async input => {
+    const facts = [null, 'Received', '2025-01-01', '100.00', 'exclusive', Number(input.taxAmount).toFixed(2)];
+    const item = { id: `invoice-${input.taxAmount}`, import_key: input.importKey!, import_batch_id: BATCH_ID, import_identity_version: 2, import_identity_facts: facts };
+    stored.push(item);
+    if (input.taxAmount === 2) throw Object.assign(new Error('race'), { code: '23505' });
+    return { id: item.id } as never;
+  });
+  const options = { requestedById: REQUESTER, projectLookup, vendorLookup, importBatchId: BATCH_ID, skipLookup: lookup };
+  const first = await commitGroups([group], options);
+  expect(first.cases[0].records.map(record => [record.status, record.id])).toEqual([['created', 'invoice-1'], ['skipped', 'invoice-2']]);
+  const retry = await commitGroups([group], options);
+  expect(retry.cases[0].records.map(record => [record.status, record.id])).toEqual([['skipped', 'invoice-1'], ['skipped', 'invoice-2']]);
+  expect(createInvoice).toHaveBeenCalledTimes(2);
+});

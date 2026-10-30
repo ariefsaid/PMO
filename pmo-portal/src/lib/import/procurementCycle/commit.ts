@@ -28,7 +28,7 @@ import { createQuotation, createReceipt, createInvoice } from '@/src/lib/db/proc
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import type { RefLookup } from '@/src/lib/import/refLookup';
 import { refId } from '@/src/lib/import/refLookup';
-import { parseNeutralMoneyInputAtScale } from '@/src/lib/format';
+import { parseMoneyInputAtScale } from '@/src/lib/format';
 import type { ImportSkipLookup } from '@/src/lib/db/procurementImportSkip';
 import { caseDecider, recordDecider, TYPE_TO_TABLE, ambiguousIncomingCases, duplicateRecordRows } from './decisions';
 import type { ImportDecision } from './decisions';
@@ -69,7 +69,7 @@ export interface CommitOptions {
  */
 function parseAmount(raw: string | undefined): number | null {
   if (!raw?.trim()) return null;
-  const n = parseNeutralMoneyInputAtScale(raw, 2);
+  const n = parseMoneyInputAtScale(raw, 2, 'en-US');
   if (n === null) {
     throw new Error('a row reached commit with an invalid amount — validateGroups should have refused it');
   }
@@ -210,7 +210,7 @@ async function createRecord(
           'a VI row reached commit with no tax treatment or amount — validateGroups should have refused it',
         );
       }
-      const taxAmount = parseNeutralMoneyInputAtScale(taxAmountRaw, 2);
+      const taxAmount = parseMoneyInputAtScale(taxAmountRaw, 2, 'en-US');
       if (taxAmount === null) {
         throw new Error('a VI row reached commit with an invalid tax amount — validateGroups should have refused it');
       }
@@ -441,9 +441,9 @@ async function commitCase(
     if (importBatchId && skipLookup && recordImportKey) {
       const table = TYPE_TO_TABLE[row.type as CycleType];
       try {
-        let decision: Exclude<ImportDecision, { kind: 'ambiguous' }> = table && decideRecord ? await decideRecord(table, oldRecordKey!, false, groupInvoiceId) : { kind: 'new' };
+        let decision: Exclude<ImportDecision, { kind: 'ambiguous' }> = table && decideRecord ? await decideRecord(table, row, false, groupInvoiceId) : { kind: 'new' };
         if (table && decideRecord && skipLookup.listCaseRecords) {
-          decision = await decideRecord(table, oldRecordKey!, true, groupInvoiceId);
+          decision = await decideRecord(table, row, true, groupInvoiceId);
         }
         if (decision.kind === 'other') {
           records.push({ rowNumber: row.rowNumber, type: row.type, id: decision.id, status: 'failed',
@@ -487,7 +487,7 @@ async function commitCase(
         // including importBatchId in the guard just makes that provable to the type checker.
         try {
           const raced = table && oldRecordKey && decideRecord && skipLookup?.listCaseRecords
-            ? await decideRecord(table, oldRecordKey, true, groupInvoiceId) : null;
+            ? await decideRecord(table, row, true, groupInvoiceId) : null;
           if (raced?.kind === 'same') {
             if (row.type === 'VI') groupInvoiceId = raced.id;
             records.push({ rowNumber: row.rowNumber, type: row.type, id: raced.id, status: 'skipped',
