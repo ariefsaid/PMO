@@ -96,6 +96,8 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
+vi.mock('@/src/hooks/useProjects', () => import('@/pages/__tests__/helpers/projectScopeMock'));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 import ProcurementDetails from '../ProcurementDetails';
 
 const base = {
@@ -124,6 +126,11 @@ const base = {
   quotations: [],
   receipts: [],
   invoices: [],
+  purchase_requests: [],
+  rfqs: [],
+  purchase_orders: [],
+  payments: [],
+  statusEvents: [],
 };
 
 const renderPage = () =>
@@ -135,12 +142,15 @@ const renderPage = () =>
     </MemoryRouter>,
   );
 
-/** The 0-based index of the node-stepper item currently in the `current` state. */
-function currentStepIndex(): number {
-  const stepper = screen.getByRole('list', { name: /procurement lifecycle/i });
-  const items = within(stepper).getAllByRole('listitem');
-  return items.findIndex((el) => /:\s*current$/i.test(el.getAttribute('aria-label') ?? ''));
+/** The tracker's stages, in order, each with its label and whether it is the current step. */
+function stages(): Array<{ label: string; current: boolean }> {
+  const tracker = screen.getByTestId('procurement-stage-tracker');
+  return within(tracker).getAllByRole('listitem').map((el) => ({
+    label: el.querySelector('span')?.textContent ?? '',
+    current: el.getAttribute('aria-current') === 'step',
+  }));
 }
+const headerActions = () => within(screen.getByTestId('record-header-actions'));
 
 beforeEach(() => {
   detailState.isPending = false;
@@ -148,34 +158,39 @@ beforeEach(() => {
   detailState.error = null;
 });
 
-describe('AC-IXD-PROC-002: the lifecycle stepper advances when a PR is Approved', () => {
-  it('AC-IXD-PROC-002: an Approved PR sits at a LATER stepper node than a Requested PR', () => {
+// The six-node PR→Vendor Quote→PO→GR→VI→Payment stepper became a four-stage tracker (Request / Order /
+// Receive / Pay) in the procurement record restructure (#1404). Approval is a gate INSIDE the Request
+// stage, so approving no longer moves the tracker; the case visibly moves on through the status and the
+// one primary action (Approve is replaced by the next step). The tracker still advances at Ordered.
+describe('AC-IXD-PROC-002: the lifecycle tracker advances as the purchase progresses', () => {
+  it('AC-IXD-PROC-002: an Ordered purchase sits at a LATER stage than a Requested one', () => {
     detailState.data = { ...base, status: 'Requested' };
     const { unmount } = renderPage();
-    const requestedIdx = currentStepIndex();
+    const requestedIdx = stages().findIndex((stage) => stage.current);
+    unmount();
+
+    detailState.data = { ...base, status: 'Ordered', approved_by_id: 'u-fin' };
+    renderPage();
+    const orderedIdx = stages().findIndex((stage) => stage.current);
+
+    expect(requestedIdx).toBeGreaterThanOrEqual(0);
+    expect(orderedIdx).toBeGreaterThan(requestedIdx);
+  });
+
+  it('AC-IXD-PROC-002: approving moves the case on, with NO standalone "Approved" stage', () => {
+    detailState.data = { ...base, status: 'Requested' };
+    const { unmount } = renderPage();
+    expect(headerActions().getByRole('button', { name: 'Approve' })).toBeInTheDocument();
     unmount();
 
     detailState.data = { ...base, status: 'Approved', approved_by_id: 'u-fin' };
     renderPage();
-    const approvedIdx = currentStepIndex();
-
-    expect(requestedIdx).toBeGreaterThanOrEqual(0);
-    expect(approvedIdx).toBeGreaterThan(requestedIdx);
-  });
-
-  it('AC-IXD-PROC-002: approving advances PR→done + supplier quote→current, with NO standalone "Approved" node', () => {
-    detailState.data = { ...base, status: 'Approved', approved_by_id: 'u-fin' };
-    renderPage();
-    const stepper = screen.getByRole('list', { name: /procurement lifecycle/i });
-    const ariaLabels = within(stepper)
-      .getAllByRole('listitem')
-      .map((el) => el.getAttribute('aria-label') ?? '');
-    const labels = ariaLabels.map((l) => l.split(':')[0].trim());
-    // Approval is a gate, not a stage — no node is labelled "Approved".
-    expect(labels).not.toContain('Approved');
-    // The bar advanced on approval: PR done, supplier quote current (the next action).
-    expect(ariaLabels[0]).toBe('Purchase Request: done');
-    expect(ariaLabels[1]).toBe('Supplier Quote: current');
+    // Approval is a gate, not a stage — the four stages are Request / Order / Receive / Pay.
+    expect(stages().map((stage) => stage.label)).toEqual(['Request', 'Order', 'Receive', 'Pay']);
+    // The request stage is still the current one, but Approve is gone: the next step took its place.
+    expect(stages()[0]).toEqual({ label: 'Request', current: true });
+    expect(headerActions().queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('procurement-status-badge')).not.toHaveTextContent(/waiting for approval/i);
   });
 });
 

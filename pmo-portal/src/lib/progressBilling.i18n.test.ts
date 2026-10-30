@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import en from '../../public/locales/en/common.json';
-import id from '../../public/locales/id/common.json';
+import en from '../../public/locales/en/project.json';
+import id from '../../public/locales/id/project.json';
 import tabsEn from '../../public/locales/en/projectTabs.json';
 import tabsId from '../../public/locales/id/projectTabs.json';
 
@@ -41,8 +41,8 @@ describe('progress billing strings', () => {
     for (const [key, value] of [...Object.entries(english), ...Object.entries(indonesian)]) {
       expect(value.trim(), key).not.toBe('');
     }
-    expect(((en as unknown as Tree).projectDetail as Tree).tabs).toHaveProperty('billing');
-    expect(((id as unknown as Tree).projectDetail as Tree).tabs).toHaveProperty('billing');
+    expect(((en as unknown as Tree).projectDetail as Tree).tabs).toHaveProperty('contract');
+    expect(((id as unknown as Tree).projectDetail as Tree).tabs).toHaveProperty('contract');
   });
 
   it('AC-PB-014 every key the billing screens use is in the catalogue', () => {

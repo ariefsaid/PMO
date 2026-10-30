@@ -47,7 +47,7 @@ function latestConfirmed(acceptances: WorkOrderAcceptanceWithLines[]): WorkOrder
 const WorkOrderAcceptanceModal: React.FC<WorkOrderAcceptanceModalProps> = ({
   workOrder, boqItems, allocations, acceptances, documents, today, draft, onClose, onSave, onError,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const allocated = allocations
     .map((row) => ({ row, item: boqItems.find((b) => b.id === row.boq_item_id) }))
     .filter((entry): entry is { row: WorkOrderLineRow; item: BoqItemRow } => entry.item !== undefined)
@@ -90,7 +90,7 @@ const WorkOrderAcceptanceModal: React.FC<WorkOrderAcceptanceModalProps> = ({
     for (const { item } of allocated) {
       const raw = (values[item.id] ?? '').trim();
       if (raw === '') {
-        if (isFinal) errs[item.id] = t('projectTabs:contractQuantities.workOrders.acceptances.form.errors.finalComplete', 'A final BAST states every ordered line — enter a quantity, even 0');
+        if (isFinal) errs[item.id] = t('projectTabs:contractQuantities.workOrders.acceptances.form.errors.finalComplete', 'A final BAST states every ordered line. Enter a quantity, even 0');
         continue;
       }
       if (item.earning_basis === 'lump_sum') {
@@ -133,8 +133,8 @@ const WorkOrderAcceptanceModal: React.FC<WorkOrderAcceptanceModalProps> = ({
       open
       width="lg"
       title={draft
-        ? t('projectTabs:contractQuantities.workOrders.acceptances.form.titleEdit', 'Edit BAST — {{wo}}', { wo: woLabel })
-        : t('projectTabs:contractQuantities.workOrders.acceptances.form.titleNew', 'Prepare BAST — {{wo}}', { wo: woLabel })}
+        ? t('projectTabs:contractQuantities.workOrders.acceptances.form.titleEdit', 'Edit BAST: {{wo}}', { wo: woLabel })
+        : t('projectTabs:contractQuantities.workOrders.acceptances.form.titleNew', 'Prepare BAST: {{wo}}', { wo: woLabel })}
       subtitle={t('projectTabs:contractQuantities.workOrders.acceptances.form.subtitle', "The client's acceptance of work, as cumulative quantities to date. Someone else confirms it; it does not create an invoice.")}
       submitLabel={draft
         ? t('projectTabs:contractQuantities.workOrders.acceptances.form.save', 'Save BAST')
@@ -177,8 +177,8 @@ const WorkOrderAcceptanceModal: React.FC<WorkOrderAcceptanceModalProps> = ({
               return (
                 <NumberField key={item.id} id={`bast-qty-${item.id}`}
                   label={lump
-                    ? t('projectTabs:contractQuantities.workOrders.acceptances.form.percentLine', '{{item}} — % accepted', { item: `${item.item_code} — ${item.description}` })
-                    : t('projectTabs:contractQuantities.workOrders.acceptances.form.quantityLine', '{{item}} — accepted to date ({{unit}})', { item: `${item.item_code} — ${item.description}`, unit: item.unit })}
+                    ? t('projectTabs:contractQuantities.workOrders.acceptances.form.percentLine', '{{item}}: % accepted', { item: `${item.item_code} — ${item.description}` })
+                    : t('projectTabs:contractQuantities.workOrders.acceptances.form.quantityLine', '{{item}}: accepted to date ({{unit}})', { item: `${item.item_code} — ${item.description}`, unit: item.unit })}
                   value={values[item.id] ?? ''}
                   onChange={(value) => setValues((current) => ({ ...current, [item.id]: value }))}
                   helper={lump ? undefined : t('projectTabs:contractQuantities.workOrders.acceptances.form.ordered', 'Ordered {{qty}} {{unit}}', { qty: formatNumberExact(Number(row.quantity)), unit: item.unit })}

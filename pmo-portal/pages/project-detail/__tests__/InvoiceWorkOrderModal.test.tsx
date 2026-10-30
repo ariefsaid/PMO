@@ -74,6 +74,11 @@ describe('InvoiceWorkOrderModal (OD-BILL-1)', () => {
     expect(h.mutateAsync).not.toHaveBeenCalled();
   });
 
+  it('C5 a cap with cents keeps its cents, so the refusal names the real limit', async () => {
+    renderModal(80_000.5);
+    expect(screen.getByText('Up to $80,000.50 is still to invoice on this work order.')).toBeInTheDocument();
+  });
+
   it('AC-BWO-004 requires the ERP item', () => {
     renderModal();
     expect(screen.getByRole('button', { name: 'Create draft invoice' })).toBeDisabled();

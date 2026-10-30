@@ -7,7 +7,7 @@ import { login } from './helpers';
  *
  * Journey A (any-member raise + line items, goal: a Draft PR with a line item):
  *   AC-PROC-006  Procurement index → "New procurement" CTA is visible to a write-role
- *   AC-PROC-001  Raise request → full-page form captures title + line → Save lands on Draft detail
+ *   AC-PROC-001  New procurement → choose A new need → full-page form captures title + line → Save lands on Draft detail
  *   AC-PROC-003  add a line item on the Draft PR → it appears with a derived line total
  *
  * Journey B (gating, goal: an Engineer can raise but never approves):
@@ -53,12 +53,13 @@ test(
     await waitIndexReady(page);
 
     // AC-PROC-006: the New procurement CTA is visible for a write-role.
-    const raiseBtn = page.getByRole('button', { name: /new procurement/i });
+    const raiseBtn = page.getByRole('button', { name: 'New procurement', exact: true });
     await expect(raiseBtn).toBeVisible({ timeout: 10_000 });
 
     // AC-PROC-001: open the one-page draft form and enter request details + line item.
     await raiseBtn.click();
     await expect(page).toHaveURL(/\/procurement\/new$/);
+    await page.getByRole('button', { name: 'A new need' }).click();
     await page.getByLabel(/title/i).fill(prTitle);
     const addRow = page.getByTestId('line-item-add-row');
     await addRow.getByLabel(/new item description/i).fill(itemDesc);
@@ -110,7 +111,7 @@ test(
     await waitIndexReady(page);
 
     // GOAL ORACLE: the create path is open to an Engineer (requester server-stamped).
-    await expect(page.getByRole('button', { name: /new procurement/i })).toBeVisible({
+    await expect(page.getByRole('button', { name: 'New procurement', exact: true })).toBeVisible({
       timeout: 10_000,
     });
   },

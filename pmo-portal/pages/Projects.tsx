@@ -110,6 +110,8 @@ const Projects: React.FC = () => {
   const canEdit = may('edit', 'project');
   const canArchive = may('archive', 'project');
   const canRowWrite = canEdit || canArchive;
+  // Contract amounts follow the shared money-view permission (same as project detail).
+  const canViewMoney = may('view', 'salesInvoice');
 
   // list-working-set-return (#682): `filter`/`client`/`pm`/`q`/`view` are URL-owned. The URL is
   // authoritative for supported keys; the role default (Engineer keeps "My Projects") and the
@@ -407,15 +409,58 @@ const Projects: React.FC = () => {
     const asOf = projectMoney?.[project.id]?.ledgerBasis === 'erp' ? projectMoney?.[project.id]?.actuals.asOf ?? null : null;
     return asOf && (!latest || asOf > latest) ? asOf : latest;
   }, null);
-  const coverageReason = moneyError
-    ? t('projects:coverage.readError', 'Project spending could not be read.')
-    : partialRows.length > 0
+  const coverageReason = moneyPending
+    ? undefined
+    : moneyError
+      ? t('projects:coverage.readError', 'Project spending could not be read.')
+      : partialRows.length > 0
       ? coverageAsOf
         ? t('projects:coverage.partialUpdated', 'Actual is partial on {{partial}} of {{total}} projects. Updated {{date}}.', { partial: partialRows.length, total: filtered.length, date: formatInstantDate(coverageAsOf) })
         : t('projects:coverage.partial', 'Actual is partial on {{partial}} of {{total}} projects.', { partial: partialRows.length, total: filtered.length })
       : unknownActualRows.length > 0
         ? t('projects:coverage.unknown', 'Actual is unknown on {{count}} of {{total}} projects.', { count: unknownActualRows.length, total: filtered.length })
         : undefined;
+  // The money-view-gated Contract column (see `canViewMoney`). A typed const — not an inline
+  // conditional spread — so the surrounding array literal keeps its contextual `Column` typing.
+  const contractColumn: Column<ProjectWithRefs> | null = canViewMoney ? {
+    key: 'contract',
+    header: t('projects.columns.contract', 'Contract'),
+    kind: 'money',
+    size: 160,
+    minSize: 152,
+    maxSize: 320,
+    align: 'num',
+    exportValue: (p) => p.contract_value,
+    // FR-L10N-020: each row is one project, so the currency is that project's own (0187's
+    // per-record column) — an org default would be wrong the moment two currencies coexist.
+    // OD-TAX-1 §2: a contract figure carries its basis wherever it is rendered. A list is the
+    // surface where two projects on OPPOSITE bases sit one row apart — a column of bare numbers
+    // there reads as comparable when it is not.
+    // Keep the visible basis concise; the record's full stored qualifier remains available to AT.
+    cell: (p) => {
+      const detailsId = `contract-tax-details-${p.id}`;
+      return (
+        <div className="flex min-w-0 flex-col items-end gap-0.5" aria-describedby={detailsId}>
+          <span>{formatCurrency(p.contract_value, p.currency)}</span>
+          <TaxBasisLabel
+            treatment={p.tax_treatment}
+            showDetails={false}
+            className="block max-w-full whitespace-normal break-words leading-tight"
+          />
+          <span id={detailsId} className="sr-only">
+            <TaxBasisLabel
+              treatment={p.tax_treatment}
+              taxRate={p.tax_rate}
+              taxBaseNumerator={p.tax_base_numerator}
+              taxBaseDenominator={p.tax_base_denominator}
+              className="block max-w-full whitespace-normal break-words"
+              testId={`contract-tax-label-${p.id}`}
+            />
+          </span>
+        </div>
+      );
+    },
+  } : null;
   const columns: Column<ProjectWithRefs>[] = [
     {
       key: 'project',
@@ -431,7 +476,11 @@ const Projects: React.FC = () => {
         return (
           <span className="block min-w-0" onClick={(event) => event.stopPropagation()}>
             <CompanyNameLink companyId={p.client_id} name={p.client ? companyDisplayName(p.client) : null} className="inline max-w-[180px] align-baseline text-[12px]" />
-            {ids && <> · {p.pmo_project_number && <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>}<span className="font-mono" title={ids}>{ids}</span></>}
+            {/* The ' · ' separator belongs to the desktop table's single-line cell. In the card
+                branch (<md) the client link is forced block (the truncate-to-block clip rule), so
+                the separator would lead its own wrapped line as a stray dot — hidden there; the
+                identifiers line reads clean (director fix). */}
+            {ids && <><span aria-hidden="true" className="hidden md:inline"> · </span>{p.pmo_project_number && <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>}<span className="font-mono" title={ids}>{ids}</span></>}
             {p.end_client && <span className="block truncate text-[11px] text-muted-foreground">{companyDisplayName(p.end_client)}</span>}
           </span>
         );
@@ -502,12 +551,14 @@ const Projects: React.FC = () => {
         });
         const initials = label.trim().split(/\s+/).slice(0, 2).map((part) => part.charAt(0)).join('').toUpperCase() || '?';
         return (
-          <span className="flex items-center justify-center">
+          // Left-aligned with the other card values (director fix): the avatar started at a
+          // different x than the Status pill and Contract amount inside the card's shared grid.
+          <span className="flex items-center">
             <span
               role="img"
               aria-label={label}
               title={label}
-              className="grid size-[18px] shrink-0 place-items-center rounded-full text-[8px] font-bold text-white"
+              className="grid size-5 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white"
               style={{ background: 'hsl(var(--avatar-2))' }}
             >
               {initials}
@@ -526,45 +577,12 @@ const Projects: React.FC = () => {
       exportValue: (p) => String(p.status),
       cell: (p) => <StatusPill variant={pillVariantForProjectStatus(p.status as string)}>{projectStatusLabel(p.status as string)}</StatusPill>,
     },
-    {
-      key: 'contract',
-      header: t('projects.columns.contract', 'Contract'),
-      kind: 'money',
-      size: 160,
-      minSize: 152,
-      maxSize: 320,
-      align: 'num',
-      exportValue: (p) => p.contract_value,
-      // FR-L10N-020: each row is one project, so the currency is that project's own (0187's
-      // per-record column) — an org default would be wrong the moment two currencies coexist.
-      // OD-TAX-1 §2: a contract figure carries its basis wherever it is rendered. A list is the
-      // surface where two projects on OPPOSITE bases sit one row apart — a column of bare numbers
-      // there reads as comparable when it is not.
-      // Keep the visible basis concise; the record's full stored qualifier remains available to AT.
-      cell: (p) => {
-        const detailsId = `contract-tax-details-${p.id}`;
-        return (
-          <div className="flex min-w-0 flex-col items-end gap-0.5" aria-describedby={detailsId}>
-            <span>{formatCurrency(p.contract_value, p.currency)}</span>
-            <TaxBasisLabel
-              treatment={p.tax_treatment}
-              showDetails={false}
-              className="block max-w-full whitespace-normal break-words leading-tight"
-            />
-            <span id={detailsId} className="sr-only">
-              <TaxBasisLabel
-                treatment={p.tax_treatment}
-                taxRate={p.tax_rate}
-                taxBaseNumerator={p.tax_base_numerator}
-                taxBaseDenominator={p.tax_base_denominator}
-                className="block max-w-full whitespace-normal break-words"
-                testId={`contract-tax-label-${p.id}`}
-              />
-            </span>
-          </div>
-        );
-      },
-    },
+    // Contract figure is money-view-gated (see `canViewMoney`): roles without the shared
+    // money-view permission get no Contract column — and, since `withCurrencyColumn` only
+    // inserts next to this key, neither the export's Contract column nor its per-row Currency
+    // column. Gating the column covers the desktop table AND the phone card reflow (the
+    // DataTable renders both branches from this one array).
+    ...(contractColumn ? [contractColumn] : []),
     {
       key: 'actual',
       header: t('projects.columns.actual', 'Actual'),
@@ -680,6 +698,8 @@ const Projects: React.FC = () => {
   });
 
   // AC-L10N-052: the download carries each row's own ISO code beside contract (export-only).
+  // Money-view-gated roles have no `contract` column at all, so this inserts no Currency column
+  // either — their export carries neither the contract figure nor its currency qualifier.
   const exportColumns = withCurrencyColumn(columns, 'contract', (r) => r.currency);
 
   // ── States ──────────────────────────────────────────────────────────────
@@ -694,9 +714,10 @@ const Projects: React.FC = () => {
       <ListPage
         title={t('projects.title', 'Projects')}
         description={pageDescription}
+        bodyPanel
         primaryAction={primaryAction}
       >
-        <div data-testid="projects-loading" className="rounded-lg border border-border bg-card">
+        <div data-testid="projects-loading">
           <ListState variant="loading" rows={6} />
         </div>
       </ListPage>
@@ -708,6 +729,7 @@ const Projects: React.FC = () => {
       <ListPage
         title={t('projects.title', 'Projects')}
         description={pageDescription}
+        bodyPanel
         primaryAction={primaryAction}
       >
         <ListState
@@ -725,6 +747,7 @@ const Projects: React.FC = () => {
       <ListPage
         title={t('projects.title', 'Projects')}
         description={pageDescription}
+        bodyPanel
         primaryAction={primaryAction}
       >
         <ListState
@@ -807,9 +830,9 @@ const Projects: React.FC = () => {
   ].filter((c): c is React.ReactElement => c !== null);
 
   const mobileToolbar = (
-    <div data-testid="projects-mobile-toolbar" className="w-full min-w-0 space-y-2.5">
+    <div data-testid="projects-mobile-toolbar" className="flex w-full min-w-0 flex-col gap-2.5">
       {/* status — bounded horizontal scroller (must stay reachable at 390px) */}
-      <div data-testid="status-filter-scroll" className="min-w-0 max-w-full overflow-x-auto scroll-fade-x">
+      <div data-testid="status-filter-scroll" className="order-2 min-w-0 max-w-full overflow-x-auto scroll-fade-x">
         <ViewToggle<StatusFilter>
           options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
           value={filter}
@@ -821,8 +844,8 @@ const Projects: React.FC = () => {
         />
       </div>
 
-      {/* search + selected view */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Search gets a full row before the status tabs. */}
+      <div data-testid="projects-mobile-search-row" className="order-1 min-w-0">
         <SearchMini
           placeholder={t('projects.search.placeholder', 'Search projects…')}
           aria-label={t('projects.search.ariaLabel', 'Search projects')}
@@ -831,27 +854,12 @@ const Projects: React.FC = () => {
           searchSurface="projects-list"
           module="projects"
           resultCount={filtered.length}
-          containerClassName="min-w-0 flex-1 basis-40"
+          containerClassName="w-full min-w-0"
         />
-        {/* The 4-option view toggle can exceed a 360px row; keep it reachable within the
-            toolbar without page bleed — it scrolls inside this bounded container. */}
-        <div data-testid="projects-mobile-view-scroll" className="ml-auto min-w-0 max-w-full overflow-x-auto">
-          <ViewToggle<'table' | 'cards' | 'calendar' | 'kanban'>
-            options={[
-              { value: 'table', label: t('projects.view.table', 'Table'), icon: 'table' },
-              { value: 'cards', label: t('projects.view.cards', 'Cards'), icon: 'cards' },
-              { value: 'calendar', label: t('projects.view.calendar', 'Calendar'), icon: 'cal' },
-              { value: 'kanban', label: t('projects.view.board', 'Board'), icon: 'cols' },
-            ]}
-            value={view}
-            onChange={onViewChange}
-            ariaLabel={t('projects.view.ariaLabel', 'Projects view')}
-          />
-        </div>
       </div>
 
       {/* filters + more actions disclosures */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="order-3 flex min-w-0 flex-wrap items-center gap-2">
         <ProjectClassificationFilters
           {...classificationFilterProps}
           panel={(fields, disclosure) => (
@@ -911,6 +919,22 @@ const Projects: React.FC = () => {
             </MobileToolbarDisclosure>
           )}
         />
+
+        {/* Keep the four view choices reachable without widening the page. */}
+        <div data-testid="projects-mobile-view-scroll" className="min-w-0 max-w-full overflow-x-auto">
+          <ViewToggle<'table' | 'cards' | 'calendar' | 'kanban'>
+            options={[
+              { value: 'table', label: t('projects.view.table', 'Table'), icon: 'table' },
+              { value: 'cards', label: t('projects.view.cards', 'Cards'), icon: 'cards' },
+              { value: 'calendar', label: t('projects.view.calendar', 'Calendar'), icon: 'cal' },
+              { value: 'kanban', label: t('projects.view.board', 'Board'), icon: 'cols' },
+            ]}
+            value={view}
+            onChange={onViewChange}
+            ariaLabel={t('projects.view.ariaLabel', 'Projects view')}
+            labelClassName="max-sm:sr-only"
+          />
+        </div>
 
         {moreActionsChildren.length > 0 && (
           <MobileToolbarDisclosure
@@ -996,9 +1020,9 @@ const Projects: React.FC = () => {
     <ListPage
       title={t('projects.title', 'Projects')}
       description={pageDescription}
+      bodyPanel={view === 'table'}
       primaryAction={primaryAction}
       mobileToolbar={mobileToolbar}
-      desktopToolbarClassName="xl:grid xl:grid-cols-[minmax(0,1fr)_220px_auto] xl:items-center xl:gap-x-2 xl:gap-y-2 xl:overflow-visible xl:[&>*:nth-child(1)]:col-start-1 xl:[&>*:nth-child(1)]:row-start-1 xl:[&>*:nth-child(2)]:col-start-2 xl:[&>*:nth-child(2)]:row-start-1 xl:[&>*:nth-child(3)]:col-start-1 xl:[&>*:nth-child(3)]:row-start-2 xl:[&>*:nth-child(4)]:col-start-2 xl:[&>*:nth-child(4)]:row-start-2 xl:[&>*:nth-child(5)]:col-start-3 xl:[&>*:nth-child(5)]:row-span-2"
       filters={
         /* AC-2: wrap in overflow-x-auto so the full filter strip (incl. "At risk") is
            reachable at 390px without clipping. scroll-fade-x adds the right-edge fade
@@ -1142,6 +1166,7 @@ const Projects: React.FC = () => {
       ) : view === 'table' ? (
         <>
           <DataTable<ProjectWithRefs>
+            embedded
             rows={filtered}
             columns={visibleColumns}
             rowKey={(p) => p.id}

@@ -15,7 +15,8 @@ const { featureEnabled, userViewsData } = vi.hoisted(() => {
   return { featureEnabled, userViewsData };
 });
 
-vi.mock('@/src/lib/features', () => ({
+vi.mock('@/src/lib/features', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/lib/features')>()),
   isFeatureEnabled: (key: string) => featureEnabled[key] ?? false,
   FEATURES: featureEnabled,
   // Rail resolves each gated item's fallback via FEATURE_ENV_DEFAULT[key] (Rail.tsx) — the mock must

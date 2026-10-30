@@ -4,7 +4,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useComments, useCommentMutations } from '@/src/hooks/useComments';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import type { CommentEntityType } from '@/src/lib/db/comments';
-import { formatRelativeTime } from '@/src/lib/format';
+import { formatDate, formatRelativeTime } from '@/src/lib/format';
 import { Button } from '@/src/components/ui/Button';
 import { ConfirmDialog } from '@/src/components/ui/ConfirmDialog';
 import { SectionHeader } from '@/src/components/ui/SectionHeader';
@@ -23,13 +23,15 @@ function activeMention(body: string): string | null {
 export interface CommentsSectionProps {
   entityType: CommentEntityType;
   entityId: string;
+  /** Omit the section title when the host already names the area (e.g. the project Activity tab). */
+  hideTitle?: boolean;
 }
 
 /**
  * Plain-text comments on a project or task (#790): newest last, author + relative time, `@` picks an
  * org member. RLS is the authority (readers of the parent read/post; only the author deletes).
  */
-export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, entityId }) => {
+export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, entityId, hideTitle = false }) => {
   const { t } = useTranslation();
   const { currentUser } = useAuth();
   const comments = useComments(entityType, entityId);
@@ -74,34 +76,37 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
 
   return (
     <section aria-label={t('comments.title', 'Comments')} data-testid="comments-section">
-      <SectionHeader title={t('comments.title', 'Comments')} />
+      {!hideTitle && <SectionHeader title={t('comments.title', 'Comments')} />}
       {comments.isLoading ? (
         <p className="text-sm text-muted-foreground">{t('comments.loading', 'Loading comments…')}</p>
       ) : comments.isError ? (
         <p role="alert" className="text-sm text-destructive-text">{t('comments.loadError', "Couldn't load comments. Try again shortly.")}</p>
       ) : (comments.data ?? []).length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t('comments.empty', 'No comments yet.')}</p>
+        <p className="mb-4 text-sm text-muted-foreground">{t('comments.empty', 'No comments yet.')}</p>
       ) : (
-        <ul className="mb-3 space-y-3">
-          {(comments.data ?? []).map((c) => (
-            <li key={c.id} className="rounded-lg border border-border p-3" data-testid="comment-item">
-              <div className="mb-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                <span>
-                  <span className="font-medium text-foreground">
-                    {c.author?.full_name ?? t('comments.unknownAuthor', 'Former member')}
-                  </span>
-                  {' · '}
-                  <time dateTime={c.created_at}>{formatRelativeTime(c.created_at)}</time>
+        <ul className="mb-6 flex flex-col gap-5">
+          {(comments.data ?? []).map((c) => {
+            const name = c.author?.full_name ?? t('comments.unknownAuthor', 'Former member');
+            return (
+              <li key={c.id} className="flex gap-3" data-testid="comment-item">
+                <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-foreground">
+                  {name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase()}
                 </span>
-                {c.author_id === currentUser?.id && (
-                  <Button variant="ghost" size="sm" onClick={() => setConfirmId(c.id)}>
-                    {t('comments.delete', 'Delete')}
-                  </Button>
-                )}
-              </div>
-              <p className="whitespace-pre-wrap break-words text-sm">{c.body}</p>
-            </li>
-          ))}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-baseline gap-x-2">
+                    <span className="text-sm font-semibold text-foreground">{name}</span>
+                    <time dateTime={c.created_at} className="text-xs text-muted-foreground">{formatDate(c.created_at)} · {formatRelativeTime(c.created_at)}</time>
+                    {c.author_id === currentUser?.id && (
+                      <button type="button" onClick={() => setConfirmId(c.id)} className="touch-target ml-auto inline-flex items-center text-xs text-muted-foreground hover:text-destructive-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        {t('comments.delete', 'Delete')}
+                      </button>
+                    )}
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">{c.body}</p>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
 

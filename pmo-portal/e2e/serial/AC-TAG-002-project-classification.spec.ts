@@ -9,6 +9,10 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
   const sector = `Sector-${suffix}`;
   const deal = `Classification deal ${suffix}`;
   const internal = `Classification internal ${suffix}`;
+  const openProjectDetails = async () => {
+    await page.getByLabel('More actions', { exact: true }).click();
+    await page.getByRole('button', { name: 'Project details', exact: true }).click();
+  };
   await login(page, 'admin@acme.test');
   await page.goto('/administration/projects');
   const lines = page.getByLabel('Service lines');
@@ -52,9 +56,9 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
     await expect(dealRow).toBeVisible();
     await dealRow.click();
     await expect(page.getByTestId('record-header')).toContainText(deal);
-    // SUB-I: pre-win classification lives in the rail's closed details disclosure, with the codes.
+    // SUB-I: pre-win classification lives in the current Project details menu section, with the codes.
     const rail = page.getByTestId('project-detail-rail');
-    await rail.locator('summary').click();
+    await openProjectDetails();
     for (const value of [serviceLine, sector, 'West Java', 'Tender', 'Consortium']) await expect(rail.getByText(value, { exact: true })).toBeVisible();
     await page.getByRole('button', { name: /^Edit$/ }).click();
     const edit = page.getByRole('dialog');
@@ -63,7 +67,7 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
     await edit.getByRole('button', { name: 'Save project' }).click();
     await expect(edit).not.toBeVisible();
     await page.reload();
-    await rail.locator('summary').click();
+    await openProjectDetails();
     await expect(rail.getByText('Bali', { exact: true })).toBeVisible();
     await expect(rail.getByText('Direct award', { exact: true })).toBeVisible();
     await page.goto('/projects?view=table');
@@ -83,7 +87,8 @@ test('AC-TAG-002 classifications persist through form, detail editing, Projects 
     for (const name of created) {
       await page.goto(name === deal ? '/sales?view=table' : '/projects?view=table');
       await page.getByText(name, { exact: true }).click();
-      await page.getByRole('button', { name: /Archive/ }).click();
+      await page.getByLabel('More actions', { exact: true }).click();
+      await page.getByRole('button', { name: 'Archive', exact: true }).click();
       await page.getByRole('alertdialog').getByRole('button', { name: /archive project/i }).click();
       await expect(page.getByRole('alertdialog')).not.toBeVisible();
     }

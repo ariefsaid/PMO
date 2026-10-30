@@ -115,7 +115,7 @@ export function kindLabels(t: TFunction): Record<string, string> {
     company: t('history.kind.company', 'Company'),
     contact: t('history.kind.contact', 'Contact'),
     sales_invoice: t('history.kind.sales_invoice', 'Sales invoice'),
-    procurement_invoice: t('history.kind.procurement_invoice', 'Supplier bill'),
+    procurement_invoice: t('history.kind.procurement_invoice', 'Supplier invoice'),
     vendor_withholding_slip: t('history.kind.vendor_withholding_slip', 'Bukti potong'),
     vendor_withholding_slip_bill: t('history.kind.vendor_withholding_slip_bill', 'Bukti potong bill link'),
   };

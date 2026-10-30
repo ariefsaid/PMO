@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { Link, NavLink, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -6,6 +6,10 @@ import { useIsOperator } from '@/src/auth/useIsOperator';
 import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
+import { Badge } from '@/src/components/ui/StatusPill';
+import { usePermission } from '@/src/auth/usePermission';
+import { useFinancePosition } from '@/src/hooks/useFinancePosition';
+import { AuthContext } from '@/src/auth/AuthContext';
 import { isFeatureEnabled } from '@/src/lib/features';
 import { AppVersion } from '@/src/components/AppVersion';
 import { ApprovalsNavCount } from './ApprovalsNavCount';
@@ -15,7 +19,7 @@ import {
 } from '@/src/lib/features';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import { useUserViews } from '@/src/hooks/useUserViews';
-import { MODULES, RAIL_PARENT_FOR_PATH } from './routeMatch';
+import { MODULES, railParentForPath } from './routeMatch';
 
 // Map profiles.role string → UserRole enum explicitly (preserved from Sidebar.tsx).
 // A future enum rename is a compile error here rather than a silent nav bug.
@@ -48,7 +52,7 @@ interface NavItem {
   feature?: OrgFeatureKey;
   /** Show only when this entitlement is OFF (the item's job is done elsewhere when it is on). */
   unlessFeature?: OrgFeatureKey;
-  /** This destination uses the real authorization role while other legacy items keep preview-role behavior. */
+  /** Finance destinations require both the signed-in role and the selected preview role. */
   realRoleOnly?: boolean;
 }
 
@@ -85,18 +89,16 @@ const ALL_ITEMS: NavItem[] = [
   // Engineer and Admin entries remain available; Executive navigation is intentionally unchanged.
   // Finance works assigned tasks like an Engineer (owner, 2026-10-23), so it gets the same doorway.
   { to: '/my-tasks', text: 'My Tasks', icon: 'tasks', group: 'Workforce', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  // Finance section — gated by the `revenue` feature flag (an org entitlement). OD-NAR-2 (owner,
+  // Finance section — gated by the relevant org entitlements. OD-NAR-2 (owner,
   // 2026-10-07, #784; supersedes DD-NAR-14 for navigation): with NO explicit org_features row the
   // entitlement follows revenue ownership — ON when no ERP owns revenue (PMO-native invoicing is
   // the default), OFF once an ERP owns it; an explicit row still wins, so an Operator can turn it
-  // off. Resolution lives in useOrgFeatures (one place). Shown to Finance, PM, Exec and Admin.
-  { to: '/sales-invoices', text: 'Sales Invoices', icon: 'invoices', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/incoming-payments', text: 'Incoming Payments', icon: 'payments', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/financial-statements', text: 'Financial statements', icon: 'table', group: 'Finance', realRoleOnly: true, roles: [UserRole.Admin, UserRole.Executive, UserRole.Finance] },
-  { to: '/revenue-by-project', text: 'Revenue by Project', icon: 'table', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  // #765: the Reports module's first report — the monthly management pack. Same read set and the same
-  // `revenue` entitlement as the other Finance items (it is built from sales invoices).
-  { to: '/reports', text: 'Reports', icon: 'reports', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  // off. Resolution lives in useOrgFeatures (one place). Shown to Finance, Executive and Admin.
+  { to: '/finance', text: 'Finance', icon: 'dollar', group: 'Finance', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  { to: '/finance/receivables', text: 'Receivables', icon: 'invoices', group: 'Finance', feature: 'revenue', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  { to: '/finance/payables', text: 'Payables', icon: 'procurement', group: 'Finance', feature: 'procurement', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  { to: '/finance/reports', text: 'Reports', icon: 'reports', group: 'Finance', feature: 'revenue', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
+  { to: '/finance/statements', text: 'Statements', icon: 'reports', group: 'Finance', realRoleOnly: true, roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin] },
 ];
 
 const GROUP_ORDER: NavItem['group'][] = ['Overview', 'CRM', 'Delivery', 'Finance', 'Workforce'];
@@ -106,10 +108,26 @@ const MAX_NAV_VIEWS = 8;
 
 /** Base classes shared by every nav anchor (primary items + Administration foot). */
 const NAV_LINK_BASE =
-  'flex h-9 w-full items-center gap-[11px] rounded-md px-2.5 text-[13.5px] font-medium transition-colors [&_svg]:size-[17px] [&_svg]:shrink-0';
+  'touch-target flex h-[var(--control-height)] w-full items-center gap-3 rounded-md px-2.5 text-control font-medium transition-colors [&_svg]:size-5 [&_svg]:shrink-0';
 
 /** The two items that get stage-aware active-state overrides on `/projects/:id`. */
 const STAGE_AWARE_PATHS = new Set(['/projects', '/sales']);
+
+const FinanceOverdueCount: React.FC = () => {
+  // Rail unit harnesses can render without an AuthProvider; in the application the provider is
+  // always present. Keep the data query behind that boundary so such shell-only renders stay pure.
+  const auth = useContext(AuthContext);
+  if (!auth) return null;
+  return <FinanceOverdueCountValue />;
+};
+
+const FinanceOverdueCountValue: React.FC = () => {
+  const { t } = useTranslation();
+  const { position, isPending, isError } = useFinancePosition();
+  if (isPending || isError) return null;
+  const count = position.overdue.length;
+  return <Badge aria-label={t('financeHub:hub.overdueCount', '{{count}} overdue invoices', { count })}>{count}</Badge>;
+};
 
 export interface RailProps {
   onNavigate?: () => void;
@@ -144,6 +162,8 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
   const { effectiveRole, realRole } = useEffectiveRole();
   const role = toUserRole(effectiveRole);
   const realRoleValue = toUserRole(realRole);
+  const may = usePermission();
+  const canViewStatements = may('view', 'financialStatements');
 
   // Must call hooks unconditionally BEFORE early returns (rules-of-hooks).
   const { data: userViews } = useUserViews();
@@ -164,8 +184,8 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
 
   const items = ALL_ITEMS.filter(
     (i) => (i.realRoleOnly
-      ? realRoleValue !== null && i.roles.includes(realRoleValue)
-      : i.roles.includes(role)) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)),
+      ? role !== null && realRoleValue !== null && i.roles.includes(role) && i.roles.includes(realRoleValue)
+      : i.roles.includes(role)) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)) && (i.to !== '/finance/statements' || canViewStatements),
   );
   // My Views group + the Assistant toggle remain env-flag-driven (NOT org entitlements — plan M5):
   // `userViews`/`agentAssistant` are env-only sub-flags until the entitlements system absorbs them.
@@ -192,6 +212,11 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
     '/procurement': t('shell.nav.procurement', 'Procurement'),
     '/timesheets': t('shell.nav.timesheets', 'Timesheets'),
     '/expenses': t('shell.nav.expenses', 'Expenses'),
+    '/finance': t('financeHub:nav.finance', 'Finance'),
+    '/finance/receivables': t('financeHub:hub.receivables', 'Receivables'),
+    '/finance/payables': t('financeHub:hub.payables', 'Payables'),
+    '/finance/reports': t('financeHub:hub.reports', 'Reports'),
+    '/finance/statements': t('financeHub:hub.statements', 'Statements'),
     '/approvals': t('shell.nav.approvals', 'Approvals'),
     '/companies': t('shell.nav.companies', 'Companies'),
     // No rail item any more (FIN-S9), but the breadcrumb and command palette share this key.
@@ -235,6 +260,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         </>
       );
     }
+    if (item.to === '/finance') return <><span>{label}</span><FinanceOverdueCount /></>;
     return <span>{label}</span>;
   };
 
@@ -254,7 +280,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           aria-current={active ? 'page' : undefined}
           className={cn(
             NAV_LINK_BASE,
-            active ? 'bg-primary/10 font-semibold text-nav-active-text' : 'text-foreground hover:bg-accent',
+            active ? 'bg-nav-selected-surface font-semibold text-nav-active-text' : 'text-foreground hover:bg-surface-hover',
           )}
         >
           <Icon name={item.icon} />
@@ -268,24 +294,38 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         (item.to === '/projects' && railActiveOverride === 'projects') ||
         (item.to === '/sales' && railActiveOverride === 'salesPipeline');
       return (
-        <NavLink
+        <Link
           key={item.to}
           to={item.to}
-          end={item.to === '/' || item.to.includes('?')}
           onClick={onNavigate}
-          // Ignore NavLink's built-in isActive; use the override decision.
-          className={() =>
-            cn(
-              NAV_LINK_BASE,
-              overrideActive
-                ? 'bg-primary/10 font-semibold text-nav-active-text'
-                : 'text-foreground hover:bg-accent',
-            )
-          }
+          aria-current={overrideActive ? 'page' : undefined}
+          className={cn(
+            NAV_LINK_BASE,
+            overrideActive
+              ? 'bg-nav-selected-surface font-semibold text-nav-active-text'
+              : 'text-foreground hover:bg-surface-hover',
+          )}
         >
           <Icon name={item.icon} />
           {renderLabel(item)}
-        </NavLink>
+        </Link>
+      );
+    }
+
+    // Child routes outside the parent's URL (e.g. /erp-purchases under Procurement)
+    // use the parent decision for both the selected treatment and its accessible state.
+    if (railParentForPath(location.pathname) === item.to) {
+      return (
+        <Link
+          key={item.to}
+          to={item.to}
+          onClick={onNavigate}
+          aria-current="page"
+          className={cn(NAV_LINK_BASE, 'bg-nav-selected-surface font-semibold text-nav-active-text')}
+        >
+          <Icon name={item.icon} />
+          {renderLabel(item)}
+        </Link>
       );
     }
 
@@ -293,16 +333,16 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
       <NavLink
         key={item.to}
         to={item.to}
-        end={item.to === '/' || item.to.includes('?')}
+        end={item.to === '/' || item.to.includes('?') || item.to.startsWith('/finance')}
         onClick={onNavigate}
         className={({ isActive }: { isActive: boolean }) => {
           // A child page outside the module's URL (e.g. /erp-purchases under Procurement) lights its parent.
-          const active = isActive || RAIL_PARENT_FOR_PATH[location.pathname] === item.to;
+          const active = isActive || railParentForPath(location.pathname) === item.to;
           return cn(
             NAV_LINK_BASE,
             active
-              ? 'bg-primary/10 font-semibold text-nav-active-text'
-              : 'text-foreground hover:bg-accent',
+              ? 'bg-nav-selected-surface font-semibold text-nav-active-text'
+              : 'text-foreground hover:bg-surface-hover',
           );
         }}
       >
@@ -314,7 +354,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
 
   return (
     <aside
-      className="flex min-h-0 flex-col border-r border-border bg-card"
+      className="flex min-h-0 flex-col border-r border-border bg-[hsl(var(--surface-panel))]"
       style={{ gridArea: 'rail' }}
     >
       <div
@@ -345,7 +385,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
             if (groupItems.length === 0) return null;
             return (
               <React.Fragment key={group}>
-                <div className="px-2 pb-1.5 pt-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                <div className="px-2 pb-1.5 pt-3.5 text-support font-semibold text-muted-foreground">
                   {groupLabels[group]}
                 </div>
                 {groupItems.map(renderItem)}
@@ -354,7 +394,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           })}
           {showMyViews && (
             <div role="group" aria-label={myViewsLabel}>
-              <div className="px-2 pb-1.5 pt-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              <div className="px-2 pb-1.5 pt-3.5 text-support font-semibold text-muted-foreground">
                 {myViewsLabel}
               </div>
               {myViewsItems.map((view) => (
@@ -366,8 +406,8 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
                     cn(
                       NAV_LINK_BASE,
                       isActive
-                        ? 'bg-primary/10 font-semibold text-nav-active-text'
-                        : 'text-foreground hover:bg-accent',
+                        ? 'bg-nav-selected-surface font-semibold text-nav-active-text'
+                        : 'text-foreground hover:bg-surface-hover',
                     )
                   }
                 >
@@ -392,7 +432,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
               onOpenAssistant?.();
               onNavigate?.();
             }}
-            className={cn(NAV_LINK_BASE, 'w-full text-foreground hover:bg-accent')}
+            className={cn(NAV_LINK_BASE, 'w-full text-foreground hover:bg-surface-hover aria-pressed:bg-nav-selected-surface aria-pressed:text-nav-active-text')}
           >
             <Icon name="message" />
             <span>{t('shell.rail.assistant', 'Assistant')}</span>
@@ -409,8 +449,8 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
               cn(
                 NAV_LINK_BASE,
                 isActive
-                  ? 'bg-primary/10 font-semibold text-nav-active-text'
-                  : 'text-foreground hover:bg-accent',
+                  ? 'bg-nav-selected-surface font-semibold text-nav-active-text'
+                  : 'text-foreground hover:bg-surface-hover',
               )
             }
           >
@@ -424,7 +464,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           <NavLink
             to="/administration/users"
             onClick={onNavigate}
-            className="touch-target flex min-h-11 items-center gap-2 rounded-md px-2.5 text-sm text-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+            className="touch-target flex min-h-11 items-center gap-3 rounded-md px-2.5 text-control text-foreground hover:bg-surface-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring [&_svg]:size-5"
           >
             <Icon name="admin" aria-hidden="true" />
             <span>{t('admin.access.checkEntry', 'Check Administration access')}</span>

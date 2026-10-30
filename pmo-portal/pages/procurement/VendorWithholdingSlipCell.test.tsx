@@ -49,7 +49,7 @@ describe('AC-BUPOT-016 withholding slip cell', () => {
 
   it('does not instruct read-only viewers to set a vendor when no recovery action is available', () => {
     render(<VendorWithholdingSlipCell row={bill('not-recorded')} vendorMissing />);
-    expect(screen.queryByText('Set a vendor on the request before recording this slip.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Set a supplier on this procurement before recording this slip.')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Set supplier' })).not.toBeInTheDocument();
   });
 

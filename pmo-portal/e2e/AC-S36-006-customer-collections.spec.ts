@@ -545,9 +545,9 @@ test('AC-S36-006: Finance follows one customer’s source aging position to its 
     await expect(sourcePosition.getByRole('cell').nth(5)).toHaveText('$4,250');
 
     const overdueLink = collections.getByRole('link', { name: 'Overdue invoices first', exact: true });
-    await expect(overdueLink).toHaveAttribute('href', `/sales-invoices?customer=${fixture.companyId}&overdue=true`);
+    await expect(overdueLink).toHaveAttribute('href', `/finance/receivables?customer=${fixture.companyId}&overdue=true`);
     await overdueLink.click();
-    await expect(page).toHaveURL(`/sales-invoices?customer=${fixture.companyId}&overdue=true`);
+    await expect(page).toHaveURL(`/finance/receivables?customer=${fixture.companyId}&overdue=true`);
     await expect(page.getByTestId('customer-filter')).toContainText(fixture.companyName);
     await expect(page.getByRole('button', { name: /overdue only/i })).toHaveAttribute('aria-pressed', 'true');
     const overdueInvoice = page.getByRole('row').filter({ hasText: fixture.invoiceNumber });
@@ -555,7 +555,8 @@ test('AC-S36-006: Finance follows one customer’s source aging position to its 
     await waitForFonts(page);
     await expect(overdueInvoice).toContainText(fixture.companyName);
     await expect(overdueInvoice).toContainText(/\$\d/);
-    await expect(overdueInvoice).toContainText(/\d+ days overdue/);
+    // #1405 copy: overdue age preserved
+    await expect(overdueInvoice).toContainText(/Overdue · \d+ days/);
   } catch (error) {
     journeyFailure = error;
   }

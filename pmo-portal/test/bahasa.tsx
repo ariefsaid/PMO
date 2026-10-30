@@ -16,6 +16,8 @@ const EN_DASHBOARD = JSON.parse(readFileSync(join(process.cwd(), 'public/locales
 const ID_DASHBOARD = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/dashboard.json'), 'utf8'));
 const EN_FINANCE = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/finance.json'), 'utf8'));
 const ID_FINANCE = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/finance.json'), 'utf8'));
+const EN_FINANCE_HUB = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/financeHub.json'), 'utf8'));
+const ID_FINANCE_HUB = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/financeHub.json'), 'utf8'));
 const EN_PROCUREMENT = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/procurement.json'), 'utf8'));
 const ID_PROCUREMENT = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/procurement.json'), 'utf8'));
 const EN_RECORD_FOLDERS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/recordFolders.json'), 'utf8'));
@@ -34,8 +36,8 @@ function makeBahasaI18n(locale: 'en' | 'id') {
     defaultNS: 'common',
     fallbackNS: 'common',
     resources: {
-      id: { common: ID, dashboard: ID_DASHBOARD, finance: ID_FINANCE, procurement: ID_PROCUREMENT, recordFolders: ID_RECORD_FOLDERS, assistantPanel: ID_ASSISTANT_PANEL, project: ID_PROJECT },
-      en: { common: EN, dashboard: EN_DASHBOARD, finance: EN_FINANCE, procurement: EN_PROCUREMENT, recordFolders: EN_RECORD_FOLDERS, assistantPanel: EN_ASSISTANT_PANEL, project: EN_PROJECT },
+      id: { common: ID, dashboard: ID_DASHBOARD, finance: ID_FINANCE, financeHub: ID_FINANCE_HUB, procurement: ID_PROCUREMENT, recordFolders: ID_RECORD_FOLDERS, assistantPanel: ID_ASSISTANT_PANEL, project: ID_PROJECT },
+      en: { common: EN, dashboard: EN_DASHBOARD, finance: EN_FINANCE, financeHub: EN_FINANCE_HUB, procurement: EN_PROCUREMENT, recordFolders: EN_RECORD_FOLDERS, assistantPanel: EN_ASSISTANT_PANEL, project: EN_PROJECT },
     },
     initImmediate: false,
     interpolation: { escapeValue: false },

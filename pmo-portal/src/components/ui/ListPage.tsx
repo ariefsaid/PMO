@@ -1,10 +1,13 @@
 import React from 'react';
 import { Toolbar } from './DataTable';
 import { useIsDesktop } from './useIsDesktop';
+import { Card } from './Card';
 
 export interface ListPageProps {
   /** Page H1 (the entity noun — "Companies", "Projects", "Pipeline", …). */
   title: React.ReactNode;
+  /** Embedded pages use a compact h2 while standalone list routes remain h1. */
+  headingLevel?: 1 | 2;
   /** One-line page subtitle below the title. */
   description?: React.ReactNode;
   /**
@@ -47,6 +50,8 @@ export interface ListPageProps {
   banner?: React.ReactNode;
   /** Body — the table / board / cards / calendar render + list states. */
   children?: React.ReactNode;
+  /** Frame the primary list/board body as a panel on the content canvas. */
+  bodyPanel?: boolean;
   className?: string;
 }
 
@@ -55,16 +60,14 @@ export interface ListPageProps {
  * every module's list so they read the same:
  *
  *   [title + count] … [primary "New <Entity>"]
- *   toolbar: filters · search · secondaryFilter · export · import   …   view-switcher (right)
+ *   toolbar: status/filter controls · fixed search · view/actions
  *
- * The slot order is fixed and empty slots are held in place (no reflow). Status
- * **filters** render left as text chips; the **view-switcher** renders
- * right-aligned (icon segmented) so the two strips are never confused
- * (filter-vs-view trap). Each page supplies its OWN columns/filters/views as
- * slots — the shell is shared, the content is per-page.
+ * Groups keep status/filter controls, search, and view/actions in reading order
+ * on phones and on the desktop row.
  */
 export const ListPage: React.FC<ListPageProps> = ({
   title,
+  headingLevel = 1,
   description,
   count,
   primaryAction,
@@ -78,6 +81,7 @@ export const ListPage: React.FC<ListPageProps> = ({
   desktopToolbarClassName,
   banner,
   children,
+  bodyPanel = false,
   className,
 }) => {
   const isBelowMd = !useIsDesktop();
@@ -98,7 +102,11 @@ export const ListPage: React.FC<ListPageProps> = ({
       >
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-[24px] font-bold tracking-[-0.02em]">{title}</h1>
+            {headingLevel === 2 ? (
+              <h2 className="text-[18px] font-semibold">{title}</h2>
+            ) : (
+              <h1 className="text-[24px] font-bold tracking-[-0.02em]">{title}</h1>
+            )}
             {count !== undefined && (
               <span
                 data-testid="list-page-count"
@@ -127,21 +135,25 @@ export const ListPage: React.FC<ListPageProps> = ({
             {mobileToolbar}
           </Toolbar>
         ) : (
-          <Toolbar standalone data-testid="list-page-toolbar" className={desktopToolbarClassName}>
-            {filters}
-            {search}
-            {secondaryFilter}
-            {exportAction}
-            {importAction}
-            {view && (
-              <div data-testid="list-page-view" className="ml-auto">
-                {view}
+          <Toolbar standalone data-testid="list-page-toolbar" className={`grid min-w-0 grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-center ${desktopToolbarClassName ?? ''}`}>
+            {(filters || secondaryFilter) && (
+              <div data-testid="list-page-filter-group" className="flex min-w-0 flex-wrap items-center gap-2 md:col-start-1 md:row-start-1">
+                {filters}
+                {secondaryFilter}
+              </div>
+            )}
+            {search && <div data-testid="list-page-search-group" className="min-w-0 md:col-start-2 md:row-start-1">{search}</div>}
+            {(view || exportAction || importAction) && (
+              <div data-testid="list-page-action-group" className="flex min-w-0 flex-wrap items-center gap-2 md:col-start-3 md:row-start-1">
+                {view && <div data-testid="list-page-view" className="shrink-0">{view}</div>}
+                {exportAction}
+                {importAction}
               </div>
             )}
           </Toolbar>
         ))}
 
-      {children}
+      {bodyPanel ? <Card className="min-w-0 overflow-hidden">{children}</Card> : children}
     </div>
   );
 };

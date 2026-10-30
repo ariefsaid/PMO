@@ -9,7 +9,7 @@ import { useProjectIdentity } from '@/src/hooks/useProjects';
 import { useCompanyCollections } from '@/src/hooks/useCompanyCollections';
 import { useActualsSnapshot, useApAgingSnapshot, useArAgingSnapshot } from '@/src/hooks/useErpSnapshots';
 import { AccountingSnapshotsSection } from './AccountingSnapshotsSection';
-import { KPITile } from '@/src/components/ui/KPITile';
+import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
 import { AwaitingApprovalTile } from './AwaitingApprovalTile';
 import { StillToInvoiceCard } from './StillToInvoiceCard';
 import { Card, CardHead } from '@/src/components/ui/Card';
@@ -29,9 +29,7 @@ import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import type { BudgetReviewRow } from '@/src/lib/db/dashboard';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-
-/** The procurement status meaning "billed, awaiting payment" (plan Open Q6). */
-const INVOICED_STATUS: Tables<'procurements'>['status'] = 'Vendor Invoiced';
+import { isProcurementReadyToPay } from '@/src/lib/finance/financePosition';
 
 /**
  * Compute days since a given ISO date string (the row's `vendor_invoiced_at` — the real time the
@@ -73,7 +71,7 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
   const { t } = useTranslation('dashboard');
 
   const viRows = useMemo(
-    () => procurements.filter((p) => p.status === INVOICED_STATUS),
+    () => procurements.filter(isProcurementReadyToPay),
     [procurements],
   );
 
@@ -272,7 +270,7 @@ export const FinanceDashboard: React.FC = () => {
     ? t('uxs03.realizedMarginKnown', 'Known margin on billed work')
     : t('uxs03.realizedMargin', 'Margin on billed work');
   const outstanding = useMemo(() => {
-    const invoiced = (procurements ?? []).filter((p) => p.status === INVOICED_STATUS);
+    const invoiced = (procurements ?? []).filter(isProcurementReadyToPay);
     const currencies = new Set(invoiced.map((p) => p.currency));
     if (currencies.size > 1 || invoiced.some((p) => typeof p.total_value !== 'number' || !Number.isFinite(p.total_value))) return null;
     return invoiced.reduce((sum, p) => sum + p.total_value, 0);
@@ -424,7 +422,7 @@ export const FinanceDashboard: React.FC = () => {
       <section aria-label={t('uxs03.attentionAndApprovals', 'Attention and approvals')} className="empty:hidden grid grid-cols-1 gap-3 min-[560px]:grid-cols-2">
         <AwaitingApprovalTile includeTimesheets={false} label={t('dashboard:finance.awaiting', 'Procurement awaiting your decision')} />
       </section>
-      <section aria-label={t('dashboard:finance.kpiBand', 'Finance KPIs')} className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-5">
+      <KPIRow aria-label={t('dashboard:finance.kpiBand', 'Finance KPIs')} className="grid-cols-1 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-5">
         {/* AC-IXD-DASH-W5-C2A: Contracted revenue → /projects?filter=Ongoing */}
         <KPITile testId="kpi-revenue" tone="green" icon="dollar" label={t('dashboard:finance.contractValue', 'Contract value in progress')}
           {...figure(data?.total_contract_value ?? null)} loading={isPending}
@@ -450,7 +448,7 @@ export const FinanceDashboard: React.FC = () => {
           to="/procurement?status=Vendor+Invoiced"
           linkLabel={t('dashboard:finance.payablesLink', 'Open supplier invoices awaiting payment')}
           help={t('dashboard:finance.payablesHelp', 'Procurement value owed to suppliers in the Supplier Invoiced state.')} />
-      </section>
+      </KPIRow>
 
       {/* OD-BILL-1 / #786: what is still to invoice on the client's POs. */}
       <StillToInvoiceCard />
@@ -479,7 +477,7 @@ export const FinanceDashboard: React.FC = () => {
               ranks ALL budget>0 projects in the org by committed-basis variance (server-side); the
               card shows the worst 5. No longer a contract-value pre-slice re-sorted on the client. */}
           <CardHead className="rounded-t-lg">
-            {t('uxs03.financeBudgetReviewTitle', 'Budget review — top 5 by variance (portfolio-wide)')}
+            {t('uxs03.financeBudgetReviewTitle', 'Budget review: top 5 by variance (portfolio-wide)')}
           </CardHead>
           {/* B-0.3: RPC error must show an error/retry branch, not the "No project spend yet" empty.
               The DataTable's built-in empty state fires on error (budgetReview=undefined → topByVariance=[])

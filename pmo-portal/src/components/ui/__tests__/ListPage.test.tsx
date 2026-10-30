@@ -21,7 +21,14 @@ describe('ListPage shell', () => {
     expect(within(header).getByRole('button', { name: 'New company' })).toBeInTheDocument();
   });
 
-  it('renders the toolbar slots in the canonical order: filters · search · secondaryFilter · export · import, view right-aligned', () => {
+  it('renders an embedded title as an h2 at the compact subheading size', () => {
+    render(<ListPage title="Invoices" headingLevel={2} />);
+    const title = screen.getByRole('heading', { level: 2, name: 'Invoices' });
+    expect(title.className).toContain('text-[18px]');
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
+  });
+
+  it('groups search, status/filter controls, and view/actions for a stable responsive toolbar', () => {
     render(
       <ListPage
         title="Companies"
@@ -36,18 +43,13 @@ describe('ListPage shell', () => {
       </ListPage>,
     );
     const toolbar = screen.getByTestId('list-page-toolbar');
-    const ids = within(toolbar)
-      .getAllByTestId(/^slot-/)
-      .map((el) => el.getAttribute('data-testid'));
-    // canonical DOM order — filters first, view last (right-aligned)
-    expect(ids).toEqual([
-      'slot-filters',
-      'slot-search',
-      'slot-secondary',
-      'slot-export',
-      'slot-import',
-      'slot-view',
-    ]);
+    expect(within(toolbar).getByTestId('list-page-search-group')).toContainElement(screen.getByTestId('slot-search'));
+    expect(within(toolbar).getByTestId('list-page-filter-group')).toContainElement(screen.getByTestId('slot-filters'));
+    expect(within(toolbar).getByTestId('list-page-filter-group')).toContainElement(screen.getByTestId('slot-secondary'));
+    expect(within(toolbar).getByTestId('list-page-action-group')).toContainElement(screen.getByTestId('slot-view'));
+    expect(within(toolbar).getByTestId('list-page-action-group')).toContainElement(screen.getByTestId('slot-export'));
+    expect(within(toolbar).getByTestId('list-page-action-group')).toContainElement(screen.getByTestId('slot-import'));
+    expect(toolbar.className).toContain('md:grid-cols-[minmax(0,1fr)_220px_auto]');
   });
 
   it('pushes the view-switcher to the right edge of the toolbar', () => {
@@ -56,9 +58,9 @@ describe('ListPage shell', () => {
         body
       </ListPage>,
     );
-    // the view slot carries the right-alignment hook so it never sits inline with filters
+    // the view slot is grouped with trailing actions and stays right-aligned on desktop
     const viewWrap = screen.getByTestId('list-page-view');
-    expect(viewWrap.className).toContain('ml-auto');
+    expect(viewWrap.parentElement).toHaveAttribute('data-testid', 'list-page-action-group');
   });
 
   it('omits the toolbar entirely when no toolbar slots are supplied', () => {

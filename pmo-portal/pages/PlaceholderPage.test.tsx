@@ -45,10 +45,8 @@ describe('PlaceholderPage (C5 — calm on-brand empty state)', () => {
     expect(container.innerHTML).not.toMatch(EMOJI);
   });
 
-  it('C5/AS-2: renders the design-system empty state — icon tile + heading + sub', () => {
-    const { container } = renderPage('Reports');
-    // the DS empty-state icon tile (52px secondary tile)
-    expect(container.querySelector('.size-\\[52px\\]')).not.toBeNull();
+  it('C5/AS-2: renders the design-system empty state — heading + sub', () => {
+    renderPage('Reports');
     // the page title as the heading
     expect(screen.getByText('Reports')).toBeInTheDocument();
     // a concrete supporting line in the muted sub style (no buzzword aphorism)

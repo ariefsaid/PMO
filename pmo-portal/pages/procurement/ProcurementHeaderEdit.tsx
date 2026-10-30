@@ -124,7 +124,7 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
 
   return (
     <Card className="mb-4" data-testid="header-edit-card">
-      <CardHead>{t('procurement:headerEdit.heading', 'Edit procurement details')}</CardHead>
+      <CardHead>Edit procurement details</CardHead>
       <form onSubmit={handleSubmit}>
         <CardPad className="flex flex-col gap-4">
           <FormGrid>
@@ -137,7 +137,7 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
               onBlur={titleField.onBlur}
               error={titleField.error}
               fullWidth
-              placeholder={t('procurement:headerEdit.titlePlaceholder', 'Procurement title')}
+              placeholder="Procurement title"
             />
             <Combobox
               label="Project"
@@ -154,9 +154,9 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
               loadOptions={loadProjects}
             />
             <Combobox
-              label={t('procurementDetail.detail.vendor', 'Supplier')}
-              noun={t('bupot.vendor', 'supplier')}
-              placeholder={vendorName ?? t('bupot.selectVendor', 'Select a supplier…')}
+              label="Supplier"
+              noun="supplier"
+              placeholder={vendorName ?? 'Optional: select a supplier…'}
               value={form.values.vendorId}
               selectedOption={
                 form.values.vendorId && vendorName
@@ -176,7 +176,7 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
             />
           </FormGrid>
           <FormActions
-            submitLabel={t('procurement:headerEdit.save', 'Save procurement')}
+            submitLabel="Save procurement"
             onCancel={onClose}
             disabled={!form.canSubmit}
             loading={busy || form.isSubmitting}

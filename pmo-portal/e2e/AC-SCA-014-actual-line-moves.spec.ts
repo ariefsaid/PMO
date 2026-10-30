@@ -84,7 +84,10 @@ test(
     await page.getByRole('tab', { name: /tasks/i }).click();
     await expect(page).toHaveURL(new RegExp(`${PROJECT_ID}/tasks`), { timeout: 10_000 });
 
-    // The task table may need a moment to populate from the query cache.
+    // The task table exposes a status button; activating it opens the native status selector.
+    const statusButton = page.getByRole('button', { name: `Status for ${IN_PROGRESS_TASK_NAME}` });
+    await expect(statusButton).toBeVisible({ timeout: 15_000 });
+    await statusButton.click();
     const statusSelect = page.getByLabel(`Status for ${IN_PROGRESS_TASK_NAME}`);
     await expect(statusSelect).toBeVisible({ timeout: 15_000 });
 
@@ -94,12 +97,26 @@ test(
     // ── Step 3: mark the In-Progress task Done ──────────────────────────────────
     await statusSelect.selectOption('Done');
 
-    // Wait for the mutation to commit — the select reflects the new value.
-    await expect(statusSelect).toHaveValue('Done', { timeout: 15_000 });
+    // A completed task moves into its collapsed Done group, so the inline
+    // status control closes after selection. Wait for the mutation confirmation
+    // before returning to the S-curve oracle.
+    await expect(page.getByRole('status')).toContainText(`${IN_PROGRESS_TASK_NAME} is now Done`, { timeout: 15_000 });
+
+    // Completed task rows fold; reopen the Procurement phase's Done group before checking the exact status.
+    const procurementGroup = page.getByRole('row').filter({ hasText: 'Procurement' });
+    const doneTasks = procurementGroup.getByRole('button', { name: '6 done', exact: true });
+    await expect(doneTasks).toBeVisible({ timeout: 10_000 });
+    await doneTasks.click();
+    const completedTaskRow = page.getByRole('row').filter({
+      has: page.getByRole('button', { name: `Open task ${IN_PROGRESS_TASK_NAME}`, exact: true }),
+    });
+    await completedTaskRow.getByRole('button', { name: `Status for ${IN_PROGRESS_TASK_NAME}` }).click();
+    await expect(completedTaskRow.getByLabel(`Status for ${IN_PROGRESS_TASK_NAME}`)).toHaveValue('Done', { timeout: 10_000 });
 
     // ── Step 4: navigate back to the Overview tab (S-curve refreshes) ───────────
     await page.getByRole('tab', { name: /overview/i }).click();
-    await expect(page).toHaveURL(new RegExp(`${PROJECT_ID}/overview`), { timeout: 10_000 });
+    await expect(page).toHaveURL(new RegExp(`/projects/${PROJECT_ID}$`), { timeout: 10_000 });
+    await expect(page.getByRole('tab', { name: 'Overview', selected: true })).toBeVisible();
 
     // Wait for the S-curve figure to be present again.
     await expect(figure).toBeVisible({ timeout: 20_000 });

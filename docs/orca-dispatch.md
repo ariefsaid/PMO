@@ -26,6 +26,11 @@ orca orchestration worker-start --spec "<brief or path>" --agent <harness> \
 
 ## Model routing (defaults; right-size per task)
 
+**Intelligence ranking (owner, 2026-10-29):** Sol > Terra > Gemini 3.8 Flash > GLM-5.3-flash > Luna. GLM runs at most
+**2 parallel tasks**. Match the model to
+the task's difficulty (e.g. money, auth and data-loss fixes → Terra; bounded UI fixes and refactors →
+Flash; mechanical deletions and renames → Luna; orchestration and final review → Sol).
+
 **Cheapest first (owner, 2026-10-28):** spend quota in this order and stop at the first model that can do
 the job well: Gemini Flash → GLM-5.3-flash → GPT (Luna, then Terra, then Sol) → Claude (Sonnet, then Opus). Claude
 tokens are preserved for the Opus orchestrator: no Opus while Sol has quota; no Opus or Sol where Sonnet
@@ -60,7 +65,10 @@ A worker sees nothing of your session; the brief stands alone:
 5. A persistence clause (finish every item; stopping early with partial work is the known failure)
    and a final sentinel line (`DONE: <task>`) so a killed or truncated run is obvious.
 6. "Check your own work against the input list and report deviations."
-7. Fix rounds: numbered findings, "fix all, change nothing else". After a killed run: list only
+7. Commit with the repo's configured git identity: never set `user.name`/`user.email`, never add a
+   `Co-authored-by` or other attribution trailer (`.githooks/commit-msg` rejects them). Squash merges
+   pass `--subject` and `--body` explicitly, or GitHub appends co-author lines for other commit authors.
+8. Fix rounds: numbered findings, "fix all, change nothing else". After a killed run: list only
    the missing items, "don't rework what landed".
 
 Workhorse models (Luna, Flash) are strong builders but weak readers of intent: spell out the

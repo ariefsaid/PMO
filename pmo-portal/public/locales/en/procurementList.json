@@ -1,0 +1,172 @@
+{
+  "title": {
+    "default": "Procurement",
+    "engineer": "Your procurements"
+  },
+  "description": {
+    "default": "Procurements across your organization, from request through payment.",
+    "engineer": "Track the procurements you raised, from request through payment.",
+    "projectManager": "Procurements for projects you manage, from request through payment."
+  },
+  "newProcurement": "New procurement",
+  "more": "More",
+  "moreTools": {
+    "exportList": "Export list",
+    "importProcurements": "Import procurements",
+    "importCycle": "Import cycle data"
+  },
+  "tabs": {
+    "label": "Procurement lists"
+  },
+  "tab": {
+    "needsYou": "Needs you",
+    "all": "All",
+    "orphans": "Not in a procurement"
+  },
+  "summary": {
+    "label": "Procurement summary"
+  },
+  "stage": {
+    "request": "Request",
+    "order": "Order",
+    "receive": "Receive",
+    "pay": "Pay",
+    "filterActive": "{{stage}} stage"
+  },
+  "meaning": {
+    "needsYou": "Waiting on your next step",
+    "request": "Raised, approved or quoting",
+    "order": "Ordered, waiting for receipt",
+    "receive": "Received, waiting for an invoice",
+    "pay": "Invoiced, waiting for payment"
+  },
+  "count": {
+    "one": "procurement",
+    "many": "procurements",
+    "procurements_one": "{{count}} procurement",
+    "procurements_other": "{{count}} procurements"
+  },
+  "money": {
+    "mostReal": "Most real amount per procurement: paid amount, otherwise supplier invoice, otherwise purchase order, otherwise purchase request. Totals stay separate by currency.",
+    "pay": "Supplier invoices use the outstanding balance; paid procurements contribute zero. Totals stay separate by currency.",
+    "engineer": "Request amount only. Supplier invoice and payment amounts are not shown.",
+    "partialNotRecorded_one": "{{count}} more has no amount recorded",
+    "partialNotRecorded_other": "{{count}} more have no amount recorded",
+    "notRecorded": "{{currencies}} amount not recorded",
+    "none": "No amount",
+    "kind": {
+      "requested": "Request amount",
+      "ordered": "Order amount",
+      "invoiced": "Supplier invoice amount",
+      "paid": "Paid amount",
+      "unpaid": "Unpaid amount"
+    }
+  },
+  "column": {
+    "procurement": "Procurement",
+    "project": "Project",
+    "raisedBy": "Raised by",
+    "externalReferences": "External references",
+    "value": "Value",
+    "lifecycle": "Lifecycle",
+    "status": "Status"
+  },
+  "unknownRequester": "Unknown",
+  "filter": {
+    "project": "Project",
+    "supplier": "Supplier",
+    "raisedBy": "Raised by",
+    "status": "Status",
+    "filters": "Filters"
+  },
+  "statusFilter": {
+    "all": "All statuses",
+    "needsApproval": "Needs approval",
+    "open": "Open",
+    "ordered": "Ordered",
+    "supplierInvoiced": "Supplier invoiced",
+    "paid": "Paid"
+  },
+  "search": {
+    "placeholder": "Search title, number or reference…",
+    "label": "Search procurements"
+  },
+  "result": {
+    "one": "{{count}} result",
+    "many": "{{count}} results"
+  },
+  "view": {
+    "table": "Table",
+    "grouped": "Grouped",
+    "board": "Board",
+    "label": "Procurement view"
+  },
+  "age": {
+    "oneDay": "1 day",
+    "days": "{{count}} days"
+  },
+  "needsYou": {
+    "approve": "Waiting for your approval · {{age}}",
+    "pay": "Unpaid · {{age}} outstanding",
+    "receive": "Waiting for receipt · ordered {{date}} · {{age}}",
+    "empty": {
+      "title": "Nothing needs your attention",
+      "sub": "You are up to date on the procurements in your scope."
+    }
+  },
+  "group": {
+    "needsApproval": "Needs approval",
+    "inProgress": "In progress",
+    "invoiced": "Invoiced, not paid",
+    "done": "Done",
+    "empty": "No procurements in this group."
+  },
+  "grouped": {
+    "label": "Procurements grouped by next step"
+  },
+  "board": {
+    "label": "Procurement by stage",
+    "request": "Request",
+    "approved": "Approved",
+    "ordered": "Ordered",
+    "received": "Received",
+    "paid": "Paid",
+    "empty": "No procurements at {{stage}}",
+    "open": "Open {{title}}"
+  },
+  "status": {
+    "invoiceToPay": "Supplier invoice to pay",
+    "paid": "Paid"
+  },
+  "clear": "Clear",
+  "error": {
+    "title": "Couldn't load procurements",
+    "sub": "Reload the list to try again."
+  },
+  "empty": {
+    "title": "No procurements yet",
+    "engineer": {
+      "title": "You haven't raised any procurements yet"
+    },
+    "sub": "New procurements will appear here as they are raised."
+  },
+  "noMatch": {
+    "title": "No procurements match these filters",
+    "sub": "Clear a filter or change the search to see more procurements.",
+    "clear": "Clear filters"
+  },
+  "orphans": {
+    "error": "Couldn't load documents not in a procurement",
+    "empty": {
+      "title": "Every accounting-system document is in a procurement",
+      "sub": "New documents appear here after the next sync."
+    }
+  },
+  "list": {
+    "label": "Procurement list"
+  },
+  "kpi": {
+    "oldestInvoiceBasis_one": "Oldest supplier invoice date (or record creation date) · {{count}} day ago",
+    "oldestInvoiceBasis_other": "Oldest supplier invoice date (or record creation date) · {{count}} days ago"
+  }
+}

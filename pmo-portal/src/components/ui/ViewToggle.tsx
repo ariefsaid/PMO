@@ -36,6 +36,8 @@ export interface ViewToggleProps<V extends string = string> {
   onChange: (value: V) => void;
   ariaLabel: string;
   className?: string;
+  /** Option labels remain accessible while allowing icon-only compact layouts. */
+  labelClassName?: string;
   /**
    * ARIA semantics variant.
    * - `'tabs'` (default): `role="tablist"` container + `role="tab"` + `aria-selected`. Use when
@@ -59,6 +61,7 @@ export function ViewToggle<V extends string = string>({
   onChange,
   ariaLabel,
   className,
+  labelClassName,
   semantics = 'tabs',
 }: ViewToggleProps<V>) {
   const isToggle = semantics === 'toggle';
@@ -97,7 +100,7 @@ export function ViewToggle<V extends string = string>({
             onClick={() => onChange(opt.value)}
             className={cn(
               // touch-target: ≥44px hit area on coarse pointers, 28px visual (WCAG 2.5.5).
-              'touch-target inline-flex h-7 items-center gap-1.5 rounded-[5px] px-[11px] text-[13px] font-medium whitespace-nowrap transition-[background-color,color,box-shadow] duration-100',
+              'touch-target inline-flex h-7 items-center gap-1.5 rounded-[5px] px-3 text-[13px] font-medium whitespace-nowrap transition-[background-color,color,box-shadow] duration-100',
               '[&_svg]:size-[14px]',
               on
                 ? 'bg-background font-semibold text-foreground shadow-[0_1px_2px_hsl(240_6%_10%/0.1)]'
@@ -106,9 +109,9 @@ export function ViewToggle<V extends string = string>({
             )}
           >
             {opt.icon && <Icon name={opt.icon} />}
-            {opt.label}
+            <span className={labelClassName}>{opt.label}</span>
             {opt.count !== undefined && opt.count > 0 && (
-              <Badge active={on} className="min-w-0 px-1.5">
+              <Badge className="min-w-0 px-1.5">
                 {opt.count}
               </Badge>
             )}

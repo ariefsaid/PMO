@@ -157,7 +157,7 @@ describe('RecordHistory — formatting (AC-CHG-015)', () => {
     });
     renderIt({ includeChildren: true, kindFilters: true });
     expect(await screen.findByText('Sales invoice · SI-2026-01')).toBeInTheDocument();
-    expect(screen.getByText('Supplier bill · VI-2026-01')).toBeInTheDocument();
+    expect(screen.getByText('Supplier invoice · VI-2026-01')).toBeInTheDocument();
     expect(repo.recordHistory.lookupNames).toHaveBeenCalledWith({
       sales_invoice: ['si-1'], procurement_invoice: ['vi-1'],
     });
@@ -243,8 +243,8 @@ describe('RecordHistory — formatting (AC-CHG-015)', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Load older' }));
     await waitFor(() => expect(screen.getAllByTestId('history-group')).toHaveLength(2));
     const groups = screen.getAllByTestId('history-group');
-    const firstGroup = within(groups[0]).getByRole('button', { name: '2 system events' });
-    const secondGroup = within(groups[1]).getByRole('button', { name: '2 system events' });
+    const firstGroup = within(groups[0]).getByRole('button', { name: /created · 2 records$/ });
+    const secondGroup = within(groups[1]).getByRole('button', { name: /created · 2 records$/ });
     expect(firstGroup).toHaveAttribute('aria-expanded', 'false');
     expect(secondGroup).toHaveAttribute('aria-expanded', 'false');
 
@@ -406,12 +406,12 @@ describe('RecordHistory — enum values use the module label helpers (AC-CHG-015
     expect(screen.getByText('Alone → Consortium')).toBeInTheDocument();
     // the same stage word the procurement header pill shows for Received
     expect(screen.getByText('Purchase Order → Goods Receipt')).toBeInTheDocument();
-    expect(screen.getByText('Supplier Invoice → Paid')).toBeInTheDocument();
+    expect(screen.getByText('Supplier invoice → Paid')).toBeInTheDocument();
     expect(screen.getByText('Draft → Issued')).toBeInTheDocument();
     expect(screen.getByText('Draft → Active')).toBeInTheDocument();
     expect(screen.getByText('Labor → Materials')).toBeInTheDocument();
     expect(
-      screen.getByText('Exclusive — tax is on top of the amount → Inclusive — the amount already includes tax'),
+      screen.getByText('Exclusive: tax is on top of the amount → Inclusive: the amount already includes tax'),
     ).toBeInTheDocument();
     expect(screen.queryByText(/tender → |direct|Received/)).toBeNull();
   });

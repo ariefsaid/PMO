@@ -1,12 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
-import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
+import type { IncomingPaymentRow, SalesInvoiceRow } from '@/src/lib/db/revenue';
 
 /**
  * #784 — Sales Invoices while PMO owns revenue. The form needs a project (it decides VAT, OD-TAX-4), the page says
@@ -18,13 +18,28 @@ const h = vi.hoisted(() => ({
   submitMutate: vi.fn(async () => undefined),
   setReceivedDate: vi.fn(async () => undefined),
   invoices: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+  payments: [] as IncomingPaymentRow[],
+  evidencePending: false,
   route: 'pmo' as 'pmo' | 'external',
   /** null = ownership still loading; otherwise derived from `route`. */
   ownershipLoaded: true,
   userId: 'u-fin2',
-  role: 'Finance' as 'Finance' | 'Project Manager',
+  role: 'Finance' as 'Finance' | 'Project Manager' | 'Executive',
   toast: vi.fn(),
+  exportedRows: [] as unknown[],
+  projects: [] as unknown[],
+  profiles: [] as unknown[],
 }));
+vi.mock('@/src/components/export', async () => {
+  const React = await import('react');
+  return {
+    ExportButton: ({ rows, label = 'Export' }: { rows: unknown[]; label?: string }) => React.createElement('button', {
+      type: 'button',
+      onClick: () => { h.exportedRows = rows; },
+    }, label),
+    withCurrencyColumn: <Row,>(columns: Row[]) => columns,
+  };
+});
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: false, loadOptions: async () => [] }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({
   useOrgCurrency: () => 'IDR',
@@ -33,8 +48,8 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-12', isPending: false, isError: false, retry: vi.fn() }) }));
 vi.mock('@/src/hooks/useFxRates', () => ({ useFxRate: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useRevenue', () => ({
-  useSalesInvoiceEvidence: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
-  useIncomingPayments: () => ({ data: [], isPending: false, isError: false }),
+  useSalesInvoiceEvidence: () => ({ data: null, isPending: h.evidencePending, isError: false, refetch: vi.fn() }),
+  useIncomingPayments: () => ({ data: h.payments, isPending: false, isError: false }),
   useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSalesInvoices: () => h.invoices,
   useRevenueMutations: () => ({
@@ -48,12 +63,14 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useClientCompanyOptions: () => ({ data: [{ value: 'cust-1', label: 'Acme Energy', sub: 'Client' }, { value: 'cust-2', label: 'Borealis Marine', sub: 'Client' }] }),
   useInvoiceProjectOptions: () => ({ data: [
-    { value: 'proj-1', label: 'Alpha Platform', sub: 'ALP-01', clientId: 'cust-1', subjectToVat: true, taxRate: 12, archived: false },
+    { value: 'proj-1', label: 'Alpha Platform', contractualName: 'Alpha Platform', sub: 'ALP-01', clientId: 'cust-1', subjectToVat: true, taxRate: 12, archived: false },
     { value: 'proj-2', label: 'Beta Norates', sub: 'BNR-01', clientId: 'cust-1', subjectToVat: true, taxRate: null, archived: false },
     { value: 'proj-3', label: 'Gamma Other Client', sub: 'GOC-01', clientId: 'cust-2', subjectToVat: false, taxRate: null, archived: false },
     { value: 'proj-4', label: 'Delta Archived', sub: 'DAR-01', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: true },
   ] }),
 }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: h.projects, isPending: false }) }));
+vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: h.profiles, isPending: false }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org-1' }, role: h.role }) }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => h.route) }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({
@@ -85,7 +102,7 @@ function rowFor(text: string | RegExp): HTMLElement {
   const branch = screen.queryByTestId('dt-table-branch') ?? screen.getByTestId('dt-card-branch');
   const rows = within(branch).queryAllByRole('row').length > 0 ? within(branch).getAllByRole('row') : within(branch).getAllByRole('listitem');
   const hits = rows.filter((r) => (typeof text === 'string' ? r.textContent?.includes(text) : text.test(r.textContent ?? '')));
-  expect(hits).toHaveLength(1);
+  expect(hits, `row target ${text}`).toHaveLength(1);
   return hits[0];
 }
 
@@ -96,21 +113,39 @@ async function openMenu(user: ReturnType<typeof userEvent.setup>, row: HTMLEleme
 // The page's PDF hook (#912) reads the query cache — one client per test, kept across rerenders.
 let queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 beforeEach(() => { queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } }); });
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+function mockPhoneViewport() {
+  vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+    matches: !query.includes('min-width: 768px'),
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })));
+}
 
 const LocationProbe = () => {
   const location = useLocation();
   return <div data-testid="location">{`${location.pathname}${location.search}`}</div>;
 };
 
-const page = (initialEntry = '/sales-invoices') => (
+const page = (initialEntry = '/sales-invoices', embedded = false) => (
   <QueryClientProvider client={queryClient}>
   <FinanceI18nTestProvider>
     <ImpersonationProvider realRole={h.role}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <ToastProvider>
           <Routes>
-            <Route path="/sales-invoices" element={<SalesInvoices />} />
-            <Route path="/sales-invoices/:invoiceId" element={<SalesInvoices />} />
+            <Route path="/sales-invoices" element={<SalesInvoices embedded={embedded} />} />
+            <Route path="/sales-invoices/:invoiceId" element={<SalesInvoices embedded={embedded} />} />
+            <Route path="/finance/receivables" element={<SalesInvoices embedded={embedded} />} />
           </Routes>
           <LocationProbe />
         </ToastProvider>
@@ -119,7 +154,7 @@ const page = (initialEntry = '/sales-invoices') => (
   </FinanceI18nTestProvider>
   </QueryClientProvider>
 );
-const renderPage = (initialEntry?: string) => render(page(initialEntry));
+const renderPage = (initialEntry?: string, embedded = false) => render(page(initialEntry, embedded));
 
 async function pick(user: ReturnType<typeof userEvent.setup>, picker: string, label: string) {
   await user.click(screen.getByRole('combobox', { name: picker }));
@@ -131,11 +166,16 @@ beforeEach(async () => {
   h.submitMutate.mockClear();
   h.setReceivedDate.mockReset().mockResolvedValue(undefined);
   h.invoices.data = [];
+  h.payments = [];
+  h.evidencePending = false;
   h.route = 'pmo';
   h.ownershipLoaded = true;
   h.userId = 'u-fin2';
   h.role = 'Finance';
+  h.projects = [];
+  h.profiles = [];
   h.toast.mockClear();
+  h.exportedRows = [];
   await financeTestI18n.changeLanguage('en');
 });
 
@@ -168,6 +208,219 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(screen.getByText('Client invoices.')).toBeInTheDocument();
   });
 
+  it('embedded receivables uses a compact Invoices heading and lets the Finance shell start creation', () => {
+    renderPage('/finance/receivables?layout=a&create=1', true);
+    expect(screen.getByRole('heading', { level: 2, name: 'Invoices' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New Invoice' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Client invoices.')).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('AC-1405 an embedded invoice row opens a URL-addressable drawer and preserves the list behind it', async () => {
+    h.invoices.data = [nativeInvoice({ status: 'Submitted', pmo_number: 'INV-2610070001', erp_outstanding_amount: 610_000 })];
+    const user = userEvent.setup();
+    renderPage('/finance/receivables?view=invoices', true);
+    await user.click(screen.getByRole('button', { name: 'Open INV-2610070001' }));
+    const drawer = await screen.findByRole('dialog');
+    expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?view=invoices&open=si-n1');
+    const headerActions = within(drawer).getByTestId('record-header-actions');
+    expect(within(headerActions).getByRole('button', { name: 'Open full page' })).toBeInTheDocument();
+    expect(within(headerActions).getByRole('button', { name: 'Mark received' })).toBeInTheDocument();
+    expect(within(headerActions).getByRole('button', { name: 'Invoice actions' })).toBeInTheDocument();
+    expect(within(drawer).getAllByText('INV-2610070001')).toHaveLength(1);
+  });
+
+  it('AC-1405 renders each invoice status and its detail in one pill, with overdue age only once', () => {
+    h.invoices.data = [
+      nativeInvoice({ id: 'draft-approve', pmo_number: 'DRAFT-APPROVE' }),
+      nativeInvoice({ id: 'draft-own', pmo_number: 'DRAFT-OWN', author_user_id: 'u-fin2', author_user_ids: ['u-fin2'] }),
+      nativeInvoice({ id: 'unpaid-future', pmo_number: 'UNPAID', status: 'Unpaid', invoice_date: '2026-10-01', erp_payment_terms_days: 19, erp_outstanding_amount: 1_110_000 }),
+      nativeInvoice({ id: 'partly-paid', pmo_number: 'PARTIAL', status: 'Unpaid', invoice_date: '2026-10-01', received_date: '2026-09-01', erp_payment_terms_days: 29, erp_outstanding_amount: 500_000 }),
+      nativeInvoice({ id: 'overdue', pmo_number: 'OVERDUE', status: 'Unpaid', invoice_date: '2026-05-31', erp_payment_terms_days: 30, erp_outstanding_amount: 1_110_000 }),
+      nativeInvoice({ id: 'paid', pmo_number: 'SETTLED', status: 'Paid', erp_outstanding_amount: 0 }),
+      nativeInvoice({ id: 'cancelled', pmo_number: 'CANCELLED', status: 'Cancelled' }),
+      nativeInvoice({ id: 'erp-submitted', pmo_native: false, pmo_number: null, si_number: 'ERP-SUBMITTED', status: 'Submitted', erp_docstatus: 1 }),
+    ];
+
+    renderPage('/finance/receivables', true);
+
+    const expected = [
+      ['DRAFT-APPROVE', 'Draft · to approve'],
+      ['DRAFT-OWN', 'Draft · needs a second approver'],
+      ['UNPAID', 'Unpaid · not yet due'],
+      ['PARTIAL', 'Partly paid · 12 days late'],
+      ['OVERDUE', 'Overdue · 104 days'],
+      ['SETTLED', 'Paid'],
+      ['CANCELLED', 'Cancelled'],
+      ['ERP-SUBMITTED', 'Submitted'],
+    ];
+    for (const [number, label] of expected) {
+      const row = rowFor(number);
+      expect(within(row).getByText(label)).toBeInTheDocument();
+      // One StatusPill per row: the status label sits inside the pill's paired
+      // status surface (owner ban 2026-10-29: pills are text-only, no dot).
+      const pill = within(row).getByText(label).closest('span[class*="bg-status-"]');
+      expect(pill).not.toBeNull();
+      expect(row.querySelectorAll('span[class*="bg-status-"]')).toHaveLength(1);
+    }
+    const partlyPaid = rowFor('PARTIAL');
+    expect(partlyPaid.textContent).not.toContain('12 days overdue');
+  });
+
+  it('AC-1405 uses a single unboxed toolbar row and the merged client/project column in receivables', () => {
+    h.invoices.data = [nativeInvoice({ pmo_number: 'INV-1405', status: 'Unpaid', received_date: '2026-10-01' })];
+    renderPage('/finance/receivables?view=invoices', true);
+
+    const toolbar = screen.getByTestId('list-page-toolbar');
+    expect(toolbar).toHaveClass('border-b');
+    expect(toolbar).toHaveClass('!rounded-none');
+    expect(within(toolbar).getByRole('button', { name: 'Overdue only' })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('tablist', { name: 'Group by' })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('searchbox', { name: 'Search sales invoices' })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('button', { name: 'Export' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Client' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Project' })).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Delivery' })).toBeInTheDocument();
+    // e-Faktur moved to the side panel and the export to give the money columns room (owner bar, 1440).
+    expect(screen.queryByRole('columnheader', { name: 'e-Faktur' })).not.toBeInTheDocument();
+  });
+
+  it('AC-1405 renders an embedded invoice as a compact phone card', () => {
+    mockPhoneViewport();
+    h.invoices.data = [nativeInvoice({
+      status: 'Unpaid', pmo_number: 'INV-MOBILE', invoice_date: '2026-10-01',
+      erp_payment_terms_days: 29, received_date: '2026-10-01', erp_outstanding_amount: 500_000,
+    })];
+    renderPage('/finance/receivables?view=invoices', true);
+
+    const card = rowFor('INV-MOBILE');
+    expect(card).toHaveTextContent('Acme Energy');
+    expect(card).toHaveTextContent('INV-MOBILE');
+    expect(card).toHaveTextContent('Partly paid · not yet due');
+    expect(card).toHaveTextContent('Oct 30, 2026');
+    expect(card).toHaveTextContent(/of/);
+    expect(card.querySelector('dl')).toBeNull();
+  });
+
+  it('AC-1405 a Finance user who is not an invoice author can approve a draft from the drawer', () => {
+    h.invoices.data = [nativeInvoice()];
+    renderPage('/finance/receivables?open=si-n1', true);
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+  });
+
+  it('AC-1405 an invoice already marked received offers Record payment when it remains unpaid', () => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', received_date: '2026-10-12', erp_outstanding_amount: 500_000 })];
+    renderPage('/finance/receivables?open=si-n1', true);
+    expect(screen.getByRole('button', { name: 'Record payment' })).toBeInTheDocument();
+  });
+
+  it('AC-1405 the invoice timeline identifies the second approver by name', () => {
+    h.profiles = [{ id: 'u-fin3', full_name: 'Finance Approver Test' }];
+    h.invoices.data = [nativeInvoice({ status: 'Submitted', approved_at: '2026-10-10T00:00:00Z', approved_by_id: 'u-fin3' })];
+    renderPage('/finance/receivables?open=si-n1', true);
+    expect(screen.getByText(/Approved .* by Finance Approver Test, a second person/)).toBeInTheDocument();
+  });
+
+  it('AC-1405 keeps timeline stages in workflow order and payment receipts in date order', () => {
+    h.invoices.data = [nativeInvoice({
+      status: 'Unpaid',
+      created_at: '2026-10-20T00:00:00Z',
+      approved_at: '2026-10-10T00:00:00Z',
+      received_date: '2026-10-05',
+      erp_outstanding_amount: 500_000,
+    })];
+    h.payments = [
+      { id: 'later', sales_invoice_id: 'si-n1', date: '2026-10-08', received_amount: 100, amount: 100, currency: 'IDR', status: 'Paid' } as IncomingPaymentRow,
+      { id: 'earlier', sales_invoice_id: 'si-n1', date: '2026-10-06', received_amount: 50, amount: 50, currency: 'IDR', status: 'Paid' } as IncomingPaymentRow,
+    ];
+
+    renderPage('/finance/receivables?open=si-n1', true);
+
+    const timeline = screen.getByRole('region', { name: 'Status timeline' });
+    const steps = within(timeline).getAllByRole('listitem');
+    expect(steps.map((step) => step.getAttribute('data-stage'))).toEqual(['drafted', 'approved', 'received', 'payment', 'payment', 'paid']);
+    expect(steps.map((step) => step.getAttribute('data-state'))).toEqual(['done', 'done', 'done', 'done', 'done', 'current']);
+    expect(steps[3]).toHaveTextContent('Oct 6, 2026');
+    expect(steps[4]).toHaveTextContent('Oct 8, 2026');
+  });
+
+  it('AC-1405 replaces a hung local evidence request with its unavailable state', async () => {
+    h.route = 'external';
+    h.evidencePending = true;
+    h.invoices.data = [nativeInvoice({ pmo_native: false, erp_docstatus: 1, status: 'Unpaid', received_date: '2026-10-01' })];
+    vi.useFakeTimers();
+    renderPage('/finance/receivables?open=si-n1', true);
+    expect(screen.getByText('Loading invoice evidence…')).toBeInTheDocument();
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+
+    expect(screen.queryByText('Loading invoice evidence…')).not.toBeInTheDocument();
+    expect(screen.getByText("Couldn't load the invoice lines from the accounting system.")).toBeInTheDocument();
+  });
+
+  it('AC-1405 gives an unreceived unpaid record exactly one primary action', () => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', received_date: null, erp_outstanding_amount: 500_000 })];
+    renderPage('/sales-invoices/si-n1');
+
+    expect(screen.getByRole('button', { name: 'Mark received' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Record payment' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+  });
+
+  it('AC-1405 grouping invoices by client shows that client’s open balance', async () => {
+    h.invoices.data = [
+      nativeInvoice({ id: 'si-a', pmo_number: 'INV-A', status: 'Unpaid', erp_outstanding_amount: 600_000 }),
+      nativeInvoice({ id: 'si-b', pmo_number: 'INV-B', status: 'Unpaid', erp_outstanding_amount: 400_000 }),
+      nativeInvoice({ id: 'si-c', pmo_number: 'INV-C', customer_name: 'Borealis Marine', status: 'Paid', erp_outstanding_amount: 0 }),
+    ];
+    const user = userEvent.setup();
+    renderPage('/finance/receivables?view=invoices', true);
+    await user.click(screen.getByRole('tab', { name: 'Client' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?view=invoices&group=client');
+    expect(screen.getByRole('button', { name: /Acme Energy\s*2/ })).toBeInTheDocument();
+    expect(screen.getByText(/Open balance/)).toBeInTheDocument();
+  });
+
+  it('shows the project manager avatar and name under the project in the invoice table', () => {
+    h.projects = [{ id: 'proj-1', pm: { full_name: 'Project Manager Test' } }];
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', pmo_number: 'INV-PM', erp_outstanding_amount: 100_000 })];
+    renderPage('/finance/receivables?view=invoices', true);
+    const row = rowFor('INV-PM');
+    expect(within(row).getByText('Alpha Platform')).toBeInTheDocument();
+    expect(within(row).getByText('Project Manager Test')).toBeInTheDocument();
+  });
+
+  it('AC-1405 a URL open parameter opens a draft drawer, while its author cannot approve it', () => {
+    h.userId = 'u-fin1';
+    h.invoices.data = [nativeInvoice()];
+    renderPage('/finance/receivables?open=si-n1', true);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+  });
+
+  it('AC-1405 an Executive can open an invoice drawer but sees no primary actions', () => {
+    h.role = 'Executive';
+    h.invoices.data = [nativeInvoice()];
+    renderPage('/finance/receivables?open=si-n1', true);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open full page' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Approve|Mark received|Record payment/ })).not.toBeInTheDocument();
+  });
+
+  it('AC-1405 exports only the selected invoice rows from the embedded bulk bar', async () => {
+    h.invoices.data = [
+      nativeInvoice({ id: 'si-a', pmo_number: 'INV-A' }),
+      nativeInvoice({ id: 'si-b', pmo_number: 'INV-B', customer_name: 'Borealis Marine' }),
+    ];
+    const user = userEvent.setup();
+    renderPage('/finance/receivables?view=invoices', true);
+    expect(screen.queryByRole('button', { name: 'Export selected' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: 'Select INV-A' }));
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Export selected' }));
+    expect((h.exportedRows as SalesInvoiceRow[]).map((row) => row.id)).toEqual(['si-a']);
+  });
+
   it('AC-NAR-001 a PMO invoice needs a project — Create stays disabled until one is chosen — and sends the typed line', async () => {
     const user = userEvent.setup();
     renderPage();
@@ -197,7 +450,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Approve' }));
     expect(screen.getByText('Site survey')).toBeInTheDocument();
     expect(screen.getByText('Net (before tax)')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Continue to approve' }));
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
     await user.click(screen.getByRole('button', { name: 'Approve invoice' }));
     expect(h.submitMutate).toHaveBeenCalledWith({ siId: 'si-n1', intent: expect.objectContaining({ id: expect.any(String) }) });
   });
@@ -648,5 +901,101 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(financeTestI18n.t('financeCopy.newInvoiceTitle')).not.toBe('New invoice');
     expect(within(dialog).getByRole('button', { name: financeTestI18n.t('financeCopy.createInvoice') })).toBeInTheDocument();
     expect(financeTestI18n.t('financeCopy.createInvoice')).not.toBe('Create invoice');
+  });
+});
+
+describe('Receivables list restructure fixes (2026-10-28 rulings audit)', () => {
+  it('C6: a list whose invoices share one tax basis states it once in the Amount header, not under every amount', () => {
+    h.invoices.data = [
+      nativeInvoice({ id: 'a', pmo_number: 'INV-A', status: 'Unpaid', received_date: '2026-10-01', erp_outstanding_amount: 1_110_000 }),
+      nativeInvoice({ id: 'b', pmo_number: 'INV-B', status: 'Unpaid', received_date: '2026-10-01', erp_outstanding_amount: 1_110_000 }),
+    ];
+    renderPage('/finance/receivables', true);
+    const header = screen.getByRole('columnheader', { name: /Amount/ });
+    expect(within(header).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+    expect(screen.getAllByTestId('tax-basis')).toHaveLength(1);
+  });
+
+  it('C6: mixed tax bases state the majority basis once in the Amount header and label only the rows that differ', () => {
+    h.invoices.data = [
+      nativeInvoice({ id: 'a', pmo_number: 'INV-A', status: 'Unpaid', received_date: '2026-10-01', erp_outstanding_amount: 1_110_000 }),
+      nativeInvoice({ id: 'b', pmo_number: 'INV-B', status: 'Unpaid', received_date: '2026-10-01', erp_outstanding_amount: 1_000_000, tax_treatment: 'inclusive' }),
+      nativeInvoice({ id: 'c', pmo_number: 'INV-C', status: 'Unpaid', received_date: '2026-10-01', erp_outstanding_amount: 1_000_000, tax_treatment: 'inclusive' }),
+    ];
+    renderPage('/finance/receivables', true);
+    const header = screen.getByRole('columnheader', { name: /Amount/ });
+    expect(within(header).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
+    expect(within(rowFor('INV-A')).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+    expect(within(rowFor('INV-B')).queryByTestId('tax-basis')).not.toBeInTheDocument();
+    expect(within(rowFor('INV-C')).queryByTestId('tax-basis')).not.toBeInTheDocument();
+  });
+
+  it('N5 / C4: the invoice drawer is titled by the client, carries the amount in its figures and leaves out fields with nothing recorded', () => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', received_date: '2026-10-12', erp_outstanding_amount: null, efaktur_number: null, erp_payment_terms_days: null })];
+    renderPage('/finance/receivables?open=si-n1', true);
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).getByRole('heading', { name: 'Acme Energy' })).toBeInTheDocument();
+    expect(within(drawer).queryByRole('heading', { name: /IDR/ })).not.toBeInTheDocument();
+    const figures = within(drawer).getByText('Amount').closest('dl') as HTMLElement;
+    expect(figures).toHaveTextContent(/IDR\s?1,000,000/);
+    expect(within(figures).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+    for (const empty of ['Terms', 'e-Faktur', 'Outstanding · tax included']) expect(within(figures).queryByText(empty)).not.toBeInTheDocument();
+    expect(figures).not.toHaveTextContent('—');
+    expect(within(drawer).getAllByText(/outstanding balance is not known yet/)).toHaveLength(1);
+  });
+
+  it('C5: the drawer shows the outstanding balance in whole units, never cents', () => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', received_date: '2026-10-12', erp_outstanding_amount: 610_000, erp_payment_terms_days: 30 })];
+    renderPage('/finance/receivables?open=si-n1', true);
+    const drawer = screen.getByRole('dialog');
+    const outstanding = within(drawer).getByText('Outstanding · tax included').parentElement as HTMLElement;
+    expect(outstanding).toHaveTextContent(/IDR\s?610,000/);
+    expect(outstanding).not.toHaveTextContent('.00');
+    expect(within(drawer).getByText('30 days')).toBeInTheDocument();
+    expect(within(drawer).queryByText(/outstanding balance is not known yet/)).not.toBeInTheDocument();
+  });
+
+  it('P5: on a phone the receivables filters wrap, so Group by stays on screen', () => {
+    mockPhoneViewport();
+    h.invoices.data = [nativeInvoice({ pmo_number: 'INV-1', status: 'Unpaid', received_date: '2026-10-01', erp_outstanding_amount: 500_000 })];
+    renderPage('/finance/receivables', true);
+    const filters = screen.getByRole('region', { name: 'Filter by status' });
+    expect(within(filters).getByRole('tablist', { name: 'Group by' })).toBeInTheDocument();
+    // jsdom has no layout: wrapping (not a clipped horizontal scroller) is the contract.
+    expect(filters).toHaveClass('flex-wrap');
+    expect(filters).not.toHaveClass('overflow-x-auto');
+    expect(screen.getByTestId('invoice-filter-group')).toHaveClass('flex-wrap');
+  });
+
+  it('L6: an invoice whose total due equals its amount does not repeat the figure', () => {
+    h.invoices.data = [nativeInvoice({ id: 'a', pmo_number: 'INV-A', status: 'Unpaid', tax_amount: 0, tax_treatment: 'inclusive', received_date: '2026-10-01', erp_outstanding_amount: 1_000_000 })];
+    renderPage('/finance/receivables', true);
+    expect(rowFor('INV-A')).not.toHaveTextContent('Total due');
+  });
+
+  it('C4: a PMO invoice drawer does not claim its bill evidence is unavailable', () => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', received_date: '2026-10-12', erp_outstanding_amount: 500_000 })];
+    renderPage('/finance/receivables?open=si-n1', true);
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).queryByText(/unavailable/i)).not.toBeInTheDocument();
+  });
+
+  it('P5: on a phone the status filter is one select, so no status chip is clipped', async () => {
+    mockPhoneViewport();
+    h.invoices.data = [nativeInvoice({ pmo_number: 'INV-1', status: 'Unpaid', received_date: '2026-10-01', erp_outstanding_amount: 500_000 })];
+    const user = userEvent.setup();
+    renderPage('/finance/receivables', true);
+    expect(screen.queryByRole('tablist', { name: 'Filter by status' })).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by status' }), 'Cancelled');
+    expect(screen.getByTestId('location')).toHaveTextContent('status=Cancelled');
+  });
+
+  it('O9: a paid phone card shows the invoice total, not "0 of" the total', () => {
+    mockPhoneViewport();
+    h.invoices.data = [nativeInvoice({ pmo_number: 'INV-PAID', status: 'Paid', received_date: '2026-10-01', erp_outstanding_amount: 0 })];
+    renderPage('/finance/receivables', true);
+    const card = rowFor('INV-PAID');
+    expect(card).toHaveTextContent(/1,110,000/);
+    expect(card.textContent).not.toMatch(/IDR\s0(?![\d,.])/);
   });
 });

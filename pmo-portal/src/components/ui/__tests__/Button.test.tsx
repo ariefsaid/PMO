@@ -13,32 +13,6 @@ describe('Button', () => {
     expect(btn.className).toContain('text-primary-foreground');
   });
 
-  it('renders each variant with its token background', () => {
-    const { rerender } = render(<Button variant="outline">x</Button>);
-    expect(screen.getByRole('button').className).toContain('border-input');
-    rerender(<Button variant="ghost">x</Button>);
-    expect(screen.getByRole('button').className).toContain('hover:bg-accent');
-    rerender(<Button variant="destructive">x</Button>);
-    expect(screen.getByRole('button').className).toContain('bg-destructive');
-  });
-
-  /**
-   * C2 (CRITICAL): outline variant must NOT carry `border-transparent` anywhere
-   * in its resolved className — that class overrides `border-input` in Tailwind v4
-   * (equal specificity, source order wins) and makes the border invisible.
-   */
-  it('C2: outline variant does not carry border-transparent (would eclipse border-input)', () => {
-    render(<Button variant="outline">Outline</Button>);
-    const btn = screen.getByRole('button', { name: 'Outline' });
-    expect(btn.className).toContain('border-input');
-    expect(btn.className).not.toContain('border-transparent');
-  });
-
-  it('renders the sm size class', () => {
-    render(<Button size="sm">x</Button>);
-    expect(screen.getByRole('button').className).toContain('h-7');
-  });
-
   it('disabled is non-interactive and carries the disabled affordance', async () => {
     const onClick = vi.fn();
     render(

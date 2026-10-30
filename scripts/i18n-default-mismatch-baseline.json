@@ -1,23 +1,8 @@
 [
   {
-    "key": "timesheets.status.Rejected",
-    "defaultValue": "Rejected",
-    "catalogueValue": "Returned for changes"
-  },
-  {
-    "key": "projectDetail.milestones.prewinPlaceholder",
-    "defaultValue": "Phase planning starts once this is won",
-    "catalogueValue": "Delivery planning starts once this is won"
-  },
-  {
-    "key": "projectDetail.workOrderForm.errors.value",
-    "defaultValue": "Enter the order value as a non-negative amount with no more than 2 decimal places",
-    "catalogueValue": "Enter the order value as a non-negative number"
-  },
-  {
-    "key": "projectDetail.workOrderValue.errors.value",
-    "defaultValue": "Enter the order value as a non-negative amount with no more than 2 decimal places",
-    "catalogueValue": "Enter the order value as a non-negative number"
+    "key": "bupot.bill",
+    "defaultValue": "Linked bills",
+    "catalogueValue": "Bill"
   },
   {
     "key": "bupot.refusal.conflict",
@@ -35,24 +20,9 @@
     "catalogueValue": "The result is uncertain. Retry with this same slip intent."
   },
   {
-    "key": "bupot.remedy.reload",
-    "defaultValue": "Reload the latest facts.",
-    "catalogueValue": "Reload and review the latest slip facts."
-  },
-  {
-    "key": "bupot.remedy.inspect",
-    "defaultValue": "Inspect existing coverage.",
-    "catalogueValue": "Inspect existing coverage before recording another slip."
-  },
-  {
     "key": "bupot.remedy.edit",
     "defaultValue": "Edit the facts.",
     "catalogueValue": "Edit the facts and try again."
-  },
-  {
-    "key": "bupot.remedy.retry",
-    "defaultValue": "Retry this same request.",
-    "catalogueValue": "Retry this same request; do not start a new slip."
   },
   {
     "key": "bupot.remedy.edit",
@@ -60,19 +30,39 @@
     "catalogueValue": "Edit the facts and try again."
   },
   {
-    "key": "bupot.bill",
-    "defaultValue": "Linked bills",
-    "catalogueValue": "Bill"
+    "key": "bupot.remedy.inspect",
+    "defaultValue": "Inspect existing coverage.",
+    "catalogueValue": "Inspect existing coverage before recording another slip."
   },
   {
-    "key": "revenueByProject.subtitle",
-    "defaultValue": "Project revenue, with a separate Unassigned group for invoices not linked to a project.",
-    "catalogueValue": "Project revenue, net of tax, in each invoice's own currency, with a separate Unassigned group for invoices not linked to a project."
+    "key": "bupot.remedy.reload",
+    "defaultValue": "Reload the latest facts.",
+    "catalogueValue": "Reload and review the latest slip facts."
+  },
+  {
+    "key": "bupot.remedy.retry",
+    "defaultValue": "Retry this same request.",
+    "catalogueValue": "Retry this same request; do not start a new slip."
   },
   {
     "key": "profileSettings.saving",
     "defaultValue": "Saving your preferences…",
     "catalogueValue": "Saving your preference…"
+  },
+  {
+    "key": "projectDetail.milestones.prewinPlaceholder",
+    "defaultValue": "Phase planning starts once this is won",
+    "catalogueValue": "Delivery planning starts once this is won"
+  },
+  {
+    "key": "projectDetail.workOrderForm.errors.value",
+    "defaultValue": "Enter the order value as a non-negative amount with no more than 2 decimal places",
+    "catalogueValue": "Enter the order value as a non-negative number"
+  },
+  {
+    "key": "projectDetail.workOrderValue.errors.value",
+    "defaultValue": "Enter the order value as a non-negative amount with no more than 2 decimal places",
+    "catalogueValue": "Enter the order value as a non-negative number"
   },
   {
     "key": "viewBuilder.addFilter",

@@ -80,8 +80,8 @@ async function invoiceRow(page: Page) {
 
 /** Records a receipt against this run's invoice; `startsAt` is the balance the form must start at (DD-NAR-17). */
 async function recordReceipt(page: Page, amount: string, startsAt?: RegExp) {
-  await page.goto('/incoming-payments');
-  await page.getByRole('button', { name: localized('Receive Payment', 'Terima Pembayaran') }).first().click();
+  await page.goto('/finance/receivables?view=payments');
+  await page.getByRole('button', { name: localized('Receive Payment', 'Terima Pembayaran') }).click();
   const form = page.getByRole('dialog');
   await pickComboboxOption(form, page, /^(?:Customer|Pelanggan)/, new RegExp(`${tag} Client`));
   await pickComboboxOption(form, page, /^(?:Sales Invoice|Faktur Penjualan)/, /INV-\d{10}/);
@@ -106,7 +106,8 @@ test('AC-NAR-003 a no-ERP org raises an invoice, a second person approves it aft
   await form.getByRole('button', { name: localized('Create invoice', 'Buat faktur') }).click();
   await expect(form).toBeHidden({ timeout: 15_000 });
   let row = await invoiceRow(page);
-  await expect(row.getByText(localizedExact('Draft', 'Draf'))).toBeVisible({ timeout: 15_000 });
+  // #1405 copy: invoice states keep their core value and add the visible approval/due detail.
+  await expect(row.getByText(localizedExact('Draft · needs a second approver', 'Draf · perlu penyetuju kedua'))).toBeVisible({ timeout: 15_000 });
 
   // The draft has a stable record URL; reload keeps its project identity, and its author gets no approval action.
   await row.getByRole('button', { name: localized('Row actions', 'Tindakan baris') }).click();
@@ -119,7 +120,7 @@ test('AC-NAR-003 a no-ERP org raises an invoice, a second person approves it aft
   await page.reload();
   await expect(page.getByRole('heading', { name: /Draft invoice|Draf faktur/ })).toContainText(tag);
   await page.getByRole('button', { name: localized('Back to Sales Invoices', 'Kembali ke Faktur Penjualan') }).click();
-  await expect(page).toHaveURL(/\/sales-invoices\?q=/);
+  await expect(page).toHaveURL(/\/finance\/receivables\?q=/);
   await expect(page.getByLabel(localized('Search sales invoices', 'Cari faktur penjualan'))).toHaveValue(`${tag} Client`);
 
   // A second person — an Admin — approves it from the Approvals queue.
@@ -139,14 +140,14 @@ test('AC-NAR-003 a no-ERP org raises an invoice, a second person approves it aft
   await page.getByRole('button', { name: localized('Approve invoice', 'Setujui faktur') }).click();
   await expect(item).toHaveCount(0, { timeout: 15_000 });
   row = await invoiceRow(page);
-  await expect(row.getByText(localizedExact('Unpaid', 'Belum dibayar'))).toBeVisible({ timeout: 15_000 });
+  await expect(row.getByText(localizedExact('Unpaid · not yet due', 'Belum dibayar · belum jatuh tempo'))).toBeVisible({ timeout: 15_000 });
   await expect(row).toContainText(/INV-\d{10}/);
 
   // Finance records a part payment, then more than is still owed.
   await signIn(page, 'finance@acme.test');
   await recordReceipt(page, '500000');
   row = await invoiceRow(page);
-  await expect(row.getByText(localizedExact('Partly paid', 'Dibayar sebagian'))).toBeVisible({ timeout: 15_000 });
+  await expect(row.getByText(localizedExact('Partly paid · not yet due', 'Dibayar sebagian · belum jatuh tempo'))).toBeVisible({ timeout: 15_000 });
   await expect(row).toContainText(/610[.,]000/);
   await recordReceipt(page, '700000', /^610[.,]000$/);
   row = await invoiceRow(page);
@@ -158,7 +159,10 @@ test('AC-NAR-003 a no-ERP org raises an invoice, a second person approves it aft
   await page.getByLabel(localized('Search incoming payments', 'Cari pembayaran masuk')).fill(`${tag} Client`);
   const receiptRow = page.getByRole('row').filter({ hasText: `${tag} Client` }).filter({ hasText: /700[.,]000/ });
   await expect(receiptRow).toBeVisible({ timeout: 15_000 });
-  await receiptRow.getByRole('link', { name: /^RCV-\d{10}$/ }).click();
+  const openReceipt = receiptRow.getByRole('button', { name: /^Open RCV-\d{10}$/ });
+  await expect(openReceipt).toBeVisible({ timeout: 15_000 });
+  await openReceipt.click();
+  await page.getByRole('button', { name: localized('Open full page', 'Buka halaman lengkap'), exact: true }).click();
   await expect(page.getByRole('heading', { name: /^Receipt RCV-\d{10}$/ })).toBeVisible();
   const invoiceAllocation = page.getByRole('link', { name: /^INV-\d{10}$/ });
   await expect(invoiceAllocation).toBeVisible();

@@ -1,0 +1,172 @@
+{
+  "title": {
+    "default": "Pengadaan",
+    "engineer": "Pengadaan Anda"
+  },
+  "description": {
+    "default": "Pengadaan di organisasi Anda, dari permintaan hingga pembayaran.",
+    "engineer": "Lacak pengadaan yang Anda ajukan, dari permintaan hingga pembayaran.",
+    "projectManager": "Pengadaan untuk proyek yang Anda kelola, dari permintaan hingga pembayaran."
+  },
+  "newProcurement": "Pengadaan baru",
+  "more": "Lainnya",
+  "moreTools": {
+    "exportList": "Ekspor daftar",
+    "importProcurements": "Impor pengadaan",
+    "importCycle": "Impor siklus data"
+  },
+  "tabs": {
+    "label": "Daftar pengadaan"
+  },
+  "tab": {
+    "needsYou": "Perlu Anda tindaklanjuti",
+    "all": "Semua",
+    "orphans": "Belum masuk pengadaan"
+  },
+  "summary": {
+    "label": "Ringkasan pengadaan"
+  },
+  "stage": {
+    "request": "Permintaan",
+    "order": "Pesanan",
+    "receive": "Penerimaan",
+    "pay": "Pembayaran",
+    "filterActive": "Tahap {{stage}}"
+  },
+  "meaning": {
+    "needsYou": "Menunggu langkah Anda berikutnya",
+    "request": "Diajukan, disetujui, atau dalam penawaran",
+    "order": "Dipesan, menunggu penerimaan",
+    "receive": "Diterima, menunggu faktur",
+    "pay": "Difakturkan, menunggu pembayaran"
+  },
+  "count": {
+    "one": "pengadaan",
+    "many": "pengadaan",
+    "procurements_one": "{{count}} pengadaan",
+    "procurements_other": "{{count}} pengadaan"
+  },
+  "money": {
+    "mostReal": "Nilai paling nyata per pengadaan: nilai dibayar, jika tidak ada gunakan faktur pemasok, lalu pesanan pembelian, lalu permintaan pembelian. Total dipisahkan menurut mata uang.",
+    "pay": "Faktur pemasok menggunakan saldo yang belum dibayar; pengadaan lunas bernilai nol. Total dipisahkan menurut mata uang.",
+    "engineer": "Hanya nilai permintaan. Nilai faktur pemasok dan pembayaran tidak ditampilkan.",
+    "partialNotRecorded_one": "{{count}} lagi belum tercatat jumlahnya",
+    "partialNotRecorded_other": "{{count}} lagi belum tercatat jumlahnya",
+    "notRecorded": "Nilai {{currencies}} belum dicatat",
+    "none": "Tidak ada nilai",
+    "kind": {
+      "requested": "Nilai permintaan",
+      "ordered": "Nilai pesanan",
+      "invoiced": "Nilai faktur pemasok",
+      "paid": "Nilai dibayar",
+      "unpaid": "Nilai belum dibayar"
+    }
+  },
+  "column": {
+    "procurement": "Pengadaan",
+    "project": "Proyek",
+    "raisedBy": "Diajukan oleh",
+    "externalReferences": "Referensi eksternal",
+    "value": "Nilai",
+    "lifecycle": "Tahapan",
+    "status": "Status"
+  },
+  "unknownRequester": "Tidak diketahui",
+  "filter": {
+    "project": "Proyek",
+    "supplier": "Pemasok",
+    "raisedBy": "Diajukan oleh",
+    "status": "Status",
+    "filters": "Filter"
+  },
+  "statusFilter": {
+    "all": "Semua status",
+    "needsApproval": "Perlu persetujuan",
+    "open": "Terbuka",
+    "ordered": "Dipesan",
+    "supplierInvoiced": "Difakturkan pemasok",
+    "paid": "Lunas"
+  },
+  "search": {
+    "placeholder": "Cari judul, nomor, atau referensi…",
+    "label": "Cari pengadaan"
+  },
+  "result": {
+    "one": "{{count}} hasil",
+    "many": "{{count}} hasil"
+  },
+  "view": {
+    "table": "Tabel",
+    "grouped": "Dikelompokkan",
+    "board": "Papan",
+    "label": "Tampilan pengadaan"
+  },
+  "age": {
+    "oneDay": "1 hari",
+    "days": "{{count}} hari"
+  },
+  "needsYou": {
+    "approve": "Menunggu persetujuan Anda · {{age}}",
+    "pay": "Belum dibayar · {{age}}",
+    "receive": "Menunggu penerimaan · dipesan {{date}} · {{age}}",
+    "empty": {
+      "title": "Tidak ada yang perlu ditindaklanjuti",
+      "sub": "Tidak ada pengadaan dalam lingkup Anda yang menunggu tindakan."
+    }
+  },
+  "group": {
+    "needsApproval": "Perlu persetujuan",
+    "inProgress": "Sedang berlangsung",
+    "invoiced": "Difakturkan, belum dibayar",
+    "done": "Selesai",
+    "empty": "Tidak ada pengadaan dalam kelompok ini."
+  },
+  "grouped": {
+    "label": "Pengadaan dikelompokkan menurut langkah berikutnya"
+  },
+  "board": {
+    "label": "Pengadaan menurut tahapan",
+    "request": "Permintaan",
+    "approved": "Disetujui",
+    "ordered": "Dipesan",
+    "received": "Diterima",
+    "paid": "Dibayar",
+    "empty": "Belum ada pengadaan pada tahap {{stage}}",
+    "open": "Buka {{title}}"
+  },
+  "status": {
+    "invoiceToPay": "Faktur pemasok belum dibayar",
+    "paid": "Lunas"
+  },
+  "clear": "Hapus",
+  "error": {
+    "title": "Pengadaan tidak dapat dimuat",
+    "sub": "Muat ulang daftar untuk mencoba lagi."
+  },
+  "empty": {
+    "title": "Belum ada pengadaan",
+    "engineer": {
+      "title": "Anda belum mengajukan pengadaan"
+    },
+    "sub": "Pengadaan baru akan muncul di sini setelah diajukan."
+  },
+  "noMatch": {
+    "title": "Tidak ada pengadaan yang cocok dengan filter ini",
+    "sub": "Hapus filter atau ubah pencarian untuk melihat pengadaan lainnya.",
+    "clear": "Hapus filter"
+  },
+  "orphans": {
+    "error": "Dokumen yang belum masuk pengadaan tidak dapat dimuat",
+    "empty": {
+      "title": "Semua dokumen sistem akuntansi sudah masuk pengadaan",
+      "sub": "Dokumen baru akan muncul setelah sinkronisasi berikutnya."
+    }
+  },
+  "list": {
+    "label": "Daftar pengadaan"
+  },
+  "kpi": {
+    "oldestInvoiceBasis_one": "Tanggal faktur pemasok terlama (atau tanggal pembuatan catatan) · {{count}} hari lalu",
+    "oldestInvoiceBasis_other": "Tanggal faktur pemasok terlama (atau tanggal pembuatan catatan) · {{count}} hari lalu"
+  }
+}

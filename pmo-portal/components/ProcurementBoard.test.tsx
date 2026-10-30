@@ -25,38 +25,43 @@ const row = (over: Partial<ProcurementWithRefs>): ProcurementWithRefs =>
   }) as ProcurementWithRefs;
 
 describe('ProcurementBoard — by-stage kanban (Issue 3)', () => {
-  it('renders all six lifecycle stage columns (no Approved column — approval is a gate)', () => {
-    // Owner directive 2026-06-21: approval is a gate, not a stage → no Approved column.
+  it('renders the five requested workflow columns', () => {
     render(<ProcurementBoard procurements={[]} onOpen={vi.fn()} />);
-    for (const full of ['Purchase Request', 'Supplier Quote', 'Purchase Order', 'Goods Receipt', 'Supplier Invoice', 'Payment']) {
+    for (const full of ['Request', 'Approved', 'Ordered', 'Received', 'Paid']) {
       expect(screen.getByText(full)).toBeInTheDocument();
     }
-    expect(screen.queryByText('Approved')).not.toBeInTheDocument();
   });
 
-  it('an approved request appears in the Supplier Quote column (the bar advanced on approval)', () => {
+  it('shows a value slot in every stage header, including empty stages', () => {
+    render(<ProcurementBoard procurements={[]} onOpen={vi.fn()} />);
+    for (const stage of ['request', 'approved', 'ordered', 'received', 'paid']) {
+      expect(screen.getByTestId(`prstage-${stage}-totals`)).toBeInTheDocument();
+    }
+  });
+
+  it('an approved request appears in the Approved column', () => {
     render(
       <MemoryRouter>
         <ProcurementBoard procurements={[row({ status: 'Approved', title: 'Approved req' })]} onOpen={vi.fn()} />
       </MemoryRouter>,
     );
-    expect(screen.getByTestId('prstage-vq')).toHaveTextContent('Approved req');
+    expect(screen.getByTestId('prstage-approved')).toHaveTextContent('Approved req');
   });
 
-  it('groups a request into its stage column (Ordered → Purchase Order)', () => {
+  it('groups an ordered procurement into the Ordered column', () => {
     render(
       <MemoryRouter>
         <ProcurementBoard procurements={[row({ status: 'Ordered' })]} onOpen={vi.fn()} />
       </MemoryRouter>,
     );
-    const poCol = screen.getByTestId('prstage-po');
+    const poCol = screen.getByTestId('prstage-ordered');
     expect(poCol).toHaveTextContent('Structural steel');
     expect(poCol).toHaveTextContent('PR-2606040001');
   });
 
   it('shows the empty message for a stage with no requests', () => {
     render(<ProcurementBoard procurements={[]} onOpen={vi.fn()} />);
-    expect(screen.getByText('No requests at Supplier Quote')).toBeInTheDocument();
+    expect(screen.getByText('No procurements at Approved')).toBeInTheDocument();
   });
 
   it('activating a card calls onOpen with the request', async () => {
@@ -76,15 +81,13 @@ describe('ProcurementBoard — by-stage kanban (Issue 3)', () => {
     const dots = Array.from(
       container.querySelectorAll<HTMLElement>('span.size-\\[9px\\].rounded-full'),
     );
-    // one column-head dot per stage (6 stages: pr, vq, po, gr, vi, paid)
-    expect(dots).toHaveLength(6);
+    // one column-head dot per workflow step
+    expect(dots).toHaveLength(5);
     const backgrounds = dots.map((d) => d.style.background);
-    // the five upstream stages (pr, vq, po, gr, vi) are quiet neutral
-    expect(backgrounds.slice(0, 5)).toEqual(
-      Array(5).fill('hsl(var(--muted-foreground))'),
+    expect(backgrounds.slice(0, 4)).toEqual(
+      Array(4).fill('hsl(var(--muted-foreground))'),
     );
-    // the terminal Payment stage is success
-    expect(backgrounds[5]).toBe('hsl(var(--success))');
+    expect(backgrounds[4]).toBe('hsl(var(--success))');
     // no blue/primary column dot remains (matches the sales board convention)
     expect(backgrounds.some((b) => b.includes('--primary'))).toBe(false);
   });
@@ -108,7 +111,7 @@ describe('ProcurementBoard — by-stage kanban (Issue 3)', () => {
         />
       </MemoryRouter>,
     );
-    const poCol = screen.getByTestId('prstage-po');
+    const poCol = screen.getByTestId('prstage-ordered');
     expect(poCol).toHaveTextContent('€1,000');
     expect(poCol).not.toHaveTextContent('$1,000');
   });
@@ -135,7 +138,7 @@ describe('ProcurementBoard — by-stage kanban (Issue 3)', () => {
           />
         </MemoryRouter>,
       );
-      const totals = screen.getByTestId('prstage-po-totals');
+      const totals = screen.getByTestId('prstage-ordered-totals');
       expect(totals.children).toHaveLength(2);
       expect(totals.textContent).toContain('$1,000');
       // ⚑ Intl en-US separates a code-style currency from its amount with U+00A0 (NBSP), never a
@@ -159,7 +162,7 @@ describe('ProcurementBoard — by-stage kanban (Issue 3)', () => {
       );
       // Scoped to the TOTALS region: the cards themselves legitimately render $1,000 and $500,
       // so a column-wide assertion cannot tell one subtotal line from two.
-      const totals = screen.getByTestId('prstage-po-totals');
+      const totals = screen.getByTestId('prstage-ordered-totals');
       expect(totals.textContent).toBe('$1,500');
       // Same-currency rows still SUM — a breakdown that refused to add would be a regression.
       expect(totals.children).toHaveLength(1);

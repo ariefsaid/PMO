@@ -49,4 +49,15 @@ describe('AC-MMP-015 dashboard Board pack', () => {
     renderAt();
     expect(screen.getByRole('button', { name: /board pack \(coming soon\)/i })).toBeDisabled();
   });
+
+  it('AC-MMP-015: records demand when the disabled coming-soon action is clicked', async () => {
+    h.revenue = false;
+    h.role = 'Executive';
+    h.track.mockClear();
+    renderAt();
+    const action = screen.getByRole('button', { name: /board pack \(coming soon\)/i });
+    // The disabled control is pointer-transparent so the wrapper receives the user's click intent.
+    await userEvent.setup().click(action.parentElement as HTMLElement);
+    expect(h.track).toHaveBeenCalledWith('board-pack-export', 'dashboard');
+  });
 });

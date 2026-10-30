@@ -152,7 +152,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
       case 'Requested':
         return tProcurement(
           'procurementDetail.readyHint.requested',
-          'You may approve or reject this procurement. The requester cannot self-approve — separation of duties requires a different reviewer.',
+          'You may approve or reject this procurement. The requester cannot self-approve. Separation of duties requires a different reviewer.',
         );
       case 'Vendor Invoiced':
         return approver
@@ -221,10 +221,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               data-testid="sod-pre-announce"
               className="text-[13px] text-muted-foreground"
             >
-              {tProcurement(
-                'procurementDetail.sodPreannounce',
-                'Submitting hands this to another approver — you can\'t approve your own procurement record.',
-              )}
+              Submitting hands this to another approver — you can&apos;t approve your own procurement.
             </p>
           )}
 
@@ -496,7 +493,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
   return (
     <div data-testid="vi-inline-capture" className="flex flex-col gap-3">
       <p className="text-[12px] font-semibold text-muted-foreground">
-        {t('procurementDetail.vendorInvoice.enterDetails', 'Enter invoice details to mark as Supplier Invoiced:')}
+        {t('procurementDetail.vendorInvoice.enterDetails', 'Enter the supplier invoice details:')}
       </p>
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
@@ -583,8 +580,8 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
                 ...TAX_TREATMENT_OPTIONS.map((o) => ({
                   value: o.value,
                   label: o.value === 'inclusive'
-                    ? t('procurementDetail.vendorInvoice.taxInclusive', 'Inclusive — VAT included')
-                    : t('procurementDetail.vendorInvoice.taxExclusive', 'Exclusive — VAT added'),
+                    ? t('procurementDetail.vendorInvoice.taxInclusive', 'Inclusive: VAT included')
+                    : t('procurementDetail.vendorInvoice.taxExclusive', 'Exclusive: VAT added'),
                 })),
               ]}
               helper={t('procurementDetail.vendorInvoice.taxTreatmentHelper', 'Inclusive: VAT is already in the bill amount. Exclusive: VAT is added to it.')}

@@ -56,6 +56,15 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 import TasksTab from '../tabs/TasksTab';
 
+/** A phase's heading row and the text of every row up to the next phase heading (B7: phases share one table). */
+function phase(name: RegExp) {
+  const rows = within(screen.getByRole('table', { name: 'Project tasks' })).getAllByRole('row');
+  const start = rows.findIndex((row) => within(row).queryByRole('rowheader', { name }));
+  if (start === -1) throw new Error(`No phase heading ${name}`);
+  const next = rows.findIndex((row, index) => index > start && within(row).queryByRole('rowheader'));
+  return { heading: rows[start], text: rows.slice(start, next === -1 ? undefined : next).map((row) => row.textContent).join(' | ') };
+}
+
 const render$ = () => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -78,8 +87,7 @@ describe('TasksTab add task in group (AC-DEL-011)', () => {
     render$();
 
     // The Engineering design group should have an "Add task" button
-    const m1Section = screen.getByRole('region', { name: /Engineering design/i });
-    const addBtn = within(m1Section).getByRole('button', { name: /add task/i });
+    const addBtn = within(phase(/Engineering design/i).heading).getByRole('button', { name: /add task/i });
     fireEvent.click(addBtn);
 
     // Modal should open — wait for the dialog role to appear

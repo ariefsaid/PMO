@@ -79,7 +79,7 @@ const validate = (
   if (tax === null && v.taxTreatment.trim()) {
     errors.taxAmount = t(
       'projectDetail.workOrderForm.errors.taxAmount',
-      'Enter the tax amount — 0 if there is no tax',
+      'Enter the tax amount (0 if there is no tax)',
     );
   }
   // Mirrors `work_orders_inclusive_tax_within_value` (0197 §6): tax carved OUT of a figure cannot
@@ -110,7 +110,7 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
   onCreate,
   onUpdate,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const isEdit = !!workOrder;
 
   const validateWithT = useCallback((v: FormValues) => validate(v, t, isEdit), [t, isEdit]);

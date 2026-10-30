@@ -1,0 +1,54 @@
+{
+  "backToProcurement": "Procurement",
+  "backToChoices": "What do you have?",
+  "denied": "You do not have permission to create procurements.",
+  "question": "What do you have?",
+  "questionDescription": "Start with a new need or a document already in hand.",
+  "continueNeed": "A purchase request is saved with lines still to finish. Continue with the same need.",
+  "choices": {
+    "need": {
+      "title": "A new need",
+      "description": "Raise a purchase request."
+    },
+    "order": {
+      "title": "An order",
+      "description": "Record a purchase order you already have."
+    },
+    "invoice": {
+      "title": "A supplier invoice",
+      "description": "Record an invoice that needs tracking."
+    },
+    "payment": {
+      "title": "A scheduled payment",
+      "description": "Record a payment to a supplier. Finance marks it paid."
+    },
+    "accounting": {
+      "title": "A document already in the accounting system",
+      "description": "Find documents that are not in a procurement."
+    }
+  },
+  "heading": "New procurement",
+  "draftNote": {
+    "need": "This purchase request remains a draft until you submit it.",
+    "order": "Add the procurement details, then record the purchase order.",
+    "invoice": "Add the procurement details, then record the supplier invoice.",
+    "payment": "Add the procurement details, then record the payment."
+  },
+  "save": "Save",
+  "details": "Procurement details",
+  "titleField": "Title",
+  "titleRequired": "A procurement title is required.",
+  "project": "Project",
+  "selectProject": "Select a project…",
+  "supplier": "Supplier",
+  "selectSupplier": "Optional: select a supplier…",
+  "budgetCategory": "Budget category",
+  "linesFailed": "Procurement saved, but some lines were not saved. Save again to retry.",
+  "unsaved": {
+    "title": "Unsaved procurement",
+    "description": "This procurement has not been saved. Leave this page and discard it?",
+    "partialDescription": "Your procurement is saved. Any remaining line items will be lost if you leave.",
+    "leave": "Leave",
+    "stay": "Stay"
+  }
+}

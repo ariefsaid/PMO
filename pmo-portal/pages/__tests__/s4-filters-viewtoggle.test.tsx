@@ -10,11 +10,13 @@
  *          Table/Cards view toggle is a state-lie on mobile. The toggle must be hidden below md
  *          (`hidden md:inline-flex`) while the status filter stays always visible.
  *
- * Coverage: Projects, Procurement, Incidents pages (all three ship a status ViewToggle).
+ * Coverage: Projects, Procurement, Incidents pages. Procurement no longer has a status tablist: its
+ * list tabs ("Needs you" / "All" / "Not in a procurement") are the equivalent scroll-reachable control.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 
@@ -37,12 +39,13 @@ const { roleBox, projectMutations, deliverySummaryState } = vi.hoisted(() => ({
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
-vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [] }), useHasErpPurchases: () => ({ data: false }) }));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => ({ data: [], isError: false }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
+  useProject: () => ({ data: null }),
   useProjects: () => ({
     data: [{ id: 'p1', name: 'Alpha Project', code: 'PRJ-001', status: 'Ongoing Project',
       client_id: 'c1', project_manager_id: 'u-alice', contract_value: 1000000, currency: 'USD', budget: 900000,
@@ -84,11 +87,11 @@ const procState = {
   data: [{ id: 'pc1', code: 'PROC-001', title: 'Workstations', status: 'Open',
     total_value: 10000, currency: 'USD', project_id: 'p1', requested_by_id: 'u-alice',
     vendor_id: null, created_at: '2026-01-01T00:00:00Z',
-    project: { name: 'Alpha Project', code: 'PRJ-001' },
+    project: { name: 'Alpha Project', code: 'PRJ-001', project_manager_id: 'u-alice' },
     vendor: null, requested_by: { full_name: 'Alice Manager' } }],
   isPending: false, isError: false, refetch: vi.fn(),
 };
-vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState }));
+vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState, useProjectProcurements: () => procState }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [] }),
   useVendorOptions: () => ({ data: [] }),
@@ -127,7 +130,9 @@ const renderProjects = () =>
 
 const renderProcurement = () =>
   render(
-    <ToastProvider><MemoryRouter><Procurement /></MemoryRouter></ToastProvider>,
+    <QueryClientProvider client={new QueryClient()}>
+      <ToastProvider><MemoryRouter><Procurement /></MemoryRouter></ToastProvider>
+    </QueryClientProvider>,
   );
 
 const renderIncidents = () =>
@@ -155,12 +160,11 @@ describe('AC-2: status filter is wrapped in an overflow-x-auto scroll container'
     expect(scrollWrapper!.className).toContain('scroll-fade-x');
   });
 
-  it('Procurement: status-filter tablist sits inside an overflow-x-auto container (AC-2)', () => {
+  it('Procurement: the list-tabs tablist is itself an overflow-x-auto container (AC-2)', () => {
     renderProcurement();
-    const statusFilter = screen.getByRole('tablist', { name: /status filter/i });
-    const scrollWrapper = statusFilter.closest('[data-testid="status-filter-scroll"]');
-    expect(scrollWrapper).toBeInTheDocument();
-    expect(scrollWrapper!.className).toContain('overflow-x-auto');
+    const listTabs = screen.getByRole('tablist', { name: /procurement lists/i });
+    expect(listTabs.className).toContain('overflow-x-auto');
+    expect(within(listTabs).getAllByRole('tab').length).toBeGreaterThanOrEqual(2);
   });
 
   it('Incidents: status-filter tablist sits inside an overflow-x-auto container (AC-2)', () => {
@@ -214,18 +218,23 @@ describe('AC-MOB-VT: Projects view toggle remains reachable below md', () => {
       expect(el.className, `${el.tagName} must not hide the toggle`).not.toMatch(/(^|\s|:)hidden(\s|$)/);
     }
     const tabs = Array.from(viewToggle.querySelectorAll<HTMLElement>('[role="tab"]'));
-    expect(tabs.map((t) => t.textContent?.trim())).toEqual(['Table', 'Board']);
+    expect(tabs.map((t) => t.textContent?.trim())).toEqual(['Table', 'Grouped', 'Board']);
     // Operable: clicking Board reaches the page's view handler, which persists the choice (this
     // file stubs useNavigate, so the URL flip itself is owned by e2e AC-PVT-001).
     expect(readProcurementView()).toBe('table');
-    fireEvent.click(tabs[1]);
+    fireEvent.click(tabs[2]);
     expect(readProcurementView()).toBe('board');
   });
 
-  it('Procurement: the status-filter tablist wrapper does NOT carry hidden (A-MIN-1 negative)', () => {
+  it('Procurement: the list-tabs tablist is not hidden below md (A-MIN-1 negative)', () => {
     renderProcurement();
-    const statusFilter = screen.getByRole('tablist', { name: /status filter/i });
-    const scrollWrapper = statusFilter.closest('[data-testid="status-filter-scroll"]');
-    expect(scrollWrapper!.className).not.toContain('hidden');
+    const listTabs = screen.getByRole('tablist', { name: /procurement lists/i });
+    const hasDisplayHiddenUtility = (className: string) => className
+      .split(/\s+/)
+      .some((token) => /^(?:[a-z0-9-]+:)*hidden$/.test(token));
+
+    for (let el: HTMLElement | null = listTabs; el && el !== document.body; el = el.parentElement) {
+      expect(hasDisplayHiddenUtility(el.className), `${el.tagName} must not hide the list tabs`).toBe(false);
+    }
   });
 });

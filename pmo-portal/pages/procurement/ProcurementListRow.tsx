@@ -100,7 +100,7 @@ const ExpandedPanel: React.FC<{
       ) : detail.isError ? (
         <ListState
           variant="error"
-          title={t('procurement:preview.loadErrorTitle', "Couldn't load procurement details")}
+          title="Couldn't load procurement details"
           sub={t('procurement.preview.loadErrorSub', 'Something went wrong fetching the preview.')}
           onRetry={() => detail.refetch()}
         />

@@ -5,22 +5,26 @@ import { buildManagementPack, type ManagementPack } from '@/src/lib/reports/mana
 import type { ManagementPackFacts, ManagementPackRange, ProjectProgressInput } from '@/src/lib/db/managementPack';
 
 /** #765: the management pack for a window (org-scoped cache key; never threads org_id to the server). */
-export function useManagementPack(range: ManagementPackRange) {
+export function useManagementPack(range: ManagementPackRange, enabled = true) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<ManagementPackFacts, Error, ManagementPack>({
     queryKey: ['managementPack', orgId, range.from ?? 'default', range.to ?? 'default'],
     queryFn: () => repositories.reports.managementPack(range),
     select: buildManagementPack,
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId) && enabled,
   });
 }
 
-/** #765: record a month-end percent complete; every cached pack window is refreshed on success. */
+/** #765: record a month-end percent complete; every cached pack window and project billing summary
+ *  (which shows the latest percent) is refreshed on success. */
 export function useRecordProjectProgress() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: ProjectProgressInput) => repositories.reports.recordProgress(input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['managementPack'] }),
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['managementPack'] }),
+      qc.invalidateQueries({ queryKey: ['project-billing'] }),
+    ]),
   });
 }

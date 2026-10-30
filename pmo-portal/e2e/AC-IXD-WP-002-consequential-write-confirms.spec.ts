@@ -9,7 +9,7 @@ import { login } from './helpers';
 //   Given: a Requested PR (PROC-2026-002) that a non-requester approver (finance@) views.
 //   When:  they click "Approve",
 //   Then:  a ConfirmDialog appears whose body restates the AMOUNT + project + requester;
-//   And:   clicking "Mark as Paid" on a Vendor-Invoiced PR (PROC-2026-008) also confirms with
+//   And:   clicking "Record payment" on a Vendor-Invoiced PR (PROC-2026-008) also confirms with
 //          the amount and explains that this records evidence rather than transferring funds.
 //   Invariant: consequential/financial writes confirm before the write, against the money.
 
@@ -52,7 +52,7 @@ test('AC-IXD-WP-002: Approve still confirms and its dialog restates the amount +
   );
 });
 
-test('AC-IXD-WP-002: Mark as Paid still confirms and its dialog restates the amount', async ({ page }) => {
+test('AC-IXD-WP-002: Record payment still confirms and its dialog restates the amount', async ({ page }) => {
   // PROC-2026-008 (…008): Vendor Invoiced, $30,000, approver = exec@ (a1); finance@ (a3) pays
   // (payer ≠ approver → SoD-b passes).
   await login(page, 'finance@acme.test');
@@ -65,8 +65,8 @@ test('AC-IXD-WP-002: Mark as Paid still confirms and its dialog restates the amo
     { timeout: 10_000 },
   );
 
-  // Click Mark as Paid → a confirm dialog appears (financial write still confirms).
-  await page.getByRole('button', { name: 'Mark as Paid' }).click();
+  // Click Record payment → a confirm dialog appears (financial write still confirms).
+  await page.getByRole('button', { name: 'Record payment' }).click();
   const dialog = confirmSurface(page);
   await expect(dialog).toBeVisible({ timeout: 5_000 });
 
@@ -77,6 +77,7 @@ test('AC-IXD-WP-002: Mark as Paid still confirms and its dialog restates the amo
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Vendor Invoiced');
 
   // Confirming commits the payment.
+  // The visible action is now Record payment; the staged transition dialog keeps its current confirm label.
   await dialog.getByRole('button', { name: 'Mark as Paid' }).click();
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute(
     'data-status',

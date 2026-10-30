@@ -1,0 +1,168 @@
+{
+  "status": {
+    "waitingApproval": "Waiting for approval",
+    "invoicedNotPaid": "Invoiced, not paid",
+    "quotationReceived": "Quotation received",
+    "quoteChosen": "Quote chosen",
+    "returned": "Returned",
+    "supplierNotChosen": "Supplier not chosen yet"
+  },
+  "tabs": {
+    "timeline": "Timeline",
+    "items": "Line items",
+    "quotes": "Quotations",
+    "files": "Files",
+    "details": "Details"
+  },
+  "details": {
+    "supplier": "Supplier",
+    "budgetCategory": "Budget category",
+    "accountingStatus": "Accounting-system status",
+    "accountingStatusValue": "{{orders}} · {{docs}}",
+    "purchaseOrders_one": "{{count}} purchase order",
+    "purchaseOrders_other": "{{count}} purchase orders",
+    "documentsLinked_one": "{{count}} document linked",
+    "documentsLinked_other": "{{count}} documents linked"
+  },
+  "items": {
+    "countLabel": "line items"
+  },
+  "action": {
+    "submit": "Submit for approval",
+    "recordOrder": "Record order",
+    "chooseQuote": "Choose quote",
+    "recordReceipt": "Record receipt",
+    "recordInvoice": "Record supplier invoice",
+    "recordPayment": "Record payment",
+    "return": "Return",
+    "rework": "Rework",
+    "addQuote": "Add quotation",
+    "requestQuotes": "Request quotations"
+  },
+  "meta": {
+    "raisedBy": "Raised by"
+  },
+  "quotes": {
+    "chosen": "Chosen",
+    "validUntil": "Valid until",
+    "vsChosen": "vs chosen"
+  },
+  "close": "Close",
+  "approval": {
+    "withinLimit": "Within your limit",
+    "goesTo": "Goes to {{name}}",
+    "note": "Approval note (optional)"
+  },
+  "sod": {
+    "approverHint": "You may approve or reject this procurement. The requester cannot self-approve. Separation of duties requires a different reviewer.",
+    "approverCannotPay": "Payment must be released by a different finance user. The approver can't also pay this procurement.",
+    "payerHint": "Releasing payment: the approver can't also pay (separation of duties).",
+    "preAnnounce": "Submitting hands this to another approver. You can't approve your own procurement."
+  },
+  "gate": {
+    "addLineItem": "Add at least one line item before submitting."
+  },
+  "waiting": {
+    "approval": "Waiting for approval",
+    "engineerApproval": "Waiting for approval by a project manager or Finance",
+    "payment": "Payment: waiting for Finance"
+  },
+  "record": {
+    "purchaseRequest": "Purchase request",
+    "quoteRequest": "Quote request",
+    "purchaseOrder": "Purchase order",
+    "receipt": "Receipt",
+    "supplierInvoice": "Supplier invoice",
+    "payment": "Payment"
+  },
+  "recordAnother": "Record another document",
+  "recordMenu": "Record another document",
+  "linkAccounting": "Link from accounting system",
+  "moreActions": "More procurement actions",
+  "editDetails": "Edit details",
+  "export": "Export",
+  "cancelProcurement": "Cancel procurement",
+  "erpLinked": "Accounting-system document linked",
+  "stage": {
+    "request": "Request",
+    "order": "Order",
+    "receive": "Receive",
+    "pay": "Pay",
+    "notRecorded": "Not recorded",
+    "record": "record",
+    "records": "records",
+    "startedAt": "Started at the {{stage}}",
+    "partialReceipt": "{{received}} of {{orders}} orders received",
+    "purchaseRequest": "purchase request",
+    "purchaseRequests": "purchase requests",
+    "purchaseOrder": "order",
+    "purchaseOrders": "orders",
+    "receipt": "receipt",
+    "receipts": "receipts",
+    "invoice": "invoice",
+    "invoices": "invoices",
+    "payment": "payment",
+    "payments": "payments",
+    "countAndAmount": "{{count}} {{document}} · {{amount}}"
+  },
+  "money": {
+    "title": "Money · {{currency}}, before tax",
+    "requested": "Requested",
+    "ordered": "Ordered",
+    "invoiced": "Invoiced",
+    "paid": "Paid",
+    "unpaid": "Unpaid",
+    "noneRecorded": "None recorded",
+    "noPurchaseRequest": "No purchase request: started at the order",
+    "amountMissing": "Amount not recorded",
+    "outstanding": "Outstanding balance",
+    "due": "Due {{date}}",
+    "overdue": "Overdue {{days}} days · due {{date}}",
+    "budgetLoading": "Budget signal loading",
+    "budgetUnavailable": "Couldn't load the project budget",
+    "noBudget": "No active project budget",
+    "budgetSignal": "Available {{available}} · after this procurement {{after}}",
+    "budgetSignalTooltip": "Available = project budget less committed and reserved spend. “After this procurement” includes it at its current stage. Source: project budget, committed procurement spend, and reserved procurement spend.",
+    "unknown": "{{figure}} could not be calculated because a source amount is missing. Source: procurement records and linked accounting-system documents.",
+    "unpaidHelp": "Calculated from invoiced less paid amounts, or from linked accounting-system invoice balances. Source: supplier invoices, payments, and linked accounting-system documents.",
+    "calculation": "Sum of recorded {{figure}} amounts. Source: procurement records and linked accounting-system documents.",
+    "projectBudget": "Project budget tracked",
+    "projectBudgetTooltip": "Project budget and reserved-spend data are shown here when available. Full impact is shown while this procurement is in Request.",
+    "financeOnly": "Invoices and payments are handled by Finance."
+  },
+  "timeline": {
+    "overdue": "Overdue {{days}} days",
+    "title": "Timeline",
+    "inDateOrder": "in date order · missing steps aren’t required by your company",
+    "fullHistory": "Full history",
+    "procurementRaised": "Procurement raised",
+    "all": "All",
+    "financial": "Financial",
+    "hasFile": "Has file",
+    "empty": "No activity recorded yet.",
+    "fromAccounting": "from accounting system",
+    "supplierInvoice": "Supplier invoice",
+    "receipt": "Receipt",
+    "order": "Order",
+    "payment": "Payment",
+    "dateMissing": "Date not recorded",
+    "status": "Status",
+    "dueDate": "Due date",
+    "supplierReference": "Supplier reference",
+    "files": "files",
+    "submitted": "Submitted for approval",
+    "approved": "Approved",
+    "returnedRejected": "Returned or rejected",
+    "cancelled": "Cancelled",
+    "paid": "Paid",
+    "record": {
+      "PR": "Purchase request",
+      "RFQ": "Quote request",
+      "Quote": "Quotation",
+      "PO": "Purchase order",
+      "GR": "Receipt",
+      "Invoice": "Supplier invoice",
+      "Payment": "Payment"
+    }
+  }
+}

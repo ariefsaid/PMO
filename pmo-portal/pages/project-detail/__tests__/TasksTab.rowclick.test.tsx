@@ -1,8 +1,7 @@
 /**
- * AC-W6-IXD-TASKROW — clicking (or Enter-activating) a task row opens the EXISTING
- * Edit modal, pre-filled. The activation control's accessible name is "Edit <name>".
- * Clicking ⋯ → Delete does NOT open the edit modal (stopPropagation). A viewer who
- * cannot edit (Engineer on others' tasks) gets NO activation affordance.
+ * AC-1402 — row activation opens the shared Drawer; edit remains a separate permission-gated action.
+ * Clicking ⋯ → Delete does not open the Drawer. Readers can open comments and history regardless
+ * of their task edit permission.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
@@ -40,6 +39,8 @@ vi.mock('@/src/hooks/useMilestones', () => ({
     setTaskMilestone: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
+vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => <div>Task comments</div> }));
+vi.mock('@/src/components/history/RecordHistory', () => ({ RecordHistory: () => <div>Task history</div> }));
 
 let realRole: Role = 'Project Manager';
 vi.mock('@/src/auth/impersonation', () => ({
@@ -104,39 +105,71 @@ beforeEach(() => {
   currentUserId = 'pm-1';
 });
 
-describe('TasksTab — row click opens the edit modal (AC-W6-IXD-TASKROW)', () => {
-  it('AC-W6-IXD-TASKROW: clicking a task row opens the edit modal pre-filled with that task', async () => {
+describe('TasksTab — row click opens the shared task drawer (AC-1402)', () => {
+  it('AC-1402: clicking a task row opens the shared drawer with details, comments, history and full record link', async () => {
     renderTab('Project Manager');
-    await userEvent.click(screen.getByRole('button', { name: 'Edit Survey the site' }));
+    await userEvent.click(screen.getByText('Survey the site').closest('tr')!);
+    const dialog = await screen.findByRole('dialog', { name: 'Survey the site' });
+    expect(within(dialog).getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+    expect(within(dialog).getByText('Task comments')).toBeInTheDocument();
+    expect(within(dialog).getByText('Task history')).toBeInTheDocument();
+    expect(within(dialog).getByRole('link', { name: 'Open full page' })).toHaveAttribute('href', '/projects/p1/tasks#task-t1');
+    // Rare actions sit in the drawer header's ⋯ menu, like every record drawer.
+    await userEvent.click(within(dialog).getByRole('button', { name: 'More task actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
+  });
+
+  it('AC-W6-IXD-TASKROW: the drawer Edit action opens the edit form pre-filled with that task', async () => {
+    renderTab('Project Manager');
+    await userEvent.click(screen.getByText('Survey the site').closest('tr')!);
+    const drawer = await screen.findByRole('dialog', { name: 'Survey the site' });
+    await userEvent.click(within(drawer).getByRole('button', { name: 'Edit' }));
     const dialog = await screen.findByRole('dialog', { name: /Edit task/i });
     expect(within(dialog).getByLabelText(/task name/i)).toHaveValue('Survey the site');
   });
 
-  it('AC-W6-IXD-TASKROW: pressing Enter on the row activation button opens the edit modal', async () => {
+  it('B1: the task drawer matches the other record drawers — wide, with Edit as the main header action', async () => {
     renderTab('Project Manager');
-    const activation = screen.getByRole('button', { name: 'Edit Survey the site' });
-    activation.focus();
-    await userEvent.keyboard('{Enter}');
-    expect(await screen.findByRole('dialog', { name: /Edit task/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByText('Survey the site').closest('tr')!);
+    const dialog = await screen.findByRole('dialog', { name: 'Survey the site' });
+    expect(dialog.className).toContain('md:w-[min(560px,92vw)]');
+    expect(dialog.className).toContain('max-md:w-full');
+    const edit = within(dialog).getByRole('button', { name: 'Edit' });
+    const fullPage = within(dialog).getByRole('link', { name: 'Open full page' });
+    const more = within(dialog).getByRole('button', { name: 'More task actions' });
+    expect(edit.compareDocumentPosition(fullPage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(fullPage.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(edit.className).toContain('bg-primary');
   });
 
-  it('AC-W6-IXD-TASKROW: the activation button accessible name is "Edit <task name>"', () => {
+  it('AC-1402: pressing Enter on the row activation button opens the drawer', async () => {
     renderTab('Project Manager');
-    expect(screen.getByRole('button', { name: 'Edit Survey the site' })).toBeInTheDocument();
+    const activation = screen.getByRole('button', { name: 'Open task Survey the site' });
+    activation.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(await screen.findByRole('dialog', { name: 'Survey the site' })).toBeInTheDocument();
+  });
+
+  it('AC-1402: the activation button is available to readers who cannot edit', () => {
+    renderTab('Engineer', 'eng-1');
+    expect(screen.getByRole('button', { name: 'Open task Survey the site' })).toBeInTheDocument();
   });
 
   it('AC-W6-IXD-TASKROW: clicking ⋯ → Delete does NOT open the edit modal (stopPropagation)', async () => {
-    renderTab('Project Manager');
+    renderTab('Admin');
     const row = screen.getByText('Survey the site').closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /delete/i }));
     // A destructive confirm appears, not the edit dialog.
     expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
-    expect(screen.queryByRole('dialog', { name: /Edit task/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Survey the site' })).not.toBeInTheDocument();
   });
 
-  it('AC-W6-IXD-TASKROW: canEdit=false (Engineer) → the row is NOT activatable (no Edit affordance)', () => {
+  it('AC-1402: Engineer can open a task drawer but does not get the Edit action on another user\'s task', async () => {
     renderTab('Engineer', 'eng-1');
-    expect(screen.queryByRole('button', { name: 'Edit Survey the site' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Open task Survey the site' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Survey the site' });
+    expect(within(dialog).queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
   });
 });

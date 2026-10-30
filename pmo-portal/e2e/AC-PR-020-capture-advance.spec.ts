@@ -1,7 +1,7 @@
 // @e2e-isolation: self-isolated — uses SP2401-004 (shared seed case); serial mode within file; captures RFQ → ledger shows dual IDs + timeline grows; no parallel contention.
 /**
  * AC-PR-020 — Capture a record with external ref + date + amount on one page, confirm
- *             it appears with both IDs in the Documents ledger, and confirm the
+ *             it appears with both IDs in the Files ledger, and confirm the
  *             Progression timeline gains the event.
  *
  * AC-PR-022 (no dead affordances / honest doorway) is folded in: every affordance
@@ -10,9 +10,9 @@
  *
  * JOURNEY UPDATE for the tabbed record shell (`/procurement/:id/:tab`):
  *   The capture affordance moved from per-phase trigger buttons (old stacked layout)
- *   to the Documents tab's LedgerCaptureRow (one capture row, pre-selects next type).
+ *   to the Files tab's LedgerCaptureRow (one capture row, pre-selects next type).
  *   System # and External ref are now columns in the ledger DataTable, not RecordCard fields.
- *   The Progression timeline lives on the Overview tab.
+ *   The activity timeline lives on the Timeline tab.
  *
  * Cases used:
  *   CAPTURE: SP2401-004 "DC/AC Cabling & Balance of System" (id …000000000004).
@@ -23,12 +23,12 @@
  *     - Tests run serially within this file (test.describe.configure({mode:'serial'})) to
  *       avoid DB state interference between AC-PR-020 and AC-PR-022 in this spec.
  *
- *   ADVANCE: SP2401-004 (same case) — Admin may click "Request Supplier Quotes" at Approved.
+ *   ADVANCE: SP2401-004 (same case) — Admin may click "Request quotations" at Approved.
  *     (If already past Approved the advance test passes via the early-return path.)
  *
  * Goal-oracle per AC-PR-020 (unchanged):
- *   1. New record appears in the Documents ledger with BOTH system number AND external reference.
- *   2. Progression timeline (Overview tab) gains at least one new event after capture.
+ *   1. New record appears in the Files ledger with BOTH system number AND external reference.
+ *   2. Activity timeline (Timeline tab) gains at least one new event after capture.
  *   3. When an advance action is available and clicked, the case status updates — all on
  *      one page (no navigation).
  *
@@ -52,11 +52,11 @@ const CAPTURE_CASE_ID = '61000000-0000-0000-0000-000000000004';
 // This keeps the two tests in a predictable order within this file; both still run.
 test.describe.configure({ mode: 'serial' });
 
-test('AC-PR-020 capture a record via Documents-tab ledger — system # + external ref appear, history grows — on one page', async ({ page }) => {
+test('AC-PR-020 capture a record via Files-tab ledger — system # + external ref appear, history grows — on one page', async ({ page }) => {
   await signIn(page, 'admin@acme.test');
 
-  // ── Step 1: Load the case on the Overview tab ────────────────────────────────
-  await page.goto(`/procurement/${CAPTURE_CASE_ID}/overview`);
+  // ── Step 1: Load the case on the Timeline tab ────────────────────────────────
+  await page.goto(`/procurement/${CAPTURE_CASE_ID}/timeline`);
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
 
   // Snapshot the Progression timeline event count BEFORE capture.
@@ -65,14 +65,15 @@ test('AC-PR-020 capture a record via Documents-tab ledger — system # + externa
   // renders an empty-state <p>, NOT an <ol>. We count the <li> elements directly:
   // locator.count() returns 0 for a non-existent element, so beforeCount = 0 is safe
   // without asserting the list exists (which would fail for this no-history case).
-  const historyList = page.getByRole('list', { name: 'Progression history' });
+  const historyList = page.getByTestId('procurement-timeline').locator('ol');
   const beforeCount = await historyList.locator('li').count();
   // beforeCount is 0 for this freshly-seeded case; the oracle is afterCount > beforeCount.
 
-  // ── Step 2: Navigate to the Documents tab ────────────────────────────────────
-  const documentsTab = page.getByRole('tab', { name: /Documents/i });
-  await expect(documentsTab).toBeVisible({ timeout: 5_000 });
-  await documentsTab.click();
+  // ── Step 2: Navigate to the Files tab ────────────────────────────────────
+  // Tab names carry a count badge when non-empty ("Files 2"), so match the label prefix.
+  const filesTab = page.getByRole('tab', { name: /^Files/ });
+  await expect(filesTab).toBeVisible({ timeout: 5_000 });
+  await filesTab.click();
 
   await expect(page.getByTestId('procurement-ledger')).toBeVisible({ timeout: 10_000 });
 
@@ -113,9 +114,9 @@ test('AC-PR-020 capture a record via Documents-tab ledger — system # + externa
   await expect(ledger.getByText('System #')).toBeVisible({ timeout: 5_000 });
   await expect(ledger.getByText('External ref')).toBeVisible({ timeout: 5_000 });
 
-  // ── Step 6: Navigate back to Overview tab — confirm timeline grew ─────────────
-  const overviewTab = page.getByRole('tab', { name: /Overview/i });
-  await overviewTab.click();
+  // ── Step 6: Navigate back to Timeline tab — confirm activity grew ─────────────
+  const timelineTab = page.getByRole('tab', { name: /^Timeline/ });
+  await timelineTab.click();
 
   // React Query cache is invalidated after capture → the detail bundle refetches
   // and the timeline rebuilds with the new RFQ orphan-record event.
@@ -146,11 +147,12 @@ test('AC-PR-022 advance action on the case page performs its stated action (hone
   // Find the primary advance action available to Admin at this status.
   // The JTBD goal is: clicking the action actually moves the case forward.
   // Routine, single-click actions (no confirm dialog):
-  //   At Approved: "Request Supplier Quotes" or "Generate Purchase Order"
+  //   At Approved: "Request quotations" or "Record order"
   //   At Requested: "Submit for approval"
-  //   At Quote Selected: "Generate Purchase Order"
+  //   At Quote Selected: "Record order"
+  // ("Record receipt" is no longer a one-click transition: it opens the receipt form, #1404.)
   const actionBtns = page.getByRole('button', {
-    name: /^(Submit for approval|Request Supplier Quotes|Generate Purchase Order|Confirm Receipt)$/,
+    name: /^(Submit for approval|Request quotations|Record order)$/,
   });
   const count = await actionBtns.count();
 

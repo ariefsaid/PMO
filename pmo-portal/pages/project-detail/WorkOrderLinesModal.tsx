@@ -32,7 +32,7 @@ export interface WorkOrderLinesModalProps {
 const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
   workOrder, boqItems, contractLines, allocations, canEdit, onClose, onCreate, onUpdate, onDelete, onError,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const own = new Map(allocations.map((row) => [row.boq_item_id, row]));
   const facts = new Map(contractLines.map((row) => [row.boqItemId, row]));
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(
@@ -106,7 +106,7 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
     <EntityFormModal
       open
       width="lg"
-      title={t('projectTabs:contractQuantities.workOrders.contractLines.title', 'Contract lines — {{wo}}', { wo: woLabel })}
+      title={t('projectTabs:contractQuantities.workOrders.contractLines.title', 'Contract lines: {{wo}}', { wo: woLabel })}
       subtitle={t('projectTabs:contractQuantities.workOrders.contractLines.subtitle', 'Quantities this order takes from the contract. Each line saves on its own; ordering more than the balance is allowed and flagged.')}
       submitLabel={t('projectTabs:contractQuantities.workOrders.contractLines.done', 'Done')}
       onSubmit={(e) => { e.preventDefault(); onClose(); }}
@@ -173,7 +173,7 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
                   )}
                   {over !== null && (
                     <p className="text-[12px] font-medium text-warning-foreground" data-testid={`lines-over-${item.id}`}>
-                      {t('projectTabs:contractQuantities.workOrders.contractLines.overOrdered', 'Over-ordered by {{qty}} {{unit}} — more than the contract balance.', { qty: formatNumberExact(over), unit: item.unit })}
+                      {t('projectTabs:contractQuantities.workOrders.contractLines.overOrdered', 'Over-ordered by {{qty}} {{unit}}, more than the contract balance.', { qty: formatNumberExact(over), unit: item.unit })}
                     </p>
                   )}
                   {errors[item.id] && <FieldError>{errors[item.id]}</FieldError>}

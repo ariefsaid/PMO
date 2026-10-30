@@ -248,6 +248,17 @@ describe('can() — contract_value SoD branch (ADR-0019, rbac-visibility.md §B2
   });
 });
 
+describe('SP-5 budget activation roles', () => {
+  it('allows Finance, Executive, and Admin to activate an unedited draft, and denies PM', () => {
+    const draft = {
+      record: { status: 'Draft', created_by: 'u2', editor_ids: [] },
+      currentUserId: 'u1',
+    };
+    expect(allowedRoles('transition', 'budgetVersion', draft)).toEqual(['Admin', 'Executive', 'Finance']);
+    expect(can('transition', 'budgetVersion', { realRole: 'Project Manager', ...draft })).toBe(false);
+  });
+});
+
 describe('can() — record-scoped edit (rbac-visibility.md §E2/§F)', () => {
   it('ADR-0016: taskStatus editable by managers OR the assignee Engineer (own task only)', () => {
     // Manager: yes regardless of assignment.

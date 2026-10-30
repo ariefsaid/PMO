@@ -3,9 +3,24 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const catalogues = {
-  en: JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/common.json'), 'utf8')),
-  id: JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8')),
+  en: catalogue('en'),
+  id: catalogue('id'),
 };
+
+function catalogue(locale: 'en' | 'id') {
+  const common = JSON.parse(readFileSync(join(process.cwd(), `public/locales/${locale}/common.json`), 'utf8'));
+  const project = JSON.parse(readFileSync(join(process.cwd(), `public/locales/${locale}/project.json`), 'utf8'));
+  return {
+    ...common,
+    ...project,
+    projectDetail: {
+      ...common.projectDetail,
+      ...project.projectDetail,
+      gantt: common.projectDetail.gantt,
+      tasks: { ...common.projectDetail.tasks, ...project.projectDetail.tasks },
+    },
+  };
+}
 
 const surfaceCopy = {
   en: {

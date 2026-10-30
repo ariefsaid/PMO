@@ -245,11 +245,13 @@ const Contacts: React.FC = () => {
         <>
           {t(
             'contacts.description',
-            'People at the companies you work with. Master data shared by the whole organisation — log calls and emails against each contact. Minuted meetings live in the',
+            'People at the companies you work with. Master data shared by the whole organisation. Log calls and emails against each contact. Minuted meetings live in the',
           )}{' '}
           <Link
             to="/meetings"
-            className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            // Inline-in-prose link: a persistent underline keeps it distinguishable from
+            // the surrounding text without relying on colour (axe link-in-text-block).
+            className="text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             {t('contacts.descriptionMeetingsLink', 'Meetings module')}
           </Link>
@@ -412,7 +414,7 @@ const Contacts: React.FC = () => {
         }
         description={t(
           'contacts.confirm.deleteDescription',
-          'This permanently removes the contact and all of their logged activity. This cannot be undone — archive instead to keep the history.',
+          'This permanently removes the contact and all of their logged activity. This cannot be undone. Archive instead to keep the history.',
         )}
         confirmLabel={t('contacts.confirm.deleteConfirm', 'Delete contact')}
         loading={remove.isPending}

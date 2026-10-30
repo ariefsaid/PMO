@@ -4,8 +4,7 @@
  * Given the /procurement/:id page rendered with a full rich-seed showcase case
  * (SP2401-001 "PV Modules — Meridian 4.2 MW" — Paid, full record set + 8 events),
  *
- * When axe-core runs on each of the four tabs (Overview · Line items · Documents ·
- * supplier quotes),
+ * When axe-core runs on each of the five tabs (Timeline · Line items · Quotations · Files · Details),
  *
  * Then there are zero violations on every tab.
  *
@@ -22,12 +21,13 @@ import { signIn } from './helpers';
 // SP2401-001: "PV Modules — Meridian 4.2 MW" — Paid, full rich seed (has records on every tab)
 const CASE_ID = '61000000-0000-0000-0000-000000000001';
 
-// The four tabs to audit. Overview is the default; the others require navigation.
+// Audit each canonical tab route so its distinct content is covered.
 const TABS: { name: string; tab: string }[] = [
-  { name: 'Overview', tab: 'overview' },
+  { name: 'Timeline', tab: 'timeline' },
   { name: 'Line items', tab: 'items' },
-  { name: 'Documents', tab: 'documents' },
-  { name: 'Supplier quotes', tab: 'quotes' },
+  { name: 'Quotations', tab: 'quotes' },
+  { name: 'Files', tab: 'files' },
+  { name: 'Details', tab: 'details' },
 ];
 
 for (const { name, tab } of TABS) {
@@ -46,9 +46,9 @@ for (const { name, tab } of TABS) {
     await expect(page.getByTestId('procurement-status-badge')).toBeVisible({ timeout: 5_000 });
 
     // Tab-specific content guard
-    if (tab === 'overview') {
-      await expect(page.getByRole('list', { name: 'Progression history' })).toBeVisible({ timeout: 5_000 });
-    } else if (tab === 'documents') {
+    if (tab === 'timeline') {
+      await expect(page.getByTestId('procurement-timeline')).toBeVisible({ timeout: 5_000 });
+    } else if (tab === 'files') {
       await expect(page.getByTestId('procurement-ledger')).toBeVisible({ timeout: 5_000 });
     }
 

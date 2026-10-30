@@ -1,12 +1,13 @@
 /**
  * AC-IXD-DASH-W5-C2C — Wave-5 PR-C: PM risk-sort, Projects list risk-sort + at-risk pill,
- * I3 budget-basis reason, Engineer "Log this week's hours" primary CTA.
+ * I3 budget-basis reason, Engineer log-hours link availability.
  *
  * RED phase: all tests will fail until the implementation is shipped.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 
@@ -50,6 +51,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projState,
+  useProject: () => ({ data: { pmo_project_number: 'PRJ-26-0001' }, isPending: false, isError: false }),
   useClientCompanies: () => ({ data: [] }),
   useProjectManagers: () => ({ data: [] }),
   useProjectMutations: () => ({
@@ -79,11 +81,21 @@ vi.mock('@/src/auth/useAuth', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useMyTasks', () => ({
-  useMyTasks: () => ({ data: [] }),
+  useMyTasks: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({ day: '2026-06-03', isPending: false, isError: false, retry: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useExpenseClaims', () => ({
+  useExpenseClaims: () => ({ data: { rows: [] }, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
   useProjectsDeliverySummary: () => ({ data: deliverySummaryState }),
+}));
+vi.mock('@/src/hooks/useProjectStatusLabel', () => ({ useProjectStatusLabel: () => (status: string) => status }));
+vi.mock('@/src/components/dashboard/restructure/useNeedsYou', () => ({
+  useNeedsYou: () => ({ items: [], pmOverdueTasksByProject: {}, isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({ useProjectsMoneyCollection: () => projectMoneyState }));
 vi.mock('../../components/ProjectStatusControl', () => ({ default: () => null }));
@@ -98,6 +110,18 @@ import { EngineerDashboard } from '@/src/components/dashboard/EngineerDashboard'
 import Projects from '../Projects';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
+
+const renderPMDashboard = () => render(
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <MemoryRouter><PMDashboard /></MemoryRouter>
+  </QueryClientProvider>,
+);
+
+const renderEngineerDashboard = () => render(
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <MemoryRouter><EngineerDashboard /></MemoryRouter>
+  </QueryClientProvider>,
+);
 
 // ─── PM fixture data ─────────────────────────────────────────────────────────
 
@@ -138,62 +162,46 @@ const otherUser = {
 
 // ─── PMDashboard: risk-sort tests ───────────────────────────────────────────
 
-describe('AC-IXD-DASH-W5-C2C — PMDashboard: Project Status list is risk-sorted', () => {
+describe('AC-IXD-DASH-W5-C2C — PMDashboard: attention areas are risk-sorted', () => {
   beforeEach(() => {
     projState.data = [...pmFixtures, otherUser];
     projState.isPending = false;
     projState.isError = false;
   });
 
-  it('C2C-PM-1: at-risk rows appear before safe rows in the Project Status list', () => {
-    render(<MemoryRouter><PMDashboard /></MemoryRouter>);
-    const listItems = screen.getAllByRole('listitem');
-    const itemTexts = listItems.map((li) => li.textContent ?? '');
-    const highBurnIdx = itemTexts.findIndex((t) => t.includes('High Burn Project'));
-    const thresholdIdx = itemTexts.findIndex((t) => t.includes('At Threshold Project'));
-    const safeIdx = itemTexts.findIndex((t) => t.includes('Safe Project'));
+  it('C2C-PM-1: at-risk project areas appear before safe areas', () => {
+    renderPMDashboard();
+    const projectNames = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
+    const highBurnIdx = projectNames.indexOf('High Burn Project');
+    const thresholdIdx = projectNames.indexOf('At Threshold Project');
+    const safeIdx = projectNames.indexOf('Safe Project');
 
     expect(highBurnIdx).toBeGreaterThanOrEqual(0);
     expect(thresholdIdx).toBeGreaterThanOrEqual(0);
     expect(safeIdx).toBeGreaterThanOrEqual(0);
-    // Both at-risk projects must come BEFORE the safe project
     expect(highBurnIdx).toBeLessThan(safeIdx);
     expect(thresholdIdx).toBeLessThan(safeIdx);
   });
 
-  it('C2C-PM-2: at-risk active rows show the "At risk" StatusPill (text+dot, not color-only)', () => {
-    render(<MemoryRouter><PMDashboard /></MemoryRouter>);
-    // p2 (95%) and p3 (90%) are active + at-risk → 2 pills
-    const atRiskPills = screen.getAllByText('At risk');
-    expect(atRiskPills.length).toBeGreaterThanOrEqual(2);
+  it('C2C-PM-2: each at-risk project exposes a descriptive link to its owning page', () => {
+    renderPMDashboard();
+    const riskLinks = screen.getAllByRole('link', { name: /budget is at least 90% spent/i });
+    expect(riskLinks).toHaveLength(2);
+    expect(riskLinks.map((link) => link.getAttribute('href'))).toEqual(['/projects/p2', '/projects/p3']);
+    expect(riskLinks.every((link) => (link.getAttribute('aria-label') ?? link.textContent ?? '').trim().length > 10)).toBe(true);
   });
 
-  it('C2C-PM-3: safe project does NOT show an "At risk" pill', () => {
-    render(<MemoryRouter><PMDashboard /></MemoryRouter>);
-    const listItems = screen.getAllByRole('listitem');
-    const safeItem = listItems.find((li) => li.textContent?.includes('Safe Project'));
-    expect(safeItem).toBeDefined();
-    expect(safeItem?.textContent).not.toContain('At risk');
+  it('C2C-PM-3: safe project has no budget-risk attention link', () => {
+    renderPMDashboard();
+    const riskLinks = screen.getAllByRole('link', { name: /budget is at least 90% spent/i });
+    expect(riskLinks.some((link) => link.getAttribute('href') === '/projects/p1')).toBe(false);
   });
 
   it('C2C-PM-4: completed project is NOT flagged at-risk even when high utilization', () => {
-    render(<MemoryRouter><PMDashboard /></MemoryRouter>);
-    const listItems = screen.getAllByRole('listitem');
-    const completedItem = listItems.find((li) => li.textContent?.includes('Completed High Burn'));
-    if (completedItem) {
-      expect(completedItem.textContent).not.toContain('At risk');
-    }
-  });
-
-  it('C2C-PM-5: the "At risk" pill in the Project Status list has the dot indicator (not color-only, a11y)', () => {
-    render(<MemoryRouter><PMDashboard /></MemoryRouter>);
-    // The StatusPill "At risk" in the list items — find via listitem context to skip the KPI tile
-    const listItems = screen.getAllByRole('listitem');
-    const atRiskItem = listItems.find((li) => li.textContent?.includes('High Burn Project'));
-    expect(atRiskItem).toBeDefined();
-    // The "At risk" StatusPill inside this row must carry data-pill-dot (dot indicator)
-    const pillDot = atRiskItem?.querySelector('[data-pill-dot]');
-    expect(pillDot).toBeTruthy();
+    renderPMDashboard();
+    expect(screen.getByRole('heading', { name: 'Completed High Burn' })).toBeInTheDocument();
+    const riskLinks = screen.getAllByRole('link', { name: /budget is at least 90% spent/i });
+    expect(riskLinks.some((link) => link.getAttribute('href') === '/projects/p4')).toBe(false);
   });
 });
 
@@ -320,60 +328,51 @@ describe('AC-IXD-DASH-W5-C2C — I3: at-risk rows convey budget utilization reas
     expect(budgetUsedCell.querySelector('[title]')).toHaveAttribute('title', '$475,000 of $500,000 Active budget');
   });
 
-  it('C2C-I3-2: the at-risk pill in the project cell is text+dot (not color-only) — a11y', () => {
+  it('C2C-I3-2: the at-risk pill in the project cell is a labelled StatusPill (not color-only) — a11y', () => {
     renderProjectsPage('/projects');
-    // Find the at-risk row and verify the pill within it has a dot indicator
+    // Find the at-risk row and verify its status pill carries visible text — the
+    // label (not a colour-only cue, and since 2026-10-29 no dot either) conveys it.
     const rows = screen.getAllByRole('row');
     const atRiskRow = rows.find((r) => r.textContent?.includes('Burning Beta'));
     expect(atRiskRow).toBeDefined();
-    const pillDot = atRiskRow?.querySelector('[data-pill-dot]');
-    expect(pillDot).toBeTruthy();
+    const pill = [...(atRiskRow?.querySelectorAll('span[class*="bg-status-"]') ?? [])]
+      .find((s) => (s.textContent ?? '').trim().length > 0);
+    expect(pill).toBeDefined();
+    expect(pill!.textContent!.trim().length).toBeGreaterThan(0);
   });
 });
 
 // ─── Engineer CTA tests ─────────────────────────────────────────────────────
 
-describe('AC-IXD-DASH-W5-C2C — D4: Engineer dashboard "Log this week\'s hours" primary CTA', () => {
+describe('AC-IXD-DASH-W5-C2C — D4: Engineer dashboard log-hours link', () => {
   beforeEach(() => {
     tsState.data = [];
     tsState.isPending = false;
     tsState.isError = false;
   });
 
-  it('D4-1: renders a "Log this week\'s hours" primary button/link (data-testid="cta-log-hours")', () => {
-    render(<MemoryRouter><EngineerDashboard /></MemoryRouter>);
-    // The dedicated primary CTA is identified by its testId — distinct from KPI tile linkLabels
-    const cta = screen.getByTestId('cta-log-hours');
-    expect(cta).toBeInTheDocument();
-    expect(cta.textContent).toMatch(/log this week.?s hours/i);
-  });
+  const expectLogHoursLinkWithoutPrimaryButton = () => {
+    const logHoursLinks = screen.getAllByRole('link', { name: /log hours/i });
+    expect(logHoursLinks.some((link) => link.getAttribute('href') === '/timesheets')).toBe(true);
+    const filledPrimaryButtons = screen.getAllByRole('button')
+      .filter((button) => button.className.split(/\s+/).includes('bg-primary'));
+    expect(filledPrimaryButtons).toHaveLength(0);
+  };
 
-  it('D4-2: the CTA routes to /timesheets', () => {
-    render(<MemoryRouter><EngineerDashboard /></MemoryRouter>);
-    const cta = screen.getByTestId('cta-log-hours');
-    expect(cta).toHaveAttribute('href', '/timesheets');
-  });
-
-  it('D4-3: the CTA carries primary styling (bg-primary)', () => {
-    render(<MemoryRouter><EngineerDashboard /></MemoryRouter>);
-    const cta = screen.getByTestId('cta-log-hours');
-    expect(cta.className).toMatch(/bg-primary/);
-  });
-
-  it('D4-4: only ONE primary CTA (data-testid="cta-log-hours") exists per render', () => {
-    render(<MemoryRouter><EngineerDashboard /></MemoryRouter>);
-    expect(screen.getAllByTestId('cta-log-hours').length).toBe(1);
-  });
-
-  it('D4-5: CTA renders while data is loading (not gated on data)', () => {
+  it('AC-IXD-DASH-W5-C2C-D4-1: keeps the Log hours link to Timesheets while data is loading', () => {
     tsState.isPending = true;
-    render(<MemoryRouter><EngineerDashboard /></MemoryRouter>);
-    expect(screen.getByTestId('cta-log-hours')).toBeInTheDocument();
+    renderEngineerDashboard();
+    expectLogHoursLinkWithoutPrimaryButton();
   });
 
-  it('D4-6: CTA renders in error state (not gated on data)', () => {
+  it('AC-IXD-DASH-W5-C2C-D4-2: keeps the Log hours link to Timesheets in the error state', () => {
     tsState.isError = true;
-    render(<MemoryRouter><EngineerDashboard /></MemoryRouter>);
-    expect(screen.getByTestId('cta-log-hours')).toBeInTheDocument();
+    renderEngineerDashboard();
+    expectLogHoursLinkWithoutPrimaryButton();
+  });
+
+  it('AC-IXD-DASH-W5-C2C-D4-3: shows the Log hours link to Timesheets when data is loaded', () => {
+    renderEngineerDashboard();
+    expectLogHoursLinkWithoutPrimaryButton();
   });
 });

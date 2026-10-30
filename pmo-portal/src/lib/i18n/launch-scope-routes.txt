@@ -43,7 +43,7 @@
 #   (not recursive) and skips `*.test.tsx`. `#` starts a comment. Blank lines are ignored.
 
 # ── The screen every session opens on. English here is the first thing a client sees.
-/                              pages/ExecutiveDashboard.tsx src/components/dashboard/PMDashboard.tsx src/components/dashboard/EngineerDashboard.tsx src/components/dashboard/AwaitingApprovalTile.tsx src/components/dashboard/MobileExecutiveDashboard.tsx src/components/dashboard/WinRateCard.tsx src/components/dashboard/BvACard.tsx src/components/dashboard/ProjectedMarginBars.tsx src/components/dashboard/StatusBarChart.tsx src/components/dashboard/StillToInvoiceCard.tsx src/components/dashboard/AtRiskProjectsLink.tsx src/components/reports/BoardPackAction.tsx src/components/ui/EntryList.tsx src/components/ui/HoursBar.tsx src/components/ui/ListState.tsx components/DeliveryPctChip.tsx
+/                              pages/ExecutiveDashboard.tsx src/components/dashboard/PMDashboard.tsx src/components/dashboard/EngineerDashboard.tsx src/components/dashboard/AwaitingApprovalTile.tsx src/components/dashboard/WinRateCard.tsx src/components/dashboard/BvACard.tsx src/components/dashboard/ProjectedMarginBars.tsx src/components/dashboard/StatusBarChart.tsx src/components/dashboard/StillToInvoiceCard.tsx src/components/dashboard/AtRiskProjectsLink.tsx src/components/reports/BoardPackAction.tsx src/components/ui/EntryList.tsx src/components/ui/HoursBar.tsx src/components/ui/ListState.tsx components/DeliveryPctChip.tsx
 
 # ── Projects: a project IS the client's commitment, so this is the spine of daily delivery.
 /projects/new                    pages/ProjectNew.tsx
@@ -66,7 +66,7 @@
 /projects/:projectId           pages/project-detail/*.tsx src/components/milestones/MilestonePhaseHeader.tsx
 /projects/:projectId/:tab      pages/project-detail/ProjectDetail.tsx pages/project-detail/ProjectProfitLossSection.tsx pages/project-detail/tabs/*.tsx src/components/history/RecordHistory.tsx src/components/history/historyLabels.ts
 # ── Project Budget and projection (#789): every label and state on the budget tab.
-/projects/:projectId/budget    pages/project-detail/ProjectDetail.tsx pages/project-detail/tabs/BudgetTab.tsx pages/ProjectBudget.tsx pages/BudgetProjection.tsx src/components/m365/BudgetDocumentLinks.tsx
+/projects/:projectId/budget    pages/project-detail/ProjectDetail.tsx pages/project-detail/tabs/BudgetTab.tsx pages/ProjectBudget.tsx pages/project-detail/budget/*.tsx src/components/m365/BudgetDocumentLinks.tsx
 
 # ── The other half of the tasks launch item: the IC's own cross-project list, opened daily.
 /my-tasks                      pages/MyTasks.tsx
@@ -104,7 +104,7 @@
 # ── Finance lists (#789): invoices, receipts, and their project revenue roll-up.
 /sales-invoices                pages/SalesInvoices.tsx src/lib/revenue/nativeRevenueErrors.ts src/components/ui/EntityFormModal.tsx src/components/ui/ConfirmDialog.tsx src/components/shell/Rail.tsx src/components/shell/routeMatch.ts src/components/EfakturModal.tsx
 /incoming-payments             pages/IncomingPayments.tsx src/lib/revenue/nativeRevenueErrors.ts src/components/ui/EntityFormModal.tsx src/components/ui/ConfirmDialog.tsx
-/revenue-by-project            pages/RevenueByProject.tsx
+/revenue-by-project            pages/ManagementPack.tsx
 /financial-statements          pages/FinancialStatements.tsx pages/project-detail/ProjectProfitLossSection.tsx src/components/financial-statements/FinancialStatementsSection.tsx src/components/financial-statements/StatementPeriodPicker.tsx src/components/financial-statements/NativeStatementPair.tsx src/components/financial-statements/ProjectStatementTotals.tsx src/components/ui/ListPage.tsx src/components/ui/ListState.tsx
 /reports                       pages/ManagementPack.tsx src/components/reports/RecordProgressModal.tsx
 

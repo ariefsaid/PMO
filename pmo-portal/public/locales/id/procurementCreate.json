@@ -1,0 +1,54 @@
+{
+  "backToProcurement": "Pengadaan",
+  "backToChoices": "Apa yang Anda miliki?",
+  "denied": "Anda tidak memiliki izin untuk membuat pengadaan.",
+  "question": "Apa yang Anda miliki?",
+  "questionDescription": "Mulai dari kebutuhan baru atau dokumen yang sudah tersedia.",
+  "continueNeed": "Permintaan pembelian tersimpan dengan item yang belum selesai. Lanjutkan kebutuhan yang sama.",
+  "choices": {
+    "need": {
+      "title": "Kebutuhan baru",
+      "description": "Ajukan permintaan pembelian."
+    },
+    "order": {
+      "title": "Pesanan",
+      "description": "Catat pesanan pembelian yang sudah Anda miliki."
+    },
+    "invoice": {
+      "title": "Tagihan pemasok",
+      "description": "Catat tagihan yang perlu dipantau."
+    },
+    "payment": {
+      "title": "Pembayaran terjadwal",
+      "description": "Catat pembayaran ke pemasok. Bagian Keuangan menandainya lunas."
+    },
+    "accounting": {
+      "title": "Dokumen yang sudah ada di sistem akuntansi",
+      "description": "Cari dokumen yang belum ada di pengadaan."
+    }
+  },
+  "heading": "Pengadaan baru",
+  "draftNote": {
+    "need": "Permintaan pembelian ini tetap berupa draf sampai Anda mengirimkannya.",
+    "order": "Tambahkan detail pengadaan, lalu catat pesanan pembelian.",
+    "invoice": "Tambahkan detail pengadaan, lalu catat tagihan pemasok.",
+    "payment": "Tambahkan detail pengadaan, lalu catat pembayaran."
+  },
+  "save": "Simpan",
+  "details": "Detail pengadaan",
+  "titleField": "Judul",
+  "titleRequired": "Judul pengadaan wajib diisi.",
+  "project": "Proyek",
+  "selectProject": "Pilih proyek…",
+  "supplier": "Pemasok",
+  "selectSupplier": "Opsional: pilih pemasok…",
+  "budgetCategory": "Kategori anggaran",
+  "linesFailed": "Pengadaan tersimpan, tetapi beberapa item belum tersimpan. Simpan lagi untuk mencoba ulang.",
+  "unsaved": {
+    "title": "Pengadaan belum tersimpan",
+    "description": "Pengadaan ini belum tersimpan. Tinggalkan halaman ini dan buang perubahan?",
+    "partialDescription": "Pengadaan Anda tersimpan. Item yang belum tersimpan akan hilang jika Anda keluar.",
+    "leave": "Keluar",
+    "stay": "Tetap di sini"
+  }
+}

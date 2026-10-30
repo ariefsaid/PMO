@@ -110,7 +110,7 @@ const KIND_LABEL: Record<RecordKind, string> = {
   purchase_order: 'Purchase Order',
   payment: 'Payment',
   goods_receipt: 'Goods Receipt',
-  vendor_invoice: 'Supplier Invoice',
+  vendor_invoice: 'Supplier invoice',
 };
 
 function localizedRecordKindLabel(kind: RecordKind, t: TFunction): string {
@@ -706,8 +706,8 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
               options={TAX_TREATMENT_OPTIONS.map((option) => ({
                 ...option,
                 label: option.value === 'inclusive'
-                  ? t('procurementDetail.vendorInvoice.taxInclusive', 'Inclusive — VAT included')
-                  : t('procurementDetail.vendorInvoice.taxExclusive', 'Exclusive — VAT added'),
+                  ? t('procurementDetail.vendorInvoice.taxInclusive', 'Inclusive: VAT included')
+                  : t('procurementDetail.vendorInvoice.taxExclusive', 'Exclusive: VAT added'),
               }))}
               data-testid={VI_FIELD_TEST_IDS.taxTreatment}
             />

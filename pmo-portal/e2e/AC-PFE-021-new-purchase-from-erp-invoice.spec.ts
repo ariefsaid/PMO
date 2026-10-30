@@ -2,7 +2,10 @@
 /** AC-PFE-021 — goal: the ERP invoice becomes a PMO purchase on the project, shown From ERPNext, status Vendor Invoiced, gone from the orphan list. */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import { signIn, requireServiceRoleKey, clickOrphanAction } from './helpers';
+import path from 'node:path';
+import { AUTH_DIR, requireServiceRoleKey, clickOrphanAction } from './helpers';
+
+test.use({ storageState: path.join(AUTH_DIR, 'finance@acme.test.json') });
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -22,7 +25,6 @@ test('AC-PFE-021: New purchase from an ERPNext invoice', async ({ page }) => {
   }).throwOnError();
   let purchaseId: string | null = null;
   try {
-    await signIn(page, 'finance@acme.test');
     await page.goto(`/projects/${projectId}/procurement`);
     const orphans = page.getByRole('table', { name: 'ERPNext documents not in a purchase' });
     await clickOrphanAction(page, orphans.locator('tr', { hasText: invoice }), 'New purchase from this');
@@ -31,7 +33,7 @@ test('AC-PFE-021: New purchase from an ERPNext invoice', async ({ page }) => {
 
     // GOAL: the purchase is at the invoiced step (the status follows the linked invoice).
     await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Vendor Invoiced', { timeout: 15_000 });
-    await page.getByRole('tablist', { name: 'Procurement sections' }).getByRole('tab', { name: /Documents/ }).click();
+    await page.getByRole('tablist', { name: 'Procurement sections' }).getByRole('tab', { name: 'Files' }).click();
     const linked = page.getByRole('row', { name: new RegExp(invoice) });
     await expect(linked).toContainText('From ERPNext');
     // Pre-tax or gross — the invoice's own amount is on the row, in rupiah.

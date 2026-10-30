@@ -51,6 +51,18 @@ describe('DataTable hierarchy contract', () => {
     expect(within(table).queryByText('Synthetic item')).not.toBeInTheDocument();
   });
 
+  it('AC-TBL-GROUP-002 keeps a fixed group order, shows an empty group, uses the caller label and spans the heading', () => {
+    desktop();
+    renderTable({ rows, columns, rowKey: (row) => row.id, groupBy: (row) => row.currency,
+      groupOrder: ['USD', 'EUR', 'IDR'], groupLabel: (key) => `Ledger ${key}`, groupHeaderSpan: true,
+      groupHeader: (key, groupRows) => (groupRows.length === 0 ? `${key} has no rows` : null) });
+    const table = screen.getByRole('table');
+    const headings = within(table).getAllByRole('rowheader');
+    expect(headings.map((heading) => heading.textContent)).toEqual(['Ledger USD', 'Ledger EUREUR has no rows', 'Ledger IDR']);
+    expect(headings[0]).toHaveAttribute('colspan', String(columns.length));
+    expect(within(table).getByRole('button', { name: 'Ledger USD' })).toHaveAttribute('aria-expanded', 'true');
+  });
+
   it('AC-TBL-CAVEAT-001 marks the header and renders one table-level footnote', () => {
     desktop();
     renderTable({ rows, columns: columns.map((column) => column.key === 'amount' ? { ...column, sortKey: undefined } : column), rowKey: (row) => row.id });

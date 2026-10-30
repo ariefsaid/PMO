@@ -19,6 +19,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 import { ImpersonationProvider } from '../../../auth/impersonation';
 import { ToastProvider } from '../../../components/ui';
 
@@ -77,7 +78,7 @@ describe('Part 3: PipelineLens — no user-visible "deal" or "Opportunity journe
     render(
       <ImpersonationProvider realRole="Project Manager">
         <ToastProvider>
-          <PipelineLens project={project} />
+          <MemoryRouter><PipelineLens project={project} /></MemoryRouter>
         </ToastProvider>
       </ImpersonationProvider>,
     );
@@ -98,7 +99,7 @@ describe('Part 3: PipelineLens — no user-visible "deal" or "Opportunity journe
     render(
       <ImpersonationProvider realRole="Project Manager">
         <ToastProvider>
-          <PipelineLens project={project} />
+          <MemoryRouter><PipelineLens project={project} /></MemoryRouter>
         </ToastProvider>
       </ImpersonationProvider>,
     );
@@ -115,7 +116,7 @@ describe('Part 3: PipelineLens — no user-visible "deal" or "Opportunity journe
     render(
       <ImpersonationProvider realRole="Project Manager">
         <ToastProvider>
-          <PipelineLens project={winnable} />
+          <MemoryRouter><PipelineLens project={winnable} /></MemoryRouter>
         </ToastProvider>
       </ImpersonationProvider>,
     );
@@ -131,7 +132,7 @@ describe('Part 3: PipelineLens — no user-visible "deal" or "Opportunity journe
     render(
       <ImpersonationProvider realRole="Project Manager">
         <ToastProvider>
-          <PipelineLens project={project} />
+          <MemoryRouter><PipelineLens project={project} /></MemoryRouter>
         </ToastProvider>
       </ImpersonationProvider>,
     );
@@ -144,7 +145,7 @@ describe('Part 3: PipelineLens — no user-visible "deal" or "Opportunity journe
     render(
       <ImpersonationProvider realRole="Engineer">
         <ToastProvider>
-          <PipelineLens project={project} />
+          <MemoryRouter><PipelineLens project={project} /></MemoryRouter>
         </ToastProvider>
       </ImpersonationProvider>,
     );

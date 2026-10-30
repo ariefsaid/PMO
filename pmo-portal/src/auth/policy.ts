@@ -21,6 +21,7 @@ import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 
 export type Action =
   | 'view'
+  | 'act'
   | 'create'
   | 'edit'
   | 'archive'
@@ -90,7 +91,8 @@ export type Entity =
   | 'projectProgress'
   | 'fxRate'
   | 'financialStatements'
-  | 'projectProfitLoss';
+  | 'projectProfitLoss'
+  | 'finance';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -299,6 +301,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     archive: allow(ARCHIVE_ROLES),
     delete: allow(ADMIN),
   },
+  finance: { view: allow(MONEY_AUTHORITY), act: allow(REVENUE_WRITE) },
   financialStatements: { view: allow(MONEY_AUTHORITY) },
   projectProfitLoss: { view: allow(ALL) },
   procurement: {
@@ -406,7 +409,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    */
   budgetVersion: {
     transition: (role, ctx) => {
-      if (!has(MASTER_DATA, role) || ctx.record?.status !== 'Draft') return false;
+      if (!has(['Admin', 'Executive', 'Finance'], role) || ctx.record?.status !== 'Draft') return false;
       const drafter = ctx.record?.created_by ?? null;
       if (ctx.currentUserId && (ctx.record?.editor_ids ?? []).includes(ctx.currentUserId)) return false;
       if (drafter === null) return role === 'Admin' || role === 'Finance';

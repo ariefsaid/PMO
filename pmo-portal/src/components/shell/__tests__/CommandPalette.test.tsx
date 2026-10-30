@@ -85,6 +85,14 @@ describe('CommandPalette', () => {
     expect(screen.getByTestId('cmdk-backdrop').className).toContain('bg-foreground/40');
   });
 
+  it('DS-SPACING: command rows use the shared compact spacing scale', () => {
+    render(<CommandPalette open items={items} onClose={vi.fn()} />);
+    const row = screen.getAllByRole('option')[0];
+    expect(row.className.split(/\s+/)).toContain('gap-3');
+    expect(row.className.split(/\s+/)).toContain('px-3');
+    expect(row.className.split(/\s+/)).toContain('py-2');
+  });
+
   it('UXS-006: finds a destination by its localized route label', async () => {
     const run = vi.fn();
     render(

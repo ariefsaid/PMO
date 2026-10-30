@@ -3,12 +3,14 @@ import { PageHeader, type PageStat } from './PageHeader';
 import { cn } from './cn';
 
 export interface RecordHeaderProps {
-  /** Leading icon tile glyph (a letter) or node. Mandatory by the RecordHeader contract. */
+  /** Leading icon tile glyph or node; omitted (null) inside drawers, where the tile is decoration. */
   icon: React.ReactNode;
   iconColor?: string;
   name: React.ReactNode;
   /** Status pill — mandatory on every record (DESIGN.md §7 RecordHeader anatomy). */
   status: React.ReactNode;
+  /** Keep a long record name full width on mobile, with status below its metadata. */
+  statusBelowMetaOnMobile?: boolean;
   meta?: React.ReactNode;
   /** Optional in-header metric strip. */
   stats?: PageStat[];
@@ -40,6 +42,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   iconColor,
   name,
   status,
+  statusBelowMetaOnMobile = false,
   meta,
   stats,
   actions,
@@ -51,10 +54,13 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
     // The drawer host already supplies a border-bottom seam + popover surface, so the
     // drawer variant drops the standalone card chrome (no double border / nested radius).
     surface={variant === 'drawer' ? 'bare' : 'card'}
+    actionsBelow={variant === 'drawer'}
     icon={icon}
     iconColor={iconColor}
     name={name}
     status={status}
+    statusInline
+    statusBelowMetaOnMobile={statusBelowMetaOnMobile}
     meta={meta}
     stats={stats}
     actions={
@@ -64,8 +70,10 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
         </span>
       ) : undefined
     }
-    // Phone identity gets a complete row before status; desktop PageHeader is unchanged.
-    className={cn('[&_h1]:basis-full sm:[&_h1]:basis-0', className)}
+    className={cn(
+      variant === 'drawer' && '[&_h1]:text-control [&_h1]:font-semibold [&_h1]:leading-5',
+      className,
+    )}
   />
 );
 

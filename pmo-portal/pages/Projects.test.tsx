@@ -266,11 +266,14 @@ describe('Projects index — IA-3 (real data)', () => {
     expect(screen.getAllByTestId('project-card').length).toBeGreaterThan(0);
   });
 
-  it('renders status as a StatusPill (dot + text), not a legacy badge (AC-C)', () => {
+  it('renders status as a StatusPill (paired surface + text), not a legacy badge (AC-C)', () => {
     renderPage();
     const pill = screen.getAllByText('Ongoing Project')[0];
-    // The StatusPill carries a 6px dot sibling (color-not-only).
-    expect(pill.querySelector('[data-pill-dot]')).not.toBeNull();
+    // The StatusPill carries the pill chrome + the paired neutral status surface
+    // (owner ban 2026-10-29: the former decorative leading dot is gone; the label
+    // + surface carry the status).
+    expect(pill.className).toContain('rounded-full');
+    expect(pill.className).toContain('bg-status-neutral-surface');
   });
 
   it('CW-7: a zero/missing-budget project states why usage cannot be shown, never literal NaN% or $NaN', () => {
@@ -397,11 +400,11 @@ describe('Projects table — compact layout (#1)', () => {
     projectsState.isError = false;
   });
 
-  it('#1: PM column avatar is 18px (compact) — not 22px — to fit at 1180px', () => {
+  it('#1: the compact PM cell renders an identified avatar (look-pinning class oracle retired — avatars restyled in 129022a3e; behavior kept per the recomposition rule)', () => {
     renderPage();
     const tableBody = document.querySelector('tbody')!;
-    const pmAvatar = within(tableBody as HTMLElement).getAllByRole('img', { name: 'Alice Manager' })[0];
-    expect(pmAvatar).toHaveClass('rounded-full', 'size-[18px]');
+    // Behavior oracle: the PM column renders an avatar carrying the manager's accessible name.
+    expect(within(tableBody as HTMLElement).getAllByRole('img', { name: 'Alice Manager' })[0]).toBeInTheDocument();
   });
 
   it('#1: Progress column cell uses compact ProgressBar (min-w-[80px] wrapper) to fit narrow columns', () => {

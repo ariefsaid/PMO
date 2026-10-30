@@ -55,14 +55,83 @@ const columns: Column<Row>[] = [
 ];
 
 describe('DataTable', () => {
+  it('maps controlled selection to row checkboxes without activating the selected row', async () => {
+    const onChange = vi.fn();
+    const onActivate = vi.fn();
+    const selectedIds = new Set(['PRJ-1']);
+    const { rerender, unmount } = render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(row) => row.id}
+        onActivate={onActivate}
+        rowLabel={(row) => `Open ${row.name}`}
+        selection={{
+          selectedIds,
+          onChange,
+          rowLabel: (row) => `Select ${row.name}`,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('checkbox', { name: 'Select Beta' })).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByRole('checkbox', { name: 'Select all rows' })).toHaveAttribute('aria-checked', 'mixed');
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Beta' }));
+    expect(onChange).toHaveBeenCalledWith(new Set(['PRJ-1', 'PRJ-2']));
+    expect(onActivate).not.toHaveBeenCalled();
+
+    rerender(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(row) => row.id}
+        selection={{ selectedIds: new Set(['PRJ-1', 'PRJ-2']), onChange, rowLabel: (row) => `Select ${row.name}` }}
+      />,
+    );
+    expect(screen.getByRole('checkbox', { name: 'Select all rows' })).toHaveAttribute('aria-checked', 'true');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select all rows' }));
+    expect(onChange).toHaveBeenLastCalledWith(new Set());
+
+    rerender(
+      <DataTable
+        rows={rows}
+        columns={[{ ...columns[0], primaryTitle: (row) => row.name }, columns[1]]}
+        rowKey={(row) => row.id}
+        selection={{ selectedIds: new Set(), onChange }}
+      />,
+    );
+    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toHaveAttribute('aria-checked', 'false');
+
+    unmount();
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(row) => row.id}
+        selection={{ selectedIds: new Set(), onChange, rowLabel: (row) => `Select ${row.name}` }}
+      />,
+    );
+    expect(screen.getByTestId('dt-card-branch')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select Beta' }));
+    expect(onChange).toHaveBeenLastCalledWith(new Set(['PRJ-2']));
+  });
+
   it('UXS-006: localizes shared accessible row and action names', async () => {
     const i18n = i18next.createInstance();
     await i18n.init({
       lng: 'id',
       fallbackLng: 'en',
+      defaultNS: 'projects',
+      ns: ['projects'],
       resources: {
-        en: { translation: { table: { actions: 'Actions', openRow: 'Open {{name}}', rowActions: 'Row actions' } } },
-        id: { translation: { table: { actions: 'Tindakan', openRow: 'Buka {{name}}', rowActions: 'Tindakan baris' } } },
+        en: { projects: { table: { actions: 'Actions', openRow: 'Open {{name}}', rowActions: 'Row actions' } } },
+        id: { projects: { table: { actions: 'Tindakan', openRow: 'Buka {{name}}', rowActions: 'Tindakan baris' } } },
       },
       interpolation: { escapeValue: false },
     });
@@ -243,13 +312,6 @@ describe('DataTable', () => {
     expect(onRetry).toHaveBeenCalled();
   });
 
-  it('marks the selected row with the primary tint', () => {
-    render(
-      <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} selectedKey="PRJ-1" />
-    );
-    expect(screen.getByText('Alpha').closest('tr')!.className).toContain('bg-primary/[0.07]');
-  });
-
   it('Toolbar/SearchMini/TableFoot render their content', async () => {
     const { Toolbar, SearchMini, TableFoot } = await import('../DataTable');
     render(
@@ -264,6 +326,17 @@ describe('DataTable', () => {
     );
     expect(screen.getByPlaceholderText('Find…')).toBeInTheDocument();
     expect(screen.getByText('Total: 2,180')).toBeInTheDocument();
+  });
+
+  it('SearchMini focuses its input when its expanded hit area is clicked', async () => {
+    const { SearchMini } = await import('../DataTable');
+    render(<SearchMini aria-label="Find projects" placeholder="Find…" />);
+    const input = screen.getByRole('searchbox', { name: 'Find projects' });
+
+    expect(input.parentElement).toHaveClass('touch-target');
+    await userEvent.click(input.parentElement!);
+
+    expect(input).toHaveFocus();
   });
 
   it('AC-TBL-STICKY-001 keeps the desktop row-actions header and cells pinned with an opaque separated surface', () => {
@@ -287,7 +360,6 @@ describe('DataTable', () => {
     const sharedClasses = [
       'sticky',
       '-right-px',
-      'bg-card',
       'shadow-[inset_1px_0_0_hsl(var(--border))]',
     ];
 
@@ -302,6 +374,18 @@ describe('DataTable', () => {
     // A bare `border-b` takes `currentColor` in Tailwind v4 — the sticky header's bottom rule
     // must use the same `--border` token as every other header cell (owner report 2026-10-14).
     expect(header.className).toContain('border-border');
+  });
+
+  it('AC-TBL-STICKY-001 gives every sticky cell an opaque semantic surface in grouped tables with totals', () => {
+    const { container } = render(<DataTable rows={rows} columns={[{ ...columns[0], stickyLeft: true }, columns[1]]}
+      rowKey={(row) => row.id} groupBy={() => 'Group'} totals={[{ key: 'total', label: 'Total' }]}
+      rowMenu={() => [{ label: 'Edit', onClick: vi.fn() }]} />);
+    const stickyCells = [...container.querySelectorAll('th.sticky, td.sticky')];
+    expect(stickyCells.length).toBeGreaterThan(5);
+    for (const cell of stickyCells) {
+      // These semantic roles are opaque in both themes; alpha backgrounds allow scrolled text through.
+      expect(cell.className).toMatch(/(?:^|\s)bg-(?:surface-table-head|card|surface-selected|secondary)(?:\s|$)/);
+    }
   });
 
   it('AC-TBL-STICKY-001 renders the gradient in the header and every body sticky cell only while content remains hidden to the right', () => {

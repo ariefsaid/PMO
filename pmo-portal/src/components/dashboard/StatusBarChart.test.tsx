@@ -1,15 +1,19 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { afterEach, describe, it, expect } from 'vitest';
+import { act, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import i18next from 'i18next';
 import { chartTheme, tintStatusFill, STATUS_BAR_TINT } from '@/src/components/ui/chartTheme';
 import { procurementStatusTone } from './procurementStatusTone';
 import { StatusBarChart } from './StatusBarChart';
+import idDashboard from '../../../public/locales/id/dashboard.json';
 
 const data = [
   { status: 'Draft' as const, count: 1 },
   { status: 'Ordered' as const, count: 3 },
   { status: 'Paid' as const, count: 5 },
 ];
+
+afterEach(async () => { await act(async () => { await i18next.changeLanguage('en'); }); });
 
 describe('StatusBarChart (new AC — status-toned procurement chart)', () => {
   it('D-009: gives the chart a short name and exposes its values in an accessible table', () => {
@@ -23,12 +27,14 @@ describe('StatusBarChart (new AC — status-toned procurement chart)', () => {
     );
     const region = screen.getByRole('img', { name: 'Procurement by status' });
     expect(region).toHaveAttribute('aria-describedby');
+    expect(region).toHaveAccessibleDescription('The chart values are listed in the following data table.');
 
     const table = screen.getByRole('table', { name: 'Data for Procurement by status' });
     expect(within(table).getByText('Draft')).toBeInTheDocument();
     expect(within(table).getByText('9')).toBeInTheDocument();
     expect(within(table).getByText('Paid')).toBeInTheDocument();
     expect(within(table).getByText('5')).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: 'Paid 5' })).toBeInTheDocument();
   });
 
   it('DA-2: exposes only the visual as an image and keeps drill-down legend links independently reachable', () => {
@@ -41,6 +47,41 @@ describe('StatusBarChart (new AC — status-toned procurement chart)', () => {
     expect(screen.getByRole('link', { name: /Draft/i })).toHaveAttribute('href', '/procurement?status=Draft');
     expect(screen.getByRole('link', { name: /Ordered/i })).toHaveAttribute('href', '/procurement?status=Ordered');
     expect(screen.getByRole('link', { name: /Paid/i })).toHaveAttribute('href', '/procurement?status=Paid');
+  });
+
+  it('renders compact proportional stage links with counts in a legend instead of a tall chart', () => {
+    const { container } = render(
+      <MemoryRouter><StatusBarChart data={data} toneFor={procurementStatusTone} label="Purchasing by stage" noun="procurements" hrefFor={(status) => `/procurement?status=${status}`} compactSegments /></MemoryRouter>,
+    );
+    expect(container.querySelector('svg')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Draft: 1' })).toHaveAttribute('href', '/procurement?status=Draft');
+    expect(screen.getByRole('link', { name: 'Ordered: 3' })).toHaveAttribute('href', '/procurement?status=Ordered');
+    expect(screen.getByRole('link', { name: 'Paid: 5' })).toHaveAttribute('href', '/procurement?status=Paid');
+    const legendItems = Array.from(container.querySelectorAll('figcaption a'));
+    expect(legendItems.map((item) => item.textContent?.replace(/\s/g, ''))).toEqual(['Draft1', 'Ordered3', 'Paid5']);
+  });
+
+  it('AC-UXA-003: keeps the localized value table accessible in the compact purchasing chart', async () => {
+    i18next.addResourceBundle('id', 'dashboard', idDashboard, true, true);
+    await act(async () => { await i18next.changeLanguage('id'); });
+    render(
+      <MemoryRouter>
+        <StatusBarChart
+          data={[{ status: 'Requested', count: 2 }, { status: 'Approved', count: 1 }]}
+          toneFor={() => chartTheme.series.neutral}
+          label="Pembelian berdasarkan tahap"
+          labelFor={(status) => status === 'Requested' ? 'Permintaan Pembelian' : 'Disetujui'}
+          noun="pengadaan"
+          hrefFor={(status) => `/procurement?status=${status}`}
+          compactSegments
+        />
+      </MemoryRouter>,
+    );
+    const chart = screen.getAllByRole('group', { name: 'Pembelian berdasarkan tahap' })[0];
+    expect(chart).toHaveAccessibleDescription('Nilai grafik tercantum dalam tabel data berikut.');
+    const table = screen.getByRole('table', { name: 'Data untuk Pembelian berdasarkan tahap' });
+    expect(within(table).getByRole('row', { name: 'Permintaan Pembelian 2' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Permintaan Pembelian: 2' })).toHaveAttribute('href', '/procurement?status=Requested');
   });
 
   it('renders a dot+text legend entry per status (color-not-only)', () => {

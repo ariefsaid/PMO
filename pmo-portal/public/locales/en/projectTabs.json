@@ -1,7 +1,9 @@
 {
   "budgetForecast": {
     "remainingShort": "Remaining",
-    "budgetUsedShort": "% used"
+    "remainingFull": "Forecast remaining / (overrun)",
+    "budgetUsedShort": "% used",
+    "budgetUsedFull": "Forecast budget used"
   },
   "billing": {
     "quantity": "Quantity billing"
@@ -17,7 +19,7 @@
         "errors": {
           "percent": "Enter a percentage from 0 to 100 with at most 1 decimal place"
         },
-        "percentToDate": "{{item}} — % done to date"
+        "percentToDate": "{{item}}: % done to date"
       },
       "boq": {
         "column": {
@@ -32,8 +34,8 @@
       },
       "boqForm": {
         "basis": "Earned by",
-        "basisLumpSum": "Lump sum — 1 lot, earned by percent",
-        "basisUnitRate": "Unit rate — quantity × rate",
+        "basisLumpSum": "Lump sum: 1 lot, earned by percent",
+        "basisUnitRate": "Unit rate: quantity × rate",
         "errors": {
           "lineNo": "Enter a whole line number, or leave it blank"
         },
@@ -41,7 +43,7 @@
       },
       "claimForm": {
         "prefillBast": "Start from the accepted BAST quantities",
-        "percentLine": "{{item}} — % to bill",
+        "percentLine": "{{item}}: % to bill",
         "errors": {
           "percent": "Enter a percentage above 0 and up to 100 with at most 1 decimal place"
         }
@@ -82,7 +84,7 @@
           "documentHelp": "From this project’s register: issued or approved, with a file. It is needed to confirm.",
           "errors": {
             "date": "Enter the BAST date",
-            "finalComplete": "A final BAST states every ordered line — enter a quantity, even 0",
+            "finalComplete": "A final BAST states every ordered line. Enter a quantity, even 0",
             "noLines": "Enter an accepted quantity for at least one line",
             "quantity": "Each accepted quantity must be 0 or more with at most 3 decimal places"
           },
@@ -95,14 +97,14 @@
           "noteLegend": "Note",
           "ordered": "Ordered {{qty}} {{unit}}",
           "overMeasured": "More than ordered by {{qty}} {{unit}} ({{item}}).",
-          "percentLine": "{{item}} — % accepted",
+          "percentLine": "{{item}}: % accepted",
           "prepare": "Prepare BAST",
           "quantities": "Accepted to date",
-          "quantityLine": "{{item}} — accepted to date ({{unit}})",
+          "quantityLine": "{{item}}: accepted to date ({{unit}})",
           "save": "Save BAST",
           "subtitle": "The client's acceptance of work, as cumulative quantities to date. Someone else confirms it; it does not create an invoice.",
-          "titleEdit": "Edit BAST — {{wo}}",
-          "titleNew": "Prepare BAST — {{wo}}"
+          "titleEdit": "Edit BAST: {{wo}}",
+          "titleNew": "Prepare BAST: {{wo}}"
         },
         "heading": "Acceptances (BAST)",
         "noDocument": "No signed BAST document linked",
@@ -116,7 +118,7 @@
           "withdrawn": "Withdrawn"
         },
         "toast": {
-          "closed": "Final BAST confirmed — closed at {{amount}}",
+          "closed": "Final BAST confirmed: closed at {{amount}}",
           "confirmed": "BAST confirmed",
           "prepared": "BAST prepared",
           "preparedSub": "Someone else confirms it before it counts.",
@@ -124,11 +126,14 @@
           "withdrawn": "BAST withdrawn"
         },
         "withdraw": "Withdraw",
-        "withdrawLabel": "Withdraw draft BAST of {{date}}"
+        "withdrawLabel": "Withdraw draft BAST of {{date}}",
+        "confirmDelivery": "Confirm draft BAST",
+        "finalConfirmed": "Final confirmed",
+        "confirmed": "Confirmed"
       },
       "closing": {
         "closedAt": "Closed at {{amount}} (excl. PPN)",
-        "dpHeld": "{{amount}} of the down payment is still held after closing. Finance should recover the rest with the next progress claim, or refund it explicitly — closing does not clear it."
+        "dpHeld": "{{amount}} of the down payment is still held after closing. Finance should recover the rest with the next progress claim, or refund it explicitly. Closing does not clear it."
       },
       "contractLines": {
         "balance": "Not yet ordered {{qty}} {{unit}}",
@@ -149,20 +154,18 @@
         "legend": "Bill of quantities lines",
         "loadError": "Couldn’t load the contract lines",
         "noBoq": "This project has no bill of quantities lines yet.",
-        "none": "No contract lines allocated yet",
-        "overOrdered": "Over-ordered by {{qty}} {{unit}} — more than the contract balance.",
+        "overOrdered": "Over-ordered by {{qty}} {{unit}}, more than the contract balance.",
         "readOnly": "You can view these allocations but not change them.",
         "remove": "Remove",
         "removeRow": "Remove {{item}}",
         "save": "Save",
         "saveRow": "Save {{item}}",
         "subtitle": "Quantities this order takes from the contract. Each line saves on its own; ordering more than the balance is allowed and flagged.",
-        "title": "Contract lines — {{wo}}"
+        "title": "Contract lines: {{wo}}"
       },
       "quantities": {
         "counts": "{{lines}} lines · {{basts}} BAST",
-        "summary": "Contract lines and BAST — {{wo}}",
-        "title": "Contract quantities"
+        "summary": "Contract lines and BAST: {{wo}}"
       }
     }
   }

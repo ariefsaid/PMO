@@ -181,6 +181,20 @@ describe('AC-M365SEP-016 / AC-M365-012 — card visibility (entitlement gate onl
     expect(container).toBeEmptyDOMElement();
     expect(invoke).not.toHaveBeenCalled();
   });
+
+  it('AC-M365-012 / TA-017: renders an unavailable state card when showUnavailable is true and org is not entitled', async () => {
+    featureState.value = false;
+    render(
+      <MemoryRouter initialEntries={['/integrations']}>
+        <M365ConnectionCard showUnavailable />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId('m365-connection-card')).toBeInTheDocument();
+    expect(screen.getByTestId('m365-unavailable-msg')).toHaveTextContent(
+      "Your organization isn't enabled for the Microsoft 365 integration yet.",
+    );
+    expect(invoke).not.toHaveBeenCalled();
+  });
 });
 
 /**

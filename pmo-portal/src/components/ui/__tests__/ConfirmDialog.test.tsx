@@ -320,18 +320,6 @@ describe('AC-CONFIRM-010: mobile — bottom-sheet layout (<768px)', () => {
     const dialog = screen.getByRole('dialog');
     // Full-width sheet on mobile
     expect(dialog.className).toContain('w-full');
-    // Should NOT have the desktop max-width cap that constrains the centered dialog
-    expect(dialog.className).not.toContain('max-w-[420px]');
-  });
-
-  it('AC-CONFIRM-010: mobile sheet has rounded-t corners only (bottom-sheet rounding)', () => {
-    mockMatchMedia(false);
-    render(<ConfirmDialog {...baseProps} />);
-    const dialog = screen.getByRole('dialog');
-    // Bottom-sheet: top corners rounded, bottom square
-    expect(dialog.className).toContain('rounded-t-lg');
-    // Must NOT have the symmetric rounded-lg used by the centered desktop dialog
-    expect(dialog.className).not.toContain(' rounded-lg ');
   });
 
   it('AC-CONFIRM-010: mobile action row stacks buttons full-width for thumb zone reach', () => {

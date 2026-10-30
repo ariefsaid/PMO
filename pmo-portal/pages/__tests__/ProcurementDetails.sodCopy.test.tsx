@@ -116,6 +116,9 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
+vi.mock('@/src/hooks/useProjects', () => import('@/pages/__tests__/helpers/projectScopeMock'));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
+import { headerActions } from '@/pages/__tests__/helpers/procurementHeader';
 import ProcurementDetails from '../ProcurementDetails';
 
 // ---------------------------------------------------------------------------
@@ -188,9 +191,8 @@ describe('AC-SOD-COPY (a): Draft author GateNotice "ready" mentions SoD (request
       requested_by_id: 'u-pm',
     };
     renderPage();
-    const card = screen.getByTestId('decision-card');
-    // The GateNotice "ready" must reference passing to an approver / not self-approving
-    const cardText = card.textContent ?? '';
+    // The pre-announce must reference passing to an approver / not self-approving
+    const cardText = screen.getByTestId('sod-pre-announce').textContent ?? '';
     expect(cardText).toMatch(/approver|hands this|can.?t approve your own/i);
   });
 
@@ -203,9 +205,9 @@ describe('AC-SOD-COPY (a): Draft author GateNotice "ready" mentions SoD (request
       requested_by_id: 'u-pm',
     };
     renderPage();
-    const card = screen.getByTestId('decision-card');
+    expect(screen.getByTestId('sod-pre-announce')).toBeInTheDocument();
     // The generic "You may move this request to its next lifecycle stage below." must be gone
-    expect(card.textContent).not.toMatch(/You may move this request to its next lifecycle stage below/i);
+    expect(document.body.textContent).not.toMatch(/You may move this request to its next lifecycle stage below/i);
   });
 });
 
@@ -223,8 +225,7 @@ describe('AC-SOD-COPY (b): Requested + Finance-approver sees SoD-aware ready cop
       approved_by_id: null,
     };
     renderPage();
-    const card = screen.getByTestId('decision-card');
-    const cardText = card.textContent ?? '';
+    const cardText = screen.getByTestId('sod-ready-hint').textContent ?? '';
     // Should mention requester cannot self-approve / SoD context
     expect(cardText).toMatch(/requester|cannot self.?approv|separation.of.duties|you may approve|SoD/i);
   });
@@ -239,8 +240,8 @@ describe('AC-SOD-COPY (b): Requested + Finance-approver sees SoD-aware ready cop
       approved_by_id: null,
     };
     renderPage();
-    const card = screen.getByTestId('decision-card');
-    expect(card.textContent).not.toMatch(/You may move this request to its next lifecycle stage below/i);
+    expect(screen.getByTestId('sod-ready-hint')).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/You may move this request to its next lifecycle stage below/i);
   });
 });
 
@@ -269,7 +270,8 @@ describe('AC-SOD-COPY (c): Vendor Invoiced + payer sees SoD-b teaching (approver
       ],
     };
     renderPage();
-    const button = screen.getByRole('button', { name: /mark as paid/i });
+    // "Mark as Paid" is the header's "Record payment" primary action since the restructure (#1404).
+    const button = headerActions().getByRole('button', { name: 'Record payment' });
     expect(button.className).toMatch(/bg-primary/);
   });
 
@@ -294,8 +296,7 @@ describe('AC-SOD-COPY (c): Vendor Invoiced + payer sees SoD-b teaching (approver
       ],
     };
     renderPage();
-    const card = screen.getByTestId('decision-card');
-    const cardText = card.textContent ?? '';
+    const cardText = screen.getByTestId('sod-ready-hint').textContent ?? '';
     // Must mention that the approver cannot also pay / SoD-b teaching
     expect(cardText).toMatch(/approver.{0,40}(pay|payment)|separation.of.duties|payer.{0,20}approver/i);
   });
@@ -321,10 +322,10 @@ describe('AC-SOD-COPY (c): Vendor Invoiced + payer sees SoD-b teaching (approver
       ],
     };
     renderPage();
-    const card = screen.getByTestId('decision-card');
-    expect(card.textContent).not.toMatch(/Ready to advance/i);
-    expect(card.textContent).toMatch(/different finance user|approver|payment/i);
-    expect(screen.queryByRole('button', { name: /mark as paid/i })).not.toBeInTheDocument();
+    const hint = screen.getByTestId('sod-ready-hint');
+    expect(hint.textContent).not.toMatch(/Ready to advance/i);
+    expect(hint.textContent).toMatch(/different finance user|approver|payment/i);
+    expect(screen.queryByRole('button', { name: 'Record payment' })).not.toBeInTheDocument();
   });
 
   it('AC-SOD-COPY-c: Vendor Invoiced gate does NOT say the old generic copy verbatim', () => {
@@ -348,8 +349,8 @@ describe('AC-SOD-COPY (c): Vendor Invoiced + payer sees SoD-b teaching (approver
       ],
     };
     renderPage();
-    const card = screen.getByTestId('decision-card');
-    expect(card.textContent).not.toMatch(/You may move this request to its next lifecycle stage below/i);
+    expect(screen.getByTestId('sod-ready-hint')).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/You may move this request to its next lifecycle stage below/i);
   });
 });
 
@@ -367,9 +368,8 @@ describe('AC-SOD-COPY (d): non-SoD stage (Approved) ready copy is concise — no
       approved_by_id: 'u-exec',
     };
     renderPage();
-    const card = screen.getByTestId('decision-card');
     // New copy: anything other than the old generic verbatim is fine
-    expect(card.textContent).not.toMatch(/You may move this request to its next lifecycle stage below/i);
+    expect(document.body.textContent).not.toMatch(/You may move this request to its next lifecycle stage below/i);
   });
 });
 

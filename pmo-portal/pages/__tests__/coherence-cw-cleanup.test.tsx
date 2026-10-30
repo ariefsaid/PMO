@@ -5,20 +5,21 @@
  *   The SalesKanbanBoard empty-column copy must say "No projects in <stage>",
  *   not "No deals in <stage>". Same noun as the rest of the app post-CW-1.
  *
- * AC-S20-001: one responsive decision area follows request evidence
- *   The ProcurementDetails decision card is the only approval action area; the same
- *   area uses sticky positioning on phone and desktop without a mirrored CTA.
+ * AC-S20-001: one decision area follows request evidence
+ *   The restructured ProcurementDetails (#1404) puts the one approval verb in the RecordHeader
+ *   actions slot (the page's single canonical action area); there is no mirrored second Approve.
  *
- * CW-EDIT-1: Procurement RecordHeader exposes Edit in the action zone (record-scoped gate)
- *   The Edit button must appear inside the RecordHeader action zone (not buried elsewhere)
- *   when the procurement is editable: status Draft or Rejected, AND the user is the
- *   requester or an Admin. Edit must NOT appear on terminal/non-editable states or for
- *   non-requester non-Admin roles. RLS remains the enforcement authority.
+ * CW-EDIT-1: Procurement RecordHeader exposes Edit in the action area (record-scoped gate)
+ *   Edit is reachable from the RecordHeader's "More procurement actions" menu when the
+ *   procurement is editable: status Draft or Rejected, AND the user is the requester or an
+ *   Admin. Edit must NOT be offered on terminal/non-editable states or for non-requester
+ *   non-Admin roles. RLS remains the enforcement authority.
  */
 
 // ── Fix 1: "No deals" → "No projects" in SalesKanbanBoard ─────────────────
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 
 // SalesKanbanBoard test ──────────────────────────────────────────────────────
@@ -77,6 +78,11 @@ const detailState = {
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+// The page resolves the project's manager (PM scope) via useProject; the current PM manages proj-1.
+vi.mock('@/src/hooks/useProjects', () => ({
+  useProject: () => ({ data: { project_manager_id: 'u-pm' }, isPending: false, isError: false }),
+}));
+vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpOrphans: () => ({ data: [], isError: false, isPending: false }) }));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
     createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
@@ -189,6 +195,11 @@ const requestedPR = {
   quotations: [],
   receipts: [],
   invoices: [],
+  purchase_requests: [],
+  rfqs: [],
+  purchase_orders: [],
+  payments: [],
+  statusEvents: [],
 };
 
 /** Draft PR with the PM as requester — to test Edit affordance on Draft */
@@ -217,9 +228,9 @@ const renderPage = (id = 'proc-cw-001') =>
   );
 
 // ---------------------------------------------------------------------------
-// AC-S20-001: the one decision area is responsive, evidence-first and not mirrored.
+// AC-S20-001: the one decision area is single, evidence-first and not mirrored.
 // ---------------------------------------------------------------------------
-describe('AC-S20-001: one responsive evidence-first decision area', () => {
+describe('AC-S20-001: one evidence-first decision area', () => {
   beforeEach(() => {
     mockIsDesktop = true;
     mockEffectiveRole = 'Project Manager';
@@ -229,20 +240,18 @@ describe('AC-S20-001: one responsive evidence-first decision area', () => {
     detailState.error = null;
   });
 
-  it('AC-S20-001: the decision area is the single sticky action zone', () => {
+  it('AC-S20-001: the approver has exactly one Approve action in the header and no mirrored desktop CTA', () => {
     renderPage();
-    const card = screen.getByTestId('decision-card');
-    const zone = card.closest('[data-testid="record-action-zone"]');
-    expect(zone).not.toBeNull();
-    expect(zone!.className).toContain('sticky');
-    expect(zone!.className).toContain('bottom-0');
+    // Scoped to the header: the phone-only fixed bar (sm:hidden) carries the same verb in the DOM.
+    const actions = screen.getByTestId('record-header-actions');
+    expect(within(actions).getAllByRole('button', { name: 'Approve' })).toHaveLength(1);
     expect(screen.queryByTestId('mobile-sticky-action')).toBeNull();
   });
 
-  it('AC-S20-001: decision controls remain inside RecordActionZone (enforcement holds)', () => {
+  it('AC-S20-001: the decision control lives in the RecordHeader actions slot (placement holds)', () => {
     renderPage();
-    const zone = screen.getByTestId('record-action-zone');
-    expect(within(zone).getByTestId('decision-card')).toBeInTheDocument();
+    const actions = screen.getByTestId('record-header-actions');
+    expect(within(actions).getByRole('button', { name: 'Approve' })).toBeInTheDocument();
   });
 });
 
@@ -258,28 +267,35 @@ describe('CW-EDIT-1: Procurement RecordHeader exposes Edit for authorized editab
     detailState.error = null;
   });
 
-  it('CW-EDIT-1: requester (PM) sees Edit button in RecordHeader actions on their own Draft PR', () => {
+  it('CW-EDIT-1: requester (PM) sees Edit in the RecordHeader actions menu on their own Draft PR', async () => {
     // CW-EDIT-1 keeps Edit surfaced inside the RecordHeader action zone (not buried elsewhere).
     // Gate: (isDraft || isRejected) && (isRequester || Admin) — draftByPM has PM as requester.
     detailState.data = { ...draftByPM }; // status=Draft, requested_by_id='u-pm' = current user
     renderPage();
     const headerActions = screen.getByTestId('record-header-actions');
-    expect(within(headerActions).getByRole('button', { name: /edit/i })).toBeInTheDocument();
+    await userEvent.click(within(headerActions).getByRole('button', { name: /more procurement actions/i }));
+    expect(within(headerActions).getByTestId('edit-header')).toBeInTheDocument();
   });
 
-  it('CW-EDIT-1: Edit is hidden on a non-editable state (Approved) — record-scoped gate', () => {
+  it('CW-EDIT-1: Edit is hidden on a non-editable state (Approved) — record-scoped gate', async () => {
     // Approved is not Draft or Rejected; Edit must NOT appear even though PM has the policy permission.
     detailState.data = { ...approvedPR }; // status=Approved, PM is not requester
     renderPage();
-    // record-header-actions is only rendered when canEditHeader is true; on Approved it won't exist.
+    // Open the menu first: a closed menu would make the absence assertion vacuous.
+    const headerActions = screen.getByTestId('record-header-actions');
+    await userEvent.click(within(headerActions).getByRole('button', { name: /more procurement actions/i }));
+    expect(within(headerActions).getByRole('menuitem', { name: /history/i })).toBeInTheDocument();
     expect(screen.queryByTestId('edit-header')).toBeNull();
   });
 
-  it('CW-EDIT-1: Edit is hidden for a non-requester non-Admin on a Draft PR', () => {
+  it('CW-EDIT-1: Edit is hidden for a non-requester non-Admin on a Draft PR', async () => {
     // PM is not the requester here (requested_by_id = u-eng) and not an Admin.
     detailState.data = { ...requestedPR, status: 'Draft' as const }; // Draft, but PM not requester
     renderPage();
-    // record-header-actions is only rendered when canEditHeader is true; here it won't exist.
+    // Open the menu first: a closed menu would make the absence assertion vacuous.
+    const headerActions = screen.getByTestId('record-header-actions');
+    await userEvent.click(within(headerActions).getByRole('button', { name: /more procurement actions/i }));
+    expect(within(headerActions).getByRole('menuitem', { name: /history/i })).toBeInTheDocument();
     expect(screen.queryByTestId('edit-header')).toBeNull();
   });
 });

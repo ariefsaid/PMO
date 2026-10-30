@@ -12,6 +12,7 @@ import { signIn, requireServiceRoleKey } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
+const PM_ID = '00000000-0000-0000-0000-0000000000a2';
 const ENGINEER_ID = '00000000-0000-0000-0000-0000000000a4'; // the requester
 const FINANCE_ID = '00000000-0000-0000-0000-0000000000a3'; // the named project approver
 const VITE_ENV = loadEnv('development', process.cwd(), 'VITE_');
@@ -33,7 +34,7 @@ test.beforeEach(async () => {
   admin = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
   const tag = `APR-040 ${Date.now()}`;
 
-  const project = await admin.from('projects').insert({ org_id: ORG_ID, name: tag, status: 'Ongoing Project' }).select('id').single();
+  const project = await admin.from('projects').insert({ org_id: ORG_ID, name: tag, status: 'Ongoing Project', project_manager_id: PM_ID }).select('id').single();
   if (project.error) throw new Error(`AC-APR-040 fixture project: ${project.error.message}`);
   projectId = project.data.id;
 
@@ -111,13 +112,14 @@ test('AC-APR-040 a within-budget request is decided by the project approver, and
   await page.goto(`/procurement/${procurementId}`);
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
   const evidence = page.getByRole('heading', { name: 'Budget impact' });
-  const decision = page.getByTestId('decision-card');
+  const decision = page.getByRole('button', { name: 'Approve', exact: true });
   await expect(evidence).toBeVisible();
   await expect(decision).toBeVisible();
   expect(await page.evaluate(() => {
     const evidenceNode = [...document.querySelectorAll('h3')]
       .find((node) => node.textContent?.trim() === 'Budget impact');
-    const decisionNode = document.querySelector('[data-testid="decision-card"]');
+    const decisionNode = [...document.querySelectorAll('button')]
+      .find((node) => node.textContent?.trim() === 'Approve');
     return Boolean(evidenceNode && decisionNode
       && (evidenceNode.compareDocumentPosition(decisionNode) & Node.DOCUMENT_POSITION_FOLLOWING));
   })).toBe(true);

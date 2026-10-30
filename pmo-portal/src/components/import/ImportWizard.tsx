@@ -127,7 +127,7 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
         )}
       >
         {/* Header */}
-        <div className="flex items-center gap-2.5 border-b border-border px-[18px] py-4">
+        <div className="flex items-center gap-2 border-b border-border px-[var(--space-content-inset)] py-4">
           <div className="min-w-0 flex-1">
             <h2 id={titleId} className="text-[16px] font-bold tracking-[-0.01em] text-popover-foreground">
               {wiz.step === 'upload'
@@ -150,7 +150,7 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
         </div>
 
         {/* Body */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-[18px] py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-[var(--space-content-inset)] py-4">
           {wiz.step === 'upload' && <UploadStep wiz={wiz} />}
           {wiz.step === 'mapping' && <MappingStep wiz={wiz} descriptor={descriptor} />}
           {wiz.step === 'preview' && <PreviewStep wiz={wiz} descriptor={descriptor} />}
@@ -159,7 +159,7 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
         </div>
 
         {/* Footer — per-step actions. */}
-        <div className="flex items-center gap-2 border-t border-border px-[18px] py-3.5">
+        <div className="flex items-center gap-2 border-t border-border px-[var(--space-content-inset)] py-3">
           {(wiz.step === 'mapping' || wiz.step === 'preview') && (
             <Button variant="ghost" size="sm" onClick={wiz.back}>
               Back

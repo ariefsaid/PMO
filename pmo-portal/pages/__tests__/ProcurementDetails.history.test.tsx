@@ -93,6 +93,8 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
+vi.mock('@/src/hooks/useProjects', () => import('@/pages/__tests__/helpers/projectScopeMock'));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 import ProcurementDetails from '../ProcurementDetails';
 
 const baseProcurement = {
@@ -156,10 +158,10 @@ describe('ProcurementDetails — History tab (AC-CHG-018, AC-CHG-023)', () => {
     expect(screen.getByTestId('record-history')).toHaveTextContent('procurement:proc-001:true');
   });
 
-  it('AC-CHG-018: the History tab is keyboard-operable from the tab bar', async () => {
+  it('AC-CHG-018: the full history is keyboard-operable from the Timeline (the History tab became its Full history action, #1404)', async () => {
     renderAt('/procurement/proc-001');
     expect(screen.queryByTestId('record-history')).toBeNull();
-    screen.getByRole('tab', { name: 'History' }).focus();
+    screen.getByRole('button', { name: 'Full history' }).focus();
     await userEvent.keyboard('{Enter}');
     expect(screen.getByTestId('record-history')).toBeInTheDocument();
   });

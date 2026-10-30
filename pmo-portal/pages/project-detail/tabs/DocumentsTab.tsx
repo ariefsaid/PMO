@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
@@ -21,12 +21,17 @@ import {
   useToast,
   Button,
   Icon,
+  Tooltip,
+  ViewToggle,
   type Column,
+  type DataTableSelection,
   type RowMenuItem,
+  type SortState,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useDocuments, useDocumentMutations } from '@/src/hooks/useDocuments';
+import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { useFileUpload } from '@/src/hooks/useFileUpload';
 import { useRevision } from '@/src/hooks/useRevision';
 import { RecordFolderAction } from '@/src/components/m365/RecordFolderAction';
@@ -37,7 +42,7 @@ import { useDocumentLinkPermissions } from '@/src/components/m365/DocumentLinkPe
 import { M365BrowseNotice } from '@/src/components/m365/M365BrowseNotice';
 import { useMicrosoftDocuments } from '@/src/hooks/useMicrosoftDocuments';
 import { getItem } from '@/src/lib/m365/graphClient';
-import { projectOwner, projectReference, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
+import { projectOwner, projectReference, validMicrosoftBrowserUrl, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 import { NewRevisionModal } from '@/src/components/NewRevisionModal';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { CATEGORY_OPTIONS } from '@/src/lib/documentCategories';
@@ -50,35 +55,35 @@ import type {
   DocStatus,
 } from '@/src/lib/db/documents';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
+import { toCsv } from '@/src/lib/export/toCsv';
+import { formatDateOnly } from '@/src/lib/format';
 
 export interface DocumentsTabProps {
   projectId: string;
+  onCountChange?: (count: number | null) => void;
   /** The PROJECT's code (loaded by the parent), used to suggest convention folders in the picker. */
   projectCode?: string | null;
 }
 
 /** True for a register row that references a Microsoft folder (reference-only: never issued/approved). */
+/** Search shows only when the register is long enough to need it (owner ruling B7: "search only beyond ~10"). */
+const SEARCH_THRESHOLD = 10;
 const isMicrosoftFolder = (d: ProjectDocumentRow) => d.source === 'onedrive' && d.ms_item_kind === 'folder';
 
 /** The Microsoft entry point in flight: a new document seeded from a reference, or linking an existing Draft. */
 type MicrosoftEntryTarget = { kind: 'create' } | { kind: 'link'; doc: ProjectDocumentRow };
 
 /**
- * Per-project DOCUMENT REGISTER (metadata only — Storage is disabled, so there is no file
- * upload; "file attachments arrive with Storage" is signposted by the register subtitle copy,
- * NOT by a dead/disabled control — D13 removed the placeholder "Attach file" button, OD-W2-5).
- * Replaces the deferred placeholder with a real CRUD + status-workflow register, applying
- * crud-components §9.9 / rbac-visibility §H + the Companies slice template.
+ * Per-project DOCUMENT REGISTER with repository-backed metadata, local-file actions, and
+ * Microsoft 365 references. List, filter, group, bulk actions and preview share one surface.
  *
  * Status workflow: Draft → Issued → Approved / Rejected → Closed. The Approve/Reject step is
  * SoD-gated (approver ≠ author): the document's author can never approve their own document.
  * Gating reads the REAL JWT role + the current user id; RLS is the enforcement authority.
  */
 
-// Doc-status pill comes from the single status registry (`workflowVariant`):
-// Draft = `draft`; Issued = neutral grey `progress` (in-review — NOT the action-blue,
-// per the Freed-Blue Status Rule); Approved = green `won`; Rejected = red `lost`;
-// Closed = neutral; Superseded = `superseded`. The distinct LABEL carries identity.
+// Status pills use the single workflow variant registry. Labels carry the exact state identity.
 
 interface FormValues {
   title: string;
@@ -128,18 +133,32 @@ interface PendingTransition {
   verb: string;
 }
 
-const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = null }) => {
-  const { t } = useTranslation();
+const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = null, onCountChange }) => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { t } = useTranslation('project');
+  const isDesktop = useIsDesktop();
   const may = usePermission();
   const documentLinkPermissions = useDocumentLinkPermissions();
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useDocuments(projectId);
+  useEffect(() => {
+    onCountChange?.(isPending || isError || data == null ? null : data.length);
+  }, [data, isError, isPending, onCountChange]);
+  const { data: orgProfiles } = useAssignableProfiles();
   const { create, update, transition, remove, link, unlink } = useDocumentMutations(projectId);
   const { upload, replace, progress, uploadErrors, cancelUpload, clearUploadError } = useFileUpload(projectId);
   const { createRevision } = useRevision(projectId);
 
   const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<DocStatus | ''>('');
+  const [sourceFilter, setSourceFilter] = useState<'upload' | 'onedrive' | ''>('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [sort, setSort] = useState<SortState>({ key: 'title', dir: 'asc' });
+  const [bulkStatus, setBulkStatus] = useState<DocStatus | ''>('');
+  const [pendingBulkStatus, setPendingBulkStatus] = useState<DocStatus | null>(null);
+  const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
 
   // Modal: null = closed; { doc: null } = create; { doc } = edit.
   const [formTarget, setFormTarget] = useState<{ doc: ProjectDocumentRow | null; reference?: MicrosoftReferenceInput } | null>(null);
@@ -155,10 +174,16 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   // The author who tried to act on their own Issued document (SoD block) — drives the
   // inline GateNotice that explains why Approve/Reject is unavailable.
   const [sodBlocked, setSodBlocked] = useState<ProjectDocumentRow | null>(null);
-  // D12: the document shown in the read-first quick-view Drawer (the in-hand row;
-  // no extra fetch). Row activation opens it; the status section + footer reuse
-  // the existing statusActions gating + setPending/setFormTarget/setDeleteTarget.
-  const [drawerId, setDrawerId] = useState<string | null>(null);
+  // The selected document lives in URL state so copied register links reopen the same preview.
+  const drawerId = searchParams.get('open');
+  const setDrawerDoc = useCallback((doc: ProjectDocumentRow | null) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (doc) next.set('open', doc.id);
+      else next.delete('open');
+      return next;
+    }, { replace: doc === null });
+  }, [setSearchParams]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeFileDoc, setActiveFileDoc] = useState<{ docId: string; mode: 'upload' | 'replace' } | null>(null);
   const [clientUploadErrors, setClientUploadErrors] = useState<Record<string, string>>({});
@@ -187,6 +212,31 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   );
 
   const all = useMemo(() => (data ?? []) as ProjectDocumentRow[], [data]);
+  const profileNames = useMemo(
+    () => new Map<string, string>((orgProfiles ?? []).map((profile) => [profile.id, profile.full_name?.trim() ?? ''] as const)),
+    [orgProfiles],
+  );
+  const categoryName = useCallback((doc: ProjectDocumentRow) =>
+    doc.category?.trim() || (isMicrosoftFolder(doc)
+      ? t('projectDetail.documents.category.microsoftFolders', 'Microsoft folders')
+      : t('projectDetail.documents.category.uncategorized', 'Uncategorized')), [t]);
+  const categories = useMemo(
+    () => Array.from(new Set(all.map(categoryName))).sort((a, b) => a.localeCompare(b)),
+    [all, categoryName],
+  );
+  /** The owner's name, "You", or '' when the name isn't visible — C4: an unknown is left blank, never "Name unavailable". */
+  const ownerLabel = (doc: ProjectDocumentRow) => {
+    const ownerId = doc.author_id ?? doc.ms_linked_by;
+    const name = ownerId ? profileNames.get(ownerId)?.trim() : '';
+    return name || (ownerId && ownerId === currentUserId ? t('projectDetail.documents.owner.you', 'You') : '');
+  };
+  const ownerInitials = (label: string) => {
+    const words = label.split(/\s+/).filter(Boolean);
+    return words.length > 1 ? `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase() : (words[0]?.slice(0, 2) ?? '?').toUpperCase();
+  };
+  const needsAction = all.filter((doc) => ['Missing', 'Expired'].includes(String(doc.status)));
+  const missingCount = needsAction.filter((doc) => String(doc.status) === 'Missing').length;
+  const expiredCount = needsAction.filter((doc) => String(doc.status) === 'Expired').length;
 
   const documentsById = useMemo(() => {
     const map = new Map<string, ProjectDocumentRow>();
@@ -207,18 +257,42 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   // The Drawer resolves its row against the refreshed register, never a stale copy, so a link,
   // unlink or check landing while it is open is reflected without losing focus or state.
   const drawerDoc = drawerId ? (documentsById.get(drawerId) ?? null) : null;
-  const setDrawerDoc = useCallback((doc: ProjectDocumentRow | null) => setDrawerId(doc?.id ?? null), []);
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return all;
     return all.filter(
       (d) =>
-        d.title.toLowerCase().includes(q) ||
-        (d.code ?? '').toLowerCase().includes(q) ||
-        d.category.toLowerCase().includes(q),
+        (!q || d.title.toLowerCase().includes(q) || (d.code ?? '').toLowerCase().includes(q) || categoryName(d).toLowerCase().includes(q)) &&
+        (!categoryFilter || categoryName(d) === categoryFilter) &&
+        (!statusFilter || (!isMicrosoftFolder(d) && d.status === statusFilter)) &&
+        (!sourceFilter || (sourceFilter === 'onedrive' ? d.source === 'onedrive' : d.source !== 'onedrive')),
     );
-  }, [all, search]);
+  }, [all, search, categoryFilter, statusFilter, sourceFilter, categoryName]);
+
+  const documentsView = searchParams.get('documentsView') === 'grouped' ? 'grouped' : 'register';
+  const setDocumentsView = (view: 'register' | 'grouped') => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set('documentsView', view);
+      return next;
+    }, { replace: true });
+  };
+  const setSortBy = (key: string) => setSort((current) => ({
+    key,
+    dir: current.key === key && current.dir === 'asc' ? 'desc' : 'asc',
+  }));
+  const sortedFiltered = useMemo(() => {
+    const compareValue = (doc: ProjectDocumentRow) => {
+      if (sort.key === 'category') return categoryName(doc);
+      if (sort.key === 'status') return String(doc.status);
+      return doc.title;
+    };
+    return [...filtered].sort((a, b) => {
+      const groupOrder = documentsView === 'grouped' ? categoryName(a).localeCompare(categoryName(b)) : 0;
+      if (groupOrder !== 0) return groupOrder;
+      const sorted = compareValue(a).localeCompare(compareValue(b), undefined, { numeric: true, sensitivity: 'base' });
+      return sort.dir === 'asc' ? sorted : -sorted;
+    });
+  }, [filtered, categoryName, documentsView, sort]);
 
   const state: 'loading' | 'empty' | 'error' | undefined = isPending
     ? 'loading'
@@ -228,25 +302,94 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         ? 'empty'
         : undefined;
 
+  const selectedDocuments = all.filter((doc) => selectedIds.has(doc.id));
+  const documentSelection: DataTableSelection<ProjectDocumentRow> = {
+    selectedIds,
+    onChange: (ids) => {
+      setBulkStatus('');
+      setSelectedIds(ids);
+    },
+    rowLabel: (doc) => t('projectDetail.documents.selectDocument', 'Select {{title}}', { title: doc.title }),
+  };
+
   // approver ≠ author (Document approval SoD): the author can never approve/reject their own doc.
   const isOwnDocument = (d: ProjectDocumentRow) =>
     !!currentUserId && d.author_id === currentUserId;
 
-  // A Microsoft reference renders through the shared read-only cell (table AND Drawer); a row whose
-  // reference is incomplete is never mistaken for one and keeps the ordinary File cell.
+  // A complete Microsoft reference renders through the shared linked-document details in the
+  // preview; a row with an incomplete reference remains an ordinary upload/source row.
   const microsoftCell = (d: ProjectDocumentRow, compact = false): React.ReactNode => {
     const reference = projectReference(d);
-    return reference ? <LinkedDocumentCell compact={compact} reference={reference} title={d.title} owner={projectOwner(d)} /> : null;
+    return reference ? <LinkedDocumentCell reference={reference} title={d.title} owner={projectOwner(d)} compact={compact} /> : null;
   };
 
+  const sourceName = (doc: ProjectDocumentRow) =>
+    doc.source === 'onedrive'
+      ? t('projectDetail.documents.source.sharePoint', 'SharePoint')
+      : t('projectDetail.documents.source.upload', 'Upload');
+  const sourceCell = (doc: ProjectDocumentRow) => (
+    <Tooltip
+      title={t('projectDetail.documents.tooltip.sourceTitle', 'Source')}
+      content={doc.source === 'onedrive'
+        ? t('projectDetail.documents.tooltip.sourceSharePoint', 'Linked from Microsoft 365. The link opens the stored SharePoint item.')
+        : t('projectDetail.documents.tooltip.sourceUpload', 'File source recorded in the project document register.')}
+    >
+      <span tabIndex={0} className="inline-flex min-w-0 max-w-full items-center text-[13px] text-muted-foreground" aria-label={sourceName(doc)}>
+        {sourceName(doc)}
+      </span>
+    </Tooltip>
+  );
+  const ownerCell = (doc: ProjectDocumentRow) => {
+    const label = ownerLabel(doc);
+    if (!label) return null;
+    return (
+      <Tooltip
+        title={t('projectDetail.documents.tooltip.ownerTitle', 'Owner')}
+        content={t('projectDetail.documents.tooltip.owner', 'Document author from the organization profile.')}
+      >
+        <span tabIndex={0} className="inline-flex min-w-0 max-w-full items-center gap-2 text-[13px] text-foreground" aria-label={label}>
+          <span aria-hidden="true" className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground">
+            {ownerInitials(label)}
+          </span>
+          <span className="truncate">{label}</span>
+        </span>
+      </Tooltip>
+    );
+  };
+  const statusCell = (doc: ProjectDocumentRow) => isMicrosoftFolder(doc)
+    ? <span className="text-muted-foreground">{'—'}</span>
+    : (
+      <Tooltip
+        title={t('projectDetail.documents.tooltip.statusTitle', 'Status')}
+        content={t('projectDetail.documents.tooltip.status', 'Current status from the document review workflow.')}
+      >
+        <span tabIndex={0} className="inline-flex"><StatusPill variant={workflowVariant(doc.status)}>{doc.status}</StatusPill></span>
+      </Tooltip>
+    );
+  const documentDateCell = (doc: ProjectDocumentRow) => (
+    <span className="whitespace-nowrap tabular text-muted-foreground">
+      {doc.doc_date ? formatDateOnly(doc.doc_date) : '—'}
+    </span>
+  );
+  const documentHasFile = (doc: ProjectDocumentRow) => {
+    const webUrl = projectReference(doc)?.web_url;
+    return Boolean(doc.file_path || (!isMicrosoftFolder(doc) && webUrl && validMicrosoftBrowserUrl(webUrl)));
+  };
+  const selectedDocumentsHaveFile = selectedDocuments.some(documentHasFile);
+  const statusLabels: Record<DocStatus, string> = {
+    Draft: t('projectDetail.documents.action.reopen', 'Reopen for revision'),
+    Issued: t('projectDetail.documents.action.issue', 'Issue'),
+    Approved: t('projectDetail.documents.action.approve', 'Approve'),
+    Rejected: t('projectDetail.documents.action.reject', 'Reject'),
+    Closed: t('projectDetail.documents.action.close', 'Close'),
+    Superseded: t('projectDetail.documents.action.close', 'Close'),
+  };
   const columns: Column<ProjectDocumentRow>[] = [
     {
-      // D12: Document (title) leads the row so the DataTable's first-cell
-      // activation <button> (rowLabel) wraps the row's natural identity — the
-      // keyboard/SR doorway into the quick-view drawer. (Was Code-first; Code
-      // can be null and is hidden below `sm`, so it's the wrong activation cell.)
       key: 'title',
       header: t('projectDetail.documents.column.document', 'Document'),
+      size: 320, minSize: 260, maxSize: 420,
+      sortKey: 'title',
       cell: (d) => (
         <DocumentTitleCell
           doc={d}
@@ -255,73 +398,55 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
           onViewDocument={setDrawerDoc}
         />
       ),
-    },
-    {
-      key: 'code',
-      header: t('projectDetail.documents.column.code', 'Code'),
-      size: 96, minSize: 96, maxSize: 96,
-      colClassName: 'hidden sm:table-cell w-[96px]',
-      cell: (d) =>
-        d.code ? (
-          <span className="font-mono text-[12.5px] text-muted-foreground" title={d.code}>
-            {d.code}
-          </span>
-        ) : (
-          <span className="text-muted-foreground">{'—'}</span>
-        ),
-    },
-    {
-      key: 'file_path',
-      header: t('projectDetail.documents.column.file', 'File'),
-      size: 176, minSize: 176, maxSize: 176,
-      colClassName: 'hidden md:table-cell w-[176px]',
-      cell: (d) => microsoftCell(d, true) ?? (
-        <FileCell
-          status={d.status}
-          filePath={d.file_path}
-          title={d.title}
-          uploadProgress={progress[d.id]}
-          uploadError={clientUploadErrors[d.id] ?? uploadErrors[d.id]?.message ?? null}
-          onUpload={d.status === 'Draft' && canWriteDocs ? () => handleUploadClick(d.id) : undefined}
-          onReplace={d.status === 'Draft' && d.file_path && canWriteDocs ? () => handleReplaceClick(d.id) : undefined}
-          onCancelUpload={() => cancelUpload(d.id)}
-          onRemoveError={() => clearAnyUploadError(d.id)}
-          onDownload={d.file_path ? () => void handleDownload(d) : undefined}
-          onPreview={d.file_path ? () => void handlePreview(d) : undefined}
-        />
-      ),
+      exportValue: (d) => d.title,
     },
     {
       key: 'category',
       header: t('projectDetail.documents.column.category', 'Category'),
-      size: 112, minSize: 112, maxSize: 112,
-      colClassName: 'hidden md:table-cell w-[112px]',
-      cell: (d) => isMicrosoftFolder(d)
-        ? <span className="text-muted-foreground">{'—'}</span>
-        : <span className="text-[13px] text-muted-foreground">{d.category}</span>,
-    },
-    {
-      key: 'doc_date',
-      header: t('projectDetail.documents.column.date', 'Date'),
-      size: 108, minSize: 108, maxSize: 108,
-      colClassName: 'hidden lg:table-cell w-[108px]',
-      cell: (d) =>
-        d.doc_date ? (
-          <span className="tabular whitespace-nowrap text-[13px] text-muted-foreground">{d.doc_date}</span>
-        ) : (
-          <span className="text-muted-foreground">{'—'}</span>
-        ),
+      size: 128, minSize: 112, maxSize: 220,
+      sortKey: 'category',
+      cell: (d) => <span className="text-[13px] text-muted-foreground">{categoryName(d)}</span>,
+      exportValue: categoryName,
     },
     {
       key: 'status',
       header: t('projectDetail.documents.column.status', 'Status'),
-      size: 112, minSize: 112, maxSize: 112,
-      colClassName: 'w-[112px] min-w-[112px]',
-      // A folder is never issued or approved, so it carries no issue status.
-      cell: (d) => isMicrosoftFolder(d)
-        ? <span className="text-muted-foreground">{'—'}</span>
-        : <StatusPill variant={workflowVariant(d.status)}>{d.status}</StatusPill>,
+      kind: 'status',
+      size: 120, minSize: 112, maxSize: 160,
+      sortKey: 'status',
+      cell: statusCell,
+      exportValue: (d) => isMicrosoftFolder(d) ? '' : String(d.status),
     },
+    {
+      key: 'source',
+      header: t('projectDetail.documents.column.source', 'Source'),
+      size: 136, minSize: 120, maxSize: 220,
+      cell: sourceCell,
+      exportValue: sourceName,
+    },
+    {
+      key: 'owner',
+      header: t('projectDetail.documents.column.owner', 'Owner'),
+      size: 150, minSize: 120, maxSize: 240,
+      cell: ownerCell,
+      exportValue: ownerLabel,
+    },
+    {
+      key: 'doc_date',
+      header: t('projectDetail.documents.column.docDate', 'Date'),
+      size: 104, minSize: 96, maxSize: 132,
+      cell: documentDateCell,
+      exportValue: (doc) => doc.doc_date ?? '',
+    },
+    ...(filtered.some(documentHasFile) ? [{
+      key: 'file',
+      header: t('projectDetail.documents.column.file', 'File'),
+      size: 220, minSize: 160, maxSize: 300,
+      cell: (doc: ProjectDocumentRow) => doc.source === 'onedrive'
+        ? (isMicrosoftFolder(doc) ? '—' : (microsoftCell(doc, true) ?? '—'))
+        : (fileCell(doc) ?? '—'),
+      exportValue: (doc: ProjectDocumentRow) => doc.file_path?.split('/').pop() ?? (isMicrosoftFolder(doc) ? '' : doc.ms_item_name ?? ''),
+    } satisfies Column<ProjectDocumentRow>] : []),
   ];
 
   /** The status actions available on a row, per the workflow + SoD + role gates. */
@@ -357,8 +482,58 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     return items;
   };
 
+  const allowedStatusTargets = (doc: ProjectDocumentRow): DocStatus[] => {
+    if (isMicrosoftFolder(doc)) return [];
+    if (doc.status === 'Draft' && canWriteDocs) return ['Issued'];
+    if (doc.status === 'Issued' && canApprove && !isOwnDocument(doc)) return ['Approved', 'Rejected'];
+    if (doc.status === 'Approved' && canWriteDocs) return ['Closed'];
+    if (doc.status === 'Rejected' && canWriteDocs) return ['Draft', 'Closed'];
+    return [];
+  };
+  const bulkStatusTargets = selectedDocuments.length > 0
+    ? allowedStatusTargets(selectedDocuments[0]).filter((target) =>
+        selectedDocuments.every((doc) => allowedStatusTargets(doc).includes(target)),
+      )
+    : [];
+
+  const openPreview = (doc: ProjectDocumentRow) => {
+    const reference = projectReference(doc);
+    if (reference?.web_url) {
+      if (!validMicrosoftBrowserUrl(reference.web_url)) {
+        toast(t('m365Documents.cell.openRefused', 'This Microsoft link cannot be opened.'), undefined, 'warning');
+        return;
+      }
+      window.open(reference.web_url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    void handlePreview(doc);
+  };
+
+  const copyDocumentLink = async (doc: ProjectDocumentRow) => {
+    try {
+      const linkUrl = new URL(window.location.href);
+      linkUrl.searchParams.set('open', doc.id);
+      if (!linkUrl.searchParams.has('documentsView')) linkUrl.searchParams.set('documentsView', 'register');
+      await navigator.clipboard.writeText(linkUrl.toString());
+      toast(t('projectDetail.documents.toast.linkCopied', 'Document link copied'), doc.title, 'success');
+    } catch {
+      toast(
+        t('projectDetail.documents.toast.linkCopyFailedTitle', 'Could not copy document link'),
+        t('projectDetail.documents.toast.linkCopyFailed', 'Check browser clipboard access and try again.'),
+        'warning',
+      );
+    }
+  };
+
   const rowMenu = (d: ProjectDocumentRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
+    const reference = projectReference(d);
+    if (d.file_path || reference?.web_url) {
+      items.push({ label: t('projectDetail.documents.action.preview', 'Preview'), onClick: () => openPreview(d) });
+    }
+    if (d.file_path) {
+      items.push({ label: t('projectDetail.documents.action.download', 'Download'), onClick: () => void handleDownload(d) });
+    }
     // Edit metadata while not yet terminal (Draft/Issued/Rejected can still be corrected) AND
     // only for the AUTHOR (or Admin break-glass) — A-7 author rule (rbac-visibility §H).
     if (canEditDoc(d) && d.status !== 'Closed' && d.status !== 'Superseded') {
@@ -381,11 +556,10 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       }
     }
     items.push(...statusActions(d));
+    items.push({ label: t('projectDetail.documents.action.copyLink', 'Copy link'), onClick: () => void copyDocumentLink(d) });
     if (canDelete) items.push({ label: t('projectDetail.documents.action.delete', 'Delete'), onClick: () => setDeleteTarget(d), danger: true });
     return items;
   };
-
-  const anyRowWrite = canWriteDocs || canDelete || canApprove;
 
   const onTransitionConfirm = async () => {
     if (!pending) return;
@@ -405,6 +579,79 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       toast(headline, detail, 'warning');
       setPending(null);
     }
+  };
+
+  const onBulkStatusConfirm = async () => {
+    if (!pendingBulkStatus) return;
+    const targets = selectedDocuments.filter((doc) => allowedStatusTargets(doc).includes(pendingBulkStatus));
+    let succeeded = 0;
+    const failures: unknown[] = [];
+    for (const doc of targets) {
+      try {
+        await transition.mutateAsync({ id: doc.id, status: pendingBulkStatus });
+        succeeded += 1;
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    setPendingBulkStatus(null);
+    setBulkStatus('');
+    setBulkStatusOpen(false);
+    if (succeeded > 0) {
+      toast(
+        t('projectDetail.documents.bulk.statusUpdated', 'Status updated for {{count}} documents', { count: succeeded }),
+        transitionActionLabel(pendingBulkStatus, t),
+        'success',
+      );
+      setSelectedIds(new Set());
+    }
+    if (failures.length > 0) {
+      const { headline, detail } = classifyMutationError(failures[0]);
+      toast(
+        t('projectDetail.documents.bulk.statusFailed', 'Some documents could not be updated'),
+        detail || headline,
+        'warning',
+      );
+    }
+  };
+
+  const downloadSelected = async () => {
+    selectedDocuments.forEach((doc) => {
+      const url = !doc.file_path ? projectReference(doc)?.web_url : null;
+      if (url && validMicrosoftBrowserUrl(url)) window.open(url, '_blank', 'noopener,noreferrer');
+    });
+    for (const doc of selectedDocuments.filter((item) => Boolean(item.file_path))) await handleDownload(doc);
+  };
+
+  const exportSelectedRegister = () => {
+    const table = {
+      header: [
+        t('projectDetail.documents.column.document', 'Document'),
+        t('projectDetail.documents.column.code', 'Code'),
+        t('projectDetail.documents.column.category', 'Category'),
+        t('projectDetail.documents.column.revision', 'Revision'),
+        t('projectDetail.documents.column.status', 'Status'),
+        t('projectDetail.documents.column.source', 'Source'),
+        t('projectDetail.documents.column.owner', 'Owner'),
+        t('projectDetail.documents.column.documentDate', 'Document date'),
+      ],
+      body: selectedDocuments.map((doc) => [
+        doc.title,
+        doc.code ?? '',
+        categoryName(doc),
+        doc.revision ?? '',
+        isMicrosoftFolder(doc) ? '' : String(doc.status),
+        sourceName(doc),
+        ownerLabel(doc),
+        doc.doc_date ?? '',
+      ]),
+    };
+    const url = URL.createObjectURL(new Blob([toCsv(table)], { type: 'text/csv;charset=utf-8' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `project-${projectId}-document-register.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
 
   const onDeleteConfirm = async () => {
@@ -499,6 +746,28 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     }
   };
 
+  // C4: the drawer shows a File field only when there is a file, a Draft to upload to, an upload in flight or an error.
+  const drawerFileContent = (doc: ProjectDocumentRow) => (doc.source !== 'onedrive'
+    && (doc.file_path || doc.status === 'Draft' || progress[doc.id] != null || clientUploadErrors[doc.id] || uploadErrors[doc.id]) ? fileCell(doc) : undefined);
+  const fileCell = (doc: ProjectDocumentRow) => {
+    if (doc.source === 'onedrive') return <span className="text-muted-foreground">{'—'}</span>;
+    return (
+      <FileCell
+        status={String(doc.status)}
+        filePath={doc.file_path}
+        title={doc.title}
+        uploadProgress={progress[doc.id] ?? null}
+        uploadError={clientUploadErrors[doc.id] ?? uploadErrors[doc.id]?.message ?? null}
+        onUpload={doc.status === 'Draft' && canWriteDocs ? () => handleUploadClick(doc.id) : undefined}
+        onReplace={doc.status === 'Draft' && canWriteDocs ? () => handleReplaceClick(doc.id) : undefined}
+        onCancelUpload={progress[doc.id] != null ? () => cancelUpload(doc.id) : undefined}
+        onRemoveError={clientUploadErrors[doc.id] || uploadErrors[doc.id] ? () => clearAnyUploadError(doc.id) : undefined}
+        onDownload={doc.file_path ? () => void handleDownload(doc) : undefined}
+        onPreview={doc.file_path ? () => void handlePreview(doc) : undefined}
+      />
+    );
+  };
+
   // Re-read the file's CURRENT identity from Microsoft before offering the revision form. Failure
   // never creates anything and never discloses a raw Microsoft body (generic reviewed copy only).
   const startLatestRevision = async (parent: ProjectDocumentRow) => {
@@ -559,35 +828,38 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     );
   };
 
+  const previewParentDoc = drawerDoc?.parent_document_id ? documentsById.get(drawerDoc.parent_document_id) ?? null : null;
+  const previewChildDoc = drawerDoc ? childDocumentsByParentId.get(drawerDoc.id) ?? null : null;
+  const previewTransitions = drawerDoc ? statusActions(drawerDoc).filter((action) => action.label !== reviewUnavailableLabel) : [];
+  const previewSodBlocked = Boolean(drawerDoc && drawerDoc.status === 'Issued' && canApprove && isOwnDocument(drawerDoc));
+  const previewCanEdit = Boolean(drawerDoc && canEditDoc(drawerDoc) && drawerDoc.status !== 'Closed' && drawerDoc.status !== 'Superseded');
+  const previewSharePointUrl = drawerDoc ? projectReference(drawerDoc)?.web_url ?? null : null;
+  const safePreviewSharePointUrl = previewSharePointUrl && validMicrosoftBrowserUrl(previewSharePointUrl)
+    ? previewSharePointUrl
+    : null;
+  const editPreview = () => {
+    if (!drawerDoc) return;
+    const doc = drawerDoc;
+    setDrawerDoc(null);
+    setFormTarget({ doc });
+  };
+  const deletePreview = () => {
+    if (!drawerDoc) return;
+    const doc = drawerDoc;
+    setDrawerDoc(null);
+    setDeleteTarget(doc);
+  };
+
   return (
-    <div>
-      <div className="mb-3.5 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-[16px] font-bold tracking-[-0.01em]">
-            {t('projectDetail.documents.heading', 'Document register')}
-          </h2>
-        </div>
-        {/* D13 (OD-W2-5 honest-affordance): the dead disabled "Attach file (coming soon)"
-            button was removed — file upload is signposted by the register subtitle copy
-            ("file attachments arrive with Storage"), not a fake disabled control. */}
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          {canCreate && (
-            <Button variant="outline" size="sm" onClick={() => setFormTarget({ doc: null })}>
-              <Icon name="plus" />
-              {t('projectDetail.documents.addDocument', 'Add document')}
-            </Button>
-          )}
-          {canCreateMicrosoftReference && (
-            <Button variant="outline" size="sm" onClick={() => setMicrosoftEntry({ kind: 'create' })}>
-              <Icon name="doc" />
-              {t('m365Documents.link', 'Link from Microsoft 365')}
-            </Button>
-          )}
-        </div>
+    <div className="panel-card min-w-0">
+      <div className="border-b border-border px-[var(--panel-inset)] py-4">
+        <h2 className="text-page font-bold tracking-[-0.02em]">
+          {t('projectDetail.documents.heading', 'Document register')}
+        </h2>
       </div>
 
       {/* Below the header, so a folder notice never pushes the primary actions down or off-screen (empty for non-writers). */}
-      <div className="mb-3.5 empty:hidden">
+      <div className="empty:hidden px-[var(--panel-inset)] pt-3">
         <RecordFolderAction
           target={{ kind: 'project', id: projectId }}
           hasFolder={all.some((d) => d.source === 'onedrive' && d.ms_item_kind === 'folder')}
@@ -635,22 +907,134 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         </GateNotice>
       )}
 
-      {state !== 'loading' && all.length > 0 && (
-        <Toolbar standalone>
-          <SearchMini
+      {needsAction.length > 0 && (
+        <GateNotice variant="blocked" className="mb-3.5" data-testid="documents-action-banner">
+          {t('projectDetail.documents.needsAction', '{{count}} documents need action · {{missing}} missing · {{expired}} expired', {
+            count: needsAction.length,
+            missing: missingCount,
+            expired: expiredCount,
+          })}
+        </GateNotice>
+      )}
+
+      <Toolbar standalone className="min-w-0 border-0 bg-transparent px-[var(--panel-inset)] py-3">
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
+          {/* B7: search earns its place only beyond about ten documents; the filters cover a short register. */}
+          {(all.length > SEARCH_THRESHOLD || search) && <SearchMini
             placeholder={t('projectDetail.documents.searchPlaceholder', 'Search documents…')}
             aria-label={t('projectDetail.documents.searchAriaLabel', 'Search documents')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
-          />
-        </Toolbar>
+            containerClassName="min-w-0 basis-full sm:basis-56 sm:grow-0"
+          />}
+          <label className="sr-only" htmlFor="documents-category-filter">{t('projectDetail.documents.filter.category', 'Filter by category')}</label>
+          <select
+            id="documents-category-filter"
+            aria-label={t('projectDetail.documents.filter.category', 'Filter by category')}
+            value={categoryFilter}
+            onChange={(event) => setCategoryFilter(event.target.value)}
+            className="h-9 min-w-0 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground sm:w-auto sm:flex-none"
+          >
+            <option value="">{t('projectDetail.documents.filter.allCategories', 'All categories')}</option>
+            {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+          </select>
+          <label className="sr-only" htmlFor="documents-status-filter">{t('projectDetail.documents.filter.status', 'Filter by status')}</label>
+          <select
+            id="documents-status-filter"
+            aria-label={t('projectDetail.documents.filter.status', 'Filter by status')}
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as DocStatus | '')}
+            className="h-9 min-w-0 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground sm:w-auto sm:flex-none"
+          >
+            <option value="">{t('projectDetail.documents.filter.allStatuses', 'All statuses')}</option>
+            {(['Draft', 'Issued', 'Approved', 'Rejected', 'Closed', 'Superseded'] as DocStatus[]).map((status) => (
+              <option key={status} value={status}>{status}</option>
+            ))}
+          </select>
+          <label className="sr-only" htmlFor="documents-source-filter">{t('projectDetail.documents.filter.source', 'Filter by source')}</label>
+          <select
+            id="documents-source-filter"
+            aria-label={t('projectDetail.documents.filter.source', 'Filter by source')}
+            value={sourceFilter}
+            onChange={(event) => setSourceFilter(event.target.value as 'upload' | 'onedrive' | '')}
+            className="h-9 min-w-0 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground sm:w-auto sm:flex-none"
+          >
+            <option value="">{t('projectDetail.documents.filter.allSources', 'All sources')}</option>
+            <option value="upload">{t('projectDetail.documents.source.upload', 'Upload')}</option>
+            <option value="onedrive">{t('projectDetail.documents.source.sharePoint', 'SharePoint')}</option>
+          </select>
+          <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:ml-auto sm:w-auto sm:justify-end">
+            <ViewToggle<'register' | 'grouped'>
+              options={[
+                { value: 'register', label: t('projectDetail.documents.view.register', 'Register') },
+                { value: 'grouped', label: t('projectDetail.documents.view.grouped', 'Grouped') },
+              ]}
+              value={documentsView}
+              onChange={setDocumentsView}
+              ariaLabel={t('projectDetail.documents.view.ariaLabel', 'Document register view')}
+              semantics="toggle"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              {canCreateMicrosoftReference && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto min-h-0 px-0 py-0 text-xs text-primary-text underline-offset-4 hover:bg-transparent hover:underline"
+                  onClick={() => setMicrosoftEntry({ kind: 'create' })}
+                >
+                  {t('m365Documents.link', 'Link from Microsoft 365')}
+                </Button>
+              )}
+              {canCreate && (
+                <Button variant="outline" size="sm" onClick={() => setFormTarget({ doc: null })}>
+                  <Icon name="plus" />
+                  {t('projectDetail.documents.addDocument', 'Add document')}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </Toolbar>
+
+      {selectedDocuments.length > 0 && (
+        <div role="group" aria-label={t('projectDetail.documents.bulk.ariaLabel', 'Selected document actions')} className="mb-3.5 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3 py-2.5">
+          <span className="mr-auto text-sm font-medium text-foreground">
+            {t('projectDetail.documents.bulk.selected', '{{count}} selected', { count: selectedDocuments.length })}
+          </span>
+          <Button variant="outline" size="sm" disabled={!selectedDocumentsHaveFile} onClick={() => void downloadSelected()}>
+            {t('projectDetail.documents.bulk.download', 'Download')}
+          </Button>
+          {bulkStatusOpen ? (
+            <>
+              <select
+                aria-label={t('projectDetail.documents.bulk.changeStatus', 'Change status')}
+                value={bulkStatus}
+                onChange={(event) => setBulkStatus(event.target.value as DocStatus | '')}
+                className="h-9 min-w-0 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+              >
+                <option value="">{t('projectDetail.documents.bulk.chooseStatus', 'Choose status')}</option>
+                {bulkStatusTargets.map((status) => <option key={status} value={status}>{statusLabels[status]}</option>)}
+              </select>
+              <Button size="sm" disabled={!bulkStatus} onClick={() => setPendingBulkStatus(bulkStatus as DocStatus)}>
+                {t('projectDetail.documents.bulk.reviewStatus', 'Review change')}
+              </Button>
+            </>
+          ) : (
+            <Button variant="outline" size="sm" disabled={bulkStatusTargets.length === 0} onClick={() => setBulkStatusOpen(true)}>
+              {t('projectDetail.documents.bulk.changeStatus', 'Change status')}
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={exportSelectedRegister}>
+            {t('projectDetail.documents.bulk.exportRegister', 'Export register')}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => { setSelectedIds(new Set()); setBulkStatus(''); setBulkStatusOpen(false); }}>
+            {t('projectDetail.documents.bulk.clearSelection', 'Clear selection')}
+          </Button>
+        </div>
       )}
 
       {state === 'loading' && (
-        <div className="rounded-lg border border-border bg-card">
-          <ListState variant="loading" rows={5} />
-        </div>
+        <ListState variant="loading" rows={5} className="px-[var(--panel-inset)] pb-[var(--panel-inset)]" />
       )}
 
       {state === 'error' && (
@@ -678,54 +1062,73 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       )}
 
       {state === undefined && (
-        <DataTable<ProjectDocumentRow>
-          rows={filtered}
-          columns={columns}
-          rowKey={(d) => d.id}
-          onActivate={(d) => setDrawerDoc(d)}
-          rowMenu={anyRowWrite ? rowMenu : undefined}
-          selectedKey={drawerDoc?.id}
-          state={filtered.length === 0 ? 'empty' : undefined}
-          emptyTitle={t('projectDetail.documents.noSearchMatch', 'No documents match your search')}
-          emptySub={t(
-            'projectDetail.documents.noSearchMatchSub',
-            'Try a different title, code, or category.',
+        <div className={drawerDoc && isDesktop ? 'grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]' : ''}>
+          <div className="min-w-0">
+            <DataTable<ProjectDocumentRow>
+              rows={sortedFiltered}
+              columns={columns}
+              rowKey={(d) => d.id}
+              selection={documentSelection}
+              onActivate={(d) => setDrawerDoc(d)}
+              rowMenu={rowMenu}
+              selectedKey={drawerDoc?.id}
+              sort={sort}
+              onSort={setSortBy}
+              groupBy={documentsView === 'grouped' ? categoryName : undefined}
+              state={filtered.length === 0 ? 'empty' : undefined}
+              emptyTitle={t('projectDetail.documents.noSearchMatch', 'No documents match your search')}
+              emptySub={t(
+                'projectDetail.documents.noSearchMatchSub',
+                'Try a different title, code, or category.',
+              )}
+              className="!overflow-visible !rounded-none !border-0 !bg-transparent"
+              tableId="project-detail-tabs-documentstab-table"
+            />
+          </div>
+          {drawerDoc && isDesktop && (
+            <DocumentPreviewPanel
+              doc={drawerDoc}
+              parentDoc={previewParentDoc}
+              childDoc={previewChildDoc}
+              transitions={previewTransitions}
+              sodBlocked={previewSodBlocked}
+              fileContent={drawerFileContent(drawerDoc)}
+              microsoftFile={microsoftCell(drawerDoc)}
+              hasFile={Boolean(drawerDoc.file_path)}
+              sharePointUrl={safePreviewSharePointUrl}
+              fullRecordHref={`/projects/${projectId}/documents`}
+              canEdit={previewCanEdit}
+              canDelete={canDelete}
+              nestedOpen={!!pending}
+              onClose={() => setDrawerDoc(null)}
+              onEdit={editPreview}
+              onDelete={deletePreview}
+              onDownload={() => void handleDownload(drawerDoc)}
+              onViewDocument={setDrawerDoc}
+            />
           )}
-        tableId="project-detail-tabs-documentstab-table" />
+        </div>
       )}
 
-      {/* D12: read-first quick-view drawer with the status workflow promoted out
-          of the ⋯ menu (the in-hand row — no extra fetch). The status section and
-          footer reuse the EXISTING statusActions gating + setPending/setFormTarget/
-          setDeleteTarget setters; SoD + confirm flow are unchanged. */}
-      {drawerDoc && (
+      {drawerDoc && !isDesktop && (
         <DocumentDrawer
           doc={drawerDoc}
-          parentDoc={drawerDoc.parent_document_id ? (documentsById.get(drawerDoc.parent_document_id) ?? null) : null}
-          childDoc={childDocumentsByParentId.get(drawerDoc.id) ?? null}
-          // The transitions, already role- + SoD-gated by statusActions(d).
-          transitions={statusActions(drawerDoc).filter((a) => a.label !== reviewUnavailableLabel)}
-          // SoD: author of their own Issued doc → no Approve/Reject; show the reason inline.
-          sodBlocked={drawerDoc.status === 'Issued' && canApprove && isOwnDocument(drawerDoc)}
-          canEdit={canEditDoc(drawerDoc) && drawerDoc.status !== 'Closed' && drawerDoc.status !== 'Superseded'}
+          parentDoc={previewParentDoc}
+          childDoc={previewChildDoc}
+          transitions={previewTransitions}
+          sodBlocked={previewSodBlocked}
+          fileContent={drawerFileContent(drawerDoc)}
+          hasFile={Boolean(drawerDoc.file_path)}
+          sharePointUrl={safePreviewSharePointUrl}
+          fullRecordHref={`/projects/${projectId}/documents`}
+          canEdit={previewCanEdit}
           canDelete={canDelete}
-          // A status transition opens the ConfirmDialog on top of the drawer; make
-          // the panel inert so the confirm owns focus + AT (no two live traps).
           nestedOpen={!!pending}
           onClose={() => setDrawerDoc(null)}
-          onEdit={() => {
-            // Close the drawer first, THEN open the form modal — never two focus-traps.
-            const d = drawerDoc;
-            setDrawerDoc(null);
-            setFormTarget({ doc: d });
-          }}
-          onDelete={() => {
-            const d = drawerDoc;
-            setDrawerDoc(null);
-            setDeleteTarget(d);
-          }}
+          onEdit={editPreview}
+          onDelete={deletePreview}
+          onDownload={() => void handleDownload(drawerDoc)}
           onViewDocument={setDrawerDoc}
-          onDownload={handleDownload}
           microsoftFile={microsoftCell(drawerDoc)}
         />
       )}
@@ -832,6 +1235,27 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         onCancel={() => setPending(null)}
       />
 
+      <ConfirmDialog
+        open={!!pendingBulkStatus}
+        tone={pendingBulkStatus === 'Rejected' ? 'destructive' : 'default'}
+        title={pendingBulkStatus
+          ? t('projectDetail.documents.bulk.confirmTitle', 'Update status for selected documents?')
+          : t('projectDetail.documents.transitionConfirm.titleFallback', 'Update status?')}
+        description={pendingBulkStatus === 'Approved'
+          ? t('projectDetail.documents.bulk.approvalDescription', 'Apply this approval to {{count}} selected documents. Approval is recorded and follows the reviewer separation rule.', { count: selectedDocuments.length })
+          : pendingBulkStatus === 'Rejected'
+            ? t('projectDetail.documents.bulk.rejectionDescription', 'Rejecting returns selected documents for revision. This change will be recorded.')
+            : pendingBulkStatus === 'Issued'
+              ? t('projectDetail.documents.bulk.issueDescription', 'Issuing moves selected documents into review so a reviewer can approve or reject them.')
+              : pendingBulkStatus === 'Closed'
+                ? t('projectDetail.documents.bulk.closeDescription', 'Closing finalises the selected documents.')
+                : t('projectDetail.documents.bulk.confirmDescription', 'Apply this status change to {{count}} selected documents. The change will be recorded.', { count: selectedDocuments.length })}
+        confirmLabel={t('projectDetail.documents.bulk.confirmAction', 'Confirm status change')}
+        loading={transition.isPending}
+        onConfirm={onBulkStatusConfirm}
+        onCancel={() => setPendingBulkStatus(null)}
+      />
+
       {/* Delete confirm (destructive tone; Admin only). */}
       <ConfirmDialog
         open={!!deleteTarget}
@@ -864,7 +1288,7 @@ interface LineageButtonProps {
 }
 
 const LineageButton: React.FC<LineageButtonProps> = ({ revision, title, direction, onClick }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   return (
   <button
     type="button"
@@ -890,7 +1314,7 @@ const DocumentTitleCell: React.FC<{
   childDoc: ProjectDocumentRow | null;
   onViewDocument: (doc: ProjectDocumentRow) => void;
 }> = ({ doc, parentDoc, childDoc, onViewDocument }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   return (
     <div className="min-w-0">
       <button
@@ -899,12 +1323,15 @@ const DocumentTitleCell: React.FC<{
         onClick={() => onViewDocument(doc)}
         className="block w-full rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
-        <span className="block truncate font-semibold" title={doc.title}>
+        <span className="block whitespace-normal break-words font-semibold" title={doc.title}>
           {doc.title}
         </span>
-        {doc.revision && (
+        {(doc.code || doc.revision) && (
           <span className="text-[12px] text-muted-foreground">
-            {`${t('projectDetail.documents.revLabel', 'Rev')} ${doc.revision}`}
+            {[
+              doc.code,
+              doc.revision ? `${t('projectDetail.documents.revLabel', 'Rev')} ${doc.revision}` : null,
+            ].filter(Boolean).join(' · ')}
           </span>
         )}
       </button>
@@ -930,7 +1357,7 @@ const DocumentTitleCell: React.FC<{
             <span className="text-[11px] text-muted-foreground">
               {`${t(
                 'projectDetail.documents.supersededNotice',
-                'Read-only — continue on Rev',
+                'Read-only: continue on Rev',
               )} ${childDoc.revision}`}
             </span>
           )}
@@ -940,26 +1367,193 @@ const DocumentTitleCell: React.FC<{
   );
 };
 
-interface DocumentDrawerProps {
+interface DocumentPreviewProps {
   /** The in-hand ProjectDocumentRow (no extra fetch). */
   doc: ProjectDocumentRow;
   parentDoc: ProjectDocumentRow | null;
   childDoc: ProjectDocumentRow | null;
-  /** Available transitions from statusActions(d) (the "Why…?" item filtered out). */
   transitions: RowMenuItem[];
-  /** Author of their own Issued doc → no Approve/Reject; show the reason inline. */
   sodBlocked: boolean;
+  onViewDocument: (doc: ProjectDocumentRow) => void;
+  fileContent: React.ReactNode;
+  microsoftFile: React.ReactNode;
+}
+
+interface DocumentActionFooterProps {
   canEdit: boolean;
   canDelete: boolean;
-  /** A nested ConfirmDialog (status transition) is up → inert the panel. */
-  nestedOpen: boolean;
-  onClose: () => void;
+  hasFile: boolean;
+  sharePointUrl: string | null;
   onEdit: () => void;
   onDelete: () => void;
-  onViewDocument: (doc: ProjectDocumentRow) => void;
-  onDownload: (doc: ProjectDocumentRow) => Promise<void>;
-  /** The shared Microsoft reference cell for this row (same projection as the table), or null. */
-  microsoftFile: React.ReactNode;
+  onDownload: () => void;
+}
+
+interface DocumentHeaderActionsProps {
+  primaryAction?: RowMenuItem;
+  fullRecordHref: string;
+}
+
+const DocumentHeaderActions: React.FC<DocumentHeaderActionsProps> = ({ primaryAction, fullRecordHref }) => {
+  const { t } = useTranslation('project');
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {primaryAction && (
+        <Button
+          size="sm"
+          variant={primaryAction.danger ? 'destructive' : 'primary'}
+          onClick={primaryAction.onClick}
+          disabled={primaryAction.disabled}
+        >
+          {primaryAction.label}
+        </Button>
+      )}
+      <Link
+        to={fullRecordHref}
+        className="inline-flex min-h-10 items-center rounded-sm text-sm font-medium text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      >
+        {t('projectDetail.drawer.openFullPage', 'Open full page')}
+      </Link>
+    </div>
+  );
+};
+
+const DocumentActionFooter: React.FC<DocumentActionFooterProps> = ({
+  canEdit,
+  canDelete,
+  hasFile,
+  sharePointUrl,
+  onEdit,
+  onDelete,
+  onDownload,
+}) => {
+  const { t } = useTranslation('project');
+  return (
+    <>
+      {canEdit && (
+        <Button variant="outline" size="sm" onClick={onEdit}>
+          {t('projectDetail.documents.action.edit', 'Edit')}
+        </Button>
+      )}
+      {hasFile && (
+        <Button variant="outline" size="sm" onClick={onDownload}>
+          {t('projectDetail.documents.action.download', 'Download')}
+        </Button>
+      )}
+      {sharePointUrl && (
+        <a
+          href={sharePointUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="touch-target inline-flex items-center rounded-sm px-2 text-sm font-medium text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          {t('projectDetail.documents.action.openSharePoint', 'Open in SharePoint')}
+        </a>
+      )}
+      {canDelete && (
+        // B1: Delete stays reachable but quiet; it is confirmed, and the drawer's one filled action is the next step.
+        <Button variant="ghost" size="sm" className="text-destructive-text! sm:ml-auto" onClick={onDelete}>
+          {t('projectDetail.documents.action.delete', 'Delete')}
+        </Button>
+      )}
+    </>
+  );
+};
+
+const DocumentPreviewFields: React.FC<DocumentPreviewProps & { statusHeadingLevel: 2 | 4 }> = ({
+  doc,
+  parentDoc,
+  childDoc,
+  transitions,
+  sodBlocked,
+  onViewDocument,
+  fileContent,
+  microsoftFile,
+  statusHeadingLevel,
+}) => {
+  const { t } = useTranslation('project');
+  const isFolder = isMicrosoftFolder(doc);
+  const StatusHeading = statusHeadingLevel === 2 ? 'h2' : 'h4';
+  return (
+    <>
+      <dl className="flex flex-col gap-4">
+        {!isFolder && doc.revision && (
+          <DocField label={t('projectDetail.documents.field.revision', 'Revision')}>
+            {`${t('projectDetail.documents.revLabel', 'Rev')} ${doc.revision}`}
+          </DocField>
+        )}
+        {!isFolder && (
+          <>
+            {/* C4: empty fields are left out, never shown as "—". */}
+            {doc.code && <DocField label={t('projectDetail.documents.field.code', 'Code')}>
+              <span className="font-mono text-[13px]">{doc.code}</span>
+            </DocField>}
+            <DocField label={t('projectDetail.documents.field.category', 'Category')}>
+              {doc.category || t('projectDetail.documents.category.uncategorized', 'Uncategorized')}
+            </DocField>
+            {doc.doc_date && <DocField label={t('projectDetail.documents.field.docDate', 'Document date')}>
+              <span className="tabular-nums">{formatDateOnly(doc.doc_date)}</span>
+            </DocField>}
+          </>
+        )}
+        {parentDoc?.revision && (
+          <DocField label={t('projectDetail.documents.field.lineage', 'Revision lineage')}>
+            <LineageButton revision={parentDoc.revision} title={doc.title} direction="back" onClick={() => onViewDocument(parentDoc)} />
+          </DocField>
+        )}
+        {doc.status === 'Superseded' && childDoc?.revision && (
+          <DocField label={t('projectDetail.documents.field.supersededBy', 'Superseded by')}>
+            <LineageButton revision={childDoc.revision} title={doc.title} direction="forward" onClick={() => onViewDocument(childDoc)} />
+          </DocField>
+        )}
+        {microsoftFile && (
+          <DocField label={t('projectDetail.documents.field.microsoft', 'Microsoft 365 item')}>
+            {microsoftFile}
+          </DocField>
+        )}
+        {fileContent && <DocField label={t('projectDetail.documents.field.file', 'File')}>
+          {fileContent}
+        </DocField>}
+      </dl>
+
+      {(transitions.length > 0 || sodBlocked) && (
+        <div className="mt-5 border-t border-border pt-4">
+          <StatusHeading className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+            {t('projectDetail.documents.updateStatus', 'Update status')}
+          </StatusHeading>
+          {sodBlocked ? (
+            <GateNotice variant="blocked" data-testid="drawer-sod-gate">
+              <div>
+                {t(
+                  'projectDetail.documents.sod.drawerNotice',
+                  "You can't approve your own document. Approving is a segregation-of-duties step, so a different reviewer must approve or reject it.",
+                )}
+              </div>
+            </GateNotice>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {transitions.map((action) => (
+                <Button
+                  key={action.label}
+                  size="sm"
+                  variant={action.danger ? 'destructive' : 'outline'}
+                  onClick={action.onClick}
+                >
+                  {action.label}
+                </Button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+};
+
+interface DocumentDrawerProps extends DocumentPreviewProps, DocumentActionFooterProps {
+  fullRecordHref: string;
+  nestedOpen: boolean;
+  onClose: () => void;
 }
 
 /** Definition-list row — label (overline voice) + value. */
@@ -980,155 +1574,93 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
   sodBlocked,
   canEdit,
   canDelete,
+  hasFile,
+  sharePointUrl,
+  fullRecordHref,
   nestedOpen,
   onClose,
   onEdit,
   onDelete,
   onViewDocument,
   onDownload,
+  fileContent,
   microsoftFile,
 }) => {
-  const { t } = useTranslation();
-  const hasFooter = canEdit || canDelete;
   const isFolder = isMicrosoftFolder(doc);
-  // The primary transition (Issue / Approve) reads as One-Blue; Reject reads as
-  // destructive (danger flag from statusActions); the rest are quiet outlines.
-  // ⚑ Compared through the SAME keys statusActions builds the labels from -- RowMenuItem
-  // carries no id, so the label IS the identity. Translate one side only and this breaks.
-  const isPrimary = (label: string) =>
-    label === t('projectDetail.documents.action.issue', 'Issue') ||
-    label === t('projectDetail.documents.action.approve', 'Approve');
+  const [primaryTransition, ...secondaryTransitions] = transitions;
 
   return (
     <Drawer
       open
       title={doc.title}
-      subtitle={isFolder ? undefined : <StatusPill variant={workflowVariant(doc.status)}>{doc.status}</StatusPill>}
+      status={!isFolder ? <StatusPill variant={workflowVariant(doc.status)}>{doc.status}</StatusPill> : undefined}
+      headerActions={<DocumentHeaderActions primaryAction={primaryTransition} fullRecordHref={fullRecordHref} />}
       nestedOpen={nestedOpen}
       onClose={onClose}
-      footer={
-        hasFooter ? (
-          <>
-            {canEdit && (
-              <Button variant="outline" size="sm" onClick={onEdit}>
-                {t('projectDetail.documents.action.edit', 'Edit')}
-              </Button>
-            )}
-            {canDelete && (
-              <Button variant="destructive" size="sm" className="ml-auto" onClick={onDelete}>
-                {t('projectDetail.documents.action.delete', 'Delete')}
-              </Button>
-            )}
-          </>
-        ) : undefined
-      }
+      footer={<DocumentActionFooter
+        canEdit={canEdit}
+        canDelete={canDelete}
+        hasFile={hasFile}
+        sharePointUrl={sharePointUrl}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onDownload={onDownload}
+      />}
     >
-      <dl className="flex flex-col gap-4">
-        {!isFolder && doc.revision && (
-          <DocField label={t('projectDetail.documents.field.revision', 'Revision')}>
-            {`${t('projectDetail.documents.revLabel', 'Rev')} ${doc.revision}`}
-          </DocField>
-        )}
-        {!isFolder && (
-          <>
-            <DocField label={t('projectDetail.documents.field.code', 'Code')}>
-              {doc.code ? (
-                <span className="font-mono text-[13px]">{doc.code}</span>
-              ) : (
-                <span className="text-muted-foreground">{'—'}</span>
-              )}
-            </DocField>
-            <DocField label={t('projectDetail.documents.field.category', 'Category')}>{doc.category}</DocField>
-            <DocField label={t('projectDetail.documents.field.docDate', 'Document date')}>
-              {doc.doc_date ? (
-                <span className="tabular">{doc.doc_date}</span>
-              ) : (
-                <span className="text-muted-foreground">{'—'}</span>
-              )}
-            </DocField>
-          </>
-        )}
-        {parentDoc?.revision && (
-          <DocField label={t('projectDetail.documents.field.lineage', 'Revision lineage')}>
-            <LineageButton
-              revision={parentDoc.revision}
-              title={doc.title}
-              direction="back"
-              onClick={() => onViewDocument(parentDoc)}
-            />
-          </DocField>
-        )}
-        {doc.status === 'Superseded' && childDoc?.revision && (
-          <DocField label={t('projectDetail.documents.field.supersededBy', 'Superseded by')}>
-            <LineageButton
-              revision={childDoc.revision}
-              title={doc.title}
-              direction="forward"
-              onClick={() => onViewDocument(childDoc)}
-            />
-          </DocField>
-        )}
-        {microsoftFile ? (
-          <DocField label={t('projectDetail.documents.field.file', 'File')}>
-            {microsoftFile}
-          </DocField>
-        ) : doc.file_path && (
-          <DocField label={t('projectDetail.documents.field.file', 'File')}>
-            <button
-              type="button"
-              onClick={() => void onDownload(doc)}
-              className="touch-target inline-flex rounded-sm text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-              aria-label={`${t('projectDetail.documents.download', 'Download')} ${
-                doc.file_path.split('/').pop() || 'file'
-              }`}
-            >
-              {doc.file_path.split('/').pop()}
-            </button>
-          </DocField>
-        )}
-        {!isFolder && (
-          <DocField label={t('projectDetail.documents.field.status', 'Status')}>
-            <StatusPill variant={workflowVariant(doc.status)}>{doc.status}</StatusPill>
-          </DocField>
-        )}
-      </dl>
-
-      {/* Status workflow — promoted out of the ⋯ menu. Buttons reuse the EXACT
-          statusActions gating; consequential moves still route through the
-          ConfirmDialog (the onClick set on each item). */}
-      {(transitions.length > 0 || sodBlocked) && (
-        <div className="mt-5 border-t border-border pt-4">
-          <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-            {t('projectDetail.documents.updateStatus', 'Update status')}
-          </h3>
-          {sodBlocked ? (
-            // SoD preserved: author can't approve/reject their own Issued doc.
-            // Honest-disabled done right — the reason is shown, not a dead button.
-            <GateNotice variant="blocked" data-testid="drawer-sod-gate">
-              <div>
-                {t(
-                  'projectDetail.documents.sod.drawerNotice',
-                  "You can't approve your own document. Approving is a segregation-of-duties step, so a different reviewer must approve or reject it.",
-                )}
-              </div>
-            </GateNotice>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {transitions.map((t) => (
-                <Button
-                  key={t.label}
-                  size="sm"
-                  variant={t.danger ? 'destructive' : isPrimary(t.label) ? 'primary' : 'outline'}
-                  onClick={t.onClick}
-                >
-                  {t.label}
-                </Button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      <DocumentPreviewFields statusHeadingLevel={2} doc={doc} parentDoc={parentDoc} childDoc={childDoc} transitions={secondaryTransitions} sodBlocked={sodBlocked} onViewDocument={onViewDocument} fileContent={fileContent} microsoftFile={microsoftFile} />
     </Drawer>
+  );
+};
+
+const DocumentPreviewPanel: React.FC<DocumentDrawerProps> = ({
+  doc,
+  parentDoc,
+  childDoc,
+  transitions,
+  sodBlocked,
+  canEdit,
+  canDelete,
+  hasFile,
+  sharePointUrl,
+  fullRecordHref,
+  nestedOpen,
+  onClose,
+  onEdit,
+  onDelete,
+  onViewDocument,
+  onDownload,
+  fileContent,
+  microsoftFile,
+}) => {
+  const { t } = useTranslation('project');
+  const isFolder = isMicrosoftFolder(doc);
+  const [primaryTransition, ...secondaryTransitions] = transitions;
+  return (
+    <aside
+      aria-labelledby="document-preview-title"
+      aria-hidden={nestedOpen || undefined}
+      inert={nestedOpen || undefined}
+      className="flex min-h-[440px] min-w-0 flex-col rounded-lg border border-border bg-card"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-3.5">
+        <div className="min-w-0">
+          <h3 id="document-preview-title" className="break-words text-base font-semibold text-foreground">{doc.title}</h3>
+          {!isFolder && <div className="mt-1.5"><StatusPill variant={workflowVariant(doc.status)}>{doc.status}</StatusPill></div>}
+        </div>
+        <div className="flex max-w-full flex-wrap items-center gap-2">
+          <DocumentHeaderActions primaryAction={primaryTransition} fullRecordHref={fullRecordHref} />
+          <Button variant="ghost" iconOnly aria-label={t('projectDetail.documents.action.closePreview', 'Close preview')} onClick={onClose}>
+            <Icon name="x" />
+          </Button>
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <DocumentPreviewFields statusHeadingLevel={4} doc={doc} parentDoc={parentDoc} childDoc={childDoc} transitions={secondaryTransitions} sodBlocked={sodBlocked} onViewDocument={onViewDocument} fileContent={fileContent} microsoftFile={microsoftFile} />
+      </div>
+      <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3.5">
+        <DocumentActionFooter canEdit={canEdit} canDelete={canDelete} hasFile={hasFile} sharePointUrl={sharePointUrl} onEdit={onEdit} onDelete={onDelete} onDownload={onDownload} />
+      </div>
+    </aside>
   );
 };
 
@@ -1161,7 +1693,7 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
   onUpdate,
   onError,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const { t: tf } = useTranslation('recordFolders');
   const isEdit = !!doc;
   // A folder is a reference, not a register document: it has no category, revision, code or date.
@@ -1344,7 +1876,7 @@ interface MicrosoftEntryProps {
  * secondary notice (setup link, reconnect, retry) and no picker request is made.
  */
 const MicrosoftEntry: React.FC<MicrosoftEntryProps> = ({ code, onClose, onSelect }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const { connection, isPending, refetch } = useMicrosoftDocuments();
   const canBrowse = connection?.connected === true && connection.status === 'active';
 

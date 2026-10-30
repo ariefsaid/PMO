@@ -66,7 +66,7 @@ const validate = (v: FormValues, t: TFunction): Partial<Record<keyof FormValues,
   if (tax === null && v.taxTreatment.trim()) {
     errors.taxAmount = t(
       'projectDetail.workOrderValue.errors.taxAmount',
-      'Enter the tax amount — 0 if there is no tax',
+      'Enter the tax amount (0 if there is no tax)',
     );
   }
   if (tax !== null && value !== null && tax.taxTreatment === 'inclusive' && tax.taxAmount > value) {
@@ -94,7 +94,7 @@ const WorkOrderValueModal: React.FC<WorkOrderValueModalProps> = ({
   onClose,
   onSave,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const validateWithT = useCallback((v: FormValues) => validate(v, t), [t]);
   const { options: taxOptions, placeholder: taxPlaceholder } = useTaxTreatmentOptions();
 
@@ -152,7 +152,7 @@ const WorkOrderValueModal: React.FC<WorkOrderValueModalProps> = ({
       title={t('projectDetail.workOrderValue.title', 'Set the work order value')}
       subtitle={t(
         'projectDetail.workOrderValue.subtitle',
-        'Your name is recorded against this figure. Whoever sets it cannot also issue the work order — that is the second pair of eyes on the money.',
+        'Your name is recorded against this figure. Whoever sets it cannot also issue the work order. That is the second pair of eyes on the money.',
       )}
       submitLabel={t('projectDetail.workOrderValue.save', 'Set value')}
       onSubmit={handleSubmit}

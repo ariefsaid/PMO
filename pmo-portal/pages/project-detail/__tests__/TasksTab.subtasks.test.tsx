@@ -111,6 +111,15 @@ beforeEach(() => {
   currentUserId = 'pm-1';
 });
 
+/** A phase's heading row and the text of every row up to the next phase heading (B7: phases share one table). */
+function phase(name: RegExp) {
+  const rows = within(screen.getByRole('table', { name: 'Project tasks' })).getAllByRole('row');
+  const start = rows.findIndex((row) => within(row).queryByRole('rowheader', { name }));
+  if (start === -1) throw new Error(`No phase heading ${name}`);
+  const next = rows.findIndex((row, index) => index > start && within(row).queryByRole('rowheader'));
+  return { heading: rows[start], text: rows.slice(start, next === -1 ? undefined : next).map((row) => row.textContent).join(' | ') };
+}
+
 describe('TasksTab — subtask nesting in the flat List view (AC-SUB-UI-001/002)', () => {
   it('AC-SUB-UI-001: a 3-level chain renders parent-then-children in order, indented by depth', () => {
     listState.data = [
@@ -121,21 +130,21 @@ describe('TasksTab — subtask nesting in the flat List view (AC-SUB-UI-001/002)
     renderTab();
 
     // Render order: grandparent, then parent, then child (DOM order == depth-first order).
-    // The activation button's accessible name ("Edit <name>") is unambiguous per row.
+    // The redesigned list uses "Open task <name>" for its keyboard activation control.
     const buttonNames = screen
-      .getAllByRole('button', { name: /^Edit /i })
+      .getAllByRole('button', { name: /^Open task /i })
       .map((b) => b.getAttribute('aria-label'));
-    const gpIdx = buttonNames.indexOf('Edit Grandparent task');
-    const pIdx = buttonNames.indexOf('Edit Parent task');
-    const cIdx = buttonNames.indexOf('Edit Child task');
+    const gpIdx = buttonNames.indexOf('Open task Grandparent task');
+    const pIdx = buttonNames.indexOf('Open task Parent task');
+    const cIdx = buttonNames.indexOf('Open task Child task');
     expect(gpIdx).toBeGreaterThanOrEqual(0);
     expect(gpIdx).toBeLessThan(pIdx);
     expect(pIdx).toBeLessThan(cIdx);
 
     // Indentation strictly increases with depth: grandparent(0) < parent(1) < child(2).
-    const gpIndent = parseInt(screen.getByText('Grandparent task').style.paddingLeft || '0', 10);
-    const pIndent = parseInt(screen.getByText('Parent task').style.paddingLeft || '0', 10);
-    const cIndent = parseInt(screen.getByText('Child task').style.paddingLeft || '0', 10);
+    const gpIndent = parseInt(document.getElementById('task-gp')!.style.paddingLeft || '0', 10);
+    const pIndent = parseInt(document.getElementById('task-p')!.style.paddingLeft || '0', 10);
+    const cIndent = parseInt(document.getElementById('task-c')!.style.paddingLeft || '0', 10);
     expect(gpIndent).toBe(0);
     expect(pIndent).toBeGreaterThan(gpIndent);
     expect(cIndent).toBeGreaterThan(pIndent);
@@ -197,14 +206,13 @@ describe('TasksTab — a subtask whose parent is outside the current milestone g
     ];
     renderTab();
 
-    const designSection = screen.getByRole('region', { name: /^Design$/i });
-    expect(within(designSection).getByText('Design review')).toBeInTheDocument();
-    expect(within(designSection).queryByText('Order steel')).toBeNull();
+    const design = phase(/^Design/i);
+    expect(design.text).toContain('Design review');
+    expect(design.text).not.toContain('Order steel');
 
     // The subtask is NOT lost — it renders in its own (Procurement) group.
-    const procurementSection = screen.getByRole('region', { name: /Procurement/i });
-    expect(within(procurementSection).getByText('Order steel')).toBeInTheDocument();
+    expect(phase(/^Procurement/i).text).toContain('Order steel');
     // Its parent isn't present in this slice, so it renders as a root: unindented.
-    expect(screen.getByText('Order steel').style.paddingLeft || '0').toBe('0');
+    expect(document.getElementById('task-c1t')!.style.paddingLeft || '0').toBe('0');
   });
 });

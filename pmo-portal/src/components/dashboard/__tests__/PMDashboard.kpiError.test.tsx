@@ -1,8 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { PMDashboard } from '../PMDashboard';
+
+const { projectsRefetch } = vi.hoisted(() => ({ projectsRefetch: vi.fn() }));
 
 /**
  * W2-4d — PMDashboard KPI band omits unavailable values when projects fetch errors.
@@ -18,7 +21,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
     data: undefined,
     isPending: false,
     isError: true,
-    refetch: vi.fn(),
+    refetch: projectsRefetch,
   }),
 }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
@@ -28,7 +31,10 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetsAwaitingApproval: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
-  useProcurements: () => ({ data: [], isPending: false }),
+  useProcurements: () => ({ data: [], isPending: false, refetch: vi.fn() }),
+}));
+vi.mock('../restructure/useNeedsYou', () => ({
+  useNeedsYou: () => ({ items: [], pmOverdueTasksByProject: {}, isPending: false, isError: false }),
 }));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ realRole: 'Project Manager' }),
@@ -39,13 +45,13 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 const renderPMDashboard = () =>
   render(
-    <MemoryRouter>
-      <PMDashboard />
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter><PMDashboard /></MemoryRouter>
+    </QueryClientProvider>,
   );
 
 describe('PMDashboard — KPI band on projects fetch error (AC-W2-4-04)', () => {
-  it('AC-W2-4-04: omits KPI values and shows the project read error with retry', () => {
+  it('AC-W2-4-04: omits KPI values, explains the project error once, and keeps page retry available', () => {
     renderPMDashboard();
 
     const myProjects = screen.getByTestId('kpi-my-projects');
@@ -60,7 +66,8 @@ describe('PMDashboard — KPI band on projects fetch error (AC-W2-4-04)', () => 
     // Must NOT show fabricated zeros
     expect(within(myProjects).queryByText('0')).toBeNull();
     expect(within(contractValue).queryByText('$0')).toBeNull();
-    expect(screen.getAllByText("Couldn't load your projects").length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('button', { name: 'Retry' }).length).toBeGreaterThan(0);
+    screen.getByRole('button', { name: 'Retry' }).click();
+    expect(projectsRefetch).toHaveBeenCalledOnce();
+    expect(within(contractValue).getAllByText(/project data could not be loaded/i)).toHaveLength(1);
   });
 });

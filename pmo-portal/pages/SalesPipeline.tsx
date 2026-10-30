@@ -378,7 +378,7 @@ const SalesPipeline: React.FC = () => {
           <span className="flex items-center gap-1.5">
             <span
               aria-hidden
-              className="grid size-[18px] shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-muted-foreground"
+              className="grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-muted-foreground"
             >
               {r.pm_name.trim().charAt(0).toUpperCase()}
             </span>
@@ -423,7 +423,7 @@ const SalesPipeline: React.FC = () => {
             className={`tabular text-[12.5px] ${stale ? 'font-semibold text-warning-foreground' : 'text-muted-foreground'}`}
             title={
               stale
-                ? t('sales.lastTouch.stale', 'Untouched for {{days}} days — needs attention', {
+                ? t('sales.lastTouch.stale', 'Untouched for {{days}} days: needs attention', {
                     days: String(days),
                   })
                 : undefined
@@ -544,6 +544,7 @@ const SalesPipeline: React.FC = () => {
   return (
     <ListPage
       title={t('shell.nav.sales', 'Sales Pipeline')}
+      bodyPanel
       /* B-3 (AC-W2-IXD-005): the natural place to start a project is the Pipeline where
          pre-win projects live — not the Projects list. Opens the one-step
          create page (#806; same page as Projects). Gated on can('create','project')
@@ -560,11 +561,11 @@ const SalesPipeline: React.FC = () => {
         <>
           {/* Weighted funnel summary band — the Pipeline's stage-summary, above the toolbar. */}
           {state === 'loading' && isDesktop ? (
-            <div className="mb-4">
+            <div className="panel-card mb-4 p-[var(--panel-inset)]">
               <ListState variant="loading" rows={2} />
             </div>
           ) : state === undefined && isDesktop ? (
-            <section aria-label={t('sales.summaryLabel', 'Pipeline summary')} className="mb-4">
+            <section aria-label={t('sales.summaryLabel', 'Pipeline summary')} className="panel-card mb-4 p-[var(--panel-inset)]">
               {/* Narrow viewports scroll the band locally; the shared Funnel owns its own
                   min-track scroll viewport so each stage's exact amount stays in its stage. */}
               <Funnel
@@ -686,7 +687,7 @@ const SalesPipeline: React.FC = () => {
     >
       {/* Body */}
       {state === 'loading' && (
-        <div className="rounded-lg border border-border bg-card">
+        <div>
           <ListState variant="loading" rows={6} />
         </div>
       )}
@@ -768,7 +769,7 @@ const SalesPipeline: React.FC = () => {
               : scope === 'Lost' && !narrowedWithinScope
               ? t('sales.tableEmpty.lost.sub', 'Projects marked lost will appear here.')
               : scope === 'Needs attention' && !narrowedWithinScope
-                ? t('sales.tableEmpty.needsAttention.sub', 'No project has been untouched for {{days}}+ days — pipeline is active.', { days: String(ATTENTION_THRESHOLD_DAYS) })
+                ? t('sales.tableEmpty.needsAttention.sub', 'No project has been untouched for {{days}}+ days. Pipeline is active.', { days: String(ATTENTION_THRESHOLD_DAYS) })
                 : t('uxs24.stageEmptyBody', 'Choose another stage or clear filters to see more projects.')}
             action={filtersActive
               ? { label: t('sales.tableEmpty.clearFilters', 'Clear filters'), onClick: clearFilters }
@@ -804,6 +805,7 @@ const SalesPipeline: React.FC = () => {
 
       {state === undefined && view === 'table' && !((wonError && scope === 'Won') || (lostError && (scope === 'Lost' || scope === 'Needs attention'))) && (
         <DataTable<PipelineProject>
+          embedded
           rows={filtered}
           columns={tableColumns}
           rowKey={(r) => r.id}
@@ -827,7 +829,7 @@ const SalesPipeline: React.FC = () => {
               : !narrowedWithinScope && scope === 'Needs attention'
                 ? t(
                     'sales.tableEmpty.needsAttention.sub',
-                    'No project has been untouched for {{days}}+ days — pipeline is active.',
+                    'No project has been untouched for {{days}}+ days. Pipeline is active.',
                     { days: String(ATTENTION_THRESHOLD_DAYS) },
                   )
                 : t('sales.tableEmpty.search.sub', 'Try a different name or customer.')

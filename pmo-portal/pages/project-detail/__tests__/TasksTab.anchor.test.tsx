@@ -172,6 +172,33 @@ describe('AC-JR-T25: when URL has #task-<id>, TasksTab scrolls the row into view
       window.HTMLElement.prototype.scrollIntoView = origScrollIntoView;
     }
   });
+
+  it('AC-1402: hash links reveal a completed task that is folded by default', async () => {
+    listState.data = [...seed, {
+      id: 'task-done',
+      project_id: 'p1',
+      name: 'Completed survey',
+      status: 'Done' as const,
+      assignee_id: null,
+      start_date: null,
+      end_date: null,
+      org_id: 'org-1',
+      milestone_id: null,
+      created_at: '2026-03-01T00:00:00Z',
+      assignee: null,
+      dependencies: [],
+    }];
+
+    renderTab('#task-task-done');
+
+    await waitFor(() => expect(document.getElementById('task-task-done')).toBeInTheDocument());
+  });
+
+  it('AC-1402: a task hash restores the list view before scrolling', async () => {
+    renderTab('?view=board#task-task-aaa');
+
+    await waitFor(() => expect(document.getElementById('task-task-aaa')).toBeInTheDocument());
+  });
 });
 
 // ── AC-JR-T25: transient highlight class ─────────────────────────────────────

@@ -5,7 +5,14 @@ import { ViewToggle, type ViewOption } from '@/src/components/ui/ViewToggle';
 import { ListState } from '@/src/components/ui/ListState';
 import { formatCurrency, formatPercent } from '@/src/lib/format';
 import { toIso } from '@/src/lib/calendar/monthMatrix';
-import { calculateBidRates, type BidCurrencyTotals, type BidRateFigure, type UnavailableRateReason } from '@/src/lib/winRateMetrics';
+import { Tooltip } from '@/src/components/ui/Tooltip';
+import { Icon } from '@/src/components/ui/icons';
+import {
+  calculateBidRates,
+  type BidCurrencyTotals,
+  type BidRateFigure,
+  type UnavailableRateReason,
+} from '@/src/lib/winRateMetrics';
 import { STALE_BID_THRESHOLD_DAYS } from '@/src/lib/dashboardConstants';
 
 // ── Win-rate period options (PRESERVED VERBATIM from the legacy file — AC-1117) ──
@@ -93,7 +100,7 @@ const WinRateFigure: React.FC<{
           aria-valuemax={100}
           className="block h-3 min-w-12 flex-1 overflow-hidden rounded-full bg-secondary"
         >
-          <span className="block h-full rounded-full bg-success" style={{ width: `${figure.rate === null ? 0 : figure.rate * 100}%` }} />
+          <span className="block h-full rounded-full bg-primary" style={{ width: `${figure.rate === null ? 0 : figure.rate * 100}%` }} />
         </span>
         {detail && <span className="min-w-0 break-words text-[11px] text-muted-foreground">{detail}</span>}
       </div>
@@ -101,32 +108,38 @@ const WinRateFigure: React.FC<{
   );
 };
 
-/**
- * Win Rate — each currency keeps the same two bar figures while the basis toggle changes
- * counts to amounts. Decided bids use decided_at; still-open bids use created_at for periods.
- */
-export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
+export interface WinRateCardProps {
+  currency: string;
+  /** Omit the standalone card frame when this content sits in an area panel. */
+  embedded?: boolean;
+  /** A containing dashboard may own the date range and URL state. */
+  range?: WinRateRange;
+  hidePeriodControl?: boolean;
+}
+
+export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = false, range: externalRange, hidePeriodControl = false }) => {
   const [mode, setMode] = useState<'count' | 'value'>('count');
   const [period, setPeriod] = useState<PeriodKey>('all');
   const range = useMemo(() => buildWinRateRange(period), [period]);
-  const { data: wr, isError, refetch } = useWinRate(range);
+  const activeRange = externalRange ?? range;
+  const { data: wr, isError, refetch } = useWinRate(activeRange);
   const { t } = useTranslation();
   const basisOptions: ViewOption<'count' | 'value'>[] = [
-    { value: 'count', label: t('dashboard:winRate.basisCount', 'By count'), testId: 'win-rate-toggle-count' },
-    { value: 'value', label: t('dashboard:winRate.basisValue', 'By value'), testId: 'win-rate-toggle-value' },
+    { value: 'count', label: t('dashboard.winRate.basisCount', 'By count'), testId: 'win-rate-toggle-count' },
+    { value: 'value', label: t('dashboard.winRate.basisValue', 'By value'), testId: 'win-rate-toggle-value' },
   ];
   const periodOptions: ViewOption<PeriodKey>[] = [
-    { value: 'all', label: t('dashboard:winRate.periodAll', 'All time'), testId: 'win-rate-period-all' },
-    { value: 'ytd', label: t('dashboard:winRate.periodYtd', 'YTD'), testId: 'win-rate-period-ytd' },
-    { value: 'q', label: t('dashboard:winRate.periodQuarter', 'Last quarter'), testId: 'win-rate-period-q' },
-    { value: 't12', label: t('dashboard:winRate.periodTrailing', 'Trailing 12 mo'), testId: 'win-rate-period-t12' },
+    { value: 'all', label: t('dashboard.winRate.periodAll', 'All time'), testId: 'win-rate-period-all' },
+    { value: 'ytd', label: t('dashboard.winRate.periodYtd', 'YTD'), testId: 'win-rate-period-ytd' },
+    { value: 'q', label: t('dashboard.winRate.periodQuarter', 'Last quarter'), testId: 'win-rate-period-q' },
+    { value: 't12', label: t('dashboard.winRate.periodTrailing', 'Trailing 12 mo'), testId: 'win-rate-period-t12' },
   ];
   // #774: declined-to-bid deals are outside both win-rate denominators, so they are reported
-  // beside the rates — including when they are the ONLY decided deals in the window.
+  // beside the rate — including when they are the ONLY decided deals in the window.
   const declined = wr?.declined_count ?? 0;
   const declinedNote = declined > 0 && (
     <p data-testid="win-rate-declined" className="mt-2 text-xs text-muted-foreground">
-      {t('dashboard:winRate.declined', '{{n}} declined to bid — not counted in the win rate', { n: declined })}
+      {t('dashboard.winRate.declined', '{{n}} declined to bid, not counted in the win rate', { n: declined })}
     </p>
   );
 
@@ -157,10 +170,7 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
     || row.wins_value + row.losses_value + row.open_value > 0);
   const openCount = wr?.open_count ?? rows.reduce((sum, row) => sum + row.open_count, 0);
   const staleCount = wr?.stale_count ?? 0;
-  const figures = rows.map((row) => ({
-    row,
-    rates: calculateBidRates(row, mode),
-  }));
+  const figures = rows.map((row) => ({ row, rates: calculateBidRates(row, mode) }));
   const unavailableMessage = (reason: UnavailableRateReason) => {
     switch (reason) {
       case 'no_bids':
@@ -175,28 +185,30 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
   };
 
   return (
-    <section aria-label={t('dashboard:winRate.title', 'Win rate')} className="rounded-lg border border-border bg-card p-4">
+    <section aria-label={t('dashboard.winRate.title', 'Win rate')} className={embedded ? 'grid gap-3' : 'rounded-lg border border-border bg-card p-4'}>
       <div className="mb-3.5 flex flex-wrap items-center gap-2">
-        <span className="text-[13.5px] font-semibold">{t('dashboard:winRate.title', 'Win rate')}</span>
+        <h3 className="text-sm font-semibold">{t('dashboard.winRate.title', 'Win rate')}</h3>
+        <Tooltip content={t('dashboard:hub.company.help.winRate', 'Shows wins divided by decided bids and wins divided by all bids, including open bids, in the selected period. The basis can switch between count and value.')}>
+          <button type="button" aria-label={t('dashboard:hub.company.aboutWinRate', 'About win rate')} className="touch-target grid size-11 place-items-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button>
+        </Tooltip>
         <span className="flex-1" />
-        <ViewToggle<'count' | 'value'> options={basisOptions} value={mode} onChange={setMode} ariaLabel={t('dashboard:winRate.basis', 'Win-rate basis')} semantics="toggle" />
+        <ViewToggle<'count' | 'value'> options={basisOptions} value={mode} onChange={setMode} ariaLabel={t('dashboard.winRate.basis', 'Win-rate basis')} semantics="toggle" />
       </div>
 
-      <div className="mb-3.5 max-w-full overflow-x-auto scroll-fade-x">
-        <ViewToggle<PeriodKey>
-          options={periodOptions}
-          value={period}
-          onChange={setPeriod}
-          ariaLabel={t('dashboard:winRate.period', 'Time frame')}
-          semantics="toggle"
-        />
-      </div>
+      {!hidePeriodControl && <ViewToggle<PeriodKey>
+        options={periodOptions}
+        value={period}
+        onChange={setPeriod}
+        ariaLabel={t('dashboard.winRate.period', 'Time frame')}
+        className="mb-3.5 flex-wrap"
+        semantics="toggle"
+      />}
 
       {isError ? (
         <ListState
           variant="error"
-          title={t('dashboard:winRate.errorTitle', "Couldn't load win rate")}
-          sub={t('dashboard:winRate.errorSub', 'Something went wrong. Try again.')}
+          title={t('dashboard.winRate.errorTitle', "Couldn't load win rate")}
+          sub={t('dashboard.winRate.errorSub', 'Something went wrong. Try again.')}
           onRetry={() => refetch()}
         />
       ) : !hasBids ? (
@@ -204,8 +216,8 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
           <ListState
             variant="empty"
             icon="pipe"
-            title={t('dashboard:winRate.emptyTitle', 'No closed projects in this window')}
-            sub={t('dashboard:winRate.emptySub', 'Try a wider time frame to see your win rate.')}
+            title={t('dashboard.winRate.emptyTitle', 'No closed projects in this window')}
+            sub={t('dashboard.winRate.emptySub', 'Try a wider time frame to see your win rate.')}
           />
           {declinedNote}
         </>
@@ -213,7 +225,8 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
         <>
           <div className="space-y-3" data-testid="win-rate-breakdown">
             {figures.map(({ row, rates }, index) => {
-              const reasons = [...new Set([rates.decided.reason, rates.allBids.reason].filter((reason): reason is UnavailableRateReason => reason !== null))];
+              const reasons = [...new Set([rates.decided.reason, rates.allBids.reason]
+                .filter((reason): reason is UnavailableRateReason => reason !== null))];
               return (
                 <section
                   key={row.currency}

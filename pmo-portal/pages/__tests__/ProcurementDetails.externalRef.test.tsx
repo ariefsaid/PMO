@@ -142,6 +142,9 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
+vi.mock('@/src/hooks/useProjects', () => import('@/pages/__tests__/helpers/projectScopeMock'));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
+import { headerActions, recordFromMenu } from '@/pages/__tests__/helpers/procurementHeader';
 import ProcurementDetails from '../ProcurementDetails';
 
 // ---------------------------------------------------------------------------
@@ -173,9 +176,14 @@ const baseProcurement = {
   quotations: [],
   receipts: [],
   invoices: [],
+  purchase_requests: [],
+  rfqs: [],
+  purchase_orders: [],
+  payments: [],
+  statusEvents: [],
 };
 
-/** A Received PR ready for "mark supplier invoiced" with a different user as approver (not u-finance). */
+/** A Received PR ready for "Record supplier invoice" with a different user as approver (not u-finance). */
 const receivedProcurement = {
   ...baseProcurement,
   status: 'Received' as const,
@@ -224,7 +232,8 @@ const openInlineCapture = async () => {
   detailState.isError = false;
   mockEffectiveRole = 'Finance';
   renderPage();
-  await userEvent.click(screen.getByRole('button', { name: /mark supplier invoiced/i }));
+  // "Record supplier invoice" is the header's "Record supplier invoice" action since the restructure (#1404).
+  await userEvent.click(headerActions().getByRole('button', { name: 'Record supplier invoice' }));
 };
 
 describe('AC-EXT-001: inline vendor-invoice capture (atomic capture_vendor_invoice path)', () => {
@@ -277,7 +286,7 @@ describe('AC-EXT-001: staged vendor-invoice capture is forwarded through the con
 
   it('the Group ref typed in the form reaches createInvoice after the confirm', async () => {
     renderPage();
-    await userEvent.click(screen.getByTestId('btn-create-vi'));
+    await recordFromMenu('Supplier invoice');
     await userEvent.type(screen.getByTestId('vendor_invoice-group-ref-input'), 'PRO-0026100002');
     await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
     await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
@@ -295,14 +304,14 @@ describe('AC-EXT-001: staged vendor-invoice capture is forwarded through the con
   it('an ERP-owned org is not asked for it on the form either', async () => {
     setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
     renderPage();
-    await userEvent.click(screen.getByTestId('btn-create-vi'));
+    await recordFromMenu('Supplier invoice');
     expect(screen.queryByTestId('vendor_invoice-group-ref-input')).not.toBeInTheDocument();
   });
 
   it('AC-520-9 an ERP-owned org: the chosen ERPNext tax template reaches createInvoice after the confirm', async () => {
     setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
     renderPage();
-    await userEvent.click(screen.getByTestId('btn-create-vi'));
+    await recordFromMenu('Supplier invoice');
     await userEvent.selectOptions(screen.getByTestId('vi-tax-template-select'), 'Input VAT 11');
     await userEvent.click(screen.getByTestId('btn-save-vi'));
     expect(mockCreateInvoice).not.toHaveBeenCalled();
@@ -322,7 +331,7 @@ describe('AC-VWH-030 / AC-VWH-032 (#876 slice 2): vendor tax reaches the write',
   });
   afterEach(() => { vendorDefault.value = null; });
 
-  it('AC-VWH-030 mark supplier invoiced pre-fills VAT and PPh from the vendor default and forwards the withholding', async () => {
+  it('AC-VWH-030 Record supplier invoice pre-fills VAT and PPh from the vendor default and forwards the withholding', async () => {
     vendorDefault.value = { vatRate: 11, pphType: 'pph23', pphRate: 2 };
     await openInlineCapture();
     await userEvent.type(screen.getByTestId('vi-amount-input'), '1000000');
@@ -338,7 +347,7 @@ describe('AC-VWH-030 / AC-VWH-032 (#876 slice 2): vendor tax reaches the write',
     mockEffectiveRole = 'Finance';
     detailState.data = { ...vendorInvoicedProcurement, invoices: [] };
     renderPage();
-    await userEvent.click(screen.getByTestId('btn-create-vi'));
+    await recordFromMenu('Supplier invoice');
     await userEvent.type(screen.getByTestId('vi-amount-input'), '1000000');
     await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
     await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '110000');
@@ -355,7 +364,7 @@ describe('AC-VWH-030 / AC-VWH-032 (#876 slice 2): vendor tax reaches the write',
     mockEffectiveRole = 'Finance';
     detailState.data = { ...vendorInvoicedProcurement, invoices: [] };
     renderPage();
-    await userEvent.click(screen.getByTestId('btn-create-vi'));
+    await recordFromMenu('Supplier invoice');
     await userEvent.type(screen.getByTestId('vi-erp-vat-input'), '110000');
     await userEvent.selectOptions(screen.getByTestId('vi-pph-type-select'), 'pph23');
     await userEvent.type(screen.getByTestId('vi-erp-withheld-input'), '20000');

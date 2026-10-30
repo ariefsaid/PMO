@@ -42,7 +42,7 @@ const CAPTURE_LABELS: Record<RecordKind, string> = {
   purchase_order: 'Purchase Order',
   payment: 'Payment',
   goods_receipt: 'Goods Receipt',
-  vendor_invoice: 'Supplier Invoice',
+  vendor_invoice: 'Supplier invoice',
 };
 
 // ---------------------------------------------------------------------------
@@ -75,6 +75,9 @@ export interface LedgerCaptureRowProps {
    * the row offers the choice; with one (a requester) it is the plain request capture it always was.
    */
   firstDocumentKinds?: RecordKind[];
+  /** One-shot arrival handoff from intake; opens this same first-document capture when allowed. */
+  autoOpenFirstDocument?: RecordKind | null;
+  onAutoOpenFirstDocumentConsumed?: () => void;
   /** Goods receipt / vendor invoice confirm-before-commit hand-off (the page's ConfirmDialog owns the write). */
   onStage?: (staged: StagedRecord) => void;
   /** Changes whenever a record is committed, so an open form closes after its write lands. */
@@ -104,7 +107,7 @@ function firstKindName(kind: RecordKind, t: TFunction): string {
 }
 
 const GATE_HOLD_TEXT: Record<GateHold, [string, string]> = {
-  request: ['procurement:ledger.first.needsRequest', 'needs a request first'],
+  request: ['procurement:ledger.first.needsRequest', 'needs a purchase request first'],
   approval: ['procurement:ledger.first.needsApproval', 'needs an approval first'],
   receipt: ['procurement:ledger.first.needsReceipt', 'needs a goods receipt first'],
 };
@@ -123,6 +126,8 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
   busy = false,
   isApprover = false,
   firstDocumentKinds = [],
+  autoOpenFirstDocument = null,
+  onAutoOpenFirstDocumentConsumed,
   onStage,
   resetKey = 0,
   canApprove = false,
@@ -134,8 +139,22 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [chosen, setChosen] = useState<RecordKind>('purchase_request');
+  const autoOpenConsumed = useRef(false);
   const { t } = useTranslation();
   useEffect(() => setOpen(false), [resetKey]);
+  useEffect(() => {
+    if (!autoOpenFirstDocument || autoOpenConsumed.current) return;
+    autoOpenConsumed.current = true;
+    if (!canWrite || status !== 'Draft' || existingTypes.size !== 0
+      || !firstDocumentKinds.includes(autoOpenFirstDocument)
+      || gateHold(autoOpenFirstDocument, gates) !== null) {
+      onAutoOpenFirstDocumentConsumed?.();
+      return;
+    }
+    setChosen(autoOpenFirstDocument);
+    setOpen(true);
+    onAutoOpenFirstDocumentConsumed?.();
+  }, [autoOpenFirstDocument, canWrite, existingTypes, firstDocumentKinds, gates, onAutoOpenFirstDocumentConsumed, status]);
   // The page's decision bar is sticky at the bottom: bring an opened form to the middle of the screen so its Save
   // button is not left underneath it.
   const rowRef = useRef<HTMLDivElement>(null);
@@ -212,7 +231,7 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
             </div>
           ) : paymentRecordInErp ? null : (
             <span className="text-[13px] text-muted-foreground">
-              {t('procurementLedger.capture.next', '+ Capture {{record}} — the next record for this phase.', { record: label })}
+              {t('procurementLedger.capture.next', '+ Capture {{record}}: the next record for this phase.', { record: label })}
             </span>
           )}
           {paymentRecordInErp ? (

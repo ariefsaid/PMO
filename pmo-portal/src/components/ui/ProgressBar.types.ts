@@ -3,4 +3,4 @@
  * See KPITile.types.ts for the full rationale (viewspec/registry.ts + Deno edge-function
  * deno-check reachability — this is the identical pattern for the second tone type).
  */
-export type ProgressTone = 'success' | 'warning' | 'destructive' | 'primary';
+export type ProgressTone = 'success' | 'warning' | 'destructive' | 'primary' | 'neutral';

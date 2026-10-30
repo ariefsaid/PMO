@@ -31,7 +31,7 @@ const todayIso = () => new Date().toISOString().slice(0, 10);
  * Both lines share One-Blue (DESIGN.md single-blue identity); style-only distinction.
  */
 const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const { data, isPending, isError, refetch } = useMilestones(projectId);
   // NFR-SCA-004: reuse tasks already loaded on the project-detail page — no extra round-trip.
   const { data: tasksData } = useTasks(projectId);
@@ -161,15 +161,13 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
             </LineChart>
           </ResponsiveContainer>
 
-          <figcaption className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[11.5px] text-muted-foreground">
+          <figcaption className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <span
                 data-testid="legend-dot"
                 aria-hidden="true"
-                className="h-0.5 w-4 shrink-0 rounded-full"
-                style={{
-                  background: `repeating-linear-gradient(to right, ${chartTheme.series.primary} 0 5px, transparent 5px 9px)`,
-                }}
+                className="w-4 shrink-0 border-t-2 border-dashed"
+                style={{ borderColor: chartTheme.series.primary }}
               />
               {t('projectDetail.scurve.seriesPlanned', 'Planned')}
             </span>
@@ -180,8 +178,8 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
                 className="h-0.5 w-4 shrink-0 rounded-full"
                 style={{ background: chartTheme.series.primary }}
               />
-              {t('projectDetail.scurve.seriesActual', 'Actual to date')}
-              <span className="tabular font-semibold text-foreground">{model.actualToDate}%</span>
+              <span>{t('projectDetail.scurve.seriesActual', 'Actual to date')}</span>{' '}
+              <span className="font-semibold text-foreground tabular-nums">{actualText}</span>
             </span>
           </figcaption>
 

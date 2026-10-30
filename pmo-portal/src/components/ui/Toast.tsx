@@ -12,11 +12,11 @@ interface ToastData {
   sub?: string;
 }
 
-const KIND_STRIPE: Record<ToastKind, string> = {
-  info: 'border-l-primary [&_svg]:text-primary',
-  success: 'border-l-success [&_svg]:text-success',
-  warning: 'border-l-warning [&_svg]:text-warning-foreground',
-  error: 'border-l-destructive [&_svg]:text-destructive',
+const KIND_ICON_TONE: Record<ToastKind, string> = {
+  info: '[&_svg]:text-muted-foreground',
+  success: '[&_svg]:text-success',
+  warning: '[&_svg]:text-warning-foreground',
+  error: '[&_svg]:text-destructive',
 };
 
 const KIND_ICON: Record<ToastKind, IconName> = {
@@ -39,8 +39,8 @@ export const ToastView: React.FC<{
     <div
       {...(announce ? { role: kind === 'warning' || kind === 'error' ? 'alert' : 'status', 'aria-live': kind === 'warning' || kind === 'error' ? 'assertive' : 'polite' } : {})}
       className={cn(
-        'toast-anim flex min-w-[230px] max-w-[360px] items-center gap-2.5 rounded-lg border border-l-[3px] border-border bg-popover px-3.5 py-[11px] text-[13.5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)] [&_svg]:size-[17px] [&_svg]:shrink-0',
-        KIND_STRIPE[kind]
+        'toast-anim flex min-w-[230px] max-w-[360px] items-center gap-2 rounded-overlay border border-border bg-popover px-3 py-3 text-control shadow-[var(--shadow-lg)] [&_svg]:size-4 [&_svg]:shrink-0',
+        KIND_ICON_TONE[kind]
       )}
     >
       <Icon name={KIND_ICON[kind]} />
@@ -302,7 +302,7 @@ const DismissButton: React.FC<{ onClick: () => void }> = ({ onClick }) => {
       type="button"
       onClick={onClick}
       aria-label={t('toast.dismiss', 'Dismiss notification')}
-      className="pointer-events-auto inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="touch-target pointer-events-auto inline-flex size-[var(--control-height-sm)] shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-surface-hover hover:text-foreground active:bg-surface-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Icon name="x" />
     </button>

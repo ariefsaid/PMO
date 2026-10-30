@@ -274,7 +274,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
           title={pending === 'Approved' ? `Approve ${row.title}?` : `Reject ${row.title}?`}
           description={
             pending === 'Approved'
-              ? t('approvalRow.approveDescription', 'Approve {{title}} — {{amount}}? This will advance the procurement to the ordering stage.', {
+              ? t('approvalRow.approveDescription', 'Approve {{title}} ({{amount}})? This will advance the procurement to the ordering stage.', {
                   title: row.title,
                   amount: formatCurrency(row.total_value, row.currency),
                 })

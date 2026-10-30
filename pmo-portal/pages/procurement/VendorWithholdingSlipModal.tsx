@@ -110,7 +110,7 @@ export function VendorWithholdingSlipModal({ invoice, vendorId, vendorName, open
 
   return <EntityFormModal open={open} title={t('bupot.recordTitle', 'Record bukti potong')} submitLabel={t('bupot.record', 'Record bukti potong')} onSubmit={submit} onClose={onClose} loading={loading} dirty submitDisabled={!canSubmit} submitError={submitError} width="lg">
     <div className="[&_dt]:!text-foreground">
-    <p className="mb-3 text-sm text-foreground">{t('bupot.vendor', 'Supplier')}: {vendorName || t('bupot.vendorUnavailable', 'Supplier details unavailable')} · {invoice.currency}</p>
+    <p className="mb-3 text-sm text-foreground">{t('bupot.vendor', 'Supplier')}: {vendorName || t('bupot.vendorUnavailable', 'Supplier details not recorded')} · {invoice.currency}</p>
     <div className="grid gap-3 sm:grid-cols-2">
       <TextField label={t('bupot.slipNumber', 'Issued slip number')} value={number} onChange={setNumber} required maxLength={100} />
       <TextField label={t('bupot.slipDate', 'Slip date')} type="date" value={slipDate} onChange={setSlipDate} required />

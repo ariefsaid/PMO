@@ -22,7 +22,7 @@ import { ProcurementHeaderEdit } from '../ProcurementHeaderEdit';
 
 function renderNew() {
   createRequest.mockResolvedValue({ id: 'pc-new' });
-  render(<ToastProvider><MemoryRouter><ProcurementCreate /></MemoryRouter></ToastProvider>);
+  render(<ToastProvider><MemoryRouter initialEntries={['/procurement/new?have=need']}><ProcurementCreate /></MemoryRouter></ToastProvider>);
   return createRequest;
 }
 

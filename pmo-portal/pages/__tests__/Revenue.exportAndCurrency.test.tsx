@@ -51,6 +51,8 @@ vi.mock('@/src/hooks/useRevenue', () => ({
     cancelPayment: { mutateAsync: vi.fn(), isPending: false },
     create: { mutateAsync: vi.fn(), isPending: false },
     submitInvoice: { mutateAsync: vi.fn(), isPending: false },
+    setReceivedDate: { mutateAsync: vi.fn(), isPending: false },
+    setEfaktur: { mutateAsync: vi.fn(), isPending: false },
     cancelInvoice: { mutateAsync: vi.fn(), isPending: false },
     pendingPush: { status: 'idle', lastError: null, lastPushAt: null },
   }),
