@@ -44,7 +44,7 @@ import PayablesPage from './PayablesPage';
 
 function payablesFixture(): FinancePosition {
   return {
-    receivablesCount: 0,
+    receivablesCount: 0, receivablesUnknownCount: 0,
     overdue: [],
     overdueTotals: {},
     overdueUnknownCount: 0,
@@ -117,6 +117,8 @@ describe('Payables page', () => {
     expect(screen.getByText('North')).toBeInTheDocument();
     expect(screen.getByText('DW')).toBeInTheDocument();
     expect(screen.getAllByText(/100 days/)).toHaveLength(2);
+    expect(screen.getByText('Calendar days since invoiced status was recorded, or last update if unavailable')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /Supplier invoices by age · since invoiced status or last update/ })).toBeInTheDocument();
     expect(screen.queryByText(/Paid this month/)).not.toBeInTheDocument();
     expect(screen.queryByText(/\.00\b/)).not.toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Procurement' })).toBeInTheDocument();

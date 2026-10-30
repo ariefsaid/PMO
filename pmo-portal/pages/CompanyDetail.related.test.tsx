@@ -285,7 +285,7 @@ describe('CompanyDetail — customer collections (AC-S36-003)', () => {
     // SL-F: report date and ageing basis once per card.
     expect(screen.getByText('Report date: 2026-10-18 · Ageing basis: Due Date')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open invoices' })).toHaveAttribute(
-      'href', '/sales-invoices?customer=co-client-1',
+      'href', '/finance/receivables?customer=co-client-1',
     );
     expect(screen.queryByText('AP aging')).not.toBeInTheDocument();
     expect(screen.getByText('Related projects', { exact: true })).toBeInTheDocument();
@@ -297,7 +297,7 @@ describe('CompanyDetail — customer collections (AC-S36-003)', () => {
 
     expect(screen.getByText(/does not indicate a zero balance/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open invoices' })).toHaveAttribute(
-      'href', '/sales-invoices?customer=co-client-1',
+      'href', '/finance/receivables?customer=co-client-1',
     );
     expect(screen.queryByText(/250\.00/)).not.toBeInTheDocument();
 

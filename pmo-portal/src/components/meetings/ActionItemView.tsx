@@ -68,7 +68,7 @@ export const ActionItemView: React.FC<{ taskId: string }> = ({ taskId }) => {
       <span className={`${shell}__meta`}>
         {task.assignee
           ? `${t('meetingDetail.minutes.ownerLabel', 'Owner')}: ${task.assignee.full_name}`
-          : t('meetingDetail.minutes.unassigned', 'Unassigned — assign an owner')}
+          : t('meetingDetail.minutes.unassigned', 'Unassigned: assign an owner')}
       </span>
       {task.end_date && (
         <span className={`${shell}__meta`}>

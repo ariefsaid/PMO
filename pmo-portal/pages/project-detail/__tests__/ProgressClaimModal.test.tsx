@@ -95,7 +95,7 @@ describe('ProgressClaimModal', () => {
 
   it('AC-PB-009 a project with a live down payment is not offered a second one', () => {
     renderModal({ hasDownPayment: true });
-    expect(optionTexts(/Claim type/)).toEqual(['Progress — quantities against the bill of quantities']);
+    expect(optionTexts(/Claim type/)).toEqual(['Progress: quantities against the bill of quantities']);
   });
 });
 

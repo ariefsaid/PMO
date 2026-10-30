@@ -31,7 +31,7 @@ describe('m365Documents localization (AC-M365DOC-020/064/065/067)', () => {
   });
 
   it('AC-M365DOC-065: folder / recovery messages are reviewed sentences, never raw codes or tokens', () => {
-    expect(en.m365Documents.referenceOnly).toBe('Folder reference — contents are not issued or approved');
+    expect(en.m365Documents.referenceOnly).toBe('Folder reference: contents are not issued or approved');
     expect(en.m365Documents.unlinkBody).toBe('Only the PMO reference is removed. The Microsoft item is unchanged.');
     for (const value of [...Object.values(enFlat), ...Object.values(idFlat)]) {
       expect(value).not.toMatch(/\b[A-Z]{2,}(?:_[A-Z]{2,})+\b/);

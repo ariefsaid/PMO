@@ -99,11 +99,11 @@ const ExpenseClaims: React.FC = () => {
         )
       }
       filters={
-        <span className="flex flex-wrap gap-2">
-          <SelectField label={t('expenses.filters.status', 'Status')} hideLabel value={status} onChange={setStatus} options={statusOptions} />
-          <SelectField label={t('expenses.filters.kind', 'Type')} hideLabel value={kind} onChange={setKind} options={kindOptions} />
-          <SelectField label={t('expenses.filters.category', 'Budget category')} hideLabel value={category} onChange={setCategory} options={categoryOptions} />
-        </span>
+        <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <SelectField label={t('expenses.filters.status', 'Status')} hideLabel value={status} onChange={setStatus} options={statusOptions} fullWidth wrapperClassName="w-full sm:w-auto" className="w-full sm:w-auto" />
+          <SelectField label={t('expenses.filters.kind', 'Type')} hideLabel value={kind} onChange={setKind} options={kindOptions} fullWidth wrapperClassName="w-full sm:w-auto" className="w-full sm:w-auto" />
+          <SelectField label={t('expenses.filters.category', 'Budget category')} hideLabel value={category} onChange={setCategory} options={categoryOptions} fullWidth wrapperClassName="w-full sm:w-auto" className="w-full sm:w-auto" />
+        </div>
       }
     >
       <AdvanceAgingCard />

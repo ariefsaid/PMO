@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { login, SEED_PASSWORD } from './helpers';
+import { login, SEED_PASSWORD, waitForFonts } from './helpers';
 import {
   createDocument,
   documentRow,
@@ -44,6 +44,9 @@ test('AC-DOC-020/021/040/041: PM uploads, downloads, replaces, and previews a pr
   await login(page, 'pm@acme.test');
   await openDocumentsTab(page);
   const row = await createDocument(page, { title, code, category: 'Drawing' });
+  // The success notification can cover a row action and pauses while hovered.
+  const dismissNotification = page.getByRole('button', { name: 'Dismiss notification' });
+  if (await dismissNotification.isVisible()) await dismissNotification.click();
 
   // Upload a valid small file to the Draft document.
   await row.getByLabel(`View ${title}`).click();
@@ -124,9 +127,17 @@ test('AC-DOC-020/021/040/041: PM uploads, downloads, replaces, and previews a pr
   await issueDocument(page, documentRow(page, title));
   const issuedRow = documentRow(page, title);
   await expect(issuedRow.getByText('Issued')).toBeVisible({ timeout: 15_000 });
+  if (await dismissNotification.isVisible()) await dismissNotification.click();
 
+  await waitForFonts(page);
   const popupPromise = page.waitForEvent('popup');
-  await issuedRow.getByLabel(`Preview file for ${title}`).click();
+  const previewButton = issuedRow.getByLabel(`Preview file for ${title}`);
+  await previewButton.click();
+  expect(await previewButton.evaluate((button) => {
+    const rect = button.getBoundingClientRect();
+    const topElement = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    return topElement !== null && button.contains(topElement);
+  })).toBe(true);
   const previewPage = await popupPromise;
   await expect.poll(() => previewPage.url(), { timeout: 15_000 }).toContain('/storage/v1/object/sign/project-documents/');
   await previewPage.close();

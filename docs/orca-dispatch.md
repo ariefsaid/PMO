@@ -65,7 +65,10 @@ A worker sees nothing of your session; the brief stands alone:
 5. A persistence clause (finish every item; stopping early with partial work is the known failure)
    and a final sentinel line (`DONE: <task>`) so a killed or truncated run is obvious.
 6. "Check your own work against the input list and report deviations."
-7. Fix rounds: numbered findings, "fix all, change nothing else". After a killed run: list only
+7. Commit with the repo's configured git identity: never set `user.name`/`user.email`, never add a
+   `Co-authored-by` or other attribution trailer (`.githooks/commit-msg` rejects them). Squash merges
+   pass `--subject` and `--body` explicitly, or GitHub appends co-author lines for other commit authors.
+8. Fix rounds: numbered findings, "fix all, change nothing else". After a killed run: list only
    the missing items, "don't rework what landed".
 
 Workhorse models (Luna, Flash) are strong builders but weak readers of intent: spell out the

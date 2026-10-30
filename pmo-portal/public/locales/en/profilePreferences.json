@@ -1,0 +1,9 @@
+{
+  "textSize": {
+    "label": "Text size",
+    "default": "Default",
+    "large": "Large",
+    "larger": "Larger",
+    "help": "Applied immediately on this device."
+  }
+}

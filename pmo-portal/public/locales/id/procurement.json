@@ -43,7 +43,7 @@
     "project": "Proyek",
     "selectProject": "Pilih proyek…",
     "vendor": "Pemasok",
-    "selectVendor": "Opsional — pilih pemasok…",
+    "selectVendor": "Opsional: pilih pemasok…",
     "budgetCategory": "Kategori anggaran",
     "denied": "Anda tidak memiliki izin untuk membuat catatan pengadaan.",
     "unsaved": {
@@ -343,7 +343,7 @@
     "approved": "Pengadaan disetujui",
     "rejected": "Pengadaan ditolak",
     "reject": "Tolak pengadaan",
-    "approveDescription": "Setujui {{title}} — {{amount}}? Pengadaan ini akan dilanjutkan ke tahap pemesanan.",
+    "approveDescription": "Setujui {{title}} ({{amount}})? Pengadaan ini akan dilanjutkan ke tahap pemesanan.",
     "rejectDescription": "Tolak {{title}}? Pemohon akan diberi tahu dan dapat memperbaiki lalu mengajukan ulang."
   },
   "decisionSupport": {
@@ -363,11 +363,11 @@
   "procurementDetail": {
     "readyHint": {
       "draftOther": "Siap mengajukan pengadaan ini untuk disetujui.",
-      "requested": "Anda dapat menyetujui atau menolak pengadaan ini. Pemohon tidak dapat menyetujui pengajuannya sendiri — pemisahan tugas memerlukan peninjau lain.",
-      "vendorInvoicedApprover": "Pembayaran harus dirilis oleh pengguna keuangan lain — penyetuju tidak dapat sekaligus membayar pengadaan ini.",
+      "requested": "Anda dapat menyetujui atau menolak pengadaan ini. Pemohon tidak dapat menyetujui pengajuannya sendiri. Pemisahan tugas memerlukan peninjau lain.",
+      "vendorInvoicedApprover": "Pembayaran harus dirilis oleh pengguna keuangan lain. Penyetuju tidak dapat sekaligus membayar pengadaan ini.",
       "vendorInvoiced": "Untuk merilis pembayaran, penyetuju tidak boleh sekaligus menjadi pembayar (pemisahan tugas). Anda dapat menandai pengadaan ini sebagai lunas di bawah.",
       "default": "Siap melanjutkan. Pilih tindakan di bawah untuk memindahkan pengadaan ini ke tahap berikutnya."
     },
-    "sodPreannounce": "Mengirim ini ke peninjau lain — Anda tidak dapat menyetujui catatan pengadaan Anda sendiri."
+    "sodPreannounce": "Mengirim ini ke peninjau lain. Anda tidak dapat menyetujui catatan pengadaan Anda sendiri."
   }
 }

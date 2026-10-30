@@ -149,14 +149,14 @@ describe('Projects delivery progress + budget used', () => {
     expect(screen.queryByText('No phases yet')).not.toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'No phases yet' })).toHaveTextContent('—');
 
-    // Freed-Blue Status Rule (CW-2) + S1 (ADR-0068): on-hand "Ongoing Project" is the
-    // neutral grey `progress` treatment — a muted dot + muted label, NO tint slab and
-    // NOT the action-blue (the LABEL carries identity).
+    // Freed-Blue Status Rule (CW-2) + S1 (ADR-0068) as amended 2026-10-29 (decorative
+    // dot ban): on-hand "Ongoing Project" is the neutral grey `progress` treatment —
+    // a muted label on the pale neutral surface, NO tint slab and NOT the action-blue
+    // (the LABEL carries identity).
     const ongoingStatus = screen.getByText('Ongoing Project').closest('span');
     expect(ongoingStatus?.className).not.toContain('bg-primary');
-    expect(ongoingStatus?.className).toContain('text-muted-foreground');
-    const ongoingDot = ongoingStatus?.querySelector('[data-pill-dot]') as HTMLElement;
-    expect(ongoingDot.style.background).toBe('hsl(var(--muted-foreground))');
+    expect(ongoingStatus?.className).toContain('text-count-foreground');
+    expect(ongoingStatus?.className).toContain('bg-status-neutral-surface');
 
     const deliveryCell = screen.getByLabelText('Delivery 50%').closest('td')!;
     expect(within(deliveryCell).getByText('50%')).toBeInTheDocument();

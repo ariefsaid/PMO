@@ -109,7 +109,7 @@ describe('AC-FX-007 JISDOR upload preview', () => {
     selectFile();
     expect(await screen.findByText('rates.csv')).toBeInTheDocument();
     expect(input).toHaveAccessibleName('Choose BI Excel or date,rate CSV');
-    expect(await screen.findByText(/Row 7: 999999 — Enter a rate/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Row 7: 999999 \(Enter a rate/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Correct rejected rows and upload again/i)).toHaveLength(1);
     expect(screen.getByText(/1 new/i)).toBeInTheDocument();
     expect(screen.getByText(/1 identical duplicate/i)).toBeInTheDocument();

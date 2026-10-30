@@ -86,7 +86,7 @@ describe('LinkedDocumentCell direct open', () => {
     expect(screen.getByText('Opens in Microsoft. Access depends on your Microsoft permissions on this folder.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Versions/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/approv|issued version|Not verified|Unchanged since|Changed since/i, { ignore: '[data-folder-reference]' })).not.toBeInTheDocument();
-    const note = 'Folder reference — contents are not issued or approved';
+    const note = 'Folder reference: contents are not issued or approved';
     if (kind === 'project') expect(screen.getByText(note)).toBeInTheDocument();
     else expect(screen.queryByText(note)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /^Open folder in SharePoint/ }));

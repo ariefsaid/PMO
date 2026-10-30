@@ -64,7 +64,7 @@ vi.mock('../tabs/BillingTab', () => {
 });
 vi.mock('../ContractCascade', () => {
   routeChunkState.loads.contract += 1;
-  return { ContractCascade: ({ children }: { children: React.ReactNode }) => <div data-testid="contract-cascade">{children}</div> };
+  return { ContractCascade: ({ children, contractTools }: { children: React.ReactNode; contractTools: React.ReactNode }) => <div data-testid="contract-cascade">{contractTools}{children}</div> };
 });
 vi.mock('../tabs/DocumentsTab', () => {
   routeChunkState.loads.documents += 1;

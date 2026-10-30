@@ -151,7 +151,7 @@ const SpendApprovers: React.FC = () => {
         <p data-testid="spend-route-project" className="mt-2 max-w-[68ch] text-[13px] text-muted-foreground">
           {t('uxs32.projectEmpty', {
             defaultValue:
-              'No project approvers listed. Within budget, the standard rules apply — any of {{roles}} can approve. Over the budget line, or when the line cannot be checked, procurement records go to the overhead approvers.',
+              'No project approvers listed. Within budget, the standard rules apply: any of {{roles}} can approve. Over the budget line, or when the line cannot be checked, procurement records go to the overhead approvers.',
             roles,
           })}{' '}
           {holders}
@@ -185,7 +185,7 @@ const SpendApprovers: React.FC = () => {
     rows.length === 0 ? (
       <>
         <p className="text-[13px] text-muted-foreground">
-          {t('admin.spendApprovers.empty', 'Nobody listed — the standard role rules apply.')}
+          {t('admin.spendApprovers.empty', 'Nobody listed. The standard role rules apply.')}
         </p>
         {renderRoute(rows, scope)}
       </>

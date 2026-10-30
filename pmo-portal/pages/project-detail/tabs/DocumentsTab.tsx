@@ -1,5 +1,5 @@
 import { isMicrosoftFolder } from './documentUtils';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -50,6 +50,8 @@ import { formatDateOnly } from '@/src/lib/format';
 
 export interface DocumentsTabProps {
   projectId: string;
+  /** Reports the register row count (null while unavailable) so the parent chrome can badge it. */
+  onCountChange?: (count: number | null) => void;
   /** The PROJECT's code (loaded by the parent), used to suggest convention folders in the picker. */
   projectCode?: string | null;
 }
@@ -88,7 +90,7 @@ function transitionActionLabel(to: DocStatus, t: TFunction): string {
   }
 }
 
-const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = null }) => {
+const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = null, onCountChange }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { t } = useTranslation('project');
   const isDesktop = useIsDesktop();
@@ -97,6 +99,9 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useDocuments(projectId);
+  useEffect(() => {
+    onCountChange?.(isPending || isError || data == null ? null : data.length);
+  }, [data, isError, isPending, onCountChange]);
   const { data: orgProfiles } = useAssignableProfiles();
   const { create, update, transition, remove, link, unlink } = useDocumentMutations(projectId);
   const { createRevision } = useRevision(projectId);
@@ -625,7 +630,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         </GateNotice>
       )}
 
-      <Toolbar className="mb-3.5 min-w-0 border-0 bg-transparent px-0 py-0">
+      <Toolbar standalone className="min-w-0 border-0 bg-transparent px-[var(--panel-inset)] py-3">
         <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
           {/* B7: search earns its place only beyond about ten documents; the filters cover a short register. */}
           {(all.length > SEARCH_THRESHOLD || search) && <SearchMini

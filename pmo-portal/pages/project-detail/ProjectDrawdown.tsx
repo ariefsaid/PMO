@@ -77,7 +77,7 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className 
   if (data && !isError && data.committed <= 0 && data.draft <= 0) return null;
 
   return (
-    <Card variant="bare" className={className} data-testid="project-drawdown">
+    <Card className={className} data-testid="project-drawdown">
       <CardHead level={2} className="text-base">
         {t('projectDetail.drawdown.title', 'Contract drawdown')}
         {data && !isError && (
@@ -114,7 +114,7 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className 
           const overBy = alreadyOver ? committed - ceiling : committed + draft - ceiling;
 
           return (
-            <CardPad className="flex flex-col gap-3">
+            <CardPad className="flex flex-col gap-3 pt-0">
               <div
                 role="group"
                 aria-label={t('projectDetail.drawdown.groupLabel', 'Contract drawdown')}

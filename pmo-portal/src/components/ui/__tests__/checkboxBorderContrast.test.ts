@@ -3,11 +3,14 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * AC-A11Y-CHECKBOX-001 (Discover-pass IMPORTANT-5, 2026-07-28): the standalone `Checkbox`
- * primitive's un-checked border is the ONLY visual indication a control exists there (it has no
- * fill in that state) — WCAG 1.4.11 "Non-text Contrast" requires >=3:1 against the adjacent
- * surface for that boundary. The dark theme measured 2.13:1 (`--input: 240 4% 30%` on
- * `--background: 240 6% 7%`) — below the floor. Light theme already passes.
+ * AC-A11Y-CHECKBOX-001: a checkbox's border is visible.
+ *
+ * The unchecked `Checkbox` (and every `border-input` control) has no fill — its `--input`
+ * border is the ONLY visual indication a control exists there, so it is a standalone control
+ * boundary and WCAG 1.4.11 "Non-text Contrast" requires >=3:1 against the surface it sits on.
+ * Rewritten 2026-10-28 (visual step 1, #1452) to assert that floor directly, in BOTH themes,
+ * against EVERY surface a checkbox/input is hosted on (`background`, `card`, `popover`) —
+ * replacing the earlier dark-only probe pinned to the historical 2.13:1 measurement.
  *
  * Values are read straight out of `index.css` (the single source of truth for `:root`/`.dark`)
  * rather than hardcoded here, matching `AdminUsers.avatarContrast.test.ts`'s pattern — the test
@@ -41,6 +44,9 @@ function contrastRatio(rgb1: [number, number, number], rgb2: [number, number, nu
 
 const AA_NON_TEXT_MIN_CONTRAST = 3.0;
 
+/** Surfaces a checkbox/input control is hosted on. */
+const HOST_SURFACES = ['background', 'card', 'popover'] as const;
+
 function parseHslTokens(cssBlock: string): Record<string, [number, number, number]> {
   const tokens: Record<string, [number, number, number]> = {};
   const re = /--([a-z0-9-]+):\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%/g;
@@ -69,28 +75,23 @@ function extractBlock(source: string, selector: string): string {
   throw new Error(`unbalanced braces for selector "${selector}"`);
 }
 
-const darkBlock = extractBlock(css, '.dark {');
-const darkTokens = parseHslTokens(darkBlock);
+const themeTokens: Array<{ theme: string; tokens: Record<string, [number, number, number]> }> = [
+  { theme: 'light (:root)', tokens: parseHslTokens(extractBlock(css, ':root {')) },
+  { theme: 'dark (.dark)', tokens: parseHslTokens(extractBlock(css, '.dark {')) },
+];
 
-describe('AC-A11Y-CHECKBOX-001: --input (the checkbox boundary in its unchecked state) clears 3:1 against --background', () => {
-  // NOTE: this test deliberately does NOT assert a light-theme number. Reproducing the light
-  // token pair (`--input: 240 4% 84%` on `--background: 0 0% 100%`) here measures ~1.47:1 — the
-  // Discover-pass finding reported light as passing, but that was a rendered-page measurement
-  // (real DOM, real compositing) this token-only re-derivation cannot faithfully reproduce, and
-  // asserting a number that contradicts a real render would be worse than asserting nothing.
-  // Flagged back to the design-reviewer/Director rather than silently asserted either way.
-
-  it('dark theme: --input on --background clears 3:1 (was 2.13:1 — the audited defect)', () => {
-    const inputRgb = hslToRgb(...darkTokens['input']);
-    const bgRgb = hslToRgb(...darkTokens['background']);
-    expect(contrastRatio(inputRgb, bgRgb)).toBeGreaterThanOrEqual(AA_NON_TEXT_MIN_CONTRAST);
-  });
-
-  it('regression guard: the PREVIOUSLY-SHIPPED dark --input (240 4% 30%) would fail this gate at ~2.13:1', () => {
-    const oldInputRgb = hslToRgb(240, 4, 30);
-    const bgRgb = hslToRgb(...darkTokens['background']);
-    const ratio = contrastRatio(oldInputRgb, bgRgb);
-    expect(ratio).toBeLessThan(AA_NON_TEXT_MIN_CONTRAST);
-    expect(ratio).toBeCloseTo(2.13, 1);
-  });
+describe('AC-A11Y-CHECKBOX-001: the --input control boundary clears 3:1 on every host surface, both themes', () => {
+  for (const { theme, tokens } of themeTokens) {
+    it(`${theme}: --input clears 3:1 against background, card, and popover`, () => {
+      expect(tokens['input']).toBeDefined();
+      const inputRgb = hslToRgb(...tokens['input']);
+      for (const surface of HOST_SURFACES) {
+        expect(tokens[surface], `--${surface} missing`).toBeDefined();
+        const ratio = contrastRatio(inputRgb, hslToRgb(...tokens[surface]));
+        expect(ratio, `--input on --${surface} measured ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+          AA_NON_TEXT_MIN_CONTRAST
+        );
+      }
+    });
+  }
 });

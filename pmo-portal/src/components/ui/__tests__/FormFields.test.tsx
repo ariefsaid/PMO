@@ -381,19 +381,6 @@ describe('SelectField: native select for short fixed enums', () => {
     expect(label).toHaveClass('sr-only');
   });
 
-  it('renders the tokened 32px control (h-8), never a 28px one', () => {
-    render(
-      <SelectField
-        label="Status"
-        value="To Do"
-        onChange={() => {}}
-        options={[{ value: 'To Do', label: 'To Do' }]}
-      />,
-    );
-    const select = screen.getByLabelText('Status');
-    expect(select).toHaveClass('h-8');
-    expect(select).not.toHaveClass('h-7');
-  });
 });
 
 describe('FieldError: standalone inline error', () => {

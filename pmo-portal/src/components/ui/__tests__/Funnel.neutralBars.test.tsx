@@ -5,7 +5,7 @@ import { Funnel } from '../Funnel';
 const fill = (bar: Element) => (bar.firstElementChild as HTMLElement).style.background;
 
 describe('Funnel bars (AC-RD-SALES-001)', () => {
-  it('AC-RD-SALES-001 draws every unselected bar neutral and only the selected stage in the action blue', () => {
+  it('AC-RD-SALES-001 draws every stage bar in the primary single-series channel', () => {
     const { container } = render(
       <Funnel
         selectedIndex={1}
@@ -19,9 +19,9 @@ describe('Funnel bars (AC-RD-SALES-001)', () => {
     );
     const bars = Array.from(container.querySelectorAll('[data-funnel-stage-bar]'));
     expect(bars).toHaveLength(3);
-    expect(fill(bars[0])).toBe('hsl(var(--muted-foreground))');
+    expect(fill(bars[0])).toBe('hsl(var(--primary))');
     expect(fill(bars[1])).toBe('hsl(var(--primary))');
-    expect(fill(bars[2])).toBe('hsl(var(--muted-foreground))');
+    expect(fill(bars[2])).toBe('hsl(var(--primary))');
   });
 
   it('AC-RD-SALES-001 keeps an explicit per-stage bar colour override', () => {

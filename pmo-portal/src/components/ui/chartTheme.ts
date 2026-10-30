@@ -24,16 +24,18 @@ export const chartTheme = {
     neutral: 'hsl(var(--muted-foreground) / 0.55)',
   },
   /**
-   * Calm categorical palette for multi-series charts (KPI/legend/timeline).
-   * Every hue resolves through an existing semantic token so dark mode keeps a
-   * contrast-safe, non-rainbow series set without hardcoded literals.
+   * Eight ordered categorical channels for multi-series charts and legends.
+   * Their light/dark values are defined by DESIGN.md's chart-1…chart-8 tokens.
    */
   categorical: [
-    'hsl(var(--primary-text))',
-    'hsl(var(--violet))',
-    'hsl(var(--success-text))',
-    'hsl(var(--warning-icon))',
-    'hsl(var(--destructive-text))',
+    'hsl(var(--chart-1))',
+    'hsl(var(--chart-2))',
+    'hsl(var(--chart-3))',
+    'hsl(var(--chart-4))',
+    'hsl(var(--chart-5))',
+    'hsl(var(--chart-6))',
+    'hsl(var(--chart-7))',
+    'hsl(var(--chart-8))',
   ],
 } as const;
 

@@ -81,7 +81,7 @@ export const ErpPurchasesSection: React.FC<{
           </h3>
           {aging.map((a) => (
             <dl key={a.currency} aria-label={`${t('erpPurchases.aging.title', 'Unpaid by age')} · ${a.currency}`}
-              className="mb-3 grid grid-cols-2 gap-x-6 gap-y-2 border-y border-border py-3 sm:grid-cols-6">
+              className="mb-3 grid grid-cols-2 gap-x-6 gap-y-2 border-t border-border py-3 first-of-type:border-t-0 sm:grid-cols-6">
               {AGING_BUCKETS.map((b) => (
                 <div key={b}>
                   <dt className="text-xs text-muted-foreground">{bucketLabel[b]}</dt>
