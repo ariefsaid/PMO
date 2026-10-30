@@ -657,7 +657,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           </div>
         </div>
 
-        <div className="mb-4 flex flex-wrap items-end gap-2">
+        <div className="flex flex-wrap items-end gap-2 px-[var(--panel-inset)] pt-4">
           <label className="flex min-w-[190px] flex-1 flex-col gap-1 text-xs text-muted-foreground sm:flex-none">
             {t('projectDetail.workOrders.filter.orders', 'Order')}
             <select aria-label={t('projectDetail.workOrders.filter.orders', 'Order')} value={orderFilter} onChange={(event) => setOrderFilter(event.target.value)}
@@ -678,7 +678,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         {/* L6/C4: the "Still to invoice" total only adds information across several orders (one order's own line
             already says it); "Not yet submitted" is said only here. An incomplete total is left out — each order
             states why its figures are incomplete. */}
-        {canViewBilling && <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm" role="status">
+        {canViewBilling && rows.length > 0 && billing.data && billing.data.length > 0 && billingTotals.complete && <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 px-[var(--panel-inset)] text-sm" role="status">
           {rows.length > 0 && billing.data && billing.data.length > 0 && billingTotals.complete && <span data-testid="wo-billing-summary" aria-label={t('common:projectDetail.workOrders.billing.summaryTitle', 'Billing against work orders')} className="flex flex-wrap gap-x-4 gap-y-1">
             {billing.data.length > 1 && <span>
               <span className="text-muted-foreground">{t('common:projectDetail.workOrders.billing.stillToInvoice', 'Still to invoice')}</span>
@@ -707,18 +707,18 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         ) : (
           <>
             {!showQuantities && visibleCustomerOrders.length === 0 && visibleDraftOrders.length === 0 && (
-              <p className="py-3 text-sm text-muted-foreground">
+              <p className="px-[var(--panel-inset)] py-4 text-sm text-muted-foreground">
                 {t('projectDetail.workOrders.emptyRegister', 'No customer orders yet. Client purchase orders are recorded here and draw down the project contract ceiling when issued.')}
               </p>
             )}
             {showQuantities && visibleCustomerOrders.length === 0 && visibleDraftOrders.length === 0 && (
-              <p className="py-3 text-sm text-muted-foreground">
+              <p className="px-[var(--panel-inset)] py-4 text-sm text-muted-foreground">
                 {t('projectDetail.contract.noOrders', 'No customer orders yet.')}
               </p>
             )}
 
             {visibleDraftOrders.length > 0 && (
-              <section aria-labelledby="pd-draft-orders" className="mb-6 px-[var(--panel-inset)]">
+              <section aria-labelledby="pd-draft-orders" className="mb-6 mt-4 px-[var(--panel-inset)]">
                 <h3 id="pd-draft-orders" className="mb-2 text-xs font-medium text-muted-foreground">
                   {t('projectDetail.workOrders.drafts', 'Draft orders')}
                 </h3>
@@ -773,7 +773,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               </section>
             )}
 
-            {visibleCustomerOrders.map((row) => {
+            {visibleCustomerOrders.length > 0 && <div className="flex flex-col gap-4 p-[var(--panel-inset)] pt-4">{visibleCustomerOrders.map((row) => {
               const orderAllocations = (projectBilling.data?.contractLines ?? []).flatMap((line) =>
                 line.allocations.filter((allocation) => allocation.workOrderId === row.id).map((allocation) => ({ line, allocation })),
               );
@@ -1062,7 +1062,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                   </div>
                 </article>
               );
-            })}
+            })}</div>}
           </>
         )}
       </section>
@@ -1081,7 +1081,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         </div>}>
           {t('projectDetail.billing.claims.title', 'Claims & down payment')}
         </CardHead>
-        <CardPad>
+        <CardPad className="pt-0">
           <dl className="mb-4 grid grid-cols-2 gap-x-4 gap-y-3 border-b border-border pb-4 sm:grid-cols-3">
             {/* C4: an unknown figure is left out, never a "—"; N13: billing ahead of the work done reads as that, not a negative. */}
             {summary?.unbilledWork !== null && summary?.unbilledWork !== undefined && <div data-testid="claims-gap">
@@ -1120,7 +1120,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               <MoneyFigure label={t('projectDetail.billing.summary.notSubmitted', 'Claims raised, not yet submitted')} value={formatNumberWhole(summary.notSubmitted)} detail={t('projectDetail.billing.source.notSubmitted', 'Source: claim invoices created in accounting but not yet submitted.')} />
             </dl> : <p className="mt-3 text-sm text-muted-foreground">{t('projectDetail.billing.summary.unavailable', 'Billing summary is unavailable.')}</p>}
           </details>
-          <DataTable<ProgressClaimWithInvoice>
+          {!claimsQuery.isPending && !claimsQuery.isError && claimRows.length === 0 ? <ListState variant="empty"
+            title={t('projectDetail.billing.claims.empty', 'No billing claims yet')}
+            sub={t('projectDetail.billing.claims.emptySub', 'A claim bills a down payment or accepted quantities as one invoice.')} /> : <DataTable<ProgressClaimWithInvoice>
             embedded
             rows={claimRows}
             columns={projectClaimColumns}
@@ -1147,14 +1149,13 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             onRetry={() => void claimsQuery.refetch()}
             cardBelow={1000}
             tableId="project-detail-claims-register"
-          />
+          />}
         </CardPad>
       </Card>}
 
       {canViewBilling && (orderlessInvoices.length > 0 || ((!customerOrders.length && !draftOrders.length) && !invoiceReadReady)) && <section className="panel-card min-w-0" role="region" aria-label={t('projectDetail.workOrders.billing.orderlessHeading', 'Invoices without a customer order')} data-testid="orderless-invoices">
-        <div className="mb-3 border-b border-border pb-2">
-          <h2 className="text-sm font-semibold text-foreground">{t('projectDetail.workOrders.billing.orderlessHeading', 'Invoices without a customer order')}</h2>
-        </div>
+        <CardHead>{t('projectDetail.workOrders.billing.orderlessHeading', 'Invoices without a customer order')}</CardHead>
+        <CardPad className="pt-0">
         {invoicesQuery.isPending ? (
           <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role="status">
             <span>{t('projectDetail.cascade.invoiceLoading', 'Invoice figures are loading.')}</span>
@@ -1170,6 +1171,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           </p>}
           {/* F10: the shared DataTable (resizable columns, mobile cards, row → drawer). */}
           <DataTable<InvoiceWithWorkOrder>
+            embedded
             rows={orderlessInvoices}
             columns={orderlessColumns}
             rowKey={(invoice) => invoice.id}
@@ -1180,6 +1182,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             tableId="project-detail-orderless-invoices"
           />
         </>}
+        </CardPad>
       </section>}
 
       {deliverySelectorOpen && <Drawer open title={t('projectDetail.workOrders.action.recordDelivery', 'Record delivery')} onClose={() => setDeliverySelectorOpen(false)}>

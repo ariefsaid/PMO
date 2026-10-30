@@ -119,10 +119,9 @@ const AreaContent: React.FC<{ project: ProjectWithRefs; area: Exclude<Area, 'ove
     case 'activity': return <ProjectActivity projectId={project.id} />;
     case 'contract': {
       return (
-        <ContractCascade project={project}>
+        <ContractCascade project={project} contractTools={<BillingTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
+          projectManagerId={project.project_manager_id ?? null} mode="contract-tools" />}>
           <div className="flex min-w-0 flex-col gap-4">
-            <BillingTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
-              projectManagerId={project.project_manager_id ?? null} mode="contract-tools" />
             <WorkOrdersTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
               focusWorkOrderId={new URLSearchParams(window.location.search).get('wo')}
               projectManagerId={project.project_manager_id ?? null} showSettlementNote={false}

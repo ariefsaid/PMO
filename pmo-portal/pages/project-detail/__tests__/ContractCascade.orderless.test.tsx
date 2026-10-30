@@ -85,6 +85,12 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(within(section).getByText('Paid')).toBeInTheDocument();
   });
 
+  it('keeps contract tools with the contract summary', () => {
+    const props = { project, contractTools: <button>Edit contract lines</button> };
+    render(<MemoryRouter><FinanceI18nTestProvider><ContractCascade {...props} /></FinanceI18nTestProvider></MemoryRouter>);
+    expect(within(screen.getByRole('region', { name: 'Contract' })).getByRole('button', { name: 'Edit contract lines' })).toBeInTheDocument();
+  });
+
   it('keeps each contract cascade label and value on separate lines', () => {
     renderCascade();
     const cascade = within(screen.getByRole('list', { name: 'Contract' }));
