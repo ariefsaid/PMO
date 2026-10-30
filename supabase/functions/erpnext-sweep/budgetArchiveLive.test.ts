@@ -161,6 +161,8 @@ function makeFixture(args: {
   versionActivatedAt?: string;
   successor?: { job: Job; target: string };
   crashAfterOutboxCommit?: boolean;
+  transitionResult?: 'stale' | 'error';
+  notificationError?: boolean;
 }) {
   const nowIso = new Date(NOW).toISOString();
   const jobs = args.jobs.map((job) => ({ ...job }));
@@ -308,6 +310,13 @@ function makeFixture(args: {
           url.pathname.slice('/rest/v1/rpc/'.length),
         );
         const params = (body ?? {}) as Row;
+        if (rpc === 'transition_budget_archive_cancel_intent') {
+          if (args.transitionResult === 'error') return jsonResponse({ message: 'transaction failed', code: 'P0001' }, 500);
+          if (args.transitionResult === 'stale') return jsonResponse('stale');
+          const job = tableRows('budget_archive_cancel_intents').find((row) => row.id === params.p_intent_id && row.org_id === params.p_org_id);
+          if (job && params.p_action !== 'retry') job.state = params.p_action;
+          return jsonResponse('applied');
+        }
         if (rpc === 'read_vault_secret') {
           return jsonResponse('synthetic-api-key:synthetic-api-secret');
         }
@@ -389,6 +398,7 @@ function makeFixture(args: {
 
       const table = decodeURIComponent(url.pathname.slice('/rest/v1/'.length));
       const rows = tableMatches(table, url);
+      if (table === 'notifications' && args.notificationError) return jsonResponse({ message: 'notification unavailable', code: 'P0001' }, 500);
       if (method === 'GET') {
         if (request.headers.get('Accept')?.includes('vnd.pgrst.object')) {
           return jsonResponse(rows[0] ?? null);
@@ -703,6 +713,7 @@ Deno.test('AC-BUD-122 a reactivated version with a changed lifecycle witness can
     budgets: [budgetFor(job)],
     versionStatus: 'Active',
     versionActivatedAt: '2026-10-21T10:00:00.000Z',
+    transitionResult: 'stale',
   });
 
   await fixture.invoke();
@@ -714,7 +725,50 @@ Deno.test('AC-BUD-122 a reactivated version with a changed lifecycle witness can
   assertEquals(fixture.budgets.get(job.erp_budget_name)?.docstatus, 1);
   assertEquals(
     (fixture.tables.budget_archive_cancel_intents as Row[])[0].state,
-    'held',
-    'the stale intent must remain operator-visible',
+    'pending',
+    'the stale intent remains pending while its transaction records the operator signal',
   );
+});
+
+Deno.test('archive hold uses the service transaction through the registered sweep', async () => {
+  const job = intent(20, '2026', 'Labor', 'BUD-HOLD');
+  const fixture = makeFixture({ jobs: [job], budgets: [budgetFor(job)], versionStatus: 'Active' });
+  await fixture.invoke();
+  const calls = fixture.requests.filter((request) => request.path === '/rest/v1/rpc/transition_budget_archive_cancel_intent');
+  assertEquals(calls.length, 1, 'the registered handler must invoke the atomic transition');
+  assertEquals(calls[0].body, { p_org_id: ORG, p_intent_id: job.id, p_action: 'held', p_reason: 'version-not-archived' });
+});
+
+Deno.test('archive transaction failure and stale result leave the registered sweep intent pending', async () => {
+  for (const transitionResult of ['error', 'stale'] as const) {
+    const job = intent(21, '2026', 'Labor', 'BUD-REVIEW');
+    const fixture = makeFixture({ jobs: [job], budgets: [budgetFor(job)], versionStatus: 'Active', transitionResult });
+    await fixture.invoke();
+    assertEquals((fixture.tables.budget_archive_cancel_intents as Row[])[0].state, 'pending');
+    assertEquals(fixture.erpWrites.length, 0);
+    assert(fixture.requests.some((request) => request.path === '/rest/v1/rpc/transition_budget_archive_cancel_intent'), 'the shipped handler must report the transaction outcome');
+    assert(!fixture.requests.some((request) => request.method === 'PATCH' && request.path.includes('/budget_archive_cancel_intents')), 'no separate terminal write follows a failed transaction');
+  }
+});
+
+Deno.test('notification sink failure cannot undo the committed archive transaction', async () => {
+  const job = intent(22, '2026', 'Labor', 'BUD-UNAVAILABLE');
+  const fixture = makeFixture({ jobs: [job], budgets: [], notificationError: true });
+  await fixture.invoke();
+  assert(fixture.requests.some((request) => request.path === '/rest/v1/rpc/transition_budget_archive_cancel_intent' && (request.body as Row).p_action === 'held'), 'the registered handler must persist the hold before notification');
+  assert(fixture.requests.some((request) => request.path.startsWith('/rest/v1/notifications')), 'the notification sink was attempted');
+  assertEquals((fixture.tables.budget_archive_cancel_intents as Row[])[0].state, 'held', 'notification failure does not undo the committed transition');
+});
+
+Deno.test('the registered sweep settles a successor through the transaction and contains transaction errors', async () => {
+  for (const transitionResult of [undefined, 'stale', 'error'] as const) {
+    const job = intent(23, '2026', 'Labor', 'BUD-SUCCESSOR');
+    const fixture = makeFixture({ jobs: [job], budgets: [budgetFor(job)], successor: { job, target: job.erp_budget_name }, transitionResult });
+    (fixture.tables.budget_version_account_erp_mirror as Row[]).find((row) => row.id === job.source_mirror_id)!.push_state = 'pending';
+    await fixture.invoke();
+    const call = fixture.requests.find((request) => request.path === '/rest/v1/rpc/transition_budget_archive_cancel_intent');
+    assert(call && (call.body as Row).p_action === 'superseded', 'the successor decision uses the transaction');
+    assertEquals((fixture.tables.budget_archive_cancel_intents as Row[])[0].state, transitionResult ? 'pending' : 'superseded');
+    assertEquals(fixture.erpWrites.length, 0, 'the successor Budget is not cancelled');
+  }
 });
