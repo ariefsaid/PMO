@@ -170,5 +170,10 @@
   "kpi": {
     "oldestInvoiceBasis_one": "Oldest supplier invoice date (or record creation date) · {{count}} day ago",
     "oldestInvoiceBasis_other": "Oldest supplier invoice date (or record creation date) · {{count}} days ago"
+  },
+  "references": {
+    "loading": "Loading references…",
+    "error": "Couldn't refresh references.",
+    "retry": "Retry references"
   }
 }
