@@ -53,7 +53,6 @@ import { fetchAllRowsByKeyset } from '../../../pmo-portal/src/lib/pagedRead.ts';
 import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts';
 import { withProbeBudget, ERP_PROBE_TIMEOUT_MS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { fetchWithDeadline } from '../_shared/fetchWithDeadline.ts';
-import { resolveClickUpCredentialsFromVault } from '../../../pmo-portal/src/lib/adapterSeam/clickup/vaultCredentials.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
@@ -78,7 +77,7 @@ import { classifyBudgetPushOutcome } from './budgetPushOutcome.ts';
 import { dispatchErrorStatus } from './dispatchErrorStatus.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { isRevenueSiSubmitTransition, grantSiSubmitClearance, requiresSiAuthorClaim, claimSiAuthor, releaseSiSubmitClearance } from './sodGuard.ts';
-import { checkErpnextCommandAuthorization, type AuthorizationClient } from './authGuard.ts';
+import { checkErpnextCommandAuthorization } from './authGuard.ts';
 import { authorizeClickUpTaskCommand } from './taskAuthorization.ts';
 import { enforcePaymentGate, isProcurementPaymentCreate } from './paymentGate.ts';
 import { checkSiProjectGate } from './projectGateGuard.ts';
@@ -93,6 +92,7 @@ import {
   type JwksResolver,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+import { reportEdgeError } from '../_shared/reportEdgeError.ts';
 
 // ADR-0057: one cached, rate-limited JWKS resolver, memoized across warm invocations. Built lazily
 // so an empty SUPABASE_URL can't throw a URL error before the handler can return a typed 401/500.
@@ -594,7 +594,7 @@ async function readErpFiscalYears(serviceClient: SupabaseClient, orgId: string, 
       { headers: { Authorization: `token ${apiKey}:${apiSecret}`, Accept: 'application/json' }, redirect: 'manual' },
       ERP_PROBE_TIMEOUT_MS,
     );
-  } catch (_err) {
+  } catch {
     throw new AppError('could not read the ERPNext fiscal calendar (unreachable)', 'external-unreachable');
   }
   if (!res.ok) {
@@ -608,6 +608,17 @@ async function readErpFiscalYears(serviceClient: SupabaseClient, orgId: string, 
       typeof (r as FiscalYearRow)?.year_start_date === 'string' &&
       typeof (r as FiscalYearRow)?.year_end_date === 'string',
   );
+}
+
+async function reportBudgetMirrorWriteFailure(orgId: string, versionId: string): Promise<void> {
+  try {
+    await reportEdgeError({
+      fn: 'adapter-dispatch', errorCode: 'BUDGET_FAILURE_MIRROR_WRITE_FAILED',
+      ...(isCanonicalUuid(versionId) ? { contextId: versionId } : {}), orgId,
+    });
+  } catch {
+    // Reporting must never replace the original budget rejection.
+  }
 }
 
 /** Record the gate's durable failure into the ADR-0059 §6 side mirror — BEFORE returning the rejection —
@@ -628,16 +639,19 @@ async function recordBudgetGateFailure(serviceClient: SupabaseClient, orgId: str
       unmapped_categories: err.unmappedCategories ?? null,
     };
     if (versionMajor === 16) {
-      await serviceClient.from('budget_version_account_erp_mirror').upsert({
+      const { error } = await serviceClient.from('budget_version_account_erp_mirror').upsert({
         ...row, erp_account: '', budget_intent: 'ensure', created_at: new Date().toISOString(),
       }, { onConflict: 'org_id,budget_version_id,fiscal_year,erp_account' });
+      if (error) throw error;
     } else {
-      await serviceClient.from('budget_version_erp_mirror').upsert(row, {
+      const { error } = await serviceClient.from('budget_version_erp_mirror').upsert(row, {
         onConflict: 'org_id,budget_version_id,fiscal_year',
       });
+      if (error) throw error;
     }
   } catch (mirrorErr) {
     console.error('[adapter-dispatch] failed to record budget gate failure:', mirrorErr);
+    await reportBudgetMirrorWriteFailure(orgId, versionId);
   }
 }
 
@@ -1409,27 +1423,31 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
         ? parseBudgetIdentity(accountRecord.outbox_identity)
         : null;
       if (accountIdentity?.erpAccount) {
-        await serviceClient.from('budget_version_account_erp_mirror').upsert({
+        const { error } = await serviceClient.from('budget_version_account_erp_mirror').upsert({
           ...failureRow,
           erp_account: accountIdentity.erpAccount,
           budget_intent: accountRecord.budget_intent === 'remove' ? 'remove' : 'ensure',
         }, { onConflict: 'org_id,budget_version_id,fiscal_year,erp_account' });
+        if (error) throw error;
       } else if (budgetVersionMajor === 16) {
-        await serviceClient.from('budget_version_account_erp_mirror').upsert({
+        const { error } = await serviceClient.from('budget_version_account_erp_mirror').upsert({
           ...failureRow, erp_account: '', budget_intent: 'ensure', created_at: new Date().toISOString(),
         }, { onConflict: 'org_id,budget_version_id,fiscal_year,erp_account' });
+        if (error) throw error;
       } else {
-        await serviceClient.from('budget_version_erp_mirror').upsert(failureRow, {
+        const { error } = await serviceClient.from('budget_version_erp_mirror').upsert(failureRow, {
           onConflict: 'org_id,budget_version_id,fiscal_year',
         });
+        if (error) throw error;
       }
-      await surfaceActionRequired(serviceClient as never, orgId, superseded ? 'budget-enforcement-absent' : 'budget-push-failed', {
-        versionId,
-        reason: superseded ? pushError : (failure.code ?? failure.message),
-      });
     } catch (recordErr) {
       console.error('[adapter-dispatch] failed to record budget push failure:', recordErr);
+      await reportBudgetMirrorWriteFailure(orgId, versionId);
     }
+    await surfaceActionRequired(serviceClient as never, orgId, superseded ? 'budget-enforcement-absent' : 'budget-push-failed', {
+      versionId,
+      reason: superseded ? pushError : (failure.code ?? failure.message),
+    });
   };
 
   // ── Named server-side fault seams (Slice 0 task 0.7, FR-ENA-003, plan §2 decision 5; host
