@@ -112,6 +112,17 @@ describe('Combobox: disabled while open', () => {
     expect(onClear).toHaveBeenCalledOnce();
   });
 
+  it('clearWhileDisabled keeps the clear action usable while browsing stays locked (AC-S11-002/004)', async () => {
+    const onClear = vi.fn();
+    render(<Combobox label="Down payment item" noun="item" value="c1" selectedOption={OPTIONS[0]} onChange={() => {}} loadOptions={loadOk} clearable onClear={onClear} disabled clearWhileDisabled />);
+    const clear = screen.getByRole('button', { name: /clear item/i });
+    expect(clear).toBeEnabled();
+    expect(screen.getByRole('combobox')).toBeDisabled();
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    await userEvent.click(clear);
+    expect(onClear).toHaveBeenCalledOnce();
+  });
+
   it('discards an in-flight load on disable and reloads after re-enabling', async () => {
     let resolveFirst!: (options: ComboboxOption[]) => void;
     const loadOptions = vi.fn().mockImplementationOnce(() => new Promise<ComboboxOption[]>((resolve) => { resolveFirst = resolve; })).mockResolvedValueOnce([OPTIONS[1]]);

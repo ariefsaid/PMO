@@ -70,6 +70,10 @@ vi.mock('@/src/lib/repositories/budgetProjection', async (importOriginal) => ({
   fetchBudgetProjection: vi.fn().mockImplementation(() => Promise.resolve(state.projectionRows)),
   fetchActiveBudgetCategoryPhasing: vi.fn().mockImplementation(() => Promise.resolve({ years: { Labor: ['FY-2026'] }, unphased: {} })),
   listBudgetFiscalYears: vi.fn().mockImplementation(() => Promise.resolve(state.fiscalYears)),
+  // PR-2 (ab08f2257 "Bound budget forecast default year selection") moved the first-spending-year
+  // read to this repository RPC (migration 0403); the mock seam gains the new function. Journey
+  // unchanged: FY-2026 is the year with recorded spending, so the default year still resolves to it.
+  fetchFirstSpendingYear: vi.fn().mockImplementation(() => Promise.resolve('FY-2026')),
   upsertBudgetProjectionEtc: state.saveEtc,
 }));
 

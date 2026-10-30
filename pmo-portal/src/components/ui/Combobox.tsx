@@ -66,6 +66,11 @@ export interface ComboboxProps {
   clearable?: boolean;
   onClear?: () => void;
   disabled?: boolean;
+  /** Keep the clear (x) affordance usable while `disabled`, so a saved value stays removable
+   *  when only BROWSING is locked (e.g. the ERPNext org settings: no active binding, choice
+   *  remains clearable — AC-S11-002/AC-S11-004). Default false: a disabled picker is fully inert
+   *  (no open, no select, no clear). */
+  clearWhileDisabled?: boolean;
   /** Stable DOM id for form error-summary focus links. */
   id?: string;
   className?: string;
@@ -89,6 +94,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
   clearable,
   onClear,
   disabled,
+  clearWhileDisabled,
   id,
   className,
 }) => {
@@ -331,7 +337,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
         {clearable && value && (
           <button
             type="button"
-            disabled={disabled}
+            disabled={disabled && !clearWhileDisabled}
             aria-label={t('combobox.clear', { defaultValue: 'Clear {{noun}}', noun })}
             onClick={(e) => {
               e.stopPropagation();

@@ -139,6 +139,7 @@ export default function OrgWithholdingAccount() {
             placeholder={t('uxs11.withholdingPlaceholder', 'Choose an Asset account')}
             searchPlaceholder={t('uxs11.accountSearch', 'Search account name or number')}
             disabled={mutation.isPending || !canBrowse}
+            clearWhileDisabled
           />
           <p className="text-[13px] text-muted-foreground">{savedContext}</p>
           {binding.isPending && <p role="status" className="text-[13px] text-muted-foreground">{t('uxs11.checkingBinding', 'Checking ERPNext setup…')}</p>}
