@@ -138,7 +138,10 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
               </section>
             )}
             <SalesInvoiceEvidenceSection invoice={viewTarget} />
-            <SalesInvoiceApprovalPreview inv={viewTarget} showFx />
+            {/* hideLines: the Bill evidence section above is the record page's single lines render
+                (AC-991-001's accessible "Line items" list lives there); the approvals panel keeps
+                the preview as its own lines surface. */}
+            <SalesInvoiceApprovalPreview inv={viewTarget} showFx hideLines />
           </>
         ) : (
           <ListState
