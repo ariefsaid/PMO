@@ -1,3 +1,4 @@
+import { toStorageAppError } from '@/src/lib/storageError';
 import { AppError } from '@/src/lib/appError';
 import { supabase } from '@/src/lib/supabase/client';
 import type { ExpenseClaimInput, ExpenseLineInput } from './expenseClaims';
@@ -76,7 +77,7 @@ export async function prepareExpenseCaptureReceiptUpload(
   if (!claim) throw new AppError('Expense claim not found');
   const path = buildExpenseReceiptPath((claim as { org_id: string }).org_id, claimId, fileId, fileName);
   const { data, error } = await supabase.storage.from(EXPENSE_RECEIPTS_BUCKET).createSignedUploadUrl(path);
-  if (error) throw new AppError(error.message, error.name === 'StorageError' ? '42501' : undefined);
+  if (error) throw toStorageAppError(error);
   if (!data?.signedUrl || data.path !== path) throw new AppError('Could not create a stable receipt upload URL.');
   return { signedUrl: data.signedUrl, path };
 }
@@ -111,12 +112,12 @@ export async function expenseCaptureReceiptObjectExists(path: string): Promise<b
   const folder = path.slice(0, slash);
   const fileName = path.slice(slash + 1);
   const { data, error } = await supabase.storage.from(EXPENSE_RECEIPTS_BUCKET).list(folder, { search: fileName });
-  if (error) throw new AppError(error.message, error.name === 'StorageError' ? '42501' : undefined);
+  if (error) throw toStorageAppError(error);
   return (data ?? []).some((item) => item.name === fileName);
 }
 
 export async function cleanupExpenseCaptureReceiptObject(path: string): Promise<void> {
   if (!path) return;
   const { error } = await supabase.storage.from(EXPENSE_RECEIPTS_BUCKET).remove([path]);
-  if (error) throw new AppError(error.message, error.name === 'StorageError' ? '42501' : undefined);
+  if (error) throw toStorageAppError(error);
 }

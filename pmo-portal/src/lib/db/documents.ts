@@ -1,3 +1,4 @@
+import { toStorageAppError } from '@/src/lib/storageError';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
@@ -301,7 +302,7 @@ export async function prepareUpload(
   const { data, error } = await supabase.storage
     .from(BUCKET)
     .createSignedUploadUrl(path);
-  if (error) throwWrite({ message: error.message, code: error.name === 'StorageError' ? '42501' : undefined });
+  if (error) throw toStorageAppError(error);
   if (!data?.signedUrl) throw new AppError('Could not create upload URL');
 
   return { signedUrl: data.signedUrl, path: data.path, oldPath: doc.file_path };
@@ -353,7 +354,7 @@ export async function getSignedDownloadUrl(
       SIGNED_URL_EXPIRY_SECONDS,
       opts?.download ? { download: filePath.split('/').pop() || 'file' } : undefined,
     );
-  if (error) throwWrite({ message: error.message, code: error.name === 'StorageError' ? '42501' : undefined });
+  if (error) throw toStorageAppError(error);
   if (!data?.signedUrl) throw new AppError('Could not generate download link');
   return data.signedUrl;
 }
