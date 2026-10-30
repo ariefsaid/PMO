@@ -627,6 +627,50 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     resetActiveLocale();
   });
 
+  it('keeps an explicitly incomplete PMO position unknown in cards', () => {
+    projectMoneyState.data = { p1: { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '950', asOf: null,
+      excludesRestrictedRows: false, complete: false, categories: [] }, activeBudgetAmount: '1000', activeBudgetCurrency: 'USD', hasActiveBudget: true } };
+    renderPage('Project Manager', '/projects?view=cards');
+    expect(screen.getByTestId('project-card-actual')).toBeEmptyDOMElement();
+    expect(screen.getByTestId('project-card-money-unavailable')).toBeInTheDocument();
+    expect(screen.queryByLabelText('95% of Active budget')).not.toBeInTheDocument();
+  });
+
+  it('keeps cached PMO figures unknown in cards and table after the project currency changes', async () => {
+    projectMoneyState.data = { p1: { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '950', asOf: null,
+      excludesRestrictedRows: false, complete: true, categories: [] }, activeBudgetAmount: '1000', activeBudgetCurrency: 'USD', hasActiveBudget: true } };
+    renderPage('Project Manager', '/projects?view=cards');
+    expect(screen.getByTestId('project-card-actual')).toHaveTextContent('$950');
+    expect(screen.getByLabelText('95% of Active budget')).toBeInTheDocument();
+    projectsState.data = [{ ...seed[0], currency: 'EUR' }] as unknown as ProjectWithRefs[];
+    await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
+    expect(within(document.querySelector('tbody')!).queryByText('$950')).not.toBeInTheDocument();
+    expect(screen.getByText('Actual is unknown on 1 of 1 projects.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: /Cards/i }));
+    expect(screen.getByTestId('project-card-actual')).toBeEmptyDOMElement();
+    expect(screen.getByTestId('project-card-money-unavailable')).toBeInTheDocument();
+    expect(screen.queryByLabelText('95% of Active budget')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('project-card')).queryByText('At risk')).not.toBeInTheDocument();
+  });
+
+  it.each(['isError', 'isPending'] as const)('withholds cached card and table figures while money %s', async (state) => {
+    projectMoneyState.data = { p1: { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '950', asOf: null,
+      excludesRestrictedRows: false, complete: true, categories: [] }, activeBudgetAmount: '1000', activeBudgetCurrency: 'USD', hasActiveBudget: true } };
+    renderPage('Project Manager', '/projects?view=cards');
+    expect(screen.getByTestId('project-card-actual')).toHaveTextContent('$950');
+    projectMoneyState[state] = true;
+    await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
+    expect(within(document.querySelector('tbody')!).queryByText('$950')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: /Cards/i }));
+    expect(screen.getByTestId('project-card-actual')).toBeEmptyDOMElement();
+    expect(screen.getByTestId('project-card-active-budget')).toBeEmptyDOMElement();
+    expect(screen.getByTestId('project-card-contract')).toHaveTextContent('$5,000,000');
+    expect(screen.getByTestId('project-card-money-unavailable')).toBeInTheDocument();
+    expect(screen.queryByLabelText('95% of Active budget')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('project-card')).queryByText('At risk')).not.toBeInTheDocument();
+    projectMoneyState[state] = false;
+  });
+
   it('formats whole-unit Actual with the selected number locale rather than the translation language', () => {
     setActiveLocale({ locale: 'id', numberLocale: 'id', timezone: 'Asia/Jakarta' });
     renderPage();

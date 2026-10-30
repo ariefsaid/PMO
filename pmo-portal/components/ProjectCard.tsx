@@ -22,6 +22,8 @@ export interface ProjectCardProps {
   deliverySummary?: { deliveryPct: number | null; committedSpend: number | null; budget: number } | undefined;
   /** Batched canonical Actual and Active-budget read for this project. */
   projectMoney?: ProjectMoneyRead;
+  moneyPending?: boolean;
+  moneyError?: boolean;
   /**
    * T15opt: optional Edit callback — when provided (can('edit','project') = true) renders
    * a compact "Edit" button in the card foot. Gates on the caller, not the card itself
@@ -38,7 +40,7 @@ export interface ProjectCardProps {
  * shell; this card supplies the DELIVERY-lens body (Contract/Committed/Actual +
  * utilization bars). Status changes (AC-1011's win-transition) live on the record, not here.
  */
-const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySummary, projectMoney, onEdit }) => {
+const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySummary, projectMoney, moneyPending = false, moneyError = false, onEdit }) => {
   const { t } = useTranslation();
   const projectStatusLabel = useProjectStatusLabel();
   // FR-L10N-020: every figure on this card belongs to THIS project, so the currency is the
@@ -46,11 +48,12 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
   // side by side in the same list, which is the whole point of the per-record column (0187).
   const currency = project.currency;
   const contract = project.contract_value;
-  const actual = projectMoney?.actuals.total == null ? null : Number(projectMoney.actuals.total);
-  const activeBudget = projectMoney?.hasActiveBudget && projectMoney.activeBudgetAmount != null
+  const moneyAvailable = !moneyPending && !moneyError && Boolean(projectMoney);
+  const actual = moneyAvailable && projectMoney?.actuals.total != null ? Number(projectMoney.actuals.total) : null;
+  const activeBudget = moneyAvailable && projectMoney?.hasActiveBudget && projectMoney.activeBudgetAmount != null
     ? Number(projectMoney.activeBudgetAmount)
     : null;
-  const activeBudgetUnknown = !projectMoney || (projectMoney.hasActiveBudget && activeBudget == null);
+  const activeBudgetUnknown = !moneyAvailable || !projectMoney || (projectMoney.hasActiveBudget && activeBudget == null);
   const activeBudgetLabel = activeBudgetUnknown
     ? null
     : projectMoney.hasActiveBudget
@@ -59,7 +62,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
   const budgetCurrencyMatches = projectMoney?.activeBudgetCurrency === projectMoney?.actuals.currency
     && projectMoney?.actuals.currency === project.currency;
   const actualIsComplete = isActualComplete({ basis: projectMoney?.ledgerBasis ?? (projectMoney ? 'erp' : 'unavailable'),
-    readSucceeded: Boolean(projectMoney), complete: projectMoney?.actuals.complete,
+    readSucceeded: moneyAvailable && (projectMoney?.ledgerBasis !== 'pmo' || projectMoney.actuals.currency === currency), complete: projectMoney?.actuals.complete,
     categories: projectMoney?.actuals.categories, excludesRestrictedRows: projectMoney?.actuals.excludesRestrictedRows });
   const budgetUsedPct = actual != null && actualIsComplete && activeBudget != null && activeBudget > 0 && budgetCurrencyMatches
     ? Math.round((actual / activeBudget) * 100)
@@ -105,7 +108,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
           <dd data-testid="project-card-actual" className="font-semibold tabular">{actualFigure}</dd>
         </div>
       </dl>
-      {hasUnknownMoney && <p role="status" data-testid="project-card-money-unavailable" className="text-[11px] text-muted-foreground">
+      {hasUnknownMoney && <p role="status" data-testid="project-card-money-unavailable" className="text-[12px] text-muted-foreground">
         {t('projects:moneyFiguresUnavailable', 'Some project financial figures are still being confirmed.')}
       </p>}
 

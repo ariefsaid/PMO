@@ -1,5 +1,5 @@
 begin;
-select plan(26);
+select plan(28);
 insert into organizations (id,name,default_currency) values ('c0300000-0000-0000-0000-000000000001','Currency test','USD');
 insert into organizations (id,name,default_currency) values ('c0300000-0000-0000-0000-000000000008','Other currency test','USD');
 insert into projects (id,org_id,name,status,currency,contract_value,tax_treatment,tax_amount,tax_rate,tax_base_numerator,tax_base_denominator,subject_to_vat) values ('c0300000-0000-0000-0000-000000000009','c0300000-0000-0000-0000-000000000008','Other project','Ongoing Project','USD',10,'exclusive',0,0,1,1,false);
@@ -59,6 +59,11 @@ set local request.jwt.claims='{"sub":"c0300000-0000-0000-0000-000000000013","rol
 select is((select amount from project_pmo_commitment_position('c0300000-0000-0000-0000-000000000003')),1001::numeric,'Finance reads the full same-currency position');
 reset role;
 delete from procurements where id='c0300000-0000-0000-0000-000000000004';
+set local role authenticated;
+set local request.jwt.claims='{"sub":"c0300000-0000-0000-0000-000000000002","role":"authenticated"}';
+select is((select (x->>'spent')::numeric from json_array_elements(get_pm_dashboard_projects()) x where x->>'id'='c0300000-0000-0000-0000-000000000003'),1001::numeric,'PM dashboard preserves complete project currency amount');
+select is((select x->>'actual_complete' from json_array_elements(get_pm_dashboard_projects()) x where x->>'id'='c0300000-0000-0000-0000-000000000003'),'true','PM dashboard preserves complete position');
+reset role;
 alter table procurements alter column currency drop not null;
 alter table procurements disable trigger procurements_zz_stamp_currency;
 insert into procurements (id,org_id,title,status,total_value,currency,project_id,requested_by_id) values

@@ -302,14 +302,14 @@ as $$
     where si.org_id=public.auth_org_id() and si.status in ('Submitted','Unpaid','Paid') and coalesce(si.erp_docstatus,1)<>2
       and si.erp_cancelled_at is null and not w.is_down_payment
     group by si.project_id,si.currency
-  ), rows as (
+  ), rows as materialized (
   select p.id,p.name,p.short_name,coalesce(nullif(btrim(c.short_name),''),c.name) as client_name,
     p.contract_value,p.currency,p.status,
     (select sum(li.budgeted_amount) from public.budget_versions v
       join public.budget_line_items li on li.budget_version_id=v.id where v.project_id=p.id and v.status='Active') as budget,
     (select v.currency from public.budget_versions v where v.project_id=p.id and v.status='Active' order by v.version desc,v.created_at desc,v.id desc limit 1) as budget_currency,
     case when public.org_reads_erp_ledger() then (select o.default_currency from public.organizations o where o.id=p.org_id) else p.currency end as actual_currency,
-    case when not public.org_reads_erp_ledger() then (select complete from public.project_pmo_commitment_position(p.id))
+    case when not public.org_reads_erp_ledger() then pmo_position.complete
       -- 0381 (#1374): no Active budget → the project header's rule: every cost category mapped and read.
       when not exists (select 1 from public.budget_versions v where v.project_id=p.id and v.status='Active') then
         (select count(*) > 0 and bool_and(x.mapped and x.actuals_to_date is not null) from pma x where x.project_id=p.id)
@@ -324,7 +324,7 @@ as $$
       case when (select o.default_currency=p.currency from public.organizations o where o.id=p.org_id)
         then (select sum(x.actuals_to_date) from (select * from pma where pma.project_id=p.id) x where x.actuals_to_date is not null)
         else null end
-      else (select amount from public.project_pmo_commitment_position(p.id)) end as spent,
+      else pmo_position.amount end as spent,
     public.org_reads_erp_ledger() as ledger_owned,
     case when public.org_reads_erp_ledger() then
       (select count(*)::int from (select * from pma where pma.project_id=p.id) x where x.mapped and x.actuals_to_date is not null)
@@ -336,6 +336,12 @@ as $$
     (coalesce((select bw.incomplete from billed_work bw where bw.project_id=p.id and bw.currency=p.currency),false)
       or exists (select 1 from billed_work bw where bw.project_id=p.id and bw.currency<>p.currency)) as billed_incomplete
   from public.projects p left join public.companies c on c.id=p.client_id
+  left join lateral (
+    select commitment.amount, commitment.complete
+    from public.project_pmo_commitment_position(p.id) commitment
+    where not public.org_reads_erp_ledger()
+    offset 0 -- Keep the ERP guard ahead of the lateral function scan.
+  ) pmo_position on true
   where p.project_manager_id=auth.uid() and p.org_id=public.auth_org_id()
   )
   select coalesce(json_agg(json_build_object(
