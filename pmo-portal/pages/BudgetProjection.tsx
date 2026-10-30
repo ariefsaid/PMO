@@ -10,6 +10,7 @@ import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { chooseDefaultBudgetFiscalYear } from '@/src/lib/budget/budgetProjection';
 import { formatCurrencyAuto, formatInstantDate, parseMoneyInputAtScale } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { interpretForecast } from './budget-projection/forecastInterpretation';
 
 interface BudgetProjectionProps {
   projectId: string;
@@ -85,27 +86,20 @@ export default function BudgetProjection({ projectId, currency, budgetCurrency, 
   const rows = useMemo(() => (projectionQuery.data ?? []).map((row) => compatibleBasis ? row : { ...row, projectedVariance: null, projectedUtilization: null }), [projectionQuery.data, compatibleBasis]);
   const hasForecastRows = Boolean(fiscalYear && !projectionQuery.isPending && !projectionQuery.isError && rows.length > 0);
   const selected = rows.find((row) => row.category === searchParams.get('open')) ?? null;
-  const phasing = phasingQuery.data;
-  const budgetYearOnRecord = Object.values(phasing?.years ?? {}).some((years) => years.includes(fiscalYear));
-  const hasLinesForCategory = (category: BudgetProjectionCellRow['category']) => Boolean((phasing?.years[category]?.length ?? 0) || phasing?.unphased[category]);
-  const budgetReasonFor = (row: BudgetProjectionCellRow): string | null => {
-    if (row.pmoBudgetAmount !== null) return null;
-    // Say nothing until the line phasing is read; a guess here could name a cause that is not true.
-    if (phasing === undefined) return null;
-    const years = phasing?.years[row.category] ?? [];
-    const unphased = phasing?.unphased[row.category] === true;
-    const otherYears = years.filter((year) => year !== fiscalYear);
-    if (otherYears.length && !unphased) return t('projectDetail.budget.reasonBudgetedOtherYear', 'Budgeted in another fiscal year: {{years}}', { years: otherYears.join(', ') });
-    if (hasLinesForCategory(row.category) && unphased) return t('projectDetail.budget.reasonStaleAttribution', 'Budget attribution is stale or incomplete. Review the line phasing.');
-    if (row.attributionKnown === false) return t('projectDetail.budget.reasonPartialAttribution', 'Some budget lines cannot be attributed to this fiscal year. Review the line phasing.');
-    if (!budgetYearOnRecord) return t('projectDetail.budget.reasonNoBudgetYear', 'No budget is recorded for this fiscal year.');
-    return t('projectDetail.budget.reasonNoBudgetLine', 'No budget line is recorded for this category.');
+  const interpretation = interpretForecast(rows, fiscalYear, phasingQuery.data, committedByCategory, canReadCommitments);
+  const incompleteRows = interpretation.rows.filter((item) => item.incomplete);
+  const reasonText = (reason: (typeof interpretation.rows)[number]['reason']): string | null => {
+    if (!reason) return null;
+    switch (reason.kind) {
+      case 'no-ledger': return t('projectDetail.budget.reasonNoLedger', 'No ledger reading is available for this fiscal year.');
+      case 'no-account': return t('projectDetail.budget.reasonNoAccount', 'No accounting ledger account is mapped for this category.');
+      case 'other-year': return t('projectDetail.budget.reasonBudgetedOtherYear', 'Budgeted in another fiscal year: {{years}}', { years: reason.years.join(', ') });
+      case 'stale-attribution': return t('projectDetail.budget.reasonStaleAttribution', 'Budget attribution is stale or incomplete. Review the line phasing.');
+      case 'partial-attribution': return t('projectDetail.budget.reasonPartialAttribution', 'Some budget lines cannot be attributed to this fiscal year. Review the line phasing.');
+      case 'no-budget-year': return t('projectDetail.budget.reasonNoBudgetYear', 'No budget is recorded for this fiscal year.');
+      case 'no-budget-line': return t('projectDetail.budget.reasonNoBudgetLine', 'No budget line is recorded for this category.');
+    }
   };
-  const rowReasonFor = (row: BudgetProjectionCellRow): string | null => row.actualsToDate === null
-    ? row.actualsAsOf === null
-      ? t('projectDetail.budget.reasonNoLedger', 'No ledger reading is available for this fiscal year.')
-      : t('projectDetail.budget.reasonNoAccount', 'No accounting ledger account is mapped for this category.')
-    : budgetReasonFor(row);
   const openForecastRow = (row: BudgetProjectionCellRow) => {
     const next = new URLSearchParams(searchParams);
     next.set('open', row.category);
@@ -239,23 +233,15 @@ export default function BudgetProjection({ projectId, currency, budgetCurrency, 
     },
   ], [budgetCurrency, canReadCommitments, committedByCategory, currency, editing, etcDraft, etcErrors, t]);
 
-  const totalCommitted = canReadCommitments
-    ? rows.reduce((sum, row) => sum + (committedByCategory[row.category] ?? 0), 0)
-    : null;
-  const totalBudget = rows.every((row) => row.pmoBudgetAmount !== null)
-    ? rows.reduce((sum, row) => sum + (row.pmoBudgetAmount ?? 0), 0)
-    : null;
-  const totalForecastRemaining = rows.every((row) => row.projectedVariance !== null)
-    ? rows.reduce((sum, row) => sum + (row.projectedVariance ?? 0), 0)
-    : null;
+  const { budget: totalBudget, remaining: totalForecastRemaining, committed: totalCommitted } = interpretation.summary;
   const totals = rows.length ? [{
     key: 'total',
     label: t('financeCopy.total', 'Total'),
     values: {
       budget: moneyText(totalBudget, budgetCurrency),
-      spent: <span className="inline-flex flex-col items-end"><span>{moneyText(rows.every((row) => row.actualsToDate !== null) ? rows.reduce((sum, row) => sum + (row.actualsToDate ?? 0), 0) : null, currency)}</span><span className="text-xs font-normal text-muted-foreground">{t('projectDetail.budget.projectCommitmentsShort', 'Committed · project-wide')}: {moneyText(totalCommitted, currency)}</span></span>,
-      etc: formatCurrencyAuto(rows.reduce((sum, row) => sum + row.pmoEtc, 0), currency),
-      final: moneyText(rows.every((row) => row.projectedFinalCost !== null) ? rows.reduce((sum, row) => sum + (row.projectedFinalCost ?? 0), 0) : null, currency),
+      spent: <span className="inline-flex flex-col items-end"><span>{moneyText(interpretation.summary.actuals, currency)}</span><span className="text-xs font-normal text-muted-foreground">{t('projectDetail.budget.projectCommitmentsShort', 'Committed · project-wide')}: {moneyText(totalCommitted, currency)}</span></span>,
+      etc: formatCurrencyAuto(interpretation.summary.etc, currency),
+      final: moneyText(interpretation.summary.final, currency),
       remaining: moneyText(totalForecastRemaining, currency),
     },
   }] : [];
@@ -318,9 +304,9 @@ export default function BudgetProjection({ projectId, currency, budgetCurrency, 
                 totals={totals}
               />
               <p className="text-xs text-muted-foreground">{t('projectDetail.budget.forecastCommitmentScope', 'Committed amounts are project-wide; the current source does not assign them to a fiscal year. They are shown separately and are not included in the fiscal-year forecast final.')}</p>
-              {rows.some((row) => row.actualsToDate === null || row.pmoBudgetAmount === null) && <div role="status" data-testid="forecast-incomplete" className="space-y-1 text-sm text-muted-foreground">
-                <p>{t('projectDetail.budget.forecastIncompleteCategories', 'Incomplete categories: {{categories}}', { categories: rows.filter((row) => row.actualsToDate === null || row.pmoBudgetAmount === null).map((row) => budgetCategoryLabel(row.category, t)).join(', ') })}</p>
-                {rows.filter((row) => row.actualsToDate === null || row.pmoBudgetAmount === null).map((row) => <p key={`reason-${row.category}`}>{budgetCategoryLabel(row.category, t)}: {rowReasonFor(row)}</p>)}
+              {incompleteRows.length > 0 && <div role="status" data-testid="forecast-incomplete" className="space-y-1 text-sm text-muted-foreground">
+                <p>{t('projectDetail.budget.forecastIncompleteCategories', 'Incomplete categories: {{categories}}', { categories: incompleteRows.map(({ row }) => budgetCategoryLabel(row.category, t)).join(', ') })}</p>
+                {incompleteRows.map(({ row, reason }) => <p key={`reason-${row.category}`}>{budgetCategoryLabel(row.category, t)}: {reasonText(reason)}</p>)}
               </div>}
               {rows.find((row) => row.actualsAsOf)?.actualsAsOf && <p className="text-xs text-muted-foreground">{t('projectDetail.budget.forecastSummaryAsOf', 'Recorded spending as of {{date}}', { date: formatInstantDate(rows.find((row) => row.actualsAsOf)!.actualsAsOf!) })}</p>}
             </>}
