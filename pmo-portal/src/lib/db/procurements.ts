@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
 import { resolveRange, type PageParams } from '@/src/lib/pagination';
 import { attachApprovalRoutes } from './approvalRoutes';
 import type { ApprovalRoute } from '@/src/lib/procurement/approvalRoute';
@@ -173,12 +174,13 @@ export async function listProcurements(
  * RLS scopes rows.
  */
 export async function listProcurementsByProject(projectId: string): Promise<ProcurementWithRefs[]> {
-  const { data, error } = await supabase
-    .from('procurements')
-    .select(PROJECT_DETAIL_SELECT)
-    .eq('project_id', projectId);
-  if (error) throw new Error(error.message);
-  return attachApprovalRoutes((data ?? []) as unknown as ProcurementWithRefs[]);
+  const data = await fetchAllRowsByKeyset((afterId, limit) => {
+    let query = supabase.from('procurements').select(PROJECT_DETAIL_SELECT)
+      .eq('project_id', projectId).order('id', { ascending: true }).limit(limit);
+    if (afterId !== null) query = query.gt('id', afterId);
+    return query as unknown as PromiseLike<{ data: ProcurementWithRefs[] | null; error: { message: string; code?: string } | null }>;
+  });
+  return attachApprovalRoutes(data);
 }
 
 /**

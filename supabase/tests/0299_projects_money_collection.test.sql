@@ -18,8 +18,9 @@ values
  ('02990000-0000-0000-0000-0000000000d2','02990000-0000-0000-0000-000000000001','No reading project','Ongoing Project','USD',100,'exclusive',0,0,1,1,false,'COLLECTION-TWO'),
  ('02990000-0000-0000-0000-0000000000d3','02990000-0000-0000-0000-000000000002','Foreign project','Ongoing Project','USD',100,'exclusive',0,0,1,1,false,'COLLECTION-FOREIGN');
 insert into public.procurements (id,org_id,title,status,total_value,project_id,requested_by_id) values
- ('02990000-0000-0000-0000-0000000000f1','02990000-0000-0000-0000-000000000001','ERP committed PO','Ordered',75,'02990000-0000-0000-0000-0000000000d1','02990000-0000-0000-0000-0000000000a1'),
- ('02990000-0000-0000-0000-0000000000f2','02990000-0000-0000-0000-000000000001','PMO committed PO','Ordered',45,'02990000-0000-0000-0000-0000000000d2','02990000-0000-0000-0000-0000000000a1');
+ ('02990000-0000-0000-0000-0000000000f1','02990000-0000-0000-0000-000000000001','ERP committed PO','Ordered',75,'02990000-0000-0000-0000-0000000000d1','02990000-0000-0000-0000-0000000000a1');
+insert into public.procurements (id,org_id,title,status,total_value,project_id,requested_by_id,currency) values
+ ('02990000-0000-0000-0000-0000000000f2','02990000-0000-0000-0000-000000000001','PMO committed PO','Ordered',45,'02990000-0000-0000-0000-0000000000d2','02990000-0000-0000-0000-0000000000a1','USD');
 insert into public.external_org_bindings (org_id,external_tier,site_url,secret_ref,status,connected_by,connected_at)
 values ('02990000-0000-0000-0000-000000000001','erpnext','https://erp.example.test','test-ref','active','02990000-0000-0000-0000-0000000000a1',now());
 set local request.jwt.claims='{}';

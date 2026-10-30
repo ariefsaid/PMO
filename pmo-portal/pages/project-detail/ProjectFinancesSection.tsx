@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, DataTable, TaxBasisLabel, type Column } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
+import { useProjectsMoneyCollection } from '@/src/hooks/useProjectsMoneyCollection';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { attributedSplit, buildProjectMoneyPosition, deriveMargin, moneyUnits } from '@/src/lib/projectFinances';
@@ -24,6 +25,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
   const canManageAccounting = may('manage', 'orgAccounting');
   const query = useProjectFinances(project.id);
   const commitments = useProjectCommittedSpend(project.id, true);
+  const collection = useProjectsMoneyCollection([project.id]);
   // C5: no padded .00, and a real fraction (0.11 outstanding) is never rounded away to 0. C6: a figure in the section's own currency is bare (the Money position heading and each
   // currency heading name it once); only a figure in another currency carries its code. C4: an unknown figure is
   // null, and the caller leaves it out rather than printing a placeholder.
@@ -53,8 +55,13 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
 
   const data = query.data;
   const actuals = data.actuals;
+  const collectionPosition = collection.data?.[project.id];
+  const pmoActual = collectionPosition?.ledgerBasis === 'pmo' && collectionPosition.actuals.currency === project.currency
+    ? collectionPosition.actuals : undefined;
+  const pmoAmount = pmoActual?.total ?? undefined;
   const moneyPosition = buildProjectMoneyPosition({ ledgerBasis: commitments.ledgerBasis,
-    committedSpend: commitments.data, commitmentPending: commitments.isPending, commitmentError: commitments.isError,
+    committedSpend: pmoAmount, commitmentPending: collection.isPending, commitmentError: collection.isError,
+    commitmentComplete: pmoActual?.complete === true,
     projectCurrency: project.currency, actuals, contractValue: project.contract_value, activeBudget: undefined });
   const actualPosition = moneyPosition.actual;
   const mappedCategories = moneyPosition.coverage.mapped;
@@ -69,7 +76,10 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
       if (known) knownCategories.push(row);
     }
   }
-  const spendingHasData = actualPosition.amount !== null
+  const displayedSpending = actualPosition.amount ?? (actualPosition.basis === 'pmo' && !collection.isPending
+    && !collection.isError && pmoAmount !== undefined && moneyUnits(pmoAmount) !== null ? pmoAmount : null);
+  const spendingHasData = displayedSpending !== null
+    || (actualPosition.basis === 'pmo' && (collection.isPending || collection.isError || !pmoActual))
     || knownCategories.length > 0
     || (actualPosition.basis === 'unavailable' && actuals.categories.length > 0);
   // #1271 AC-3: tagged vs rule-attributed cost, named only when some of the (complete, ERP-ledger) total is attributed.
@@ -99,7 +109,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
     'actuals-unavailable': t('projectDetail.money.marginOutActuals', 'Gross margin is left out until spending is linked for every budget category.'),
     'restricted-rows': t('projectDetail.money.marginOutRestricted', 'Gross margin is left out because spending excludes restricted rows.'),
   };
-  const recordedSpending = money(actualPosition.amount, actualPosition.currency);
+  const recordedSpending = money(displayedSpending, actualPosition.currency);
   const categoryColumns: Column<(typeof actuals.categories)[number]>[] = [
     { key: 'category', header: t('projectFinances.category', 'Category'), kind: 'primary', rowHeader: true,
       cell: (row) => budgetCategoryLabel(row.category as Parameters<typeof budgetCategoryLabel>[0], t) },
@@ -156,7 +166,8 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
         {field(t('uxs01.cashReceived', 'Cash received'), otherCurrencyCash.join(' · '), <span className="text-xs text-muted-foreground">{cashScope}</span>)}
       </dl>}
       {data.invoices.map((bucket) => {
-        const margin = deriveMargin(bucket, actuals);
+        const margin = deriveMargin(bucket, actuals, { basis: actualPosition.basis,
+          readSucceeded: !query.isError, complete: actualPosition.complete });
         const balancesKnown = bucket.missing_outstanding === 0;
         const own = (value: string | null) => money(value, bucket.currency, bucket.currency);
         return (
@@ -190,7 +201,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
         {/* PD-C: Recorded spending is the ONE home for coverage — shown only when partial — and
             its freshness is one inline "Updated" beside the amount. */}
         {(recordedSpending !== null || (actualPosition.basis === 'erp' && actualPosition.asOf)) && <p className="break-words font-semibold tabular-nums">
-          {money(actualPosition.amount, actualPosition.currency, actualPosition.currency)}
+          {money(displayedSpending, actualPosition.currency, actualPosition.currency)}
           {actualPosition.basis === 'erp' && actualPosition.asOf && <span className="ml-2 text-xs font-normal text-muted-foreground">
             {t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}
           </span>}
@@ -199,11 +210,13 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
           && <p className="text-xs text-muted-foreground">{t('uxs01.coverageUnavailable', 'Spending coverage unavailable')}</p>}
         {actualPosition.basis === 'pmo'
           ? <p className="text-xs text-muted-foreground">
-            {commitments.isPending
+            {collection.isPending
               ? t('uxs01.actualLoading', 'Loading Actual…')
-              : commitments.isError
+              : collection.isError || !pmoActual
                 ? t('uxs01.coverageUnavailable', 'Spending coverage unavailable')
-                : t('uxs01.pmoCoverage', 'Committed PMO purchase orders')}
+                : pmoActual.complete !== true
+                  ? t('projectFinances.pmoPartial', 'Partial position; other currencies or unavailable amounts are excluded.')
+                  : t('uxs01.pmoCoverage', 'Committed PMO purchase orders')}
           </p>
           : !completeCoverage && <p className="text-xs text-muted-foreground">
             {hasCoverage

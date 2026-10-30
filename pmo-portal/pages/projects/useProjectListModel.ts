@@ -96,14 +96,14 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
       const money = projectMoney?.[p.id];
       const actual = money?.actuals.total == null ? null : Number(money.actuals.total);
       const budget = money?.hasActiveBudget && money.activeBudgetAmount != null ? Number(money.activeBudgetAmount) : null;
-      if (!money || actual == null || budget == null) return false;
+      if (moneyPending || moneyError || !money || actual == null || budget == null) return false;
       return isMoneyAtRisk({ status: p.status as string, budget,
         budgetCurrency: money.activeBudgetCurrency, projectCurrency: p.currency,
         spent: actual, actualCurrency: money.actuals.currency,
         actualComplete: isActualComplete({ basis: money.ledgerBasis ?? 'erp', readSucceeded: true, complete: money.actuals.complete,
           categories: money.actuals.categories, excludesRestrictedRows: money.actuals.excludesRestrictedRows }) });
     },
-    [projectMoney],
+    [projectMoney, moneyPending, moneyError],
   );
 
   const filtered = useMemo(() => {

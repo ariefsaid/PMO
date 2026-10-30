@@ -264,6 +264,8 @@ const Projects: React.FC = () => {
               onOpen={(proj) => onOpen(proj, 'card')}
               deliverySummary={deliverySummary?.[p.id]}
               projectMoney={projectMoney?.[p.id]}
+              moneyPending={moneyPending}
+              moneyError={moneyError}
               onEdit={canEdit ? (proj) => setEditTarget(proj) : undefined}
             />
           ))}
