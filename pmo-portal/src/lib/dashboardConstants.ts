@@ -63,11 +63,3 @@ export const PROGRESS_RECORDABLE_PROJECT_STATUSES = new Set([
   'Ongoing Project',
   'On Hold',
 ]);
-
-/**
- * Returns the budget utilization percentage (spent/budget × 100), or null if budget is zero.
- * Used to display the budget-basis reason on at-risk rows (I3).
- */
-export function budgetUtilPct(p: { budget: number; spent: number }): number | null {
-  return p.budget > 0 ? Math.round((p.spent / p.budget) * 100) : null;
-}

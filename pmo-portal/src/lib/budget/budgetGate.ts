@@ -294,7 +294,6 @@ function resolveSpanOrFailClosed(
  * Plan entries preserve first-seen year order and original line order within each year (deterministic).
  */
 function buildPlan(
-  project: BudgetGateProjectRow,
   span: { startFY: string; endFY: string; inSpanFYNames: Set<string> },
   lineItems: readonly BudgetLineItem[],
 ): BudgetGatePlanEntry[] {
@@ -418,7 +417,7 @@ export async function runBudgetActivationPrecheck(deps: BudgetGateDeps, erpBudge
     const knownFYNames = new Set(fiscalYears.map((fy) => fy.name));
     const validForPlanning = lineItems.filter((li) => !li.fiscal_year || knownFYNames.has(li.fiscal_year));
     try {
-      buildPlan(project, span, validForPlanning);
+      buildPlan(span, validForPlanning);
     } catch (err) {
       if (!(err instanceof BudgetGateError)) throw err;
       issues.push(err);
@@ -482,7 +481,7 @@ export async function runBudgetGate(deps: BudgetGateDeps): Promise<BudgetGateRes
   if (invalidYearError) throw invalidYearError;
 
   // (6) Build the per-year push plan.
-  const plan = buildPlan(project, span, lineItems);
+  const plan = buildPlan(span, lineItems);
 
   // (7) Resolve the category→account map over the plan's union of categories.
   const map = await deps.readCategoryMap();
