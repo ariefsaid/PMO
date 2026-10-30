@@ -89,7 +89,7 @@
   /* Borders and controls */
   --border: 217.5 12.9032% 87.8431%;
   --border-subtle: 220 11.1111% 94.7059%;
-  --input: 217.5 13.1148% 55%;
+  --input: 0 0% 54.9%;
   --input-subtle: 222.8571 10.7692% 12.7451% / 16.0784%;
 
   /* Status and feedback */
@@ -228,7 +228,7 @@
   /* Borders and controls */
   --border: 210 13.7255% 20%;
   --border-subtle: 206.6667 11.6883% 15.098%;
-  --input: 210.8571 14.2857% 47%;
+  --input: 0 0% 42.35%;
   --input-subtle: 209 50.8475% 76.8627% / 16.0784%;
 
   /* Status and feedback */
@@ -431,12 +431,14 @@
 }
 
 @layer base {
-  /* Persisted text size scales rem-based type and spacing. */
+  /* Scale the complete UI, including text authored in pixels. */
   html {
     font-size: 16px;
+    --app-zoom: 1;
+    zoom: var(--app-zoom);
   }
-  html[data-text-size="large"] { font-size: 18px; }
-  html[data-text-size="larger"] { font-size: 20px; }
+  html[data-text-size="large"] { --app-zoom: 1.125; }
+  html[data-text-size="larger"] { --app-zoom: 1.25; }
   html, body {
     background: hsl(var(--background));
     color: hsl(var(--foreground));

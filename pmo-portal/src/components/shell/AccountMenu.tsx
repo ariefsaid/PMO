@@ -145,7 +145,7 @@ export const AccountMenu: React.FC = () => {
         aria-expanded={open}
         aria-label={t('shell.contextBar.accountMenu', 'Account menu')}
         onClick={() => setOpen((v) => !v)}
-        className="touch-target inline-flex h-8 max-w-[220px] shrink-0 items-center gap-2 rounded-lg border border-input bg-background pl-1.5 pr-2.5 hover:bg-accent"
+        className="touch-target inline-flex h-8 max-w-[220px] shrink-0 items-center gap-2 rounded-lg border border-input bg-card pl-1.5 pr-2.5 hover:bg-accent"
       >
         <span
           aria-hidden
@@ -168,8 +168,8 @@ export const AccountMenu: React.FC = () => {
           onKeyDown={onMenuKeyDown}
           className="absolute right-0 top-full z-50 mt-2 overflow-y-auto rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
           style={{
-            width: 'min(320px, calc(100vw - 24px))',
-            maxHeight: 'calc(100dvh - var(--header-h) - 16px)',
+            width: 'min(320px, calc(100vw / var(--app-zoom) - 24px))',
+            maxHeight: 'calc(100dvh / var(--app-zoom) - var(--header-h) - 16px)',
           }}
         >
           {/* Signed-in identity header */}

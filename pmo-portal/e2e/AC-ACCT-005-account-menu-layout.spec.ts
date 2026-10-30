@@ -36,6 +36,24 @@ test.describe('AC-ACCT-005 account-menu responsive layout', () => {
     await expect(page.locator('main :focus')).toHaveCount(1);
   });
 
+  test('AC-ACCT-005: larger text scales the interface and keeps the phone menu in view', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 360 });
+    await signIn(page, 'admin@acme.test');
+    await page.goto('/');
+    const trigger = page.getByRole('button', { name: /account menu/i });
+    const original = await trigger.boundingBox();
+    await trigger.click();
+    await page.getByRole('menuitemradio', { name: 'Larger' }).click();
+    const enlarged = await trigger.boundingBox();
+    expect(enlarged!.height / original!.height).toBeCloseTo(1.25, 1);
+    const menu = page.getByRole('menu');
+    const box = await menu.boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(360);
+    await menu.getByRole('menuitemradio', { name: 'Default' }).click();
+  });
+
   test('AC-ACCT-005: the short 390px phone menu scrolls internally with no page overflow', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 360 });
     // The sample demo Admin adds the View-as-role section, guaranteeing content taller than
