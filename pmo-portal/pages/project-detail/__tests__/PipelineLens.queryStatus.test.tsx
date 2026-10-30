@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -28,6 +29,7 @@ vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => true })
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineQueryState,
 }));
+vi.mock('@/src/hooks/useProjectTransitions', () => ({ useProjectWinEligibility: () => ({ data: 'allowed' }) }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role }),
 }));
@@ -54,13 +56,17 @@ const openDeal = {
   pm: { full_name: 'Alice Manager' },
 } as unknown as ProjectWithRefs;
 
+const freshClient = () =>
+  new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 const component = () => (
     <MemoryRouter>
-      <ImpersonationProvider realRole={role}>
-        <ToastProvider>
-          <PipelineLens project={openDeal} />
-        </ToastProvider>
-      </ImpersonationProvider>
+      <QueryClientProvider client={freshClient()}>
+        <ImpersonationProvider realRole={role}>
+          <ToastProvider>
+            <PipelineLens project={openDeal} />
+          </ToastProvider>
+        </ImpersonationProvider>
+      </QueryClientProvider>
     </MemoryRouter>
 );
 const renderComponent = () => render(component());
