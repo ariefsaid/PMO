@@ -432,10 +432,13 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                       )}
                     >
                       {/* Day label — occupies fixed width so inputs align */}
+                      {/* Day label — occupies fixed width so inputs align. Full muted token:
+                          the /70 alpha failed AA on the weekend tint in dark mode (axe
+                          color-contrast, tidy sweep). The weekend reads through the row tint. */}
                       <span
                         className={cn(
                           'w-[52px] shrink-0 text-[12px] font-semibold uppercase tracking-[0.03em]',
-                          weekend ? 'text-muted-foreground/70' : 'text-muted-foreground'
+                          'text-muted-foreground'
                         )}
                         aria-hidden="true"
                       >
@@ -480,10 +483,13 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                       weekend && 'bg-secondary/60'
                     )}
                   >
+                    {/* Day label — occupies fixed width so inputs align. Full muted token:
+                        the /70 alpha failed AA on the weekend tint in dark mode (axe
+                        color-contrast, tidy sweep). The weekend reads through the row tint. */}
                     <span
                       className={cn(
                         'w-[52px] shrink-0 text-[12px] font-semibold uppercase tracking-[0.03em]',
-                        weekend ? 'text-muted-foreground/70' : 'text-muted-foreground'
+                        'text-muted-foreground'
                       )}
                       aria-hidden="true"
                     >
