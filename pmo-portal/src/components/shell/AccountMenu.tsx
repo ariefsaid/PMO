@@ -300,22 +300,22 @@ export const AccountMenu: React.FC = () => {
               >
                 {t('shell.contextBar.privacy', 'Privacy')}
               </Link>
-              {HELP_URL && (
-                <a
-                  href={HELP_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  role="menuitem"
-                  aria-label={t('shell.contextBar.helpWhatsApp', 'Contact support via WhatsApp')}
-                  onClick={() => setOpen(false)}
-                  className={cn(rowBase, 'text-foreground hover:bg-accent')}
-                >
-                  <Icon name="message" className="text-muted-foreground [&_svg]:size-[17px]" />
-                  {t('shell.contextBar.help', 'Help')}
-                </a>
-              )}
-
             </>
+          )}
+
+          {HELP_URL && (
+            <a
+              href={HELP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              role="menuitem"
+              aria-label={t('shell.contextBar.helpWhatsApp', 'Contact support via WhatsApp')}
+              onClick={() => setOpen(false)}
+              className={cn(rowBase, 'text-foreground hover:bg-accent')}
+            >
+              <Icon name="message" className="text-muted-foreground [&_svg]:size-[17px]" />
+              {t('shell.contextBar.help', 'Help')}
+            </a>
           )}
 
           <div className="my-1 border-t border-border" />
