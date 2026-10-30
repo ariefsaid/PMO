@@ -240,6 +240,7 @@
     "futureDate": "Publication date cannot be in the future.",
     "invalidRate": "Enter a rate from 1,000 to 100,000 with at most six decimal places; check separators.",
     "fileTooLarge": "File exceeds 5 MiB.",
+    "expandedFileTooLarge": "Expanded workbook exceeds 20 MiB.",
     "emptyFile": "The file contains no rate rows.",
     "tooManyRows": "Import at most 500 rows at a time.",
     "unsupportedFile": "Choose a supported BI workbook or date,rate CSV.",
@@ -4604,7 +4605,9 @@
     "pageGaps": "No rate for {{dates}}",
     "moreEarlier": "earlier rates on the next pages",
     "previewCoverage": "Dates from {{first}} to {{last}}: {{count}} with rates",
-    "previewGaps": "No rate for {{dates}}"
+    "previewGaps": "No rate for {{dates}}",
+    "previewGapSummary_one": "{{dates}} dates without rates across {{count}} gap",
+    "previewGapSummary_other": "{{dates}} dates without rates across {{count}} gaps"
   },
   "uxs17": {
     "deliverySection": "Client delivery",

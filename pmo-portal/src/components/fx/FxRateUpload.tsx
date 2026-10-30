@@ -53,6 +53,8 @@ const reasonCopy = (reason: string, t: (key: string, fallback: string) => string
 
 const fileErrorCopy = (code: string, t: (key: string, fallback: string) => string): string => {
   switch (code) {
+    case 'expandedFileTooLarge':
+      return t('fx.expandedFileTooLarge', 'Expanded workbook exceeds 20 MiB.');
     case 'fileTooLarge':
       return t('fx.fileTooLarge', 'File exceeds 5 MiB.');
     case 'emptyFile':
@@ -136,7 +138,11 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
       await loadExisting(result, request);
     } catch (cause) {
       if (generation.current !== request) return;
-      const code = cause instanceof ImportParseError ? cause.code : 'unsupportedFile';
+      const code = cause instanceof ImportParseError
+        ? cause.code === 'fileTooLarge' && cause.message === 'Expanded workbook exceeds 20 MiB.'
+          ? 'expandedFileTooLarge'
+          : cause.code
+        : 'unsupportedFile';
       setError({ kind: 'parse', code });
       setState('error');
     }
@@ -302,6 +308,12 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
                         last: formatDateOnly(preview.coverage.lastDate),
                         count: preview.rows.length,
                       })}
+                      {preview.coverage.gapSummary && (
+                        <> · {t('uxs38.previewGapSummary', '{{dates}} dates without rates across {{count}} gaps', {
+                          dates: preview.coverage.gapSummary.count,
+                          count: preview.coverage.gapSummary.ranges.length,
+                        })}</>
+                      )}
                       {preview.coverage.missingDates.length > 0 && (
                         <> · {t('uxs38.previewGaps', 'No rate for {{dates}}', {
                           dates: preview.coverage.missingDates.map(formatDateOnly).join(', '),
