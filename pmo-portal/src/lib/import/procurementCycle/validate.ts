@@ -89,7 +89,26 @@ function validateEnum(raw: string | undefined, allowed: readonly string[], label
 // ─── Per-type row validation ──────────────────────────────────────────────────
 
 export const GR_STATUS = ['Partial', 'Complete'] as const;
-export const VI_STATUS = ['Received', 'Scheduled', 'Paid'] as const;
+export const VI_STATUS = ['Received', 'Scheduled'] as const;
+const CREATION_STATUS: Record<string, readonly string[]> = {
+  PR: ['Draft', 'Submitted', 'Approved', 'Closed'],
+  RFQ: ['Draft', 'Issued', 'Closed'],
+  PO: ['Draft', 'Issued', 'Acknowledged', 'Closed'],
+  GR: GR_STATUS,
+  VI: VI_STATUS,
+  Payment: ['Scheduled'],
+};
+
+function creationValueError(row: CycleRow): string | null {
+  if (row.type === 'Quotation' && row.externalRef?.trim()) {
+    return 'Quotation reference cannot be imported by this workflow.';
+  }
+  const allowed = Object.hasOwn(CREATION_STATUS, row.type) ? CREATION_STATUS[row.type] : undefined;
+  if (!allowed) return null;
+  const status = row.status?.trim();
+  if (!status && row.type !== 'GR' && row.type !== 'VI') return null;
+  return validateEnum(status, allowed, 'Status');
+}
 /** #505: the `tax_treatment` domain, verbatim from migration 0196's CHECK constraint. */
 export const VI_TAX_TREATMENT = ['inclusive', 'exclusive'] as const;
 
@@ -122,6 +141,9 @@ function validateRowFields(
 ): string[] {
   const errors: string[] = [];
 
+  const creationError = creationValueError(row);
+  if (creationError) errors.push(creationError);
+
   // Project: optional per-row (only needed if set), but if set must resolve
   if (row.project?.trim()) {
     const err = refValidate(projectLookup, false)(row.project);
@@ -132,7 +154,7 @@ function validateRowFields(
     case 'PR':
     case 'RFQ':
     case 'PO': {
-      // Optional fields: status (any string), date (YYYY-MM-DD if present), amount (≥ 0 if present)
+      // Optional fields: status, date (YYYY-MM-DD if present), amount (≥ 0 if present)
       const dateErr = validateOptionalDate(row.date, 'Date');
       if (dateErr) errors.push(dateErr);
       const amtErr = validateOptionalAmount(row.amount);
@@ -156,17 +178,13 @@ function validateRowFields(
 
     case 'GR': {
       // Required: status (Partial|Complete), date
-      const statusErr = validateEnum(row.status, GR_STATUS, 'Status');
-      if (statusErr) errors.push(statusErr);
       const dateErr = validateDate(row.date, 'Date');
       if (dateErr) errors.push(dateErr);
       break;
     }
 
     case 'VI': {
-      // Required: status (Received|Scheduled|Paid), date, tax treatment, tax amount; optional: amount
-      const statusErr = validateEnum(row.status, VI_STATUS, 'Status');
-      if (statusErr) errors.push(statusErr);
+      // Required: status (Received|Scheduled), date, tax treatment, tax amount; optional: amount
       const dateErr = validateDate(row.date, 'Date');
       if (dateErr) errors.push(dateErr);
       const amtErr = validateOptionalAmount(row.amount);
@@ -182,7 +200,7 @@ function validateRowFields(
     }
 
     case 'Payment': {
-      // Optional: status (any string), date, amount
+      // Optional: status, date, amount
       const dateErr = validateOptionalDate(row.date, 'Date');
       if (dateErr) errors.push(dateErr);
       const amtErr = validateOptionalAmount(row.amount);
@@ -222,6 +240,11 @@ export function validateGroups(
       groupErrors.push('Case must have at least a title or a project set.');
     }
 
+    // Draft describes the initial case; later evidence may advance its status.
+    if (group.rows.some(row => row.caseStatus?.trim() && row.caseStatus.trim() !== 'Draft')) {
+      groupErrors.push('Only Draft case status is supported at origination.');
+    }
+
     // Per-row validation
     const rows: ValidatedRow[] = group.rows.map((row) => {
       const errors = validateRowFields(row, projectLookup, vendorLookup);
@@ -233,7 +256,7 @@ export function validateGroups(
     });
 
     const anyRowValid = rows.some((r) => r.valid);
-    const valid = groupErrors.length === 0 && anyRowValid;
+    const valid = groupErrors.length === 0 && anyRowValid && !group.rows.some(row => creationValueError(row));
 
     return { group, groupErrors, rows, valid };
   });
