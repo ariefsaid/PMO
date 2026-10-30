@@ -87,6 +87,7 @@ import type {
 } from '@/src/lib/db/procurementRecords';
 import type {
   NewProcurementInput,
+  AtomicProcurementInput,
   ProcurementHeaderPatch,
   ProcurementItemInput,
   ProcurementItemPatch,
@@ -443,6 +444,7 @@ export interface ProcurementRepository {
   // ── CRUD slice (editing paths) ──
   /** Raise a new PR (Draft); requester stamped from the caller's identity. */
   create(input: NewProcurementInput, requestedById: string): Promise<Tables<'procurements'>>;
+  createWithItems(input: AtomicProcurementInput): Promise<Tables<'procurements'>>;
   /** Edit the PR header (requester while Draft/Rejected; RLS is the authority). */
   updateHeader(id: string, patch: ProcurementHeaderPatch): Promise<void>;
   /** Set only vendor_id on a vendor-less request; RLS decides eligible roles/stages. */

@@ -115,6 +115,31 @@ export async function createProcurement(
   return data as Tables<'procurements'>;
 }
 
+export interface AtomicProcurementInput {
+  id: string;
+  header: NewProcurementInput;
+  lines: (ProcurementItemInput & { id: string })[];
+}
+
+/** Create a draft and its lines in one server transaction using stable IDs. */
+export async function createProcurementWithItems(input: AtomicProcurementInput): Promise<Tables<'procurements'>> {
+  const { data, error } = await supabase.rpc('create_procurement_with_items', {
+    p_id: input.id,
+    p_header: {
+      title: input.header.title,
+      project_id: input.header.projectId,
+      vendor_id: input.header.vendorId,
+      ...(input.header.budgetCategory !== undefined ? { budget_category: input.header.budgetCategory } : {}),
+    },
+    p_items: input.lines.map((line) => ({
+      id: line.id, name: line.name, quantity: line.quantity, rate: line.rate,
+      description: line.description ?? null,
+    })),
+  });
+  if (error) throwWrite(error);
+  return data as Tables<'procurements'>;
+}
+
 /** Editable header fields (requester while Draft/Rejected). Excludes the
  *  RPC-only state-machine columns (status / pr_number / approver / notes). */
 export interface ProcurementHeaderPatch {

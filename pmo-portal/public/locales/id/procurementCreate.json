@@ -44,11 +44,23 @@
   "selectSupplier": "Opsional: pilih pemasok…",
   "budgetCategory": "Kategori anggaran",
   "linesFailed": "Pengadaan tersimpan, tetapi beberapa item belum tersimpan. Simpan lagi untuk mencoba ulang.",
+  "reconcile": "Buka permintaan tersimpan untuk mencocokkan data sebelum mencoba lagi.",
+  "openSavedRequest": "Buka permintaan tersimpan",
   "unsaved": {
+    "saving": "Penyimpanan sedang berlangsung. Harap tunggu hingga selesai.",
+    "uncertain": "Penyimpanan mungkin telah selesai. Tinggalkan halaman ini?",
     "title": "Pengadaan belum tersimpan",
     "description": "Pengadaan ini belum tersimpan. Tinggalkan halaman ini dan buang perubahan?",
     "partialDescription": "Pengadaan Anda tersimpan. Item yang belum tersimpan akan hilang jika Anda keluar.",
     "leave": "Keluar",
     "stay": "Tetap di sini"
+  },
+  "references": {
+    "loadingProjects": "Memuat proyek…",
+    "projectsError": "Proyek tidak dapat dimuat.",
+    "retryProjects": "Coba lagi proyek",
+    "loadingSuppliers": "Memuat pemasok…",
+    "suppliersError": "Pemasok tidak dapat dimuat.",
+    "retrySuppliers": "Coba lagi pemasok"
   }
 }

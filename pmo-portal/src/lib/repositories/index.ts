@@ -166,6 +166,7 @@ import {
 import type { Tables } from '@/src/lib/supabase/database.types';
 import {
   createProcurement,
+  createProcurementWithItems,
   updateProcurementHeader,
   updateProcurementVendor,
   createProcurementItem,
@@ -638,6 +639,7 @@ const procurement: ProcurementRepository = {
   // DD-EFK-1: e-Faktur facts are PMO-owned, so this setter always stays direct even for external ERP domains.
   setEfaktur: (invoiceId, values) => wrap(() => setProcurementInvoiceEfaktur(invoiceId, values.efakturNumber, values.efakturDate)),
   create: (input, requestedById) => wrap(() => createProcurement(input, requestedById)),
+  createWithItems: (input) => wrap(() => createProcurementWithItems(input)),
   updateHeader: (id, patch) => wrap(() => updateProcurementHeader(id, patch)),
   updateVendor: (id, vendorId) => wrap(() => updateProcurementVendor(id, vendorId)),
   createItem: (procurementId, input) => wrap(() => createProcurementItem(procurementId, input)),

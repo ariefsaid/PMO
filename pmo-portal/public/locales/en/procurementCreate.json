@@ -44,11 +44,23 @@
   "selectSupplier": "Optional: select a supplier…",
   "budgetCategory": "Budget category",
   "linesFailed": "Procurement saved, but some lines were not saved. Save again to retry.",
+  "reconcile": "Open the saved request to reconcile it before retrying.",
+  "openSavedRequest": "Open saved request",
   "unsaved": {
+    "saving": "Saving is in progress. Please wait until it finishes.",
+    "uncertain": "The save may have completed. Leave this page?",
     "title": "Unsaved procurement",
     "description": "This procurement has not been saved. Leave this page and discard it?",
     "partialDescription": "Your procurement is saved. Any remaining line items will be lost if you leave.",
     "leave": "Leave",
     "stay": "Stay"
+  },
+  "references": {
+    "loadingProjects": "Loading projects…",
+    "projectsError": "Couldn't load projects.",
+    "retryProjects": "Retry projects",
+    "loadingSuppliers": "Loading suppliers…",
+    "suppliersError": "Couldn't load suppliers.",
+    "retrySuppliers": "Retry suppliers"
   }
 }

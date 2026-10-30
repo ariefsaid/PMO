@@ -109,6 +109,17 @@
 -- It preserves the four-role archive gate while atomically recording the ERP cancellation decision;
 -- proved by supabase/tests/budget_archive_cancel_intents.test.sql (AC-BUD-122).
 --
+-- ⚑ AMENDED BY 0393: `update_procurement_header` joins the retained set (+1, count 85).
+-- It checks active membership, org, requester/Admin authority and editable state;
+-- supabase/tests/procurement_header_requester.test.sql exercises its contract and ACL.
+-- Anonymous grants remain subject to the sweep even for retained names.
+--
+-- The budget import and procurement import-run commands retain authenticated access;
+-- their owning proofs are 0397_budget_import_protocol.test.sql and
+-- 0399_procurement_import_identity_authority.test.sql. Atomic draft creation is
+-- exercised by procurement_atomic_create.test.sql and its interleave companion.
+-- Anonymous and PUBLIC grants remain subject to the sweep.
+--
 -- ⚑ MERGE HAZARD, learned the hard way here: the list and its CARDINALITY live in this one file.
 -- Two branches each adding one name merge cleanly in the LIST (different lines) while the count
 -- line is a real conflict that resolves to one side — leaving a list of 51 asserted as 50. That is
@@ -128,7 +139,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(5);
+select plan(6);
 
 -- This is duplicated from 0185 as a visible proof contract. A future client RPC must retain its
 -- authenticated grant explicitly after the default-privilege guard; otherwise the count below fails.
@@ -153,6 +164,7 @@ insert into client_callable_rpc_names (proname) values
   ('create_native_sales_invoice'),
   ('create_payment'),
   ('create_procurement_invoice'),
+  ('create_procurement_with_items'),
   ('record_vendor_withholding_slip'),
   ('correct_vendor_withholding_slip'),
   ('void_vendor_withholding_slip'),
@@ -174,6 +186,7 @@ insert into client_callable_rpc_names (proname) values
   ('get_projects_milestone_dates'),
   ('get_sales_pipeline'),
   ('get_win_rate'),
+  ('import_budget_line_v2'),
   ('is_operator'),
   ('link_erp_purchase_documents'),
   ('link_procurement_sharepoint_item'),
@@ -209,6 +222,7 @@ insert into client_callable_rpc_names (proname) values
   ('set_sales_invoice_received_date'),
   ('set_vendor_tax_defaults'),
   ('set_work_order_value'),
+  ('start_procurement_import_run'),
   ('submit_sales_invoice'),
   ('transition_document_status'),
   ('transition_expense_claim'),
@@ -218,6 +232,7 @@ insert into client_callable_rpc_names (proname) values
   ('transition_timesheet'),
   ('transition_work_order'),
   ('unlink_erp_purchase_document'),
+  ('update_procurement_header'),
   ('withdraw_progress_claim'),
   ('withdraw_work_order_acceptance');
 
@@ -241,8 +256,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  84,
-  'AC-ACL-002 all 84 retained client-callable RPC names still have a public function');
+  88,
+  'AC-ACL-002 all 88 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -251,12 +266,12 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  84,
-  'AC-ACL-003 all 84 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  88,
+  'AC-ACL-003 all 88 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
--- granted to both roles from being named twice. The empty allow-list is intentional here: migration
--- 0185's allow-list is the only safe exemption, and this test checks its resulting surface.
+-- granted to both roles from being named twice. Retained names exempt authenticated grants only;
+-- an anonymous or PUBLIC grant is always reported, including for retained writers.
 create temp view anon_definer_write_sweep as
 select distinct p.oid, p.proname
   from pg_proc p
@@ -268,12 +283,21 @@ select distinct p.oid, p.proname
    and (a.grantee = 0 or grantee.rolname in ('anon', 'authenticated'))
    and a.privilege_type = 'EXECUTE'
    and pg_get_functiondef(p.oid) ~* '(insert\s+into|update\s+(public\.)?[a-z_]|delete\s+from|merge\s+into)'
-   and not exists (select 1 from client_callable_rpc_names c where c.proname = p.proname);
+   and (a.grantee = 0 or grantee.rolname = 'anon'
+        or not exists (select 1 from client_callable_rpc_names c where c.proname = p.proname));
 
 select is(
   (select coalesce(string_agg(proname, ', ' order by proname), '') from anon_definer_write_sweep),
   '',
   'AC-ACL-004 no SECURITY DEFINER writer outside the client allow-list is explicitly executable by anon or authenticated (offenders are named)');
+
+-- An authenticated client exemption must never exempt an anonymous grant.
+grant execute on function public.update_procurement_header(uuid,jsonb) to anon;
+select is(
+  (select coalesce(string_agg(proname, ', ' order by proname), '') from anon_definer_write_sweep),
+  'update_procurement_header',
+  'AC-ACL-006 anonymous grants to retained client writers are named');
+revoke execute on function public.update_procurement_header(uuid,jsonb) from anon;
 
 -- REGRESSION: mutate the exact ACL class that production exposed. The sweep must return the function
 -- name; a count-only or authenticated-only implementation is not sufficient. The transaction rollback
