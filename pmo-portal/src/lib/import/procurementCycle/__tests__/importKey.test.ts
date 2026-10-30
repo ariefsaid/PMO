@@ -95,3 +95,8 @@ it('encodes literal namespaces, delimiters and escapes without colliding', () =>
   expect(computeRecordImportKey(row, facts)).not.toBe(computeRecordImportKey({ ...row, externalRef: undefined }, facts));
   expect(computeLegacyRecordImportKey(row)).toBe(row.externalRef);
 });
+
+it('projects normalized invoice amount and tax into the same fixed-scale facts as the write', () => {
+  const row: CycleRow = { caseRef: 'C', type: 'VI', project: undefined, title: undefined, caseStatus: undefined, vendor: undefined, externalRef: undefined, status: 'Received', date: '2026-01-02', amount: '1234.5600000000002', taxTreatment: 'exclusive', taxAmount: '0.30000000000000004', rowNumber: 1 };
+  expect(projectRecordFacts(row, null, null)).toEqual([null, 'Received', '2026-01-02', '1234.56', 'exclusive', '0.30']);
+});

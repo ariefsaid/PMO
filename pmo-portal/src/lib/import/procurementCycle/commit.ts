@@ -28,7 +28,7 @@ import { createQuotation, createReceipt, createInvoice } from '@/src/lib/db/proc
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import type { RefLookup } from '@/src/lib/import/refLookup';
 import { refId } from '@/src/lib/import/refLookup';
-import { parseMoneyInputAtScale } from '@/src/lib/format';
+import { parseNeutralMoneyInputAtScale } from '@/src/lib/format';
 import type { ImportSkipLookup } from '@/src/lib/db/procurementImportSkip';
 import { caseDecider, recordDecider, TYPE_TO_TABLE, ambiguousIncomingCases, duplicateRecordRows } from './decisions';
 import type { ImportDecision } from './decisions';
@@ -69,7 +69,7 @@ export interface CommitOptions {
  */
 function parseAmount(raw: string | undefined): number | null {
   if (!raw?.trim()) return null;
-  const n = parseMoneyInputAtScale(raw, 2, 'en-US');
+  const n = parseNeutralMoneyInputAtScale(raw, 2);
   if (n === null) {
     throw new Error('a row reached commit with an invalid amount — validateGroups should have refused it');
   }
@@ -210,7 +210,7 @@ async function createRecord(
           'a VI row reached commit with no tax treatment or amount — validateGroups should have refused it',
         );
       }
-      const taxAmount = parseMoneyInputAtScale(taxAmountRaw, 2, 'en-US');
+      const taxAmount = parseNeutralMoneyInputAtScale(taxAmountRaw, 2);
       if (taxAmount === null) {
         throw new Error('a VI row reached commit with an invalid tax amount — validateGroups should have refused it');
       }

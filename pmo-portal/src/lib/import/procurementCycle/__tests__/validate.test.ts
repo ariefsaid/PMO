@@ -503,6 +503,7 @@ describe('validateGroups — #505: VI tax treatment + tax amount are required', 
     setActiveLocale(ID_LOCALE);
     const grouped = validateRow(viRow({ amount: '1,234.56', taxAmount: '1.23' }));
     expect(grouped.valid).toBe(true);
+    expect(validateRow(viRow({ amount: '1234.5600000000002', taxAmount: '0.30000000000000004' })).valid).toBe(true);
     const excessValue = validateRow(viRow({ amount: '1.234', taxAmount: '0' }));
     expect(excessValue.valid).toBe(false);
     expect(excessValue.errors.join(' ')).toMatch(/2 decimal|two decimal|amount/i);
@@ -533,8 +534,8 @@ it('rejects amounts outside the database numeric range during preview', () => {
 
 });
 
-it('rejects source money with nonzero excess precision before import', () => {
-  const rows = ['300000000000.0001', '0.30000000000000004', '1.2300', '999999999999.99', '1000000000000'].map((amount, index) => ({ caseRef: `precision-${index}`, type: 'PR', title: 'Precision', project: undefined, caseStatus: undefined, vendor: undefined, externalRef: undefined, status: undefined, date: undefined, amount, rowNumber: index + 1 }));
+it('normalizes spreadsheet float noise while rejecting true third decimals and out-of-range values', () => {
+  const rows = ['1234.5600000000002', '0.30000000000000004', '1.234', '999999999999.991', '1.2300', '999999999999.99', '1000000000000'].map((amount, index) => ({ caseRef: `precision-${index}`, type: 'PR', title: 'Precision', project: undefined, caseStatus: undefined, vendor: undefined, externalRef: undefined, status: undefined, date: undefined, amount, rowNumber: index + 1 }));
   const results = validateGroups(groupRows(rows).groups, { projectLookup: makeRefLookup([], 'Project'), vendorLookup: makeRefLookup([], 'Vendor') });
-  expect(results.map(result => result.rows[0].valid)).toEqual([false, false, true, true, false]);
+  expect(results.map(result => result.rows[0].valid)).toEqual([true, true, false, false, true, true, false]);
 });

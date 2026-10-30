@@ -811,6 +811,12 @@ describe('commitGroups — #505: a VI row with no tax treatment is rejected befo
     expect(vi.mocked(createInvoice).mock.calls[0][0]).toMatchObject({ amount: 1234.56, taxAmount: 1.23 });
   });
 
+  it('writes normalized spreadsheet noise for invoice amount and tax', async () => {
+    await commitFromSheet([viRow({ amount: '1234.5600000000002', taxTreatment: 'exclusive', taxAmount: '0.30000000000000004' })]);
+    expect(createInvoice).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(createInvoice).mock.calls[0][0]).toMatchObject({ amount: 1234.56, taxAmount: 0.3 });
+  });
+
   it('AC-PLC-009: a three-decimal invoice amount is rejected before the import commit writes', async () => {
     await commitFromSheet([viRow({ amount: '1.234', taxTreatment: 'exclusive', taxAmount: '0' })]);
 
