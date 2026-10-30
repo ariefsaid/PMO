@@ -13,12 +13,6 @@ export interface NeedsYouListProps {
   className?: string;
 }
 
-const TONE_STYLES: Record<NeedsTone, string> = {
-  warn: 'bg-warning',
-  neutral: 'bg-muted-foreground',
-  lost: 'bg-destructive',
-};
-
 export const NeedsYouList: React.FC<NeedsYouListProps> = ({
   items,
   isPending = false,
@@ -62,8 +56,7 @@ export const NeedsYouList: React.FC<NeedsYouListProps> = ({
               {item.count}
             </span>
             <span className="flex min-w-0 flex-1 items-center gap-2.5">
-              <span className="inline-flex shrink-0 items-center gap-1.5 text-[11.5px] text-muted-foreground">
-                <span aria-hidden="true" className={`size-1.5 rounded-full ${TONE_STYLES[item.tone]}`} />
+              <span className="inline-flex shrink-0 items-center text-[11.5px] text-muted-foreground">
                 <span>{toneLabel[item.tone]}</span>
               </span>
               <span className="min-w-0 text-[13.5px]">{item.label}</span>

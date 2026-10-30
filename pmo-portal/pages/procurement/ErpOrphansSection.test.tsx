@@ -4,13 +4,15 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const linkMock = vi.fn();
+const { linkMock, exportXlsxMock } = vi.hoisted(() => ({ linkMock: vi.fn(), exportXlsxMock: vi.fn() }));
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => ({ mutateAsync: linkMock, isPending: false }) }));
+vi.mock('@/src/components/export/useExport', () => ({ useExport: () => ({ exportXlsx: exportXlsxMock, busy: false }) }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({ data: [
   { id: 'pur-1', title: 'Steel', status: 'Ordered', project_id: 'p1', currency: 'IDR', vendor: { name: 'Supplier One' } }] }) }));
 
 import { ErpOrphansSection } from './ErpOrphansSection';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
+import { buildExportRows } from '@/src/lib/export';
 
 const row = (n: string, over: Partial<ErpPurchaseRow> = {}): ErpPurchaseRow => ({
   id: n, doctype: 'Purchase Invoice', name: n, supplier: 'Supplier One', docDate: '2026-02-01', dueDate: null,
@@ -31,9 +33,35 @@ const renderAt = (ui: React.ReactElement) => render(
 const openMenu = async (name: string) => userEvent.click(screen.getByRole('button', { name: `Link ${name}` }));
 const bulkBar = () => screen.getByRole('group', { name: 'Selected documents' });
 
-beforeEach(() => linkMock.mockReset());
+beforeEach(() => {
+  linkMock.mockReset();
+  exportXlsxMock.mockReset();
+});
 
 describe('ErpOrphansSection', () => {
+  it('distinguishes unavailable project references from an untagged document', () => {
+    renderAt(<ErpOrphansSection rows={[row('MIXED', { projectIds: ['p1', 'missing-1', 'missing-2'] }), row('NONE', { projectIds: [] })]} canLink={false} projectNames={new Map([['p1', 'Tower']])} />);
+    expect(screen.getByRole('row', { name: /MIXED/ })).toHaveTextContent('Tower, Project unavailable (missing-1), Project unavailable (missing-2)');
+    expect(screen.getByRole('row', { name: /NONE/ })).toHaveTextContent('No project');
+  });
+  it('exports every unavailable project ID in mixed rows and keeps genuinely untagged rows distinct', async () => {
+    const rows = [
+      row('MIXED', { projectIds: ['p1', 'missing-1', 'missing-2'] }),
+      row('NONE', { projectIds: [] }),
+    ];
+    renderAt(<ErpOrphansSection rows={rows} canLink={false} projectNames={new Map([['p1', 'Tower']])} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Export list' }));
+
+    expect(exportXlsxMock).toHaveBeenCalledTimes(1);
+    const [exportRows, columns] = exportXlsxMock.mock.calls[0] as [ErpPurchaseRow[], Parameters<typeof buildExportRows<ErpPurchaseRow>>[1], string];
+    const exported = buildExportRows(exportRows, columns);
+    const projectColumn = exported.header.indexOf('Project');
+    expect(exported.body.map((values) => values[projectColumn])).toEqual([
+      'Tower (p1), Project unavailable (missing-1), Project unavailable (missing-2)',
+      'No project',
+    ]);
+  });
   it('AC-PFE-006: each orphan has one "Link…" action offering Link to purchase and New purchase from this', async () => {
     renderAt(<ErpOrphansSection rows={[row('PINV-1'), row('PINV-2'), row('PINV-3')]} projectId="p1" canLink />);
     const triggers = screen.getAllByRole('button', { name: /^Link PINV-/ });

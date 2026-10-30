@@ -193,7 +193,7 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
   it('L6: Won reads "3 · $14.4M" once — no second "3 projects won" line — and spans the Sales panel', () => {
     h.win = { wins_count: 3, losses_count: 2, wins_value: 14_400_000, losses_value: 0, win_rate_count: 0.6, win_rate_value: 0.5, value_by_currency: [{ currency: 'USD', wins_value: 14_400_000, losses_value: 0 }] };
     renderExec();
-    const sales = screen.getByRole('heading', { name: 'Sales' }).closest('.rounded-lg.border') as HTMLElement;
+    const sales = screen.getByRole('heading', { name: 'Sales' }).closest('.panel-card') as HTMLElement;
     expect(within(sales).getByText('3 · $14.4M')).toBeInTheDocument();
     expect(within(sales).queryByText(/projects? won/)).not.toBeInTheDocument();
     expect(within(sales).getByText('3 · $14.4M').closest('.border-b')?.parentElement).toHaveClass('grid-cols-1');
@@ -206,7 +206,7 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
       { currency: 'USD', months: [{ month: january, invoiced: 1_180_000_000 }] },
     ] };
     renderExec();
-    const billing = screen.getByRole('heading', { name: 'Billing and collections' }).closest('.rounded-lg.border') as HTMLElement;
+    const billing = screen.getByRole('heading', { name: 'Billing and collections' }).closest('.panel-card') as HTMLElement;
     const lines = within(billing).getAllByText(/114\.7M|11\.8M/);
     expect(lines.map((line) => line.textContent?.replace(/\u00a0/g, ' '))).toEqual(['$11.8M', 'IDR 114.7M']);
     for (const line of lines) expect(line).toHaveClass('block');

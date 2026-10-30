@@ -70,7 +70,7 @@ export default function BudgetErpNotice({
         toast(
           t('financeCopy.budgetPushIncomplete', 'The push did not complete'),
           copy.transport
-            ? t('financeCopy.erpUnavailableRetryShortly', 'ERPNext could not be reached. Nothing on this screen needs fixing — try again shortly.')
+            ? t('financeCopy.erpUnavailableRetryShortly', 'ERPNext could not be reached. Nothing on this screen needs fixing. Try again shortly.')
             : t('financeCopy.budgetPushReasonNeedsFixing', 'The reason shown above may need fixing first.'),
           'warning',
         );
@@ -85,7 +85,7 @@ export default function BudgetErpNotice({
       await release.mutateAsync(row.fiscalYear);
       toast(
         t('financeCopy.budgetPushHoldReleased', 'Hold released'),
-        t('financeCopy.budgetPushHoldReleasedDetail', 'The push is queued again — ERPNext is contacted on the next recovery pass, and every check runs afresh.'),
+        t('financeCopy.budgetPushHoldReleasedDetail', 'The push is queued again. ERPNext is contacted on the next recovery pass, and every check runs afresh.'),
         'success',
       );
     } catch (error) {

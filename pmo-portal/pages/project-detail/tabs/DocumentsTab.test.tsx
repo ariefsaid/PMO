@@ -157,7 +157,7 @@ const withDocumentCount = (count: number) => [
   })),
 ];
 
-const renderTab = (role: Role = 'Admin', uid = 'admin-1', initialEntry = '/', showBack = false) => {
+const renderTab = (role: Role = 'Admin', uid = 'admin-1', initialEntry = '/', showBack = false, onCountChange?: (count: number | null) => void) => {
   realRole = role;
   currentUserId = uid;
   return render(
@@ -165,7 +165,7 @@ const renderTab = (role: Role = 'Admin', uid = 'admin-1', initialEntry = '/', sh
       <MemoryRouter initialEntries={[initialEntry]}>
         <RouteSearch />
         {showBack && <RouteBack />}
-        <DocumentsTab projectId="p1" />
+        <DocumentsTab projectId="p1" onCountChange={onCountChange} />
       </MemoryRouter>
     </ToastProvider></QueryClientProvider>,
   );
@@ -202,6 +202,12 @@ beforeEach(() => {
 });
 
 describe('DocumentsTab — register rows (AC-DOC-001)', () => {
+  it('reports the loaded document register count from its existing query', () => {
+    const onCountChange = vi.fn();
+    renderTab('Admin', 'admin-1', '/', false, onCountChange);
+    expect(onCountChange).toHaveBeenCalledWith(seed.length);
+  });
+
   it('AC-DOC-001: renders the seeded document rows with code + title + status', () => {
     renderTab();
     expect(screen.getByText('Site Plan')).toBeInTheDocument();
@@ -593,6 +599,11 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     const linkAction = screen.getByRole('button', { name: /Link from Microsoft 365/i });
     expect(linkAction).toBeEnabled();
     expect(screen.getByRole('button', { name: /Add document/i })).toBeEnabled();
+
+    const filter = screen.getByRole('combobox', { name: 'Filter by category' });
+    const toolbar = filter.parentElement?.parentElement;
+    expect(toolbar?.className).toContain('mb-[var(--space-group)]');
+    expect(toolbar?.className).not.toContain('mb-3.5');
   });
 
   it('AC-DOC-M365: linked folder contents remain expandable and the footer opens SharePoint', async () => {
@@ -850,6 +861,8 @@ describe('DocumentsTab — document preview (AC-W5-C6-D12)', () => {
     // d2 (Steel Spec) is Issued, authored by pm-1; the current user is admin-1 (≠ author).
     renderTab('Admin', 'admin-1');
     const drawer = await openPreview('Steel Spec');
+    expect(within(drawer).getByRole('heading', { name: 'Steel Spec', level: 3 })).toBeInTheDocument();
+    expect(within(drawer).getByRole('heading', { name: 'Update status', level: 4 })).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: /^Approve$/i })).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: /^Reject$/i })).toBeInTheDocument();
     await userEvent.click(within(drawer).getByRole('button', { name: /^Approve$/i }));
@@ -933,6 +946,23 @@ describe('DocumentsTab — document preview (AC-W5-C6-D12)', () => {
       expect(within(drawer).getByRole('button', { name: /Upload file for Site Plan/i })).toBeInTheDocument();
     } finally {
       if (originalMatchMediaDescriptor) Object.defineProperty(window, 'matchMedia', originalMatchMediaDescriptor);
+      else delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+    }
+  });
+
+  it('AC-1402: phone document status follows the drawer title in the heading hierarchy', async () => {
+    const original = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+    Object.defineProperty(window, 'matchMedia', { configurable: true, value: () => ({
+      matches: false, media: '(min-width: 768px)', addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    } as unknown as MediaQueryList) });
+    try {
+      renderTab('Admin', 'admin-1');
+      await userEvent.click(screen.getByRole('button', { name: 'View Steel Spec' }));
+      const drawer = screen.getByRole('dialog', { name: 'Steel Spec' });
+      expect(within(drawer).getByRole('heading', { name: 'Steel Spec', level: 1 })).toBeInTheDocument();
+      expect(within(drawer).getByRole('heading', { name: 'Update status', level: 2 })).toBeInTheDocument();
+    } finally {
+      if (original) Object.defineProperty(window, 'matchMedia', original);
       else delete (window as unknown as { matchMedia?: unknown }).matchMedia;
     }
   });

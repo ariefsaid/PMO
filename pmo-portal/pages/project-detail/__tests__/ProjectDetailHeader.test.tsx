@@ -129,6 +129,26 @@ beforeEach(() => {
 afterEach(() => resetActiveLocale());
 
 describe('ProjectDetailHeader — content', () => {
+  it('gives the full-width project title priority on mobile and keeps status below metadata', () => {
+    roleBox.value = 'Project Manager';
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <ProjectDetailHeader project={onHand} compact />
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+    const header = screen.getByTestId('record-header');
+    const title = within(header).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' });
+    const status = within(header).getByText('Ongoing Project');
+    expect(title.parentElement?.className).toContain('grid');
+    expect(title.className).toContain('col-span-2');
+    expect(title.parentElement).toContainElement(status);
+    expect(header.querySelector('.row-start-2')).toBeInTheDocument();
+    expect(status.parentElement?.className).toContain('row-start-3');
+    expect(title.parentElement?.className).toContain('sm:flex');
+  });
+
   it('AC-MONEY-DISPLAY: actual figures show rounded whole currency units', () => {
     financeBox.data = { actuals: { currency: 'USD', total: '1800000.49', excludes_restricted_rows: false,
       categories: [{ category: 'Labor', mapped: true, amount: '1800000.49' }] } };

@@ -19,7 +19,7 @@ const erpInvoice = (procurementId: string, grandTotal: number, outstanding: numb
 
 function position(payables: Payable[], over: Partial<FinancePosition> = {}): FinancePosition {
   return {
-    receivablesCount: 0, overdue: [], overdueTotals: {}, overdueUnknownCount: 0,
+    receivablesCount: 0, receivablesUnknownCount: 0, overdue: [], overdueTotals: {}, overdueUnknownCount: 0,
     drafts: { canApprove: [], awaitingOther: [], all: [] }, toSend: [], unappliedPayments: [], unappliedTotals: {},
     payables, payablesTotals: {}, payablesUnknownCount: payables.filter((row) => row.amount === null).length,
     receivablesAgeing: {}, payablesAgeing: {}, ...over,

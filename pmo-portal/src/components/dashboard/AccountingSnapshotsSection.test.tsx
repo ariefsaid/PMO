@@ -94,7 +94,7 @@ describe('AccountingSnapshotsSection — empty state (unflipped default)', () =>
   it('renders client receivables as an unframed subsection when embedded in a billing panel', () => {
     render(<AccountingSnapshotsSection {...emptyProps} showActuals={false} showApAging={false} showArAging embedded />);
     const heading = screen.getByRole('heading', { name: 'Client receivables (AR)', level: 3 });
-    expect(heading.closest('.rounded-lg.border')).toBeNull();
+    expect(heading.closest('.panel-card')).toBeNull();
     expect(screen.getByText('No aging data to show yet.')).toBeInTheDocument();
   });
 
@@ -121,7 +121,7 @@ describe('AccountingSnapshotsSection — populated state', () => {
 
   it('AC-RD-FIN-001: keeps a missing Net unknown with a non-visible reason', () => {
     render(<AccountingSnapshotsSection {...emptyProps} actuals={[{ ...actualsRows[0]!, net: null }]} />);
-    const actuals = screen.getByText('Actuals (ERP ledger)').closest('.rounded-lg.border') as HTMLElement;
+    const actuals = screen.getByText('Actuals (ERP ledger)').closest('.panel-card') as HTMLElement;
     expect(within(actuals).getByText('—')).toHaveAttribute('title', 'The source snapshot did not supply a Net value.');
     expect(within(actuals).getByText(/source snapshot did not supply a net value/i)).toHaveClass('sr-only');
     expect(within(actuals).queryByText('$0')).not.toBeInTheDocument();
@@ -129,7 +129,7 @@ describe('AccountingSnapshotsSection — populated state', () => {
 
   it('AC-RD-FIN-002: identifies the project for each actuals row and never exposes an unknown UUID', () => {
     render(<MemoryRouter><AccountingSnapshotsSection {...emptyProps} actuals={[{ ...actualsRows[0]!, projectId: 'project-17' }]} actualProjectNames={new Map([['project-17', 'Synthetic Project']])} /></MemoryRouter>);
-    const actuals = screen.getByText('Actuals (ERP ledger)').closest('.rounded-lg.border') as HTMLElement;
+    const actuals = screen.getByText('Actuals (ERP ledger)').closest('.panel-card') as HTMLElement;
     expect(within(actuals).getByRole('columnheader', { name: 'Project' })).toBeInTheDocument();
     expect(within(actuals).getByRole('link', { name: 'Synthetic Project' })).toHaveAttribute('href', '/projects/project-17');
 
@@ -170,7 +170,7 @@ describe('AccountingSnapshotsSection — populated state', () => {
       bucket0to30: 0, bucket31to60: 0, bucket61to90: 0, bucketOver90: 0,
     }];
     render(<AccountingSnapshotsSection {...emptyProps} apAging={zeroRows} />);
-    const apCard = screen.getByText('No outstanding balance').closest('.rounded-lg.border') as HTMLElement;
+    const apCard = screen.getByText('No outstanding balance').closest('.panel-card') as HTMLElement;
     expect(within(apCard).queryByText(/No aging data to show yet/i)).not.toBeInTheDocument();
     expect(within(apCard).getAllByText('$0')).toHaveLength(6);
   });
@@ -195,7 +195,7 @@ describe('AccountingSnapshotsSection — populated state', () => {
 
     render(<AccountingSnapshotsSection {...emptyProps} arAging={[unknownRow]} />);
 
-    const arCard = screen.getByText('C-0001').closest('.rounded-lg.border') as HTMLElement;
+    const arCard = screen.getByText('C-0001').closest('.panel-card') as HTMLElement;
     expect(within(arCard).getAllByText('Unavailable').length).toBeGreaterThanOrEqual(6);
     expect(within(arCard).queryByText('$0')).not.toBeInTheDocument();
     expect(within(arCard).getByText(/2026-07-11/)).toBeInTheDocument();
@@ -210,7 +210,7 @@ describe('AccountingSnapshotsSection — populated state', () => {
       ...arRows[0]!, party, reportDate: '2026-07-11', ageingBasedOn: 'Posting Date',
     }));
     render(<AccountingSnapshotsSection {...emptyProps} arAging={rows} />);
-    const arCard = screen.getByText('C-1').closest('.rounded-lg.border') as HTMLElement;
+    const arCard = screen.getByText('C-1').closest('.panel-card') as HTMLElement;
     expect(within(arCard).getAllByText(/2026-07-11/)).toHaveLength(1);
     expect(within(arCard).getAllByText(/Posting Date/)).toHaveLength(1);
     expect(within(arCard).queryByText(/ERP ranges/)).not.toBeInTheDocument();
@@ -231,7 +231,7 @@ describe('AccountingSnapshotsSection — populated state', () => {
     expect(screen.queryByText('CAD')).not.toBeInTheDocument();
     expect(screen.getByText('$100')).toBeInTheDocument();
     expect(screen.getByText('CA$200')).toBeInTheDocument();
-    const arCard = screen.getAllByText('Shared ERP Party')[0]!.closest('.rounded-lg.border') as HTMLElement;
+    const arCard = screen.getAllByText('Shared ERP Party')[0]!.closest('.panel-card') as HTMLElement;
     expect(within(arCard).getAllByRole('row')).toHaveLength(3);
   });
 

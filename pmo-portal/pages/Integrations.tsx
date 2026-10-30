@@ -37,7 +37,7 @@ const IntegrationsPage: React.FC = () => {
         )}
       </p>
       <div className="mt-4 max-w-xl">
-        <M365ConnectionCard />
+        <M365ConnectionCard showUnavailable />
       </div>
     </div>
   );

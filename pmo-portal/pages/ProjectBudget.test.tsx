@@ -26,7 +26,7 @@ const versionsState = {
   isError: false,
   refetch: vi.fn(),
 };
-const activationModeState = { data: undefined as string | undefined, isPending: false, isError: false };
+const activationModeState = { data: 'allowed' as string | undefined, isPending: false, isFetching: false, isError: false };
 const readyActivationPrecheck: BudgetActivationPrecheckResult = {
   status: 'ready',
   erpCheck: 'available',
@@ -223,8 +223,9 @@ function resetState() {
   versionsState.data = undefined;
   versionsState.isPending = false;
   versionsState.isError = false;
-  activationModeState.data = undefined;
+  activationModeState.data = 'allowed';
   activationModeState.isPending = false;
+  activationModeState.isFetching = false;
   activationModeState.isError = false;
   activationPrecheckState.data = readyActivationPrecheck;
   activationPrecheckState.isPending = false;
@@ -606,7 +607,7 @@ describe('ProjectBudget Draft version actions', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     await userEvent.click(screen.getByRole('button', { name: /Delete draft/i }));
-    expect(screen.queryByText('Version activated — but ERPNext was not updated')).not.toBeInTheDocument();
+    expect(screen.queryByText('Version activated, but ERPNext was not updated')).not.toBeInTheDocument();
     resetState();
   });
 
@@ -655,6 +656,29 @@ describe('ProjectBudget Draft version actions', () => {
     resetState();
   });
 
+  it('requires the current mode while confirming a sole-operator activation', async () => {
+    roleState.realRole = 'Finance';
+    budgetState.data = 100;
+    versionsState.data = [{ ...draftVersion, created_by: 'u1', editor_ids: ['u1'] }];
+    activationModeState.data = 'sole_operator';
+    const view = renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const refresh = () => view.rerender(<FinanceI18nTestProvider><QueryClientProvider client={client}><MemoryRouter><ToastProvider><ProjectBudget projectId="p-1" project={project} /></ToastProvider></MemoryRouter></QueryClientProvider></FinanceI18nTestProvider>);
+    activationModeState.isFetching = true; refresh();
+    expect(screen.getByText('Checking activation eligibility…')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: /Activate version/i })).toBeDisabled();
+    activationModeState.isFetching = false; activationModeState.isError = true; refresh();
+    expect(screen.getByText('Activation eligibility is unavailable. Refresh this page and try again.')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: /Activate version/i })).toBeDisabled();
+    activationModeState.isError = false; activationModeState.data = 'blocked_editor'; refresh();
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: /Activate version/i })).toBeDisabled();
+    expect(mockActivate).not.toHaveBeenCalled();
+    activationModeState.data = 'sole_operator'; refresh();
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Activate version/i }));
+    expect(mockActivate).toHaveBeenCalledWith('v-draft');
+  });
+
   it('AC-1050-07: sole operator sees Activate and must confirm the exception before activation', async () => {
     roleState.realRole = 'Finance';
     budgetState.data = 100;
@@ -669,6 +693,18 @@ describe('ProjectBudget Draft version actions', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: /Activate version/i }));
     expect(mockActivate).toHaveBeenCalledWith('v-draft');
   });
+
+  it.each(['Project Manager', 'Executive'] as const)(
+    'explains the missing drafter to a sole %s editor when the server blocks activation',
+    (role) => {
+      roleState.realRole = role;
+      versionsState.data = [{ ...draftVersion, created_by: null, editor_ids: ['u1'] }];
+      activationModeState.data = 'blocked_no_drafter';
+      renderPage();
+      expect(screen.queryByRole('button', { name: /^Activate v2$/i })).not.toBeInTheDocument();
+      expect(screen.getByText('No drafter is recorded for this version. Ask an Admin or Finance user to activate it.')).toBeInTheDocument();
+    },
+  );
 
   it('OD-BUDGET-6: the drafter sees approval guidance instead of an Activate button', async () => {
     budgetState.data = 0;

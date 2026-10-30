@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
@@ -17,6 +17,10 @@ import type { HistoryNameKind } from '@/src/lib/repositories/recordHistory';
 
 /** id → display name, per source list. A miss renders "Unavailable" (never a raw uuid). */
 export type RefMaps = Record<RefSource | NameSource, Map<string, string>>;
+export interface HistoryRefsResult {
+  refs: RefMaps;
+  nameLookupFailed: boolean;
+}
 
 /** Stable `combine` for the by-id company lookups (module scope, so TanStack keeps the result referentially stable). */
 function namesOf(results: { data?: { id: string; name: string; short_name?: string | null } | null }[]): [string, string][] {
@@ -37,7 +41,7 @@ export function useHistoryRefs(args: {
   enabled: boolean;
   companyIds: string[];
   recordIdsByType?: Partial<Record<HistoryNameKind, string[]>>;
-}): RefMaps {
+}): HistoryRefsResult {
   const { entityType, entityId, enabled, companyIds, recordIdsByType = {} } = args;
   const { t } = useTranslation();
   const { currentUser } = useAuth();
@@ -62,12 +66,33 @@ export function useHistoryRefs(args: {
   // query the page itself uses; the hook stays idle (undefined id → disabled) off a procurement.
   const procDetail = useProcurementDetail(enabled && entityType === 'procurement' ? entityId : undefined);
   const nameIdsKey = Object.entries(recordIdsByType).map(([kind, ids]) => `${kind}:${(ids ?? []).join(',')}`).join('|');
+  const eventNamesKey = ['record-history-names', orgId, entityType, entityId, nameIdsKey] as const;
+  const eventNamesScope = JSON.stringify([orgId, entityType, entityId]);
   const eventNames = useQuery({
-    queryKey: ['record-history-names', orgId, nameIdsKey],
+    queryKey: eventNamesKey,
     queryFn: () => repositories.recordHistory.lookupNames(recordIdsByType),
     enabled: Boolean(orgId) && enabled && Boolean(nameIdsKey),
     staleTime: 5 * 60_000,
+    // Appending a history page changes the ID key. Keep the known names for this same
+    // organization and record while the complete displayed set is resolved again.
+    placeholderData: (previousData, previousQuery) => {
+      const key = previousQuery?.queryKey;
+      return key?.[1] === orgId && key?.[2] === entityType && key?.[3] === entityId
+        ? previousData
+        : undefined;
+    },
   });
+  const lastSuccessfulNames = useRef<{ scope: string; data: Record<string, Map<string, string>> } | null>(null);
+  useEffect(() => {
+    if (eventNames.isSuccess && !eventNames.isPlaceholderData && eventNames.data) {
+      lastSuccessfulNames.current = { scope: eventNamesScope, data: eventNames.data };
+    }
+  }, [eventNames.data, eventNames.isPlaceholderData, eventNames.isSuccess, eventNamesScope]);
+  // TanStack Query drops placeholderData on a failed key change. Keep the prior successful
+  // names for this same org/record through that failure; identity changes still start empty.
+  const eventNamesData = eventNames.data ?? (
+    lastSuccessfulNames.current?.scope === eventNamesScope ? lastSuccessfulNames.current.data : undefined
+  );
 
   const activeCompanyIds = useMemo(() => new Set((companies.data ?? []).map((c) => c.id)), [companies.data]);
   const missingCompanyIds = companies.isSuccess ? companyIds.filter((id) => !activeCompanyIds.has(id)) : [];
@@ -85,28 +110,31 @@ export function useHistoryRefs(args: {
     const versions = budgetVersions.data ?? [];
     const docs = procDetail.data;
     return {
-      profiles: new Map((profiles.data ?? []).map((p) => [p.id, p.full_name ?? ''])),
-      companies: new Map([...(companies.data ?? []).map((c) => [c.id, companyDisplayName(c)] as [string, string]), ...archivedCompanies]),
-      tasks: new Map((tasks.data ?? []).map((x) => [x.id, x.name])),
-      milestones: new Map((milestones.data ?? []).map((m) => [m.id, m.name])),
-      procurements: new Map((procurements.data ?? []).map((p) => [p.id, joinName(p.code, p.title)])),
-      workOrders: new Map((workOrders.data ?? []).map((w) => [w.id, joinName(w.wo_number, w.title)])),
-      budgetVersions: new Map(versions.map((v) => [v.id, v.name || `v${v.version}`])),
-      budgetLines: new Map(
-        versions.flatMap((v) => v.line_items).map((li) => [li.id, li.description || budgetCategoryLabel(li.category, t)]),
-      ),
-      // The document number, else the reference — the words a purchase reader knows the row by.
-      purchaseRequests: new Map([...(docs?.purchase_requests ?? []).map((d) => [d.id, joinName(d.pr_number, d.reference_number)] as [string, string]), ...(eventNames.data?.purchase_request ?? new Map())]),
-      rfqs: new Map([...(docs?.rfqs ?? []).map((d) => [d.id, joinName(d.rfq_number, d.reference_number)] as [string, string]), ...(eventNames.data?.rfq ?? new Map())]),
-      purchaseOrders: new Map([...(docs?.purchase_orders ?? []).map((d) => [d.id, joinName(d.po_number, d.reference_number)] as [string, string]), ...(eventNames.data?.purchase_order ?? new Map())]),
-      payments: new Map([...(docs?.payments ?? []).map((d) => [d.id, joinName(d.pay_number, d.reference_number)] as [string, string]), ...(eventNames.data?.payment ?? new Map())]),
-      salesInvoices: eventNames.data?.sales_invoice ?? new Map(),
-      projects: eventNames.data?.project ?? new Map(),
-      procurementInvoices: eventNames.data?.procurement_invoice ?? new Map(),
-      withholdingSlipBills: eventNames.data?.vendor_withholding_slip_bill ?? new Map(),
+      refs: {
+        profiles: new Map((profiles.data ?? []).map((p) => [p.id, p.full_name ?? ''])),
+        companies: new Map([...(companies.data ?? []).map((c) => [c.id, companyDisplayName(c)] as [string, string]), ...archivedCompanies]),
+        tasks: new Map((tasks.data ?? []).map((x) => [x.id, x.name])),
+        milestones: new Map((milestones.data ?? []).map((m) => [m.id, m.name])),
+        procurements: new Map((procurements.data ?? []).map((p) => [p.id, joinName(p.code, p.title)])),
+        workOrders: new Map((workOrders.data ?? []).map((w) => [w.id, joinName(w.wo_number, w.title)])),
+        budgetVersions: new Map(versions.map((v) => [v.id, v.name || `v${v.version}`])),
+        budgetLines: new Map(
+          versions.flatMap((v) => v.line_items).map((li) => [li.id, li.description || budgetCategoryLabel(li.category, t)]),
+        ),
+        // The document number, else the reference — the words a purchase reader knows the row by.
+        purchaseRequests: new Map([...(docs?.purchase_requests ?? []).map((d) => [d.id, joinName(d.pr_number, d.reference_number)] as [string, string]), ...(eventNamesData?.purchase_request ?? new Map())]),
+        rfqs: new Map([...(docs?.rfqs ?? []).map((d) => [d.id, joinName(d.rfq_number, d.reference_number)] as [string, string]), ...(eventNamesData?.rfq ?? new Map())]),
+        purchaseOrders: new Map([...(docs?.purchase_orders ?? []).map((d) => [d.id, joinName(d.po_number, d.reference_number)] as [string, string]), ...(eventNamesData?.purchase_order ?? new Map())]),
+        payments: new Map([...(docs?.payments ?? []).map((d) => [d.id, joinName(d.pay_number, d.reference_number)] as [string, string]), ...(eventNamesData?.payment ?? new Map())]),
+        salesInvoices: eventNamesData?.sales_invoice ?? new Map(),
+        projects: eventNamesData?.project ?? new Map(),
+        procurementInvoices: eventNamesData?.procurement_invoice ?? new Map(),
+        withholdingSlipBills: eventNamesData?.vendor_withholding_slip_bill ?? new Map(),
+      },
+      nameLookupFailed: eventNames.isError,
     };
   }, [
     t, archivedCompanies, profiles.data, companies.data, tasks.data, milestones.data, procurements.data,
-    workOrders.data, budgetVersions.data, procDetail.data, eventNames.data,
+    workOrders.data, budgetVersions.data, procDetail.data, eventNamesData, eventNames.isError,
   ]);
 }

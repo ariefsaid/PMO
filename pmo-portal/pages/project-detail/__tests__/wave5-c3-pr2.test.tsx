@@ -54,6 +54,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
     },
   }),
 }));
+vi.mock('@/src/hooks/useProjectTransitions', () => ({ useProjectWinEligibility: () => ({ data: 'allowed' }), useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, isPending: false }) }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
 }));

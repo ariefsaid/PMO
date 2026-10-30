@@ -30,6 +30,7 @@ vi.mock('@/src/lib/repositories/projectErpSetup', () => ({ synchronizeErpProject
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => ({ data: { stages: [], projects: [] } }),
 }));
+vi.mock('@/src/hooks/useProjectTransitions', () => ({ useProjectWinEligibility: () => ({ data: 'allowed' }) }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
 }));

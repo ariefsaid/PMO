@@ -288,7 +288,7 @@ describe('AC-CQ-015 Work orders tab: allocations and BAST list', () => {
     const user = renderWorkOrders();
     await openDisclosure(user);
     await user.click(within(disclosure()).getByRole('button', { name: 'Record delivery' }));
-    expect(screen.getByRole('dialog', { name: /Prepare BAST — WO-001/ })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /Prepare BAST: WO-001/ })).toBeInTheDocument();
     await user.type(screen.getByRole('textbox', { name: /accepted to date \(km\)/ }), '400');
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Prepare BAST' }));
     expect(h.acc.prepare.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({

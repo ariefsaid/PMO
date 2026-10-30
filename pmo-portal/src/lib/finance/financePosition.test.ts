@@ -116,6 +116,7 @@ describe('buildFinancePosition', () => {
       invoice('unknown', '2026-10-02', { erp_outstanding_amount: null }),
     ]);
 
+    expect(position.receivablesUnknownCount).toBe(1);
     expect(position.overdueUnknownCount).toBe(1);
     expect(position.overdueTotals).toEqual({ IDR: 12_550 });
     expect(position.overdue.find((row) => row.invoice.id === 'unknown')?.outstanding).toBeNull();

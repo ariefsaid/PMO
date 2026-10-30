@@ -100,7 +100,7 @@ describe('expense account readiness (AD-2, S-12)', () => {
     const first = renderMap();
     expect(await screen.findByRole('button', { name: 'Map Travel' })).toBeEnabled();
     expect(screen.getByText('7 of 8 accounts are not mapped yet. A posting that needs an unmapped account stops until it is mapped.')).toBeInTheDocument();
-    expect(screen.getAllByText('Not mapped — expense posting stops')).toHaveLength(7);
+    expect(screen.getAllByText('Not mapped: expense posting stops')).toHaveLength(7);
 
     first.unmount();
     // Full map — the incomplete line is gone, every row reads mapped and offers Change.
@@ -109,7 +109,7 @@ describe('expense account readiness (AD-2, S-12)', () => {
     const { unmount } = renderMap();
     await screen.findByRole('button', { name: 'Change Travel' });
     expect(screen.queryByText(/accounts are not mapped yet/)).not.toBeInTheDocument();
-    expect(screen.queryByText('Not mapped — expense posting stops')).toBeNull();
+    expect(screen.queryByText('Not mapped: expense posting stops')).toBeNull();
     unmount();
   });
 

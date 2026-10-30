@@ -8,7 +8,12 @@ import { useIsDesktop } from './useIsDesktop';
 import { acquireBackgroundInert } from './backgroundInert';
 import {
   overlayBackdropClassName,
+  overlayBackdropStyle,
+  overlayBodyClassName,
   overlayDesktopContainerClassName,
+  overlayDefaultDesktopWidthClassName,
+  overlayFooterClassName,
+  overlayHeaderClassName,
   overlayMobileContainerClassName,
 } from './OverlaySurface';
 
@@ -109,24 +114,6 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     onCancel();
   };
 
-  const content = (
-    <>
-      {isDestructive && (
-        <span aria-hidden className="mt-px flex size-7 shrink-0 items-center justify-center rounded-md bg-destructive/10 [&_svg]:size-4 [&_svg]:text-destructive">
-          <Icon name="alert" />
-        </span>
-      )}
-      <div className="flex flex-col gap-1.5">
-        <Dialog.Title id={titleId} className="text-[18px] font-semibold leading-[1.3] text-popover-foreground">
-          {title}
-        </Dialog.Title>
-        <Dialog.Description render={<div />} id={descId} className={cn('text-[14px] leading-[1.45] text-foreground', isDesktop && 'max-w-[60ch]')}>
-          {description}
-        </Dialog.Description>
-      </div>
-    </>
-  );
-
   return (
     <Dialog.Root open={open} modal={false} onOpenChange={handleOpenChange}>
       <Dialog.Portal>
@@ -134,6 +121,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         <Dialog.Backdrop
           data-testid="confirm-scrim"
           className={cn('z-[800]', overlayBackdropClassName)}
+          style={overlayBackdropStyle}
         />
         <Dialog.Popup
           initialFocus={() => cancelRef.current}
@@ -163,23 +151,40 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           aria-modal="true"
           className={cn(
             isDesktop ? overlayDesktopContainerClassName : overlayMobileContainerClassName,
+            isDesktop && overlayDefaultDesktopWidthClassName,
             'relative',
           )}
         >
-          {!isDesktop && <div aria-hidden className="mx-auto mb-3 h-1 w-10 rounded-full bg-border" />}
-          <div className="flex items-start gap-3">{content}</div>
-          <div data-testid="confirm-action-row" className={cn('mt-4 flex justify-end gap-2', !isDesktop && 'mt-5 flex-col')}>
-            {isDesktop ? (
-              <>
-                <Button ref={setCancelRef} variant="outline" disabled={loading} onClick={onCancel}>{cancelLabel}</Button>
-                <Button variant={isDestructive ? 'destructive' : 'primary'} loading={loading} disabled={confirmDisabled} onClick={onConfirm}>{confirmLabel}</Button>
-              </>
-            ) : (
-              <>
-                <Button variant={isDestructive ? 'destructive' : 'primary'} loading={loading} disabled={confirmDisabled} className="touch-target h-11 w-full text-[15px]" onClick={onConfirm}>{confirmLabel}</Button>
-                <Button ref={setCancelRef} variant="outline" disabled={loading} className="touch-target h-11 w-full text-[15px]" onClick={onCancel}>{cancelLabel}</Button>
-              </>
+          {!isDesktop && <div aria-hidden className="mx-auto mt-3 mb-3 h-1 w-10 rounded-full bg-border" />}
+          <div className={overlayHeaderClassName}>
+            {isDestructive && (
+              <span aria-hidden className="flex size-7 shrink-0 items-center justify-center rounded-md bg-destructive/10 [&_svg]:size-4 [&_svg]:text-destructive">
+                <Icon name="alert" />
+              </span>
             )}
+            <Dialog.Title id={titleId} className="min-w-0 flex-1 text-control font-semibold text-popover-foreground">
+              {title}
+            </Dialog.Title>
+          </div>
+          <div className={overlayBodyClassName}>
+            <Dialog.Description render={<div />} id={descId} className={cn('text-control text-foreground', isDesktop && 'max-w-[60ch]')}>
+              {description}
+            </Dialog.Description>
+          </div>
+          <div className={overlayFooterClassName}>
+            <div data-testid="confirm-action-row" className={cn('flex gap-2', !isDesktop && 'w-full flex-col')}>
+              {isDesktop ? (
+                <>
+                  <Button ref={setCancelRef} variant="outline" disabled={loading} onClick={onCancel}>{cancelLabel}</Button>
+                  <Button variant={isDestructive ? 'destructive' : 'primary'} loading={loading} disabled={confirmDisabled} onClick={onConfirm}>{confirmLabel}</Button>
+                </>
+              ) : (
+                <>
+                  <Button variant={isDestructive ? 'destructive' : 'primary'} loading={loading} disabled={confirmDisabled} className="touch-target h-11 w-full text-control" onClick={onConfirm}>{confirmLabel}</Button>
+                  <Button ref={setCancelRef} variant="outline" disabled={loading} className="touch-target h-11 w-full text-control" onClick={onCancel}>{cancelLabel}</Button>
+                </>
+              )}
+            </div>
           </div>
         </Dialog.Popup>
         </div>

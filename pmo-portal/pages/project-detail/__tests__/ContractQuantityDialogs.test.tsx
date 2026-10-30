@@ -301,7 +301,7 @@ describe('AC-CQ-014 WorkOrderAcceptanceModal (BAST preparation)', () => {
     await user.click(screen.getByLabelText('This is the final BAST'));
     await user.type(screen.getByLabelText(/SURVEY/), '997');
     await submit(user);
-    expect((await screen.findAllByText('A final BAST states every ordered line — enter a quantity, even 0')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('A final BAST states every ordered line. Enter a quantity, even 0')).length).toBeGreaterThan(0);
     expect(onSave).not.toHaveBeenCalled();
     await user.type(screen.getByLabelText(/MOBILISE/), '100');
     await submit(user);

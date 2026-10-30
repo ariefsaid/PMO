@@ -139,6 +139,12 @@ describe('ProcurementCycleImportWizard', () => {
     renderWizard();
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveAttribute('aria-modal', 'true');
+    const [header, body, footer] = Array.from(dialog.children) as HTMLElement[];
+    for (const region of [header, body, footer]) {
+      expect(region.className.split(/\s+/)).toContain('px-[var(--space-content-inset)]');
+    }
+    expect(header.className.split(/\s+/)).toContain('gap-2');
+    expect(footer.className.split(/\s+/)).toContain('py-3');
 
     const input = screen.getByLabelText(/choose an \.xlsx file/i) as HTMLInputElement;
     expect(input.type).toBe('file');

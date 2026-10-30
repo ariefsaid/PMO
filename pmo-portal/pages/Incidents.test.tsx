@@ -156,30 +156,32 @@ describe('Incidents index — rows + badges + filters (AC-IN-001)', () => {
     expect(screen.getByText('Spill')).toBeInTheDocument();
   });
 
-  it('AC-IN-001: each severity renders a DISTINCT dot + label (Low/High/Critical differentiated)', () => {
+  it('AC-IN-001: each severity renders a DISTINCT paired label treatment (Low/High/Critical differentiated)', () => {
     renderPage();
-    // S1 (ADR-0068): status is a quiet dot + label, no tint slab — severity is
-    // differentiated by the DOT hue (+ the label), so measure the dot background.
-    const dotBg = (label: string, rowType: string) => {
+    // S1 (ADR-0068) as amended 2026-10-29 (decorative dot ban): severity is
+    // differentiated by the paired AA label token (+ the label word) on the pale
+    // status surface — no tint slab, no leading dot.
+    const pillCls = (label: string, rowType: string) => {
       const row = screen.getByText(rowType).closest('tr')!;
       const pill = within(row).getByText(label).closest('span')!;
-      return (pill.querySelector('[data-pill-dot]') as HTMLElement).style.background;
+      return { cls: pill.className, style: pill.getAttribute('style') ?? '' };
     };
-    const low = dotBg('Low', 'Near Miss');
-    const high = dotBg('High', 'Equipment Damage');
-    const critical = dotBg('Critical', 'Spill');
-    // High = warn (amber); Critical = destructive (red); Low = quiet muted — all distinct.
-    expect(high).toBe('hsl(var(--warning))');
-    expect(critical).toBe('hsl(var(--destructive))');
-    expect(low).not.toBe(high);
-    expect(high).not.toBe(critical);
-    expect(low).not.toBe(critical);
+    const low = pillCls('Low', 'Near Miss');
+    const high = pillCls('High', 'Equipment Damage');
+    const critical = pillCls('Critical', 'Spill');
+    // High = warn (amber label); Critical = destructive (red label); Low = quiet muted — all distinct.
+    expect(high.cls).toContain('text-warning-foreground');
+    expect(critical.style).toContain('--status-lost-text');
+    expect(low.cls).toContain('text-count-foreground');
+    expect(high.cls).not.toEqual(critical.cls);
+    expect(low.cls).not.toEqual(high.cls);
     // Freed-Blue Status Rule (CW-2): neither severity NOR workflow status renders the
-    // action-blue. "Open" status is the neutral grey `progress` treatment (muted dot).
-    const openDot = dotBg('Open', 'Near Miss');
-    [low, high, critical, openDot].forEach((d) =>
-      expect(d).not.toBe('hsl(var(--primary))'),
-    );
+    // action-blue. "Open" status is the neutral grey `progress` treatment.
+    const open = pillCls('Open', 'Near Miss');
+    [low, high, critical, open].forEach((p) => {
+      expect(p.cls).not.toContain('bg-primary');
+      expect(p.style).not.toContain('--primary');
+    });
   });
 });
 

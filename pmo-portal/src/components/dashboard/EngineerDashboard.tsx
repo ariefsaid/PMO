@@ -162,7 +162,7 @@ export const EngineerDashboard: React.FC = () => {
   const expenseAttention = needsYou.items.filter((item) => item.id === 'returned-expenses');
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-[var(--space-panel-gap)]">
       <DashPageHead
         title={t('hub.engineer.title', 'My dashboard')}
         sub={t('hub.engineer.subtitle', 'Your week and what needs you')}
@@ -176,7 +176,7 @@ export const EngineerDashboard: React.FC = () => {
 
       <KPIRow
         aria-label={t('hub.engineer.kpiBand', 'Your week')}
-        className="grid-cols-2 min-[1180px]:grid-cols-4"
+        className="grid-cols-2 min-[1280px]:grid-cols-4"
       >
         <KPITile
           testId="kpi-hours-week"

@@ -230,7 +230,7 @@ describe('DocumentsTab — folders are reference-only (AC-M365DOC-058/063)', () 
     await userEvent.keyboard('{Escape}');
     await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
     const drawer = screen.getByRole('complementary');
-    expect(within(drawer).getByText('Folder reference — contents are not issued or approved')).toBeInTheDocument();
+    expect(within(drawer).getByText('Folder reference: contents are not issued or approved')).toBeInTheDocument();
     expect(within(drawer).queryByRole('button', { name: /versions/i })).not.toBeInTheDocument();
     expect(within(drawer).queryByRole('button', { name: /^Issue/ })).not.toBeInTheDocument();
   });

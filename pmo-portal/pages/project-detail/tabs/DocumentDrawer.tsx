@@ -81,7 +81,7 @@ export const DocumentTitleCell: React.FC<{
           <LineageButton revision={child.revision ?? '—'} title={doc.title} direction="forward" status={child.status} onClick={() => onViewDocument(child)} />
           {doc.status === 'Superseded' && (
             <span className="text-[11px] text-muted-foreground">
-              {`${t('projectDetail.documents.supersededNotice', 'Read-only — continue on Rev')} ${child.revision ?? '—'}`}
+              {`${t('projectDetail.documents.supersededNotice', 'Read-only: continue on Rev')} ${child.revision ?? '—'}`}
             </span>
           )}
         </div>
@@ -183,7 +183,7 @@ const DocumentActionFooter: React.FC<DocumentActionFooterProps> = ({
   );
 };
 
-const DocumentPreviewFields: React.FC<DocumentPreviewProps> = ({
+const DocumentPreviewFields: React.FC<DocumentPreviewProps & { statusHeadingLevel: 2 | 4 }> = ({
   doc,
   parentDoc,
   childDocs,
@@ -192,9 +192,11 @@ const DocumentPreviewFields: React.FC<DocumentPreviewProps> = ({
   onViewDocument,
   fileContent,
   microsoftFile,
+  statusHeadingLevel,
 }) => {
   const { t } = useTranslation('project');
   const isFolder = isMicrosoftFolder(doc);
+  const StatusHeading = statusHeadingLevel === 2 ? 'h2' : 'h4';
   return (
     <>
       <dl className="flex flex-col gap-4">
@@ -241,9 +243,9 @@ const DocumentPreviewFields: React.FC<DocumentPreviewProps> = ({
 
       {(transitions.length > 0 || sodBlocked) && (
         <div className="mt-5 border-t border-border pt-4">
-          <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+          <StatusHeading className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
             {t('projectDetail.documents.updateStatus', 'Update status')}
-          </h3>
+          </StatusHeading>
           {sodBlocked ? (
             <GateNotice variant="blocked" data-testid="drawer-sod-gate">
               <div>
@@ -330,7 +332,7 @@ export const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
         onDownload={onDownload}
       />}
     >
-      <DocumentPreviewFields doc={doc} parentDoc={parentDoc} childDocs={childDocs} transitions={secondaryTransitions} sodBlocked={sodBlocked} onViewDocument={onViewDocument} fileContent={fileContent} microsoftFile={microsoftFile} />
+      <DocumentPreviewFields statusHeadingLevel={2} doc={doc} parentDoc={parentDoc} childDocs={childDocs} transitions={secondaryTransitions} sodBlocked={sodBlocked} onViewDocument={onViewDocument} fileContent={fileContent} microsoftFile={microsoftFile} />
     </Drawer>
   );
 };
@@ -378,7 +380,7 @@ export const DocumentPreviewPanel: React.FC<DocumentDrawerProps> = ({
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        <DocumentPreviewFields doc={doc} parentDoc={parentDoc} childDocs={childDocs} transitions={secondaryTransitions} sodBlocked={sodBlocked} onViewDocument={onViewDocument} fileContent={fileContent} microsoftFile={microsoftFile} />
+        <DocumentPreviewFields statusHeadingLevel={4} doc={doc} parentDoc={parentDoc} childDocs={childDocs} transitions={secondaryTransitions} sodBlocked={sodBlocked} onViewDocument={onViewDocument} fileContent={fileContent} microsoftFile={microsoftFile} />
       </div>
       <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3.5">
         <DocumentActionFooter canEdit={canEdit} canDelete={canDelete} hasFile={hasFile} sharePointUrl={sharePointUrl} onEdit={onEdit} onDelete={onDelete} onDownload={onDownload} />

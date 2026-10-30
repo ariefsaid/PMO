@@ -60,7 +60,7 @@ function positionFixture(): FinancePosition {
     })),
     overdueTotals: { IDR: 4_500_000_000 },
     overdueUnknownCount: 0,
-    receivablesCount: 5,
+    receivablesCount: 5, receivablesUnknownCount: 0,
     drafts: { canApprove: [], awaitingOther: [], all: [] },
     toSend: [],
     unappliedPayments: [],
@@ -91,6 +91,15 @@ afterEach(() => {
 });
 
 describe('Finance hub', () => {
+  it('shows unknown receivables instead of no balance and explains empty ageing', () => {
+    state.position = { ...positionFixture(), receivablesAgeing: {}, receivablesUnknownCount: 1, overdueUnknownCount: 1, overdue: [] };
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+    const card = screen.getByRole('link', { name: 'Open Receivables' }).closest('article')!;
+    expect(card).toHaveTextContent('1 balance unknown');
+    expect(card).not.toHaveTextContent('No balance');
+    expect(screen.getByRole('region', { name: /Client balances by age/ })).toHaveTextContent(/balance.*unknown/i);
+  });
+
   it('AC-1405-HUB-001: shows whole-unit figures and four area cards with their meaning lines', () => {
     renderHub();
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
-import { DataTable, Drawer, ListState, ProgressBar, StatusPill, TaxBasisLabel, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
+import { Card, CardHead, CardPad, DataTable, Drawer, ListState, ProgressBar, StatusPill, TaxBasisLabel, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
@@ -56,7 +56,7 @@ export function summarizeInvoiceSettlement(invoices: readonly InvoiceSettlementI
 const qty = (n: number) => formatNumberMax2(n);
 
 /** Contract value summary and the customer's ordered → delivered → invoiced reading layer. */
-export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: React.ReactNode }> = ({ project, children }) => {
+export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: React.ReactNode; contractTools?: React.ReactNode }> = ({ project, children, contractTools }) => {
   const { t } = useTranslation('project');
   const [searchParams, setSearchParams] = useSearchParams();
   const openRecordId = searchParams.get('open');
@@ -137,20 +137,18 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-8">
+    <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
       {isCascadePending && (
         <section aria-label={t('projectDetail.cascade.title', 'Contract')} className="min-w-0">
           <ListState variant="loading" rows={6} />
         </section>
       )}
       {!isCascadePending && !isCascadeError && showSummary && (
-        <section aria-labelledby="pd-cascade" className="min-w-0">
-          <div className="mb-4 flex flex-wrap items-baseline gap-x-2">
-            <h2 id="pd-cascade" className="text-sm font-semibold text-foreground">{t('projectDetail.cascade.title', 'Contract')}</h2>
-            <span className="text-xs text-muted-foreground">{project.currency}
+        <section aria-labelledby="pd-cascade" className="panel-card min-w-0">
+          <CardHead id="pd-cascade" subline={<>{project.currency}
               {isTaxTreatment(project.tax_treatment) && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="inline text-xs text-muted-foreground" /></>}
-            </span>
-          </div>
+            </>}>{t('projectDetail.cascade.title', 'Contract')}</CardHead>
+          <CardPad className="pt-0">
           <ol className="grid min-w-0 grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-5" aria-label={t('projectDetail.cascade.title', 'Contract')}>
             <MoneyStep label={t('projectDetail.cascade.contract', 'Contract')} value={formatNumberWhole(contractValue)} percentage={contractValue > 0 ? 100 : null} detail={hasReadingLayer ? t('projectDetail.cascade.source.contract', 'Source: priced contract lines (quantity × rate), excluding tax.') : t('projectDetail.cascade.source.contractFallback', 'Source: the project billing summary, excluding tax.')} />
             {hasReadingLayer && <>
@@ -182,14 +180,14 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               </span>
             </Tooltip>}
           </div>
-          <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground">
+          {(hasReadingLayer || Boolean(billing.data && billing.data.dpBilled > 0)) && <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground">
             {hasReadingLayer && <Tooltip content={t('projectDetail.cascade.source.notOrderedValue', 'Source: unallocated contract quantity multiplied by its contract rate.') }><span className="cursor-help">{t('projectDetail.cascade.notOrdered', 'Not yet ordered')} <strong className="font-semibold text-foreground">{formatNumberWhole(notYetOrdered)}</strong></span></Tooltip>}
             {Boolean(billing.data && billing.data.dpBilled > 0) && <Tooltip content={t('projectDetail.cascade.source.downPayment', 'Source: project billing totals for down payment billed and recovered.') }><span className="cursor-help">· {t('projectDetail.cascade.downPaymentSummary', 'Down payment {{billed}} · recovered {{recovered}}', {
               billed: formatNumberWhole(billing.data!.dpBilled),
               recovered: formatNumberWhole(billing.data!.dpRecovered),
               interpolation: { escapeValue: false },
             })}</span></Tooltip>}
-          </p>
+          </p>}
           {invoiceFiguresMissing && !children && (
             <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role={invoices.isError ? 'alert' : 'status'}>
               <span>{invoices.isError
@@ -202,8 +200,12 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               </button>}
             </p>
           )}
+          {contractTools && <div className="mt-4">{contractTools}</div>}
+          </CardPad>
         </section>
       )}
+
+      {!showSummary && contractTools && <Card><CardPad>{contractTools}</CardPad></Card>}
 
       {canViewMoney && <ProjectDrawdown key={project.id} projectId={project.id} />}
 
@@ -231,9 +233,11 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
           { label: t('projectDetail.cascade.viewQuantityHistory', 'View quantity history'), onClick: () => openBoqLine(line) },
         ];
         return (
-          <section aria-labelledby="pd-not-ordered" className="min-w-0">
-            <h3 id="pd-not-ordered" className="mb-3 text-sm font-semibold text-foreground">{t('projectDetail.cascade.notOrderedTitle', 'Not yet ordered')}</h3>
+          <section aria-labelledby="pd-not-ordered" className="panel-card min-w-0">
+            <CardHead level={3} id="pd-not-ordered">{t('projectDetail.cascade.notOrderedTitle', 'Not yet ordered')}</CardHead>
+            <CardPad className="pt-0">
             <DataTable<UnorderedLine>
+              embedded
               rows={unorderedRows}
               columns={columns}
               rowKey={(line) => line.key}
@@ -244,6 +248,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               cardBelow={720}
               tableId="project-detail-not-yet-ordered"
             />
+            </CardPad>
           </section>
         );
       })()}
@@ -262,7 +267,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
           </dl>
           <section aria-labelledby="unordered-line-history">
             <h3 id="unordered-line-history" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.quantityHistory', 'Quantity history')}</h3>
-            {selectedUnorderedLine.allocations.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noQuantityHistory', 'No customer order quantities yet.')}</p> : <ul className="divide-y divide-border border-y border-border text-sm">
+            {selectedUnorderedLine.allocations.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noQuantityHistory', 'No customer order quantities yet.')}</p> : <ul className="divide-y divide-border text-sm">
               {selectedUnorderedLine.allocations.map((allocation) => {
                 const order = orders.data?.find((candidate) => candidate.id === allocation.workOrderId);
                 return <li key={allocation.workOrderId} className="flex flex-wrap items-center justify-between gap-2 py-2">

@@ -13,6 +13,12 @@ export interface PipelineStageConfig {
   win_probability: number;
 }
 
+export async function getProjectWinEligibility(id: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc('project_win_eligibility', { p_id: id });
+  if (error) throw error;
+  return data;
+}
+
 export interface TransitionProjectOpts {
   /** The CLIENT's inbound contract/PO number — manually entered, NOT auto-generated (OD-SP-3). */
   customerContractRef?: string;

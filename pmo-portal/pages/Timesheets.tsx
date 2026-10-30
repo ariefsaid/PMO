@@ -207,7 +207,7 @@ const TimesheetsPage: React.FC = () => {
             t('timesheets.toast.reopened.headline', 'Reopened for editing'),
             t(
               'timesheets.toast.reopened.detail',
-              'Week moved back to Draft — make your changes and resubmit.',
+              'Week moved back to Draft. Make your changes and resubmit.',
             ),
             'success',
           ),
@@ -250,7 +250,7 @@ const TimesheetsPage: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2 border-b border-border px-3.5 py-2.5">
           <StatusPill variant={status ? workflowVariant(status) : 'neutral'}>
             {status === TimesheetStatus.Draft || !status
-              ? t('timesheets.status.draftNotSubmitted', 'Draft — not submitted')
+              ? t('timesheets.status.draftNotSubmitted', 'Draft: not submitted')
               : statusCopy[status]}
           </StatusPill>
           {/* ⚑ I-16/I-17 (rendered Discover pass, 2026-07-22) — the OWNER'S view of their own ERP

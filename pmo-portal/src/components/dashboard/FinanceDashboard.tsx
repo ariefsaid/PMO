@@ -477,7 +477,7 @@ export const FinanceDashboard: React.FC = () => {
               ranks ALL budget>0 projects in the org by committed-basis variance (server-side); the
               card shows the worst 5. No longer a contract-value pre-slice re-sorted on the client. */}
           <CardHead className="rounded-t-lg">
-            {t('uxs03.financeBudgetReviewTitle', 'Budget review — top 5 by variance (portfolio-wide)')}
+            {t('uxs03.financeBudgetReviewTitle', 'Budget review: top 5 by variance (portfolio-wide)')}
           </CardHead>
           {/* B-0.3: RPC error must show an error/retry branch, not the "No project spend yet" empty.
               The DataTable's built-in empty state fires on error (budgetReview=undefined → topByVariance=[])

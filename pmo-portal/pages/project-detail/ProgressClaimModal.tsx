@@ -74,7 +74,7 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
   const suggested = dpValue === null ? null : suggestedRecoveryPct(dpValue, contractNet);
 
   const kindOptions = [
-    { value: 'progress', label: t('projectDetail.billing.claimForm.kindProgress', 'Progress — quantities against the bill of quantities') },
+    { value: 'progress', label: t('projectDetail.billing.claimForm.kindProgress', 'Progress: quantities against the bill of quantities') },
     ...(hasDownPayment ? [] : [{ value: 'down_payment', label: t('projectDetail.billing.claimForm.kindDownPayment', 'Down payment') }]),
   ];
   const scopeOptions = [
@@ -212,8 +212,8 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
               {inScope.map((line) => (
                 <NumberField key={line.id} id={`claim-qty-${line.id}`}
                   label={line.earning_basis === 'lump_sum'
-                    ? t('projectTabs:contractQuantities.billing.claimForm.percentLine', '{{item}} — % to bill', { item: `${line.item_code} — ${line.description}` })
-                    : t('projectDetail.billing.claimForm.quantity', '{{item}} — {{description}} ({{unit}})',
+                    ? t('projectTabs:contractQuantities.billing.claimForm.percentLine', '{{item}}: % to bill', { item: `${line.item_code} — ${line.description}` })
+                    : t('projectDetail.billing.claimForm.quantity', '{{item}}: {{description}} ({{unit}})',
                     { item: line.item_code, description: line.description, unit: line.unit })}
                   value={quantities[line.id] ?? ''}
                   onChange={(value) => setQuantities((current) => ({ ...current, [line.id]: value }))}

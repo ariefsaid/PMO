@@ -134,8 +134,8 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   // Weekly total reflects persisted state: 18 hours across both projects.
   await expect(weeklyTotalSpan).toContainText('18');
 
-  // The "Draft — not submitted" pill confirms a sheet now exists (FR-TSE-003 — created on Save).
-  await expect(page.getByText('Draft — not submitted', { exact: true })).toBeVisible({ timeout: 10_000 });
+  // The "Draft: not submitted" pill confirms a sheet now exists (FR-TSE-003 — created on Save).
+  await expect(page.getByText('Draft: not submitted', { exact: true })).toBeVisible({ timeout: 10_000 });
 
   // ── Step 6: Edit — change Mon from 8 to 4, re-Save (FR-TSE-006/012) ─────────
   // After save + query refetch, re-locate the Monday input to avoid stale reference.

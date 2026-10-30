@@ -23,7 +23,7 @@ const CLOSING = /49[.,]850[.,]000/;
 
 async function openQuantities(page: Page, projectId: string, woNumber: string) {
   await page.goto(`/projects/${projectId}/work-orders`);
-  const summary = page.getByText(new RegExp(`Contract lines and BAST — ${woNumber}`));
+  const summary = page.getByText(new RegExp(`Contract lines and BAST: ${woNumber}`));
   await expect(summary).toBeVisible({ timeout: 60_000 });
   await summary.click();
 }
@@ -101,7 +101,7 @@ test('AC-CQ-020 PM allocates 1,000 and prepares final BAST 997; distinct Finance
     await signIn(page, 'pm@acme.test');
     await openQuantities(page, projectId, woNumber);
     await page.getByRole('button', { name: 'Edit lines' }).click();
-    const linesDialog = page.getByRole('dialog', { name: new RegExp(`Contract lines — ${woNumber}`) });
+    const linesDialog = page.getByRole('dialog', { name: new RegExp(`Contract lines: ${woNumber}`) });
     await expect(linesDialog).toBeVisible();
     await linesDialog.getByLabel(new RegExp(`${itemCode} — ${itemDescription}`)).fill('1000');
     await linesDialog.getByRole('button', { name: `Save ${itemCode}` }).click();
@@ -113,11 +113,11 @@ test('AC-CQ-020 PM allocates 1,000 and prepares final BAST 997; distinct Finance
 
     // --- ...and prepares the FINAL BAST of 997 km against the signed document --------------------------------
     await page.getByRole('button', { name: 'Prepare BAST', exact: true }).click();
-    const bastDialog = page.getByRole('dialog', { name: new RegExp(`Prepare BAST — ${woNumber}`) });
+    const bastDialog = page.getByRole('dialog', { name: new RegExp(`Prepare BAST: ${woNumber}`) });
     await expect(bastDialog).toBeVisible();
     await bastDialog.getByLabel('Signed BAST document').selectOption({ label: `BAST-${suffix} · ${documentTitle} (Issued)` });
     await bastDialog.getByLabel('This is the final BAST').check();
-    await bastDialog.getByLabel(new RegExp(`${itemCode} — ${itemDescription} — accepted to date`)).fill('997');
+    await bastDialog.getByLabel(new RegExp(`${itemCode} — ${itemDescription}: accepted to date`)).fill('997');
     await bastDialog.getByRole('button', { name: 'Prepare BAST', exact: true }).click();
     await expect(bastDialog).toBeHidden({ timeout: 30_000 });
     const draft = page.locator(`[data-testid^="bast-"]`).filter({ hasText: 'Draft' });

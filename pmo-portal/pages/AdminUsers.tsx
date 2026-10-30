@@ -240,7 +240,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
             <span className="truncate font-semibold" title={u.full_name}>
               {u.full_name}
             </span>
-            <span className="truncate text-xs text-muted-foreground" title={u.email}>
+            <span className="truncate text-[12px] text-muted-foreground" title={u.email}>
               {u.email}
             </span>
           </div>
@@ -678,11 +678,11 @@ const InviteFormModal: React.FC<{
         isOperator
           ? t(
               'admin.users.inviteForm.subtitleOperator',
-              "Invite someone by email — they'll set their own password and role takes effect immediately.",
+              "Invite someone by email. They'll set their own password and role takes effect immediately.",
             )
           : t(
               'admin.users.inviteForm.subtitle',
-              "Invite someone to your workspace by email — they'll set their own password.",
+              "Invite someone to your workspace by email. They'll set their own password.",
             )
       }
       submitLabel={t('admin.users.invite', 'Invite user')}

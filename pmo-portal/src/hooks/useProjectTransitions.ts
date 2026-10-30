@@ -65,3 +65,14 @@ export function useProjectTransition(): UseMutationResult<void, Error, Transitio
   });
   return { ...mutation, erpSetupPending };
 }
+
+/** Read-only preflight; the transition RPC remains authoritative. */
+export function useProjectWinEligibility(projectId: string, enabled: boolean, revision?: string | null) {
+  const { currentUser } = useAuth();
+  return useQuery({
+    queryKey: ['project-win-eligibility', currentUser?.org_id, currentUser?.id, currentUser?.role, currentUser?.manager_id, projectId, revision],
+    queryFn: () => repositories.project.winEligibility(projectId),
+    enabled: Boolean(enabled && currentUser?.id),
+    staleTime: 0,
+  });
+}
