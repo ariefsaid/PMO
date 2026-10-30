@@ -13,7 +13,7 @@ const h = vi.hoisted(() => ({
   invoices: [] as unknown[],
   payments: [] as unknown[],
   position: {
-    receivablesCount: 0, overdue: [], overdueTotals: {}, overdueUnknownCount: 0,
+    receivablesCount: 0, receivablesUnknownCount: 0, overdue: [], overdueTotals: {}, overdueUnknownCount: 0,
     drafts: { canApprove: [], awaitingOther: [], all: [] }, toSend: [],
     unappliedPayments: [], unappliedTotals: {}, payables: [], payablesTotals: {}, payablesUnknownCount: 0,
     receivablesAgeing: { IDR: { notDue: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
@@ -85,7 +85,7 @@ beforeEach(async () => {
     payment({ id: 'payment-scheduled', date: '2026-10-12', amount: 500, received_amount: 500, status: 'Scheduled' }),
   ];
   h.position = {
-    receivablesCount: 2,
+    receivablesCount: 2, receivablesUnknownCount: 0,
     overdue: [{ invoice: invoice({ id: 'overdue', erp_outstanding_amount: 10 }), daysOverdue: 5, outstanding: 1000 }],
     overdueTotals: { IDR: 1000 }, overdueUnknownCount: 0,
     drafts: { canApprove: [], awaitingOther: [], all: [] }, toSend: [], unappliedPayments: [], unappliedTotals: {},
@@ -97,6 +97,16 @@ beforeEach(async () => {
 });
 
 describe('Receivables page', () => {
+  it('reports unknown owed and overdue balances and explains empty ageing', () => {
+    h.invoices = [invoice({ erp_outstanding_amount: null })];
+    h.position = { ...h.position, receivablesAgeing: {}, receivablesUnknownCount: 1, overdueTotals: {}, overdueUnknownCount: 1,
+      overdue: [{ invoice: invoice({ erp_outstanding_amount: null }), daysOverdue: 5, outstanding: null }] };
+    renderPage();
+    expect(screen.getByRole('region', { name: 'Owed to you' })).toHaveTextContent('1 balance unknown');
+    expect(screen.getByRole('region', { name: 'Overdue' })).toHaveTextContent('1 balance unknown');
+    expect(screen.getByRole('region', { name: /Client balances by age/ })).toHaveTextContent(/balance.*unknown/i);
+  });
+
   it('uses the shared ageing and overdue totals, with invoice and client counts', () => {
     renderPage();
     const owed = screen.getByRole('region', { name: 'Owed to you' });

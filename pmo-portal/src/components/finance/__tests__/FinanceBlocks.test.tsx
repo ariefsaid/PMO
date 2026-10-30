@@ -15,7 +15,7 @@ function CurrentLocation() {
 }
 
 const emptyPosition: FinancePosition = {
-  receivablesCount: 0,
+  receivablesCount: 0, receivablesUnknownCount: 0,
   overdue: [], overdueTotals: {}, overdueUnknownCount: 0,
   drafts: { canApprove: [], awaitingOther: [], all: [] }, toSend: [],
   unappliedPayments: [], unappliedTotals: {}, payables: [], payablesTotals: {}, payablesUnknownCount: 0,
@@ -69,7 +69,7 @@ describe('Finance blocks', () => {
       ...emptyPosition,
       overdue: [{ invoice: overdue, daysOverdue: 104, outstanding: 62_500_000 }],
       overdueTotals: { IDR: 62_500_000 },
-      receivablesCount: 1,
+      receivablesCount: 1, receivablesUnknownCount: 0,
     };
     const projects = new Map([['project-1', { name: 'North delivery', short_name: 'North delivery', pm: { full_name: 'Alex Rivera' } }]]);
 

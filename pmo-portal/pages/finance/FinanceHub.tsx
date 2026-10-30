@@ -168,9 +168,10 @@ const FinanceHub: React.FC = () => {
       <div className="grid grid-cols-1 gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2">
         {hasRevenue && <AreaCard
           title={t('financeHub:hub.receivables', 'Receivables')} to="/finance/receivables"
-          amount={receivableMoney.lead ?? noBalance}
+          amount={finance.position.receivablesUnknownCount && !Object.values(receivableValues).some((amount) => amount !== 0) ? undefined : receivableMoney.lead ?? noBalance}
           otherCurrencies={receivableMoney.others}
           meaning={t('financeHub:hub.fix.area.receivablesMeaning', { defaultValue: 'owed to you · {{count}} invoices · tax included', count: finance.position.receivablesCount })}
+          extra={finance.position.receivablesUnknownCount ? t('finance:area.ageingUnknownCount', { defaultValue: finance.position.receivablesUnknownCount === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: finance.position.receivablesUnknownCount }) : undefined}
           hint={t('financeHub:hub.receivablesHint', 'Sum of known outstanding balances on open invoices, including tax. Draft and cancelled invoices are excluded.')}
           loading={finance.isPending} error={finance.isError} retry={finance.retry}
         />}
@@ -229,7 +230,7 @@ const FinanceHub: React.FC = () => {
       <CardPad>
         {finance.isPending ? <ListState variant="loading" rows={2} /> : finance.isError ? (
         <ListState variant="error" title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
-        ) : <div className="grid gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2"><AgeingStrip kind="receivables" values={finance.position.receivablesAgeing} /><AgeingStrip kind="payables" values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} /></div>}
+        ) : <div className="grid gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2"><AgeingStrip kind="receivables" values={finance.position.receivablesAgeing} unknownTotal={finance.position.receivablesUnknownCount} /><AgeingStrip kind="payables" values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} /></div>}
       </CardPad>
     </Card>
   );

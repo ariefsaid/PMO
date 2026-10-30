@@ -141,7 +141,8 @@
         "unknownCount_one": "{{count}} balance unknown",
         "unknownCount_other": "{{count}} balances unknown",
         "unknownNote_one": "{{count}} supplier invoice has no amount on record, so its balance is left out of the total. Open the procurement to record it.",
-        "unknownNote_other": "{{count}} supplier invoices have no amount on record, so their balances are left out of the total. Open the procurement to record them."
+        "unknownNote_other": "{{count}} supplier invoices have no amount on record, so their balances are left out of the total. Open the procurement to record them.",
+        "oldestBasis": "Calendar days since invoiced status was recorded, or last update if unavailable"
       },
       "attention": {
         "finance": "Needs attention",
@@ -156,7 +157,8 @@
         "unknownCount_other": "{{count}} balances unknown",
         "plusUnknown": "+ {{label}}"
       }
-    }
+    },
+    "payableBucketBasis": "Calendar days since invoiced status was recorded, or last update if unavailable. Unknown balances are counted, not added."
   },
   "nav": {
     "finance": "Finance",

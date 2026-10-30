@@ -164,5 +164,9 @@
   },
   "list": {
     "label": "Daftar pengadaan"
+  },
+  "kpi": {
+    "oldestInvoiceBasis_one": "Tanggal faktur pemasok terlama (atau tanggal pembuatan catatan) · {{count}} hari lalu",
+    "oldestInvoiceBasis_other": "Tanggal faktur pemasok terlama (atau tanggal pembuatan catatan) · {{count}} hari lalu"
   }
 }
