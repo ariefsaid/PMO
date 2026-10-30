@@ -59,6 +59,9 @@ interface CycleFixture {
   runTag: string;
   fullCaseRef: string;
   invoiceCaseRef: string;
+  draftCaseRef: string;
+  draftTitle: string;
+  draftPrRef: string;
   fullTitle: string;
   invoiceTitle: string;
   fullPrRef: string;
@@ -120,6 +123,7 @@ test.beforeEach(async ({ browserName }, testInfo) => {
     cases: [
       { importKey: nextFixture.fullCaseRef, title: nextFixture.fullTitle },
       { importKey: nextFixture.invoiceCaseRef, title: nextFixture.invoiceTitle },
+      { importKey: nextFixture.draftCaseRef, title: nextFixture.draftTitle },
     ],
     records: nextFixture.expectedRecords,
   }, true);
@@ -148,6 +152,8 @@ test.afterEach(async ({ browserName }, testInfo) => {
 function buildFixture(runTag: string, ledgerPath: string): CycleFixture {
   const fullCaseRef = `e2e-full-${runTag}`;
   const invoiceCaseRef = `e2e-invoice-only-${runTag}`;
+  const draftCaseRef = `e2e-draft-${runTag}`;
+  const draftPrRef = `E2E-${runTag}-DRAFT-PR`;
   const fullPrRef = `E2E-${runTag}-PR`;
   const fullInvoiceRef = `E2E-${runTag}-FULL-VI`;
   const fullPaymentRef = `E2E-${runTag}-FULL-PAY`;
@@ -158,6 +164,9 @@ function buildFixture(runTag: string, ledgerPath: string): CycleFixture {
     runTag,
     fullCaseRef,
     invoiceCaseRef,
+    draftCaseRef,
+    draftTitle: `E2E Draft ${runTag}`,
+    draftPrRef,
     fullTitle: `E2E Full Case ${runTag}`,
     invoiceTitle: `E2E Invoice-only ${runTag}`,
     fullPrRef,
@@ -166,6 +175,7 @@ function buildFixture(runTag: string, ledgerPath: string): CycleFixture {
     invoiceOnlyInvoiceRef,
     invoiceOnlyPaymentRef,
     expectedRecords: [
+      { table: 'purchase_requests', importKey: `pcy2:${JSON.stringify(['r', draftPrRef])}`, parentCaseRef: draftCaseRef, referenceColumn: 'reference_number', referenceValue: draftPrRef },
       { table: 'purchase_requests', importKey: `pcy2:${JSON.stringify(['r', fullPrRef])}`, parentCaseRef: fullCaseRef, referenceColumn: 'reference_number', referenceValue: fullPrRef },
       { table: 'procurement_invoices', importKey: `pcy2:${JSON.stringify(['r', fullInvoiceRef])}`, parentCaseRef: fullCaseRef, referenceColumn: 'reference_number', referenceValue: fullInvoiceRef },
       { table: 'payments', importKey: `pcy2:${JSON.stringify(['r', fullPaymentRef])}`, parentCaseRef: fullCaseRef, referenceColumn: 'reference_number', referenceValue: fullPaymentRef },
@@ -196,8 +206,8 @@ function recordKeysFor(fixture: CycleFixture, table: ImportRecordTable): string[
 }
 
 async function assertFixtureKeysUnused(client: SupabaseClient, fixture: CycleFixture): Promise<void> {
-  const parentKeys = [fixture.fullCaseRef, fixture.invoiceCaseRef];
-  const titles = [fixture.fullTitle, fixture.invoiceTitle];
+  const parentKeys = [fixture.fullCaseRef, fixture.invoiceCaseRef, fixture.draftCaseRef];
+  const titles = [fixture.fullTitle, fixture.invoiceTitle, fixture.draftTitle];
   const prKeys = recordKeysFor(fixture, 'purchase_requests');
   const invoiceKeys = recordKeysFor(fixture, 'procurement_invoices');
   const paymentKeys = recordKeysFor(fixture, 'payments');
@@ -233,7 +243,7 @@ async function assertFixtureKeysUnused(client: SupabaseClient, fixture: CycleFix
 }
 
 async function readOwnedRows(client: SupabaseClient, fixture: CycleFixture) {
-  const parentKeys = [fixture.fullCaseRef, fixture.invoiceCaseRef];
+  const parentKeys = [fixture.fullCaseRef, fixture.invoiceCaseRef, fixture.draftCaseRef];
   const parentsResult = await client
     .from('procurements')
     .select('id, import_key, title, import_batch_id')
@@ -249,7 +259,9 @@ async function readOwnedRows(client: SupabaseClient, fixture: CycleFixture) {
       ? fixture.fullTitle
       : parent.import_key === fixture.invoiceCaseRef
         ? fixture.invoiceTitle
-        : undefined;
+        : parent.import_key === fixture.draftCaseRef
+          ? fixture.draftTitle
+          : undefined;
     if (!expectedTitle || parent.title !== expectedTitle) {
       throw new Error('AC-IMP-CYCLE-001 cleanup found a case whose key/title identity does not match this run; preserving rows');
     }
@@ -375,7 +387,7 @@ async function deleteOwnedChild(
 async function cleanupFixture(client: SupabaseClient, fixture: CycleFixture, testInfo: TestInfo): Promise<void> {
   const owned = await readOwnedRows(client, fixture);
   const incompleteSuccessfulImport = testInfo.status === 'passed'
-    && (owned.parents.length !== 2 || owned.children.length !== fixture.expectedRecords.length);
+    && (owned.parents.length !== 3 || owned.children.length !== fixture.expectedRecords.length);
   await appendOwnerLedger(fixture.ledgerPath, {
     phase: 'readback-before-cleanup',
     parentIds: owned.parents.map((row) => row.id),
@@ -415,7 +427,7 @@ async function cleanupFixture(client: SupabaseClient, fixture: CycleFixture, tes
   await assertFixtureKeysUnused(client, fixture);
   await appendOwnerLedger(fixture.ledgerPath, { phase: 'postflight-clean', testStatus: testInfo.status });
   if (incompleteSuccessfulImport) {
-    throw new Error('AC-IMP-CYCLE-001 passed its UI journey without all 2 owned cases and 5 imported records present');
+    throw new Error('AC-IMP-CYCLE-001 passed its UI journey without all 3 owned cases and 6 imported records present');
   }
 }
 
@@ -450,7 +462,7 @@ async function buildCycleXlsx(fixture: CycleFixture): Promise<Buffer> {
   // ── case-001: partial PR→VI→Payment (no PO/Quotation — still legal under Model-C) ──
   // PR row
   ws.addRow([fixture.fullCaseRef, 'PR', '', fixture.fullTitle, 'Draft', '', fixture.fullPrRef, '', '', '', '', '']);
-  // VI row (required: status ∈ {Received,Scheduled,Paid}, date YYYY-MM-DD, plus the #505 tax basis)
+  // VI row (required: status ∈ {Received,Scheduled}, date YYYY-MM-DD, plus the #505 tax basis)
   ws.addRow([fixture.fullCaseRef, 'VI', '', '', '', '', fixture.fullInvoiceRef, 'Received', '2024-03-15', '10000', 'exclusive', '1100']);
   // Payment row
   ws.addRow([fixture.fullCaseRef, 'Payment', '', '', '', '', fixture.fullPaymentRef, '', '2024-03-20', '10000', '', '']);
@@ -462,6 +474,13 @@ async function buildCycleXlsx(fixture: CycleFixture): Promise<Buffer> {
   ws.addRow([fixture.invoiceCaseRef, 'VI', '', fixture.invoiceTitle, '', '', fixture.invoiceOnlyInvoiceRef, 'Received', '2024-04-01', '5000', 'inclusive', '0']);
   // Payment row
   ws.addRow([fixture.invoiceCaseRef, 'Payment', '', '', '', '', fixture.invoiceOnlyPaymentRef, '', '2024-04-05', '5000', '', '']);
+
+  // Draft is a supported origination value for a PR-only case.
+  ws.addRow([fixture.draftCaseRef, 'PR', '', fixture.draftTitle, 'Draft', '', fixture.draftPrRef, 'Draft', '', '', '', '']);
+
+  // A fourth case contains an unsupported case status and must stay unwritten.
+  ws.addRow([`e2e-invalid-${fixture.runTag}`, 'PR', '', `E2E Invalid ${fixture.runTag}`, 'Draft', '', '', 'Draft', '', '', '', '']);
+  ws.addRow([`e2e-invalid-${fixture.runTag}`, 'Payment', '', '', 'Ordered', '', '', 'Scheduled', '', '', '', '']);
 
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf as ArrayBuffer);
@@ -513,10 +532,11 @@ test(
     await expect(nextBtn).toBeEnabled({ timeout: 10_000 });
     await nextBtn.click();
 
-    // ── Step 5: preview — 2 cases shown; zero writes yet ─────────────────────
+    // ── Step 5: preview — four cases shown; zero writes yet ─────────────────────
     const summary = dialog.getByTestId('cycle-import-summary');
     await expect(summary).toBeVisible({ timeout: 10_000 });
-    await expect(summary).toContainText('2 cases');
+    await expect(summary).toContainText('4 cases');
+    await expect(summary).toContainText('6 records valid');
 
     // Both case refs visible in the preview tree
     await expect(dialog.getByText(currentFixture.fullCaseRef)).toBeVisible();
@@ -532,8 +552,23 @@ test(
     // ── Step 7: result step shows created count ──────────────────────────────
     const resultSummary = dialog.getByTestId('cycle-result-summary');
     await expect(resultSummary).toBeVisible({ timeout: 30_000 });
-    // 5 records total: 3 for case-001 (PR+VI+Payment), 2 for case-002 (VI+Payment)
+    // Six records total across the three valid cases.
     await expect(resultSummary).toContainText('created');
+
+    const { data: draftCase, error: draftError } = await admin!.from('procurements')
+      .select('id,status').eq('org_id', ORG_ID).eq('import_key', currentFixture.draftCaseRef).single();
+    expect(draftError).toBeNull();
+    expect(draftCase?.status).toBe('Draft');
+    const { data: draftPr, error: draftPrError } = await admin!.from('purchase_requests')
+      .select('id,status').eq('procurement_id', draftCase!.id).eq('reference_number', currentFixture.draftPrRef);
+    expect(draftPrError).toBeNull();
+    expect(draftPr).toHaveLength(1);
+    expect(draftPr![0].status).toBe('Draft');
+
+    const { data: invalidCases, error: invalidError } = await admin!.from('procurements')
+      .select('id').eq('org_id', ORG_ID).eq('title', `E2E Invalid ${currentFixture.runTag}`);
+    expect(invalidError).toBeNull();
+    expect(invalidCases).toEqual([]);
 
     // ── Step 8: Done — closes wizard and refetches list ───────────────────────
     await dialog.getByRole('button', { name: /^done$/i }).click();

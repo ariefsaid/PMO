@@ -20,7 +20,9 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ImpersonationProvider } from '../../../auth/impersonation';
+import type { Role } from '../../../auth/AuthContext';
 import { ToastProvider } from '../../../components/ui';
 
 // ── PipelineLens ──────────────────────────────────────────────────────────────
@@ -47,10 +49,28 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
-vi.mock('@tanstack/react-query', async (orig) => {
-  const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
-});
+// The merged tree's PipelineLens consumes react-query (win-eligibility + transition invalidation),
+// so the harness renders under a real QueryClientProvider (see PipelineLens.queryStatus harness)
+// and stubs the eligibility read at the hook seam, mirroring that harness.
+vi.mock('@/src/hooks/useProjectTransitions', () => ({
+  useProjectWinEligibility: () => ({ data: 'allowed' }),
+}));
+
+const freshClient = () =>
+  new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+
+const renderPipeline = (p: unknown, role: Role = 'Project Manager') =>
+  render(
+    <QueryClientProvider client={freshClient()}>
+      <ImpersonationProvider realRole={role}>
+        <ToastProvider>
+          <MemoryRouter>
+            <PipelineLens project={p as never} />
+          </MemoryRouter>
+        </ToastProvider>
+      </ImpersonationProvider>
+    </QueryClientProvider>,
+  );
 
 const project = {
   id: 'd1',
@@ -75,13 +95,7 @@ import PipelineLens from '../../../../pages/project-detail/PipelineLens';
 
 describe('Part 3: PipelineLens — no user-visible "deal" or "Opportunity journey" noun (CW-1)', () => {
   it('does not render "deal" (case-insensitive) in user-visible text', () => {
-    render(
-      <ImpersonationProvider realRole="Project Manager">
-        <ToastProvider>
-          <MemoryRouter><PipelineLens project={project} /></MemoryRouter>
-        </ToastProvider>
-      </ImpersonationProvider>,
-    );
+    renderPipeline(project);
     // Check no user-visible text says "deal" (the canonical noun is "Project").
     // textContent picks up all rendered text in the component.
     const body = document.body.textContent ?? '';
@@ -96,13 +110,7 @@ describe('Part 3: PipelineLens — no user-visible "deal" or "Opportunity journe
   });
 
   it('renders "Project journey" (not "Opportunity journey") as the journey card heading', () => {
-    render(
-      <ImpersonationProvider realRole="Project Manager">
-        <ToastProvider>
-          <MemoryRouter><PipelineLens project={project} /></MemoryRouter>
-        </ToastProvider>
-      </ImpersonationProvider>,
-    );
+    renderPipeline(project);
     // CardHead must read "Project journey", not "Opportunity journey".
     expect(screen.getByText('Project journey')).toBeInTheDocument();
     expect(screen.queryByText('Opportunity journey')).not.toBeInTheDocument();
@@ -113,13 +121,7 @@ describe('Part 3: PipelineLens — no user-visible "deal" or "Opportunity journe
     // which is unmounted until "Mark won" is clicked. Open it, then re-scan.
     const user = userEvent.setup();
     const winnable = { ...(project as Record<string, unknown>), name: 'Acme Project', status: 'Negotiation' } as never;
-    render(
-      <ImpersonationProvider realRole="Project Manager">
-        <ToastProvider>
-          <MemoryRouter><PipelineLens project={winnable} /></MemoryRouter>
-        </ToastProvider>
-      </ImpersonationProvider>,
-    );
+    renderPipeline(winnable);
     await user.click(screen.getByRole('button', { name: /mark won/i }));
     // The inline SoD won-capture panel is now open ("Record the won project").
     expect(screen.getByText(/Record the won project/i)).toBeInTheDocument();
@@ -129,26 +131,14 @@ describe('Part 3: PipelineLens — no user-visible "deal" or "Opportunity journe
   });
 
   it('the journey stepper has aria-label "Project stage journey" (not "Deal stage journey")', () => {
-    render(
-      <ImpersonationProvider realRole="Project Manager">
-        <ToastProvider>
-          <MemoryRouter><PipelineLens project={project} /></MemoryRouter>
-        </ToastProvider>
-      </ImpersonationProvider>,
-    );
+    renderPipeline(project);
     // Aria-label change: "Deal stage journey" → "Project stage journey".
     expect(screen.getByRole('list', { name: /Project stage journey/i })).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: /Deal stage journey/i })).not.toBeInTheDocument();
   });
 
   it('the read-only gate copy does not mention "deal"', () => {
-    render(
-      <ImpersonationProvider realRole="Engineer">
-        <ToastProvider>
-          <MemoryRouter><PipelineLens project={project} /></MemoryRouter>
-        </ToastProvider>
-      </ImpersonationProvider>,
-    );
+    renderPipeline(project, 'Engineer');
     // The read-only notice must not say "deal" — it says "project" instead.
     const body = document.body.textContent ?? '';
     const dealMatches = (body.match(/\bdeal\b/gi) ?? []);

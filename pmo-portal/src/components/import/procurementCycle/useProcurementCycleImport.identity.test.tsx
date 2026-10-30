@@ -245,3 +245,16 @@ it.each(['reset', 'unmount'] as const)('does not deliver a started write result 
   await act(async () => { finish({ created: 1, failed: 0, cases: [] }); await pending; });
   if (cancel === 'reset') { expect(result.current.step).toBe('upload'); expect(result.current.result).toBeNull(); }
 });
+
+it('previews unsupported creation values without registering or writing the case', async () => {
+  vi.mocked(parseWorkbook).mockResolvedValue({ headers: ['case_ref', 'type', 'title', 'status'], rows: [['C', 'PR', 'Case', 'Draft'], ['C', 'Payment', '', 'Paid']] } as never);
+  const lookup = makeRefLookup([], 'Reference');
+  const { result } = renderHook(() => useProcurementCycleImport(lookup, lookup, 'user'));
+  await act(async () => result.current.selectFile({ name: 'input.xlsx', arrayBuffer: async () => new ArrayBuffer(0) } as File));
+  await act(async () => result.current.goPreview());
+  expect(result.current.counts.validRecords).toBe(0);
+  expect(result.current.validatedGroups[0].rows[1].errors.join(' ')).toMatch(/status/i);
+  await act(async () => result.current.commit());
+  expect(startProcurementImportRun).not.toHaveBeenCalled();
+  expect(commitGroups).not.toHaveBeenCalled();
+});

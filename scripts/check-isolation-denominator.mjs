@@ -285,8 +285,14 @@ export function readActualCatalog({
 
   let edge_functions = [];
   if (!fs.existsSync(functionsRoot)) throw new Error(`edge functions root not found: ${functionsRoot}`);
+  // An edge function is a DEPLOYABLE unit: a directory with an `index.ts` entry point — the same
+  // discovery rule `scripts/deno-typecheck-edge-fns.sh` and `supabase functions deploy` use. Support
+  // directories under supabase/functions (`_shared`, Deno test harnesses like `tests/`) have no
+  // entry point, are never deployed, and are not probe surface; counting them made the inventory
+  // name a function that does not exist.
   edge_functions = fs.readdirSync(functionsRoot, { withFileTypes: true })
     .filter((e) => e.isDirectory() && e.name !== '_shared')
+    .filter((e) => fs.existsSync(path.join(functionsRoot, e.name, 'index.ts')))
     .map((e) => e.name)
     .sort();
 

@@ -41,6 +41,9 @@ const seed = [
   },
 ];
 
+const refs = vi.hoisted(() => ({ project: { data: [{ value: 'old-p', label: 'Old project' }], isPending: false, isError: false, refetch: vi.fn() }, vendor: { data: [{ value: 'old-v', label: 'Old supplier' }], isPending: false, isError: false, refetch: vi.fn() } }));
+vi.mock('@/src/components/import/ImportWizard', () => ({ ImportWizard: ({ descriptor }: { descriptor: { toInput: (cells: Record<string, string>) => { projectId: string; vendorId: string } } }) => <output data-testid="bulk-refs">{JSON.stringify(descriptor.toInput({ title: 'X', projectId: 'Fresh project', vendorId: 'Fresh supplier' }))}</output> }));
+vi.mock('@/src/components/import/procurementCycle/ProcurementCycleImportWizard', () => ({ ProcurementCycleImportWizard: ({ projectLookup, vendorLookup }: { projectLookup: (s: string) => { id: string }; vendorLookup: (s: string) => { id: string } }) => <output data-testid="cycle-refs">{projectLookup('Fresh project').id}/{vendorLookup('Fresh supplier').id}</output> }));
 const procState = { data: seed as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useErpPurchases', () => ({
   useErpPurchases: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -55,8 +58,8 @@ vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState
 // Project/vendor picker options are cached hooks; stub them so the index test
 // needs no QueryClient.
 vi.mock('@/src/hooks/useFkOptions', () => ({
-  useProjectOptions: () => ({ data: [] }),
-  useVendorOptions: () => ({ data: [] }),
+  useProjectOptions: () => refs.project,
+  useVendorOptions: () => refs.vendor,
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
@@ -96,10 +99,78 @@ const renderPageInLocale = (locale: 'en' | 'id', initialPath = '/procurement') =
 
 describe('Procurement index — IA-3 (real data)', () => {
   beforeEach(() => {
+    effRole.value = 'Project Manager';
+    refs.project.isPending = false; refs.project.isError = false; refs.project.data = [{ value: 'old-p', label: 'Old project' }];
+    refs.vendor.isPending = false; refs.vendor.isError = false;
+    refs.project.refetch.mockReset().mockResolvedValue({ data: [{ value: 'fresh-p', label: 'Fresh project' }], isError: false });
+    refs.vendor.refetch.mockReset().mockResolvedValue({ data: [{ value: 'fresh-v', label: 'Fresh supplier' }], isError: false });
     procState.data = seed;
     procState.isPending = false;
     procState.isError = false;
     sessionStorage.clear();
+  });
+
+  it.each(['Import procurements', 'Import cycle data'])('%s refreshes both references and uses returned options, retrying returned errors', async (entry) => {
+    const user = userEvent.setup();
+    refs.project.refetch.mockResolvedValueOnce({ isError: true, error: new Error('offline') });
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'More' }));
+    await user.click(screen.getByRole('button', { name: entry }));
+    expect(await screen.findByText(/couldn't refresh references/i)).toBeVisible();
+    expect(screen.queryByTestId('bulk-refs')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('cycle-refs')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /retry references/i }));
+    await user.click(screen.getByRole('button', { name: entry }));
+    const output = await screen.findByTestId(entry === 'Import procurements' ? 'bulk-refs' : 'cycle-refs');
+    expect(output).toHaveTextContent(/fresh-p/);
+    expect(output).toHaveTextContent(/fresh-v/);
+    expect(refs.project.refetch).toHaveBeenCalledTimes(3);
+    expect(refs.vendor.refetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not start an import when the supplier refresh returns an error alongside cached data', async () => {
+    refs.vendor.refetch.mockResolvedValueOnce({ data: refs.vendor.data, error: new Error('offline'), isError: false });
+    const user = userEvent.setup(); renderPage();
+    await user.click(screen.getByRole('button', { name: 'More' }));
+    await user.click(screen.getByRole('button', { name: 'Import procurements' }));
+    expect(await screen.findByText(/couldn't refresh references/i)).toBeVisible();
+    expect(screen.queryByTestId('bulk-refs')).not.toBeInTheDocument();
+  });
+
+  it('does not open an import until both refreshes finish and updates a mounted cycle wizard on later refresh', async () => {
+    let resolveProjects!: (value: { data: { value: string; label: string }[]; isError: boolean }) => void;
+    refs.project.refetch.mockReturnValueOnce(new Promise((resolve) => { resolveProjects = resolve; }));
+    const user = userEvent.setup(); const view = renderPage();
+    await user.click(screen.getByRole('button', { name: 'More' }));
+    await user.click(screen.getByRole('button', { name: 'Import cycle data' }));
+    expect(screen.getByText(/loading references/i)).toBeVisible();
+    expect(screen.queryByTestId('cycle-refs')).not.toBeInTheDocument();
+    resolveProjects({ data: [{ value: 'fresh-p', label: 'Fresh project' }], isError: false });
+    expect(await screen.findByTestId('cycle-refs')).toHaveTextContent('fresh-p/fresh-v');
+    refs.project.data = [{ value: 'later-p', label: 'Fresh project' }];
+    view.rerender(<QueryClientProvider client={new QueryClient()}><ToastProvider><MemoryRouter initialEntries={['/procurement']}><RouteProbe /><Procurement /></MemoryRouter></ToastProvider></QueryClientProvider>);
+    await waitFor(() => expect(screen.getByTestId('cycle-refs')).toHaveTextContent('later-p/fresh-v'));
+  });
+
+  it('closes an open bulk import if the real role becomes unavailable', async () => {
+    const user = userEvent.setup(); const view = renderPage();
+    await user.click(screen.getByRole('button', { name: 'More' }));
+    await user.click(screen.getByRole('button', { name: 'Import procurements' }));
+    expect(await screen.findByTestId('bulk-refs')).toBeInTheDocument();
+    effRole.value = null;
+    view.rerender(<QueryClientProvider client={new QueryClient()}><ToastProvider><MemoryRouter initialEntries={['/procurement']}><RouteProbe /><Procurement /></MemoryRouter></ToastProvider></QueryClientProvider>);
+    expect(screen.queryByTestId('bulk-refs')).not.toBeInTheDocument();
+    effRole.value = 'Project Manager';
+  });
+
+  it('disables imports while references load but keeps export available', async () => {
+    refs.project.isPending = true;
+    const user = userEvent.setup(); renderPage();
+    await user.click(screen.getByRole('button', { name: 'More' }));
+    expect(screen.getByRole('button', { name: 'Import procurements' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Import cycle data' })).toBeDisabled();
+    expect(screen.getByText(/loading references/i)).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Export list' })).toBeEnabled();
   });
 
   it('renders seeded requests with joined project name (AC-501)', () => {

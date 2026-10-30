@@ -22,6 +22,18 @@ export function decimalUnits(value: number, scale: number): bigint | null {
 }
 
 /**
+ * num / den rounded to the nearest integer, exact halves away from zero (den > 0) — the ONE
+ * rounding rule for every integer-ratio tax figure, so the standalone calculator, the vendor
+ * suggestions and the PPh suggestion can never carry two answers for the same rational.
+ */
+export function divRoundHalfAwayFromZero(num: bigint, den: bigint): bigint {
+  const negative = num < 0n;
+  const magnitude = negative ? -num : num;
+  const quotient = (magnitude * 2n + den) / (2n * den);
+  return negative ? -quotient : quotient;
+}
+
+/**
  * Re-express a stored amount on another tax basis using only the row's recorded tax facts.
  * This is a read-only conversion: it never calculates a tax rate or consults an org default.
  */

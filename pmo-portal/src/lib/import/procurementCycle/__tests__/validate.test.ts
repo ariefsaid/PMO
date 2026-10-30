@@ -68,7 +68,7 @@ describe('validateGroups — AC-CYCLE-VAL-001: Model-C VI+Payment-only case is v
       row({
         caseRef: 'CASE-MC',
         type: 'Payment',
-        status: 'Paid',
+        status: 'Scheduled',
         date: '2025-02-01',
         amount: '5000',
         rowNumber: 2,
@@ -186,7 +186,7 @@ describe('validateGroups — AC-CYCLE-VAL-004: GR required fields', () => {
 });
 
 describe('validateGroups — AC-CYCLE-VAL-005: VI required fields', () => {
-  it('VI row requires status (Received|Scheduled|Paid) and date', () => {
+  it('VI row requires status (Received|Scheduled) and date', () => {
     const rows: CycleRow[] = [
       row({ caseRef: 'C7', type: 'VI', title: 'VI Case', rowNumber: 1 }),
     ];
@@ -518,7 +518,7 @@ describe('validateGroups — #505: VI tax treatment + tax amount are required', 
         caseRef: 'CASE-TAX',
         type: 'PO',
         title: 'A PO',
-        status: 'Ordered',
+        status: 'Issued',
         date: '2025-01-15',
         amount: '5000',
         rowNumber: 1,
@@ -538,4 +538,49 @@ it('normalizes spreadsheet float noise while rejecting true third decimals and o
   const rows = ['1234.5600000000002', '0.30000000000000004', '1.234', '999999999999.991', '1.2300', '999999999999.99', '1000000000000'].map((amount, index) => ({ caseRef: `precision-${index}`, type: 'PR', title: 'Precision', project: undefined, caseStatus: undefined, vendor: undefined, externalRef: undefined, status: undefined, date: undefined, amount, rowNumber: index + 1 }));
   const results = validateGroups(groupRows(rows).groups, { projectLookup: makeRefLookup([], 'Project'), vendorLookup: makeRefLookup([], 'Vendor') });
   expect(results.map(result => result.rows[0].valid)).toEqual([true, true, false, false, true, true, false]);
+});
+
+describe('creation value parity', () => {
+  it.each([
+    ['PR', 'Bogus'], ['RFQ', 'Bogus'], ['PO', 'Bogus'], ['VI', 'Paid'], ['Payment', 'Paid'],
+  ])('blocks the whole case before creating %s with status %s', (type, status) => {
+    const input = [row({ caseRef: 'C', type: 'PR', title: 'Case', rowNumber: 1 }),
+      row({ caseRef: 'C', type, status, date: '2025-01-01', taxTreatment: 'inclusive', taxAmount: '0', rowNumber: 2 })];
+    const [result] = validateGroups([makeGroup(input)], { projectLookup, vendorLookup: vendorLookupOk });
+    expect(result.rows[1].valid).toBe(false);
+    expect(result.valid).toBe(false);
+  });
+  it('surfaces every supplied case status and quotation reference before case creation', () => {
+    const input = [row({ caseRef: 'C', type: 'PR', title: 'Case', caseStatus: 'Draft', rowNumber: 1 }),
+      row({ caseRef: 'C', type: 'Quotation', caseStatus: 'Approved', externalRef: 'Q-1', vendor: 'Acme Supplies', amount: '5', date: '2025-01-01', rowNumber: 2 })];
+    const [result] = validateGroups([makeGroup(input)], { projectLookup, vendorLookup: vendorLookupOk });
+    expect(result.valid).toBe(false);
+    expect(result.rows[1].errors.join(' ')).toMatch(/reference/i);
+    expect(result.groupErrors.join(' ')).toMatch(/status/i);
+  });
+});
+
+describe('supported creation values', () => {
+  it.each([
+    ['PR', 'Draft'], ['PR', 'Submitted'], ['PR', 'Approved'], ['PR', 'Closed'],
+    ['RFQ', 'Draft'], ['RFQ', 'Issued'], ['RFQ', 'Closed'],
+    ['PO', 'Draft'], ['PO', 'Issued'], ['PO', 'Acknowledged'], ['PO', 'Closed'],
+    ['VI', 'Received'], ['VI', 'Scheduled'], ['Payment', 'Scheduled'],
+  ])('accepts %s %s', (type, status) => {
+    const input = row({ caseRef: 'C', type, status, title: 'Case', date: '2025-01-01', taxTreatment: 'inclusive', taxAmount: '0', rowNumber: 1 });
+    const [result] = validateGroups([makeGroup([input])], { projectLookup, vendorLookup: vendorLookupOk });
+    expect(result.valid).toBe(true);
+  });
+});
+
+it('reports unknown record types without throwing', () => {
+  const input = row({ caseRef: 'C', type: '__proto__', title: 'Case', status: 'Draft', rowNumber: 1 });
+  const [result] = validateGroups([makeGroup([input])], { projectLookup, vendorLookup: vendorLookupOk });
+  expect(result.rows[0].errors.join(' ')).toMatch(/unknown record type/i);
+});
+
+it('does not reject unrelated optional cells', () => {
+  const input = row({ caseRef: 'C', type: 'PR', title: 'Case', vendor: 'Unused', taxTreatment: 'unused', taxAmount: 'unused', rowNumber: 1 });
+  const [result] = validateGroups([makeGroup([input])], { projectLookup, vendorLookup: vendorLookupOk });
+  expect(result.valid).toBe(true);
 });

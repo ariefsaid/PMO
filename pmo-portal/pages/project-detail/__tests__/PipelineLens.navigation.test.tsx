@@ -25,6 +25,9 @@ vi.mock('@tanstack/react-query', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
 });
+// PipelineLens composes the win-eligibility preflight (3700397d9); this wayfinding test stubs it
+// like the other lens suites, keeping the harness free of a QueryClient.
+vi.mock('@/src/hooks/useProjectTransitions', () => ({ useProjectWinEligibility: () => ({ data: 'allowed' }) }));
 
 import PipelineLens from '../PipelineLens';
 

@@ -30,6 +30,7 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useDocuments, useDocumentMutations } from '@/src/hooks/useDocuments';
+import { useDocumentVerification } from '@/src/hooks/useDocumentVerification';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { useRevision } from '@/src/hooks/useRevision';
 import { RecordFolderAction } from '@/src/components/m365/RecordFolderAction';
@@ -243,6 +244,16 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     });
   }, [filtered, categoryName, documentsView, sort]);
 
+  // The register and its open preview share one display-triggered verification batch. Include the
+  // live drawer row even when filters hide it, and deduplicate it against the visible register.
+  const verificationRows = useMemo(() => {
+    const rowsById = new Map(sortedFiltered.map((doc) => [doc.id, doc] as const));
+    if (drawerDoc) rowsById.set(drawerDoc.id, drawerDoc);
+    return Array.from(rowsById.values());
+  }, [drawerDoc, sortedFiltered]);
+  const verification = useDocumentVerification(projectId, verificationRows, !isError);
+  const verificationIds = useMemo(() => new Set(verification.documentIds), [verification.documentIds]);
+
   const state: 'loading' | 'empty' | 'error' | undefined = isPending
     ? 'loading'
     : isError || !data
@@ -265,7 +276,19 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   // preview; a row with an incomplete reference remains an ordinary upload/source row.
   const microsoftCell = (d: ProjectDocumentRow, compact = false): React.ReactNode => {
     const reference = projectReference(d);
-    return reference ? <LinkedDocumentCell reference={reference} title={d.title} owner={projectOwner(d)} compact={compact} /> : null;
+    return reference ? (
+      <LinkedDocumentCell
+        reference={reference}
+        title={d.title}
+        owner={projectOwner(d)}
+        compact={compact}
+        verification={verificationIds.has(d.id) ? {
+          checking: verification.checking,
+          failed: Boolean(verification.error),
+          retry: () => verification.retry(isError ? [d] : undefined),
+        } : undefined}
+      />
+    ) : null;
   };
 
   const sourceName = (doc: ProjectDocumentRow) =>

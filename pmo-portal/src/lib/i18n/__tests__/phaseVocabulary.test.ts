@@ -13,6 +13,10 @@ function catalogue(locale: 'en' | 'id') {
   return {
     ...common,
     ...project,
+    // The app resolves `common` and `project` as separate i18next namespaces; this flat merge is a
+    // test-harness simplification. The audit-added `project:history.referenceNamesError` key must
+    // not shadow `common:history` (the audit-trail copy these assertions read), so un-shadow it.
+    history: common.history,
     projectDetail: {
       ...common.projectDetail,
       ...project.projectDetail,
