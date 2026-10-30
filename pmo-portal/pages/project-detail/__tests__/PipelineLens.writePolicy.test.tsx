@@ -3,6 +3,7 @@ import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocal
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -75,11 +76,11 @@ const dealRow = {
 // A-1 lifecycle gate (Admin·Exec·PM) shows the action cluster being exercised here.
 const renderLens = (project: ProjectWithRefs = dealRow) =>
   render(
-    <ImpersonationProvider realRole="Project Manager">
+    <MemoryRouter><ImpersonationProvider realRole="Project Manager">
       <ToastProvider>
         <PipelineLens project={project} />
       </ToastProvider>
-    </ImpersonationProvider>,
+    </ImpersonationProvider></MemoryRouter>,
   );
 
 beforeEach(() => {

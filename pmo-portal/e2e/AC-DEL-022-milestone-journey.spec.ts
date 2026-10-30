@@ -63,13 +63,12 @@ test('AC-DEL-022: a PM creates a milestone, adds a task under it, marks it Done 
   // Wait for the page to finish loading (loading skeleton clears).
   await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
 
-  // ── Step 2: phase strip is empty — add a phase ───────────────────────────────
-  // The strip shows the one-line empty state with a "Plan delivery phases" CTA (PD-B).
-  await expect(page.getByTestId('milestone-strip-loading')).not.toBeVisible({ timeout: 15_000 });
-  await expect(page.getByTestId('milestone-strip-empty')).toBeVisible({ timeout: 15_000 });
-
-  // The empty strip teaches the PM to plan phases; the primary doorway opens the same modal.
-  await page.getByTestId('milestone-strip-empty').getByRole('button', { name: /Plan delivery phases/i }).click();
+  // ── Step 2: empty phase timeline — open its current planning action ───────────
+  const phaseTimeline = page.getByRole('region', { name: 'Phase timeline' });
+  await expect(phaseTimeline).toBeVisible({ timeout: 15_000 });
+  await expect(phaseTimeline).toContainText(/No phases yet/i);
+  await phaseTimeline.getByRole('button', { name: 'Update phases', exact: true }).click();
+  await page.getByRole('button', { name: 'Plan delivery phases', exact: true }).click();
 
   // The phase form opens (EntityFormModal renders a dialog).
   const dialog = page.getByRole('dialog');
@@ -90,7 +89,7 @@ test('AC-DEL-022: a PM creates a milestone, adds a task under it, marks it Done 
   await page.getByRole('tab', { name: /tasks/i }).click();
 
   // Wait for the milestone group to appear (AC-DEL-010).
-  const group = page.getByRole('region', { name: MILESTONE_NAME });
+  const group = page.getByRole('row').filter({ hasText: MILESTONE_NAME });
   await expect(group).toBeVisible({ timeout: 15_000 });
 
   // Click "Add task" inside the Engineering design group.
@@ -111,14 +110,28 @@ test('AC-DEL-022: a PM creates a milestone, adds a task under it, marks it Done 
   await taskDialog.getByRole('button', { name: /Create task/i }).click();
   await expect(taskDialog).not.toBeVisible({ timeout: 15_000 });
 
-  // The task row appears in the group (the task name span in the table cell).
-  await expect(group.getByRole('cell').filter({ hasText: TASK_NAME }).first()).toBeVisible({ timeout: 15_000 });
+  // The task is represented by its current accessible row-opening action.
+  const taskRow = page.getByRole('row').filter({
+    has: page.getByRole('button', { name: `Open task ${TASK_NAME}`, exact: true }),
+  });
+  await expect(taskRow).toBeVisible({ timeout: 15_000 });
 
   // ── Step 4: mark "Detail drawings" Done ─────────────────────────────────────
-  // The status cell is a <select> labelled "Status for {task.name}".
-  const statusSelect = page.getByLabel(`Status for ${TASK_NAME}`);
+  // The inline status button opens its select on the current row.
+  const statusButton = taskRow.getByRole('button', { name: `Status for ${TASK_NAME}` });
+  await statusButton.click();
+  const statusSelect = taskRow.getByLabel(`Status for ${TASK_NAME}`);
   await expect(statusSelect).toBeVisible({ timeout: 10_000 });
   await statusSelect.selectOption('Done');
+
+  // Completed task rows fold; reopen the phase's Done group before checking the exact status value.
+  const doneTasks = group.getByRole('button', { name: '1 done', exact: true });
+  await expect(doneTasks).toBeVisible({ timeout: 10_000 });
+  await doneTasks.click();
+  const completedTaskRow = page.getByRole('row').filter({
+    has: page.getByRole('button', { name: `Open task ${TASK_NAME}`, exact: true }),
+  });
+  await completedTaskRow.getByRole('button', { name: `Status for ${TASK_NAME}` }).click();
 
   // Wait for the mutation to commit (query re-fetch propagates back to the milestone strip).
   await expect(statusSelect).toHaveValue('Done', { timeout: 10_000 });

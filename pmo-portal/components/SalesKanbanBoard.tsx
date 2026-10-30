@@ -260,7 +260,6 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
                 dotColor={col.dotColor}
                 count={colProjects.length}
                 totals={col.terminal ? lostCountsLine : undefined}
-                flatSurface
                 emptyMessage={t('projects.kanban.empty', { defaultValue: 'No projects in {{stage}}', stage: colTitle })}
                 selected={colIdx === selectedStageIndex}
               >

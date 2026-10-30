@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -44,13 +45,13 @@ import DocumentsTab from '../DocumentsTab';
 
 const renderTab = () =>
   render(
-    <MemoryRouter>
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter>
       <ImpersonationProvider realRole="Project Manager">
         <ToastProvider>
           <DocumentsTab projectId="p1" projectCode="PRJ-1" />
         </ToastProvider>
       </ImpersonationProvider>
-    </MemoryRouter>,
+    </MemoryRouter></QueryClientProvider>,
   );
 
 const openEntry = () => userEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
@@ -106,9 +107,10 @@ describe('DocumentsTab — Microsoft connection gate (AC-M365DOC-014/031)', () =
     expect(h.pickerProps.at(-1)?.context).toEqual({ kind: 'project', code: 'PRJ-1' });
   });
 
-  it('AC-M365DOC-031: committed rows render and open whatever the connection says', () => {
+  it('AC-M365DOC-031: committed rows render and open whatever the connection says', async () => {
     h.conn.connection = { connected: false, status: null };
     renderTab();
-    expect(screen.getByRole('button', { name: /Open in SharePoint/ })).toBeEnabled();
+    await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
+    expect(within(screen.getByRole('complementary')).getByRole('button', { name: /Open in SharePoint/ })).toBeEnabled();
   });
 });

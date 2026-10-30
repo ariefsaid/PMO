@@ -8,7 +8,7 @@ import { login, visibleToast } from './helpers';
 // Natural journey / Given-When-Then:
 //   Given: an Approved PR (PROC-2026-007) that a sourcing user (finance@acme.test, a
 //          non-requester) can move forward to Vendor Quoted.
-//   When:  the user clicks "Request Supplier Quotes" — a routine, reversible forward step.
+//   When:  the user clicks "Request quotations" — a routine, reversible forward step.
 //   Then:  NO confirm dialog appears, the state advances on the SINGLE click, and a quiet
 //          success toast confirms it.
 //   Invariant: routine reversible writes are single-click + feedback, never a modal.
@@ -20,7 +20,7 @@ import { login, visibleToast } from './helpers';
 const PROC_ID = '60000000-0000-0000-0000-000000000007';
 const PROC_URL = `/procurement/${PROC_ID}`;
 
-test('AC-IXD-WP-001: a routine procurement forward step (Request Supplier Quotes) is single-click with NO confirm dialog + a success toast', async ({ page }) => {
+test('AC-IXD-WP-001: a routine procurement forward step (Request quotations) is single-click with NO confirm dialog + a success toast', async ({ page }) => {
   // ── Arrange: sign in as the Finance sourcing user and open the Approved PR ──
   await login(page, 'finance@acme.test');
   await page.goto(PROC_URL);
@@ -33,7 +33,11 @@ test('AC-IXD-WP-001: a routine procurement forward step (Request Supplier Quotes
   );
 
   // ── Act: click the routine forward step ──────────────────────────────────
-  const requestQuotes = page.getByRole('button', { name: 'Request Supplier Quotes' });
+  // At Approved the header's primary is "Record order"; requesting quotations is the routine
+  // alternative in the header's "More procurement actions" menu (#1404).
+  const header = page.getByTestId('record-header-actions');
+  await header.getByRole('button', { name: 'More procurement actions' }).click();
+  const requestQuotes = header.getByRole('menuitem', { name: 'Request quotations' });
   await expect(requestQuotes).toBeVisible({ timeout: 5_000 });
   await requestQuotes.click();
 
@@ -49,10 +53,10 @@ test('AC-IXD-WP-001: a routine procurement forward step (Request Supplier Quotes
   );
 
   // ── Assert 3: a quiet success toast confirmed it ──────────────────────────
-  // AC-IXD-PROC-001: the toast names the CANONICAL state ("Supplier Quote") — the
+  // AC-IXD-PROC-001: the toast names the CANONICAL state ("Supplier quote") — the
   // same noun the badge label shows — not the raw enum ("Vendor Quoted"). The
   // single-click + success-toast goal-oracle is unchanged; only the label noun is.
-  await expect(visibleToast(page, /Supplier Quote/i)).toBeVisible({
+  await expect(visibleToast(page, /Supplier quote/i)).toBeVisible({
     timeout: 10_000,
   });
 });

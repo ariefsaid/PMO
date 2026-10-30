@@ -68,20 +68,20 @@ beforeEach(() => {
 const ACCESS = /Access depends on your Microsoft permissions/;
 
 describe('F1: register rows stay short', () => {
-  it('F1: a Microsoft row shows the compact cell in the table; the access sentence appears once, in the Drawer', async () => {
+  it('F1: a Microsoft row opens its full linked-document cell in the preview; the access sentence appears once', async () => {
     h.docs.data = [makeLinkedDoc({ id: 'a' }), makeLinkedDoc({ id: 'b', title: 'Second' })];
     renderTab();
     expect(screen.queryAllByText(ACCESS)).toHaveLength(0);
-    expect(screen.getAllByRole('button', { name: /^Open in SharePoint:/ })).toHaveLength(2);
-    expect(screen.queryByRole('button', { name: /^Versions of/ })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
-    expect(within(screen.getByRole('dialog')).getAllByText(ACCESS)).toHaveLength(1);
+    const preview = screen.getByRole('complementary');
+    expect(within(preview).getByRole('button', { name: /^Open in SharePoint:/ })).toBeEnabled();
+    expect(within(preview).getAllByText(ACCESS)).toHaveLength(1);
   });
 
   it('F1: the Date value never wraps mid-date', () => {
     h.docs.data = [makeLinkedDoc()];
     renderTab();
-    expect(screen.getAllByText('2026-06-01')[0]).toHaveClass('whitespace-nowrap');
+    expect(screen.getByText('Jun 1, 2026')).toHaveClass('whitespace-nowrap');
   });
 });
 
@@ -93,9 +93,7 @@ describe('F4/F17: header actions', () => {
     expect(link.parentElement).toBe(add.parentElement);
     expect(link.parentElement).toHaveClass('flex-wrap');
     expect(screen.queryByRole('button', { name: 'From Microsoft 365' })).not.toBeInTheDocument();
-    const headingRow = screen.getByRole('heading', { name: 'Document register' }).parentElement!.parentElement!;
-    expect(within(headingRow).queryByRole('button', { name: 'Create folder in SharePoint' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Create folder in SharePoint' })).toBeInTheDocument();
+    expect(link.parentElement).not.toBe(screen.getByRole('button', { name: 'Create folder in SharePoint' }).parentElement);
   });
 });
 

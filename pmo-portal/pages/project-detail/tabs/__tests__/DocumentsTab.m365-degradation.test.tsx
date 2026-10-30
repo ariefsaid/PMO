@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -46,13 +47,13 @@ import DocumentsTab from '../DocumentsTab';
 
 const renderTab = () =>
   render(
-    <MemoryRouter>
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter>
       <ImpersonationProvider realRole="Project Manager">
         <ToastProvider>
           <DocumentsTab projectId="p1" projectCode="PRJ-1" />
         </ToastProvider>
       </ImpersonationProvider>
-    </MemoryRouter>,
+    </MemoryRouter></QueryClientProvider>,
   );
 
 beforeEach(() => {
@@ -62,8 +63,9 @@ beforeEach(() => {
   vi.spyOn(window, 'open').mockImplementation(() => null);
 });
 
-const rowOpenStillWorks = () => {
-  expect(screen.getByRole('button', { name: /Open in SharePoint/ })).toBeEnabled();
+const rowOpenStillWorks = async () => {
+  await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
+  expect(within(screen.getByRole('complementary')).getByRole('button', { name: /Open in SharePoint/ })).toBeEnabled();
   expect(h.unlink).not.toHaveBeenCalled();
 };
 
@@ -77,7 +79,7 @@ describe('DocumentsTab — project degradation matrix (AC-M365DOC-032/033/034/03
     renderTab();
     await userEvent.click(screen.getByRole('button', { name: 'Link from Microsoft 365' }));
     expect(screen.getByText(copy)).toBeInTheDocument();
-    rowOpenStillWorks();
+    await rowOpenStillWorks();
   });
 
   it('AC-M365DOC-034: an opaque/adversarial failure reading the latest file shows only generic copy; nothing is created or unlinked', async () => {
@@ -89,7 +91,7 @@ describe('DocumentsTab — project degradation matrix (AC-M365DOC-032/033/034/03
     expect(screen.queryByText(/synthetic-raw-secret/)).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: /New revision/ })).not.toBeInTheDocument();
     expect(h.createRevision).not.toHaveBeenCalled();
-    rowOpenStillWorks();
+    await rowOpenStillWorks();
   });
 
   it('AC-M365DOC-035: a network failure behaves the same and keeps the success as-of on the row', async () => {
@@ -98,8 +100,9 @@ describe('DocumentsTab — project degradation matrix (AC-M365DOC-032/033/034/03
     await userEvent.click(screen.getByRole('button', { name: /row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: 'Make new revision from latest file update' }));
     expect((await screen.findAllByText(/Microsoft could not load this file/)).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Checked/)).toBeInTheDocument();
-    rowOpenStillWorks();
+    await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
+    expect(within(screen.getByRole('complementary')).getByText(/Checked/)).toBeInTheDocument();
+    await rowOpenStillWorks();
   });
 
   it('AC-M365DOC-035: a latest item that is no longer a file refuses the revision', async () => {

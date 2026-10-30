@@ -13,6 +13,7 @@ export function budgetCategoryLabel(category: string, t: Translate): string {
     case 'Special expenses': return t('budget.category.specialExpenses', 'Special expenses');
     case 'Travel & accommodation': return t('finance:budgetCategory.travelAccommodation', 'Travel & accommodation');
     case 'Vehicle': return t('finance:budgetCategory.vehicle', 'Vehicle');
+    case 'Uncategorized': return t('finance:budgetCategory.uncategorized', 'Uncategorized');
     default: return category;
   }
 }

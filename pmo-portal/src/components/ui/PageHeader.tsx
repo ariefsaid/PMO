@@ -27,6 +27,8 @@ export interface PageHeaderProps {
    * supplies the framing — the inner icon + name + status + actions anatomy is unchanged.
    */
   surface?: 'card' | 'bare';
+  /** Put the actions on their own row under the name (narrow hosts such as a drawer), so the name is never truncated by them. */
+  actionsBelow?: boolean;
 }
 
 /** Detail-page header card (`phead`): icon + name + status + meta + stats + actions. */
@@ -41,6 +43,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   className,
   'data-testid': dataTestId,
   surface = 'card',
+  actionsBelow = false,
 }) => (
   <div
     data-testid={dataTestId}
@@ -61,12 +64,12 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       )}
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-          <h1 className="min-w-0 flex-1 break-words text-[19px] font-bold tracking-[-0.02em] sm:truncate">{name}</h1>
+          <h1 className={cn('min-w-0 flex-1 break-words text-[19px] font-bold tracking-[-0.02em]', !actionsBelow && 'sm:truncate')}>{name}</h1>
           {status}
         </div>
         {meta && <div className="mt-0.5 text-[12.5px] text-muted-foreground">{meta}</div>}
       </div>
-      {actions && <div className="ml-auto flex w-full shrink-0 items-center gap-2 sm:w-auto">{actions}</div>}
+      {actions && <div className={cn('flex w-full shrink-0 items-center gap-2', !actionsBelow && 'ml-auto sm:w-auto')}>{actions}</div>}
     </div>
     {stats && stats.length > 0 && (
       <div

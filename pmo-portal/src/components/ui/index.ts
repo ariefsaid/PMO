@@ -12,7 +12,7 @@ export { Switch, type SwitchProps } from './Switch';
 export { TaxBasisLabel, type TaxBasisLabelProps } from './TaxBasisLabel';
 export { StatusPill, Badge, type StatusVariant, type StatusPillProps, type BadgeProps } from './StatusPill';
 export { Card, CardHead, CardPad, type CardProps, type CardHeadingLevel } from './Card';
-export { KPITile, type KPITileProps, type KPITone, type KPIDelta, type KPIDualLens } from './KPITile';
+export { KPITile, KPIRow, type KPIRowProps, type KPITileProps, type KPITone, type KPIDelta, type KPIDualLens } from './KPITile';
 export {
   DataTable,
   MenuButton,
@@ -24,6 +24,7 @@ export {
   type ColAlign,
   type SortState,
   type RowMenuItem,
+  type DataTableSelection,
   type DataTableProps,
 } from './DataTable';
 export { ViewToggle, type ViewOption, type ViewToggleProps } from './ViewToggle';

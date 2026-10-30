@@ -8,6 +8,8 @@ export interface TooltipProps {
   /** Optional bold title line. */
   title?: string;
   children: React.ReactElement;
+  /** Let the trigger fill its row (a bar or a full-width line) instead of shrinking to its content. */
+  block?: boolean;
   className?: string;
 }
 
@@ -20,7 +22,7 @@ const GAP = 8;
  * keyboard-reachable. Portals out of clipping ancestors and clamps its preferred
  * 280px width/position to the viewport. It is non-interactive and never steals focus.
  */
-export const Tooltip: React.FC<TooltipProps> = ({ content, title, children, className }) => {
+export const Tooltip: React.FC<TooltipProps> = ({ content, title, children, block = false, className }) => {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<TooltipPosition | null>(null);
   const id = useId();
@@ -79,7 +81,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, title, children, clas
 
   return (
     <>
-      <span ref={triggerRef} className="relative inline-flex">
+      <span ref={triggerRef} className={block ? 'relative flex w-full' : 'relative inline-flex'}>
         {trigger}
       </span>
       {open && typeof document !== 'undefined' && createPortal(

@@ -120,6 +120,8 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
+vi.mock('@/src/hooks/useProjects', () => import('@/pages/__tests__/helpers/projectScopeMock'));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 import ProcurementDetails from '../ProcurementDetails';
 
 // ---------------------------------------------------------------------------
@@ -179,8 +181,15 @@ beforeEach(() => {
 // I3 — Draft is sparse: only tiles with real values appear
 // ---------------------------------------------------------------------------
 
-describe('I3: Draft stat tiles are sparse — no Pending/None-yet tiles', () => {
-  it('I3: a Draft case shows only the PR-value tile (not 4 placeholder tiles)', () => {
+// The Overview "stat tiles" strip became the procurement money summary (#1404): it always lists its
+// figures and says "None recorded" for an absent one. The goal — no misleading placeholder such as
+// "Pending", "None yet", "no PO yet" or "awaiting delivery" — holds. The "fewer than 4 tiles" test pinned
+// the old sparse layout (the five-figure summary is deliberate), so it is dropped.
+const MISLEADING = ['Pending', 'None yet', 'no PO yet', 'awaiting delivery'];
+const moneyText = () => screen.getByTestId('procurement-money-summary').textContent ?? '';
+
+describe('I3: Draft money summary has no misleading placeholder', () => {
+  it('I3: a Draft case shows the requested value and no Pending/None-yet placeholders', () => {
     detailState.data = {
       ...base,
       status: 'Draft',
@@ -191,37 +200,11 @@ describe('I3: Draft stat tiles are sparse — no Pending/None-yet tiles', () => 
     };
     renderPage();
 
-    const strips = screen.getAllByTestId('stat-tiles');
-    const mainStrip = strips[0]; // first strip = the overview bento tiles
-    const tileValues = within(mainStrip)
-      .getAllByTestId('stat-tile')
-      .map((el) => el.textContent ?? '');
-
-    // Must contain the PR value tile
-    expect(tileValues.some((t) => t.includes('$85,000'))).toBe(true);
-
-    // Must NOT contain tiles whose value is a placeholder
-    const badPhrases = ['Pending', 'None yet', 'no PO yet', 'awaiting delivery'];
-    const hasBadTile = tileValues.some((t) =>
-      badPhrases.some((phrase) => t.toLowerCase().includes(phrase.toLowerCase())),
-    );
-    expect(hasBadTile).toBe(false);
-  });
-
-  it('I3: a Draft case renders fewer than 4 tiles (sparse layout)', () => {
-    detailState.data = {
-      ...base,
-      status: 'Draft',
-      po_number: null,
-      quotations: [],
-      receipts: [],
-    };
-    renderPage();
-
-    const strips = screen.getAllByTestId('stat-tiles');
-    const mainStrip = strips[0];
-    const tileCount = within(mainStrip).getAllByTestId('stat-tile').length;
-    expect(tileCount).toBeLessThan(4);
+    const text = moneyText();
+    // Must contain the request value
+    expect(text).toContain('85,000');
+    // Must NOT contain a placeholder that reads as a state
+    expect(MISLEADING.some((phrase) => text.toLowerCase().includes(phrase.toLowerCase()))).toBe(false);
   });
 });
 
@@ -230,7 +213,7 @@ describe('I3: Draft stat tiles are sparse — no Pending/None-yet tiles', () => 
 // ---------------------------------------------------------------------------
 
 describe('I2: Paid case shows honest tiles — no "awaiting delivery"', () => {
-  it('I2: a Paid case with a receipt does NOT show "awaiting delivery" as tile sub-text', () => {
+  it('I2: a Paid case with a receipt does NOT show "awaiting delivery" in the money summary', () => {
     detailState.data = {
       ...base,
       status: 'Paid',
@@ -283,14 +266,11 @@ describe('I2: Paid case shows honest tiles — no "awaiting delivery"', () => {
     };
     renderPage();
 
-    // "awaiting delivery" must not appear anywhere in the tiles
-    const strips = screen.getAllByTestId('stat-tiles');
-    const mainStrip = strips[0];
-    const tileText = within(mainStrip).getAllByTestId('stat-tile').map((el) => el.textContent ?? '');
-    expect(tileText.some((t) => t.toLowerCase().includes('awaiting delivery'))).toBe(false);
+    // "awaiting delivery" must not appear anywhere in the money summary
+    expect(moneyText().toLowerCase()).not.toContain('awaiting delivery');
   });
 
-  it('I2: a Paid case with no receipts omits the Goods tile entirely (no misleading placeholder)', () => {
+  it('I2: a Paid case with no receipts shows no misleading placeholder in the money summary', () => {
     detailState.data = {
       ...base,
       status: 'Paid',
@@ -306,11 +286,8 @@ describe('I2: Paid case shows honest tiles — no "awaiting delivery"', () => {
     };
     renderPage();
 
-    const strips = screen.getAllByTestId('stat-tiles');
-    const mainStrip = strips[0];
-    const tileLabels = within(mainStrip).getAllByTestId('stat-tile').map((el) => el.textContent ?? '');
-    // "Goods received" tile must not appear when no receipts exist on a terminal case
-    expect(tileLabels.some((t) => t.toLowerCase().includes('none yet'))).toBe(false);
+    // No "none yet" placeholder when no receipts exist on a terminal case
+    expect(moneyText().toLowerCase()).not.toContain('none yet');
   });
 });
 
@@ -318,8 +295,17 @@ describe('I2: Paid case shows honest tiles — no "awaiting delivery"', () => {
 // I1 — Stepper refs from actual records, not denormalized header columns
 // ---------------------------------------------------------------------------
 
-describe('I1: stepper doc refs come from actual record rows, not header columns', () => {
-  it('I1: a Requested PR with a denormalized pr_number but NO purchase_request record does NOT show a stepper PR ref', () => {
+// The six-node stepper with doc refs became the four-stage tracker (#1404), whose stage lines are
+// counted from the actual record rows (never from the denormalized header columns); the document numbers
+// live in the Timeline. The goal is unchanged: a header column alone fabricates no record.
+const stageLine = (label: string) => {
+  const tracker = screen.getByTestId('procurement-stage-tracker');
+  const item = within(tracker).getAllByRole('listitem').find((el) => el.querySelector('span')?.textContent === label);
+  return item?.textContent ?? '';
+};
+
+describe('I1: stage tracker + timeline come from actual record rows, not header columns', () => {
+  it('I1: a Requested PR with a denormalized pr_number but NO purchase_request record shows no PR ref or count', () => {
     detailState.data = {
       ...base,
       status: 'Requested',
@@ -328,15 +314,13 @@ describe('I1: stepper doc refs come from actual record rows, not header columns'
     };
     renderPage();
 
-    const stepper = screen.getByRole('list', { name: /procurement lifecycle/i });
-    // The first step (Purchase Request) must not show the fabricated ref in its label
-    const stepItems = within(stepper).getAllByRole('listitem');
-    const prStep = stepItems[0];
-    // Should not contain the PR number as text (no record → no ref)
-    expect(prStep.textContent).not.toContain('PR-2606040001');
+    // The Request stage must not claim a recorded purchase request, and the fabricated ref is nowhere
+    expect(stageLine('Request')).not.toMatch(/purchase request/i);
+    expect(screen.getByTestId('procurement-stage-tracker')).not.toHaveTextContent('PR-2606040001');
+    expect(screen.queryByText('PR-2606040001')).toBeNull();
   });
 
-  it('I1: when a purchase_request record exists, its pr_number appears in the stepper', () => {
+  it('I1: when a purchase_request record exists, the Request stage counts it and its pr_number appears', () => {
     detailState.data = {
       ...base,
       status: 'Requested',
@@ -349,6 +333,7 @@ describe('I1: stepper doc refs come from actual record rows, not header columns'
           date: '2026-06-04',
           reference_number: null,
           amount: 85000,
+          currency: 'USD',
           procurement_id: 'proc-review-001',
           org_id: 'org-1',
           created_at: '2026-06-04T00:00:00Z',
@@ -357,12 +342,12 @@ describe('I1: stepper doc refs come from actual record rows, not header columns'
     };
     renderPage();
 
-    const stepper = screen.getByRole('list', { name: /procurement lifecycle/i });
-    // The PR ref should appear now (record exists)
-    expect(within(stepper).getByText('PR-2606040001')).toBeInTheDocument();
+    // The PR is counted now (record exists) and its number is legible in the case timeline
+    expect(stageLine('Request')).toMatch(/1 purchase request/i);
+    expect(screen.getAllByText('PR-2606040001').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('I1: a po_number header with no purchase_order record does NOT show a PO ref in the stepper', () => {
+  it('I1: a po_number header with no purchase_order record does NOT show a PO ref or order count', () => {
     detailState.data = {
       ...base,
       status: 'Ordered',
@@ -378,9 +363,9 @@ describe('I1: stepper doc refs come from actual record rows, not header columns'
     };
     renderPage();
 
-    const stepper = screen.getByRole('list', { name: /procurement lifecycle/i });
     // PO-2606040999 must NOT appear — no PO record
-    expect(within(stepper).queryByText('PO-2606040999')).toBeNull();
+    expect(stageLine('Order')).not.toMatch(/\d+ orders?/i);
+    expect(screen.queryByText('PO-2606040999')).toBeNull();
   });
 });
 
@@ -420,35 +405,20 @@ describe('I4: budget sub-label reads "headroom remaining", not "% of budget"', (
 
 // I6 tests live in StatTiles.test.tsx (imported directly, avoiding the vi.mock above)
 
-// ---------------------------------------------------------------------------
-// M3 — Timeline column: no forced stretch (size to content)
-// ---------------------------------------------------------------------------
-
-describe('M3: Progression aside column sizes to content, no forced stretch', () => {
-  it('M3: the overview ov-side aside has no forced min-height or items-stretch class', () => {
-    detailState.data = {
-      ...base,
-      status: 'Draft',
-    };
-    renderPage();
-
-    const aside = screen.getByTestId('procurement-progression');
-    // The grid wrapper must not force the aside to stretch to the grid row height
-    // (no min-h-full, no h-full, no self-stretch forced on the column wrapper)
-    // We check that the parent grid container does NOT have `items-stretch` in its class
-    const gridParent = aside.parentElement;
-    expect(gridParent?.className ?? '').not.toContain('items-stretch');
-    // The aside itself must not have self-stretch or a forced min-height
-    expect(aside.className).not.toContain('self-stretch');
-    expect(aside.className).not.toContain('min-h-full');
-  });
-});
+// M3 (progression aside sized to content) pinned CSS classes of the removed Overview progression
+// aside (#1404 replaced it with the stage tracker + timeline), so it is deleted rather than ported.
 
 // ---------------------------------------------------------------------------
 // M4 — nextExpectedType: Ordered → null, Received → null
 // ---------------------------------------------------------------------------
 
 describe('M4: LedgerCaptureRow is hidden at Ordered and Received (defer to action zone)', () => {
+  it('M4 control: the capture row IS on the Files tab at Draft (so its absence below is meaningful)', () => {
+    detailState.data = { ...base, status: 'Draft' };
+    renderPage('/procurement/proc-review-001/files');
+    expect(screen.getByTestId('ledger-capture-row')).toBeInTheDocument();
+  });
+
   it('M4: Ordered status does NOT show the ledger capture row (would mis-prompt PO)', () => {
     detailState.data = {
       ...base,
@@ -463,16 +433,9 @@ describe('M4: LedgerCaptureRow is hidden at Ordered and Received (defer to actio
       purchase_orders: [],
       payments: [],
     };
-    renderPage();
+    renderPage('/procurement/proc-review-001/files');
 
-    // Navigate to documents tab to see LedgerCaptureRow
-    // Actually LedgerCaptureRow is inside the documents tab; but nextExpectedType returning null
-    // also means the capture row is hidden. Verify it's not in the DOM.
-    // The testid 'ledger-capture-row' must not appear (capture hidden at Ordered)
-    // Note: since we're on the overview tab by default, we need to check that
-    // when the documents tab is visited, capture is hidden for Ordered status.
-    // We test this directly via the component rendered in a documents route.
-    // For now test the component is not present on any visible page section:
+    // The ledger lives on the Files tab (#1404); visit it so the absence is not vacuous.
     expect(screen.queryByTestId('ledger-capture-row')).toBeNull();
   });
 
@@ -501,7 +464,7 @@ describe('M4: LedgerCaptureRow is hidden at Ordered and Received (defer to actio
       purchase_orders: [],
       payments: [],
     };
-    renderPage();
+    renderPage('/procurement/proc-review-001/files');
     expect(screen.queryByTestId('ledger-capture-row')).toBeNull();
   });
 });

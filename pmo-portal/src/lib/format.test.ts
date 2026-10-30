@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import {
-  PLATFORM_CURRENCY, currencySymbol, formatCompactCurrency, formatCurrency, parseMoneyInput, pct, formatPercent, formatDate, formatRelativeTime,
-  formatCurrencyAuto, formatCurrencyCents, formatCurrencyFine, formatNumber, formatNumberMax2,
+  PLATFORM_CURRENCY, completionPct, currencySymbol, formatCompactCurrency, formatCurrency, parseMoneyInput, pct, formatDate, formatRelativeTime,
+  formatCurrencyAuto, formatCurrencyCents, formatCurrencyFine, formatNumber, formatNumberMax2, formatPercent,
   formatDateNumeric, formatDateUtc, formatDateTime, formatDayMonth, formatExactMoney, formatFullDate, formatMonthDay,
   formatMonthYear, formatUtcDayMonthYear, formatUtcMonthYear, formatWeekday, formatWeekdayMonthDay,
 } from './format';
@@ -299,5 +299,14 @@ describe('FR-L10N-020..023: currency-aware money formatters', () => {
     expect(currencySymbol('USD')).toBe('$');
     expect(currencySymbol('EUR')).toBe('€');
     expect(currencySymbol('IDR')).toBe('IDR'); // no native symbol — the code is the honest glyph
+  });
+});
+
+describe('completionPct', () => {
+  it('never rounds unfinished work up to 100', () => {
+    expect(completionPct(99.6)).toBe(99);
+    expect(completionPct(42.4)).toBe(42);
+    expect(completionPct(100)).toBe(100);
+    expect(completionPct(0)).toBe(0);
   });
 });

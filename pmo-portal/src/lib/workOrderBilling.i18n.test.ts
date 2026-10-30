@@ -7,5 +7,8 @@ describe('work-order billing copy (OD-BILL-1)', () => {
     const b = catalogue.projectDetail.workOrders.billing;
     expect(b.status.notInvoiced).not.toBe(b.stillToInvoice);
     expect(b.lineRemaining.replace(' {{amount}}', '')).not.toBe(b.status.notInvoiced);
+    expect(b.status.partlyInvoiced).toBeTruthy();
+    expect(b.status.overInvoiced).toBeTruthy();
+    expect(b.lineOver).toContain('{{amount}}');
   });
 });

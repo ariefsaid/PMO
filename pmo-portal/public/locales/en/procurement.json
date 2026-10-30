@@ -60,14 +60,6 @@
   "quoteSelection": {
     "reroutedDetail": "The quote is above the approved amount, so the procurement went back for approval."
   },
-  "quotes": {
-    "compareHint": "Compare and select a supplier quote",
-    "supplierColumn": "Supplier / Quote #",
-    "supplierQuoteFallback": "Supplier quote",
-    "tableName": "Supplier bid comparison",
-    "selectSupplier": "Select a supplier…",
-    "selectionDescription": "The selected quote sets the procurement value and supplier. If it is above the approved amount, the procurement goes back for approval."
-  },
   "ledger": {
     "paymentInErp": "Record the payment in ERPNext; it links here on the next sync.",
     "billsHiddenForRole": "Supplier bills and payments are not shown for your role.",
@@ -86,7 +78,7 @@
       "receipt": "Goods receipt",
       "invoice": "Supplier invoice",
       "payment": "Payment",
-      "needsRequest": "needs a request first",
+      "needsRequest": "needs a purchase request first",
       "needsApproval": "needs an approval first",
       "needsReceipt": "needs a goods receipt first"
     }
@@ -125,6 +117,198 @@
   },
   "detail": {
     "paidNeedsValue": "Add a line item or a document with an amount before marking this paid."
+  },
+  "projectDetail": {
+    "procurement": {
+      "stageBand": {
+        "request": "Request",
+        "order": "Order",
+        "receive": "Receive",
+        "pay": "Pay",
+        "invoiced": "Invoiced",
+        "invoicedNotPaid": "Invoiced, not paid",
+        "paid": "Paid",
+        "approved": "Approved",
+        "label": "Procurement stages"
+      },
+      "nextStep": {
+        "approveOrReturn": "Approve or return",
+        "waitingOnApprover": "Waiting on approver",
+        "approved": "Get quotes or order",
+        "delivered": "Record supplier invoice",
+        "draft": "Submit for approval",
+        "gettingQuotes": "Choose a quote",
+        "ordered": "Record delivery",
+        "quoteChosen": "Raise the order",
+        "supplierInvoiced": "Pay"
+      },
+      "noNextStep": "—",
+      "document": {
+        "purchaseRequest": "Purchase request",
+        "quotation": "Quotation",
+        "purchaseOrder": "Purchase order",
+        "receipt": "Receipt",
+        "supplierInvoice": "Supplier invoice",
+        "payment": "Payment"
+      },
+      "detail": {
+        "budgetLeftTooltip": "Active category budget minus mapped actual spending and this procurement value. Source: the active budget and project spending.",
+        "budgetLoading": "Loading budget…",
+        "budgetLeft": "Budget left in category",
+        "title": "Procurement details",
+        "openFullRecord": "Open full page",
+        "category": "Category",
+        "value": "Value",
+        "owner": "Owner",
+        "timeline": "Step timeline",
+        "timelineHint": "Steps can happen in any order; skipped steps are not recorded.",
+        "notRecorded": "Not recorded",
+        "documents": "Documents",
+        "loadingDocuments": "Loading linked documents…",
+        "documentsError": "Linked documents could not be loaded.",
+        "noDocuments": "No linked documents yet."
+      },
+      "uncategorized": "Uncategorized",
+      "unassigned": "Unassigned",
+      "toast": {
+        "approved": "Procurement approved",
+        "returned": "Procurement returned",
+        "cancelled": "Procurement cancelled",
+        "completedMany": "{{count}} records updated.",
+        "partial": "Some records were updated",
+        "partialDetail": "{{updated}} updated; {{failed}} need review.",
+        "linkCopied": "Link copied",
+        "linkCopyFailed": "Could not copy link"
+      },
+      "rowMenu": {
+        "open": "Open procurement",
+        "approve": "Approve",
+        "return": "Return",
+        "copyLink": "Copy link",
+        "cancel": "Cancel procurement"
+      },
+      "exportEntity": "Procurement",
+      "table": {
+        "value": "Value",
+        "procurement": "Procurement",
+        "category": "Category",
+        "stage": "Stage",
+        "nextStep": "Next step",
+        "accessibleName": "Project procurement"
+      },
+      "noSupplier": "No supplier",
+      "ownerTooltip": "Requested by {{name}}. Source: procurement record.",
+      "stageCountTooltip": "Count of procurements currently in {{stage}}. Source: project procurement records.",
+      "forYou": "{{count}} for you",
+      "selection": {
+        "selectRow": "Select {{name}}",
+        "count": "{{count}} selected",
+        "clearVisible": "Clear visible",
+        "selectVisible": "Select visible",
+        "clear": "Clear selection"
+      },
+      "empty": {
+        "title": "No procurement on this project yet.",
+        "engineerTitle": "You haven't raised a procurement on this project."
+      },
+      "emptyFiltered": {
+        "title": "No procurement matches these filters.",
+        "sub": "Adjust the search or filters and try again.",
+        "clear": "Clear filters"
+      },
+      "bulk": {
+        "approve": "Approve",
+        "return": "Return",
+        "export": "Export"
+      },
+      "searchLabel": "Search procurement",
+      "search": "Search procurement…",
+      "filter": {
+        "category": "Filter by category",
+        "allCategories": "Category",
+        "owner": "Filter by owner",
+        "allOwners": "Owner",
+        "clearStage": "Clear stage filter"
+      },
+      "confirm": {
+        "approveTitle": "Approve this procurement?",
+        "approveManyTitle": "Approve {{count}} procurements?",
+        "approveDescription": "{{title}} · {{amount}}. Approving lets the order go ahead.",
+        "approveManyDescription": "Approving lets each order go ahead.",
+        "cancelManyTitle": "Cancel these procurements?",
+        "cancelTitle": "Cancel this procurement?",
+        "returnManyTitle": "Return these procurements?",
+        "returnTitle": "Return this procurement?",
+        "cancelDescription": "This procurement will be marked as cancelled.",
+        "returnDescription": "The procurement goes back to the person who raised it."
+      },
+      "stage": {
+        "cancelled": "Cancelled",
+        "rejected": "Rejected"
+      }
+    }
+  },
+  "procurement": {
+    "moneyBasis": {
+      "paid": "Paid",
+      "invoiced": "Invoiced",
+      "ordered": "Ordered",
+      "requested": "Requested"
+    },
+    "needsYou": {
+      "none": "—",
+      "approve": "Approve procurement",
+      "receive": "Record delivery",
+      "pay": "Pay invoice",
+      "column": "Why it needs you"
+    },
+    "rowMenu": {
+      "nextAction": "Next action",
+      "recordDocument": "Record another document",
+      "linkFile": "Link a file",
+      "export": "Export"
+    },
+    "moneyTooltip": "Most recorded amount: paid, invoiced, ordered, then requested. Source: procurement records.",
+    "moneyUnknown": "Not recorded",
+    "unpaidTooltip": "Invoice amount less recorded payments, or the ERP outstanding balance.",
+    "unpaidLine": "Unpaid {{amount}}",
+    "unpaidInFull": "Unpaid in full",
+    "unpaidUnknown": "Unpaid balance not recorded",
+    "noStepDates": "No step dates recorded yet.",
+    "moreActions": "More procurement actions",
+    "settlementTooltip": "Recorded paid amount compared with recorded invoices.",
+    "settlement": "Paid / invoiced",
+    "nextStepLabel": "Next step",
+    "lineItems": "Line items",
+    "lineItemsUnavailable": "Line items could not be loaded.",
+    "noLineItems": "No line items recorded.",
+    "openDrawer": "Open procurement",
+    "needsYouTooltip": "Suggested action based on the current role and record state. Server rules remain authoritative.",
+    "ageInStageTooltip": "Days since the current procurement stage was most recently entered.",
+    "ageInStage": "Age in stage",
+    "ageShort": "Age",
+    "ageInStageDays": "{{count}}d",
+    "raisedBy": "Raised by",
+    "stageCountTooltip": "Count of procurements currently in {{stage}}. Source: company procurement records.",
+    "table": {
+      "accessibleName": "Procurement"
+    },
+    "empty": {
+      "title": "No procurement yet.",
+      "scopeNote": "Purchases recorded only in the accounting system are not listed here."
+    }
+  },
+  "common": {
+    "loading": "Loading…",
+    "retry": "Retry"
+  },
+  "quotes": {
+    "compareHint": "Compare and select a supplier quote",
+    "supplierColumn": "Supplier / Quote #",
+    "supplierQuoteFallback": "Supplier quote",
+    "tableName": "Supplier bid comparison",
+    "selectSupplier": "Select a supplier…",
+    "selectionDescription": "The selected quote sets the procurement value and supplier. If it is above the approved amount, the procurement goes back for approval."
   },
   "approvalRow": {
     "open": "Open procurement",

@@ -1,7 +1,9 @@
 {
   "budgetForecast": {
     "remainingShort": "Remaining",
-    "budgetUsedShort": "% used"
+    "remainingFull": "Forecast remaining / (overrun)",
+    "budgetUsedShort": "% used",
+    "budgetUsedFull": "Forecast budget used"
   },
   "billing": {
     "quantity": "Quantity billing"
@@ -124,7 +126,10 @@
           "withdrawn": "BAST withdrawn"
         },
         "withdraw": "Withdraw",
-        "withdrawLabel": "Withdraw draft BAST of {{date}}"
+        "withdrawLabel": "Withdraw draft BAST of {{date}}",
+        "confirmDelivery": "Confirm draft BAST",
+        "finalConfirmed": "Final confirmed",
+        "confirmed": "Confirmed"
       },
       "closing": {
         "closedAt": "Closed at {{amount}} (excl. PPN)",
@@ -149,7 +154,6 @@
         "legend": "Bill of quantities lines",
         "loadError": "Couldn’t load the contract lines",
         "noBoq": "This project has no bill of quantities lines yet.",
-        "none": "No contract lines allocated yet",
         "overOrdered": "Over-ordered by {{qty}} {{unit}} — more than the contract balance.",
         "readOnly": "You can view these allocations but not change them.",
         "remove": "Remove",
@@ -161,8 +165,7 @@
       },
       "quantities": {
         "counts": "{{lines}} lines · {{basts}} BAST",
-        "summary": "Contract lines and BAST — {{wo}}",
-        "title": "Contract quantities"
+        "summary": "Contract lines and BAST — {{wo}}"
       }
     }
   }

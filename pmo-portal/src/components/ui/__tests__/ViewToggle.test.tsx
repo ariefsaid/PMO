@@ -56,7 +56,9 @@ describe('ViewToggle (segmented control)', () => {
         ariaLabel="Mode"
       />
     );
-    expect(screen.getByText('4')).toBeInTheDocument();
+    const count = screen.getByText('4');
+    expect(count).toBeInTheDocument();
+    expect(count).toHaveClass('text-muted-foreground');
   });
 
   it('wrapperClassName wraps the option button without adding display to the button (A-MIN-1 clsx-safe hide)', () => {

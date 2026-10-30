@@ -96,8 +96,8 @@ test('UIP-008 previews the South request by keyboard at phone 390x844', async ({
 test('UIP-007 keeps comparative procurement values and the header right-aligned at desktop', async ({ page }) => {
   await signIn(page, 'finance@acme.test');
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto('/procurement');
-  await page.getByRole('searchbox', { name: 'Filter procurement records' }).fill(titles[0].split(' Switchgear')[0]);
+  await page.goto('/procurement?view=grouped');
+  await page.getByRole('searchbox', { name: 'Search procurements' }).fill(titles[0].split(' Switchgear')[0]);
   await expect(page.locator('[data-procurement-value]')).toHaveCount(2);
   await waitForFonts(page);
   const edges = await page.locator('[data-procurement-value]').evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().right));

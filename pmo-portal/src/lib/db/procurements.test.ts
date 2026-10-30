@@ -68,6 +68,20 @@ describe('listProcurements', () => {
     expect(sel).toContain('pr_refs:purchase_requests(external_ref)');
     expect(sel).toContain('po_refs:purchase_orders(external_ref)');
     expect(sel).toContain('vi_refs:procurement_invoices(external_ref)');
+    expect(sel).not.toContain('purchase_requests(amount,date,created_at,external_ref)');
+  });
+
+  it('AC-1402: the shared list gets batched money, stage, and project-manager inputs', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProcurements(undefined, { withRefs: true, withSharedDetails: true });
+    const sel = mockSelect.mock.calls.at(-1)![0] as string;
+    expect(sel).toContain('project:projects(name,short_name,code,project_manager_id)');
+    expect(sel).toContain('purchase_requests(amount,date,created_at,external_ref)');
+    expect(sel).toContain('purchase_orders(amount,date,created_at,external_ref)');
+    expect(sel).toContain('receipts:procurement_receipts(receipt_date,created_at)');
+    expect(sel).toContain('procurement_invoices(amount,invoice_date,created_at,erp_outstanding_amount,external_ref)');
+    expect(sel).toContain('payments(amount,date,created_at,status)');
+    expect(sel).toContain('status_events:procurement_status_events(to_status,created_at)');
   });
 
   it('sends no org_id (RLS scopes it) (FR-DAL-PROC-001)', async () => {
@@ -200,7 +214,8 @@ describe('listProcurementsByProject', () => {
     makeBuilder({ data: rows, error: null });
     const out = await listProcurementsByProject('proj-1');
     expect(mockFrom).toHaveBeenCalledWith('procurements');
-    expect(mockSelect).toHaveBeenCalledWith(expect.stringContaining('project:projects(name,short_name,code)'));
+    expect(mockSelect).toHaveBeenCalledWith(expect.stringContaining('project:projects(name,short_name,code,project_manager_id)'));
+    expect(mockSelect).toHaveBeenCalledWith(expect.stringContaining('status_events:procurement_status_events(to_status,created_at)'));
     expect(mockEq).toHaveBeenCalledWith('project_id', 'proj-1');
     expect(out.map((r) => r.id)).toEqual(['pr1']);
   });

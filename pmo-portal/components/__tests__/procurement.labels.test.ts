@@ -80,11 +80,11 @@ describe('AC-IXD-PROC-001: one canonical procurement label per state', () => {
     // button → resulting badge → toast all name one state.
     expect(transitionVerb(s('Requested'))).toMatch(/Request/i);
     expect(transitionVerb(s('Approved'))).toMatch(/Approve/i);
-    expect(transitionVerb(s('Vendor Quoted'))).toMatch(/Supplier Quote/i);
+    expect(transitionVerb(s('Vendor Quoted'))).toMatch(/Supplier quote/i);
     expect(transitionVerb(s('Quote Selected'))).toMatch(/Select Quote/i);
     expect(transitionVerb(s('Ordered'))).toMatch(/Purchase Order/i);
     expect(transitionVerb(s('Received'))).toMatch(/Receipt/i);
-    expect(transitionVerb(s('Vendor Invoiced'))).toMatch(/Supplier Invoice/i);
+    expect(transitionVerb(s('Vendor Invoiced'))).toMatch(/Supplier invoice/i);
     expect(transitionVerb(s('Paid'))).toMatch(/Paid/i);
   });
 });

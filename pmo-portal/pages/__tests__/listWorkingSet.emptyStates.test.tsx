@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
@@ -45,7 +46,7 @@ const noopMutations = () => ({
   isPending: false,
 });
 
-vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [] }), useHasErpPurchases: () => ({ data: false }) }));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 // Projects' table row status control needs a QueryClientProvider this suite doesn't mount —
 // stubbed exactly as pages/__tests__/Projects.atRiskFilter.test.tsx does (rendering, not status
@@ -91,6 +92,7 @@ vi.mock('@/src/hooks/useMeetings', () => ({
 // mock satisfies every caller (compatible shapes, no caller-specific behavior needed).
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
+  useProject: () => ({ data: null }),
   useClientCompanies: () => ({ data: [] }),
   useProjectManagers: () => ({ data: [] }),
   useProjectsMilestoneDates: () => ({ data: [], isPending: false }),
@@ -116,7 +118,10 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 // Procurement's real default is already 'table'; SalesPipeline's real default is 'kanban', so
 // its own test clicks the Table toggle first.
 
-vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procurementsState }));
+vi.mock('@/src/hooks/useProcurements', () => ({
+  useProcurements: () => procurementsState,
+  useProjectProcurements: () => procurementsState,
+}));
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useCreateProcurement: () => noopMutations(),
 }));
@@ -141,13 +146,15 @@ const PROJECT_ID = '33333333-3333-4333-8333-333333333333';
 
 const renderList = (Page: React.ComponentType, role = 'Admin') =>
   render(
-    <ImpersonationProvider realRole={role as never}>
-      <MemoryRouter>
-        <ToastProvider>
-          <Page />
-        </ToastProvider>
-      </MemoryRouter>
-    </ImpersonationProvider>,
+    <QueryClientProvider client={new QueryClient()}>
+      <ImpersonationProvider realRole={role as never}>
+        <MemoryRouter>
+          <ToastProvider>
+            <Page />
+          </ToastProvider>
+        </MemoryRouter>
+      </ImpersonationProvider>
+    </QueryClientProvider>,
   );
 
 beforeEach(() => {
@@ -356,7 +363,7 @@ describe('AC-LRC-012 — Procurement', () => {
   it('AC-LRC-012: a genuinely empty collection shows the create-first-record copy, no Clear filters action', () => {
     procurementsState.data = [];
     renderList(Procurement);
-    expect(screen.getByText(/No procurement records yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/No procurements yet/i)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /New procurement/i }).length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByRole('button', { name: /Clear filters/i })).not.toBeInTheDocument();
   });
@@ -366,8 +373,10 @@ describe('AC-LRC-012 — Procurement', () => {
       { id: 'pr1', title: 'Crane hire', code: 'PR-001', status: 'Requested', total_value: 5000, currency: 'USD', created_at: '2026-06-01T00:00:00Z', project: { name: 'Harbour' }, requested_by_id: 'u1', requested_by: { full_name: 'Alice' } },
     ];
     renderList(Procurement);
-    await userEvent.type(screen.getByLabelText(/Filter procurement records/i), 'no-such-procurement');
-    expect(await screen.findByText(/No procurement records match your filters/i)).toBeInTheDocument();
+    // The page-level search + Clear filters live on the Board / Grouped views.
+    await userEvent.click(screen.getByRole('tab', { name: /^Board$/i }));
+    await userEvent.type(screen.getByLabelText(/Search procurements/i), 'no-such-request');
+    expect(await screen.findByText(/No procurements match these filters/i)).toBeInTheDocument();
     const clear = screen.getByRole('button', { name: /Clear filters/i });
     await userEvent.click(clear);
     expect(await screen.findByText('Crane hire')).toBeInTheDocument();

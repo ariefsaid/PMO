@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
   realRole: 'Finance',
   canViewFinance: true,
   getProjectFinances: vi.fn(),
+  getProjectBudget: vi.fn(),
   mutations: {
     archive: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: vi.fn(), isPending: false },
@@ -38,7 +39,10 @@ vi.mock('@/src/lib/repositories', () => ({
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => true }));
 vi.mock('@/src/components/fx/FxEquivalent', () => ({ default: () => null }));
 vi.mock('@/src/hooks/useBudget', () => ({
-  useProjectBudget: () => ({ data: 0, isPending: false, isError: false }),
+  useProjectBudget: (...args: unknown[]) => {
+    h.getProjectBudget(...args);
+    return { data: 0, isPending: false, isError: false };
+  },
 }));
 vi.mock('@/src/hooks/useProjectVatEditability', () => ({
   useProjectVatEditability: () => ({
@@ -93,11 +97,25 @@ function renderHeader(status: string) {
   );
 }
 
+function renderCompactHeader(status: string) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <ToastProvider>
+          <ProjectDetailHeader project={projectForStatus(status)} compact committedSpend={10} commitmentSource="pmo" ledgerBasis="erp" />
+        </ToastProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
 beforeEach(() => {
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
   h.orgId = 'org-A';
   h.realRole = 'Finance';
   h.canViewFinance = true;
+  h.getProjectBudget.mockReset().mockReturnValue({ data: 0, isPending: false, isError: false });
   h.getProjectFinances.mockReset().mockImplementation(async (projectId: string) => ({
     project_id: projectId,
     contract_invoiced: '0.00',
@@ -143,5 +161,12 @@ describe('ProjectDetailHeader finance query demand', () => {
     renderHeader('Ongoing Project');
 
     expect(h.getProjectFinances).not.toHaveBeenCalled();
+  });
+
+  it('AC-PMP-004 compact detail header does not fetch or derive money-strip data', () => {
+    renderCompactHeader('Ongoing Project');
+    expect(h.getProjectFinances).not.toHaveBeenCalled();
+    expect(h.getProjectBudget).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-testid="stat-tiles"]')).not.toBeInTheDocument();
   });
 });

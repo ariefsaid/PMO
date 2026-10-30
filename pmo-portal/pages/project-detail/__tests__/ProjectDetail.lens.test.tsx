@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import ProjectDetail from '../ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { formatCurrency } from '@/src/lib/format';
 
 vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => ({ data: { project_id: 'p1', contract_invoiced: null, remaining_to_invoice: null, invoices: [], budget: null, actuals: { currency: null, as_of: null, total: null, excludes_restricted_rows: false, categories: [] } }, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useProjectVatEditability', () => ({ useProjectVatEditability: () => ({ data: { eligible: true, reason: null, hasInvoices: false }, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }) }));
@@ -15,7 +17,7 @@ vi.mock('@/src/hooks/useFxRates', () => ({ useFxRate: () => ({ data: null, isPen
 
 vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => null }));
 // ProjectErpLink reads the org's ERP binding through react-query; it has its own test (AC-SETUP-001).
-vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
+vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => <div data-testid="project-erp-link">ERP link</div> }));
 
 /**
  * AC-IXD-PROJ-004 (Model B canonical route, ADR-0020) + AC-IXD-PROJ-008 (UNIFIED page, ADR-0021,
@@ -41,6 +43,7 @@ const pipelineState = {
   isPending: false,
   isError: false,
 };
+const tasksState = { data: [] as Array<Record<string, unknown>> };
 
 // #566: the Overview tab renders <ProjectDrawdown>, whose data states are covered separately.
 // Keep it in its loading state here so it contributes no text of its own to lens assertions.
@@ -48,6 +51,11 @@ vi.mock('@/src/hooks/useRevenue', async (orig) => ({
   ...(await orig<typeof import('@/src/hooks/useRevenue')>()),
   useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useProgressBilling', () => ({
+  useBoqItems: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectBilling: () => ({ data: { contractLines: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('../ProjectProfitLossSection', () => ({ default: ({ projectId }: { projectId: string }) => <div data-testid="project-profit-loss">Project totals {projectId}</div> }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
 }));
@@ -91,11 +99,12 @@ vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, transitionProject: vi.fn().mockResolvedValue(undefined) };
 });
+const roleBox = vi.hoisted(() => ({ value: 'Project Manager' }));
 vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
+  useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: roleBox.value }),
 }));
 vi.mock('@/src/auth/impersonation', () => ({
-  useEffectiveRole: () => ({ effectiveRole: 'Project Manager', realRole: 'Project Manager' }),
+  useEffectiveRole: () => ({ effectiveRole: roleBox.value, realRole: roleBox.value }),
 }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
@@ -113,7 +122,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useTasks', () => ({
-  useTasks: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useTasks: () => ({ data: tasksState.data, isPending: false, isError: false, refetch: vi.fn() }),
   useAssignableProfiles: () => ({ data: [], isPending: false, isError: false }),
   useTaskMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false }, update: { mutateAsync: vi.fn(), isPending: false },
@@ -165,6 +174,7 @@ const renderAt = async (path: string | { pathname: string; state?: unknown }) =>
     <MemoryRouter initialEntries={[path]}>
       <ToastProvider>
         <Routes>
+          <Route path="/projects/:projectId/:tab?" element={<ProjectDetail />} />
           <Route path="/projects/:projectId" element={<ProjectDetail />} />
         </Routes>
       </ToastProvider>
@@ -175,30 +185,121 @@ const renderAt = async (path: string | { pathname: string; state?: unknown }) =>
 };
 
 beforeEach(() => {
+  roleBox.value = 'Project Manager';
   navigate.mockClear();
   projectsState.data = [];
   projectsState.isPending = false;
   pipelineState.data = { stages: [], projects: [] };
+  tasksState.data = [];
 });
 
 describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
-  it('AC-IXD-PROJ-004: an ON-HAND record renders the delivery tabs + the contract-value SoD editor (no pipeline lens)', async () => {
+  it.each(['Admin', 'Executive', 'Finance', 'Project Manager'])('%s sees the financial Overview blocks and contract value', async (role) => {
+    roleBox.value = role;
+    projectsState.data = [onHandRow];
+    const view = await renderAt('/projects/p1');
+    expect(screen.getByRole('heading', { name: 'Money position' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Budget vs actual' })).toBeInTheDocument();
+    // L6: the contract value is shown once on the screen — in Money position, not again in the header facts.
+    expect(within(screen.getByRole('region', { name: /Money position/ })).getByText(formatCurrency(5_000_000, 'USD'))).toBeInTheDocument();
+    expect(within(screen.getByLabelText('Project facts')).queryByText(/5,000,000/)).not.toBeInTheDocument();
+    view.unmount();
+  });
+
+  it('keeps Engineer financial-free while showing assigned task attention and phases', async () => {
+    projectsState.data = [onHandRow];
+    roleBox.value = 'Engineer';
+    tasksState.data = [{ id: 'task-17', name: 'Review drawings', status: 'Blocked', assignee_id: 'u-alice', end_date: '2000-01-01' }];
+    const engineer = await renderAt('/projects/p1');
+    const myTasks = screen.getByRole('heading', { name: /My open tasks/ });
+    expect(myTasks).toHaveTextContent('1');
+    expect(screen.queryByRole('heading', { name: /Needs attention/ })).not.toBeInTheDocument();
+    expect(screen.queryAllByText('Review drawings is blocked')).toHaveLength(0);
+    for (const taskLink of screen.getAllByRole('link', { name: /Review drawings/ })) {
+      expect(taskLink).toHaveAttribute('href', '/projects/p1/tasks?open=task-17');
+    }
+    expect(screen.getByRole('heading', { name: 'Phase timeline' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Money position' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Budget vs actual' })).not.toBeInTheDocument();
+    expect(screen.queryByText('$5,000,000')).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Budget' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Contract & billing' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText('More actions'));
+    const menu = screen.getByLabelText('More actions').closest('details');
+    expect(within(menu!).getByRole('button', { name: 'Project details' })).toBeInTheDocument();
+    expect(within(menu!).getByTestId('project-erp-link')).toBeInTheDocument();
+    expect(within(menu!).queryByRole('button', { name: 'Change status' })).not.toBeInTheDocument();
+    // AC-IXD-PROJ-W5-C3-09: an Engineer is never offered the contract-value editor or its read-only lock.
+    expect(within(menu!).queryByRole('button', { name: /contract value/i })).not.toBeInTheDocument();
+    expect(within(menu!).queryByTestId('contract-value-read-explanation')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('contract-value-sod')).not.toBeInTheDocument();
+    await userEvent.click(within(menu!).getByRole('button', { name: 'Project details' }));
+    expect(within(menu!).getByTestId('project-detail-rail')).toBeInTheDocument();
+    engineer.unmount();
+  });
+
+  it('keeps pipeline Engineers on the task lens without exposing estimated budget', async () => {
+    roleBox.value = 'Engineer';
+    projectsState.data = [{ ...pipelineRow, status: 'Leads' } as ProjectWithRefs];
+    tasksState.data = [{ id: 'task-pipeline', name: 'Review scope', status: 'Blocked', assignee_id: 'u-alice', end_date: '2000-01-01' }];
+    await renderAt('/projects/d1');
+
+    const myTasks = screen.getByRole('heading', { name: /My open tasks/ });
+    expect(myTasks).toHaveTextContent('1');
+    expect(screen.queryByRole('heading', { name: /Needs attention/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Phase timeline' })).toBeInTheDocument();
+    for (const taskLink of screen.getAllByRole('link', { name: /Review scope/ })) {
+      expect(taskLink).toHaveAttribute('href', '/projects/d1/tasks?open=task-pipeline');
+    }
+    expect(screen.queryByRole('heading', { name: 'Budget' })).not.toBeInTheDocument();
+    expect(screen.queryByText('$1,200,000')).not.toBeInTheDocument();
+  });
+
+  it('AC-009 support: Overview mounts project totals once, inside Money position, before the phase timeline and Activity', async () => {
+    projectsState.data = [onHandRow];
+    await renderAt('/projects/p1');
+    const totals = screen.getAllByTestId('project-profit-loss');
+    expect(totals).toHaveLength(1);
+    expect(totals[0]).toHaveTextContent('Project totals p1');
+    expect(within(screen.getByRole('region', { name: /Money position/ })).getByTestId('project-profit-loss')).toBe(totals[0]);
+    const phases = screen.getByRole('heading', { name: 'Phase timeline' });
+    const activity = screen.getByRole('button', { name: /Activity · \d+ comments/ });
+    expect(totals[0].compareDocumentPosition(phases) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(phases.compareDocumentPosition(activity) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('AC-009 support: other tabs and an unavailable project do not mount project totals', async () => {
+    projectsState.data = [onHandRow];
+    const tasks = await renderAt('/projects/p1/tasks');
+    expect(screen.getByRole('tab', { name: 'Tasks', selected: true })).toBeInTheDocument();
+    expect(screen.queryByTestId('project-profit-loss')).not.toBeInTheDocument();
+    tasks.unmount();
+    projectsState.data = [];
+    await renderAt('/projects/missing');
+    expect(screen.queryByTestId('project-profit-loss')).not.toBeInTheDocument();
+  });
+
+  it('AC-IXD-PROJ-004: Finance opens Change contract value from the compact header More menu', async () => {
+    roleBox.value = 'Finance';
     projectsState.data = [onHandRow];
     await renderAt('/projects/p1');
 
     // header is shared across lenses
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
-    // delivery lens: the 5 section tabs are present
+    // Finance can open project areas, but the SoD editor stays behind its explicit action.
     expect(screen.getByRole('tablist', { name: /project sections/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Budget' })).toBeInTheDocument();
-    // the contract-value SoD editor row is mounted on a won/on-hand project
+    expect(screen.queryByTestId('contract-value-sod')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText('More actions'));
+    await userEvent.click(screen.getByRole('button', { name: 'Change contract value' }));
     expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
+    expect(screen.getByLabelText('Contract value')).toBeInTheDocument();
     // the pipeline lens is NOT mounted
     expect(screen.queryByLabelText('Project stage journey')).toBeNull();
     expect(screen.queryByRole('button', { name: /Advance to/i })).toBeNull();
   });
 
-  it('AC-IXD-PROJ-008 (ADR-0021): a PIPELINE (pre-win) record renders the project journey banner ABOVE the full delivery tabs (so budget/tasks/procurement are reachable pre-win)', async () => {
+  it('AC-IXD-PROJ-008 (ADR-0021): a pipeline record shows PipelineLens with Overview, Budget, Tasks and Documents', async () => {
     projectsState.data = [pipelineRow];
     // the live status/value also flows through the pipeline cache
     pipelineState.data = {
@@ -214,10 +315,11 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark won/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark lost/i })).toBeInTheDocument();
-    // ADR-0021: the delivery tabs ARE now mounted pre-win (the budget/tasks/procurement planning
-    // surface a PM needs while pursuing the deal) — this is the override of ADR-0020 §1.
+    // A deal can be planned in Budget and Tasks before it is won; Procurement and Contract are
+    // not available until it reaches delivery.
     expect(screen.getByRole('tablist', { name: /project sections/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Budget' })).toBeInTheDocument();
+    const tabs = Array.from(screen.getByRole('tablist', { name: /project sections/i }).querySelectorAll('[role="tab"]')).map((tab) => tab.textContent);
+    expect(tabs).toEqual(['Overview', 'Budget', 'Tasks', 'Documents']);
     // the contract-value SoD editor stays delivery-only (the deal's value lives in the banner).
     expect(screen.queryByTestId('contract-value-sod')).toBeNull();
   });

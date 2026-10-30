@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Checkbox, DataTable, MenuButton, type Column, type RowMenuItem } from '@/src/components/ui';
+import { Button, Checkbox, DataTable, MenuButton, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
 import { formatCurrency, formatDate } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ErpLinkRow, ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
@@ -146,8 +146,8 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
     }] : []),
     { key: 'date', header: t('erpPurchases.column.date', 'Date'), kind: 'date', size: 130, cell: (r) => formatDate(r.docDate), exportValue: (r) => r.docDate ?? '' },
     {
-      key: 'amount', header: t('erpPurchases.column.amountPreTax', 'Amount (pre-tax)'), kind: 'money', align: 'num', size: 170,
-      cell: amountOf,
+      key: 'amount', header: <Tooltip content={t('erpPurchases.amountPreTaxTooltip', 'Pre-tax total from the accounting-system document. Source: ERP purchase document.')}><span tabIndex={0}>{t('erpPurchases.column.amountPreTax', 'Amount (pre-tax)')}</span></Tooltip>, kind: 'money', align: 'num', size: 170,
+      cell: (r) => <Tooltip content={t('erpPurchases.amountPreTaxTooltip', 'Pre-tax total from the accounting-system document. Source: ERP purchase document.')}><span tabIndex={0} className="rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{amountOf(r)}</span></Tooltip>,
       exportValue: (r) => erpPreTaxAmount(r) ?? '',
     },
     ...(canLink ? [{
@@ -170,7 +170,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
       {canLink && rows.length > 0 && (
         // Always mounted (review 10): selecting never shifts the list, and select-all works on phone cards too.
         <div role="group" aria-label={t('erpLinks.selectionGroup', 'Selected documents')}
-          className="mb-3 flex min-h-12 flex-wrap items-center gap-2.5 rounded-lg bg-primary/[0.06] px-3 py-2">
+          className="mb-3 flex min-h-12 flex-wrap items-center gap-2.5 rounded-lg bg-secondary px-3 py-2">
           <Checkbox
             className="max-[767px]:!size-6"
             checked={allChosen ? true : selecting ? 'mixed' : false}
@@ -259,7 +259,7 @@ const OutcomeNotice: React.FC<{ outcome: Outcome }> = ({ outcome }) => {
           {targets.map((id, i) => (
             <React.Fragment key={id}>
               {i > 0 && ', '}
-              <Link to={`/procurement/${id}`} className="font-medium text-primary hover:underline">{targetName(i)}</Link>
+              <Link to={`/procurement/${id}`} className="font-medium text-primary-text hover:underline">{targetName(i)}</Link>
             </React.Fragment>
           ))}
           {refused.length > 0 && '.'}

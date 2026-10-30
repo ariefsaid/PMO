@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
@@ -54,6 +54,10 @@ vi.mock('@/src/hooks/useBudget', () => ({
 }));
 
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => ({ data: [], isPending: false, isError: false }) }));
+vi.mock('../project-detail/useProjectPosition', () => ({ useBudgetPosition: () => ({ isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [], unknown: 0 }) }));
+vi.mock('../project-detail/budget/BudgetErpNotice', () => ({ default: () => null }));
+vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }), useQuery: () => ({ data: undefined, isPending: false, isError: false }) }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
@@ -67,12 +71,13 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 
 import ProjectBudget from '../ProjectBudget';
+import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 const renderPage = (projectId = 'p-1') =>
   render(
     <MemoryRouter>
       <ToastProvider>
-        <ProjectBudget projectId={projectId} />
+        <ProjectBudget projectId={projectId} project={{ id: projectId, currency: 'USD', tax_treatment: 'exclusive' } as unknown as ProjectWithRefs} />
       </ToastProvider>
     </MemoryRouter>
   );
@@ -144,69 +149,47 @@ beforeEach(() => {
 // AC-W6-J7 — Total footer in edit mode
 // ---------------------------------------------------------------------------
 describe('AC-W6-J7: Draft edit-mode Total footer', () => {
-  it('AC-W6-J7: the Draft edit-mode line-item table shows a Total footer equal to the sum of budgeted amounts', () => {
+  it('AC-W6-J7: the Draft edit-mode line-item table shows a Total footer equal to the sum of budgeted amounts', async () => {
     versionsState.data = [draftVersionWithItems];
     renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Edit draft' }));
 
     const total = screen.getByTestId('budget-edit-total');
     expect(total).toHaveTextContent('$4,700,000');
   });
 });
 
-// ---------------------------------------------------------------------------
-// AC-W6-IXD-BUDHEAD — drop the redundant <h2>Project Budget</h2>; the "Active
-// budget: $X" line is promoted as the section lead. + New version stays.
-// ---------------------------------------------------------------------------
-describe('AC-W6-IXD-BUDHEAD: Budget tab double-header removed', () => {
-  it('AC-W6-IXD-BUDHEAD: does NOT render a "Project Budget" heading, while the Active-budget lead + New version stay', () => {
-    versionsState.data = [draftVersionWithItems];
+// The budget heading and table answer the owner’s core budget question without the old forecast panel.
+describe('AC-W6-IXD-BUDHEAD: project budget lead', () => {
+  it('shows currency and tax basis once above the category table and omits forecast surfaces', () => {
+    versionsState.data = [{ ...draftVersionWithItems, id: 'v-active', status: 'Active' as const, name: 'Budget v1', version: 1 }];
     renderPage();
-    // The redundant tab-duplicating heading is gone.
-    expect(screen.queryByText('Project Budget')).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('heading', { name: /Project Budget/i }),
-    ).not.toBeInTheDocument();
-    // S-04 / DD-MONEY-4: only a Draft exists, so the lead says there is no Active budget (it never
-    // presents the Draft or a $0 as the budget).
-    expect(screen.getByText(/No active budget/i)).toBeInTheDocument();
-    expect(screen.queryByTestId('derived-budget')).not.toBeInTheDocument();
-    // The primary action stays (PM canWrite).
-    expect(screen.getByRole('button', { name: /\+ New version/i })).toBeInTheDocument();
+
+    expect(screen.getByRole('heading', { name: 'Project budget' })).toBeInTheDocument();
+    expect(screen.getAllByText(/^USD ·/)).toHaveLength(1);
+    expect(screen.getAllByTestId('tax-basis')).toHaveLength(1);
+    expect(screen.getByRole('table', { name: 'Budget vs actual by category' })).toBeInTheDocument();
+    expect(screen.queryByText(/forecast|cost-to-finish/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/fiscal year picker/i)).not.toBeInTheDocument();
   });
 
-  it('AC-W6-IXD-BUDHEAD: the empty state also drops the heading; SUB-D: the empty state says it once (no head text)', () => {
+  it('offers Create budget when there are no versions', () => {
     versionsState.data = [];
     renderPage();
-    expect(screen.queryByText('Project Budget')).not.toBeInTheDocument();
-    expect(screen.queryByText(/No active budget/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create budget' })).toBeInTheDocument();
     expect(screen.getByText('No budget versions yet')).toBeInTheDocument();
   });
 
-  it('UX-033: the Active amount is announced ONCE when the Active version is open', () => {
-    budgetState.data = 4700000;
+  it('shows the active line sum in the table total row instead of a card total', () => {
     versionsState.data = [{ ...draftVersionWithItems, id: 'v-active', status: 'Active' as const, name: 'Budget v1', version: 1 }];
-    const { container } = renderPage();
-    // one amount in the header; no "Active budget:" lead, no pill/amount repeated in the selector bar
-    expect(screen.getByTestId('derived-budget')).toHaveTextContent('$4,700,000');
-    expect(screen.queryByText(/Active budget:/i)).not.toBeInTheDocument();
-    expect(screen.queryByTestId('version-selector')).not.toBeInTheDocument(); // SUB-D: one version, no switcher
-    expect(container.querySelectorAll('[data-testid="version-status-active"]')).toHaveLength(1);
-  });
-
-  it('UX-033: while a Draft is open, the Active amount stays in view as a reference line', () => {
-    budgetState.data = 4700000;
-    versionsState.data = [
-      { ...draftVersionWithItems, id: 'v-active', status: 'Active' as const, name: 'Budget v1', version: 1 },
-      draftVersionWithItems,
-    ];
     renderPage();
-    fireEvent.change(screen.getByLabelText('Version'), { target: { value: 'v-draft' } });
-    expect(screen.getByText(/Active budget:/i)).toBeInTheDocument();
-    expect(screen.getByTestId('derived-budget')).toHaveTextContent('$4,700,000');
+    const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
+    // C6: bare number under the one "USD · …" page heading.
+    expect(within(table).getByText('4,700,000')).toBeInTheDocument();
+    expect(screen.queryByTestId('derived-budget')).not.toBeInTheDocument();
   });
 });
 
-// ---------------------------------------------------------------------------
 // AC-W6-J8 — add-row amount input type="text" + inputMode="decimal"
 // ---------------------------------------------------------------------------
 describe('AC-W6-J8: add-row amount input type=text', () => {
@@ -214,7 +197,8 @@ describe('AC-W6-J8: add-row amount input type=text', () => {
     versionsState.data = [draftVersionWithItems];
     renderPage();
 
-    // Open the add row
+    // Open the draft editor from the banner, then the add row
+    await userEvent.click(screen.getByRole('button', { name: 'Edit draft' }));
     await userEvent.click(screen.getByRole('button', { name: /\+ Add line item/i }));
 
     const amount = screen.getByPlaceholderText('Amount');

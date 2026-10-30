@@ -63,7 +63,10 @@ function throwRpc(error: RpcErrorLike): never {
 
 export type ProcurementItemRow = Tables<'procurement_items'>;
 
-export type ProcurementDetail = ProcurementWithRefs & {
+export type ProcurementDetail = Omit<
+  ProcurementWithRefs,
+  'purchase_requests' | 'purchase_orders' | 'receipts' | 'procurement_invoices' | 'payments'
+> & {
   approved_by: { full_name: string } | null;
   /** Editable line items (CRUD+RBAC Procurement slice) joined into the detail. */
   items: ProcurementItemRow[];

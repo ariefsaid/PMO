@@ -136,6 +136,7 @@ vi.mock('@/src/hooks/useFkOptions', () => ({
   useClientCompanyOptions: () => ({ data: [] }),
 }));
 vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [], isPending: false }) }));
 vi.mock('@/pages/approvals/SalesInvoiceApprovalRow', () => ({
   SalesInvoiceApprovalPreview: ({ inv }: { inv: SalesInvoiceRow }) => <div>Invoice preview {inv.si_number}</div>,
 }));
@@ -167,6 +168,7 @@ const renderAt = (url: string) =>
             <Location />
             <Routes>
               <Route path="/sales-invoices" element={<SalesInvoices />} />
+              <Route path="/finance/receivables" element={<SalesInvoices embedded />} />
               <Route path="/sales-invoices/:invoiceId" element={<SalesInvoices />} />
             </Routes>
           </ToastProvider>
@@ -185,12 +187,12 @@ describe('SalesInvoices — deep link (#787)', () => {
   });
   it('filters to overdue unpaid invoices and shows age against the organization day', async () => {
     const user = userEvent.setup();
-    renderAt('/sales-invoices');
+    renderAt('/finance/receivables');
     await user.click(screen.getByRole('button', { name: 'Overdue only' }));
     const table = screen.getByRole('table').textContent ?? '';
     expect(table).toContain('ACC-SINV-2026-00001');
     expect(table).not.toContain('ACC-SINV-2026-00002');
-    expect(table).toContain('77 days overdue');
+    expect(table).toContain('Partly paid · 77 days late');
   });
 
   it('FIN-S1 search finds an invoice by its project label', async () => {
@@ -287,6 +289,18 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(screen.queryByText('inv-1')).not.toBeInTheDocument();
   });
 
+  it('uses the native PMO number for a paid invoice record without an ERP number', () => {
+    salesInvoicesState.data[0] = {
+      ...SEED_INVOICES[0],
+      si_number: null,
+      pmo_number: 'INV-TEST-PAID-001',
+      status: 'Paid',
+      pmo_native: true,
+    };
+    renderAt('/sales-invoices/inv-1');
+    expect(screen.getByRole('heading', { name: /^Invoice INV-TEST-PAID-001$/ })).toBeInTheDocument();
+  });
+
   it('RF-024 shows invoice dates, status, overdue age, outstanding and customer context on the detail record', () => {
     salesInvoicesState.data[0] = {
       ...SEED_INVOICES[0], status: 'Unpaid', pmo_native: false,
@@ -346,7 +360,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(screen.getByText('Ready to send')).toBeInTheDocument();
     expect(screen.getByText('Download the PDF and send it to your client yourself.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Download approved PDF' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Record received date' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mark received' })).toBeInTheDocument();
     expect(screen.queryByText('Sent')).not.toBeInTheDocument();
   });
 
@@ -367,7 +381,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     salesInvoicesState.data[0] = { ...SEED_INVOICES[0], pmo_native: false, status: 'Unpaid' };
     invoiceEvidenceState.isError = true;
     renderAt('/sales-invoices/inv-1');
-    expect(screen.getByText('Bill evidence is temporarily unavailable.')).toBeInTheDocument();
+    expect(screen.getByText("Couldn't load the invoice lines from the accounting system.")).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Retry invoice evidence' }));
     expect(invoiceEvidenceState.refetch).toHaveBeenCalled();
   });

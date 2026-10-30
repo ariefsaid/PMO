@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vite
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import ExcelJS from 'exceljs';
 import { ToastProvider } from '@/src/components/ui';
@@ -15,7 +16,7 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 
 const hoisted = vi.hoisted(() => ({ captured: [] as ArrayBuffer[] }));
 
-vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [] }), useHasErpPurchases: () => ({ data: false }) }));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/lib/export', async (orig) => {
   const actual = (await orig()) as typeof import('@/src/lib/export');
@@ -53,11 +54,10 @@ const proc = (id: string, title: string, total_value: number, currency: string) 
   id, title, code: id, status: 'Draft', total_value, currency, created_at: '2026-01-01T00:00:00Z',
   project: { name: 'Project A' }, requested_by: { full_name: 'Alice', id: 'u1' }, requested_by_id: 'u1',
 });
+const procState = vi.hoisted(() => ({ current: null as null | { data: unknown[]; isPending: boolean; isError: boolean; refetch: () => void } }));
 vi.mock('@/src/hooks/useProcurements', () => ({
-  useProcurements: () => ({
-    data: [proc('p-usd', 'Widgets USD', 5000, 'USD'), proc('p-idr', 'Widgets IDR', 75000000, 'IDR')],
-    isPending: false, isError: false, refetch: vi.fn(),
-  }),
+  useProcurements: () => procState.current,
+  useProjectProcurements: () => procState.current,
 }));
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useCreateProcurement: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -79,6 +79,7 @@ vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => ({ data: [], isError: false }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
+  useProject: () => ({ data: null }),
   useProjects: () => ({
     data: [proj('pr-usd', 'Alpha USD', 1_000_000, 'USD'), proj('pr-idr', 'Beta IDR', 15_000_000_000, 'IDR')],
     isPending: false, isError: false, refetch: vi.fn(),
@@ -115,6 +116,10 @@ beforeAll(async () => {
 }, 60_000);
 
 beforeEach(() => {
+  procState.current = {
+    data: [proc('p-usd', 'Widgets USD', 5000, 'USD'), proc('p-idr', 'Widgets IDR', 75000000, 'IDR')],
+    isPending: false, isError: false, refetch: vi.fn(),
+  };
   hoisted.captured = [];
   URL.createObjectURL = vi.fn(() => 'blob:test');
   URL.revokeObjectURL = vi.fn();
@@ -124,11 +129,13 @@ afterEach(() => vi.restoreAllMocks());
 
 async function exportFrom(node: React.ReactElement) {
   render(
-    <ImpersonationProvider realRole="Admin">
-      <MemoryRouter>
-        <ToastProvider>{node}</ToastProvider>
-      </MemoryRouter>
-    </ImpersonationProvider>,
+    <QueryClientProvider client={new QueryClient()}>
+      <ImpersonationProvider realRole="Admin">
+        <MemoryRouter>
+          <ToastProvider>{node}</ToastProvider>
+        </MemoryRouter>
+      </ImpersonationProvider>
+    </QueryClientProvider>,
   );
   const user = userEvent.setup();
   const exportButton = screen.queryByRole('button', { name: /export/i });

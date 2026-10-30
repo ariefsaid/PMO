@@ -94,7 +94,7 @@ const WorkOrderValueModal: React.FC<WorkOrderValueModalProps> = ({
   onClose,
   onSave,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const validateWithT = useCallback((v: FormValues) => validate(v, t), [t]);
   const { options: taxOptions, placeholder: taxPlaceholder } = useTaxTreatmentOptions();
 

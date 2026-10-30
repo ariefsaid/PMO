@@ -2,6 +2,7 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { login, waitForFonts } from './helpers';
 import { PROJECT_ID } from './document-file-upload.helpers';
+import { formatDateOnly } from '../src/lib/format';
 
 /**
  * #1020 Discover findings F1-F6/F10 (rendered geometry + wiring) — goal oracles, not snapshots:
@@ -145,8 +146,8 @@ async function enableM365Feature(page: Page) {
   });
 }
 
-/** Bahasa without a persisted write: the profile row the AuthProvider reads carries locale 'id' (as UXS-006). */
-async function forceBahasa(page: Page) {
+/** Deterministic viewer language without a persisted write; other profile preferences are preserved. */
+async function forceLocale(page: Page, locale: 'en' | 'id') {
   await page.route('**/rest/v1/profiles?*', async (route) => {
     if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(route.request().url())) return route.fallback();
     const response = await route.fetch();
@@ -157,10 +158,15 @@ async function forceBahasa(page: Page) {
       return route.fulfill({ response });
     }
     if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) {
-      body = { ...(body as Record<string, unknown>), locale: 'id', number_locale: 'id-ID' };
+      body = { ...(body as Record<string, unknown>), locale };
     }
     return route.fulfill({ response, json: body });
   });
+}
+
+/** Bahasa without a persisted write: the profile row the AuthProvider reads carries locale 'id' (as UXS-006). */
+async function forceBahasa(page: Page) {
+  await forceLocale(page, 'id');
 }
 
 async function openDocuments(page: Page, tabName: string) {
@@ -184,6 +190,7 @@ async function expectInsideViewport(page: Page) {
 test.describe('#1020 Discover geometry (mocked Microsoft)', () => {
   test('F1: a linked file row stays compact, its Date does not wrap, and the access sentence is not repeated per row', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
+    await forceLocale(page, 'en');
     await mockCustody(page, { connected: true });
     await seedLinkedRows(page);
     await enableM365Feature(page);
@@ -198,7 +205,7 @@ test.describe('#1020 Discover geometry (mocked Microsoft)', () => {
       expect(box?.height ?? Infinity).toBeLessThanOrEqual(140);
 
       const dateCell = row.locator('td').nth(dateIndex);
-      await expect(dateCell).toHaveText('2026-01-20');
+      await expect(dateCell).toHaveText(formatDateOnly('2026-01-20'));
       const lines = await dateCell.evaluate((cell) => {
         const range = document.createRange();
         range.selectNodeContents(cell);

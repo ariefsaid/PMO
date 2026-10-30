@@ -21,8 +21,8 @@ export function useRecordContext(basePath: string, recordId?: string) {
 
   const closeRecord = useCallback(() => {
     const listPath = (location.state as RecordContextState | null)?.recordContext?.listPath;
-    if (listPath && (listPath === basePath || listPath.startsWith(`${basePath}?`) || listPath.startsWith(`${basePath}#`))) {
-      navigate(-1);
+    if (listPath?.startsWith('/') && !listPath.startsWith('//')) {
+      navigate(listPath, { replace: true });
       return;
     }
     navigate(`${basePath}${location.search}`, { replace: true });

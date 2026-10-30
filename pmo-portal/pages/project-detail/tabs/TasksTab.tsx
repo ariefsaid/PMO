@@ -1,10 +1,14 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import {
-  Toolbar,
   ViewToggle,
   ListState,
   DataTable,
   StatusPill,
+  Drawer,
+  Tooltip,
+  ProgressBar,
+  Kanban,
+  KanbanColumn,
   ConfirmDialog,
   EntityFormModal,
   type SubmitError,
@@ -17,32 +21,38 @@ import {
   useEntityForm,
   useToast,
   Button,
+  buttonClasses,
+  MenuButton,
+  Checkbox,
   Icon,
   type Column,
   type RowMenuItem,
+  type DataTableSelection,
   type ComboboxOption,
 } from '@/src/components/ui';
 import { ProjectIntegrationsCard } from '@/src/components/projects/ProjectIntegrationsCard';
-import { useLocation } from 'react-router';
+import { Link, useLocation, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { usePermission } from '@/src/auth/usePermission';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { useTasks, useTaskMutations, useAssignableProfiles } from '@/src/hooks/useTasks';
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { classifyExternalError } from '@/src/lib/adapterSeam/pendingPush';
-import { formatDateOnly } from '@/src/lib/format';
+import { completionPct, formatDateOnly } from '@/src/lib/format';
+import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import type { TaskWithRefs, TaskStatus, TaskPriority, TaskInput, TaskPatch } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
-import { MilestonePhaseHeader } from '@/src/components/milestones/MilestonePhaseHeader';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { buildTaskRenderOrder, collectDescendants } from '@/src/lib/tasks/taskTree';
 import ProjectGantt from '../ProjectGantt';
-import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer';
+import { CommentsSection } from '@/src/components/comments/CommentsSection';
+import { RecordHistory } from '@/src/components/history/RecordHistory';
 
 /**
  * OD-INT-9 subtask nesting — the horizontal indent applied per depth level in the Task-name
@@ -62,6 +72,7 @@ const SUBTASK_INDENT_PX = 16;
 // status in two languages side by side. Status vocabulary is one cross-cutting decision
 // (it also covers doc status, procurement stages and pipeline stages) -- not this file's.
 const STATUSES: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Blocked'];
+const BOARD_STATUSES: TaskStatus[] = ['To Do', 'In Progress', 'Blocked', 'Done'];
 const STATUS_OPTIONS = STATUSES.map((s) => ({ value: s, label: s }));
 
 // OD-INT-9 — the four task_priority enum values, for the Priority select. The first option is the
@@ -76,6 +87,37 @@ const priorityOptions = (t: TFunction) => [
 ];
 
 type ViewMode = 'list' | 'board' | 'timeline';
+type TaskScope = 'mine' | 'all';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function localTodayIso(): string {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+function daysLate(dueDate: string, today: string): number {
+  return Math.floor((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${dueDate}T00:00:00Z`)) / DAY_MS);
+}
+
+function compareTaskUrgency(a: TaskWithRefs, b: TaskWithRefs): number {
+  const aDone = a.status === 'Done';
+  const bDone = b.status === 'Done';
+  if (aDone !== bDone) return aDone ? 1 : -1;
+  if (a.end_date && b.end_date) return a.end_date.localeCompare(b.end_date);
+  if (a.end_date) return -1;
+  if (b.end_date) return 1;
+  return 0;
+}
+
+function orderedTasks(tasks: TaskWithRefs[]): TaskWithRefs[] {
+  return buildTaskRenderOrder(tasks)
+    .map((entry, index) => ({ task: entry.task, index }))
+    .sort((a, b) => compareTaskUrgency(a.task, b.task) || a.index - b.index)
+    .map(({ task }) => task);
+}
 
 interface FormValues {
   name: string;
@@ -94,10 +136,106 @@ const validate = (v: FormValues, t: TFunction): Partial<Record<keyof FormValues,
   return errors;
 };
 
+interface EditableTaskStatusProps {
+  task: TaskWithRefs;
+  editable: boolean;
+  disabled: boolean;
+  pendingPush: import('@/src/lib/adapterSeam/pendingPush').PendingPushState;
+  onChange: (task: TaskWithRefs, status: TaskStatus) => void;
+}
+
+const EditableTaskStatus: React.FC<EditableTaskStatusProps> = ({ task, editable, disabled, pendingPush, onChange }) => {
+  const { t } = useTranslation('project');
+  const [editing, setEditing] = useState(false);
+  const selectContainerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const label = `${t('projectDetail.tasks.statusFor', 'Status for')} ${task.name}`;
+
+  useEffect(() => {
+    if (editing) selectContainerRef.current?.querySelector('select')?.focus();
+  }, [editing]);
+
+  const status = editable ? (
+    editing ? (
+      <div ref={selectContainerRef}>
+        <SelectField
+          hideLabel
+          label={label}
+          value={task.status}
+          disabled={disabled}
+          onChange={(value) => {
+            setEditing(false);
+            onChange(task, value as TaskStatus);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              setEditing(false);
+              buttonRef.current?.focus();
+            }
+          }}
+          onBlur={() => setEditing(false)}
+          options={STATUS_OPTIONS}
+          className="w-auto min-w-[108px]"
+        />
+      </div>
+    ) : (
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-label={label}
+        disabled={disabled}
+        onClick={() => setEditing(true)}
+        className="touch-target inline-flex min-h-8 items-center rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      >
+        <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
+      </button>
+    )
+  ) : (
+    <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
+  );
+
+  return (
+    <div className="flex min-w-0 items-center gap-1.5">
+      {status}
+      <TaskPushBadge state={pendingPush} />
+    </div>
+  );
+};
+
+const TaskActionsDisclosure: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
+  const { t } = useTranslation('project');
+  const [open, setOpen] = useState(false);
+  const closeOnEscape = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    const details = event.currentTarget.closest('details');
+    details?.removeAttribute('open');
+    setOpen(false);
+    details?.querySelector('summary')?.focus();
+  };
+  return <details className="relative shrink-0" onToggle={(event) => setOpen(event.currentTarget.open)} onClick={(event) => event.stopPropagation()} onKeyDown={closeOnEscape}>
+    <summary role="button" aria-label={t('table.rowActions', 'Row actions')} aria-haspopup="menu" aria-expanded={open} className="touch-target grid size-8 cursor-pointer list-none place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+      <span aria-hidden="true" className="text-base leading-none">⋯</span>
+    </summary>
+    <div role="menu" className="absolute right-0 top-full z-30 mt-1 min-w-[160px] rounded-md border border-border bg-popover p-1 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
+      {items.map((item) => <button key={item.label} role="menuitem" type="button" disabled={item.disabled} className={`block min-h-8 w-full rounded-sm px-2.5 py-1.5 text-left text-[13px] hover:bg-accent disabled:opacity-50${item.danger ? ' text-destructive-text' : ''}`} onClick={(event) => {
+        event.stopPropagation();
+        event.currentTarget.closest('details')?.removeAttribute('open');
+        item.onClick();
+      }}>{item.label}</button>)}
+    </div>
+  </details>;
+};
+
 export interface TasksTabProps {
   projectId: string;
   projectName?: string;
 }
+
+const TasksTab: React.FC<TasksTabProps> = (props) => {
+  return <TasksWorkspace {...props} />;
+};
 
 /**
  * Project Tasks tab — the per-project task register (crud-components §9.7,
@@ -108,25 +246,80 @@ export interface TasksTabProps {
  * static), enforced by the column-pinned RLS (migration 0016) — the FE is the
  * clarity projection, RLS is the authority.
  */
-const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
-  const { t } = useTranslation();
+const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
+  const { t } = useTranslation('project');
   const may = usePermission();
+  const { realRole } = useEffectiveRole();
   const { currentUser } = useAuth();
   const currentUserId = currentUser?.id ?? null;
+  const organizationDay = useFxOrgDay(true).day;
+  const today = organizationDay ?? localTodayIso();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useTasks(projectId);
+  const { data: assignableProfiles } = useAssignableProfiles();
   const { create, update, updateStatus, remove, archive, addDependency, removeDependency, pendingPushByTask = {} } =
     useTaskMutations(projectId);
   const { data: milestones } = useMilestones(projectId);
   const location = useLocation();
 
-  const [view, setView] = useState<ViewMode>('list');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedView = searchParams.get('view');
+  const view: ViewMode = requestedView === 'board' || requestedView === 'timeline' ? requestedView : 'list';
+  const hashTaskId = location.hash.startsWith('#task-') ? location.hash.slice('#task-'.length) : null;
+  const requestedScope = searchParams.get('scope');
+  const scope: TaskScope = requestedScope === 'mine' || requestedScope === 'all'
+    ? requestedScope
+    : realRole === 'Engineer' ? 'mine' : 'all';
+  const setTaskView = (nextView: ViewMode) => {
+    setSelectedTaskIds(new Set());
+    setBulkAction(null);
+    const next = new URLSearchParams(searchParams);
+    next.set('scope', scope);
+    next.set('view', nextView);
+    setSearchParams(next, { replace: true });
+  };
+  const setTaskScope = (nextScope: TaskScope) => {
+    setSelectedTaskIds(new Set());
+    setBulkAction(null);
+    const next = new URLSearchParams(searchParams);
+    next.set('scope', nextScope);
+    next.set('view', view);
+    setSearchParams(next, { replace: true });
+  };
+  // Project task links promise a scroll target. A saved view in the URL should not
+  // strand a hash deep link on a board or timeline where the list anchor is absent.
+  useEffect(() => {
+    if (!hashTaskId || view === 'list') return;
+    const next = new URLSearchParams(searchParams);
+    next.set('view', 'list');
+    setSearchParams(next, { replace: true });
+  }, [hashTaskId, searchParams, setSearchParams, view]);
+  const openTask = (task: TaskWithRefs) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('open', task.id);
+    setSearchParams(next);
+  };
+  const closeTask = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('open');
+    setSearchParams(next, { replace: true });
+  };
   // defaultMilestoneId — pre-populated when clicking "Add task" within a group.
   const [formTarget, setFormTarget] = useState<{ task: TaskWithRefs | null; defaultMilestoneId?: string | null } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TaskWithRefs | null>(null);
-  // #790: comments open from a read view any reader of the task can reach (no edit right needed).
-  const [commentsTarget, setCommentsTarget] = useState<TaskWithRefs | null>(null);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(() => new Set());
+  const [bulkAction, setBulkAction] = useState<'status' | 'assignee' | 'due' | 'archive' | null>(null);
+  const [bulkStatus, setBulkStatus] = useState<TaskStatus | ''>('');
+  const [bulkAssignee, setBulkAssignee] = useState('');
+  const [bulkDueDate, setBulkDueDate] = useState('');
+  const [bulkClearDueDate, setBulkClearDueDate] = useState(false);
+  const [bulkPending, setBulkPending] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [toolbarMenuOpen, setToolbarMenuOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
+  const [assigneeFilter, setAssigneeFilter] = useState('all');
+  const [searchText, setSearchText] = useState('');
+  const integrationsRef = useRef<HTMLDivElement>(null);
 
   // T25 — hash-anchor scroll & transient highlight.
   // When the URL contains #task-<id>, scroll that row into view and apply a
@@ -136,17 +329,19 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
 
   useEffect(() => {
     const hash = location.hash; // e.g. "#task-abc-123"
-    if (!hash.startsWith('#task-')) return;
+    if (!hash.startsWith('#task-')) {
+      scrolledRef.current = null;
+      return;
+    }
     const taskId = hash.slice('#task-'.length);
     // Only scroll once per hash (avoid infinite re-scroll on re-renders).
     if (scrolledRef.current === taskId) return;
-    scrolledRef.current = taskId;
-
     // Attempt to scroll — the element may not yet be rendered (data still loading).
     // requestAnimationFrame gives the list one paint cycle.
     const doScroll = () => {
       const el = document.getElementById(`task-${taskId}`);
       if (el) {
+        scrolledRef.current = taskId;
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setHighlightedTaskId(taskId);
         // Remove highlight after 2 s so it is genuinely transient.
@@ -155,16 +350,14 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
     };
     requestAnimationFrame(doScroll);
   // Re-run when data loads (in case the element wasn't mounted on initial render).
-  }, [location.hash, data]);
+  }, [location.hash, data, view]);
 
-  // Structure write = Admin·Exec·PM — plus, per DD-TASK-8 (#551, migration 0204), the row's
-  // CREATOR. `canEdit` stays the ROLE-level answer (managers: any row; used for row-activate and
-  // the Gantt hook); `canEditTask` is the per-row answer the menu uses. ⚑ The first wiring called
+  // Structure write = the row's creator or a delivery manager. `canEditTask` is the per-row answer.
+  // ⚑ The first wiring called
   // `may('edit','task')` with NO ctx — the record-scoped predicate fails closed on missing
   // identity, so an Engineer could create a task and then not edit it: the exact incoherence the
   // ruling exists to prevent, invisible to every non-rendered test (3-lens review, C1).
   const canCreate = may('create', 'task');
-  const canEdit = may('edit', 'task');
   const canEditTask = (task: TaskWithRefs): boolean =>
     may('edit', 'task', {
       currentUserId,
@@ -176,10 +369,6 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
   // (ClickUp-owned). PMO-owned orgs stay byte-for-byte — no badge chrome at all (AC-CUA-061).
   const externallyOwned = routeTaskWrite(projectId) === 'external';
   const canArchive = may('archive', 'task');
-  // Column-level: does ANY visible row get a menu? DataTable hides the per-row button when the
-  // builder returns nothing, so a creator's Edit shows on exactly their rows and nobody else's.
-  const canRowWrite =
-    canEdit || canDelete || (canArchive && !externallyOwned) || (data ?? []).some(canEditTask);
 
   // Review fix #5 — one headline for one event: an externally-routed write fails through the SAME
   // vocabulary the badge renders (classifyExternalError), so the toast and the badge never disagree.
@@ -190,26 +379,49 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
   const all = useMemo(() => data ?? [], [data]);
   const milestoneList = useMemo(() => milestones ?? [], [milestones]);
 
-  // OD-INT-9 — the flat list view (no milestone grouping) renders ALL tasks in a single
-  // depth-ordered slice: buildTaskRenderOrder gives parent-then-descendants order; the row
-  // type never changes (still TaskWithRefs) — depth is a SEPARATE lookup consumed only by the
-  // name cell renderer (buildColumns below). The milestone-grouped view computes its own
-  // per-group order (see MilestoneGroupedList) since a subtask can land in a different
-  // milestone group than its parent (AC-SUB-UI-004).
+  // Archived rows stay out of the working list unless the toolbar disclosure is enabled.
   const visibleTasks = useMemo(
     () => (showArchived ? all : all.filter((t) => t.archived_at == null)),
     [all, showArchived],
   );
-  const flatOrder = useMemo(() => buildTaskRenderOrder(visibleTasks), [visibleTasks]);
-  const flatRows = useMemo(() => flatOrder.map((n) => n.task), [flatOrder]);
-  const flatDepths = useMemo(
-    () => new Map(flatOrder.map((n) => [n.task.id, n.depth])),
-    [flatOrder],
+  const scopedTasks = useMemo(
+    () => scope === 'mine' ? visibleTasks.filter((task) => task.assignee_id === currentUserId) : visibleTasks,
+    [currentUserId, scope, visibleTasks],
   );
+  const filteredTasks = useMemo(() => {
+    const query = searchText.trim().toLocaleLowerCase();
+    return scopedTasks.filter((task) => {
+      if (statusFilter !== 'all' && task.status !== statusFilter) return false;
+      if (assigneeFilter === 'unassigned' ? task.assignee_id != null : assigneeFilter !== 'all' && task.assignee_id !== assigneeFilter) return false;
+      if (!query) return true;
+      return task.name.toLocaleLowerCase().includes(query) || task.id.toLocaleLowerCase().includes(query);
+    });
+  }, [assigneeFilter, scopedTasks, searchText, statusFilter]);
+  const selectedTaskId = searchParams.get('open');
+  const selectedTask = selectedTaskId ? all.find((task) => task.id === selectedTaskId) ?? null : null;
 
   /** May the current viewer set THIS task's status? Managers: any; Engineer: own only. */
   const canSetStatus = (t: TaskWithRefs): boolean =>
     may('edit', 'taskStatus', { currentUserId, record: { assignee_id: t.assignee_id } });
+  useEffect(() => {
+    const taskIds = new Set(all.map((task) => task.id));
+    setSelectedTaskIds((current) => {
+      const next = new Set([...current].filter((id) => taskIds.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [all]);
+  const selectedTasks = useMemo(() => all.filter((task) => selectedTaskIds.has(task.id)), [all, selectedTaskIds]);
+  const canBulkStatus = selectedTasks.length > 0 && selectedTasks.every(canSetStatus);
+  const canBulkEdit = selectedTasks.length > 0 && selectedTasks.every(canEditTask);
+  const canBulkArchive = canArchive && !externallyOwned && selectedTasks.some((task) => task.archived_at == null);
+  const taskSelection: DataTableSelection<TaskWithRefs> = {
+    selectedIds: selectedTaskIds,
+    onChange: (ids) => {
+      setSelectedTaskIds(ids);
+      if (ids.size === 0) setBulkAction(null);
+    },
+    rowLabel: (task) => t('projectDetail.tasks.selectTask', 'Select task {{name}}', { name: task.name }),
+  };
 
   // When milestones exist, show the grouped layout even when there are no tasks yet
   // so users can see the "Add task" affordance within each group (AC-DEL-011).
@@ -270,97 +482,121 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
     }
   };
 
-  // ── Status control: editable <select> for those who may set it, static pill otherwise. ──
-  const StatusCell: React.FC<{ task: TaskWithRefs }> = ({ task }) => (
-    <div className="flex items-center gap-1.5">
-      {canSetStatus(task) ? (
-        <SelectField
-          hideLabel
-          label={`${t('projectDetail.tasks.statusFor', 'Status for')} ${task.name}`}
-          value={task.status}
-          disabled={updateStatus.isPending}
-          onChange={(v) => onStatusChange(task, v as TaskStatus)}
-          options={STATUS_OPTIONS}
-          className="w-auto min-w-[120px]"
-        />
-      ) : (
-        <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
-      )}
-      {/* FR-CUA-070 breadth (review fix #4): the List status cell ORIGINATES a status write, so the
-          per-task pending-push badge surfaces here too (not just the Board). Idle renders nothing, so
-          PMO-owned + non-pushing rows stay byte-for-byte (AC-CUA-061). */}
-      <TaskPushBadge state={pendingPushByTask[task.id] ?? IDLE_PENDING_PUSH} />
-    </div>
-  );
+  const applyBulkAction = async () => {
+    if (!bulkAction || !selectedTasks.length || bulkPending) return;
+    if (bulkAction === 'status' && !bulkStatus) return;
+    if (bulkAction === 'assignee' && !bulkAssignee) return;
+    if (bulkAction === 'due' && !bulkDueDate && !bulkClearDueDate) return;
 
-  // OD-INT-9 — the table's row type stays TaskWithRefs end to end; the ONLY hierarchy-aware
-  // piece is this name cell, which looks up the row's depth in a Map (never a parallel row
-  // type, never a DataTable change). `depths` is per-slice: the flat list passes `flatDepths`
-  // over ALL tasks; each milestone group passes its OWN depths computed over just that group's
-  // tasks (so a subtask whose parent lives in another group renders as a root, depth 0 —
-  // AC-SUB-UI-004 — instead of vanishing or grabbing an unrelated section's parent).
+    const targets = bulkAction === 'archive'
+      ? selectedTasks.filter((task) => task.archived_at == null)
+      : selectedTasks;
+    if (!targets.length) return;
+
+    setBulkPending(true);
+    try {
+      const results = await Promise.allSettled(targets.map((task) => {
+        if (bulkAction === 'status') return updateStatus.mutateAsync({ id: task.id, status: bulkStatus as TaskStatus });
+        if (bulkAction === 'assignee') return update.mutateAsync({ id: task.id, patch: { assignee_id: bulkAssignee === '__unassigned__' ? null : bulkAssignee } });
+        if (bulkAction === 'due') return update.mutateAsync({ id: task.id, patch: { end_date: bulkClearDueDate ? null : bulkDueDate || null } });
+        return archive.mutateAsync({ id: task.id, archived: true });
+      }));
+      const failed = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+      if (failed.length) {
+        const { headline, detail } = classifyWriteError(failed[0].reason);
+        const succeeded = results.length - failed.length;
+        toast(headline, `${t('projectDetail.tasks.bulk.toast.partial', '{{succeeded}} updated; {{failed}} failed. Review the selected tasks and retry.', { succeeded, failed: failed.length })}${detail ? ` ${detail}` : ''}`, 'warning');
+        return;
+      }
+      toast(
+        t('projectDetail.tasks.bulk.toast.updated', 'Tasks updated'),
+        t('projectDetail.tasks.bulk.toast.detail', '{{count}} tasks updated.', { count: targets.length }),
+        'success',
+      );
+      setSelectedTaskIds(new Set());
+      setBulkAction(null);
+      setBulkStatus('');
+      setBulkAssignee('');
+      setBulkDueDate('');
+      setBulkClearDueDate(false);
+    } finally {
+      setBulkPending(false);
+    }
+  };
+
+  // The task row stays TaskWithRefs end to end; hierarchy is only reflected in the primary cell.
   const buildColumns = (depths: Map<string, number>): Column<TaskWithRefs>[] => [
     {
       key: 'name',
       header: t('projectDetail.tasks.column.task', 'Task'),
+      kind: 'primary',
+      primaryTitle: (task) => task.name,
       cell: (task) => {
         const depth = depths.get(task.id) ?? 0;
-        return (
-          <span
-            id={`task-${task.id}`}
-            /* `block`: `truncate` (overflow-hidden) is a no-op on an INLINE span, so a long
-               task name ("CONST — Structural Load Calc & Racking Design") bled past 390px on
-               the mobile card (AC-MOBILE-OVERFLOW-001, caught by CI on fresh seed). block +
-               the card title wrapper's min-w-0 lets it clip with an ellipsis. */
-            className={`block truncate font-semibold${highlightedTaskId === task.id ? ' ring-2 ring-primary ring-offset-1 rounded task-highlight' : ''}`}
-            style={depth > 0 ? { paddingLeft: depth * SUBTASK_INDENT_PX } : undefined}
-            title={task.name}
-          >
-            {depth > 0 && (
-              <span className="sr-only">
-                {`${t('projectDetail.tasks.subtaskLevel', 'Subtask, level')} ${depth}. `}
-              </span>
-            )}
-            {task.name}
-          </span>
-        );
+        return <span
+          id={`task-${task.id}`}
+          className={`block whitespace-normal break-words font-semibold${highlightedTaskId === task.id ? ' ring-2 ring-primary ring-offset-1 rounded task-highlight' : ''}`}
+          style={depth > 0 ? { paddingLeft: depth * SUBTASK_INDENT_PX } : undefined}
+          title={task.name}
+        >
+          {depth > 0 && <span className="sr-only">{`${t('projectDetail.tasks.subtaskLevel', 'Subtask, level')} ${depth}. `}</span>}
+          {task.name}
+        </span>;
       },
+      secondaryCell: (task) => task.priority ? (
+        <span className="text-xs font-normal text-muted-foreground" title={t('projectDetail.tasks.prioritySource', 'Source: task priority field')}>{task.priority}</span>
+      ) : null,
     },
     {
       key: 'assignee',
       header: t('projectDetail.tasks.column.assignee', 'Assignee'),
-      cell: (task) =>
-        task.assignee ? (
-          <span className="truncate text-muted-foreground" title={task.assignee.full_name}>
-            {task.assignee.full_name}
-          </span>
-        ) : (
-          <span className="text-muted-foreground">
-            {t('projectDetail.tasks.unassigned', 'Unassigned')}
-          </span>
-        ),
+      cell: (task) => {
+        if (!task.assignee) return <span className="text-muted-foreground">{t('projectDetail.tasks.unassigned', 'Unassigned')}</span>;
+        const initials = task.assignee.full_name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+        return <span className="inline-flex min-w-0 items-center gap-2" title={task.assignee.full_name}>
+          <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-foreground">{initials}</span>
+          <span className="truncate text-muted-foreground">{task.assignee.full_name}</span>
+        </span>;
+      },
       colClassName: 'hidden sm:table-cell',
     },
     {
       key: 'due',
       header: t('projectDetail.tasks.column.due', 'Due'),
-      cell: (t) =>
-        t.end_date ? (
-          <span className="tabular text-muted-foreground">{formatDateOnly(t.end_date)}</span>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        ),
-      colClassName: 'hidden md:table-cell',
+      kind: 'date',
+      size: 260,
+      cell: (task) => task.end_date ? <Tooltip content={t(
+        'projectDetail.tasks.dueTooltip',
+        'Due date from the task record. Late days compare the due date with today in the organization timezone.',
+      )}>
+        <span tabIndex={0} className={`block whitespace-normal break-words tabular ${task.status !== 'Done' && task.end_date < today ? 'text-destructive-text' : 'text-muted-foreground'}`}>
+          {formatDateOnly(task.end_date)}
+          {task.status !== 'Done' && task.end_date < today && (
+            <span> · {daysLate(task.end_date, today)} {daysLate(task.end_date, today) === 1 ? t('projectDetail.tasks.dayLate', 'day late') : t('projectDetail.tasks.daysLate', 'days late')}</span>
+          )}
+        </span>
+      </Tooltip> : <span className="text-muted-foreground">—</span>,
     },
     {
       key: 'status',
       header: t('projectDetail.tasks.column.status', 'Status'),
-      cell: (task) => <StatusCell task={task} />,
+      cell: (task) => (
+        <EditableTaskStatus
+          task={task}
+          editable={canSetStatus(task)}
+          disabled={updateStatus.isPending}
+          onChange={(row, status) => void onStatusChange(row, status)}
+          pendingPush={pendingPushByTask[task.id] ?? IDLE_PENDING_PUSH}
+        />
+      ),
     },
   ];
 
   const rowMenu = (task: TaskWithRefs): RowMenuItem[] => {
-    const items: RowMenuItem[] = [];
+    const items: RowMenuItem[] = [{
+      label: t('comments.open', 'Comments'),
+      onClick: () => openTask(task),
+    }];
     // Merge of #568 (per-row creator gate) and #547 (extraction): the gate decides, the label is
     // translated, and the row param is `task` — `t` belongs to i18next in this scope.
     if (canEditTask(task))
@@ -383,54 +619,125 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
         onClick: () => setDeleteTarget(task),
         danger: true,
       });
-    // Comments ride along only on rows that already have a menu (readers open them by row activation).
-    if (items.length > 0)
-      items.unshift({ label: t('comments.open', 'Comments'), onClick: () => setCommentsTarget(task) });
     return items;
   };
 
   return (
     <div>
-      <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-[16px] font-bold tracking-[-0.01em]">
-            {t('projectDetail.tasks.heading', 'Tasks')}
-          </h2>
+      <div className="mb-3.5 flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-[16px] font-bold tracking-[-0.01em]">{t('projectDetail.tasks.heading', 'Tasks')}</h2>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Button
+                variant="outline"
+                size="sm"
+                aria-label={t('projectDetail.tasks.moreOptions', 'More task options')}
+                aria-haspopup="menu"
+                aria-expanded={toolbarMenuOpen}
+                onClick={() => setToolbarMenuOpen((open) => !open)}
+              >
+                <span aria-hidden="true">⋯</span>
+              </Button>
+              {toolbarMenuOpen && <div role="menu" className="absolute right-0 top-full z-30 mt-1 min-w-[190px] rounded-md border border-border bg-popover p-1 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
+                <button role="menuitemcheckbox" aria-checked={showArchived} type="button" className="w-full rounded-sm px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => { setShowArchived((value) => !value); setSelectedTaskIds(new Set()); setBulkAction(null); setToolbarMenuOpen(false); }}>
+                  {showArchived ? t('projectDetail.tasks.hideArchived', 'Hide archived') : t('projectDetail.tasks.showArchived', 'Show archived')}
+                </button>
+                <button role="menuitem" type="button" className="w-full rounded-sm px-3 py-2 text-left text-sm hover:bg-accent" onClick={() => { setToolbarMenuOpen(false); integrationsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>
+                  {t('projectDetail.tasks.clickUpSettings', 'ClickUp list and sync')}
+                </button>
+              </div>}
+            </div>
+            {canCreate && <Button variant="outline" size="sm" onClick={() => setFormTarget({ task: null })}>
+              <Icon name="plus" />{t('projectDetail.tasks.newTask', 'New task')}
+            </Button>}
+          </div>
         </div>
-        {all.some((t) => t.archived_at != null) && (
-          <Button
-            variant="outline"
-            size="sm"
-            aria-pressed={showArchived}
-            onClick={() => setShowArchived((value) => !value)}
-          >
-            {showArchived
-              ? t('projectDetail.tasks.hideArchived', 'Hide archived')
-              : t('projectDetail.tasks.showArchived', 'Show archived')}
-          </Button>
-        )}
-        {canCreate && (
-          <Button variant="outline" size="sm" onClick={() => setFormTarget({ task: null })}>
-            <Icon name="plus" />
-            {t('projectDetail.tasks.newTask', 'New task')}
-          </Button>
-        )}
-      </div>
 
-      {state !== 'loading' && state !== 'empty' && (
-        <Toolbar standalone>
-          <ViewToggle<ViewMode>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <ViewToggle<TaskScope>
+            options={[
+              { value: 'mine', label: t('projectDetail.tasks.scope.mine', 'Mine') },
+              { value: 'all', label: t('projectDetail.tasks.scope.all', 'All') },
+            ]}
+            value={scope}
+            onChange={setTaskScope}
+            ariaLabel={t('projectDetail.tasks.scopeAriaLabel', 'Task scope')}
+            semantics="toggle"
+          />
+          <label className="min-w-[128px] flex-1 sm:flex-none">
+            <span className="sr-only">{t('projectDetail.tasks.filter.status', 'Filter by status')}</span>
+            <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as TaskStatus | 'all'); setSelectedTaskIds(new Set()); setBulkAction(null); }} className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+              <option value="all">{t('projectDetail.tasks.filter.allStatuses', 'All statuses')}</option>
+              {STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+            </select>
+          </label>
+          <label className="min-w-[144px] flex-1 sm:flex-none">
+            <span className="sr-only">{t('projectDetail.tasks.filter.assignee', 'Filter by assignee')}</span>
+            <select value={assigneeFilter} onChange={(event) => { setAssigneeFilter(event.target.value); setSelectedTaskIds(new Set()); setBulkAction(null); }} className="h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+              <option value="all">{t('projectDetail.tasks.filter.allAssignees', 'All assignees')}</option>
+              <option value="unassigned">{t('projectDetail.tasks.filter.unassigned', 'Unassigned')}</option>
+              {(assignableProfiles ?? []).map((profile) => <option key={profile.id} value={profile.id}>{profile.full_name}</option>)}
+            </select>
+          </label>
+          <label className="relative min-w-[160px] flex-1">
+            <span className="sr-only">{t('projectDetail.tasks.search', 'Search tasks')}</span>
+            <Icon name="search" className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input value={searchText} onChange={(event) => { setSearchText(event.target.value); setSelectedTaskIds(new Set()); setBulkAction(null); }} placeholder={t('projectDetail.tasks.searchPlaceholder', 'Search tasks…')} className="h-9 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
+          </label>
+          {state !== 'loading' && state !== 'error' && state !== 'empty' && <ViewToggle<ViewMode>
             options={[
               { value: 'list', label: t('projectDetail.tasks.view.list', 'List') },
               { value: 'board', label: t('projectDetail.tasks.view.board', 'Board') },
               { value: 'timeline', label: t('projectDetail.tasks.view.timeline', 'Timeline') },
             ]}
             value={view}
-            onChange={setView}
+            onChange={setTaskView}
             ariaLabel={t('projectDetail.tasks.viewAriaLabel', 'Task view')}
-          />
-        </Toolbar>
-      )}
+          />}
+        </div>
+        {view === 'list' && selectedTasks.length > 0 && <div role="group" aria-label={t('projectDetail.tasks.bulk.actions', 'Bulk task actions')} className="flex min-w-0 flex-wrap items-center gap-2 rounded-md border border-border bg-secondary/30 px-3 py-2">
+          <span aria-live="polite" className="mr-1 text-sm font-medium text-foreground">{t('projectDetail.tasks.bulk.selected', '{{count}} selected', { count: selectedTasks.length })}</span>
+          {canBulkStatus && <Button variant="outline" size="sm" aria-pressed={bulkAction === 'status'} onClick={() => { setBulkStatus(''); setBulkAction((current) => current === 'status' ? null : 'status'); }}>{t('projectDetail.tasks.bulk.changeStatus', 'Change status')}</Button>}
+          {canBulkEdit && <Button variant="outline" size="sm" aria-pressed={bulkAction === 'assignee'} onClick={() => { setBulkAssignee(''); setBulkAction((current) => current === 'assignee' ? null : 'assignee'); }}>{t('projectDetail.tasks.bulk.reassign', 'Reassign')}</Button>}
+          {canBulkEdit && <Button variant="outline" size="sm" aria-pressed={bulkAction === 'due'} onClick={() => { setBulkDueDate(''); setBulkClearDueDate(false); setBulkAction((current) => current === 'due' ? null : 'due'); }}>{t('projectDetail.tasks.bulk.changeDueDate', 'Change due date')}</Button>}
+          {canBulkArchive && <Button variant="outline" size="sm" aria-pressed={bulkAction === 'archive'} onClick={() => setBulkAction((current) => current === 'archive' ? null : 'archive')}>{t('projectDetail.tasks.bulk.archive', 'Archive')}</Button>}
+          <Button variant="ghost" size="sm" onClick={() => { setSelectedTaskIds(new Set()); setBulkAction(null); }}>{t('projectDetail.tasks.bulk.clearSelection', 'Clear selection')}</Button>
+        </div>}
+        {view === 'list' && bulkAction && selectedTasks.length > 0 && <div className="flex min-w-0 flex-wrap items-end gap-2 rounded-md border border-border bg-card px-3 py-2.5">
+          {bulkAction === 'status' && <SelectField
+            hideLabel
+            label={t('projectDetail.tasks.bulk.statusLabel', 'New status for selected tasks')}
+            value={bulkStatus}
+            onChange={(value) => setBulkStatus(value as TaskStatus | '')}
+            options={[{ value: '', label: t('projectDetail.tasks.bulk.chooseStatus', 'Choose a status') }, ...STATUS_OPTIONS]}
+          />}
+          {bulkAction === 'assignee' && <SelectField
+            hideLabel
+            label={t('projectDetail.tasks.bulk.assigneeLabel', 'Assignee for selected tasks')}
+            value={bulkAssignee}
+            onChange={setBulkAssignee}
+            options={[{ value: '', label: t('projectDetail.tasks.bulk.chooseAssignee', 'Choose an assignee') }, { value: '__unassigned__', label: t('projectDetail.tasks.unassigned', 'Unassigned') }, ...(assignableProfiles ?? []).map((profile) => ({ value: profile.id, label: profile.full_name }))]}
+          />}
+          {bulkAction === 'due' && <>
+            <TextField
+              label={t('projectDetail.tasks.bulk.dueDateLabel', 'Due date for selected tasks')}
+              type="date"
+              value={bulkDueDate}
+              onChange={(value) => { setBulkDueDate(value); setBulkClearDueDate(false); }}
+              disabled={bulkClearDueDate}
+            />
+            <label className="inline-flex items-center gap-2 pb-2 text-sm text-muted-foreground">
+              <Checkbox checked={bulkClearDueDate} onChange={(checked) => { setBulkClearDueDate(checked); if (checked) setBulkDueDate(''); }} label={t('projectDetail.tasks.bulk.clearDueDate', 'Clear due date')} />
+            </label>
+          </>}
+          {bulkAction === 'archive' && <p className="mr-auto text-sm text-muted-foreground">{t('projectDetail.tasks.bulk.archiveHelp', 'Archive {{count}} active selected tasks.', { count: selectedTasks.filter((task) => task.archived_at == null).length })}</p>}
+          <Button variant="primary" size="sm" disabled={bulkPending || (bulkAction === 'status' && !bulkStatus) || (bulkAction === 'assignee' && !bulkAssignee) || (bulkAction === 'due' && !bulkDueDate && !bulkClearDueDate)} onClick={() => void applyBulkAction()}>
+            {bulkPending ? t('projectDetail.tasks.bulk.applying', 'Applying…') : t('projectDetail.tasks.bulk.apply', 'Apply')}
+          </Button>
+          <Button variant="ghost" size="sm" disabled={bulkPending} onClick={() => setBulkAction(null)}>{t('projectDetail.tasks.bulk.cancel', 'Cancel')}</Button>
+        </div>}
+      </div>
 
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
@@ -459,44 +766,38 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
         />
       )}
 
-      {state === undefined && view === 'list' && (
-        milestoneList.length === 0 ? (
-          // No milestones: flat list, in depth-ordered (parent-then-descendants) order.
-          <DataTable<TaskWithRefs>
-            rows={flatRows}
-            columns={buildColumns(flatDepths)}
-            rowKey={(t) => t.id}
-            rowMenu={canRowWrite ? rowMenu : undefined}
-            onActivate={canEdit ? (t) => setFormTarget({ task: t }) : setCommentsTarget}
-            rowLabel={
-              canEdit
-                ? (task) => `${t('projectDetail.tasks.action.edit', 'Edit')} ${task.name}`
-                : (task) => `${t('comments.open', 'Comments')} ${task.name}`
-            }
-          tableId="project-detail-tabs-taskstab-1-table" />
-        ) : (
-          // Milestones exist: group tasks by milestone
-          <MilestoneGroupedList
-            milestones={milestoneList}
-            tasks={visibleTasks}
-            buildColumns={buildColumns}
-            canCreate={canCreate}
-            canRowWrite={canRowWrite}
-            rowMenu={rowMenu}
-            onAddTask={(milestoneId) => setFormTarget({ task: null, defaultMilestoneId: milestoneId })}
-            onActivate={canEdit ? (t) => setFormTarget({ task: t }) : setCommentsTarget}
-            rowLabel={
-              canEdit ? undefined : (task) => `${t('comments.open', 'Comments')} ${task.name}`
-            }
-          />
-        )
+        {state === undefined && all.length > 0 && filteredTasks.length === 0 && <ListState
+        variant="empty"
+        icon="search"
+        title={t('projectDetail.tasks.filteredEmptyTitle', 'No tasks match these filters')}
+        sub={t('projectDetail.tasks.filteredEmptySub', 'Try another status, assignee, or search term.')}
+        action={{ label: t('projectDetail.tasks.clearFilters', 'Clear filters'), onClick: () => { setStatusFilter('all'); setAssigneeFilter('all'); setSearchText(''); setSelectedTaskIds(new Set()); setBulkAction(null); } }}
+      />}
+
+      {state === undefined && (filteredTasks.length > 0 || milestoneList.length > 0) && view === 'list' && (
+        <MilestoneGroupedList
+          milestones={milestoneList}
+          tasks={filteredTasks}
+          sourceTasks={scopedTasks}
+          today={today}
+          buildColumns={buildColumns}
+          canCreate={canCreate}
+          rowMenu={rowMenu}
+          hashTaskId={hashTaskId}
+          selection={taskSelection}
+          onAddTask={(milestoneId) => setFormTarget({ task: null, defaultMilestoneId: milestoneId })}
+          onActivate={openTask}
+        />
       )}
 
       {state === undefined && view === 'board' && (
         <TaskBoard
-          tasks={visibleTasks}
+          tasks={filteredTasks}
           canSetStatus={canSetStatus}
           onStatusChange={onStatusChange}
+          onActivate={openTask}
+          rowMenu={rowMenu}
+          today={today}
           statusBusy={updateStatus.isPending}
           externallyOwned={externallyOwned}
           pendingPushByTask={pendingPushByTask}
@@ -505,21 +806,35 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
 
       {state === undefined && view === 'timeline' && (
         <ProjectGantt
-          tasks={visibleTasks}
+          tasks={filteredTasks}
           milestones={milestoneList}
-          onSwitchView={setView}
-          onActivateTask={
-            canEdit
-              ? (task) => setFormTarget({ task })
-              : undefined
-          }
+          onSwitchView={setTaskView}
+          onActivateTask={openTask}
+          rowMenu={rowMenu}
         />
       )}
 
       {/* Setup stays available after the task register so it does not block daily task work. */}
-      <ProjectIntegrationsCard projectId={projectId} projectName={projectName} compact />
+      <div ref={integrationsRef}>
+        <ProjectIntegrationsCard projectId={projectId} projectName={projectName} compact />
+      </div>
 
-      <TaskCommentsDrawer task={commentsTarget} onClose={() => setCommentsTarget(null)} />
+      <TaskRecordDrawer
+        task={selectedTask}
+        allTasks={all}
+        projectId={projectId}
+        canEdit={selectedTask ? canEditTask(selectedTask) : false}
+        canArchive={selectedTask ? canArchive && !externallyOwned : false}
+        canDelete={selectedTask ? canDelete : false}
+        externallyOwned={externallyOwned}
+        pendingPush={selectedTask ? (pendingPushByTask[selectedTask.id] ?? IDLE_PENDING_PUSH) : IDLE_PENDING_PUSH}
+        openEdit={(task) => setFormTarget({ task })}
+        onArchive={(task) => void onArchive(task)}
+        onDelete={(task) => setDeleteTarget(task)}
+        openTask={openTask}
+        onClose={closeTask}
+        nestedOpen={!!formTarget || !!deleteTarget}
+      />
 
       {/* Create / edit modal */}
       {formTarget && (
@@ -589,6 +904,9 @@ interface TaskBoardProps {
   tasks: TaskWithRefs[];
   canSetStatus: (t: TaskWithRefs) => boolean;
   onStatusChange: (t: TaskWithRefs, status: TaskStatus) => void;
+  onActivate: (t: TaskWithRefs) => void;
+  rowMenu: (task: TaskWithRefs) => RowMenuItem[];
+  today: string;
   statusBusy: boolean;
   externallyOwned: boolean;
   pendingPushByTask: Record<string, import('@/src/lib/adapterSeam/pendingPush').PendingPushState>;
@@ -603,75 +921,66 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
   tasks,
   canSetStatus,
   onStatusChange,
+  onActivate,
+  rowMenu,
+  today,
   statusBusy,
   externallyOwned,
   pendingPushByTask,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const byStatus = (s: TaskStatus) => tasks.filter((task) => task.status === s);
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {STATUSES.map((s) => {
+    <Kanban className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {BOARD_STATUSES.map((s) => {
         const col = byStatus(s);
         return (
-          <section
+          <KanbanColumn
             key={s}
-            aria-label={`${s} (${col.length})`}
-            className="flex min-w-0 flex-col rounded-lg border border-border bg-secondary/50"
+            title={s}
+            count={col.length}
+            emptyMessage={t('projectDetail.tasks.board.noTasks', 'No tasks')}
+            totals={<Tooltip content={t('projectDetail.tasks.board.countTooltip', 'Count of current filtered project tasks in this status. Source: the current task list and filters.')}>
+              <button type="button" aria-label={t('projectDetail.tasks.board.countHelp', 'Explain status count')} className="inline-flex rounded-sm text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="info" className="size-3.5" /></button>
+            </Tooltip>}
           >
-            <div className="flex items-center gap-2 border-b border-border px-3 pb-2.5 pt-[11px]">
-              <span className="text-[13px] font-bold tracking-[-0.01em]">{s}</span>
-              <span className="ml-auto grid h-5 min-w-[22px] place-items-center rounded-full border border-border bg-background px-[7px] text-[11.5px] font-bold text-muted-foreground tabular">
-                {col.length}
-              </span>
-            </div>
-            <div className="flex min-h-[60px] flex-col gap-2 p-[9px]">
-              {col.length === 0 ? (
-                <div className="py-6 text-center text-xs text-muted-foreground">
-                  {t('projectDetail.tasks.board.noTasks', 'No tasks')}
+            {col.map((task) => <div key={task.id} onClick={() => onActivate(task)} className="min-w-0 cursor-pointer rounded-md border border-border bg-card px-3 py-2.5 hover:border-muted-foreground/35 hover:bg-accent/40">
+              <div className="flex items-start justify-between gap-2">
+                <button type="button" aria-label={t('projectDetail.tasks.openTask', 'Open task {{name}}', { name: task.name })} onClick={(event) => { event.stopPropagation(); onActivate(task); }} className="min-w-0 text-left text-[13px] font-semibold leading-snug hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                  <span className="block whitespace-normal break-words">{task.name}</span>
+                </button>
+                <div className="flex shrink-0 items-center gap-1">
+                  {externallyOwned && <TaskPushBadge state={pendingPushByTask[task.id] ?? IDLE_PENDING_PUSH} />}
+                  <TaskActionsDisclosure items={rowMenu(task)} />
                 </div>
-              ) : (
-                col.map((task) => (
-                  <div
-                    key={task.id}
-                    className="rounded-md border border-border bg-card px-3 py-2.5"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-[13px] font-semibold" title={task.name}>
-                        {task.name}
-                      </span>
-                      {externallyOwned && (
-                        <TaskPushBadge state={pendingPushByTask[task.id] ?? IDLE_PENDING_PUSH} />
-                      )}
-                    </div>
-                    <div className="mt-1 truncate text-[11.5px] text-muted-foreground">
-                      {task.assignee
-                        ? task.assignee.full_name
-                        : t('projectDetail.tasks.unassigned', 'Unassigned')}
-                    </div>
-                    <div className="mt-2">
-                      {canSetStatus(task) ? (
-                        <SelectField
-                          hideLabel
-                          label={`${t('projectDetail.tasks.statusFor', 'Status for')} ${task.name}`}
-                          value={task.status}
-                          disabled={statusBusy}
-                          onChange={(v) => onStatusChange(task, v as TaskStatus)}
-                          options={STATUS_OPTIONS}
-                          fullWidth
-                        />
-                      ) : (
-                        <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
+              </div>
+              <div className="mt-2 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                {task.assignee ? <>
+                  <span aria-hidden="true" className="grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-foreground">{task.assignee.full_name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}</span>
+                  <span className="truncate">{task.assignee.full_name}</span>
+                </> : t('projectDetail.tasks.unassigned', 'Unassigned')}
+                {task.end_date && <Tooltip content={t('projectDetail.tasks.dueTooltip', 'Due date from the task record. Late days compare the due date with today in the organization timezone.')}>
+                  <span tabIndex={0} className={`ml-auto shrink-0 tabular ${task.status !== 'Done' && task.end_date < today ? 'text-destructive-text' : ''}`}>
+                    {task.status !== 'Done' && task.end_date < today ? t('projectDetail.tasks.daysLateCount', '{{count}}d late', { count: daysLate(task.end_date, today) }) : formatDateOnly(task.end_date)}
+                  </span>
+                </Tooltip>}
+              </div>
+              <div className="mt-2" onClick={(event) => event.stopPropagation()}>
+                {canSetStatus(task) ? <SelectField
+                  hideLabel
+                  label={`${t('projectDetail.tasks.statusFor', 'Status for')} ${task.name}`}
+                  value={task.status}
+                  disabled={statusBusy}
+                  onChange={(value) => onStatusChange(task, value as TaskStatus)}
+                  options={STATUS_OPTIONS}
+                  fullWidth
+                /> : <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>}
+              </div>
+            </div>)}
+          </KanbanColumn>
         );
       })}
-    </div>
+    </Kanban>
   );
 };
 
@@ -712,7 +1021,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
   onUpdate,
   onError,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const isEdit = !!task;
   const { data: profiles, isPending: profilesPending, isError: profilesError } =
     useAssignableProfiles();
@@ -950,7 +1259,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
               selectedOption={selectedMilestone}
               loadOptions={async () => milestoneOptions}
               onChange={(v) => setMilestoneId(v || null)}
-              placeholder={t('projectDetail.tasks.ungrouped', 'Ungrouped')}
+              placeholder={t('projectDetail.tasks.noMilestone', 'No phase')}
               searchPlaceholder={t('projectDetail.tasks.form.searchMilestones', 'Search phases…')}
               noun={t('projectDetail.tasks.phaseNoun', 'phase')}
             />
@@ -1059,120 +1368,270 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
 interface MilestoneGroupedListProps {
   milestones: MilestoneWithProgress[];
   tasks: TaskWithRefs[];
-  /** OD-INT-9 — a factory, not a static array: each milestone group needs columns bound to
-   *  ITS OWN depth map (a subtask can land in a different group than its parent). */
+  sourceTasks: TaskWithRefs[];
+  today: string;
   buildColumns: (depths: Map<string, number>) => Column<TaskWithRefs>[];
   canCreate: boolean;
-  canRowWrite: boolean;
-  rowMenu: (t: TaskWithRefs) => RowMenuItem[];
+  rowMenu: (task: TaskWithRefs) => RowMenuItem[];
+  hashTaskId: string | null;
+  selection: DataTableSelection<TaskWithRefs>;
   onAddTask: (milestoneId: string | null) => void;
-  onActivate?: (t: TaskWithRefs) => void;
-  rowLabel?: (t: TaskWithRefs) => string;
+  onActivate: (task: TaskWithRefs) => void;
 }
 
-/**
- * Renders tasks grouped under their milestone headings (AC-DEL-010, FR-DEL-015).
- * Milestone sections ordered by sort_order; ungrouped tasks trail at the end.
- * Each milestone heading shows name + target date only (FR-DEL-015).
- */
 const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
   milestones,
   tasks,
+  sourceTasks,
+  today,
   buildColumns,
   canCreate,
-  canRowWrite,
   rowMenu,
+  hashTaskId,
+  selection,
   onAddTask,
   onActivate,
-  rowLabel,
 }) => {
-  const { t } = useTranslation();
-  // Group tasks by milestone_id
+  const { t } = useTranslation('project');
+  const [expandedDoneGroups, setExpandedDoneGroups] = useState<Set<string>>(() => new Set());
   const tasksByMilestone = useMemo(() => {
     const map = new Map<string | null, TaskWithRefs[]>();
-    for (const t of tasks) {
-      const key = t.milestone_id ?? null;
-      const arr = map.get(key) ?? [];
-      arr.push(t);
-      map.set(key, arr);
+    for (const task of tasks) {
+      const key = task.milestone_id ?? null;
+      const rows = map.get(key) ?? [];
+      rows.push(task);
+      map.set(key, rows);
     }
     return map;
   }, [tasks]);
+  const sourceByMilestone = useMemo(() => {
+    const map = new Map<string | null, TaskWithRefs[]>();
+    for (const task of sourceTasks) {
+      const key = task.milestone_id ?? null;
+      const rows = map.get(key) ?? [];
+      rows.push(task);
+      map.set(key, rows);
+    }
+    return map;
+  }, [sourceTasks]);
+  const groups = useMemo(() => {
+    const phaseGroups = [...milestones]
+      .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
+      .map((milestone) => {
+        const rows = orderedTasks(tasksByMilestone.get(milestone.id) ?? []);
+        return {
+          id: milestone.id,
+          milestone,
+          label: milestone.name,
+          tasks: rows,
+          openTasks: rows.filter((task) => task.status !== 'Done'),
+          doneTasks: rows.filter((task) => task.status === 'Done'),
+          completed: milestone.effective_pct >= 100,
+        };
+      });
+    const ungroupedRows = orderedTasks(tasksByMilestone.get(null) ?? []);
+    const sourceUngroupedRows = sourceByMilestone.get(null) ?? [];
+    const ungrouped = ungroupedRows.length > 0 ? [{
+      id: 'ungrouped',
+      milestone: null,
+      label: t('projectDetail.tasks.ungrouped', 'Ungrouped'),
+      tasks: ungroupedRows,
+      openTasks: ungroupedRows.filter((task) => task.status !== 'Done'),
+      doneTasks: ungroupedRows.filter((task) => task.status === 'Done'),
+      completed: sourceUngroupedRows.length > 0 && sourceUngroupedRows.every((task) => task.status === 'Done'),
+    }] : [];
+    const allGroups = [...phaseGroups, ...ungrouped];
+    return [...allGroups.filter((group) => !group.completed), ...allGroups.filter((group) => group.completed)];
+  }, [milestones, sourceByMilestone, t, tasksByMilestone]);
 
-  const sortedMilestones = useMemo(
-    () => [...milestones].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)),
-    [milestones],
-  );
+  // A completion row is folded by default, but a direct hash link is an explicit
+  // request to locate that task. Expand only the target task's phase in that case.
+  useEffect(() => {
+    if (!hashTaskId) return;
+    const target = tasks.find((task) => task.id === hashTaskId && task.status === 'Done');
+    if (!target) return;
+    const groupId = target.milestone_id ?? 'ungrouped';
+    setExpandedDoneGroups((current) => current.has(groupId) ? current : new Set(current).add(groupId));
+  }, [hashTaskId, tasks]);
 
-  const ungrouped = tasksByMilestone.get(null) ?? [];
+  // B7: one task table for every phase (one column header). Each phase is a heading row; its open tasks follow,
+  // then its Done tasks only once that phase's "N done" fold is open.
+  const groupById = useMemo(() => new Map(groups.map((group) => [group.id, group])), [groups]);
+  const rows = useMemo(() => groups.flatMap((group) => [
+    ...group.openTasks,
+    ...(expandedDoneGroups.has(group.id) ? group.doneTasks : []),
+  ]), [expandedDoneGroups, groups]);
+  const columns = useMemo(() => buildColumns(new Map(groups.flatMap((group) =>
+    buildTaskRenderOrder(group.tasks).map((entry) => [entry.task.id, entry.depth] as const)))), [buildColumns, groups]);
+  const groupOrder = useMemo(() => groups.map((group) => group.id), [groups]);
+  const toggleDone = (groupId: string) => setExpandedDoneGroups((current) => {
+    const next = new Set(current);
+    if (next.has(groupId)) next.delete(groupId);
+    else next.add(groupId);
+    return next;
+  });
 
-  const renderGroup = (ms: MilestoneWithProgress | null, groupTasks: TaskWithRefs[]) => {
-    const sectionLabel = ms ? ms.name : t('projectDetail.tasks.ungrouped', 'Ungrouped');
-    const isUngrouped = ms === null;
-    // OD-INT-9 (AC-SUB-UI-004) — order + depth are computed PER GROUP. A subtask whose parent
-    // sits in a different milestone group is not present in `groupTasks`, so
-    // buildTaskRenderOrder treats it as an orphan root (depth 0): it still renders in its OWN
-    // group — never silently dropped — just without indentation (its parent isn't in view here).
-    const order = buildTaskRenderOrder(groupTasks);
-    const rows = order.map((n) => n.task);
-    const depths = new Map(order.map((n) => [n.task.id, n.depth]));
-    return (
-      <section
-        key={ms?.id ?? 'ungrouped'}
-        aria-label={sectionLabel}
-        className="mb-4"
+  const groupMeta = (groupId: string) => {
+    const group = groupById.get(groupId);
+    if (!group) return null;
+    const expanded = expandedDoneGroups.has(group.id);
+    const phaseTasks = sourceByMilestone.get(group.milestone?.id ?? null) ?? [];
+    const hasTasksOutsideFilters = group.tasks.length === 0 && phaseTasks.length > 0;
+    const starts = phaseTasks.map((task) => task.start_date).filter((date): date is string => Boolean(date)).sort();
+    const ends = phaseTasks.map((task) => task.end_date).filter((date): date is string => Boolean(date)).sort();
+    const dateRange = starts.length || ends.length
+      ? `${starts.length ? formatDateOnly(starts[0]) : '—'} – ${ends.length ? formatDateOnly(ends[ends.length - 1]) : '—'}`
+      : null;
+    const lateDays = group.milestone?.target_date && group.milestone.target_date < today && group.milestone.effective_pct < 100
+      ? daysLate(group.milestone.target_date, today)
+      : null;
+    const note = hasTasksOutsideFilters
+      ? t('projectDetail.tasks.noFilteredTasksInGroup', 'No tasks in this phase match the current filters.')
+      : !group.completed && group.tasks.length === 0 ? t('projectDetail.tasks.noTasksInGroup', 'No tasks in this phase yet.') : null;
+    return <div className="flex min-w-0 max-w-full flex-1 flex-wrap items-center gap-x-3 gap-y-1.5 font-normal">
+      {dateRange && <Tooltip content={t('projectDetail.tasks.phaseDatesTooltip', 'Range from the earliest task start date to the latest task due date in the current task scope. Source: phase task records.')}>
+        <span tabIndex={0} className="text-xs tabular text-muted-foreground">{dateRange}</span>
+      </Tooltip>}
+      {group.milestone?.target_date && <Tooltip content={t('projectDetail.tasks.phaseTargetTooltip', 'Target date from the project phase record.')}>
+        <span tabIndex={0} className="text-xs tabular text-muted-foreground">{t('projectDetail.tasks.phaseTargetDate', 'Target {{date}}', { date: formatDateOnly(group.milestone.target_date) })}</span>
+      </Tooltip>}
+      {group.milestone && <Tooltip content={t(
+        'projectDetail.tasks.phaseProgressTooltip',
+        'Manual phase progress when set; otherwise Done phase tasks divided by the phase task count. Source: get_project_milestones.',
+      )}>
+        <span tabIndex={0} className="inline-flex min-w-0 max-w-full items-center">
+          <ProgressBar value={completionPct(group.milestone.effective_pct)} tone={group.milestone.effective_pct >= 100 ? 'success' : 'primary'} showValue compact className="max-w-full flex-wrap" aria-label={t('projectDetail.tasks.phaseProgress', 'Phase progress')} />
+        </span>
+      </Tooltip>}
+      {lateDays !== null && <Tooltip content={t('projectDetail.tasks.phaseLateTooltip', 'Days past the phase target date, compared with today in the organization timezone. Source: milestone target date and organization day.')}>
+        <span tabIndex={0} className="text-xs font-medium text-destructive-text">{t('projectDetail.tasks.daysLateCount', '{{count}}d late', { count: lateDays })}</span>
+      </Tooltip>}
+      <Tooltip content={t('projectDetail.tasks.openCountTooltip', 'Count of visible tasks in this phase whose status is not Done. Source: current project task list and filters.')}>
+        <span tabIndex={0} className="text-xs text-muted-foreground">{t('projectDetail.tasks.openCount', '{{count}} open', { count: group.openTasks.length })}</span>
+      </Tooltip>
+      {group.doneTasks.length > 0 && <button
+        type="button"
+        aria-expanded={expanded}
+        onClick={() => toggleDone(group.id)}
+        className="touch-target inline-flex min-h-9 items-center gap-1 text-left text-xs text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
-        <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-border bg-secondary/30 px-3 py-2">
-          {isUngrouped ? (
-            <span className="text-[12px] text-muted-foreground">
-              {t('projectDetail.tasks.noMilestone', 'No phase')}
-            </span>
-          ) : (
-            <MilestonePhaseHeader
-              variant="compact"
-              name={ms.name}
-              targetDate={ms.target_date}
-              effectivePct={ms.effective_pct}
-            />
-          )}
-          {canCreate && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-auto"
-              onClick={() => onAddTask(ms?.id ?? null)}
-            >
-              <Icon name="plus" />
-              {t('projectDetail.tasks.addTask', 'Add task')}
-            </Button>
-          )}
-        </div>
-        {groupTasks.length > 0 ? (
-          <DataTable<TaskWithRefs>
-            rows={rows}
-            columns={buildColumns(depths)}
-            rowKey={(t) => t.id}
-            rowMenu={canRowWrite ? rowMenu : undefined}
-            onActivate={onActivate}
-            rowLabel={rowLabel}
-          tableId="project-detail-tabs-taskstab-2-table" />
-        ) : (
-          <p className="py-2 text-center text-[12px] text-muted-foreground">
-            {t('projectDetail.tasks.noTasksInGroup', 'No tasks in this group.')}
-          </p>
-        )}
-      </section>
-    );
+        <Icon name="chev" className={`size-3.5 transition-transform${expanded ? ' rotate-90' : ''}`} />
+        {t('projectDetail.tasks.doneCount', '{{count}} done', { count: group.doneTasks.length })}
+      </button>}
+      {note && <span className="text-xs text-muted-foreground">{note}</span>}
+      {canCreate && <Button variant="ghost" size="sm" className="ml-auto max-w-full" onClick={() => onAddTask(group.milestone?.id ?? null)}>
+        <Icon name="plus" />{t('projectDetail.tasks.addTask', 'Add task')}
+      </Button>}
+    </div>;
   };
 
-  return (
-    <div>
-      {sortedMilestones.map((ms) =>
-        renderGroup(ms, tasksByMilestone.get(ms.id) ?? []),
-      )}
-      {ungrouped.length > 0 && renderGroup(null, ungrouped)}
-    </div>
-  );
+  return <DataTable<TaskWithRefs>
+    rows={rows}
+    columns={columns}
+    rowKey={(task) => task.id}
+    rowMenu={rowMenu}
+    selection={selection}
+    onActivate={onActivate}
+    rowLabel={(task) => t('projectDetail.tasks.openTask', 'Open task {{name}}', { name: task.name })}
+    accessibleName={t('projectDetail.tasks.listAriaLabel', 'Project tasks')}
+    tableId="project-detail-tasks"
+    groupBy={(task) => task.milestone_id && groupById.has(task.milestone_id) ? task.milestone_id : 'ungrouped'}
+    groupOrder={groupOrder}
+    groupLabel={(groupId) => <span className="break-words text-[13px] font-semibold text-foreground">{groupById.get(groupId)?.label ?? groupId}</span>}
+    groupHeader={(groupId) => groupMeta(groupId)}
+    groupHeaderSpan
+  />;
 };
 
+interface TaskRecordDrawerProps {
+  task: TaskWithRefs | null;
+  allTasks: TaskWithRefs[];
+  projectId: string;
+  canEdit: boolean;
+  canArchive: boolean;
+  canDelete: boolean;
+  externallyOwned: boolean;
+  pendingPush: import('@/src/lib/adapterSeam/pendingPush').PendingPushState;
+  openEdit: (task: TaskWithRefs) => void;
+  onArchive: (task: TaskWithRefs) => void;
+  onDelete: (task: TaskWithRefs) => void;
+  openTask: (task: TaskWithRefs) => void;
+  onClose: () => void;
+  nestedOpen: boolean;
+}
+
+const TaskRecordDrawer: React.FC<TaskRecordDrawerProps> = ({
+  task,
+  allTasks,
+  projectId,
+  canEdit,
+  canArchive,
+  canDelete,
+  externallyOwned,
+  pendingPush,
+  openEdit,
+  onArchive,
+  onDelete,
+  openTask,
+  onClose,
+  nestedOpen,
+}) => {
+  const { t } = useTranslation('project');
+  if (!task) return null;
+  const subtasks = allTasks.filter((candidate) => candidate.parent_task_id === task.id && candidate.tombstoned_at == null);
+  return <Drawer
+    open
+    width="lg"
+    title={task.name}
+    status={<StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>}
+    onClose={onClose}
+    nestedOpen={nestedOpen}
+    // Same header as every record drawer: main action · Open full page · ⋯ for the rare ones.
+    headerActions={<>
+      {canEdit && <Button size="sm" onClick={() => openEdit(task)}>{t('projectDetail.tasks.action.edit', 'Edit')}</Button>}
+      <Link to={`/projects/${projectId}/tasks#task-${task.id}`} className={buttonClasses('outline', 'sm')}>{t('projectDetail.tasks.openFullRecord', 'Open full page')}</Link>
+      {(canArchive || canDelete) && <MenuButton
+        ariaLabel={t('projectDetail.tasks.drawerMoreActions', 'More task actions')}
+        items={[
+          ...(canArchive ? [{ label: task.archived_at == null ? t('projectDetail.tasks.action.archive', 'Archive') : t('projectDetail.tasks.action.unarchive', 'Unarchive'), onClick: () => onArchive(task) }] : []),
+          ...(canDelete ? [{ label: t('projectDetail.tasks.action.delete', 'Delete'), onClick: () => onDelete(task), danger: true }] : []),
+        ]}
+      />}
+    </>}
+  >
+    <div className="space-y-5">
+      {externallyOwned && <TaskPushBadge state={pendingPush} />}
+      <section aria-labelledby="task-drawer-description" className="space-y-2">
+        <h2 id="task-drawer-description" className="text-[13px] font-semibold">{t('projectDetail.tasks.form.description', 'Description')}</h2>
+        {task.description ? <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{task.description}</p> : <p className="text-sm text-muted-foreground">{t('projectDetail.tasks.drawer.noDescription', 'No description provided.')}</p>}
+      </section>
+      <section aria-labelledby="task-drawer-details" className="space-y-2">
+        <h2 id="task-drawer-details" className="text-[13px] font-semibold">{t('projectDetail.tasks.drawer.details', 'Details')}</h2>
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-sm">
+          <dt className="text-muted-foreground">{t('projectDetail.tasks.column.assignee', 'Assignee')}</dt><dd className="min-w-0 break-words">{task.assignee?.full_name ?? t('projectDetail.tasks.unassigned', 'Unassigned')}</dd>
+          <dt className="text-muted-foreground">{t('projectDetail.tasks.column.due', 'Due')}</dt><dd>{task.end_date ? formatDateOnly(task.end_date) : '—'}</dd>
+          <dt className="text-muted-foreground">{t('projectDetail.tasks.form.priority', 'Priority')}</dt><dd>{task.priority ?? t('projectDetail.tasks.noPriority', 'No priority')}</dd>
+          <dt className="text-muted-foreground">{t('projectDetail.tasks.form.dependsOnLegend', 'Depends on')}</dt><dd className="min-w-0 break-words">{task.dependencies.length ? task.dependencies.map((dependency) => allTasks.find((candidate) => candidate.id === dependency.depends_on_id)?.name ?? dependency.depends_on_id).join(', ') : t('projectDetail.tasks.drawer.noDependencies', 'No dependencies are linked.')}</dd>
+        </dl>
+      </section>
+      <section aria-labelledby="task-drawer-subtasks" className="space-y-2">
+        <h2 id="task-drawer-subtasks" className="text-[13px] font-semibold">{t('projectDetail.tasks.drawer.subtasks', 'Subtasks')}</h2>
+        {subtasks.length ? <ul className="divide-y divide-border rounded-md border border-border">
+          {orderedTasks(subtasks).map((subtask) => <li key={subtask.id} className="flex min-w-0 items-center gap-2 px-3 py-2">
+            <button type="button" className="min-w-0 flex-1 truncate text-left text-sm hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => openTask(subtask)}>{subtask.name}</button>
+            <StatusPill variant={workflowVariant(subtask.status)}>{subtask.status}</StatusPill>
+          </li>)}
+        </ul> : <p className="text-sm text-muted-foreground">{t('projectDetail.tasks.drawer.noSubtasks', 'No subtasks.')}</p>}
+      </section>
+      <div className="space-y-2">
+        <h2 className="text-[13px] font-semibold">{t('common:comments.title', 'Comments')}</h2>
+        <CommentsSection entityType="task" entityId={task.id} hideTitle />
+      </div>
+      <section aria-labelledby="task-drawer-history" className="space-y-2">
+        <h2 id="task-drawer-history" className="text-[13px] font-semibold">{t('projectDetail.tasks.drawer.history', 'History')}</h2>
+        <RecordHistory entityType="task" entityId={task.id} />
+      </section>
+    </div>
+  </Drawer>;
+};
 export default TasksTab;

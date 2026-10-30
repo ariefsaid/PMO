@@ -134,26 +134,27 @@ test('AC-CQ-020 PM allocates 1,000 and prepares final BAST 997; distinct Finance
     await expect(confirmDialog).toBeHidden({ timeout: 30_000 });
 
     // --- THEN the rendered WO is Closed at 49,850,000 --------------------------------------------------------
-    const closedRow = page.getByRole('row').filter({ hasText: woNumber });
+    const closedRow = page.getByTestId(`customer-order-${workOrderId}`);
     await expect(page.getByTestId(`wo-closing-${workOrderId}`)).toContainText(CLOSING, { timeout: 30_000 });
     await expect(closedRow).toContainText('Closed');
 
     // ...and after a reload it is still Closed at the closing value, and still-to-invoice uses it (not 50,000,000).
     await page.reload();
     await expect(page.getByTestId(`wo-closing-${workOrderId}`)).toContainText(CLOSING, { timeout: 60_000 });
-    await expect(page.getByRole('row').filter({ hasText: woNumber })).toContainText('Closed');
-    await expect(page.getByTestId('wo-billing-total-still')).toContainText(CLOSING);
-    await expect(page.getByTestId('wo-billing-total-still')).not.toContainText(/50[.,]000[.,]000/);
+    await expect(page.getByTestId(`customer-order-${workOrderId}`)).toContainText('Closed');
+    await expect(page.getByTestId(`wo-still-${workOrderId}`)).toContainText(CLOSING);
+    await expect(page.getByTestId(`wo-still-${workOrderId}`)).not.toContainText(/50[.,]000[.,]000/);
 
     // --- ...and the Billing tab: contract balance 903 km, earned 49,850,000 -----------------------------------
     await page.goto(`/projects/${projectId}/billing`);
-    await expect(page.getByTestId(`boq-balance-${boqItemId}`)).toContainText(/903\s*km/, { timeout: 60_000 });
-    await expect(page.getByTestId(`boq-earned-${boqItemId}`)).toContainText(/997\s*km/);
-    await expect(page.getByTestId('billing-assessed')).toContainText(CLOSING);
+    await expect(page.getByTestId(`contract-balance-${boqItemId}`)).toContainText(/903\s*km/, { timeout: 60_000 });
+    await expect(page.getByTestId(`contract-accepted-${boqItemId}`)).toContainText(/997\s*km/);
+    await page.getByText('Billing summary details').click();
+    await expect(page.getByTestId('work-orders-earned')).toContainText(CLOSING);
 
     // Navigate away and back: the closing value is the server's, not a stale client figure.
     await page.goto(`/projects/${projectId}/work-orders`);
-    await expect(page.getByTestId('wo-billing-total-still')).toContainText(CLOSING, { timeout: 60_000 });
+    await expect(page.getByTestId(`wo-still-${workOrderId}`)).toContainText(CLOSING, { timeout: 60_000 });
   } finally {
     // A Confirmed BAST (and the closed order that references it) is immutable by design, so nothing is deleted.
     // Archiving the unique project keeps the leftover out of every live project list.

@@ -1,145 +1,44 @@
-import React, { useMemo } from 'react';
-import {
-  DataTable,
-  ListState,
-  StatusPill,
-  Button,
-  Icon,
-  type Column,
-} from '@/src/components/ui';
-import { useNavigate } from 'react-router';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useProjectProcurements } from '@/src/hooks/useProcurements';
+import { ProcurementBlock } from '@/src/components/procurement/ProcurementBlock';
+import { Tooltip } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatCurrency } from '@/src/lib/format';
-import { useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
-import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
-import {
-  pillVariantForStatus,
-  openPR,
-} from '../../../components/procurement';
-import { ErpPurchasesSection } from '../ErpPurchasesSection';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
+import { ErpPurchasesSection } from '../ErpPurchasesSection';
 
 export interface ProcurementTabProps {
   projectId: string;
 }
 
-/**
- * REAL, project-scoped procurement (OQ-5). Reads procurement filtered by
- * `project_id` server-side (`useProjectProcurements`); RLS scopes the org. No drawer, no pie chart, no advisory card. Rows reuse the
- * Procurement surface's row (title + mono PR-id · value · inline lifecycle pips
- * · StatusPill) and drill to `/procurement/:id`. ProcurementStatusBadge retired
- * → StatusPill.
- */
+/** Project-detail composition: shared PMO list/drawer plus its existing unlinked ERP section. */
 const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
+  const { t } = useTranslation('project');
   const may = usePermission();
-  const statusLabel = useProcurementStatusLabel();
-  const { data, isPending, isError, refetch } = useProjectProcurements(projectId);
-  const canCreate = may('create', 'procurement');
-  // Review 8: the empty state points "below" only when ERPNext documents are actually listed there (same cached read).
-  const erp = useErpPurchases(projectId, { enabled: may('view', 'procurement') });
-  const erpListedBelow = (erp.data ?? []).some((r) => r.procurementId === null);
-
-  const rows = useMemo(
-    () =>
-      [...(data ?? [])]
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-    [data],
+  const canSeeMoney = may('view', 'procurement');
+  const erp = useErpPurchases(projectId, { enabled: canSeeMoney });
+  const showErp = canSeeMoney && (
+    erp.isError || (erp.data ?? []).some((row) => row.procurementId === null || Number(row.outstanding ?? 0) > 0)
   );
 
-  const columns: Column<ProcurementWithRefs>[] = [
-    {
-      key: 'request',
-      header: t('projectDetail.procurement.column.request', 'Procurement'),
-      cell: (r) => (
-        <div className="min-w-0">
-          <div className="truncate font-semibold" title={r.title}>
-            {r.title}
-          </div>
-          <div className="truncate font-mono text-[11px] text-muted-foreground">
-            {r.code ?? r.id.slice(0, 8)}
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'value',
-      header: t('projectDetail.procurement.column.value', 'Value'),
-      align: 'num',
-      cell: (r) => formatCurrency(r.total_value, r.currency),
-    },
-    {
-      key: 'status',
-      header: t('projectDetail.procurement.column.status', 'Status'),
-      cell: (r) => (
-        <StatusPill variant={pillVariantForStatus(r.status as ProcurementStatus)}>
-          {statusLabel(r.status as ProcurementStatus)}
-        </StatusPill>
-      ),
-    },
-  ];
-
-  if (isPending) {
-    return (
-      <div className="rounded-lg border border-border bg-card">
-        <ListState variant="loading" rows={5} />
-      </div>
-    );
-  }
-
-  if (isError || !data) {
-    return (
-      <ListState
-        variant="error"
-        title={t('projectDetail.procurement.error.title', "Couldn't load procurement")}
-        sub={t(
-          'projectDetail.procurement.error.sub',
-          "Something went wrong fetching this project's procurement records.",
-        )}
-        onRetry={() => refetch()}
-      />
-    );
-  }
-
   return (
-    <div>
-      {/* Header: title + gated procurement creation button (T13 — in-context PR creation). */}
-      <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-[16px] font-bold tracking-[-0.01em]">
-            {t('projectDetail.procurement.title', 'Procurement')}
-          </h2>
+    <div className="space-y-4">
+      <ProcurementBlock projectId={projectId} />
+      {showErp && (
+        <div className="border-t border-border pt-4">
+          <ErpPurchasesSection
+            projectId={projectId}
+            className="mt-0"
+            title={t('projectDetail.procurement.erpCard.title', 'From the accounting system · not linked to a procurement')}
+            subtitle={(
+              <Tooltip content={t('projectDetail.procurement.erpCard.qualifier', 'These costs are already counted in project spending. Linking connects the paperwork and does not add spend.')}>
+                <span tabIndex={0} className="rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                  {t('projectDetail.procurement.erpCard.alreadyInSpending', 'Already in spending')}
+                </span>
+              </Tooltip>
+            )}
+          />
         </div>
-        {canCreate && (
-          <Button variant="outline" size="sm" onClick={() => navigate(`/procurement/new?project=${encodeURIComponent(projectId)}`)}>
-            <Icon name="plus" />
-            {t('projectDetail.procurement.newRequest', 'New procurement')}
-          </Button>
-        )}
-      </div>
-
-      <DataTable<ProcurementWithRefs>
-        rows={rows}
-        columns={columns}
-        rowKey={(r) => r.id}
-        onActivate={(r) => openPR(navigate, r)}
-        rowLabel={(r) => `${t('projectDetail.procurement.openRow', 'Open')} ${r.title}`}
-        state={rows.length === 0 ? 'empty' : undefined}
-        emptyTitle={t(
-          'projectDetail.procurement.empty.title',
-          'No procurement records for this project yet',
-        )}
-        emptySub={erpListedBelow ? t(
-          'uxs19.projectEmptyScope',
-          'This list covers PMO procurement records. Purchases recorded in ERPNext appear below.',
-        ) : undefined}
-      tableId="project-detail-tabs-procurementtab-table" />
-
-      <ErpPurchasesSection projectId={projectId} />
+      )}
     </div>
   );
 };

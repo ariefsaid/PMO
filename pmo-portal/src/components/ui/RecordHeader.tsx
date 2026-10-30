@@ -3,7 +3,7 @@ import { PageHeader, type PageStat } from './PageHeader';
 import { cn } from './cn';
 
 export interface RecordHeaderProps {
-  /** Leading icon tile glyph (a letter) or node. Mandatory by the RecordHeader contract. */
+  /** Leading icon tile glyph or node; omitted (null) inside drawers, where the tile is decoration. */
   icon: React.ReactNode;
   iconColor?: string;
   name: React.ReactNode;
@@ -51,6 +51,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
     // The drawer host already supplies a border-bottom seam + popover surface, so the
     // drawer variant drops the standalone card chrome (no double border / nested radius).
     surface={variant === 'drawer' ? 'bare' : 'card'}
+    actionsBelow={variant === 'drawer'}
     icon={icon}
     iconColor={iconColor}
     name={name}
@@ -64,8 +65,8 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
         </span>
       ) : undefined
     }
-    // Phone identity gets a complete row before status; desktop PageHeader is unchanged.
-    className={cn('[&_h1]:basis-full sm:[&_h1]:basis-0', className)}
+    // A full mobile basis still shrinks beside status unless shrink is disabled; restore it on desktop.
+    className={cn('[&_h1]:basis-full [&_h1]:shrink-0 sm:[&_h1]:basis-0 sm:[&_h1]:shrink', className)}
   />
 );
 

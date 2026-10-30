@@ -11,6 +11,7 @@ import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
+import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 // ---------------------------------------------------------------------------
 // Mutable mock state
@@ -69,6 +70,11 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetMutations: () => mutations,
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => ({ data: [], isPending: false, isError: false }) }));
+vi.mock('../project-detail/useProjectPosition', () => ({ useBudgetPosition: () => ({ isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [], unknown: 0 }) }));
+vi.mock('../project-detail/budget/BudgetSummary', () => ({ default: () => null }));
+vi.mock('../project-detail/budget/BudgetErpNotice', () => ({ default: () => null }));
+vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }), useQuery: () => ({ data: undefined, isPending: false, isError: false }) }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
@@ -87,10 +93,15 @@ const renderPage = () =>
   render(
     <MemoryRouter>
       <ToastProvider>
-        <ProjectBudget projectId="p1" />
+        <ProjectBudget projectId="p1" project={{ id: 'p1', currency: 'USD', tax_treatment: 'exclusive' } as unknown as ProjectWithRefs} />
       </ToastProvider>
     </MemoryRouter>,
   );
+
+// The draft line-item editor sits behind "Edit draft" in the draft-waiting banner.
+const openDraftEditor = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(screen.getByRole('button', { name: 'Edit draft' }));
+};
 
 beforeEach(() => {
   mutations.createLineItem.mutateAsync.mockReset().mockResolvedValue({ id: 'li-new' });
@@ -107,6 +118,7 @@ describe('AC-B-0-6: line-item update failure surfaces a warning toast', () => {
     mutations.updateLineItem.mutateAsync.mockRejectedValue(new Error('Network error'));
 
     renderPage();
+    await openDraftEditor(user);
 
     // Click Edit on the existing line item
     const editBtn = screen.getByRole('button', { name: /Edit line item Labor/i });
@@ -127,6 +139,7 @@ describe('AC-B-0-6: line-item create failure surfaces a warning toast', () => {
     mutations.createLineItem.mutateAsync.mockRejectedValue(new Error('DB constraint'));
 
     renderPage();
+    await openDraftEditor(user);
 
     // Open Add row
     const addBtn = screen.getByRole('button', { name: /\+ Add line item/i });
@@ -153,6 +166,7 @@ describe('AC-B-0-7: Save button disabled while mutation isPending', () => {
     mutations.updateLineItem.isPending = true;
 
     renderPage();
+    await openDraftEditor(user);
 
     const editBtn = screen.getByRole('button', { name: /Edit line item Labor/i });
     await user.click(editBtn);
@@ -167,6 +181,7 @@ describe('AC-B-0-7: Save button disabled while mutation isPending', () => {
     mutations.createLineItem.isPending = true;
 
     renderPage();
+    await openDraftEditor(user);
 
     const addBtn = screen.getByRole('button', { name: /\+ Add line item/i });
     await user.click(addBtn);

@@ -41,7 +41,7 @@ function totalsContext(read: FinancialStatementRead, currentLabel: string): stri
 }
 
 const ProjectProfitLossSection: React.FC<ProjectProfitLossSectionProps> = ({ projectId }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const catalogueQuery = useFinancialStatementCatalogue({ kind: 'project', projectId });
   const catalogue = catalogueQuery.data;
   const [periodKind, setPeriodKind] = useState<StatementPeriodKind>('month');

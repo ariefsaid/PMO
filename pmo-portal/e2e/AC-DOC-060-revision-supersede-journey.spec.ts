@@ -25,12 +25,17 @@ test('AC-DOC-051/060/062: PM creates a new revision, a different reviewer approv
   await openDocumentsTab(page);
   const parentDraftRow = await createDocument(page, { title, code, category: 'Drawing', revision: 'A' });
 
+  await parentDraftRow.getByLabel(`View ${title}`).click();
+  const uploadDrawer = page.getByRole('complementary', { name: title });
+  await expect(uploadDrawer).toBeVisible();
   const [uploadChooser] = await Promise.all([
     page.waitForEvent('filechooser'),
-    parentDraftRow.getByLabel(`Upload file for ${title}`).click(),
+    uploadDrawer.getByLabel(`Upload file for ${title}`).click(),
   ]);
   await uploadChooser.setFiles(PDF_FIXTURE);
   await expect(parentDraftRow.getByText('tiny-upload.pdf')).toBeVisible({ timeout: 15_000 });
+  await uploadDrawer.getByRole('button', { name: 'Close preview' }).click();
+  await expect(uploadDrawer).not.toBeVisible({ timeout: 10_000 });
 
   await issueDocument(page, documentRow(page, title));
   const issuedParentRow = documentRow(page, title);
@@ -97,14 +102,16 @@ test('AC-DOC-051/060/062: PM creates a new revision, a different reviewer approv
   await expect(supersededParentRow.getByLabel(`Replace file for ${title}`)).toHaveCount(0);
 
   await supersededParentRow.getByLabel(`View ${title}`).click();
-  const drawer = page.getByRole('dialog');
+  const drawer = page.getByRole('complementary', { name: title });
   await expect(drawer).toBeVisible();
   await expect(drawer.getByText(/superseded by/i)).toBeVisible();
+  await expect(drawer.getByLabel(`Upload file for ${title}`)).toHaveCount(0);
+  await expect(drawer.getByLabel(`Replace file for ${title}`)).toHaveCount(0);
   await expect(drawer.getByRole('button', { name: /^edit$/i })).toHaveCount(0);
   await expect(drawer.getByText(/update status/i)).toHaveCount(0);
 
   const downloadPromise = page.waitForEvent('download');
-  await drawer.getByRole('button', { name: /download tiny-upload\.pdf/i }).click();
+  await drawer.getByRole('button', { name: /^download$/i }).click();
   const download = await downloadPromise;
   const bytes = await readDownloadBytes(download);
   expect(download.suggestedFilename()).toBe('tiny-upload.pdf');

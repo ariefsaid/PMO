@@ -38,15 +38,15 @@ test(
     // with a handful of seeded rows, so the scroll-restore assertion is real, not trivially 0.
     await page.setViewportSize({ width: 1280, height: 420 });
     await login(page, 'pm@acme.test');
-    await page.goto('/procurement');
+    await page.goto('/procurement?tab=all&view=grouped');
     await waitReady(page);
 
-    // ── Narrow: status=Paid, then a search ("Meridian") that removes the Atlas Paid row ──────
-    await page.getByRole('tab', { name: /^Paid$/i }).click();
+    // ── Narrow: the grouped view's Status filter=Paid, then a search ("Meridian") that removes the Atlas Paid row ──────
+    await page.getByRole('combobox', { name: 'Status' }).selectOption('Paid');
     await expect(page).toHaveURL(/[?&]status=Paid/);
     await expect(page.getByText('PV Modules — Atlas 2.8 MW')).toBeVisible();
     await expect(page.getByText('String Inverters & Combiner Boxes')).not.toBeVisible();
-    const search = page.getByRole('searchbox', { name: /Filter procurement records/i });
+    const search = page.getByRole('searchbox', { name: 'Search procurements' });
     await search.fill('Meridian');
     await expect(page).toHaveURL(/[?&]q=Meridian/);
     await expect(page.getByText('PV Modules — Atlas 2.8 MW')).not.toBeVisible();
@@ -73,7 +73,7 @@ test(
     await expect(page).toHaveURL(/[?&]status=Paid/, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=Meridian/);
     await waitReady(page);
-    await expect(page.getByRole('tab', { name: /^Paid$/i })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('combobox', { name: 'Status' })).toHaveValue('Paid');
     await expect(search).toHaveValue('Meridian');
     // The narrowed SET came back, not just the URL: the searched-out and filtered-out rows stay
     // out. Scoped to the row's title `<link>` role so the locator can't transiently match the

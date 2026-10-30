@@ -2,27 +2,50 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const load = (lng: 'en' | 'id') =>
-  JSON.parse(readFileSync(fileURLToPath(new URL(`../../../public/locales/${lng}/common.json`, import.meta.url)), 'utf-8'));
+const load = (lng: 'en' | 'id') => {
+  const root = new URL(`../../../public/locales/${lng}/`, import.meta.url);
+  const common = JSON.parse(readFileSync(fileURLToPath(new URL('common.json', root)), 'utf-8'));
+  const financeHub = JSON.parse(readFileSync(fileURLToPath(new URL('financeHub.json', root)), 'utf-8'));
+  return {
+    ...common,
+    shell: { ...common.shell, nav: { ...common.shell.nav, ...financeHub.nav } },
+    managementPack: {
+      ...common.managementPack,
+      ...financeHub.managementPack,
+      col: { ...common.managementPack.col, ...financeHub.managementPack.col },
+    },
+  };
+};
 const get = (obj: Record<string, unknown>, path: string): unknown =>
   path.split('.').reduce<unknown>((o, k) => (o as Record<string, unknown> | undefined)?.[k], obj);
 
 const KEYS = [
   'shell.nav.managementPack',
-  'managementPack.title', 'managementPack.description', 'managementPack.from', 'managementPack.asAt',
+  'managementPack.description', 'managementPack.from', 'managementPack.asAt',
+  'managementPack.search', 'managementPack.projectManager', 'managementPack.progressValue',
+  'managementPack.noLatestMonthEntry', 'managementPack.noSearchMatches', 'managementPack.noSearchMatchesSub',
+  'managementPack.loadingFigure', 'managementPack.openProject', 'managementPack.viewInvoices',
+  'managementPack.exportRow', 'managementPack.actionsForProject',
+  'managementPack.figures.title', 'managementPack.figures.calculationHelp',
+  'managementPack.figures.earnedNotInvoiced', 'managementPack.figures.earnedNotInvoicedHelp',
+  'managementPack.figures.earnedToDate', 'managementPack.figures.earnedToDateHelp',
+  'managementPack.figures.invoicedToDate', 'managementPack.figures.invoicedToDateHelp',
+  'managementPack.figures.invoiceCount', 'managementPack.figures.thisMonthDelta',
+  'managementPack.figures.backlog', 'managementPack.figures.backlogHelp',
   'managementPack.noAccessTitle', 'managementPack.noAccessSub',
   'managementPack.errorTitle', 'managementPack.errorSub', 'managementPack.invalidRange', 'managementPack.emptyTitle',
   'managementPack.emptySub', 'managementPack.projectsAsAt', 'managementPack.monthlyTotals', 'managementPack.unassigned',
   'managementPack.otherCurrency', 'managementPack.recordProgress', 'managementPack.billedAhead', 'managementPack.undated',
-  'managementPack.total', 'managementPack.basis.invoiced', 'managementPack.basis.progress', 'managementPack.basis.progressShort',
-  'managementPack.col.month', 'managementPack.col.projectNumber', 'managementPack.col.project', 'managementPack.col.client',
+  'managementPack.total', 'managementPack.basis.invoiced', 'managementPack.basis.progressShort',
+  'managementPack.col.month', 'managementPack.col.projectNumber', 'managementPack.col.project', 'managementPack.col.progress',
+  'managementPack.col.earned', 'managementPack.col.invoices', 'managementPack.col.client',
   'managementPack.col.currency', 'managementPack.col.taxBasis', 'managementPack.col.contract', 'managementPack.col.planned',
   'managementPack.col.recognised', 'managementPack.col.invoiced', 'managementPack.col.recognisedToDate',
   'managementPack.col.invoicedToDate', 'managementPack.col.unbilled', 'managementPack.col.backlog', 'managementPack.col.basis',
   'managementPack.progressModal.title', 'managementPack.progressModal.month', 'managementPack.progressModal.monthInvalid',
   'managementPack.progressModal.pct', 'managementPack.progressModal.pctHelper', 'managementPack.progressModal.pctInvalid',
   'managementPack.progressModal.note', 'managementPack.progressModal.save', 'managementPack.progressModal.saved',
-  'uxs34.backlogReason', 'uxs34.backlogUnavailable',
+  'uxs34.backlogReason', 'managementPack.noProgressNote', 'managementPack.backlogUnknownNote', 'managementPack.reviewInvoices',
 ];
 
 describe('AC-MMP-017 management pack catalogue', () => {

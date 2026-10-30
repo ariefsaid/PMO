@@ -34,7 +34,7 @@ export function VendorWithholdingSlipCell({ row, isLoading = false, isError = fa
       <button type="button" className="touch-target inline-flex items-center justify-center underline underline-offset-2 max-[767px]:min-h-11" onClick={() => onView?.(row.active_slip_id!)}>{t('bupot.view', 'View bukti potong')}</button>
     </>}
     {!isActive && row.coverage_state === 'not-recorded' && vendorMissing && (canWrite || onSetVendor) && <>
-      <span className="text-muted-foreground">{t('bupot.vendorRequired', 'Set a supplier on the procurement record before recording this slip.')}</span>
+      <span className="text-muted-foreground">{t('bupot.vendorRequired', 'Set a supplier on this procurement before recording this slip.')}</span>
       {onSetVendor && <button type="button" className="touch-target inline-flex items-center justify-center underline underline-offset-2 max-[767px]:min-h-11" onClick={onSetVendor}>{t('bupot.setVendor', 'Set supplier')}</button>}
     </>}
     {!isActive && row.coverage_state === 'not-recorded' && canWrite && !vendorMissing && <button type="button" className="touch-target inline-flex items-center justify-center underline underline-offset-2 max-[767px]:min-h-11" onClick={onRecord}>{t('bupot.record', 'Record bukti potong')}</button>}

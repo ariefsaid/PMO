@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Button, EntityFormModal, FieldError, FormGrid, FormSection, NumberField, SelectField, type SubmitError,
@@ -33,6 +33,8 @@ export interface ProgressClaimModalProps {
   assessedByBoqItem: Record<string, number>;
   /** `YYYY-MM-01` of the latest assessment, or null. */
   assessmentMonth: string | null;
+  /** Customer order that opened the modal; its accepted-minus-claimed quantities are prefilled for review. */
+  initialWorkOrderId?: string;
   onClose: () => void;
   onSave: (input: Omit<ProgressClaimInput, 'projectId'>) => Promise<void>;
   onError: (err: unknown) => void;
@@ -42,12 +44,16 @@ type Kind = ProgressClaimInput['kind'];
 
 const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
   boqItems, workOrders, allocations, contractLines, contractNet, currencySymbolPrefix, hasDownPayment, claimedByBoqItem, assessedByBoqItem,
-  assessmentMonth, onClose, onSave, onError,
+  assessmentMonth, initialWorkOrderId, onClose, onSave, onError,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const [kind, setKind] = useState<Kind>('progress');
-  const [scope, setScope] = useState('');
+  const initialScope = initialWorkOrderId && workOrders.some((wo) => wo.id === initialWorkOrderId && (wo.status === 'Issued' || wo.status === 'Closed'))
+    ? initialWorkOrderId
+    : '';
+  const [scope, setScope] = useState(initialScope);
   const [quantities, setQuantities] = useState<Record<string, string>>({});
+  const initialPrefillApplied = useRef(false);
   const [recoverRest, setRecoverRest] = useState(false);
   const [dpAmount, setDpAmount] = useState('');
   const [recoveryPct, setRecoveryPct] = useState('');
@@ -136,6 +142,15 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
     setQuantities(Object.fromEntries(Object.entries(prefill).map(([id, quantity]) => [
       id, lumpSumIds.has(id) ? fractionToPercentInput(quantity) : formatMoneyInputValue(quantity),
     ])));
+
+  useEffect(() => {
+    if (!initialWorkOrderId || !initialScope || initialPrefillApplied.current) return;
+    initialPrefillApplied.current = true;
+    setQuantities(Object.fromEntries(Object.entries(prefill).map(([id, quantity]) => {
+      const line = boqItems.find((item) => item.id === id);
+      return [id, line?.earning_basis === 'lump_sum' ? fractionToPercentInput(quantity) : formatMoneyInputValue(quantity)];
+    })));
+  }, [boqItems, initialScope, initialWorkOrderId, prefill]);
 
   return (
     <EntityFormModal

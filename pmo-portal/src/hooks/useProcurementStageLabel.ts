@@ -9,10 +9,10 @@ export function useProcurementStageLabel(): (stage: { key: string; full: string 
   const { t } = useTranslation();
   const labels: Record<string, string> = {
     pr: t('procurement.stage.pr', 'Purchase Request'),
-    vq: t('procurement.stage.vq', 'Supplier Quote'),
+    vq: t('procurement.stage.vq', 'Supplier quote'),
     po: t('procurement.stage.po', 'Purchase Order'),
     gr: t('procurement.stage.gr', 'Goods Receipt'),
-    vi: t('procurement.stage.vi', 'Supplier Invoice'),
+    vi: t('procurement.stage.vi', 'Supplier invoice'),
     paid: t('procurement.stage.paid', 'Payment'),
   };
   return (stage) => labels[stage.key] ?? stage.full;

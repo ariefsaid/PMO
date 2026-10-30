@@ -378,7 +378,7 @@ const SalesPipeline: React.FC = () => {
           <span className="flex items-center gap-1.5">
             <span
               aria-hidden
-              className="grid size-[18px] shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-muted-foreground"
+              className="grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-muted-foreground"
             >
               {r.pm_name.trim().charAt(0).toUpperCase()}
             </span>

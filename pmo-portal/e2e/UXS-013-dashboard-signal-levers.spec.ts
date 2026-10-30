@@ -45,7 +45,8 @@ test.describe('UXS-013 — a dashboard signal carries its lever', () => {
     await waitForFonts(page);
 
     // The risk block carries a risk-specific doorway (zero risks render no false action).
-    const riskLink = page.getByRole('link', { name: /Review \d+ at-risk projects?/ });
+    // #1403 copy: retain both the at-risk numerator and active-delivery denominator in the signal.
+    const riskLink = page.getByRole('link', { name: /\d+ of \d+ active delivery projects at risk/i });
     await expect(riskLink).toBeVisible();
     await expect(riskLink).toHaveAttribute('href', '/projects?filter=at-risk');
 
@@ -64,12 +65,15 @@ test.describe('UXS-013 — a dashboard signal carries its lever', () => {
     await waitForFonts(page);
 
     // The budget exception names the project, and the name itself is the lever.
-    const budgetLink = page.getByRole('link', { name: `Review ${SP2402_NAME} budget` });
+    const budgetRow = page.getByRole('row').filter({ hasText: SP2402_NAME });
+    const budgetLink = budgetRow.getByRole('link', { name: 'Review budget', exact: true });
     await expect(budgetLink).toBeVisible();
 
     await budgetLink.click();
     await expect(page).toHaveURL(new RegExp(`/projects/${SP2402_ID}/budget$`));
-    // The canonical Budget tab actually rendered (budget version card present).
-    await expect(page.getByTestId('version-card').first()).toBeVisible();
+    // The canonical Budget tab actually rendered with its active version.
+    const budgetVersions = page.getByRole('region', { name: 'Budget versions' });
+    const activeVersion = budgetVersions.getByRole('row').filter({ hasText: 'Initial Budget' });
+    await expect(activeVersion.getByRole('cell', { name: 'Active', exact: true })).toBeVisible();
   });
 });

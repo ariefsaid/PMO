@@ -24,6 +24,6 @@ describe('LedgerCaptureRow on a purchase awaiting approval (ADR-0093)', () => {
   it('AC-PFE-010: choosing Supplier invoice as the first document of a Draft offers the supplier invoice capture', () => {
     renderRow('Draft');
     fireEvent.change(screen.getByLabelText('Record the first document'), { target: { value: 'vendor_invoice' } });
-    expect(screen.getByRole('button', { name: 'Capture Supplier Invoice' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Capture Supplier invoice' })).toBeInTheDocument();
   });
 });

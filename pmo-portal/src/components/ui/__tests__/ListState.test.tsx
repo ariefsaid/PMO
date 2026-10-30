@@ -112,4 +112,9 @@ describe('ListState: empty_state_seen analytics (2026-07-13 wiring plan)', () =>
     );
     expect(analytics.trackEmptyStateSeen).not.toHaveBeenCalled();
   });
+
+  it('O18: an error that is the whole page can carry the level-one heading', () => {
+    render(<ListState variant="error" titleAsPageHeading title="Couldn't load this project" />);
+    expect(screen.getByRole('heading', { level: 1, name: "Couldn't load this project" })).toBeInTheDocument();
+  });
 });

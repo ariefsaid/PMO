@@ -91,6 +91,23 @@ describe('AC-MMP-011 management pack export', () => {
     expect(contractRows[1][invoicedToDate]).toBe(100.5);
   });
 
+  it('AC-831-2: a project billed in two currencies exports each row with its own currency and numeric money, never summed', () => {
+    const twoCurrencies = buildManagementPack({
+      ...facts,
+      invoiced: [...facts.invoiced, { project_id: 'p1', currency: 'USD', month: '2026-02-01', net: 250.5, invoice_count: 1 }],
+    });
+    const exported = buildManagementPackExport(twoCurrencies, labels);
+    const at = (name: string) => exported.header.indexOf(name);
+    const feb = exported.body.filter((row) => row[at('Month')] === '2026-02' && row[at('Project number')] === 'PRJ-26-0001');
+    const usd = feb.find((row) => row[at('Currency')] === 'USD');
+    const idr = feb.find((row) => row[at('Currency')] === 'IDR');
+    expect(usd?.[at('Invoiced to date')]).toBe(250.5);
+    expect(idr?.[at('Invoiced to date')]).toBe(100.5);
+    const totals = exported.body.filter((row) => row[at('Project')] === 'Total' && row[at('Month')] === '2026-02');
+    expect(totals.map((row) => row[at('Currency')]).sort()).toEqual(['IDR', 'USD']);
+    expect(totals.find((row) => row[at('Currency')] === 'USD')?.[at('Invoiced to date')]).toBe(250.5);
+  });
+
   it('AC-MMP-011: the file name carries the as-at month', () => {
     expect(managementPackFileStem(pack)).toBe('Management-pack_2026-02');
   });

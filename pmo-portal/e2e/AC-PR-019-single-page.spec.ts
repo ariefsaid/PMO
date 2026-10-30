@@ -5,21 +5,21 @@
  * IDs + history without leaving the page."
  *
  * The page is now a TABBED record shell (`/procurement/:id/:tab`):
- *   - Overview tab  → lifecycle stepper + Progression history timeline
- *   - Documents tab → case ledger (System # · External ref per row) + capture affordance
+ *   - Timeline tab → procurement stage tracker + activity timeline
+ *   - Files tab → case ledger (System # · External ref per row) + capture affordance
  *
  * Journey update (tabbed UX):
  *   1. Load the Paid showcase case (SP2401-001 — richest seed: PR/RFQ/PO/PAY + 8 events).
- *      Default tab = Overview.
- *   2. Overview: assert the stepper + the Progression history timeline (ol aria-label).
- *   3. Navigate to Documents tab via the tab bar.
- *   4. Documents: assert "System #" and "External ref" column headers are visible
+ *      Default tab = Timeline.
+ *   2. Timeline: assert the stage tracker + activity timeline.
+ *   3. Navigate to Files tab via the tab bar.
+ *   4. Files: assert "System #" and "External ref" column headers are visible
  *      (the ledger shows both identities per row — AC-PR-024 dual-ID display).
  *   5. Assert specific system-number and external-reference values from the seed
  *      (PR-2509100001 / REQ-2025-0142; PO-2509200001 / PO-SV-2509-0142).
  *      Scoped to the ledger to avoid strict-mode conflict with the stepper's ref display.
  *   6. For the capture affordance: navigate to a non-terminal case (SP2401-004 Approved)
- *      where the Documents-tab ledger shows the LedgerCaptureRow. Assert the row's
+ *      where the Files-tab ledger shows the LedgerCaptureRow. Assert the row's
  *      "Capture <type>" open button is visible. (Paid is terminal — no capture row is
  *      the correct honest-doorway behavior, not a bug.)
  *   7. All assertions happen without navigating away from /procurement/...
@@ -37,33 +37,30 @@ const PAID_CASE_ID = '61000000-0000-0000-0000-000000000001';
 const APPROVED_CASE_ID = '61000000-0000-0000-0000-000000000004';
 
 test('AC-PR-019 one page shows pipeline, history, both IDs, and inline capture without navigating', async ({ page }) => {
-  // ── Part 1: Paid showcase case — Overview tab + Documents tab (dual-ID ledger) ──
+  // ── Part 1: Paid showcase case — Timeline tab + Files tab (dual-ID ledger) ──
   await signIn(page, 'admin@acme.test');
   await page.goto(`/procurement/${PAID_CASE_ID}`);
 
   // Wait for the page to finish loading (not in loading skeleton)
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
 
-  // ── OVERVIEW TAB (default) ──
+  // ── TIMELINE TAB (default) ──
 
-  // 1. Lifecycle stepper is present (aria-label="Procurement lifecycle")
-  await expect(
-    page.getByRole('list', { name: /procurement lifecycle/i }),
-  ).toBeVisible({ timeout: 10_000 });
+  // 1. The procurement stage tracker is present.
+  await expect(page.getByTestId('procurement-stage-tracker')).toBeVisible({ timeout: 10_000 });
 
-  // 2. Progression-history timeline is present on the Overview tab
-  //    (ol[aria-label="Progression history"], with ≥1 event)
-  const historyList = page.getByRole('list', { name: 'Progression history' });
-  await expect(historyList).toBeVisible({ timeout: 10_000 });
+  // 2. Activity timeline is present on the Timeline tab, with at least one event.
+  const historyList = page.getByTestId('procurement-timeline').locator('ol');
+  await expect(page.getByTestId('procurement-timeline')).toBeVisible({ timeout: 10_000 });
   const historyItems = historyList.locator('li');
   await expect(historyItems.first()).toBeVisible({ timeout: 10_000 });
 
-  // ── DOCUMENTS TAB — dual-ID ledger ──
+  // ── FILES TAB — dual-ID ledger ──
 
-  // Navigate to the Documents tab
-  const documentsTab = page.getByRole('tab', { name: /Documents/i });
-  await expect(documentsTab).toBeVisible({ timeout: 5_000 });
-  await documentsTab.click();
+  // Navigate to the Files tab where the ledger now lives (its name carries a file count when files exist).
+  const filesTab = page.getByRole('tab', { name: /^Files/ });
+  await expect(filesTab).toBeVisible({ timeout: 5_000 });
+  await filesTab.click();
 
   // Wait for the ledger to render
   const ledger = page.getByTestId('procurement-ledger');
@@ -87,11 +84,11 @@ test('AC-PR-019 one page shows pipeline, history, both IDs, and inline capture w
   await expect(page).toHaveURL(new RegExp(PAID_CASE_ID));
 });
 
-test('AC-PR-019b capture affordance visible on non-terminal case Documents tab (honest doorway)', async ({ page }) => {
+test('AC-PR-019b capture affordance visible on non-terminal case Files tab (honest doorway)', async ({ page }) => {
   // The Paid case is terminal — LedgerCaptureRow is correctly hidden (no dead affordance).
   // Test the capture trigger on an Approved (non-terminal) case where capture IS available.
   await signIn(page, 'admin@acme.test');
-  await page.goto(`/procurement/${APPROVED_CASE_ID}/documents`);
+  await page.goto(`/procurement/${APPROVED_CASE_ID}/files`);
 
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('procurement-ledger')).toBeVisible({ timeout: 10_000 });

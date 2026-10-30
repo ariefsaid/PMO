@@ -47,7 +47,7 @@ function latestConfirmed(acceptances: WorkOrderAcceptanceWithLines[]): WorkOrder
 const WorkOrderAcceptanceModal: React.FC<WorkOrderAcceptanceModalProps> = ({
   workOrder, boqItems, allocations, acceptances, documents, today, draft, onClose, onSave, onError,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const allocated = allocations
     .map((row) => ({ row, item: boqItems.find((b) => b.id === row.boq_item_id) }))
     .filter((entry): entry is { row: WorkOrderLineRow; item: BoqItemRow } => entry.item !== undefined)

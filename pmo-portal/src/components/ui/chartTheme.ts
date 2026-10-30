@@ -20,6 +20,8 @@ export const chartTheme = {
     warning: 'hsl(var(--warning))',
     destructive: 'hsl(var(--destructive))',
     violet: 'hsl(var(--violet))',
+    /** In-flight status (Freed-Blue rule): neutral grey, the label carries identity. */
+    neutral: 'hsl(var(--muted-foreground) / 0.55)',
   },
   /**
    * Calm categorical palette for multi-series charts (KPI/legend/timeline).

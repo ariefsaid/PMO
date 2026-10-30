@@ -24,6 +24,12 @@ const idCatalogue = JSON.parse(
 const enCatalogue = JSON.parse(
   readFileSync(join(process.cwd(), 'public/locales/en/common.json'), 'utf8'),
 );
+const idFinanceHubCatalogue = JSON.parse(
+  readFileSync(join(process.cwd(), 'public/locales/id/financeHub.json'), 'utf8'),
+);
+const enFinanceHubCatalogue = JSON.parse(
+  readFileSync(join(process.cwd(), 'public/locales/en/financeHub.json'), 'utf8'),
+);
 
 let i18n: typeof i18next;
 
@@ -34,8 +40,8 @@ beforeEach(async () => {
     fallbackLng: 'en',
     defaultNS: 'common',
     resources: {
-      id: { common: idCatalogue },
-      en: { common: enCatalogue },
+      id: { common: idCatalogue, financeHub: idFinanceHubCatalogue },
+      en: { common: enCatalogue, financeHub: enFinanceHubCatalogue },
     },
   });
 });
@@ -82,13 +88,12 @@ describe('FR-L10N — Bahasa Administration breadcrumbs agree with the shell', (
     expect(screen.queryByText('My integrations')).not.toBeInTheDocument();
   });
 
-  // #781 (AC-FIN-002): the three Finance routes each carry their own rail breadcrumb label (and a
-  // real i18n key), so a direct deep-link never falls through to the "Not found" fallback.
-  it('AC-FIN-002: each Finance route renders its own Bahasa shell label, never "Not found"', () => {
+  it('AC-1405-L10N-001: each Finance area renders its Bahasa shell label', () => {
     const cases = [
-      ['/sales-invoices', 'Faktur Penjualan'],
-      ['/incoming-payments', 'Pembayaran Masuk'],
-      ['/revenue-by-project', 'Pendapatan per Proyek'],
+      ['/finance/receivables', 'Piutang'],
+      ['/finance/payables', 'Utang'],
+      ['/finance/reports', 'Laporan'],
+      ['/finance/statements', 'Laporan keuangan'],
     ] as const;
     for (const [path, bahasa] of cases) {
       const view = renderBreadcrumb(path);
@@ -97,8 +102,19 @@ describe('FR-L10N — Bahasa Administration breadcrumbs agree with the shell', (
     }
   });
 
-  it('AC-FIN-002: breadcrumbForPath resolves the three Finance paths without a "Not found" part', () => {
-    for (const path of ['/sales-invoices', '/incoming-payments', '/revenue-by-project']) {
+  it('AC-1405-L10N-002: Finance record breadcrumbs use the translated Finance and Receivables labels', () => {
+    const view = renderBreadcrumb('/sales-invoices/invoice-1');
+    expect(screen.getByText('Keuangan')).toBeInTheDocument();
+    expect(screen.getByText('Piutang')).toBeInTheDocument();
+    view.unmount();
+    const payment = renderBreadcrumb('/incoming-payments/receipt-1');
+    expect(screen.getByText('Keuangan')).toBeInTheDocument();
+    expect(screen.getByText('Piutang')).toBeInTheDocument();
+    payment.unmount();
+  });
+
+  it('AC-1405-L10N-003: Finance area and record routes do not fall through to Not found', () => {
+    for (const path of ['/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements', '/sales-invoices/invoice-1', '/incoming-payments/receipt-1']) {
       const parts = breadcrumbForPath(path);
       expect(parts.map((p) => p.label)).not.toContain('Not found');
     }

@@ -184,7 +184,8 @@ const HistoryEventGroup: React.FC<{
         onClick={() => setExpanded((open) => !open)}
         className="inline-flex h-8 w-fit items-center rounded-sm text-sm font-semibold text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
-        {t('uxs23.history.groupSummary', '{{count}} system events', { count: events.length })}
+        {/* A group is one system save of one record kind: name what was created, not just "system events". */}
+        {t('uxs23.history.groupSummary', '{{what}} · {{count}} records', { what: historyEventSummary(t, events[0]!), count: events.length })}
       </button>
       <ul id={eventsId} hidden={!expanded} className="mt-1 pl-3">
         {events.map((ev) => (

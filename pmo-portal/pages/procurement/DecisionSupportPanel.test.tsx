@@ -402,7 +402,7 @@ describe('AC-RB-007 — After = Available at Approved (no double-subtract)', () 
     committedState.data = 100;
     reservedState.data = 100; // available = 500
     renderPanel({ projectId: 'p1', totalValue: 120, projectName: 'X', status: 'Approved' });
-    // After this procurement == Available ($500) — thisRequest (120) is NOT subtracted again.
+    // After this request == Available ($500) — thisRequest (120) is NOT subtracted again.
     expect(tileValue(/after this procurement/i).textContent).toMatch(/\$500\b/);
     // The naïve "always subtract thisRequest" answer ($380) must NOT appear anywhere.
     expect(screen.queryByText(/\$380\b/)).not.toBeInTheDocument();

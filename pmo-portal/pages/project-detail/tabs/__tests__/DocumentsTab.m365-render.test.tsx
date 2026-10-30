@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -49,13 +50,13 @@ import DocumentsTab from '../DocumentsTab';
 
 const renderTab = () =>
   render(
-    <MemoryRouter>
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter>
       <ImpersonationProvider realRole="Project Manager">
         <ToastProvider>
           <DocumentsTab projectId="p1" projectCode="PRJ-1" />
         </ToastProvider>
       </ImpersonationProvider>
-    </MemoryRouter>,
+    </MemoryRouter></QueryClientProvider>,
   );
 
 beforeEach(() => {
@@ -67,20 +68,23 @@ beforeEach(() => {
 });
 
 describe('DocumentsTab — Microsoft reference rendering', () => {
-  it('AC-M365DOC-020: a linked document shows its PMO title, status and the Microsoft file cell, with no upload controls', () => {
+  it('AC-M365DOC-020: a linked document shows its PMO title, status and the Microsoft file cell, with no upload controls', async () => {
     h.docs.data = [makeLinkedDoc()];
     renderTab();
     expect(screen.getByRole('button', { name: 'View Foundation GA' })).toBeInTheDocument();
     expect(screen.getAllByText('Draft').length).toBeGreaterThan(0);
-    expect(screen.getByText('SharePoint file')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Open in SharePoint: Foundation GA/ })).toBeEnabled();
+    await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
+    const preview = screen.getByRole('complementary');
+    expect(within(preview).getByText('SharePoint file')).toBeInTheDocument();
+    expect(within(preview).getByRole('button', { name: /Open in SharePoint: Foundation GA/ })).toBeEnabled();
     expect(screen.queryByRole('button', { name: /upload/i })).not.toBeInTheDocument();
   });
 
   it('AC-M365DOC-021: direct open uses only the stored URL — no connection read and no Graph request', async () => {
     h.docs.data = [makeLinkedDoc()];
     renderTab();
-    await userEvent.click(screen.getByRole('button', { name: /Open in SharePoint: Foundation GA/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
+    await userEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Open in SharePoint: Foundation GA/ }));
     expect(window.open).toHaveBeenCalledWith(REFERENCE.web_url, '_blank', 'noopener,noreferrer');
     expect(h.connectionReads).not.toHaveBeenCalled();
     for (const spy of Object.values(h.graph)) expect(spy).not.toHaveBeenCalled();
@@ -90,7 +94,8 @@ describe('DocumentsTab — Microsoft reference rendering', () => {
     // The mocked connection hook would report "pending forever" if it were consulted.
     h.docs.data = [makeLinkedDoc({ status: 'Approved' })];
     renderTab();
-    expect(screen.getByRole('button', { name: /Open latest in SharePoint/ })).toBeEnabled();
+    await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
+    expect(within(screen.getByRole('complementary')).getByRole('button', { name: /Open latest in SharePoint/ })).toBeEnabled();
     expect(h.connectionReads).not.toHaveBeenCalled();
   });
 
@@ -98,20 +103,20 @@ describe('DocumentsTab — Microsoft reference rendering', () => {
     h.docs.data = [makeLinkedDoc()];
     const view = renderTab();
     await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
-    const drawer = screen.getByRole('dialog');
+    const drawer = screen.getByRole('complementary');
     expect(within(drawer).getByText('SharePoint file')).toBeInTheDocument();
     // The register refetches with the file renamed in PMO: the open drawer follows it (no stale copy).
     h.docs.data = [makeLinkedDoc({ title: 'Foundation GA (renamed)' })];
     view.rerender(
-      <MemoryRouter>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter>
         <ImpersonationProvider realRole="Project Manager">
           <ToastProvider>
             <DocumentsTab projectId="p1" projectCode="PRJ-1" />
           </ToastProvider>
         </ImpersonationProvider>
-      </MemoryRouter>,
+      </MemoryRouter></QueryClientProvider>,
     );
-    expect(within(screen.getByRole('dialog')).getByText('Foundation GA (renamed)')).toBeInTheDocument();
+    expect(within(screen.getByRole('complementary')).getByText('Foundation GA (renamed)')).toBeInTheDocument();
   });
 
   it('AC-M365DOC-030: list loading/error stay tied to the document query only', () => {

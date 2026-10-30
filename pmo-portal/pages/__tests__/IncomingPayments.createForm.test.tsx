@@ -75,6 +75,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useClientCompanyOptions: () => ({ data: hoisted.clientOptions }),
+  useInvoiceProjectOptions: () => ({ data: [] }),
 }));
 
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));

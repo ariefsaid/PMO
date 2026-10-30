@@ -110,7 +110,7 @@ const KIND_LABEL: Record<RecordKind, string> = {
   purchase_order: 'Purchase Order',
   payment: 'Payment',
   goods_receipt: 'Goods Receipt',
-  vendor_invoice: 'Supplier Invoice',
+  vendor_invoice: 'Supplier invoice',
 };
 
 function localizedRecordKindLabel(kind: RecordKind, t: TFunction): string {

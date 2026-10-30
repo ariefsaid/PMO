@@ -124,6 +124,18 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
     expect(screen.getByTestId('win-rate-reason-USD')).toHaveTextContent(/No decided bid value recorded/i);
   });
 
+  it('AC-UXA-003: localizes the decided-bid count and accessible rate in Bahasa', async () => {
+    i18next.addResourceBundle('id', 'dashboard', idDashboard, true, true);
+    await act(async () => { await i18next.changeLanguage('id'); });
+    oracle = populatedOracle;
+    render(<WinRateCard currency="USD" />);
+    expect(screen.getByText('2 menang dari 3 yang diputuskan')).toBeInTheDocument();
+    const decidedRate = screen.getByRole('progressbar', { name: 'Tingkat kemenangan USD dari tender yang diputuskan' });
+    expect(decidedRate).toHaveAttribute('aria-valuetext', '66.7%');
+    expect(screen.getByText('Menang')).toBeInTheDocument();
+    expect(screen.getByText('Kalah atau masih terbuka')).toBeInTheDocument();
+  });
+
   it('AC-1106: renders the currency breakdown with Indonesian catalogue copy', async () => {
     i18next.addResourceBundle('id', 'dashboard', idDashboard, true, true);
     await act(async () => { await i18next.changeLanguage('id'); });
@@ -145,6 +157,10 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
     fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
     expect(screen.getByTestId('win-rate-currency-IDR')).toHaveTextContent('92.5%');
     expect(screen.getByTestId('win-rate-reason-USD')).toHaveTextContent(/Nilai tender yang diputuskan tidak tercatat/i);
+    const decidedRate = within(screen.getByTestId('win-rate-currency-IDR')).getAllByRole('progressbar')[0];
+    expect(decidedRate).toHaveAccessibleName('Tingkat kemenangan IDR dari tender yang diputuskan');
+    expect(decidedRate).toHaveAttribute('aria-valuetext', '92.5%');
+    expect(screen.getByText('Kalah atau masih terbuka')).toBeInTheDocument();
   });
 
   it('AC-1117: changing the period re-queries with a new range key', () => {
@@ -152,6 +168,17 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
     const initial = lastRange?.key;
     fireEvent.click(screen.getByTestId('win-rate-period-q'));
     expect(lastRange?.key).not.toBe(initial);
+  });
+
+  it('keeps the redesign heading and embedded frame while honoring a parent period range', () => {
+    const parentRange = { key: 'company-period:2026-01:2026-10' };
+    const { container } = render(<WinRateCard currency="USD" embedded range={parentRange} hidePeriodControl />);
+    const section = screen.getByRole('region', { name: 'Win rate' });
+    expect(section).not.toHaveClass('rounded-lg', 'border');
+    expect(screen.getByRole('heading', { name: 'Win rate', level: 3 })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: /Time frame/i })).not.toBeInTheDocument();
+    expect(container.querySelector('section.rounded-lg.border')).toBeNull();
+    expect(lastRange?.key).toBe(parentRange.key);
   });
 
   it('announces the rate politely and groups the basis + frame segs for a11y', () => {

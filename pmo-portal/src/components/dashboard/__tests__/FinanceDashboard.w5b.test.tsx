@@ -14,8 +14,9 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui/Toast';
@@ -87,7 +88,7 @@ const budgetReview = [
 ];
 
 // OD-BILL-1: the Still-to-invoice card reads through react-query; stubbed like the other dashboard hooks.
-vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [] }), useHasErpPurchases: () => ({ data: false }) }));
+vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [] }), useHasErpPurchases: () => ({ data: false }), useErpOrphans: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
   useUnbilledWorkOrders: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
 }));
@@ -104,8 +105,9 @@ vi.mock('@/src/hooks/useFkOptions', () => ({
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: procurements, isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectProcurements: () => ({ data: undefined, isPending: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }), useProjectIdentity: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }), useProjectIdentity: () => ({ data: [] }), useProject: () => ({ data: undefined, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => ({ data: [], isPending: false, isError: false }),
 }));
@@ -154,13 +156,16 @@ const renderPane = () =>
     </MemoryRouter>,
   );
 
+// The restructured list page mounts ProcurementBlock, which reads the query client.
 const renderProcurement = (url = '/procurement') =>
   render(
-    <MemoryRouter initialEntries={[url]}>
-      <ToastProvider>
-        <ProcurementPage />
-      </ToastProvider>
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={[url]}>
+        <ToastProvider>
+          <ProcurementPage />
+        </ToastProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 
 // ── N16: Ready to pay ──────────────────────────────────────────────────────
@@ -302,29 +307,34 @@ describe('AC-IXD-DASH-W5-C2B — N17: Budget review variance ranking', () => {
 
 // ── OD-C / review-I2: Vendor Invoiced as VISIBLE Procurement segment ──────
 
-describe('AC-IXD-DASH-W5-C2B — OD-C/I2: Vendor Invoiced visible segment', () => {
-  it('AC-IXD-DASH-W5-C2B-VI-1: Procurement page has a "Vendor Invoiced" toolbar segment tab', () => {
-    renderProcurement('/procurement');
-    // Finance role — must have a visible "Vendor Invoiced" tab (role="tab") in the toolbar
-    expect(screen.getByRole('tab', { name: /supplier invoiced/i })).toBeInTheDocument();
+describe('AC-IXD-DASH-W5-C2B — OD-C/I2: Vendor Invoiced visible status filter', () => {
+  // The procurement list restructure (#1404) replaced the status segment toolbar with Needs you / All
+  // tabs and a Status select (shown in the Board / Grouped views; the default table has no status
+  // control, only the deep link and the Pay stage). The goal is unchanged: Finance reaches the Vendor
+  // Invoiced rows through a visible control (the option reads "Supplier invoiced"), and the dashboard
+  // deep link lands there.
+  const statusFilter = () => screen.getAllByRole('combobox', { name: 'Status' })[0] as HTMLSelectElement;
+
+  it('AC-IXD-DASH-W5-C2B-VI-1: Procurement page offers a visible "Vendor Invoiced" status filter', () => {
+    renderProcurement('/procurement?tab=all&view=board');
+    // Finance role — must have a visible "Supplier invoiced" (Vendor Invoiced) option in the Status filter
+    expect(within(statusFilter()).getByRole('option', { name: /supplier invoiced/i })).toBeInTheDocument();
   });
 
-  it('AC-IXD-DASH-W5-C2B-VI-2: clicking Vendor Invoiced segment filters to only VI rows', async () => {
-    renderProcurement('/procurement');
-    const viButton = screen.getByRole('tab', { name: /supplier invoiced/i });
-    await userEvent.click(viButton);
-    // After clicking VI segment: VI row visible, others not
+  it('AC-IXD-DASH-W5-C2B-VI-2: choosing Vendor Invoiced filters to only VI rows', async () => {
+    renderProcurement('/procurement?tab=all&view=board');
+    await userEvent.selectOptions(statusFilter(), 'Vendor Invoiced');
+    // After choosing the VI filter: VI row visible, others not
     expect(screen.getByText('Scaffolding Invoice')).toBeInTheDocument();
     expect(screen.queryByText('Paid Invoice')).not.toBeInTheDocument();
     expect(screen.queryByText('Draft Request')).not.toBeInTheDocument();
   });
 
-  it('AC-IXD-DASH-W5-C2B-VI-3: navigating to ?status=Vendor+Invoiced shows VI segment selected (aria-selected)', () => {
-    renderProcurement('/procurement?status=Vendor+Invoiced');
-    // The ViewToggle uses role="tab" + aria-selected (not aria-pressed)
-    const viTab = screen.getByRole('tab', { name: /supplier invoiced/i });
-    // Must be visually + semantically selected (aria-selected="true")
-    expect(viTab).toHaveAttribute('aria-selected', 'true');
+  it('AC-IXD-DASH-W5-C2B-VI-3: navigating to ?status=Vendor+Invoiced shows the VI filter selected', () => {
+    renderProcurement('/procurement?status=Vendor+Invoiced&view=board');
+    // The Status filter reflects the deep link (value is the selected option)
+    expect(statusFilter().value).toBe('Vendor Invoiced');
+    expect(within(statusFilter()).getByRole('option', { name: /supplier invoiced/i, selected: true })).toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2B-VI-4: navigating to ?status=Vendor+Invoiced shows only VI rows (orientation fix)', () => {

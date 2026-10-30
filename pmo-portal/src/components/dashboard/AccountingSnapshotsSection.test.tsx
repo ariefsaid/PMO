@@ -91,6 +91,13 @@ describe('AccountingSnapshotsSection — empty state (unflipped default)', () =>
     expect(screen.getAllByText('No aging data to show yet.')).toHaveLength(2);
   });
 
+  it('renders client receivables as an unframed subsection when embedded in a billing panel', () => {
+    render(<AccountingSnapshotsSection {...emptyProps} showActuals={false} showApAging={false} showArAging embedded />);
+    const heading = screen.getByRole('heading', { name: 'Client receivables (AR)', level: 3 });
+    expect(heading.closest('.rounded-lg.border')).toBeNull();
+    expect(screen.getByText('No aging data to show yet.')).toBeInTheDocument();
+  });
+
   it('distinguishes an unavailable snapshot from a real zero-balance snapshot and gives Finance a usable next step', () => {
     render(<AccountingSnapshotsSection {...emptyProps} />);
     expect(screen.getAllByText(/No aging data to show yet/i)).toHaveLength(2);
@@ -101,6 +108,17 @@ describe('AccountingSnapshotsSection — empty state (unflipped default)', () =>
 });
 
 describe('AccountingSnapshotsSection — populated state', () => {
+  it('starts the actuals ledger closed behind its row count on an index page, and opens on click', async () => {
+    render(<AccountingSnapshotsSection {...emptyProps} showApAging={false} showArAging={false} actualsCollapsed actuals={actualsRows} />);
+    const summary = screen.getByText('1 ledger rows').closest('summary') as HTMLElement;
+    const details = summary.closest('details') as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(within(summary).getByRole('heading', { name: 'Actuals (ERP ledger)' })).toBeInTheDocument();
+    summary.click();
+    expect(details.open).toBe(true);
+    expect(within(details).getByText('Cost of Goods Sold')).toBeInTheDocument();
+  });
+
   it('AC-RD-FIN-001: keeps a missing Net unknown with a non-visible reason', () => {
     render(<AccountingSnapshotsSection {...emptyProps} actuals={[{ ...actualsRows[0]!, net: null }]} />);
     const actuals = screen.getByText('Actuals (ERP ledger)').closest('.rounded-lg.border') as HTMLElement;
@@ -125,8 +143,8 @@ describe('AccountingSnapshotsSection — populated state', () => {
   it('AC-RD-FIN-003: renders Bahasa money labels for accounting snapshots', () => {
     render(<BahasaProvider locale="id"><MemoryRouter><AccountingSnapshotsSection {...emptyProps} actuals={actualsRows} apAging={apRows} arAging={arRows} /></MemoryRouter></BahasaProvider>);
     expect(screen.getByText('Aktual (buku besar ERP)')).toBeInTheDocument();
-    expect(screen.getByText('Utang kepada pemasok (AP)')).toBeInTheDocument();
-    expect(screen.getByText('Piutang pelanggan (AR)')).toBeInTheDocument();
+    expect(screen.getByText('Utang pemasok (AP)')).toBeInTheDocument();
+    expect(screen.getByText('Piutang klien (AR)')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Proyek' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Akun' })).toBeInTheDocument();
   });

@@ -1,195 +1,294 @@
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { Link } from 'react-router';
+import { useEffectiveRole } from '@/src/auth/impersonation';
+import { useAuth } from '@/src/auth/useAuth';
 import { usePMDashboardProjects } from '@/src/hooks/useDashboard';
-import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
-import { DeliveryPctChip } from '@/components/DeliveryPctChip';
-import { KPITile } from '@/src/components/ui/KPITile';
-import { AwaitingApprovalTile } from './AwaitingApprovalTile';
-import { Card, CardHead } from '@/src/components/ui/Card';
-import { StatusPill } from '@/src/components/ui/StatusPill';
-import { ListState } from '@/src/components/ui/ListState';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { BvACard } from './BvACard';
-import { AtRiskProjectsLink } from './AtRiskProjectsLink';
-import { DashPageHead, DashGrid } from './layout';
-import type { PMDashboardProject } from '@/src/lib/db/dashboard';
-import { isActualComplete } from '@/src/lib/projectFinances';
-import { isMoneyAtRisk, riskCheckableFor } from '@/src/lib/dashboardConstants';
-import { moneyFigure } from '@/src/lib/dashboardMoney';
-import { pillVariantForProjectStatus } from '@/components/projects';
+import { useProcurements } from '@/src/hooks/useProcurements';
+import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
+import { useTimesheetsAwaitingApproval } from '@/src/hooks/useTimesheetApproval';
+import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { INTERNAL_STATUSES, ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
-import { formatPercent } from '@/src/lib/format';
+import { expenseClaimsAwaitingKey } from '@/src/hooks/approvalsQueryKeys';
+import { useNeedsYou } from './restructure/useNeedsYou';
+import { KPIRow, KPITile } from '@/src/components/ui/KPITile';
+import { ListState } from '@/src/components/ui/ListState';
+import { Icon } from '@/src/components/ui/icons';
+import { ApprovalStrip } from './hub/ApprovalStrip';
+import { HubGrid } from './hub/HubGrid';
+import { DashPageHead } from './layout';
+import { PMProjectArea } from './hub/pm/PMProjectArea';
+import {
+  formatHours,
+  projectAtRisk,
+  projectMoneyFigure,
+  atRiskCount,
+  projectSpendOfContractPct,
+  sumAwaitingTimesheetHours,
+} from './hub/pm/metrics';
 
 const DELIVERY_PROJECT_STATUSES = new Set([...ON_HAND_STATUSES, ...INTERNAL_STATUSES]);
+const PROJECTS_HREF = '/projects?filter=My+Projects';
 
-const statusVariant = (status: string) => {
-  const v = pillVariantForProjectStatus(status);
-  return v === 'progress' ? 'neutral' : v;
-};
-
-const projectAtRisk = (p: PMDashboardProject) => isMoneyAtRisk({
-  status: p.status, budget: p.budget, budgetCurrency: p.budget_currency ?? p.currency, projectCurrency: p.currency,
-  spent: p.spent, actualCurrency: p.actual_currency ?? p.currency,
-  actualComplete: isActualComplete({ basis: 'erp', readSucceeded: p.spent !== null, complete: p.actual_complete,
-    coverageCount: p.actual_coverage_count, coverageTotal: p.actual_coverage_total }),
-});
-
-// Project-status pill comes from the canonical project-status map
-// (`pillVariantForProjectStatus`), which routes through the single status registry's
-// Freed-Blue Status Rule: on-hand execution ("Ongoing Project") is neutral grey
-// `progress` — NOT the action-blue (the distinct LABEL carries identity).
-
-/**
- * Project-Manager pane — real off `useProjects` (filtered to my projects). The
- * approvals KPI is now the real combined `AwaitingApprovalTile` (PRs a PM can
- * approve + timesheets awaiting), routing to the unified `/approvals` inbox — the
- * prior fake procurement-approvals placeholder is gone (Wave-5 N15).
- */
+/** Role-specific project index for Project Managers. Every figure drills into its owning page. */
 export const PMDashboard: React.FC = () => {
   const { t } = useTranslation('dashboard');
-  const statusLabel = useProjectStatusLabel();
-  const { data: assigned, isPending, isError, refetch } = usePMDashboardProjects();
-  // D-019: count the canonical on-hand + internal delivery partition, not pipeline or lost bids.
-  const mine = useMemo(() => (assigned ?? []).filter((p) => DELIVERY_PROJECT_STATUSES.has(p.status)), [assigned]);
+  const queryClient = useQueryClient();
+  const { currentUser } = useAuth();
+  const { realRole } = useEffectiveRole();
+  const orgId = currentUser?.org_id;
+  const userId = currentUser?.id;
+  const projectsQuery = usePMDashboardProjects();
+  const deliveryQuery = useProjectsDelivery((projectsQuery.data ?? []).map((project) => project.id));
+  const timesheetsQuery = useTimesheetsAwaitingApproval();
+  const procurementsQuery = useProcurements();
+  const needs = useNeedsYou('Project Manager');
   const orgCurrency = useOrgCurrency();
-  const contractCurrency = mine[0]?.currency;
-  const contractValue = useMemo(() => mine.every((p) => p.contract_value !== null && p.currency === contractCurrency)
-    ? mine.reduce((s, p) => s + (p.contract_value ?? 0), 0) : null, [mine, contractCurrency]);
-  const atRiskCount = useMemo(() => mine.filter(projectAtRisk).length, [mine]);
-  const riskCheckable = useMemo(() => {
-    const unchecked = mine.filter((project) => !(project.budget !== null && Number.isFinite(project.budget) && project.budget > 0
-      && project.budget_currency === project.currency && project.actual_complete
-      && project.spent !== null && Number.isFinite(project.spent)
-      && (project.actual_currency ?? project.currency) === project.currency)).length;
-    return riskCheckableFor(mine.length, unchecked);
-  }, [mine]);
 
-  // AC-IXD-DASH-W5-C2C N18: sort at-risk projects first (stable secondary order).
-  const mineSorted = useMemo(
-    () => [...mine].sort((a, b) => {
-      const riskA = projectAtRisk(a);
-      const riskB = projectAtRisk(b);
-      return Number(riskB) - Number(riskA);
-    }), [mine],
+  const projects = useMemo(
+    () => (projectsQuery.data ?? []).filter((project) => DELIVERY_PROJECT_STATUSES.has(project.status)),
+    [projectsQuery.data],
   );
+  const projectIds = useMemo(() => new Set(projects.map((project) => project.id)), [projects]);
+  const assignedProjectIds = useMemo(() => new Set((projectsQuery.data ?? []).map((project) => project.id)), [projectsQuery.data]);
+  const procurementsAwaiting = useMemo(
+    () => pendingProcurementApprovals(procurementsQuery.data, userId, realRole === 'Admin')
+      .filter((procurement) => procurement.project_id !== null && projectIds.has(procurement.project_id)),
+    [procurementsQuery.data, projectIds, realRole, userId],
+  );
+  const procurementsByProject = useMemo(() => {
+    const grouped = new Map<string, typeof procurementsAwaiting>();
+    for (const procurement of procurementsAwaiting) {
+      if (!procurement.project_id) continue;
+      const current = grouped.get(procurement.project_id) ?? [];
+      current.push(procurement);
+      grouped.set(procurement.project_id, current);
+    }
+    return grouped;
+  }, [procurementsAwaiting]);
 
-  // FR-DEL-017: one batched delivery-% call for all PM projects (NFR-DEL-PERF-001).
-  const { data: deliveryPct } = useProjectsDelivery(mine.map((p) => p.id));
+  const orderedProjects = useMemo(() => [...projects].sort((a, b) => {
+    const score = (projectId: string, atRisk: boolean) =>
+      (atRisk ? 1_000 : 0)
+      + (needs.pmOverdueTasksByProject[projectId] ?? 0) * 10
+      + (procurementsByProject.get(projectId)?.length ?? 0);
+    return score(b.id, projectAtRisk(b)) - score(a.id, projectAtRisk(a));
+  }), [needs.pmOverdueTasksByProject, procurementsByProject, projects]);
+  const visibleProjects = orderedProjects.slice(0, 6);
+  const visibleProjectIds = useMemo(() => new Set(visibleProjects.map((project) => project.id)), [visibleProjects]);
 
-  const bvaProjects: PMDashboardProject[] = mine;
+  const contractFigure = projectMoneyFigure(
+    projects,
+    'contract_value',
+    orgCurrency,
+    t('hub.pm.contractUnavailable', 'One or more project contract values are unavailable.'),
+  );
+  const contractLeftFigure = projectMoneyFigure(
+    projects,
+    'contract_remaining',
+    orgCurrency,
+    t('hub.pm.contractLeftUnavailable', 'Contract remaining is unavailable until project spending is complete.'),
+  );
+  const marginFigure = projectMoneyFigure(
+    projects,
+    'realized_margin',
+    orgCurrency,
+    t('hub.pm.marginUnavailable', 'Billed-work margin is unavailable for one or more projects.'),
+  );
+  // C4: figures the system cannot know are left out of the band, and the reason is said once under it.
+  const marginKnown = marginFigure.unavailableReason === undefined;
+  const contractLeftKnown = contractLeftFigure.value !== '—';
+  const spendingIncomplete = !marginKnown || !contractLeftKnown || projects.some((project) => projectSpendOfContractPct(project) === null);
+  const atRisk = atRiskCount(projects);
+  const atRiskValue = atRisk === null
+    ? '—'
+    : atRisk.partial
+      ? t('hub.pm.atRiskAtLeast', 'At least {{count}}', { count: atRisk.count })
+      : String(atRisk.count);
+  const atRiskReason = atRisk === null
+    ? t('hub.pm.riskUnavailable', 'Budget risk is unknown because one or more projects have incomplete actual spending or budget data.')
+    : undefined;
+  const approvedHours = sumAwaitingTimesheetHours(timesheetsQuery.data);
+  const hoursReason = timesheetsQuery.isError
+    ? t('hub.pm.hoursLoadError', 'Team hours are unavailable because the approval queue could not be loaded.')
+    : approvedHours === null
+      ? t('hub.pm.hoursUnavailable', 'Team hours are unavailable because one or more timesheet entries are missing.')
+      : undefined;
+  const projectsErrorReason = projectsQuery.isError
+    ? t('hub.pm.projectsFigureUnavailable', 'Project data could not be loaded. Retry to refresh this figure.')
+    : undefined;
+
+  const refresh = useCallback(() => {
+    void projectsQuery.refetch();
+    if (projectIds.size > 0) void deliveryQuery.refetch();
+    void timesheetsQuery.refetch();
+    void procurementsQuery.refetch();
+    void queryClient.invalidateQueries({
+      predicate: (query) => {
+        const [key, queryOrgId, recordId] = query.queryKey;
+        if (queryOrgId !== orgId) return false;
+        if (key === 'fx-context' || key === 'fx-org-day') return true;
+        return typeof recordId === 'string'
+          && ((key === 'tasks' && assignedProjectIds.has(recordId))
+            || (key === 'project' && visibleProjectIds.has(recordId)));
+      },
+    });
+    void queryClient.invalidateQueries({ queryKey: expenseClaimsAwaitingKey(orgId) });
+    void queryClient.invalidateQueries({ queryKey: ['timesheets-awaiting', orgId, userId] });
+  }, [assignedProjectIds, deliveryQuery, orgId, projectIds, projectsQuery, procurementsQuery, queryClient, timesheetsQuery, userId, visibleProjectIds]);
+
+  const approvalItems = needs.items
+    .filter((item) => ['approvals', 'team-timesheets', 'projects-over-budget', 'projects-risk-unchecked'].includes(item.id))
+    .map((item) => ({
+      ...item,
+      tone: item.tone === 'lost' ? 'lost' as const : item.tone === 'neutral' ? 'neutral' as const : 'warn' as const,
+      icon: item.id === 'team-timesheets' ? 'clock' as const : item.id.startsWith('projects-') ? 'alert' as const : 'check' as const,
+      count: item.countLabel ?? item.count,
+    }));
+  const primaryError = projectsQuery.isError || needs.isError || procurementsQuery.isError;
+  const primaryLoading = projectsQuery.isPending || needs.isPending || procurementsQuery.isPending;
 
   return (
     <div className="space-y-4">
-      <DashPageHead title={t('dashboard.pm.title', 'My Dashboard')} sub={t('dashboard.pm.subtitle', 'Your projects, budget health, and approvals queue.')} />
+      <DashPageHead
+        title={t('hub.pm.title', 'My dashboard')}
+        sub={projectsQuery.data === undefined
+          ? t('hub.pm.subtitleLoading', 'Your projects and what needs you')
+          : t('hub.pm.subtitle', 'Your {{count}} projects and what needs you', { count: projects.length })}
+        actions={(
+          <button
+            type="button"
+            onClick={refresh}
+            aria-label={t('hub.pm.refresh', 'Refresh')}
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            <Icon name="refresh" className="size-4" />
+            {t('hub.pm.refresh', 'Refresh')}
+          </button>
+        )}
+      />
 
-      <section aria-label={t('uxs03.attentionAndApprovals', 'Attention and approvals')} className="empty:hidden grid grid-cols-1 gap-3 min-[560px]:grid-cols-2">
-        <AwaitingApprovalTile includeTimesheets />
-        {/* SL-B: the one risk note, only when risk can't be checked (replaces the at-risk tile). */}
-        {!isPending && !isError && !riskCheckable && atRiskCount === 0 && <AtRiskProjectsLink count={0} checkable={false} />}
-      </section>
+      <ApprovalStrip items={approvalItems} />
 
-      <section aria-label={t('dashboard.pm.kpiBand', 'My KPIs')} className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[1180px]:grid-cols-4">
-        {/* AC-IXD-DASH-W5-C2A: My projects → /projects?filter=My+Projects */}
-        <KPITile testId="kpi-my-projects" tone="violet" icon="folder" label={t('dashboard.pm.myProjects', 'My projects')}
-          value={String(mine.length)} loading={isPending} error={isError}
-          to="/projects?filter=My+Projects"
-          linkLabel={t('dashboard.pm.openMyProjects', 'Open my projects')}
-          help={t('dashboard:pm.myProjectsHelp', 'Delivery projects where you are the assigned project manager.')} />
-        {/* AC-IXD-DASH-W5-C2A: My contract value → /projects?filter=My+Projects */}
-        <KPITile testId="kpi-my-contract-value" tone="green" icon="dollar" label={t('dashboard.pm.contractValue', 'My contract value')}
-          {...moneyFigure(contractValue, contractCurrency ?? orgCurrency, t('uxs03.notAvailableYet', 'Not available yet'))} loading={isPending} error={isError}
-          to="/projects?filter=My+Projects"
-          linkLabel={t('dashboard.pm.openContractValue', 'Open my projects to see contract value')}
-          help={t('dashboard.pm.contractValueHelp', 'Total contract value across your projects.')} />
-        {/* AC-IXD-DASH-W5-C2A: At risk → /projects?filter=at-risk */}
-        {(riskCheckable || atRiskCount > 0 || isPending || isError) && <KPITile testId="kpi-at-risk" tone="amber" icon="alert" label={t('dashboard.pm.atRisk', 'At risk')}
-          value={String(atRiskCount)}
-          loading={isPending} error={isError}
-          vs={t('dashboard.pm.budgetUsage', 'budget usage > 90%')}
+      <KPIRow aria-label={t('hub.pm.kpiBand', 'My project figures')} className={marginKnown || projectsErrorReason ? 'grid-cols-2 min-[1180px]:grid-cols-5' : 'grid-cols-2 min-[1180px]:grid-cols-4'}>
+        <KPITile
+          testId="kpi-my-projects"
+          tone="violet"
+          icon="folder"
+          label={t('hub.pm.myProjects', 'My projects')}
+          value={projectsErrorReason ? '—' : String(projects.length)}
+          unavailableReason={projectsErrorReason}
+          loading={projectsQuery.isPending}
+          to={PROJECTS_HREF}
+          linkLabel={t('hub.pm.openMyProjects', 'Open my projects')}
+          help={t('hub.pm.myProjectsHelp', 'Delivery projects assigned to you as the project manager.')}
+        />
+        <KPITile
+          testId="kpi-my-contract-value"
+          tone="green"
+          icon="dollar"
+          label={t('hub.pm.myContractValue', 'My contract value')}
+          value={projectsErrorReason ? '—' : contractFigure.value}
+          exactValue={projectsErrorReason ? undefined : contractFigure.exactValue}
+          unavailableReason={projectsErrorReason ?? contractFigure.unavailableReason}
+          vs={!projectsErrorReason && contractLeftKnown
+            ? t('hub.pm.contractLeft', '{{value}} left after spending', { value: contractLeftFigure.value })
+            : undefined}
+          loading={projectsQuery.isPending}
+          to={PROJECTS_HREF}
+          linkLabel={t('hub.pm.openMyProjects', 'Open my projects')}
+          help={t('hub.pm.contractHelp', 'Contract value for your delivery projects. The line below shows the remaining contract value after recorded spending; the two use the project currency and do not convert between currencies.')}
+        />
+        <KPITile
+          testId="kpi-at-risk"
+          tone="amber"
+          icon="alert"
+          label={t('hub.pm.atRisk', 'At risk')}
+          value={projectsErrorReason ? '—' : atRiskValue}
+          unavailableReason={projectsErrorReason ?? atRiskReason}
+          vs={atRisk?.partial
+            ? t('hub.pm.riskPartial', 'At 90% or more of budget; other projects have incomplete budget or spending data')
+            : t('hub.pm.riskDefinition', 'Projects at 90% or more of budget')}
+          loading={projectsQuery.isPending}
           to="/projects?filter=at-risk"
-          linkLabel={t('dashboard.pm.openAtRisk', 'Open my at-risk projects')}
-          help={t('dashboard.pm.atRiskHelp', 'Your projects whose actual spend exceeds 90% of budget.')} />}
-      </section>
+          linkLabel={t('hub.pm.openAtRisk', 'Open at-risk projects')}
+          help={t('hub.pm.atRiskHelp', 'Counts your delivery projects when actual spending is at least 90% of a positive budget in the same currency. Unknown spending or budget data makes the total unavailable.')}
+        />
+        {(marginKnown || projectsErrorReason) && (
+          <KPITile
+            testId="kpi-margin-to-date"
+            tone="blue"
+            icon="chart-column"
+            label={t('hub.pm.marginToDate', 'Margin to date')}
+            value={projectsErrorReason ? '—' : marginFigure.value}
+            exactValue={projectsErrorReason ? undefined : marginFigure.exactValue}
+            unavailableReason={projectsErrorReason ?? marginFigure.unavailableReason}
+            loading={projectsQuery.isPending}
+            to={PROJECTS_HREF}
+            linkLabel={t('hub.pm.openMarginProjects', 'Open projects with billed-work margin')}
+            help={t('hub.pm.marginHelp', 'Margin on billed work to date: billed-work revenue less recorded actual spending, grouped by project currency.')}
+          />
+        )}
+        <KPITile
+          testId="kpi-team-hours"
+          tone="violet"
+          icon="clock"
+          label={t('hub.pm.teamHours', 'Team hours to approve')}
+          value={timesheetsQuery.isError || approvedHours === null ? '—' : `${formatHours(approvedHours)} h`}
+          unavailableReason={hoursReason}
+          loading={timesheetsQuery.isPending}
+          to="/approvals?scope=timesheets"
+          linkLabel={t('hub.pm.openTimesheets', 'Open team timesheets to approve')}
+          help={t('hub.pm.teamHoursHelp', 'Sum of hours in team timesheets currently waiting for your approval.')}
+        />
+      </KPIRow>
+      {spendingIncomplete && !projectsErrorReason && !projectsQuery.isPending && projects.length > 0 && (
+        <p className="-mt-2 text-xs text-muted-foreground">{t('hub.pm.spendingIncompleteNote', 'Some projects have incomplete spending, so margin, contract left and contract spent are shown only where they are known.')}</p>
+      )}
 
-      <DashGrid>
-        <Card>
-          <CardHead>{t('uxs03.spendingContract', 'Spending vs contract')}</CardHead>
-          <div className="px-4 pb-3.5">
-            {isError ? (
-              <ListState variant="error" title={t('dashboard.pm.loadError', "Couldn't load your projects")} onRetry={() => refetch()} />
-            ) : isPending ? (
-              <ListState variant="loading" />
-            ) : mine.length === 0 ? (
-              <ListState variant="empty" icon="folder" title={t('dashboard:pm.noProjects', 'No delivery projects assigned to you yet')}
-                sub={t('dashboard:pm.noProjectsSub', 'Projects in the delivery phase will appear here.')} />
-            ) : (
-              <BvACard projects={bvaProjects} currency={orgCurrency} />
-            )}
-          </div>
-        </Card>
-
-        <Card role="region" aria-labelledby="pm-project-status-heading">
-          <CardHead><span id="pm-project-status-heading">{t('dashboard.pm.statusTitle', 'Project Status')}</span><span className="ml-2 text-[12px] font-normal text-muted-foreground">{t('uxs03.marginToDate', 'Margin to date')}</span></CardHead>
-          <div className="px-4 pb-3.5">
-            {isPending ? (
-              <ListState variant="loading" />
-            ) : isError ? (
-              <ListState variant="error" title={t('dashboard.pm.loadError', "Couldn't load your projects")} onRetry={() => refetch()} />
-            ) : mine.length === 0 ? (
-              <ListState variant="empty" icon="folder" title={t('dashboard.pm.nothingToShow', 'Nothing to show yet')} />
-            ) : (
-              <ul className="divide-y divide-border/70">
-                {mineSorted.map((p) => {
-                  const margin = p.realized_margin_pct === null ? null : p.realized_margin_pct * 100;
-                  const marginClass =
-                    margin === null
-                      ? 'text-muted-foreground'
-                      : margin < 10
-                        ? 'text-destructive'
-                        : 'text-foreground';
-                  const atRisk = projectAtRisk(p);
-                  return (
-                    <li key={p.id} className="flex flex-wrap items-center gap-x-2.5 gap-y-1 py-3">
-                      <Link
-                        to={`/projects/${p.id}`}
-                        title={p.name}
-                        className="min-w-[8rem] flex-1 truncate text-[13px] font-medium hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
-                      >
-                        {projectDisplayName(p)}
-                      </Link>
-                      {/* AC-IXD-DASH-W5-C2C N18: text+dot pill on at-risk rows (not color-only). */}
-                      {atRisk && <StatusPill variant="warn">{t('dashboard.pm.atRisk', 'At risk')}</StatusPill>}
-                      {/* FR-DEL-017: delivery-% chip (absent when project has no milestones). */}
-                      {deliveryPct?.[p.id] != null && (
-                        <span className="flex shrink-0 items-center gap-1">
-                          <span className="text-[11.5px] text-muted-foreground">{t('dashboard:pmRow.delivery', 'Delivery')}</span>
-                          <DeliveryPctChip pct={deliveryPct[p.id]} />
-                        </span>
-                      )}
-                      {/* D-021: one dot marker for every status — the progress halo ring made Ongoing look different. */}
-                      <StatusPill variant={statusVariant(p.status)}>{statusLabel(p.status)}</StatusPill>
-                      <span className="flex shrink-0 items-baseline gap-1">
-                        <span className="text-[11.5px] text-muted-foreground">{t('dashboard:pmRow.margin', 'Margin')}</span>
-                        <span
-                          role="img"
-                          aria-label={margin !== null ? t('dashboard:pmRow.marginAria', '{{name}} margin to date: {{pct}}', { name: p.name, pct: formatPercent(margin / 100) }) : undefined}
-                          className={`min-w-12 text-right text-[13px] font-bold ${margin !== null ? 'tabular' : ''} ${marginClass}`}
-                        >
-                          {margin !== null ? formatPercent(margin / 100) : t('uxs03.notAvailableYet', 'Not available yet')}
-                        </span>
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        </Card>
-      </DashGrid>
-
+      {primaryLoading ? (
+        <ListState variant="loading" />
+      ) : primaryError ? (
+        <ListState
+          variant="error"
+          title={t('hub.pm.loadError', "Couldn't load your projects and attention items")}
+          onRetry={refresh}
+        />
+      ) : projects.length === 0 ? (
+        <ListState
+          variant="empty"
+          icon="folder"
+          title={t('hub.pm.noProjects', 'No delivery projects assigned to you yet')}
+        />
+      ) : (
+        <>
+          <HubGrid>
+            {visibleProjects.map((project) => (
+              <PMProjectArea
+                key={project.id}
+                project={project}
+                deliveryPct={deliveryQuery.data?.[project.id]}
+                overdueTaskCount={needs.pmOverdueTasksByProject[project.id] ?? 0}
+                procurements={procurementsByProject.get(project.id) ?? []}
+                orgCurrency={orgCurrency}
+              />
+            ))}
+          </HubGrid>
+          {orderedProjects.length > 6 && (
+            <div className="flex justify-center">
+              <Link
+                to={PROJECTS_HREF}
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-medium text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              >
+                {t('hub.pm.viewAllProjects', 'View all {{count}} projects', { count: orderedProjects.length })}
+                <Icon name="chev" className="size-4" />
+              </Link>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 };

@@ -8,6 +8,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
+import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 // ---------------------------------------------------------------------------
 // Mocks (mirror ProjectBudget.test.tsx pattern)
@@ -43,6 +44,11 @@ vi.mock('@/src/hooks/useBudget', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => ({ data: [], isPending: false, isError: false }) }));
+vi.mock('../project-detail/useProjectPosition', () => ({ useBudgetPosition: () => ({ isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [], unknown: 0 }) }));
+vi.mock('../project-detail/budget/BudgetSummary', () => ({ default: () => null }));
+vi.mock('../project-detail/budget/BudgetErpNotice', () => ({ default: () => null }));
+vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }), useQuery: () => ({ data: undefined, isPending: false, isError: false }) }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
@@ -74,7 +80,7 @@ const renderPage = () =>
   render(
     <MemoryRouter>
       <ToastProvider>
-        <ProjectBudget projectId="p-1" />
+        <ProjectBudget projectId="p-1" project={{ id: 'p-1', currency: 'USD', tax_treatment: 'exclusive' } as unknown as ProjectWithRefs} />
       </ToastProvider>
     </MemoryRouter>
   );
@@ -89,7 +95,8 @@ describe('ProjectBudget accessible names (W2-5)', () => {
     const user = userEvent.setup();
     renderPage();
 
-    // Open the "Add line item" row
+    // Open the draft editor from the "Draft waiting for approval" banner, then the "Add line item" row
+    await user.click(await screen.findByRole('button', { name: 'Edit draft' }));
     const addBtn = await screen.findByRole('button', { name: /add line item/i });
     await user.click(addBtn);
 
@@ -98,12 +105,12 @@ describe('ProjectBudget accessible names (W2-5)', () => {
     expect(screen.getByLabelText('Line item amount')).toBeInTheDocument();
   });
 
-  it('AC-W2-5-02: new budget-version name input has an accessible name via aria-label', async () => {
+  it('AC-W2-5-02: Create budget opens a labelled version-name field', async () => {
     const user = userEvent.setup();
+    versionsState.data = [];
     renderPage();
 
-    // Click the "+ New version" button
-    const createBtn = await screen.findByRole('button', { name: /\+ new version/i });
+    const createBtn = await screen.findByRole('button', { name: 'Create budget' });
     await user.click(createBtn);
 
     expect(screen.getByLabelText('Version name')).toBeInTheDocument();

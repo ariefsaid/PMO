@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import i18next from 'i18next';
-import { catalogueBackend, parseMissingKeyHandler, initI18n, DEFAULT_NS } from './index';
+import { catalogueBackend, parseMissingKeyHandler, initI18n, DEFAULT_NS, NAMESPACES } from './index';
 
 describe('FR-L10N-043: lazy per-locale catalogue load', () => {
   const fetchMock = vi.fn();
@@ -80,6 +80,10 @@ describe('FR-L10N-041 / AC-L10N-040: a missing key never renders as a raw key', 
 });
 
 describe('feature namespaces', () => {
+  it('registers the finance hub catalogue for lazy loading', () => {
+    expect(NAMESPACES).toContain('financeHub');
+  });
+
   it('AC-1070-002: loads an unlisted namespace through the shipped backend in EN and ID', async () => {
     const { createInstance } = await import('i18next');
     const { initReactI18next, I18nextProvider, useTranslation } = await import('react-i18next');

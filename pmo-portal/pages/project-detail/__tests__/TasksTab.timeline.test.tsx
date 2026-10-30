@@ -127,7 +127,7 @@ describe('AC-GANTT-009: selecting Timeline renders the Gantt and unmounts the li
     expect(screen.getByRole('tab', { name: /timeline/i })).toBeInTheDocument();
   });
 
-  it('clicking Timeline renders the Gantt figure (role="img") and removes the DataTable', async () => {
+  it('clicking Timeline renders the Gantt figure and removes the DataTable', async () => {
     renderTab();
 
     // Initially on List view — DataTable rows are present
@@ -138,7 +138,7 @@ describe('AC-GANTT-009: selecting Timeline renders the Gantt and unmounts the li
 
     await waitFor(() => {
       // Gantt is now rendered
-      expect(screen.getByRole('img')).toBeInTheDocument();
+      expect(screen.getByRole('figure')).toBeInTheDocument();
     });
 
     // The list table row for task names should no longer be present (DataTable unmounted)
@@ -152,11 +152,11 @@ describe('AC-GANTT-009: selecting Timeline renders the Gantt and unmounts the li
 
     // Go to Timeline
     await userEvent.click(screen.getByRole('tab', { name: /timeline/i }));
-    await waitFor(() => expect(screen.getByRole('img')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('figure')).toBeInTheDocument());
 
     // Go back to List
     await userEvent.click(screen.getByRole('tab', { name: /list/i }));
-    await waitFor(() => expect(screen.queryByRole('img')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('figure')).not.toBeInTheDocument());
 
     // DataTable is back
     expect(screen.getByRole('table')).toBeInTheDocument();

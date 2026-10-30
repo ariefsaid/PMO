@@ -1,138 +1,43 @@
-import { afterEach, describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { I18nextProvider } from 'react-i18next';
-import i18next from 'i18next';
-import React from 'react';
-import { MemoryRouter } from 'react-router';
-import enCatalogue from '../../../../public/locales/en/common.json';
-import idCatalogue from '../../../../public/locales/id/common.json';
-import enDashboardCatalogue from '../../../../public/locales/en/dashboard.json';
-import idDashboardCatalogue from '../../../../public/locales/id/dashboard.json';
-import { MobileExecutiveDashboard } from '../MobileExecutiveDashboard';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { getDashboardHarness, renderCompanyDashboard, resetCompanyDashboardHarness } from '@/test/companyDashboardHarness';
 
-vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+const dashboardHarness = getDashboardHarness();
 
-const data = {
-  active_projects: 2,
-  total_contract_value: 1000,
-  on_hand_margin: 0.25,
-  on_hand_value: 800,
-  on_hand_contract_remaining: 600,
-  on_hand_realized_margin: null,
-  on_hand_actual_known: 200,
-  on_hand_actual_project_count: 1,
-  on_hand_actual_project_total: 2,
-  on_hand_actual_coverage_count: 2,
-  on_hand_actual_coverage_total: 2,
-  pipeline_weighted_value: 0,
-  pipeline_projected_margin: 0,
-  pipeline_total_value: 0,
-  projects_at_risk: 1,
-  projects_by_status: [],
-  procurements_by_status: [],
-  top_projects: [],
-} as Parameters<typeof MobileExecutiveDashboard>[0]['data'];
+beforeEach(() => {
+  resetCompanyDashboardHarness();
+  dashboardHarness.today = [{ id: 'contract-on-hand', label: 'Kontrak berjalan', value: '$1.000', href: '/projects?filter=Ongoing' }];
+  setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
+});
+afterEach(resetActiveLocale);
 
-describe('AC-UXS-006 dashboard copy — mobile Executive Bahasa labels', () => {
-  afterEach(() => resetActiveLocale());
+describe('redesigned mobile dashboard accessible names in Bahasa', () => {
+  it('keeps the contract-book name, risk doorway, figure help and spend labels in Bahasa', () => {
+    dashboardHarness.areaItems = [{ id: 'at-risk', count: 1, label: 'proyek berisiko', href: '/projects?filter=at-risk', tone: 'warn' }];
+    renderCompanyDashboard('id');
 
-  it('uses the known small spend in the accessible link name instead of the unavailable reason', async () => {
-    const i18n = i18next.createInstance();
-    await i18n.init({
-      lng: 'en',
-      fallbackLng: 'en',
-      defaultNS: 'common',
-      resources: { en: { common: enCatalogue } },
-    });
+    expect(screen.getByRole('link', { name: 'Buka catatan terkait untuk Kontrak berjalan.' })).toHaveAttribute('href', '/projects?filter=Ongoing');
+    const risk = screen.getByRole('link', { name: /1 dari 7 proyek pekerjaan aktif berisiko/ });
+    expect(risk).toHaveAttribute('href', '/projects?filter=at-risk');
+    const help = screen.getByRole('button', { name: /Bantuan: Kontrak berjalan/ });
+    fireEvent.focus(help);
+    expect(screen.getByRole('tooltip')).toHaveTextContent(/nilai kontrak/i);
 
-    render(
-      <I18nextProvider i18n={i18n}>
-        <MemoryRouter>
-          <MobileExecutiveDashboard data={data} riskCheckable={true} approvalCount={0} belowFold={null} />
-        </MemoryRouter>
-      </I18nextProvider>,
-    );
-
-    expect(screen.getByRole('link', { name: 'Open Ongoing, Won, Pending KoM, and On Hold projects · on-hand spending $200 to date' })).toBeInTheDocument();
+    const spendList = screen.getByRole('list', { name: 'Pengeluaran dibandingkan kontrak' });
+    expect(within(spendList).getByRole('link', { name: /Buka Alpha; pengeluaran tercatat/ })).toBeInTheDocument();
+    expect(within(spendList).getByRole('progressbar', { name: 'Alpha: 50% kontrak terpakai' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tentang pengeluaran dibandingkan kontrak' })).toBeInTheDocument();
   });
 
-  it('AC-RD-UNAVAIL-002: the spend link announces a known 0 or 500, and the reason only when spend is unknown', async () => {
-    const i18n = i18next.createInstance();
-    await i18n.init({ lng: 'en', fallbackLng: 'en', defaultNS: 'common', resources: { en: { common: enCatalogue } } });
-    const cases: Array<[number | null, RegExp]> = [
-      [0, /on-hand spending \$0 to date/],
-      [500, /on-hand spending \$500 to date/],
-      [null, /on-hand spending Not available yet to date/],
+  it('formats the accessible spend with the configured number locale rather than the UI language', () => {
+    dashboardHarness.dashboard!.top_projects = [
+      { id: 'locale', name: 'Locale', contract_value: 3_000, currency: 'USD', spent: 1_500, actual_complete: true, actual_currency: 'USD', status: 'Ongoing Project' },
     ];
-    for (const [spend, name] of cases) {
-      const { unmount } = render(
-        <I18nextProvider i18n={i18n}>
-          <MemoryRouter>
-            <MobileExecutiveDashboard data={{ ...data, on_hand_actual_known: spend as number }} riskCheckable={true} approvalCount={0} belowFold={null} />
-          </MemoryRouter>
-        </I18nextProvider>,
-      );
-      const link = screen.getByRole('link', { name: /Open Ongoing, Won, Pending KoM, and On Hold projects/ });
-      expect(link).toHaveAccessibleName(name);
-      if (spend !== null) expect(link).not.toHaveAccessibleName(/Not available yet/);
-      // No interactive dash nested inside the drill link.
-      expect(link.querySelector('button')).toBeNull();
-      unmount();
-    }
-  });
-
-  it('formats the exact spend with the configured number locale, not the UI language', async () => {
     setActiveLocale({ locale: 'en', numberLocale: 'id-ID', timezone: 'UTC' });
-    const i18n = i18next.createInstance();
-    await i18n.init({
-      lng: 'en',
-      fallbackLng: 'en',
-      defaultNS: 'common',
-      resources: { en: { common: enCatalogue } },
-    });
-    const localizedData = { ...data, on_hand_actual_known: 1_200_000 };
-
-    render(
-      <I18nextProvider i18n={i18n}>
-        <MemoryRouter>
-          <MobileExecutiveDashboard data={localizedData} riskCheckable={true} approvalCount={0} belowFold={null} />
-        </MemoryRouter>
-      </I18nextProvider>,
-    );
-
-    const spendLink = screen.getByRole('link', { name: /US\$1\.200\.000/ });
-    expect(spendLink.querySelector('[title]')).toHaveAttribute('title', 'US$1.200.000');
-    expect(spendLink.querySelector('.sr-only')).toHaveTextContent('US$1.200.000');
-  });
-
-  it('keeps the contract-book accessible name, risk link, and KPI help in Bahasa', async () => {
-    const i18n = i18next.createInstance();
-    await i18n.init({
-      lng: 'id',
-      fallbackLng: 'en',
-      defaultNS: 'common',
-      fallbackNS: 'common',
-      resources: {
-        en: { common: enCatalogue, dashboard: enDashboardCatalogue },
-        id: { common: idCatalogue, dashboard: idDashboardCatalogue },
-      },
-    });
-
-    render(
-      <I18nextProvider i18n={i18n}>
-        <MemoryRouter>
-          <MobileExecutiveDashboard data={data} riskCheckable={true} approvalCount={0} belowFold={null} />
-        </MemoryRouter>
-      </I18nextProvider>,
-    );
-
-    expect(screen.getByTestId('mobile-contract-book')).toHaveAttribute('aria-label', 'Portofolio kontrak');
-    expect(screen.getByRole('link', { name: /\$200/ })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Tinjau 1 proyek berisiko' })).toHaveAttribute(
-      'href',
-      '/projects?filter=at-risk',
-    );
-    expect(screen.getByRole('button', { name: /^Tentang metrik ini: \S/ })).toBeInTheDocument();
+    renderCompanyDashboard('id');
+    const spendList = screen.getByRole('list', { name: 'Pengeluaran dibandingkan kontrak' });
+    expect(within(spendList).getByRole('link', { name: /Locale.*US\$1\.500/ })).toBeInTheDocument();
+    expect(within(spendList).queryByRole('link', { name: /US\$1,500/ })).not.toBeInTheDocument();
   });
 });

@@ -62,7 +62,7 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
 }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [{ value: 'proj-1', label: 'HQ Fit-Out' }] }),
-  useVendorOptions: () => ({ data: [{ value: 'v1', label: 'Apex Supply', sub: 'Vendor' }] }),
+  useVendorOptions: () => ({ data: [{ value: 'v-apex', label: 'Apex Supply', sub: 'Vendor' }, { value: 'v-beta', label: 'Beta Traders', sub: 'Vendor' }] }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Finance' }),
@@ -94,6 +94,8 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
+vi.mock('@/src/hooks/useProjects', () => import('@/pages/__tests__/helpers/projectScopeMock'));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 import ProcurementDetails from '../ProcurementDetails';
 
 const selectedQuote = {
@@ -147,6 +149,11 @@ const base = {
   quotations: [otherQuote, selectedQuote],
   receipts: [],
   invoices: [],
+  purchase_requests: [],
+  rfqs: [],
+  purchase_orders: [],
+  payments: [],
+  statusEvents: [],
 };
 
 // The page is a tabbed shell (`/procurement/:id/:tab?`, default Overview). `tab`
@@ -162,31 +169,35 @@ const renderPage = (tab?: string) =>
     </MemoryRouter>,
   );
 
-/** The stat tile whose label matches; returns its container element. */
-function tile(label: string): HTMLElement {
-  const labelEl = screen.getByText(label);
-  return labelEl.closest('[data-testid="stat-tile"]') as HTMLElement;
-}
-
 beforeEach(() => {
   detailState.isPending = false;
   detailState.isError = false;
   detailState.error = null;
 });
 
+// The Overview "Selected quote" stat tile was removed by the procurement record restructure (#1404);
+// the chosen quote's amount + supplier are read where the quotes live (the Quotations tab row marked
+// "Selected · best value"). The goal is unchanged: the binding holds from Quote Selected through Paid.
+const selectedRow = () => {
+  const section = screen.getByTestId('vendor-quotes');
+  const pill = within(section).getAllByText(/Selected · best value/i)[0]!;
+  return (pill.closest('tr') ?? pill.closest('li') ?? pill.parentElement!.parentElement!) as HTMLElement;
+};
+
 describe('AC-IXD-PROC-004: the Selected-quote summary binds to the chosen quotation', () => {
-  it('AC-IXD-PROC-004: at Quote Selected the tile shows the selected amount + vendor (not "Pending")', () => {
+  it('AC-IXD-PROC-004: at Quote Selected the chosen quote row shows the selected amount + vendor (not the other bid)', () => {
     detailState.data = { ...base, status: 'Quote Selected' };
-    renderPage();
-    const t = tile('Selected quote');
+    renderPage('quotes');
+    const row = selectedRow();
     // formatCurrency(48000) = "$48,000" (the selected quote's amount)
-    expect(t).toHaveTextContent('$48,000');
-    // names the selected vendor — not the raw "N received" pending sub
-    expect(t).toHaveTextContent('Apex Supply');
-    expect(t).not.toHaveTextContent('Pending');
+    expect(row).toHaveTextContent('$48,000');
+    // names the selected vendor, not the rejected bid
+    expect(row).toHaveTextContent('Apex Supply');
+    expect(row).not.toHaveTextContent('Beta Traders');
+    expect(row).not.toHaveTextContent('$52,000');
   });
 
-  it('AC-IXD-PROC-004: the selected amount persists through to Paid (not reverting to Pending)', () => {
+  it('AC-IXD-PROC-004: the selected quote persists through to Paid (not reverting to unselected)', () => {
     detailState.data = {
       ...base,
       status: 'Paid',
@@ -198,10 +209,10 @@ describe('AC-IXD-PROC-004: the Selected-quote summary binds to the chosen quotat
         { id: 'i-1', procurement_id: 'proc-001', vi_number: 'VI-1', status: 'Paid', invoice_date: '2026-06-06', org_id: 'org-1', created_at: '2026-06-06T00:00:00Z' },
       ],
     };
-    renderPage();
-    const t = tile('Selected quote');
-    expect(t).toHaveTextContent('$48,000');
-    expect(t).not.toHaveTextContent('Pending');
+    renderPage('quotes');
+    const row = selectedRow();
+    expect(row).toHaveTextContent('$48,000');
+    expect(row).toHaveTextContent('Apex Supply');
   });
 
   it('AC-IXD-PROC-004: the chosen quotation row is marked "Selected · best value"', () => {

@@ -1,16 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation, useNavigationType } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // ── Repository-seam-backed hooks are mocked; the tab is the unit under test. ──
-const { listState, profilesState, mutations } = vi.hoisted(() => ({
+const { listState, profilesState, milestonesState, mutations } = vi.hoisted(() => ({
   listState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   profilesState: { data: [] as unknown[], isPending: false, isError: false },
+  milestonesState: { data: [] as unknown[] },
   mutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -45,13 +46,16 @@ vi.mock('@/src/hooks/useTasks', () => ({
 }));
 // Milestones stub — empty so the flat list view is used (no grouping) in these tests.
 vi.mock('@/src/hooks/useMilestones', () => ({
-  useMilestones: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useMilestones: () => ({ data: milestonesState.data, isPending: false, isError: false, refetch: vi.fn() }),
   useMilestoneMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: vi.fn(), isPending: false },
     setTaskMilestone: { mutateAsync: vi.fn(), isPending: false },
   }),
+}));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({ day: '2026-06-22', isPending: false, isError: false, retry: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useIntegrations', () => ({
   useIntegrations: () => integrationsState,
@@ -112,13 +116,20 @@ const seed = [
   },
 ];
 
-const renderTab = (role: Role = 'Project Manager', userId = 'pm-1') => {
+const LocationProbe = () => {
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  return <output data-testid="location-probe">{`${location.search}|${navigationType}`}</output>;
+};
+
+const renderTab = (role: Role = 'Project Manager', userId = 'pm-1', initialEntry = '/projects/p1/tasks', showLocation = false) => {
   realRole = role;
   currentUserId = userId;
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/projects/p1/tasks']}>
+      <MemoryRouter initialEntries={[initialEntry]}>
+        {showLocation && <LocationProbe />}
         <ToastProvider>
           <TasksTab projectId="p1" />
         </ToastProvider>
@@ -128,12 +139,14 @@ const renderTab = (role: Role = 'Project Manager', userId = 'pm-1') => {
 };
 
 beforeEach(() => {
+  vi.restoreAllMocks();
   listState.data = seed;
   listState.isPending = false;
   listState.isError = false;
   listState.refetch.mockClear();
   profilesState.data = profiles;
   profilesState.isPending = false;
+  milestonesState.data = [];
   profilesState.isError = false;
   Object.values(mutations).forEach((m) => {
     m.mutateAsync.mockReset();
@@ -203,48 +216,80 @@ describe('TasksTab — task-first ClickUp setup (AC-S21-001)', () => {
 });
 
 describe('TasksTab — archive affordance (AC-CUA-098/099/100)', () => {
-  it('AC-CUA-098: hides archived rows by default and Show archived reveals them', async () => {
+  it('AC-CUA-098: hides archived rows by default and More task options reveals them', async () => {
     renderTab();
     expect(screen.queryByText('Archived obsolete work')).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Show archived' }));
+    await userEvent.click(screen.getByRole('button', { name: 'More task options' }));
+    await userEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Show archived' }));
     expect(screen.getByText('Archived obsolete work')).toBeInTheDocument();
   });
 
-  it('AC-CUA-099: permitted manager gets Archive then Unarchive in the row menu', async () => {
-    renderTab();
+  it('AC-CUA-099: Admin gets Archive then Unarchive in the row menu', async () => {
+    renderTab('Admin');
     await userEvent.click(screen.getAllByRole('button', { name: /Row actions/i })[0]);
     expect(screen.getByText('Archive')).toBeInTheDocument();
-    await userEvent.click(screen.getByText('Show archived'));
-    await userEvent.click(screen.getAllByRole('button', { name: /Row actions/i })[2]);
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(screen.getByRole('button', { name: 'More task options' }));
+    await userEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Show archived' }));
+    const archivedRow = screen.getByText('Archived obsolete work').closest('tr')!;
+    await userEvent.click(within(archivedRow).getByRole('button', { name: /Row actions/i }));
     expect(screen.getByText('Unarchive')).toBeInTheDocument();
+  });
+
+  it('AC-CUA-099: a permitted Project Manager gets Archive then Unarchive in the row menu', async () => {
+    renderTab('Project Manager');
+    await userEvent.click(screen.getAllByRole('button', { name: /Row actions/i })[0]);
+    expect(screen.getByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(screen.getByRole('button', { name: 'More task options' }));
+    await userEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Show archived' }));
+    const archivedRow = screen.getByText('Archived obsolete work').closest('tr')!;
+    await userEvent.click(within(archivedRow).getByRole('button', { name: /Row actions/i }));
+    expect(screen.getByRole('menuitem', { name: 'Unarchive' })).toBeInTheDocument();
+  });
+
+  it('AC-1402: PM receives the existing task archive and delete actions', async () => {
+    renderTab('Project Manager');
+    await userEvent.click(screen.getAllByRole('button', { name: /Row actions/i })[0]);
+    expect(screen.getByRole('menuitem', { name: 'Archive' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
   });
 
   it('AC-CUA-100: archive action is absent while tasks are externally owned', async () => {
     const ownership = await import('@/src/lib/adapterSeam/ownershipCache');
     vi.spyOn(ownership, 'routeTaskWrite').mockReturnValue('external');
-    renderTab();
+    renderTab('Admin');
     await userEvent.click(screen.getAllByRole('button', { name: /Row actions/i })[0]);
     expect(screen.queryByText('Archive')).not.toBeInTheDocument();
   });
 });
 
 describe('TasksTab — list (AC-TASK-001)', () => {
-  it('AC-TASK-001: renders seeded task rows with name + status + assignee', () => {
+  it('AC-TASK-001: renders seeded task rows with name + status + assignee', async () => {
     renderTab();
     expect(screen.getByText('Survey the site')).toBeInTheDocument();
     expect(screen.getByText('Mobilise crew')).toBeInTheDocument();
     expect(screen.getAllByText('Dana Engineer').length).toBeGreaterThan(0);
-    // A manager (PM) sees an editable status control per row, reflecting each task's status.
-    const t1Status = screen.getByLabelText(/status for survey the site/i) as HTMLSelectElement;
-    const t2Status = screen.getByLabelText(/status for mobilise crew/i) as HTMLSelectElement;
-    expect(t1Status.value).toBe('To Do');
-    expect(t2Status.value).toBe('In Progress');
+    // Status stays quiet until activated, then opens the existing native select.
+    const t1Status = screen.getByRole('button', { name: /status for survey the site/i });
+    expect(t1Status).toHaveTextContent('To Do');
+    expect(screen.queryByRole('combobox', { name: /status for survey the site/i })).not.toBeInTheDocument();
+    await userEvent.click(t1Status);
+    expect(screen.getByRole('combobox', { name: /status for survey the site/i })).toHaveValue('To Do');
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(screen.getByRole('button', { name: /status for mobilise crew/i }));
+    expect(screen.getByRole('combobox', { name: /status for mobilise crew/i })).toHaveValue('In Progress');
   });
 
   it('CW-7: the Due column renders the date human-formatted, never raw ISO', () => {
     renderTab();
     // t1 carries end_date '2026-06-20' → routed through formatDate (no raw ISO leak).
-    expect(screen.getByText('Jun 20, 2026')).toBeInTheDocument();
+    const overdueDate = screen.getByText((_, element) =>
+      element?.tagName === 'SPAN'
+      && element.classList.contains('text-destructive-text')
+      && element.textContent?.trim() === 'Jun 20, 2026 · 2 days late',
+    );
+    expect(overdueDate).toHaveClass('text-destructive-text');
     expect(screen.queryByText('2026-06-20')).not.toBeInTheDocument();
   });
 
@@ -302,7 +347,9 @@ describe('TasksTab — gating (rbac-visibility §F)', () => {
     expect(screen.queryByRole('menuitem', { name: /archive/i })).not.toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
     const assigned = screen.getByText('Survey the site').closest('tr')!;
-    expect(within(assigned).queryByRole('button', { name: /row actions/i })).not.toBeInTheDocument();
+    await userEvent.click(within(assigned).getByRole('button', { name: /row actions/i }));
+    expect(screen.queryByRole('menuitem', { name: /edit/i })).not.toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
     // Status: own assigned task (t1) is a control; t2 (assigned to pm-1) is a static pill.
     expect(screen.getByLabelText(/status for survey the site/i)).toBeEnabled();
     expect(screen.queryByLabelText(/status for mobilise crew/i)).not.toBeInTheDocument();
@@ -311,7 +358,7 @@ describe('TasksTab — gating (rbac-visibility §F)', () => {
   it('AC-TASK-005 gate: Engineer assigned to t1 can change ITS status (own task)', () => {
     // Engineer eng-1 owns t1; the status control on t1 must be enabled.
     renderTab('Engineer', 'eng-1');
-    const statusCtl = screen.getByLabelText(/status for survey the site/i);
+    const statusCtl = screen.getByRole('button', { name: /status for survey the site/i });
     expect(statusCtl).toBeEnabled();
   });
 
@@ -327,6 +374,7 @@ describe('TasksTab — gating (rbac-visibility §F)', () => {
   // passes for the role it exists to exclude is not an oracle. This one opens the menu.
   it('AC-TASK-003/004 gate (DD-TASK-8): Engineer gets New task + Edit on THEIR row only, Delete nowhere', async () => {
     renderTab('Engineer', 'eng-1');
+    await userEvent.click(screen.getByRole('button', { name: 'All' }));
     // The widened half: create is offered.
     expect(screen.getByRole('button', { name: /new task/i })).toBeInTheDocument();
     // Their own creation (t2, created_by eng-1, assigned pm-1): menu opens, Edit yes, Delete no.
@@ -335,10 +383,12 @@ describe('TasksTab — gating (rbac-visibility §F)', () => {
     expect(screen.getByRole('menuitem', { name: /edit/i })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: /delete/i })).not.toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
-    // A row they merely EXECUTE (t1, assignee eng-1, created by the PM): no menu at all — the
-    // assignee's affordance is the status control, not Edit (RLS carries no assignee edit path).
+    // A row they merely EXECUTE (t1, assignee eng-1, created by the PM): Comments remain available,
+    // while Edit is absent (RLS carries no assignee edit path).
     const assigned = screen.getByText('Survey the site').closest('tr')!;
-    expect(within(assigned).queryByRole('button', { name: /row actions/i })).not.toBeInTheDocument();
+    await userEvent.click(within(assigned).getByRole('button', { name: /row actions/i }));
+    expect(screen.getByRole('menuitem', { name: /comments/i })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /edit/i })).not.toBeInTheDocument();
   });
 });
 
@@ -370,17 +420,166 @@ describe('TasksTab — create (AC-TASK-003)', () => {
 describe('TasksTab — status update (AC-TASK-005)', () => {
   it('AC-TASK-005: an assignee Engineer changing status calls updateStatus (status-only path)', async () => {
     renderTab('Engineer', 'eng-1');
-    const statusCtl = screen.getByLabelText(/status for survey the site/i);
-    await userEvent.selectOptions(statusCtl, 'Done');
+    await userEvent.click(screen.getByRole('button', { name: /status for survey the site/i }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /status for survey the site/i }), 'Done');
     await waitFor(() => expect(mutations.updateStatus.mutateAsync).toHaveBeenCalledWith({ id: 't1', status: 'Done' }));
     // The status-only path must never call the structure update.
     expect(mutations.update.mutateAsync).not.toHaveBeenCalled();
   });
 });
 
+describe('TasksTab — Mine / All list scope', () => {
+  it('defaults Engineers to Mine and lets them reveal All tasks', async () => {
+    renderTab('Engineer', 'eng-1');
+    const scope = screen.getByRole('group', { name: 'Task scope' });
+    expect(within(scope).getByRole('button', { name: 'Mine' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Survey the site')).toBeInTheDocument();
+    expect(screen.queryByText('Mobilise crew')).not.toBeInTheDocument();
+
+    await userEvent.click(within(scope).getByRole('button', { name: 'All' }));
+    expect(screen.getByText('Mobilise crew')).toBeInTheDocument();
+  });
+
+  it('defaults other roles to All tasks', () => {
+    renderTab('Project Manager');
+    const scope = screen.getByRole('group', { name: 'Task scope' });
+    expect(within(scope).getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Survey the site')).toBeInTheDocument();
+    expect(screen.getByText('Mobilise crew')).toBeInTheDocument();
+  });
+
+  it('keeps Mine / All applied when the user switches between views', async () => {
+    renderTab('Engineer', 'eng-1');
+    expect(screen.queryByText('Mobilise crew')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: /^board$/i }));
+    expect(screen.getByRole('group', { name: 'Task scope' })).toBeInTheDocument();
+    expect(screen.queryByText('Mobilise crew')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'All' }));
+    expect(screen.getByText('Mobilise crew')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^list$/i }));
+    expect(screen.getByRole('group', { name: 'Task scope' })).toBeInTheDocument();
+    expect(screen.getByText('Mobilise crew')).toBeInTheDocument();
+  });
+
+  it('opens the status select from keyboard activation', async () => {
+    renderTab('Engineer', 'eng-1');
+    const status = screen.getByRole('button', { name: /status for survey the site/i });
+    status.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(screen.getByRole('combobox', { name: /status for survey the site/i })).toBeInTheDocument();
+  });
+
+  it('AC-1402 replaces the URL query when scope and view change, and restores both from a deep link', async () => {
+    const user = userEvent.setup();
+    const firstRender = renderTab('Project Manager', 'pm-1', '/projects/p1/tasks?keep=here', true);
+    await user.click(screen.getByRole('button', { name: 'Mine' }));
+    expect(screen.getByTestId('location-probe')).toHaveTextContent('?keep=here&scope=mine&view=list|REPLACE');
+    await user.click(screen.getByRole('tab', { name: /^Board$/i }));
+    expect(screen.getByTestId('location-probe')).toHaveTextContent('?keep=here&scope=mine&view=board|REPLACE');
+    firstRender.unmount();
+
+    renderTab('Project Manager', 'pm-1', '/projects/p1/tasks?scope=mine&view=board');
+    expect(screen.getByRole('tab', { name: /^Board$/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Mobilise crew')).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: /^List$/i }));
+    expect(screen.getByText('Mobilise crew')).toBeInTheDocument();
+    expect(screen.queryByText('Survey the site')).not.toBeInTheDocument();
+  });
+
+  it('AC-1402 applies status and search filters consistently to List and Board', async () => {
+    renderTab('Project Manager');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Filter by status' }), 'To Do');
+    expect(screen.getByText('Survey the site')).toBeInTheDocument();
+    expect(screen.queryByText('Mobilise crew')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: /^Board$/i }));
+    expect(screen.getByText('Survey the site')).toBeInTheDocument();
+    expect(screen.queryByText('Mobilise crew')).not.toBeInTheDocument();
+    await userEvent.type(screen.getByRole('textbox', { name: 'Search tasks' }), 'no match');
+    expect(screen.getByText('No tasks match these filters')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(screen.getByText('Survey the site')).toBeInTheDocument();
+  });
+
+  it('AC-1402 keeps Comments reachable from a Board card menu', async () => {
+    renderTab('Project Manager');
+    await userEvent.click(screen.getByRole('tab', { name: /^Board$/i }));
+    const rowActions = screen.getAllByRole('button', { name: /Row actions/i })[0];
+    await userEvent.click(rowActions);
+    const menu = rowActions.closest('details')?.querySelector('[role="menu"]') as HTMLElement;
+    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Comments' }));
+    expect(await screen.findByRole('dialog', { name: 'Survey the site' })).toBeInTheDocument();
+  });
+
+  it('AC-1402 applies a bulk status change to the selected task', async () => {
+    renderTab('Project Manager');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select task Survey the site' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Change status' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'New status for selected tasks' }), 'Blocked');
+    await userEvent.click(screen.getByRole('button', { name: 'Apply' }));
+
+    await waitFor(() => expect(mutations.updateStatus.mutateAsync).toHaveBeenCalledWith({ id: 't1', status: 'Blocked' }));
+  });
+
+  it('AC-1402 applies bulk reassignment and due-date changes', async () => {
+    renderTab('Project Manager');
+    const selectTask = () => screen.getByRole('checkbox', { name: 'Select task Survey the site' });
+    await userEvent.click(selectTask());
+    await userEvent.click(screen.getByRole('button', { name: 'Reassign' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Assignee for selected tasks' }), 'pm-1');
+    await userEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalledWith({ id: 't1', patch: { assignee_id: 'pm-1' } }));
+
+    await userEvent.click(selectTask());
+    await userEvent.click(screen.getByRole('button', { name: 'Change due date' }));
+    fireEvent.change(screen.getByLabelText('Due date for selected tasks'), { target: { value: '2026-07-10' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Apply' }));
+    await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalledWith({ id: 't1', patch: { end_date: '2026-07-10' } }));
+  });
+
+  it('AC-1402 applies bulk archive to selected active tasks', async () => {
+    renderTab('Project Manager');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select task Survey the site' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Archive' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Apply' }));
+
+    await waitFor(() => expect(mutations.archive.mutateAsync).toHaveBeenCalledWith({ id: 't1', archived: true }));
+  });
+
+  it('AC-TASK-FIN-001 exposes only bulk status for a Finance user selecting their assigned task', async () => {
+    renderTab('Finance', 'eng-1');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select task Survey the site' }));
+    expect(screen.getByRole('button', { name: 'Change status' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reassign' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Change due date' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
+  });
+
+  it('AC-1402 keeps the open task in the URL and closes the drawer without dropping other query state', async () => {
+    renderTab('Project Manager', 'pm-1', '/projects/p1/tasks?keep=here', true);
+    await userEvent.click(screen.getByRole('button', { name: 'Open task Survey the site' }));
+    expect(screen.getByTestId('location-probe')).toHaveTextContent('?keep=here&open=t1|PUSH');
+    expect(screen.getByRole('dialog', { name: 'Survey the site' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.getByTestId('location-probe')).toHaveTextContent('?keep=here|REPLACE');
+    expect(screen.queryByRole('dialog', { name: 'Survey the site' })).not.toBeInTheDocument();
+  });
+});
+
 describe('TasksTab — delete (AC-TASK-006)', () => {
   it('AC-TASK-006: PM deletes a task through a destructive confirm', async () => {
     renderTab('Project Manager');
+    const row = screen.getByText('Survey the site').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /delete/i }));
+    const confirm = await screen.findByRole('alertdialog');
+    expect(mutations.remove.mutateAsync).not.toHaveBeenCalled();
+    await userEvent.click(within(confirm).getByRole('button', { name: /delete task/i }));
+    await waitFor(() => expect(mutations.remove.mutateAsync).toHaveBeenCalledWith('t1'));
+  });
+
+  it('AC-TASK-006: Admin deletes a task through a destructive confirm', async () => {
+    renderTab('Admin');
     const row = screen.getByText('Survey the site').closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /delete/i }));

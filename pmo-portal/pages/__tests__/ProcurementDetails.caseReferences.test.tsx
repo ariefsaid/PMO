@@ -114,6 +114,8 @@ vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({
   ),
 }));
 
+vi.mock('@/src/hooks/useProjects', () => import('@/pages/__tests__/helpers/projectScopeMock'));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 import ProcurementDetails from '../ProcurementDetails';
 
 const orderedProcurement = {
@@ -166,7 +168,7 @@ const renderAt = (path: string) =>
     </MemoryRouter>,
   );
 
-describe('AC-M365DOC-058 case references on the real procurement Documents tab', () => {
+describe('AC-M365DOC-058 case references on the real procurement Files tab', () => {
   beforeEach(() => {
     detailState.data = { ...orderedProcurement, project_id: null, project: null };
     detailState.isPending = false;
@@ -176,8 +178,8 @@ describe('AC-M365DOC-058 case references on the real procurement Documents tab',
     refs.rows = [];
   });
 
-  it('mounts the case references on the Documents tab for a project-less case with the request number and creation date', () => {
-    renderAt('/procurement/proc-001/documents');
+  it('mounts the case references on the Files tab (the case ledger, #1404) for a project-less case with the request number and creation date', () => {
+    renderAt('/procurement/proc-001/files');
     const section = screen.getByRole('region', { name: 'Case references' });
     expect(section).toHaveAttribute('data-case', 'proc-001');
     expect(section).toHaveAttribute('data-request', 'PR-2601100001');
@@ -189,14 +191,24 @@ describe('AC-M365DOC-058 case references on the real procurement Documents tab',
     expect(screen.queryByRole('region', { name: 'Case references' })).toBeNull();
   });
 
-  it('F8: the Documents tab count is the ledger only — SharePoint links neither change it nor are fetched for it', () => {
-    renderAt('/procurement/proc-001/documents');
-    const base = screen.getByRole('tab', { name: /Documents/ }).textContent;
+  it('F8: the Files tab count is the ledger only — SharePoint links neither change it nor are fetched for it', () => {
+    // One purchase order carrying one file, so the ledger count is non-zero (a 0 === 0 check would prove nothing).
+    detailState.data = {
+      ...(detailState.data as Record<string, unknown>),
+      purchase_orders: [{
+        id: 'po-1', org_id: 'org-1', procurement_id: 'proc-001', po_number: 'PO-2601100001', reference_number: null,
+        status: 'Draft', date: '2026-06-05', amount: 1, currency: 'USD', created_at: '2026-06-05T00:00:00Z',
+        files: [{ file_path: 'x/po.pdf', archived_at: null, title: 'po.pdf' }],
+      }],
+    };
+    renderAt('/procurement/proc-001/files');
+    const base = screen.getByRole('tab', { name: /Files/ }).textContent;
     refs.rows = [{ id: 'a' }, { id: 'b' }];
     cleanup();
-    renderAt('/procurement/proc-001/documents');
-    const withRefs = screen.getByRole('tab', { name: /Documents/ }).textContent;
+    renderAt('/procurement/proc-001/files');
+    const withRefs = screen.getByRole('tab', { name: /Files/ }).textContent;
     const n = (text: string | null) => Number(/(\d+)\s*$/.exec(text ?? '')?.[1] ?? 0);
+    expect(n(base)).toBe(1);
     expect(n(withRefs)).toBe(n(base));
   });
 });

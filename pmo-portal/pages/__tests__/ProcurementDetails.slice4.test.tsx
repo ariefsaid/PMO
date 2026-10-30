@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 
@@ -137,6 +137,9 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
   useVendorWithholdingSlipMutations: () => ({ record: { mutateAsync: vi.fn(), isPending: false }, correct: { mutateAsync: vi.fn(), isPending: false }, void: { mutateAsync: vi.fn(), isPending: false } }),
 }));
 
+vi.mock('@/src/hooks/useProjects', () => import('@/pages/__tests__/helpers/projectScopeMock'));
+vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
+import { headerActions, openMoreActions } from '@/pages/__tests__/helpers/procurementHeader';
 import ProcurementDetails from '../ProcurementDetails';
 
 // ---------------------------------------------------------------------------
@@ -175,8 +178,8 @@ const BASE = {
   statusEvents: [],
 };
 
-// Render at the Overview tab (default) so action zone is visible without tab nav
-const renderPage = (id = 'proc-001', tab = 'overview') =>
+// Render at the Timeline tab (default); the header action area is visible on every tab
+const renderPage = (id = 'proc-001', tab = 'timeline') =>
   render(
     <MemoryRouter initialEntries={[`/procurement/${id}/${tab}`]}>
       <Routes>
@@ -210,7 +213,7 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
     authState.userId = 'u-other'; // requester is the current user
     detailState.data = { ...BASE, status: 'Draft', requested_by_id: 'u-other', items: BASE.items };
     renderPage();
-    expect(screen.getByRole('button', { name: /submit for approval/i })).toBeInTheDocument();
+    expect(headerActions().getByRole('button', { name: 'Submit for approval' })).toBeInTheDocument();
   });
 
   it('OD-PROC-1: Draft (PM, non-requester): no Submit for approval — submit is the requester\'s act', () => {
@@ -226,7 +229,7 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
     roleState.effectiveRole = 'Admin';
     detailState.data = { ...BASE, status: 'Draft', requested_by_id: 'u-other', items: BASE.items };
     renderPage();
-    expect(screen.getByRole('button', { name: /submit for approval/i })).toBeInTheDocument();
+    expect(headerActions().getByRole('button', { name: 'Submit for approval' })).toBeInTheDocument();
   });
 
   it('OD-PROC-1: Draft (impersonating Admin, real PM, non-requester): no Submit for approval', () => {
@@ -237,23 +240,25 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
     expect(screen.queryByRole('button', { name: /submit for approval/i })).not.toBeInTheDocument();
   });
 
-  it('Requested (PM role, non-requester): shows Approve (primary) and Reject', () => {
+  it('Requested (PM role, non-requester): shows Approve (primary) and Reject', async () => {
     roleState.realRole = 'Project Manager';
     roleState.effectiveRole = 'Project Manager';
     // u-alice is NOT the requester
     detailState.data = { ...BASE, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    expect(screen.getByRole('button', { name: /^approve$/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^reject$/i })).toBeInTheDocument();
+    expect(headerActions().getByRole('button', { name: /^approve$/i })).toBeInTheDocument();
+    const header = await openMoreActions();
+    expect(header.getByRole('menuitem', { name: /^reject$/i })).toBeInTheDocument();
   });
 
-  it('Approved: shows Request Supplier Quotes (primary) and Generate Purchase Order (secondary)', () => {
+  it('Approved: shows Record order (primary) and Request quotations (secondary, in the menu)', async () => {
     roleState.realRole = 'Project Manager';
     roleState.effectiveRole = 'Project Manager';
     detailState.data = { ...BASE, status: 'Approved' };
     renderPage();
-    expect(screen.getByRole('button', { name: /request supplier quotes/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /generate purchase order/i })).toBeInTheDocument();
+    expect(headerActions().getByRole('button', { name: 'Record order' })).toBeInTheDocument();
+    const header = await openMoreActions();
+    expect(header.getByRole('menuitem', { name: 'Request quotations' })).toBeInTheDocument();
   });
 
   it('AC-PMC-006: Vendor Quoted action opens bid comparison and does not transition', async () => {
@@ -262,7 +267,7 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
     roleState.effectiveRole = 'Project Manager';
     detailState.data = { ...BASE, status: 'Vendor Quoted' };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /compare and select a quote/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: 'Choose quote' }));
     expect(mockNavigate).toHaveBeenCalledWith('/procurement/proc-001/quotes', expect.objectContaining({ replace: true }));
     expect(mockTransition).not.toHaveBeenCalled();
   });
@@ -273,61 +278,64 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
     expect(screen.getByText('No quotes recorded. Add a supplier quote to compare bids.')).toBeInTheDocument();
   });
 
-  it('Quote Selected: shows Generate Purchase Order (primary)', () => {
+  it('Quote Selected: shows Record order (primary)', () => {
     roleState.realRole = 'Project Manager';
     roleState.effectiveRole = 'Project Manager';
     detailState.data = { ...BASE, status: 'Quote Selected' };
     renderPage();
-    expect(screen.getByRole('button', { name: /generate purchase order/i })).toBeInTheDocument();
+    expect(headerActions().getByRole('button', { name: 'Record order' })).toBeInTheDocument();
   });
 
-  it('Ordered (PM role, non-requester): shows Confirm Receipt (primary)', () => {
+  it('Ordered (PM role, non-requester): shows Record receipt (primary)', () => {
     roleState.realRole = 'Project Manager';
     roleState.effectiveRole = 'Project Manager';
     detailState.data = { ...BASE, status: 'Ordered', po_number: 'PO-001' };
     renderPage();
-    expect(screen.getByRole('button', { name: /confirm receipt/i })).toBeInTheDocument();
+    expect(headerActions().getByRole('button', { name: 'Record receipt' })).toBeInTheDocument();
   });
 
-  it('Received (Finance role): shows Mark Vendor Invoiced (primary)', () => {
+  it('Received (Finance role): shows Record supplier invoice (primary)', () => {
     roleState.realRole = 'Finance';
     roleState.effectiveRole = 'Finance';
     detailState.data = { ...BASE, status: 'Received' };
     renderPage();
-    expect(screen.getByRole('button', { name: /mark supplier invoiced/i })).toBeInTheDocument();
+    expect(headerActions().getByRole('button', { name: 'Record supplier invoice' })).toBeInTheDocument();
   });
 
-  it('Vendor Invoiced (Finance, not-approver): shows Mark as Paid (success)', () => {
+  it('Vendor Invoiced (Finance, not-approver): shows Record payment (primary)', () => {
     // u-alice (Finance) is NOT the approver (approved_by_id is u-other)
     authState.userId = 'u-alice';
     roleState.realRole = 'Finance';
     roleState.effectiveRole = 'Finance';
     detailState.data = { ...BASE, status: 'Vendor Invoiced', approved_by_id: 'u-other' };
     renderPage();
-    expect(screen.getByRole('button', { name: /mark as paid/i })).toBeInTheDocument();
+    expect(headerActions().getByRole('button', { name: 'Record payment' })).toBeInTheDocument();
   });
 
-  it('Paid: NO advance verbs — shows terminal message', () => {
+  it('Paid: NO advance verbs — the status reads Paid', () => {
     authState.userId = 'u-alice';
     roleState.realRole = 'Finance';
     roleState.effectiveRole = 'Finance';
     detailState.data = { ...BASE, status: 'Paid', approved_by_id: 'u-other' };
     renderPage();
-    expect(screen.queryByRole('button', { name: /mark as paid/i })).toBeNull();
-    expect(screen.getByText(/no further lifecycle actions/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /record payment/i })).toBeNull();
+    expect(screen.getByTestId('procurement-status-badge')).toHaveTextContent('Paid');
   });
 
-  it('Cancelled: no advance verbs — shows terminal message', () => {
+  // The "No further lifecycle actions…" sentence lived in the removed decision card (#1404); a terminal
+  // purchase now simply carries no lifecycle button and its status badge says why.
+  it('Cancelled: no advance verbs — the status reads Cancelled', () => {
     detailState.data = { ...BASE, status: 'Cancelled' };
     renderPage();
-    expect(screen.getByText(/no further lifecycle actions/i)).toBeInTheDocument();
+    expect(screen.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Cancelled');
+    expect(headerActions().queryByRole('button', { name: /approve|submit|record (order|receipt|payment|supplier invoice)|rework|choose quote/i })).toBeNull();
   });
 
   it('Rejected (requester=self): shows Rework (Back to Draft)', () => {
     authState.userId = 'u-other'; // requester
     detailState.data = { ...BASE, status: 'Rejected', requested_by_id: 'u-other' };
     renderPage();
-    expect(screen.getByRole('button', { name: /rework.*back to draft/i })).toBeInTheDocument();
+    expect(headerActions().getByRole('button', { name: 'Rework' })).toBeInTheDocument();
   });
 });
 
@@ -336,25 +344,17 @@ describe('AC-PR-S4-001: per-stage action verbs appear in the action zone', () =>
 // ---------------------------------------------------------------------------
 
 describe('AC-PR-S4-002: SoD gate messaging shows correctly', () => {
-  it('Requested status + requester = self: shows the self-approve blocked notice', () => {
+  it('Requested status + requester = self: the header says it is waiting for approval and offers no Approve', () => {
     authState.userId = 'u-alice'; // u-alice IS the requester
     detailState.data = { ...BASE, status: 'Requested', requested_by_id: 'u-alice' };
     renderPage();
-    // The GateNotice blocked message appears
-    expect(screen.getByText(/the requester cannot self-approve/i)).toBeInTheDocument();
+    // The restructured header (#1404) replaces the long self-approve paragraph with "Waiting for approval".
+    expect(headerActions().getByText(/waiting for approval/i)).toBeInTheDocument();
     // No Approve button offered to the requester
     expect(screen.queryByRole('button', { name: /^approve$/i })).toBeNull();
   });
 
-  it('Requested status + different reviewer: ready hint names the procurement being reviewed', () => {
-    roleState.realRole = 'Project Manager';
-    roleState.effectiveRole = 'Project Manager';
-    detailState.data = { ...BASE, status: 'Requested', requested_by_id: 'u-other' };
-    renderPage();
-    expect(screen.getByTestId('sod-ready-hint')).toHaveTextContent(/approve or reject this procurement/i);
-  });
-
-  it('Vendor Invoiced (Finance=approver): Mark as Paid is hidden (SoD-b)', () => {
+  it('Vendor Invoiced (Finance=approver): Record payment is hidden (SoD-b)', () => {
     // u-alice is Finance AND the approver of this procurement
     authState.userId = 'u-alice';
     roleState.realRole = 'Finance';
@@ -362,10 +362,10 @@ describe('AC-PR-S4-002: SoD gate messaging shows correctly', () => {
     detailState.data = { ...BASE, status: 'Vendor Invoiced', approved_by_id: 'u-alice' };
     renderPage();
     // SoD-b: the approver cannot also be the payer
-    expect(screen.queryByRole('button', { name: /mark as paid/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /record payment/i })).toBeNull();
   });
 
-  it('Admin who is also the approver: Mark as Paid still hidden (OD-PROC-8 — SoD beats break-glass)', () => {
+  it('Admin who is also the approver: Record payment still hidden (OD-PROC-8 — SoD beats break-glass)', () => {
     authState.userId = 'u-alice';
     roleState.realRole = 'Admin';
     roleState.effectiveRole = 'Admin';
@@ -373,17 +373,19 @@ describe('AC-PR-S4-002: SoD gate messaging shows correctly', () => {
     detailState.data = { ...BASE, status: 'Vendor Invoiced', approved_by_id: 'u-alice' };
     renderPage();
     // OD-PROC-8: Admin break-glass cannot override SoD-b
-    expect(screen.queryByRole('button', { name: /mark as paid/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /record payment/i })).toBeNull();
   });
 
-  it('Ordered (Engineer role, non-requester): shows the receipt gate message, no Confirm Receipt button', () => {
-    roleState.realRole = 'Engineer';
-    roleState.effectiveRole = 'Engineer';
+  // An Engineer now only opens purchases they raised themselves (#1350 scope), so the "cannot confirm receipt"
+  // viewer under test is a Finance user: not the requester and outside the receipt roles.
+  it('Ordered (Finance role, non-requester): shows the receipt gate message, no Record receipt button', () => {
+    roleState.realRole = 'Finance';
+    roleState.effectiveRole = 'Finance';
     // u-alice is NOT the requester
     detailState.data = { ...BASE, status: 'Ordered', requested_by_id: 'u-other' };
     renderPage();
     expect(screen.getByText(/requester or a Project-Manager must confirm receipt/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /confirm receipt/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /record receipt/i })).toBeNull();
   });
 
   it('Draft + requester=self: shows the self-approve pre-announce (author side)', () => {
@@ -417,7 +419,7 @@ describe('AC-PR-S4-003: LedgerCaptureRow pre-selects the correct next type', () 
 
   it('Draft: capture row pre-selects Purchase Request', () => {
     detailState.data = { ...BASE, status: 'Draft' };
-    renderPage('proc-001', 'documents');
+    renderPage('proc-001', 'files');
     assertCaptureRowLabel('Purchase Request');
   });
 
@@ -432,7 +434,7 @@ describe('AC-PR-S4-003: LedgerCaptureRow pre-selects the correct next type', () 
         { id: 'pr-1', procurement_id: 'proc-001', pr_number: 'PR-2606040001', status: 'Submitted', date: '2026-06-04', org_id: 'org-1', created_at: '2026-06-04T00:00:00Z', reference_number: null, amount: 50000, currency: 'USD' },
       ],
     };
-    renderPage('proc-001', 'documents');
+    renderPage('proc-001', 'files');
     expect(screen.queryByTestId('ledger-capture-row')).toBeNull();
   });
 
@@ -440,51 +442,51 @@ describe('AC-PR-S4-003: LedgerCaptureRow pre-selects the correct next type', () 
     // Deliberate change (owner/ADR-0093, migration 0362): the server refuses documents on a Requested purchase
     // ("awaiting approval"), so the row used to offer Purchase Request here and now says why nothing is offered.
     detailState.data = { ...BASE, status: 'Requested', purchase_requests: [] };
-    renderPage('proc-001', 'documents');
+    renderPage('proc-001', 'files');
     expect(screen.queryByTestId('ledger-capture-open')).toBeNull();
-    expect(screen.getByText(/Approve to start recording documents|Waiting for approval/)).toBeInTheDocument();
+    expect(within(screen.getByTestId('procurement-tabpanel-files')).getByText(/Approve to start recording documents|Waiting for approval/)).toBeInTheDocument();
   });
 
   it('Approved: capture row pre-selects RFQ', () => {
     detailState.data = { ...BASE, status: 'Approved' };
-    renderPage('proc-001', 'documents');
+    renderPage('proc-001', 'files');
     assertCaptureRowLabel('RFQ');
   });
 
   it('Vendor Quoted: capture row pre-selects RFQ', () => {
     detailState.data = { ...BASE, status: 'Vendor Quoted' };
-    renderPage('proc-001', 'documents');
+    renderPage('proc-001', 'files');
     assertCaptureRowLabel('RFQ');
   });
 
   it('Quote Selected: capture row pre-selects Purchase Order', () => {
     detailState.data = { ...BASE, status: 'Quote Selected' };
-    renderPage('proc-001', 'documents');
+    renderPage('proc-001', 'files');
     assertCaptureRowLabel('Purchase Order');
   });
 
   it('Vendor Invoiced: capture row pre-selects Payment', () => {
     detailState.data = { ...BASE, status: 'Vendor Invoiced' };
-    renderPage('proc-001', 'documents');
+    renderPage('proc-001', 'files');
     assertCaptureRowLabel('Payment');
   });
 
   it('Paid (terminal): capture row is hidden', () => {
     detailState.data = { ...BASE, status: 'Paid', approved_by_id: 'u-other' };
-    renderPage('proc-001', 'documents');
+    renderPage('proc-001', 'files');
     expect(screen.queryByTestId('ledger-capture-row')).toBeNull();
   });
 
   it('Cancelled (terminal): capture row is hidden', () => {
     detailState.data = { ...BASE, status: 'Cancelled' };
-    renderPage('proc-001', 'documents');
+    renderPage('proc-001', 'files');
     expect(screen.queryByTestId('ledger-capture-row')).toBeNull();
   });
 
   it('Rejected (terminal for capture): capture row is hidden', () => {
     // Requester can rework but cannot capture new records while Rejected
     detailState.data = { ...BASE, status: 'Rejected' };
-    renderPage('proc-001', 'documents');
+    renderPage('proc-001', 'files');
     expect(screen.queryByTestId('ledger-capture-row')).toBeNull();
   });
 });
@@ -508,14 +510,14 @@ describe('AC-PR-S4-004 (edge case): PO-less path', () => {
         { id: 'vi-1', procurement_id: 'proc-001', vi_number: 'VI-001', status: 'Received', invoice_date: '2026-06-04', org_id: 'org-1', created_at: '2026-06-04T00:00:00Z', po_id: null, reference_number: null, amount: null },
       ],
     };
-    renderPage('proc-001', 'documents');
+    renderPage('proc-001', 'files');
     // The capture row is present and pre-selects Payment
     const captureRow = screen.getByTestId('ledger-capture-row');
     expect(captureRow).toBeInTheDocument();
     expect(captureRow.textContent).toContain('Payment');
   });
 
-  it('Mark as Paid action is available even when no PO exists (non-approver Finance)', () => {
+  it('Record payment action is available even when no PO exists (non-approver Finance)', () => {
     roleState.realRole = 'Finance';
     roleState.effectiveRole = 'Finance';
     authState.userId = 'u-alice';
@@ -531,8 +533,8 @@ describe('AC-PR-S4-004 (edge case): PO-less path', () => {
       ],
     };
     renderPage();
-    // The Mark as Paid action is present in the action zone — not blocked by missing PO
-    expect(screen.getByRole('button', { name: /mark as paid/i })).toBeInTheDocument();
+    // The Record payment action is present in the header — not blocked by missing PO
+    expect(headerActions().getByRole('button', { name: 'Record payment' })).toBeInTheDocument();
   });
 });
 
@@ -555,7 +557,7 @@ describe('AC-PR-S4-005 (edge case): multiple records per phase', () => {
         { id: 'vi-1', procurement_id: 'proc-001', vi_number: 'VI-001', status: 'Received', invoice_date: '2026-06-04', org_id: 'org-1', created_at: '2026-06-04T00:00:00Z', po_id: null, reference_number: null, amount: null },
       ],
     };
-    renderPage('proc-001', 'documents');
+    renderPage('proc-001', 'files');
     // The ledger capture row is now hidden at Received (M4 fix — action zone owns this stage)
     expect(screen.queryByTestId('ledger-capture-row')).toBeNull();
   });
@@ -574,7 +576,7 @@ describe('AC-PR-S4-005 (edge case): multiple records per phase', () => {
         { id: 'pay-1', procurement_id: 'proc-001', pay_number: 'PAY-001', status: 'Processed', date: '2026-06-05', org_id: 'org-1', created_at: '2026-06-05T00:00:00Z', invoice_id: null, reference_number: null, amount: null },
       ],
     };
-    renderPage('proc-001', 'documents');
+    renderPage('proc-001', 'files');
     expect(screen.queryByTestId('ledger-capture-row')).toBeNull();
   });
 
@@ -582,7 +584,7 @@ describe('AC-PR-S4-005 (edge case): multiple records per phase', () => {
     roleState.realRole = 'Finance';
     roleState.effectiveRole = 'Finance';
     detailState.data = { ...BASE, status: 'Vendor Invoiced', payments: [] };
-    renderPage('proc-001', 'documents');
+    renderPage('proc-001', 'files');
     const captureRow = screen.getByTestId('ledger-capture-row');
     expect(captureRow).toBeInTheDocument();
     expect(captureRow.textContent).toContain('Payment');
@@ -600,7 +602,7 @@ describe('AC-PR-S4-005 (edge case): multiple records per phase', () => {
         { id: 'vi-2', procurement_id: 'proc-001', vi_number: 'VI-2026-0002', status: 'Received', invoice_date: '2026-06-10', org_id: 'org-1', created_at: '2026-06-10T00:00:00Z', po_id: null, reference_number: 'INV-002', amount: 30000, currency: 'USD' },
       ],
     };
-    renderPage('proc-001', 'documents');
+    renderPage('proc-001', 'files');
     // Both invoice system numbers appear in the ledger (DataTable renders them in table AND card;
     // at least one instance of each must be present).
     expect(screen.getAllByText('VI-2026-0001').length).toBeGreaterThanOrEqual(1);
@@ -634,7 +636,7 @@ describe('AC-PR-S4-006 (edge case): impersonation — gates on real JWT role', (
     roleState.effectiveRole = 'Engineer'; // display-only impersonation
     authState.userId = 'u-alice';
     detailState.data = { ...BASE, status: 'Approved' };
-    renderPage('proc-001', 'documents');
+    renderPage('proc-001', 'files');
     // Finance's real role CAN create procFile → capture row appears regardless of impersonation.
     expect(screen.getByTestId('ledger-capture-row')).toBeInTheDocument();
   });
@@ -645,17 +647,17 @@ describe('AC-PR-S4-006 (edge case): impersonation — gates on real JWT role', (
 // ---------------------------------------------------------------------------
 
 describe('AC-PR-S4-007 (edge case): terminal/rejected states', () => {
-  it('Paid: terminal message present, no capture row, no advance buttons', () => {
+  it('Paid: terminal status shown, no capture row, no advance buttons', () => {
     authState.userId = 'u-alice';
     roleState.realRole = 'Finance';
     roleState.effectiveRole = 'Finance';
     detailState.data = { ...BASE, status: 'Paid', approved_by_id: 'u-other' };
     // Check both the action zone and the documents tab
-    renderPage('proc-001', 'overview');
-    expect(screen.getByText(/no further lifecycle actions/i)).toBeInTheDocument();
+    renderPage('proc-001', 'timeline');
+    expect(screen.getByTestId('procurement-status-badge')).toHaveTextContent('Paid');
     // No advance buttons at all
-    expect(screen.queryByRole('button', { name: /mark as paid/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /confirm receipt/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /record payment/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /record receipt/i })).toBeNull();
   });
 
   it('Paid: the Documents tab has no capture row', () => {
@@ -663,20 +665,21 @@ describe('AC-PR-S4-007 (edge case): terminal/rejected states', () => {
     roleState.realRole = 'Finance';
     roleState.effectiveRole = 'Finance';
     detailState.data = { ...BASE, status: 'Paid', approved_by_id: 'u-other' };
-    renderPage('proc-001', 'documents');
+    renderPage('proc-001', 'files');
     expect(screen.queryByTestId('ledger-capture-row')).toBeNull();
   });
 
   it('Cancelled: the Documents tab has no capture row', () => {
     detailState.data = { ...BASE, status: 'Cancelled' };
-    renderPage('proc-001', 'documents');
+    renderPage('proc-001', 'files');
     expect(screen.queryByTestId('ledger-capture-row')).toBeNull();
   });
 
-  it('Cancelled: the action zone shows the terminal message', () => {
+  it('Cancelled: the header shows the terminal status and no lifecycle action', () => {
     detailState.data = { ...BASE, status: 'Cancelled' };
-    renderPage('proc-001', 'overview');
-    expect(screen.getByText(/no further lifecycle actions/i)).toBeInTheDocument();
+    renderPage('proc-001', 'timeline');
+    expect(screen.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Cancelled');
+    expect(headerActions().queryByRole('button', { name: /approve|submit|record (order|receipt|payment|supplier invoice)|rework|choose quote/i })).toBeNull();
   });
 
   it('Rejected: requester rework path shown; capture row hidden', () => {
@@ -684,11 +687,11 @@ describe('AC-PR-S4-007 (edge case): terminal/rejected states', () => {
     roleState.realRole = 'Engineer'; // requester's role
     roleState.effectiveRole = 'Engineer';
     detailState.data = { ...BASE, status: 'Rejected', requested_by_id: 'u-other', rejection_notes: 'Out of budget.' };
-    renderPage('proc-001', 'overview');
+    renderPage('proc-001', 'timeline');
     // Requester sees the Rework action
-    expect(screen.getByRole('button', { name: /rework.*back to draft/i })).toBeInTheDocument();
+    expect(headerActions().getByRole('button', { name: 'Rework' })).toBeInTheDocument();
     // Capture is hidden while Rejected (no new records until reworked)
-    renderPage('proc-001', 'documents');
+    renderPage('proc-001', 'files');
     expect(screen.queryByTestId('ledger-capture-row')).toBeNull();
   });
 });
@@ -706,7 +709,7 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
     authState.userId = 'u-alice';
     detailState.data = { ...BASE, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^approve$/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: /^approve$/i }));
     // A dialog must appear (role=dialog or role=alertdialog)
     const dialog = screen.queryByRole('dialog') ?? screen.queryByRole('alertdialog');
     expect(dialog).toBeInTheDocument();
@@ -721,7 +724,8 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
     authState.userId = 'u-alice';
     detailState.data = { ...BASE, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^reject$/i }));
+    const header = await openMoreActions();
+    await userEvent.click(header.getByRole('menuitem', { name: /^reject$/i }));
     const dialog = screen.queryByRole('dialog') ?? screen.queryByRole('alertdialog');
     expect(dialog).toBeInTheDocument();
     expect(mockTransition).not.toHaveBeenCalled();
@@ -735,10 +739,11 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
     roleState.effectiveRole = 'Engineer';
     detailState.data = { ...BASE, status: 'Draft', requested_by_id: 'u-other', items: BASE.items };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /cancel procurement/i }));
+    const header = await openMoreActions();
+    await userEvent.click(header.getByRole('menuitem', { name: /cancel procurement/i }));
     const dialog = screen.queryByRole('dialog') ?? screen.queryByRole('alertdialog');
     expect(dialog).toBeInTheDocument();
-    // The dismiss says "Keep procurement" (not plain "Cancel") to avoid the 3-Cancel confusion
+    // The dismiss says "Keep request" (not plain "Cancel") to avoid the 3-Cancel confusion
     expect(screen.getByRole('button', { name: /keep procurement/i })).toBeInTheDocument();
   });
 
@@ -756,7 +761,7 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
       project: { name: 'HQ Fit-Out', code: 'PRJ-001' },
     };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /mark as paid/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: 'Record payment' }));
     const dialog = screen.queryByRole('dialog') ?? screen.queryByRole('alertdialog');
     expect(dialog).toBeInTheDocument();
     // Dialog body restates the money context (confirm against the money — OD-UX-1)
@@ -771,7 +776,7 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
     mockTransition.mockResolvedValueOnce(undefined);
     detailState.data = { ...BASE, status: 'Draft', requested_by_id: 'u-other', items: BASE.items };
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /submit for approval/i }));
+    await userEvent.click(headerActions().getByRole('button', { name: 'Submit for approval' }));
     // No dialog — direct commit
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryByRole('alertdialog')).toBeNull();

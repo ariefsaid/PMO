@@ -354,7 +354,12 @@ export function formatMoneyInputValue(value: number, locale = getNumberLocale())
   return formatMoneyInputDraft(neutral.replace('.', numberSymbols(locale).decimal), locale);
 }
 
-/** Format a nullable percentage already expressed in percentage points: null → '—'; numeric → '{rounded}%'. */
+/** Whole completion %: unfinished work (below 100) never rounds up to a complete-looking 100. */
+export function completionPct(value: number): number {
+  return value >= 100 ? Math.round(value) : Math.min(99, Math.round(value));
+}
+
+/** Format a nullable % value: null → '—'; numeric → '{rounded}%'. */
 export function pct(v: number | null): string {
   return v == null ? '—' : `${formatNumberWhole(v)}%`;
 }
@@ -670,6 +675,11 @@ export function formatNumberExact(value: number): string {
 /** "Jun 14" — short month + day. */
 export function formatMonthDay(d: Date): string {
   return dateFormatterFor('monthDay', getDateLocale(), { month: 'short', day: 'numeric' }).format(d);
+}
+
+/** "Jun" — short month name (dashboard period labels). */
+export function formatMonthShort(d: Date): string {
+  return dateFormatterFor('monthShort', getDateLocale(), { month: 'short' }).format(d);
 }
 
 /** "Sun" — short weekday (timesheet grid columns). */
