@@ -21,7 +21,7 @@ vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' })
 vi.mock('@/src/hooks/useFinancePosition', () => ({
   useFinancePosition: () => ({
     position: {
-      receivablesCount: 0,
+      receivablesCount: 0, receivablesUnknownCount: 0,
       overdue: [],
       overdueTotals: {},
       overdueUnknownCount: 0,

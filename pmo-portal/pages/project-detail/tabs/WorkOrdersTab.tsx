@@ -418,7 +418,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       if (confirmFor.acceptance.is_final && result && result.dpHeld > 0) setDpHeldAfterClose(result.dpHeld);
       toast(
         result && result.closingValue !== null
-          ? t('projectTabs:contractQuantities.workOrders.acceptances.toast.closed', 'Final BAST confirmed — closed at {{amount}}', { amount: formatCurrency(result.closingValue, currency), interpolation: { escapeValue: false } })
+          ? t('projectTabs:contractQuantities.workOrders.acceptances.toast.closed', 'Final BAST confirmed: closed at {{amount}}', { amount: formatCurrency(result.closingValue, currency), interpolation: { escapeValue: false } })
           : t('projectTabs:contractQuantities.workOrders.acceptances.toast.confirmed', 'BAST confirmed'),
         undefined,
         'success',
@@ -471,7 +471,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       toast(t('projectDetail.billing.claims.toast.raised', 'Invoice raised in the ERP'), undefined, 'success');
     } catch (err) {
       failClaim(err, {
-        '55000': t('projectDetail.billing.claims.errors.claimWithdrawn', "This claim was withdrawn — its invoice can't be raised."),
+        '55000': t('projectDetail.billing.claims.errors.claimWithdrawn', "This claim was withdrawn. Its invoice can't be raised."),
       });
     } finally {
       setRaiseFor(null);
@@ -507,7 +507,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         title: t('projectDetail.workOrders.confirm.close.title', 'Close this work order?'),
         description: t(
           'projectDetail.workOrders.confirm.close.body',
-          'Closing is final. The value stays in the drawdown — closed work orders count as committed, exactly as issued ones do.',
+          'Closing is final. The value stays in the drawdown. Closed work orders count as committed, exactly as issued ones do.',
         ),
         confirmLabel: t('projectDetail.workOrders.confirm.close.confirm', 'Close work order'),
         tone: 'default' as const,
@@ -517,7 +517,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       title: t('projectDetail.workOrders.confirm.cancel.title', 'Cancel this work order?'),
       description: t(
         'projectDetail.workOrders.confirm.cancel.body',
-        'Cancelling is final and cannot be undone — it is how a work order is withdrawn, since there is no delete. Its value stops counting towards the drawdown.',
+        'Cancelling is final and cannot be undone. It is how a work order is withdrawn, since there is no delete. Its value stops counting towards the drawdown.',
       ),
       confirmLabel: t('projectDetail.workOrders.confirm.cancel.confirm', 'Cancel work order'),
       tone: 'destructive' as const,
@@ -607,11 +607,11 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   }, [openRecordId, openRecordType, rows, drawerLineRows, invoiceRows, claimRows, canViewBilling]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-[var(--space-panel-gap)]">
       {canViewBilling && dpNotice !== null && (
         <div role="status" data-testid="wo-dp-held-notice" className="border-b border-border pb-3 text-[13px] text-muted-foreground">
           {t('projectTabs:contractQuantities.workOrders.closing.dpHeld',
-            '{{amount}} of the down payment is still held after closing. Finance should recover the rest with the next progress claim, or refund it explicitly — closing does not clear it.',
+            '{{amount}} of the down payment is still held after closing. Finance should recover the rest with the next progress claim, or refund it explicitly. Closing does not clear it.',
             { amount: formatCurrency(dpNotice, currency), interpolation: { escapeValue: false } })}
         </div>
       )}
@@ -629,8 +629,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         </div>
       )}
 
-      <section aria-labelledby="pd-customer-orders" className="min-w-0">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+      <section aria-labelledby="pd-customer-orders" className="panel-card min-w-0">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-[var(--panel-inset)] py-4">
           <div className="flex flex-wrap items-baseline gap-x-2">
             <h2 id="pd-customer-orders" className="text-sm font-semibold text-foreground">
               {t('projectDetail.contract.orders', 'Customer orders')}
@@ -657,7 +657,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           </div>
         </div>
 
-        <div className="mb-4 flex flex-wrap items-end gap-2">
+        <div className="flex flex-wrap items-end gap-2 px-[var(--panel-inset)] pt-4">
           <label className="flex min-w-[190px] flex-1 flex-col gap-1 text-xs text-muted-foreground sm:flex-none">
             {t('projectDetail.workOrders.filter.orders', 'Order')}
             <select aria-label={t('projectDetail.workOrders.filter.orders', 'Order')} value={orderFilter} onChange={(event) => setOrderFilter(event.target.value)}
@@ -678,7 +678,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         {/* L6/C4: the "Still to invoice" total only adds information across several orders (one order's own line
             already says it); "Not yet submitted" is said only here. An incomplete total is left out — each order
             states why its figures are incomplete. */}
-        {canViewBilling && <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm" role="status">
+        {canViewBilling && rows.length > 0 && billing.data && billing.data.length > 0 && billingTotals.complete && <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 px-[var(--panel-inset)] text-sm" role="status">
           {rows.length > 0 && billing.data && billing.data.length > 0 && billingTotals.complete && <span data-testid="wo-billing-summary" aria-label={t('common:projectDetail.workOrders.billing.summaryTitle', 'Billing against work orders')} className="flex flex-wrap gap-x-4 gap-y-1">
             {billing.data.length > 1 && <span>
               <span className="text-muted-foreground">{t('common:projectDetail.workOrders.billing.stillToInvoice', 'Still to invoice')}</span>
@@ -707,18 +707,18 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         ) : (
           <>
             {!showQuantities && visibleCustomerOrders.length === 0 && visibleDraftOrders.length === 0 && (
-              <p className="py-3 text-sm text-muted-foreground">
+              <p className="px-[var(--panel-inset)] py-4 text-sm text-muted-foreground">
                 {t('projectDetail.workOrders.emptyRegister', 'No customer orders yet. Client purchase orders are recorded here and draw down the project contract ceiling when issued.')}
               </p>
             )}
             {showQuantities && visibleCustomerOrders.length === 0 && visibleDraftOrders.length === 0 && (
-              <p className="py-3 text-sm text-muted-foreground">
+              <p className="px-[var(--panel-inset)] py-4 text-sm text-muted-foreground">
                 {t('projectDetail.contract.noOrders', 'No customer orders yet.')}
               </p>
             )}
 
             {visibleDraftOrders.length > 0 && (
-              <section aria-labelledby="pd-draft-orders" className="mb-6">
+              <section aria-labelledby="pd-draft-orders" className="mb-6 mt-4 px-[var(--panel-inset)]">
                 <h3 id="pd-draft-orders" className="mb-2 text-xs font-medium text-muted-foreground">
                   {t('projectDetail.workOrders.drafts', 'Draft orders')}
                 </h3>
@@ -773,7 +773,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               </section>
             )}
 
-            {visibleCustomerOrders.map((row) => {
+            {visibleCustomerOrders.length > 0 && <div className="flex flex-col gap-4 p-[var(--panel-inset)] pt-4">{visibleCustomerOrders.map((row) => {
               const orderAllocations = (projectBilling.data?.contractLines ?? []).flatMap((line) =>
                 line.allocations.filter((allocation) => allocation.workOrderId === row.id).map((allocation) => ({ line, allocation })),
               );
@@ -1018,7 +1018,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                     {(hasOrderLines || bastList.length > 0 || canPrepare || row.status === 'Issued') && (
                       <details className="group">
                         <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-                          {t('projectTabs:contractQuantities.workOrders.quantities.summary', 'Contract lines and BAST — {{wo}}', { wo: row.wo_number ?? row.title })}
+                          {t('projectTabs:contractQuantities.workOrders.quantities.summary', 'Contract lines and BAST: {{wo}}', { wo: row.wo_number ?? row.title })}
                           <span className="ml-2">{t('projectTabs:contractQuantities.workOrders.quantities.counts', '{{lines}} lines · {{basts}} BAST', { lines: rawLines.length, basts: bastList.length })}</span>
                         </summary>
                         <div className="mt-3 flex flex-col gap-4">
@@ -1062,12 +1062,12 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                   </div>
                 </article>
               );
-            })}
+            })}</div>}
           </>
         )}
       </section>
 
-      {canViewBilling && <Card variant="bare" className="min-w-0">
+      {canViewBilling && <Card className="min-w-0">
         <CardHead level={2} className="text-base" actions={<div className="flex flex-wrap items-center gap-2">
           {canAssess && boqRows.length > 0 && <Button variant="outline" size="sm" onClick={() => setAssessOpen(true)}>
             {t('projectDetail.billing.assessment.record', 'Record progress')}
@@ -1081,7 +1081,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         </div>}>
           {t('projectDetail.billing.claims.title', 'Claims & down payment')}
         </CardHead>
-        <CardPad>
+        <CardPad className="pt-0">
           <dl className="mb-4 grid grid-cols-2 gap-x-4 gap-y-3 border-b border-border pb-4 sm:grid-cols-3">
             {/* C4: an unknown figure is left out, never a "—"; N13: billing ahead of the work done reads as that, not a negative. */}
             {summary?.unbilledWork !== null && summary?.unbilledWork !== undefined && <div data-testid="claims-gap">
@@ -1120,7 +1120,10 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               <MoneyFigure label={t('projectDetail.billing.summary.notSubmitted', 'Claims raised, not yet submitted')} value={formatNumberWhole(summary.notSubmitted)} detail={t('projectDetail.billing.source.notSubmitted', 'Source: claim invoices created in accounting but not yet submitted.')} />
             </dl> : <p className="mt-3 text-sm text-muted-foreground">{t('projectDetail.billing.summary.unavailable', 'Billing summary is unavailable.')}</p>}
           </details>
-          <DataTable<ProgressClaimWithInvoice>
+          {!claimsQuery.isPending && !claimsQuery.isError && claimRows.length === 0 ? <ListState variant="empty"
+            title={t('projectDetail.billing.claims.empty', 'No billing claims yet')}
+            sub={t('projectDetail.billing.claims.emptySub', 'A claim bills a down payment or accepted quantities as one invoice.')} /> : <DataTable<ProgressClaimWithInvoice>
+            embedded
             rows={claimRows}
             columns={projectClaimColumns}
             rowKey={(claim) => claim.id}
@@ -1146,14 +1149,13 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             onRetry={() => void claimsQuery.refetch()}
             cardBelow={1000}
             tableId="project-detail-claims-register"
-          />
+          />}
         </CardPad>
       </Card>}
 
-      {canViewBilling && (orderlessInvoices.length > 0 || ((!customerOrders.length && !draftOrders.length) && !invoiceReadReady)) && <section className="min-w-0" role="region" aria-label={t('projectDetail.workOrders.billing.orderlessHeading', 'Invoices without a customer order')} data-testid="orderless-invoices">
-        <div className="mb-3 border-b border-border pb-2">
-          <h2 className="text-sm font-semibold text-foreground">{t('projectDetail.workOrders.billing.orderlessHeading', 'Invoices without a customer order')}</h2>
-        </div>
+      {canViewBilling && (orderlessInvoices.length > 0 || ((!customerOrders.length && !draftOrders.length) && !invoiceReadReady)) && <section className="panel-card min-w-0" role="region" aria-label={t('projectDetail.workOrders.billing.orderlessHeading', 'Invoices without a customer order')} data-testid="orderless-invoices">
+        <CardHead>{t('projectDetail.workOrders.billing.orderlessHeading', 'Invoices without a customer order')}</CardHead>
+        <CardPad className="pt-0">
         {invoicesQuery.isPending ? (
           <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role="status">
             <span>{t('projectDetail.cascade.invoiceLoading', 'Invoice figures are loading.')}</span>
@@ -1169,6 +1171,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           </p>}
           {/* F10: the shared DataTable (resizable columns, mobile cards, row → drawer). */}
           <DataTable<InvoiceWithWorkOrder>
+            embedded
             rows={orderlessInvoices}
             columns={orderlessColumns}
             rowKey={(invoice) => invoice.id}
@@ -1179,6 +1182,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             tableId="project-detail-orderless-invoices"
           />
         </>}
+        </CardPad>
       </section>}
 
       {deliverySelectorOpen && <Drawer open title={t('projectDetail.workOrders.action.recordDelivery', 'Record delivery')} onClose={() => setDeliverySelectorOpen(false)}>
@@ -1220,8 +1224,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               {canViewBilling && selected.rate !== null && <QuantityFigure label={t('projectDetail.cascade.colRate', 'Rate')} value={formatCurrency(selected.rate, currency)} detail={t('projectDetail.cascade.source.rate', 'Source: the rate on this bill of quantities line.')} />}
             </dl>
             <section aria-labelledby="line-order-split">
-              <h4 id="line-order-split" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.lineSplit', 'Per-order split')}</h4>
-              {split.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noLineSplit', 'No order allocation history is available.')}</p> : <ul className="divide-y divide-border border-y border-border text-sm">
+              <h2 id="line-order-split" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.lineSplit', 'Per-order split')}</h2>
+              {split.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noLineSplit', 'No order allocation history is available.')}</p> : <ul className="divide-y divide-border text-sm">
                 {split.map((allocation) => {
                   const order = rows.find((candidate) => candidate.id === allocation.workOrderId);
                   return <li key={allocation.workOrderId} className="flex flex-wrap items-center justify-between gap-2 py-2">
@@ -1234,8 +1238,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               </ul>}
             </section>
             <section aria-labelledby="line-quantity-history">
-              <h4 id="line-quantity-history" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.quantityHistory', 'Quantity history')}</h4>
-              {history.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noConfirmedBastHistory', 'No confirmed BAST quantity history yet.')}</p> : <ul className="divide-y divide-border border-y border-border text-sm">
+              <h2 id="line-quantity-history" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.quantityHistory', 'Quantity history')}</h2>
+              {history.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noConfirmedBastHistory', 'No confirmed BAST quantity history yet.')}</p> : <ul className="divide-y divide-border text-sm">
                 {history.map(({ acceptance, quantity }) => <li key={acceptance.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                   <span>{formatDateOnly(acceptance.acceptance_date)} · {acceptance.is_final ? t('projectTabs:contractQuantities.workOrders.acceptances.final', 'Final') : t('projectTabs:contractQuantities.workOrders.acceptances.stage', 'Stage')}</span>
                   <Tooltip content={t('projectDetail.cascade.source.acceptedHistory', 'Source: quantity recorded on this BAST.') }><span className="cursor-help tabular-nums">{formatNumberExact(quantity)} {selected.item?.unit ?? ''}</span></Tooltip>
@@ -1299,7 +1303,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         </dl>
         <section className="border-t border-border px-4 py-3">
           <h3 className="text-sm font-semibold">{t('projectDetail.billing.claims.evidence', 'Evidence')}</h3>
-          {(claimDrawerFor.evidence ?? []).length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p> : <ul className="mt-2 divide-y divide-border border-y border-border text-sm">
+          {(claimDrawerFor.evidence ?? []).length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p> : <ul className="mt-2 divide-y divide-border text-sm">
             {(claimDrawerFor.evidence ?? []).map((evidence) => <li key={evidence.id} className="flex items-center justify-between gap-3 py-2"><span>{evidence.document_id}</span><StatusPill variant={evidence.document_status === 'active' ? 'won' : 'neutral'}>{evidence.document_status}</StatusPill></li>)}
           </ul>}
         </section>

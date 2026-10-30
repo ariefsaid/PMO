@@ -2,7 +2,7 @@ import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import React, { useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, ListState, ProgressBar, TaxBasisLabel, Tooltip } from '@/src/components/ui';
+import { Button, Card, CardHead, CardPad, Icon, ListState, ProgressBar, TaxBasisLabel, Tooltip } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
@@ -39,12 +39,10 @@ export const BlockAction: React.FC<{ onClick?: () => void; to?: string; children
 /** Block chrome: heading, its unit/basis once, an optional action on the same baseline. */
 const Block: React.FC<{ id: string; title: string; unit?: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }> = ({ id, title, unit, action, children }) => (
   <section aria-labelledby={id} className="min-w-0">
-    <div className="mb-4 flex min-h-6 flex-wrap items-baseline gap-x-2">
-      <h2 id={id} className="text-sm font-semibold text-foreground">{title}</h2>
-      {unit && <span className="text-xs text-muted-foreground">{unit}</span>}
-      {action && <span className="ml-auto">{action}</span>}
-    </div>
-    {children}
+    <Card>
+      <CardHead id={id} subline={unit} actions={action} className="pb-2">{title}</CardHead>
+      <CardPad className="pt-2">{children}</CardPad>
+    </Card>
   </section>
 );
 
@@ -159,7 +157,7 @@ export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) 
             <div key={step.key} className="grid min-w-0 grid-cols-[5.5rem_minmax(0,1fr)_auto] items-center gap-x-3">
               <dt className="text-xs text-muted-foreground">{step.label}</dt>
               <dd className="min-w-0">
-                {percent !== null && <ProgressBar value={percent} tone="neutral" widthless className="w-full" aria-label={t('projectDetail.money.stageAria', '{{label}} is {{percent}}% of contract', { label: step.label, percent })} />}
+                {percent !== null && <ProgressBar value={percent} tone="primary" widthless className="w-full" aria-label={t('projectDetail.money.stageAria', '{{label}} is {{percent}}% of contract', { label: step.label, percent })} />}
               </dd>
               <dd className="text-right text-sm">
                 {step.key === 'contract'
@@ -219,7 +217,7 @@ export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) 
         </button>
         {financeDetailsOpen && <div className="space-y-4 pt-4"><ProjectFinancesSection project={project} /></div>}
       </div>
-      <div className="mt-6 border-t border-border/70 pt-4"><ProjectProfitLossSection projectId={project.id} /></div>
+      <ProjectProfitLossSection projectId={project.id} />
     </Block>
   );
 };
@@ -353,7 +351,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
       )}
       {hasComparisons && committedFigure !== null && <Sub tooltip={t('projectDetail.cost.committedTooltip', 'Ordered, received, supplier-invoiced and paid procurements in the project currency, including those with no budget category; the same total as the Budget tab.')}>{t('projectDetail.cost.committed', 'Plus {{amount}} committed in purchase orders', { amount: whole(committedFigure) })}</Sub>}
       {hasComparisons && rows.length > 0 && (
-        <ul className="mt-6 flex min-w-0 flex-col border-y border-border/70">
+        <ul className="mt-6 flex min-w-0 flex-col">
           {rows.map((r) => {
             const over = r.actual !== null && r.actual > r.budget;
             const pct = r.actual === null ? null : r.budget > 0 ? pctOf(r.actual, r.budget) : r.actual > 0 ? 101 : 0;
@@ -443,7 +441,7 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
           {current?.name ?? t('projectDetail.delivery.allPhasesDone', 'All phases complete')}
         </Headline>
         <Sub>{current ? <>{t('projectDetail.milestones.currentPhaseLabel', 'Current phase')} · {phasesDone}</> : phasesDone}</Sub>
-        <ul className="mt-4 divide-y divide-border/70 border-y border-border/70">
+        <ul className="mt-4 divide-y divide-border/70">
           {all.map((milestone) => {
             const phaseTasks = (tasks.data ?? []).filter((task) => task.milestone_id === milestone.id && !task.parent_task_id);
             const doneTasks = phaseTasks.filter((task) => task.status === 'Done').length;

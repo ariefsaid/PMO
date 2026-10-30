@@ -39,7 +39,7 @@ export const ToastView: React.FC<{
     <div
       {...(announce ? { role: kind === 'warning' || kind === 'error' ? 'alert' : 'status', 'aria-live': kind === 'warning' || kind === 'error' ? 'assertive' : 'polite' } : {})}
       className={cn(
-        'toast-anim flex min-w-[230px] max-w-[360px] items-center gap-2.5 rounded-lg border border-border bg-popover px-3.5 py-[11px] text-[13.5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)] [&_svg]:size-[17px] [&_svg]:shrink-0',
+        'toast-anim flex min-w-[230px] max-w-[360px] items-center gap-2 rounded-overlay border border-border bg-popover px-3 py-3 text-control shadow-[var(--shadow-lg)] [&_svg]:size-4 [&_svg]:shrink-0',
         KIND_ICON_TONE[kind]
       )}
     >
@@ -302,7 +302,7 @@ const DismissButton: React.FC<{ onClick: () => void }> = ({ onClick }) => {
       type="button"
       onClick={onClick}
       aria-label={t('toast.dismiss', 'Dismiss notification')}
-      className="pointer-events-auto inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="touch-target pointer-events-auto inline-flex size-[var(--control-height-sm)] shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-surface-hover hover:text-foreground active:bg-surface-pressed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <Icon name="x" />
     </button>

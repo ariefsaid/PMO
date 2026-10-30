@@ -8,11 +8,11 @@
     <!-- Security L1: caps the Referer header on outbound links (e.g. from the auth pages) so a
          recovery/invite token never leaks in the URL's query/hash to a third-party origin. -->
     <meta name="referrer" content="strict-origin-when-cross-origin" />
-    <!-- Inter variable webfont (ADR-0068): self-hosted (2026-07-28, IMPORTANT-7) — the
-         @font-face rules + files live in index.css / public/fonts/, NOT a Google Fonts CDN
-         link. Do not re-add a fonts.googleapis.com/fonts.gstatic.com <link> here: it makes an
-         uncontrolled third-party request on every page load, including /privacy, before any
-         consent choice and regardless of analytics opt-out (AC-CON-012). -->
+    <!-- Hanken Grotesk variable webfont (owner decision 2026-10-29; self-hosting posture from
+         ADR-0068/IMPORTANT-7) — the @font-face rules + files live in index.css / public/fonts/,
+         NOT a Google Fonts CDN link. Do not re-add a fonts.googleapis.com/fonts.gstatic.com <link>
+         here: it makes an uncontrolled third-party request on every page load, including /privacy,
+         before any consent choice and regardless of analytics opt-out (AC-CON-012). -->
     <title>PMO Portal</title>
     <!-- No-flash theme bootstrap (F2): apply the persisted / prefers-color-scheme
          theme BEFORE first paint so the canvas never flashes the wrong scheme.

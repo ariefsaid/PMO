@@ -46,7 +46,7 @@ describe('ActionItemView — the live row, never a copy (DD-MTG-2)', () => {
     wrap(<ActionItemView taskId="t1" />);
     const link = await screen.findByRole('link', { name: 'Open task: Confirm crane schedule' });
     expect(link).toHaveAttribute('href', '/projects/p1/tasks#task-t1');
-    expect(screen.getByText('Unassigned — assign an owner')).toBeInTheDocument();
+    expect(screen.getByText('Unassigned: assign an owner')).toBeInTheDocument();
   });
 
   it('does not link a project-less task back to its current meeting', async () => {

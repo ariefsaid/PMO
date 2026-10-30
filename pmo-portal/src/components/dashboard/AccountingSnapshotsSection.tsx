@@ -227,7 +227,7 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
   if (collapsedSummary) return (
     <Card seam>
       <details>
-        <summary className="flex cursor-pointer items-center gap-2.5 px-4 py-[13px] text-sm font-semibold">
+        <summary className="flex cursor-pointer items-center gap-2.5 px-4 py-3 text-sm font-semibold">
           <h2 className="text-sm font-semibold">{title}</h2>
           <span className="text-[13px] font-normal text-muted-foreground">{collapsedSummary}</span>
         </summary>

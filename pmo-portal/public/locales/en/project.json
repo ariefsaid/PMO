@@ -185,7 +185,7 @@
           "confirm": "Withdraw claim"
         },
         "errors": {
-          "claimWithdrawn": "This claim was withdrawn — its invoice can't be raised."
+          "claimWithdrawn": "This claim was withdrawn. Its invoice can't be raised."
         },
         "withdrawn": "Withdrawn",
         "kind": {
@@ -235,9 +235,9 @@
       },
       "assessment": {
         "note": "Note (optional)",
-        "quantityToDate": "{{item}} — done to date ({{unit}})",
+        "quantityToDate": "{{item}}: done to date ({{unit}})",
         "save": "Save progress",
-        "subtitle": "Quantities done to date for the month. This is the operational assessment — it never creates an invoice.",
+        "subtitle": "Quantities done to date for the month. This is the operational assessment. It never creates an invoice.",
         "errors": {
           "quantity": "Each quantity done to date must be 0 or more with at most 3 decimal places",
           "month": "Enter the month as YYYY-MM"
@@ -262,7 +262,7 @@
         "linesLegend": "Quantities to bill",
         "kindDownPayment": "Down payment",
         "recoveryHelp": "Proportional to the contract: {{pct}}%",
-        "quantity": "{{item}} — {{description}} ({{unit}})",
+        "quantity": "{{item}}: {{description}} ({{unit}})",
         "kind": "Claim type",
         "save": "Create claim",
         "subtitle": "A claim becomes one ERP invoice. Attach the evidence before raising it.",
@@ -271,7 +271,7 @@
         "scopeContract": "Lines with no work order",
         "title": "New billing claim",
         "prefill": "Start from the {{month}} assessment",
-        "kindProgress": "Progress — quantities against the bill of quantities"
+        "kindProgress": "Progress: quantities against the bill of quantities"
       },
       "boqForm": {
         "quantity": "Quantity",
@@ -597,7 +597,6 @@
       "reasonStaleAttribution": "Budget attribution is stale or incomplete. Review the line phasing.",
       "recordsBehindSpending": "Records behind the spending",
       "retryFailedEtc": "Retry failed edits",
-      "spent": "Spent",
       "spentAndCommitted": "Spent + committed",
       "unavailable": "Unavailable",
       "watch": "Watch",

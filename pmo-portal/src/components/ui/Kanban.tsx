@@ -40,7 +40,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
         selected ? 'border-primary ring-2 ring-primary/40 bg-primary/[0.04]' : 'border-transparent bg-secondary/50',
       )}
     >
-      <div className="kcol-head-sticky border-b border-border px-3 pb-2.5 pt-[11px]">
+      <div className="kcol-head-sticky border-b border-border px-3 pb-2 pt-3">
         <div className="flex items-center gap-2">
           <span
             aria-hidden
@@ -53,13 +53,13 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
               {prob}
             </span>
           )}
-          <span className="ml-auto grid h-5 min-w-[22px] place-items-center rounded-full border border-border bg-background px-[7px] text-[11.5px] font-bold text-muted-foreground tabular">
+          <span className="ml-auto grid h-5 min-w-[22px] place-items-center rounded-full border border-border bg-background px-2 text-[11.5px] font-bold text-muted-foreground tabular">
             {count}
           </span>
         </div>
-        {totals && <div className="mt-[7px] flex items-baseline gap-[7px]">{totals}</div>}
+        {totals && <div className="mt-2 flex items-baseline gap-2">{totals}</div>}
       </div>
-      <div className="flex min-h-[60px] flex-col gap-[9px] overflow-y-auto p-[9px]">
+      <div className="flex min-h-[60px] flex-col gap-2 overflow-y-auto p-2">
         {empty ? (
           <div className="py-6 text-center text-xs text-muted-foreground">{emptyMessage}</div>
         ) : (
@@ -94,7 +94,7 @@ export const KanbanCard: React.FC<KanbanCardProps> = ({
       }
     }}
     className={cn(
-      'relative cursor-pointer rounded-lg border border-border bg-card p-[11px] shadow-[0_1px_2px_hsl(240_6%_10%/0.04)] transition-[box-shadow,border-color,transform] duration-150',
+      'relative cursor-pointer rounded-lg border border-border bg-card p-3 shadow-[0_1px_2px_hsl(240_6%_10%/0.04)] transition-[box-shadow,border-color,transform] duration-150',
       'hover:border-muted-foreground/35 hover:shadow-[0_4px_14px_hsl(240_6%_10%/0.1)] active:scale-[0.992]',
       selected && 'border-primary ring-2 ring-primary/40 bg-primary/[0.04]',
       className

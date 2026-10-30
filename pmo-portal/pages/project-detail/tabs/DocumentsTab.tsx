@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -61,6 +61,7 @@ import { formatDateOnly } from '@/src/lib/format';
 
 export interface DocumentsTabProps {
   projectId: string;
+  onCountChange?: (count: number | null) => void;
   /** The PROJECT's code (loaded by the parent), used to suggest convention folders in the picker. */
   projectCode?: string | null;
 }
@@ -132,7 +133,7 @@ interface PendingTransition {
   verb: string;
 }
 
-const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = null }) => {
+const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = null, onCountChange }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { t } = useTranslation('project');
   const isDesktop = useIsDesktop();
@@ -141,6 +142,9 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useDocuments(projectId);
+  useEffect(() => {
+    onCountChange?.(isPending || isError || data == null ? null : data.length);
+  }, [data, isError, isPending, onCountChange]);
   const { data: orgProfiles } = useAssignableProfiles();
   const { create, update, transition, remove, link, unlink } = useDocumentMutations(projectId);
   const { upload, replace, progress, uploadErrors, cancelUpload, clearUploadError } = useFileUpload(projectId);
@@ -847,15 +851,15 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   };
 
   return (
-    <div>
-      <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-[16px] font-bold tracking-[-0.01em]">
+    <div className="panel-card min-w-0">
+      <div className="border-b border-border px-[var(--panel-inset)] py-4">
+        <h2 className="text-page font-bold tracking-[-0.02em]">
           {t('projectDetail.documents.heading', 'Document register')}
         </h2>
       </div>
 
       {/* Below the header, so a folder notice never pushes the primary actions down or off-screen (empty for non-writers). */}
-      <div className="mb-3.5 empty:hidden">
+      <div className="empty:hidden px-[var(--panel-inset)] pt-3">
         <RecordFolderAction
           target={{ kind: 'project', id: projectId }}
           hasFolder={all.some((d) => d.source === 'onedrive' && d.ms_item_kind === 'folder')}
@@ -913,7 +917,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         </GateNotice>
       )}
 
-      <Toolbar className="mb-3.5 min-w-0 border-0 bg-transparent px-0 py-0">
+      <Toolbar standalone className="min-w-0 border-0 bg-transparent px-[var(--panel-inset)] py-3">
         <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
           {/* B7: search earns its place only beyond about ten documents; the filters cover a short register. */}
           {(all.length > SEARCH_THRESHOLD || search) && <SearchMini
@@ -929,7 +933,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
             aria-label={t('projectDetail.documents.filter.category', 'Filter by category')}
             value={categoryFilter}
             onChange={(event) => setCategoryFilter(event.target.value)}
-            className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm text-foreground sm:flex-none"
+            className="h-9 min-w-0 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground sm:w-auto sm:flex-none"
           >
             <option value="">{t('projectDetail.documents.filter.allCategories', 'All categories')}</option>
             {categories.map((category) => <option key={category} value={category}>{category}</option>)}
@@ -940,7 +944,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
             aria-label={t('projectDetail.documents.filter.status', 'Filter by status')}
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value as DocStatus | '')}
-            className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm text-foreground sm:flex-none"
+            className="h-9 min-w-0 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground sm:w-auto sm:flex-none"
           >
             <option value="">{t('projectDetail.documents.filter.allStatuses', 'All statuses')}</option>
             {(['Draft', 'Issued', 'Approved', 'Rejected', 'Closed', 'Superseded'] as DocStatus[]).map((status) => (
@@ -953,7 +957,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
             aria-label={t('projectDetail.documents.filter.source', 'Filter by source')}
             value={sourceFilter}
             onChange={(event) => setSourceFilter(event.target.value as 'upload' | 'onedrive' | '')}
-            className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm text-foreground sm:flex-none"
+            className="h-9 min-w-0 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground sm:w-auto sm:flex-none"
           >
             <option value="">{t('projectDetail.documents.filter.allSources', 'All sources')}</option>
             <option value="upload">{t('projectDetail.documents.source.upload', 'Upload')}</option>
@@ -1030,9 +1034,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       )}
 
       {state === 'loading' && (
-        <div className="rounded-lg border border-border bg-card">
-          <ListState variant="loading" rows={5} />
-        </div>
+        <ListState variant="loading" rows={5} className="px-[var(--panel-inset)] pb-[var(--panel-inset)]" />
       )}
 
       {state === 'error' && (
@@ -1355,7 +1357,7 @@ const DocumentTitleCell: React.FC<{
             <span className="text-[11px] text-muted-foreground">
               {`${t(
                 'projectDetail.documents.supersededNotice',
-                'Read-only — continue on Rev',
+                'Read-only: continue on Rev',
               )} ${childDoc.revision}`}
             </span>
           )}
@@ -1458,7 +1460,7 @@ const DocumentActionFooter: React.FC<DocumentActionFooterProps> = ({
   );
 };
 
-const DocumentPreviewFields: React.FC<DocumentPreviewProps> = ({
+const DocumentPreviewFields: React.FC<DocumentPreviewProps & { statusHeadingLevel: 2 | 4 }> = ({
   doc,
   parentDoc,
   childDoc,
@@ -1467,9 +1469,11 @@ const DocumentPreviewFields: React.FC<DocumentPreviewProps> = ({
   onViewDocument,
   fileContent,
   microsoftFile,
+  statusHeadingLevel,
 }) => {
   const { t } = useTranslation('project');
   const isFolder = isMicrosoftFolder(doc);
+  const StatusHeading = statusHeadingLevel === 2 ? 'h2' : 'h4';
   return (
     <>
       <dl className="flex flex-col gap-4">
@@ -1514,9 +1518,9 @@ const DocumentPreviewFields: React.FC<DocumentPreviewProps> = ({
 
       {(transitions.length > 0 || sodBlocked) && (
         <div className="mt-5 border-t border-border pt-4">
-          <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+          <StatusHeading className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
             {t('projectDetail.documents.updateStatus', 'Update status')}
-          </h3>
+          </StatusHeading>
           {sodBlocked ? (
             <GateNotice variant="blocked" data-testid="drawer-sod-gate">
               <div>
@@ -1603,7 +1607,7 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
         onDownload={onDownload}
       />}
     >
-      <DocumentPreviewFields doc={doc} parentDoc={parentDoc} childDoc={childDoc} transitions={secondaryTransitions} sodBlocked={sodBlocked} onViewDocument={onViewDocument} fileContent={fileContent} microsoftFile={microsoftFile} />
+      <DocumentPreviewFields statusHeadingLevel={2} doc={doc} parentDoc={parentDoc} childDoc={childDoc} transitions={secondaryTransitions} sodBlocked={sodBlocked} onViewDocument={onViewDocument} fileContent={fileContent} microsoftFile={microsoftFile} />
     </Drawer>
   );
 };
@@ -1651,7 +1655,7 @@ const DocumentPreviewPanel: React.FC<DocumentDrawerProps> = ({
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        <DocumentPreviewFields doc={doc} parentDoc={parentDoc} childDoc={childDoc} transitions={secondaryTransitions} sodBlocked={sodBlocked} onViewDocument={onViewDocument} fileContent={fileContent} microsoftFile={microsoftFile} />
+        <DocumentPreviewFields statusHeadingLevel={4} doc={doc} parentDoc={parentDoc} childDoc={childDoc} transitions={secondaryTransitions} sodBlocked={sodBlocked} onViewDocument={onViewDocument} fileContent={fileContent} microsoftFile={microsoftFile} />
       </div>
       <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3.5">
         <DocumentActionFooter canEdit={canEdit} canDelete={canDelete} hasFile={hasFile} sharePointUrl={sharePointUrl} onEdit={onEdit} onDelete={onDelete} onDownload={onDownload} />

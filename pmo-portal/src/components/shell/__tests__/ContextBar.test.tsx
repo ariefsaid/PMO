@@ -73,6 +73,7 @@ describe('ContextBar', () => {
   it('the ⌘K trigger advertises its shortcut and opens the palette', async () => {
     renderBar();
     const trigger = screen.getByRole('button', { name: /command palette/i });
+    expect(trigger.className.split(/\s+/)).toContain('px-3');
     expect(trigger).toHaveAttribute('aria-keyshortcuts');
     await userEvent.click(trigger);
     expect(onOpenPalette).toHaveBeenCalled();
@@ -96,6 +97,13 @@ describe('ContextBar', () => {
 // ── The unified account menu (AC-ACCT-001/002/003/004) ──────────────────────
 // One responsive avatar/identity trigger owns the ONLY account popup at every width.
 describe('ContextBar — unified account menu', () => {
+  it('keeps legal and support links out of the account menu', async () => {
+    renderBar();
+    await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    const menu = screen.getByRole('menu');
+    expect(within(menu).queryByText(/legal & support/i)).not.toBeInTheDocument();
+    expect(within(menu).queryByRole('menuitem', { name: /^(terms|privacy|help)$/i })).not.toBeInTheDocument();
+  });
   it('AC-ACCT-001: one account trigger opens one menu with identity, profile, theme and sign out', async () => {
     canImpersonate = false;
     effectiveRole = 'Finance';

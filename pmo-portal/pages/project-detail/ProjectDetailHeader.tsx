@@ -222,7 +222,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
           </span>}
           {actualPosition.basis === 'pmo' && commitmentSource !== 'pmo' && <OtherCurrencyCommitments positions={committedOtherCurrencies} />}</>
         : moneyPosition.headlineState === 'partial'
-          ? <span aria-label={t('uxs01.actualPartial', 'Incomplete — see spending details')}>{t('dashboard:spend.partial', 'Partial')}</span>
+          ? <span aria-label={t('uxs01.actualPartial', 'Incomplete: see spending details')}>{t('dashboard:spend.partial', 'Partial')}</span>
           : undefined },
     ...(contractAfterCostLabel === null ? [] : [{
       label: t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'),
@@ -242,7 +242,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
           <StatTiles tiles={tiles.slice(0, 1)} columns={1} variant="bare"
             className="grid-cols-1! [&>div]:min-w-0 [&>div]:col-span-1 [&>div]:py-0 md:[&>div]:py-1" />
           <StatTiles tiles={tiles.slice(1)} columns={Math.min(tiles.length - 1, 4)} variant="bare"
-            className={`gap-x-3 gap-y-2 [&>div]:min-w-0 ${REST_SPAN[tiles.length - 1] ?? REST_SPAN[4]}`} />
+            className={`[&>div]:min-w-0 ${REST_SPAN[tiles.length - 1] ?? REST_SPAN[4]}`} />
         </div>
       </details>
     </div>
@@ -340,10 +340,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       : t('projectDetail.header.po', 'PO {{ref}}', { ref: project.customer_contract_ref })
     : null;
   const meta = compact ? (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
-      <span className="inline-flex items-center"><StatusPill variant={pillVariantForProjectStatus(status)}>{project.status}</StatusPill></span>
-      {customerName && <span className="inline-flex items-center">{customerName}</span>}
-    </div>
+    customerName ? <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground"><span className="inline-flex items-center">{customerName}</span></div> : null
   ) : (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       {customerName && <span className="font-medium text-foreground">{customerName}</span>}
@@ -698,13 +695,14 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         icon={compact ? null : (projectDisplayName(project).trim().charAt(0) || '•').toUpperCase()}
         iconColor={projectIconColor()}
         name={<span title={project.name}>{projectDisplayName(project)}</span>}
-        status={compact ? null : <StatusPill variant={pillVariantForProjectStatus(status)}>{project.status}</StatusPill>}
+        status={<StatusPill variant={pillVariantForProjectStatus(status)}>{project.status}</StatusPill>}
+        statusBelowMetaOnMobile
         // Phone keeps identity/status; the persistent Details rail below the
         // selected work already carries these codes, customer and PO facts.
         meta={meta}
         actions={primaryAction || menuContent || canEdit || canArchive || canDelete || showCompactContractLock ? actions : undefined}
         variant="drawer"
-        className="mb-1 [&>div]:gap-2 [&_h1]:basis-auto [&>div>div:last-child]:w-auto"
+        className="mb-1 [&>div]:gap-2 [&_h1]:!text-page [&_h1]:!font-bold [&_h1]:basis-auto [&>div>div:last-child]:w-auto"
       />
 
       {showCompactContractLock && (

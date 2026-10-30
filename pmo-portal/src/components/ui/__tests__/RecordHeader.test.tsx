@@ -4,12 +4,17 @@ import { RecordHeader } from '../RecordHeader';
 import { StatusPill } from '../StatusPill';
 
 describe('RecordHeader', () => {
-  it('UIP-009: phone title owns its row before status, with desktop anatomy and caller classes retained', () => {
+  it('UIP-009: keeps the status beside the title at every width, with meta below and caller classes retained', () => {
     render(<RecordHeader icon="P" name="Long purchasing record identity" status={<StatusPill variant="progress">Requested</StatusPill>} meta="PR-014" className="consumer-class" actions={<button>Edit</button>} />);
     const header = screen.getByTestId('record-header');
-    expect(screen.getByRole('heading', { name: 'Long purchasing record identity' })).toBeVisible();
-    expect(header.className).toContain('[&_h1]:basis-full');
-    expect(header.className).toContain('sm:[&_h1]:basis-0');
+    const title = screen.getByRole('heading', { name: 'Long purchasing record identity' });
+    const status = screen.getByText('Requested');
+    expect(title).toBeVisible();
+    expect(title.parentElement).toContainElement(status);
+    expect(title.parentElement?.className).toContain('flex-nowrap');
+    expect(title.className).toContain('flex-[0_1_auto]');
+    expect(title.className).not.toContain('flex-1');
+    expect(screen.getByText('PR-014').parentElement).not.toBe(title.parentElement);
     expect(header.className).toContain('consumer-class');
     expect(header).toHaveTextContent(/Long purchasing record identity.*Requested.*PR-014.*Edit/);
   });
@@ -48,7 +53,7 @@ describe('RecordHeader', () => {
     expect(screen.getByText('Cascade Port · PRJ-001')).toBeInTheDocument();
   });
 
-  it('batch-3: gives the record name width priority and lets the action zone wrap below on narrow widths', () => {
+  it('gives the record name remaining width, keeps status inline, and lets actions wrap below', () => {
     render(
       <RecordHeader
         icon="C"
@@ -57,7 +62,8 @@ describe('RecordHeader', () => {
         actions={<button type="button">Edit</button>}
       />,
     );
-    expect(screen.getByRole('heading').className).toContain('break-words');
+    expect(screen.getByRole('heading').className).toContain('truncate');
+    expect(screen.getByRole('heading').parentElement?.className).toContain('flex-nowrap');
     expect(screen.getByTestId('record-header-actions').parentElement?.className).toContain('w-full');
   });
 

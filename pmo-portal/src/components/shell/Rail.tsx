@@ -108,7 +108,7 @@ const MAX_NAV_VIEWS = 8;
 
 /** Base classes shared by every nav anchor (primary items + Administration foot). */
 const NAV_LINK_BASE =
-  'flex h-9 w-full items-center gap-[11px] rounded-md px-2.5 text-[13.5px] font-medium transition-colors [&_svg]:size-[17px] [&_svg]:shrink-0';
+  'touch-target flex h-[var(--control-height)] w-full items-center gap-3 rounded-md px-2.5 text-control font-medium transition-colors [&_svg]:size-5 [&_svg]:shrink-0';
 
 /** The two items that get stage-aware active-state overrides on `/projects/:id`. */
 const STAGE_AWARE_PATHS = new Set(['/projects', '/sales']);
@@ -280,7 +280,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           aria-current={active ? 'page' : undefined}
           className={cn(
             NAV_LINK_BASE,
-            active ? 'bg-primary/10 font-semibold text-nav-active-text' : 'text-foreground hover:bg-accent',
+            active ? 'bg-nav-selected-surface font-semibold text-nav-active-text' : 'text-foreground hover:bg-surface-hover',
           )}
         >
           <Icon name={item.icon} />
@@ -294,24 +294,38 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         (item.to === '/projects' && railActiveOverride === 'projects') ||
         (item.to === '/sales' && railActiveOverride === 'salesPipeline');
       return (
-        <NavLink
+        <Link
           key={item.to}
           to={item.to}
-          end={item.to === '/' || item.to.includes('?') || item.to.startsWith('/finance')}
           onClick={onNavigate}
-          // Ignore NavLink's built-in isActive; use the override decision.
-          className={() =>
-            cn(
-              NAV_LINK_BASE,
-              overrideActive
-                ? 'bg-primary/10 font-semibold text-nav-active-text'
-                : 'text-foreground hover:bg-accent',
-            )
-          }
+          aria-current={overrideActive ? 'page' : undefined}
+          className={cn(
+            NAV_LINK_BASE,
+            overrideActive
+              ? 'bg-nav-selected-surface font-semibold text-nav-active-text'
+              : 'text-foreground hover:bg-surface-hover',
+          )}
         >
           <Icon name={item.icon} />
           {renderLabel(item)}
-        </NavLink>
+        </Link>
+      );
+    }
+
+    // Child routes outside the parent's URL (e.g. /erp-purchases under Procurement)
+    // use the parent decision for both the selected treatment and its accessible state.
+    if (railParentForPath(location.pathname) === item.to) {
+      return (
+        <Link
+          key={item.to}
+          to={item.to}
+          onClick={onNavigate}
+          aria-current="page"
+          className={cn(NAV_LINK_BASE, 'bg-nav-selected-surface font-semibold text-nav-active-text')}
+        >
+          <Icon name={item.icon} />
+          {renderLabel(item)}
+        </Link>
       );
     }
 
@@ -327,8 +341,8 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           return cn(
             NAV_LINK_BASE,
             active
-              ? 'bg-primary/10 font-semibold text-nav-active-text'
-              : 'text-foreground hover:bg-accent',
+              ? 'bg-nav-selected-surface font-semibold text-nav-active-text'
+              : 'text-foreground hover:bg-surface-hover',
           );
         }}
       >
@@ -340,7 +354,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
 
   return (
     <aside
-      className="flex min-h-0 flex-col border-r border-border bg-card"
+      className="flex min-h-0 flex-col border-r border-border bg-[hsl(var(--surface-panel))]"
       style={{ gridArea: 'rail' }}
     >
       <div
@@ -371,7 +385,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
             if (groupItems.length === 0) return null;
             return (
               <React.Fragment key={group}>
-                <div className="px-2 pb-1.5 pt-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                <div className="px-2 pb-1.5 pt-3.5 text-support font-semibold text-muted-foreground">
                   {groupLabels[group]}
                 </div>
                 {groupItems.map(renderItem)}
@@ -380,7 +394,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           })}
           {showMyViews && (
             <div role="group" aria-label={myViewsLabel}>
-              <div className="px-2 pb-1.5 pt-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              <div className="px-2 pb-1.5 pt-3.5 text-support font-semibold text-muted-foreground">
                 {myViewsLabel}
               </div>
               {myViewsItems.map((view) => (
@@ -392,8 +406,8 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
                     cn(
                       NAV_LINK_BASE,
                       isActive
-                        ? 'bg-primary/10 font-semibold text-nav-active-text'
-                        : 'text-foreground hover:bg-accent',
+                        ? 'bg-nav-selected-surface font-semibold text-nav-active-text'
+                        : 'text-foreground hover:bg-surface-hover',
                     )
                   }
                 >
@@ -418,7 +432,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
               onOpenAssistant?.();
               onNavigate?.();
             }}
-            className={cn(NAV_LINK_BASE, 'w-full text-foreground hover:bg-accent')}
+            className={cn(NAV_LINK_BASE, 'w-full text-foreground hover:bg-surface-hover aria-pressed:bg-nav-selected-surface aria-pressed:text-nav-active-text')}
           >
             <Icon name="message" />
             <span>{t('shell.rail.assistant', 'Assistant')}</span>
@@ -435,8 +449,8 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
               cn(
                 NAV_LINK_BASE,
                 isActive
-                  ? 'bg-primary/10 font-semibold text-nav-active-text'
-                  : 'text-foreground hover:bg-accent',
+                  ? 'bg-nav-selected-surface font-semibold text-nav-active-text'
+                  : 'text-foreground hover:bg-surface-hover',
               )
             }
           >
@@ -450,7 +464,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           <NavLink
             to="/administration/users"
             onClick={onNavigate}
-            className="touch-target flex min-h-11 items-center gap-2 rounded-md px-2.5 text-sm text-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+            className="touch-target flex min-h-11 items-center gap-3 rounded-md px-2.5 text-control text-foreground hover:bg-surface-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring [&_svg]:size-5"
           >
             <Icon name="admin" aria-hidden="true" />
             <span>{t('admin.access.checkEntry', 'Check Administration access')}</span>

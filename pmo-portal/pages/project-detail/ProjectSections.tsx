@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, MobileActionBar, Tabs, tabId, tabPanelId, type TabItem } from '@/src/components/ui';
@@ -34,6 +34,9 @@ interface Props {
   header: React.ReactNode;
 }
 
+type CountedArea = 'procurement' | 'tasks' | 'documents';
+type ProjectTabCounts = Partial<Record<CountedArea, number>>;
+
 function useLens(): Lens {
   const { realRole } = useEffectiveRole();
   if (realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance') return 'money';
@@ -64,19 +67,17 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
   if (isPipeline) {
     if (lens === 'delivery') {
       return (
-        <div className="flex min-w-0 flex-col gap-10">
-          <div className={`grid min-w-0 gap-8 ${showDeliveryAttention ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
+        <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
+          <div className={`grid min-w-0 gap-[var(--space-panel-gap)] ${showDeliveryAttention ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
             <MyOpenTasks projectId={project.id} />
-            {showDeliveryAttention && <section className="min-w-0 border-y border-border/70 py-4">
-              <ProjectAttention {...attentionProps} />
-            </section>}
+            {showDeliveryAttention && <ProjectAttention {...attentionProps} className="min-w-0" />}
           </div>
           <DeliveryBlock projectId={project.id} isPipeline />
         </div>
       );
     }
     return (
-      <div className="grid min-w-0 gap-12 xl:grid-cols-2">
+      <div className="grid min-w-0 gap-[var(--space-panel-gap)] xl:grid-cols-2">
         <CostBlock project={project} isPipeline onOpenBudget={() => onOpen('budget')} />
         <DeliveryBlock projectId={project.id} isPipeline={isPipeline} />
         {/* AC-PMP-006: invoices and spending already recorded against a deal stay visible before it is won. */}
@@ -86,20 +87,18 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
   }
   return (
     lens === 'delivery' ? (
-      <div className="flex min-w-0 flex-col gap-10">
-        <div className={`grid min-w-0 gap-8 ${showDeliveryAttention ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
+      <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
+        <div className={`grid min-w-0 gap-[var(--space-panel-gap)] ${showDeliveryAttention ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
           <MyOpenTasks projectId={project.id} />
-          {showDeliveryAttention && <section className="min-w-0 border-y border-border/70 py-4">
-            <ProjectAttention {...attentionProps} />
-          </section>}
+          {showDeliveryAttention && <ProjectAttention {...attentionProps} className="min-w-0" />}
         </div>
         <DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock>
       </div>
     ) : (
-      <div className="flex min-w-0 flex-col gap-10">
+      <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
         {/* Phone reads attention → money → budget; at xl the money block spans both rows of the right column,
             so the budget fills the space under the (usually short) attention list instead of leaving it empty. */}
-        <div className={`grid min-w-0 items-start gap-x-10 gap-y-10 ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
+        <div className={`grid min-w-0 items-start gap-[var(--space-panel-gap)] ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
           <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} className="min-w-0 xl:col-start-1 xl:row-start-1" />
           {canSeeMoney && <div className="min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1"><MoneyBlock project={project} /></div>}
           <div className={`min-w-0 ${canSeeMoney ? 'xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={() => onOpen('budget')} /></div>
@@ -111,19 +110,18 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
 };
 
 /** One area's working surface, identical in every layout. */
-const AreaContent: React.FC<{ project: ProjectWithRefs; area: Exclude<Area, 'overview'> }> = ({ project, area }) => {
+const AreaContent: React.FC<{ project: ProjectWithRefs; area: Exclude<Area, 'overview'>; onCountChange?: (count: number | null) => void }> = ({ project, area, onCountChange }) => {
   switch (area) {
     case 'budget': return <BudgetTab projectId={project.id} />;
-    case 'procurement': return <ProcurementTab projectId={project.id} />;
-    case 'tasks': return <TasksTab projectId={project.id} projectName={project.name} />;
-    case 'documents': return <DocumentsTab projectId={project.id} projectCode={project.code} />;
+    case 'procurement': return <ProcurementTab projectId={project.id} onCountChange={onCountChange} />;
+    case 'tasks': return <TasksTab projectId={project.id} projectName={project.name} onCountChange={onCountChange} />;
+    case 'documents': return <DocumentsTab projectId={project.id} projectCode={project.code} onCountChange={onCountChange} />;
     case 'activity': return <ProjectActivity projectId={project.id} />;
     case 'contract': {
       return (
-        <ContractCascade project={project}>
+        <ContractCascade project={project} contractTools={<BillingTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
+          projectManagerId={project.project_manager_id ?? null} mode="contract-tools" />}>
           <div className="flex min-w-0 flex-col gap-4">
-            <BillingTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
-              projectManagerId={project.project_manager_id ?? null} mode="contract-tools" />
             <WorkOrdersTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
               focusWorkOrderId={new URLSearchParams(window.location.search).get('wo')}
               projectManagerId={project.project_manager_id ?? null} showSettlementNote={false}
@@ -165,9 +163,33 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
   const { t } = useTranslation('project');
   const labels = useAreaLabels();
   const areas = useVisibleAreas(isPipeline).filter((a) => a !== 'activity');
+  const [loadedCounts, setLoadedCounts] = useState<{ projectId: string; values: ProjectTabCounts }>(() => ({ projectId: project.id, values: {} }));
+  const updateCount = useCallback((key: CountedArea, count: number | null) => {
+    setLoadedCounts((current) => {
+      const values = current.projectId === project.id ? current.values : {};
+      const nextCount = count ?? undefined;
+      if (values[key] === nextCount) return current;
+      const next = { ...values };
+      if (nextCount === undefined) delete next[key];
+      else next[key] = nextCount;
+      return { projectId: project.id, values: next };
+    });
+  }, [project.id]);
+  const reportProcurementCount = useCallback((count: number | null) => updateCount('procurement', count), [updateCount]);
+  const reportTaskCount = useCallback((count: number | null) => updateCount('tasks', count), [updateCount]);
+  const reportDocumentCount = useCallback((count: number | null) => updateCount('documents', count), [updateCount]);
+  const currentCounts = loadedCounts.projectId === project.id ? loadedCounts.values : {};
   // A deep link to an area this role or stage doesn't have lands on the Overview (AC-PB-008, SUB-A).
   const panel: Area = (areas as Area[]).includes(area) ? area : 'overview';
-  const items: TabItem<Area>[] = areas.map((a) => ({ value: a, label: labels[a] }));
+  const items: TabItem<Area>[] = areas.map((a) => {
+    if (a === 'procurement' || a === 'tasks' || a === 'documents') {
+      return { value: a, label: labels[a], count: currentCounts[a] ?? null, countPresentation: 'inline' };
+    }
+    return { value: a, label: labels[a] };
+  });
+  const onCountChange = panel === 'procurement' ? reportProcurementCount
+    : panel === 'tasks' ? reportTaskCount
+      : panel === 'documents' ? reportDocumentCount : undefined;
   return (
     <>
       {header}
@@ -186,7 +208,7 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
         <Suspended>
           {panel === 'overview'
             ? <OverviewContent project={project} isPipeline={isPipeline} onOpen={setArea} />
-            : <AreaContent project={project} area={panel} />}
+            : <AreaContent project={project} area={panel} onCountChange={onCountChange} />}
         </Suspended>
       </div>
       {/* Activity is about the project as a whole, so it lives on Overview only (owner, 2026-10-27). */}

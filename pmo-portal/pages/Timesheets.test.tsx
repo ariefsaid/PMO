@@ -443,7 +443,6 @@ describe('timesheet-entry: editable gating (Task 14)', () => {
     expect(screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours').tagName).toBe('INPUT');
     const addProject = screen.getByLabelText(/add a project/i);
     expect(addProject).toBeInTheDocument();
-    expect(addProject).toHaveClass('h-8');
     expect(document.querySelector('label[for="ts-add-project"]')).toHaveClass('sr-only');
     expect(screen.getByRole('button', { name: /^save$/i })).toBeInTheDocument();
   });

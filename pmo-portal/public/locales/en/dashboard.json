@@ -56,7 +56,7 @@
     "marginAria": "{{name}} margin to date: {{pct}}"
   },
   "risk": {
-    "uncheckedNote": "Risk can't be checked yet — no active budget."
+    "uncheckedNote": "Risk can't be checked yet: no active budget."
   },
   "spend": {
     "partial": "Partial"
@@ -580,7 +580,7 @@
     "emptyTitle": "No closed projects in this window",
     "emptySub": "Try a wider time frame to see your win rate.",
     "won": "Won",
-    "declined": "{{n}} declined to bid — not counted in the win rate",
+    "declined": "{{n}} declined to bid, not counted in the win rate",
     "decidedLabel": "Win rate on decided bids",
     "allBidsLabel": "Conversion of all bids",
     "decidedProgress": "{{currency}} win rate on decided bids",

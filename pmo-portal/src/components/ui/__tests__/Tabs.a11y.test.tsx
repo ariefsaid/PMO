@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { Tabs } from '../Tabs';
+import { render, screen, within } from '@testing-library/react';
+import { Tabs, type TabItem } from '../Tabs';
 import { tabId, tabPanelId } from '../tabIds';
 
 describe('Tabs a11y wiring (G4)', () => {
@@ -46,6 +46,25 @@ describe('Tabs a11y wiring (G4)', () => {
     expect(screen.getByRole('tab', { name: /Documents\s*7/ })).toBeInTheDocument();
     // A tab with no count has no trailing badge text.
     expect(screen.getByRole('tab', { name: 'Overview' })).toBeInTheDocument();
+  });
+
+  it('renders inline project counts as muted numbers instead of badges', () => {
+    const items: Array<TabItem<'documents'> & { countPresentation: 'inline' }> = [
+      { value: 'documents', label: 'Documents', count: 7, countPresentation: 'inline' },
+    ];
+    render(
+      <Tabs
+        items={items}
+        value="documents"
+        onChange={() => {}}
+        ariaLabel="Project sections"
+        idBase="project-detail"
+      />,
+    );
+    const tab = screen.getByRole('tab', { name: 'Documents 7' });
+    const count = within(tab).getByText('7');
+    expect(count).toHaveClass('text-muted-foreground');
+    expect(count).not.toHaveClass('bg-status-neutral-surface');
   });
 
   it('omits the count badge when count is null/undefined (back-compat with ProjectDetail)', () => {

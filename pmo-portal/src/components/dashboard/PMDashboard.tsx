@@ -151,7 +151,7 @@ export const PMDashboard: React.FC = () => {
   const primaryLoading = projectsQuery.isPending || needs.isPending || procurementsQuery.isPending;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-[var(--space-panel-gap)]">
       <DashPageHead
         title={t('hub.pm.title', 'My dashboard')}
         sub={projectsQuery.data === undefined
@@ -172,7 +172,7 @@ export const PMDashboard: React.FC = () => {
 
       <ApprovalStrip items={approvalItems} />
 
-      <KPIRow aria-label={t('hub.pm.kpiBand', 'My project figures')} className={marginKnown || projectsErrorReason ? 'grid-cols-2 min-[1180px]:grid-cols-5' : 'grid-cols-2 min-[1180px]:grid-cols-4'}>
+      <KPIRow aria-label={t('hub.pm.kpiBand', 'My project figures')} className={marginKnown || projectsErrorReason ? 'grid-cols-2 min-[1280px]:grid-cols-5' : 'grid-cols-2 min-[1280px]:grid-cols-4'}>
         <KPITile
           testId="kpi-my-projects"
           tone="violet"

@@ -422,7 +422,7 @@ describe('BudgetAccountMap — several accounts per category (#768)', () => {
     listMock.mockResolvedValue(MULTI);
     renderPage('Admin');
     const materials = (await screen.findByText('Materials')).closest('tr')!;
-    expect(within(materials).getByText('No push account — blocks every push')).toBeInTheDocument();
+    expect(within(materials).getByText('No push account: blocks every push')).toBeInTheDocument();
   });
 
   it('AC-BAM-009 an account added to a category that has a push account is added read-only', async () => {

@@ -64,21 +64,16 @@ describe('ProjectedMarginBars (Exec — real useSalesPipeline)', () => {
     expect(screen.getByLabelText(/Tender Submitted:/i)).toBeInTheDocument();
   });
 
-  it('batch-3: colors every weighted-value bar with the neutral chart tone (not action-blue)', () => {
+  it('uses the primary channel for every single-series weighted-value bar', () => {
     const { container } = wrap(<ProjectedMarginBars stages={stages} currency="USD" />);
     const fills = Array.from(
       container.querySelectorAll<HTMLElement>('[role="progressbar"] > span'),
     );
     expect(fills.length).toBeGreaterThan(0);
     for (const fill of fills) {
-      expect(fill.style.background).toBe(chartTheme.axis);
-      expect(fill.style.background).toBe('hsl(var(--muted-foreground))');
-      expect(fill.style.background).not.toBe(chartTheme.series.primary);
+      expect(fill.style.background).toBe(chartTheme.series.primary);
     }
-    // No categorical hue (the violet PQ bar the audit flagged) leaks through.
-    for (const cat of chartTheme.categorical) {
-      expect(fills.some((f) => f.style.background === cat)).toBe(false);
-    }
+    expect(chartTheme.categorical).toEqual(Array.from({ length: 8 }, (_, index) => `hsl(var(--chart-${index + 1}))`));
     // Per-stage label still present (color-not-only).
     expect(screen.getByText('Negotiation')).toBeInTheDocument();
   });

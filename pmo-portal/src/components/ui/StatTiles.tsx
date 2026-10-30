@@ -16,11 +16,11 @@ export interface StatTile {
 
 export interface StatTilesProps {
   tiles: StatTile[];
-  /** Columns at sm+ breakpoint (default 4). Mobile is always 2-col. */
+  /** Columns once the strip's container fits N tiles (default 4). Narrow containers stay 2-col. */
   columns?: number;
   className?: string;
   /**
-   * Visual treatment (monochrome-calm reskin, content-over-containers):
+   * Visual treatment:
    *  • `framed` (default) — the hairline-gap strip in a bordered card frame.
    *  • `bare`              — borderless: the KPIs sit directly on the canvas,
    *                          separated by whitespace. Used on record-page finance
@@ -31,18 +31,31 @@ export interface StatTilesProps {
 }
 
 /**
- * Stat-tile column count map: for each columns value, the Tailwind `sm:grid-cols-*`
- * class that overrides the mobile 2-col base at the sm+ breakpoint.
+ * Stat-tile column map: for each columns value, the container-query classes that
+ * grow the grid from the 2-col mobile base as the STRIP's container widens.
  * Hardcoded so Tailwind's JIT can statically detect these classes.
  * Covers 1–6 columns; add entries here if larger counts are ever needed.
+ *
+ * Container queries, not viewport breakpoints: the strip lives in wide canvases AND in
+ * narrow hosts (the approvals pane is ~650px at 1440), and a 5-up viewport grid in a
+ * narrow host broke a currency figure mid-number ("$6,900,00 / 0", tidy sweep 2026-10-30).
+ * Sizing rule of thumb: a tile needs ~12rem for a 24px tabular amount.
  */
-const SM_COLS_CLASS: Record<number, string> = {
-  1: 'sm:grid-cols-1',
-  2: 'sm:grid-cols-2',
-  3: 'sm:grid-cols-3',
-  4: 'sm:grid-cols-4',
-  5: 'sm:grid-cols-5',
-  6: 'sm:grid-cols-6',
+const CONTAINER_COLS_CLASS: Record<number, string> = {
+  1: '',
+  2: '',
+  3: '@xl:grid-cols-3',
+  4: '@3xl:grid-cols-4',
+  5: '@2xl:grid-cols-3 @5xl:grid-cols-5',
+  6: '@2xl:grid-cols-3 @5xl:grid-cols-6',
+};
+
+/** When the N-col layout activates, the odd-count last tile stops spanning the row. */
+const CONTAINER_SPAN_RESET: Record<number, string> = {
+  3: '@xl:col-span-1',
+  4: '@3xl:col-span-1',
+  5: '@5xl:col-span-1',
+  6: '@5xl:col-span-1',
 };
 
 /**
@@ -59,7 +72,7 @@ const SM_COLS_CLASS: Record<number, string> = {
  * sm:col-span-1 resets the span at the sm+ breakpoint where the N-col grid takes over.
  * Desktop behavior is unchanged.
  *
- * `variant="bare"` (content-over-containers): drops the card frame + cell fills so the
+ * `variant="bare"`: drops the card frame + cell fills so the
  * strip is a quiet row of KPIs on the canvas — fewer boxes, more air. Layout + clip
  * behavior is identical to `framed`.
  */
@@ -69,20 +82,23 @@ export const StatTiles: React.FC<StatTilesProps> = ({
   className,
   variant = 'framed',
 }) => {
-  const smColsClass = SM_COLS_CLASS[columns] ?? `sm:grid-cols-${columns}`;
+  const smColsClass = CONTAINER_COLS_CLASS[columns] ?? '';
+  const spanReset = CONTAINER_SPAN_RESET[columns] ?? '';
   const isOdd = tiles.length % 2 !== 0;
   const isBare = variant === 'bare';
   return (
     <div
       data-testid="stat-tiles"
       className={cn(
-        // mobile: 2-col grid — all tiles visible at a glance (I6, no carousel)
-        'grid grid-cols-2',
-        // sm+: N-col equal-width grid per the columns prop
+        // mobile: 2-col grid — all tiles visible at a glance (I6, no carousel).
+        // Container query: the N-col layout is driven by the strip's OWN width, so the
+        // same tiles sit 2-up in a narrow pane and N-up on a wide canvas (tidy fix).
+        '@container grid grid-cols-2',
+        // N-col equal-width grid per the columns prop once the container fits it
         smColsClass,
         // framed = the hairline-gap card strip; bare = borderless on the canvas
         isBare
-          ? 'gap-x-8 gap-y-5'
+          ? 'gap-[var(--space-group)]'
           : 'rounded-lg border border-border bg-border gap-px',
         className,
       )}
@@ -99,14 +115,14 @@ export const StatTiles: React.FC<StatTilesProps> = ({
             className={cn(
               isBare
                 ? 'py-1'
-                : 'bg-card px-3.5 py-[13px] first:rounded-l-lg last:rounded-r-lg',
-              isLastOdd && 'col-span-2 sm:col-span-1',
+                : 'bg-card px-[var(--space-content-inset)] py-3 first:rounded-l-lg last:rounded-r-lg',
+              isLastOdd && cn('col-span-2', spanReset),
             )}
           >
-            <div className="mb-1 text-[11.5px] text-muted-foreground">{t.label}</div>
+            <div className="mb-1 text-control text-muted-foreground">{t.label}</div>
             <div
               className={cn(
-                'min-w-0 break-words text-[17px] font-bold tracking-[-0.01em] tabular',
+                'min-w-0 break-words text-metric font-semibold tabular',
                 // AC-RAM-004 (#688): raw text-success failed color-contrast in dark theme —
                 // the same class of gap the 'neg' tone below was already fixed for. text-success-text
                 // uses --success-text (the AA on-canvas variant), same move as destructive-text.
@@ -118,7 +134,7 @@ export const StatTiles: React.FC<StatTilesProps> = ({
             >
               <FigureContent value={t.value} exactValue={t.exactValue} unavailableReason={t.unavailableReason} />
             </div>
-            {t.sub && <div className="mt-0.5 text-[11px] text-muted-foreground">{t.sub}</div>}
+            {t.sub && <div className="mt-0.5 text-support text-muted-foreground">{t.sub}</div>}
           </div>
         );
       })}

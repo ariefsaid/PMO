@@ -4,7 +4,7 @@
  * A report's APPROVED sheet may be re-opened for correction ONLY when ERP holds no document for it.
  * The surface must be HONEST about which is which (never a disabled button with no reason):
  *   • NO mirror (ts_number null) and NO in-flight push command → a "Re-open for correction" button.
- *   • a LIVE ERP doc (mirror.ts_number set)                    → "Already pushed to ERP — correction path coming" (NO button).
+ *   • a LIVE ERP doc (mirror.ts_number set)                    → "Already pushed to ERP: correction path coming" (NO button).
  *   • a NON-TERMINAL push command (external_command_outbox     → "Push in progress" (NO button).
  *     pending/committing/committed/quarantined/held)
  *

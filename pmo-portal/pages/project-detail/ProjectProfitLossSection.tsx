@@ -130,7 +130,7 @@ const ProjectProfitLossSection: React.FC<ProjectProfitLossSectionProps> = ({ pro
   if (sectionState.kind === 'loading' && !catalogue) return null;
 
   return (
-    <div className="min-w-0">
+    <div className="mt-6 min-w-0 border-t border-border/70 pt-4">
       {catalogue?.state === 'complete' && (
         <FormGrid className="mb-4 min-w-0">
           <StatementPeriodPicker

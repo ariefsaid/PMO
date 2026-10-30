@@ -56,7 +56,7 @@
     "marginAria": "Margin sampai saat ini {{name}}: {{pct}}"
   },
   "risk": {
-    "uncheckedNote": "Risiko belum dapat diperiksa — belum ada anggaran aktif."
+    "uncheckedNote": "Risiko belum dapat diperiksa: belum ada anggaran aktif."
   },
   "spend": {
     "partial": "Parsial"
@@ -580,7 +580,7 @@
     "emptyTitle": "Tidak ada proyek selesai dalam periode ini",
     "emptySub": "Pilih periode lebih panjang untuk melihat tingkat kemenangan.",
     "won": "Menang",
-    "declined": "{{n}} tidak ikut tender — tidak dihitung dalam win rate",
+    "declined": "{{n}} tidak ikut tender, tidak dihitung dalam win rate",
     "decidedLabel": "Tingkat kemenangan dari tender yang diputuskan",
     "allBidsLabel": "Konversi dari semua tender",
     "decidedProgress": "Tingkat kemenangan {{currency}} dari tender yang diputuskan",

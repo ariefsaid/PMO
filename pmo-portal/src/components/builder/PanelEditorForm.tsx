@@ -401,7 +401,7 @@ export const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
             ))}
             {hasTeamToken && (
               <FieldError>
-                {t('viewBuilder.currentTeamWarning', '$current_team requires a teamId context at render time — it may fail at preview.')}
+                {t('viewBuilder.currentTeamWarning', '$current_team requires a teamId context at render time. It may fail at preview.')}
               </FieldError>
             )}
             <button

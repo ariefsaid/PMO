@@ -71,7 +71,13 @@
     "periodBalanceSheet": "Neraca",
     "periodTrialBalance": "Neraca saldo",
     "latestStatement": "Periode terbaru {{period}}",
-    "back": "Kembali"
+    "back": "Kembali",
+    "payablesAgeingBasis": "Faktur pemasok berdasarkan usia · sejak status ditagih atau pembaruan terakhir",
+    "ageingUnknown_one": "Tidak ada saldo diketahui untuk dikelompokkan · {{count}} saldo tidak diketahui",
+    "ageingUnknown_other": "Tidak ada saldo diketahui untuk dikelompokkan · {{count}} saldo tidak diketahui",
+    "ageingUnknownCount_one": "{{count}} saldo tidak diketahui",
+    "ageingUnknownCount_other": "{{count}} saldo tidak diketahui",
+    "ageingEmpty": "Tidak ada saldo untuk dikelompokkan berdasarkan usia"
   },
   "table": {
     "selectRow": "Pilih {{name}}"
@@ -91,7 +97,8 @@
     "receivedVsLastMonth": "dibanding bulan lalu",
     "otherCurrencies": "{{amounts}} dalam mata uang lain",
     "otherCurrencyDeltas": "{{amounts}} dibanding bulan lalu",
-    "invoiceClients": "{{invoices}} faktur · {{clients}} {{clientLabel}}",
+    "invoiceClients_one": "{{count}} faktur · {{clients}} {{clientLabel}}",
+    "invoiceClients_other": "{{count}} faktur · {{clients}} {{clientLabel}}",
     "clientSingular": "klien",
     "clientPlural": "klien",
     "overdueDetails": "{{percent}} dari piutang · {{count}} {{invoiceLabel}} · terlama {{days}} hari",
@@ -171,7 +178,11 @@
     "figures": "Angka piutang",
     "evidenceLoadError": "Gagal memuat baris faktur dari sistem akuntansi.",
     "amount": "Jumlah",
-    "outstandingUnknown": "Saldo terutang belum diketahui: sistem akuntansi belum melaporkannya untuk faktur ini."
+    "outstandingUnknown": "Saldo terutang belum diketahui: sistem akuntansi belum melaporkannya untuk faktur ini.",
+    "mobileInvoiceAmount": "Total faktur tidak termasuk PPN",
+    "mobileOutstandingUnknown": "Saldo terutang tidak diketahui",
+    "mobileInvoiceAmountInclusive": "Total faktur termasuk PPN",
+    "mobileInvoiceAmountUnspecified": "Jumlah faktur"
   },
   "invoices": {
     "description": "Faktur klien.",

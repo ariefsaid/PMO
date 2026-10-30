@@ -9,199 +9,311 @@
 @import "tailwindcss";
 
 /* =============================================================================
-   Inter variable webfont — SELF-HOSTED (2026-07-28, IMPORTANT-7 Discover-pass fix,
-   ADR-0068). Previously loaded from fonts.googleapis.com/fonts.gstatic.com via
-   <link> tags in index.html: that made an uncontrolled, undisclosed third-party
-   request (IP + User-Agent + Referer to Google) on EVERY page — including
-   `/privacy` itself, before any consent choice, and even for a fully opted-out
-   session (the opt-out only ever gated PostHog, never the font fetch). Files
-   live at `public/fonts/` (served at `/fonts/*` by Vite) — pulled once from
-   Google's own variable-font endpoint (opsz 14..32 + wght 100..900, so 400/500/
-   600 all resolve from the SAME file, matching what the CDN link used to serve)
-   and committed to the repo; the browser now never contacts Google at all.
-   `latin` + `latin-ext` subsets only (no cyrillic/greek/vietnamese) — sufficient
-   for this English-language product UI; rendered glyphs are unchanged.
+   Hanken Grotesk variable webfont — SELF-HOSTED (owner decision 2026-10-29,
+   "Go hanken"; replaces the Inter webfont from ADR-0068/IMPORTANT-7). Still zero
+   third-party font requests: files live at `public/fonts/` (served at `/fonts/*`
+   by Vite) and were pulled once from Google's own variable-font endpoint
+   (wght 100..900, so 400/500/600 all resolve from the SAME file) and committed
+   to the repo beside the OFL licence text (`HankenGrotesk-OFL.txt`). The browser
+   never contacts any font CDN at runtime (CSP). `latin` + `latin-ext` subsets
+   only — sufficient for this product UI.
    ============================================================================= */
 @font-face {
-  font-family: 'Inter';
+  font-family: 'Hanken Grotesk';
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
-  src: url('/fonts/Inter-latin.woff2') format('woff2');
+  src: url('/fonts/HankenGrotesk-latin.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
     U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-  font-family: 'Inter';
+  font-family: 'Hanken Grotesk';
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
-  src: url('/fonts/Inter-latin-ext.woff2') format('woff2');
+  src: url('/fonts/HankenGrotesk-latin-ext.woff2') format('woff2');
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
-    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113,
     U+2C60-2C7F, U+A720-A7FF;
 }
 
 /* =============================================================================
-   PMO Portal token pipeline (ADR-0068 monochrome-calm). shadcn-vue HSL bare
-   triplets mapped by semantic ROLE onto the app's existing variable names from
-   reskin/_app.css §0 (`:root,.light` + `.dark`). Canonical runtime form is the BARE
-   `H S% L%` triplet so `/ <alpha>` works (e.g. bg-primary/10, border-border/70).
-   Light is default; `.dark` (dormant until a toggle is wired in a later slice)
-   redeclares every token for a first-class, WCAG-AA dark theme.
+   PMO semantic tokens. Store colors as bare HSL triplets so Tailwind slash-alpha
+   utilities continue to work. The paired themes use the reference design system
+   values, with stronger text/boundary roles where WCAG AA requires them.
    ============================================================================= */
 :root {
-  /* ===========================================================================
-     LIGHT — monochrome-calm palette (ADR-0068). Values ported from
-     reskin/_app.css §0 `:root,.light` and mapped by semantic ROLE onto the app's
-     existing shadcn-HSL bare-triplet names. The bare `H S% L%` form is LOAD-BEARING:
-     slash-alpha tints (bg-primary/10, border-border/70, bg-success/12) only work on
-     bare triplets — do NOT wrap these in hsl(). No --ds-* names are introduced
-     (only --ds-ease is new). --primary/--ring stay the PMO blue (held to primary +
-     ring only); every other role is the calm near-mono zinc ramp.
-     =========================================================================== */
-
-  /* --- Surfaces (reskin --ds-surface-canvas/-raised = white; --ds-text-primary = neutral-12) --- */
-  --background: 0 0% 100%;            --foreground: 240 6% 10%;
-  --card: 0 0% 100%;                  --card-foreground: 240 6% 10%;
-  --popover: 0 0% 100%;               --popover-foreground: 240 6% 10%;
-  /* --- Brand / action — PMO blue KEPT exactly (blue held to primary + ring only) --- */
-  --primary: 221.2 83.2% 53.3%;       --primary-foreground: 0 0% 98%;
-  /* --- Quiet UI (reskin neutral-3 zinc / text-secondary / text-tertiary) --- */
-  --secondary: 240 5% 95.5%;          --secondary-foreground: 240 4% 32%;
-  --muted: 240 5% 95.5%;              --muted-foreground: 240 4% 44%;
-  --accent: 240 5% 95.5%;             --accent-foreground: 240 4% 32%;
-  /* --- Status / semantic (reskin §0 light hues + AA -fg) --- */
-  --destructive: 0 72% 50%;           --destructive-foreground: 0 0% 100%;
-  /* Solid destructive BUTTON fill only (never the dot/bar/status hue, never text-destructive) —
-     the same primary/primary-solid split DESIGN.md's accessibility posture already names for
-     --primary (index.css .dark --primary below). Light keeps the same value as raw --destructive
-     (light solid-button contrast was never flagged as failing); dark is a darker `-solid` L so
-     white button text clears AA — see .dark below for why the two must differ. */
-  --destructive-solid: 0 72% 50%;
-  --warning: 40 96% 50%;              --warning-foreground: 28 95% 33%;
-  --success: 142 60% 42%;             --success-foreground: 0 0% 100%;
-  /* --- Status pill text (reskin AA -text variants; single source of truth).
-     open ← --ds-primary-text; won ← --ds-success-text; lost ← --ds-destructive-text;
-     violet ← --ds-violet-text. Each clears AA on its /10–/12 tint (reskin §0). --- */
-  --status-open-text: 221.2 83.2% 45%;
-  --status-won-text: 142 64% 27%;
-  --status-lost-text: 0 72% 44%;
-  --status-violet-text: 255 45% 42%;
-  /* --- Destructive text (reskin --ds-destructive-text: AA on white + tint, ≥4.5:1) --- */
-  --destructive-text: 0 72% 44%;
-  /* --- Link text / nav active text (reskin --ds-primary-text: AA on white + dark canvas) --- */
-  --primary-text: 221.2 83.2% 45%;
-  --nav-active-text: 221.2 83.2% 45%;
-  /* --- Semantic icon / surface tokens (reskin §0) ---
-     warning-icon ← --ds-warning-icon; success-text ← --ds-success-text;
-     tooltip-muted ← muted text on the constant-dark tooltip surface (no direct reskin
-       token — zinc 75% L, ~9:1 on the hsl(240 10% 8%) tooltip, declared for both themes);
-     scrim ← --ds-surface-overlay COLOR (alpha dropped — the app applies /0.4 itself). --- */
-  --warning-icon: 35 92% 42%;
-  --success-text: 142 64% 27%;
-  --tooltip-muted: 240 5% 75%;
-  --scrim: 240 8% 6%;
-  /* --- Lines / fields / focus (reskin border / border-strong; ring = PMO blue KEPT) --- */
-  --border: 240 5% 90.5%;             --input: 240 4% 84%;
-  --ring: 221.2 83.2% 53.3%;          --violet: 255 50% 55%;
-  /* --- Geometry (unchanged) --- */
-  --radius: 0.5rem;
-  --rail-w: 224px;                    --header-h: 56px;
-  /* --- Motion (reskin --ds-ease; declared only — NOT wired to existing keyframes yet) --- */
-  --ds-ease: 120ms cubic-bezier(0.16, 1, 0.3, 1);
-  /* Quiet light status bars; dark overrides to solid fills for WCAG 1.4.11. */
-  --chart-status-fill-tint: 18%;
-  /* --- Avatar categorical solids (AA harden, 2026-07-07): same H/S family as
-     --primary/--violet/--success/--warning/--muted-foreground, L darkened so BOLD
-     WHITE initials clear 4.5:1 on the solid fill (the raw tokens above do not —
-     --success/--warning were 2.96:1 / 1.97:1 with white text). Avatar-only; never
-     use for status dots/pills/text, which keep their own AA-verified tokens. --- */
-  --avatar-1: 221.2 83.2% 55%;         --avatar-2: 255 50% 57%;
-  --avatar-3: 142 60% 32%;             --avatar-4: 40 96% 31%;
-  --avatar-5: 240 4% 46%;
   color-scheme: light;
+
+  /* Surfaces and text */
+  --background: 210 40% 96.0784%;
+  --surface-canvas: var(--background);
+  --surface-table-head: var(--background);
+  --foreground: 218.1818 12.3596% 17.451%;
+  --card: 0 0% 100%;
+  --surface-panel: var(--card);
+  --panel-border: var(--border);
+  --card-foreground: 218.1818 12.3596% 17.451%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 218.1818 12.3596% 17.451%;
+  --secondary: 220 11.1111% 94.7059%;
+  /* Strengthened for 4.5:1 on the pale secondary surface. */
+  --secondary-foreground: 216 11.6279% 33.7255%;
+  --muted: 210 14.2857% 97.2549%;
+  /* Neutral-800 keeps supporting text AA on pale secondary surfaces and chart overlays. */
+  --muted-foreground: 216 12% 22%;
+  --accent: 210 14.2857% 97.2549%;
+  --accent-foreground: 218.1818 12.3596% 17.451%;
+  --count-foreground: 216 11.6279% 33.7255%;
+
+  /* Action, focus, and navigation */
+  --primary: 230.8966 67.4419% 57.8431%;
+  --primary-foreground: 0 0% 100%;
+  --primary-text: 230.8966 67.4419% 57.8431%;
+  /* The selected navigation fill needs a darker label to retain text contrast. */
+  --nav-active-text: 230.8065 49.2063% 49.4118%;
+  --ring: 230.8929 68.2927% 67.8431%;
+  --primary-hover: 230.8065 49.2063% 49.4118%;
+  --primary-pressed: 230.5714 49.2958% 27.8431%;
+  --nav-surface: 214.2857 41.1765% 93.3333%;
+  --nav-selected-surface: 230.9091 67.3469% 90.3922%;
+
+  /* Neutral interaction states */
+  --surface-hover: 210 14.2857% 97.2549%;
+  --surface-pressed: 220 11.1111% 94.7059%;
+  --surface-selected: 210 14.2857% 97.2549%;
+  --surface-disabled: 222.8571 10.7692% 12.7451% / 3.9216%;
+  --text-disabled: 222.8571 10.7692% 12.7451% / 32.1569%;
+
+  /* Borders and controls */
+  --border: 217.5 12.9032% 87.8431%;
+  --border-subtle: 220 11.1111% 94.7059%;
+  --input: 217.5 13.1148% 52.1569%;
+  --input-subtle: 222.8571 10.7692% 12.7451% / 16.0784%;
+
+  /* Status and feedback */
+  --success: 155.1923 65% 31.3725%;
+  --success-text: 154.4828 64.4444% 26.4706%;
+  --success-foreground: 0 0% 100%;
+  /* Darker amber keeps warning markers/chart marks above 3:1 on light surfaces. */
+  --warning: 25.0286 87.0647% 39.4118%;
+  --warning-foreground: 25.2 87.2093% 33.7255%;
+  --warning-icon: 25.0286 87.0647% 39.4118%;
+  --destructive: 3.8028 57.2581% 48.6275%;
+  --destructive-solid: 3.8028 57.2581% 48.6275%;
+  --destructive-text: 3.9024 57.7465% 41.7647%;
+  --destructive-foreground: 0 0% 100%;
+  --status-open-text: 230.8065 49.2063% 49.4118%;
+  --status-won-text: 154.4828 64.4444% 26.4706%;
+  --status-lost-text: 3.9024 57.7465% 41.7647%;
+  --status-violet-text: 250.7692 32.5% 47.0588%;
+  --status-neutral-surface: 220 11.1111% 94.7059%;
+  --status-success-surface: 154.2857 36.8421% 96.2745%;
+  --status-warning-surface: 46.875 88.8889% 92.9412%;
+  --status-danger-surface: 4 71.4286% 95.8824%;
+  --status-violet-surface: 250.9091 64.7059% 96.6667%;
+  --violet: 250.5495 39.738% 55.098%;
+  --scrim: 217.5 18.6047% 16.8627%;
+  --scrim-alpha: 0.8;
+  --tooltip-muted: 217.5 12.9032% 87.8431%;
+
+  /* Chart channels */
+  --chart-1: 217.2067 81.7352% 57.0588%;
+  --chart-2: 173.617 80.5714% 34.3137%;
+  --chart-3: 250.0935 59.7765% 64.902%;
+  --chart-4: 25.1887 86.8852% 47.8431%;
+  --chart-5: 217.5 13.1148% 52.1569%;
+  --chart-6: 4 73.991% 56.2745%;
+  --chart-7: 83.913 80.2326% 33.7255%;
+  --chart-8: 292.2581 68.8889% 55.8824%;
+  /* Status bars are data marks; solid fills keep the marks above 3:1 on cards. */
+  --chart-status-fill-tint: 100%;
+
+  /* Dedicated shadow ink and elevation levels. Panels and sheets stay flat. */
+  --surface-shadow: 222.8571 10.7692% 12.7451% / 16.0784%;
+  --shadow-xs: 0 2px 4px 0 hsl(var(--surface-shadow)), 0 0 2px 0 hsl(var(--surface-shadow));
+  --shadow-sm: 0 10px 15px -3px hsl(var(--surface-shadow)), 0 4px 6px -2px hsl(var(--surface-shadow));
+  --shadow-lg: 0 25px 30px -10px hsl(var(--scrim) / 16%), 0 15px 15px -10px hsl(var(--scrim) / 16%);
+  --shadow-overlay: none;
+
+  /* Type scale: semantic roles share Hanken Grotesk and retain tabular figures. */
+  --type-micro: 10px;
+  --line-micro: 1.2;
+  --type-support: 12px;
+  --line-support: 1.34;
+  --type-control: 14px;
+  --line-control: 1.43;
+  --type-group: 16px;
+  --line-group: 1.5;
+  --type-section: 20px;
+  --line-section: 1.43;
+  --type-page: 24px;
+  --line-page: 1.34;
+  --type-metric: 24px;
+  --line-metric: 1.34;
+
+  /* Shape and control density */
+  --radius: 8px;
+  --control-radius: 6px;
+  --control-radius-sm: 4px;
+  --overlay-radius: 6px;
+  --control-height: 38px;
+  --control-height-sm: 30px;
+  --table-head-height: 52px;
+  --table-row-min-height: 52px;
+  --space-page-gutter: 24px;
+  --space-section-inset: 24px;
+  --space-content-inset: 16px;
+  --panel-inset: 24px;
+  --panel-radius: 8px;
+  --space-panel-gap: 24px;
+  --table-cell-inset: var(--space-content-inset);
+  --drawer-width: 448px;
+  --drawer-body-inset: var(--space-content-inset);
+  --space-section: 32px;
+  --space-group: 16px;
+  --rail-w: 224px;
+  --header-h: 56px;
+  --ds-ease: 120ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Existing AA-safe solid avatar fills remain independently tuned. */
+  --avatar-1: 221.2 83.2% 55%;
+  --avatar-2: 255 50% 57%;
+  --avatar-3: 142 60% 32%;
+  --avatar-4: 40 96% 31%;
+  --avatar-5: 240 4% 46%;
 }
 
-/* =============================================================================
-   DARK — monochrome-calm dark theme (ADR-0068). EVERY color/semantic token declared
-   in :root is redeclared here from reskin/_app.css §0 `.dark` (the lifted neutral
-   ramp + AA-fixed solids/text). DORMANT in this slice: activated ONLY by adding
-   `class="dark"` to <html> — no toggle/ThemeProvider/prefers-color-scheme is wired
-   (that is the next slice). @theme inline is untouched: it resolves var() at
-   use-time, so redeclaring the base vars here cascades through every utility.
-   NOTE on --primary: the app has ONE --primary token that doubles as the solid
-   button fill (bg-primary + white text), so dark --primary maps to reskin
-   --ds-primary-solid (52% L → white-on-primary 5.39:1, AA) rather than the brighter
-   --ds-primary hue (60% → white-on-primary 4.08:1, below AA). Blue text usages
-   (text-primary on dark) are ~3.5:1 at 52% — a gap for the surface slices to close
-   by adopting reskin's --ds-primary-text split, not a token-layer concern.
-   ============================================================================= */
 .dark {
   color-scheme: dark;
-  /* --- Surfaces (reskin dark canvas/raised + neutral-12 text) --- */
-  --background: 240 6% 7%;            --foreground: 240 6% 95%;
-  --card: 240 5% 11%;                 --card-foreground: 240 6% 95%;
-  --popover: 240 5% 11%;              --popover-foreground: 240 6% 95%;
-  /* --- Brand / action (reskin dark --ds-primary-solid + -solid-fg) --- */
-  --primary: 221 83% 52%;             --primary-foreground: 0 0% 100%;
-  /* --- Quiet UI (reskin dark surface-muted / text-secondary / text-tertiary) --- */
-  --secondary: 240 5% 14%;            --secondary-foreground: 240 5% 72%;
-  --muted: 240 5% 14%;                --muted-foreground: 240 4% 60%;
-  --accent: 240 5% 14%;               --accent-foreground: 240 5% 72%;
-  /* --- Status / semantic (reskin dark hues + AA -fg) --- */
-  /* AC-RAM-004 (#688) regression fix (2026-09-29): the FIRST fix for the 3.58:1 solid-button
-     contrast defect darkened THIS token (0 80% 62% → 0 80% 46%) — but --destructive doubles as
-     TEXT (`text-destructive`, ~30 callsites) and TEXT wants the brighter raw hue for contrast
-     against the dark canvas, not the darker solid-button L. Darkening it fixed the button and
-     broke every text usage (dark error text fell to ~3.5:1, sub-AA). Restored to the raw hue;
-     the solid BUTTON fill now reads `--destructive-solid` below instead (the split this section's
-     "Solid fills" note already prescribed for --primary/--destructive but this fix skipped). */
-  --destructive: 0 80% 62%;           --destructive-foreground: 0 0% 100%;
-  /* Solid destructive BUTTON fill only — darkened to the target this section's "Solid fills" note
-     already named (destructive-solid dark 46%) so white button text clears AA (~5.38:1), without
-     touching the raw --destructive hue that `text-destructive` and the dot/bar rely on for its own
-     (brighter, AA-on-dark-canvas) contrast. Same move already made for --primary's dark value
-     above (52% = its own `-solid` L). */
-  --destructive-solid: 0 80% 46%;
-  --warning: 43 90% 58%;              --warning-foreground: 43 92% 64%;
-  --success: 142 55% 52%;             --success-foreground: 0 0% 100%;
-  /* --- Status pill text (reskin dark -text; AA on dark tints) --- */
-  --status-open-text: 221 90% 72%;
-  --status-won-text: 142 60% 68%;
-  --status-lost-text: 0 85% 76%;
-  --status-violet-text: 255 65% 80%;
-  /* --- Destructive / link text / nav-active / icon / text (reskin dark -text variants) --- */
-  --destructive-text: 0 85% 76%;
-  --primary-text: 221 90% 72%;
-  --nav-active-text: 221 90% 72%;
-  --warning-icon: 43 90% 64%;
-  --success-text: 142 60% 68%;
-  /* tooltip-muted: same as light — the tooltip surface is a constant-dark knockout. */
-  --tooltip-muted: 240 5% 75%;
-  /* scrim ← reskin dark --ds-surface-overlay COLOR (alpha dropped; app applies /0.4). */
-  --scrim: 0 0% 0%;
-  /* --- Lines / fields / focus (reskin dark border / border-strong / ring) --- */
-  /* --input bumped 30%→42% L (2026-07-28, AC-A11Y-CHECKBOX-001): the raw reskin value measured
-     2.13:1 against --background — below WCAG 1.4.11's 3:1 non-text floor when used as a STANDALONE
-     control boundary (e.g. the unchecked Checkbox, whose 1.5px border is the ONLY indication a
-     control exists there). 42% clears 3:1 (~3.36:1) with headroom. This is a general --input bump,
-     not a checkbox-only patch — other bordered controls using `border-input` in dark theme likely
-     inherited the same sub-AA boundary; see the Accessibility posture note below. */
-  --border: 240 5% 16%;               --input: 240 4% 42%;
-  --ring: 221 90% 66%;                --violet: 255 60% 72%;
-  /* --- Geometry + motion (theme-independent; redeclared for full :root parity) --- */
-  --radius: 0.5rem;
-  --rail-w: 224px;                    --header-h: 56px;
-  --ds-ease: 120ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Surfaces and text */
+  --background: 205.7143 13.7255% 10%;
+  --surface-canvas: var(--background);
+  --surface-table-head: var(--background);
+  --foreground: 211.2 20.6612% 76.2745%;
+  --card: 210 12.1212% 12.9412%;
+  --surface-panel: var(--card);
+  --panel-border: var(--border);
+  --card-foreground: 211.2 20.6612% 76.2745%;
+  --popover: 210 12.1212% 12.9412%;
+  --popover-foreground: 211.2 20.6612% 76.2745%;
+  --secondary: 210 13.7255% 20%;
+  --secondary-foreground: 211.0345 17.7914% 68.0392%;
+  --muted: 206.6667 11.6883% 15.098%;
+  --muted-foreground: 211.0345 17.7914% 68.0392%;
+  --accent: 207.2727 12.0879% 17.8431%;
+  --accent-foreground: 211.2 20.6612% 76.2745%;
+  --count-foreground: 211.0345 17.7914% 68.0392%;
+
+  /* Action, focus, and navigation */
+  --primary: 231.25 68.5714% 72.549%;
+  --primary-foreground: 210 12.1212% 12.9412%;
+  --primary-text: 231.25 68.5714% 72.549%;
+  --nav-active-text: 231.5493 68.932% 79.8039%;
+  --ring: 231.5493 68.932% 79.8039%;
+  --primary-hover: 231.5493 68.932% 79.8039%;
+  --primary-pressed: 230.9091 67.3469% 90.3922%;
+  --nav-surface: 210 12.1212% 12.9412%;
+  --nav-selected-surface: 230.5714 49.2958% 27.8431%;
+
+  /* Neutral interaction states */
+  --surface-hover: 207.2727 12.0879% 17.8431%;
+  --surface-pressed: 210 13.7255% 20%;
+  --surface-selected: 207.2727 12.0879% 17.8431%;
+  --surface-disabled: 210 63.4146% 83.9216% / 3.9216%;
+  --text-disabled: 210.5263 80.2817% 86.0784% / 27.8431%;
+
+  /* Borders and controls */
+  --border: 210 13.7255% 20%;
+  --border-subtle: 206.6667 11.6883% 15.098%;
+  --input: 210.8571 14.2857% 51.9608%;
+  --input-subtle: 209 50.8475% 76.8627% / 16.0784%;
+
+  /* Status and feedback */
+  --success: 154.8649 39.7849% 63.5294%;
+  --success-text: 154.8 39.6825% 75.2941%;
+  --success-foreground: 210 12.1212% 12.9412%;
+  --warning: 46.2069 89.6907% 61.9608%;
+  --warning-foreground: 46.2069 89.6907% 61.9608%;
+  --warning-icon: 46.2069 89.6907% 61.9608%;
+  --destructive: 4 74.0741% 68.2353%;
+  --destructive-solid: 4 74.0741% 68.2353%;
+  --destructive-text: 3.4483 74.359% 77.0588%;
+  --destructive-foreground: 210 12.1212% 12.9412%;
+  --status-open-text: 231.5493 68.932% 79.8039%;
+  --status-won-text: 154.8 39.6825% 75.2941%;
+  --status-lost-text: 3.4483 74.359% 77.0588%;
+  --status-violet-text: 249.8361 60.396% 80.1961%;
+  --status-neutral-surface: 210 13.7255% 20%;
+  --status-success-surface: 155.7143 65.625% 12.549%;
+  --status-warning-surface: 45.7895 54.2857% 13.7255%;
+  --status-danger-surface: 4.2105 57.5758% 19.4118%;
+  --status-violet-surface: 250 32.7273% 21.5686%;
+  --violet: 250.2439 59.4203% 72.9412%;
+  --scrim: 210 20.4724% 49.8039%;
+  --scrim-alpha: 0.5;
+  --tooltip-muted: 217.5 12.9032% 87.8431%;
+
+  /* Chart channels */
+  --chart-1: 217.0286 91.623% 62.549%;
+  --chart-2: 173.625 76.1905% 41.1765%;
+  --chart-3: 250 60% 68.6275%;
+  --chart-4: 25.125 80% 60.7843%;
+  --chart-5: 218.5714 13.0841% 58.0392%;
+  --chart-6: 3.8849 73.545% 62.9412%;
+  --chart-7: 83.7805 80.3922% 40%;
+  --chart-8: 291.9018 84.456% 62.1569%;
   --chart-status-fill-tint: 100%;
-  /* --- Avatar categorical solids (AA harden, 2026-07-07): dark-theme darkened
-     variants, same H/S family as --primary/--violet/--success/--warning/
-     --muted-foreground — white initials clear 4.5:1 (raw dark tokens do not:
-     --violet/--success/--warning/--muted-foreground ranged 1.59–2.98:1). --- */
-  --avatar-1: 221 83% 55%;             --avatar-2: 255 60% 57%;
-  --avatar-3: 142 55% 33%;             --avatar-4: 43 90% 30%;
+
+  /* Dark-theme shadow ink remains low-opacity on dark surfaces. */
+  --surface-shadow: 205.7143 13.7255% 10%;
+  --shadow-xs: 0 2px 4px 0 hsl(var(--surface-shadow) / 16%), 0 0 2px 0 hsl(var(--surface-shadow) / 16%);
+  --shadow-sm: 0 10px 15px -3px hsl(var(--surface-shadow) / 16%), 0 4px 6px -2px hsl(var(--surface-shadow) / 16%);
+  --shadow-lg: 0 25px 30px -10px hsl(var(--scrim) / 16%), 0 15px 15px -10px hsl(var(--scrim) / 16%);
+  --shadow-overlay: none;
+
+  /* Theme-independent type, shape, density, motion, and avatar tokens. */
+  --type-micro: 10px;
+  --line-micro: 1.2;
+  --type-support: 12px;
+  --line-support: 1.34;
+  --type-control: 14px;
+  --line-control: 1.43;
+  --type-group: 16px;
+  --line-group: 1.5;
+  --type-section: 20px;
+  --line-section: 1.43;
+  --type-page: 24px;
+  --line-page: 1.34;
+  --type-metric: 24px;
+  --line-metric: 1.34;
+  --radius: 8px;
+  --panel-radius: 8px;
+  --panel-inset: 24px;
+  --space-panel-gap: 24px;
+  --control-radius: 6px;
+  --control-radius-sm: 4px;
+  --overlay-radius: 6px;
+  --control-height: 38px;
+  --control-height-sm: 30px;
+  --rail-w: 224px;
+  --header-h: 56px;
+  --ds-ease: 120ms cubic-bezier(0.16, 1, 0.3, 1);
+  --avatar-1: 221 83% 55%;
+  --avatar-2: 255 60% 57%;
+  --avatar-3: 142 55% 33%;
+  --avatar-4: 43 90% 30%;
   --avatar-5: 240 4% 46%;
+}
+
+@media (max-width: 921px) {
+  :root,
+  .dark {
+    --panel-inset: 16px;
+    --space-panel-gap: 16px;
+  }
 }
 
 /* Map Tailwind v4 utilities → the vars. In v4 `@theme` color values must be
@@ -212,6 +324,7 @@
    color-mix() from these bare colors. */
 @theme inline {
   --color-background: hsl(var(--background));
+  --color-surface-table-head: hsl(var(--surface-table-head));
   --color-foreground: hsl(var(--foreground));
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
@@ -219,6 +332,8 @@
   --color-popover-foreground: hsl(var(--popover-foreground));
   --color-primary: hsl(var(--primary));
   --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-surface-canvas: hsl(var(--surface-canvas));
+  --color-surface-panel: hsl(var(--surface-panel));
   --color-secondary: hsl(var(--secondary));
   --color-secondary-foreground: hsl(var(--secondary-foreground));
   --color-muted: hsl(var(--muted));
@@ -228,55 +343,109 @@
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
   --color-destructive-solid: hsl(var(--destructive-solid));
+  --color-destructive-text: hsl(var(--destructive-text));
   --color-warning: hsl(var(--warning));
   --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-warning-icon: hsl(var(--warning-icon));
   --color-success: hsl(var(--success));
   --color-success-foreground: hsl(var(--success-foreground));
+  --color-success-text: hsl(var(--success-text));
   --color-border: hsl(var(--border));
+  --color-panel-border: hsl(var(--panel-border));
+  --color-border-subtle: hsl(var(--border-subtle));
   --color-input: hsl(var(--input));
+  --color-input-subtle: hsl(var(--input-subtle));
   --color-ring: hsl(var(--ring));
   --color-violet: hsl(var(--violet));
   --color-primary-text: hsl(var(--primary-text));
   --color-nav-active-text: hsl(var(--nav-active-text));
-  --color-destructive-text: hsl(var(--destructive-text));
-  --color-warning-icon: hsl(var(--warning-icon));
-  --color-success-text: hsl(var(--success-text));
+  --color-count-foreground: hsl(var(--count-foreground));
+  --color-primary-hover: hsl(var(--primary-hover));
+  --color-primary-pressed: hsl(var(--primary-pressed));
+  --color-nav-surface: hsl(var(--nav-surface));
+  --color-nav-selected-surface: hsl(var(--nav-selected-surface));
+  --color-surface-hover: hsl(var(--surface-hover));
+  --color-surface-pressed: hsl(var(--surface-pressed));
+  --color-surface-selected: hsl(var(--surface-selected));
+  --color-surface-disabled: hsl(var(--surface-disabled));
+  --color-text-disabled: hsl(var(--text-disabled));
+  --color-status-open-text: hsl(var(--status-open-text));
+  --color-status-won-text: hsl(var(--status-won-text));
+  --color-status-lost-text: hsl(var(--status-lost-text));
+  --color-status-violet-text: hsl(var(--status-violet-text));
+  --color-status-neutral-surface: hsl(var(--status-neutral-surface));
+  --color-status-success-surface: hsl(var(--status-success-surface));
+  --color-status-warning-surface: hsl(var(--status-warning-surface));
+  --color-status-danger-surface: hsl(var(--status-danger-surface));
+  --color-status-violet-surface: hsl(var(--status-violet-surface));
   --color-tooltip-muted: hsl(var(--tooltip-muted));
   --color-scrim: hsl(var(--scrim));
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+  --color-chart-6: hsl(var(--chart-6));
+  --color-chart-7: hsl(var(--chart-7));
+  --color-chart-8: hsl(var(--chart-8));
   --color-avatar-1: hsl(var(--avatar-1));
   --color-avatar-2: hsl(var(--avatar-2));
   --color-avatar-3: hsl(var(--avatar-3));
   --color-avatar-4: hsl(var(--avatar-4));
   --color-avatar-5: hsl(var(--avatar-5));
-  --radius-lg: var(--radius);                 /* 8px */
-  --radius-md: calc(var(--radius) - 2px);     /* 6px */
-  --radius-sm: calc(var(--radius) - 4px);     /* 4px */
+  --radius-lg: var(--radius);
+  --radius-md: var(--control-radius);
+  --radius-sm: var(--control-radius-sm);
+  --radius-overlay: var(--overlay-radius);
+  --spacing-section: var(--space-section);
+  --spacing-group: var(--space-group);
+  --text-micro: var(--type-micro);
+  --text-micro--line-height: var(--line-micro);
+  --text-support: var(--type-support);
+  --text-support--line-height: var(--line-support);
+  --text-control: var(--type-control);
+  --text-control--line-height: var(--line-control);
+  --text-group: var(--type-group);
+  --text-group--line-height: var(--line-group);
+  --text-section: var(--type-section);
+  --text-section--line-height: var(--line-section);
+  --text-page: var(--type-page);
+  --text-page--line-height: var(--line-page);
+  --text-metric: var(--type-metric);
+  --text-metric--line-height: var(--line-metric);
+}
+
+/* One framed section answers one question on the canvas. The quiet hairline works with
+   the canvas/panel surface step to keep the group legible in both themes. */
+@layer components {
+  .panel-card {
+    min-width: 0;
+    border: 1px solid hsl(var(--panel-border));
+    border-radius: var(--panel-radius);
+    background: hsl(var(--surface-panel));
+  }
+  .panel-card-seam {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
 }
 
 @layer base {
-  /* Root font-size MUST be 16px so rem-based Tailwind utilities resolve to their
-     DESIGN.md sizes: h-8 = 2rem = 32px controls, text-sm = 0.875rem = 14px body,
-     text-xs = 0.75rem = 12px label. A 14px root would render the whole app at
-     87.5% scale (h-8 → 28px), which is the app-wide control-scale defect. */
+  /* Root font-size stays 16px; semantic type and control tokens define the UI scale. */
   html {
     font-size: 16px;
   }
   html, body {
     background: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
-    /* Inter stylistic sets (ADR-0068): the agent-native typographic signature.
-       cv02/cv03/cv04 — alternate letterforms (a, g, i); cv11 — single-storey a.
-       The .tabular/.tnum rule below still wins on figures (it sets its own
-       font-feature-settings, which fully replaces — not merges — this list). */
-    font-feature-settings: "cv02","cv03","cv04","cv11";
-    line-height: 1.45;
+    font-family: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-feature-settings: normal;
+    line-height: var(--line-control);
     -webkit-font-smoothing: antialiased;
   }
-  /* Default inherited text is the 14px DESIGN.md body size; explicit text-*
-     utilities (the vast majority of text) override this per element. */
+  /* Explicit text utilities may override this inherited 14px control/body role. */
   body {
-    font-size: 14px;
+    font-size: var(--type-control);
   }
 
   /* The Tabular-Numbers Rule — apply to every figure that can change/compare. */
@@ -289,7 +458,7 @@
   *:focus-visible {
     outline: 2px solid hsl(var(--ring));
     outline-offset: 2px;
-    border-radius: 4px;
+    border-radius: var(--control-radius-sm);
   }
 
   .sr-only {
@@ -312,6 +481,13 @@
     }
   }
 
+}
+
+/* The page content keeps a 16px gutter at phone and compact-tablet widths. */
+@media (max-width: 921px) {
+  :root {
+    --space-page-gutter: 16px;
+  }
 }
 
 /* ≤920px: collapse the rail column so the grid snaps to full-width and the

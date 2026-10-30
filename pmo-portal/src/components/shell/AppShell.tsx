@@ -213,8 +213,10 @@ export const AppShell: React.FC<AppShellProps> = ({
       // open, so the skip link + rail + header + main cannot be tabbed into behind the
       // scrim (`aria-modal` alone is advisory). The toast host lives OUTSIDE this shell
       // and stays announceable.
+      // Paint containment stops the main scroll content extending the document's scrollable
+      // area beyond this viewport-sized shell, while leaving main as the page scroller.
       data-app-shell="root"
-      className="grid h-[100dvh] w-full overflow-hidden"
+      className="grid h-[100dvh] w-full overflow-hidden [contain:paint]"
       style={{
         // minmax(0, 1fr) (not bare 1fr): a `1fr` track defaults to a min-content
         // MINIMUM, which lets a wide nowrap child (data table / toolbar) blow the
@@ -266,14 +268,13 @@ export const AppShell: React.FC<AppShellProps> = ({
         // Companies toolbar search at 375px). min-w-0 lets the track constrain
         // the content so inner `overflow-x-auto` scrollers handle their own width.
         // C3: inert while the mobile drawer is open.
-        className={`${MAIN_SCROLL_CLASS} min-w-0 overflow-y-auto overflow-x-hidden bg-secondary/35 outline-none`}
+        className={`${MAIN_SCROLL_CLASS} min-w-0 overflow-y-auto overflow-x-hidden bg-[hsl(var(--surface-canvas))] outline-none`}
         style={{ gridArea: 'main' }}
         inert={railOpen || undefined}
       >
         {banner}
-        {/* C3: max-[921px]:px-4 narrows the gutter at 375px for more card
-            width (16px vs 24px). max-[921px]:pt-4 matches. */}
-        <div className="mx-auto max-w-[1600px] px-6 pb-16 pt-5 max-[921px]:px-4 max-[921px]:pt-4">
+        {/* Page gutters come from the shared token: 24px on wide screens, 16px below 922px. */}
+        <div className="mx-auto max-w-[1600px] px-[var(--space-page-gutter)] pb-[var(--space-page-gutter)] pt-5 max-[921px]:pt-4">
           {children}
         </div>
       </main>

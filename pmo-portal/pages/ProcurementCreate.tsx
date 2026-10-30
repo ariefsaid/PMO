@@ -73,7 +73,7 @@ function ProcurementIntake({
           {t('continueNeed', 'A purchase request is saved with lines still to finish. Continue with the same need.')}
         </p>
       )}
-      <div className="mt-6 divide-y divide-border border-y border-border">
+      <div className="mt-6 divide-y divide-border">
         {choices.map((choice) => (
           <button
             key={choice.value}
@@ -350,7 +350,7 @@ export default function ProcurementCreate() {
               <Combobox
                 label={t('supplier', 'Supplier')}
                 noun="supplier"
-                placeholder={t('selectSupplier', 'Optional — select a supplier…')}
+                placeholder={t('selectSupplier', 'Optional: select a supplier…')}
                 value={supplierId}
                 selectedOption={supplierOptions.find((option) => option.value === supplierId) ?? null}
                 onChange={setSupplierId}

@@ -476,7 +476,11 @@ const Projects: React.FC = () => {
         return (
           <span className="block min-w-0" onClick={(event) => event.stopPropagation()}>
             <CompanyNameLink companyId={p.client_id} name={p.client ? companyDisplayName(p.client) : null} className="inline max-w-[180px] align-baseline text-[12px]" />
-            {ids && <> · {p.pmo_project_number && <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>}<span className="font-mono" title={ids}>{ids}</span></>}
+            {/* The ' · ' separator belongs to the desktop table's single-line cell. In the card
+                branch (<md) the client link is forced block (the truncate-to-block clip rule), so
+                the separator would lead its own wrapped line as a stray dot — hidden there; the
+                identifiers line reads clean (director fix). */}
+            {ids && <><span aria-hidden="true" className="hidden md:inline"> · </span>{p.pmo_project_number && <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>}<span className="font-mono" title={ids}>{ids}</span></>}
             {p.end_client && <span className="block truncate text-[11px] text-muted-foreground">{companyDisplayName(p.end_client)}</span>}
           </span>
         );
@@ -547,7 +551,9 @@ const Projects: React.FC = () => {
         });
         const initials = label.trim().split(/\s+/).slice(0, 2).map((part) => part.charAt(0)).join('').toUpperCase() || '?';
         return (
-          <span className="flex items-center justify-center">
+          // Left-aligned with the other card values (director fix): the avatar started at a
+          // different x than the Status pill and Contract amount inside the card's shared grid.
+          <span className="flex items-center">
             <span
               role="img"
               aria-label={label}
@@ -708,9 +714,10 @@ const Projects: React.FC = () => {
       <ListPage
         title={t('projects.title', 'Projects')}
         description={pageDescription}
+        bodyPanel
         primaryAction={primaryAction}
       >
-        <div data-testid="projects-loading" className="rounded-lg border border-border bg-card">
+        <div data-testid="projects-loading">
           <ListState variant="loading" rows={6} />
         </div>
       </ListPage>
@@ -722,6 +729,7 @@ const Projects: React.FC = () => {
       <ListPage
         title={t('projects.title', 'Projects')}
         description={pageDescription}
+        bodyPanel
         primaryAction={primaryAction}
       >
         <ListState
@@ -739,6 +747,7 @@ const Projects: React.FC = () => {
       <ListPage
         title={t('projects.title', 'Projects')}
         description={pageDescription}
+        bodyPanel
         primaryAction={primaryAction}
       >
         <ListState
@@ -821,9 +830,9 @@ const Projects: React.FC = () => {
   ].filter((c): c is React.ReactElement => c !== null);
 
   const mobileToolbar = (
-    <div data-testid="projects-mobile-toolbar" className="w-full min-w-0 space-y-2.5">
+    <div data-testid="projects-mobile-toolbar" className="flex w-full min-w-0 flex-col gap-2.5">
       {/* status — bounded horizontal scroller (must stay reachable at 390px) */}
-      <div data-testid="status-filter-scroll" className="min-w-0 max-w-full overflow-x-auto scroll-fade-x">
+      <div data-testid="status-filter-scroll" className="order-2 min-w-0 max-w-full overflow-x-auto scroll-fade-x">
         <ViewToggle<StatusFilter>
           options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
           value={filter}
@@ -835,8 +844,8 @@ const Projects: React.FC = () => {
         />
       </div>
 
-      {/* search + selected view */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Search gets a full row before the status tabs. */}
+      <div data-testid="projects-mobile-search-row" className="order-1 min-w-0">
         <SearchMini
           placeholder={t('projects.search.placeholder', 'Search projects…')}
           aria-label={t('projects.search.ariaLabel', 'Search projects')}
@@ -845,27 +854,12 @@ const Projects: React.FC = () => {
           searchSurface="projects-list"
           module="projects"
           resultCount={filtered.length}
-          containerClassName="min-w-0 flex-1 basis-40"
+          containerClassName="w-full min-w-0"
         />
-        {/* The 4-option view toggle can exceed a 360px row; keep it reachable within the
-            toolbar without page bleed — it scrolls inside this bounded container. */}
-        <div data-testid="projects-mobile-view-scroll" className="ml-auto min-w-0 max-w-full overflow-x-auto">
-          <ViewToggle<'table' | 'cards' | 'calendar' | 'kanban'>
-            options={[
-              { value: 'table', label: t('projects.view.table', 'Table'), icon: 'table' },
-              { value: 'cards', label: t('projects.view.cards', 'Cards'), icon: 'cards' },
-              { value: 'calendar', label: t('projects.view.calendar', 'Calendar'), icon: 'cal' },
-              { value: 'kanban', label: t('projects.view.board', 'Board'), icon: 'cols' },
-            ]}
-            value={view}
-            onChange={onViewChange}
-            ariaLabel={t('projects.view.ariaLabel', 'Projects view')}
-          />
-        </div>
       </div>
 
       {/* filters + more actions disclosures */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="order-3 flex min-w-0 flex-wrap items-center gap-2">
         <ProjectClassificationFilters
           {...classificationFilterProps}
           panel={(fields, disclosure) => (
@@ -925,6 +919,22 @@ const Projects: React.FC = () => {
             </MobileToolbarDisclosure>
           )}
         />
+
+        {/* Keep the four view choices reachable without widening the page. */}
+        <div data-testid="projects-mobile-view-scroll" className="min-w-0 max-w-full overflow-x-auto">
+          <ViewToggle<'table' | 'cards' | 'calendar' | 'kanban'>
+            options={[
+              { value: 'table', label: t('projects.view.table', 'Table'), icon: 'table' },
+              { value: 'cards', label: t('projects.view.cards', 'Cards'), icon: 'cards' },
+              { value: 'calendar', label: t('projects.view.calendar', 'Calendar'), icon: 'cal' },
+              { value: 'kanban', label: t('projects.view.board', 'Board'), icon: 'cols' },
+            ]}
+            value={view}
+            onChange={onViewChange}
+            ariaLabel={t('projects.view.ariaLabel', 'Projects view')}
+            labelClassName="max-sm:sr-only"
+          />
+        </div>
 
         {moreActionsChildren.length > 0 && (
           <MobileToolbarDisclosure
@@ -1010,9 +1020,9 @@ const Projects: React.FC = () => {
     <ListPage
       title={t('projects.title', 'Projects')}
       description={pageDescription}
+      bodyPanel={view === 'table'}
       primaryAction={primaryAction}
       mobileToolbar={mobileToolbar}
-      desktopToolbarClassName="xl:grid xl:grid-cols-[minmax(0,1fr)_220px_auto] xl:items-center xl:gap-x-2 xl:gap-y-2 xl:overflow-visible xl:[&>*:nth-child(1)]:col-start-1 xl:[&>*:nth-child(1)]:row-start-1 xl:[&>*:nth-child(2)]:col-start-2 xl:[&>*:nth-child(2)]:row-start-1 xl:[&>*:nth-child(3)]:col-start-1 xl:[&>*:nth-child(3)]:row-start-2 xl:[&>*:nth-child(4)]:col-start-2 xl:[&>*:nth-child(4)]:row-start-2 xl:[&>*:nth-child(5)]:col-start-3 xl:[&>*:nth-child(5)]:row-span-2"
       filters={
         /* AC-2: wrap in overflow-x-auto so the full filter strip (incl. "At risk") is
            reachable at 390px without clipping. scroll-fade-x adds the right-edge fade
@@ -1156,6 +1166,7 @@ const Projects: React.FC = () => {
       ) : view === 'table' ? (
         <>
           <DataTable<ProjectWithRefs>
+            embedded
             rows={filtered}
             columns={visibleColumns}
             rowKey={(p) => p.id}

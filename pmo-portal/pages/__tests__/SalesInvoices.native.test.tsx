@@ -257,7 +257,11 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     for (const [number, label] of expected) {
       const row = rowFor(number);
       expect(within(row).getByText(label)).toBeInTheDocument();
-      expect(row.querySelectorAll('[data-pill-dot]')).toHaveLength(1);
+      // One StatusPill per row: the status label sits inside the pill's paired
+      // status surface (owner ban 2026-10-29: pills are text-only, no dot).
+      const pill = within(row).getByText(label).closest('span[class*="bg-status-"]');
+      expect(pill).not.toBeNull();
+      expect(row.querySelectorAll('span[class*="bg-status-"]')).toHaveLength(1);
     }
     const partlyPaid = rowFor('PARTIAL');
     expect(partlyPaid.textContent).not.toContain('12 days overdue');

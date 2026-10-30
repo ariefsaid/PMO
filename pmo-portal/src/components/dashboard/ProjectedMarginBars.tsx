@@ -12,11 +12,8 @@ import type { PipelineStage } from '@/src/lib/db/dashboard';
 const OPEN_STATUSES = new Set(
   SALES_COLUMNS.filter((c) => !c.terminal).flatMap((c) => c.statuses),
 );
-/**
- * Batch-3 polish: weighted-value bars are quiet indicators, not the page's primary
- * action. Use the neutral chart tone so the track+fill read as measurement, not CTA.
- */
-const BAR_FILL = chartTheme.axis;
+/** A single-series comparison uses the primary chart channel; stage names carry identity. */
+const BAR_FILL = chartTheme.series.primary;
 
 export interface ProjectedMarginBarsProps {
   /** Per-stage weighted breakdown from useSalesPipeline(). */

@@ -154,7 +154,11 @@ function DisconnectErrorAlert({ headline, body }: { headline: string; body: stri
   );
 }
 
-export const M365ConnectionCard: React.FC = () => {
+export interface M365ConnectionCardProps {
+  showUnavailable?: boolean;
+}
+
+export const M365ConnectionCard: React.FC<M365ConnectionCardProps> = ({ showUnavailable = false }) => {
   const entitled = useFeature('m365_integration');
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -349,8 +353,28 @@ export const M365ConnectionCard: React.FC = () => {
   }, [phase]);
 
   // Entitlement gate — the only FE gate (AC-M365SEP-016). Hooks above run unconditionally
-  // (rules-of-hooks). PMO role is no longer a gate (FR-M365SEP-011).
-  if (!entitled) return null;
+  // (rules-of-hooks). PMO role is no longer a gate (FR-M365SEP-011). When rendered on the
+  // personal integrations surface with showUnavailable=true, render an informative unavailable
+  // state rather than leaving the page blank (TA-017).
+  if (!entitled) {
+    if (!showUnavailable) return null;
+    return (
+      <Card className="mb-3.5 p-4" data-testid="m365-connection-card">
+        <div className="flex items-center gap-2">
+          <Icon name="plug" />
+          <h3 className="text-[15px] font-semibold text-foreground">
+            {t('integrations.personalM365.heading', 'Microsoft 365')}
+          </h3>
+        </div>
+        <p className="mt-2 text-sm text-muted-foreground" data-testid="m365-unavailable-msg">
+          {t(
+            'integrations.personalM365.errors.notEntitled',
+            "Your organization isn't enabled for the Microsoft 365 integration yet.",
+          )}
+        </p>
+      </Card>
+    );
+  }
 
   const isConnected = phase === 'connected' || phase === 'disconnecting';
   // Connect is offered whenever the user is NOT confirmed connected (idle / connecting / reconnect

@@ -63,14 +63,14 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-1
 
 import ProcurementTab from '../tabs/ProcurementTab';
 
-const renderTab = (role: Role = 'Project Manager') => {
+const renderTab = (role: Role = 'Project Manager', onCountChange?: (count: number | null) => void) => {
   realRole = role;
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
         <ToastProvider>
-          <ProcurementTab projectId="proj-abc" />
+          <ProcurementTab projectId="proj-abc" onCountChange={onCountChange} />
         </ToastProvider>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -132,6 +132,12 @@ beforeEach(() => {
 });
 
 describe('project procurement tab', () => {
+  it('reports the procurement count from the tab’s existing project query', () => {
+    const onCountChange = vi.fn();
+    renderTab('Project Manager', onCountChange);
+    expect(onCountChange).toHaveBeenCalledWith(0);
+  });
+
   it('AC-JR-T13: keeps New procurement available from the project and passes its id to the create route', async () => {
     renderTab('Project Manager');
     await userEvent.click(screen.getByRole('button', { name: /new procurement/i }));

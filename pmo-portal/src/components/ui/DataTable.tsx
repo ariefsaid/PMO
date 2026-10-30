@@ -27,7 +27,7 @@ const SEARCH_USED_DEBOUNCE_MS = 500;
  *     box), so the left-cast separation shadow is a positioned gradient strip (ROW_MENU_SEAM_CLASS)
  *     rendered inside the cell — see DESIGN.md §6 Row actions. */
 const ROW_MENU_STICKY_CLASS =
-  'sticky -right-px bg-card shadow-[inset_1px_0_0_hsl(var(--border))]';
+  'sticky -right-px shadow-[inset_1px_0_0_hsl(var(--border))]';
 /** Left-cast separation gradient for the sticky actions column: from the `foreground` token
  *  (near-black in light, near-light in dark — the token flips the cast with the mode) fading out
  *  over 12px to the LEFT of the cell. Positioned inside the sticky cell so it travels with it. */
@@ -308,7 +308,7 @@ function stripHiddenClasses(colClassName?: string): string {
  * Mobile reflow (OD-W4-4, AC-IXD-MOBILE-W4-C1) — SINGLE render:
  * - `useIsDesktop()` reads `(min-width: 768px)` synchronously at first paint and
  *   re-renders on viewport change. EXACTLY ONE branch is in the DOM at a time:
- *   - At `md`+ (≥768px): the desktop `<table>` branch (markup byte-unchanged).
+ *   - At `md`+ (≥768px): the same desktop `<table>` branch and behaviors.
  *   - Below `md` (<768px): a stacked card list — each row maps to a card with the
  *     first column as the activation title and the remaining columns as a <dl>
  *     label:value list. All data is shown (no column dropped).
@@ -459,6 +459,13 @@ export function DataTable<Row>({
   );
   const modelHeaders = table.getHeaderGroups()[0]?.headers ?? [];
   const hasHiddenRightContent = useStickyRowMenuSeam(tableBranchRef, tableRef, isDesktop && Boolean(rowMenu));
+  // A column hidden with CSS (colClassName "hidden", e.g. the Age column on a project tab) must
+  // not drive the table's min width: its size still sits in getTotalSize(), and counting it makes
+  // the table overflow by that amount even when every visible column fits — which then trips the
+  // sticky actions column's scroll shadow over content that is not actually scrolled under it.
+  const hiddenColumnSize = columns
+    .filter((column) => /(^|\s)hidden($|\s)/.test(column.colClassName ?? ''))
+    .reduce((sum, column) => sum + (column.size ?? 0), 0);
   const colSpan = columns.length + (rowMenu ? 1 : 0) + (selection ? 1 : 0);
   // Select-all acts on the rows the user can see: a collapsed group's rows, and rows outside `rows`, keep their state.
   const visibleSelectionIds = groupedRows.flatMap((entry) =>
@@ -521,13 +528,13 @@ export function DataTable<Row>({
           ref={tableRef}
           aria-label={accessibleName}
           style={{
-            ...(columns.some((column) => column.size !== undefined || column.kind === 'primary' || column.kind === 'status') ? { minWidth: table.getTotalSize() + (rowMenu ? 40 : 0) + (selection ? 40 : 0), tableLayout: 'fixed' as const } : {}),
+            ...(columns.some((column) => column.size !== undefined || column.kind === 'primary' || column.kind === 'status') ? { minWidth: Math.max(0, table.getTotalSize() - hiddenColumnSize) + (rowMenu ? 40 : 0) + (selection ? 40 : 0), tableLayout: 'fixed' as const } : {}),
           }}
-          className="w-full border-collapse text-[13.5px]"
+          className="w-full border-collapse text-control"
         >
           <thead>
             <tr>
-              {selection && <th scope="col" className="sticky top-0 z-[2] h-[38px] w-10 border-b border-border bg-card px-3 text-left">
+              {selection && <th scope="col" className="sticky top-0 z-[2] h-[var(--table-head-height)] w-10 border-b border-border bg-surface-table-head px-2 text-left">
                 <span onClick={(event) => event.stopPropagation()}>
                   <Checkbox checked={selectAllChecked} onChange={toggleAllRows} label={t('table.selectAllRows', 'Select all rows')} disabled={state !== undefined || visibleSelectionIds.length === 0} />
                 </span>
@@ -549,7 +556,7 @@ export function DataTable<Row>({
                       ? { width: header.getSize(), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
                       : undefined}
                     className={cn(
-                      'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[38px] border-b border-border bg-card px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground whitespace-nowrap select-none',
+                      'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[var(--table-head-height)] border-b border-border bg-surface-table-head px-[var(--table-cell-inset)] text-control font-semibold text-foreground whitespace-nowrap select-none',
                       col.stickyLeft && 'left-0 z-[3]',
                       alignClass(col.align),
                       col.colClassName
@@ -559,11 +566,11 @@ export function DataTable<Row>({
                       <button
                         type="button"
                         onClick={() => onSort?.(col.sortKey!)}
-                        className="inline-flex items-center gap-1 uppercase tracking-[0.03em] hover:text-foreground [&_svg]:size-3"
+                        className="inline-flex items-center gap-1 hover:text-foreground [&_svg]:size-3"
                       >
                         <span id={`datatable-header-label-${tableInstanceId}-${col.key}`}>{col.header}</span>
                         {col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}
-                        {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="inline-flex flex-col opacity-40 [&_svg]:size-3"><Icon name="up" /><Icon name="down" /></span>}
+                        {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="opacity-40 [&_svg]:size-3"><Icon name="sort" /></span>}
                       </button>
                     ) : (
                       <><span id={`datatable-header-label-${tableInstanceId}-${col.key}`}>{col.header}</span>{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
@@ -636,10 +643,10 @@ export function DataTable<Row>({
                             }
                           }}
                           // The last column's handle stays inside the table, or it widens the scroll box by 12px.
-                          style={{ right: headerIndex === modelHeaders.length - 1 ? 0 : -12, width: 24, height: 38 }}
+                          style={{ right: headerIndex === modelHeaders.length - 1 ? 0 : -12, width: 24, height: 'var(--table-head-height)' }}
                           className="datatable-resize-handle pointer-events-auto absolute top-0 z-[4] cursor-col-resize opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
                         >
-                          <span aria-hidden className={cn('datatable-resize-indicator pointer-events-none absolute inset-y-2 left-[11px] w-[2px]', header.column.getIsResizing() ? 'bg-ring' : 'bg-[hsl(var(--input))] group-hover:bg-muted-foreground/60')} />
+                          <span aria-hidden className={cn('datatable-resize-indicator pointer-events-none absolute inset-y-2 left-3 w-[2px]', header.column.getIsResizing() ? 'bg-ring' : 'bg-[hsl(var(--input))] group-hover:bg-muted-foreground/60')} />
                         </div>
                       );
                     })()}
@@ -647,7 +654,7 @@ export function DataTable<Row>({
                 );
               })}
               {rowMenu && (
-                <th className={cn(ROW_MENU_STICKY_CLASS, 'top-0 z-[3] w-10 border-b border-border')} scope="col">
+                <th className={cn(ROW_MENU_STICKY_CLASS, 'top-0 z-[3] w-10 border-b border-border bg-surface-table-head')} scope="col">
                   {hasHiddenRightContent && <span aria-hidden data-dt-seam className={ROW_MENU_SEAM_CLASS} />}
                   <span className="sr-only">{t('table.actions', 'Actions')}</span>
                 </th>
@@ -664,11 +671,11 @@ export function DataTable<Row>({
             ) : (
               groupedRows.map((entry, entryIndex) => {
                 if (entry.type === 'heading') return (
-                  <tr key={`group-${entry.label}-${entryIndex}`} className="h-[38px] bg-secondary/40">
-                    {selection && <td className="px-3" />}
-                    <th scope="row" colSpan={groupHeaderSpan ? columns.length : undefined} className="px-3 text-left text-[13.5px] font-semibold text-foreground"><div className="flex flex-wrap items-center justify-between gap-x-4">{groupToggle(entry.label, entry.count)}{groupHeader?.(entry.label, entry.rows.map((modelRow) => modelRow.original))}</div></th>
-                    {!groupHeaderSpan && columns.slice(1).map((column) => <td key={column.key} className={cn('px-3', alignClass(column.align))} />)}
-                    {rowMenu && <td className={ROW_MENU_STICKY_CLASS} />}
+                  <tr key={`group-${entry.label}-${entryIndex}`} className="h-[var(--table-row-min-height)] bg-secondary">
+                    {selection && <td className="px-2" />}
+                    <th scope="row" colSpan={groupHeaderSpan ? columns.length : undefined} className="px-[var(--table-cell-inset)] text-left text-control font-semibold text-foreground"><div className="flex flex-wrap items-center justify-between gap-x-4">{groupToggle(entry.label, entry.count)}{groupHeader?.(entry.label, entry.rows.map((modelRow) => modelRow.original))}</div></th>
+                    {!groupHeaderSpan && columns.slice(1).map((column) => <td key={column.key} className={cn('px-[var(--table-cell-inset)]', alignClass(column.align))} />)}
+                    {rowMenu && <td className={cn(ROW_MENU_STICKY_CLASS, 'bg-secondary')} />}
                   </tr>
                 );
                 if (entry.group && collapsedGroups.has(entry.group)) return null;
@@ -677,6 +684,11 @@ export function DataTable<Row>({
                 const key = modelRow.id;
                 const targetId = rowTarget?.(row);
                 const selected = key === selectedKey;
+                const stickyRowSurface = selected
+                  ? 'bg-surface-selected'
+                  : onActivate
+                    ? 'bg-card group-hover:bg-surface-hover'
+                    : 'bg-card';
                 // The <tr> keeps its IMPLICIT role="row" (never role="link",
                 // which breaks table-row semantics and hides body rows from
                 // getByRole('row')). Whole-row onClick stays as a pointer
@@ -711,11 +723,12 @@ export function DataTable<Row>({
                     }
                     className={cn(
                       'group border-b border-border/70 last:border-b-0 transition-colors',
-                      onActivate && 'cursor-pointer hover:bg-accent/60',
-                      selected && 'bg-primary/[0.07]'
+                      onActivate && 'cursor-pointer',
+                      onActivate && !selected && 'hover:bg-surface-hover',
+                      selected && 'bg-surface-selected'
                     )}
                   >
-                    {selection && <td className="h-[54px] w-10 px-3 py-2 align-middle">
+                    {selection && <td className="h-[var(--table-row-min-height)] w-10 px-2 py-2 align-middle">
                       <span onClick={(event) => event.stopPropagation()}>
                         <Checkbox
                           checked={modelRow.getIsSelected()}
@@ -736,8 +749,8 @@ export function DataTable<Row>({
                             ? { width: cell.column.getSize(), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
                             : undefined}
                           className={cn(
-                            'h-[54px] px-3 py-2 align-middle',
-                            col.stickyLeft && 'sticky left-0 z-[1] bg-card',
+                            'h-[var(--table-row-min-height)] px-[var(--table-cell-inset)] py-2 align-middle',
+                            col.stickyLeft && cn('sticky left-0 z-[1]', stickyRowSurface),
                             (col.kind === 'money' || col.kind === 'date' || col.kind === 'status' || col.align === 'num') && 'whitespace-nowrap',
                             alignClass(col.align),
                             col.align === 'num' && 'tabular',
@@ -765,7 +778,7 @@ export function DataTable<Row>({
                       );
                     })}
                     {rowMenu && (
-                      <td className={cn(ROW_MENU_STICKY_CLASS, 'z-[1] px-2 align-middle')}>
+                      <td className={cn(ROW_MENU_STICKY_CLASS, 'z-[1] px-2 align-middle', stickyRowSurface)}>
                         {hasHiddenRightContent && <span aria-hidden data-dt-seam className={ROW_MENU_SEAM_CLASS} />}
                         {(() => {
                           const items = rowMenu(row) ?? [];
@@ -779,12 +792,12 @@ export function DataTable<Row>({
             )}
           </tbody>
           {totals && totals.length > 0 && <tfoot>
-            {totals.map((total) => <tr key={total.key} className="h-11 border-t-[1.5px] border-border bg-secondary/40 font-semibold tabular">
+            {totals.map((total) => <tr key={total.key} className="h-[var(--table-row-min-height)] border-t-[1.5px] border-border bg-secondary font-semibold tabular">
               {selection && <td />}
-              {columns.map((column, index) => <td key={column.key} className={cn('px-3 py-2 align-middle', column.stickyLeft && 'sticky left-0 z-[1] bg-card', alignClass(column.align), column.align === 'num' && 'tabular')}>
+              {columns.map((column, index) => <td key={column.key} className={cn('px-[var(--table-cell-inset)] py-2 align-middle', column.stickyLeft && 'sticky left-0 z-[1] bg-secondary', alignClass(column.align), column.align === 'num' && 'tabular')}>
                 {total.values?.[column.key] ?? (index === 0 ? total.label : null)}
               </td>)}
-              {rowMenu && <td className={cn(ROW_MENU_STICKY_CLASS, 'bg-secondary/40')} />}
+              {rowMenu && <td className={cn(ROW_MENU_STICKY_CLASS, 'bg-secondary')} />}
             </tr>)}
           </tfoot>}
         </table>
@@ -823,7 +836,7 @@ export function DataTable<Row>({
           <li className="p-0">{listStateNode}</li>
         ) : (
           groupedRows.map((entry, entryIndex) => {
-            if (entry.type === 'heading') return <li key={`group-${entry.label}-${entryIndex}`} className="flex flex-wrap items-center justify-between gap-x-4 bg-secondary/40 px-4 py-2 text-[13.5px] font-semibold text-foreground">{groupToggle(entry.label, entry.count)}{groupHeader?.(entry.label, entry.rows.map((modelRow) => modelRow.original))}</li>;
+            if (entry.type === 'heading') return <li key={`group-${entry.label}-${entryIndex}`} className="flex min-h-[var(--table-row-min-height)] flex-wrap items-center justify-between gap-x-4 bg-secondary/40 px-[var(--table-cell-inset)] py-3 text-control font-semibold text-foreground">{groupToggle(entry.label, entry.count)}{groupHeader?.(entry.label, entry.rows.map((modelRow) => modelRow.original))}</li>;
             if (entry.group && collapsedGroups.has(entry.group)) return null;
             const modelRow = entry.modelRow;
             const row = modelRow.original;
@@ -843,9 +856,9 @@ export function DataTable<Row>({
                 id={targetId}
                 tabIndex={targetId ? -1 : undefined}
                 className={cn(
-                  'relative flex flex-col gap-2 p-4 text-[13.5px] transition-colors',
+                  'relative flex min-h-[var(--table-row-min-height)] flex-col gap-2 p-[var(--table-cell-inset)] text-control transition-colors',
                   onActivate && 'cursor-pointer',
-                  selected && 'bg-primary/[0.07]'
+                  selected && 'bg-surface-selected'
                 )}
               >
                 {/* Title row: first column + rowMenu ⋯ pinned top-right */}
@@ -895,7 +908,7 @@ export function DataTable<Row>({
                     (null/undefined/false — e.g. a fact that only one record type carries) is left out of
                     the card: a label with no value is noise, and a <dt> without its <dd> is invalid. */}
                 {mobileCardDetails ? mobileCardDetails(row) : restCols.length > 0 && (
-                  <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
+                  <dl className="grid grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
                     {restCols.map((col) => {
                       const content = col.cell(row);
                       if (content == null || content === false) return null;
@@ -913,10 +926,16 @@ export function DataTable<Row>({
                             className={cn(
                               // [&_.truncate]:block — see the title note above: inline truncate
                               // cells (e.g. a contact email) don't clip and bleed at 360px.
-                              'min-w-0 break-words text-[13.5px] text-foreground [&_.truncate]:block',
-                              col.align === 'num' && 'tabular text-right',
+                              'min-w-0 break-words text-control text-foreground [&_.truncate]:block',
+                              // ONE value alignment in cards: every value starts at the label
+                              // column's x — money keeps its tabular figures but loses the
+                              // desktop column's right alignment here (director fix).
+                              col.align === 'num' && 'tabular',
                               col.align === 'center' && 'text-center',
-                              stripHiddenClasses(col.colClassName)
+                              stripHiddenClasses(col.colClassName),
+                              // A cell whose desktop column stacks right-aligned (money cells
+                              // render `flex-col items-end`) left-aligns its block on cards.
+                              '[&>div]:items-start',
                             )}
                           >
                             {content}
@@ -930,19 +949,19 @@ export function DataTable<Row>({
             );
           })
         )}
-        {!state && totals?.map((total) => <li key={`total-${total.key}`} className="border-t-[1.5px] border-border bg-secondary/40 px-4 py-3 text-[13px] font-semibold tabular">
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
+        {!state && totals?.map((total) => <li key={`total-${total.key}`} className="min-h-[var(--table-row-min-height)] border-t-[1.5px] border-border bg-secondary/40 px-[var(--table-cell-inset)] py-3 text-control font-semibold tabular">
+          <dl className="grid grid-cols-[minmax(6.5rem,auto)_minmax(0,1fr)] gap-x-3 gap-y-1.5">
             {columns.map((column, index) => {
               const value = total.values && Object.prototype.hasOwnProperty.call(total.values, column.key)
                 ? total.values[column.key]
                 : index === 0 ? total.label : null;
-              return value == null ? null : <React.Fragment key={column.key}><dt className="text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0', column.align === 'num' && 'text-right tabular')}>{value}</dd></React.Fragment>;
+              return value == null ? null : <React.Fragment key={column.key}><dt className="text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0', column.align === 'num' && 'tabular')}>{value}</dd></React.Fragment>;
             })}
           </dl>
         </li>)}
       </ul>
       )}
-      {caveats.length > 0 && <p id={caveatId} className="border-t border-border/70 px-3 py-2 text-[12px] text-muted-foreground">
+      {caveats.length > 0 && <p id={caveatId} className="border-t border-border/70 px-[var(--table-cell-inset)] py-2 text-support text-muted-foreground">
         {caveats.map((caveat, index) => <React.Fragment key={index}>{index > 0 && ' '}<span className="text-warning-foreground">*</span> {caveat.reason}{caveat.remedy && <> {caveat.remedy}</>}</React.Fragment>)}
       </p>}
     </div>
@@ -977,7 +996,7 @@ function PrimaryCell({ title, titleText, secondary }: { title: React.ReactNode; 
  * portaled menu both stopPropagation so neither the ⋯ nor a menu item ever
  * fires the row's onActivate.
  */
-const GUTTER = 16; // matches the `max-[921px]:px-4` shell gutter (DESIGN.md spacing.4)
+const GUTTER = 16; // matches the compact page gutter (DESIGN.md spacing role)
 const MENU_GAP = 4; // `mt-1` equivalent between trigger and menu (DESIGN.md spacing.1)
 
 /**
@@ -1190,8 +1209,8 @@ export const Toolbar: React.FC<
 > = ({ standalone = false, className, children, ...rest }) => (
   <div
     className={cn(
-      'flex flex-wrap items-center gap-2 border border-border bg-card px-3 py-2.5',
-      standalone ? 'mb-3.5 rounded-lg' : 'rounded-t-lg border-b-0',
+      'flex flex-wrap items-center gap-2 border border-border bg-card px-[var(--space-content-inset)] py-2',
+      standalone ? 'mb-[var(--space-group)] rounded-lg' : 'rounded-t-lg border-b-0',
       className
     )}
     {...rest}
@@ -1232,6 +1251,7 @@ export const SearchMini: React.FC<SearchMiniProps> = ({
   const resultCountRef = useRef(resultCount);
   resultCountRef.current = resultCount;
   const timerRef = useRef<number | undefined>(undefined);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const fire = useCallback(() => {
     if (!searchSurface || !module) return;
@@ -1267,17 +1287,19 @@ export const SearchMini: React.FC<SearchMiniProps> = ({
   return (
     <div
       className={cn(
-        'flex h-8 min-w-[190px] items-center gap-[7px] rounded-lg border border-input bg-background px-2.5 [&_svg]:size-[15px] [&_svg]:text-muted-foreground',
+        'touch-target relative flex h-[var(--control-height)] min-w-[190px] items-center gap-2 rounded-md border border-input bg-card px-3 text-control [&_svg]:size-[15px] [&_svg]:text-muted-foreground',
         containerClassName
       )}
+      onClick={() => inputRef.current?.focus()}
     >
       <Icon name="search" />
       <input
+        ref={inputRef}
         type="search"
         value={value}
         onKeyDown={handleKeyDown}
         className={cn(
-          'w-full border-none bg-transparent text-[13.5px] outline-none placeholder:text-muted-foreground',
+          'w-full border-none bg-transparent text-control outline-none placeholder:text-muted-foreground',
           className
         )}
         {...rest}
@@ -1294,7 +1316,7 @@ export const TableFoot: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
 }) => (
   <div
     className={cn(
-      'flex flex-wrap items-center gap-4 border-t-[1.5px] border-border bg-secondary/40 px-3.5 py-[11px] text-[13px] tabular',
+      'flex flex-wrap items-center gap-4 border-t-[1.5px] border-border bg-secondary/40 px-[var(--space-content-inset)] py-3 text-control tabular',
       className
     )}
     {...rest}

@@ -187,7 +187,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       // one situation this confirm can hit — name it in the user's language (BW001's precedent,
       // InvoiceWorkOrderModal).
       fail(err, {
-        '55000': t('projectDetail.billing.claims.errors.claimWithdrawn', "This claim was withdrawn — its invoice can't be raised."),
+        '55000': t('projectDetail.billing.claims.errors.claimWithdrawn', "This claim was withdrawn. Its invoice can't be raised."),
       });
     } finally {
       setRaiseFor(null);
@@ -370,7 +370,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const evidenceClaim = claimRows.find((c) => c.id === evidenceFor);
 
   const boqCard = (
-    <Card variant="bare">
+    <Card>
       <CardHead
         level={2}
         className="text-base"
@@ -389,8 +389,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       >
         {t('projectDetail.billing.boq.title', 'Bill of quantities')}
       </CardHead>
-      <CardPad>
+      <CardPad flush>
         <DataTable<BoqItemRow>
+          embedded
           rows={boqRows}
           columns={boqColumns}
           rowKey={(row) => row.id}
@@ -437,7 +438,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       </dl>
       {fact && <section className="border-t border-border px-4 py-3" aria-labelledby="billing-boq-history">
         <h3 id="billing-boq-history" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.quantityHistory', 'Quantity history')}</h3>
-        {fact.allocations.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noQuantityHistory', 'No customer order quantities yet.')}</p> : <ul className="divide-y divide-border border-y border-border text-sm">
+        {fact.allocations.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noQuantityHistory', 'No customer order quantities yet.')}</p> : <ul className="divide-y divide-border text-sm">
           {fact.allocations.map((allocation) => {
             const order = workOrders.data?.find((candidate) => candidate.id === allocation.workOrderId);
             return <li key={allocation.workOrderId} className="flex flex-wrap items-center justify-between gap-2 py-2">
@@ -451,7 +452,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   })();
 
   const claimsCard = (
-    <Card variant="bare">
+    <Card>
       <CardHead
         level={2}
         className="text-base"
@@ -463,8 +464,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       >
         {t('projectDetail.billing.claims.billingTitle', 'Billing claims')}
       </CardHead>
-      <CardPad>
+      <CardPad flush>
         <DataTable<ProgressClaimWithInvoice>
+          embedded
           rows={claimRows}
           columns={claimColumns}
           rowKey={(row) => row.id}
@@ -515,7 +517,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     </dl>
     <section className="border-t border-border px-4 py-3">
       <h3 className="text-sm font-semibold">{t('projectDetail.billing.claims.evidence', 'Evidence')}</h3>
-      {claimDetailFor.evidence.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p> : <ul className="mt-2 divide-y divide-border border-y border-border text-sm">
+      {claimDetailFor.evidence.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p> : <ul className="mt-2 divide-y divide-border text-sm">
         {claimDetailFor.evidence.map((evidence) => <li key={evidence.id} className="flex items-center justify-between gap-3 py-2"><span>{evidence.document_id}</span><StatusPill variant={evidence.document_status === 'active' ? 'won' : 'neutral'}>{evidence.document_status}</StatusPill></li>)}
       </ul>}
     </section>
@@ -531,7 +533,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           >
             {t('uxs15.contractInvoice', 'Contract invoice')}
           </Link>}
-          <Button variant="ghost" size="sm" className="h-auto min-h-8 px-1 text-xs text-muted-foreground underline underline-offset-4"
+          <Button variant="ghost" size="sm" className="h-auto min-h-8 px-0! text-xs text-muted-foreground underline underline-offset-4"
             onClick={() => setContractLinesOpen(true)}>
             {t('projectDetail.billing.boq.manage', 'Edit contract lines')}
           </Button>
@@ -569,7 +571,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   return (
     <div className="space-y-6">
       {canViewMoney && <>
-      <Card variant="bare">
+      <Card>
         <CardHead
           level={2}
           className="text-base"
