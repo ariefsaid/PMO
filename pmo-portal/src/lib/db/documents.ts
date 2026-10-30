@@ -6,11 +6,12 @@ import { issueMicrosoftDocument } from '@/src/lib/m365/graphClient';
 import { fetchAllPages } from '@/src/lib/pagedRead';
 
 /**
- * project_documents DAL — the per-project document REGISTER (metadata only).
+ * project_documents DAL — per-project document register and upload helpers.
  *
- * Storage is disabled, so this is metadata-only: there is NO file upload and the
- * `file_path` column is never written here (the "Attach file" affordance is a
- * disabled placeholder in the UI until Storage is re-enabled — crud-components §9.9/§9.6).
+ * A project-register entry can be a PMO-held upload, a linked Microsoft file, a
+ * reference-only Microsoft folder, or have no attached source yet. File upload is
+ * supported by prepareUpload/confirmUpload below; metadata create/edit writes do not
+ * set `file_path`.
  *
  * org_id is NEVER sent from the client — the column default + the `project_documents_write`
  * RLS policy (org_id = auth_org_id() AND the 4 write-roles AND the parent project is in-org)
@@ -92,7 +93,8 @@ export async function getProjectDocument(id: string): Promise<ProjectDocumentRow
  * Create a document register entry (AC-DOC-003). org_id is NEVER sent — the column default +
  * the `project_documents_write` WITH CHECK are the authority. `author_id` is stamped from the
  * current user id (passed by the hook) for the approver-≠-author SoD; `status` defaults to
- * `Draft` server-side and `file_path` is never written (Storage off). Returns the new row.
+ * `Draft` server-side. This metadata insert leaves `file_path` unset; uploads are supported
+ * separately through prepareUpload/confirmUpload below. Returns the new row.
  * Throws an `AppError` (code preserved, e.g. `42501`) on failure.
  */
 export async function createProjectDocument(
