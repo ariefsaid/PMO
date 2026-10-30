@@ -745,7 +745,9 @@ const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: () => vo
         {canLog && contactList.length > 0 && (
           <form
             onSubmit={onSubmit}
-            className="mb-5 flex flex-col gap-3 rounded-md border border-border bg-card p-3"
+            // One surface level: the form is a section of the Activity card, not a card inside
+            // it — a divider separates it from the activity list (tidy sweep, nested-cards fix).
+            className="mb-5 flex flex-col gap-3 border-b border-border pb-5"
           >
             <FormGrid>
               <SelectField
