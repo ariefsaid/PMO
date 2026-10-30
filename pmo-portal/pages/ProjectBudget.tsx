@@ -1202,8 +1202,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       </KPIRow>
 
       <Card role="region" aria-label={t('projectDetail.budget.budgetVsActual', 'Budget vs actual')} className="min-w-0">
-        <CardHead>{t('projectDetail.budget.budgetVsActual', 'Budget vs actual')}</CardHead>
-        <CardPad className="space-y-3">
+        <CardHead className="pb-1">{t('projectDetail.budget.budgetVsActual', 'Budget vs actual')}</CardHead>
+        <CardPad className="space-y-3 pt-2">
         {selectedRows.size > 0 && view === 'actual' ? (
           <div className="flex min-w-0 flex-wrap items-center gap-2" role="toolbar" aria-label={t('projectDetail.budget.selectedCategories', 'Selected categories')}>
             <span className="text-sm font-medium">{t('projectDetail.budget.selectedCount', '{{count}} selected', { count: selectedRows.size })}</span>
@@ -1212,23 +1212,26 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             <Button variant="ghost" size="sm" onClick={() => setSelectedRows(new Set())}>{t('common.clear', 'Clear')}</Button>
           </div>
         ) : <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-          <ViewToggle
-            ariaLabel={t('projectDetail.budget.budgetView', 'Budget view')}
-            value={view}
-            onChange={(next) => { setBudgetView(next); setSelectedRows(new Set()); if (next === 'forecast') setDraftEditorOpen(false); }}
-            options={[
-              { value: 'actual', label: t('projectDetail.budget.budgetVsActual', 'Budget vs actual') },
-              ...(hasActiveErpBinding && activeVersion ? [{ value: 'forecast' as const, label: t('projectDetail.budget.forecast', 'Forecast') }] : []),
-            ]}
-          />
+          <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+            <ViewToggle
+              ariaLabel={t('projectDetail.budget.budgetView', 'Budget view')}
+              value={view}
+              onChange={(next) => { setBudgetView(next); setSelectedRows(new Set()); if (next === 'forecast') setDraftEditorOpen(false); }}
+              options={[
+                { value: 'actual', label: t('projectDetail.budget.budgetVsActual', 'Budget vs actual') },
+                ...(hasActiveErpBinding && activeVersion ? [{ value: 'forecast' as const, label: t('projectDetail.budget.forecast', 'Forecast') }] : []),
+              ]}
+            />
+            <span className="text-xs font-medium text-muted-foreground">{view === 'actual' ? t('projectDetail.budget.wholeProject', 'Whole project') : t('projectDetail.budget.fiscalYearInForecast', 'Fiscal year in forecast')}</span>
+          </div>
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span>{t('projectDetail.budget.version', 'Version')}</span>
-              <select aria-label={t('projectDetail.budget.version', 'Version')} value={selectedVersion?.id ?? ''} disabled={view === 'forecast'} onChange={(event) => { setSelectedVersionId(event.target.value); setDraftEditorOpen(false); }} className="h-9 max-w-52 rounded-md border border-input bg-background px-2 text-sm text-foreground disabled:opacity-70">
+              <select aria-label={t('projectDetail.budget.version', 'Version')} value={selectedVersion?.id ?? ''} disabled={view === 'forecast'} onChange={(event) => { setSelectedVersionId(event.target.value); setDraftEditorOpen(false); }} className="h-[30px] max-w-52 rounded-md border border-input bg-background px-2 text-xs text-foreground disabled:opacity-70">
                 {versions.map((version) => <option key={version.id} value={version.id}>v{version.version} · {version.status}</option>)}
               </select>
             </label>
-            <span className="text-xs text-muted-foreground">{view === 'actual' ? t('projectDetail.budget.wholeProject', 'Whole project') : t('projectDetail.budget.fiscalYearInForecast', 'Fiscal year in forecast')}</span>
+            <div className="h-4 w-px bg-border" aria-hidden="true" />
             {canWrite && activeVersion && !draftVersion && <Button variant="outline" size="sm" onClick={() => requestClone(activeVersion.id)}>{t('projectDetail.budget.updateBudget', 'Update budget')}</Button>}
             {view === 'actual' && <Button variant="outline" size="sm" onClick={() => exportRows(enrichedRows, 'ProjectBudget')}>{t('projectDetail.budget.export', 'Export')}</Button>}
           </div>
