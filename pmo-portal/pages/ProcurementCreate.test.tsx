@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   canCreate: true,
   currency: 'USD',
   realRole: 'Admin' as string,
+  projectQuery: { data: [{ value: 'p1', label: 'Project One' }], isPending: false, isError: false, refetch: vi.fn() },
+  vendorQuery: { data: [{ value: 'v1', label: 'Supplier One', sub: 'Vendor' }], isPending: false, isError: false, refetch: vi.fn() },
 }));
 vi.mock('react-router', async (importOriginal) => ({ ...await importOriginal<typeof import('react-router')>(), useNavigate: () => mocks.navigate }));
 vi.mock('@/src/auth/usePermission', async () => {
@@ -28,8 +30,8 @@ vi.mock('@/src/auth/impersonation', async (importOriginal) => ({
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => mocks.currency }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
-  useProjectOptions: () => ({ data: [{ value: 'p1', label: 'Project One' }] }),
-  useVendorOptions: () => ({ data: [{ value: 'v1', label: 'Supplier One', sub: 'Vendor' }] }),
+  useProjectOptions: () => mocks.projectQuery,
+  useVendorOptions: () => mocks.vendorQuery,
 }));
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useCreateProcurement: () => ({ mutateAsync: mocks.createRequest, isPending: false }),
@@ -54,8 +56,28 @@ describe('AC-PROC1 one-page request creation', () => {
     mocks.canCreate = true;
     mocks.currency = 'USD';
     mocks.realRole = 'Admin';
+    mocks.projectQuery.isPending = false; mocks.projectQuery.isError = false;
+    mocks.vendorQuery.isPending = false; mocks.vendorQuery.isError = false;
+    mocks.vendorQuery.data = [{ value: 'v1', label: 'Supplier One', sub: 'Vendor' }];
     mocks.createRequest.mockResolvedValue({ id: 'new-id' });
     mocks.createItem.mockResolvedValue({});
+  });
+
+  it('keeps reference pickers unavailable during loading and offers retry after failure', async () => {
+    mocks.projectQuery.isPending = true;
+    mocks.vendorQuery.isError = true;
+    const view = renderCreate();
+    expect(screen.getByRole('combobox', { name: 'Project' })).toBeDisabled();
+    expect(screen.getByRole('combobox', { name: 'Supplier' })).toBeDisabled();
+    expect(screen.getByText(/loading projects/i)).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: /retry suppliers/i }));
+    expect(mocks.vendorQuery.refetch).toHaveBeenCalled();
+    mocks.projectQuery.isPending = false;
+    mocks.vendorQuery.isError = false;
+    mocks.vendorQuery.data = [{ value: 'v2', label: 'New Supplier', sub: 'Vendor' }];
+    view.rerender(<MemoryRouter initialEntries={['/procurement/new?have=need']}><Routes><Route path="/procurement/new" element={<ProcurementCreate />} /></Routes></MemoryRouter>);
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
+    expect(await screen.findByRole('option', { name: /New Supplier/ })).toBeVisible();
   });
 
   it('SEC-RS-5: shows the five intake choices to Finance and only the plain request to an Engineer', () => {

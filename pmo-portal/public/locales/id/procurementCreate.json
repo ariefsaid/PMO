@@ -50,5 +50,13 @@
     "partialDescription": "Pengadaan Anda tersimpan. Item yang belum tersimpan akan hilang jika Anda keluar.",
     "leave": "Keluar",
     "stay": "Tetap di sini"
+  },
+  "references": {
+    "loadingProjects": "Memuat proyek…",
+    "projectsError": "Proyek tidak dapat dimuat.",
+    "retryProjects": "Coba lagi proyek",
+    "loadingSuppliers": "Memuat pemasok…",
+    "suppliersError": "Pemasok tidak dapat dimuat.",
+    "retrySuppliers": "Coba lagi pemasok"
   }
 }

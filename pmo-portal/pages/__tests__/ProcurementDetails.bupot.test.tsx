@@ -10,6 +10,7 @@ const h = vi.hoisted(() => ({
   realRole: 'Finance',
   effectiveRole: 'Finance',
   toast: vi.fn(),
+  vendor: { data: [{ value: 'vendor-new', label: 'New supplier' }], isPending: false, isError: false, refetch: vi.fn() },
 }));
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
 vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
@@ -27,7 +28,7 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
 vi.mock('@/pages/procurement/VendorWithholdingSlipModal', () => ({ VendorWithholdingSlipModal: ({ invoice, onSave }: { invoice: { id: string }; onSave: (input: { slipId: string }) => void }) => <div role="dialog" aria-label="Record modal"><span>{invoice.id}</span><button onClick={() => onSave({ slipId: 'new-slip' })}>Save evidence</button></div> }));
 vi.mock('@/pages/procurement/VendorWithholdingSlipDetails', () => ({ VendorWithholdingSlipDetails: ({ slipId, onClose, onOpenProcurement, suppressArrivalFocus }: { slipId: string; onClose: () => void; onOpenProcurement?: (procurementId: string, slipId: string, invoiceId: string) => void; suppressArrivalFocus?: boolean }) => <div data-testid="slip-detail" data-suppress-arrival-focus={suppressArrivalFocus ? 'true' : 'false'}>Details: {slipId}<button onClick={onClose}>Close slip</button><button onClick={() => onOpenProcurement?.('case-b', slipId, 'invoice-2')}>Open bill in case</button></div> }));
 vi.mock('@/pages/procurement/ProcurementLedger', () => ({ ProcurementLedger: ({ invoices, onRecordWithholdingSlip, onWithholdingHistory, onSetVendor, vendorMissing, canWriteWithholdingSlip, targetInvoiceId }: { invoices: { id: string; vi_number?: string }[]; onRecordWithholdingSlip: (invoice: { id: string }) => void; onWithholdingHistory: (invoiceId: string) => void; onSetVendor?: () => void; vendorMissing: boolean; canWriteWithholdingSlip: boolean; targetInvoiceId?: string }) => <section aria-label="Bill row" data-target-invoice={targetInvoiceId}><span>{invoices[0]?.vi_number}</span>{vendorMissing && onSetVendor ? <button onClick={onSetVendor}>Set supplier</button> : canWriteWithholdingSlip ? <button onClick={() => onRecordWithholdingSlip(invoices[0])}>Record bukti potong</button> : null}<button onClick={() => onWithholdingHistory(invoices[0].id)}>Bill history</button></section> }));
-vi.mock('@/src/hooks/useFkOptions', () => ({ useVendorOptions: () => ({ data: [{ value: 'vendor-new', label: 'New supplier' }] }), useProjectOptions: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useFkOptions', () => ({ useVendorOptions: () => h.vendor, useProjectOptions: () => ({ data: [] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'requester', org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.realRole, effectiveRole: h.effectiveRole }) }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: false }) }));
@@ -64,12 +65,30 @@ beforeEach(() => {
   h.detail.data = procurement; h.detail.isPending = false; h.detail.isError = false; h.detail.error = null;
   h.updateVendor.mockClear();
   h.toast.mockClear();
+  h.vendor.isPending = false; h.vendor.isError = false; h.vendor.data = [{ value: 'vendor-new', label: 'New supplier' }];
   h.realRole = 'Finance'; h.effectiveRole = 'Finance';
   h.history.data = { pages: [{ rows: [{ slip_id: 'slip-history', slip_number: 'TAX-HISTORY', status: 'void' }] }] };
   h.history.isLoading = false; h.history.isError = false;
 });
 
 describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
+  it('waits for supplier references and retries failures before allowing selection', async () => {
+    h.detail.data = { ...procurement, vendor_id: null };
+    h.vendor.isPending = true;
+    const view = renderAt('/procurement/proc-001/files');
+    fireEvent.click(screen.getByRole('button', { name: 'Set supplier' }));
+    expect(screen.getByRole('combobox', { name: 'Supplier' })).toBeDisabled();
+    expect(screen.getByText(/loading suppliers/i)).toBeVisible();
+    h.vendor.isPending = false; h.vendor.isError = true;
+    view.rerender(<MemoryRouter initialEntries={['/procurement/proc-001/files']}><Routes><Route path="/procurement/:procurementId/:tab?" element={<><ProcurementDetails /><LocationText /></>} /></Routes></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: /retry suppliers/i }));
+    expect(h.vendor.refetch).toHaveBeenCalled();
+    h.vendor.isError = false; h.vendor.data = [{ value: 'updated', label: 'Updated supplier' }];
+    view.rerender(<MemoryRouter initialEntries={['/procurement/proc-001/files']}><Routes><Route path="/procurement/:procurementId/:tab?" element={<><ProcurementDetails /><LocationText /></>} /></Routes></MemoryRouter>);
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
+    expect(await screen.findByRole('option', { name: 'Updated supplier' })).toBeVisible();
+  });
+
   it('lets Finance set only the missing supplier on a billed procurement record, then permits slip recording', async () => {
     const vendorlessBilled = { ...procurement, vendor_id: null };
     h.detail.data = vendorlessBilled;

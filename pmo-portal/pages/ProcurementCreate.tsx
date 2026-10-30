@@ -107,8 +107,10 @@ export default function ProcurementCreate() {
   const orgCurrency = useOrgCurrency();
   const params = new URLSearchParams(location.search);
   const [projectId] = useState(() => params.get('project'));
-  const { data: projects = [] } = useProjectOptions();
-  const { data: suppliers = [] } = useVendorOptions();
+  const projectQuery = useProjectOptions();
+  const supplierQuery = useVendorOptions();
+  const { data: projects = [] } = projectQuery;
+  const { data: suppliers = [] } = supplierQuery;
   const supplierOptions = useMemo(
     () => suppliers.map((option) => option.sub === 'Vendor' ? { ...option, sub: t('supplier', 'Supplier') } : option),
     [suppliers, t],
@@ -348,6 +350,7 @@ export default function ProcurementCreate() {
                 selectedOption={projectOption}
                 onChange={setSelectedProject}
                 loadOptions={async () => projects}
+                disabled={projectQuery.isPending || projectQuery.isError || projectQuery.data === undefined}
               />
               <Combobox
                 label={t('supplier', 'Supplier')}
@@ -357,7 +360,10 @@ export default function ProcurementCreate() {
                 selectedOption={supplierOptions.find((option) => option.value === supplierId) ?? null}
                 onChange={setSupplierId}
                 loadOptions={async () => supplierOptions}
+                disabled={supplierQuery.isPending || supplierQuery.isError || supplierQuery.data === undefined}
               />
+              {(projectQuery.isPending || projectQuery.isError || projectQuery.data === undefined) && <div role="status">{projectQuery.isPending ? t('references.loadingProjects', 'Loading projects…') : <>{t('references.projectsError', "Couldn't load projects.")} <Button type="button" variant="outline" onClick={() => void projectQuery.refetch()}>{t('references.retryProjects', 'Retry projects')}</Button></>}</div>}
+              {(supplierQuery.isPending || supplierQuery.isError || supplierQuery.data === undefined) && <div role="status">{supplierQuery.isPending ? t('references.loadingSuppliers', 'Loading suppliers…') : <>{t('references.suppliersError', "Couldn't load suppliers.")} <Button type="button" variant="outline" onClick={() => void supplierQuery.refetch()}>{t('references.retrySuppliers', 'Retry suppliers')}</Button></>}</div>}
               {needForm && (
                 <SelectField
                   id="procurement-create-budget-category"
