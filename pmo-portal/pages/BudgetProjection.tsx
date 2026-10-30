@@ -5,7 +5,7 @@ import { Link, useSearchParams } from 'react-router';
 import type { Column } from '@/src/components/ui';
 import { Button, DataTable, Drawer, Icon, ListState, NumberField, ProgressBar, StatusPill, Tooltip } from '@/src/components/ui';
 import type { BudgetProjectionCellRow } from '@/src/lib/repositories/budgetProjection';
-import { fetchActiveBudgetCategoryPhasing, fetchBudgetProjection, listBudgetFiscalYears, upsertBudgetProjectionEtc } from '@/src/lib/repositories/budgetProjection';
+import { fetchActiveBudgetCategoryPhasing, fetchBudgetProjection, fetchFirstSpendingYear, listBudgetFiscalYears, upsertBudgetProjectionEtc } from '@/src/lib/repositories/budgetProjection';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { chooseDefaultBudgetFiscalYear } from '@/src/lib/budget/budgetProjection';
 import { formatCurrencyAuto, formatInstantDate, parseMoneyInputAtScale } from '@/src/lib/format';
@@ -64,15 +64,8 @@ export default function BudgetProjection({ projectId, currency, budgetCurrency, 
   const defaultYearQuery = useQuery<string | null>({
     queryKey: ['budget-default-fiscal-year', projectId, years.map(({ fiscalYear, isActivePush }) => ({ fiscalYear, isActivePush }))],
     queryFn: async () => {
-      const yearsWithSpending = new Set<string>();
-      for (const year of years) {
-        const rows = await fetchBudgetProjection(projectId, year.fiscalYear);
-        queryClient.setQueryData(['budget-projection', projectId, year.fiscalYear], rows);
-        if (rows.some((row) => row.actualsToDate !== null && row.actualsToDate !== 0)) {
-          yearsWithSpending.add(year.fiscalYear);
-          break;
-        }
-      }
+      const firstSpendingYear = years.length ? await fetchFirstSpendingYear(projectId, years.map((year) => year.fiscalYear)) : null;
+      const yearsWithSpending = new Set(firstSpendingYear === null ? [] : [firstSpendingYear]);
       return chooseDefaultBudgetFiscalYear(years, yearsWithSpending);
     },
     enabled: yearsQuery.isSuccess,

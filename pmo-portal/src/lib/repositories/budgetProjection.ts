@@ -298,6 +298,13 @@ export async function listBudgetFiscalYears(projectId: string): Promise<BudgetFi
   return (data ?? []).map((row) => ({ fiscalYear: row.fiscal_year, isActivePush: row.is_active_push }));
 }
 
+/** Find the first year with spending in the supplied, opaque fiscal-year order. */
+export async function fetchFirstSpendingYear(projectId: string, years: string[]): Promise<string | null> {
+  const { data, error } = await supabase.rpc('first_budget_spending_year', { p_project_id: projectId, p_fiscal_years: years });
+  if (error) throw toAppError(error);
+  return data;
+}
+
 /**
  * HIGH-D — re-drive the ERPNext push for this project's ACTIVE budget version.
  *

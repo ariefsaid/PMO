@@ -17,11 +17,12 @@ import type { BudgetProjectionCellRow } from '@/src/lib/repositories/budgetProje
 import enProjectTabs from '../public/locales/en/projectTabs.json';
 import idProjectTabs from '../public/locales/id/projectTabs.json';
 
-const { fetchMock, upsertEtcMock, yearsMock, phasingMock } = vi.hoisted(() => ({
+const { fetchMock, upsertEtcMock, yearsMock, phasingMock, summaryMock } = vi.hoisted(() => ({
   fetchMock: vi.fn(),
   upsertEtcMock: vi.fn(),
   yearsMock: vi.fn(),
   phasingMock: vi.fn(),
+  summaryMock: vi.fn(),
 }));
 
 vi.mock('@/src/lib/repositories/budgetProjection', () => ({
@@ -29,6 +30,7 @@ vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   upsertBudgetProjectionEtc: upsertEtcMock,
   listBudgetFiscalYears: yearsMock,
   fetchActiveBudgetCategoryPhasing: phasingMock,
+  fetchFirstSpendingYear: summaryMock,
 }));
 
 import BudgetProjection from './BudgetProjection';
@@ -86,6 +88,8 @@ beforeEach(async () => {
   upsertEtcMock.mockReset();
   yearsMock.mockReset();
   phasingMock.mockReset();
+  summaryMock.mockReset();
+  summaryMock.mockResolvedValue(ERP_FISCAL_YEAR);
   yearsMock.mockResolvedValue([
     { fiscalYear: ERP_FISCAL_YEAR, isActivePush: true },
     { fiscalYear: PRIOR_ERP_FISCAL_YEAR, isActivePush: false },
@@ -151,6 +155,7 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
       { fiscalYear: laterActivePush, isActivePush: true },
       { fiscalYear: 'FY-2024', isActivePush: false },
     ]);
+    summaryMock.mockResolvedValue(firstWithSpending);
     fetchMock.mockImplementation(async (_projectId: string, year: string) => {
       if (year === firstWithSpending) return [{ ...ROW, actualsToDate: 12_000 }];
       if (year === laterActivePush) return [{ ...ROW, actualsToDate: 95_000 }];
@@ -163,6 +168,38 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(firstWithSpending);
     expect(fetchMock).toHaveBeenCalledWith('proj-1', firstWithSpending);
     expect(fetchMock).not.toHaveBeenCalledWith('proj-1', laterActivePush);
+  });
+
+  it('selects from one spending summary and loads only the chosen projection across many empty years', async () => {
+    const years = Array.from({ length: 40 }, (_, i) => ({ fiscalYear: `opaque-${i}`, isActivePush: i === 0 }));
+    yearsMock.mockResolvedValue(years);
+    summaryMock.mockResolvedValue('opaque-35');
+    fetchMock.mockResolvedValue([ROW]);
+    renderForecast();
+    await rowFor('Labor');
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue('opaque-35');
+    expect(summaryMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith('proj-1', 'opaque-35');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), 'opaque-2');
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('proj-1', 'opaque-2'));
+    expect(summaryMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to the first active year when the summary has no spending', async () => {
+    yearsMock.mockResolvedValue([{ fiscalYear: 'first', isActivePush: false }, { fiscalYear: 'active', isActivePush: true }]);
+    summaryMock.mockResolvedValue(null);
+    renderForecast();
+    await rowFor('Labor');
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue('active');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces a summary error without guessing a year', async () => {
+    summaryMock.mockRejectedValue(new Error('summary failed'));
+    renderForecast();
+    expect(await screen.findByText('Fiscal years could not be loaded')).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it.each([
