@@ -1,28 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
-import {
-  deriveProjectBudget,
-  getBudgetActivationMode,
-  precheckBudgetActivation,
-  listBudgetVersions,
-  createBudgetVersion,
-  cloneVersion as dalCloneVersion,
-  activateVersion,
-  archiveVersion,
-  deleteDraftVersion,
-  createLineItem,
-  updateLineItem,
-  deleteLineItem,
-  type BudgetVersionWithItems,
-  type BudgetVersionRow,
-  type BudgetLineItemRow,
-  type NewLineItem,
-  type ActivateVersionResult,
-  type ArchiveVersionResult,
-  type BudgetArchiveLiveTarget,
-  type BudgetActivationMode,
-  listBudgetArchiveLiveTargets,
-} from '@/src/lib/db/budgets';
+import { repositories } from '@/src/lib/repositories';
+import type { BudgetVersionWithItems, BudgetVersionRow, BudgetLineItemRow, NewLineItem, ActivateVersionResult, ArchiveVersionResult, BudgetArchiveLiveTarget, BudgetActivationMode } from '@/src/lib/db/budgets';
 
 // ---------------------------------------------------------------------------
 // Query key factories — org-scoped (AC-726, FR-QRY-PROC-001 mirror)
@@ -43,7 +22,7 @@ export function useProjectBudget(projectId: string) {
   const orgId = currentUser?.org_id;
   return useQuery<number>({
     queryKey: budgetKey(orgId, projectId),
-    queryFn: () => deriveProjectBudget(projectId),
+    queryFn: () => repositories.budget.deriveProjectBudget(projectId),
     enabled: Boolean(orgId && projectId),
   });
 }
@@ -53,7 +32,7 @@ export function useBudgetActivationMode(versionId: string | undefined) {
   const { currentUser } = useAuth();
   return useQuery<BudgetActivationMode>({
     queryKey: ['budget-activation-mode', versionId, currentUser?.org_id, currentUser?.id, currentUser?.role],
-    queryFn: () => getBudgetActivationMode(versionId!),
+    queryFn: () => repositories.budget.getActivationMode(versionId!),
     enabled: Boolean(versionId && currentUser?.id),
   });
 }
@@ -62,7 +41,7 @@ export function useBudgetActivationMode(versionId: string | undefined) {
 export function useBudgetActivationPrecheck(versionId: string | undefined) {
   return useQuery({
     queryKey: ['budget-activation-precheck', versionId],
-    queryFn: () => precheckBudgetActivation(versionId!),
+    queryFn: () => repositories.budget.precheckActivation(versionId!),
     enabled: Boolean(versionId),
     staleTime: 0,
   });
@@ -73,7 +52,7 @@ export function useBudgetVersions(projectId: string) {
   const orgId = currentUser?.org_id;
   return useQuery<BudgetVersionWithItems[]>({
     queryKey: budgetVersionsKey(orgId, projectId),
-    queryFn: () => listBudgetVersions(projectId),
+    queryFn: () => repositories.budget.listVersions(projectId),
     enabled: Boolean(orgId && projectId),
   });
 }
@@ -84,7 +63,7 @@ export function useBudgetArchiveTargets(versionIds: readonly string[], pollWhile
   const stableIds = [...versionIds].sort();
   return useQuery<BudgetArchiveLiveTarget[]>({
     queryKey: ['budget-archive-live-targets', orgId, stableIds],
-    queryFn: () => listBudgetArchiveLiveTargets(stableIds),
+    queryFn: () => repositories.budget.listArchiveLiveTargets(stableIds),
     enabled: Boolean(orgId && stableIds.length > 0),
     refetchInterval: (query) => pollWhileLive && (query.state.data?.length ?? 0) > 0 ? 30_000 : false,
   });
@@ -107,31 +86,37 @@ export function useBudgetMutations(projectId: string) {
     queryClient.invalidateQueries({ queryKey: ['project-finances', orgId, projectId] });
   };
 
+  const invalidateMoneyCollections = () => {
+    queryClient.invalidateQueries({ queryKey: ['projects-money', orgId] });
+    queryClient.invalidateQueries({ queryKey: ['finance-budget-review', orgId] });
+  };
+
   const createVersion = useMutation<BudgetVersionRow, Error, { projectId: string; name: string }>({
-    mutationFn: ({ projectId: pid, name }) => createBudgetVersion(pid, name),
+    mutationFn: ({ projectId: pid, name }) => repositories.budget.createVersion(pid, name),
     onSuccess: invalidateBoth,
   });
 
   const cloneVersion = useMutation<string, Error, string>({
-    mutationFn: (versionId) => dalCloneVersion(versionId),
+    mutationFn: (versionId) => repositories.budget.cloneVersion(versionId),
     onSuccess: invalidateBoth,
   });
 
   const activate = useMutation<ActivateVersionResult, Error, string>({
-    mutationFn: (versionId) => activateVersion(versionId),
-    onSuccess: invalidateBoth,
+    mutationFn: (versionId) => repositories.budget.activateVersion(versionId),
+    onSuccess: () => { invalidateBoth(); invalidateMoneyCollections(); },
   });
 
   const archive = useMutation<ArchiveVersionResult, Error, { versionId: string; cancelErp: boolean }>({
-    mutationFn: ({ versionId, cancelErp }) => archiveVersion(versionId, cancelErp),
+    mutationFn: ({ versionId, cancelErp }) => repositories.budget.archiveVersion(versionId, cancelErp),
     onSuccess: () => {
       invalidateBoth();
+      invalidateMoneyCollections();
       queryClient.invalidateQueries({ queryKey: ['budget-archive-live-targets', orgId] });
     },
   });
 
   const deleteDraft = useMutation<void, Error, string>({
-    mutationFn: (versionId) => deleteDraftVersion(versionId),
+    mutationFn: (versionId) => repositories.budget.deleteDraftVersion(versionId),
     onSuccess: invalidateBoth,
   });
 
@@ -140,21 +125,21 @@ export function useBudgetMutations(projectId: string) {
     Error,
     { versionId: string; item: NewLineItem }
   >({
-    mutationFn: ({ versionId, item }) => createLineItem(versionId, item),
+    mutationFn: ({ versionId, item }) => repositories.budget.createLineItem(versionId, item),
     onSuccess: invalidateBoth,
   });
 
   const updateLineItemMutation = useMutation<
     void,
     Error,
-    { id: string; patch: Parameters<typeof updateLineItem>[1] }
+    { id: string; patch: Parameters<typeof repositories.budget.updateLineItem>[1] }
   >({
-    mutationFn: ({ id, patch }) => updateLineItem(id, patch),
+    mutationFn: ({ id, patch }) => repositories.budget.updateLineItem(id, patch),
     onSuccess: invalidateBoth,
   });
 
   const deleteLineItemMutation = useMutation<void, Error, string>({
-    mutationFn: (id) => deleteLineItem(id),
+    mutationFn: (id) => repositories.budget.deleteLineItem(id),
     onSuccess: invalidateBoth,
   });
 

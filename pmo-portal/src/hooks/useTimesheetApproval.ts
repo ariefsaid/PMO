@@ -122,10 +122,14 @@ export function useTimesheetMutations() {
       await repositories.timesheet.approve(id, notes);
       await pushAfterApprove(id);
     },
-    onSuccess: async () => {
+    onSettled: async (_data, error, { id }) => {
       // Refresh history before the pending row disappears, keeping the correction path reachable.
-      await queryClient.invalidateQueries({ queryKey: ['timesheets-reopenable-approved', orgId, userId] });
-      invalidateBoth();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['timesheets-reopenable-approved', orgId, userId] }),
+        queryClient.invalidateQueries({ queryKey: pushesAttentionKey(orgId) }),
+        queryClient.invalidateQueries({ queryKey: ['timesheet-push-state', id], exact: true }),
+      ]);
+      if (!error) invalidateBoth();
     },
   });
 
@@ -184,6 +188,7 @@ export function useTimesheetMutations() {
 export function usePushesNeedingAttention() {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
+  const userId = currentUser?.id;
   const queryClient = useQueryClient();
 
   const query = useQuery<PushNeedingAttention[]>({
@@ -196,7 +201,11 @@ export function usePushesNeedingAttention() {
   // SAME repository seam the approve path uses (ADR-0017), never a bespoke second push mechanism.
   const retry = useMutation<void, Error, { timesheetId: string }>({
     mutationFn: ({ timesheetId }) => repositories.timesheet.pushApproved(timesheetId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: pushesAttentionKey(orgId) }),
+    onSettled: (_data, _error, { timesheetId }) => Promise.all([
+      queryClient.invalidateQueries({ queryKey: pushesAttentionKey(orgId) }),
+      queryClient.invalidateQueries({ queryKey: ['timesheets-reopenable-approved', orgId, userId] }),
+      queryClient.invalidateQueries({ queryKey: ['timesheet-push-state', timesheetId], exact: true }),
+    ]).then(() => undefined),
   });
 
   return { ...query, retry };
