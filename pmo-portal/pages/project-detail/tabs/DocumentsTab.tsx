@@ -933,7 +933,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
             aria-label={t('projectDetail.documents.filter.category', 'Filter by category')}
             value={categoryFilter}
             onChange={(event) => setCategoryFilter(event.target.value)}
-            className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm text-foreground sm:flex-none"
+            className="h-9 min-w-0 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground sm:w-auto sm:flex-none"
           >
             <option value="">{t('projectDetail.documents.filter.allCategories', 'All categories')}</option>
             {categories.map((category) => <option key={category} value={category}>{category}</option>)}
@@ -944,7 +944,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
             aria-label={t('projectDetail.documents.filter.status', 'Filter by status')}
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value as DocStatus | '')}
-            className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm text-foreground sm:flex-none"
+            className="h-9 min-w-0 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground sm:w-auto sm:flex-none"
           >
             <option value="">{t('projectDetail.documents.filter.allStatuses', 'All statuses')}</option>
             {(['Draft', 'Issued', 'Approved', 'Rejected', 'Closed', 'Superseded'] as DocStatus[]).map((status) => (
@@ -957,7 +957,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
             aria-label={t('projectDetail.documents.filter.source', 'Filter by source')}
             value={sourceFilter}
             onChange={(event) => setSourceFilter(event.target.value as 'upload' | 'onedrive' | '')}
-            className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm text-foreground sm:flex-none"
+            className="h-9 min-w-0 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground sm:w-auto sm:flex-none"
           >
             <option value="">{t('projectDetail.documents.filter.allSources', 'All sources')}</option>
             <option value="upload">{t('projectDetail.documents.source.upload', 'Upload')}</option>

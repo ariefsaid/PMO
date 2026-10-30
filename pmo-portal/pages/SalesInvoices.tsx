@@ -23,6 +23,7 @@ import {
   TaxBasisLabel,
   SelectField,
   Badge,
+  cn,
   useToast,
   type Column,
   type ComboboxOption,
@@ -1258,7 +1259,9 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
                 updateListParam('status', v);
                 trackFilterApplied('status', statusFilters.length, 'salesInvoices');
               }}
-              className="h-11 min-w-[10rem] text-[16px]"
+              fullWidth
+              wrapperClassName="w-full"
+              className="h-11 w-full text-[16px]"
             />}
             <div data-testid="invoice-filter-group" className={embedded ? (isDesktop ? 'flex shrink-0 items-center gap-2' : 'flex min-w-0 max-w-full flex-wrap items-center gap-2') : 'mt-2 flex flex-wrap items-end gap-2'}>
               {requestedCustomerId && (
@@ -1290,10 +1293,17 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
               )}
               <Button
                 type="button"
-                variant={searchParams.get('overdue') === 'true' ? 'outline' : 'ghost'}
+                variant="outline"
+                size="sm"
                 aria-pressed={searchParams.get('overdue') === 'true'}
                 disabled={!organizationToday}
                 onClick={() => updateListParam('overdue', searchParams.get('overdue') === 'true' ? '' : 'true')}
+                className={cn(
+                  'h-8',
+                  searchParams.get('overdue') === 'true'
+                    ? 'border-primary/40 bg-primary/10 font-semibold text-primary'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
               >{t('uxs05.overdueOnly', 'Overdue only')}</Button>
               {embedded && <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-medium text-muted-foreground">{t('finance:receivables.groupBy', 'Group by')}</span>

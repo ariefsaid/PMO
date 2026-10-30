@@ -141,10 +141,10 @@ function ProjectSpendTable({ dashboard, projects, pending, error, retry }: {
           { label: t('dashboard:hub.company.openProcurements', 'Open procurements'), onClick: () => navigate(`/procurement?project=${encodeURIComponent(row.id)}`) },
         ];
         return <li key={row.id} className="grid gap-1.5 py-2 first:pt-0 last:pb-0">
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 items-start gap-2">
             <div className="min-w-0 flex-1">
-              <Link to={`/projects/${row.id}`} aria-label={spendAccessibleName} className="block truncate text-sm font-medium text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{name}</Link>
-              {facts && <p className="truncate text-xs text-muted-foreground">{facts}</p>}
+              <Link to={`/projects/${row.id}`} aria-label={spendAccessibleName} className="block whitespace-normal break-words text-sm font-medium text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{name}</Link>
+              {facts && <p className="whitespace-normal break-words text-xs text-muted-foreground">{facts}</p>}
             </div>
             <StatusPill variant={statusVariant(row.status)}>{statusLabel(row.status)}</StatusPill>
             <MenuButton ariaLabel={t('dashboard:hub.company.rowActionsFor', 'Row actions for {{name}}', { name })} items={menu} />

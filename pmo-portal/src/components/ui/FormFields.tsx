@@ -95,7 +95,7 @@ export const FieldShell: React.FC<FieldShellProps> = ({
     [error ? errId : null, helper ? helpId : null].filter(Boolean).join(' ') || undefined;
 
   return (
-    <div className={cn('flex flex-col gap-2', fullWidth && 'col-span-full', className)}>
+    <div className={cn('flex flex-col gap-2', fullWidth && 'w-full col-span-full', className)}>
       <label
         htmlFor={fieldId}
         className={cn(
@@ -373,6 +373,8 @@ export interface SelectFieldProps
   hideLabel?: boolean;
   /** Optional leading placeholder option. */
   placeholder?: string;
+  /** Optional class name applied to the outer FieldShell wrapper. */
+  wrapperClassName?: string;
 }
 
 const CHEVRON_BG =
@@ -391,6 +393,7 @@ export const SelectField: React.FC<SelectFieldProps> = ({
   hideLabel,
   placeholder,
   className,
+  wrapperClassName,
   ...rest
 }) => (
   <FieldShell
@@ -401,6 +404,7 @@ export const SelectField: React.FC<SelectFieldProps> = ({
     error={error}
     fullWidth={fullWidth}
     hideLabel={hideLabel}
+    className={wrapperClassName}
   >
     {(ctl) => (
       <select
