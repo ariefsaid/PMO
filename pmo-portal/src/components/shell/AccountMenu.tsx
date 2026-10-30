@@ -11,6 +11,8 @@ import { HELP_URL } from '@/src/lib/legalConfig';
 import { useTheme } from '@/src/hooks/useTheme';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 
+const SHOW_LEGAL_SUPPORT = false;
+
 const IMPERSONATION_ROLES = Object.values(UserRole).filter((r) => r !== UserRole.Admin) as Role[];
 
 function initials(name?: string | null): string {
@@ -47,7 +49,6 @@ const MyIntegrationsItem: React.FC<{ className: string; onSelect: () => void }> 
  *   - the Profile & preferences link (`/settings/profile`, still directly routable);
  *   - the Theme section (Light / Dark `menuitemradio`, driven by `useTheme`);
  *   - the sample-org-only, view-only View-as-role section (gated by `canImpersonate`);
- *   - Legal & support (Terms, Privacy, optional Help);
  *   - Sign out.
  *
  * Authority contracts preserved: `canImpersonate` remains the sole UI eligibility input and
@@ -277,39 +278,44 @@ export const AccountMenu: React.FC = () => {
             </>
           )}
 
-          <div className="my-1 border-t border-border" />
-          <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            {t('shell.contextBar.legalAndSupport', 'Legal & support')}
-          </div>
-          <Link
-            to="/terms"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className={cn(rowBase, 'text-foreground hover:bg-accent')}
-          >
-            {t('shell.contextBar.terms', 'Terms')}
-          </Link>
-          <Link
-            to="/privacy"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className={cn(rowBase, 'text-foreground hover:bg-accent')}
-          >
-            {t('shell.contextBar.privacy', 'Privacy')}
-          </Link>
-          {HELP_URL && (
-            <a
-              href={HELP_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              role="menuitem"
-              aria-label={t('shell.contextBar.helpWhatsApp', 'Contact support via WhatsApp')}
-              onClick={() => setOpen(false)}
-              className={cn(rowBase, 'text-foreground hover:bg-accent')}
-            >
-              <Icon name="message" className="text-muted-foreground [&_svg]:size-[17px]" />
-              {t('shell.contextBar.help', 'Help')}
-            </a>
+          {SHOW_LEGAL_SUPPORT && (
+            <>
+              <div className="my-1 border-t border-border" />
+              <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                {t('shell.contextBar.legalAndSupport', 'Legal & support')}
+              </div>
+              <Link
+                to="/terms"
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className={cn(rowBase, 'text-foreground hover:bg-accent')}
+              >
+                {t('shell.contextBar.terms', 'Terms')}
+              </Link>
+              <Link
+                to="/privacy"
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className={cn(rowBase, 'text-foreground hover:bg-accent')}
+              >
+                {t('shell.contextBar.privacy', 'Privacy')}
+              </Link>
+              {HELP_URL && (
+                <a
+                  href={HELP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  role="menuitem"
+                  aria-label={t('shell.contextBar.helpWhatsApp', 'Contact support via WhatsApp')}
+                  onClick={() => setOpen(false)}
+                  className={cn(rowBase, 'text-foreground hover:bg-accent')}
+                >
+                  <Icon name="message" className="text-muted-foreground [&_svg]:size-[17px]" />
+                  {t('shell.contextBar.help', 'Help')}
+                </a>
+              )}
+
+            </>
           )}
 
           <div className="my-1 border-t border-border" />

@@ -213,8 +213,10 @@ export const AppShell: React.FC<AppShellProps> = ({
       // open, so the skip link + rail + header + main cannot be tabbed into behind the
       // scrim (`aria-modal` alone is advisory). The toast host lives OUTSIDE this shell
       // and stays announceable.
+      // Paint containment stops the main scroll content extending the document's scrollable
+      // area beyond this viewport-sized shell, while leaving main as the page scroller.
       data-app-shell="root"
-      className="grid h-[100dvh] w-full overflow-hidden"
+      className="grid h-[100dvh] w-full overflow-hidden [contain:paint]"
       style={{
         // minmax(0, 1fr) (not bare 1fr): a `1fr` track defaults to a min-content
         // MINIMUM, which lets a wide nowrap child (data table / toolbar) blow the
@@ -272,7 +274,7 @@ export const AppShell: React.FC<AppShellProps> = ({
       >
         {banner}
         {/* Page gutters come from the shared token: 24px on wide screens, 16px below 922px. */}
-        <div className="mx-auto max-w-[1600px] px-[var(--space-page-gutter)] pb-16 pt-5 max-[921px]:pt-4">
+        <div className="mx-auto max-w-[1600px] px-[var(--space-page-gutter)] pb-[var(--space-page-gutter)] pt-5 max-[921px]:pt-4">
           {children}
         </div>
       </main>
