@@ -17,7 +17,9 @@ vi.mock('@/src/lib/db/projects', () => ({ listProjects: dal.listProjects }));
 vi.mock('@/src/lib/db/procurements', () => ({ listProcurements: dal.listProcurements }));
 vi.mock('@/src/lib/db/dashboard', () => ({ getSalesPipeline: dal.getSalesPipeline }));
 vi.mock('@/src/lib/repositories', () => ({
-  repositories: { company: dal, contact: dal, incident: dal },
+  // The projects list moved to the repository seam (ADR-0017); company/contact/incident reads stay
+  // on the same mock object. `project.list` is the projects list the palette indexes.
+  repositories: { project: { list: dal.listProjects }, company: dal, contact: dal, incident: dal },
 }));
 
 import { useRecordSearch } from '../useRecordSearch';

@@ -1,4 +1,8 @@
 {
+  "quoteComparison": {
+    "selected": "Selected",
+    "lowestPrice": "Lowest price"
+  },
   "lineItems": {
     "erpItem": "ERP item",
     "itemDescription": "Item / description",
@@ -51,11 +55,17 @@
     }
   },
   "ceiling": {
+    "checking": "Checking approval eligibility…",
+    "unavailable": "Approval eligibility is unavailable. Refresh this page and try again.",
     "exceeds": "Billed amount exceeds the approved amount by {{amount}}. An approver must approve the higher amount.",
     "approveHigher": "Approve higher amount",
     "confirmBody": "The approved amount becomes {{billed}} (now {{approved}}). You will not be able to pay this procurement yourself.",
     "confirm": "Approve",
-    "approved": "Higher amount approved"
+    "approved": "Higher amount approved",
+    "billRecorder": "The person who recorded the bill cannot approve the higher amount.",
+    "quoteSelector": "The person who selected the quote cannot approve the higher amount.",
+    "requester": "The requester cannot approve the higher amount.",
+    "routing": "A designated approver must approve the higher amount."
   },
   "quoteSelection": {
     "reroutedDetail": "The quote is above the approved amount, so the procurement went back for approval."
@@ -310,7 +320,29 @@
     "selectSupplier": "Select a supplier…",
     "selectionDescription": "The selected quote sets the procurement value and supplier. If it is above the approved amount, the procurement goes back for approval."
   },
+  "approvalSection": {
+    "heading": "Procurement records awaiting you ({{total}})",
+    "error": "Couldn't load procurement records",
+    "errorSub": "Something went wrong fetching requests awaiting you.",
+    "empty": "No procurement records awaiting your decision",
+    "emptySub": "Procurement records that need your approval will appear here."
+  },
   "approvalRow": {
+    "approve": "Approve",
+    "rejectShort": "Reject",
+    "unknownRequester": "Unknown requester",
+    "loadErrorSub": "Something went wrong fetching the budget impact and line items.",
+    "lineItems": "Line items",
+    "requestedBy": "Requested by",
+    "project": "Project",
+    "requested": "Requested",
+    "totalValue": "Total value",
+    "noProject": "No project linked",
+    "approveTitle": "Approve {{title}}?",
+    "rejectTitle": "Reject {{title}}?",
+    "showBudget": "Show budget impact for {{title}}",
+    "approvedDetail": "{{title}} has been approved",
+    "rejectedDetail": "{{title}} has been rejected",
     "open": "Open procurement",
     "details": "Procurement details",
     "loadError": "Couldn't load procurement details",

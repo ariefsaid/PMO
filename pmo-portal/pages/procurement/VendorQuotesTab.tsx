@@ -91,8 +91,7 @@ function isRowSelected(q: QuotationRow, selectedId: string | null | undefined): 
   return selectedId != null ? q.id === selectedId : q.is_selected;
 }
 
-/** Sort quotations: selected first, then ascending total_amount (best value
- *  at the top of the non-selected rows). Stable across re-renders. */
+/** Sort quotations: selected first, then ascending total amount. */
 function sortedQuotes(quotes: QuotationRow[], selectedId: string | null | undefined): QuotationRow[] {
   return [...quotes].sort((a, b) => {
     const aSelected = isRowSelected(a, selectedId);
@@ -102,16 +101,12 @@ function sortedQuotes(quotes: QuotationRow[], selectedId: string | null | undefi
   });
 }
 
-/**
- * Find the id of the lowest-amount quote among all quotes (the "best value"
- * candidate shown WHILE the buyer is deciding, i.e. when canSelect=true).
- * Returns null when there are no quotes.
- */
-function bestValueId(quotes: QuotationRow[]): string | null {
-  if (quotes.length === 0) return null;
-  return quotes.reduce((best, q) =>
-    (q.total_amount ?? 0) < (best.total_amount ?? 0) ? q : best,
-  ).id;
+/** Only compare two or more prices when every quote has a valid amount in the same currency. */
+function lowestPrice(quotes: QuotationRow[]): number | null {
+  if (quotes.length < 2 || !quotes[0].currency || quotes.some((q) =>
+    q.currency !== quotes[0].currency || q.total_amount == null || !Number.isFinite(Number(q.total_amount)) || Number(q.total_amount) <= 0,
+  )) return null;
+  return Math.min(...quotes.map((q) => Number(q.total_amount)));
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -132,7 +127,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
   vendorMap = {},
   currency,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'procurement']);
   const [adding, setAdding] = useState(false);
   const [vendorId, setVendorId] = useState<string | null>(null);
   const [total, setTotal] = useState('');
@@ -195,10 +190,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
 
   const sorted = sortedQuotes(quotations, selectedId);
 
-  // Best-value id: shown as a "Best value" pill while the buyer is deciding
-  // (canSelect=true / Vendor Quoted status). Once a quote is selected, the
-  // "Selected · best value" pill on the chosen row serves the same role.
-  const bestId = canSelect ? bestValueId(quotations) : null;
+  const lowest = lowestPrice(quotations);
 
   return (
     <Card data-testid="vendor-quotes">
@@ -235,7 +227,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
             cell: (q) => vendorMap[q.vendor_id] ?? q.vq_number ?? 'Supplier quote',
             secondaryCell: (q) => <span>{q.reference && <span className="mr-1">{q.reference}</span>}{q.vq_number}</span>,
           },
-          { key: 'valueStatus', header: 'Value status', kind: 'status', size: 160, cell: (q) => isRowSelected(q, selectedId) ? <StatusPill variant="won">Selected · best value</StatusPill> : bestId === q.id ? <StatusPill variant="won">Best value</StatusPill> : null },
+          { key: 'valueStatus', header: 'Value status', kind: 'status', size: 160, cell: (q) => <div className="flex flex-wrap gap-1">{isRowSelected(q, selectedId) && <StatusPill variant="won">{t('procurement:quoteComparison.selected', 'Selected')}</StatusPill>}{lowest !== null && Number(q.total_amount) === lowest && <StatusPill variant="won">{t('procurement:quoteComparison.lowestPrice', 'Lowest price')}</StatusPill>}</div> },
           { key: 'amount', header: 'Amount', kind: 'money', align: 'num', size: 184, minSize: 152, cell: (q) => <span className="font-semibold">{formatCurrencyAuto(Number(q.total_amount), q.currency)}</span> },
           { key: 'validUntil', header: 'Valid until', kind: 'date', size: 160, cell: (q) => <span className="text-muted-foreground">{formatDateOnly(q.valid_until)}</span> },
           { key: 'attachments', header: 'Attachments', kind: 'text', size: 240, minSize: 180, cell: (q) => <ProcurementFilesSubsection phase="quotation" parentId={q.id} procurementId={procurementId} canWrite={canManageFiles} uploadedById={currentUserId} files={q.files} /> }, 

@@ -58,7 +58,7 @@ const ROW: BudgetProjectionCellRow = {
 
 const phasing = (years: Record<string, string[]>, unphased: Record<string, true> = {}) => ({ years, unphased });
 
-const renderForecast = ({ canEdit = true } = {}) => render(
+const renderForecast = ({ canEdit = true, budgetCurrency = 'USD', onExport = vi.fn() } = {}) => render(
   <FinanceI18nTestProvider>
     <MemoryRouter>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
@@ -66,11 +66,12 @@ const renderForecast = ({ canEdit = true } = {}) => render(
           <BudgetProjection
             projectId="proj-1"
             currency="USD"
+            budgetCurrency={budgetCurrency}
             canEdit={canEdit}
             committedByCategory={{}}
             canReadCommitments
             onAdjustInDraft={vi.fn()}
-            onExport={vi.fn()}
+            onExport={onExport}
           />
         </ToastProvider>
       </QueryClientProvider>
@@ -107,6 +108,31 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     expect(row.getByText('$25,000')).toBeInTheDocument();
     expect(row.getByText('Watch')).toBeInTheDocument();
     expect(row.getByRole('progressbar', { name: /forecast utilization/i })).toHaveAttribute('aria-valuenow', '75');
+  });
+
+  it('keeps forecast inputs available and refuses comparisons across currency bases', async () => {
+    const onExport = vi.fn();
+    renderForecast({ budgetCurrency: 'GBP', onExport });
+    const row = within(await rowFor('Labor'));
+    expect(row.getByText('£100,000')).toBeInTheDocument();
+    expect(row.getByText('$40,000')).toBeInTheDocument();
+    expect(row.getByText('$75,000')).toBeInTheDocument();
+    expect(row.queryByText('$25,000')).not.toBeInTheDocument();
+    expect(row.getByText('Unavailable')).toBeInTheDocument();
+    expect(row.queryByRole('progressbar')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Export' }));
+    expect(onExport).toHaveBeenCalledWith([expect.objectContaining({ projectedVariance: null, projectedUtilization: null })]);
+    await userEvent.click(screen.getByRole('row', { name: /Labor/ }));
+    const drawer = screen.getByRole('dialog', { name: 'Labor' });
+    expect(within(drawer).getByText('£100,000')).toBeInTheDocument();
+    expect(within(drawer).queryByText('$25,000')).not.toBeInTheDocument();
+    await userEvent.click(within(drawer).getByRole('button', { name: 'Close' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Edit cost to finish' }));
+    const input = screen.getByRole('textbox', { name: 'Cost to finish for Labor' });
+    await userEvent.clear(input);
+    await userEvent.type(input, '45000');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(upsertEtcMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR, 'Labor', 45000));
   });
 
   it('H-4 uses the client-listed fiscal year instead of the calendar year', async () => {

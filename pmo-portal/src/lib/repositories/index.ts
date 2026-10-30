@@ -47,6 +47,8 @@ import {
 } from './types';
 import {
   listProjects,
+  listProjectsByClient,
+  getProject,
   createProject,
   updateProjectHeader,
   archiveProject,
@@ -57,7 +59,7 @@ import {
   proposeProjectNumber,
 } from '@/src/lib/db/projects';
 import { getOpportunity } from '@/src/lib/db/opportunity';
-import { transitionProject } from '@/src/lib/db/projectTransitions';
+import { getProjectWinEligibility, transitionProject, listPipelineStageConfig } from '@/src/lib/db/projectTransitions';
 import {
   listClientCompanies,
   listCompanies,
@@ -128,6 +130,7 @@ import {
 import {
   listTasks,
   listTasksByMeeting,
+  listMyTasks,
   getTask,
   createTask,
   updateTask,
@@ -167,6 +170,7 @@ import {
   updateProcurementVendor,
   createProcurementItem,
   updateProcurementItem,
+  procurementItemValuesEditable,
   deleteProcurementItem,
   selectProcurementQuote,
   listProcurementDocuments,
@@ -179,6 +183,7 @@ import {
 } from '@/src/lib/db/procurementCrud';
 import {
   listTimesheets,
+  saveTimesheetWeek,
   createDraftTimesheet,
   upsertTimesheetEntries,
   deleteTimesheetEntry,
@@ -188,8 +193,9 @@ import {
   approveTimesheet,
   rejectTimesheet,
   listTimesheetsAwaitingApproval,
+  reopenTimesheet, attestTimesheetNoErpDocument, listReopenableApprovedTimesheets,
 } from '@/src/lib/db/timesheetTransition';
-import { approvedTimesheetForPush } from '@/src/lib/db/timesheetPush';
+import { approvedTimesheetForPush, listPushesNeedingAttention, confirmEmployeeLink, getPushState } from '@/src/lib/db/timesheetPush';
 import {
   deriveProjectBudget,
   listBudgetVersions,
@@ -397,9 +403,13 @@ async function throwInvokeError(
 
 const project: ProjectRepository = {
   list: (params) => wrap(() => listProjects(params)),
+  listByClient: (id) => wrap(() => listProjectsByClient(id)),
+  getWithRefs: (id) => wrap(() => getProject(id)),
+  listPipelineStageConfig: () => wrap(() => listPipelineStageConfig()),
   listIdentity: () => wrap(() => listProjectIdentity()),
   get: (id) => wrap(() => getOpportunity(id)),
   transition: (id, to, opts) => wrap(() => transitionProject(id, to, opts)),
+  winEligibility: (id) => wrap(() => getProjectWinEligibility(id)),
   create: (input) => wrap(() => createProject(input)),
   updateHeader: (id, input) => wrap(() => updateProjectHeader(id, input)),
   archive: (id) => wrap(() => archiveProject(id)),
@@ -532,6 +542,7 @@ const usage: UsageRepository = {
 const task: TaskRepository = {
   list: (projectId) => wrap(() => listTasks(projectId)),
   listByMeeting: (meetingId) => wrap(() => listTasksByMeeting(meetingId)),
+  listByAssignee: (userId) => wrap(() => listMyTasks(userId)),
   get: (id) => wrap(() => getTask(id)),
   create: (input) => wrap(() => createTask(input)),
   update: (id, patch, projectId) =>
@@ -547,6 +558,7 @@ const task: TaskRepository = {
 };
 
 const procurement: ProcurementRepository = {
+  itemValuesEditable: (id) => wrap(() => procurementItemValuesEditable(id)),
   list: (params) => wrap(() => listProcurements(params)),
   get: (id) => wrap(() => getProcurementDetail(id)),
   // Task 4.9 (finding-3 path fix): the case-AGGREGATE status transition is PMO-derived, never an ERP
@@ -802,6 +814,14 @@ const revenue: RevenueRepository = {
 export { timesheetPushKey };
 
 const timesheet: TimesheetRepository = {
+  // Preserve the established error contracts for these existing timesheet operations.
+  saveWeek: saveTimesheetWeek,
+  reopen: reopenTimesheet,
+  attestNoErpDocument: attestTimesheetNoErpDocument,
+  listReopenableApproved: listReopenableApprovedTimesheets,
+  listPushesNeedingAttention,
+  confirmEmployeeLink,
+  getPushState,
   list: (userId, params) => wrap(() => listTimesheets(userId, params)),
   createDraft: (weekStartDate, userId) => wrap(() => createDraftTimesheet(weekStartDate, userId)),
   upsertEntries: (entries) => wrap(() => upsertTimesheetEntries(entries)),

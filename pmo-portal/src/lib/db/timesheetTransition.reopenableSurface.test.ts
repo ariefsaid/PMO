@@ -39,7 +39,7 @@ function fakeSupabase(byTable: Record<string, { data: unknown; error: unknown }>
     calls.push(call);
     const resolved = byTable[table] ?? { data: [], error: null };
     const builder: Record<string, unknown> = {};
-    for (const op of ['select', 'eq', 'neq', 'in', 'order', 'is', 'gte', 'limit']) {
+    for (const op of ['select', 'eq', 'neq', 'in', 'order', 'is', 'gte', 'limit', 'or']) {
       builder[op] = (...args: unknown[]) => {
         call.filters.push({ op, args });
         return builder;
@@ -58,7 +58,7 @@ const approvedSheet = (id: string) => ({
   week_start_date: '2026-07-13',
   status: 'Approved',
   entries: [{ id: `${id}-e`, hours: '8.00', project: { name: 'A', code: 'A1' } }],
-  owner: { full_name: 'Owner O' },
+  owner: { full_name: 'Owner O', manager_id: 'self-id' },
   mirror: null,
 });
 
@@ -74,7 +74,7 @@ describe('SHOULD-FIX 4: listReopenableApprovedTimesheets classifies the real pus
       external_command_outbox: { data: [{ pmo_record_id: 'ts-queued', state: 'pending' }], error: null },
     });
 
-    const [row] = await listReopenableApprovedTimesheets('self-id');
+    const [row] = await listReopenableApprovedTimesheets('self-id', 'Admin');
 
     expect(row.mirror).toBeNull();
     expect(row.pushCommandState).toBe('pending');
@@ -92,7 +92,7 @@ describe('SHOULD-FIX 4: listReopenableApprovedTimesheets classifies the real pus
       },
     });
 
-    const rows = await listReopenableApprovedTimesheets('self-id');
+    const rows = await listReopenableApprovedTimesheets('self-id', 'Admin');
 
     expect(rows.map((r) => r.pushCommandState)).toEqual(['committing', 'committed', null]);
   });
@@ -103,7 +103,7 @@ describe('SHOULD-FIX 4: listReopenableApprovedTimesheets classifies the real pus
       external_command_outbox: { data: [], error: null },
     });
 
-    await listReopenableApprovedTimesheets('self-id');
+    await listReopenableApprovedTimesheets('self-id', 'Admin');
 
     const outbox = calls.find((c) => c.table === 'external_command_outbox');
     expect(outbox).toBeDefined();
@@ -118,7 +118,7 @@ describe('SHOULD-FIX 4: listReopenableApprovedTimesheets classifies the real pus
 
   it('SHOULD-FIX 4: with no Approved sheets at all the outbox is never queried (no `in ()` round trip)', async () => {
     const calls = fakeSupabase({ timesheets: { data: [], error: null } });
-    expect(await listReopenableApprovedTimesheets('self-id')).toEqual([]);
+    expect(await listReopenableApprovedTimesheets('self-id', 'Admin')).toEqual([]);
     expect(calls.some((c) => c.table === 'external_command_outbox')).toBe(false);
   });
 
@@ -127,7 +127,7 @@ describe('SHOULD-FIX 4: listReopenableApprovedTimesheets classifies the real pus
       timesheets: { data: [approvedSheet('ts-1')], error: null },
       external_command_outbox: { data: null, error: { message: 'permission denied' } },
     });
-    await expect(listReopenableApprovedTimesheets('self-id')).rejects.toThrow('permission denied');
+    await expect(listReopenableApprovedTimesheets('self-id', 'Admin')).rejects.toThrow('permission denied');
   });
 });
 
@@ -149,7 +149,7 @@ describe('S4: the re-openable query is bounded', () => {
       external_command_outbox: { data: [], error: null },
     });
 
-    await listReopenableApprovedTimesheets('self-id');
+    await listReopenableApprovedTimesheets('self-id', 'Admin');
 
     const sheets = calls.find((c) => c.table === 'timesheets')!;
     const gte = sheets.filters.find((f) => f.op === 'gte');
@@ -168,7 +168,7 @@ describe('S4: the re-openable query is bounded', () => {
       external_command_outbox: { data: [], error: null },
     });
 
-    await listReopenableApprovedTimesheets('self-id');
+    await listReopenableApprovedTimesheets('self-id', 'Admin');
 
     const inFilter = calls
       .find((c) => c.table === 'external_command_outbox')!
@@ -187,10 +187,63 @@ describe('round-8 BLOCK: the surface reads the unknown-ERP-outcome witness', () 
       external_command_outbox: { data: [], error: null },
     });
 
-    const [row] = await listReopenableApprovedTimesheets('self-id');
+    const [row] = await listReopenableApprovedTimesheets('self-id', 'Admin');
 
     const select = calls.find((c) => c.table === 'timesheets')!.filters.find((f) => f.op === 'select')!;
     expect(String(select.args[0])).toContain('post_submit_unknown_at');
     expect(row.mirror?.post_submit_unknown_at).toBe('2026-07-01T00:00:00Z');
   });
+});
+
+
+describe('correction authority', () => {
+  it('returns only the assigned manager’s rows', async () => {
+    const assigned = { ...approvedSheet('assigned'), owner: { full_name: 'A', manager_id: 'self-id' } };
+    const other = { ...approvedSheet('other'), owner: { full_name: 'B', manager_id: 'another' } };
+    fakeSupabase({ timesheets: { data: [assigned, other], error: null }, external_command_outbox: { data: [], error: null } });
+    const rows = await listReopenableApprovedTimesheets('self-id', 'Engineer');
+    expect(rows.map(row => row.id)).toEqual(['assigned']);
+  });
+});
+
+
+describe('correction queue role parity', () => {
+  const rows = [
+    { ...approvedSheet('assigned'), owner: { full_name: 'A', manager_id: 'self-id' } },
+    { ...approvedSheet('other'), owner: { full_name: 'B', manager_id: 'someone-else' } },
+    { ...approvedSheet('unmanaged'), owner: { full_name: 'C', manager_id: null } },
+    { ...approvedSheet('self'), user_id: 'self-id', owner: { full_name: 'D', manager_id: 'self-id' } },
+    { ...approvedSheet('unknown'), owner: null },
+  ];
+  it.each([
+    ['Engineer', ['assigned']], ['Finance', ['assigned']], ['Project Manager', ['assigned']],
+    ['Executive', ['assigned', 'unmanaged']], ['Admin', ['assigned', 'other', 'unmanaged']],
+  ] as const)('%s sees the transition-authorized rows', async (role, ids) => {
+    fakeSupabase({ timesheets: { data: rows, error: null }, external_command_outbox: { data: [], error: null } });
+    expect((await listReopenableApprovedTimesheets('self-id', role)).map(row => row.id)).toEqual(ids);
+  });
+  it('applies manager eligibility before the result limit', async () => {
+    const calls = fakeSupabase({ timesheets: { data: [], error: null } });
+    await listReopenableApprovedTimesheets('self-id', 'Engineer');
+    const filters = calls[0].filters;
+    expect(filters).toContainEqual({ op: 'eq', args: ['owner.manager_id', 'self-id'] });
+    expect(filters).toContainEqual({ op: 'limit', args: [REOPENABLE_PAGE_LIMIT] });
+    expect(filters.find(f => f.op === 'select')?.args[0]).toContain('profiles!timesheets_user_id_fkey!inner(full_name,manager_id)');
+  });
+});
+
+
+it('finds an assigned correction after a full page of other managers’ records', async () => {
+  const rows = Array.from({ length: 1001 }, (_, i) => ({ ...approvedSheet(`other-${i}`), owner: { full_name: 'Other', manager_id: 'another' } }));
+  rows.push({ ...approvedSheet('assigned-beyond-cap'), owner: { full_name: 'Assigned', manager_id: 'self-id' } });
+  mockFrom.mockImplementation((table: string) => {
+    let manager: string | undefined;
+    const builder: Record<string, unknown> = {};
+    for (const op of ['select', 'neq', 'gte', 'order', 'limit', 'or', 'in']) builder[op] = () => builder;
+    builder.eq = (key: string, value: string) => { if (key === 'owner.manager_id') manager = value; return builder; };
+    builder.then = (resolve: (value: unknown) => void) => Promise.resolve({ data: table === 'timesheets' ? rows.filter(row => !manager || row.owner.manager_id === manager).slice(0, REOPENABLE_PAGE_LIMIT) : [], error: null }).then(resolve);
+    return builder;
+  });
+  const result = await listReopenableApprovedTimesheets('self-id', 'Engineer');
+  expect(result.map(row => row.id)).toEqual(['assigned-beyond-cap']);
 });

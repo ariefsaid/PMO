@@ -35,6 +35,7 @@ const h = vi.hoisted(() => {
   builder.or = chain('or');
   builder.textSearch = chain('textSearch');
   builder.order = chain('order');
+  builder.range = () => builder;
   builder.limit = chain('limit');
   builder.insert = chain('insert');
   builder.update = chain('update');

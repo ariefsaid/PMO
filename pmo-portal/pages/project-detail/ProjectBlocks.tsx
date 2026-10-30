@@ -316,7 +316,8 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
 
   // L12: "used" and "remaining" mean what the Budget tab's "% used" and "Left" mean — spent plus committed — whenever
   // the committed figure is known, so the Overview and the Budget tab never show two different headrooms.
-  const spentAndCommitted = pos.spent === null ? null : pos.spent + (committedFigure ?? 0);
+  const commitmentsUnavailable = canReadProcurements && committed.commitmentSource !== 'not-tracked' && committedFigure === null;
+  const spentAndCommitted = pos.spent === null || commitmentsUnavailable ? null : pos.spent + (committedFigure ?? 0);
   const usedPercent = pos.budget > 0 && spentAndCommitted !== null ? pctOf(spentAndCommitted, pos.budget) : null;
   const remaining = spentAndCommitted === null ? null : pos.budget - spentAndCommitted;
   const atRisk = isMoneyAtRisk({
@@ -339,6 +340,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
           : t('projectDetail.cost.snapshotRemaining', '{{amount}} remaining', { amount: whole(remaining) })}</>}
         {atRisk && <span className="ml-2 font-semibold text-warning-foreground">{t('projectDetail.cost.atRisk', 'At risk')}</span>}
       </Sub>}
+      {commitmentsUnavailable && procurements.isError && <Note>{t('projectDetail.cost.commitmentsError', "Couldn't check commitments")} <Button variant="ghost" size="sm" onClick={() => void procurements.refetch()}>{t('common.retry', 'Retry')}</Button></Note>}
       {pos.actualsPending && <Note>{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</Note>}
       {pos.actualsError && <Note>{t('projectDetail.cost.spendingError', "Couldn't check spending")} <Button variant="ghost" size="sm" onClick={() => void pos.refetchActuals()}>{t('common.retry', 'Retry')}</Button></Note>}
       {pos.canSeeActual && pos.spent === null && !pos.actualsPending && !pos.actualsError && (

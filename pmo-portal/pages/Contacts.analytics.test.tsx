@@ -9,6 +9,10 @@ import { ToastProvider } from '@/src/components/ui';
 // Contacts.test.tsx's mock harness; adds the analytics facade mock.
 type Analytics = typeof import('@/src/lib/analytics');
 const analytics = vi.hoisted(() => ({ trackEmptyStateSeen: vi.fn<Analytics['trackEmptyStateSeen']>() }));
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+
+vi.mock('@/src/hooks/useCompanyPartyMappings', () => ({ useCompanyPartyMappings: () => ({ ids: [], isPending: false, isError: false }) }));
+
 vi.mock('@/src/lib/analytics', async importOriginal => ({
   ...await importOriginal<Analytics>(),
   trackEmptyStateSeen: analytics.trackEmptyStateSeen,

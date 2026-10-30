@@ -3070,6 +3070,7 @@ export type Database = {
           payload: Json | null
           payload_digest: string | null
           pmo_record_id: string
+          procurement_input_digest: string | null
           reconcile_after: string | null
           state: string
           updated_at: string
@@ -3092,6 +3093,7 @@ export type Database = {
           payload?: Json | null
           payload_digest?: string | null
           pmo_record_id: string
+          procurement_input_digest?: string | null
           reconcile_after?: string | null
           state: string
           updated_at?: string
@@ -3114,6 +3116,7 @@ export type Database = {
           payload?: Json | null
           payload_digest?: string | null
           pmo_record_id?: string
+          procurement_input_digest?: string | null
           reconcile_after?: string | null
           state?: string
           updated_at?: string
@@ -8057,6 +8060,8 @@ export type Database = {
       }
     }
     Functions: {
+      update_procurement_header: { Args: { p_id: string; p_patch: Json }; Returns: boolean }
+      procurement_item_values_editable: { Args: { p_case: string }; Returns: boolean }
       _m365_disconnect_cascade_core: {
         Args: {
           p_actor_id: string
@@ -8195,6 +8200,9 @@ export type Database = {
         Returns: string
       }
       budget_activation_mode: { Args: { version_id: string }; Returns: string }
+      project_win_eligibility: { Args: { p_id: string }; Returns: string }
+      work_order_issue_eligibility: { Args: { p_ids: string[] }; Returns: { work_order_id: string; reason: string }[] }
+      procurement_amount_eligibility: { Args: { p_procurement_id: string; p_amount: number }; Returns: string }
       budget_fiscal_year_token: {
         Args: { p_fiscal_year: string }
         Returns: string
@@ -8300,6 +8308,7 @@ export type Database = {
           payload: Json | null
           payload_digest: string | null
           pmo_record_id: string
+          procurement_input_digest: string | null
           reconcile_after: string | null
           state: string
           updated_at: string
@@ -8989,6 +8998,7 @@ export type Database = {
           payload: Json | null
           payload_digest: string | null
           pmo_record_id: string
+          procurement_input_digest: string | null
           reconcile_after: string | null
           state: string
           updated_at: string
@@ -9670,6 +9680,7 @@ export type Database = {
           payload: Json | null
           payload_digest: string | null
           pmo_record_id: string
+          procurement_input_digest: string | null
           reconcile_after: string | null
           state: string
           updated_at: string
@@ -9723,6 +9734,14 @@ export type Database = {
       progress_assessment_line_ok: {
         Args: { p_boq_item_id: string; p_entry_id: string }
         Returns: boolean
+      }
+      project_reserved_position: {
+        Args: { p_project_id: string }
+        Returns: {
+          project_currency: string | null
+          budget_currency: string | null
+          positions: Json
+        }[]
       }
       project_committed_spend: {
         Args: { p_project_id: string }
@@ -9779,6 +9798,7 @@ export type Database = {
           payload: Json | null
           payload_digest: string | null
           pmo_record_id: string
+          procurement_input_digest: string | null
           reconcile_after: string | null
           state: string
           updated_at: string

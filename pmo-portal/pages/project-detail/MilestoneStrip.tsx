@@ -306,6 +306,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
                         } catch (err) {
                           const { headline, detail } = classifyMutationError(err);
                           toast(headline, detail, 'warning');
+                          throw err;
                         }
                       }}
                     />
@@ -478,7 +479,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
 
   const startEdit = () => {
     setMenuOpen(false);
-    setInputVal(milestone.input_pct != null ? String(Math.round(milestone.input_pct)) : '');
+    setInputVal(milestone.input_pct != null ? String(milestone.input_pct) : '');
     setInputError(null);
     cancellingRef.current = false;
     savedRef.current = false;
@@ -505,8 +506,14 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
       return;
     }
     setInputError(null);
-    await onUpdateInputPct(milestone.id, parsed);
-    setEditing(false);
+    try {
+      await onUpdateInputPct(milestone.id, parsed);
+      setEditing(false);
+    } catch (err) {
+      savedRef.current = false;
+      const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
+      setInputError(detail ? `${headline}: ${detail}` : headline);
+    }
   };
 
   return (

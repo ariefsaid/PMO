@@ -1,4 +1,6 @@
 {
+  "workOrderEligibility": {"checking": "Checking issue eligibility…", "unavailable": "Issue eligibility could not be checked. Refresh this page and try again."},
+  "winEligibility": {"checking": "Checking win eligibility…", "unavailable": "Win eligibility is unavailable. Refresh this page and try again.", "reviewer": "Ask your supervisor or a more senior reviewer to confirm the value before winning this project.", "inactive": "Ask an active supervisor or a more senior reviewer to confirm the value."},
   "finishSpendingSetup": "Finish spending setup",
   "spendingAdminHandoff": "Ask an administrator to complete spending setup.",
   "spendingSetupPrompt": "Recorded spending will appear after account setup is complete.",
@@ -8,10 +10,15 @@
   "categoryNeedsSetup": "Spending setup is not complete for this category.",
   "invoiceBalanceUnavailable": "Invoice balance is still being confirmed.",
   "invoiceScope": "Only invoices linked to this project are included.",
+  "history": {
+    "referenceNamesError": "Some record names could not be loaded."
+  },
   "noLinkedInvoices": "No invoices linked to this project yet",
   "billedWork": "Billed-work revenue",
   "billedWorkQualifier": "Net of tax; advances excluded",
   "projectFinances": {
+    "currencyUnavailable": "Currency unavailable",
+    "pmoPartial": "Partial position; other currencies or unavailable amounts are excluded.",
     "contractAfterCostSource": "Contract value minus comparable recorded Actual.",
     "contractAfterCostPending": "Shown once recorded spending is complete."
   },
@@ -104,6 +111,15 @@
       "invoiceDateSource": "Source: invoice date from accounting."
     },
     "billing": {
+      "sources": {
+        "loading": "Loading {{source}}…",
+        "boq": "contract lines",
+        "billing": "billing figures",
+        "claims": "claims",
+        "orders": "customer orders",
+        "allocations": "order allocations",
+        "error": "Couldn't load {{source}}"
+      },
       "boq": {
         "lineStatus": "Contract line",
         "source": {
@@ -291,6 +307,8 @@
         "titleEdit": "Edit bill of quantities line"
       },
       "evidence": {
+        "documentsError": "Couldn't load evidence documents",
+        "claimError": "Couldn't load the claim",
         "save": "Attach",
         "none": "No issued or approved document with a file on this project.",
         "subtitle": "Choose an issued or approved document from this project's register, such as the progress report or the client's acceptance.",
@@ -305,7 +323,10 @@
     "pipeline": {
       "currentStage": "Current stage",
       "readOnlyShort": "Project manager manages this pipeline.",
-      "moreAboutDeal": "More about this deal"
+      "moreAboutDeal": "More about this deal",
+      "statLoading": "Loading…",
+      "statUnavailable": "Unavailable",
+      "retry": "Retry"
     },
     "activity": {
       "title": "Activity",
@@ -431,6 +452,7 @@
       "categoryOverSub": "Spent {{spent}} of its {{budget}} budget",
       "within": "Within budget",
       "withinSub": "Spent {{spent}} of {{budget}}",
+      "commitmentsError": "Couldn't check commitments",
       "spendingChecking": "Checking spending…",
       "spendingError": "Couldn't check spending",
       "spendingUnlinked": "Spending isn't linked yet.",
@@ -839,5 +861,15 @@
     "contractPosition": "Contract invoice position",
     "purchaseOrdersUnavailable": "Purchase order totals are still being confirmed.",
     "reviewInvoices": "Review invoices"
+  },
+  "m365Documents": {
+    "history": {
+      "openVerified": "Open verified version history"
+    },
+    "verification": {
+      "checking": "Checking Microsoft file content…",
+      "failed": "Couldn't check with Microsoft. This status may be out of date.",
+      "retry": "Retry check"
+    }
   }
 }

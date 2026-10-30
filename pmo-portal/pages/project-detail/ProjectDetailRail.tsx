@@ -11,7 +11,6 @@ import { classificationValueLabel } from '@/src/lib/projectClassification';
 
 export interface ProjectDetailRailProps {
   project: ProjectWithRefs;
-  onEditProject?: () => void;
   showActionSection?: boolean;
   /** Disclosure label; defaults to the legacy "Project details and actions". */
   summaryLabel?: string;

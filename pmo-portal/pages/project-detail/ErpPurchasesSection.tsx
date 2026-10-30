@@ -32,7 +32,7 @@ export const ErpPurchasesSection: React.FC<{
   const refetch = () => Promise.all([refetchAging(), orphanQuery.refetch()]);
   const today = localToday();
   const rows = useMemo(() => data ?? [], [data]);
-  const orphans = useMemo(() => orphanQuery.data ?? [], [orphanQuery.data]);
+  const orphans = orphanQuery.data ?? [];
   const { aging, sharedOpen } = useMemo(() => projectAging(rows, today), [rows, today]);
   if (!canView || (!isError && orphans.length === 0 && aging.length === 0)) return null;
 

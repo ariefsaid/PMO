@@ -79,12 +79,15 @@ const deleteRowMutate = vi.fn();
 const entryMutations = {
   saveWeek: { mutate: saveWeekMutate, mutateAsync: saveWeekMutateAsync, isPending: false },
   deleteRow: { mutate: deleteRowMutate, isPending: false },
+  isReconciling: false,
+  retryDeleteRefresh: vi.fn(),
+  reconciledDelete: null as { timesheetId: string; entries: TimesheetWithEntries['entries'] } | null,
 };
 vi.mock('@/src/hooks/useTimesheetEntries', () => ({
   useTimesheetEntryMutations: () => entryMutations,
 }));
 
-const projectsState: { data: unknown[] | undefined } = { data: [] };
+const projectsState: { data: unknown[] | undefined; isPending: boolean; isError: boolean; refetch: ReturnType<typeof vi.fn> } = { data: [], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
 }));
@@ -105,6 +108,7 @@ const renderPage = () =>
 
 beforeEach(() => {
   sessionStorage.clear(); // reset the persisted view so each test starts on the grid
+  entryMutations.reconciledDelete = null;
   saveWeekMutateAsync.mockResolvedValue('ts-auto'); // reset to default resolved value
 });
 
@@ -692,12 +696,14 @@ describe('AC-W3-F5: timesheet row delete restores row on server failure', () => 
         opts?.onError?.(new Error('delete failed on server')),
     );
 
-    renderPage();
+    const { rerender } = renderPage();
     await userEvent.click(screen.getByRole('button', { name: /delete .* row/i }));
     const dialog = screen.getByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /delete row/i }));
+    entryMutations.reconciledDelete = { timesheetId: 'ts-draft', entries: tsState.data![0].entries };
+    rerender(<ImpersonationProvider realRole="Project Manager"><MemoryRouter><ToastProvider><Timesheets /></ToastProvider></MemoryRouter></ImpersonationProvider>);
 
-    // Row must STILL be in the grid (rollback on failure).
+    // The authoritative surviving entry is restored.
     expect(screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours')).toBeInTheDocument();
 
     // A warning toast must have appeared.
@@ -1104,10 +1110,13 @@ describe('#596: delete-row race', () => {
     // User re-adds the same project while the delete is still in flight.
     await userEvent.selectOptions(screen.getByLabelText(/add a project/i), 'pP');
     expect(screen.getAllByLabelText('Innovate Corp HQ Fit-Out, Mon hours')).toHaveLength(1);
+    await userEvent.type(screen.getByLabelText('Innovate Corp HQ Fit-Out, Tue hours'), '3');
     // The delete then fails on the server (entry already gone).
     await act(async () => { pending?.onError?.(new Error('Timesheet entry not found')); });
-    // Exactly ONE row for the project — the restore must not duplicate the re-added row.
+    // The re-added row retains its new edits without duplicating the project.
     expect(screen.getAllByLabelText('Innovate Corp HQ Fit-Out, Mon hours')).toHaveLength(1);
+    expect(screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours')).toHaveValue('');
+    expect(screen.getByLabelText('Innovate Corp HQ Fit-Out, Tue hours')).toHaveValue('3');
   });
 });
 
@@ -1207,5 +1216,81 @@ describe('S-28: long project names in the add-project picker (RF-061)', () => {
     await userEvent.selectOptions(picker, 'pL');
     expect(screen.getByLabelText('Regional DC, Mon hours')).toBeInTheDocument();
     expect(screen.getAllByTitle(longName).length).toBeGreaterThan(0);
+  });
+});
+
+
+describe('Week safety', () => {
+  beforeEach(() => {
+    tsState.data = currentDraftSheet() as unknown as TimesheetWithEntries[];
+    tsState.isPending = false; tsState.isError = false;
+    projectsState.data = ongoingProjects; projectsState.isPending = false; projectsState.isError = false;
+    entryMutations.deleteRow.isPending = false; entryMutations.isReconciling = false;
+  });
+  afterEach(() => { projectsState.isPending = false; projectsState.isError = false; entryMutations.deleteRow.isPending = false; entryMutations.isReconciling = false; });
+
+  it('keeps dirty hours when cancelling a week change', async () => {
+    renderPage();
+    const cell = screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours');
+    await userEvent.clear(cell); await userEvent.type(cell, '7');
+    await userEvent.click(screen.getByRole('button', { name: /next week/i }));
+    await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: /cancel/i }));
+    expect(cell).toHaveValue('7');
+  });
+
+  it('blocks week navigation while a delete is pending', () => {
+    entryMutations.deleteRow.isPending = true;
+    renderPage();
+    expect(screen.getByRole('button', { name: /next week/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /previous week/i })).toBeDisabled();
+  });
+
+  it('keeps an unsaved empty project row when week navigation is cancelled', async () => {
+    renderPage();
+    await userEvent.selectOptions(screen.getByLabelText(/add a project/i), 'pQ');
+    await userEvent.click(screen.getByRole('button', { name: /next week/i }));
+    await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: /cancel/i }));
+    expect(screen.getByLabelText('Acme Internal Platform, Mon hours')).toBeInTheDocument();
+  });
+
+  it('keeps a failed deletion in its originating week', async () => {
+    let pending: { onError?: (e: Error) => void } | undefined;
+    deleteRowMutate.mockImplementation((_args: unknown, callbacks: typeof pending) => { pending = callbacks; });
+    const { rerender } = renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /delete .* row/i }));
+    await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: /delete row/i }));
+    entryMutations.deleteRow.isPending = true;
+    rerender(<ImpersonationProvider realRole="Project Manager"><MemoryRouter><ToastProvider><Timesheets /></ToastProvider></MemoryRouter></ImpersonationProvider>);
+    await userEvent.click(screen.getByRole('button', { name: /next week/i }));
+    await act(async () => { pending?.onError?.(new Error('Unavailable')); });
+    entryMutations.reconciledDelete = { timesheetId: 'ts-draft', entries: tsState.data![0].entries };
+    rerender(<ImpersonationProvider realRole="Project Manager"><MemoryRouter><ToastProvider><Timesheets /></ToastProvider></MemoryRouter></ImpersonationProvider>);
+    expect(screen.getByLabelText('Innovate Corp HQ Fit-Out, Mon hours')).toBeInTheDocument();
+    deleteRowMutate.mockReset();
+  });
+
+  it('blocks writes and week navigation until the week can be refreshed', async () => {
+    entryMutations.isReconciling = true;
+    renderPage();
+    expect(screen.getByRole('button', { name: /next week/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /submit timesheet/i })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: /retry week refresh/i }));
+    expect(entryMutations.retryDeleteRefresh).toHaveBeenCalled();
+  });
+
+  it('offers retry when projects cannot be loaded', async () => {
+    projectsState.data = undefined; projectsState.isError = true;
+    renderPage();
+    expect(screen.queryByText('No projects to add')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /retry projects/i }));
+    expect(projectsState.refetch).toHaveBeenCalled();
+  });
+
+  it('reports project loading separately from an empty picker', () => {
+    projectsState.data = undefined; projectsState.isPending = true;
+    renderPage();
+    expect(screen.getByText(/loading projects/i)).toBeInTheDocument();
+    expect(screen.queryByText('No projects to add')).not.toBeInTheDocument();
   });
 });

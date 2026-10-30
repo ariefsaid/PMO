@@ -1,4 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+const itemEligibility = vi.hoisted(() => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }));
+const recordPush = vi.hoisted(() => ({ status: 'idle' as string, error: null }));
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+
+vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => itemEligibility }));
+afterEach(() => { clearOwnershipCache(); itemEligibility.data = true; itemEligibility.isPending = false; itemEligibility.isError = false; itemEligibility.isFetching = false; recordPush.status = 'idle'; });
 
 // OD-TAX-1 (#548): the money forms now PRE-SELECT the org's `default_tax_treatment`, which is a
 // live org read (`useOrgTaxDefault` → react-query + AuthContext). Only the READ is stubbed here —
@@ -31,6 +38,7 @@ async function confirmInDialog(label: RegExp | string) {
 const detailState = {
   data: undefined as Record<string, unknown> | undefined,
   isPending: false,
+  isFetching: false,
   isError: false,
   error: null as (Error & { code?: string }) | null,
   refetch: vi.fn(),
@@ -58,6 +66,7 @@ vi.mock('@/src/hooks/useProcurementRecords', () => ({
     createRfq: { mutateAsync: vi.fn(), isPending: false },
     createPurchaseOrder: { mutateAsync: vi.fn(), isPending: false },
     createPayment: { mutateAsync: vi.fn(), isPending: false },
+    pendingPush: recordPush,
   }),
 }));
 
@@ -119,14 +128,13 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
     createDocument: { mutateAsync: mockCreateDocument, isPending: false },
     deleteDocument: { mutateAsync: mockDeleteDocument, isPending: false },
   }),
-  useProcurementDocuments: () => docsState,
 }));
 
 // FK pickers (header edit project/vendor, quotation vendor) read cached option
 // hooks; stub them so the detail test needs no QueryClient.
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [{ value: 'proj-1', label: 'HQ Fit-Out' }] }),
-  useVendorOptions: () => ({ data: [{ value: 'v1', label: 'Apex Supply', sub: 'Vendor' }] }),
+  useVendorOptions: () => ({ data: [{ value: 'v1', label: 'Apex Supply', sub: 'Vendor' }, { value: 'v-syn', label: 'Synergy Systems', sub: 'Vendor' }, { value: 'v-apx', label: 'Apex Supply', sub: 'Vendor' }] }),
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
@@ -534,15 +542,22 @@ describe('AC-IXD-PROC-004: selected-quote binds on the Quote Selected state (PRO
     expect(within(comparisons).getByText('Chosen')).toBeInTheDocument();
   });
 
-  it('PROC-004: the selected quotation row carries the "Selected · best value" pill', () => {
+  it('PROC-004: selected and lowest-price pills appear only on the chosen lowest quote row', () => {
     renderPage('proc-001', 'quotes');
-    // VendorQuotesTab (Slice 3) replaced QuotationsSection — testid is now vendor-quotes.
     const section = screen.getByTestId('vendor-quotes');
-    // The chosen $148,000 (VQ-2602050001) row shows "Selected · best value"; the $152,000 one does not.
-    // Both desktop + mobile branches render the pill so at least one match expected.
-    expect(within(section).getAllByText(/Selected · best value/i).length).toBeGreaterThanOrEqual(1);
-    // The VQ number is present in the section
-    expect(within(section).getAllByText('VQ-2602050001').length).toBeGreaterThanOrEqual(1);
+    const quoteRows = Array.from(section.querySelectorAll('tr'));
+    const chosenRow = quoteRows.find((row) => row.textContent?.includes('VQ-2602050001'));
+    expect(chosenRow).toBeInTheDocument();
+    expect(chosenRow).toHaveTextContent('$148,000');
+    expect(chosenRow).toHaveTextContent('Synergy Systems');
+    expect(within(chosenRow as HTMLElement).getByText('Selected')).toBeInTheDocument();
+    expect(within(chosenRow as HTMLElement).getByText('Lowest price')).toBeInTheDocument();
+
+    const higherQuoteRow = quoteRows.find((row) => row.textContent?.includes('VQ-2602050002'));
+    expect(higherQuoteRow).toBeInTheDocument();
+    expect(higherQuoteRow).toHaveTextContent('$152,000');
+    expect(within(higherQuoteRow as HTMLElement).queryByText('Selected')).not.toBeInTheDocument();
+    expect(within(higherQuoteRow as HTMLElement).queryByText('Lowest price')).not.toBeInTheDocument();
   });
 });
 
@@ -798,12 +813,16 @@ describe('Document trail renders PR/VQ/PO/GR/VI numbers (AC-816 data)', () => {
     expect(screen.getAllByText('VI-2601100001').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders total_value via formatCurrency (money never raw)', () => {
+  it('renders total_value formatted and grouped, never raw (money never raw)', () => {
     detailState.data = { ...baseProcurement, total_value: 50000, currency: 'USD' };
     renderPage();
-    // formatCurrency(50000) = "$50,000"
-    // May appear in multiple places (header + DecisionSupportPanel stat tiles) — any occurrence is proof.
-    expect(screen.getAllByText('$50,000').length).toBeGreaterThanOrEqual(1);
+    // Money-honesty rework: figures render grouped WITHOUT an inline "$" — the money card's
+    // "Money · USD, before tax" head carries the currency, and the tile shows formatNumber(50000).
+    // The oracle is unchanged: total_value is never rendered raw. Justification: the symbol-on-figure
+    // journey this test pinned was deliberately replaced by label-on-card + grouped figure.
+    expect(screen.getAllByText('50,000').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Money · USD, before tax')).toBeInTheDocument();
+    expect(screen.queryByText('50000')).not.toBeInTheDocument();
   });
 
   it('renders procurement title in the header', () => {
@@ -1320,6 +1339,26 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
     expect(screen.getByText('Welding wire')).toBeInTheDocument();
   });
 
+  it('keeps external item values read-only when the case has external evidence', async () => {
+    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    itemEligibility.data = false;
+    renderPage('proc-001', 'items');
+    await userEvent.click(screen.getByRole('button', { name: /edit welding wire/i }));
+    expect(screen.getByLabelText(/edit quantity for welding wire/i)).toBeDisabled();
+    expect(screen.getByLabelText(/edit unit price for welding wire/i)).toBeDisabled();
+    expect(screen.getByLabelText(/edit description for welding wire/i)).toBeEnabled();
+    expect(screen.getByTestId('line-item-add-row')).toBeInTheDocument();
+  });
+
+  it('keeps values read-only while a case command is being submitted', async () => {
+    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    recordPush.status = 'pushing';
+    renderPage('proc-001', 'items');
+    await userEvent.click(screen.getByRole('button', { name: /edit welding wire/i }));
+    expect(screen.getByLabelText(/edit quantity for welding wire/i)).toBeDisabled();
+    expect(screen.getByLabelText(/edit unit price for welding wire/i)).toBeDisabled();
+  });
+
   it('AC-PROC-003: line items are READ-ONLY once the PR leaves Draft (no add-row)', () => {
     detailState.data = { ...draftByAlice, status: 'Approved' as const };
     renderPage('proc-001', 'items');
@@ -1332,6 +1371,45 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
     const header = screen.getByTestId('record-header');
     fireEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
     expect(within(header).getByTestId('edit-header')).toBeInTheDocument();
+  });
+
+  it('offers header editing to the Engineer requester', () => {
+    mockEffectiveRole = 'Engineer';
+    renderPage();
+    const header = screen.getByTestId('record-header');
+    fireEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    expect(within(header).getByTestId('edit-header')).toBeInTheDocument();
+  });
+
+  it('lets an Engineer requester save a Draft header', async () => {
+    mockEffectiveRole = 'Engineer';
+    mockUpdateHeader.mockResolvedValue(undefined);
+    renderPage();
+    const header = screen.getByTestId('record-header');
+    fireEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    fireEvent.click(within(header).getByTestId('edit-header'));
+    const form = screen.getByTestId('header-edit-card');
+    await userEvent.clear(within(form).getByLabelText(/Title/));
+    await userEvent.type(within(form).getByLabelText(/Title/), 'Updated request');
+    await userEvent.click(within(form).getByRole('button', { name: /save/i }));
+    expect(mockUpdateHeader).toHaveBeenCalledWith(expect.objectContaining({ title: 'Updated request' }));
+  });
+
+  it('keeps the header editor open and does not report a denied save as successful', async () => {
+    mockEffectiveRole = 'Engineer';
+    mockUpdateHeader.mockRejectedValueOnce({ code: '42501', message: 'denied' });
+    toast.mockClear();
+    renderPage();
+    const header = screen.getByTestId('record-header');
+    fireEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    fireEvent.click(within(header).getByTestId('edit-header'));
+    const form = screen.getByTestId('header-edit-card');
+    await userEvent.clear(within(form).getByLabelText(/Title/));
+    await userEvent.type(within(form).getByLabelText(/Title/), 'Updated request');
+    await userEvent.click(within(form).getByRole('button', { name: /save/i }));
+    await waitFor(() => expect(mockUpdateHeader).toHaveBeenCalled());
+    expect(screen.getByTestId('header-edit-card')).toBeInTheDocument();
+    expect(toast).not.toHaveBeenCalledWith('Procurement updated', 'Header saved', 'success');
   });
 
   it('AC-PROC-002: header-edit is HIDDEN for a non-requester (record-scoped gate)', () => {
@@ -1518,14 +1596,36 @@ describe('0349: approved-amount ceiling and quote re-route (AC-SEC-220/221)', ()
     approved_by_id: 'u-approver',
     approved_total_value: 1000,
     paymentCeiling: { ok: false, reason: 'vendor bill exceeds approved amount', billedNet: 1200, approvedAmount: 1000 },
+    paymentEligibility: 'allowed',
   };
   beforeEach(() => {
     detailState.isPending = false;
+    detailState.isFetching = false;
     detailState.isError = false;
     mockEffectiveRole = 'Finance';
     mockApproveAmount.mockClear();
     mockSelectQuote.mockClear();
     toast.mockClear();
+  });
+
+  it('requires a current approval decision while confirming', async () => {
+    detailState.data = invoicedOver;
+    const view = renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Approve higher amount' }));
+    const refresh = () => view.rerender(<MemoryRouter initialEntries={['/procurement/proc-001']}><Routes><Route path="/procurement/:procurementId" element={<ProcurementDetails />} /></Routes></MemoryRouter>);
+    detailState.isFetching = true; refresh();
+    expect(screen.getByText('Checking approval eligibility…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
+    detailState.isFetching = false; detailState.isError = true; refresh();
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+    expect(mockApproveAmount).not.toHaveBeenCalled();
+    detailState.isError = false; detailState.data = { ...invoicedOver, paymentEligibility: 'routing' }; refresh();
+    expect(screen.queryByRole('button', { name: 'Approve higher amount' })).not.toBeInTheDocument();
+    expect(screen.getByText('A designated approver must approve the higher amount.')).toBeInTheDocument();
+    detailState.data = invoicedOver; refresh();
+    fireEvent.click(screen.getByRole('button', { name: 'Approve higher amount' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(mockApproveAmount).toHaveBeenCalledWith(1200));
   });
 
   it('AC-SEC-220: a blocked payment explains the overage and lets an eligible approver approve the billed amount', async () => {
@@ -1535,6 +1635,13 @@ describe('0349: approved-amount ceiling and quote re-route (AC-SEC-220/221)', ()
     fireEvent.click(screen.getByRole('button', { name: 'Approve higher amount' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
     await waitFor(() => expect(mockApproveAmount).toHaveBeenCalledWith(1200));
+  });
+
+  it('uses the server decision to explain why a bill recorder cannot approve', () => {
+    detailState.data = { ...invoicedOver, paymentEligibility: 'bill_recorder' };
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Approve higher amount' })).toBeNull();
+    expect(screen.getByText('The person who recorded the bill cannot approve the higher amount.')).toBeInTheDocument();
   });
 
   it('AC-SEC-220: the requester sees the explanation but no approval action', () => {

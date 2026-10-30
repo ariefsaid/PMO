@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { format } from 'date-fns';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, ConfirmDialog, DataTable, useToast, type Column } from '@/src/components/ui';
@@ -21,11 +22,7 @@ import { useRuleErrorCopy } from './useRuleErrorCopy';
  */
 const QUERY_KEY = ['cost-attribution-rules'] as const;
 
-const todayIso = (): string => {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-};
+const todayIso = (): string => format(new Date(), 'yyyy-MM-dd');
 
 const CostAttribution: React.FC = () => {
   const { t } = useTranslation();

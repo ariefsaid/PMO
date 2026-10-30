@@ -11,6 +11,8 @@ const { task, profile } = vi.hoisted(() => ({
     update: vi.fn(),
     updateStatus: vi.fn(),
     delete: vi.fn(),
+    archive: vi.fn(),
+    unarchive: vi.fn(),
     addDependency: vi.fn(),
     removeDependency: vi.fn(),
   },
@@ -84,6 +86,37 @@ describe('useAssignableProfiles', () => {
 });
 
 describe('useTaskMutations', () => {
+  it('refreshes assignee and meeting projections after a project task changes', async () => {
+    const client = freshClient();
+    for (const root of ['my-tasks', 'meeting-action-items']) {
+      client.setQueryData([root, 'org-1', 'x'], 'old');
+      client.setQueryData([root, 'org-2', 'x'], 'other');
+    }
+    const { result } = renderHook(() => useTaskMutations('p1'), { wrapper: wrap(client) });
+    await act(async () => { await result.current.updateStatus.mutateAsync({ id: 't1', status: 'Done' }); });
+    for (const root of ['my-tasks', 'meeting-action-items']) {
+      expect(client.getQueryState([root, 'org-1', 'x'])?.isInvalidated).toBe(true);
+      expect(client.getQueryState([root, 'org-2', 'x'])?.isInvalidated).toBe(false);
+    }
+  });
+
+  it.each([
+    ['create', (m: ReturnType<typeof useTaskMutations>) => m.create.mutateAsync({ project_id: 'p1', name: 'New', status: 'To Do', assignee_id: 'u1' })],
+    ['edit', (m: ReturnType<typeof useTaskMutations>) => m.update.mutateAsync({ id: 't1', patch: { assignee_id: 'u2' } })],
+    ['delete', (m: ReturnType<typeof useTaskMutations>) => m.remove.mutateAsync('t1')],
+    ['archive', (m: ReturnType<typeof useTaskMutations>) => m.archive.mutateAsync({ id: 't1', archived: true })],
+    ['unarchive', (m: ReturnType<typeof useTaskMutations>) => m.archive.mutateAsync({ id: 't1', archived: false })],
+    ['dependency add', (m: ReturnType<typeof useTaskMutations>) => m.addDependency.mutateAsync({ taskId: 't1', dependsOnId: 't2' })],
+    ['dependency remove', (m: ReturnType<typeof useTaskMutations>) => m.removeDependency.mutateAsync({ taskId: 't1', dependsOnId: 't2' })],
+  ] as const)('%s refreshes the affected task projections', async (_name, mutate) => {
+    const client = freshClient();
+    const keys = [['tasks', 'org-1', 'p1'], ['milestones', 'org-1', 'p1'], ['projects-delivery', 'pct', 'org-1', 'p1'], ['my-tasks', 'org-1', 'u1'], ['meeting-action-items', 'org-1', 'm1']];
+    for (const key of keys) client.setQueryData(key, 'old');
+    const { result } = renderHook(() => useTaskMutations('p1'), { wrapper: wrap(client) });
+    await act(async () => { await mutate(result.current); });
+    for (const key of keys) expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+  });
+
   it('AC-TASK-003: create invokes the repository and invalidates the tasks query', async () => {
     const client = freshClient();
     const invalidate = vi.spyOn(client, 'invalidateQueries');

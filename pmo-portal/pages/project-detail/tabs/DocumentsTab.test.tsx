@@ -646,6 +646,19 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     expect(screen.getByText(/continue on Rev B/i)).toBeInTheDocument();
   });
 
+  it('shows every successor and its status in the table and drawer', async () => {
+    listState.data = [...seed, { ...seed[5], id: 'd7', revision: 'C', status: 'Draft' }];
+    renderTab('Admin', 'admin-1');
+    const row = screen.getAllByText('Structural calculation report')[0].closest('tr')!;
+    expect(within(row).getByRole('button', { name: /View revision B of Structural calculation report/i })).toHaveTextContent('Issued');
+    expect(within(row).getByRole('button', { name: /View revision C of Structural calculation report/i })).toHaveTextContent('Draft');
+    await userEvent.click(within(row).getByRole('button', { name: 'View Structural calculation report' }));
+    const drawer = screen.getByRole('complementary');
+    expect(within(drawer).getByRole('button', { name: /View revision B of Structural calculation report/i })).toHaveTextContent('Issued');
+    await userEvent.click(within(drawer).getByRole('button', { name: /View revision C of Structural calculation report/i }));
+    expect(within(screen.getByRole('complementary')).getByText('Rev C')).toBeInTheDocument();
+  });
+
   it('AC-DOC-082 M1: clicking a lineage link navigates to the linked row by opening that document in the drawer', async () => {
     renderTab('Admin', 'admin-1');
     await userEvent.click(screen.getByRole('button', { name: /View revision B of Structural calculation report/i }));
@@ -703,6 +716,26 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
       },
       expect.any(Object),
     );
+  });
+
+  it('offers draft attachment actions to the author and Admin', async () => {
+    renderTab('Project Manager', 'pm-1');
+    await userEvent.click(screen.getByText('Site Plan'));
+    expect(within(screen.getByRole('complementary')).getByRole('button', { name: /Upload file for Site Plan/i })).toBeInTheDocument();
+  });
+
+  it('does not offer draft upload to another writer', async () => {
+    listState.data = [seed[0]];
+    renderTab('Finance', 'other');
+    await userEvent.click(screen.getByText('Site Plan'));
+    expect(within(screen.getByRole('complementary')).queryByRole('button', { name: /Upload file for Site Plan/i })).not.toBeInTheDocument();
+  });
+
+  it('does not offer draft attachment actions to another writer', async () => {
+    listState.data = [{ ...seed[0], file_path: 'file.pdf' }];
+    renderTab('Finance', 'other');
+    await userEvent.click(screen.getByText('Site Plan'));
+    expect(within(screen.getByRole('complementary')).queryByRole('button', { name: /Replace file for Site Plan/i })).not.toBeInTheDocument();
   });
 
   it('C2: a read-only Engineer sees no upload/replace affordance but can still download read-only files', async () => {

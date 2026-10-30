@@ -38,6 +38,7 @@ import {
 import { useUserView, useUserViewMutations } from '@/src/hooks/useUserViews';
 import type { UserViewRow } from '@/src/lib/db/userViews';
 import { useAuth } from '@/src/auth/useAuth';
+import { usePermission } from '@/src/auth/usePermission';
 import { compileCompositionSpec } from '@/src/lib/viewspec/compiler';
 import { ValidationError } from '@/src/lib/viewspec/types';
 import { MAX_PANELS_PER_VIEW } from '@/src/lib/viewspec/types';
@@ -63,11 +64,14 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
   const viewId = mode === 'edit' ? (params.viewId ?? '') : undefined;
 
   const { currentUser } = useAuth();
+  const may = usePermission();
   const { toast } = useToast();
   const { create, update } = useUserViewMutations();
 
   // ── Edit mode: load existing view ────────────────────────────────────────
   const { data: existingView, isPending: viewLoading } = useUserView(viewId);
+
+  const canEditView = !!existingView && may('edit', 'userView', { currentUserId: currentUser?.id, record: { user_id: existingView.user_id } });
 
   // ── Metadata form state ───────────────────────────────────────────────────
   const [name, setName] = useState('');
@@ -217,7 +221,7 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
   const spec: CompositionSpec = { version: 1, panels };
 
   const handleSave = async () => {
-    if (!currentUser) return;
+    if (!currentUser || (mode === 'edit' && !canEditView)) return;
     setSaveError(null);
 
     // Compile-before-save invariant (NFR-VB-SEC-004)
@@ -287,6 +291,10 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
         action={{ label: t('viewBuilder.goToMyViews', 'Go to My Views'), onClick: () => navigate('/views') }}
       />
     );
+  }
+
+  if (mode === 'edit' && !canEditView) {
+    return <ListState variant="empty" title={t('viewBuilder:editUnavailable', 'You cannot edit this view.')} action={{ label: t('viewBuilder.goToMyViews', 'Go to My Views'), onClick: () => navigate('/views') }} />;
   }
 
   const pageTitle = mode === 'create'

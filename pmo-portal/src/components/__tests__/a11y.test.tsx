@@ -48,6 +48,8 @@ const { listState, mutations } = vi.hoisted(() => ({
   },
 }));
 
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => listState,
   useCompanyMutations: () => mutations,

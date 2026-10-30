@@ -730,3 +730,23 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     expect(hoisted.navigateMock).not.toHaveBeenCalled();
   });
 });
+
+it('offers retry when customer options cannot load in the global create form', async () => {
+  const refetch = vi.fn().mockResolvedValueOnce({ data: undefined, error: new Error('unavailable') }).mockResolvedValueOnce({ data: hoisted.clientOptions, error: null });
+  hoisted.clientOptionsQuery = { data: undefined, isPending: false, isError: true, refetch };
+  const user = userEvent.setup();
+  renderPage();
+  await openForm(user);
+  await user.click(screen.getByRole('combobox', { name: 'Customer' }));
+  expect(await screen.findByText(/couldn't load customers/i)).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Retry' }));
+  expect(await screen.findByRole('option', { name: /Acme Energy/ })).toBeInTheDocument();
+});
+
+it('keeps unsupported edit out of the invoice actions', async () => {
+  hoisted.salesInvoicesState.data = [{ id: 'inv-1', status: 'Draft', si_number: 'INV-1', customer_name: 'Acme', author_user_ids: [], currency: 'USD' }];
+  const user = userEvent.setup();
+  renderPage();
+  await user.click(screen.getByRole('button', { name: /row actions/i }));
+  expect(screen.queryByRole('menuitem', { name: /^edit$/i })).not.toBeInTheDocument();
+});

@@ -43,7 +43,7 @@ const procurementDetailKey = (orgId: string | undefined, id: string | undefined)
 
 /**
  * Fetches the full procurement detail (header + quotations + receipts + invoices).
- * Cache key is org-scoped: ['procurement', orgId, id] (AC-816).
+ * Cache key is scoped to the org and actor because approval eligibility is caller-specific.
  * Disabled when orgId or id are falsy.
  */
 export function useProcurementDetail(id: string | undefined) {
@@ -51,7 +51,7 @@ export function useProcurementDetail(id: string | undefined) {
   const orgId = currentUser?.org_id;
 
   return useQuery<ProcurementDetail>({
-    queryKey: procurementDetailKey(orgId, id),
+    queryKey: [...procurementDetailKey(orgId, id), currentUser?.id, currentUser?.role],
     queryFn: () => getProcurementDetail(id!),
     enabled: Boolean(orgId && id),
   });
@@ -79,6 +79,7 @@ export function useProcurementMutations(id: string) {
 
   const invalidateDetail = () => {
     queryClient.invalidateQueries({ queryKey: procurementDetailKey(orgId, id) });
+    queryClient.invalidateQueries({ queryKey: ['procurement-item-eligibility', orgId, id] });
   };
 
   // The shared pending-push state for this procurement's record-creation writes (quotation/GR/VI —
@@ -109,14 +110,20 @@ export function useProcurementMutations(id: string) {
     mutationFn: ({ vendorId, totalAmount, receivedDate, intent }) =>
       repositories.procurement.createQuotation(id, vendorId, totalAmount, receivedDate, intent),
     onMutate: () => {
-      if (isExternal()) setPendingPush(beginPush(IDLE_PENDING_PUSH));
+      if (isExternal()) {
+        queryClient.setQueryData(['procurement-item-eligibility', orgId, id], false);
+        setPendingPush(beginPush(IDLE_PENDING_PUSH));
+      }
     },
     onSuccess: () => {
       invalidateDetail();
       if (isExternal()) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
     },
     onError: (err) => {
-      if (isExternal()) setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+      if (isExternal()) {
+        queryClient.invalidateQueries({ queryKey: ['procurement-item-eligibility', orgId, id] });
+        setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+      }
     },
   });
 
@@ -128,14 +135,20 @@ export function useProcurementMutations(id: string) {
     mutationFn: ({ status, receiptDate, referenceNumber, intent }) =>
       repositories.procurement.createReceipt(id, status, receiptDate, referenceNumber, intent),
     onMutate: () => {
-      if (isExternal()) setPendingPush(beginPush(IDLE_PENDING_PUSH));
+      if (isExternal()) {
+        queryClient.setQueryData(['procurement-item-eligibility', orgId, id], false);
+        setPendingPush(beginPush(IDLE_PENDING_PUSH));
+      }
     },
     onSuccess: () => {
       invalidateDetail();
       if (isExternal()) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
     },
     onError: (err) => {
-      if (isExternal()) setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+      if (isExternal()) {
+        queryClient.invalidateQueries({ queryKey: ['procurement-item-eligibility', orgId, id] });
+        setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+      }
     },
   });
 
@@ -154,14 +167,20 @@ export function useProcurementMutations(id: string) {
     mutationFn: ({ intent, ...input }) =>
       repositories.procurement.createInvoice({ ...input, procurementId: id }, intent),
     onMutate: () => {
-      if (isExternal()) setPendingPush(beginPush(IDLE_PENDING_PUSH));
+      if (isExternal()) {
+        queryClient.setQueryData(['procurement-item-eligibility', orgId, id], false);
+        setPendingPush(beginPush(IDLE_PENDING_PUSH));
+      }
     },
     onSuccess: () => {
       invalidateDetail();
       if (isExternal()) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
     },
     onError: (err) => {
-      if (isExternal()) setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+      if (isExternal()) {
+        queryClient.invalidateQueries({ queryKey: ['procurement-item-eligibility', orgId, id] });
+        setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+      }
     },
   });
 

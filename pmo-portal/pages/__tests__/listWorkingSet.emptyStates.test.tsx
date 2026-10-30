@@ -46,6 +46,8 @@ const noopMutations = () => ({
   isPending: false,
 });
 
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+
 vi.mock('@/src/hooks/useErpPurchases', () => import('@/pages/__tests__/helpers/erpPurchasesMock'));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 // Projects' table row status control needs a QueryClientProvider this suite doesn't mount —

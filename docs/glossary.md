@@ -14,10 +14,11 @@ handover/commissioning. One of the nine business spines (see `docs/roadmap-spine
 target date, and a weight. Created free-form per project — there is no org-level milestone
 taxonomy. Progress is held in two columns: a *calculated* percent (derived from its tasks'
 completion; empty when it has no tasks) and an *input* percent (typed by the PM, optional).
-The effective percent is the input value when present, otherwise the calculated one; both
-are shown side by side, so any divergence between the PM's figure and task-derived progress
-is self-evident. A project's overall delivery progress is the weight-weighted rollup of its
-milestones' effective percent.
+The effective percent is the input value when present, otherwise the calculated one, or zero
+when neither exists. Calculated progress excludes subtasks and archived tasks. Both values are
+shown side by side, so any divergence between the PM's figure and task-derived progress is
+self-evident. A project's overall delivery progress is the weight-weighted rollup of its
+milestones' effective percent; it is unavailable (null) when no milestone has a progress signal.
 ⚠ Deliberate deviation from strict PM vocabulary: here a milestone is a *work chunk that
 progresses*, not a zero-duration checkpoint event.
 **Shown to users as "Phase" / "Fase"** (DD-VOCAB-1); "milestone" stays the model, code and spec term.
@@ -26,34 +27,36 @@ progresses*, not a zero-duration checkpoint event.
 under exactly one milestone. The delivery hierarchy is two levels only: milestone → tasks
 (decided 2026-06-11; deeper nesting deferred until a real customer needs it).
 
-**Document** — a controlled record in a project's document register (drawing, specification,
-report, contract …). Carries a category, a revision mark, and a lifecycle status with
-separation-of-duties approval (approver ≠ author). A document carries **at most one source**:
-either a **file** PMO holds, or a **link** to a single item in the client's Microsoft 365
-(a SharePoint library, or OneDrive) — never both, and possibly neither (a register entry with
-no content yet). The content-freeze rule is the same for both — once issued, content changes
-require a new revision — but it is honoured differently: PMO *prevents* a held file from
-changing after issue, whereas a linked item's content lives at Microsoft and can change at any
-time, so PMO *detects* the change and requires a new revision to restore an approved state
-(see **Content drift**). (One-source rule decided 2026-06-12; linking decided 2026-07-29.)
+**Document** — a controlled file record in a project's document register (drawing,
+specification, report, contract …). Carries a category, a revision mark, and a lifecycle
+status with separation-of-duties approval (approver ≠ author). A register entry can have one
+PMO-held upload, one linked Microsoft 365 file (SharePoint or OneDrive), or no attached source
+yet; it cannot have both sources. A linked Microsoft 365 folder may also appear as a
+reference-only entry, but it is not an issuable or approvable document file. Once a controlled
+file is issued, content changes require a new revision: PMO prevents changes to a held upload,
+while a linked file can change at Microsoft and PMO detects that change (see **Content drift**).
+(One-source rule decided 2026-06-12; linking decided 2026-07-29.)
 
-**Content drift** — a linked document's content has changed at Microsoft since PMO last
-recorded it. Detected, never prevented — PMO does not own the bytes. A drifted document
-**keeps whatever status it had**: an approval stays a true statement about the content that
-was approved, and does not become false because the source moved on. Drift is marked wherever
-the document appears, not only on its own page, so that "no mark" never has to be read as
-"not checked". Resolving drift is an explicit act — the user creates a new revision from the
-current file, which then walks the normal lifecycle. Distinct from a *name* change at
-Microsoft, which is cosmetic and is not drift. (Decided 2026-07-29.)
+**Content drift** — a linked document file's currently observed content differs from the
+content baseline recorded when it was issued. Each verification compares against that same
+issue-time baseline, not the result of the previous check. The result is **Changed**,
+**Unchanged**, or **Not verified**; an unavailable check is never a clean result. A Microsoft
+rename is a name change, not content drift. Drift is detected, never prevented — PMO does not
+own the bytes — and a drifted document **keeps whatever status it had**. Resolving drift is an
+explicit act: the user creates a new revision from the current file, which walks the normal
+lifecycle. (Decided 2026-07-29.)
 
 **Revision** — a successive issue of the same document (Rev A → Rev B …). Each revision is
 its own register entry and walks the full lifecycle itself. A revision is always created
 *from* its predecessor — that explicit act is what links the lineage (no name/code matching).
-Prior revisions are never deleted or hidden: when a newer revision is Approved, the older
-one becomes Superseded but stays readable (audit trail).
+Prior revisions are not deleted or hidden. When a successor is Approved, only its immediate
+predecessor is automatically marked Superseded, and only if that predecessor is Issued or
+Approved. A Closed predecessor and earlier ancestors keep their status.
 
-**Superseded** — terminal document status meaning "replaced by a newer Approved revision of
-the same document". Read-only, reached automatically, never hand-picked.
+**Superseded** — terminal document status meaning "replaced by an Approved successor revision
+of the same document". Approval automatically moves only the immediate predecessor to this
+status, and only when that predecessor is Issued or Approved. A Closed predecessor and earlier
+ancestors are unchanged. Read-only, reached automatically, never hand-picked.
 
 **O&M (Service)** — recurring post-handover service performed under its own contract
 (maintenance schedules, breakdown response, installed-asset care). NOT part of Delivery:
@@ -78,9 +81,9 @@ Service/O&M). Defined in `docs/roadmap-spines.md`.
 
 **Procurement record** — a real document that hangs under a Procurement case: a **Purchase Request, RFQ, Quotation, Purchase Order, Goods Receipt, Vendor Invoice,** or **Payment**. Each is its own typed entity, of which a case may have **many** (e.g. several partial Goods Receipts, multiple Vendor Invoices, progress Payments). A record is **evidence** of where the case stands; it is not the authority for the case's status (that is the declared lifecycle status — see **Committed spend**). (ADR-0033.)
 
-**System-assigned number** — the identifier PMO mints for a Procurement record (e.g. `PR-250619-0001`), unique per org and gap-tolerant. Every record has one. Distinct from the **External reference number**. (OD-PROC-3.)
+**System-assigned number** — the identifier PMO mints when a Procurement record is created through the standard PMO flow. It uses the per-org daily sequence and type prefix defined in OD-PROC-3 (for example, `PR-YYMMDD####`). Distinct from the optional **External reference number**.
 
-**External reference number** — the identifier the document carries in the *outside* world — the vendor's quotation number, the real PO number, the supplier's invoice number. Optional, free-form, captured by the procurement admin alongside the **System-assigned number** so a record is findable from either side. Every Procurement record carries both. (ADR-0033.)
+**External reference number** — the optional, free-form identifier a Procurement record has in the *outside* world — the vendor's quotation number, the real PO number, or the supplier's invoice number. It can be captured alongside the **System-assigned number** so the record is findable from either side. (ADR-0033.)
 
 **RFQ (Request for Quotation)** — a Procurement record representing a formal request for pricing issued to a set of vendors. One RFQ may gather **many** Quotations (1:N); a Quotation may cite the RFQ it answers. (ADR-0033.)
 

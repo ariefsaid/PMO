@@ -17,11 +17,13 @@ const h = vi.hoisted(() => ({
     isError: false,
     refetch: vi.fn().mockResolvedValue(undefined),
   },
+  collection: { data: {} as Record<string, { ledgerBasis: 'pmo' | 'erp'; actuals: { currency: string; total: string | null; complete: boolean } }>, isPending: false, isError: false },
   role: 'Project Manager' as 'Admin' | 'Finance' | 'Project Manager' | 'Engineer' | 'Executive',
   effectiveRole: 'Project Manager' as 'Admin' | 'Finance' | 'Project Manager' | 'Engineer' | 'Executive',
   commitments: { data: 75, isPending: false, isError: false, commitmentSource: 'not-tracked' as const, ledgerBasis: 'erp' as 'erp' | 'pmo' | 'unavailable',
-    otherCurrencies: [] as Array<{ currency: string; amount: number }> },
+    otherCurrencies: [] as Array<{ currency: string | null; amount: number }> },
 }));
+vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({ useProjectsMoneyCollection: () => h.collection }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProjectCommittedSpend: () => h.commitments }));
 vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => h.query }));
 vi.mock('@/src/components/fx/FxEquivalent', () => ({ default: () => null }));
@@ -62,6 +64,7 @@ beforeEach(() => {
   h.query.isPending = false;
   h.query.isError = false;
   h.query.refetch.mockReset().mockResolvedValue(undefined);
+  h.collection = { data: { [project.id]: { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '75', complete: true } } }, isPending: false, isError: false };
   h.role = 'Project Manager';
   h.effectiveRole = 'Project Manager';
   h.commitments = { data: 75, isPending: false, isError: false, commitmentSource: 'not-tracked', ledgerBasis: 'erp', otherCurrencies: [] };
@@ -203,6 +206,56 @@ describe('ProjectFinancesSection reading states', () => {
     render(<ProjectFinancesSection project={project} />);
     expect(within(screen.getByRole('heading', { name: /Recorded spending/ }).parentElement!).getByText('75', { selector: 'p' })).toBeInTheDocument();
     expect(screen.getByTestId('committed-other-currencies')).toHaveTextContent('Plus amounts in other currencies: €40');
+  });
+
+  it('names an unavailable commitment currency without formatting an invented code', () => {
+    h.query.data = payload({});
+    h.commitments.ledgerBasis = 'pmo';
+    h.commitments.otherCurrencies = [{ currency: null, amount: 40 }];
+    h.collection.data[project.id] = { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '75', complete: false } };
+    render(<ProjectFinancesSection project={project} />);
+    expect(screen.getByTestId('committed-other-currencies')).toHaveTextContent('Currency unavailable');
+  });
+
+  it('uses the full PMO position for spending and withholds it on a failed read', () => {
+    h.query.data = payload({});
+    h.commitments.ledgerBasis = 'pmo';
+    h.collection.data[project.id] = { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '110', complete: false } };
+    const { rerender } = render(<ProjectFinancesSection project={project} />);
+    const spending = () => within(screen.getByRole('heading', { name: /Recorded spending/ }).parentElement!);
+    expect(spending().getByText('110', { selector: 'p' })).toBeInTheDocument();
+    expect(spending().getByText(/Partial position/)).toBeInTheDocument();
+    h.collection.isError = true;
+    rerender(<ProjectFinancesSection project={project} />);
+    expect(screen.queryByText('110', { selector: 'p' })).not.toBeInTheDocument();
+    expect(screen.queryByText('75', { selector: 'p' })).not.toBeInTheDocument();
+    expect(spending().getByText('Spending coverage unavailable')).toBeInTheDocument();
+  });
+
+  it('withholds a position when its ledger basis disagrees with the current basis', () => {
+    h.query.data = payload({});
+    h.commitments.ledgerBasis = 'pmo';
+    h.collection.data[project.id] = { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '110', complete: true } };
+    render(<ProjectFinancesSection project={project} />);
+    expect(screen.queryByText('110', { selector: 'p' })).not.toBeInTheDocument();
+  });
+
+  it('withholds a cached position when its currency differs from the project', () => {
+    h.query.data = payload({});
+    h.commitments.ledgerBasis = 'pmo';
+    h.collection.data[project.id] = { ledgerBasis: 'pmo', actuals: { currency: 'EUR', total: '110', complete: true } };
+    render(<ProjectFinancesSection project={project} />);
+    expect(screen.queryByText('110', { selector: 'p' })).not.toBeInTheDocument();
+  });
+
+  it('does not calculate margin from an ERP snapshot when the position uses PMO commitments', () => {
+    h.commitments.ledgerBasis = 'pmo';
+    h.query.data = payload({
+      invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '100', settled: '0', outstanding: '100', missing_amount: 0, missing_outstanding: 0, tax_basis: 'exclusive', work_revenue: '100', missing_work: 0 }],
+      actuals: { currency: 'USD', as_of: null, total: '40', excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '40' }] },
+    });
+    render(<ProjectFinancesSection project={project} />);
+    expect(within(screen.getByTestId('project-finances-USD')).getByText(/Gross margin is left out/)).toBeInTheDocument();
   });
 
   it('DD-MONEY-1 uses mapped ERP Actual when procurement is ERP-owned, PO Actual for PMO, and withholds on signal error', () => {

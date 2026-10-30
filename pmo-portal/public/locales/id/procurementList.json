@@ -157,6 +157,8 @@
   },
   "orphans": {
     "error": "Dokumen yang belum masuk pengadaan tidak dapat dimuat",
+    "projectsError": "Nama proyek tidak dapat dimuat",
+    "projectsErrorSub": "Coba lagi sebelum meninjau referensi proyek.",
     "empty": {
       "title": "Semua dokumen sistem akuntansi sudah masuk pengadaan",
       "sub": "Dokumen baru akan muncul setelah sinkronisasi berikutnya."

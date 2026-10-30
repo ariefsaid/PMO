@@ -176,6 +176,13 @@
     "rowActions": "Invoice actions",
     "paymentActions": "Payment actions",
     "figures": "Receivables figures",
+    "projectSearchLoading": "Loading projects for search…",
+    "businessDayLoading": "Loading the business day; overdue results cannot be calculated yet.",
+    "projectSearchUnavailable": "Project search is unavailable.",
+    "retryProjects": "Retry projects",
+    "businessDayUnavailable": "Business day unavailable; overdue results cannot be calculated.",
+    "retryBusinessDay": "Retry business day",
+    "overdueUnavailable": "Overdue results are unavailable",
     "evidenceLoadError": "Couldn't load the invoice lines from the accounting system.",
     "amount": "Amount",
     "outstandingUnknown": "The outstanding balance is not known yet: the accounting system has not reported it for this invoice.",
@@ -208,6 +215,9 @@
     "emptySub": "They appear here after the next sync once ERPNext is connected.",
     "amountPreTaxTooltip": "Pre-tax total from the accounting-system document. Source: ERP purchase document.",
     "noProject": "No project",
+    "projectUnavailable": "Project unavailable ({{id}})",
+    "exportEntity": "ERP documents",
+    "exportList": "Export list",
     "type": {
       "order": "Purchase order",
       "invoice": "Supplier invoice",
@@ -221,7 +231,8 @@
       "date": "Date",
       "amount": "Amount",
       "erpStatus": "ERPNext status",
-      "amountPreTax": "Amount (pre-tax)"
+      "amountPreTax": "Amount (pre-tax)",
+      "currency": "Currency"
     },
     "aging": {
       "title": "Unpaid by age",
@@ -243,6 +254,8 @@
     "uncategorized": "Uncategorized"
   },
   "budgetActivation": {
+    "eligibilityChecking": "Checking activation eligibility…",
+    "eligibilityUnavailable": "Activation eligibility is unavailable. Refresh this page and try again.",
     "checking": "Checking project dates, line phasing, ERPNext fiscal years and account mapping…",
     "checkFailed": "Couldn't check budget readiness. Refresh and try again.",
     "erpUnavailable": "Couldn't check ERPNext; it'll be checked again when the budget is pushed.",
@@ -464,6 +477,8 @@
       "activeBudgetSource": "Source: active budget version line items, grouped by category.",
       "spendingUnavailable": "Spending is unknown or unavailable.",
       "commitmentsUnavailable": "Commitments are unknown or unavailable.",
+      "currencyBasisNotice": "Budget: {{budgetCurrency}}. Spending and commitments: {{projectCurrency}}. Comparisons are unavailable across currencies.",
+      "currencyComparisonUnavailable": "Comparison unavailable because budget and spending use different currencies.",
       "leftUnavailable": "Left is unknown while spending or commitments are unavailable.",
       "budgetVsActual": "Budget vs actual",
       "selectedCategories": "Selected categories",

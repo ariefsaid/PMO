@@ -14,7 +14,7 @@ const EYEBROW = 'text-[11px] font-semibold uppercase tracking-[0.06em] text-mute
  * I-1 (#784, FR-NAR-006): what the approver reads before approving a PMO draft — project, customer, customer PO, who
  * raised it, every line, and net / tax / total due. Display only; migration 0275 fixed every figure at creation.
  */
-export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showFx?: boolean }> = ({ inv, showFx = false }) => {
+export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showFx?: boolean; hideLines?: boolean }> = ({ inv, showFx = false, hideLines = false }) => {
   const { t } = useTranslation();
   const { data: projects } = useInvoiceProjectOptions();
   const { data: profiles } = useAssignableProfiles();
@@ -43,7 +43,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
         ))}
       </dl>
 
-      {inv.pmo_native ? (
+      {inv.pmo_native && !hideLines ? (
         <section>
           <h3 className={`mb-2 ${EYEBROW}`}>{t('financeCopy.lineItemsSection', 'Line items')}</h3>
           <ul className="space-y-1.5" aria-label={t('financeCopy.lineItemsSection', 'Line items')}>
@@ -64,11 +64,13 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
             ))}
           </ul>
         </section>
-      ) : showFx ? null : (
-        <p className="text-sm text-muted-foreground">
-          {t('financeCopy.erpLineItemsStoredInErpNext', 'Line items are kept in ERPNext for this invoice.')}
-        </p>
-      )}
+      ) : !inv.pmo_native ? (
+        showFx ? null : (
+          <p className="text-sm text-muted-foreground">
+            {t('financeCopy.erpLineItemsStoredInErpNext', 'Line items are kept in ERPNext for this invoice.')}
+          </p>
+        )
+      ) : null}
 
       <dl className="space-y-1 text-[13px]">
         <div className="flex items-baseline justify-between gap-3">

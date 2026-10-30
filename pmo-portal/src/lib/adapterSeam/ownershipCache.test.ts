@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   setTaskOwnership,
   setDomainOwnership,
@@ -6,6 +6,10 @@ import {
   routeTaskWrite,
   routeDomainWrite,
   setProjectBindings,
+  setProjectBinding,
+  isOwnershipCacheSynced,
+  subscribeOwnershipCache,
+  taskRouteState,
 } from './ownershipCache.ts';
 
 /**
@@ -100,4 +104,24 @@ describe('ADR-0056/FR-ENA-005 routeDomainWrite — generalized per-domain routin
     setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
     expect(routeDomainWrite('procurement')).toBe('external');
   });
+});
+
+
+it('reports readiness and publishes binding changes', () => {
+  clearOwnershipCache();
+  const listener = vi.fn();
+  const unsubscribe = subscribeOwnershipCache(listener);
+  setTaskOwnership([]);
+  expect(isOwnershipCacheSynced()).toBe(false);
+  expect(taskRouteState('p1')).toBe('unknown');
+  setProjectBindings([]);
+  expect(isOwnershipCacheSynced()).toBe(true);
+  expect(taskRouteState('p1')).toBe('pmo');
+  listener.mockClear();
+  setProjectBinding('p1', true);
+  expect(taskRouteState('p1')).toBe('external');
+  expect(listener).toHaveBeenCalled();
+  clearOwnershipCache();
+  expect(taskRouteState('p1')).toBe('unknown');
+  unsubscribe();
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
@@ -11,7 +11,6 @@ const repo = vi.hoisted(() => ({
   updateItem: vi.fn(),
   deleteItem: vi.fn(),
   selectQuote: vi.fn(),
-  listDocuments: vi.fn(),
   createDocument: vi.fn(),
   deleteDocument: vi.fn(),
 }));
@@ -23,7 +22,6 @@ vi.mock('@/src/auth/useAuth', () => ({
 import {
   useCreateProcurement,
   useProcurementCrudMutations,
-  useProcurementDocuments,
 } from './useProcurementCrud';
 
 function makeWrapper() {
@@ -41,24 +39,8 @@ beforeEach(() => {
   repo.updateItem.mockResolvedValue(undefined);
   repo.deleteItem.mockResolvedValue(undefined);
   repo.selectQuote.mockResolvedValue(undefined);
-  repo.listDocuments.mockResolvedValue([{ id: 'd1', type: 'PO', status: 'Draft' }]);
   repo.createDocument.mockResolvedValue({ id: 'd1' });
   repo.deleteDocument.mockResolvedValue(undefined);
-});
-
-describe('AC-PROC-005 useProcurementDocuments (register query)', () => {
-  it('AC-PROC-005: loads the document register for a PR and is disabled when id is empty', async () => {
-    const { Wrapper } = makeWrapper();
-    const { result } = renderHook(() => useProcurementDocuments('pr1'), { wrapper: Wrapper });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(repo.listDocuments).toHaveBeenCalledWith('pr1');
-    expect(result.current.data?.[0].id).toBe('d1');
-
-    const { result: idle } = renderHook(() => useProcurementDocuments(undefined), {
-      wrapper: makeWrapper().Wrapper,
-    });
-    expect(idle.current.fetchStatus).toBe('idle');
-  });
 });
 
 describe('AC-PROC-001 useCreateProcurement', () => {

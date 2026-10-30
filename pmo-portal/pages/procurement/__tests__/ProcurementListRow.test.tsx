@@ -8,6 +8,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
+import { setActiveLocale, resetActiveLocale } from '@/src/lib/locale/activeLocale';
 import { ToastProvider } from '@/src/components/ui';
 
 // ── Mock useProcurementDetail (ExpandedPanel fetches on mount, not relevant here) ──
@@ -76,4 +77,12 @@ describe('AC-002 #1325: ProcurementListRow shows the short name', () => {
     expect(link).toHaveAccessibleDescription('Harbour Bridge Contractual');
     expect(link).toHaveAttribute('title', 'Harbour Bridge Contractual');
   });
+});
+
+it('shows relative age in the active locale', () => {
+  setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+  try {
+    wrap(makeRow({ created_at: new Date(Date.now() - 2 * 86_400_000).toISOString() }));
+    expect(screen.getByText(/2 hari yang lalu/)).toBeInTheDocument();
+  } finally { resetActiveLocale(); }
 });

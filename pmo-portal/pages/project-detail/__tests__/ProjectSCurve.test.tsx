@@ -22,6 +22,7 @@ const taskState = {
   data: [] as TaskWithRefs[] | undefined,
   isPending: false,
   isError: false,
+  refetch: vi.fn(),
 };
 
 vi.mock('@/src/hooks/useTasks', () => ({
@@ -316,5 +317,27 @@ describe('ProjectSCurve', () => {
     ];
     render$();
     expect(screen.getByText(/Completion dates before today are estimated/i)).toBeInTheDocument();
+  });
+
+  it('PGB-014: a pending tasks read renders nothing rather than fabricating actual history', () => {
+    milestoneState.data = datedTaskTracked;
+    taskState.data = undefined;
+    taskState.isPending = true;
+    const { container } = render$();
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('PGB-014: an errored tasks read shows error + Retry that calls both refetch and refetchTasks', () => {
+    milestoneState.data = datedTaskTracked;
+    milestoneState.refetch = vi.fn();
+    taskState.data = undefined;
+    taskState.isError = true;
+    taskState.refetch = vi.fn();
+    render$();
+
+    const retry = screen.getByRole('button', { name: /retry/i });
+    fireEvent.click(retry);
+    expect(taskState.refetch).toHaveBeenCalledTimes(1);
+    expect(milestoneState.refetch).toHaveBeenCalledTimes(1);
   });
 });

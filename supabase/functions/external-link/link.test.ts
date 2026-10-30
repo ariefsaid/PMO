@@ -12,13 +12,13 @@
  * - getPmoTaskCount uses HEAD+count via Content-Range (catches count-path bug)
  */
 
-import { describe, it, beforeAll, afterAll } from '@std/testing/bdd';
-import { assertEquals, assertRejects } from '@std/assert';
-import { handleLinkRequest, setTestJwks, testSupabaseOptions } from './index.ts';
+import { describe, it, afterAll } from '@std/testing/bdd';
+import { assertEquals } from '@std/assert';
+import { handleLinkRequest, setTestJwks } from './index.ts';
 import {
   createJwtAuthority,
   installEdgeEnv,
-  withFetchMock,
+  withFetchMock as baseWithFetchMock,
   supabaseRpc,
   supabaseSelect,
   restCall,
@@ -30,6 +30,24 @@ import {
   createAuthedRequest,
   createTestJwksResolver,
 } from '../_shared/testing/edgeTestKit.ts';
+
+const withFetchMock: typeof baseWithFetchMock = (routes, run) => {
+  let role: string | undefined;
+  const wrapped = routes.map((route) => route.label === 'supabase-select-profiles'
+    ? { ...route, response: async (call: import('../_shared/testing/edgeTestKit.ts').FetchCall) => {
+      const response = typeof route.response === 'function' ? await route.response(call) : route.response;
+      if (call.url.searchParams.has('id')) {
+        const profile = await response.clone().json();
+        role = profile?.role;
+      }
+      return response;
+    } }
+    : route);
+  return baseWithFetchMock(
+    [...wrapped, supabaseRpc('actor_authorization_state', () => jsonResponse({ active: true, role }))],
+    run,
+  );
+};
 
 // One stable authority + env per test module (see TEST-ARCH.md _jwks memoization nuance)
 const env = installEdgeEnv();
@@ -114,23 +132,24 @@ describe('external-link — ClickUp branch', () => {
         {
           label: 'insert binding',
           method: 'POST',
-          pathname: '/rest/v1/external_project_bindings',
-          searchParams: { select: 'id' },
+          pathname: '/rest/v1/rpc/link_external_project',
           response: (call) => {
             const body = call.bodyJson as {
-              config: { statusMap: { pmoToClickUp: Record<string, string>; pmoOnlyStatuses?: string[] } };
+              p_actor_id: string; p_org_id: string; p_project_id: string;
+              p_config: { statusMap: { pmoToClickUp: Record<string, string>; pmoOnlyStatuses?: string[] } };
             };
+            assertEquals([body.p_actor_id, body.p_org_id, body.p_project_id], ['user-1', 'org-1', 'proj-1']);
             // OD-INT-10: the persisted config must record an explicit resolution for all four PMO
             // statuses, never the empty maps this bug used to ship.
-            assertEquals(body.config.statusMap.pmoToClickUp['To Do'], 'to do');
-            assertEquals(body.config.statusMap.pmoToClickUp['In Progress'], 'in progress');
-            assertEquals(body.config.statusMap.pmoToClickUp.Done, 'complete');
+            assertEquals(body.p_config.statusMap.pmoToClickUp['To Do'], 'to do');
+            assertEquals(body.p_config.statusMap.pmoToClickUp['In Progress'], 'in progress');
+            assertEquals(body.p_config.statusMap.pmoToClickUp.Done, 'complete');
             // Round 3 (OD-INT-10): this List has no second custom status, so Blocked has NO ClickUp
             // entry — it resolves `pmo-only` instead of silently colliding with In Progress's target
             // (round 2's fix for exactly that corruption).
-            assertEquals(body.config.statusMap.pmoToClickUp.Blocked, undefined);
-            assertEquals(body.config.statusMap.pmoOnlyStatuses, ['Blocked']);
-            return jsonResponse([{ id: 'binding-1' }], { status: 201 });
+            assertEquals(body.p_config.statusMap.pmoToClickUp.Blocked, undefined);
+            assertEquals(body.p_config.statusMap.pmoOnlyStatuses, ['Blocked']);
+            return jsonResponse('binding-1');
           },
         },
 
@@ -148,9 +167,13 @@ describe('external-link — ClickUp branch', () => {
           projectId: 'proj-1',
           listId: 'list-1',
           direction: 'push-seed',
+          actorId: 'spoofed-actor', orgId: 'spoofed-org', p_actor_id: 'spoofed-actor', p_org_id: 'spoofed-org', p_project_id: 'spoofed-project',
         }));
         assertEquals(res.status, 200);
-        assertEquals(restCall(calls, 'external_project_bindings', 'POST').length, 1);
+        assertEquals(restCall(calls, 'profiles', 'GET')[0].url.searchParams.get('id'), 'eq.user-1');
+        assertEquals(restCall(calls, 'projects', 'GET')[0].url.searchParams.get('id'), 'eq.proj-1');
+        assertEquals(restCall(calls, 'projects', 'GET')[0].url.searchParams.get('org_id'), 'eq.org-1');
+        assertEquals(rpcCall(calls, 'link_external_project').length, 1);
         assertEquals(rpcCall(calls, 'log_audit').length, 1);
       },
     );
@@ -192,7 +215,7 @@ describe('external-link — ClickUp branch', () => {
 
         { label: 'pmo-task-count', method: 'HEAD', pathname: '/rest/v1/tasks', response: () => countResponse(0) },
 
-        { label: 'insert binding', method: 'POST', pathname: '/rest/v1/external_project_bindings', searchParams: { select: 'id' }, response: () => jsonResponse([{ id: 'binding-1' }], { status: 201 }) },
+        { label: 'insert binding', method: 'POST', pathname: '/rest/v1/rpc/link_external_project', response: () => jsonResponse('binding-1') },
         supabaseRpc('log_audit', () => jsonResponse(null)),
       ],
       async ({ calls }) => {
@@ -203,7 +226,7 @@ describe('external-link — ClickUp branch', () => {
           direction: 'push-seed',
         }));
         assertEquals(res.status, 200);
-        assertEquals(restCall(calls, 'external_project_bindings', 'POST').length, 1);
+        assertEquals(rpcCall(calls, 'link_external_project').length, 1);
       },
     );
   });
@@ -632,9 +655,9 @@ describe('external-link — ClickUp branch', () => {
 
         { label: 'pmo-task-count', method: 'HEAD', pathname: '/rest/v1/tasks', response: () => countResponse(0) },
 
-        { label: 'insert binding 23505', method: 'POST', pathname: '/rest/v1/external_project_bindings', response: () => new Response(JSON.stringify({ code: '23505', message: 'duplicate key value violates unique constraint', details: null, hint: null }), { status: 409, headers: { 'content-type': 'application/json' } }) },
+        { label: 'insert binding 23505', method: 'POST', pathname: '/rest/v1/rpc/link_external_project', response: () => new Response(JSON.stringify({ code: '23505', message: 'duplicate key value violates unique constraint', details: null, hint: null }), { status: 409, headers: { 'content-type': 'application/json' } }) },
       ],
-      async ({ calls }) => {
+      async () => {
         const res = await handleLinkRequest(await authed({
           tier: 'clickup',
           projectId: 'proj-1',
@@ -698,7 +721,7 @@ describe('external-link — ClickUp branch', () => {
           true,
         );
         // Never persisted a half-broken binding, and never audited a link that didn't happen.
-        assertEquals(restCall(calls, 'external_project_bindings', 'POST').length, 0);
+        assertEquals(rpcCall(calls, 'link_external_project').length, 0);
         assertEquals(rpcCall(calls, 'log_audit').length, 0);
       },
     );
@@ -748,18 +771,17 @@ describe('external-link — ClickUp branch', () => {
         {
           label: 'insert binding',
           method: 'POST',
-          pathname: '/rest/v1/external_project_bindings',
-          searchParams: { select: 'id' },
+          pathname: '/rest/v1/rpc/link_external_project',
           response: (call) => {
             const body = call.bodyJson as {
-              config: { statusMap: { pmoToClickUp: Record<string, string>; pmoOnlyStatuses?: string[] } };
+              p_config: { statusMap: { pmoToClickUp: Record<string, string>; pmoOnlyStatuses?: string[] } };
             };
-            assertEquals(body.config.statusMap.pmoToClickUp['To Do'], 'to do');
-            assertEquals(body.config.statusMap.pmoToClickUp['In Progress'], 'in progress');
-            assertEquals(body.config.statusMap.pmoToClickUp.Done, 'complete');
-            assertEquals(body.config.statusMap.pmoToClickUp.Blocked, undefined);
-            assertEquals(body.config.statusMap.pmoOnlyStatuses, ['Blocked']);
-            return jsonResponse([{ id: 'binding-1' }], { status: 201 });
+            assertEquals(body.p_config.statusMap.pmoToClickUp['To Do'], 'to do');
+            assertEquals(body.p_config.statusMap.pmoToClickUp['In Progress'], 'in progress');
+            assertEquals(body.p_config.statusMap.pmoToClickUp.Done, 'complete');
+            assertEquals(body.p_config.statusMap.pmoToClickUp.Blocked, undefined);
+            assertEquals(body.p_config.statusMap.pmoOnlyStatuses, ['Blocked']);
+            return jsonResponse('binding-1');
           },
         },
 
@@ -773,7 +795,7 @@ describe('external-link — ClickUp branch', () => {
           direction: 'push-seed',
         }));
         assertEquals(res.status, 200);
-        assertEquals(restCall(calls, 'external_project_bindings', 'POST').length, 1);
+        assertEquals(rpcCall(calls, 'link_external_project').length, 1);
         assertEquals(rpcCall(calls, 'log_audit').length, 1);
       },
     );
@@ -833,13 +855,12 @@ describe('external-link — ClickUp branch', () => {
         {
           label: 'insert binding',
           method: 'POST',
-          pathname: '/rest/v1/external_project_bindings',
-          searchParams: { select: 'id' },
+          pathname: '/rest/v1/rpc/link_external_project',
           response: (call) => {
-            const body = call.bodyJson as { config: { memberMap: { pmoToClickUp: Record<string, number>; clickUpToPmo: Record<string, string> } } };
-            assertEquals(body.config.memberMap.pmoToClickUp, { 'user-1': 111 });
-            assertEquals(body.config.memberMap.clickUpToPmo, { '111': 'user-1' });
-            return jsonResponse([{ id: 'binding-1' }], { status: 201 });
+            const body = call.bodyJson as { p_config: { memberMap: { pmoToClickUp: Record<string, number>; clickUpToPmo: Record<string, string> } } };
+            assertEquals(body.p_config.memberMap.pmoToClickUp, { 'user-1': 111 });
+            assertEquals(body.p_config.memberMap.clickUpToPmo, { '111': 'user-1' });
+            return jsonResponse('binding-1');
           },
         },
 
@@ -853,7 +874,7 @@ describe('external-link — ClickUp branch', () => {
           direction: 'push-seed',
         }));
         assertEquals(res.status, 200);
-        assertEquals(restCall(calls, 'external_project_bindings', 'POST').length, 1);
+        assertEquals(rpcCall(calls, 'link_external_project').length, 1);
       },
     );
   });
@@ -882,11 +903,11 @@ describe('external-link — ERPNext branch', () => {
 
         erp('erp.example.com', '/api/resource/Company/ACME', () => jsonResponse({ data: { name: 'ACME' } })),
 
-        { label: 'update company config', method: 'PATCH', pathname: '/rest/v1/external_org_bindings', response: (call) => {
+        { label: 'update company config', method: 'POST', pathname: '/rest/v1/rpc/link_external_company', response: (call) => {
           const body = call.bodyJson as Record<string, unknown>;
-          const config = body.config as Record<string, unknown>;
-          assertEquals(config.company, 'ACME');
-          return jsonResponse([]);
+          assertEquals([body.p_actor_id, body.p_org_id, body.p_site_url], ['user-1', 'org-1', 'https://erp.example.com']);
+          assertEquals(body.p_company, 'ACME');
+          return jsonResponse(true);
         } },
 
         supabaseRpc('log_audit', (call) => {
@@ -901,10 +922,13 @@ describe('external-link — ERPNext branch', () => {
         const res = await handleLinkRequest(await authed({
           tier: 'erpnext',
           companyId: 'ACME',
+          actorId: 'spoofed-actor', orgId: 'spoofed-org', p_actor_id: 'spoofed-actor', p_org_id: 'spoofed-org', p_site_url: 'https://spoofed.example.test',
         }));
         assertEquals(res.status, 200);
         assertEquals(await res.json(), { ok: true, companyId: 'ACME' });
-        assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 1);
+        assertEquals(restCall(calls, 'profiles', 'GET')[0].url.searchParams.get('id'), 'eq.user-1');
+        assertEquals(restCall(calls, 'external_org_bindings', 'GET')[0].url.searchParams.get('org_id'), 'eq.org-1');
+        assertEquals(rpcCall(calls, 'link_external_company').length, 1);
         assertEquals(rpcCall(calls, 'log_audit').length, 1);
       },
     );
@@ -1029,7 +1053,7 @@ describe('external-link — ERPNext host guard (#751)', () => {
             error: 'config-rejected',
             message: 'Private or reserved addresses are not allowed',
           });
-          assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 0);
+          assertEquals(rpcCall(calls, 'link_external_company').length, 0);
           assertEquals(rpcCall(calls, 'log_audit').length, 0);
           assertEquals(calls.filter((c) => c.url.host === HOST).length, 0);
         }));
@@ -1041,14 +1065,14 @@ describe('external-link — ERPNext host guard (#751)', () => {
       [
         ...routes(),
         erp(HOST, '/api/resource/Company/ACME', () => jsonResponse({ data: { name: 'ACME' } })),
-        { label: 'update company config', method: 'PATCH', pathname: '/rest/v1/external_org_bindings', response: () => jsonResponse([]) },
+        { label: 'update company config', method: 'POST', pathname: '/rest/v1/rpc/link_external_company', response: () => jsonResponse(true) },
         supabaseRpc('log_audit', () => jsonResponse(null)),
       ],
       async ({ calls }) => {
         const res = await handleLinkRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
         assertEquals(res.status, 200);
         assertEquals(await res.json(), { ok: true, companyId: 'ACME' });
-        assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 1);
+        assertEquals(rpcCall(calls, 'link_external_company').length, 1);
       },
     );
   });
@@ -1062,9 +1086,119 @@ describe('external-link — ERPNext host guard (#751)', () => {
           error: 'config-rejected',
           message: 'Private or reserved addresses are not allowed',
         });
-        assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 0);
+        assertEquals(rpcCall(calls, 'link_external_company').length, 0);
         assertEquals(rpcCall(calls, 'log_audit').length, 0);
         assertEquals(calls.filter((c) => c.url.host === HOST).length, 0);
       }));
+  });
+});
+
+describe('external-link — current actor standing', () => {
+  for (const role of ['Admin', 'Project Manager', 'Finance']) {
+    for (const tier of ['clickup', 'erpnext']) {
+      for (const standing of ['disabled', 'banned']) {
+      it(`requires ${standing} standing for ${role} on ${tier}`, async () => {
+        await withFetchMock([
+          supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role, status: standing === 'disabled' ? 'disabled' : 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+          supabaseRpc('actor_authorization_state', () => jsonResponse({ role, active: false })),
+          supabaseSelect('platform_operators', () => jsonResponse(role === 'Finance' ? { user_id: 'user-1' } : null)),
+          supabaseSelect('external_org_bindings', () => jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' })),
+        ], async ({ calls }) => {
+          const res = await handleLinkRequest(await authed(tier === 'clickup'
+            ? { tier, projectId: 'proj-1', listId: 'list-1', direction: 'push-seed' }
+            : { tier, companyId: 'ACME' }));
+          assertEquals(res.status, 403);
+          assertEquals(restCall(calls, 'external_org_bindings', 'GET').length, 0);
+        });
+      });
+      }
+    }
+  }
+});
+
+describe('external-link — assignment and standing checks', () => {
+  it('requires the current manager role for a project assignment', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Finance', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseSelect('platform_operators', () => jsonResponse(null)),
+      supabaseSelect('external_org_bindings', () => jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseSelect('projects', () => jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+    ], async ({ calls }) => {
+      const res = await handleLinkRequest(await authed({ tier: 'clickup', projectId: 'proj-1', listId: 'list-1', direction: 'push-seed' }));
+      assertEquals(res.status, 403);
+      assertEquals(rpcCall(calls, 'read_vault_secret').length, 0);
+    });
+  });
+  it('fails closed when standing cannot be resolved', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => new Response('{"message":"unavailable"}', { status: 500, headers: { 'content-type': 'application/json' } })),
+    ], async ({ calls }) => {
+      const res = await handleLinkRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
+      assertEquals(res.status, 403);
+      assertEquals(restCall(calls, 'external_org_bindings', 'GET').length, 0);
+    });
+  });
+});
+
+describe('external-link — transactional company authorization', () => {
+  for (const rejected of [false, true]) {
+    it(rejected ? 'reports changed authority at the write' : 'allows a current operator', async () => {
+      await withFetchMock([
+        supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Finance', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+        supabaseSelect('platform_operators', () => jsonResponse({ user_id: 'user-1' })),
+        supabaseSelect('external_org_bindings', () => jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-key:test-secret')),
+        erp('erp.example.com', '/api/resource/Company/ACME', () => jsonResponse({ data: { name: 'ACME' } })),
+        supabaseRpc('link_external_company', () => rejected
+          ? new Response(JSON.stringify({ code: '42501', message: 'Current authority required' }), { status: 403, headers: { 'content-type': 'application/json' } })
+          : jsonResponse(true)),
+        supabaseRpc('log_audit', () => jsonResponse(null)),
+      ], async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
+        assertEquals(res.status, rejected ? 403 : 200);
+        assertEquals(rpcCall(calls, 'log_audit').length, rejected ? 0 : 1);
+      });
+    });
+  }
+});
+
+describe('external-link — operator project link', () => {
+  it('allows an active operator to link a project', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Finance', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseSelect('platform_operators', () => jsonResponse({ user_id: 'user-1' })),
+      supabaseSelect('external_org_bindings', () => jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseSelect('projects', () => jsonResponse({ id: 'proj-1', project_manager_id: 'other', org_id: 'org-1' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseSelect('external_project_bindings', () => jsonResponse(null)),
+      supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
+      clickup('/api/v2/list/list-1', () => jsonResponse(LINKABLE_LIST)),
+      clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [] })),
+      clickup('/api/v2/list/list-1/member', () => jsonResponse(NO_MEMBERS)),
+      { label: 'task count', method: 'HEAD', pathname: '/rest/v1/tasks', response: () => countResponse(0) },
+      supabaseRpc('link_external_project', () => jsonResponse('binding-1')),
+      supabaseRpc('log_audit', () => jsonResponse(null)),
+    ], async ({ calls }) => {
+      const res = await handleLinkRequest(await authed({ tier: 'clickup', projectId: 'proj-1', listId: 'list-1', direction: 'push-seed' }));
+      assertEquals(res.status, 200);
+      assertEquals(rpcCall(calls, 'link_external_project').length, 1);
+    });
+  });
+});
+
+describe('external-link — current role', () => {
+  it('uses current role before reading integration credentials', async () => {
+    await withFetchMock([
+      supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Finance', active: true })),
+      supabaseSelect('platform_operators', () => jsonResponse(null)),
+      supabaseSelect('external_org_bindings', () => jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+    ], async ({ calls }) => {
+      const res = await handleLinkRequest(await authed({ tier: 'erpnext', companyId: 'ACME' }));
+      assertEquals(res.status, 403);
+      assertEquals(rpcCall(calls, 'read_vault_secret').length, 0);
+    });
   });
 });

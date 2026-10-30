@@ -184,6 +184,12 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
 
   const all = useMemo(() => (data ?? []) as UserRow[], [data]);
 
+  // The API caps the directory at 1,000 rows; only infer completeness below that cap.
+  const isSoleAdmin = (u: UserRow) =>
+    !isPending && !isError && !!data && data.length < 1000 &&
+    u.role === 'Admin' && u.status === 'active' &&
+    all.filter((candidate) => candidate.org_id === u.org_id && candidate.role === 'Admin' && candidate.status === 'active').length === 1;
+
   // Resolve manager_id -> full name for the directory.
   const byId = useMemo(() => {
     const m = new Map<string, UserRow>();
@@ -253,7 +259,10 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
         u.status === 'disabled' ? (
           <StatusPill variant="warn">{t('admin.users.status.disabled', 'Disabled')}</StatusPill>
         ) : (
-          <StatusPill variant="neutral">{t('admin.users.status.active', 'Active')}</StatusPill>
+          <span>
+            <StatusPill variant="neutral">{t('admin.users.status.active', 'Active')}</StatusPill>
+            {isSoleAdmin(u) && <span className="ml-2 text-muted-foreground">{t('administration:onlyActiveAdmin', 'The only active Admin cannot be disabled')}</span>}
+          </span>
         ),
     },
     {
@@ -284,8 +293,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     // 0179 (profiles_hierarchy_write): the write RLS denies an Admin editing their OWN
     // role or manager_id. Gate the two self-edit affordances off on the caller's own row
     // (UX-only per ADR-0016 — `can()` may be stricter than RLS; RLS stays the authority) so
-    // the action surfaces as an omitted control, not a 42501 toast. Disable/Re-enable are
-    // governed by a separate RPC lockout guard and stay available on the own-row. The page
+    // the action surfaces as an omitted control. The status RPC retains its lockout guard. The page
     // convention for an unavailable action is to omit it (RowMenuItem has no disabled field).
     const isSelf = !!currentUser?.id && currentUser.id === u.id;
     if (canManage && !isSelf) {
@@ -297,7 +305,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
     if (canDisable) {
       if (u.status === 'disabled') {
         items.push({ label: t('admin.users.menu.reEnable', 'Re-enable'), onClick: () => void confirmSetStatus(u, 'active') });
-      } else {
+      } else if (!isSelf && !isSoleAdmin(u)) {
         items.push({ label: t('admin.users.menu.disable', 'Disable'), danger: true, onClick: () => setPendingStatus({ user: u, status: 'disabled' }) });
       }
     }
@@ -385,7 +393,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   };
 
   const confirmDisable = () => {
-    if (!pendingStatus) return;
+    if (!pendingStatus || pendingStatus.user.id === currentUser?.id || isSoleAdmin(pendingStatus.user)) return;
     void confirmSetStatus(pendingStatus.user, pendingStatus.status);
   };
 

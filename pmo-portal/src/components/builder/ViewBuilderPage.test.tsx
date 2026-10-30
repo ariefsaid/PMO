@@ -29,6 +29,7 @@ const {
   mockBlocker,
   mockIsFeatureEnabled,
   mockAICompose,
+  roleState,
   // onComposedCallback is a ref that AIComposerModal stub will call when told to compose
   aiComposerModalCallbacks,
 } = vi.hoisted(() => {
@@ -58,9 +59,12 @@ const {
     // Feature flag — default false so existing tests are unaffected
     mockIsFeatureEnabled: vi.fn((key: string) => key === 'userViews' ? false : false),
     mockAICompose: vi.fn(),
+    roleState: { realRole: 'Engineer' },
     aiComposerModalCallbacks,
   };
 });
+
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => roleState }));
 
 vi.mock('@/src/hooks/useUserViews', () => ({
   useUserView: mockUseUserView,
@@ -72,10 +76,6 @@ vi.mock('@/src/hooks/useUserViews', () => ({
   }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: mockUseAuth }));
-vi.mock('@/src/auth/usePermission', () => ({
-  usePermission: () => () => true,
-  CanWrite: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
 vi.mock('@/src/lib/viewspec/compiler', () => ({
   compileCompositionSpec: mockCompile,
   compileQuerySpec: vi.fn((qs: unknown) => ({
@@ -190,6 +190,7 @@ function renderEdit(viewId = 'v1') {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  roleState.realRole = 'Engineer';
   mockCreate.mockResolvedValue({ id: 'new-id', name: 'Test View' });
   mockUpdate.mockResolvedValue(undefined);
   mockCompile.mockReturnValue([
@@ -235,6 +236,20 @@ describe('ViewBuilderPage — guard states', () => {
     // The "Add at least one panel" note should be present regardless of name
     expect(screen.getByText(/add at least one panel to save/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /save view/i })).toBeDisabled();
+  });
+
+  it('blocks the editor for another owner’s shared view', () => {
+    mockUseUserView.mockReturnValue({ data: { id: 'v1', name: 'Shared', user_id: 'other', archived_at: null, spec: { version: 1, panels: [] } }, isPending: false });
+    renderEdit();
+    expect(screen.getByText(/cannot edit this view/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /update view/i })).not.toBeInTheDocument();
+  });
+
+  it('allows an Admin to edit another owner’s shared view', () => {
+    roleState.realRole = 'Admin';
+    mockUseUserView.mockReturnValue({ data: { id: 'v1', name: 'Shared', user_id: 'other', archived_at: null, spec: { version: 1, panels: [] } }, isPending: false });
+    renderEdit();
+    expect(screen.getByRole('button', { name: /update view/i })).toBeInTheDocument();
   });
 
   it('AC-VB-019: edit mode pre-populates name, scope, and panel list', () => {

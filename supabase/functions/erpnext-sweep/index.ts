@@ -1552,7 +1552,7 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
 
 export interface RepairUnlinkedReceiptsDeps {
   /** The org's ERP-sourced receipts still missing their invoice link (bounded per tick). */
-  listUnlinkedReceipts: () => Promise<Array<{ id: string; erpName: string }>>;
+  listUnlinkedReceipts: () => Promise<Array<{ id: string; erpName: string | null }>>;
   /** Stamp every attempt so failures cannot monopolise the bounded scan. */
   stampAllocationCheck?: (id: string) => Promise<void>;
   /** Re-read one Payment Entry in full (its `references` child rows are not list-endpoint fields). */
@@ -1580,16 +1580,18 @@ export async function repairUnlinkedReceipts(
   const errors: Array<{ id: string; error: string }> = [];
   for (const receipt of unlinked) {
     try {
+      if (!receipt.erpName) continue;
       const doc = await deps.fetchDoc(receipt.erpName);
       const allocations = allocationsOf(doc.references);
       if (allocations !== undefined) await deps.mirrorAllocations?.(receipt.id, allocations);
-      const references = doc.references as Array<{ reference_name?: string | null }> | undefined;
-      const siErpName = Array.isArray(references) ? references[0]?.reference_name : null;
-      if (siErpName) {
-        const salesInvoicePmoId = await deps.resolveSalesInvoicePmoId(siErpName);
+      // The legacy single link selects the first mapped Sales Invoice in ERP order; the
+      // complete allocation list remains in allocation_details.
+      for (const allocation of allocations ?? []) {
+        const salesInvoicePmoId = await deps.resolveSalesInvoicePmoId(allocation.reference_name);
         if (salesInvoicePmoId) {
           await deps.link(receipt.id, salesInvoicePmoId);
           repaired += 1;
+          break;
         }
       }
     } catch (err) {
@@ -1722,51 +1724,53 @@ export async function repairInvoiceProjectsLive(
   };
 }
 
-async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ repaired: number; error?: string }> {
+export async function listReceiptRepairCandidates(serviceClient: SupabaseClient, orgId: string): Promise<Array<{ id: string; erpName: string | null }>> {
+  // S-06: also receipts whose allocations were never mirrored, or cite an invoice PMO had not adopted then.
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const base = () => serviceClient.from('incoming_payments')
+    .select('id,allocation_checked_at').eq('org_id', orgId).not('erp_docstatus', 'is', null)
+    .or(`allocation_checked_at.is.null,allocation_checked_at.lte.${cutoff}`)
+    .order('allocation_checked_at', { ascending: true, nullsFirst: true })
+    .limit(UNLINKED_RECEIPT_SCAN_LIMIT);
+  const [unlinked, unmirrored, unresolved] = await Promise.all([
+    base().is('sales_invoice_id', null),
+    base().is('allocation_details', null),
+    base().filter('allocation_details', 'cs', '[{"invoice_id":null}]'),
+  ]);
+  const failed = [unlinked, unmirrored, unresolved].find((r) => r.error);
+  if (failed?.error) throw new AppError(failed.error.message, failed.error.code);
+  const rows = [...new Map([unlinked, unmirrored, unresolved]
+    .flatMap((r) => (r.data as Array<{ id: string; allocation_checked_at: string | null }> | null) ?? []).map((r) => [r.id, r])).values()]
+    .sort((a, b) => (a.allocation_checked_at ?? '').localeCompare(b.allocation_checked_at ?? ''))
+    .slice(0, UNLINKED_RECEIPT_SCAN_LIMIT);
+  if (rows.length === 0) return [];
+  // The ERP name lives on external_refs (the mirror row carries no ERP name column).
+  const { data: refs, error: refErr } = await serviceClient.from('external_refs')
+    .select('pmo_record_id, external_record_id').eq('org_id', orgId).eq('domain', 'revenue')
+    .in('pmo_record_id', rows.map((r) => r.id));
+  if (refErr) throw new AppError(refErr.message, refErr.code);
+  const byId = new Map(((refs as Array<{ pmo_record_id: string; external_record_id: string }> | null) ?? [])
+    .map((r) => [r.pmo_record_id, r.external_record_id]));
+  return rows.map((row) => ({ id: row.id, erpName: byId.get(row.id) ?? null }));
+}
+
+export async function resolveReceiptSalesInvoice(serviceClient: SupabaseClient, orgId: string, siErpName: string): Promise<string | null> {
+  return (await salesInvoiceLookup(serviceClient, orgId)(siErpName))?.id ?? null;
+}
+
+export async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ repaired: number; error?: string }> {
   if (!org.ownedDomains.includes('revenue')) return { repaired: 0 };
   try {
     const client = await erpClientForOrg(serviceClient, org, cache);
     const result = await repairUnlinkedReceipts({
-      listUnlinkedReceipts: async () => {
-        // S-06: also receipts whose allocations were never mirrored, or cite an invoice PMO had not adopted then.
-        const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-        const base = () => serviceClient.from('incoming_payments')
-          .select('id,allocation_checked_at').eq('org_id', org.orgId).not('erp_docstatus', 'is', null)
-          .or(`allocation_checked_at.is.null,allocation_checked_at.lte.${cutoff}`)
-          .order('allocation_checked_at', { ascending: true, nullsFirst: true })
-          .limit(UNLINKED_RECEIPT_SCAN_LIMIT);
-        const [unlinked, unmirrored, unresolved] = await Promise.all([
-          base().is('sales_invoice_id', null),
-          base().is('allocation_details', null),
-          base().filter('allocation_details', 'cs', '[{"invoice_id":null}]'),
-        ]);
-        const failed = [unlinked, unmirrored, unresolved].find((r) => r.error);
-        if (failed?.error) throw new AppError(failed.error.message, failed.error.code);
-        const rows = [...new Map([unlinked, unmirrored, unresolved]
-          .flatMap((r) => (r.data as Array<{ id: string; allocation_checked_at: string | null }> | null) ?? []).map((r) => [r.id, r])).values()]
-          .sort((a, b) => (a.allocation_checked_at ?? '').localeCompare(b.allocation_checked_at ?? ''))
-          .slice(0, UNLINKED_RECEIPT_SCAN_LIMIT);
-        if (rows.length === 0) return [];
-        // The ERP name lives on external_refs (the mirror row carries no ERP name column).
-        const { data: refs, error: refErr } = await serviceClient.from('external_refs')
-          .select('pmo_record_id, external_record_id').eq('org_id', org.orgId).eq('domain', 'revenue')
-          .in('pmo_record_id', rows.map((r) => r.id));
-        if (refErr) throw new AppError(refErr.message, refErr.code);
-        return ((refs as Array<{ pmo_record_id: string; external_record_id: string }> | null) ?? [])
-          .map((r) => ({ id: r.pmo_record_id, erpName: r.external_record_id }));
-      },
+      listUnlinkedReceipts: () => listReceiptRepairCandidates(serviceClient, org.orgId),
       stampAllocationCheck: async (ipId) => {
         const { error } = await (serviceClient.from('incoming_payments').update({ allocation_checked_at: new Date().toISOString() })
           .eq('org_id', org.orgId).eq('id', ipId) as unknown as Promise<{ error: { message: string; code?: string } | null }>);
         if (error) throw new AppError(error.message, error.code);
       },
       fetchDoc: (erpName) => fetchErpDoc(client, DOCTYPE_REGISTRY['incoming-payment'].doctype, erpName),
-      resolveSalesInvoicePmoId: async (siErpName) => {
-        const { data, error } = await serviceClient.from('external_refs').select('pmo_record_id')
-          .eq('org_id', org.orgId).eq('domain', 'revenue').eq('external_record_id', siErpName).maybeSingle();
-        if (error) throw new AppError(error.message, error.code);
-        return (data as { pmo_record_id?: string } | null)?.pmo_record_id ?? null;
-      },
+      resolveSalesInvoicePmoId: (siErpName) => resolveReceiptSalesInvoice(serviceClient, org.orgId, siErpName),
       mirrorAllocations: async (ipId, allocations) => {
         const details = await buildAllocationDetails(allocations, salesInvoiceLookup(serviceClient, org.orgId));
         const { error } = await (serviceClient.from('incoming_payments').update({ allocation_details: details })
@@ -2449,8 +2453,7 @@ async function reconcileOrgBudgetArchiveCancellationsLive(
 
       const authorization = await checkErpnextCommandAuthorization(serviceClient as never, job.org_id, job.actor_user_id, {
         domain: ERPNEXT_BUDGET_DOMAIN,
-        operation: 'create',
-        record: { id: job.budget_version_id, erp_doc_kind: 'budget' },
+        record: { erp_doc_kind: 'budget' },
       });
       if (!authorization.ok) throw new AppError(authorization.message, 'commit-rejected');
 
@@ -3198,8 +3201,7 @@ export function expensePostingBackstopDepsLive(
     driveFresh: async (row, truth, refs) => {
       const built = buildExpensePostingCommand(truth, refs, erpDatetime(Date.now() - 60_000));
       const auth = await checkErpnextCommandAuthorization(serviceClient as never, org.orgId, truth.actor_id, {
-        domain: ERPNEXT_EXPENSES_DOMAIN, operation: built.operation,
-        record: { id: built.outboxIdentity, erp_doc_kind: built.record.erp_doc_kind },
+        domain: ERPNEXT_EXPENSES_DOMAIN, record: { erp_doc_kind: built.record.erp_doc_kind },
       });
       if (!auth.ok) {
         await recordOutcome(row, { state: 'failed', reason: auth.message });
@@ -3407,9 +3409,9 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
   // `actor_user_id` (0108): the ORIGINAL command's verified caller. Without it a sweep-finalized SI
   // mirror lands `author_user_id = NULL`, and the approver≠author SoD check then passes for everyone.
   const { data, error } = await serviceClient.from('external_command_outbox')
-    .select('operation, payload, actor_user_id').eq('id', row.id).maybeSingle();
+    .select('operation, payload, actor_user_id, procurement_input_digest').eq('id', row.id).maybeSingle();
   if (error || !data) throw new AppError(`outbox row ${row.id} not readable for reconcile`, error?.code ?? 'not-found');
-  const rowExtra = data as { operation: 'create' | 'update' | 'transition'; payload: Record<string, unknown> | null; actor_user_id: string | null };
+  const rowExtra = data as { operation: 'create' | 'update' | 'transition'; payload: Record<string, unknown> | null; actor_user_id: string | null; procurement_input_digest: string | null };
   const payload = rowExtra.payload ?? {};
 
   // WIRE 1 / round-7 B6 — RE-ASSERT authorization before replaying a FROZEN command. The recovery pass
@@ -3435,6 +3437,21 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
     payload,
   });
   if (!replayAuth.ok) throw new AppError(replayAuth.message, 'commit-rejected');
+
+  let trustedReceiptSnapshot = false;
+  if (rowExtra.procurement_input_digest != null) {
+    const marker = payload.pmo_gr_snapshot as { raw_digest?: unknown; supplier?: unknown; po?: unknown } | undefined;
+    const { created_after: _createdAfter, ...material } = payload;
+    const digest = await canonicalCommandDigest({ domain: row.domain, operation: rowExtra.operation, record: material });
+    if (row.domain !== 'procurement' || rowExtra.operation !== 'create' || payload.erp_doc_kind !== 'goods-receipt'
+        || !/^[0-9a-f]{64}$/.test(rowExtra.procurement_input_digest)
+        || !marker || marker.raw_digest !== rowExtra.procurement_input_digest
+        || (marker.supplier !== null && typeof marker.supplier !== 'string')
+        || (marker.po !== null && typeof marker.po !== 'string') || row.payloadDigest !== digest) {
+      throw new AppError('receipt snapshot is inconsistent', 'commit-rejected');
+    }
+    trustedReceiptSnapshot = true;
+  }
 
   // ⚑ FR-BFY-075 (review finding 5) — RE-RUN THE BUDGET GATE FOR THE FROZEN YEAR, BEFORE ANY POST.
   //
@@ -3465,7 +3482,7 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
     idempotencyKey: row.idempotencyKey,
   };
   return buildMoneyWriteDepsLive(serviceClient, org,
-    { command, actorUserId: rowExtra.actor_user_id, outboxRecordId: row.pmoRecordId, persistPayload: false }, cache);
+    { command, actorUserId: rowExtra.actor_user_id, outboxRecordId: row.pmoRecordId, persistPayload: false, trustedReceiptSnapshot }, cache);
 }
 
 /**
@@ -3489,7 +3506,7 @@ export function moneyWriteReadModelContext(args: { orgId: string; actorUserId: s
 export async function buildMoneyWriteDepsLive(
   serviceClient: SupabaseClient,
   org: OrgBinding,
-  args: { command: AdapterCommand; actorUserId: string | null; outboxRecordId: string; persistPayload: boolean },
+  args: { command: AdapterCommand; actorUserId: string | null; outboxRecordId: string; persistPayload: boolean; trustedReceiptSnapshot?: boolean },
   cache?: ErpAuthPairCache,
 ): Promise<DispatchMoneyWriteDeps> {
   const command = args.command;
@@ -3521,6 +3538,7 @@ export async function buildMoneyWriteDepsLive(
     // #858: recovery replays the persisted items/taxes (inside the digest) and makes no ERPNext read to rebuild them.
     // Fresh expense commands carry their own frozen payload and must use the ordinary first-build path.
     ...moneyWriteReplayOptions(args.persistPayload),
+    trustedReceiptSnapshot: args.trustedReceiptSnapshot,
   });
 
   const anchorField = entry.anchorField;
@@ -3564,8 +3582,7 @@ export async function buildMoneyWriteDepsLive(
       }
       const res = await checkErpnextCommandAuthorization(serviceClient as never, org.orgId, args.actorUserId, {
         domain: command.domain,
-        operation,
-        record: { id: args.outboxRecordId, erp_doc_kind: payload.erp_doc_kind },
+        record: { erp_doc_kind: payload.erp_doc_kind },
       });
       if (!res.ok) return { ok: res.ok, message: res.message };
       // A reissued procurement create answers the org's CURRENT purchase rules (the same question the outbox claim

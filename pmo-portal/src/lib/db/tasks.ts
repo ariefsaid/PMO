@@ -1,3 +1,5 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables, TablesUpdate, Enums } from '@/src/lib/supabase/database.types';
@@ -99,14 +101,14 @@ type RawTask = TaskRow & {
  * failure.
  */
 export async function listTasks(projectId: string): Promise<TaskWithRefs[]> {
-  const { data, error } = await supabase
+  const rows = await fetchAllPages((from, to) => supabase
     .from('tasks')
     .select(SELECT)
     .eq('project_id', projectId)
     .is('tombstoned_at', null)
-    .order('created_at', { ascending: true });
-  if (error) throwWrite(error);
-  const rows = (data ?? []) as unknown as RawTask[];
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+    .range(from, to)) as unknown as RawTask[];
   return rows.map((t) => ({
     ...t,
     assignee: t.assignee ?? null,
@@ -120,14 +122,14 @@ export async function listTasks(projectId: string): Promise<TaskWithRefs[]> {
  * listTasks. RLS scopes rows; ordered by created_at so items read in the order they were minuted.
  */
 export async function listTasksByMeeting(meetingId: string): Promise<TaskWithRefs[]> {
-  const { data, error } = await supabase
+  const rows = await fetchAllPages((from, to) => supabase
     .from('tasks')
     .select(SELECT)
     .eq('meeting_id', meetingId)
     .is('tombstoned_at', null)
-    .order('created_at', { ascending: true });
-  if (error) throwWrite(error);
-  const rows = (data ?? []) as unknown as RawTask[];
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+    .range(from, to)) as unknown as RawTask[];
   return rows.map((t) => ({
     ...t,
     assignee: t.assignee ?? null,
@@ -333,4 +335,73 @@ export async function removeDependency(taskId: string, dependsOnId: string): Pro
     .select('task_id');
   if (error) throwWrite(error);
   assertWriteLanded(data, 'Dependency not found or you do not have permission to remove it.');
+}
+/**
+ * A task row joined with its project name — the shape the My Tasks page consumes.
+ * This is a cross-project, assignee-scoped read: the RLS `tasks_select` policy
+ * already gates to the org; the server-side `assignee_id = self` filter scopes to own.
+ *
+ * The plan (B-1) notes: "only add a small DAL helper if needed — do NOT add a new RLS
+ * migration". RLS already scopes to the org; the assignee filter is a client-side WHERE.
+ */
+export interface MyTask {
+  id: string;
+  name: string;
+  status: TaskStatus;
+  assignee_id: string | null;
+  /** #525: NULL for a task that was never given a project — it is a real state, not missing data. */
+  project_id: string | null;
+  /** NULL exactly when `project_id` is; the UI renders a heading, not a project link (FR-FCT-041). */
+  project_name: string | null;
+  /** The contractual title behind a short `project_name` (hover + search). */
+  project_contractual_name?: string | null;
+  /** Meeting-linked tasks without a project still have a canonical record doorway. */
+  meeting_id?: string | null;
+  start_date: string | null;
+  end_date: string | null;
+}
+
+/**
+ * Fetch all tasks assigned to the signed-in user across projects.
+ * org_id is NEVER sent — RLS (tasks_select) scopes to the org. The assignee_id
+ * filter is applied by the server along with RLS.
+ * The project name is joined via `projects(name)` in the select. Excludes tombstoned rows
+ * (`.is('tombstoned_at', null)`, AC-CUA-002/C5c) — a ClickUp-native delete (C3) must not
+ * remain in the cross-project My Tasks list either.
+ */
+export async function listMyTasks(userId: string): Promise<MyTask[]> {
+  const data = await fetchAllPages((from, to) => supabase
+    .from('tasks')
+    .select('id, name, status, assignee_id, project_id, meeting_id, start_date, end_date, project:projects!tasks_project_id_fkey(name, short_name)')
+    .eq('assignee_id', userId)
+    .is('tombstoned_at', null)
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+    .range(from, to));
+  // Map the joined `project` shape onto `project_name`.
+  return ((data ?? []) as unknown as Array<{
+    id: string;
+    name: string;
+    status: string;
+    assignee_id: string | null;
+    project_id: string | null;
+    meeting_id: string | null;
+    start_date: string | null;
+    end_date: string | null;
+    project: { name: string; short_name?: string | null } | null;
+  }>).map((t) => ({
+    id: t.id,
+    name: t.name,
+    status: t.status as TaskStatus,
+    assignee_id: t.assignee_id,
+    project_id: t.project_id,
+    meeting_id: t.meeting_id,
+    // ⚑ NOT `?? '—'`. A project-less task has no project NAME either, and collapsing that to a dash
+    // would make it indistinguishable from a project whose name failed to load — the UI needs to
+    // tell them apart to decide between a link and a plain heading (FR-FCT-041).
+    project_name: t.project ? projectDisplayName(t.project) : null,
+    ...(t.project && projectDisplayName(t.project) !== t.project.name ? { project_contractual_name: t.project.name } : {}),
+    start_date: t.start_date,
+    end_date: t.end_date,
+  }));
 }

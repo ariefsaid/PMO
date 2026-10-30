@@ -712,8 +712,10 @@ export async function listDocNamesByFilters(
   doctype: string,
   filters: ErpFilter[],
   limit = 20,
+  orderBy?: string,
 ): Promise<string[]> {
-  const rows = await listDocsByFilters(deps, doctype, filters, ['name'], limit);
+  const rows = await listDocsByFilters(deps, doctype, filters, ['name'], limit, orderBy);
+  if (orderBy && rows.some((row) => typeof row.name !== 'string' || !row.name)) throw new Error('Invalid ERP candidate name');
   return rows.map((d) => String(d.name)).filter((n) => n !== 'undefined');
 }
 
@@ -730,11 +732,13 @@ export async function listDocsByFilters(
   filters: ErpFilter[],
   fields: string[],
   limit = 20,
+  orderBy?: string,
 ): Promise<Array<Record<string, unknown>>> {
   const encoded = encodeURIComponent(JSON.stringify(filters));
   const encodedFields = encodeURIComponent(JSON.stringify(fields));
-  const path = `${doctypePath(doctype)}?filters=${encoded}&fields=${encodedFields}&limit_page_length=${limit}`;
+  const path = `${doctypePath(doctype)}?filters=${encoded}&fields=${encodedFields}&limit_page_length=${limit}${orderBy ? `&order_by=${encodeURIComponent(orderBy)}` : ''}`;
   const res = await erpnextRequest(deps, { method: 'GET', path });
   const data = (res as { data?: Array<Record<string, unknown>> } | null)?.data;
+  if (orderBy && !Array.isArray(data)) throw new Error('Invalid ERP candidate page');
   return Array.isArray(data) ? data : [];
 }

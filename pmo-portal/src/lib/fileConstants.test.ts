@@ -5,7 +5,6 @@ import {
   ALLOWED_FILE_TYPES,
   SIGNED_URL_EXPIRY_SECONDS,
   PREVIEWABLE_EXTENSIONS,
-  ALLOWED_MIME_TYPES,
   FILE_MIME_BY_EXT,
 } from './fileConstants';
 
@@ -32,26 +31,23 @@ describe('fileConstants', () => {
     expect(exts.has('.sh')).toBe(false);
   });
 
-  it('AC-DOC-032: ALLOWED_MIME_TYPES matches ALLOWED_FILE_TYPES coverage', () => {
-    expect(ALLOWED_MIME_TYPES.length).toBeGreaterThan(0);
-    expect(ALLOWED_MIME_TYPES).toContain('application/pdf');
-    expect(ALLOWED_MIME_TYPES).toContain('image/png');
-    expect(ALLOWED_MIME_TYPES).toContain('text/plain');
-    // DWG MIME coverage
-    expect(ALLOWED_MIME_TYPES).toContain('application/acad');
-  });
-
-  it('AC-DOC-032: FILE_MIME_BY_EXT maps every allowed extension to a MIME type', () => {
+  it('FILE_MIME_BY_EXT maps every allowed extension to a MIME type', () => {
     for (const ext of ALLOWED_FILE_TYPES) {
       expect(FILE_MIME_BY_EXT[ext]).toBeDefined();
       expect(typeof FILE_MIME_BY_EXT[ext]).toBe('string');
     }
   });
 
+  it('AC-DOC-032: FILE_MIME_BY_EXT sets explicit upload MIME types', () => {
+    expect(FILE_MIME_BY_EXT['.pdf']).toBe('application/pdf');
+    expect(FILE_MIME_BY_EXT['.png']).toBe('image/png');
+    expect(FILE_MIME_BY_EXT['.txt']).toBe('text/plain');
+    expect(FILE_MIME_BY_EXT['.dwg']).toBe('application/acad');
+    expect(Object.values(FILE_MIME_BY_EXT)).not.toContain('application/octet-stream');
+  });
+
   it('FILE_MIME_BY_EXT: .dwg maps to application/acad (not octet-stream)', () => {
     expect(FILE_MIME_BY_EXT['.dwg']).toBe('application/acad');
-    // application/octet-stream must NOT be in the bucket MIME list
-    expect(ALLOWED_MIME_TYPES).not.toContain('application/octet-stream');
   });
 
   it('AC-DOC-011: SIGNED_URL_EXPIRY_SECONDS = 3600 (60 minutes)', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import React from 'react';
@@ -19,12 +19,18 @@ const { detailState, mutations, contactsState } = vi.hoisted(() => ({
     update: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
     archive: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
     remove: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
+    setProjectNumberSegment: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
   },
   contactsState: {
     data: [] as Record<string, unknown>[],
     isPending: false,
   },
 }));
+
+const partyMappings = vi.hoisted(() => ({ ids: [] as string[], isPending: false, isError: false }));
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+
+vi.mock('@/src/hooks/useCompanyPartyMappings', () => ({ useCompanyPartyMappings: () => partyMappings }));
 
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompany: () => detailState,
@@ -58,6 +64,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 
 import CompanyDetail from './CompanyDetail';
 import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { ownershipMock } from '@/test/domainOwnershipMock';
 
 // list-working-set-return (#683): reads the URL a Companies-index Route landed on, so a return
 // test can tell "the bare index" apart from "the SAME filtered/searched URL".
@@ -115,18 +122,44 @@ const renderPageWithReturnContext = (role: Role = 'Admin') => {
 };
 
 beforeEach(() => {
+  ownershipMock.override = null;
+  ownershipMock.retry.mockClear();
   clearOwnershipCache();
+  partyMappings.ids = [];
   detailState.data = company;
   detailState.isPending = false;
   detailState.isError = false;
   contactsState.data = [];
   contactsState.isPending = false;
   mutations.update.mutateAsync.mockClear().mockResolvedValue(undefined);
+  mutations.setProjectNumberSegment.mutateAsync.mockClear().mockResolvedValue(undefined);
   mutations.archive.mutateAsync.mockClear().mockResolvedValue(undefined);
   realRole = 'Admin';
 });
 
 describe('CompanyDetail', () => {
+  it('holds company detail actions when ownership fails', async () => {
+    ownershipMock.override = 'error';
+    renderPage('Admin');
+    expect(screen.getByText(/ownership could not be loaded/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^retry$/i }));
+    expect(ownershipMock.retry).toHaveBeenCalled();
+  });
+
+  it('requires an ERP party mapping before offering contact creation', () => {
+    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    renderPage();
+    expect(screen.queryAllByRole('button', { name: /add contact/i })).toHaveLength(0);
+    expect(screen.getByText(/map this company/i)).toBeInTheDocument();
+  });
+
+  it('offers contact creation for an ERP-mapped company', () => {
+    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    partyMappings.ids = ['co1'];
+    renderPage();
+    expect(screen.getAllByRole('button', { name: /add contact/i }).length).toBeGreaterThan(0);
+  });
+
   it('CW-4b: renders the shared RecordHeader with the company name + type pill, and its fields', () => {
     renderPage();
     const header = screen.getByTestId('record-header');
@@ -299,4 +332,46 @@ it('company detail edits the local short name while legal identity stays read-on
   await userEvent.type(within(dialog).getByLabelText(/short name/i), 'Example');
   await userEvent.click(within(dialog).getByRole('button', { name: /save company/i }));
   expect(mutations.update.mutateAsync).toHaveBeenCalledWith({ id: company.id, input: { name: company.name, type: 'Client', short_name: 'Example' } });
+});
+
+it('preserves the stored legal name when saving an external company nickname', async () => {
+  const original = { ...company, name: `  ${company.name}  ` };
+  detailState.data = original;
+  setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+  renderPage();
+  await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+  const dialog = await screen.findByRole('dialog', { name: /edit company/i });
+  await userEvent.type(within(dialog).getByLabelText(/short name/i), 'Example');
+  await userEvent.click(within(dialog).getByRole('button', { name: /save company/i }));
+  expect(mutations.update.mutateAsync).toHaveBeenCalledWith({ id: original.id, input: { name: original.name, type: 'Client', short_name: 'Example' } });
+  await waitFor(() => expect(mutations.setProjectNumberSegment.mutateAsync).toHaveBeenCalledWith({ id: original.id, segment: null }));
+});
+
+it('keeps an Internal company editable without offering a type conversion under external ownership', async () => {
+  detailState.data = { ...company, type: 'Internal' };
+  setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+  renderPage();
+  await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+  const dialog = await screen.findByRole('dialog', { name: /edit company/i });
+  expect(within(dialog).getByLabelText(/company name/i)).toBeEnabled();
+  expect(within(dialog).getByLabelText(/^type/i, { selector: 'input, select, textarea' })).toBeDisabled();
+});
+
+it('holds a pending type conversion if ownership changes while editing', async () => {
+  detailState.data = { ...company, type: 'Internal' };
+  renderPage();
+  await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+  const dialog = await screen.findByRole('dialog', { name: /edit company/i });
+  await userEvent.selectOptions(within(dialog).getByLabelText(/^type/i, { selector: 'input, select, textarea' }), 'Vendor');
+  act(() => setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
+  expect(within(dialog).getByRole('button', { name: /save company/i })).toBeDisabled();
+});
+
+it('holds a pending legal-name edit if ownership changes while editing', async () => {
+  renderPage();
+  await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+  const dialog = await screen.findByRole('dialog', { name: /edit company/i });
+  await userEvent.type(within(dialog).getByLabelText(/company name/i), ' Revised');
+  act(() => setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
+  expect(within(dialog).getByRole('button', { name: /save company/i })).toBeDisabled();
 });

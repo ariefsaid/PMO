@@ -8,6 +8,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { BahasaProvider } from '@/test/bahasa';
+import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -115,6 +117,22 @@ beforeEach(() => {
   detailState.isPending = false;
   detailState.isError = false;
   detailState.data = detailData;
+});
+
+it('localizes the disclosure, relative age, actions and confirmation with the request title', async () => {
+  setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+  try {
+    render(<BahasaProvider><MemoryRouter><ImpersonationProvider realRole="Project Manager"><ToastProvider>
+      <ProcurementApprovalRow row={ROW as never} />
+    </ToastProvider></ImpersonationProvider></MemoryRouter></BahasaProvider>);
+    const disclosure = screen.getByRole('button', { name: 'Tampilkan dampak anggaran untuk Inverter Units' });
+    expect(screen.getByText(/2 hari yang lalu/)).toBeInTheDocument();
+    await userEvent.click(disclosure);
+    await userEvent.click(screen.getByRole('button', { name: 'Setujui' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('Setujui Inverter Units?');
+  } finally {
+    resetActiveLocale();
+  }
 });
 
 // ── AC-IFW-PROC-01: Inline preview — collapsed state ─────────────────────────

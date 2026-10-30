@@ -176,6 +176,13 @@
     "rowActions": "Tindakan faktur",
     "paymentActions": "Tindakan pembayaran",
     "figures": "Angka piutang",
+    "projectSearchLoading": "Memuat proyek untuk pencarian…",
+    "businessDayLoading": "Memuat hari kerja; hasil jatuh tempo belum dapat dihitung.",
+    "projectSearchUnavailable": "Pencarian proyek tidak tersedia.",
+    "retryProjects": "Coba lagi proyek",
+    "businessDayUnavailable": "Hari kerja tidak tersedia; hasil jatuh tempo tidak dapat dihitung.",
+    "retryBusinessDay": "Coba lagi hari kerja",
+    "overdueUnavailable": "Hasil jatuh tempo tidak tersedia",
     "evidenceLoadError": "Gagal memuat baris faktur dari sistem akuntansi.",
     "amount": "Jumlah",
     "outstandingUnknown": "Saldo terutang belum diketahui: sistem akuntansi belum melaporkannya untuk faktur ini.",
@@ -208,6 +215,9 @@
     "emptySub": "Pembelian tampil di sini setelah sinkronisasi berikutnya, begitu ERPNext terhubung.",
     "amountPreTaxTooltip": "Total sebelum pajak dari dokumen di sistem akuntansi. Sumber: dokumen pembelian ERP.",
     "noProject": "Tanpa proyek",
+    "projectUnavailable": "Proyek tidak tersedia ({{id}})",
+    "exportEntity": "Dokumen ERP",
+    "exportList": "Ekspor daftar",
     "type": {
       "order": "Pesanan pembelian",
       "invoice": "Faktur pemasok",
@@ -221,7 +231,8 @@
       "date": "Tanggal",
       "amount": "Jumlah",
       "erpStatus": "Status ERPNext",
-      "amountPreTax": "Jumlah (sebelum pajak)"
+      "amountPreTax": "Jumlah (sebelum pajak)",
+      "currency": "Mata uang"
     },
     "aging": {
       "title": "Belum dibayar menurut umur",
@@ -243,6 +254,8 @@
     "uncategorized": "Tanpa kategori"
   },
   "budgetActivation": {
+    "eligibilityChecking": "Memeriksa kelayakan aktivasi…",
+    "eligibilityUnavailable": "Kelayakan aktivasi tidak tersedia. Muat ulang halaman ini dan coba lagi.",
     "checking": "Memeriksa tanggal proyek, pembagian item, tahun fiskal ERPNext, dan pemetaan akun…",
     "checkFailed": "Kesiapan anggaran tidak dapat diperiksa. Muat ulang dan coba lagi.",
     "erpUnavailable": "ERPNext tidak dapat diperiksa; pemeriksaan akan dilakukan lagi saat anggaran dikirim.",
@@ -464,6 +477,8 @@
       "activeBudgetSource": "Sumber: baris versi anggaran aktif, dikelompokkan menurut kategori.",
       "spendingUnavailable": "Pengeluaran tidak diketahui atau tidak tersedia.",
       "commitmentsUnavailable": "Komitmen tidak diketahui atau tidak tersedia.",
+      "currencyBasisNotice": "Anggaran: {{budgetCurrency}}. Pengeluaran dan komitmen: {{projectCurrency}}. Perbandingan antar mata uang tidak tersedia.",
+      "currencyComparisonUnavailable": "Perbandingan tidak tersedia karena anggaran dan pengeluaran menggunakan mata uang yang berbeda.",
       "leftUnavailable": "Sisa anggaran tidak diketahui saat pengeluaran atau komitmen tidak tersedia.",
       "budgetVsActual": "Anggaran vs aktual",
       "selectedCategories": "Kategori yang dipilih",

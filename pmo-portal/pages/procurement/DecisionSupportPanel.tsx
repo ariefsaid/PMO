@@ -7,12 +7,11 @@
  *
  * Three budget layers (ADR-0034):
  *   • Budget    = useProjectBudget(projectId) — Σ Active budget-version line items.
- *   • Committed = useProjectCommittedSpend(projectId) — Σ PO total_value in
- *                 Ordered/Received/Vendor Invoiced/Paid (the EXACT basis the dashboards
- *                 use, 0009_dashboard_margin.sql). UNCHANGED by this feature.
+ *   • Committed = useProjectCommittedSpend(projectId) — the project-currency open
+ *                 commitment position, with ERP ledger treatment per ADR-0093.
  *   • Reserved  = useProjectReservedSpend(projectId) — Σ total_value in Approved/Vendor
  *                 Quoted/Quote Selected (approved, not yet ordered — "encumbrance").
- * No new RPC — three focused org-scoped reads.
+ * Three focused org-scoped reads.
  *
  * Available = Budget − Committed − Reserved (the over-commitment-safe headroom).
  *
@@ -59,8 +58,7 @@ export interface DecisionSupportPanelProps {
   projectLegalName?: string | null;
   /** The case's current status — drives per-stage math + the visibility boundary. */
   status: ProcurementStatus;
-  /** The procurement's own ISO-4217 currency (FR-L10N-020) — every figure here derives
-   *  from `totalValue`/the project's budget rollups, which share this record's currency. */
+  /** The procurement's own ISO-4217 currency. */
   currency: string;
 }
 
@@ -158,21 +156,35 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
     );
   }
 
+  const projectCurrency = reservedQ.projectCurrency;
+  if (!currency || !projectCurrency || !reservedQ.budgetCurrency ||
+      currency !== projectCurrency || reservedQ.budgetCurrency !== projectCurrency) {
+    return (
+      <Card variant="bare" className="mb-4"><CardPad>{heading}
+        <p className="text-[13px] text-muted-foreground">{t('decisionSupport.currencyUnavailable', 'Budget comparison unavailable for these currencies.')}</p>
+      </CardPad></Card>
+    );
+  }
+
   // ── Figures (three layers, ADR-0034) ─────────────────────────────────────────
   // Interdependent budget math lives in the pure computeBudgetSignal helper so it is
   // independently unit-testable; this block is presentation-only.
   const committedSpend = committed.data ?? 0;
   const otherCurrencyCommitted = (committed.otherCurrencies ?? [])
     .map((position) => formatCurrency(position.amount, position.currency)).join(', ');
+  const otherCurrencyReserved = (reservedQ.otherCurrencies ?? [])
+    .map((position) => position.currency ? formatCurrency(position.amount, position.currency) : t('decisionSupport.currencyUnknown', 'currency unavailable'))
+    .join(', ');
   const reserved = reservedQ.data ?? 0; // TOTAL reserved (incl. this case if applicable)
-  const { available, afterRequest, otherReserved, overAvailable, overAvailableAmount, overBudgetReserved } =
-    computeBudgetSignal({
-      budget: budgetAmount,
-      committed: committedSpend,
-      reserved,
-      totalValue,
-      status,
-    });
+  let signal;
+  try {
+    signal = computeBudgetSignal({ budget: budgetAmount, committed: committedSpend, reserved, totalValue, status, projectCurrency, budgetCurrency: reservedQ.budgetCurrency, requestCurrency: currency });
+  } catch {
+    return <Card variant="bare" className="mb-4"><CardPad>{heading}
+      <p className="text-[13px] text-muted-foreground">{t('decisionSupport.amountUnavailable', 'Budget comparison unavailable for these amounts.')}</p>
+    </CardPad></Card>;
+  }
+  const { available, afterRequest, otherReserved, overAvailable, overAvailableAmount, overBudgetReserved } = signal;
   const afterPct = budgetAmount > 0 ? (afterRequest / budgetAmount) * 100 : 0;
 
   const tiles = [
@@ -180,7 +192,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
     {
       label: 'Reserved',
       value: formatCurrency(otherReserved, currency),
-      sub: 'approved, not yet ordered',
+      sub: otherCurrencyReserved ? t('decisionSupport.otherReservedCurrencies', { defaultValue: 'Approved, not yet ordered. Other currencies: {{amounts}}', amounts: otherCurrencyReserved }) : 'approved, not yet ordered',
     },
     {
       label: 'Available',

@@ -338,7 +338,7 @@ No drag-and-drop / row-dropdown stage change on the board; the detail page (Pipe
 
 ## Wave 5 — Approval Experience (OD-W5-*, locked 2026-06-09; plan `docs/plans/2026-06-09-wave5-approval-experience.md`)
 ### OD-W5-1 — Approvals inbox = PROMOTE the existing `/approvals` route
-One canonical role-aware inbox (NOT a new `/inbox`): lists everything awaiting the viewer's decision — procurement PRs (link to the decision screen) + timesheet weeks (embedded queue) — gated by `may('transition', entity)` (Engineer → no access; Finance → procurement; PM/Exec → both). UX-only; RLS is authority. Dashboard "Awaiting your approval" KPI-as-link routes here (N15).
+One canonical role-aware inbox (NOT a new `/inbox`): lists everything awaiting the viewer's decision — procurement PRs (link to the decision screen) + timesheet weeks (embedded queue) — gated by `may('transition', entity)` (Engineer → no access; Finance → procurement; PM/Exec → both). UX-only; RLS is authority. Dashboard "Awaiting your approval" KPI-as-link routes here (N15). For timesheets, the later and more specific OD-TS-5 applies: a viewer of any role sees the timesheet section when they have eligible pending or correction records; Admin break-glass and Executive unmanaged fallback remain subject to separation of duties. The procurement and invoice gates are unchanged.
 ### OD-W5-2 — Approved stage = BOTH forward paths stay, skip-able (one VISUAL primary, both reachable)
 The state machine already allows `Approved → Vendor Quoted` (quote-first) OR `Approved → Ordered` (skip-to-PO). Do NOT force one. Keep both actions; give ONE a visual `primary` and the other `outline` so no stage emits two blue primaries (resolves D7), but the user can choose either path as the situation needs (sole-source → straight to PO; competitive → quotes first). Supersedes the plan's "Request Vendor Quotes is THE primary" — it's the default emphasis, not the only path.
 ### OD-W5-3 — Bulk approve = BOTH timesheets AND procurement, but EVIDENCE-BASED
@@ -3582,3 +3582,17 @@ The local gate for redesign builds and fix rounds no longer includes `vitest --c
 ### OD-LOCAL-GATE-LIGHT (2026-10-26, owner) — no local full suite, CI shards are the proof
 Standing rule for the whole project, not only the redesign lane: the local pre-PR gate is `check:guards`, typecheck, eslint on touched files, the directly touched test files, touched e2e, rendered captures for UI, touched pgTAP for DB. `vitest --changed origin/dev` and full local suites are dropped: CI's two unit shards + pgTAP are the full proof on every PR to dev. Reason: on a shared Mac with parallel builds, one near-full local run per build serialised everything behind the test lock for hours and drove builders to bypass the lock. Supersedes the local-gate wording in older plans and briefs.
 
+
+### DD-ERP-PARTY-DRAFT — party creation and draft case authoring (Director, 2026-10-29)
+
+When ERP owns companies, new parties use the supported Customer or Supplier flow; Internal remains an
+own-organization marker. Creating a contact for an ERP-owned party requires a Customer or Supplier mapping.
+Mirrored contact identity fields stay with ERP while PMO-only enhancements remain editable. Draft procurement
+line values may be authored by an authorized requester or purchasing writer until a case command or ERP
+reference establishes the external record; recovery uses the submitted case snapshot.
+
+### DD-PROC-HEADER-REQUESTER — requester header editing (Director, 2026-10-29)
+
+A requester or same-organization Admin may edit the existing procurement header fields while the case
+is Draft or Rejected. The header command checks active membership, the procurement feature, referenced
+records and case ownership, and leaves identity, lifecycle and accounting fields outside its input.

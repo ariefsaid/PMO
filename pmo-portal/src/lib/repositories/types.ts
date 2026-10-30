@@ -1,3 +1,7 @@
+import type { saveTimesheetWeek } from '@/src/lib/db/timesheets';
+import type { reopenTimesheet, attestTimesheetNoErpDocument, listReopenableApprovedTimesheets } from '@/src/lib/db/timesheetTransition';
+import type { listPushesNeedingAttention, confirmEmployeeLink, getPushState } from '@/src/lib/db/timesheetPush';
+
 import type { RecordHistoryRepository } from './recordHistory';
 import type { OrgVendorTaxAccounts, ProjectClassificationOptions } from '@/src/lib/db/orgs';
 import type { VendorTaxDefaultsInput } from '@/src/lib/vendorWithholding';
@@ -48,7 +52,7 @@ import type { ExpenseReceiptRow } from '@/src/lib/db/expenseReceipts';
 import type { ExpenseAccountMapRow, ExpensePostingRow } from './expensePostings';
 import type { ErpLinkResponse, ErpLinkRow, ErpPurchaseRow } from './erpPurchases';
 import type { ProcurementGates } from '@/src/lib/db/orgs';
-import type { TransitionProjectOpts, ProjectStatus } from '@/src/lib/db/projectTransitions';
+import type { TransitionProjectOpts, ProjectStatus, PipelineStageConfig } from '@/src/lib/db/projectTransitions';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import type {
   ProjectDocumentRow,
@@ -123,7 +127,7 @@ import type {
   NewLineItem,
   ImportProvenance,
 } from '@/src/lib/db/budgets';
-import type { TaskRow, TaskWithRefs, TaskInput, TaskPatch, TaskStatus } from '@/src/lib/db/tasks';
+import type { TaskRow, TaskWithRefs, TaskInput, TaskPatch, TaskStatus, MyTask } from '@/src/lib/db/tasks';
 import type {
   IncidentRow,
   IncidentInput,
@@ -191,9 +195,13 @@ export interface ProjectRepository {
   list(
     params?: { status?: ProjectRow['status']; statuses?: ProjectRow['status'][]; pmId?: string } & PageParams,
   ): Promise<ProjectWithRefs[]>;
+  listByClient(clientId: string): Promise<ProjectWithRefs[]>;
+  getWithRefs(id: string): Promise<ProjectWithRefs | null>;
+  listPipelineStageConfig(): Promise<PipelineStageConfig[]>;
   listIdentity(): Promise<Array<Pick<ProjectRow, 'id' | 'name'>>>;
   get(id: string): Promise<OpportunityRow | null>;
   transition(id: string, to: ProjectStatus, opts?: TransitionProjectOpts): Promise<void>;
+  winEligibility(id: string): Promise<string | null>;
   /** Create a new opportunity (Leads / Internal Project only; org_id stamped by RLS). */
   create(input: CreateProjectInput): Promise<ProjectRow>;
   /** Update the project's header fields (name/code/client/end customer/PM/dates). */
@@ -277,6 +285,7 @@ export interface TaskRepository {
   list(projectId: string): Promise<TaskWithRefs[]>;
   /** Tasks minuted out of one meeting (the /action seam, migration 0206). */
   listByMeeting(meetingId: string): Promise<TaskWithRefs[]>;
+  listByAssignee(userId: string): Promise<MyTask[]>;
   /** A single task by id, or null when not found / not readable. */
   get(id: string): Promise<TaskWithRefs | null>;
   /** Create a task (org_id stamped by RLS, never sent). */
@@ -284,7 +293,7 @@ export interface TaskRepository {
   /** Update structure fields (name/assignee/dates/status) — managers. */
   update(id: string, patch: TaskPatch, projectId?: string): Promise<void>;
   /** Update ONLY the status column — the assignee (Engineer own-task) path. */
-  updateStatus(id: string, status: TaskStatus, projectId?: string): Promise<void>;
+  updateStatus(id: string, status: TaskStatus, projectId?: string | null): Promise<void>;
   /** Hard-delete a task (cascades dependencies). */
   delete(id: string, projectId?: string): Promise<void>;
   /** PMO-owned reversible soft archive. */
@@ -387,6 +396,7 @@ export interface AgentAttachmentRepository {
 }
 
 export interface ProcurementRepository {
+  itemValuesEditable(id: string): Promise<boolean>;
   list(params?: PageParams): Promise<ProcurementWithRefs[]>;
   get(id: string): Promise<ProcurementDetail>;
   transition(id: string, to: ProcurementStatus, notes?: string): Promise<void>;
@@ -567,6 +577,14 @@ export interface RevenueRepository {
 }
 
 export interface TimesheetRepository {
+  saveWeek: typeof saveTimesheetWeek;
+  reopen: typeof reopenTimesheet;
+  attestNoErpDocument: typeof attestTimesheetNoErpDocument;
+  listReopenableApproved: typeof listReopenableApprovedTimesheets;
+  listPushesNeedingAttention: typeof listPushesNeedingAttention;
+  confirmEmployeeLink: typeof confirmEmployeeLink;
+  getPushState: typeof getPushState;
+
   list(userId: string, params?: PageParams): Promise<TimesheetWithEntries[]>;
   createDraft(weekStartDate: string, userId: string): Promise<TimesheetRow>;
   upsertEntries(entries: EntryUpsert[]): Promise<void>;
@@ -989,6 +1007,7 @@ export interface ErpSnapshotsRepository {
 
 /** Read-only canonical Customer-reference reads for composing ERP aging by PMO company. */
 export interface CompanyCollectionsRepository {
+  listPartyIds(companyIds: readonly string[]): Promise<string[]>;
   listForCompanies(companyIds: readonly string[]): Promise<CompanyCustomerRef[]>;
   listForErpCustomerIds(erpCustomerIds: readonly string[]): Promise<CompanyCustomerRef[]>;
 }

@@ -12,11 +12,14 @@ vi.mock('@/src/lib/db/financialStatements', () => ({
   getFinancialStatementCatalogue: vi.fn(),
 }));
 vi.mock('@/src/lib/db/companyCollections', () => ({
+  listCompanyPartyRefs: vi.fn(),
   listCompanyCustomerRefs: vi.fn(),
   listCompanyCustomerRefsByErpCustomerIds: vi.fn(),
 }));
 vi.mock('@/src/lib/db/projects', () => ({
   listProjects: vi.fn(),
+  listProjectsByClient: vi.fn(),
+  getProject: vi.fn(),
   createProject: vi.fn(),
   updateProjectHeader: vi.fn(),
   archiveProject: vi.fn(),
@@ -24,7 +27,7 @@ vi.mock('@/src/lib/db/projects', () => ({
   setProjectContractValue: vi.fn(),
 }));
 vi.mock('@/src/lib/db/opportunity', () => ({ getOpportunity: vi.fn() }));
-vi.mock('@/src/lib/db/projectTransitions', () => ({ transitionProject: vi.fn() }));
+vi.mock('@/src/lib/db/projectTransitions', () => ({ transitionProject: vi.fn(), getProjectWinEligibility: vi.fn(), listPipelineStageConfig: vi.fn() }));
 vi.mock('@/src/lib/db/companies', () => ({
   listClientCompanies: vi.fn(),
   listCompanies: vi.fn(),
@@ -58,6 +61,7 @@ vi.mock('@/src/lib/db/usage', () => ({
 }));
 vi.mock('@/src/lib/db/tasks', () => ({
   listTasks: vi.fn(),
+  listMyTasks: vi.fn(),
   getTask: vi.fn(),
   createTask: vi.fn(),
   updateTask: vi.fn(),
@@ -78,6 +82,7 @@ vi.mock('@/src/lib/db/procurementLifecycle', () => ({
 }));
 vi.mock('@/src/lib/db/procurementPaymentCeiling', () => ({ approveProcurementAmount: vi.fn() }));
 vi.mock('@/src/lib/db/procurementCrud', () => ({
+  procurementItemValuesEditable: vi.fn(),
   createProcurement: vi.fn(),
   updateProcurementHeader: vi.fn(),
   updateProcurementVendor: vi.fn(),
@@ -97,6 +102,7 @@ vi.mock('@/src/lib/db/procurementRecords', () => ({
 }));
 vi.mock('@/src/lib/db/timesheets', () => ({
   listTimesheets: vi.fn(),
+  saveTimesheetWeek: vi.fn(),
   createDraftTimesheet: vi.fn(),
   upsertTimesheetEntries: vi.fn(),
   deleteTimesheetEntry: vi.fn(),
@@ -106,6 +112,13 @@ vi.mock('@/src/lib/db/timesheetTransition', () => ({
   approveTimesheet: vi.fn(),
   rejectTimesheet: vi.fn(),
   listTimesheetsAwaitingApproval: vi.fn(),
+  reopenTimesheet: vi.fn(),
+  attestTimesheetNoErpDocument: vi.fn(),
+  listReopenableApprovedTimesheets: vi.fn(),
+}));
+vi.mock('@/src/lib/db/timesheetPush', () => ({
+  approvedTimesheetForPush: vi.fn(), listPushesNeedingAttention: vi.fn(),
+  confirmEmployeeLink: vi.fn(), getPushState: vi.fn(),
 }));
 vi.mock('@/src/lib/db/budgets', () => ({
   deriveProjectBudget: vi.fn(),
@@ -156,6 +169,7 @@ import * as financialStatementsDal from '@/src/lib/db/financialStatements';
 import * as opportunityDal from '@/src/lib/db/opportunity';
 import * as projectTransitionsDal from '@/src/lib/db/projectTransitions';
 import * as companiesDal from '@/src/lib/db/companies';
+import * as companyCollectionsDal from '@/src/lib/db/companyCollections';
 import * as documentsDal from '@/src/lib/db/documents';
 import * as profilesDal from '@/src/lib/db/profiles';
 import * as adminUsersDal from '@/src/lib/db/adminUsers';
@@ -168,6 +182,7 @@ import * as procCeilingDal from '@/src/lib/db/procurementPaymentCeiling';
 import * as procRecordsDal from '@/src/lib/db/procurementRecords';
 import * as timesheetsDal from '@/src/lib/db/timesheets';
 import * as tsTransitionDal from '@/src/lib/db/timesheetTransition';
+import * as tsPushDal from '@/src/lib/db/timesheetPush';
 import * as budgetsDal from '@/src/lib/db/budgets';
 import * as budgetImportSkipDal from '@/src/lib/db/budgetImportSkip';
 import * as tasksDal from '@/src/lib/db/tasks';
@@ -206,7 +221,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
   });
 
   it('companyCollections exposes both canonical-reference batch reads', () => {
-    expect(Object.keys(repositories.companyCollections).sort()).toEqual(['listForCompanies', 'listForErpCustomerIds']);
+    expect(Object.keys(repositories.companyCollections).sort()).toEqual(['listForCompanies', 'listForErpCustomerIds', 'listPartyIds']);
   });
 
   it('m365DocumentSettings exposes the default-library repository methods', () => {
@@ -241,7 +256,9 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
 
   it('each repository exposes its expected methods', () => {
     expect(Object.keys(repositories.project).sort()).toEqual(
-      ['archive', 'create', 'delete', 'get', 'getVatEditability', 'list', 'listIdentity', 'proposeNumber', 'setContractValue', 'transition', 'updateHeader'].sort(),
+      // 'getWithRefs'/'listByClient'/'listPipelineStageConfig' added with 2d97e91d5 (project &
+      // task projection refresh). Exhaustive API-seam contract — extend only deliberately.
+      ['archive', 'create', 'delete', 'get', 'getVatEditability', 'getWithRefs', 'list', 'listByClient', 'listIdentity', 'listPipelineStageConfig', 'proposeNumber', 'setContractValue', 'transition', 'updateHeader', 'winEligibility'].sort(),
     );
     expect(Object.keys(repositories.company).sort()).toEqual(
       ['archive', 'create', 'delete', 'get', 'list', 'listClients', 'setProjectNumberSegment', 'setTaxDefaults', 'update'].sort(),
@@ -270,10 +287,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     expect(Object.keys(repositories.task).sort()).toEqual(
       // 'archive'/'unarchive' added deliberately with the PMO task-archive affordance (ADR-0018
       // soft-archive). 'listByMeeting' added deliberately with #526 (the /action seam, migration
-      // 0206 — the meeting detail lists its minuted tasks). This list is an exhaustive API-seam
-      // contract (ADR-0017) — extending the repository surface must be an explicit change here,
-      // never an accident.
-      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'listByMeeting', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
+      // 0206 — the meeting detail lists its minuted tasks). 'listByAssignee' added with 2d97e91d5
+      // (My Tasks projection). This list is an exhaustive API-seam contract (ADR-0017) — extending
+      // the repository surface must be an explicit change here, never an accident.
+      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'listByAssignee', 'listByMeeting', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
     );
     expect(Object.keys(repositories.meeting).sort()).toEqual(
       // #526 (OD-MTG-1/2): grants are add/revoke ONLY — no update method on purpose (a grant is
@@ -300,6 +317,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'deleteDocument',
         'deleteItem',
         'get',
+        'itemValuesEditable',
         'linkMicrosoftDocument',
         'list',
         'listDocuments',
@@ -313,7 +331,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ].sort(),
     );
     expect(Object.keys(repositories.timesheet).sort()).toEqual(
-      ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'pushApproved', 'reject', 'submit', 'upsertEntries'].sort(),
+      ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'pushApproved', 'reject', 'submit', 'upsertEntries', 'saveWeek', 'reopen', 'attestNoErpDocument', 'listReopenableApproved', 'listPushesNeedingAttention', 'confirmEmployeeLink', 'getPushState'].sort(),
     );
     expect(Object.keys(repositories.budget).sort()).toEqual(
       ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'listDocumentLinks', 'listVersions', 'removeDocumentLink', 'updateLineItem'].sort(),
@@ -325,6 +343,20 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
 });
 
 describe('delegation — methods pass args through and return the DAL result', () => {
+  it('company party mapping delegates its IDs and returns the result', async () => {
+    const ids = ['company-a', 'company-b'];
+    const mapped = ['company-a'];
+    vi.mocked(companyCollectionsDal.listCompanyPartyRefs).mockResolvedValue(mapped);
+    await expect(repositories.companyCollections.listPartyIds(ids)).resolves.toBe(mapped);
+    expect(companyCollectionsDal.listCompanyPartyRefs).toHaveBeenCalledWith(ids);
+  });
+
+  it('procurement line eligibility delegates the case and returns the decision', async () => {
+    vi.mocked(procCrudDal.procurementItemValuesEditable).mockResolvedValue(true);
+    await expect(repositories.procurement.itemValuesEditable('case-1')).resolves.toBe(true);
+    expect(procCrudDal.procurementItemValuesEditable).toHaveBeenCalledWith('case-1');
+  });
+
   it('project.list delegates to listProjects', async () => {
     const rows = [{ id: 'p1' }];
     vi.mocked(projectsDal.listProjects).mockResolvedValue(rows as never);
@@ -338,6 +370,27 @@ describe('delegation — methods pass args through and return the DAL result', (
     vi.mocked(opportunityDal.getOpportunity).mockResolvedValue({ id: 'o1' } as never);
     await repositories.project.get('o1');
     expect(opportunityDal.getOpportunity).toHaveBeenCalledWith('o1');
+  });
+
+  it('retains the project and task read projections', async () => {
+    vi.mocked(projectsDal.listProjectsByClient).mockResolvedValue([]);
+    vi.mocked(projectsDal.getProject).mockResolvedValue(null);
+    vi.mocked(projectTransitionsDal.listPipelineStageConfig).mockResolvedValue([]);
+    vi.mocked(tasksDal.listMyTasks).mockResolvedValue([]);
+    await repositories.project.listByClient('client-1');
+    await repositories.project.getWithRefs('project-1');
+    await repositories.project.listPipelineStageConfig();
+    await repositories.task.listByAssignee('user-1');
+    expect(projectsDal.listProjectsByClient).toHaveBeenCalledWith('client-1');
+    expect(projectsDal.getProject).toHaveBeenCalledWith('project-1');
+    expect(projectTransitionsDal.listPipelineStageConfig).toHaveBeenCalledOnce();
+    expect(tasksDal.listMyTasks).toHaveBeenCalledWith('user-1');
+  });
+
+  it('project.winEligibility reads the decision for the selected project', async () => {
+    vi.mocked(projectTransitionsDal.getProjectWinEligibility).mockResolvedValue('allowed');
+    await expect(repositories.project.winEligibility('p1')).resolves.toBe('allowed');
+    expect(projectTransitionsDal.getProjectWinEligibility).toHaveBeenCalledWith('p1');
   });
 
   it('project.transition delegates to transitionProject with opts', async () => {
@@ -784,6 +837,31 @@ describe('delegation — methods pass args through and return the DAL result', (
     vi.mocked(tsTransitionDal.approveTimesheet).mockResolvedValue(undefined);
     vi.mocked(tsTransitionDal.rejectTimesheet).mockResolvedValue(undefined);
     vi.mocked(tsTransitionDal.listTimesheetsAwaitingApproval).mockResolvedValue([] as never);
+
+    vi.mocked(timesheetsDal.saveTimesheetWeek).mockResolvedValue('t1');
+    await expect(repositories.timesheet.saveWeek(null, '2026-06-01', [], [])).resolves.toBe('t1');
+    expect(timesheetsDal.saveTimesheetWeek).toHaveBeenCalledWith(null, '2026-06-01', [], []);
+    const failure = Object.assign(new Error('Save failed'), { code: '42501' });
+    vi.mocked(timesheetsDal.saveTimesheetWeek).mockRejectedValueOnce(failure);
+    await expect(repositories.timesheet.saveWeek('t1', '2026-06-01', [], [])).rejects.toBe(failure);
+    vi.mocked(tsTransitionDal.reopenTimesheet).mockResolvedValue(undefined);
+    await repositories.timesheet.reopen('t1');
+    expect(tsTransitionDal.reopenTimesheet).toHaveBeenCalledWith('t1');
+
+    vi.mocked(tsTransitionDal.attestTimesheetNoErpDocument).mockResolvedValue(undefined);
+    await repositories.timesheet.attestNoErpDocument('t1', 'reason');
+    expect(tsTransitionDal.attestTimesheetNoErpDocument).toHaveBeenCalledWith('t1', 'reason');
+    vi.mocked(tsTransitionDal.listReopenableApprovedTimesheets).mockResolvedValue([]);
+    await expect(repositories.timesheet.listReopenableApproved('u1', 'Project Manager')).resolves.toEqual([]);
+    expect(tsTransitionDal.listReopenableApprovedTimesheets).toHaveBeenCalledWith('u1', 'Project Manager');
+    vi.mocked(tsPushDal.listPushesNeedingAttention).mockResolvedValue([]);
+    await expect(repositories.timesheet.listPushesNeedingAttention()).resolves.toEqual([]);
+    vi.mocked(tsPushDal.confirmEmployeeLink).mockResolvedValue(undefined);
+    await repositories.timesheet.confirmEmployeeLink('employee', 'profile');
+    expect(tsPushDal.confirmEmployeeLink).toHaveBeenCalledWith('employee', 'profile');
+    vi.mocked(tsPushDal.getPushState).mockResolvedValue(null);
+    await expect(repositories.timesheet.getPushState('t1')).resolves.toBeNull();
+    expect(tsPushDal.getPushState).toHaveBeenCalledWith('t1');
 
     await repositories.timesheet.list('u1');
     expect(timesheetsDal.listTimesheets).toHaveBeenCalledWith('u1', undefined);

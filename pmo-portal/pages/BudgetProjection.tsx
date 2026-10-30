@@ -14,6 +14,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 interface BudgetProjectionProps {
   projectId: string;
   currency: string;
+  budgetCurrency: string;
   canEdit: boolean;
   committedByCategory: Record<string, number | null>;
   canReadCommitments: boolean;
@@ -35,7 +36,7 @@ function projectionTone(row: BudgetProjectionCellRow): 'neutral' | 'won' | 'warn
   return 'won';
 }
 
-export default function BudgetProjection({ projectId, currency, canEdit, committedByCategory, canReadCommitments, onAdjustInDraft, onExport }: BudgetProjectionProps) {
+export default function BudgetProjection({ projectId, currency, budgetCurrency, canEdit, committedByCategory, canReadCommitments, onAdjustInDraft, onExport }: BudgetProjectionProps) {
   const { t } = useTranslation('finance');
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -87,7 +88,8 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
     queryFn: () => fetchActiveBudgetCategoryPhasing(projectId),
     enabled: Boolean(projectId && fiscalYear),
   });
-  const rows = projectionQuery.data ?? [];
+  const compatibleBasis = budgetCurrency === currency;
+  const rows = useMemo(() => (projectionQuery.data ?? []).map((row) => compatibleBasis ? row : { ...row, projectedVariance: null, projectedUtilization: null }), [projectionQuery.data, compatibleBasis]);
   const hasForecastRows = Boolean(fiscalYear && !projectionQuery.isPending && !projectionQuery.isError && rows.length > 0);
   const selected = rows.find((row) => row.category === searchParams.get('open')) ?? null;
   const phasing = phasingQuery.data;
@@ -181,7 +183,7 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
       header: t('financeCopy.budget', 'Budget'),
       kind: 'money',
       align: 'num',
-      cell: (row) => <Tooltip content={t('projectDetail.budget.forecastBudgetSource', 'Source: the active budget version, phased to this fiscal year.')}><span tabIndex={0}>{moneyText(row.pmoBudgetAmount, currency)}</span></Tooltip>,
+      cell: (row) => <Tooltip content={t('projectDetail.budget.forecastBudgetSource', 'Source: the active budget version, phased to this fiscal year.')}><span tabIndex={0}>{moneyText(row.pmoBudgetAmount, budgetCurrency)}</span></Tooltip>,
     },
     {
       key: 'spent',
@@ -242,7 +244,7 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
           <Tooltip content={t('projectDetail.budget.forecastUtilizationFormula', 'Forecast final divided by fiscal-year budget.')}><span tabIndex={0}><ProgressBar compact value={Math.round(utilizationPct(row)!)} showValue aria-label={`${budgetCategoryLabel(row.category, t)} ${t('projectDetail.budget.forecastUtilization', 'forecast utilization')}`} /></span></Tooltip>
         </span>,
     },
-  ], [canReadCommitments, committedByCategory, currency, editing, etcDraft, etcErrors, t]);
+  ], [budgetCurrency, canReadCommitments, committedByCategory, currency, editing, etcDraft, etcErrors, t]);
 
   const totalCommitted = canReadCommitments
     ? rows.reduce((sum, row) => sum + (committedByCategory[row.category] ?? 0), 0)
@@ -257,7 +259,7 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
     key: 'total',
     label: t('financeCopy.total', 'Total'),
     values: {
-      budget: moneyText(totalBudget, currency),
+      budget: moneyText(totalBudget, budgetCurrency),
       spent: <span className="inline-flex flex-col items-end"><span>{moneyText(rows.every((row) => row.actualsToDate !== null) ? rows.reduce((sum, row) => sum + (row.actualsToDate ?? 0), 0) : null, currency)}</span><span className="text-xs font-normal text-muted-foreground">{t('projectDetail.budget.projectCommitmentsShort', 'Committed · project-wide')}: {moneyText(totalCommitted, currency)}</span></span>,
       etc: formatCurrencyAuto(rows.reduce((sum, row) => sum + row.pmoEtc, 0), currency),
       final: moneyText(rows.every((row) => row.projectedFinalCost !== null) ? rows.reduce((sum, row) => sum + (row.projectedFinalCost ?? 0), 0) : null, currency),
@@ -275,10 +277,11 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
 
   return (
     <section ref={sectionRef} className="min-w-0 space-y-3" aria-label={t('projectDetail.budget.forecast', 'Forecast')} data-testid="budget-forecast-view">
+      {!compatibleBasis && <p role="status" className="text-sm text-muted-foreground">{t('projectDetail.budget.currencyBasisNotice', 'Budget: {{budgetCurrency}}. Spending and commitments: {{projectCurrency}}. Comparisons are unavailable across currencies.', { budgetCurrency, projectCurrency: currency })}</p>}
       {hasForecastRows && <dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-y border-border/70 py-3 text-sm sm:max-w-2xl sm:gap-x-6">
         <div className="min-w-0">
           <dt className="text-xs text-muted-foreground">{t('financeCopy.total', 'Total')} {t('financeCopy.budget', 'Budget')}</dt>
-          <dd className="mt-1 whitespace-nowrap font-semibold tabular-nums">{moneyText(totalBudget, currency)}</dd>
+          <dd className="mt-1 whitespace-nowrap font-semibold tabular-nums">{moneyText(totalBudget, budgetCurrency)}</dd>
         </div>
         <div className="min-w-0">
           <dt className="text-xs text-muted-foreground">{t('projectDetail.budget.forecastRemaining', 'Forecast remaining')}</dt>
@@ -346,7 +349,7 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
         {selected && <div className="space-y-5">
           <dl className="grid grid-cols-2 gap-3 text-sm">
             {[
-              [t('financeCopy.budget', 'Budget'), moneyText(selected.pmoBudgetAmount, currency), t('projectDetail.budget.forecastBudgetSource', 'Source: the active budget version, phased to this fiscal year.')],
+              [t('financeCopy.budget', 'Budget'), moneyText(selected.pmoBudgetAmount, budgetCurrency), t('projectDetail.budget.forecastBudgetSource', 'Source: the active budget version, phased to this fiscal year.')],
               [t('projectDetail.budget.spent', 'Spent'), moneyText(selected.actualsToDate, currency), t('projectDetail.budget.forecastActualsAsOf', 'Source: ERP ledger through the recorded as-of date.')],
               [t('projectDetail.budget.projectCommitmentsShort', 'Committed · project-wide'), canReadCommitments ? moneyText(committedByCategory[selected.category] ?? 0, currency) : '—', t('projectDetail.budget.forecastCommitmentSummary', 'Committed amounts are project-wide and not assigned to a fiscal year.')],
               [t('projectDetail.budget.costToFinish', 'Cost to finish'), formatCurrencyAuto(selected.pmoEtc, currency), t('projectDetail.budget.etcSource', 'PM estimate to complete, saved for this fiscal year.')],

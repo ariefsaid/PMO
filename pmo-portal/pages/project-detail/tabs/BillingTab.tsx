@@ -143,6 +143,14 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   // A claim's scope comes from the allocations: until they are loaded no scope is offered (never a guessed one).
   const claimScopeReady = !allocations.isPending && !allocations.isError;
   const canBill = may('create', 'progressClaim') && erp.connected && clientId !== null && claimScopeReady;
+  const claimSources = [
+    { query: boq, name: t('projectDetail.billing.sources.boq', 'contract lines') },
+    { query: billing, name: t('projectDetail.billing.sources.billing', 'billing figures') },
+    { query: claims, name: t('projectDetail.billing.sources.claims', 'claims') },
+    { query: workOrders, name: t('projectDetail.billing.sources.orders', 'customer orders') },
+    { query: allocations, name: t('projectDetail.billing.sources.allocations', 'order allocations') },
+  ];
+  const claimDataReady = claimSources.every(({ query }) => !query.isPending && !query.isError && query.data != null);
   const canStartInvoice = may('create', 'salesInvoice') && revenueRouteReady && clientId !== null;
   const canAssess = may('edit', 'projectProgress', { currentUserId: currentUser?.id, record: { project_manager_id: projectManagerId } });
   const liveDownPayment = claimRows.some((c) => c.kind === 'down_payment' && !c.withdrawn_at && c.invoice?.status !== 'Cancelled');
@@ -288,7 +296,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     ] : []),
     { key: 'claimed', header: t('projectDetail.billing.boq.column.claimed', 'Claimed'), align: 'num', cell: (row) => (
       <Tooltip content={t('projectDetail.billing.boq.source.claimed', 'Source: quantities on live progress claims.')}><span className="cursor-help tabular" data-testid={`boq-claimed-${row.id}`}>
-        {summary ? formatNumberExact(summary.claimedByBoqItem[row.id] ?? 0) : '—'}
+        {summary ? (row.earning_basis === 'lump_sum' ? percentOfLot(summary.claimedByBoqItem[row.id] ?? 0) : formatNumberExact(summary.claimedByBoqItem[row.id] ?? 0)) : '—'}
       </span></Tooltip>
     ) },
     { key: 'remaining', header: t('projectDetail.billing.boq.column.remaining', 'Left to claim'), align: 'num', cell: (row) => {
@@ -296,7 +304,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       const left = remainingQuantity(Number(row.quantity), summary.claimedByBoqItem[row.id] ?? 0);
       return (
         <Tooltip content={t('projectDetail.billing.boq.source.remaining', 'Computed as contract quantity less quantities claimed.')}><span className="cursor-help tabular" data-testid={`boq-remaining-${row.id}`}>
-          {formatNumberExact(left)}
+          {row.earning_basis === 'lump_sum' ? percentOfLot(left) : formatNumberExact(left)}
           {left < 0 && <span className="ml-1 text-[11px] text-destructive-text">{t('projectDetail.billing.boq.overClaimed', 'Over-claimed')}</span>}
         </span></Tooltip>
       );
@@ -432,8 +440,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           <SourcedFigure label={t('projectTabs:contractQuantities.billing.boq.column.earned', 'Earned')} value={quantityText(item, fact.earnedQuantity)} detail={t('projectDetail.billing.boq.source.earned', 'Source: earned quantity from project billing facts.')} />
         </>}
         {summary && <>
-          <SourcedFigure label={t('projectDetail.billing.boq.column.claimed', 'Claimed')} value={formatNumberExact(summary.claimedByBoqItem[item.id] ?? 0)} detail={t('projectDetail.billing.boq.source.claimed', 'Source: quantities on live progress claims.')} />
-          <SourcedFigure label={t('projectDetail.billing.boq.column.remaining', 'Left to claim')} value={formatNumberExact(remainingQuantity(Number(item.quantity), summary.claimedByBoqItem[item.id] ?? 0))} detail={t('projectDetail.billing.boq.source.remaining', 'Computed as contract quantity less quantities claimed.') } />
+          <SourcedFigure label={t('projectDetail.billing.boq.column.claimed', 'Claimed')} value={item.earning_basis === 'lump_sum' ? percentOfLot(summary.claimedByBoqItem[item.id] ?? 0) : formatNumberExact(summary.claimedByBoqItem[item.id] ?? 0)} detail={t('projectDetail.billing.boq.source.claimed', 'Source: quantities on live progress claims.')} />
+          <SourcedFigure label={t('projectDetail.billing.boq.column.remaining', 'Left to claim')} value={item.earning_basis === 'lump_sum' ? percentOfLot(remainingQuantity(Number(item.quantity), summary.claimedByBoqItem[item.id] ?? 0)) : formatNumberExact(remainingQuantity(Number(item.quantity), summary.claimedByBoqItem[item.id] ?? 0))} detail={t('projectDetail.billing.boq.source.remaining', 'Computed as contract quantity less quantities claimed.') } />
         </>}
       </dl>
       {fact && <section className="border-t border-border px-4 py-3" aria-labelledby="billing-boq-history">
@@ -457,14 +465,22 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         level={2}
         className="text-base"
         actions={
-          canBill && !canStartInvoice && (
+          canBill && claimDataReady && !canStartInvoice && (
             <Button variant="primary" size="sm" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
           )
         }
       >
         {t('projectDetail.billing.claims.billingTitle', 'Billing claims')}
       </CardHead>
+
       <CardPad flush>
+        {claimSources.filter(({ query }) => query.isPending && !query.isError).map(({ name }) => (
+          <p key={name} role="status" className="text-sm text-muted-foreground">{t('projectDetail.billing.sources.loading', 'Loading {{source}}…', { source: name })}</p>
+        ))}
+        {claimSources.filter(({ query }) => query.isError).map(({ query, name }) => (
+          <ListState key={name} variant="error" title={t('projectDetail.billing.sources.error', "Couldn't load {{source}}", { source: name })} onRetry={() => void query.refetch()} />
+        ))}
+
         <DataTable<ProgressClaimWithInvoice>
           embedded
           rows={claimRows}
@@ -662,7 +678,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           onClose={() => setAssessOpen(false)} onSave={saveAssessment} onError={fail} />
       )}
       {claimFormOpen && (
-        <ProgressClaimModal boqItems={boqRows} workOrders={workOrders.data ?? []}
+        <ProgressClaimModal sources={claimSources.map(({ query, name }) => ({ name,
+          pending: query.isPending || (!query.isError && query.data == null), error: query.isError, retry: () => { void query.refetch(); } }))}
+          boqItems={boqRows} workOrders={workOrders.data ?? []}
           allocations={allocations.data ?? []} contractLines={summary?.contractLines ?? []} contractNet={summary?.contractNet ?? 0}
           currencySymbolPrefix={currencySymbol(currency)} hasDownPayment={liveDownPayment}
           claimedByBoqItem={summary?.claimedByBoqItem ?? {}} assessedByBoqItem={summary?.assessedByBoqItem ?? {}}
@@ -671,6 +689,10 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       )}
       {evidenceFor && (
         <ClaimEvidenceModal documents={documents.data ?? []}
+          sourcePending={documents.isPending || claims.isPending}
+          sourceError={documents.isError ? t('projectDetail.billing.evidence.documentsError', "Couldn't load evidence documents")
+            : claims.isError || (!claims.isPending && !evidenceClaim) ? t('projectDetail.billing.evidence.claimError', "Couldn't load the claim") : null}
+          onRetry={() => { if (documents.isError) void documents.refetch(); if (claims.isError || !evidenceClaim) void claims.refetch(); }}
           attachedDocumentIds={(evidenceClaim?.evidence ?? []).map((e) => e.document_id)}
           onClose={() => setEvidenceFor(null)} onAttach={attachEvidence} onError={fail} />
       )}

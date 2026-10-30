@@ -1,51 +1,8 @@
-/**
- * agentRoles.ts — shared role-set constants for the agent write-action preflight.
- *
- * This file has NO browser or Vite deps so it can be imported by:
- *   - pmo-portal/src/auth/policy.ts (FE RBAC layer)
- *   - supabase/functions/agent-chat/index.ts (Deno edge fn, via relative path)
- *
- * The sets mirror the RBAC matrix in policy.ts for the two v1 agent write actions:
- *   create_activity → MASTER_DATA roles (Admin·Exec·PM·Finance)
- *   update_task_status → DELIVERY roles + Engineer + Finance (RLS enforces own-task for both)
- *
- * ADR-0016: this is a UX-preflight (can() check); RLS/SoD is the enforcement authority.
- *
- * Drift guard: agentRoles.test.ts asserts these match the policy.ts RBAC expectations
- * so a role rename in policy.ts will fail CI before this copy drifts.
- */
+/** Coarse preflight roles; record-scoped rules remain in policy and server checks. */
+import { ALL_ROLES, MASTER_DATA_ROLES, REVENUE_WRITE_ROLES } from './coarseRoles.ts';
 
-/** Roles allowed to create CRM activities (contactActivity.create in policy.ts). */
-export const AGENT_MASTER_DATA_ROLES: string[] = [
-  'Admin',
-  'Executive',
-  'Project Manager',
-  'Finance',
-];
-
-/**
- * Roles allowed to call update_task_status (taskStatus.edit in policy.ts).
- * DELIVERY (Admin·Exec·PM) may update any task; Engineer and Finance may update a task ASSIGNED to
- * them (migration 0355 scopes Finance like Engineer). RLS tasks_update_own_status enforces the
- * ownership; this is the UX preflight.
- */
-export const AGENT_TASK_STATUS_ROLES: string[] = [
-  'Admin',
-  'Executive',
-  'Project Manager',
-  'Finance',
-  'Engineer',
-];
-
-/** Roles that may VIEW sales invoices (salesInvoice.view in policy.ts) — gates the invoice half of
- *  whats_overdue (#787, DD-AIN-2). UX scoping only; RLS is the read authority. */
-export const AGENT_REVENUE_VIEW_ROLES: string[] = ['Admin', 'Executive', 'Project Manager', 'Finance'];
-
-/** Roles that may RAISE a sales invoice (salesInvoice.create in policy.ts, and adapter-dispatch's
- *  REVENUE_WRITE_ROLES — the enforcement authority). draft_invoice preflight (#787, DD-AIN-3). */
-export const AGENT_REVENUE_WRITE_ROLES: string[] = ['Admin', 'Finance'];
-
-/** Roles that read vendor bills and payments (procurementInvoice.view in policy.ts; migration 0350's allow-list —
- *  an Engineer reads none). Gates the assistant's money-record reads so an Engineer is told they are not
- *  available rather than shown an empty list. UX scoping only; RLS is the read authority. */
-export const AGENT_MONEY_READ_ROLES: string[] = ['Admin', 'Executive', 'Project Manager', 'Finance'];
+export const AGENT_MASTER_DATA_ROLES: string[] = [...MASTER_DATA_ROLES];
+export const AGENT_TASK_STATUS_ROLES: string[] = [...ALL_ROLES];
+export const AGENT_REVENUE_VIEW_ROLES: string[] = [...MASTER_DATA_ROLES];
+export const AGENT_REVENUE_WRITE_ROLES: string[] = [...REVENUE_WRITE_ROLES];
+export const AGENT_MONEY_READ_ROLES: string[] = [...MASTER_DATA_ROLES];

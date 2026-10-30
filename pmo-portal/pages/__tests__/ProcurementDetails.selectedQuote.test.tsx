@@ -22,6 +22,9 @@ const detailState = {
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
+
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
@@ -47,7 +50,6 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     setEfaktur: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
-const docsState = { data: [] as Record<string, unknown>[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useProcurementCrudMutations: () => ({
     updateHeader: { mutateAsync: vi.fn(), isPending: false },
@@ -58,7 +60,6 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
     createDocument: { mutateAsync: vi.fn(), isPending: false },
     deleteDocument: { mutateAsync: vi.fn(), isPending: false },
   }),
-  useProcurementDocuments: () => docsState,
 }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [{ value: 'proj-1', label: 'HQ Fit-Out' }] }),
@@ -175,20 +176,27 @@ beforeEach(() => {
   detailState.error = null;
 });
 
-// The Overview "Selected quote" stat tile was removed by the procurement record restructure (#1404);
-// the chosen quote's amount + supplier are read where the quotes live (the Quotations tab row marked
-// "Selected · best value"). The goal is unchanged: the binding holds from Quote Selected through Paid.
-const selectedRow = () => {
+// Locate rows by the immutable quote identity. The value-status cell now renders separate badges.
+const quoteRow = (quoteNumber: string): HTMLElement => {
   const section = screen.getByTestId('vendor-quotes');
-  const pill = within(section).getAllByText(/Selected · best value/i)[0]!;
-  return (pill.closest('tr') ?? pill.closest('li') ?? pill.parentElement!.parentElement!) as HTMLElement;
+  const row = Array.from(section.querySelectorAll('tr')).find((candidate) =>
+    candidate.textContent?.includes(quoteNumber),
+  );
+  if (!row) throw new Error(`Expected vendor quote row ${quoteNumber}`);
+  return row;
+};
+const selectedQuoteRow = (quoteNumber: string): HTMLElement => {
+  const row = quoteRow(quoteNumber);
+  expect(within(row).getByText('Selected')).toBeInTheDocument();
+  expect(within(row).getByText('Lowest price')).toBeInTheDocument();
+  return row;
 };
 
 describe('AC-IXD-PROC-004: the Selected-quote summary binds to the chosen quotation', () => {
   it('AC-IXD-PROC-004: at Quote Selected the chosen quote row shows the selected amount + vendor (not the other bid)', () => {
     detailState.data = { ...base, status: 'Quote Selected' };
     renderPage('quotes');
-    const row = selectedRow();
+    const row = selectedQuoteRow('VQ-2606040001');
     // formatCurrency(48000) = "$48,000" (the selected quote's amount)
     expect(row).toHaveTextContent('$48,000');
     // names the selected vendor, not the rejected bid
@@ -210,20 +218,23 @@ describe('AC-IXD-PROC-004: the Selected-quote summary binds to the chosen quotat
       ],
     };
     renderPage('quotes');
-    const row = selectedRow();
+    const row = selectedQuoteRow('VQ-2606040001');
     expect(row).toHaveTextContent('$48,000');
     expect(row).toHaveTextContent('Apex Supply');
   });
 
-  it('AC-IXD-PROC-004: the chosen quotation row is marked "Selected · best value"', () => {
+  it('AC-IXD-PROC-004: selected and lowest-price badges stay on the chosen lowest quote only', () => {
     detailState.data = { ...base, status: 'Quote Selected' };
     renderPage('quotes');
-    // VendorQuotesTab (Slice 3) replaced QuotationsSection — testid is now vendor-quotes.
-    const section = screen.getByTestId('vendor-quotes');
-    // Both desktop + mobile branches render the pill so at least one match expected.
-    expect(within(section).getAllByText(/Selected · best value/i).length).toBeGreaterThanOrEqual(1);
-    // its vq number is shown alongside (may appear in both branches)
-    expect(within(section).getAllByText('VQ-2606040001').length).toBeGreaterThanOrEqual(1);
+    const chosenRow = quoteRow('VQ-2606040001');
+    expect(chosenRow).toHaveTextContent('VQ-2606040001');
+    expect(within(chosenRow).getByText('Selected')).toBeInTheDocument();
+    expect(within(chosenRow).getByText('Lowest price')).toBeInTheDocument();
+
+    const otherBidRow = quoteRow('VQ-2606040002');
+    expect(otherBidRow).toHaveTextContent('VQ-2606040002');
+    expect(within(otherBidRow).queryByText('Selected')).not.toBeInTheDocument();
+    expect(within(otherBidRow).queryByText('Lowest price')).not.toBeInTheDocument();
   });
 });
 

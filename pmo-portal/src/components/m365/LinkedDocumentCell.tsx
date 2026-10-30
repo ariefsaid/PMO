@@ -16,6 +16,12 @@ export interface LinkedDocumentCellProps {
    * versions and approved history live in the full (Drawer) cell, so they are not repeated per row.
    */
   compact?: boolean;
+  /** Shared register-level verification state for the live visible row and its Drawer. */
+  verification?: {
+    checking: boolean;
+    failed: boolean;
+    retry: () => void;
+  };
 }
 
 /**
@@ -25,7 +31,7 @@ export interface LinkedDocumentCellProps {
  * Everything that DOES read Microsoft (versions, approved history) is a separate, explicit action
  * and never replaces or disables "open".
  */
-export function LinkedDocumentCell({ reference, title, owner, compact = false }: LinkedDocumentCellProps) {
+export function LinkedDocumentCell({ reference, title, owner, compact = false, verification }: LinkedDocumentCellProps) {
   const { t } = useTranslation();
   const { t: tf } = useTranslation('recordFolders');
   const [versionsOpen, setVersionsOpen] = useState(false);
@@ -64,7 +70,7 @@ export function LinkedDocumentCell({ reference, title, owner, compact = false }:
       </span>
       {!compact && reference.name !== title && <span className="break-words text-[12px] text-muted-foreground">{reference.name}</span>}
       {project && isFolder && <span data-folder-reference className="break-words text-[12px] text-muted-foreground">{t('m365Documents.referenceOnly', 'Folder reference: contents are not issued or approved')}</span>}
-      {controlled && compact && <DocumentDriftBadge compact status={project.status} driftState={project.drift_state} lastVerifiedAt={project.last_verified_at} />}
+      {controlled && compact && <DocumentDriftBadge compact status={project.status} driftState={project.drift_state} lastVerifiedAt={project.last_verified_at} checking={verification?.checking} checkFailed={verification?.failed} onRetry={verification?.retry} />}
       <div className="flex min-w-0 flex-wrap items-center gap-1">
         <Button variant="ghost" size="sm" className="min-w-0 whitespace-normal! text-left" aria-label={`${openText}: ${label}`} onClick={openReference}>
           <Icon name="eye" />
@@ -92,7 +98,7 @@ export function LinkedDocumentCell({ reference, title, owner, compact = false }:
         </span>
       )}
       {!compact && pinnedLabel && <span className="break-words text-[12px] text-muted-foreground">{pinnedLabel}</span>}
-      {!compact && controlled && <DocumentDriftBadge status={project.status} driftState={project.drift_state} lastVerifiedAt={project.last_verified_at} />}
+      {!compact && controlled && <DocumentDriftBadge status={project.status} driftState={project.drift_state} lastVerifiedAt={project.last_verified_at} checking={verification?.checking} checkFailed={verification?.failed} onRetry={verification?.retry} />}
       {!compact && approved && <ApprovedVersionHistory reference={reference} pinnedVersionId={project.version_id_at_issue} />}
       {versionsOpen && (
         <LinkedDocumentVersionsModal

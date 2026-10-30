@@ -78,9 +78,10 @@ export type ProjectMoneyPositionInput = {
   contractValue: number | null;
   activeBudget: number | undefined;
   ledgerBasis: ActualPosition['basis'];
-  committedSpend: number | undefined;
+  committedSpend: number | string | undefined;
   commitmentPending: boolean;
   commitmentError: boolean;
+  commitmentComplete?: boolean;
   actuals: ProjectFinances['actuals'] | undefined;
 };
 
@@ -96,17 +97,21 @@ export type ProjectMoneyPosition = {
 
 export function deriveActualPosition(input: {
   ledgerBasis: 'pmo' | 'erp' | 'unavailable';
-  committedSpend: number | undefined;
+  committedSpend: number | string | undefined;
   commitmentPending: boolean;
   commitmentError: boolean;
+  commitmentComplete?: boolean;
   projectCurrency: string;
   actuals: ProjectFinances['actuals'] | undefined;
 }): ActualPosition {
   if (input.ledgerBasis === 'pmo') {
-    if (input.commitmentPending || input.commitmentError || input.committedSpend === undefined || !Number.isFinite(input.committedSpend)) {
+    const units = typeof input.committedSpend === 'string' ? moneyUnits(input.committedSpend)
+      : input.committedSpend !== undefined && Number.isFinite(input.committedSpend)
+        ? BigInt(Math.round(input.committedSpend * 100)) : null;
+    if (input.commitmentPending || input.commitmentError || input.commitmentComplete === false || units === null) {
       return { amount: null, currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: false };
     }
-    return { amount: moneyText(BigInt(Math.round(input.committedSpend * 100))), currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: true };
+    return { amount: moneyText(units), currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: true };
   }
   if (input.ledgerBasis === 'unavailable') {
     return { amount: null, currency: null, asOf: null, basis: 'unavailable', complete: false };
@@ -197,7 +202,7 @@ export function isActualComplete(input: {
   coverageTotal?: number | null;
   budgetedCategories?: readonly string[];
 }): boolean {
-  if (input.basis === 'pmo') return input.readSucceeded;
+  if (input.basis === 'pmo') return input.readSucceeded && input.complete !== false;
   if (input.basis !== 'erp' || !input.readSucceeded) return false;
   if (input.complete !== null && input.complete !== undefined) return input.complete;
   if (input.actuals) return categoriesComplete(input.actuals, input.budgetedCategories);
@@ -209,15 +214,6 @@ export function isActualComplete(input: {
   return categories.length > 0
     && categories.every((category) => category.mapped && category.amount !== null)
     && !input.excludesRestrictedRows;
-}
-
-export function deriveContractRemainingAfterCost(
-  contractValue: number | null,
-  actuals: ProjectFinances['actuals'],
-  currency: string,
-): ExactMoney | null {
-  if (!hasCompleteActuals(actuals)) return null;
-  return deriveContractRemainingFromPosition(contractValue, { amount: actuals.total, currency: actuals.currency }, currency);
 }
 
 export function deriveContractRemainingFromPosition(

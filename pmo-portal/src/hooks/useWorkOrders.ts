@@ -18,7 +18,7 @@ export function useProjectWorkOrders(projectId: string) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery({
-    queryKey: ['work-orders', orgId, projectId],
+    queryKey: ['work-orders', orgId, projectId, currentUser?.id, currentUser?.role, currentUser?.manager_id],
     queryFn: () => repositories.workOrder.list(projectId),
     enabled: Boolean(orgId) && Boolean(projectId),
   });

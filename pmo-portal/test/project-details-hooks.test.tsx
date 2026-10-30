@@ -98,6 +98,9 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
     error: null,
     isPending: false,
   }),
+  // ProjectStatusControl composes the win-eligibility preflight (3700397d9); this hooks-order test
+  // stubs it so the render needs no QueryClient.
+  useProjectWinEligibility: () => ({ data: 'allowed' }),
 }));
 // Model B: ProjectDetail falls back to a by-id opportunity fetch for records not in the active
 // projects cache. The seed here is on-hand (cached), so it is disabled — stub it so the test

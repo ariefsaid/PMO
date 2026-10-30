@@ -10,10 +10,10 @@ import { assertEquals, assert } from 'jsr:@std/assert';
 import {
   checkErpnextCommandAuthorization,
   checkOutboxReplayAuthorization,
-  moneyWriteRolesForDomain,
   replayMayIssueErpWrite,
   type AuthorizationClient,
 } from './authGuard.ts';
+import { moneyWriteRolesForDomain } from '../_shared/moneyWriteRoles.ts';
 
 /**
  * Fake client resolving the two authorization RPCs:
@@ -62,7 +62,7 @@ Deno.test('checkErpnextCommandAuthorization: ok when org owns domain, role permi
     fakeClient({ domainOwned: true, role: 'Admin' }),
     'org-1',
     'user-1',
-    { domain: 'revenue', operation: 'create', record: { id: 'si-1', erp_doc_kind: 'sales-invoice' } } as any,
+    { domain: 'revenue', record: { erp_doc_kind: 'sales-invoice' } } as any,
   );
   assertEquals(res.ok, true);
   assertEquals(res.status, 200);
@@ -73,7 +73,7 @@ Deno.test('checkErpnextCommandAuthorization: 403 when org does NOT own the domai
     fakeClient({ domainOwned: false, role: 'Admin' }),
     'org-1',
     'user-1',
-    { domain: 'revenue', operation: 'create', record: { id: 'si-1', erp_doc_kind: 'sales-invoice' } } as any,
+    { domain: 'revenue', record: { erp_doc_kind: 'sales-invoice' } } as any,
   );
   assertEquals(res.ok, false);
   assertEquals(res.status, 403);
@@ -85,7 +85,7 @@ Deno.test('checkErpnextCommandAuthorization: 403 when role is NOT permitted for 
     fakeClient({ domainOwned: true, role: 'Engineer' }),
     'org-1',
     'user-1',
-    { domain: 'revenue', operation: 'create', record: { id: 'si-1', erp_doc_kind: 'sales-invoice' } } as any,
+    { domain: 'revenue', record: { erp_doc_kind: 'sales-invoice' } } as any,
   );
   assertEquals(res.ok, false);
   assertEquals(res.status, 403);
@@ -99,7 +99,7 @@ Deno.test('checkErpnextCommandAuthorization: 403 when the actor is not resolvabl
     fakeClient({ domainOwned: true, role: null }),
     'org-1',
     'user-1',
-    { domain: 'revenue', operation: 'create', record: { id: 'si-1', erp_doc_kind: 'sales-invoice' } } as any,
+    { domain: 'revenue', record: { erp_doc_kind: 'sales-invoice' } } as any,
   );
   assertEquals(res.ok, false);
   assertEquals(res.status, 403);
@@ -114,19 +114,19 @@ Deno.test('checkErpnextCommandAuthorization: 422 when command.domain mismatches 
     fakeClient({ domainOwned: true, role: 'Admin' }),
     'org-1',
     'user-1',
-    { domain: 'procurement', operation: 'create', record: { id: 'ip-1', erp_doc_kind: 'incoming-payment' } } as any,
+    { domain: 'procurement', record: { erp_doc_kind: 'incoming-payment' } } as any,
   );
   assertEquals(res.ok, false);
   assertEquals(res.status, 422);
   assert(res.message.includes('domain') || res.message.includes('kind') || res.message.includes('mismatch'));
 });
 
-Deno.test('checkErpnextCommandAuthorization: 422 when erp_doc_kind is missing on a transition', async () => {
+Deno.test('checkErpnextCommandAuthorization: 422 when erp_doc_kind is missing on the record', async () => {
   const res = await checkErpnextCommandAuthorization(
     fakeClient({ domainOwned: true, role: 'Admin' }),
     'org-1',
     'user-1',
-    { domain: 'revenue', operation: 'transition', record: { id: 'si-1' } } as any,
+    { domain: 'revenue', record: { } } as any,
   );
   assertEquals(res.ok, false);
   assertEquals(res.status, 422);
@@ -141,7 +141,7 @@ Deno.test('checkErpnextCommandAuthorization: every role in a domain\'s write set
         fakeClient({ domainOwned: true, role }),
         'org-1',
         'user-1',
-        { domain, operation: 'create', record: { id: 'rec-1', erp_doc_kind: kind } } as any,
+        { domain, record: { erp_doc_kind: kind } } as any,
       );
       assertEquals(res.ok, true, `role ${role} should be permitted on ${domain}`);
     }
@@ -167,7 +167,7 @@ Deno.test('finding 3: a Project Manager is REFUSED a revenue sales-invoice cance
     fakeClient({ domainOwned: true, role: 'Project Manager' }),
     'org-1',
     'user-1',
-    { domain: 'revenue', operation: 'transition', record: { id: 'si-1', erp_doc_kind: 'sales-invoice', verb: 'cancel' } } as any,
+    { domain: 'revenue', record: { erp_doc_kind: 'sales-invoice', verb: 'cancel' } } as any,
   );
   assertEquals(res.ok, false, 'a PM must not be able to cancel a submitted Sales Invoice / reverse AR');
   assertEquals(res.status, 403);
@@ -179,7 +179,7 @@ Deno.test('finding 3: an Executive is REFUSED every revenue write (create, updat
       fakeClient({ domainOwned: true, role: 'Executive' }),
       'org-1',
       'user-1',
-      { domain: 'revenue', operation, record: { id: 'si-1', erp_doc_kind: 'sales-invoice' } } as any,
+      { domain: 'revenue', record: { erp_doc_kind: 'sales-invoice' } } as any,
     );
     assertEquals(res.ok, false, `an Executive must not be able to ${operation} revenue`);
     assertEquals(res.status, 403);
@@ -192,7 +192,7 @@ Deno.test('finding 3: an incoming payment (revenue) is equally closed to Exec/PM
       fakeClient({ domainOwned: true, role }),
       'org-1',
       'user-1',
-      { domain: 'revenue', operation: 'create', record: { id: 'ip-1', erp_doc_kind: 'incoming-payment' } } as any,
+      { domain: 'revenue', record: { erp_doc_kind: 'incoming-payment' } } as any,
     );
     assertEquals(res.ok, false, `${role} must not be able to record a customer receipt`);
   }
@@ -204,7 +204,7 @@ Deno.test('finding 3: Admin and Finance keep the full revenue write (the ruling 
       fakeClient({ domainOwned: true, role }),
       'org-1',
       'user-1',
-      { domain: 'revenue', operation: 'transition', record: { id: 'si-1', erp_doc_kind: 'sales-invoice', verb: 'cancel' } } as any,
+      { domain: 'revenue', record: { erp_doc_kind: 'sales-invoice', verb: 'cancel' } } as any,
     );
     assertEquals(res.ok, true, `${role} is a revenue writer under the ruling`);
   }
@@ -216,7 +216,7 @@ Deno.test('finding 3: PROCUREMENT is NOT narrowed — a PM keeps their purchase-
       fakeClient({ domainOwned: true, role: 'Project Manager' }),
       'org-1',
       'user-1',
-      { domain: 'procurement', operation: 'create', record: { id: 'rec-1', erp_doc_kind: kind } } as any,
+      { domain: 'procurement', record: { erp_doc_kind: kind } } as any,
     );
     assertEquals(res.ok, true, `a PM must keep their procurement ${kind} write (that domain's ruling is different)`);
   }
@@ -225,7 +225,7 @@ Deno.test('finding 3: PROCUREMENT is NOT narrowed — a PM keeps their purchase-
     fakeClient({ domainOwned: true, role: 'Executive' }),
     'org-1',
     'user-1',
-    { domain: 'companies', operation: 'create', record: { id: 'c-1', erp_doc_kind: 'customer' } } as any,
+    { domain: 'companies', record: { erp_doc_kind: 'customer' } } as any,
   );
   assertEquals(party.ok, true, 'party master data keeps its master-data write set');
 });
@@ -240,7 +240,7 @@ Deno.test('checkErpnextCommandAuthorization: non-money roles are denied (Enginee
       fakeClient({ domainOwned: true, role }),
       'org-1',
       'user-1',
-      { domain: 'revenue', operation: 'create', record: { id: 'si-1', erp_doc_kind: 'sales-invoice' } } as any,
+      { domain: 'revenue', record: { erp_doc_kind: 'sales-invoice' } } as any,
     );
     assertEquals(res.ok, false, `role ${role} should be denied`);
     assertEquals(res.status, 403);
@@ -263,7 +263,7 @@ Deno.test('B9: a domain owned by ANOTHER external tier is refused on the ERPNext
     fakeClient({ domainOwned: true, role: 'Finance', ownedPairs: ['revenue:odoo', 'procurement:erpnext'] }),
     'org-1',
     'user-1',
-    { domain: 'revenue', operation: 'create', record: { id: 'si-1', erp_doc_kind: 'sales-invoice' } } as any,
+    { domain: 'revenue', record: { erp_doc_kind: 'sales-invoice' } } as any,
   );
   assertEquals(res.ok, false, 'ERPNext must not post revenue money for a domain another tier owns');
   assertEquals(res.status, 403);
@@ -275,7 +275,7 @@ Deno.test('B9: the SAME domain owned by the erpnext tier is still permitted', as
     fakeClient({ domainOwned: true, role: 'Finance', ownedPairs: ['revenue:erpnext'] }),
     'org-1',
     'user-1',
-    { domain: 'revenue', operation: 'create', record: { id: 'si-1', erp_doc_kind: 'sales-invoice' } } as any,
+    { domain: 'revenue', record: { erp_doc_kind: 'sales-invoice' } } as any,
   );
   assertEquals(res.ok, true);
 });
@@ -285,7 +285,7 @@ Deno.test('B9: a DEACTIVATED actor is refused even with a money-write role', asy
     fakeClient({ domainOwned: true, role: 'Finance', active: false }),
     'org-1',
     'user-1',
-    { domain: 'revenue', operation: 'create', record: { id: 'si-1', erp_doc_kind: 'sales-invoice' } } as any,
+    { domain: 'revenue', record: { erp_doc_kind: 'sales-invoice' } } as any,
   );
   assertEquals(res.ok, false, 'a deactivated/banned member must not move money');
   assertEquals(res.status, 403);
@@ -411,7 +411,7 @@ Deno.test('B6: replay authorization is the SAME rule as the synchronous path (pa
       fakeClient({ domainOwned: true, role }),
       'org-1',
       'user-1',
-      { domain: 'revenue', operation: 'create', record: { id: 'si-1', erp_doc_kind: 'sales-invoice' } } as any,
+      { domain: 'revenue', record: { erp_doc_kind: 'sales-invoice' } } as any,
     );
     const replay = await checkOutboxReplayAuthorization(fakeClient({ domainOwned: true, role }), 'org-1', pendingRow);
     assertEquals(replay.ok, sync.ok, `role ${role}: replay and synchronous verdicts must not diverge`);
@@ -432,7 +432,7 @@ Deno.test('AC-BUD-020 budget domain write set is OD-BUDGET-3 (the activation aut
       fakeClient({ domainOwned: true, role }),
       'org-1',
       'user-1',
-      { domain: 'budget', operation: 'create', record: { id: 'ver-1', erp_doc_kind: 'budget' } } as any,
+      { domain: 'budget', record: { erp_doc_kind: 'budget' } } as any,
     );
     assertEquals(res.ok, true, `role ${role} may push a budget (they may activate one)`);
   }
@@ -443,7 +443,7 @@ Deno.test('AC-BUD-020 an Engineer may not push a budget, and a budget kind may n
     fakeClient({ domainOwned: true, role: 'Engineer' }),
     'org-1',
     'user-1',
-    { domain: 'budget', operation: 'create', record: { id: 'ver-1', erp_doc_kind: 'budget' } } as any,
+    { domain: 'budget', record: { erp_doc_kind: 'budget' } } as any,
   );
   assertEquals(engineer.ok, false);
   assertEquals(engineer.status, 403);
@@ -454,7 +454,7 @@ Deno.test('AC-BUD-020 an Engineer may not push a budget, and a budget kind may n
     fakeClient({ domainOwned: true, role: 'Finance' }),
     'org-1',
     'user-1',
-    { domain: 'revenue', operation: 'create', record: { id: 'ver-1', erp_doc_kind: 'budget' } } as any,
+    { domain: 'revenue', record: { erp_doc_kind: 'budget' } } as any,
   );
   assertEquals(crossDomain.ok, false);
   assertEquals(crossDomain.status, 422);
@@ -486,7 +486,7 @@ Deno.test('AC-BUD-003 a budget push authorizes on the ACTIVE ERPNext BINDING, wi
     bindingOnly,
     'org-1',
     'user-1',
-    { domain: 'budget', operation: 'create', record: { id: 'ver-1', erp_doc_kind: 'budget' } } as any,
+    { domain: 'budget', record: { erp_doc_kind: 'budget' } } as any,
   );
   assertEquals(res.ok, true, 'an active binding employs budget — the push is authorized without any ownership row');
   assertEquals(ownershipConsulted, false, 'budget must NEVER read domain_owned_by_tier (the ownership row is spec-forbidden, FR-BUD-006(a))');
@@ -497,7 +497,7 @@ Deno.test('AC-BUD-003 a budget push is REFUSED 403 when the org has NO active ER
     fakeClient({ domainOwned: true, role: 'Finance', hasActiveBinding: false }),
     'org-1',
     'user-1',
-    { domain: 'budget', operation: 'create', record: { id: 'ver-1', erp_doc_kind: 'budget' } } as any,
+    { domain: 'budget', record: { erp_doc_kind: 'budget' } } as any,
   );
   assertEquals(res.ok, false, 'no active binding ⇒ the org does not employ ERPNext for budget ⇒ refused');
   assertEquals(res.status, 403);
@@ -515,7 +515,7 @@ Deno.test('FR-TSP-011: an Engineer may issue a timesheets push — the role list
     fakeClient({ domainOwned: true, role: 'Engineer' }),
     'org-1',
     'user-1',
-    { domain: 'timesheets', operation: 'create', record: { id: 'ts-1', erp_doc_kind: 'timesheet' } } as any,
+    { domain: 'timesheets', record: { erp_doc_kind: 'timesheet' } } as any,
   );
   assertEquals(res.ok, true);
 });
@@ -526,7 +526,7 @@ Deno.test('FR-TSP-011: every OTHER domain keeps its shipped role rule byte-for-b
       fakeClient({ domainOwned: true, role: 'Engineer' }),
       'org-1',
       'user-1',
-      { domain, operation: 'create', record: { id: 'x', erp_doc_kind: kind } } as any,
+      { domain, record: { erp_doc_kind: kind } } as any,
     );
     assertEquals(res.ok, false, `${domain} must still refuse an Engineer`);
     assertEquals(res.status, 403);
@@ -538,7 +538,7 @@ Deno.test('FR-TSP-011: a timesheets push still requires an ACTIVE member of the 
     fakeClient({ domainOwned: true, role: 'Engineer', active: false }),
     'org-1',
     'user-1',
-    { domain: 'timesheets', operation: 'create', record: { id: 'ts-1', erp_doc_kind: 'timesheet' } } as any,
+    { domain: 'timesheets', record: { erp_doc_kind: 'timesheet' } } as any,
   );
   assertEquals(res.ok, false);
   assertEquals(res.status, 403);
@@ -549,7 +549,7 @@ Deno.test('FR-TSP-011: a timesheets push still requires the org to own `timeshee
     fakeClient({ domainOwned: true, role: 'Engineer', ownedPairs: ['revenue:erpnext'] }),
     'org-1',
     'user-1',
-    { domain: 'timesheets', operation: 'create', record: { id: 'ts-1', erp_doc_kind: 'timesheet' } } as any,
+    { domain: 'timesheets', record: { erp_doc_kind: 'timesheet' } } as any,
   );
   assertEquals(res.ok, false);
   assertEquals(res.status, 403);
@@ -560,14 +560,14 @@ Deno.test('AC-TSP-013 FR-TSP-012: a cross-domain kind is refused 422 in both dir
     fakeClient({ domainOwned: true, role: 'Admin' }),
     'org-1',
     'user-1',
-    { domain: 'timesheets', operation: 'create', record: { id: 'x', erp_doc_kind: 'incoming-payment' } } as any,
+    { domain: 'timesheets', record: { erp_doc_kind: 'incoming-payment' } } as any,
   );
   assertEquals(wrongKind.status, 422);
   const wrongDomain = await checkErpnextCommandAuthorization(
     fakeClient({ domainOwned: true, role: 'Admin' }),
     'org-1',
     'user-1',
-    { domain: 'procurement', operation: 'create', record: { id: 'x', erp_doc_kind: 'timesheet' } } as any,
+    { domain: 'procurement', record: { erp_doc_kind: 'timesheet' } } as any,
   );
   assertEquals(wrongDomain.status, 422);
 });

@@ -1,4 +1,8 @@
 {
+  "quoteComparison": {
+    "selected": "Dipilih",
+    "lowestPrice": "Harga terendah"
+  },
   "lineItems": {
     "erpItem": "Item ERP",
     "itemDescription": "Item / deskripsi",
@@ -51,11 +55,17 @@
     }
   },
   "ceiling": {
+    "checking": "Memeriksa kelayakan persetujuan…",
+    "unavailable": "Kelayakan persetujuan tidak tersedia. Muat ulang halaman ini dan coba lagi.",
     "exceeds": "Jumlah tagihan melebihi jumlah yang disetujui sebesar {{amount}}. Pemberi persetujuan harus menyetujui jumlah yang lebih tinggi.",
     "approveHigher": "Setujui jumlah lebih tinggi",
     "confirmBody": "Jumlah yang disetujui menjadi {{billed}} (saat ini {{approved}}). Anda tidak dapat membayar pengadaan ini sendiri.",
     "confirm": "Setujui",
-    "approved": "Jumlah lebih tinggi disetujui"
+    "approved": "Jumlah lebih tinggi disetujui",
+    "billRecorder": "Orang yang mencatat tagihan tidak dapat menyetujui jumlah yang lebih tinggi.",
+    "quoteSelector": "Orang yang memilih penawaran tidak dapat menyetujui jumlah yang lebih tinggi.",
+    "requester": "Pemohon tidak dapat menyetujui jumlah yang lebih tinggi.",
+    "routing": "Pemberi persetujuan yang ditunjuk harus menyetujui jumlah yang lebih tinggi."
   },
   "quoteSelection": {
     "reroutedDetail": "Penawaran melebihi jumlah yang disetujui, sehingga pengadaan dikembalikan untuk persetujuan."
@@ -310,7 +320,29 @@
     "selectSupplier": "Pilih pemasok…",
     "selectionDescription": "Penawaran yang dipilih menetapkan nilai pengadaan dan pemasok. Jika melebihi jumlah yang disetujui, pengadaan akan kembali untuk persetujuan."
   },
+  "approvalSection": {
+    "heading": "Pengadaan menunggu Anda ({{total}})",
+    "error": "Pengadaan gagal dimuat",
+    "errorSub": "Permintaan yang menunggu Anda gagal dimuat.",
+    "empty": "Tidak ada pengadaan yang menunggu keputusan Anda",
+    "emptySub": "Pengadaan yang memerlukan persetujuan Anda akan muncul di sini."
+  },
   "approvalRow": {
+    "approve": "Setujui",
+    "rejectShort": "Tolak",
+    "unknownRequester": "Pemohon tidak diketahui",
+    "loadErrorSub": "Dampak anggaran dan rincian barang gagal dimuat.",
+    "lineItems": "Rincian barang",
+    "requestedBy": "Diminta oleh",
+    "project": "Proyek",
+    "requested": "Diminta",
+    "totalValue": "Nilai total",
+    "noProject": "Tidak ada proyek terkait",
+    "approveTitle": "Setujui {{title}}?",
+    "rejectTitle": "Tolak {{title}}?",
+    "showBudget": "Tampilkan dampak anggaran untuk {{title}}",
+    "approvedDetail": "{{title}} telah disetujui",
+    "rejectedDetail": "{{title}} telah ditolak",
     "open": "Buka pengadaan",
     "details": "Rincian pengadaan",
     "loadError": "Rincian pengadaan gagal dimuat",
