@@ -134,12 +134,15 @@ export default function ReceivablesPage() {
   const owed = useMemo(() => owedTotals(finance.position), [finance.position]);
   const openInvoices = useMemo(() => invoices.filter((invoice) => OPEN_STATUSES.has(invoice.status) && (invoice.erp_outstanding_amount == null || invoice.erp_outstanding_amount > 0)), [invoices]);
   const clientsCount = new Set(openInvoices.map((invoice) => invoice.customer_id).filter(Boolean)).size;
+  const owedUnknown = finance.position.receivablesUnknownCount;
+  const overdueUnknown = finance.position.overdueUnknownCount;
+  const unknownLabel = (count: number) => t('finance:area.ageingUnknownCount', { defaultValue: count === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count });
   const owedValue = leadCurrencyAmount(owed, orgCurrency);
   const owedOtherCurrencies = otherCurrencyAmounts(owed, orgCurrency);
   const overdueValue = leadCurrencyAmount(finance.position.overdueTotals, orgCurrency);
   const overdueOtherCurrencies = otherCurrencyAmounts(finance.position.overdueTotals, orgCurrency);
   const overdueCents = finance.position.overdueTotals[orgCurrency] ?? 0;
-  const overduePercent = owed[orgCurrency] ? `${Math.round((overdueCents / owed[orgCurrency]) * 100)}%` : '0%';
+  const overduePercent = owedUnknown || overdueUnknown ? '—' : owed[orgCurrency] ? `${Math.round((overdueCents / owed[orgCurrency]) * 100)}%` : '0%';
   const oldestOverdueDays = finance.position.overdue[0]?.daysOverdue ?? 0;
   const today = finance.today;
   const dueSoon = useMemo(() => {
@@ -207,16 +210,16 @@ export default function ReceivablesPage() {
       <KPIRow aria-label={t('finance:receivables.figures', 'Receivables figures')} className="mb-5 grid-cols-2 xl:grid-cols-4">
         <Figure
           title={t('finance:receivables.owed', 'Owed to you')}
-          value={dataPending ? null : owedValue}
+          value={dataPending || (owedUnknown > 0 && !owed[orgCurrency]) ? null : owedValue}
           detail={dataPending ? t('finance:receivables.loading', 'Loading finance figures…') : t('finance:receivables.invoiceClients', '{{invoices}} invoices · {{clients}} {{clientLabel}}', { invoices: openInvoices.length, clients: clientsCount, clientLabel: t(clientsCount === 1 ? 'finance:receivables.clientSingular' : 'finance:receivables.clientPlural', clientsCount === 1 ? 'client' : 'clients') })}
-          secondaryDetail={!dataPending && owedOtherCurrencies.length ? t('finance:receivables.otherCurrencies', '{{amounts}} in other currencies', { amounts: owedOtherCurrencies.join(' · ') }) : undefined}
+          secondaryDetail={!dataPending ? [owedUnknown ? unknownLabel(owedUnknown) : '', owedOtherCurrencies.length ? t('finance:receivables.otherCurrencies', '{{amounts}} in other currencies', { amounts: owedOtherCurrencies.join(' · ') }) : ''].filter(Boolean).join(' · ') : undefined}
           help={t('finance:receivables.owedHelp', 'Known outstanding balances on submitted and unpaid client invoices, including tax.')}
         />
         <Figure
           title={t('finance:receivables.overdue', 'Overdue')}
-          value={dataPending ? null : overdueValue}
+          value={dataPending || (overdueUnknown > 0 && !finance.position.overdueTotals[orgCurrency]) ? null : overdueValue}
           detail={dataPending ? t('finance:receivables.loading', 'Loading finance figures…') : t('finance:receivables.overdueDetails', '{{percent}} of owed · {{count}} {{invoiceLabel}} · oldest {{days}} days', { percent: overduePercent, count: finance.position.overdue.length, days: oldestOverdueDays, invoiceLabel: t(finance.position.overdue.length === 1 ? 'finance:receivables.invoiceSingular' : 'finance:receivables.invoicePlural', finance.position.overdue.length === 1 ? 'invoice' : 'invoices') })}
-          secondaryDetail={!dataPending && overdueOtherCurrencies.length ? t('finance:receivables.otherCurrencies', '{{amounts}} in other currencies', { amounts: overdueOtherCurrencies.join(' · ') }) : undefined}
+          secondaryDetail={!dataPending ? [overdueUnknown ? unknownLabel(overdueUnknown) : '', overdueOtherCurrencies.length ? t('finance:receivables.otherCurrencies', '{{amounts}} in other currencies', { amounts: overdueOtherCurrencies.join(' · ') }) : ''].filter(Boolean).join(' · ') : undefined}
           help={t('finance:receivables.overdueHelp', 'Known overdue balances divided by known owed balances in the same currency. Invoice count includes invoices with an unknown balance.')}
         />
         <Figure
@@ -238,7 +241,7 @@ export default function ReceivablesPage() {
         />
       </KPIRow>
 
-      <AgeingStrip kind="receivables" values={finance.position.receivablesAgeing} />
+      <AgeingStrip kind="receivables" values={finance.position.receivablesAgeing} unknownTotal={owedUnknown} />
 
       {finance.isError && <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 text-sm">
         <span>{t('finance:area.attentionLoadError', "Couldn't load finance activity")}</span>

@@ -71,7 +71,13 @@
     "periodBalanceSheet": "Balance sheet",
     "periodTrialBalance": "Trial balance",
     "latestStatement": "Latest period {{period}}",
-    "back": "Back"
+    "back": "Back",
+    "payablesAgeingBasis": "Supplier invoices by age · since invoiced status or last update",
+    "ageingUnknown_one": "No known balances to group · {{count}} balance unknown",
+    "ageingUnknown_other": "No known balances to group · {{count}} balances unknown",
+    "ageingUnknownCount_one": "{{count}} balance unknown",
+    "ageingUnknownCount_other": "{{count}} balances unknown",
+    "ageingEmpty": "No balances to group by age"
   },
   "table": {
     "selectRow": "Select {{name}}"
@@ -171,7 +177,11 @@
     "figures": "Receivables figures",
     "evidenceLoadError": "Couldn't load the invoice lines from the accounting system.",
     "amount": "Amount",
-    "outstandingUnknown": "The outstanding balance is not known yet: the accounting system has not reported it for this invoice."
+    "outstandingUnknown": "The outstanding balance is not known yet: the accounting system has not reported it for this invoice.",
+    "mobileInvoiceAmount": "Invoice total excl. PPN",
+    "mobileOutstandingUnknown": "Outstanding balance unknown",
+    "mobileInvoiceAmountInclusive": "Invoice total incl. PPN",
+    "mobileInvoiceAmountUnspecified": "Invoice amount"
   },
   "invoices": {
     "description": "Client invoices.",
