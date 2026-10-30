@@ -27,13 +27,26 @@ export const RECORD_TABLE_BY_TYPE = {
   Payment: 'payments',
 };
 
-/** Empty/whitespace string → null; a real numeric string → Number; otherwise null. */
+/** Parse non-negative decimal input at the database scale and range. */
 function toNumberOrNull(raw) {
-  if (raw === undefined || raw === null) return null;
-  const s = String(raw).trim();
-  if (!s) return null;
-  const n = Number(s);
-  return Number.isNaN(n) ? null : n;
+  if (raw === undefined || raw === null || !String(raw).trim()) return null;
+  const match = /^(\d+)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/.exec(String(raw).trim());
+  if (!match) throw new Error('Amount must be a non-negative decimal.');
+  let digits = `${match[1]}${match[2] ?? ''}`.replace(/^0+/, '') || '0';
+  const shift = 2 - (match[2]?.length ?? 0) + Number(match[3] ?? 0);
+  if (!Number.isSafeInteger(shift) || Math.abs(shift) > 10000) throw new Error('Amount exceeds the supported scale or range.');
+  if (digits !== '0') {
+    if (shift < 0) {
+      const remove = -shift;
+      if (remove > digits.length || /[1-9]/.test(digits.slice(-remove))) throw new Error('Amount exceeds the supported scale or range.');
+      digits = digits.slice(0, -remove) || '0';
+    } else {
+      if (digits.length + shift > 14) throw new Error('Amount exceeds the supported range.');
+      digits += '0'.repeat(shift);
+    }
+  }
+  if (digits.length > 14) throw new Error('Amount exceeds the supported range.');
+  return Number(digits) / 100;
 }
 
 /** Empty/whitespace string → null; otherwise the trimmed value. */
@@ -132,7 +145,9 @@ export function buildRecordInsert(row, procurementId, vendorMap, prov) {
           'VI row needs tax_treatment = "inclusive" or "exclusive" (does the amount already include the tax?). It cannot be inferred from the total afterwards.',
         );
       }
-      const taxAmount = toNumberOrNull(row.taxAmount);
+      let taxAmount;
+      try { taxAmount = toNumberOrNull(row.taxAmount); }
+      catch { throw new Error('VI row needs a valid tax_amount ≥ 0.'); }
       if (taxAmount === null || !Number.isFinite(taxAmount) || taxAmount < 0) {
         throw new Error('VI row needs a tax_amount ≥ 0 (enter 0 when the invoice carries no tax).');
       }

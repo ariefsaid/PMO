@@ -62,6 +62,7 @@ function amountError(raw: string): string | null {
   const n = parseNeutralMoneyInputAtScale(raw, 2);
   if (n === null) return AMOUNT_NOT_A_NUMBER;
   if (n < 0) return 'Amount must be ≥ 0.';
+  if (n >= 1e12) return 'Amount exceeds the supported range.';
   return null;
 }
 
@@ -105,6 +106,7 @@ function validateTaxAmount(raw: string | undefined): string | null {
   const n = parseNeutralMoneyInputAtScale(raw, 2);
   if (n === null) return 'Tax amount must be a number with no more than 2 decimal places.';
   if (n < 0) return 'Tax amount must be ≥ 0.';
+  if (n >= 1e12) return 'Tax amount exceeds the supported range.';
   return null;
 }
 

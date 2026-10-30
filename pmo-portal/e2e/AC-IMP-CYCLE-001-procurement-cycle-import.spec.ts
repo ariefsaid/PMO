@@ -82,6 +82,7 @@ interface OwnedChildRow {
   import_key: string | null;
   procurement_id: string;
   import_batch_id: string | null;
+  import_identity_version: number | null;
   external_ref?: string | null;
   reference_number?: string | null;
 }
@@ -165,11 +166,11 @@ function buildFixture(runTag: string, ledgerPath: string): CycleFixture {
     invoiceOnlyInvoiceRef,
     invoiceOnlyPaymentRef,
     expectedRecords: [
-      { table: 'purchase_requests', importKey: fullPrRef, parentCaseRef: fullCaseRef, referenceColumn: 'reference_number', referenceValue: fullPrRef },
-      { table: 'procurement_invoices', importKey: fullInvoiceRef, parentCaseRef: fullCaseRef, referenceColumn: 'reference_number', referenceValue: fullInvoiceRef },
-      { table: 'payments', importKey: fullPaymentRef, parentCaseRef: fullCaseRef, referenceColumn: 'reference_number', referenceValue: fullPaymentRef },
-      { table: 'procurement_invoices', importKey: invoiceOnlyInvoiceRef, parentCaseRef: invoiceCaseRef, referenceColumn: 'reference_number', referenceValue: invoiceOnlyInvoiceRef },
-      { table: 'payments', importKey: invoiceOnlyPaymentRef, parentCaseRef: invoiceCaseRef, referenceColumn: 'reference_number', referenceValue: invoiceOnlyPaymentRef },
+      { table: 'purchase_requests', importKey: `pcy2:${JSON.stringify(['r', fullPrRef])}`, parentCaseRef: fullCaseRef, referenceColumn: 'reference_number', referenceValue: fullPrRef },
+      { table: 'procurement_invoices', importKey: `pcy2:${JSON.stringify(['r', fullInvoiceRef])}`, parentCaseRef: fullCaseRef, referenceColumn: 'reference_number', referenceValue: fullInvoiceRef },
+      { table: 'payments', importKey: `pcy2:${JSON.stringify(['r', fullPaymentRef])}`, parentCaseRef: fullCaseRef, referenceColumn: 'reference_number', referenceValue: fullPaymentRef },
+      { table: 'procurement_invoices', importKey: `pcy2:${JSON.stringify(['r', invoiceOnlyInvoiceRef])}`, parentCaseRef: invoiceCaseRef, referenceColumn: 'reference_number', referenceValue: invoiceOnlyInvoiceRef },
+      { table: 'payments', importKey: `pcy2:${JSON.stringify(['r', invoiceOnlyPaymentRef])}`, parentCaseRef: invoiceCaseRef, referenceColumn: 'reference_number', referenceValue: invoiceOnlyPaymentRef },
     ],
     ledgerPath,
   };
@@ -200,15 +201,22 @@ async function assertFixtureKeysUnused(client: SupabaseClient, fixture: CycleFix
   const prKeys = recordKeysFor(fixture, 'purchase_requests');
   const invoiceKeys = recordKeysFor(fixture, 'procurement_invoices');
   const paymentKeys = recordKeysFor(fixture, 'payments');
+  const refsFor = (table: ImportRecordTable) => fixture.expectedRecords.filter(record => record.table === table).map(record => record.referenceValue);
+  const keyFilter = (keys: string[]) => `(${keys.map(key => `"${key.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`).join(',')})`;
   const probes = [
     ['procurements.import_key', () => client.from('procurements').select('id').eq('org_id', ORG_ID).in('import_key', parentKeys)],
     ['procurements.title', () => client.from('procurements').select('id').eq('org_id', ORG_ID).in('title', titles)],
-    ['purchase_requests.import_key', () => client.from('purchase_requests').select('id').eq('org_id', ORG_ID).in('import_key', prKeys)],
-    ['purchase_requests.external_ref', () => client.from('purchase_requests').select('id').eq('org_id', ORG_ID).in('external_ref', prKeys)],
-    ['procurement_invoices.import_key', () => client.from('procurement_invoices').select('id').eq('org_id', ORG_ID).in('import_key', invoiceKeys)],
-    ['procurement_invoices.external_ref', () => client.from('procurement_invoices').select('id').eq('org_id', ORG_ID).in('external_ref', invoiceKeys)],
-    ['payments.import_key', () => client.from('payments').select('id').eq('org_id', ORG_ID).in('import_key', paymentKeys)],
-    ['payments.reference_number', () => client.from('payments').select('id').eq('org_id', ORG_ID).in('reference_number', paymentKeys)],
+    ['purchase_requests.import_key', () => client.from('purchase_requests').select('id').eq('org_id', ORG_ID).filter('import_key', 'in', keyFilter(prKeys))],
+    ['purchase_requests.legacy_key', () => client.from('purchase_requests').select('id').eq('org_id', ORG_ID).in('import_key', refsFor('purchase_requests'))],
+    ['purchase_requests.reference_number', () => client.from('purchase_requests').select('id').eq('org_id', ORG_ID).in('reference_number', refsFor('purchase_requests'))],
+    ['purchase_requests.external_ref', () => client.from('purchase_requests').select('id').eq('org_id', ORG_ID).in('external_ref', refsFor('purchase_requests'))],
+    ['procurement_invoices.import_key', () => client.from('procurement_invoices').select('id').eq('org_id', ORG_ID).filter('import_key', 'in', keyFilter(invoiceKeys))],
+    ['procurement_invoices.legacy_key', () => client.from('procurement_invoices').select('id').eq('org_id', ORG_ID).in('import_key', refsFor('procurement_invoices'))],
+    ['procurement_invoices.reference_number', () => client.from('procurement_invoices').select('id').eq('org_id', ORG_ID).in('reference_number', refsFor('procurement_invoices'))],
+    ['procurement_invoices.external_ref', () => client.from('procurement_invoices').select('id').eq('org_id', ORG_ID).in('external_ref', refsFor('procurement_invoices'))],
+    ['payments.import_key', () => client.from('payments').select('id').eq('org_id', ORG_ID).filter('import_key', 'in', keyFilter(paymentKeys))],
+    ['payments.legacy_key', () => client.from('payments').select('id').eq('org_id', ORG_ID).in('import_key', refsFor('payments'))],
+    ['payments.reference_number', () => client.from('payments').select('id').eq('org_id', ORG_ID).in('reference_number', refsFor('payments'))],
   ] as const;
 
   const collisions: string[] = [];
@@ -253,11 +261,12 @@ async function readOwnedRows(client: SupabaseClient, fixture: CycleFixture) {
     const keys = recordKeysFor(fixture, table);
     if (keys.length === 0) continue;
     const query = table === 'payments'
-      ? client.from('payments').select('id, import_key, procurement_id, import_batch_id, reference_number')
+      ? client.from('payments').select('id, import_key, procurement_id, import_batch_id, import_identity_version, reference_number')
       : table === 'purchase_requests'
-      ? client.from('purchase_requests').select('id, import_key, procurement_id, import_batch_id, reference_number, external_ref')
-        : client.from('procurement_invoices').select('id, import_key, procurement_id, import_batch_id, reference_number, external_ref');
-    const { data, error } = await query.eq('org_id', ORG_ID).in('import_key', keys);
+      ? client.from('purchase_requests').select('id, import_key, procurement_id, import_batch_id, import_identity_version, reference_number, external_ref')
+        : client.from('procurement_invoices').select('id, import_key, procurement_id, import_batch_id, import_identity_version, reference_number, external_ref');
+    const keyFilter = `(${keys.map(key => `"${key.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`).join(',')})`;
+    const { data, error } = await query.eq('org_id', ORG_ID).filter('import_key', 'in', keyFilter);
     if (error) throw new Error(`AC-IMP-CYCLE-001 cleanup readback (${table}): ${error.message}`);
 
     const tableRows = (data ?? []) as OwnedChildRow[];
@@ -269,7 +278,7 @@ async function readOwnedRows(client: SupabaseClient, fixture: CycleFixture) {
       const actualReference = row.reference_number;
       const unexpectedExternalRef = table !== 'payments' && row.external_ref !== null;
       if (!expected || !parent || row.procurement_id !== parent.id || actualReference !== expected.referenceValue
-        || unexpectedExternalRef || seenKeys.has(key)) {
+        || row.import_identity_version !== 2 || unexpectedExternalRef || seenKeys.has(key)) {
         throw new Error(`AC-IMP-CYCLE-001 cleanup found an unowned or ambiguous ${table} row; preserving fixture rows`);
       }
       seenKeys.add(key);

@@ -21,11 +21,12 @@ import { groupRows } from '@/src/lib/import/procurementCycle/group';
 import { validateGroups } from '@/src/lib/import/procurementCycle/validate';
 import { commitGroups } from '@/src/lib/import/procurementCycle/commit';
 import { buildDryRunConflictReport, type DryRunConflictReport } from '@/src/lib/import/procurementCycle/dryRunConflictReport';
-import { supabaseImportSkipLookup } from '@/src/lib/db/procurementImportSkip';
+import { supabaseImportSkipLookup, startProcurementImportRun } from '@/src/lib/db/procurementImportSkip';
 import type {
   CycleRow,
   ValidatedGroup,
   CommitResult,
+  ImportRunIdentity,
 } from '@/src/lib/import/procurementCycle/types';
 
 export type CycleWizardStep = 'upload' | 'mapping' | 'preview' | 'committing' | 'result';
@@ -90,9 +91,8 @@ export interface UseProcurementCycleImport {
    * null = respect individual card state (default before any global toggle).
    */
   globalExpand: boolean | null;
-  /** One UUID per wizard session (Deliverable 2, FR-IDEM-004) — stable across preview→commit,
-   *  so a literal re-run of the same file with the same session is detected as the same batch. */
-  importBatchId: string;
+  /** Provisional until the server registers the confirmed import. */
+  runIdentity: ImportRunIdentity;
   /** Zero-write would-create/would-skip/would-collide tally (FR-IDEM-007). null until the
    *  preview step's async dry-run probe resolves. */
   conflictReport: DryRunConflictReport | null;
@@ -181,11 +181,19 @@ export function useProcurementCycleImport(
   /** Controls whether all CaseCard accordions are open (true) or closed (false).
    *  null = per-card state (individual toggles), true/false = global override. */
   const [globalExpand, setGlobalExpand] = useState<boolean | null>(null);
-  /** One UUID per wizard session, generated once and stable across preview→commit
-   *  (Deliverable 2, FR-IDEM-004) — a literal re-run of the same file within the same
-   *  session is detected as the same import_batch_id. */
-  const [importBatchId] = useState<string>(() => crypto.randomUUID());
+  /** A server-issued run is retained for retries within this wizard session. */
+  const [runId, setRunId] = useState<string | null>(null);
+  const runIdRef = useRef<string | null>(null);
+  const runIdentity = useMemo<ImportRunIdentity>(() => runId ? { kind: 'registered', id: runId } : { kind: 'provisional' }, [runId]);
   const [conflictReport, setConflictReport] = useState<DryRunConflictReport | null>(null);
+  const previewGeneration = useRef(0);
+  const approvedPreview = useRef<number | null>(null);
+  const committing = useRef(false);
+  const invalidatePreview = useCallback(() => {
+    previewGeneration.current++;
+    approvedPreview.current = null;
+    setConflictReport(null);
+  }, []);
 
   const allRequiredMapped = useMemo(
     () =>
@@ -202,6 +210,8 @@ export function useProcurementCycleImport(
     const { groups } = groupRows(cycleRows);
     return validateGroups(groups, { projectLookup, vendorLookup });
   }, [parsed, mapping, projectLookup, vendorLookup]);
+
+  useEffect(() => { invalidatePreview(); }, [validatedGroups, invalidatePreview]);
 
   const counts = useMemo<CycleCounts>(() => {
     if (validatedGroups.length === 0) return EMPTY_COUNTS;
@@ -225,6 +235,9 @@ export function useProcurementCycleImport(
   }, [validatedGroups]);
 
   const reset = useCallback(() => {
+    invalidatePreview();
+    runIdRef.current = null;
+    setRunId(null);
     setStep('upload');
     setFileName(null);
     setParsed(null);
@@ -234,12 +247,13 @@ export function useProcurementCycleImport(
     setProgress(null);
     setGlobalExpand(null);
     setConflictReport(null);
-  }, []);
+  }, [invalidatePreview]);
 
   const expandAll = useCallback(() => setGlobalExpand(true), []);
   const collapseAll = useCallback(() => setGlobalExpand(false), []);
 
   const selectFile = useCallback(async (file: File) => {
+    invalidatePreview();
     setParseError(null);
     try {
       const buf = await file.arrayBuffer();
@@ -257,13 +271,14 @@ export function useProcurementCycleImport(
           : 'Could not read that file. Use a valid .xlsx.',
       );
     }
-  }, []);
+  }, [invalidatePreview]);
 
   const setFieldMapping = useCallback(
     (fieldKey: keyof CycleRow, headerIndex: number | null) => {
+      invalidatePreview();
       setMappingState((prev) => ({ ...prev, [fieldKey]: headerIndex }));
     },
-    [],
+    [invalidatePreview],
   );
 
   // ⚑ The dry-run report is fetched ASYNCHRONOUSLY and the user can leave the step (or the whole
@@ -283,38 +298,60 @@ export function useProcurementCycleImport(
 
   const goPreview = useCallback(async () => {
     if (!allRequiredMapped) return;
+    invalidatePreview();
+    const generation = previewGeneration.current;
+    setParseError(null);
     setStep('preview');
     const validGroups = validatedGroups.filter((g) => g.valid);
-    const report = await buildDryRunConflictReport(validGroups, {
-      importBatchId, skipLookup: supabaseImportSkipLookup, projectLookup, vendorLookup,
-    });
-    if (!aliveRef.current) return;
-    setConflictReport(report);
-  }, [allRequiredMapped, validatedGroups, importBatchId, projectLookup, vendorLookup]);
+    try {
+      const report = await buildDryRunConflictReport(validGroups, {
+        identity: runIdentity, skipLookup: supabaseImportSkipLookup, vendorLookup,
+      });
+      if (!aliveRef.current || generation !== previewGeneration.current) return;
+      approvedPreview.current = generation;
+      setConflictReport(report);
+    } catch {
+      if (aliveRef.current && generation === previewGeneration.current) setParseError('Preview could not be completed. Retry before importing.');
+    }
+  }, [allRequiredMapped, validatedGroups, runIdentity, vendorLookup, invalidatePreview]);
 
   const back = useCallback(() => {
+    invalidatePreview();
     setStep((s) => (s === 'preview' ? 'mapping' : 'upload'));
-  }, []);
+  }, [invalidatePreview]);
 
   const commit = useCallback(async () => {
     const validGroups = validatedGroups.filter((g) => g.valid);
-    if (validGroups.length === 0) return;
+    if (validGroups.length === 0 || approvedPreview.current !== previewGeneration.current || committing.current) return;
+    committing.current = true;
 
     setStep('committing');
     setProgress({ done: 0, total: validGroups.length });
 
-    const commitResult = await commitGroups(validGroups, {
-      requestedById,
-      projectLookup,
-      vendorLookup,
-      importBatchId,
-      skipLookup: supabaseImportSkipLookup,
-    });
+    try {
+      const actualRunId = runIdRef.current ?? await startProcurementImportRun();
+      runIdRef.current = actualRunId;
+      setRunId(actualRunId);
+      const commitResult = await commitGroups(validGroups, {
+        requestedById,
+        projectLookup,
+        vendorLookup,
+        importBatchId: actualRunId,
+        skipLookup: supabaseImportSkipLookup,
+      });
 
-    setProgress(null);
-    setResult(commitResult);
-    setStep('result');
-  }, [validatedGroups, requestedById, projectLookup, vendorLookup, importBatchId]);
+      setProgress(null);
+      setResult(commitResult);
+      setStep('result');
+    } catch {
+      setProgress(null);
+      setParseError('Import could not start or finish. Retry after reviewing the preview.');
+      invalidatePreview();
+      setStep('preview');
+    } finally {
+      committing.current = false;
+    }
+  }, [invalidatePreview, validatedGroups, requestedById, projectLookup, vendorLookup]);
 
   return {
     step,
@@ -328,7 +365,7 @@ export function useProcurementCycleImport(
     result,
     progress,
     globalExpand,
-    importBatchId,
+    runIdentity,
     conflictReport,
     expandAll,
     collapseAll,
