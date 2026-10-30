@@ -160,6 +160,9 @@ try:
       if exists (select 1 from information_schema.columns where table_schema='public' and table_name='budget_line_items' and column_name='import_origin') then
         raise exception 'rollback retained marker';
       end if;
+      if to_regclass('public.budget_line_items_import_lookup_c_idx') is not null then
+        raise exception 'rollback retained lookup index';
+      end if;
       if to_regprocedure('public.import_budget_line_v2(uuid,public.budget_category,text,numeric,text,uuid,timestamp with time zone,text,text,boolean)') is not null then
         raise exception 'rollback retained RPC';
       end if;

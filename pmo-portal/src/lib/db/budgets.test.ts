@@ -65,6 +65,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
 
 import {
   deriveProjectBudget,
+  importBudgetLine,
   getBudgetActivationMode,
   precheckBudgetActivation,
   listBudgetVersions,
@@ -926,5 +927,26 @@ describe('#541 budget writes reject a using-denied 0-row no-op', () => {
     expect(err).toBeInstanceOf(AppError);
     expect((err as AppError).code).toBe('42501');
     expect(mockDelete).toHaveBeenCalled();
+  });
+});
+
+
+describe('budget import authority adapter', () => {
+  const request = { versionId: 'v', item: { category: 'Labor' as const, description: null, budgeted_amount: 1.25, fiscal_year: null },
+    batchId: 'b', importedAt: 'date', v2Key: 'v2', legacyKey: 'old', hasReference: false };
+  it('passes the exact arguments and preserves the outcome', async () => {
+    mockRpc.mockResolvedValueOnce({ data: [{ outcome: 'conflict', line_id: 'existing' }], error: null });
+    await expect(importBudgetLine(request)).resolves.toEqual({ outcome: 'conflict', line_id: 'existing' });
+    expect(mockRpc).toHaveBeenCalledWith('import_budget_line_v2', { p_version_id: 'v', p_category: 'Labor', p_description: null,
+      p_budgeted_amount: 1.25, p_fiscal_year: null, p_batch_id: 'b', p_imported_at: 'date',
+      p_v2_key: 'v2', p_legacy_key: 'old', p_has_reference: false });
+  });
+  it('propagates database errors and rejects unexpected outcomes', async () => {
+    mockRpc.mockResolvedValueOnce({ data: null, error: { code: '23505' } });
+    await expect(importBudgetLine(request)).rejects.toMatchObject({ code: '23505' });
+    mockRpc.mockResolvedValueOnce({ data: [{ outcome: 'unknown' }], error: null });
+    await expect(importBudgetLine(request)).rejects.toThrow(/Unexpected/);
+    mockRpc.mockResolvedValueOnce({ data: [{ outcome: 'created', line_id: null }], error: null });
+    await expect(importBudgetLine(request)).rejects.toThrow(/Unexpected/);
   });
 });

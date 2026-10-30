@@ -67,7 +67,7 @@ import type {
   RecordFolderTarget,
 } from '@/src/lib/m365/recordFolders';
 import type { PreparedAgentAttachmentUpload } from '@/src/lib/db/agentAttachments';
-import type { ActivateVersionResult, ArchiveVersionResult } from '@/src/lib/db/budgets';
+import type { ActivateVersionResult, ArchiveVersionResult, BudgetImportRequest } from '@/src/lib/db/budgets';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import type { UserRow, UserRole, InviteUserInput, SetUserStatusInput } from '@/src/lib/db/adminUsers';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -600,6 +600,7 @@ export interface TimesheetRepository {
 }
 
 export interface BudgetRepository {
+  importLine(request: BudgetImportRequest): Promise<{ outcome: 'created' | 'skipped' | 'conflict'; line_id: string }>;
   deriveProjectBudget(projectId: string): Promise<number>;
   listVersions(projectId: string): Promise<BudgetVersionWithItems[]>;
   createLineItem(

@@ -142,6 +142,7 @@ begin
     hint = 'The API client surface is documented in docs/runbooks/pmo-cli.md';
 end;
 $$;
+drop index public.budget_line_items_import_lookup_c_idx;
 drop function public.import_budget_line_v2(uuid, public.budget_category, text, numeric, text, uuid, timestamptz, text, text, boolean);
 drop trigger budget_line_items_a_import_identity_guard on public.budget_line_items;
 drop function public.guard_budget_import_identity();

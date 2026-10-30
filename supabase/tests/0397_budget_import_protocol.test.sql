@@ -111,5 +111,7 @@ reset role;
 set local role service_role;
 select throws_ok($$insert into public.budget_line_items(org_id,budget_version_id,category,import_key) values ('03970000-0000-0000-0000-000000000001','03970000-0000-0000-0000-000000000100','Labor','service-key')$$,'42501',null,'service direct identity rejected');
 reset role;
+select ok(exists(select 1 from pg_indexes where schemaname='public' and indexname='budget_line_items_import_lookup_c_idx'
+  and indexdef like '%COLLATE "C"%' and indexdef not like '%UNIQUE%'), 'binary-collated lookup index supports classification');
 select * from finish();
 rollback;

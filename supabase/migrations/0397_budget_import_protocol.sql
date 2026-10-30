@@ -2,6 +2,11 @@
 alter table public.budget_line_items add column import_origin smallint
   constraint budget_line_items_import_origin_check check (import_origin is null or import_origin = 2);
 
+-- Binary-collated lookups match the classifier without changing the unique index.
+create index budget_line_items_import_lookup_c_idx
+  on public.budget_line_items (budget_version_id, import_key collate "C")
+  where import_key is not null;
+
 create function public.guard_budget_import_identity() returns trigger
 language plpgsql set search_path = '' as $$
 begin

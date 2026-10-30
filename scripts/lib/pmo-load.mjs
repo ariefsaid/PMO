@@ -1,3 +1,4 @@
+import { encodeBudgetImportIdentity, computeBudgetLineImportKey } from './budget-import-identity.mjs';
 /**
  * pmo-load — `pmo load`: one client's starting data, through the app's own write paths (#796).
  * Spec: docs/specs/client-starting-data-cli.spec.md · ADR-0074 · runbook docs/runbooks/pmo-cli.md §4.
@@ -116,12 +117,7 @@ export function projectKey(p) {
   return isText(p?.code) ? p.code : `${p?.name} | ${p?.client}`;
 }
 
-/** The app's budget-import key, verbatim (pmo-portal/src/lib/import/budgetDescriptor.ts; AC-CSD-011). */
-export function computeBudgetLineImportKey(cells) {
-  if (cells.reference.trim()) return cells.reference.trim();
-  const parts = [cells.project.trim(), cells.category.trim(), cells.description.trim(), cells.fiscalYear.trim(), cells.amount.trim()];
-  return `fp:${parts.join('|')}`;
-}
+export { computeBudgetLineImportKey };
 
 function lineKey(key, line) {
   return computeBudgetLineImportKey({
@@ -219,9 +215,15 @@ export function validateLoadFile(doc) {
       if (!BUDGET_CATEGORIES.includes(l.category)) addLine(`"category" must be one of: ${BUDGET_CATEGORIES.join(', ')}`);
       if (!isAmount(l.budgeted_amount)) addLine('"budgeted_amount" must be a non-negative amount with at most 2 decimals');
       for (const k of ['description', 'fiscal_year', 'reference']) if (!isOptionalText(l[k])) addLine(`"${k}" must be text`);
-      const k = lineKey(key, l);
-      if (lineKeys.has(k)) addLine('is identical to an earlier line — give one of them a "reference" to keep both');
-      else lineKeys.add(k);
+      if (BUDGET_CATEGORIES.includes(l.category) && isAmount(l.budgeted_amount) &&
+          ['description', 'fiscal_year', 'reference'].every((field) => isOptionalText(l[field]))) {
+        const category = classifyBudgetLine(l.category, l.description).category;
+        const { v2Key } = encodeBudgetImportIdentity({ projectUuid: key, project: key, category,
+          rawCategory: l.category, description: l.description ?? '', fiscalYear: l.fiscal_year ?? '',
+          amountText: String(l.budgeted_amount), amount: l.budgeted_amount, reference: l.reference ?? '' });
+        if (lineKeys.has(v2Key)) addLine('is identical to an earlier line — give one of them a "reference" to keep both');
+        else lineKeys.add(v2Key);
+      }
       return undefined;
     });
     return undefined;
@@ -368,12 +370,12 @@ export async function resolveLoad(doc, api) {
 }
 
 /** The app import's rule (DD-BIMP-7): the highest Draft, else a new one; skip once a budget was activated. */
-async function resolveBudget(api, entry, problems) {
+async function resolveBudget(api, entry) {
   const lines = entry.input.budget.map((l, row) => {
     const { category, reason } = classifyBudgetLine(l.category, l.description);
     const decision = reason === null ? null
       : { row, description: l.description ?? null, from: l.category, to: category, reason };
-    return { ...l, category, import_key: lineKey(entry.key, l), decision };
+    return { ...l, category, rawCategory: l.category, import_key: lineKey(entry.key, l), decision, row };
   });
   if (!entry.existing) return { state: 'new', versionId: null, lines };
   const versions = await api.get('budget_versions', params({ select: 'id,status,version', project_id: eq(entry.id), order: 'version.desc' }));
@@ -381,13 +383,7 @@ async function resolveBudget(api, entry, problems) {
     return { state: 'skip', versionId: null, lines: [], reason: 'the project already has an active or archived budget — add lines with the budget import in the app' };
   }
   if (versions.length === 0) return { state: 'new', versionId: null, lines };
-  const have = await api.get('budget_line_items', params({ select: 'import_key', budget_version_id: eq(versions[0].id), import_key: 'not.is.null' }));
-  if (have.length >= READ_CAP) {
-    problems.push(`${entry.key}: the draft budget has too many lines to check — finish it in the app`);
-    return { state: 'skip', versionId: null, lines: [], reason: 'too many lines to check' };
-  }
-  const loaded = new Set(have.map((r) => r.import_key));
-  return { state: 'attach', versionId: versions[0].id, lines: lines.filter((l) => !loaded.has(l.import_key)) };
+  return { state: 'attach', versionId: versions[0].id, lines };
 }
 
 /**
@@ -580,22 +576,24 @@ async function applyBudget(e, api, write, note, { batchId, importedAt }) {
       return { version_id: v.id };
     });
   }
-  return write({ kind: 'budget.lines', key: e.key, count: e.budget.lines.length }, async () => {
+  return write({ kind: 'budget.lines', key: e.key, count: e.budget.lines.length, decision: 'pending server classification' }, async () => {
     let created = 0;
     let skipped = 0;
     for (const l of e.budget.lines) {
-      try {
-        // `actual_amount` is never sent: actuals are read from the ERP read-model (FR-BIMP-005).
-        await api.post('budget_line_items', {
-          budget_version_id: versionId, category: l.category, description: l.description ?? null,
-          budgeted_amount: l.budgeted_amount, fiscal_year: l.fiscal_year ?? null,
-          import_batch_id: batchId, imported_at: importedAt, import_key: l.import_key,
-        });
-        created += 1;
-      } catch (err) {
-        if (err.code !== '23505') throw err; // 0195's index: already loaded — a skip, as in the app import
-        skipped += 1;
-      }
+      const identity = encodeBudgetImportIdentity({ projectUuid: e.id, project: e.key,
+        category: l.category, rawCategory: l.rawCategory, description: String(l.description ?? ''),
+        fiscalYear: String(l.fiscal_year ?? ''), amountText: String(l.budgeted_amount),
+        amount: l.budgeted_amount, reference: String(l.reference ?? '') });
+      const rows = await api.rpc('import_budget_line_v2', { p_version_id: versionId, p_category: l.category,
+        p_description: l.description ?? null, p_budgeted_amount: Number(identity.decimalAmount), p_fiscal_year: l.fiscal_year ?? null,
+        p_batch_id: batchId, p_imported_at: importedAt, p_v2_key: identity.v2Key,
+        p_legacy_key: identity.legacyKey, p_has_reference: identity.hasReference });
+      const result = rows?.[0];
+      if (!result || (!['created', 'skipped', 'conflict'].includes(result.outcome) || typeof result.line_id !== 'string' || !result.line_id)) throw new Error('Unexpected budget import result');
+      if (result.outcome === 'conflict') throw new Error(`Budget row ${l.row + 1} for ${e.key} has an ambiguous identity with line ${result.line_id}. Inspect the draft and source and reconcile before retrying.`);
+      if (result.outcome === 'created') created += 1;
+      else skipped += 1;
+      note({ kind: `budget.line.${result.outcome}`, key: e.key, row: l.row + 1, id: result.line_id });
     }
     return { version_id: versionId, created, skipped };
   });

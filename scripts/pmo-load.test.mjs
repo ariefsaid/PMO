@@ -143,6 +143,19 @@ function fakeApi({ tables = {}, fail } = {}) {
     async rpc(name, body) {
       calls.push({ kind: 'rpc', target: name, body });
       maybeFail('rpc', name, body);
+      if (name === 'import_budget_line_v2') {
+        const lines = rows('budget_line_items');
+        const candidates = lines.filter((l) => l.budget_version_id === body.p_version_id);
+        const conflict = candidates.find((l) => l.import_origin == null && (l.import_key === body.p_v2_key ||
+          (l.import_key === body.p_legacy_key && (!body.p_has_reference || body.p_legacy_key.startsWith('fp:')))));
+        if (conflict) return [{ outcome: 'conflict', line_id: conflict.id }];
+        const prior = candidates.find((l) => (l.import_origin === 2 && l.import_key === body.p_v2_key) ||
+          (l.import_origin == null && body.p_has_reference && l.import_key === body.p_legacy_key));
+        if (prior) return [{ outcome: 'skipped', line_id: prior.id }];
+        const id = `line-${++seq}`;
+        lines.push({ id, budget_version_id: body.p_version_id, import_origin: 2, import_key: body.p_v2_key });
+        return [{ outcome: 'created', line_id: id }];
+      }
       const row = rows('projects').find((r) => r.id === body.p_id);
       if (row && name === 'transition_project') row.status = body.p_to;
       if (row && name === 'set_project_contract_value') row.contract_value = body.p_value;
@@ -199,7 +212,7 @@ test('AC-CSD-010: the budget target is a new Draft, the highest Draft minus load
   });
   assert.equal(attach.state, 'attach');
   assert.equal(attach.versionId, 'v-1');
-  assert.deepEqual(attach.lines.map((l) => l.import_key), ['fp:ORG-001|Labor|Crew||400000']);
+  assert.deepEqual(attach.lines.map((l) => l.import_key), ['fp:ORG-001|Labor|Crew||400000', 'R-2']);
   for (const status of ['Active', 'Archived']) {
     assert.equal((await budgetOf({ budget_versions: [{ id: 'v-1', project_id: 'p-1', status, version: 1 }] })).state, 'skip', status);
   }
@@ -219,7 +232,7 @@ test('AC-CSD-006/007: a fresh load creates companies, projects as Leads, sets th
     'post companies', 'post companies',
     'post projects', 'rpc set_project_contract_value',
     'rpc transition_project', 'rpc transition_project', 'rpc transition_project', 'rpc transition_project',
-    'post budget_versions', 'post budget_line_items', 'post budget_line_items',
+    'post budget_versions', 'rpc import_budget_line_v2', 'rpc import_budget_line_v2',
     'post projects', 'rpc set_project_contract_value',
     'rpc transition_project', 'rpc transition_project', 'rpc transition_project',
   ]);
@@ -248,12 +261,15 @@ test('AC-CSD-010: a budget becomes one Draft "Imported" version; lines carry the
   assert.deepEqual(version.body, {
     project_id: 'projects-3', version: 1, name: 'Imported', import_batch_id: 'batch-1', imported_at: '2026-10-06T00:00:00.000Z',
   });
-  assert.deepEqual(writes(api).filter((c) => c.target === 'budget_line_items').map((c) => c.body), [
-    { budget_version_id: 'budget_versions-4', category: 'Labor', description: 'Crew', budgeted_amount: 400000, fiscal_year: null,
-      import_batch_id: 'batch-1', imported_at: '2026-10-06T00:00:00.000Z', import_key: 'fp:ORG-001|Labor|Crew||400000' },
-    { budget_version_id: 'budget_versions-4', category: 'Special expenses', description: 'Permits', budgeted_amount: 50000, fiscal_year: null,
-      import_batch_id: 'batch-1', imported_at: '2026-10-06T00:00:00.000Z', import_key: 'R-2' },
+  const lines = writes(api).filter((c) => c.target === 'import_budget_line_v2').map((c) => c.body);
+  assert.deepEqual(lines.map((l) => [l.p_version_id, l.p_category, l.p_description, l.p_budgeted_amount, l.p_fiscal_year, l.p_legacy_key]), [
+    ['budget_versions-4', 'Labor', 'Crew', 400000, null, 'fp:ORG-001|Labor|Crew||400000'],
+    ['budget_versions-4', 'Special expenses', 'Permits', 50000, null, 'R-2'],
   ]);
+  assert.equal(lines[0].p_v2_key, 'bimp2:["f","projects-3","Labor","Crew","","400000.00"]');
+  assert.equal(lines[1].p_v2_key, 'bimp2:["r","R-2"]');
+  assert.ok(lines.every((l) => !('actual_amount' in l) && !('status' in l)));
+
 });
 
 test('AC-CSD-010: an existing Draft is reused with its loaded keys skipped; an Active version skips the budget; 23505 is a skip', async () => {
@@ -263,20 +279,20 @@ test('AC-CSD-010: an existing Draft is reused with its loaded keys skipped; an A
     budget_versions: [{ id: 'v-1', project_id: 'p-1', status: 'Draft', version: 1 }],
     budget_line_items: [{ id: 'l-1', budget_version_id: 'v-1', import_key: 'R-2' }],
   } });
-  await load(draft, doc);
-  assert.deepEqual(writes(draft).map((c) => [c.target, c.body.budget_version_id, c.body.import_key]), [
-    ['budget_line_items', 'v-1', 'fp:ORG-001|Labor|Crew||400000'],
-  ]);
+  const draftActions = await load(draft, doc);
+  const result = draftActions.find((a) => a.kind === 'budget.lines');
+  assert.equal(result.created, 1);
+  assert.equal(result.skipped, 1);
+  assert.equal(writes(draft).filter((c) => c.target === 'import_budget_line_v2').length, 2);
 
   const active = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING()], budget_versions: [{ id: 'v-1', project_id: 'p-1', status: 'Active', version: 1 }] } });
   const actions = await load(active, doc);
   assert.deepEqual(writes(active), []);
   assert.equal(actions.find((a) => a.kind === 'budget.skip').key, 'ORG-001');
 
-  const raced = fakeApi({ fail: (kind, target, body) => target === 'budget_line_items' && body.import_key === 'R-2' && '23505' });
-  const lines = (await load(raced)).find((a) => a.kind === 'budget.lines');
-  assert.equal(lines.created, 1);
-  assert.equal(lines.skipped, 1);
+  const raced = fakeApi({ fail: (kind, target, body) => target === 'import_budget_line_v2' && body.p_legacy_key === 'R-2' && '23505' });
+  await assert.rejects(load(raced), (err) => err.code === '23505' && err.loadReport.done.some((a) => a.kind === 'budget.line.created'));
+
 });
 
 test('AC-CSD-004: an existing company is matched by legal name; an empty short name is filled, a different one reported', async () => {
@@ -294,8 +310,9 @@ test('AC-CSD-008: re-running a completed load writes nothing', async () => {
   await load(api);
   const before = writes(api).length;
   const rerun = await load(api);
-  assert.equal(writes(api).length, before);
-  assert.deepEqual(new Set(rerun.map((a) => a.kind)), new Set(['company.skip', 'project.skip', 'budget.skip']));
+  assert.equal(writes(api).length, before + 2);
+  assert.equal(rerun.filter((a) => a.kind === 'budget.line.skipped').length, 2);
+  assert.equal(rerun.find((a) => a.kind === 'budget.lines').created, 0);
 });
 
 test('AC-CSD-009: a project part-way resumes; one off its path is left alone; a different value is reported', async () => {
@@ -610,7 +627,7 @@ const SBP_DOC = () => ({ projects: [{
 test('AC-TVC-004: a load writes SBP travel/vehicle lines under the new categories, keyed by the file line so re-runs match', async () => {
   const api = fakeApi({ tables: { companies: COMPANIES() } });
   await load(api, SBP_DOC());
-  assert.deepEqual(writes(api).filter((c) => c.target === 'budget_line_items').map((c) => [c.body.category, c.body.budgeted_amount, c.body.import_key]), [
+  assert.deepEqual(writes(api).filter((c) => c.target === 'import_budget_line_v2').map((c) => [c.body.p_category, c.body.p_budgeted_amount, c.body.p_legacy_key]), [
     ['Travel & accommodation', 300, 'fp:ORG-001|Special expenses|Travel & lodging (SBP: ticket + hotel)||300'],
     ['Vehicle', 200, 'fp:ORG-001|Special expenses|Vehicle (SBP: rental + fuel)||200'],
     ['Special expenses', 100, 'fp:ORG-001|Special expenses|Special expenses (SBP section 4)||100'],
@@ -627,9 +644,8 @@ test('AC-TVC-004: a Draft loaded before #1326 (lines still Special expenses) is 
       { id: 'l-3', budget_version_id: 'v-1', category: 'Special expenses', import_key: 'fp:ORG-001|Special expenses|Special expenses (SBP section 4)||100' },
     ],
   } });
-  const actions = await load(api, SBP_DOC());
-  assert.deepEqual(writes(api).filter((c) => c.target === 'budget_line_items'), []);
-  assert.equal(actions.find((a) => a.kind === 'budget.skip').reason, 'every line is already in the draft');
+  await assert.rejects(load(api, SBP_DOC()), /ambiguous identity.*line l-1/);
+  assert.equal(api.tables.budget_line_items.length, 3);
 });
 
 test('AC-TVC-004: the load output lists each reclassified line and each fuel line kept in Special expenses', async () => {
@@ -652,7 +668,7 @@ test('AC-TVC-004: the load output lists each reclassified line and each fuel lin
         reason: 'vehicle' },
     ], dryRun ? 'dry run' : 'load');
   }
-  assert.deepEqual(writes(api).filter((c) => c.target === 'budget_line_items').map((c) => [c.body.description, c.body.category]), [
+  assert.deepEqual(writes(api).filter((c) => c.target === 'import_budget_line_v2').map((c) => [c.body.p_description, c.body.p_category]), [
     ['Crew', 'Labor'], ['BBM genset', 'Special expenses'], ['BBM mobil operasional', 'Vehicle'], ['Migas permits', 'Special expenses'],
   ]);
 });
@@ -761,4 +777,95 @@ test('#1316: a name held only by a Vendor still resolves as before, and two Vend
   assert.equal(one.plan.projects[0].client.id, 'v-1');
   const two = await resolveLoad({ projects: [DOC().projects[1]] }, fakeApi({ tables: { companies: [vendor('v-1'), vendor('v-2')] } }));
   assert.match(two.problems[0], /more than one company is named/);
+});
+
+test('budget planning retains rows for transactional classification and reports conflict', async () => {
+  const api = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING()],
+    budget_versions: [{ id: 'v-1', project_id: 'p-1', status: 'Draft', version: 1 }],
+    budget_line_items: [{ budget_version_id: 'v-1', import_key: 'R-2' }] } });
+  const { problems, plan } = await resolveLoad({ projects: [DOC().projects[0]] }, api);
+  assert.deepEqual(problems, []);
+  assert.equal(plan.projects[0].budget.lines.length, 2);
+  api.rpc = async (name, body) => {
+    assert.equal(name, 'import_budget_line_v2');
+    assert.match(body.p_v2_key, /^bimp2:/);
+    return [{ outcome: 'conflict', line_id: 'old-line' }];
+  };
+  await assert.rejects(applyLoad(plan, api, { dryRun: false }), /old-line/);
+});
+
+test('budget validation keeps distinct references and collision-shaped source rows', () => {
+  const project = { name: 'X', client: 'A', stage: 'Leads', budget: [
+    { category: 'Labor', description: 'A|B', fiscal_year: 'C', budgeted_amount: 1 },
+    { category: 'Labor', description: 'A', fiscal_year: 'B|C', budgeted_amount: 1 },
+    { category: 'Labor', description: 'A|B', fiscal_year: 'C', budgeted_amount: 1, reference: 'fp:X | A|Labor|A|B|C|1' },
+  ] };
+  assert.deepEqual(validateLoadFile({ projects: [project] }), []);
+});
+
+test('budget retry preserves successful rows, resolves a new project id, and normalizes amounts', async () => {
+  const doc = { projects: [{ code: 'NEW', name: 'New', client: 'Client Legal A', stage: 'Leads', budget: [
+    { category: 'Labor', budgeted_amount: 0.30000000000000004, reference: 'A' },
+    { category: 'Labor', budgeted_amount: 1, reference: 'B' },
+  ] }] };
+  let failSecond = true;
+  const api = fakeApi({ tables: { companies: COMPANIES() }, fail: (_kind, target, body) =>
+    target === 'import_budget_line_v2' && body.p_legacy_key === 'B' && failSecond && '23505' });
+  await assert.rejects(load(api, doc), (err) => err.code === '23505' && err.loadReport.done.some((a) => a.kind === 'budget.line.created'));
+  const first = api.calls.find((c) => c.target === 'import_budget_line_v2');
+  assert.equal(first.body.p_budgeted_amount, 0.3);
+  assert.equal(first.body.p_v2_key, 'bimp2:["r","A"]');
+  assert.equal(api.tables.budget_line_items.length, 1);
+  failSecond = false;
+  const report = await load(api, doc);
+  assert.equal(report.find((a) => a.kind === 'budget.lines').created, 1);
+  assert.equal(report.find((a) => a.kind === 'budget.lines').skipped, 1);
+  assert.equal(api.tables.budget_line_items.length, 2);
+});
+
+test('new project fingerprint uses resolved project id and classified category', async () => {
+  const api = fakeApi({ tables: { companies: COMPANIES() } });
+  await load(api, SBP_DOC());
+  const project = api.tables.projects[0];
+  const first = api.calls.find((c) => c.target === 'import_budget_line_v2').body;
+  assert.equal(first.p_v2_key, `bimp2:${JSON.stringify(['f', project.id.toLowerCase(), 'Travel & accommodation', 'Travel & lodging (SBP: ticket + hotel)', '', '300.00'])}`);
+  assert.equal(first.p_legacy_key, 'fp:ORG-001|Special expenses|Travel & lodging (SBP: ticket + hotel)||300');
+});
+
+test('budget authority responses without a line id fail the load', async () => {
+  const api = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING()],
+    budget_versions: [{ id: 'v-1', project_id: 'p-1', status: 'Draft', version: 1 }] } });
+  const doc = { projects: [DOC().projects[0]] };
+  api.rpc = async () => [{ outcome: 'created', line_id: null }];
+  await assert.rejects(load(api, doc), /Unexpected budget import result/);
+});
+
+test('loader preserves its accepted sub-cent floating noise at validation and apply', async () => {
+  const doc = { projects: [{ name: 'X', client: 'Client Legal A', stage: 'Leads', budget: [{ category: 'Labor', budgeted_amount: 1.000000005 }] }] };
+  assert.deepEqual(validateLoadFile(doc), []);
+  const api = fakeApi({ tables: { companies: COMPANIES() } });
+  await load(api, doc);
+  const body = api.calls.find((c) => c.target === 'import_budget_line_v2').body;
+  assert.equal(body.p_budgeted_amount, 1);
+  assert.equal(body.p_legacy_key, 'fp:X | Client Legal A|Labor|||1.000000005');
+});
+
+test('loader reports a historical key equal to the new identity as a conflict', async () => {
+  const doc = { projects: [{ code: 'ORG-001', name: 'Plant upgrade', client: 'Client Legal A', stage: 'Ongoing Project',
+    budget: [{ category: 'Labor', budgeted_amount: 1, reference: 'R' }] }] };
+  const api = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING()],
+    budget_versions: [{ id: 'v-1', project_id: 'p-1', status: 'Draft', version: 1 }],
+    budget_line_items: [{ id: 'old-line', budget_version_id: 'v-1', import_key: 'bimp2:["r","R"]' }] } });
+  await assert.rejects(load(api, doc), /row 1.*old-line/);
+  assert.equal(api.tables.budget_line_items.length, 1);
+});
+
+test('loader reports a legacy fp-prefixed reference as ambiguous', async () => {
+  const doc = { projects: [{ code: 'ORG-001', name: 'Plant upgrade', client: 'Client Legal A', stage: 'Ongoing Project',
+    budget: [{ category: 'Labor', budgeted_amount: 1, reference: 'fp:ambiguous' }] }] };
+  const api = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING()],
+    budget_versions: [{ id: 'v-1', project_id: 'p-1', status: 'Draft', version: 1 }],
+    budget_line_items: [{ id: 'old-line', budget_version_id: 'v-1', import_key: 'fp:ambiguous' }] } });
+  await assert.rejects(load(api, doc), /row 1.*old-line/);
+  assert.equal(api.tables.budget_line_items.length, 1);
 });

@@ -88,6 +88,31 @@ export interface ImportProvenance {
   importKey?: string | null;
 }
 
+export interface BudgetImportRequest {
+  versionId: string;
+  item: NewLineItem;
+  batchId: string;
+  importedAt: string;
+  v2Key: string;
+  legacyKey: string;
+  hasReference: boolean;
+}
+
+export async function importBudgetLine(request: BudgetImportRequest): Promise<{ outcome: 'created' | 'skipped' | 'conflict'; line_id: string }> {
+  const { item } = request;
+  const { data, error } = await supabase.rpc('import_budget_line_v2', {
+    p_version_id: request.versionId, p_category: item.category,
+    p_description: item.description as string, p_budgeted_amount: item.budgeted_amount,
+    p_fiscal_year: (item.fiscal_year ?? null) as string,
+    p_batch_id: request.batchId, p_imported_at: request.importedAt,
+    p_v2_key: request.v2Key, p_legacy_key: request.legacyKey, p_has_reference: request.hasReference,
+  });
+  if (error) throw error;
+  const row = data?.[0];
+  if (!row || (!['created', 'skipped', 'conflict'].includes(row.outcome) || typeof row.line_id !== 'string' || !row.line_id)) throw new Error('Unexpected budget import result');
+  return row as { outcome: 'created' | 'skipped' | 'conflict'; line_id: string };
+}
+
 // ---------------------------------------------------------------------------
 // Phase B — reads
 // ---------------------------------------------------------------------------
