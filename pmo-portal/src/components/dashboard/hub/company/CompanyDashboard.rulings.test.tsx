@@ -222,7 +222,7 @@ describe('L6: the ageing source note is said once', () => {
     };
     renderDashboard('Finance');
     expect(screen.getByRole('region', { name: 'Client balances by age · tax included' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Supplier invoices by age · since invoice date' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Supplier invoices by age · since invoiced status or last update' })).toBeInTheDocument();
     expect(screen.getAllByText(/From invoices recorded in PMO/)).toHaveLength(1);
   });
 

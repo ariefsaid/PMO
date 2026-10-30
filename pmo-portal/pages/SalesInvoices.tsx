@@ -1428,12 +1428,14 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
           mobileCardDetails={embedded ? (inv) => {
             const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date);
             const unknown = (inv.status === 'Unpaid' || inv.status === 'Submitted') && inv.erp_outstanding_amount == null;
+            const total = invoiceGross(inv);
+            const partial = isPartlyPaid(inv);
             return <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                 {statusColumn.cell(inv)}
                 <span className="shrink-0 text-xs text-muted-foreground">{due ? formatDateOnly(due) : '—'}</span>
               </div>
-              <span className="text-right text-xs tabular">{inv.tax_treatment === 'inclusive' ? t('finance:receivables.mobileInvoiceAmountInclusive', 'Invoice total incl. PPN') : inv.tax_treatment === 'exclusive' ? t('finance:receivables.mobileInvoiceAmount', 'Invoice total excl. PPN') : t('finance:receivables.mobileInvoiceAmountUnspecified', 'Invoice amount')}: {inv.amount == null ? '—' : formatCurrency(inv.amount, inv.currency)}{unknown ? <span className="block text-muted-foreground">{t('finance:receivables.mobileOutstandingUnknown', 'Outstanding balance unknown')}</span> : inv.erp_outstanding_amount != null && <span className="block text-muted-foreground">{t('financeCopy.outstanding', 'Outstanding')}: {formatCurrency(inv.erp_outstanding_amount, inv.currency)}</span>}</span>
+              <span className="text-right text-xs tabular">{inv.tax_treatment === 'inclusive' ? t('finance:receivables.mobileInvoiceAmountInclusive', 'Invoice total incl. PPN') : inv.tax_treatment === 'exclusive' ? t('finance:receivables.mobileInvoiceAmount', 'Invoice total excl. PPN') : t('finance:receivables.mobileInvoiceAmountUnspecified', 'Invoice amount')}: {inv.amount == null ? '—' : formatCurrency(inv.amount, inv.currency)}{total != null && total !== inv.amount && <span className="block">{t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: formatCurrency(total, inv.currency) })}</span>}{unknown ? <span className="block text-muted-foreground">{t('finance:receivables.mobileOutstandingUnknown', 'Outstanding balance unknown')}</span> : inv.erp_outstanding_amount != null && inv.status !== 'Paid' && inv.status !== 'Cancelled' && <span className="block text-muted-foreground">{t('financeCopy.outstanding', 'Outstanding')}: {formatCurrency(inv.erp_outstanding_amount, inv.currency)}{partial && total != null && <span> {t('finance:receivables.ofTotal', 'of {{total}}', { total: formatCurrency(total, inv.currency) })}</span>}</span>}</span>
             </div>;
           } : undefined}
           selection={embedded ? {
