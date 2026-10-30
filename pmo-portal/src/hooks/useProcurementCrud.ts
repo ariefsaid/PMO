@@ -5,6 +5,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import type { AppError } from '@/src/lib/appError';
 import type {
   NewProcurementInput,
+  AtomicProcurementInput,
   ProcurementHeaderPatch,
   ProcurementItemInput,
   ProcurementItemPatch,
@@ -48,6 +49,20 @@ export function useCreateProcurement() {
       // number (`pr_number`, else the imported `code`), so a number-less Draft starts nothing here —
       // it gets its folder when it is submitted to Requested (useProcurementMutations.transition).
       // Fire-and-forget: the saved case is returned unchanged whatever the folder does.
+      if (row.pr_number || row.code) startRecordFolder({ kind: 'procurement', id: row.id });
+      return row;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['procurements'] }),
+  });
+}
+
+/** Create the complete draft at a single transactional boundary. */
+export function useCreateProcurementWithItems() {
+  const qc = useQueryClient();
+  const startRecordFolder = useStartRecordFolder();
+  return useMutation<Tables<'procurements'>, AppError, AtomicProcurementInput>({
+    mutationFn: async (input) => {
+      const row = await repositories.procurement.createWithItems(input);
       if (row.pr_number || row.code) startRecordFolder({ kind: 'procurement', id: row.id });
       return row;
     },

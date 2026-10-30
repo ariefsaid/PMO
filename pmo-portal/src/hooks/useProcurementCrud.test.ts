@@ -6,6 +6,7 @@ import React from 'react';
 // Mock the repository seam (ADR-0017) — the hooks consume `repositories.procurement`.
 const repo = vi.hoisted(() => ({
   create: vi.fn(),
+  createWithItems: vi.fn(),
   updateHeader: vi.fn(),
   createItem: vi.fn(),
   updateItem: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 import {
   useCreateProcurement,
+  useCreateProcurementWithItems,
   useProcurementCrudMutations,
 } from './useProcurementCrud';
 
@@ -59,6 +61,19 @@ describe('AC-PROC-001 useCreateProcurement', () => {
     expect(created?.id).toBe('pr-new');
     const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
     expect(calls.some((c) => c.includes('"procurements"'))).toBe(true);
+  });
+});
+
+describe('atomic procurement creation hook', () => {
+  it('returns the saved draft and invalidates the list', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    const input = { id: 'pr', header: { title: 'T', projectId: null, vendorId: null }, lines: [] };
+    repo.createWithItems.mockResolvedValue({ id: 'pr' });
+    const { result } = renderHook(() => useCreateProcurementWithItems(), { wrapper: Wrapper });
+    await act(async () => { await expect(result.current.mutateAsync(input)).resolves.toEqual({ id: 'pr' }); });
+    expect(repo.createWithItems).toHaveBeenCalledWith(input);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['procurements'] });
   });
 });
 

@@ -84,6 +84,7 @@ vi.mock('@/src/lib/db/procurementPaymentCeiling', () => ({ approveProcurementAmo
 vi.mock('@/src/lib/db/procurementCrud', () => ({
   procurementItemValuesEditable: vi.fn(),
   createProcurement: vi.fn(),
+  createProcurementWithItems: vi.fn(),
   updateProcurementHeader: vi.fn(),
   updateProcurementVendor: vi.fn(),
   createProcurementItem: vi.fn(),
@@ -122,6 +123,7 @@ vi.mock('@/src/lib/db/timesheetPush', () => ({
 }));
 vi.mock('@/src/lib/db/budgets', () => ({
   deriveProjectBudget: vi.fn(),
+  importBudgetLine: vi.fn(),
   listBudgetVersions: vi.fn(),
   createLineItem: vi.fn(),
   updateLineItem: vi.fn(),
@@ -314,6 +316,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'createReceipt',
         'clearDocumentLink',
         'createRfq',
+        'createWithItems',
         'deleteDocument',
         'deleteItem',
         'get',
@@ -334,7 +337,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'pushApproved', 'reject', 'submit', 'upsertEntries', 'saveWeek', 'reopen', 'attestNoErpDocument', 'listReopenableApproved', 'listPushesNeedingAttention', 'confirmEmployeeLink', 'getPushState'].sort(),
     );
     expect(Object.keys(repositories.budget).sort()).toEqual(
-      ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'listDocumentLinks', 'listVersions', 'removeDocumentLink', 'updateLineItem'].sort(),
+      ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'importLine', 'listArchiveLiveTargets', 'listDocumentLinks', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'updateLineItem'].sort(),
     );
     expect(Object.keys(repositories.incident).sort()).toEqual(
       ['create', 'delete', 'get', 'list', 'transition', 'update'].sort(),
@@ -730,6 +733,13 @@ describe('delegation — methods pass args through and return the DAL result', (
     });
   });
 
+  it('delegates an atomic procurement creation with stable IDs', async () => {
+    const input = { id: 'request', header: { title: 'T', projectId: null, vendorId: null }, lines: [{ id: 'line', name: 'Item', quantity: 1, rate: 2 }] };
+    vi.mocked(procCrudDal.createProcurementWithItems).mockResolvedValue({ id: 'request' } as never);
+    await expect(repositories.procurement.createWithItems(input)).resolves.toEqual({ id: 'request' });
+    expect(procCrudDal.createProcurementWithItems).toHaveBeenCalledWith(input);
+  });
+
   it('procurement CRUD methods (create/header/items/selectQuote/documents) delegate', async () => {
     vi.mocked(procCrudDal.createProcurement).mockResolvedValue({ id: 'pr9' } as never);
     vi.mocked(procCrudDal.updateProcurementHeader).mockResolvedValue(undefined);
@@ -915,6 +925,10 @@ describe('delegation — methods pass args through and return the DAL result', (
     expect(budgetsDal.listBudgetVersions).toHaveBeenCalledWith('p1');
 
     const item = { category: 'Labour', description: null, budgeted_amount: 5 } as never;
+    const importRequest = { versionId: 'v1', item, batchId: 'b1', importedAt: 'now', v2Key: 'v2', legacyKey: 'old', hasReference: true };
+    vi.mocked(budgetsDal.importBudgetLine).mockResolvedValue({ outcome: 'created', line_id: 'line' });
+    await expect(repositories.budget.importLine(importRequest)).resolves.toEqual({ outcome: 'created', line_id: 'line' });
+    expect(budgetsDal.importBudgetLine).toHaveBeenCalledWith(importRequest);
     await repositories.budget.createLineItem('v1', item);
     expect(budgetsDal.createLineItem).toHaveBeenCalledWith('v1', item, undefined);
 

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   autoMap,
   parseWorkbook,
@@ -35,6 +35,7 @@ export interface UseImportWizard {
   /** Counts for the preview summary. */
   counts: { valid: number; invalid: number; total: number };
   parseError: string | null;
+  parsing: boolean;
   progress: CommitProgress;
   result: ImportResult | null;
   selectFile: (file: File) => Promise<void>;
@@ -57,6 +58,9 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
   const [parsed, setParsed] = useState<ParsedSheet | null>(null);
   const [mapping, setMapping] = useState<Mapping>({});
   const [parseError, setParseError] = useState<string | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const parseGeneration = useRef(0);
+  useEffect(() => () => { parseGeneration.current++; }, []);
   const [progress, setProgress] = useState<CommitProgress>({ done: 0, total: 0 });
   const [result, setResult] = useState<ImportResult | null>(null);
 
@@ -77,6 +81,8 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
   }, [validation]);
 
   const reset = useCallback(() => {
+    parseGeneration.current++;
+    setParsing(false);
     setStep('upload');
     setFileName(null);
     setParsed(null);
@@ -88,15 +94,20 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
 
   const selectFile = useCallback(
     async (file: File) => {
+      const generation = ++parseGeneration.current;
+      setParsing(true);
       setParseError(null);
       try {
         const buf = await file.arrayBuffer();
+        if (generation !== parseGeneration.current) return;
         const sheet = await parseWorkbook(buf);
+        if (generation !== parseGeneration.current) return;
         setParsed(sheet);
         setFileName(file.name);
         setMapping(autoMap(sheet.headers, descriptor.fields));
         setStep('mapping');
       } catch (err) {
+        if (generation !== parseGeneration.current) return;
         // Typed parse rejections (bad/empty/oversized) surface their message; anything
         // else (unexpected) gets a generic note. NO writes happen on this path.
         setParsed(null);
@@ -104,6 +115,8 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
         setParseError(
           err instanceof ImportParseError ? err.message : 'Could not read that file. Use a valid .xlsx.',
         );
+      } finally {
+        if (generation === parseGeneration.current) setParsing(false);
       }
     },
     [descriptor.fields],
@@ -119,6 +132,8 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
   }, [allRequiredMapped]);
 
   const back = useCallback(() => {
+    parseGeneration.current++;
+    setParsing(false);
     setStep((s) => (s === 'preview' ? 'mapping' : 'upload'));
   }, []);
 
@@ -175,6 +190,7 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
     allRequiredMapped,
     counts,
     parseError,
+    parsing,
     progress,
     result,
     selectFile,

@@ -36,6 +36,10 @@ const authState = { userId: 'u-pm' };
 const roleState = { role: 'Project Manager' as string | null };
 const projectsState = { data: [] as { id: string; name: string }[], isPending: false, isError: false, refetch: vi.fn() };
 const erpState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
+// Reference options feeding the import-wizard snapshot (useFkOptions, {value,label} shaped like
+// the live hook). refetch resolves with the CURRENT data so the wizard-opening refresh behaves
+// like a live query.
+const fkState = { data: [] as { value: string; label: string }[], refetch: vi.fn() };
 
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState, useProjectProcurements: () => procState }));
 vi.mock('@/src/hooks/useErpPurchases', () => ({
@@ -48,9 +52,16 @@ vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => projectsState, us
 vi.mock('@/src/hooks/useProcurementDetail', () => ({ useProcurementDetail: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/pages/project-detail/useProjectPosition', () => ({ useBudgetPosition: () => ({ rows: [], hasBudget: false, isPending: false, actualsPending: false }) }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
-  useProjectOptions: () => ({ data: [] }),
-  useVendorOptions: () => ({ data: [] }),
+  useProjectOptions: () => ({ data: fkState.data, isPending: false, isError: false, refetch: fkState.refetch }),
+  useVendorOptions: () => ({ data: [], isPending: false, isError: false, refetch: fkState.refetch }),
 }));
+// The wizard's file parsing is stubbed at the module boundary (same recipe as useImportWizard.test.tsx):
+// the restructure suite cares about the reference snapshot, not the xlsx binary format.
+vi.mock('@/src/lib/import', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/lib/import')>();
+  return { ...actual, parseWorkbook: vi.fn() };
+});
+import { parseWorkbook } from '@/src/lib/import';
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: authState.userId, org_id: 'org-1' }, role: roleState.role }),
 }));
@@ -94,6 +105,8 @@ describe('Procurement list restructure', () => {
     erpState.isError = false;
     authState.userId = 'u-pm';
     roleState.role = 'Project Manager';
+    fkState.data = [];
+    fkState.refetch.mockReset();
     sessionStorage.clear();
   });
 
@@ -113,6 +126,45 @@ describe('Procurement list restructure', () => {
     expect(screen.queryByRole('button', { name: 'Export list' })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(projectsState.refetch).toHaveBeenCalled();
+  });
+
+  it('a project rename reaches an open import wizard through a query refresh', async () => {
+    roleState.role = 'Finance';
+    authState.userId = 'u-finance';
+    fkState.data = [{ value: 'proj-1', label: 'Alpha' }];
+    fkState.refetch.mockResolvedValue({ data: fkState.data, isError: false });
+    const view = renderPage('/procurement');
+    // Open the toolbar disclosure, then the bulk import wizard: the opening refresh resolves
+    // with the current references.
+    await userEvent.click(await screen.findByRole('button', { name: 'More' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Import procurements' }));
+    expect(await screen.findByText('Choose an .xlsx file')).toBeInTheDocument();
+    // The rename lands through a query refresh while the wizard stays open (same ids, new name).
+    fkState.data = [{ value: 'proj-1', label: 'Alpha Renamed' }];
+    fkState.refetch.mockResolvedValue({ data: fkState.data, isError: false });
+    view.rerender(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+        <ToastProvider>
+          <MemoryRouter initialEntries={['/procurement']}>
+            <RouteProbe />
+            <Procurement />
+          </MemoryRouter>
+        </ToastProvider>
+      </QueryClientProvider>,
+    );
+    // Import a row carrying the NEW name: the wizard's ref lookup must resolve it — a stale
+    // snapshot answers `Project "Alpha Renamed" not found.` and the row reads as Skipped.
+    (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({
+      headers: ['Title', 'Project', 'Supplier'],
+      rows: [['First', 'Alpha Renamed', '']],
+    });
+    await userEvent.upload(screen.getByLabelText('Choose an .xlsx file'), new File(['x'], 'x.xlsx'));
+    await screen.findByText('Match columns');
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByText('Review before importing');
+    expect(screen.queryByText('Project "Alpha Renamed" not found.')).not.toBeInTheDocument();
+    expect(screen.getByText('Valid')).toBeInTheDocument();
+    view.unmount();
   });
 
   it('shows the orphan export only after project names are ready', () => {

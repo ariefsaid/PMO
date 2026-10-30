@@ -6,6 +6,7 @@ const { budget } = vi.hoisted(() => ({
     findImportedLine: vi.fn(),
     createVersion: vi.fn(),
     createLineItem: vi.fn(),
+    importLine: vi.fn(),
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { budget } }));
@@ -41,7 +42,7 @@ describe('makeBudgetImportDescriptor', () => {
     budget.findImportTargetDraft.mockResolvedValue(null);
     budget.findImportedLine.mockResolvedValue(null);
     budget.createVersion.mockResolvedValue({ id: 'ver-new' });
-    budget.createLineItem.mockResolvedValue({ id: 'line-new' });
+    budget.importLine.mockReset().mockResolvedValue({ outcome: 'created', line_id: 'line-new' });
     setActiveLocale(EN_LOCALE);
   });
   afterEach(() => resetActiveLocale());
@@ -64,11 +65,7 @@ describe('makeBudgetImportDescriptor', () => {
     const d = make();
     expect(d.fields.find((field) => field.key === 'category')!.validate(' Special expenses ')).toBeNull();
     await d.create(d.toInput(cells({ category: ' Special expenses ', budgetedAmount: '25000.30' })));
-    expect(budget.createLineItem).toHaveBeenCalledWith(
-      'ver-new',
-      expect.objectContaining({ category: 'Special expenses', budgeted_amount: 25000.30 }),
-      expect.objectContaining({ importBatchId: 'batch-1', importedAt: expect.any(String), importKey: expect.any(String) }),
-    );
+    expect(budget.importLine).toHaveBeenCalledWith(expect.objectContaining({ versionId: 'ver-new', item: expect.objectContaining({ category: 'Special expenses', budgeted_amount: 25000.30 }), batchId: 'batch-1', importedAt: expect.any(String), v2Key: expect.any(String) }));
   });
 
 
@@ -85,7 +82,7 @@ describe('makeBudgetImportDescriptor', () => {
     expect(name).toBe('Imported');
     expect(provenance).toEqual({ importBatchId: 'batch-1', importedAt: expect.any(String) });
     expect(provenance).not.toHaveProperty('status');
-    expect(JSON.stringify(budget.createLineItem.mock.calls[0])).not.toMatch(/status/i);
+    expect(JSON.stringify(budget.importLine.mock.calls[0])).not.toMatch(/status/i);
   });
 
   it('AC-BIMP-004: exposes no actual_amount field, and never sends one', async () => {
@@ -94,9 +91,9 @@ describe('makeBudgetImportDescriptor', () => {
     expect(d.fields.map((f) => f.key)).not.toContain('actualAmount');
     // A sheet that HAS the column still cannot reach actual_amount: unmapped cells are ignored.
     await d.create(d.toInput({ ...cells(), actual_amount: '999' }));
-    const [, item] = budget.createLineItem.mock.calls[0];
+    const { item } = budget.importLine.mock.calls[0][0];
     expect(item).not.toHaveProperty('actual_amount');
-    expect(JSON.stringify(budget.createLineItem.mock.calls[0])).not.toMatch(/999/);
+    expect(JSON.stringify(budget.importLine.mock.calls[0])).not.toMatch(/999/);
   });
 
   it('never sends currency — 0187 stamp_currency owns it (FR-BIMP-006)', async () => {
@@ -113,8 +110,8 @@ describe('makeBudgetImportDescriptor', () => {
     await d.create(d.toInput(cells({ description: 'Crew A' })));
     await d.create(d.toInput(cells({ description: 'Crew B' })));
     expect(budget.createVersion).toHaveBeenCalledTimes(1);
-    expect(budget.createLineItem).toHaveBeenCalledTimes(2);
-    expect(budget.createLineItem.mock.calls.every((c) => c[0] === 'ver-new')).toBe(true);
+    expect(budget.importLine).toHaveBeenCalledTimes(2);
+    expect(budget.importLine.mock.calls.every((c) => c[0].versionId === 'ver-new')).toBe(true);
   });
 
   it('AC-BIMP-002: an existing Draft is attached to — no second version', async () => {
@@ -122,7 +119,7 @@ describe('makeBudgetImportDescriptor', () => {
     const d = make();
     await d.create(d.toInput(cells()));
     expect(budget.createVersion).not.toHaveBeenCalled();
-    expect(budget.createLineItem.mock.calls[0][0]).toBe('ver-existing');
+    expect(budget.importLine.mock.calls[0][0].versionId).toBe('ver-existing');
   });
 
   it('AC-BIMP-007: no Draft (the only version is Active) → a NEW Draft, and the lines land IN it', async () => {
@@ -134,8 +131,8 @@ describe('makeBudgetImportDescriptor', () => {
     const d = make();
     await d.create(d.toInput(cells()));
     expect(budget.createVersion).toHaveBeenCalledTimes(1);
-    expect(budget.createLineItem).toHaveBeenCalledTimes(1);
-    expect(budget.findImportedLine.mock.calls[0][0]).toBe('ver-new');
+    expect(budget.importLine).toHaveBeenCalledTimes(1);
+    expect(budget.importLine.mock.calls[0][0].versionId).toBe('ver-new');
   });
 
   it('AC-BIMP-010: with several Drafts the repository probe picks the target — one call per project', async () => {
@@ -153,11 +150,11 @@ describe('makeBudgetImportDescriptor', () => {
 
   it('AC-BIMP-005: a row already imported resolves to IMPORT_SKIPPED and writes nothing', async () => {
     budget.findImportTargetDraft.mockResolvedValue({ id: 'ver-existing' });
-    budget.findImportedLine.mockResolvedValue({ id: 'line-old' });
+    budget.importLine.mockResolvedValue({ outcome: 'skipped', line_id: 'line-old' });
     const d = make();
     const outcome = await d.create(d.toInput(cells()));
     expect(outcome).toBe(IMPORT_SKIPPED);
-    expect(budget.createLineItem).not.toHaveBeenCalled();
+    expect(budget.importLine).toHaveBeenCalledTimes(1);
   });
 
   it('AC-BIMP-005: the key survives a NEW batch id — the re-run is a no-op in a later session', () => {
@@ -166,14 +163,14 @@ describe('makeBudgetImportDescriptor', () => {
     expect(second.importKey).toBe(first.importKey);
   });
 
-  it('a 23505 from the race is a skip, not a failure (layer 2)', async () => {
-    budget.createLineItem.mockRejectedValue({ code: '23505', message: 'duplicate key' });
+  it('an unexpected 23505 propagates as a failure', async () => {
+    budget.importLine.mockRejectedValue({ code: '23505', message: 'duplicate key' });
     const d = make();
-    await expect(d.create(d.toInput(cells()))).resolves.toBe(IMPORT_SKIPPED);
+    await expect(d.create(d.toInput(cells()))).rejects.toMatchObject({ code: '23505' });
   });
 
   it('a non-duplicate error still propagates — a skip must not swallow an RLS rejection', async () => {
-    budget.createLineItem.mockRejectedValue({ code: '42501', message: 'not authorized' });
+    budget.importLine.mockRejectedValue({ code: '42501', message: 'not authorized' });
     const d = make();
     await expect(d.create(d.toInput(cells()))).rejects.toMatchObject({ code: '42501' });
   });
@@ -228,14 +225,69 @@ describe('makeBudgetImportDescriptor', () => {
       expect(() => d.toInput(cells({ budgetedAmount: '1234.567' }))).toThrow();
     }
     await d.create(d.toInput(cells({ budgetedAmount: '1234.5600000000002' })));
-    expect(budget.createLineItem).toHaveBeenCalledTimes(1);
-    expect(budget.createLineItem.mock.calls[0][1]).toMatchObject({ budgeted_amount: 1234.56 });
+    expect(budget.importLine).toHaveBeenCalledTimes(1);
+    expect(budget.importLine.mock.calls[0][0].item).toMatchObject({ budgeted_amount: 1234.56 });
   });
 
   it('an omitted fiscal year stays NULL — PMO never invents another system’s calendar name', async () => {
     const d = make();
     await d.create(d.toInput(cells({ fiscalYear: '  ' })));
-    const [, item] = budget.createLineItem.mock.calls[0];
+    const { item } = budget.importLine.mock.calls[0][0];
     expect(item.fiscal_year).toBeNull();
   });
+});
+
+it('uses the transactional import result and reports an ambiguous row', async () => {
+  const d = makeBudgetImportDescriptor(projects, 'batch-1');
+  budget.findImportTargetDraft.mockResolvedValue({ id: 'ver-existing' });
+  budget.importLine.mockResolvedValue({ outcome: 'conflict', line_id: 'line-old' });
+  await expect(d.create(d.toInput(cells({ importKey: 'fp:old' })))).rejects.toThrow(/Apollo.*line-old/);
+  expect(budget.importLine).toHaveBeenCalled();
+});
+
+it('rejects amounts outside the database numeric range at validation', () => {
+  const field = makeBudgetImportDescriptor(projects, 'batch').fields.find((f) => f.key === 'budgetedAmount')!;
+  expect(field.validate('1,000,000,000,000')).not.toBeNull();
+});
+
+it('sends normalized identities and original legacy bytes to the authority', async () => {
+  const d = makeBudgetImportDescriptor(projects, 'batch-1');
+  budget.findImportTargetDraft.mockResolvedValue({ id: 'ver-existing' });
+  budget.importLine.mockResolvedValue({ outcome: 'created', line_id: 'one' });
+  await d.create(d.toInput(cells({ budgetedAmount: '1,000.00', description: ' A|"B ' })));
+  await d.create(d.toInput(cells({ budgetedAmount: '1000', description: ' A|"B ' })));
+  const [first, second] = budget.importLine.mock.calls.map(([arg]) => arg);
+  expect(first.v2Key).toBe(second.v2Key);
+  expect(first.legacyKey).toBe('fp:Apollo|Labor|A|"B|2026|1,000.00');
+  expect(first.legacyKey).not.toBe(second.legacyKey);
+  expect(first.item).toEqual({ category: 'Labor', description: 'A|"B', budgeted_amount: 1000, fiscal_year: '2026' });
+  expect(budget.findImportedLine).not.toHaveBeenCalled();
+  expect(budget.createLineItem).not.toHaveBeenCalled();
+});
+
+it('preserves distinct references and reports the authority skip after a content edit', async () => {
+  const d = makeBudgetImportDescriptor(projects, 'batch-1');
+  budget.findImportTargetDraft.mockResolvedValue({ id: 'ver-existing' });
+  budget.importLine.mockResolvedValueOnce({ outcome: 'created', line_id: 'one' })
+    .mockResolvedValueOnce({ outcome: 'skipped', line_id: 'one' })
+    .mockResolvedValueOnce({ outcome: 'created', line_id: 'two' });
+  await d.create(d.toInput(cells({ importKey: 'R', description: 'before' })));
+  expect(await d.create(d.toInput(cells({ importKey: 'R', description: 'after' })))).toBe(IMPORT_SKIPPED);
+  await d.create(d.toInput(cells({ importKey: 'R2', description: 'after' })));
+  const args = budget.importLine.mock.calls.map(([arg]) => arg);
+  expect(args[0].v2Key).toBe(args[1].v2Key);
+  expect(args[2].v2Key).not.toBe(args[1].v2Key);
+});
+
+it('keeps a new-looking historical reference as an opaque legacy candidate and reports conflict', async () => {
+  const d = makeBudgetImportDescriptor(projects, 'batch-1');
+  budget.findImportTargetDraft.mockResolvedValue({ id: 'ver-existing' });
+  budget.importLine.mockResolvedValue({ outcome: 'conflict', line_id: 'old-line' });
+  const input = d.toInput(cells({ importKey: 'bimp2:["r","old"]' }));
+  await expect(d.create(input)).rejects.toThrow(/Apollo.*old-line/);
+  expect(budget.importLine).toHaveBeenCalledWith(expect.objectContaining({
+    legacyKey: 'bimp2:["r","old"]',
+    v2Key: 'bimp2:["r","bimp2:[\\"r\\",\\"old\\"]"]',
+    hasReference: true,
+  }));
 });

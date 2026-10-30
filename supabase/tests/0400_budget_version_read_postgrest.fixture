@@ -1,0 +1,19 @@
+begin;
+insert into public.projects(id,org_id,code,name,status) values
+ ('04000000-0000-0000-0002-000000000001','00000000-0000-0000-0000-000000000001','BREADPOST400','Budget paging','Ongoing Project');
+insert into public.budget_versions(id,org_id,project_id,version,name,status)
+ select ('04000000-0000-0000-0003-' || lpad(i::text,12,'0'))::uuid,
+ '00000000-0000-0000-0000-000000000001','04000000-0000-0000-0002-000000000001',i,'Read',(case when i=1 then 'Draft' else 'Archived' end)::public.budget_status
+ from generate_series(1,1001) i;
+insert into public.budget_line_items(id,org_id,budget_version_id,category,budgeted_amount)
+ select ('04000000-0000-0000-0004-' || lpad(i::text,12,'0'))::uuid,'00000000-0000-0000-0000-000000000001',
+ '04000000-0000-0000-0003-000000000001','Labor',0.01 from generate_series(1,1001) i;
+insert into auth.users(id,email)
+ select ('04000000-0000-0000-0005-' || lpad(i::text,12,'0'))::uuid, 'read400-' || i || '@example.test' from generate_series(1,1001) i;
+insert into public.profiles(id,org_id,full_name,email,role,status)
+ select ('04000000-0000-0000-0005-' || lpad(i::text,12,'0'))::uuid,'00000000-0000-0000-0000-000000000001',
+ 'Read test','read400-' || i || '@example.test','Engineer','active' from generate_series(1,1001) i;
+insert into public.budget_version_editors(org_id,budget_version_id,user_id)
+ select '00000000-0000-0000-0000-000000000001','04000000-0000-0000-0003-000000000001',
+ ('04000000-0000-0000-0005-' || lpad(i::text,12,'0'))::uuid from generate_series(1,1001) i;
+commit;

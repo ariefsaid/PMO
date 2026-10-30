@@ -66,6 +66,11 @@ export interface ComboboxProps {
   clearable?: boolean;
   onClear?: () => void;
   disabled?: boolean;
+  /** Keep the clear (x) affordance usable while `disabled`, so a saved value stays removable
+   *  when only BROWSING is locked (e.g. the ERPNext org settings: no active binding, choice
+   *  remains clearable — AC-S11-002/AC-S11-004). Default false: a disabled picker is fully inert
+   *  (no open, no select, no clear). */
+  clearWhileDisabled?: boolean;
   /** Stable DOM id for form error-summary focus links. */
   id?: string;
   className?: string;
@@ -89,6 +94,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
   clearable,
   onClear,
   disabled,
+  clearWhileDisabled,
   id,
   className,
 }) => {
@@ -113,6 +119,16 @@ export const Combobox: React.FC<ComboboxProps> = ({
   // Monotonic load token: a resolution is only honored if it is still the
   // latest in-flight load (drops a stale resolve after close / a re-load).
   const loadIdRef = useRef(0);
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
+
+  useLayoutEffect(() => {
+    if (disabled) {
+      loadIdRef.current++;
+      setOpen(false);
+      setQuery('');
+    }
+  }, [disabled]);
 
   const selected = useMemo(
     () => selectedOption ?? options.find((o) => o.value === value) ?? null,
@@ -138,12 +154,12 @@ export const Combobox: React.FC<ComboboxProps> = ({
     loadOptions()
       .then((opts) => {
         // Drop a stale resolution: a newer load started or the picker closed.
-        if (id !== loadIdRef.current) return;
+        if (id !== loadIdRef.current || disabledRef.current) return;
         setOptions(opts);
         setState('ready');
       })
       .catch(() => {
-        if (id !== loadIdRef.current) return;
+        if (id !== loadIdRef.current || disabledRef.current) return;
         setState('error');
       });
   }, [loadOptions]);
@@ -225,6 +241,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
 
   const select = useCallback(
     (opt: ComboboxOption) => {
+      if (disabledRef.current) return;
       onChange(opt.value, opt);
       setOpen(false);
       setQuery('');
@@ -289,8 +306,8 @@ export const Combobox: React.FC<ComboboxProps> = ({
           type="button"
           role="combobox"
           aria-haspopup="listbox"
-          aria-expanded={open}
-          aria-controls={open ? listId : undefined}
+          aria-expanded={open && !disabled}
+          aria-controls={open && !disabled ? listId : undefined}
           aria-labelledby={labelId}
           title={selected?.sub ? `${selected.label} — ${selected.sub}` : selected?.label}
           aria-required={required || undefined}
@@ -320,6 +337,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
         {clearable && value && (
           <button
             type="button"
+            disabled={disabled && !clearWhileDisabled}
             aria-label={t('combobox.clear', { defaultValue: 'Clear {{noun}}', noun })}
             onClick={(e) => {
               e.stopPropagation();
@@ -337,7 +355,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
 
       <FieldError id={errId}>{error}</FieldError>
 
-      {open &&
+      {open && !disabled &&
         pos &&
         createPortal(
           <div

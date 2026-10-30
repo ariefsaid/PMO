@@ -240,6 +240,7 @@
     "futureDate": "Tanggal publikasi tidak boleh di masa depan.",
     "invalidRate": "Masukkan kurs 1.000–100.000 dengan maksimal enam angka desimal; periksa pemisah angka.",
     "fileTooLarge": "Ukuran file melebihi 5 MiB.",
+    "expandedFileTooLarge": "Ukuran buku kerja setelah diekstrak melebihi 20 MiB.",
     "emptyFile": "File tidak berisi baris kurs.",
     "tooManyRows": "Impor maksimal 500 baris sekaligus.",
     "unsupportedFile": "Pilih file Excel BI atau CSV tanggal,kurs yang didukung.",
@@ -4604,7 +4605,9 @@
     "pageGaps": "Tidak ada kurs untuk {{dates}}",
     "moreEarlier": "kurs lebih lama di halaman berikutnya",
     "previewCoverage": "Tanggal dari {{first}} hingga {{last}}: {{count}} memiliki kurs",
-    "previewGaps": "Tidak ada kurs untuk {{dates}}"
+    "previewGaps": "Tidak ada kurs untuk {{dates}}",
+    "previewGapSummary_one": "{{dates}} tanggal tanpa kurs dalam {{count}} rentang",
+    "previewGapSummary_other": "{{dates}} tanggal tanpa kurs dalam {{count}} rentang"
   },
   "uxs17": {
     "deliverySection": "Pengiriman kepada klien",

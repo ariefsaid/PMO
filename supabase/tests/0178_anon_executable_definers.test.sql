@@ -114,6 +114,12 @@
 -- supabase/tests/procurement_header_requester.test.sql exercises its contract and ACL.
 -- Anonymous grants remain subject to the sweep even for retained names.
 --
+-- The budget import and procurement import-run commands retain authenticated access;
+-- their owning proofs are 0397_budget_import_protocol.test.sql and
+-- 0399_procurement_import_identity_authority.test.sql. Atomic draft creation is
+-- exercised by procurement_atomic_create.test.sql and its interleave companion.
+-- Anonymous and PUBLIC grants remain subject to the sweep.
+--
 -- ⚑ MERGE HAZARD, learned the hard way here: the list and its CARDINALITY live in this one file.
 -- Two branches each adding one name merge cleanly in the LIST (different lines) while the count
 -- line is a real conflict that resolves to one side — leaving a list of 51 asserted as 50. That is
@@ -158,6 +164,7 @@ insert into client_callable_rpc_names (proname) values
   ('create_native_sales_invoice'),
   ('create_payment'),
   ('create_procurement_invoice'),
+  ('create_procurement_with_items'),
   ('record_vendor_withholding_slip'),
   ('correct_vendor_withholding_slip'),
   ('void_vendor_withholding_slip'),
@@ -179,6 +186,7 @@ insert into client_callable_rpc_names (proname) values
   ('get_projects_milestone_dates'),
   ('get_sales_pipeline'),
   ('get_win_rate'),
+  ('import_budget_line_v2'),
   ('is_operator'),
   ('link_erp_purchase_documents'),
   ('link_procurement_sharepoint_item'),
@@ -214,6 +222,7 @@ insert into client_callable_rpc_names (proname) values
   ('set_sales_invoice_received_date'),
   ('set_vendor_tax_defaults'),
   ('set_work_order_value'),
+  ('start_procurement_import_run'),
   ('submit_sales_invoice'),
   ('transition_document_status'),
   ('transition_expense_claim'),
@@ -247,8 +256,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  85,
-  'AC-ACL-002 all 85 retained client-callable RPC names still have a public function');
+  88,
+  'AC-ACL-002 all 88 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -257,8 +266,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  85,
-  'AC-ACL-003 all 85 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  88,
+  'AC-ACL-003 all 88 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

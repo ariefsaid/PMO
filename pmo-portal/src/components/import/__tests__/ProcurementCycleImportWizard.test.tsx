@@ -6,7 +6,7 @@
  * All grouping/validation logic runs REAL (no mock) — we only stub the two I/O seams.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 
@@ -24,6 +24,10 @@ vi.mock('@/src/lib/import/procurementCycle/commit', () => ({
   commitGroups: vi.fn(),
 }));
 import { commitGroups } from '@/src/lib/import/procurementCycle/commit';
+vi.mock('@/src/lib/import/procurementCycle/dryRunConflictReport', () => ({ buildDryRunConflictReport: vi.fn() }));
+import { buildDryRunConflictReport } from '@/src/lib/import/procurementCycle/dryRunConflictReport';
+vi.mock('@/src/lib/db/procurementImportSkip', () => ({ supabaseImportSkipLookup: {}, startProcurementImportRun: vi.fn().mockResolvedValue('server-run') }));
+import { startProcurementImportRun } from '@/src/lib/db/procurementImportSkip';
 
 // 3. useOrgCurrency — the preview's org-default currency (FR-L10N-020). Stubbed so the
 // wizard doesn't need an AuthProvider/QueryClientProvider in these unit tests. Mutable
@@ -130,6 +134,7 @@ async function driveToPreview(user: ReturnType<typeof userEvent.setup>, rows: st
 describe('ProcurementCycleImportWizard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(buildDryRunConflictReport).mockResolvedValue({ wouldCreate: 1, wouldSkip: 0, wouldCollide: 0 });
     orgCurrencyState.value = 'USD';
   });
 
@@ -538,6 +543,15 @@ describe('ProcurementCycleImportWizard', () => {
     expect(screen.getByText('PR')).toBeInTheDocument();
   });
 
+  it('allows an individual case to expand after collapsing all cases', async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await driveToPreview(user);
+    await user.click(screen.getByRole('button', { name: /collapse all/i }));
+    await user.click(screen.getByRole('button', { name: /case-001/i }));
+    expect(screen.getByText('PR')).toBeInTheDocument();
+  });
+
   // ── E15: button label rename ──────────────────────────────────────────────
 
   // ── ESC / scrim ───────────────────────────────────────────────────────────
@@ -571,4 +585,80 @@ describe('ProcurementCycleImportWizard', () => {
     await user.click(screen.getByRole('button', { name: /^back$/i }));
     expect(screen.getByLabelText(/choose an \.xlsx file/i)).toBeInTheDocument();
   });
+});
+
+it('shows reconciliation details from preview', async () => {
+  vi.mocked(buildDryRunConflictReport).mockResolvedValue({ wouldCreate: 0, wouldSkip: 0, wouldCollide: 1, conflicts: [{ caseRef: 'case-001', rowNumber: 2, type: 'PR', id: 'existing-id', message: 'Existing source requires reconciliation.' }] });
+  const user = userEvent.setup();
+  renderWizard();
+  await driveToPreview(user);
+  expect(await screen.findByText(/existing source requires reconciliation/i)).toBeInTheDocument();
+  expect(screen.getByText(/existing-id/)).toBeInTheDocument();
+});
+
+it('shows preview failure and enables import only after retry succeeds', async () => {
+  const user = userEvent.setup();
+  renderWizard();
+  vi.mocked(parseWorkbook).mockResolvedValue({ headers: FULL_HEADERS, rows: FULL_ROWS } as never);
+  vi.mocked(buildDryRunConflictReport).mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValueOnce({ wouldCreate: 3, wouldSkip: 1, wouldCollide: 0 });
+  await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), file());
+  await user.click(await screen.findByRole('button', { name: /^next$/i }));
+  expect(await screen.findByRole('alert')).toHaveTextContent(/retry/i);
+  expect(screen.getByRole('button', { name: /import \d+ record/i })).toBeDisabled();
+  await user.click(screen.getByRole('button', { name: /retry preview/i }));
+  expect(await screen.findByText(/3 to create, 1 to skip, 0 conflicts/i)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /import \d+ record/i })).toBeEnabled();
+});
+
+
+it.each(['registration', 'success', 'failure'] as const)('recovers in the mounted wizard when references refresh during %s', async phase => {
+  let resolveRun!: (id: string) => void;
+  let resolveWrite!: (result: { created: number; failed: number; cases: [] }) => void;
+  let rejectWrite!: (error: Error) => void;
+  vi.mocked(startProcurementImportRun).mockReset().mockResolvedValue('server-run');
+  vi.mocked(buildDryRunConflictReport).mockReset().mockResolvedValue({ wouldCreate: 1, wouldSkip: 0, wouldCollide: 0 });
+  if (phase === 'registration') vi.mocked(startProcurementImportRun).mockImplementationOnce(() => new Promise(resolve => { resolveRun = resolve; }));
+  else vi.mocked(commitGroups).mockImplementationOnce(() => new Promise((resolve, reject) => { resolveWrite = resolve; rejectWrite = reject; }));
+  const user = userEvent.setup();
+  const onClose = vi.fn();
+  const parent = (reference: typeof projectLookup) => <ProcurementCycleImportWizard requestedById="user-1" projectLookup={reference} vendorLookup={vendorLookup} onClose={onClose} />;
+  const { rerender } = render(parent(projectLookup));
+  await driveToPreview(user, [FULL_ROWS[0]]);
+  await waitFor(() => expect(screen.getByRole('button', { name: /import 1 record/i })).toBeEnabled());
+  await user.click(screen.getByRole('button', { name: /import 1 record/i }));
+  if (phase !== 'registration') await waitFor(() => expect(commitGroups).toHaveBeenCalled());
+  rerender(parent(makeRefLookup([{ id: 'p1', name: 'Alpha Project' }], 'Project')));
+  await act(async () => {
+    if (phase === 'registration') resolveRun('server-run');
+    else if (phase === 'success') resolveWrite({ created: 1, failed: 0, cases: [] });
+    else rejectWrite(new Error('failed'));
+  });
+  if (phase === 'success') expect(await screen.findByText('Import complete')).toBeInTheDocument();
+  else {
+    expect(await screen.findByRole('button', { name: /retry preview/i })).toBeInTheDocument();
+    if (phase === 'registration') expect(commitGroups).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: /retry preview/i }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /import 1 record/i })).toBeEnabled());
+  }
+});
+
+it.each(['success', 'failure'] as const)('offers retry when a refreshed pending preview returns stale %s', async outcome => {
+  let resolveReport!: (result: { wouldCreate: number; wouldSkip: number; wouldCollide: number }) => void;
+  let rejectReport!: (error: Error) => void;
+  vi.mocked(buildDryRunConflictReport).mockReset()
+    .mockImplementationOnce(() => new Promise((resolve, reject) => { resolveReport = resolve; rejectReport = reject; }))
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValueOnce({ wouldCreate: 1, wouldSkip: 0, wouldCollide: 0 });
+  const user = userEvent.setup();
+  const parent = (reference: typeof projectLookup) => <ProcurementCycleImportWizard requestedById="user-1" projectLookup={reference} vendorLookup={vendorLookup} onClose={vi.fn()} />;
+  const { rerender } = render(parent(projectLookup));
+  await driveToPreview(user, [FULL_ROWS[0]]);
+  rerender(parent(makeRefLookup([{ id: 'p1', name: 'Alpha Project' }], 'Project')));
+  await act(async () => { if (outcome === 'success') resolveReport({ wouldCreate: 99, wouldSkip: 0, wouldCollide: 0 }); else rejectReport(new Error('stale')); });
+  expect(screen.queryByText(/99 to create/)).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: /retry preview/i }));
+  expect(await screen.findByText(/preview could not be completed/i)).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: /retry preview/i }));
+  expect(await screen.findByText(/1 to create/)).toBeInTheDocument();
 });

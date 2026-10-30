@@ -659,6 +659,7 @@ export type Database = {
           id: string
           import_batch_id: string | null
           import_key: string | null
+          import_origin: number | null
           imported_at: string | null
           org_id: string
         }
@@ -672,6 +673,7 @@ export type Database = {
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
+          import_origin?: number | null
           imported_at?: string | null
           org_id?: string
         }
@@ -685,6 +687,7 @@ export type Database = {
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
+          import_origin?: number | null
           imported_at?: string | null
           org_id?: string
         }
@@ -4278,6 +4281,8 @@ export type Database = {
           erp_modified: string | null
           id: string
           import_batch_id: string | null
+          import_identity_facts: Json | null
+          import_identity_version: number | null
           import_key: string | null
           imported_at: string | null
           invoice_id: string | null
@@ -4299,6 +4304,8 @@ export type Database = {
           erp_modified?: string | null
           id?: string
           import_batch_id?: string | null
+          import_identity_facts?: Json | null
+          import_identity_version?: number | null
           import_key?: string | null
           imported_at?: string | null
           invoice_id?: string | null
@@ -4320,6 +4327,8 @@ export type Database = {
           erp_modified?: string | null
           id?: string
           import_batch_id?: string | null
+          import_identity_facts?: Json | null
+          import_identity_version?: number | null
           import_key?: string | null
           imported_at?: string | null
           invoice_id?: string | null
@@ -4673,6 +4682,35 @@ export type Database = {
           },
         ]
       }
+      procurement_import_runs: {
+        Row: {
+          created_at: string
+          id: string
+          identity_version: number
+          org_id: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          identity_version: number
+          org_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          identity_version?: number
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procurement_import_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       procurement_invoices: {
         Row: {
           amount: number | null
@@ -4688,6 +4726,8 @@ export type Database = {
           external_ref: string | null
           id: string
           import_batch_id: string | null
+          import_identity_facts: Json | null
+          import_identity_version: number | null
           import_key: string | null
           imported_at: string | null
           invoice_date: string | null
@@ -4720,6 +4760,8 @@ export type Database = {
           external_ref?: string | null
           id?: string
           import_batch_id?: string | null
+          import_identity_facts?: Json | null
+          import_identity_version?: number | null
           import_key?: string | null
           imported_at?: string | null
           invoice_date?: string | null
@@ -4752,6 +4794,8 @@ export type Database = {
           external_ref?: string | null
           id?: string
           import_batch_id?: string | null
+          import_identity_facts?: Json | null
+          import_identity_version?: number | null
           import_key?: string | null
           imported_at?: string | null
           invoice_date?: string | null
@@ -4916,6 +4960,8 @@ export type Database = {
           file_url: string | null
           id: string
           import_batch_id: string | null
+          import_identity_facts: Json | null
+          import_identity_version: number | null
           import_key: string | null
           imported_at: string | null
           is_selected: boolean
@@ -4938,6 +4984,8 @@ export type Database = {
           file_url?: string | null
           id?: string
           import_batch_id?: string | null
+          import_identity_facts?: Json | null
+          import_identity_version?: number | null
           import_key?: string | null
           imported_at?: string | null
           is_selected?: boolean
@@ -4960,6 +5008,8 @@ export type Database = {
           file_url?: string | null
           id?: string
           import_batch_id?: string | null
+          import_identity_facts?: Json | null
+          import_identity_version?: number | null
           import_key?: string | null
           imported_at?: string | null
           is_selected?: boolean
@@ -5069,6 +5119,8 @@ export type Database = {
           gr_number: string | null
           id: string
           import_batch_id: string | null
+          import_identity_facts: Json | null
+          import_identity_version: number | null
           import_key: string | null
           imported_at: string | null
           org_id: string
@@ -5087,6 +5139,8 @@ export type Database = {
           gr_number?: string | null
           id?: string
           import_batch_id?: string | null
+          import_identity_facts?: Json | null
+          import_identity_version?: number | null
           import_key?: string | null
           imported_at?: string | null
           org_id?: string
@@ -5105,6 +5159,8 @@ export type Database = {
           gr_number?: string | null
           id?: string
           import_batch_id?: string | null
+          import_identity_facts?: Json | null
+          import_identity_version?: number | null
           import_key?: string | null
           imported_at?: string | null
           org_id?: string
@@ -5206,6 +5262,7 @@ export type Database = {
           id: string
           import_batch_id: string | null
           import_key: string | null
+          import_normalized_ref: string | null
           imported_at: string | null
           org_id: string
           origin: string | null
@@ -5235,6 +5292,7 @@ export type Database = {
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
+          import_normalized_ref?: string | null
           imported_at?: string | null
           org_id?: string
           origin?: string | null
@@ -5264,6 +5322,7 @@ export type Database = {
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
+          import_normalized_ref?: string | null
           imported_at?: string | null
           org_id?: string
           origin?: string | null
@@ -6166,6 +6225,8 @@ export type Database = {
           external_ref: string | null
           id: string
           import_batch_id: string | null
+          import_identity_facts: Json | null
+          import_identity_version: number | null
           import_key: string | null
           imported_at: string | null
           org_id: string
@@ -6186,6 +6247,8 @@ export type Database = {
           external_ref?: string | null
           id?: string
           import_batch_id?: string | null
+          import_identity_facts?: Json | null
+          import_identity_version?: number | null
           import_key?: string | null
           imported_at?: string | null
           org_id?: string
@@ -6206,6 +6269,8 @@ export type Database = {
           external_ref?: string | null
           id?: string
           import_batch_id?: string | null
+          import_identity_facts?: Json | null
+          import_identity_version?: number | null
           import_key?: string | null
           imported_at?: string | null
           org_id?: string
@@ -6299,6 +6364,8 @@ export type Database = {
           external_ref: string | null
           id: string
           import_batch_id: string | null
+          import_identity_facts: Json | null
+          import_identity_version: number | null
           import_key: string | null
           imported_at: string | null
           org_id: string
@@ -6319,6 +6386,8 @@ export type Database = {
           external_ref?: string | null
           id?: string
           import_batch_id?: string | null
+          import_identity_facts?: Json | null
+          import_identity_version?: number | null
           import_key?: string | null
           imported_at?: string | null
           org_id?: string
@@ -6339,6 +6408,8 @@ export type Database = {
           external_ref?: string | null
           id?: string
           import_batch_id?: string | null
+          import_identity_facts?: Json | null
+          import_identity_version?: number | null
           import_key?: string | null
           imported_at?: string | null
           org_id?: string
@@ -6527,6 +6598,8 @@ export type Database = {
           erp_modified: string | null
           id: string
           import_batch_id: string | null
+          import_identity_facts: Json | null
+          import_identity_version: number | null
           import_key: string | null
           imported_at: string | null
           org_id: string
@@ -6546,6 +6619,8 @@ export type Database = {
           erp_modified?: string | null
           id?: string
           import_batch_id?: string | null
+          import_identity_facts?: Json | null
+          import_identity_version?: number | null
           import_key?: string | null
           imported_at?: string | null
           org_id?: string
@@ -6565,6 +6640,8 @@ export type Database = {
           erp_modified?: string | null
           id?: string
           import_batch_id?: string | null
+          import_identity_facts?: Json | null
+          import_identity_version?: number | null
           import_key?: string | null
           imported_at?: string | null
           org_id?: string
@@ -8060,8 +8137,25 @@ export type Database = {
       }
     }
     Functions: {
+      normalize_procurement_import_refs: {
+        Args: { p_refs: string[] }
+        Returns: { input_ref: string; normalized_ref: string }[]
+      }
+      lookup_procurement_import_cases: {
+        Args: { p_refs: string[]; p_after_key?: string | null; p_after_id?: string | null; p_limit?: number; p_org_id?: string | null }
+        Returns: { id: string; import_key: string; import_batch_id: string | null; normalized_ref: string }[]
+      }
+      start_procurement_import_run: {
+        Args: { p_org_id?: string | null }
+        Returns: string
+      }
+      create_procurement_with_items: { Args: { p_id: string; p_header: Json; p_items: Json }; Returns: Database['public']['Tables']['procurements']['Row'] }
       update_procurement_header: { Args: { p_id: string; p_patch: Json }; Returns: boolean }
       procurement_item_values_editable: { Args: { p_case: string }; Returns: boolean }
+      budget_version_read_totals: {
+        Args: { p_project_id: string }
+        Returns: { version_id: string; total: number }[]
+      }
       _m365_disconnect_cascade_core: {
         Args: {
           p_actor_id: string
@@ -8259,6 +8353,8 @@ export type Database = {
           external_ref: string | null
           id: string
           import_batch_id: string | null
+          import_identity_facts: Json | null
+          import_identity_version: number | null
           import_key: string | null
           imported_at: string | null
           invoice_date: string | null
@@ -8391,6 +8487,8 @@ export type Database = {
           erp_modified: string | null
           id: string
           import_batch_id: string | null
+          import_identity_facts: Json | null
+          import_identity_version: number | null
           import_key: string | null
           imported_at: string | null
           invoice_id: string | null
@@ -8442,6 +8540,8 @@ export type Database = {
           external_ref: string | null
           id: string
           import_batch_id: string | null
+          import_identity_facts: Json | null
+          import_identity_version: number | null
           import_key: string | null
           imported_at: string | null
           invoice_date: string | null
@@ -8486,6 +8586,8 @@ export type Database = {
           file_url: string | null
           id: string
           import_batch_id: string | null
+          import_identity_facts: Json | null
+          import_identity_version: number | null
           import_key: string | null
           imported_at: string | null
           is_selected: boolean
@@ -8525,6 +8627,8 @@ export type Database = {
           gr_number: string | null
           id: string
           import_batch_id: string | null
+          import_identity_facts: Json | null
+          import_identity_version: number | null
           import_key: string | null
           imported_at: string | null
           org_id: string
@@ -8577,6 +8681,8 @@ export type Database = {
           external_ref: string | null
           id: string
           import_batch_id: string | null
+          import_identity_facts: Json | null
+          import_identity_version: number | null
           import_key: string | null
           imported_at: string | null
           org_id: string
@@ -8616,6 +8722,8 @@ export type Database = {
           external_ref: string | null
           id: string
           import_batch_id: string | null
+          import_identity_facts: Json | null
+          import_identity_version: number | null
           import_key: string | null
           imported_at: string | null
           org_id: string
@@ -8653,6 +8761,8 @@ export type Database = {
           erp_modified: string | null
           id: string
           import_batch_id: string | null
+          import_identity_facts: Json | null
+          import_identity_version: number | null
           import_key: string | null
           imported_at: string | null
           org_id: string
@@ -8758,6 +8868,19 @@ export type Database = {
           rate: number
           rate_date: string
         }[]
+      }
+      budget_attributed_year_sums: {
+        Args: { p_fiscal_years: string[]; p_project_id: string }
+        Returns: {
+          as_of: string
+          category: Database["public"]["Enums"]["budget_category"]
+          fiscal_year: string
+          source_sum: number
+        }[]
+      }
+      first_budget_spending_year: {
+        Args: { p_fiscal_years: string[]; p_project_id: string }
+        Returns: string
       }
       get_budget_projection: {
         Args: { p_fiscal_year: string; p_project_id: string }
@@ -8967,6 +9090,24 @@ export type Database = {
       holds_won_value_authority: {
         Args: { p_role: Database["public"]["Enums"]["user_role"] }
         Returns: boolean
+      }
+      import_budget_line_v2: {
+        Args: {
+          p_batch_id: string
+          p_budgeted_amount: number
+          p_category: Database["public"]["Enums"]["budget_category"]
+          p_description: string
+          p_fiscal_year: string
+          p_has_reference: boolean
+          p_imported_at: string
+          p_legacy_key: string
+          p_v2_key: string
+          p_version_id: string
+        }
+        Returns: {
+          line_id: string
+          outcome: string
+        }[]
       }
       insert_timesheet_outbox_pending: {
         Args: {
@@ -10012,6 +10153,8 @@ export type Database = {
           external_ref: string | null
           id: string
           import_batch_id: string | null
+          import_identity_facts: Json | null
+          import_identity_version: number | null
           import_key: string | null
           imported_at: string | null
           invoice_date: string | null

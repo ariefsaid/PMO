@@ -77,6 +77,7 @@ vi.mock('@/src/lib/repositories/budgetProjection', async (importOriginal) => {
     fetchBudgetProjection: vi.fn().mockImplementation(() => Promise.resolve(state.projectionRows)),
     fetchActiveBudgetCategoryPhasing: vi.fn().mockImplementation(() => Promise.resolve(state.phasing)),
     listBudgetFiscalYears: vi.fn().mockImplementation(() => Promise.resolve(state.fiscalYears)),
+    fetchFirstSpendingYear: vi.fn().mockResolvedValue(null),
     upsertBudgetProjectionEtc: state.saveEtc,
   };
 });

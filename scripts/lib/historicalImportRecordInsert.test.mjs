@@ -105,3 +105,36 @@ test('RECORD_TABLE_BY_TYPE covers all 7 record types', () => {
   assert.deepEqual(Object.keys(RECORD_TABLE_BY_TYPE).sort(),
     ['GR', 'PO', 'PR', 'Payment', 'Quotation', 'RFQ', 'VI'].sort());
 });
+
+test('historical quotation creation facts reflect the inserted reference', async () => {
+  const { projectCreationFacts } = await import('./historicalImportKey.mjs');
+  const row = { type: 'Quotation', vendor: 'Supplier', externalRef: 'Legacy quote', amount: '0', date: '' };
+  const { payload } = buildRecordInsert(row, 'case', { supplier: '39900000-0000-0000-0000-000000000031' }, prov);
+  const sql = (await import('node:fs')).readFileSync(new URL('../../supabase/tests/0399_procurement_import_identity.test.sql', import.meta.url), 'utf8');
+  const vector = JSON.parse(sql.split('$vectors$')[1]).find(v => v.type === 'historical_quotation');
+  assert.deepEqual(projectCreationFacts(row.type, payload), vector.facts);
+});
+
+test('historical projections follow the shared direct-insert vectors', async () => {
+  const { projectCreationFacts } = await import('./historicalImportKey.mjs');
+  const sql = (await import('node:fs')).readFileSync(new URL('../../supabase/tests/0399_procurement_import_identity.test.sql', import.meta.url), 'utf8');
+  const vectors = JSON.parse(sql.split('$vectors$')[1]);
+  for (const [name, row, invoiceId] of [
+    ['historical_pr', { type: 'PR', status: 'Closed' }, null],
+    ['historical_payment', { type: 'Payment', externalRef: 'Paid', status: 'Paid', amount: '1' }, '39900000-0000-0000-0000-000000000051'],
+  ]) {
+    const { payload } = buildRecordInsert(row, 'case', {}, { ...prov, invoiceId });
+    assert.deepEqual(projectCreationFacts(row.type, payload), vectors.find(v => v.type === name).facts, name);
+  }
+});
+
+test('historical monetary payload rejects excess scale and range before writing', () => {
+  for (const amount of ['1.234', '1000000000000', '-1', 'NaN']) {
+    assert.throws(() => buildRecordInsert({ type: 'PO', amount }, 'case', {}, prov), /amount/i, amount);
+  }
+  assert.equal(buildRecordInsert({ type: 'PO', amount: '999999999999.99' }, 'case', {}, prov).payload.amount, 999999999999.99);
+});
+
+test('historical monetary input retains valid exponent notation', () => {
+  assert.equal(buildRecordInsert({ type: 'PO', amount: '1e3' }, 'case', {}, prov).payload.amount, 1000);
+});

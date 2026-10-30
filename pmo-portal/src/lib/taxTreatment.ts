@@ -27,7 +27,7 @@
  */
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import { parseMoneyInputAtScale, parseNeutralMoneyInputAtScale } from '@/src/lib/format';
-import { decimalUnits, isTaxTreatment, normalizeTaxAmount } from './taxNormalize';
+import { decimalUnits, divRoundHalfAwayFromZero, isTaxTreatment, normalizeTaxAmount } from './taxNormalize';
 export { isTaxTreatment, normalizeTaxAmount };
 
 /**
@@ -167,7 +167,7 @@ export function calculateStandaloneTax(
   const taxDenominator =
     treatment === 'inclusive' ? rateDenominator + rateNumerator : rateDenominator;
   const taxNumerator = amountCents * rateNumerator;
-  const taxCents = (2n * taxNumerator + taxDenominator) / (2n * taxDenominator);
+  const taxCents = divRoundHalfAwayFromZero(taxNumerator, taxDenominator);
   const netCents = treatment === 'inclusive' ? amountCents - taxCents : amountCents;
   const grossCents = treatment === 'inclusive' ? amountCents : amountCents + taxCents;
   return {

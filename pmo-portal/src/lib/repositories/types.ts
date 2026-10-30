@@ -67,7 +67,7 @@ import type {
   RecordFolderTarget,
 } from '@/src/lib/m365/recordFolders';
 import type { PreparedAgentAttachmentUpload } from '@/src/lib/db/agentAttachments';
-import type { ActivateVersionResult, ArchiveVersionResult } from '@/src/lib/db/budgets';
+import type { ActivateVersionResult, ArchiveVersionResult, BudgetImportRequest } from '@/src/lib/db/budgets';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import type { UserRow, UserRole, InviteUserInput, SetUserStatusInput } from '@/src/lib/db/adminUsers';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -87,6 +87,7 @@ import type {
 } from '@/src/lib/db/procurementRecords';
 import type {
   NewProcurementInput,
+  AtomicProcurementInput,
   ProcurementHeaderPatch,
   ProcurementItemInput,
   ProcurementItemPatch,
@@ -119,7 +120,10 @@ import type {
   TimesheetAwaitingApproval,
 } from '@/src/lib/db/timesheetTransition';
 import type { EntryUpsert } from '@/src/lib/timesheet-edit';
+import type { BudgetActivationPrecheckResult } from '@/src/lib/budget/budgetGate';
 import type {
+  BudgetActivationMode,
+  BudgetArchiveLiveTarget,
   BudgetVersionRow,
   BudgetVersionWithItems,
   BudgetDocumentLinkRow,
@@ -440,6 +444,7 @@ export interface ProcurementRepository {
   // ── CRUD slice (editing paths) ──
   /** Raise a new PR (Draft); requester stamped from the caller's identity. */
   create(input: NewProcurementInput, requestedById: string): Promise<Tables<'procurements'>>;
+  createWithItems(input: AtomicProcurementInput): Promise<Tables<'procurements'>>;
   /** Edit the PR header (requester while Draft/Rejected; RLS is the authority). */
   updateHeader(id: string, patch: ProcurementHeaderPatch): Promise<void>;
   /** Set only vendor_id on a vendor-less request; RLS decides eligible roles/stages. */
@@ -602,7 +607,11 @@ export interface TimesheetRepository {
 }
 
 export interface BudgetRepository {
+  importLine(request: BudgetImportRequest): Promise<{ outcome: 'created' | 'skipped' | 'conflict'; line_id: string }>;
   deriveProjectBudget(projectId: string): Promise<number>;
+  getActivationMode(versionId: string): Promise<BudgetActivationMode>;
+  precheckActivation(versionId: string): Promise<BudgetActivationPrecheckResult>;
+  listArchiveLiveTargets(versionIds: readonly string[]): Promise<BudgetArchiveLiveTarget[]>;
   listVersions(projectId: string): Promise<BudgetVersionWithItems[]>;
   createLineItem(
     versionId: string,
@@ -611,7 +620,7 @@ export interface BudgetRepository {
   ): Promise<BudgetLineItemRow>;
   updateLineItem(
     id: string,
-    patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'actual_amount'>>,
+    patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'actual_amount' | 'fiscal_year'>>,
   ): Promise<void>;
   deleteLineItem(id: string): Promise<void>;
   createVersion(

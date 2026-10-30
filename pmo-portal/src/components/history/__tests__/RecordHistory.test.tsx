@@ -7,23 +7,28 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BahasaProvider } from '@/test/bahasa';
 import { formatCurrency, formatDateOnly, formatDateTime } from '@/src/lib/format';
 
-const { repo, listProcurementsByProject, listBudgetVersions, procDetail, authState } = vi.hoisted(() => ({
-  repo: {
-    recordHistory: { list: vi.fn(), lookupNames: vi.fn() },
-    profile: { listOrgProfiles: vi.fn() },
-    company: { list: vi.fn(), get: vi.fn() },
-    task: { list: vi.fn() },
-    milestone: { list: vi.fn() },
-    workOrder: { list: vi.fn() },
-  },
-  listProcurementsByProject: vi.fn(),
-  listBudgetVersions: vi.fn(),
-  procDetail: { data: undefined as Record<string, unknown> | undefined },
-  authState: { orgId: 'org-1' },
-}));
+const { repo, listProcurementsByProject, listBudgetVersions, procDetail, authState } = vi.hoisted(() => {
+  const listBudgetVersions = vi.fn();
+  return {
+    repo: {
+      recordHistory: { list: vi.fn(), lookupNames: vi.fn() },
+      profile: { listOrgProfiles: vi.fn() },
+      company: { list: vi.fn(), get: vi.fn() },
+      task: { list: vi.fn() },
+      milestone: { list: vi.fn() },
+      workOrder: { list: vi.fn() },
+      // PR-2 (7b63bc389 "Refresh budget and timesheet query consumers") moved useBudgetVersions onto
+      // the repository seam, so the versions read arrives here; the journey is unchanged.
+      budget: { listVersions: listBudgetVersions },
+    },
+    listProcurementsByProject: vi.fn(),
+    listBudgetVersions,
+    procDetail: { data: undefined as Record<string, unknown> | undefined },
+    authState: { orgId: 'org-1' },
+  };
+});
 vi.mock('@/src/lib/repositories', () => ({ repositories: repo }));
 vi.mock('@/src/lib/db/procurements', () => ({ listProcurementsByProject }));
-vi.mock('@/src/lib/db/budgets', () => ({ listBudgetVersions }));
 // #878: the procurement History names its document children (PR / RFQ / PO / payment) from the SAME
 // cached detail query the page itself uses — the hook stays disabled off a procurement History.
 vi.mock('@/src/hooks/useProcurementDetail', () => ({

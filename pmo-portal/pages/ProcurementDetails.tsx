@@ -228,7 +228,9 @@ const ProcurementDetails: React.FC = () => {
 
   // Vendor name map for VendorQuotesTab — reuses the cached FK option list so
   // there is no extra fetch; org_id scoping is handled by RLS inside the repo.
-  const { data: vendorOptions } = useVendorOptions();
+  const vendorQuery = useVendorOptions();
+  const { data: vendorOptions } = vendorQuery;
+  const vendorReferencesReady = !vendorQuery.isPending && !vendorQuery.isError && vendorOptions !== undefined;
   const vendorMap: Record<string, string> = React.useMemo(
     () => Object.fromEntries((vendorOptions ?? []).map((o) => [o.value, o.label])),
     [vendorOptions],
@@ -1181,12 +1183,14 @@ const ProcurementDetails: React.FC = () => {
                   value={selectedVendorId}
                   onChange={(value) => setSelectedVendorId(value)}
                   loadOptions={async () => vendorOptions ?? []}
+                  disabled={!vendorReferencesReady}
                   placeholder={t('bupot.selectVendor', 'Select a supplier…')}
                 />
+                {!vendorReferencesReady && <div role="status">{vendorQuery.isPending ? t('procurementCreate:references.loadingSuppliers', 'Loading suppliers…') : <>{t('procurementCreate:references.suppliersError', "Couldn't load suppliers.")} <Button type="button" variant="outline" onClick={() => void vendorQuery.refetch()}>{t('procurementCreate:references.retrySuppliers', 'Retry suppliers')}</Button></>}</div>}
                 <Button
                   variant="primary"
                   size="sm"
-                  disabled={!selectedVendorId || crud.updateVendor.isPending}
+                  disabled={!vendorReferencesReady || !selectedVendorId || crud.updateVendor.isPending}
                   onClick={async () => {
                     if (!selectedVendorId) return;
                     try {

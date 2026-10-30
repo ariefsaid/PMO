@@ -2492,47 +2492,29 @@ async function reconcileOrgBudgetArchiveCancellationsLive(
       if (error) throw new AppError(error.message, error.code);
     },
     markSuperseded: async (job) => {
-      const { error } = await serviceClient.from('budget_archive_cancel_intents')
-        .update({ state: 'superseded', last_error: null, updated_at: new Date().toISOString() })
-        .eq('id', job.id).eq('org_id', job.org_id).eq('state', 'pending');
+      const { data, error } = await serviceClient.rpc('transition_budget_archive_cancel_intent', {
+        p_org_id: job.org_id, p_intent_id: job.id, p_action: 'superseded', p_reason: null,
+      });
       if (error) throw new AppError(error.message, error.code);
-      const { error: mirrorError } = await serviceClient.from('budget_version_account_erp_mirror')
-        .update({ push_state: 'held', push_error: 'budget-archive-cancel-superseded' })
-        .eq('id', job.source_mirror_id).eq('org_id', job.org_id)
-        .eq('budget_version_id', job.budget_version_id).eq('fiscal_year', job.fiscal_year)
-        .eq('erp_account', job.erp_account).is('erp_cancelled_at', null)
-        .in('push_state', ['pending', 'failed']);
-      if (mirrorError) throw new AppError(mirrorError.message, mirrorError.code);
+      if (data === 'stale') throw new AppError('archive cancellation witness changed', 'archive-witness-stale');
     },
     markHeld: async (job, reason) => {
-      const { error } = await serviceClient.from('budget_archive_cancel_intents')
-        .update({ state: 'held', last_error: reason.slice(0, 1000), updated_at: new Date().toISOString() })
-        .eq('id', job.id).eq('org_id', job.org_id).eq('state', 'pending');
+      const { data, error } = await serviceClient.rpc('transition_budget_archive_cancel_intent', {
+        p_org_id: job.org_id, p_intent_id: job.id, p_action: 'held', p_reason: reason,
+      });
       if (error) throw new AppError(error.message, error.code);
-      const { error: mirrorError } = await serviceClient.from('budget_version_account_erp_mirror')
-        .update({ push_state: 'held', push_error: 'budget-archive-cancel-held' })
-        .eq('id', job.source_mirror_id).eq('org_id', job.org_id)
-        .eq('budget_version_id', job.budget_version_id).eq('fiscal_year', job.fiscal_year)
-        .eq('erp_account', job.erp_account).is('erp_cancelled_at', null)
-        .in('push_state', ['pending', 'failed', 'pushed']);
-      if (mirrorError) throw new AppError(mirrorError.message, mirrorError.code);
+      if (data === 'stale') throw new AppError('archive cancellation witness changed', 'archive-witness-stale');
       await surfaceActionRequired(serviceClient, job.org_id, 'budget-archive-cancel-held', {
         projectId: job.project_id, versionId: job.budget_version_id,
         fiscalYear: job.fiscal_year, account: job.erp_account,
       });
     },
     noteRetry: async (job, reason) => {
-      const { error } = await serviceClient.from('budget_archive_cancel_intents')
-        .update({ last_error: reason.slice(0, 1000), updated_at: new Date().toISOString() })
-        .eq('id', job.id).eq('org_id', job.org_id).eq('state', 'pending');
+      const { data, error } = await serviceClient.rpc('transition_budget_archive_cancel_intent', {
+        p_org_id: job.org_id, p_intent_id: job.id, p_action: 'retry', p_reason: reason,
+      });
       if (error) throw new AppError(error.message, error.code);
-      const { error: mirrorError } = await serviceClient.from('budget_version_account_erp_mirror')
-        .update({ push_state: 'failed', push_error: 'budget-archive-cancel-retry' })
-        .eq('id', job.source_mirror_id).eq('org_id', job.org_id)
-        .eq('budget_version_id', job.budget_version_id).eq('fiscal_year', job.fiscal_year)
-        .eq('erp_account', job.erp_account).is('erp_cancelled_at', null)
-        .in('push_state', ['pending', 'failed']);
-      if (mirrorError) throw new AppError(mirrorError.message, mirrorError.code);
+      if (data === 'stale') throw new AppError('archive cancellation witness changed', 'archive-witness-stale');
       await surfaceActionRequired(serviceClient, job.org_id, 'budget-archive-cancel-retry', {
         projectId: job.project_id, versionId: job.budget_version_id,
         fiscalYear: job.fiscal_year, account: job.erp_account,
