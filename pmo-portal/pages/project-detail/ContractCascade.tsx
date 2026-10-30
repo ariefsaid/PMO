@@ -68,14 +68,12 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   const canViewMoney = may('view', 'salesInvoice');
   const invoices = useSalesInvoices(project.id, { enabled: canViewMoney });
   const orderBilling = useWorkOrderBilling(project.id, canViewMoney);
-  if (boq.isPending || billing.isPending || orders.isPending) return <ListState variant="loading" rows={6} />;
-  if (boq.isError || billing.isError || orders.isError || !billing.data) {
-    return <ListState variant="error" title={t('projectDetail.cascade.error', "Couldn't load the contract")} onRetry={() => { void boq.refetch(); void billing.refetch(); void orders.refetch(); }} />;
-  }
+  const isCascadePending = boq.isPending || billing.isPending || orders.isPending;
+  const isCascadeError = boq.isError || billing.isError || orders.isError || (!isCascadePending && !billing.data);
 
   const items = boq.data ?? [];
-  const facts = new Map(billing.data.contractLines.map((line) => [line.boqItemId, line]));
-  const allocations = billing.data.contractLines.flatMap((line) => line.allocations);
+  const facts = new Map((billing.data?.contractLines ?? []).map((line) => [line.boqItemId, line]));
+  const allocations = (billing.data?.contractLines ?? []).flatMap((line) => line.allocations);
   const hasReadingLayer = items.length > 0;
   const rate = new Map(items.map((item) => [item.id, Number(item.rate)]));
   const contract = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.rate), 0);
@@ -84,12 +82,12 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   const notYetOrdered = items.reduce((sum, item) => sum + (facts.get(item.id)?.contractBalance ?? 0) * Number(item.rate), 0);
   const invoiceRows = (invoices.data ?? []) as InvoiceRowWithWorkOrder[];
   const settlement = summarizeInvoiceSettlement(invoiceRows);
-  const showSummary = canViewMoney && (hasReadingLayer || (
+  const showSummary = !isCascadePending && !isCascadeError && canViewMoney && (hasReadingLayer || (
     invoices.isPending || invoices.isError || invoiceRows.length > 0 || Number(project.contract_value) > 0
   ));
   const contractValue = hasReadingLayer
     ? contract
-    : billing.data.contractNet;
+    : (billing.data?.contractNet ?? 0);
   const invoiceFiguresMissing = canViewMoney && (
     invoices.isPending || invoices.isError || settlement.invoiced === null || (!settlement.balancesKnown && invoiceRows.some((invoice) => invoice.status === 'Paid'))
   );
@@ -134,9 +132,18 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
     setSearchParams(next, { replace: true });
   };
 
+  if (!isCascadePending && isCascadeError) {
+    return <ListState variant="error" title={t('projectDetail.cascade.error', "Couldn't load the contract")} onRetry={() => { void boq.refetch(); void billing.refetch(); void orders.refetch(); }} />;
+  }
+
   return (
     <div className="flex min-w-0 flex-col gap-8">
-      {showSummary && (
+      {isCascadePending && (
+        <section aria-label={t('projectDetail.cascade.title', 'Contract')} className="min-w-0">
+          <ListState variant="loading" rows={6} />
+        </section>
+      )}
+      {!isCascadePending && !isCascadeError && showSummary && (
         <section aria-labelledby="pd-cascade" className="min-w-0">
           <div className="mb-4 flex flex-wrap items-baseline gap-x-2">
             <h2 id="pd-cascade" className="text-sm font-semibold text-foreground">{t('projectDetail.cascade.title', 'Contract')}</h2>
@@ -177,9 +184,9 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
           </div>
           <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground">
             {hasReadingLayer && <Tooltip content={t('projectDetail.cascade.source.notOrderedValue', 'Source: unallocated contract quantity multiplied by its contract rate.') }><span className="cursor-help">{t('projectDetail.cascade.notOrdered', 'Not yet ordered')} <strong className="font-semibold text-foreground">{formatNumberWhole(notYetOrdered)}</strong></span></Tooltip>}
-            {billing.data.dpBilled > 0 && <Tooltip content={t('projectDetail.cascade.source.downPayment', 'Source: project billing totals for down payment billed and recovered.') }><span className="cursor-help">· {t('projectDetail.cascade.downPaymentSummary', 'Down payment {{billed}} · recovered {{recovered}}', {
-              billed: formatNumberWhole(billing.data.dpBilled),
-              recovered: formatNumberWhole(billing.data.dpRecovered),
+            {Boolean(billing.data && billing.data.dpBilled > 0) && <Tooltip content={t('projectDetail.cascade.source.downPayment', 'Source: project billing totals for down payment billed and recovered.') }><span className="cursor-help">· {t('projectDetail.cascade.downPaymentSummary', 'Down payment {{billed}} · recovered {{recovered}}', {
+              billed: formatNumberWhole(billing.data!.dpBilled),
+              recovered: formatNumberWhole(billing.data!.dpRecovered),
               interpolation: { escapeValue: false },
             })}</span></Tooltip>}
           </p>

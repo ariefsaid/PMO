@@ -88,6 +88,7 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
     enabled: Boolean(projectId && fiscalYear),
   });
   const rows = projectionQuery.data ?? [];
+  const hasForecastRows = Boolean(fiscalYear && !projectionQuery.isPending && !projectionQuery.isError && rows.length > 0);
   const selected = rows.find((row) => row.category === searchParams.get('open')) ?? null;
   const phasing = phasingQuery.data;
   const budgetYearOnRecord = Object.values(phasing?.years ?? {}).some((years) => years.includes(fiscalYear));
@@ -246,15 +247,21 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
   const totalCommitted = canReadCommitments
     ? rows.reduce((sum, row) => sum + (committedByCategory[row.category] ?? 0), 0)
     : null;
+  const totalBudget = rows.every((row) => row.pmoBudgetAmount !== null)
+    ? rows.reduce((sum, row) => sum + (row.pmoBudgetAmount ?? 0), 0)
+    : null;
+  const totalForecastRemaining = rows.every((row) => row.projectedVariance !== null)
+    ? rows.reduce((sum, row) => sum + (row.projectedVariance ?? 0), 0)
+    : null;
   const totals = rows.length ? [{
     key: 'total',
     label: t('financeCopy.total', 'Total'),
     values: {
-      budget: moneyText(rows.every((row) => row.pmoBudgetAmount !== null) ? rows.reduce((sum, row) => sum + (row.pmoBudgetAmount ?? 0), 0) : null, currency),
+      budget: moneyText(totalBudget, currency),
       spent: <span className="inline-flex flex-col items-end"><span>{moneyText(rows.every((row) => row.actualsToDate !== null) ? rows.reduce((sum, row) => sum + (row.actualsToDate ?? 0), 0) : null, currency)}</span><span className="text-xs font-normal text-muted-foreground">{t('projectDetail.budget.projectCommitmentsShort', 'Committed · project-wide')}: {moneyText(totalCommitted, currency)}</span></span>,
       etc: formatCurrencyAuto(rows.reduce((sum, row) => sum + row.pmoEtc, 0), currency),
       final: moneyText(rows.every((row) => row.projectedFinalCost !== null) ? rows.reduce((sum, row) => sum + (row.projectedFinalCost ?? 0), 0) : null, currency),
-      remaining: moneyText(rows.every((row) => row.projectedVariance !== null) ? rows.reduce((sum, row) => sum + (row.projectedVariance ?? 0), 0) : null, currency),
+      remaining: moneyText(totalForecastRemaining, currency),
     },
   }] : [];
 
@@ -268,6 +275,16 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
 
   return (
     <section ref={sectionRef} className="min-w-0 space-y-3" aria-label={t('projectDetail.budget.forecast', 'Forecast')} data-testid="budget-forecast-view">
+      {hasForecastRows && <dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-y border-border/70 py-3 text-sm sm:max-w-2xl sm:gap-x-6">
+        <div className="min-w-0">
+          <dt className="text-xs text-muted-foreground">{t('financeCopy.total', 'Total')} {t('financeCopy.budget', 'Budget')}</dt>
+          <dd className="mt-1 whitespace-nowrap font-semibold tabular-nums">{moneyText(totalBudget, currency)}</dd>
+        </div>
+        <div className="min-w-0">
+          <dt className="text-xs text-muted-foreground">{t('projectDetail.budget.forecastRemaining', 'Forecast remaining')}</dt>
+          <dd className="mt-1 whitespace-nowrap font-semibold tabular-nums">{moneyText(totalForecastRemaining, currency)}</dd>
+        </div>
+      </dl>}
       <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
         <label className="flex min-w-44 flex-col gap-1 text-xs font-medium text-muted-foreground">
           {t('projectDetail.budget.fiscalYear', 'Fiscal year')}
@@ -301,6 +318,7 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
                 tableId="project-budget-forecast"
                 accessibleName={t('projectDetail.budget.forecastTable', 'Budget forecast by category')}
                 cardBelow={600}
+                embedded
                 totals={totals}
               />
               <p className="text-xs text-muted-foreground">{t('projectDetail.budget.forecastCommitmentScope', 'Committed amounts are project-wide; the current source does not assign them to a fiscal year. They are shown separately and are not included in the fiscal-year forecast final.')}</p>

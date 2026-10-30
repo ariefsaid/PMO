@@ -102,6 +102,8 @@ test.describe('AC-RAM-004 geometry: milestone percentage never overlaps the phas
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await signIn(page, ADMIN);
       await page.goto(`/projects/${DELIVERY_LENS}/overview`);
+      await page.getByRole('region', { name: 'Phase timeline' })
+        .getByRole('button', { name: 'Update phases', exact: true }).click();
       await expect(page.getByTestId('milestone-card-grid')).toBeVisible({ timeout: 20_000 });
 
       // The seeded "Commissioning & Grid Connection" phase is the long-name worst case at the
@@ -169,6 +171,8 @@ test.describe('AC-RAM-004 geometry round 3: milestone phase names wrap only at w
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await signIn(page, ADMIN);
       await page.goto(`/projects/${DELIVERY_LENS}/overview`);
+      await page.getByRole('region', { name: 'Phase timeline' })
+        .getByRole('button', { name: 'Update phases', exact: true }).click();
       const grid = page.getByTestId('milestone-card-grid');
       await expect(grid).toBeVisible({ timeout: 20_000 });
       await waitForFonts(page);

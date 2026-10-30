@@ -289,6 +289,18 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(screen.queryByText('inv-1')).not.toBeInTheDocument();
   });
 
+  it('uses the native PMO number for a paid invoice record without an ERP number', () => {
+    salesInvoicesState.data[0] = {
+      ...SEED_INVOICES[0],
+      si_number: null,
+      pmo_number: 'INV-TEST-PAID-001',
+      status: 'Paid',
+      pmo_native: true,
+    };
+    renderAt('/sales-invoices/inv-1');
+    expect(screen.getByRole('heading', { name: /^Invoice INV-TEST-PAID-001$/ })).toBeInTheDocument();
+  });
+
   it('RF-024 shows invoice dates, status, overdue age, outstanding and customer context on the detail record', () => {
     salesInvoicesState.data[0] = {
       ...SEED_INVOICES[0], status: 'Unpaid', pmo_native: false,

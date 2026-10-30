@@ -103,7 +103,8 @@ test(
     await page.goto('/projects');
     await waitProjectsReady(page);
     await projectRow(page, projectName).getByRole('button', { name: projectName, exact: true }).click();
-    await page.getByRole('button', { name: /Edit contract value/i }).click();
+    await page.getByLabel('More actions').click();
+    await page.getByRole('button', { name: /Change contract value/i }).click();
     const valueInput = page.getByRole('textbox', { name: /Contract value/i });
     await valueInput.fill('5250000');
     // The tax basis must travel with the edited amount.

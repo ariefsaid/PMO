@@ -319,9 +319,12 @@ test('AC-EAC-018: admin connects ClickUp → links project → edits task → we
   // ===========================================================================
   // WHEN-c: the Admin edits a PMO task status (the push-direction trigger).
   // ===========================================================================
-  // The seeded task is the only row for this dedicated project; its status <select> is labelled
-  // "Status for <name>" (SelectField, native, admin may set any task's status).
+  // The seeded task is the only row for this dedicated project. Its status pill is a button;
+  // opening it exposes the labelled native SelectField used to edit the status.
+  const statusButton = page.getByRole('button', { name: `Status for ${TASK_NAME}` });
   const statusSelect = page.getByLabel(`Status for ${TASK_NAME}`);
+  await expect(statusButton).toBeVisible({ timeout: 15_000 });
+  await statusButton.click();
   await expect(statusSelect).toBeVisible({ timeout: 15_000 });
   await statusSelect.selectOption('In Progress');
   // The real write lands in Postgres; the toast confirms the user's edit was accepted.
@@ -390,6 +393,10 @@ test('AC-EAC-018: admin connects ClickUp → links project → edits task → we
   //     read-model refetch picks up the webhook's effect.
   // ===========================================================================
   await page.reload();
+  // Completed task groups are collapsed after reload; expand the exact group before checking status.
+  await page.getByRole('tabpanel', { name: 'Tasks' }).getByRole('button', { name: '1 done', exact: true }).click();
+  await expect(statusButton).toBeVisible({ timeout: 15_000 });
+  await statusButton.click();
   await expect(statusSelect).toBeVisible({ timeout: 15_000 });
   await expect(statusSelect).toHaveValue(webhookStatus, { timeout: 15_000 });
 

@@ -13,7 +13,10 @@
  * scroll sideways.
  */
 import { test, expect, type Page } from '@playwright/test';
-import { signIn, waitForFonts } from './helpers';
+import path from 'node:path';
+import { AUTH_DIR, waitForFonts } from './helpers';
+
+test.use({ storageState: path.join(AUTH_DIR, 'finance@acme.test.json') });
 
 const PID = '40000000-0000-0000-0000-000000000013';
 const ORG = '00000000-0000-0000-0000-000000000001';
@@ -75,7 +78,8 @@ async function stub(page: Page, bahasa: boolean) {
 }
 
 const CASES = [
-  { lang: 'English', bahasa: false, invoice: 'Invoice', widths: [1024, 1280, 1440] },
+  // #1402 copy: English invoice action ships as "Raise invoice"; same action/geometry oracle.
+  { lang: 'English', bahasa: false, invoice: 'Raise invoice', widths: [1024, 1280, 1440] },
   { lang: 'Bahasa Indonesia', bahasa: true, invoice: 'Tagih', widths: [1024, 1440] },
 ] as const;
 
@@ -85,10 +89,13 @@ test.describe('AC-BWO-004 work-order billing geometry beside the record panel (#
       test(`AC-BWO-004: ${lang} at ${width}px — Invoice is inside the list's visible box and nothing scrolls sideways`, async ({ page }) => {
         await page.setViewportSize({ width, height: 900 });
         await stub(page, bahasa);
-        await signIn(page, 'finance@acme.test');
         await page.goto(`/projects/${PID}/work-orders`);
         if (bahasa) await expect(page.locator('html')).toHaveAttribute('lang', 'id', { timeout: 60_000 });
-        await expect(page.getByText('WO-2610070002').first()).toBeVisible({ timeout: 60_000 });
+        const billableWorkOrder = page.getByRole('button', {
+          name: bahasa ? 'Lihat detail WO-2610070002' : 'View details for WO-2610070002',
+          exact: true,
+        });
+        await expect(billableWorkOrder).toBeVisible({ timeout: 60_000 });
         await expect(page.getByRole('button', { name: invoice }).first()).toBeVisible();
         await waitForFonts(page);
 

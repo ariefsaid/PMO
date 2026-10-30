@@ -26,6 +26,11 @@ orca orchestration worker-start --spec "<brief or path>" --agent <harness> \
 
 ## Model routing (defaults; right-size per task)
 
+**Intelligence ranking (owner, 2026-10-29):** Sol > Terra > Gemini 3.8 Flash > GLM-5.3-flash > Luna. GLM runs at most
+**2 parallel tasks**. Match the model to
+the task's difficulty (e.g. money, auth and data-loss fixes → Terra; bounded UI fixes and refactors →
+Flash; mechanical deletions and renames → Luna; orchestration and final review → Sol).
+
 **Cheapest first (owner, 2026-10-28):** spend quota in this order and stop at the first model that can do
 the job well: Gemini Flash → GLM-5.3-flash → GPT (Luna, then Terra, then Sol) → Claude (Sonnet, then Opus). Claude
 tokens are preserved for the Opus orchestrator: no Opus while Sol has quota; no Opus or Sol where Sonnet

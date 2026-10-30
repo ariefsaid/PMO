@@ -20,6 +20,10 @@ const NAMES = [
 const CONTRACTS = [63_400_000_000, 48_215_000_000, 21_870_500_000, 15_300_000_000, 7_925_000_000, 4_180_000_000];
 const SPENT = [24_812_225_000, 17_402_000_000, 9_115_750_000, 4_310_000_000, 2_120_800_000, 652_000_000];
 
+// Deterministic additional facts for independently loaded Finance and report figures.
+export const FINANCE_FIXTURE = { receivable: 58_412_775_000, payable: 24_812_225_000, contract: 160_890_500_000 } as const;
+
+
 const top = NAMES.map((name, i) => ({
   id: uuid(i + 1), name, client_name: `PT Klien Sintetis ${i + 1}`,
   contract_value: CONTRACTS[i], currency: 'IDR', budget: null, spent: SPENT[i], actual_currency: 'IDR', actual_complete: false,
@@ -107,6 +111,7 @@ const json = (body: unknown) => (route: Route) => route.fulfill({ json: body });
 
 async function rewriteRead(route: Route, rewrite: (body: unknown) => unknown) {
   const response = await route.fetch();
+  if (!response.ok()) return route.fulfill({ response });
   let body: unknown;
   try {
     body = await response.json();
@@ -114,6 +119,55 @@ async function rewriteRead(route: Route, rewrite: (body: unknown) => unknown) {
     return route.fulfill({ response });
   }
   return route.fulfill({ response, json: rewrite(body) });
+}
+
+
+// Bind these read models to one deterministic IDR fact, independent of mutable seed totals.
+// These responses are read-only; the other dashboard stress inputs above are unchanged.
+function financeInvoiceFixture(body: unknown): unknown {
+  if (!Array.isArray(body)) return body;
+  return [{
+    id: uuid(9001), project_id: uuid(9003), customer_id: null, currency: 'IDR',
+    status: 'Unpaid', amount: FINANCE_FIXTURE.receivable,
+    erp_outstanding_amount: FINANCE_FIXTURE.receivable, invoice_date: '2020-01-01',
+    erp_due_date: '2020-01-31', received_date: null, created_at: '2020-01-01T00:00:00Z',
+    author_user_id: null, sales_invoice_authors: [], companies: null,
+  }];
+}
+function financeProcurementFixture(body: unknown): unknown {
+  if (!Array.isArray(body)) return body;
+  return [{
+    id: uuid(9002), project_id: uuid(9003), vendor_id: null, currency: 'IDR',
+    status: 'Vendor Invoiced', title: 'Synthetic supplier invoice',
+    total_value: FINANCE_FIXTURE.payable, vendor_invoiced_at: '2020-01-01T00:00:00Z',
+    updated_at: '2020-01-01T00:00:00Z', procurement_invoices: [{ amount: FINANCE_FIXTURE.payable }],
+    payments: [], project: null, vendor: null, requested_by: null,
+  }];
+}
+function reportFactsFixture(body: unknown): unknown {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return body;
+  const facts = body as Record<string, unknown>;
+  if (typeof facts.from !== 'string' || typeof facts.to !== 'string' || typeof facts.timezone !== 'string'
+      || typeof facts.org_currency !== 'string' || typeof facts.undated_invoice_count !== 'number'
+      || !Array.isArray(facts.projects) || !Array.isArray(facts.invoiced)
+      || !Array.isArray(facts.invoiced_before) || !Array.isArray(facts.progress)
+      || !facts.invoiced_before.every((row: unknown) => {
+        if (!row || typeof row !== 'object' || Array.isArray(row)) return false;
+        const count = (row as Record<string, unknown>).invoice_count;
+        return typeof count === 'number' && Number.isInteger(count) && count >= 0;
+      })) return body;
+  const month = facts.to;
+  const id = uuid(9003);
+  return { ...facts,
+    projects: [{ id, name: NAMES[0], pmo_project_number: null, code: null,
+      status: 'Ongoing Project', currency: 'IDR', contract_net: FINANCE_FIXTURE.contract,
+      start_date: null, end_date: null, project_manager_id: null, client_name: null }],
+    invoiced: [{ project_id: id, currency: 'IDR', month,
+      net: FINANCE_FIXTURE.receivable, invoice_count: 1 }],
+    invoiced_before: [],
+    progress: [{ project_id: id, month, pct_complete: 100,
+      entered_at: `${month}T00:00:00Z`, entered_by_name: null }],
+  };
 }
 
 /** Route-mock the dashboard reads with the IDR-billions fixture (org default currency IDR). */
@@ -131,7 +185,16 @@ export async function installIdrDashboardFixture(page: Page) {
   for (const pattern of ['**/rest/v1/sales_invoice_work_billed?*', '**/rest/v1/sales_invoices?*', '**/rest/v1/rpc/get_management_pack*', '**/rest/v1/procurements?*']) {
     await page.route(pattern, (route) => {
       if (route.request().method() !== 'GET' && !/rpc/.test(route.request().url())) return route.fallback();
-      return rewriteRead(route, (body) => toIdr(body));
+      return rewriteRead(route, (body) => {
+        const scaled = toIdr(body);
+        const url = new URL(route.request().url());
+        if (url.pathname.endsWith('/sales_invoices') && !url.searchParams.has('project_id')
+            && !url.searchParams.has('status') && !url.searchParams.has('pmo_native')) return financeInvoiceFixture(scaled);
+        if (url.pathname.endsWith('/procurements') && !url.searchParams.has('project_id')
+            && !url.searchParams.has('vendor_id')) return financeProcurementFixture(scaled);
+        if (url.pathname.endsWith('/rpc/get_management_pack')) return reportFactsFixture(scaled);
+        return scaled;
+      });
     });
   }
 }

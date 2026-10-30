@@ -22,6 +22,13 @@ test('AC-IXD-DASH-003: Board pack opens the management pack — no fake success'
   await login(page, 'exec@acme.test');
   await page.goto('/');
 
+  // The Board pack action now lives on Reports. Follow the current navigation to the management pack,
+  // then exercise the real action there.
+  const reports = page.getByRole('link', { name: 'Reports', exact: true });
+  await expect(reports).toBeVisible();
+  await reports.click();
+  await page.waitForURL('**/finance/reports');
+
   // The seed org has Revenue on (OD-NAR-2 default) and the executive may see the pack, so the control is
   // live and really opens the management pack.
   const boardPack = page.getByRole('button', { name: /Board pack/i });

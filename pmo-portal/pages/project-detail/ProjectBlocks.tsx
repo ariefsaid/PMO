@@ -13,7 +13,7 @@ import { useTasks } from '@/src/hooks/useTasks';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useMilestones } from '@/src/hooks/useMilestones';
-import { completionPct, formatDateOnly, formatNumberWhole } from '@/src/lib/format';
+import { completionPct, formatCurrency, formatDateOnly, formatNumberWhole } from '@/src/lib/format';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { deriveMargin } from '@/src/lib/projectFinances';
@@ -159,7 +159,11 @@ export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) 
               <dd className="min-w-0">
                 {percent !== null && <ProgressBar value={percent} tone="primary" widthless className="w-full" aria-label={t('projectDetail.money.stageAria', '{{label}} is {{percent}}% of contract', { label: step.label, percent })} />}
               </dd>
-              <dd className="text-right text-sm">{explain(step.source, whole(step.value))}</dd>
+              <dd className="text-right text-sm">
+                {step.key === 'contract'
+                  ? <span data-testid="contract-value-amount">{explain(step.source, formatCurrency(step.value, project.currency))}</span>
+                  : explain(step.source, whole(step.value))}
+              </dd>
               {step.key === 'contract' && contractValue !== null && (
                 <dd className="col-span-2 col-start-2 text-right"><FxEquivalent amount={contractValue} currency={project.currency} date={project.contract_date} compact /></dd>
               )}

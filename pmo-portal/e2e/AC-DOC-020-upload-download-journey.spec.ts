@@ -46,12 +46,17 @@ test('AC-DOC-020/021/040/041: PM uploads, downloads, replaces, and previews a pr
   const row = await createDocument(page, { title, code, category: 'Drawing' });
 
   // Upload a valid small file to the Draft document.
+  await row.getByLabel(`View ${title}`).click();
+  const uploadDrawer = page.getByRole('complementary', { name: title });
+  await expect(uploadDrawer).toBeVisible();
   const [uploadChooser] = await Promise.all([
     page.waitForEvent('filechooser'),
-    row.getByLabel(`Upload file for ${title}`).click(),
+    uploadDrawer.getByLabel(`Upload file for ${title}`).click(),
   ]);
   await uploadChooser.setFiles(PDF_FIXTURE);
   await expect(row.getByText('tiny-upload.pdf')).toBeVisible({ timeout: 15_000 });
+  await uploadDrawer.getByRole('button', { name: 'Close preview' }).click();
+  await expect(uploadDrawer).not.toBeVisible({ timeout: 10_000 });
 
   const { data: uploadedDoc } = await supabase
     .from('project_documents')
@@ -63,21 +68,24 @@ test('AC-DOC-020/021/040/041: PM uploads, downloads, replaces, and previews a pr
 
   // Download the uploaded file and assert a real browser download occurred.
   await row.getByLabel(`View ${title}`).click();
-  const drawer = page.getByRole('dialog');
+  const drawer = page.getByRole('complementary', { name: title });
   await expect(drawer).toBeVisible();
   const downloadPromise = page.waitForEvent('download');
-  await drawer.getByRole('button', { name: /download tiny-upload\.pdf/i }).click();
+  await drawer.getByRole('button', { name: /^download$/i }).click();
   const download = await downloadPromise;
   const originalBytes = await readDownloadBytes(download);
   expect(download.suggestedFilename()).toBe('tiny-upload.pdf');
   expect(originalBytes.equals(PDF_BYTES)).toBe(true);
-  await page.keyboard.press('Escape');
+  await drawer.getByRole('button', { name: 'Close preview' }).click();
   await expect(drawer).not.toBeVisible({ timeout: 10_000 });
 
   // Replace it with a previewable image.
+  await row.getByLabel(`View ${title}`).click();
+  const replaceDrawer = page.getByRole('complementary', { name: title });
+  await expect(replaceDrawer).toBeVisible();
   const [replaceChooser] = await Promise.all([
     page.waitForEvent('filechooser'),
-    row.getByLabel(`Replace file for ${title}`).click(),
+    replaceDrawer.getByLabel(`Replace file for ${title}`).click(),
   ]);
   await replaceChooser.setFiles(PNG_FIXTURE);
   await expect(row.getByText('tiny-preview.png')).toBeVisible({ timeout: 15_000 });
@@ -96,18 +104,20 @@ test('AC-DOC-020/021/040/041: PM uploads, downloads, replaces, and previews a pr
     .download(oldPath!);
   expect(oldObject).toBeNull();
   expect(oldObjectError?.message.toLowerCase()).toContain('not found');
+  await replaceDrawer.getByRole('button', { name: 'Close preview' }).click();
+  await expect(replaceDrawer).not.toBeVisible({ timeout: 10_000 });
 
   // Download the replacement and prove the new bytes/name are the replacement file.
   await row.getByLabel(`View ${title}`).click();
-  const replacementDrawer = page.getByRole('dialog');
+  const replacementDrawer = page.getByRole('complementary', { name: title });
   await expect(replacementDrawer).toBeVisible();
   const replacementDownloadPromise = page.waitForEvent('download');
-  await replacementDrawer.getByRole('button', { name: /download tiny-preview\.png/i }).click();
+  await replacementDrawer.getByRole('button', { name: /^download$/i }).click();
   const replacementDownload = await replacementDownloadPromise;
   const replacementBytes = await readDownloadBytes(replacementDownload);
   expect(replacementDownload.suggestedFilename()).toBe('tiny-preview.png');
   expect(replacementBytes.equals(PNG_BYTES)).toBe(true);
-  await page.keyboard.press('Escape');
+  await replacementDrawer.getByRole('button', { name: 'Close preview' }).click();
   await expect(replacementDrawer).not.toBeVisible({ timeout: 10_000 });
 
   // Move the document into its read state, then preview the previewable file in a new tab.

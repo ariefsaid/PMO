@@ -73,8 +73,10 @@ test('AC-M365DOC-011/040/058: a PM adds a project document from a OneDrive folde
   await openDocumentsTab(page);
   const row = documentRow(page, title);
   await expect(row).toBeVisible({ timeout: 15_000 });
-  await expect(row.getByText('Folder reference: contents are not issued or approved')).toBeVisible();
-  await expect(row.getByRole('button', { name: /Open folder in SharePoint/ })).toBeEnabled();
+  await row.getByRole('button', { name: `View ${title}`, exact: true }).click();
+  const details = page.getByRole('complementary', { name: title });
+  await expect(details.getByText('Folder reference: contents are not issued or approved')).toBeVisible();
+  await expect(details.getByRole('button', { name: /Open folder in SharePoint/ })).toBeEnabled();
 
   // Reference-only: no Issue / Approve affordance in the row menu.
   await row.hover();

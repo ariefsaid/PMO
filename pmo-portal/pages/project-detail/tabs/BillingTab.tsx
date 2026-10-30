@@ -143,7 +143,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   // A claim's scope comes from the allocations: until they are loaded no scope is offered (never a guessed one).
   const claimScopeReady = !allocations.isPending && !allocations.isError;
   const canBill = may('create', 'progressClaim') && erp.connected && clientId !== null && claimScopeReady;
-  const canStartInvoice = may('create', 'salesInvoice') && erp.connected && revenueRouteReady && clientId !== null;
+  const canStartInvoice = may('create', 'salesInvoice') && revenueRouteReady && clientId !== null;
   const canAssess = may('edit', 'projectProgress', { currentUserId: currentUser?.id, record: { project_manager_id: projectManagerId } });
   const liveDownPayment = claimRows.some((c) => c.kind === 'down_payment' && !c.withdrawn_at && c.invoice?.status !== 'Cancelled');
 
@@ -527,6 +527,12 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     return (
       <>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          {canStartInvoice && <Link
+            className="touch-target inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            to={`/sales-invoices?create=1&project=${encodeURIComponent(projectId)}`}
+          >
+            {t('uxs15.contractInvoice', 'Contract invoice')}
+          </Link>}
           <Button variant="ghost" size="sm" className="h-auto min-h-8 px-1 text-xs text-muted-foreground underline underline-offset-4"
             onClick={() => setContractLinesOpen(true)}>
             {t('projectDetail.billing.boq.manage', 'Edit contract lines')}

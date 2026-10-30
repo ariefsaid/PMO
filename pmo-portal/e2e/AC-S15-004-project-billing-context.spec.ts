@@ -189,28 +189,42 @@ test('AC-S15-004 Finance starts a work-order invoice from the project, saves the
     if (workOrder.error) throw new Error('AC-S15-004 fixture work order: ' + workOrder.error.message);
 
     await signIn(page, 'finance@acme.test');
-    // Native revenue writes go through the existing RPC; keep ERP resource traffic out of this journey.
+    // The local fixture runs native revenue mode; keep ERP resource traffic out of this journey.
     await page.route('**/api/resource/**', (route) => route.abort());
 
     if (discoverOutputDir) {
       await page.setViewportSize({ width: 390, height: 844 });
-      await page.goto('/projects/' + projectId + '/billing');
+      await page.goto('/projects/' + projectId + '/overview');
       await expect(page.getByRole('heading', { name: projectName })).toBeVisible();
       await setDiscoverPresentation(page, 'en', 'light');
       await expect(page.getByTestId('record-header').getByText(companyName, { exact: true })).toBeVisible();
-      await page.getByRole('button', { name: localized('Start invoice', 'Mulai membuat faktur') }).click();
-      const chooser = page.getByRole('dialog', { name: localized('Start invoice', 'Mulai membuat faktur') });
-      await expect(chooser).toBeVisible();
-      await expect(chooser.getByRole('button', { name: localized('Customer work order', 'Work Order pelanggan') })).toBeVisible();
-      await expect(chooser.getByRole('link', { name: localized('Contract invoice', 'Faktur kontrak') })).toBeVisible();
-      discoverGeometry.push({
-        ...(await captureDiscoverScreen(page, discoverOutputDir, 'project-billing-chooser-390-en-light')),
-        oracles: ['long customer identity remains visible on the owning project', 'contract and customer-work-order methods remain distinct', 'modal focus and viewport geometry'],
-      });
+    } else {
+      await page.goto('/projects/' + projectId + '/overview');
+    }
+    const raiseInvoice = page.getByRole('button', { name: localized('Raise invoice', 'Terbitkan faktur'), exact: true });
+    await expect(raiseInvoice).toBeVisible();
+    await raiseInvoice.click();
+    await expect(page).toHaveURL((url) => url.pathname === `/projects/${projectId}/contract` && url.search === '');
+    await expect(page.getByRole('tab', { name: localized('Contract & billing', 'Kontrak & penagihan'), selected: true })).toBeVisible();
 
-      await page.getByRole('link', { name: localized('Contract invoice', 'Faktur kontrak') }).click();
-      const contractForm = page.getByRole('dialog', { name: localized('New invoice', 'Faktur baru') });
-      await expect(contractForm).toBeVisible();
+    const contractInvoice = page.getByRole('link', { name: localized('Contract invoice', 'Faktur kontrak'), exact: true });
+    await expect(contractInvoice).toHaveAttribute('href', `/sales-invoices?create=1&project=${encodeURIComponent(projectId)}`);
+    if (discoverOutputDir) {
+      discoverGeometry.push({
+        ...(await captureDiscoverScreen(page, discoverOutputDir, 'project-contract-entry-390-en-light')),
+        oracles: ['long customer identity remains visible on the owning project', 'contract invoice entry remains available beside customer orders', 'viewport and focus geometry'],
+      });
+    }
+    await contractInvoice.click();
+    const contractForm = page.getByRole('dialog', { name: localized('New invoice', 'Faktur baru') });
+    await expect(contractForm).toBeVisible();
+    await expect(page).toHaveURL((url) => url.pathname === '/finance/receivables'
+      && url.searchParams.get('create') === null
+      && url.searchParams.get('project') === projectId);
+    await expect(contractForm.getByRole('combobox', { name: localized('Customer', 'Pelanggan') })).toContainText(companyName);
+    await expect(contractForm.getByRole('combobox', { name: localized('Project', 'Proyek') })).toContainText(projectName);
+    await expect(contractForm.getByText('€')).toBeVisible();
+    if (discoverOutputDir) {
       for (const mode of discoverModes) {
         await page.setViewportSize({ width: mode.width, height: mode.height });
         await setDiscoverPresentation(page, mode.locale, mode.theme);
@@ -225,20 +239,20 @@ test('AC-S15-004 Finance starts a work-order invoice from the project, saves the
       }
       writeFileSync(path.join(discoverOutputDir, 'geometry.json'), JSON.stringify(discoverGeometry, null, 2), { mode: 0o600 });
       chmodSync(path.join(discoverOutputDir, 'geometry.json'), 0o600);
-
-      await page.setViewportSize({ width: 1440, height: 900 });
-      await page.goto('/projects/' + projectId + '/billing');
-      await setDiscoverPresentation(page, 'en', 'light');
-    } else {
-      await page.goto('/projects/' + projectId + '/billing');
     }
-    await page.getByRole('button', { name: localized('Start invoice', 'Mulai membuat faktur') }).click();
-    await page.getByRole('button', { name: localized('Customer work order', 'Work Order pelanggan') }).click();
-    await expect(page).toHaveURL(new RegExp('/projects/' + projectId + '/work-orders$'));
 
-    const orderRow = page.getByRole('row').filter({ hasText: workOrderTitle });
+    await page.goto('/projects/' + projectId + '/overview');
+    if (discoverOutputDir) {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await setDiscoverPresentation(page, 'en', 'light');
+    }
+    await page.getByRole('button', { name: localized('Raise invoice', 'Terbitkan faktur'), exact: true }).click();
+    await expect(page).toHaveURL((url) => url.pathname === `/projects/${projectId}/contract` && url.search === '');
+    await expect(page.getByRole('tab', { name: localized('Contract & billing', 'Kontrak & penagihan'), selected: true })).toBeVisible();
+
+    const orderRow = page.locator('article').filter({ hasText: workOrderNumber });
     await expect(orderRow).toBeVisible();
-    await orderRow.getByRole('button', { name: /invoice|tagih/i }).click();
+    await orderRow.getByRole('button', { name: localized('Raise invoice', 'Terbitkan faktur'), exact: true }).click();
 
     const form = page.getByRole('dialog');
     await expect(form.getByRole('heading', { name: localized('Invoice this work order', 'Tagih Work Order ini') })).toBeVisible();

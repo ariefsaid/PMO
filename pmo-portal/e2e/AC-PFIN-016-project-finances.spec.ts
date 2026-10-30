@@ -10,7 +10,7 @@ import { signIn, requireServiceRoleKey, waitForFonts } from './helpers';
 // on failure. Touches NO org-global singleton (no ownership toggle, no feature flag, no budget).
 //
 // Journey (spec §AC-PFIN-016):
-//  1. Finance opens Revenue by Project; the Unassigned row opens the unassigned invoices.
+//  1. Finance opens the Reports surface; its Assign projects link opens unassigned invoices.
 //  2. It navigates to the filtered invoice list (/sales-invoices?attribution=unassigned).
 //  3. Finance opens the invoice's row menu → "Assign project" → picks the project → Save.
 //  4. The attribution persists: DB link + the invoice leaves the unassigned filter + the project
@@ -42,8 +42,8 @@ async function expectUsdSettlement(usd: Locator): Promise<void> {
   await expect(amountFor('Invoiced')).toHaveText('100');
   await expect(amountFor('Settled')).toHaveText('75');
   await expect(amountFor('Outstanding')).toHaveText('25');
-  // Unknown actual spending remains an explanation instead of a fabricated zero margin.
-  await expect(amountFor('Margin')).toHaveText('Actual spending is still being confirmed.');
+  // #1402 copy: unknown actual spending remains an explanation instead of a fabricated numeric margin.
+  await expect(amountFor('Margin')).toHaveText('Gross margin is left out until spending is linked for every budget category.');
 }
 
 let PROJECT_ID: string;
@@ -106,15 +106,14 @@ test('AC-PFIN-016: Finance assigns an adopted invoice to a project — attributi
 
   await signIn(page, 'finance@acme.test');
 
-  // ── Step 1: Revenue by Project → the Unassigned (USD) row opens the unassigned list ────────
-  await page.goto('/revenue-by-project');
-  // FIN-S6: the Unassigned row is one clickable row (no separate "Assign project" button); currency rides on the amounts.
-  const unassignedUsd = page.getByRole('button', { name: 'Open Unassigned (USD)' });
-  await expect(unassignedUsd).toBeVisible({ timeout: 20_000 });
-  await unassignedUsd.click();
+  // ── Step 1: Reports → the current Assign projects link opens the unassigned list ───────────
+  await page.goto('/finance/reports');
+  const assignProjects = page.getByRole('link', { name: 'Assign projects', exact: true });
+  await expect(assignProjects).toBeVisible({ timeout: 20_000 });
+  await assignProjects.click();
 
   // ── Step 2: the filtered invoice list ───────────────────────────────────────────────────────
-  await expect(page).toHaveURL(/\/sales-invoices\?attribution=unassigned/);
+  await expect(page).toHaveURL(/\/finance\/receivables\?attribution=unassigned/);
   await expect(page.getByText('Unassigned invoices')).toBeVisible({ timeout: 20_000 });
   const invoiceRow = page.locator('tbody tr', { hasText: SI_NUMBER });
   await expect(invoiceRow).toBeVisible({ timeout: 20_000 });
@@ -142,6 +141,8 @@ test('AC-PFIN-016: Finance assigns an adopted invoice to a project — attributi
 
   // ── Step 4c: the project Overview finance section reads the honest settlement ───────────────
   await page.goto(`/projects/${PROJECT_ID}`);
+  const moneyPosition = page.getByRole('region', { name: 'Money position' });
+  await moneyPosition.getByRole('button', { name: 'Details', exact: true }).click();
   const section = page.getByTestId('project-finances');
   await expect(section).toBeVisible({ timeout: 20_000 });
   const usd = page.getByTestId('project-finances-USD');
@@ -152,6 +153,7 @@ test('AC-PFIN-016: Finance assigns an adopted invoice to a project — attributi
 
   // ── Step 5: the same goal survives a reload ─────────────────────────────────────────────────
   await page.reload();
+  await page.getByRole('region', { name: 'Money position' }).getByRole('button', { name: 'Details', exact: true }).click();
   await expect(page.getByTestId('project-finances')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId('project-finances-USD')).toBeVisible({ timeout: 20_000 });
   await expectUsdSettlement(page.getByTestId('project-finances-USD'));
@@ -170,6 +172,7 @@ test('AC-PFIN-015 support: project finance mobile layout', async ({ page }) => {
 
   await signIn(page, 'finance@acme.test');
   await page.goto(`/projects/${PROJECT_ID}`);
+  await page.getByRole('region', { name: 'Money position' }).getByRole('button', { name: 'Details', exact: true }).click();
   const usd = page.getByTestId('project-finances-USD');
   await expect(usd).toBeVisible({ timeout: 20_000 });
   await waitForFonts(page);
@@ -177,7 +180,8 @@ test('AC-PFIN-015 support: project finance mobile layout', async ({ page }) => {
   const outstanding = usd.locator('dl > div').filter({ hasText: 'Outstanding' }).locator('dd').first();
   await expect(outstanding).toHaveText('25');
   const margin = usd.locator('dl > div').filter({ hasText: 'Margin' }).locator('dd').first();
-  await expect(margin).toHaveText('Actual spending is still being confirmed.');
+  // #1402 copy: keep the exact no-fabricated-margin reason for the owning margin oracle.
+  await expect(margin).toHaveText('Gross margin is left out until spending is linked for every budget category.');
   const fits = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
   expect(fits).toBe(true);
 

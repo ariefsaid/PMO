@@ -685,7 +685,7 @@
       "erpCard": {
         "title": "From the accounting system · not linked to a procurement",
         "qualifier": "These costs are already counted in project spending. Linking connects the paperwork and does not add spend.",
-        "alreadyInSpending": "Already in spending"
+        "alreadyInSpending": "Already counted in Actuals."
       }
     },
     "tasks": {

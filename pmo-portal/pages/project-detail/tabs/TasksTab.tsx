@@ -1493,7 +1493,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
     const note = hasTasksOutsideFilters
       ? t('projectDetail.tasks.noFilteredTasksInGroup', 'No tasks in this phase match the current filters.')
       : !group.completed && group.tasks.length === 0 ? t('projectDetail.tasks.noTasksInGroup', 'No tasks in this phase yet.') : null;
-    return <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5 font-normal">
+    return <div className="flex min-w-0 max-w-full flex-1 flex-wrap items-center gap-x-3 gap-y-1.5 font-normal">
       {dateRange && <Tooltip content={t('projectDetail.tasks.phaseDatesTooltip', 'Range from the earliest task start date to the latest task due date in the current task scope. Source: phase task records.')}>
         <span tabIndex={0} className="text-xs tabular text-muted-foreground">{dateRange}</span>
       </Tooltip>}
@@ -1504,8 +1504,8 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
         'projectDetail.tasks.phaseProgressTooltip',
         'Manual phase progress when set; otherwise Done phase tasks divided by the phase task count. Source: get_project_milestones.',
       )}>
-        <span tabIndex={0} className="inline-flex min-w-0 items-center">
-          <ProgressBar value={completionPct(group.milestone.effective_pct)} tone={group.milestone.effective_pct >= 100 ? 'success' : 'primary'} showValue compact aria-label={t('projectDetail.tasks.phaseProgress', 'Phase progress')} />
+        <span tabIndex={0} className="inline-flex min-w-0 max-w-full items-center">
+          <ProgressBar value={completionPct(group.milestone.effective_pct)} tone={group.milestone.effective_pct >= 100 ? 'success' : 'primary'} showValue compact className="max-w-full flex-wrap" aria-label={t('projectDetail.tasks.phaseProgress', 'Phase progress')} />
         </span>
       </Tooltip>}
       {lateDays !== null && <Tooltip content={t('projectDetail.tasks.phaseLateTooltip', 'Days past the phase target date, compared with today in the organization timezone. Source: milestone target date and organization day.')}>
@@ -1524,7 +1524,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
         {t('projectDetail.tasks.doneCount', '{{count}} done', { count: group.doneTasks.length })}
       </button>}
       {note && <span className="text-xs text-muted-foreground">{note}</span>}
-      {canCreate && <Button variant="ghost" size="sm" className="ml-auto" onClick={() => onAddTask(group.milestone?.id ?? null)}>
+      {canCreate && <Button variant="ghost" size="sm" className="ml-auto max-w-full" onClick={() => onAddTask(group.milestone?.id ?? null)}>
         <Icon name="plus" />{t('projectDetail.tasks.addTask', 'Add task')}
       </Button>}
     </div>;

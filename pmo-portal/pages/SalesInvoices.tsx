@@ -712,6 +712,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   }
 
   if (invoiceId) {
+    const viewTargetNumber = viewTarget ? invoiceNumber(viewTarget) : null;
     return (
       <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
         <Button variant="ghost" onClick={recordContext.closeRecord} className="mb-4 -ml-3">
@@ -732,8 +733,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
             <header className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
               <div>
                 <h1 className="text-[24px] font-bold tracking-[-0.02em]">
-                  {viewTarget.si_number
-                    ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: viewTarget.si_number })
+                  {viewTargetNumber
+                    ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: viewTargetNumber })
                     : invoiceDisplayLabel(viewTarget)}
                 </h1>
                 <p className="mt-1 text-sm text-muted-foreground">{viewTarget.customer_name ?? '—'}</p>

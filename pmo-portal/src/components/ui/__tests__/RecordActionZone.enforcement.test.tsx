@@ -281,7 +281,7 @@ describe('Enforcement: PipelineLens renders advance verbs through RecordActionZo
     render(
       <ImpersonationProvider realRole="Project Manager">
         <ToastProvider>
-          <PipelineLens project={pipelineProject} />
+          <MemoryRouter><PipelineLens project={pipelineProject} /></MemoryRouter>
         </ToastProvider>
       </ImpersonationProvider>,
     );

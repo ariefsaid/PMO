@@ -24,7 +24,7 @@ test('AC-CMDK-007: ⌘K → type a project name → Enter opens its detail page'
 
   // Type a substring of the seeded project name; the Records group surfaces it
   // after the 120ms debounce (records are searched from the cached list).
-  await page.getByRole('combobox').fill('Innovate Corp HQ');
+  await dialog.getByRole('combobox').fill('Innovate Corp HQ');
   const row = page.getByRole('option', { name: /Innovate Corp HQ Fit-Out/i });
   await expect(row).toBeVisible();
 

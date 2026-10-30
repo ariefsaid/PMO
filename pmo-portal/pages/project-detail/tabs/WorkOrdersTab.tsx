@@ -1145,7 +1145,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             errorTitle={t('projectDetail.billing.claims.error', 'Couldn’t load the billing claims')}
             errorSub={t('projectDetail.billing.claims.errorSub', 'Retry, or reopen the project.')}
             onRetry={() => void claimsQuery.refetch()}
-            cardBelow={720}
+            cardBelow={1000}
             tableId="project-detail-claims-register"
           />
         </CardPad>

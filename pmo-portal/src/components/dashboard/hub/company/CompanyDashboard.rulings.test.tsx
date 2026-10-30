@@ -35,6 +35,10 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ok(state.procurements) }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ok([]) }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ok([]) }));
+vi.mock('@/src/hooks/useCompanyCollections', () => ({
+  useCompanyCollections: () => ({ customerLinks: new Map<string, string>() }),
+}));
 vi.mock('@/src/hooks/useErpSnapshots', () => ({
   useActualsSnapshot: () => ok([]),
   useApAgingSnapshot: () => ok([]),
