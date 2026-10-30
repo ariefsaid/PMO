@@ -22,7 +22,7 @@ vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ co
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => h.mode }));
 
 import InvoiceWorkOrderModal from '../InvoiceWorkOrderModal';
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setDomainOwnership, setProjectBindings } from '@/src/lib/adapterSeam/ownershipCache';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { financeTestI18n } from '../../__tests__/financeI18nTestInstance';
 import { FinanceI18nTestProvider } from '../../__tests__/financeI18nTestProvider';
@@ -47,6 +47,9 @@ const renderModal = (wo: WorkOrderRow = WO) =>
 beforeEach(() => {
   h.invoke.mockReset();
   setDomainOwnership([{ domain: 'revenue', externalTier: 'erpnext' }]);
+  // Route readiness now also requires the per-project binding map (ADR-0056 sync): an empty map
+  // keeps revenue on the domain-level ERP route this test asserts.
+  setProjectBindings([]);
 });
 afterEach(() => clearOwnershipCache());
 
