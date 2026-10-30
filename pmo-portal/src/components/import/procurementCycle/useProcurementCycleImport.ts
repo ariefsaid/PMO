@@ -164,6 +164,9 @@ export function useProcurementCycleImport(
   requestedById: string,
 ): UseProcurementCycleImport {
   const [step, setStep] = useState<CycleWizardStep>('upload');
+  const stepRef = useRef(step);
+  stepRef.current = step;
+  const sessionGeneration = useRef(0);
   const [fileName, setFileName] = useState<string | null>(null);
   const [parsed, setParsed] = useState<ParsedSheet | null>(null);
   const [mapping, setMappingState] = useState<CycleMapping>({});
@@ -203,7 +206,10 @@ export function useProcurementCycleImport(
     return validateGroups(groups, { projectLookup, vendorLookup });
   }, [parsed, mapping, projectLookup, vendorLookup]);
 
-  useEffect(() => { invalidatePreview(); }, [validatedGroups, invalidatePreview]);
+  useEffect(() => {
+    invalidatePreview();
+    if (stepRef.current === 'preview') setParseError('References changed. Retry preview before importing.');
+  }, [validatedGroups, invalidatePreview]);
 
   const counts = useMemo<CycleCounts>(() => {
     if (validatedGroups.length === 0) return EMPTY_COUNTS;
@@ -227,6 +233,8 @@ export function useProcurementCycleImport(
   }, [validatedGroups]);
 
   const reset = useCallback(() => {
+    sessionGeneration.current++;
+    committing.current = false;
     parseGeneration.current++;
     setParsing(false);
     invalidatePreview();
@@ -243,6 +251,10 @@ export function useProcurementCycleImport(
   }, [invalidatePreview]);
 
   const selectFile = useCallback(async (file: File) => {
+    sessionGeneration.current++;
+    committing.current = false;
+    runIdRef.current = null;
+    setRunId(null);
     invalidatePreview();
     const generation = ++parseGeneration.current;
     setParsing(true);
@@ -290,7 +302,8 @@ export function useProcurementCycleImport(
   const aliveRef = useRef(true);
   useEffect(() => {
     aliveRef.current = true;
-    return () => { aliveRef.current = false; };
+    const session = sessionGeneration;
+    return () => { aliveRef.current = false; session.current++; };
   }, []);
 
   const goPreview = useCallback(async () => {
@@ -323,6 +336,7 @@ export function useProcurementCycleImport(
     const validGroups = validatedGroups.filter((g) => g.valid);
     if (!validGroups.some(group => group.rows.some(row => row.valid)) || approvedPreview.current !== previewGeneration.current || committing.current) return;
     const generation = previewGeneration.current;
+    const session = sessionGeneration.current;
     committing.current = true;
 
     setStep('committing');
@@ -330,9 +344,15 @@ export function useProcurementCycleImport(
 
     try {
       const actualRunId = runIdRef.current ?? await startProcurementImportRun();
-      if (!aliveRef.current || generation !== previewGeneration.current) return;
+      if (!aliveRef.current || session !== sessionGeneration.current) return;
       runIdRef.current = actualRunId;
       setRunId(actualRunId);
+      if (generation !== previewGeneration.current) {
+        setProgress(null);
+        setParseError('References changed. Retry preview before importing.');
+        setStep('preview');
+        return;
+      }
       const commitResult = await commitGroups(validGroups, {
         requestedById,
         projectLookup,
@@ -341,18 +361,18 @@ export function useProcurementCycleImport(
         skipLookup: supabaseImportSkipLookup,
       });
 
-      if (!aliveRef.current || generation !== previewGeneration.current) return;
+      if (!aliveRef.current || session !== sessionGeneration.current) return;
       setProgress(null);
       setResult(commitResult);
       setStep('result');
     } catch {
-      if (!aliveRef.current || generation !== previewGeneration.current) return;
+      if (!aliveRef.current || session !== sessionGeneration.current) return;
       setProgress(null);
       setParseError('Import could not start or finish. Retry after reviewing the preview.');
       invalidatePreview();
       setStep('preview');
     } finally {
-      committing.current = false;
+      if (session === sessionGeneration.current) committing.current = false;
     }
   }, [invalidatePreview, validatedGroups, requestedById, projectLookup, vendorLookup]);
 

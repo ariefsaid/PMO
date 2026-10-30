@@ -168,3 +168,80 @@ it('stops reading a cycle file when the wizard unmounts before its buffer arrive
   await act(async () => { finish(new ArrayBuffer(0)); await pending; });
   expect(parseWorkbook).not.toHaveBeenCalled();
 });
+
+it('offers a fresh preview after references change during registration and retains the run', async () => {
+  let finish!: (id: string) => void;
+  vi.mocked(startProcurementImportRun).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const lookup = makeRefLookup([], 'Reference');
+  const { result, rerender } = renderHook(({ reference }) => useProcurementCycleImport(reference, reference, 'user'), { initialProps: { reference: lookup } });
+  await act(async () => result.current.selectFile({ name: 'input.xlsx', arrayBuffer: async () => new ArrayBuffer(0) } as File));
+  await act(async () => result.current.goPreview());
+  let pending!: Promise<void>;
+  await act(async () => { pending = result.current.commit(); });
+  rerender({ reference: makeRefLookup([], 'Reference') });
+  await act(async () => { finish('server-run'); await pending; });
+  expect(commitGroups).not.toHaveBeenCalled();
+  expect(result.current.step).toBe('preview');
+  expect(result.current.parseError).toMatch(/retry/i);
+  expect(result.current.runIdentity).toEqual({ kind: 'registered', id: 'server-run' });
+  await act(async () => result.current.goPreview());
+  await act(async () => result.current.commit());
+  expect(startProcurementImportRun).toHaveBeenCalledOnce();
+  expect(vi.mocked(commitGroups).mock.calls[0][1].importBatchId).toBe('server-run');
+});
+
+it.each(['success', 'failure'] as const)('reports a started write %s after reference refresh', async outcome => {
+  let finish!: (value: { created: number; failed: number; cases: [] }) => void;
+  let fail!: (error: Error) => void;
+  vi.mocked(commitGroups).mockImplementationOnce(() => new Promise((resolve, reject) => { finish = resolve; fail = reject; }));
+  const lookup = makeRefLookup([], 'Reference');
+  const { result, rerender } = renderHook(({ reference }) => useProcurementCycleImport(reference, reference, 'user'), { initialProps: { reference: lookup } });
+  await act(async () => result.current.selectFile({ name: 'input.xlsx', arrayBuffer: async () => new ArrayBuffer(0) } as File));
+  await act(async () => result.current.goPreview());
+  let pending!: Promise<void>;
+  await act(async () => { pending = result.current.commit(); await Promise.resolve(); });
+  rerender({ reference: makeRefLookup([], 'Reference') });
+  await act(async () => { if (outcome === 'success') finish({ created: 1, failed: 0, cases: [] }); else fail(new Error('failed')); await pending; });
+  if (outcome === 'success') {
+    expect(result.current.step).toBe('result');
+    expect(result.current.result?.created).toBe(1);
+  } else {
+    expect(result.current.step).toBe('preview');
+    expect(result.current.parseError).toMatch(/retry/i);
+    await act(async () => result.current.goPreview());
+    await act(async () => result.current.commit());
+    expect(vi.mocked(commitGroups).mock.calls[1][1].importBatchId).toBe('server-run');
+  }
+});
+
+it.each(['completed', 'pending'] as const)('offers retry after reference refresh with a %s report', async state => {
+  let finish!: (value: { wouldCreate: number; wouldSkip: number; wouldCollide: number }) => void;
+  if (state === 'pending') vi.mocked(buildDryRunConflictReport).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const lookup = makeRefLookup([], 'Reference');
+  const { result, rerender } = renderHook(({ reference }) => useProcurementCycleImport(reference, reference, 'user'), { initialProps: { reference: lookup } });
+  await act(async () => result.current.selectFile({ name: 'input.xlsx', arrayBuffer: async () => new ArrayBuffer(0) } as File));
+  let pending!: Promise<void>;
+  await act(async () => { pending = result.current.goPreview(); if (state === 'completed') await pending; });
+  rerender({ reference: makeRefLookup([], 'Reference') });
+  if (state === 'pending') await act(async () => { finish({ wouldCreate: 9, wouldSkip: 0, wouldCollide: 0 }); await pending; });
+  expect(result.current.conflictReport).toBeNull();
+  expect(result.current.parseError).toMatch(/retry/i);
+  await act(async () => result.current.commit());
+  expect(startProcurementImportRun).not.toHaveBeenCalled();
+  await act(async () => result.current.goPreview());
+  expect(result.current.conflictReport?.wouldCreate).toBe(2);
+});
+
+it.each(['reset', 'unmount'] as const)('does not deliver a started write result after %s', async cancel => {
+  let finish!: (value: { created: number; failed: number; cases: [] }) => void;
+  vi.mocked(commitGroups).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const lookup = makeRefLookup([], 'Reference');
+  const { result, unmount } = renderHook(() => useProcurementCycleImport(lookup, lookup, 'user'));
+  await act(async () => result.current.selectFile({ name: 'input.xlsx', arrayBuffer: async () => new ArrayBuffer(0) } as File));
+  await act(async () => result.current.goPreview());
+  let pending!: Promise<void>;
+  await act(async () => { pending = result.current.commit(); await Promise.resolve(); });
+  if (cancel === 'reset') act(() => result.current.reset()); else unmount();
+  await act(async () => { finish({ created: 1, failed: 0, cases: [] }); await pending; });
+  if (cancel === 'reset') { expect(result.current.step).toBe('upload'); expect(result.current.result).toBeNull(); }
+});
