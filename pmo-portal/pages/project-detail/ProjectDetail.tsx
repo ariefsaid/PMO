@@ -38,7 +38,7 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
     : t('projectDetail.facts.noDates', 'Dates not set');
   const updated = project.last_update ? formatRelativeTime(project.last_update) : null;
   return (
-    <section aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="mb-6 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border/70 pb-4 text-control font-normal text-muted-foreground">
+    <section aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="mb-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/70 pb-2 text-control font-normal text-muted-foreground md:mb-6 md:gap-y-2 md:pb-4">
       {manager && (
         <span className="inline-flex min-w-0 items-center gap-2">
           <span aria-hidden="true" className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-foreground">{initial}</span>
@@ -189,7 +189,7 @@ const ProjectDetail: React.FC = () => {
         menuContent={<ProjectDetailRail project={project} detailsOnly />} />
       <ProjectHeaderFacts project={project} />
       {isPipelineRecord && <div className="mb-8"><PipelineLens project={project} locationState={location.state} /></div>}
-      <div className="mb-4" />
+      <div className="md:mb-4" />
     </>
   );
 

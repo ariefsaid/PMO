@@ -33,7 +33,7 @@ export interface TabsProps<V extends string = string> {
  * Mobile (PR-3, AC-IXD-MOBILE-W4-PR3-C2): at narrow widths the tab list becomes a
  * horizontally-scrollable scroll-snap strip — `overflow-x-auto snap-x snap-mandatory`
  * with each tab `snap-start`. The active tab is scrolled into view whenever `value`
- * changes (using `scrollIntoView`). A right-edge fade affordance (mask-image gradient)
+ * changes by scrolling the strip horizontally. A right-edge fade affordance (mask-image gradient)
  * signals "scroll for more" — the same pattern as StatTiles. The strip stays
  * horizontal at desktop widths; overflow and snap are harmless when the tabs fit.
  *
@@ -54,20 +54,22 @@ export function Tabs<V extends string = string>({
 }: TabsProps<V>) {
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Scroll the active tab into view on value change (mobile: keeps the active tab
-  // visible in the snap strip). `block:'nearest'` avoids vertical scroll on desktop.
+  // Scroll only the tab strip: scrollIntoView also scrolls the page vertically,
+  // which can move the record header out of view on arrival.
   useEffect(() => {
-    if (!listRef.current) return;
-    const active = listRef.current.querySelector<HTMLElement>('[aria-selected="true"]');
+    const list = listRef.current;
+    if (!list) return;
+    const active = list.querySelector<HTMLElement>('[aria-selected="true"]');
     if (!active) return;
-    // scrollIntoView must be gated on reduced-motion: if it would otherwise be smooth,
-    // check the global prefers-reduced-motion media query and degrade to instant.
+    const strip = list.getBoundingClientRect();
+    const tab = active.getBoundingClientRect();
+    const style = getComputedStyle(active);
+    const left = tab.left - (parseFloat(style.scrollMarginLeft) || 0);
+    const right = tab.right + (parseFloat(style.scrollMarginRight) || 0);
+    const offset = left < strip.left ? left - strip.left : right > strip.right ? right - strip.right : 0;
+    if (!offset) return;
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    active.scrollIntoView({
-      block: 'nearest',
-      inline: 'nearest',
-      behavior: prefersReduced ? 'instant' : 'smooth',
-    });
+    list.scrollBy({ left: offset, behavior: prefersReduced ? 'instant' : 'smooth' });
   }, [value]);
 
   // Roving focus (WAI-ARIA tabs pattern): DOM focus moves to the newly-activated tab

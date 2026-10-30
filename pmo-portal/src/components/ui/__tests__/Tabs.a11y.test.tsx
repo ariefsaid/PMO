@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { Tabs, type TabItem } from '../Tabs';
 import { tabId, tabPanelId } from '../tabIds';
@@ -8,6 +8,20 @@ describe('Tabs a11y wiring (G4)', () => {
     { value: 'overview', label: 'Overview' },
     { value: 'budget', label: 'Budget' },
   ] as const;
+
+  it('reveals an offscreen active tab by scrolling the strip without scrolling the page', () => {
+    const { rerender } = render(<Tabs items={[...items]} value="overview" onChange={() => {}} ariaLabel="Sections" idBase="proj" />);
+    const list = screen.getByRole('tablist', { name: 'Sections' });
+    const budget = screen.getByRole('tab', { name: 'Budget' });
+    const scrollBy = vi.fn();
+    Object.defineProperty(list, 'scrollBy', { value: scrollBy });
+    vi.spyOn(list, 'getBoundingClientRect').mockReturnValue({ left: 0, right: 200 } as DOMRect);
+    vi.spyOn(budget, 'getBoundingClientRect').mockReturnValue({ left: 180, right: 250 } as DOMRect);
+    const scrollIntoView = vi.spyOn(budget, 'scrollIntoView');
+    rerender(<Tabs items={[...items]} value="budget" onChange={() => {}} ariaLabel="Sections" idBase="proj" />);
+    expect(scrollBy).toHaveBeenCalledWith(expect.objectContaining({ left: 50 }));
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
 
   it('AC-W6-G4: each tab has id + aria-controls resolving to its panel id', () => {
     render(

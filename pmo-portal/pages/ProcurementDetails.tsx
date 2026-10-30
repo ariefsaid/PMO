@@ -968,6 +968,7 @@ const ProcurementDetails: React.FC = () => {
         className="mb-4"
         icon={null}
         name={p.title}
+        statusBelowMetaOnMobile
         status={
           <span data-testid="procurement-status-badge" data-status={p.status}>
             <StatusPill variant={pillVariantForStatus(p.status)}>
