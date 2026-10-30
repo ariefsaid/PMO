@@ -1,4 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+const itemEligibility = vi.hoisted(() => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }));
+const recordPush = vi.hoisted(() => ({ status: 'idle' as string, error: null }));
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+
+vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => itemEligibility }));
+afterEach(() => { clearOwnershipCache(); itemEligibility.data = true; itemEligibility.isPending = false; itemEligibility.isError = false; itemEligibility.isFetching = false; recordPush.status = 'idle'; });
 
 // OD-TAX-1 (#548): the money forms now PRE-SELECT the org's `default_tax_treatment`, which is a
 // live org read (`useOrgTaxDefault` → react-query + AuthContext). Only the READ is stubbed here —
@@ -59,6 +66,7 @@ vi.mock('@/src/hooks/useProcurementRecords', () => ({
     createRfq: { mutateAsync: vi.fn(), isPending: false },
     createPurchaseOrder: { mutateAsync: vi.fn(), isPending: false },
     createPayment: { mutateAsync: vi.fn(), isPending: false },
+    pendingPush: recordPush,
   }),
 }));
 
@@ -1327,6 +1335,26 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
     expect(screen.getByText('Welding wire')).toBeInTheDocument();
   });
 
+  it('keeps external item values read-only when the case has external evidence', async () => {
+    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    itemEligibility.data = false;
+    renderPage('proc-001', 'items');
+    await userEvent.click(screen.getByRole('button', { name: /edit welding wire/i }));
+    expect(screen.getByLabelText(/edit quantity for welding wire/i)).toBeDisabled();
+    expect(screen.getByLabelText(/edit unit price for welding wire/i)).toBeDisabled();
+    expect(screen.getByLabelText(/edit description for welding wire/i)).toBeEnabled();
+    expect(screen.getByTestId('line-item-add-row')).toBeInTheDocument();
+  });
+
+  it('keeps values read-only while a case command is being submitted', async () => {
+    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    recordPush.status = 'pushing';
+    renderPage('proc-001', 'items');
+    await userEvent.click(screen.getByRole('button', { name: /edit welding wire/i }));
+    expect(screen.getByLabelText(/edit quantity for welding wire/i)).toBeDisabled();
+    expect(screen.getByLabelText(/edit unit price for welding wire/i)).toBeDisabled();
+  });
+
   it('AC-PROC-003: line items are READ-ONLY once the PR leaves Draft (no add-row)', () => {
     detailState.data = { ...draftByAlice, status: 'Approved' as const };
     renderPage('proc-001', 'items');
@@ -1339,6 +1367,45 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
     const header = screen.getByTestId('record-header');
     fireEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
     expect(within(header).getByTestId('edit-header')).toBeInTheDocument();
+  });
+
+  it('offers header editing to the Engineer requester', () => {
+    mockEffectiveRole = 'Engineer';
+    renderPage();
+    const header = screen.getByTestId('record-header');
+    fireEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    expect(within(header).getByTestId('edit-header')).toBeInTheDocument();
+  });
+
+  it('lets an Engineer requester save a Draft header', async () => {
+    mockEffectiveRole = 'Engineer';
+    mockUpdateHeader.mockResolvedValue(undefined);
+    renderPage();
+    const header = screen.getByTestId('record-header');
+    fireEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    fireEvent.click(within(header).getByTestId('edit-header'));
+    const form = screen.getByTestId('header-edit-card');
+    await userEvent.clear(within(form).getByLabelText(/Title/));
+    await userEvent.type(within(form).getByLabelText(/Title/), 'Updated request');
+    await userEvent.click(within(form).getByRole('button', { name: /save/i }));
+    expect(mockUpdateHeader).toHaveBeenCalledWith(expect.objectContaining({ title: 'Updated request' }));
+  });
+
+  it('keeps the header editor open and does not report a denied save as successful', async () => {
+    mockEffectiveRole = 'Engineer';
+    mockUpdateHeader.mockRejectedValueOnce({ code: '42501', message: 'denied' });
+    toast.mockClear();
+    renderPage();
+    const header = screen.getByTestId('record-header');
+    fireEvent.click(within(header).getByRole('button', { name: /more procurement actions/i }));
+    fireEvent.click(within(header).getByTestId('edit-header'));
+    const form = screen.getByTestId('header-edit-card');
+    await userEvent.clear(within(form).getByLabelText(/Title/));
+    await userEvent.type(within(form).getByLabelText(/Title/), 'Updated request');
+    await userEvent.click(within(form).getByRole('button', { name: /save/i }));
+    await waitFor(() => expect(mockUpdateHeader).toHaveBeenCalled());
+    expect(screen.getByTestId('header-edit-card')).toBeInTheDocument();
+    expect(toast).not.toHaveBeenCalledWith('Procurement updated', 'Header saved', 'success');
   });
 
   it('AC-PROC-002: header-edit is HIDDEN for a non-requester (record-scoped gate)', () => {

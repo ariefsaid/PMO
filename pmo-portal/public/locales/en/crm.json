@@ -1,0 +1,13 @@
+{
+  "mappingUnavailable": "Company mappings could not be loaded. Try again later.",
+  "mappingLoading": "Checking company mappings…",
+  "mappingRequired": "Map a company to ERP before adding or importing its contacts.",
+  "companyMappingRequired": "Map this company to ERP before adding a contact.",
+  "mirrorFields": "Name, company, email and phone are managed in ERP.",
+  "deleteManaged": "Records managed in ERP can be archived here.",
+  "ownershipChecking": "Checking ownership…",
+  "ownershipError": "Ownership could not be loaded. Try again.",
+  "retry": "Retry",
+  "chooseParty": "Choose a client or supplier to continue.",
+  "ownershipChanged": "Ownership changed while you were editing. Close and reopen the form to continue."
+}

@@ -3582,3 +3582,17 @@ The local gate for redesign builds and fix rounds no longer includes `vitest --c
 ### OD-LOCAL-GATE-LIGHT (2026-10-26, owner) — no local full suite, CI shards are the proof
 Standing rule for the whole project, not only the redesign lane: the local pre-PR gate is `check:guards`, typecheck, eslint on touched files, the directly touched test files, touched e2e, rendered captures for UI, touched pgTAP for DB. `vitest --changed origin/dev` and full local suites are dropped: CI's two unit shards + pgTAP are the full proof on every PR to dev. Reason: on a shared Mac with parallel builds, one near-full local run per build serialised everything behind the test lock for hours and drove builders to bypass the lock. Supersedes the local-gate wording in older plans and briefs.
 
+
+### DD-ERP-PARTY-DRAFT — party creation and draft case authoring (Director, 2026-10-29)
+
+When ERP owns companies, new parties use the supported Customer or Supplier flow; Internal remains an
+own-organization marker. Creating a contact for an ERP-owned party requires a Customer or Supplier mapping.
+Mirrored contact identity fields stay with ERP while PMO-only enhancements remain editable. Draft procurement
+line values may be authored by an authorized requester or purchasing writer until a case command or ERP
+reference establishes the external record; recovery uses the submitted case snapshot.
+
+### DD-PROC-HEADER-REQUESTER — requester header editing (Director, 2026-10-29)
+
+A requester or same-organization Admin may edit the existing procurement header fields while the case
+is Draft or Rejected. The header command checks active membership, the procurement feature, referenced
+records and case ownership, and leaves identity, lifecycle and accounting fields outside its input.

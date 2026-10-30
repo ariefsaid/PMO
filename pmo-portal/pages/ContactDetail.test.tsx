@@ -1,5 +1,7 @@
+import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { ownershipMock } from '@/test/domainOwnershipMock';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import React from 'react';
@@ -33,6 +35,8 @@ const { detailState, activitiesState, mutations, companiesState } = vi.hoisted((
     data: [{ id: 'co1', name: 'Cascade Port Authority', type: 'Client' }],
   },
 }));
+
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
 
 vi.mock('@/src/hooks/useContacts', () => ({
   useContact: () => detailState,
@@ -121,6 +125,9 @@ const renderPageWithReturnContext = (role: Role = 'Admin') => {
 };
 
 beforeEach(() => {
+  ownershipMock.override = null;
+  ownershipMock.retry.mockClear();
+  clearOwnershipCache();
   detailState.data = contact;
   detailState.isPending = false;
   detailState.isError = false;
@@ -135,6 +142,14 @@ beforeEach(() => {
 });
 
 describe('ContactDetail', () => {
+  it('holds contact detail actions when ownership fails', async () => {
+    ownershipMock.override = 'error';
+    renderPage('Admin');
+    expect(screen.getByText(/ownership could not be loaded/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^retry$/i }));
+    expect(ownershipMock.retry).toHaveBeenCalled();
+  });
+
   it('CW-4b: renders the shared RecordHeader with the contact name + the categorical pill, and its fields', () => {
     renderPage();
     const header = screen.getByTestId('record-header');
@@ -239,6 +254,30 @@ describe('ContactDetail', () => {
       id: 'ct1',
       input: expect.objectContaining({ full_name: 'Jane Smith' }),
     });
+  });
+
+  it('keeps mirrored contact details read-only and enhancements editable', async () => {
+    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+    const dialog = await screen.findByRole('dialog', { name: /edit contact/i });
+    for (const label of [/full name/i, /^company/i, /^email/i, /^phone/i]) {
+      expect(within(dialog).getByLabelText(label)).toBeDisabled();
+    }
+    expect(within(dialog).getByLabelText(/^title/i)).toBeEnabled();
+    expect(within(dialog).getByLabelText(/^notes/i)).toBeEnabled();
+    clearOwnershipCache();
+  });
+
+  it('preserves unsaved contact identity edits when ownership changes', async () => {
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
+    const dialog = await screen.findByRole('dialog', { name: /edit contact/i });
+    const name = within(dialog).getByLabelText(/full name/i);
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Jane Reyes');
+    act(() => setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
+    expect(within(dialog).getByRole('button', { name: /save contact/i })).toBeDisabled();
   });
 
   it('CW-4b: a manager can archive from the header (confirm-before-write)', async () => {

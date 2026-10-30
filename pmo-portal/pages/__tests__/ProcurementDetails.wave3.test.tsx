@@ -13,6 +13,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // org READ is stubbed — `useTaxTreatmentPreselect` stays the shipped implementation, so the real
 // seeding behaviour runs here against a controllable org row.
 const orgDefault = vi.hoisted(() => ({ value: 'exclusive' as string | undefined }));
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
+
 vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
   return { ...actual, useOrgTaxDefault: () => orgDefault.value };

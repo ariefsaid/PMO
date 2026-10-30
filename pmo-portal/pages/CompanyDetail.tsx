@@ -1,4 +1,5 @@
-import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
+import { useCompanyPartyMappings } from '@/src/hooks/useCompanyPartyMappings';
 import { HistorySection } from '@/src/components/history/HistorySection';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
@@ -48,6 +49,7 @@ import { formatInstantDate } from '@/src/lib/format';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { companyTypeVariant, workflowVariant, crmActivityVariant } from '@/src/lib/status/statusVariants';
 import type { CompanyType, CompanyInput } from '@/src/lib/db/companies';
+import { companyIdentityChanged } from '@/src/lib/crmOwnership';
 import type { CrmActivityKind, CrmActivityInput, CrmActivityRow } from '@/src/lib/db/crmActivities';
 import type { ContactInput } from '@/src/lib/db/contacts';
 
@@ -90,6 +92,10 @@ const CompanyDetail: React.FC = () => {
   const { toast } = useToast();
 
   const query = useCompany(companyId);
+  const ownership = useDomainOwnershipMode('companies');
+  const ownershipReady = ownership.mode === 'pmo' || ownership.mode === 'external';
+  const externalCompanies = ownership.mode === 'external';
+  const mappings = useCompanyPartyMappings(companyId ? [companyId] : [], externalCompanies);
   const { update, setProjectNumberSegment, archive } = useCompanyMutations();
 
   const [editOpen, setEditOpen] = useState(false);
@@ -114,9 +120,9 @@ const CompanyDetail: React.FC = () => {
   // /companies/:id by URL gets a clean access-denied surface, not the record. RLS is the row
   // authority; this is FE clarity (mirrors Companies.tsx).
   const canView = may('view', 'company');
-  const canEdit = may('edit', 'company');
-  const canArchive = may('archive', 'company');
-  const canCreateContact = may('create', 'contact');
+  const canEdit = ownershipReady && may('edit', 'company');
+  const canArchive = ownershipReady && may('archive', 'company');
+  const canCreateContact = ownershipReady && may('create', 'contact') && (!externalCompanies || (!mappings.isPending && !mappings.isError && mappings.ids.includes(companyId ?? '')));
   const canViewSalesInvoices = may('view', 'salesInvoice');
 
   useEffect(() => {
@@ -257,6 +263,7 @@ const CompanyDetail: React.FC = () => {
         }
       />
 
+      {!ownershipReady && <p className="mb-3 text-sm text-muted-foreground">{ownership.mode === 'error' ? t('crm:ownershipError', 'Ownership could not be loaded. Try again.') : t('crm:ownershipChecking', 'Checking ownership…')}{ownership.mode === 'error' && <Button variant="ghost" size="sm" onClick={ownership.retry}>{t('crm:retry', 'Retry')}</Button>}</p>}
       {/* Body — the company's fields (read-only; edit-in-modal). */}
       <Card variant="bare" className="mb-4">
         <CardHead>{t('companyDetail.sectionTitle', 'Company detail')}</CardHead>
@@ -312,6 +319,13 @@ const CompanyDetail: React.FC = () => {
           {t('companyDetail.contacts.title', 'Contacts')}
         </CardHead>
         <CardPad>
+          {externalCompanies && may('create', 'contact') && !canCreateContact && (
+            <p className="mb-3 text-sm text-muted-foreground">
+              {mappings.isError ? t('crm:mappingUnavailable', 'Company mappings could not be loaded. Try again later.')
+                : mappings.isPending ? t('crm:mappingLoading', 'Checking company mappings…')
+                  : t('crm:companyMappingRequired', 'Map this company to ERP before adding a contact.')}
+            </p>
+          )}
           <CompanyContactsList companyId={company.id} />
         </CardPad>
       </Card>
@@ -320,7 +334,7 @@ const CompanyDetail: React.FC = () => {
       <HistorySection entityType="company" entityId={company.id} />
 
       {/* T14: Add contact modal — company_id pre-filled and locked. */}
-      {addContactOpen && (
+      {addContactOpen && canCreateContact && (
         <AddContactForCompanyModal
           companyId={company.id}
           companyName={companyDisplayName(company)}
@@ -334,9 +348,10 @@ const CompanyDetail: React.FC = () => {
       )}
 
       {/* Edit modal — reuses the shared create/edit form. */}
-      {editOpen && (
+      {editOpen && canEdit && (
         <CompanyEditModal
           company={company}
+          ownership={ownership.mode}
           onClose={() => setEditOpen(false)}
           onUpdate={async (id, input, segment) => {
             await update.mutateAsync({ id, input });
@@ -1233,14 +1248,15 @@ const makeValidate =
   };
 
 interface CompanyEditModalProps {
+  ownership: 'pmo' | 'external' | 'unknown' | 'error';
   company: { id: string; name: string; short_name?: string | null; type: CompanyType; client_number_segment?: string | null };
   onClose: () => void;
   onUpdate: (id: string, input: CompanyInput, segment: string | null) => Promise<void>;
   onError: (err: unknown) => void;
 }
 
-const CompanyEditModal: React.FC<CompanyEditModalProps> = ({ company, onClose, onUpdate, onError }) => {
-  const nativeReadOnly = company.type !== 'Internal' && routeDomainWrite('companies') === 'external';
+const CompanyEditModal: React.FC<CompanyEditModalProps> = ({ company, ownership, onClose, onUpdate, onError }) => {
+  const nativeReadOnly = company.type !== 'Internal' && ownership === 'external';
   const { t } = useTranslation();
   const form = useEntityForm<FormValues>({
     initialValues: { name: company.name, short_name: company.short_name ?? '', type: company.type, clientNumberSegment: company.client_number_segment ?? '' },
@@ -1258,12 +1274,14 @@ const CompanyEditModal: React.FC<CompanyEditModalProps> = ({ company, onClose, o
   const errorSummary = form.errors.name
     ? [{ fieldId: nameField.id, message: form.errors.name }]
     : undefined;
+  const identityChanged = ownership === 'external' && companyIdentityChanged(form.values, company);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
+      if (ownership === 'external' && companyIdentityChanged(values, company)) return;
       const input: CompanyInput = {
-        name: values.name.trim(),
+        name: nativeReadOnly ? company.name : values.name.trim(),
         type: values.type,
         ...(nativeReadOnly || values.short_name.trim() || company?.short_name
           ? { short_name: values.short_name.trim() || null }
@@ -1287,9 +1305,10 @@ const CompanyEditModal: React.FC<CompanyEditModalProps> = ({ company, onClose, o
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
-      submitDisabled={!form.isComplete}
+      submitDisabled={!form.isComplete || identityChanged}
       errorSummary={errorSummary}
     >
+      {identityChanged && <p className="mb-3 text-sm text-muted-foreground">{t('crm:ownershipChanged', 'Ownership changed while you were editing. Close and reopen the form to continue.')}</p>}
       <FormSection legend={t('companyDetail.editCompany.legendIdentity', 'Identity')}>
         <FormGrid>
           <TextField
@@ -1315,7 +1334,7 @@ const CompanyEditModal: React.FC<CompanyEditModalProps> = ({ company, onClose, o
             fullWidth
           />
           <SelectField
-            disabled={nativeReadOnly}
+            disabled={nativeReadOnly || ownership === 'external'}
             id={typeField.id}
             label={t('companyDetail.field.type', 'Type')}
             required

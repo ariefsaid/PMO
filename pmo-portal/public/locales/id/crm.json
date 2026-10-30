@@ -1,0 +1,13 @@
+{
+  "mappingUnavailable": "Pemetaan perusahaan tidak dapat dimuat. Coba lagi nanti.",
+  "mappingLoading": "Memeriksa pemetaan perusahaan…",
+  "mappingRequired": "Petakan perusahaan ke ERP sebelum menambahkan atau mengimpor kontaknya.",
+  "companyMappingRequired": "Petakan perusahaan ini ke ERP sebelum menambahkan kontak.",
+  "mirrorFields": "Nama, perusahaan, email, dan telepon dikelola di ERP.",
+  "deleteManaged": "Rekaman yang dikelola di ERP dapat diarsipkan di sini.",
+  "ownershipChecking": "Memeriksa kepemilikan…",
+  "ownershipError": "Kepemilikan tidak dapat dimuat. Coba lagi.",
+  "retry": "Coba lagi",
+  "chooseParty": "Pilih klien atau pemasok untuk melanjutkan.",
+  "ownershipChanged": "Kepemilikan berubah saat Anda mengedit. Tutup dan buka kembali formulir untuk melanjutkan."
+}

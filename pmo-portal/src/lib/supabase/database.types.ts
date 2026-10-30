@@ -3070,6 +3070,7 @@ export type Database = {
           payload: Json | null
           payload_digest: string | null
           pmo_record_id: string
+          procurement_input_digest: string | null
           reconcile_after: string | null
           state: string
           updated_at: string
@@ -3092,6 +3093,7 @@ export type Database = {
           payload?: Json | null
           payload_digest?: string | null
           pmo_record_id: string
+          procurement_input_digest?: string | null
           reconcile_after?: string | null
           state: string
           updated_at?: string
@@ -3114,6 +3116,7 @@ export type Database = {
           payload?: Json | null
           payload_digest?: string | null
           pmo_record_id?: string
+          procurement_input_digest?: string | null
           reconcile_after?: string | null
           state?: string
           updated_at?: string
@@ -8057,6 +8060,8 @@ export type Database = {
       }
     }
     Functions: {
+      update_procurement_header: { Args: { p_id: string; p_patch: Json }; Returns: boolean }
+      procurement_item_values_editable: { Args: { p_case: string }; Returns: boolean }
       _m365_disconnect_cascade_core: {
         Args: {
           p_actor_id: string
@@ -8303,6 +8308,7 @@ export type Database = {
           payload: Json | null
           payload_digest: string | null
           pmo_record_id: string
+          procurement_input_digest: string | null
           reconcile_after: string | null
           state: string
           updated_at: string
@@ -8992,6 +8998,7 @@ export type Database = {
           payload: Json | null
           payload_digest: string | null
           pmo_record_id: string
+          procurement_input_digest: string | null
           reconcile_after: string | null
           state: string
           updated_at: string
@@ -9673,6 +9680,7 @@ export type Database = {
           payload: Json | null
           payload_digest: string | null
           pmo_record_id: string
+          procurement_input_digest: string | null
           reconcile_after: string | null
           state: string
           updated_at: string
@@ -9782,6 +9790,7 @@ export type Database = {
           payload: Json | null
           payload_digest: string | null
           pmo_record_id: string
+          procurement_input_digest: string | null
           reconcile_after: string | null
           state: string
           updated_at: string

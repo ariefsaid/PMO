@@ -194,10 +194,12 @@ export default function ProcurementCreate() {
       },
     ]);
   };
-  const updateLine = async (id: string, patch: { name: string; quantity: number; rate: number }) => {
-    setLines((current) => current.map((line) => line.id === id
-      ? { ...line, ...patch, amount: itemsNetTotal([{ quantity: patch.quantity, rate: patch.rate }]) }
-      : line));
+  const updateLine = async (id: string, patch: { name: string; quantity?: number; rate?: number; description?: string }) => {
+    setLines((current) => current.map((line) => {
+      if (line.id !== id) return line;
+      const updated = { ...line, ...patch, quantity: patch.quantity ?? line.quantity, rate: patch.rate ?? line.rate };
+      return { ...updated, amount: itemsNetTotal([{ quantity: updated.quantity, rate: updated.rate }]) };
+    }));
   };
   const removeLine = async (id: string) => setLines((current) => current.filter((line) => line.id !== id));
 

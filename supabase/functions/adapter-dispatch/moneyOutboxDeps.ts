@@ -147,6 +147,10 @@ export interface DbMoneyOutboxDepsOpts {
   /** M-3 (audit): the canonical digest of THIS command's payload (`canonicalCommandDigest`) — persisted
    *  at insert + exposed on the deps so dispatch can reject key-reuse with a different payload. */
   payloadDigest?: string;
+  /** Server-observed case lines, checked atomically against the pending outbox insert. */
+  procurementSnapshot?: { caseId: string; lines: readonly { name: string; description?: string | null; quantity: number | string; rate: number | string | null }[] };
+  /** Raw receipt command witness, set only at the trusted dispatch boundary. */
+  procurementInputDigest?: string;
   /** Older stored digests of this same command (`DispatchMoneyOutboxDeps.legacyPayloadDigests`). */
   legacyPayloadDigests?: readonly string[];
   /** BLOCK 7: the VERIFIED dispatching user (index.ts's `verified.sub` — never a client-supplied
@@ -193,6 +197,20 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
     },
 
     async insertOutboxPending(domain, pmoRecordId, idempotencyKey) {
+      if (domain === 'procurement' && opts.procurementSnapshot) {
+        const { data, error } = await serviceClient.rpc('insert_procurement_outbox_pending', {
+          p_org: orgId, p_record_id: pmoRecordId, p_key: idempotencyKey,
+          p_tier: externalTier, p_operation: operation, p_payload: opts.payload ?? null,
+          p_digest: opts.payloadDigest ?? null, p_actor: opts.actorUserId ?? null,
+          p_case: opts.procurementSnapshot.caseId, p_snapshot: opts.procurementSnapshot.lines,
+        });
+        if (error) {
+          const err = new Error(error.message) as Error & { code?: string };
+          err.code = error.code;
+          throw err;
+        }
+        return mapRow(data as OutboxDbRow);
+      }
       // Slice A (migration 0151, AC-TSC-R2): the timesheets push INSERT is serialized against a
       // concurrent re-open and re-verifies status='Approved' server-side via the named-guard RPC, so a
       // sync push that raced a re-open (the sheet flipped to Draft between the gate read and this
@@ -235,6 +253,7 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
           ...(opts.payload ? { payload: opts.payload } : {}),
           // M-3: persist the payload digest so a later key-reuse with a different payload is rejected.
           ...(opts.payloadDigest ? { payload_digest: opts.payloadDigest } : {}),
+          ...(opts.procurementInputDigest ? { procurement_input_digest: opts.procurementInputDigest } : {}),
           // BLOCK 7 (0108): persist the VERIFIED dispatching actor so a deferred sweep finalize can
           // attribute the author (the request JWT is long gone by then). Omitted when unknown.
           ...(opts.actorUserId ? { actor_user_id: opts.actorUserId } : {}),

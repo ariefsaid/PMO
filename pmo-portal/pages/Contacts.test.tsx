@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { act, render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
@@ -21,10 +21,15 @@ const { contactsState, companiesState, mutations } = vi.hoisted(() => ({
   },
 }));
 
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+
 vi.mock('@/src/hooks/useContacts', () => ({
   useContacts: () => contactsState,
   useContactMutations: () => mutations,
 }));
+const partyMappings = vi.hoisted(() => ({ ids: ['11111111-1111-4111-8111-111111111111'], isPending: false, isError: false }));
+vi.mock('@/src/hooks/useCompanyPartyMappings', () => ({ useCompanyPartyMappings: () => partyMappings }));
+
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => companiesState,
 }));
@@ -39,6 +44,8 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 
 import Contacts from './Contacts';
+import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { ownershipMock } from '@/test/domainOwnershipMock';
 
 const companies = [
   { id: '11111111-1111-4111-8111-111111111111', name: 'Cascade Port Authority', type: 'Client', org_id: 'org-1', archived_at: null },
@@ -101,6 +108,12 @@ beforeEach(() => {
     m.isPending = false;
   });
   realRole = 'Admin';
+  partyMappings.ids = ['11111111-1111-4111-8111-111111111111'];
+  partyMappings.isPending = false;
+  partyMappings.isError = false;
+  ownershipMock.override = null;
+  ownershipMock.retry.mockClear();
+  clearOwnershipCache();
 });
 
 describe('Contacts index — shared ListPage shell (CW-5)', () => {
@@ -179,7 +192,32 @@ describe('Contacts index — RBAC affordance gating (AC-CRM-030)', () => {
   });
 });
 
+it('holds contact creation while ownership is unresolved', () => {
+  ownershipMock.override = 'unknown';
+  renderPage('Admin');
+  expect(screen.queryByRole('button', { name: /New contact/i })).not.toBeInTheDocument();
+  expect(screen.getByText(/checking ownership/i)).toBeInTheDocument();
+});
+
 describe('Contacts create form (AC-CRM-030)', () => {
+  it('offers mapped companies for external contact creation', async () => {
+    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    renderPage('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /New contact/i }));
+    const company = screen.getByLabelText(/^Company/i, { selector: 'select' });
+    expect(within(company).getByRole('option', { name: 'Cascade Port Authority' })).toBeInTheDocument();
+    expect(within(company).queryByRole('option', { name: 'Steelforge Fabrication' })).not.toBeInTheDocument();
+  });
+
+  it('explains the mapping prerequisite before contact entry or import', () => {
+    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    partyMappings.ids = [];
+    renderPage('Admin');
+    expect(screen.queryByRole('button', { name: /New contact/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Import/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/map.*company/i)).toBeInTheDocument();
+  });
+
   it('AC-CRM-030: a valid create submits name + company to the mutation', async () => {
     renderPage('Admin');
     await userEvent.click(screen.getByRole('button', { name: /New contact/i }));
@@ -320,6 +358,34 @@ describe('Contacts row actions (AC-CRM-030)', () => {
       within(screen.getByText(name).closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
   };
+
+  it('keeps mirrored fields read-only while allowing local contact details', async () => {
+    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    renderPage('Admin');
+    await openRowMenu('Jane Doe');
+    expect(screen.queryByRole('menuitem', { name: /Delete/i })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit/i }));
+    for (const label of [/Full name/i, /^Company/i, /^Email/i, /^Phone/i]) {
+      expect(screen.getByLabelText(label, { selector: 'input, select, textarea' })).toBeDisabled();
+    }
+    expect(screen.getByLabelText(/^Title/i)).toBeEnabled();
+    expect(screen.getByLabelText(/^Notes/i)).toBeEnabled();
+    await userEvent.clear(screen.getByLabelText(/^Title/i));
+    await userEvent.type(screen.getByLabelText(/^Title/i), 'Director');
+    await userEvent.click(screen.getByRole('button', { name: /^Save contact$/i }));
+    await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ input: expect.objectContaining({ full_name: 'Jane Doe', title: 'Director', email: 'jane@cascade.test' }) })));
+  });
+
+  it('preserves unsaved contact identity edits when ownership changes', async () => {
+    renderPage('Admin');
+    await openRowMenu('Jane Doe');
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit/i }));
+    const name = screen.getByLabelText(/Full name/i);
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Jane Reyes');
+    act(() => setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
+    expect(screen.getByRole('button', { name: /^Save contact$/i })).toBeDisabled();
+  });
 
   it('AC-CRM-030: Edit pre-fills the row and submits an update', async () => {
     renderPage('Admin');
