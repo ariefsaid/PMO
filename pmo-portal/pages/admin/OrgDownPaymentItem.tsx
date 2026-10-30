@@ -128,6 +128,7 @@ export default function OrgDownPaymentItem() {
               placeholder={t('uxs11.downPaymentItemPlaceholder', 'Choose an ERPNext item')}
               searchPlaceholder={t('uxs11.itemSearch', 'Search ERPNext items')}
               disabled={mutation.isPending || !canBrowse}
+              clearWhileDisabled
             />
             <p className="text-[13px] text-muted-foreground">{t('uxs11.downPaymentUnverified', "Use an item configured to post customer advances to a liability account. Ask your accounting administrator to check the item's account before saving.")}</p>
             {binding.isPending && <p role="status" className="text-[13px] text-muted-foreground">{t('uxs11.checkingBinding', 'Checking ERPNext setup…')}</p>}
