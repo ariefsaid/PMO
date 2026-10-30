@@ -235,6 +235,7 @@ function UploadStep<Input>({ wiz }: { wiz: Wiz<Input> }) {
           }}
         />
       </label>
+      {wiz.parsing && <p role="status">Reading file…</p>}
       {wiz.parseError && (
         <p role="alert" className="flex items-start gap-1.5 text-[12.5px] text-destructive">
           <Icon name="alert" className="mt-px size-4 shrink-0" />

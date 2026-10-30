@@ -81,25 +81,17 @@ export interface UseProcurementCycleImport {
   /** Whether case_ref + type are both mapped (gates Next on mapping step). */
   allRequiredMapped: boolean;
   parseError: string | null;
+  parsing: boolean;
   validatedGroups: ValidatedGroup[];
   counts: CycleCounts;
   result: CommitResult | null;
   /** Committing step progress. null outside of the committing step. */
   progress: CycleProgress | null;
-  /**
-   * Global expand/collapse override: true = all expanded, false = all collapsed,
-   * null = respect individual card state (default before any global toggle).
-   */
-  globalExpand: boolean | null;
   /** Provisional until the server registers the confirmed import. */
   runIdentity: ImportRunIdentity;
   /** Zero-write would-create/would-skip/would-collide tally (FR-IDEM-007). null until the
    *  preview step's async dry-run probe resolves. */
   conflictReport: DryRunConflictReport | null;
-  /** Expand all case cards. */
-  expandAll: () => void;
-  /** Collapse all case cards. */
-  collapseAll: () => void;
   selectFile: (file: File) => Promise<void>;
   setFieldMapping: (fieldKey: keyof CycleRow, headerIndex: number | null) => void;
   goPreview: () => Promise<void>;
@@ -172,15 +164,18 @@ export function useProcurementCycleImport(
   requestedById: string,
 ): UseProcurementCycleImport {
   const [step, setStep] = useState<CycleWizardStep>('upload');
+  const stepRef = useRef(step);
+  stepRef.current = step;
+  const sessionGeneration = useRef(0);
   const [fileName, setFileName] = useState<string | null>(null);
   const [parsed, setParsed] = useState<ParsedSheet | null>(null);
   const [mapping, setMappingState] = useState<CycleMapping>({});
   const [parseError, setParseError] = useState<string | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const parseGeneration = useRef(0);
+  useEffect(() => () => { parseGeneration.current++; }, []);
   const [result, setResult] = useState<CommitResult | null>(null);
   const [progress, setProgress] = useState<CycleProgress | null>(null);
-  /** Controls whether all CaseCard accordions are open (true) or closed (false).
-   *  null = per-card state (individual toggles), true/false = global override. */
-  const [globalExpand, setGlobalExpand] = useState<boolean | null>(null);
   /** A server-issued run is retained for retries within this wizard session. */
   const [runId, setRunId] = useState<string | null>(null);
   const runIdRef = useRef<string | null>(null);
@@ -211,7 +206,10 @@ export function useProcurementCycleImport(
     return validateGroups(groups, { projectLookup, vendorLookup });
   }, [parsed, mapping, projectLookup, vendorLookup]);
 
-  useEffect(() => { invalidatePreview(); }, [validatedGroups, invalidatePreview]);
+  useEffect(() => {
+    invalidatePreview();
+    if (stepRef.current === 'preview') setParseError('References changed. Retry preview before importing.');
+  }, [validatedGroups, invalidatePreview]);
 
   const counts = useMemo<CycleCounts>(() => {
     if (validatedGroups.length === 0) return EMPTY_COUNTS;
@@ -222,7 +220,7 @@ export function useProcurementCycleImport(
       if (vg.valid) validCases++;
       for (const row of vg.rows) {
         totalRecords++;
-        if (row.valid) validRecords++;
+        if (vg.valid && row.valid) validRecords++;
       }
     }
     return {
@@ -235,6 +233,10 @@ export function useProcurementCycleImport(
   }, [validatedGroups]);
 
   const reset = useCallback(() => {
+    sessionGeneration.current++;
+    committing.current = false;
+    parseGeneration.current++;
+    setParsing(false);
     invalidatePreview();
     runIdRef.current = null;
     setRunId(null);
@@ -245,24 +247,29 @@ export function useProcurementCycleImport(
     setParseError(null);
     setResult(null);
     setProgress(null);
-    setGlobalExpand(null);
     setConflictReport(null);
   }, [invalidatePreview]);
 
-  const expandAll = useCallback(() => setGlobalExpand(true), []);
-  const collapseAll = useCallback(() => setGlobalExpand(false), []);
-
   const selectFile = useCallback(async (file: File) => {
+    sessionGeneration.current++;
+    committing.current = false;
+    runIdRef.current = null;
+    setRunId(null);
     invalidatePreview();
+    const generation = ++parseGeneration.current;
+    setParsing(true);
     setParseError(null);
     try {
       const buf = await file.arrayBuffer();
+      if (generation !== parseGeneration.current) return;
       const sheet = await parseWorkbook(buf);
+      if (generation !== parseGeneration.current) return;
       setParsed(sheet);
       setFileName(file.name);
       setMappingState(autoMapCycle(sheet.headers));
       setStep('mapping');
     } catch (err) {
+      if (generation !== parseGeneration.current) return;
       setParsed(null);
       setFileName(null);
       setParseError(
@@ -270,6 +277,8 @@ export function useProcurementCycleImport(
           ? err.message
           : 'Could not read that file. Use a valid .xlsx.',
       );
+    } finally {
+      if (generation === parseGeneration.current) setParsing(false);
     }
   }, [invalidatePreview]);
 
@@ -293,7 +302,8 @@ export function useProcurementCycleImport(
   const aliveRef = useRef(true);
   useEffect(() => {
     aliveRef.current = true;
-    return () => { aliveRef.current = false; };
+    const session = sessionGeneration;
+    return () => { aliveRef.current = false; session.current++; };
   }, []);
 
   const goPreview = useCallback(async () => {
@@ -316,13 +326,17 @@ export function useProcurementCycleImport(
   }, [allRequiredMapped, validatedGroups, runIdentity, vendorLookup, invalidatePreview]);
 
   const back = useCallback(() => {
+    parseGeneration.current++;
+    setParsing(false);
     invalidatePreview();
     setStep((s) => (s === 'preview' ? 'mapping' : 'upload'));
   }, [invalidatePreview]);
 
   const commit = useCallback(async () => {
     const validGroups = validatedGroups.filter((g) => g.valid);
-    if (validGroups.length === 0 || approvedPreview.current !== previewGeneration.current || committing.current) return;
+    if (!validGroups.some(group => group.rows.some(row => row.valid)) || approvedPreview.current !== previewGeneration.current || committing.current) return;
+    const generation = previewGeneration.current;
+    const session = sessionGeneration.current;
     committing.current = true;
 
     setStep('committing');
@@ -330,8 +344,15 @@ export function useProcurementCycleImport(
 
     try {
       const actualRunId = runIdRef.current ?? await startProcurementImportRun();
+      if (!aliveRef.current || session !== sessionGeneration.current) return;
       runIdRef.current = actualRunId;
       setRunId(actualRunId);
+      if (generation !== previewGeneration.current) {
+        setProgress(null);
+        setParseError('References changed. Retry preview before importing.');
+        setStep('preview');
+        return;
+      }
       const commitResult = await commitGroups(validGroups, {
         requestedById,
         projectLookup,
@@ -340,16 +361,18 @@ export function useProcurementCycleImport(
         skipLookup: supabaseImportSkipLookup,
       });
 
+      if (!aliveRef.current || session !== sessionGeneration.current) return;
       setProgress(null);
       setResult(commitResult);
       setStep('result');
     } catch {
+      if (!aliveRef.current || session !== sessionGeneration.current) return;
       setProgress(null);
       setParseError('Import could not start or finish. Retry after reviewing the preview.');
       invalidatePreview();
       setStep('preview');
     } finally {
-      committing.current = false;
+      if (session === sessionGeneration.current) committing.current = false;
     }
   }, [invalidatePreview, validatedGroups, requestedById, projectLookup, vendorLookup]);
 
@@ -360,15 +383,13 @@ export function useProcurementCycleImport(
     mapping,
     allRequiredMapped,
     parseError,
+    parsing,
     validatedGroups,
     counts,
     result,
     progress,
-    globalExpand,
     runIdentity,
     conflictReport,
-    expandAll,
-    collapseAll,
     selectFile,
     setFieldMapping,
     goPreview,
