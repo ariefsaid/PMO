@@ -1,3 +1,4 @@
+import { parseExactCents, formatExactCents } from './exactDecimal';
 import type { PphType } from './vendorWithholding';
 
 export type DecimalMoney = string;
@@ -13,12 +14,8 @@ export type SlipWriteResult = { slipId: string; revision: number };
 const MAX_CENTS = 99_999_999_999_999n;
 const DECIMAL = /^(-?)(0|[1-9]\d*)(?:\.(\d{1,2}))?$/;
 export function parseDecimalCents(value: string): bigint | null {
-  const match = DECIMAL.exec(value.trim());
-  if (!match) return null;
-  const whole = BigInt(match[2]);
-  const fraction = BigInt((match[3] ?? '').padEnd(2, '0'));
-  const cents = whole * 100n + fraction;
-  return match[1] ? -cents : cents;
+  const trimmed = value.trim();
+  return DECIMAL.test(trimmed) ? parseExactCents(trimmed) : null;
 }
 export function parsePositiveSlipMoney(value: string): DecimalMoney | null {
   const trimmed = value.trim();
@@ -30,9 +27,7 @@ export function parsePositiveSlipMoney(value: string): DecimalMoney | null {
   return formatSlipCents(cents);
 }
 export function formatSlipCents(cents: bigint): string {
-  const negative = cents < 0n;
-  const absolute = negative ? -cents : cents;
-  return `${negative ? '-' : ''}${absolute / 100n}.${(absolute % 100n).toString().padStart(2, '0')}`;
+  return formatExactCents(cents);
 }
 export function sumSlipMoney(values: readonly string[]): bigint | null {
   let total = 0n;

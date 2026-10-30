@@ -1,3 +1,4 @@
+import { parseExactCents, formatExactCents } from './exactDecimal';
 import { formatExactMoney } from './format';
 
 export type ExactMoney = string;
@@ -243,16 +244,11 @@ export interface AssignInvoiceProjectInput {
 }
 
 export function moneyUnits(value: ExactMoney | null): bigint | null {
-  if (value === null || !/^-?\d+(?:\.\d{1,2})?$/.test(value)) return null;
-  const negative = value.startsWith('-');
-  const [whole, fraction = ''] = (negative ? value.slice(1) : value).split('.');
-  const units = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'));
-  return negative ? -units : units;
+  return value === null ? null : parseExactCents(value);
 }
 
 export function moneyText(units: bigint): ExactMoney {
-  const n = units < 0n ? -units : units;
-  return `${units < 0n ? '-' : ''}${n / 100n}.${String(n % 100n).padStart(2, '0')}`;
+  return formatExactCents(units);
 }
 
 const receiptCashReasons: readonly ReceiptCashReason[] = [

@@ -1,3 +1,4 @@
+import { parseSafeCents, formatNumberCents } from '../exactDecimal';
 /**
  * budget/budgetProjection.ts (P3c slice 6, FR-BUD-151) — PMO's FORWARD VIEW.
  *
@@ -91,22 +92,14 @@ export interface BudgetProjectionCell {
  *  error (FR-BUD-151); an out-of-grammar string fails closed rather than silently becoming `NaN` → `0`. */
 function toCents(value: string | null): number {
   if (value === null || value === '') return 0;
-  const match = /^(-?)(\d+)(?:\.(\d{1,2}))?$/.exec(String(value).trim());
-  if (!match) {
-    throw new Error(`budgetProjection: invalid decimal amount ${JSON.stringify(value)}`);
-  }
-  const [, sign, whole, fraction = ''] = match;
-  const cents = Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
-  if (!Number.isSafeInteger(cents)) {
-    throw new Error(`budgetProjection: amount out of range ${JSON.stringify(value)}`);
-  }
-  return sign === '-' ? -cents : cents;
+  const cents = parseSafeCents(String(value).trim());
+  if (cents === 'invalid') throw new Error(`budgetProjection: invalid decimal amount ${JSON.stringify(value)}`);
+  if (cents === 'range') throw new Error(`budgetProjection: amount out of range ${JSON.stringify(value)}`);
+  return cents;
 }
 
 function fromCents(cents: number): string {
-  const sign = cents < 0 ? '-' : '';
-  const abs = Math.abs(cents);
-  return `${sign}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`;
+  return formatNumberCents(cents);
 }
 
 /**
