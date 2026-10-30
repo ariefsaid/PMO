@@ -792,6 +792,18 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   // After resolving the caller's org/userId and parsing the command, but BEFORE any adapter/
   // outbox/ERP write. The deputy `callerClient` (caller's JWT) is used so domain_externally_owned
   // and profiles.select run under the caller's RLS — consistent with the SoD gate below.
+  // A PMO-only org's budget activation has nothing to push. Answer the benign skip BEFORE the ERP-tier
+  // gate, which refuses a non-employing org and made every PMO-only activation report a failed push.
+  // Only a definite `false` skips; a read error still falls through to the gate's refusal.
+  if (isBudgetPushCommand(command)) {
+    const employed = await callerClient.rpc('org_has_active_erpnext_binding', { p_org_id: orgId });
+    if (!employed.error && employed.data === false) {
+      return new Response(
+        JSON.stringify({ externalRecordId: null, canonical: { id: command.record.id }, skipped: 'org-not-employing-erpnext' }),
+        { status: 200, headers },
+      );
+    }
+  }
   if (isErpDomain) {
     const auth = await checkErpnextCommandAuthorization(callerClient as never, orgId, userId, command);
     if (!auth.ok) {
