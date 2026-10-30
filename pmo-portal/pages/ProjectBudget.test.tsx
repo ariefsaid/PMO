@@ -289,6 +289,35 @@ describe('ProjectBudget Bahasa confirmation copy (BU-2)', () => {
   });
 });
 
+describe('budget confirmation cancellation', () => {
+  it.each([
+    { kind: 'create', versions: [], trigger: /^Create budget$/, form: true, drawer: false },
+    { kind: 'activate', versions: [draftVersion], trigger: /^Activate v2$/, form: false, drawer: false },
+    { kind: 'clone', versions: [activeVersion], trigger: /^Update budget$/, form: false, drawer: false },
+    { kind: 'archive', versions: [activeVersion], trigger: /^Archive$/, form: false, drawer: true },
+    { kind: 'delete draft', versions: [draftVersion], trigger: /^Delete draft$/, form: false, drawer: true },
+    { kind: 'delete line', versions: [draftVersion], trigger: /Delete line item Labor/i, form: false, drawer: false },
+  ])('cancelling $kind closes its confirmation without writing', async ({ versions, trigger, form, drawer }) => {
+    roleState.realRole = 'Finance';
+    budgetState.data = 0;
+    versionsState.data = versions;
+    renderPage();
+    if (drawer) await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
+    await userEvent.click(screen.getByRole('button', { name: trigger }));
+    if (form) {
+      await userEvent.type(screen.getByPlaceholderText(/Version name/i), '  Revision  ');
+      await userEvent.click(screen.getByRole('button', { name: /^Create$/i }));
+    }
+    const dialog = screen.queryByRole('alertdialog') ?? screen.getByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Cancel$/i }));
+    expect(dialog).not.toBeInTheDocument();
+    for (const mutation of [mockCreateVersion, mockActivate, mockClone, mockArchive, mockDeleteDraft, mockDeleteLineItem]) {
+      expect(mutation).not.toHaveBeenCalled();
+    }
+    if (form) expect(screen.getByPlaceholderText(/Version name/i)).toHaveValue('  Revision  ');
+  });
+});
+
 describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
   it('offers Update budget when an active version has no draft, and it asks before creating the revision', async () => {
     budgetState.data = activeVersion.total;
@@ -803,6 +832,23 @@ describe('ProjectBudget Draft version actions', () => {
     renderPage();
     expect(screen.getByText(/\+ Add line item/i)).toBeInTheDocument();
     resetState();
+  });
+
+  it.each([
+    { code: 'budget-category-unmapped', expected: /map.*budget categories/i },
+    { code: 'budget-fiscal-year-invalid', expected: /fiscal year listed by ERPNext/i },
+    { code: 'budget-fiscal-year-out-of-span', expected: /fiscal year outside the project dates/i },
+    { code: 'budget-fiscal-year-ambiguous', expected: /overlapping fiscal years/i },
+    { code: 'budget-project-start-date-missing', expected: /add a project start date/i },
+    { code: 'budget-fiscal-year-unresolved', expected: /no fiscal year for the project end date/i, datePart: 'end' as const },
+    { code: 'unknown-readiness-issue', expected: /readiness check found an issue/i },
+  ])('explains readiness issue $code before activation', ({ code, expected, datePart }) => {
+    roleState.realRole = 'Finance';
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    activationPrecheckState.data = { status: 'blocked', erpCheck: 'available', fiscalYearNames: ['2026'], issues: [{ code, datePart, categories: ['Labor'], lines: [{ category: 'Labor', fiscalYear: '2026' }], date: '2026-01-01', fiscalYears: ['FY1', 'FY2'] }] };
+    renderPage();
+    expect(screen.getByTestId('budget-readiness-summary')).toHaveTextContent(expected);
   });
 
   it('issue #1421: lists missing readiness on the Draft and disables confirmation until fixed', async () => {
