@@ -472,6 +472,7 @@
       "draftWaiting": "Draf menunggu persetujuan",
       "waitingForFinance": "Menunggu persetujuan tim keuangan",
       "activationSeparationNextStep": "Penyusun dan pengaktif harus orang yang berbeda. Minta Admin atau Finance yang berwenang dan tidak mengedit draf ini untuk mengaktifkannya.",
+      "saveOrDiscardLines": "Simpan atau batalkan semua edit item baris yang terbuka sebelum mengaktifkan.",
       "draftReady": "Draf ini siap diaktifkan oleh pemberi persetujuan yang berwenang.",
       "editDraft": "Ubah draf",
       "activateVersionNamed": "Aktifkan v{{version}}",

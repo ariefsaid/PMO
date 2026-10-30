@@ -137,6 +137,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const [pendingConfirm, setPendingConfirm] = useState<PendingBudgetConfirm | null>(null);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const [draftEditorOpen, setDraftEditorOpen] = useState(false);
+  const [hasOpenLineBuffers, setHasOpenLineBuffers] = useState(false);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(() => new Set());
 
   const versions = useMemo<BudgetVersionWithItems[]>(
@@ -215,7 +216,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       readinessMessages.push(t('finance:budgetActivation.erpUnavailable', "Couldn't check ERPNext; it'll be checked again when the budget is pushed."));
     }
     readinessMessages.push(...activationPrecheck.issues.map(issueMessage));
-    if (activationPrecheck.status === 'ready' && activationPrecheck.erpCheck === 'available') {
+    if (!hasOpenLineBuffers && activationPrecheck.status === 'ready' && activationPrecheck.erpCheck === 'available') {
       readinessMessages.push(t('finance:budgetActivation.ready', 'Ready to activate. ERPNext fiscal years and budget account mappings are available.'));
     }
   }
@@ -265,7 +266,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     setPendingConfirm({ kind: 'create', name });
   };
   const requestActivate = (id: string) => {
-    if (!canActivate || draftVersion?.id !== id) return;
+    if (!canActivate || hasOpenLineBuffers || draftVersion?.id !== id) return;
     dismissActivationNotice();
     void activationPrecheckQuery.refetch();
     setPendingConfirm({ kind: 'activate', id, label: versionLabel(id) });
@@ -520,7 +521,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           break;
         }
         case 'activate': {
-          if (!canActivate || !canConfirmActivation || draftVersion?.id !== confirm.id) return;
+          if (!canActivate || !canConfirmActivation || hasOpenLineBuffers || draftVersion?.id !== confirm.id) return;
           const { pushState } = await mutations.activate.mutateAsync(confirm.id);
           void queryClient.invalidateQueries({ queryKey: ['budget-push-status', projectId] });
           setPendingConfirm(null);
@@ -638,7 +639,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       description={describeConfirm(pendingConfirm)}
       confirmLabel={confirmCopy[pendingConfirm.kind].confirmLabel}
       loading={confirmInFlight}
-      confirmDisabled={pendingConfirm.kind === 'activate' && (!canConfirmActivation || !canActivate || pendingConfirm.id !== draftVersion?.id)}
+      confirmDisabled={pendingConfirm.kind === 'activate' && (!canConfirmActivation || !canActivate || hasOpenLineBuffers || pendingConfirm.id !== draftVersion?.id)}
       restoreFocusFallback={() => document.querySelector<HTMLElement>('#budget-primary-action, #budget-versions-trigger')}
       onCancel={() => setPendingConfirm(null)}
       onConfirm={() => void commitBudgetConfirm()}
@@ -658,6 +659,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         onCreateLineItem={(item) => mutations.createLineItem.mutateAsync({ versionId: draftVersion.id, item })}
         onDeleteLineItem={requestDeleteLineItem}
         onUpdateLineItem={(id, patch) => mutations.updateLineItem.mutateAsync({ id, patch })}
+        onOpenBuffersChange={setHasOpenLineBuffers}
         onSaveSuccess={() => toast(t('financeCopy.lineItemUpdated', 'Line item updated'), undefined, 'success')}
         createIsPending={mutations.createLineItem.isPending}
         updateIsPending={mutations.updateLineItem.isPending}
@@ -698,14 +700,15 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
               <span className="text-sm text-muted-foreground">{draftVersion.name} · v{draftVersion.version}</span>
             </div>
             {!canActivate && <p role="status" className="mt-1 text-sm text-muted-foreground">{activateBlockedReason ?? t('projectDetail.budget.waitingForFinance', 'Waiting for approval by finance')}</p>}
-            {canActivate && <p className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.draftReady', 'This draft is ready for an eligible approver to activate.')}</p>}
+            {canActivate && !hasOpenLineBuffers && <p className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.draftReady', 'This draft is ready for an eligible approver to activate.')}</p>}
+            {canActivate && hasOpenLineBuffers && <p role="status" className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.saveOrDiscardLines', 'Save or discard all open line item edits before activating.')}</p>}
             <div data-testid="budget-readiness-summary" aria-live="polite" className="mt-2 text-[13px] text-muted-foreground">
               {readinessMessages.map((message, index) => <p key={`${index}-${message}`}>{message}</p>)}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {canWrite && <Button variant="outline" size="sm" onClick={() => { setSelectedVersionId(draftVersion.id); setDraftEditorOpen(true); }}>{t('projectDetail.budget.editDraft', 'Edit draft')}</Button>}
-            {canActivate && <Button variant="primary" size="sm" onClick={() => requestActivate(draftVersion.id)}>{t('projectDetail.budget.activateVersionNamed', 'Activate v{{version}}', { version: draftVersion.version })}</Button>}
+            {canActivate && <Button variant="primary" size="sm" disabled={hasOpenLineBuffers} onClick={() => requestActivate(draftVersion.id)}>{t('projectDetail.budget.activateVersionNamed', 'Activate v{{version}}', { version: draftVersion.version })}</Button>}
           </div>
         </section>
       )}

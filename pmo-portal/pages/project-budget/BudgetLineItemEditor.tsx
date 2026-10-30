@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { formatCurrencyAuto, formatCurrencyCents, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
@@ -21,6 +21,7 @@ interface LineItemEditorProps {
   /** Routine inline update (OD-UX-1: single-click + toast, no confirm). */
   onUpdateLineItem: (id: string, patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'fiscal_year'>>) => Promise<unknown>;
   onSaveSuccess: () => void;
+  onOpenBuffersChange: (open: boolean) => void;
   /** B-0.7: isPending flags from the parent mutation (createLineItem / updateLineItem).
    *  Disables Save while a write is in-flight — prevents double-submit duplication. */
   createIsPending?: boolean;
@@ -44,6 +45,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
   onDeleteLineItem,
   onUpdateLineItem,
   onSaveSuccess,
+  onOpenBuffersChange,
   createIsPending = false,
   updateIsPending = false,
   onSaveError,
@@ -69,6 +71,9 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
   const [editFiscalYear, setEditFiscalYear] = useState('');
   const [editAmountError, setEditAmountError] = useState<string | null>(null);
   const [editFiscalYearError, setEditFiscalYearError] = useState<string | null>(null);
+  const hasOpenBuffers = adding || editingId !== null || Object.keys(editDrafts).length > 0;
+  useEffect(() => { onOpenBuffersChange(hasOpenBuffers); }, [hasOpenBuffers, onOpenBuffersChange]);
+  useEffect(() => () => onOpenBuffersChange(false), [onOpenBuffersChange]);
   /** The years this project's own lines already name — suggestions, never a constraint. */
   const knownFiscalYears = useMemo(
     () => [...new Set([
@@ -188,7 +193,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
     </datalist>
   );
 
-  const categorySelect = (props: { id?: string; label: string; value: Enums<'budget_category'>; onChange: (v: Enums<'budget_category'>) => void; autoFocus?: boolean }) => (
+  const categorySelect = (props: { id?: string; label: string; value: Enums<'budget_category'>; onChange: (v: Enums<'budget_category'>) => void; autoFocus?: boolean; disabled?: boolean }) => (
     <select
       id={props.id}
       aria-label={props.label}
@@ -196,6 +201,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
       onChange={(e) => props.onChange(e.target.value as Enums<'budget_category'>)}
       className={`${fieldCls} max-w-full`}
       autoFocus={props.autoFocus}
+      disabled={props.disabled}
     >
       {BUDGET_CATEGORIES.map((c) => (
         <option key={c} value={c}>
@@ -213,11 +219,11 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
       size: 170,
       cell: (row) => {
         if (row.kind === 'new') {
-          return categorySelect({ label: t('financeCopy.lineItemCategory', "Line item category"), value: newCategory, onChange: setNewCategory });
+          return categorySelect({ label: t('financeCopy.lineItemCategory', "Line item category"), value: newCategory, onChange: setNewCategory, disabled: createIsPending });
         }
         const li = row.li;
         return editingId === li.id
-          ? categorySelect({ id: `edit-category-${li.id}`, label: t('financeCopy.category', "Category"), value: editCategory, onChange: setEditCategory, autoFocus: true })
+          ? categorySelect({ id: `edit-category-${li.id}`, label: t('financeCopy.category', "Category"), value: editCategory, onChange: setEditCategory, autoFocus: true, disabled: updateIsPending })
           : budgetCategoryLabel(li.category as Enums<'budget_category'>, t);
       },
     },
@@ -234,6 +240,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
               aria-label={t('financeCopy.lineItemDescription', "Line item description")}
               placeholder={t('financeCopy.description', "Description")}
               value={newDesc}
+              disabled={createIsPending}
               onChange={(e) => setNewDesc(e.target.value)}
               className={`${fieldCls} w-full`}
             />
@@ -246,6 +253,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
             aria-label={t('financeCopy.description', "Description")}
             placeholder={t('financeCopy.description', "Description")}
             value={editDesc}
+            disabled={updateIsPending}
             onChange={(e) => setEditDesc(e.target.value)}
             className={`${fieldCls} w-full`}
           />
@@ -273,6 +281,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
                 placeholder={t('financeCopy.unPhased', "Un-phased")}
                 list="budget-fiscal-year-options"
                 value={newFiscalYear}
+                disabled={createIsPending}
                 onChange={(e) => {
                   setNewFiscalYear(e.target.value);
                   setNewFiscalYearError(null);
@@ -299,6 +308,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
               placeholder={t('financeCopy.unPhased', "Un-phased")}
               list="budget-fiscal-year-options"
               value={editFiscalYear}
+              disabled={updateIsPending}
               onChange={(e) => {
                 setEditFiscalYear(e.target.value);
                 setEditFiscalYearError(null);
@@ -329,6 +339,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
               hideLabel
               placeholder={t('financeCopy.amount', "Amount")}
               value={newAmount}
+              disabled={createIsPending}
               onChange={(value) => {
                 setNewAmount(value);
                 setNewAmountError(null);
@@ -349,6 +360,7 @@ const BudgetLineItemEditor: React.FC<LineItemEditorProps> = ({
               label={t('financeCopy.amount', "Amount")}
               hideLabel
               value={editAmount}
+              disabled={updateIsPending}
               onChange={(value) => {
                 setEditAmount(value);
                 setEditAmountError(null);

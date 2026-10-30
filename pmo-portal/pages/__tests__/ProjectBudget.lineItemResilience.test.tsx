@@ -4,7 +4,7 @@
  * AC-B-0-7: Save button disabled/loading while pending (no double-submit).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
@@ -16,7 +16,8 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 // ---------------------------------------------------------------------------
 // Mutable mock state
 // ---------------------------------------------------------------------------
-const { mutations, archiveState, versionState } = vi.hoisted(() => ({
+const { mutations, archiveState, versionState, activationState } = vi.hoisted(() => ({
+  activationState: { enabled: false },
   versionState: { includeArchived: false },
   archiveState: { data: [] as unknown[], isPending: false, isFetching: false, isError: false, refetch: vi.fn() },
   mutations: {
@@ -67,8 +68,8 @@ const draftVersion: BudgetVersionWithItems = {
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 100_000, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => ({ data: versionState.includeArchived ? [draftVersion, { ...draftVersion, id: 'bv2', status: 'Archived', version: 2 }] : [draftVersion], isPending: false, isError: false, refetch: vi.fn() }),
-  useBudgetActivationMode: () => ({ data: undefined, isPending: false, isError: false }),
-  useBudgetActivationPrecheck: () => ({ data: undefined, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }),
+  useBudgetActivationMode: () => ({ data: activationState.enabled ? 'sole_operator' : undefined, isPending: false, isError: false }),
+  useBudgetActivationPrecheck: () => ({ data: activationState.enabled ? { status: 'ready', erpCheck: 'available', issues: [] } : undefined, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }),
   useBudgetArchiveTargets: () => archiveState,
   useBudgetMutations: () => mutations,
 }));
@@ -107,6 +108,7 @@ const openDraftEditor = async (user: ReturnType<typeof userEvent.setup>) => {
 };
 
 beforeEach(() => {
+  activationState.enabled = false;
   versionState.includeArchived = false;
   archiveState.data = [];
   archiveState.isPending = false;
@@ -325,4 +327,75 @@ it('uses the same precision rule for new and edited amounts', async () => {
   await user.click(saveButtons[saveButtons.length - 1]);
   expect(mutations.createLineItem.mutateAsync).not.toHaveBeenCalled();
   expect(screen.getAllByText(/no more than 2 decimal places/i)).toHaveLength(2);
+});
+
+
+it('blocks activation while add and multiple row drafts remain, then permits it after each is discarded', async () => {
+  const user = userEvent.setup();
+  activationState.enabled = true;
+  mutations.activate.mutateAsync.mockReset().mockResolvedValue({ pushState: 'success' });
+  renderPage();
+  await openDraftEditor(user);
+  await user.click(screen.getByRole('button', { name: /Edit line item Labor/i }));
+  await user.clear(screen.getByRole('textbox', { name: 'Description' }));
+  await user.type(screen.getByRole('textbox', { name: 'Description' }), 'First unsaved');
+  await user.click(screen.getByRole('button', { name: /Edit line item Equipment/i }));
+  await user.clear(screen.getByRole('textbox', { name: 'Description' }));
+  await user.type(screen.getByRole('textbox', { name: 'Description' }), 'Second unsaved');
+  await user.click(screen.getByRole('button', { name: /Add line item/i }));
+  await user.type(screen.getByRole('textbox', { name: 'Line item description' }), 'New unsaved');
+  expect(screen.getByRole('button', { name: /Activate v1/i })).toBeDisabled();
+  expect(screen.getByText(/save or discard.*line/i)).toBeInTheDocument();
+  expect(screen.queryByText(/Ready to activate\. ERPNext/i)).not.toBeInTheDocument();
+  expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue('Second unsaved');
+  await user.click(screen.getAllByRole('button', { name: 'Cancel' })[0]);
+  await user.click(screen.getByRole('button', { name: /Edit line item Labor/i }));
+  expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue('First unsaved');
+  expect(screen.getByRole('textbox', { name: 'Line item description' })).toHaveValue('New unsaved');
+  await user.click(screen.getAllByRole('button', { name: 'Cancel' })[0]);
+  expect(screen.getByRole('button', { name: /Activate v1/i })).toBeDisabled();
+  await user.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(screen.getByText(/Ready to activate\. ERPNext/i)).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: /Activate v1/i }));
+  await user.click(screen.getByRole('button', { name: 'Activate version' }));
+  expect(mutations.activate.mutateAsync).toHaveBeenCalledWith('bv1');
+});
+
+it.each(['create', 'update'] as const)('locks only the %s fields until the submitted write settles', async (kind) => {
+  const user = userEvent.setup();
+  versionState.includeArchived = true;
+  let resolve!: (value: unknown) => void;
+  const deferred = new Promise<unknown>((r) => { resolve = r; });
+  mutations[kind === 'create' ? 'createLineItem' : 'updateLineItem'].mutateAsync.mockReturnValue(deferred);
+  const { rerender } = renderPage();
+  await openDraftEditor(user);
+  await user.click(screen.getByRole('button', { name: /Edit line item Labor/i }));
+  await user.clear(screen.getByRole('textbox', { name: 'Description' }));
+  await user.type(screen.getByRole('textbox', { name: 'Description' }), 'Edited');
+  await user.click(screen.getByRole('button', { name: /Add line item/i }));
+  await user.type(screen.getByRole('textbox', { name: 'Line item description' }), 'Added');
+  await user.type(screen.getByRole('textbox', { name: 'Line item amount' }), '12.34');
+  const saves = screen.getAllByRole('button', { name: 'Save' });
+  await user.click(saves[kind === 'create' ? 1 : 0]);
+  if (kind === 'create') {
+    expect(mutations.createLineItem.mutateAsync).toHaveBeenCalledWith({ versionId: 'bv1', item: { category: 'Labor', description: 'Added', budgeted_amount: 12.34, fiscal_year: null } });
+    mutations.createLineItem.isPending = true;
+  } else {
+    expect(mutations.updateLineItem.mutateAsync).toHaveBeenCalledWith({ id: 'li1', patch: { category: 'Labor', description: 'Edited', budgeted_amount: 100000, fiscal_year: null } });
+    mutations.updateLineItem.isPending = true;
+  }
+  rerender(<MemoryRouter><ToastProvider><ProjectBudget projectId="p1" project={{ id: 'p1', currency: 'USD', tax_treatment: 'exclusive' } as unknown as ProjectWithRefs} /></ToastProvider></MemoryRouter>);
+  const locked = kind === 'create' ? ['Line item category', 'Line item description', 'Line item fiscal year', 'Line item amount'] : ['Category', 'Description', 'Fiscal year', 'Amount'];
+  for (const name of locked) expect(screen.getByRole(name.includes('category') || name === 'Category' || name.includes('fiscal year') || name === 'Fiscal year' ? 'combobox' : 'textbox', { name })).toBeDisabled();
+  const submitted = screen.getByRole('textbox', { name: kind === 'create' ? 'Line item description' : 'Description' });
+  await user.type(submitted, ' lost');
+  expect(submitted).toHaveValue(kind === 'create' ? 'Added' : 'Edited');
+  const other = screen.getByRole('textbox', { name: kind === 'create' ? 'Description' : 'Line item description' });
+  await user.type(other, ' retained');
+  await user.click(screen.getByRole('button', { name: 'Close' }));
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Version' }), 'bv2');
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Version' }), 'bv1');
+  await openDraftEditor(user);
+  await act(async () => { resolve(kind === 'create' ? { id: 'li-new' } : undefined); await deferred; });
+  expect(screen.getByRole('textbox', { name: kind === 'create' ? 'Description' : 'Line item description' })).toHaveValue(kind === 'create' ? 'Edited retained' : 'Added retained');
 });

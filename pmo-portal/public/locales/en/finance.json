@@ -472,6 +472,7 @@
       "draftWaiting": "Draft waiting for approval",
       "waitingForFinance": "Waiting for approval by finance",
       "activationSeparationNextStep": "The drafter and activator must be different people. Ask an eligible Admin or Finance user who did not edit this draft to activate it.",
+      "saveOrDiscardLines": "Save or discard all open line item edits before activating.",
       "draftReady": "This draft is ready for an eligible approver to activate.",
       "editDraft": "Edit draft",
       "activateVersionNamed": "Activate v{{version}}",
