@@ -8,6 +8,9 @@
   "categoryNeedsSetup": "Penyiapan pengeluaran untuk kategori ini belum selesai.",
   "invoiceBalanceUnavailable": "Saldo faktur masih menunggu konfirmasi.",
   "invoiceScope": "Hanya faktur yang ditautkan ke proyek ini yang disertakan.",
+  "history": {
+    "referenceNamesError": "Beberapa nama catatan tidak dapat dimuat."
+  },
   "noLinkedInvoices": "Belum ada faktur yang ditautkan ke proyek ini",
   "billedWork": "Pendapatan pekerjaan tertagih",
   "billedWorkQualifier": "Tanpa pajak; tidak termasuk uang muka",
@@ -850,5 +853,10 @@
     "contractPosition": "Posisi penagihan kontrak",
     "purchaseOrdersUnavailable": "Total pesanan pembelian masih menunggu konfirmasi.",
     "reviewInvoices": "Tinjau faktur"
+  },
+  "m365Documents": {
+    "history": {
+      "openVerified": "Buka riwayat versi yang terverifikasi"
+    }
   }
 }

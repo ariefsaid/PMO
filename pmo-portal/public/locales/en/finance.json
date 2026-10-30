@@ -215,6 +215,9 @@
     "emptySub": "They appear here after the next sync once ERPNext is connected.",
     "amountPreTaxTooltip": "Pre-tax total from the accounting-system document. Source: ERP purchase document.",
     "noProject": "No project",
+    "projectUnavailable": "Project unavailable ({{id}})",
+    "exportEntity": "ERP documents",
+    "exportList": "Export list",
     "type": {
       "order": "Purchase order",
       "invoice": "Supplier invoice",
@@ -228,7 +231,8 @@
       "date": "Date",
       "amount": "Amount",
       "erpStatus": "ERPNext status",
-      "amountPreTax": "Amount (pre-tax)"
+      "amountPreTax": "Amount (pre-tax)",
+      "currency": "Currency"
     },
     "aging": {
       "title": "Unpaid by age",

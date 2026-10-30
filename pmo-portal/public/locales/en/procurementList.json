@@ -157,6 +157,8 @@
   },
   "orphans": {
     "error": "Couldn't load documents not in a procurement",
+    "projectsError": "Couldn't load project names",
+    "projectsErrorSub": "Retry before reviewing project references.",
     "empty": {
       "title": "Every accounting-system document is in a procurement",
       "sub": "New documents appear here after the next sync."

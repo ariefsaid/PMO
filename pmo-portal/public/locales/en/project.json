@@ -8,6 +8,9 @@
   "categoryNeedsSetup": "Spending setup is not complete for this category.",
   "invoiceBalanceUnavailable": "Invoice balance is still being confirmed.",
   "invoiceScope": "Only invoices linked to this project are included.",
+  "history": {
+    "referenceNamesError": "Some record names could not be loaded."
+  },
   "noLinkedInvoices": "No invoices linked to this project yet",
   "billedWork": "Billed-work revenue",
   "billedWorkQualifier": "Net of tax; advances excluded",
@@ -850,5 +853,10 @@
     "contractPosition": "Contract invoice position",
     "purchaseOrdersUnavailable": "Purchase order totals are still being confirmed.",
     "reviewInvoices": "Review invoices"
+  },
+  "m365Documents": {
+    "history": {
+      "openVerified": "Open verified version history"
+    }
   }
 }

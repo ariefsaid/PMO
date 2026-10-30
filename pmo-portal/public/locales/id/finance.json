@@ -215,6 +215,9 @@
     "emptySub": "Pembelian tampil di sini setelah sinkronisasi berikutnya, begitu ERPNext terhubung.",
     "amountPreTaxTooltip": "Total sebelum pajak dari dokumen di sistem akuntansi. Sumber: dokumen pembelian ERP.",
     "noProject": "Tanpa proyek",
+    "projectUnavailable": "Proyek tidak tersedia ({{id}})",
+    "exportEntity": "Dokumen ERP",
+    "exportList": "Ekspor daftar",
     "type": {
       "order": "Pesanan pembelian",
       "invoice": "Faktur pemasok",
@@ -228,7 +231,8 @@
       "date": "Tanggal",
       "amount": "Jumlah",
       "erpStatus": "Status ERPNext",
-      "amountPreTax": "Jumlah (sebelum pajak)"
+      "amountPreTax": "Jumlah (sebelum pajak)",
+      "currency": "Mata uang"
     },
     "aging": {
       "title": "Belum dibayar menurut umur",
