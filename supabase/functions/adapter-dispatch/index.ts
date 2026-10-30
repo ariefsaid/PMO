@@ -818,7 +818,11 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     }
   }
   if (isErpDomain) {
-    const auth = await checkErpnextCommandAuthorization(callerClient as never, orgId, userId, command);
+    // The guard reads only the authorization inputs (domain + the named ERP document kind).
+    const auth = await checkErpnextCommandAuthorization(callerClient as never, orgId, userId, {
+      domain: command.domain,
+      record: { erp_doc_kind: command.record.erp_doc_kind },
+    });
     if (!auth.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: auth.message }), {
         status: auth.status,

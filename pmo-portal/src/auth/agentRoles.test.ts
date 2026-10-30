@@ -13,7 +13,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { AGENT_MASTER_DATA_ROLES, AGENT_TASK_STATUS_ROLES, AGENT_REVENUE_VIEW_ROLES, AGENT_REVENUE_WRITE_ROLES, AGENT_MONEY_READ_ROLES } from './agentRoles';
-import { moneyWriteRolesForDomain } from '../../../supabase/functions/adapter-dispatch/authGuard';
+import { moneyWriteRolesForDomain } from '../../../supabase/functions/_shared/moneyWriteRoles';
 import { can } from './policy';
 import type { Role } from './AuthContext';
 
