@@ -119,7 +119,10 @@ import type {
   TimesheetAwaitingApproval,
 } from '@/src/lib/db/timesheetTransition';
 import type { EntryUpsert } from '@/src/lib/timesheet-edit';
+import type { BudgetActivationPrecheckResult } from '@/src/lib/budget/budgetGate';
 import type {
+  BudgetActivationMode,
+  BudgetArchiveLiveTarget,
   BudgetVersionRow,
   BudgetVersionWithItems,
   BudgetDocumentLinkRow,
@@ -604,6 +607,9 @@ export interface TimesheetRepository {
 export interface BudgetRepository {
   importLine(request: BudgetImportRequest): Promise<{ outcome: 'created' | 'skipped' | 'conflict'; line_id: string }>;
   deriveProjectBudget(projectId: string): Promise<number>;
+  getActivationMode(versionId: string): Promise<BudgetActivationMode>;
+  precheckActivation(versionId: string): Promise<BudgetActivationPrecheckResult>;
+  listArchiveLiveTargets(versionIds: readonly string[]): Promise<BudgetArchiveLiveTarget[]>;
   listVersions(projectId: string): Promise<BudgetVersionWithItems[]>;
   createLineItem(
     versionId: string,
@@ -612,7 +618,7 @@ export interface BudgetRepository {
   ): Promise<BudgetLineItemRow>;
   updateLineItem(
     id: string,
-    patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'actual_amount'>>,
+    patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'actual_amount' | 'fiscal_year'>>,
   ): Promise<void>;
   deleteLineItem(id: string): Promise<void>;
   createVersion(
