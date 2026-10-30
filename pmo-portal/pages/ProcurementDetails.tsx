@@ -498,7 +498,9 @@ const ProcurementDetails: React.FC = () => {
   // approver (the Approve role set, never the requester) may approve the higher amount. UX only — the
   // server decides eligibility from the approval route and refuses the quote selector / bill recorder.
   const canApproveAmount = canApproveReject(role) && !isRequester;
+  const currentAmountApproval = canApproveAmount && !detailQuery.isPending && !detailQuery.isFetching && !detailQuery.isError && p.paymentEligibility === 'allowed';
   const approveHigherAmount = async (amount: number) => {
+    if (!currentAmountApproval) return;
     try {
       await mutations.approveAmount.mutateAsync(amount);
       toast(t('procurement:ceiling.approved', 'Higher amount approved'), undefined, 'success');
@@ -510,7 +512,8 @@ const ProcurementDetails: React.FC = () => {
     <PaymentCeilingNotice
       ceiling={p.paymentCeiling}
       currency={p.currency}
-      canApprove={canApproveAmount}
+      canApprove={currentAmountApproval}
+      eligibilityReason={detailQuery.isPending || detailQuery.isFetching ? 'checking' : detailQuery.isError ? 'unavailable' : p.paymentEligibility}
       busy={mutations.approveAmount?.isPending ?? false}
       onApprove={approveHigherAmount}
     />

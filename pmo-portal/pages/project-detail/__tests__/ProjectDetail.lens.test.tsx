@@ -87,6 +87,7 @@ vi.mock('@/src/lib/db/opportunity', () => ({
   useOpportunity: () => ({ data: undefined, isPending: false }),
 }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
+  useProjectWinEligibility: () => ({ data: 'allowed' }),
   useProjectTransition: () => ({
     mutate: vi.fn(),
     mutateAsync: vi.fn(),

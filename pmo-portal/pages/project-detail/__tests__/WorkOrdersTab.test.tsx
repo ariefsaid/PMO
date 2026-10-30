@@ -26,6 +26,7 @@ const { listState, drawdownState, mutations, lineState, boqState, quantityMutati
   listState: {
     data: [] as unknown[],
     isPending: false,
+    isFetching: false,
     isError: false,
     refetch: vi.fn(),
   },
@@ -109,6 +110,7 @@ const row = (over: Partial<WorkOrderRow> = {}): WorkOrderRow =>
     start_date: null,
     end_date: null,
     order_value_set_by: 'u-2',
+    issue_eligibility: 'allowed',
     value_author: { role: 'Finance', manager_id: null, status: 'active' },
     order_value_set_at: '2026-08-01T00:00:00Z',
     issued_by: null,
@@ -135,6 +137,7 @@ const renderTab = (role: Role = 'Project Manager') => {
 beforeEach(() => {
   listState.data = [];
   listState.isPending = false;
+  listState.isFetching = false;
   listState.isError = false;
   listState.refetch.mockClear();
   for (const m of Object.values(mutations)) {
@@ -317,7 +320,7 @@ describe('the rows', () => {
 
 describe('authorization (UX gate; the RPCs are the authority)', () => {
   it('AC-UXS-010 blocks only a positive-value self-authored issue for a below-Finance issuer', () => {
-    listState.data = [row({ order_value: 250_000, order_value_set_by: 'u-1' })];
+    listState.data = [row({ order_value: 250_000, order_value_set_by: 'u-1', issue_eligibility: 'self' })];
     renderTab('Project Manager');
     expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
     // SUB-C: the blocked-draft notice is the sentence alone — no bold restating title.
@@ -328,7 +331,7 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
   });
 
   it('blocks a positive-value draft with no value-set stamp, matching the RPC gate', () => {
-    listState.data = [row({ order_value_set_at: null })];
+    listState.data = [row({ order_value_set_at: null, issue_eligibility: 'missing_witness' })];
     renderTab('Project Manager');
     expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
     expect(screen.getByText('The value must be set by an authorized reviewer before this order can be issued.')).toBeInTheDocument();
@@ -354,12 +357,64 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
   it('blocks a PM when a peer author does not outrank them per the server predicate', () => {
     listState.data = [row({
       order_value_set_by: 'u-2',
+      issue_eligibility: 'reviewer_required',
       value_author: { role: 'Project Manager', manager_id: null, status: 'active' },
     })];
     renderTab('Project Manager');
     expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
     const issueGate = screen.getAllByRole('alert').find((el) => el.textContent?.includes('your supervisor'));
     expect(issueGate).toHaveTextContent('The value must be set by your supervisor or a more senior active reviewer before it can be issued.');
+  });
+
+  it('requires a current decision while an issue confirmation is open', async () => {
+    listState.data = [row()];
+    const user = userEvent.setup();
+    const view = renderTab();
+    await user.click(screen.getByRole('button', { name: /^Issue$/i }));
+    const refresh = () => view.rerender(<MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>);
+    listState.isFetching = true; refresh();
+    expect(screen.getByText('Checking issue eligibility…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Issue work order/i })).toBeDisabled();
+    listState.isFetching = false; listState.isError = true; refresh();
+    expect(screen.getByRole('button', { name: /Issue work order/i })).toBeDisabled();
+    listState.isError = false; listState.data = [row({ issue_eligibility: 'self' })]; refresh();
+    expect(screen.getByRole('button', { name: /Issue work order/i })).toBeDisabled();
+    expect(mutations.transition.mutateAsync).not.toHaveBeenCalled();
+    listState.data = [row()]; refresh();
+    await user.click(screen.getByRole('button', { name: /Issue work order/i }));
+    expect(mutations.transition.mutateAsync).toHaveBeenCalledOnce();
+  });
+
+  it('offers issue when the server authorizes the manager-authored order', () => {
+    listState.data = [row({ issue_eligibility: 'allowed' })];
+    renderTab('Project Manager');
+    expect(screen.getByRole('button', { name: 'Issue' })).toBeInTheDocument();
+  });
+
+  it('hides issue when the server denies a report-authored order', () => {
+    listState.data = [row({ issue_eligibility: 'reviewer_required' })];
+    renderTab('Project Manager');
+    expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
+  });
+
+  it('does not offer issue when the server reports an inactive witness', () => {
+    listState.data = [row({ issue_eligibility: 'inactive_reviewer' })];
+    renderTab('Project Manager');
+    expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
+    expect(screen.getByText('The value must be set by your supervisor or a more senior active reviewer before it can be issued.')).toBeInTheDocument();
+  });
+
+  it('does not offer issue when eligibility is unavailable', () => {
+    listState.data = [row({ issue_eligibility: null })];
+    renderTab('Project Manager');
+    expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
+    expect(screen.getByText('Issue eligibility could not be checked. Refresh this page and try again.')).toBeInTheDocument();
+  });
+
+  it('blocks an inactive senior value author', () => {
+    listState.data = [row({ issue_eligibility: 'inactive_reviewer', value_author: { role: 'Finance', manager_id: null, status: 'disabled' } })];
+    renderTab('Project Manager');
+    expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
   });
 
   it('a PM gets create, edit, set-value, issue and cancel on a draft set by a senior user', () => {
@@ -531,6 +586,26 @@ describe('over-commitment: the server refuses, the human answers, nothing auto-r
         overCommitAck: true,
       }),
     );
+  });
+
+  it('requires the current decision before acknowledging an over-ceiling issue', async () => {
+    mutations.transition.mutateAsync.mockRejectedValueOnce(OVER_COMMIT_REFUSAL);
+    const user = userEvent.setup();
+    const view = renderTab();
+    await user.click(screen.getByRole('button', { name: 'Issue' }));
+    await user.click(screen.getByRole('button', { name: 'Issue work order' }));
+    await screen.findByRole('button', { name: 'Acknowledge and issue' });
+    const refresh = () => view.rerender(<MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" /></ToastProvider></MemoryRouter>);
+    listState.isFetching = true; refresh();
+    expect(screen.getByRole('button', { name: 'Acknowledge and issue' })).toBeDisabled();
+    listState.isFetching = false; listState.isError = true; refresh();
+    expect(screen.getByRole('button', { name: 'Acknowledge and issue' })).toBeDisabled();
+    listState.isError = false; listState.data = [row({ issue_eligibility: 'self' })]; refresh();
+    expect(screen.getByRole('button', { name: 'Acknowledge and issue' })).toBeDisabled();
+    expect(mutations.transition.mutateAsync).toHaveBeenCalledTimes(1);
+    listState.data = [row()]; refresh();
+    await user.click(screen.getByRole('button', { name: 'Acknowledge and issue' }));
+    expect(mutations.transition.mutateAsync).toHaveBeenLastCalledWith({ id: 'wo-1', to: 'Issued', overCommitAck: true });
   });
 
   it('declining the acknowledgement issues nothing', async () => {
