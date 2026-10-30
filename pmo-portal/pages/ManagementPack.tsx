@@ -339,7 +339,11 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       label: t('financeHub:managementPack.figures.invoicedToDate', 'Invoiced to date'),
       help: t('financeHub:managementPack.figures.invoicedToDateHelp', 'Cumulative dated invoice value and invoice count through the as-at month.'),
       amount: (month) => month.invoicedToDate,
-      subline: (month) => t('financeHub:managementPack.figures.invoiceCount', '{{count}} invoices', { count: month.invoiceCountToDate }),
+      subline: (month) => t('financeHub:managementPack.figures.invoiceCount', {
+        count: month.invoiceCountToDate,
+        defaultValue_one: '{{count}} invoice',
+        defaultValue_other: '{{count}} invoices',
+      }),
     },
     {
       key: 'backlog',

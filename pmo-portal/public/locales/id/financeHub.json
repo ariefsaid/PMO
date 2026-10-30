@@ -186,7 +186,8 @@
       "earnedToDateHelp": "Pendapatan yang diakui secara kumulatif hingga bulan laporan; baris bawah menunjukkan perubahan bulan ini.",
       "invoicedToDate": "Ditagih sampai saat ini",
       "invoicedToDateHelp": "Nilai faktur bertanggal kumulatif dan jumlah faktur hingga bulan laporan.",
-      "invoiceCount": "{{count}} faktur",
+      "invoiceCount_one": "{{count}} faktur",
+      "invoiceCount_other": "{{count}} faktur",
       "thisMonthDelta": "Bulan ini {{amount}}",
       "backlog": "Sisa nilai kontrak",
       "backlogHelp": "Nilai kontrak dikurangi pendapatan yang diperoleh; belum tersedia jika faktur mata uang asing perlu direkonsiliasi."

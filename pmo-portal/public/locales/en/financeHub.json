@@ -186,7 +186,8 @@
       "earnedToDateHelp": "Cumulative recognized revenue through the as-at month; the subline shows this month’s change.",
       "invoicedToDate": "Invoiced to date",
       "invoicedToDateHelp": "Cumulative dated invoice value and invoice count through the as-at month.",
-      "invoiceCount": "{{count}} invoices",
+      "invoiceCount_one": "{{count}} invoice",
+      "invoiceCount_other": "{{count}} invoices",
       "thisMonthDelta": "This month {{amount}}",
       "backlog": "Backlog of contract total",
       "backlogHelp": "Contract total minus revenue earned to date; unavailable if a foreign-currency invoice needs reconciliation."

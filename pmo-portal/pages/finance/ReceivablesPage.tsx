@@ -208,7 +208,13 @@ export default function ReceivablesPage() {
         <Figure
           title={t('finance:receivables.owed', 'Owed to you')}
           value={dataPending ? null : owedValue}
-          detail={dataPending ? t('finance:receivables.loading', 'Loading finance figures…') : t('finance:receivables.invoiceClients', '{{invoices}} invoices · {{clients}} {{clientLabel}}', { invoices: openInvoices.length, clients: clientsCount, clientLabel: t(clientsCount === 1 ? 'finance:receivables.clientSingular' : 'finance:receivables.clientPlural', clientsCount === 1 ? 'client' : 'clients') })}
+          detail={dataPending ? t('finance:receivables.loading', 'Loading finance figures…') : t('finance:receivables.invoiceClients', {
+            count: openInvoices.length,
+            clients: clientsCount,
+            clientLabel: t(clientsCount === 1 ? 'finance:receivables.clientSingular' : 'finance:receivables.clientPlural', clientsCount === 1 ? 'client' : 'clients'),
+            defaultValue_one: '{{count}} invoice · {{clients}} {{clientLabel}}',
+            defaultValue_other: '{{count}} invoices · {{clients}} {{clientLabel}}',
+          })}
           secondaryDetail={!dataPending && owedOtherCurrencies.length ? t('finance:receivables.otherCurrencies', '{{amounts}} in other currencies', { amounts: owedOtherCurrencies.join(' · ') }) : undefined}
           help={t('finance:receivables.owedHelp', 'Known outstanding balances on submitted and unpaid client invoices, including tax.')}
         />

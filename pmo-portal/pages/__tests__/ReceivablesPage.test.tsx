@@ -107,6 +107,13 @@ describe('Receivables page', () => {
     expect(within(overdue).getByText(/10% of owed/)).toBeInTheDocument();
   });
 
+  it('formats single invoice and client with grammatical singular in en', () => {
+    h.invoices = [invoice()];
+    renderPage();
+    const owed = screen.getByRole('region', { name: 'Owed to you' });
+    expect(within(owed).getByText('1 invoice · 1 client')).toBeInTheDocument();
+  });
+
   it('shows whole-unit money for upcoming invoices and keeps other currencies on a muted second line', () => {
     h.invoices = [
       invoice({ erp_outstanding_amount: 1250, amount: 1250 }),
