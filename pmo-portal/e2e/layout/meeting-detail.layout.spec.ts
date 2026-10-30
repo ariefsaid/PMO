@@ -1,19 +1,18 @@
-// @e2e-isolation: read-only — signIn + open the seeded meeting + type into the editor WITHOUT saving (no DB writes).
+// @e2e-isolation: read-only — layout measurements on a seeded route; no writes.
 import { test, expect } from '@playwright/test';
-import { signIn, waitForFonts } from './helpers';
+import { signIn, waitForFonts } from '../helpers';
+import { assertMinutesHandle, assertMinutesWithinViewport } from '../support/layout-oracles';
+import { registerLayoutSweep } from '../support/layout-sweep';
 
-/**
- * AC-MTG-022 / AC-MTG-021 (#805): the BlockNote minutes surface accepts structured headings and never bleeds horizontally — including with
- * long unbroken strings, which the spike clipped mid-word at 375px. The a11y tree cannot express either
- * fact, so this measures the rendered boxes. Nothing is saved, so the shared seeded meeting is left untouched.
- */
+registerLayoutSweep({ path: '/meetings/ee000000-0000-0000-0000-000000000001', label: 'meeting-detail', icons: false, integrations: false });
+
 const SEEDED_MEETING = 'ee000000-0000-0000-0000-000000000001';
 
 const headingCases = [
-  { width: 390, scheme: 'light', title: 'AC-MTG-022: minutes content stays within the viewport at 390px in light theme / AC-MRT-001' },
-  { width: 390, scheme: 'dark', title: 'AC-MTG-022: minutes content stays within the viewport at 390px in dark theme / AC-MRT-001' },
-  { width: 360, scheme: 'light', title: 'AC-MTG-022: minutes content stays within the viewport at 360px in light theme / AC-MRT-001' },
-  { width: 360, scheme: 'dark', title: 'AC-MTG-022: minutes content stays within the viewport at 360px in dark theme / AC-MRT-001' },
+  { width: 390, scheme: 'light', title: '@layout AC-MTG-022: minutes content stays within the viewport at 390px in light theme / AC-MRT-001' },
+  { width: 390, scheme: 'dark', title: '@layout AC-MTG-022: minutes content stays within the viewport at 390px in dark theme / AC-MRT-001' },
+  { width: 360, scheme: 'light', title: '@layout AC-MTG-022: minutes content stays within the viewport at 360px in light theme / AC-MRT-001' },
+  { width: 360, scheme: 'dark', title: '@layout AC-MTG-022: minutes content stays within the viewport at 360px in dark theme / AC-MRT-001' },
 ] as const;
 
 for (const scenario of headingCases) {
@@ -21,6 +20,7 @@ for (const scenario of headingCases) {
     const pageErrors: string[] = [];
     page.on('pageerror', (error: Error) => pageErrors.push(error.message));
     await page.setViewportSize({ width: scenario.width, height: 800 });
+    await page.addInitScript((theme) => localStorage.setItem('theme', theme), scenario.scheme);
     await signIn(page, 'pm@acme.test'); // the seeded author — sees the editable editor
     await page.goto(`/meetings/${SEEDED_MEETING}`);
     const editor = page.getByTestId('minutes-blocknote').locator('.bn-editor');
@@ -119,22 +119,9 @@ for (const scenario of headingCases) {
     await page.keyboard.type(longToken);
     await expectCompleteMinutes();
 
-    // AC-MTG-021: no element's right edge exceeds the viewport.
-    const bleed = await page.evaluate(() => {
-      const vw = document.documentElement.clientWidth;
-      return {
-        scroll: document.documentElement.scrollWidth - vw,
-        worst: Math.max(
-          0,
-          ...Array.from(document.querySelectorAll('.minutes-editor *')).map(
-            (el) => el.getBoundingClientRect().right - vw,
-          ),
-        ),
-      };
-    });
-    expect(bleed.scroll, `${scenario.scheme}: page scroll width`).toBeLessThanOrEqual(0);
-    expect(bleed.worst, `${scenario.scheme}: widest editor element`).toBeLessThanOrEqual(1);
+    await assertMinutesWithinViewport(page, scenario.scheme);
     expect(pageErrors, 'AC-MRT-001 unhandled page errors').toEqual([]);
+    if (scenario.width === 390 && scenario.scheme === 'light') await assertMinutesHandle(page, scenario.width);
   });
 }
 
@@ -144,40 +131,9 @@ for (const scenario of headingCases) {
  * reserves its own inline-start room for it (>=640px) and does not offer the hover-only menu below that.
  * Measured on the rendered boxes — the a11y tree cannot see a clipped handle.
  */
-for (const width of [1280, 390]) {
-  test(`AC-MTG-022: the add-block handle stays inside the minutes content area at ${width}px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 800 });
-    await signIn(page, 'pm@acme.test');
-    await page.goto(`/meetings/${SEEDED_MEETING}`);
-    const surface = page.getByTestId('minutes-blocknote');
-    await expect(surface.locator('.bn-editor')).toBeVisible();
-    await waitForFonts(page);
-
-    await surface.locator('.bn-block-content').first().hover();
-    const handle = surface.locator('.bn-side-menu');
-    if (width >= 640) {
-      await expect(handle).toBeVisible();
-      const [h, area] = await Promise.all([handle.boundingBox(), surface.boundingBox()]);
-      expect(h, 'handle box').not.toBeNull();
-      expect(area, 'content area box').not.toBeNull();
-      // inside the content area (not over the sidebar), and inside the viewport
-      expect(h!.x, 'handle left edge').toBeGreaterThanOrEqual(area!.x - 0.5);
-      expect(h!.x + h!.width, 'handle right edge').toBeLessThanOrEqual(area!.x + area!.width + 0.5);
-      expect(h!.x, 'handle is not clipped at x<0').toBeGreaterThanOrEqual(0);
-    } else {
-      // Below 640px the hover-only menu is not offered, so nothing can be clipped off the left edge.
-      await expect(handle).toBeHidden();
-    }
-
-    // Either way: no element of the editor surface starts left of the viewport.
-    const worstLeft = await page.evaluate(() =>
-      Math.min(
-        0,
-        ...Array.from(document.querySelectorAll('.minutes-editor *'))
-          .filter((el) => getComputedStyle(el).display !== 'none')
-          .map((el) => el.getBoundingClientRect().left),
-      ),
-    );
-    expect(worstLeft, 'leftmost editor element').toBeGreaterThanOrEqual(-0.5);
-  });
-}
+test('@layout AC-MTG-022: the add-block handle stays inside the minutes content area at 1280px', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await signIn(page, 'pm@acme.test');
+  await page.goto(`/meetings/${SEEDED_MEETING}`);
+  await assertMinutesHandle(page, 1280);
+});

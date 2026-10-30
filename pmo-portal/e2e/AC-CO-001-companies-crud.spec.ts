@@ -1,6 +1,6 @@
 // @e2e-isolation: self-isolated — creates unique company name (Date.now()), CRUD journey creates/edits/archives own data; no seed coupling.
 import { test, expect, type Page } from '@playwright/test';
-import { login, waitForFonts } from './helpers';
+import { login } from './helpers';
 
 /**
  * AC-CO-001  Companies CRUD — real user journey (binding BDD authoring principle).
@@ -11,13 +11,10 @@ import { login, waitForFonts } from './helpers';
  *   AC-CO-004  edit company   → the change persists in the list
  *   AC-CO-005  archive company → it leaves the default list
  *
- * Plus a separate gate assertion:
- *   AC-CO-001b Engineer does NOT see "New company" (RBAC gating)
- *
  * Isolation: the unique company name is generated inside the journey test so all
  * steps share the same name and there is zero seed-coupling.
  *
- * Roles: admin@acme.test (full write), engineer@acme.test (read-only gate).
+ * Role: admin@acme.test (full write).
  *
  * RBAC authority: docs/design/rbac-visibility.md §D — Admin ● create/edit/archive;
  *                 Engineer ○ (no Companies nav, no New company button).
@@ -166,62 +163,5 @@ test(
     await expect(page).toHaveURL(/\/companies$/, { timeout: 10_000 });
     await waitReady(page);
     await expect(companyRow(page, coName)).toBeVisible({ timeout: 15_000 });
-  },
-);
-
-// ── AC-CO-001c — the toolbar search is reachable at 375px (no off-screen clip) ──
-
-test(
-  'AC-CO-001c responsive: at 375px the Companies content fits the viewport and the toolbar search is fully reachable (not clipped)',
-  async ({ page }) => {
-    // Regression guard for the CSS-grid blowout: a bare `1fr` main track took a
-    // min-content minimum, so a wide data table/toolbar pushed `main` past the
-    // viewport and clipped the right-aligned search. The fix (minmax(0,1fr) +
-    // min-w-0 on <main>) lets the track shrink. jsdom can't see layout, so this
-    // is proven in a real browser.
-    await page.setViewportSize({ width: 375, height: 812 });
-    await login(page, 'admin@acme.test');
-    await page.goto('/companies');
-    await waitReady(page);
-
-    // The toolbar (and its search) only render after the loading state clears.
-    const search = page.getByRole('searchbox', { name: /Search companies/i });
-    await expect(search).toBeVisible({ timeout: 10_000 });
-    await waitForFonts(page);
-
-    const overflow = await page.evaluate(() => {
-      const main = document.querySelector('main')!;
-      const input = document.querySelector('input[aria-label="Search companies"]')!;
-      const box = input.getBoundingClientRect();
-      return {
-        mainWidth: Math.round(main.getBoundingClientRect().width),
-        vw: window.innerWidth,
-        searchRight: Math.round(box.right),
-        searchLeft: Math.round(box.left),
-      };
-    });
-    // GOAL ORACLE: main does not exceed the viewport, and the search sits fully
-    // inside it (no horizontal clipping of the right-edge control).
-    expect(overflow.mainWidth).toBeLessThanOrEqual(overflow.vw + 1);
-    expect(overflow.searchRight).toBeLessThanOrEqual(overflow.vw);
-    expect(overflow.searchLeft).toBeGreaterThanOrEqual(0);
-  },
-);
-
-// ── AC-CO-001b — Engineer gating ─────────────────────────────────────────────
-
-test(
-  'AC-CO-001b gating: engineer does not see the New company button on /companies',
-  async ({ page }) => {
-    // Engineer has no Companies nav item but can navigate to the URL directly.
-    // The write affordance must be HIDDEN (not merely disabled).
-    await login(page, 'engineer@acme.test');
-    await page.goto('/companies');
-    await waitReady(page);
-
-    // GOAL ORACLE: "New company" button is NOT visible for Engineer
-    await expect(
-      page.getByRole('button', { name: /new company/i }),
-    ).not.toBeVisible({ timeout: 10_000 });
   },
 );

@@ -14,17 +14,15 @@
  * figures fit any tile even unformatted, so they could never reproduce the bleed this gate guards.
  * Plus the win-rate card at 390px: the period control must end above the headline figure (D-006).
  *
- * Matrix: executive `/` (1440 / 1024 / 390, EN + Bahasa), Finance `/finance` (1440 / 1024 / 390, plus
- * Bahasa 1440), PM `/` (1440 / 1024 / 390), Sales pipeline `/sales` (1440 / 1024 / 390), Revenue by
- * project and Management pack (1440 / 390, plus Bahasa 1440). Later
- * real-data slices add their route to ROUTES so bleeding can't regress.
+ * Matrix: the sales pipeline route remains here at 1440 / 1024 / 390. Other dashboard
+ * routes live in their route-specific layout sweeps.
  *
  * Bahasa without a write: `I18nProvider` resolves the language only from the signed-in profile,
  * so the profile read is rewritten to `locale: 'id'` (same technique as UXS-006).
  */
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { signIn, waitForFonts } from './helpers';
-import { FINANCE_FIXTURE, installIdrDashboardFixture } from './dashboard-idr.fixtures';
+import { installIdrDashboardFixture } from './dashboard-idr.fixtures';
 
 // Multi-step journey; measured at ~80% of the 30s default in CI.
 test.setTimeout(60_000);
@@ -59,64 +57,12 @@ interface Route {
   bahasaWidths: readonly number[];
 }
 
-// The fixture-backed figures themselves, rather than their skeleton-bearing containers, are
-// readiness signals. The sales phone layout renders deal cards instead of the desktop funnel.
-// The exact title binds readiness to the actual IDR read fixture, not merely any long number.
-const exactIdr = (value: number, language: 'en' | 'id') => new Intl.NumberFormat(
-  language === 'id' ? 'id-ID' : 'en-US',
-  { style: 'currency', currency: 'IDR', minimumFractionDigits: 0, maximumFractionDigits: 0 },
-).format(value);
-const shortIdr = (value: number, language: 'en' | 'id') => new Intl.NumberFormat(
-  language === 'id' ? 'id-ID' : 'en-US',
-  { style: 'currency', currency: 'IDR', notation: 'compact', minimumFractionDigits: 0, maximumFractionDigits: 1 },
-).format(value);
-async function expectFixtureAmount(figure: Locator, amount: number, language: 'en' | 'id') {
-  await expect(figure).toBeVisible();
-  await expect(figure.locator('[title]')).toHaveAttribute('title', exactIdr(amount, language));
-}
-const companyReady: Route['ready'] = async (page, _width, language) => {
-  const company = page.getByRole('region', { name: language === 'id' ? 'Angka perusahaan' : 'Company figures' });
-  await expect(company.locator('.tabular').filter({ hasText: /373[.,]5/ }).first()).toBeVisible();
-  const sales = page.getByRole('region', { name: language === 'id' ? 'Kinerja penjualan' : 'Sales performance' });
-  await expect(sales.locator('.tabular').filter({ hasText: /212[.,]6/ }).first()).toBeVisible();
-  await expect(page.getByTestId('kpi-win-rate')).toHaveText(/95(?:[.,]0)?%/);
-  const billing = page.getByRole('region', { name: language === 'id' ? 'Posisi penagihan' : 'Billing position' });
-  await expect(billing.locator('.tabular').first()).toHaveText(shortIdr(FINANCE_FIXTURE.receivable, language));
-};
-const financeReady: Route['ready'] = async (page, _width, language) => {
-  const areas = page.getByRole('region', { name: language === 'id' ? 'Area keuangan' : 'Finance areas' });
-  for (const [href, minimum] of [
-    ['/finance/receivables', FINANCE_FIXTURE.receivable],
-    ['/finance/payables', FINANCE_FIXTURE.payable],
-    ['/finance/reports', FINANCE_FIXTURE.contract - FINANCE_FIXTURE.receivable],
-  ] as const) {
-    const area = areas.locator('article').filter({ has: page.locator(`a[href="${href}"]`) });
-    await expect(area.getByRole('status')).toHaveCount(0);
-    await expectFixtureAmount(area.locator('.tabular').first(), minimum, language);
-  }
-  const statements = areas.locator('article').filter({ has: page.locator('a[href="/finance/statements"]') });
-  await expect(statements).toBeVisible();
-  await expect(statements.getByRole('status')).toHaveCount(0);
-  // This live statement read may legitimately have no period; preserve that state.
-  await expect(statements).toContainText(language === 'id' ? /Laba bersih/i : /net profit/i);
-};
-const reportReady: Route['ready'] = async (page, _width, language) => {
-  const figures = page.getByRole('region', { name: language === 'id' ? 'Angka laporan' : 'Report figures' });
-  await expect(figures.getByTestId('kpi-skeleton')).toHaveCount(0);
-  const idr = figures.getByRole('region', { name: 'IDR' });
-  await expectFixtureAmount(idr.locator('.tabular').nth(1), FINANCE_FIXTURE.contract, language);
-};
 const ROUTES: Route[] = [
-  { name: 'executive', user: 'exec@acme.test', path: '/', ready: companyReady, widths: WIDTHS, bahasaWidths: [1440, 390] },
-  { name: 'finance', user: 'finance@acme.test', path: '/finance', ready: financeReady, widths: WIDTHS, bahasaWidths: [1440] },
-  { name: 'pm', user: 'pm@acme.test', path: '/', ready: async (p) => { await expect(p.getByTestId('kpi-my-contract-value').locator('.tabular').filter({ hasText: /160[.,]9/ })).toBeVisible(); }, widths: WIDTHS, bahasaWidths: [] },
   { name: 'sales pipeline', user: 'exec@acme.test', path: '/sales', ready: async (p, width) => {
     const figure = width === 390 ? p.locator('main .tabular').filter({ hasText: /5,457,143,000/ }).first() : p.getByTestId('pipeline-weighted-total');
     await expect(figure).toContainText(width === 390 ? /5,457,143,000/ : /75,185,000,000/);
     await expect(figure).toBeVisible();
   }, widths: WIDTHS, bahasaWidths: [] },
-  { name: 'revenue by project', user: 'exec@acme.test', path: '/revenue-by-project', ready: reportReady, widths: [1440, 390], bahasaWidths: [1440] },
-  { name: 'management pack', user: 'exec@acme.test', path: '/reports', ready: reportReady, widths: [1440, 390], bahasaWidths: [1440] },
 ];
 
 /** A whole money/number figure ("IDR 160.9B", "Rp 160,9 M", "US$3,4 jt", "−$2.5K", "95.6%"). */
