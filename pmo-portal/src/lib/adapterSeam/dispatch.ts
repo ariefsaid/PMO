@@ -426,7 +426,10 @@ async function claimAndCommit(
             `recovery reissue blocked: the recorded actor is no longer authorized (${auth.message}); awaiting operator resolution`,
         );
         throw markCommandHeldOutbox(
-          new AppError('money command held for operator resolution — recovery reissue blocked: actor no longer authorized', 'command-held'),
+          new AppError(
+            `money command held for operator resolution — recovery reissue blocked: ${auth.message}`,
+            'command-held',
+          ),
           claimed.id,
           token,
         );
