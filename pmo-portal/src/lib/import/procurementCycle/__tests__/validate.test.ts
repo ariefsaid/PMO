@@ -525,4 +525,10 @@ describe('validateGroups — #505: VI tax treatment + tax amount are required', 
     );
     expect(result.valid).toBe(true);
   });
+it('rejects amounts outside the database numeric range during preview', () => {
+  expect(validateRow(viRow({ amount: '1000000000000', taxAmount: '0' })).valid).toBe(false);
+  expect(validateRow(viRow({ amount: '1', taxAmount: '1000000000000' })).valid).toBe(false);
+  expect(validateRow(viRow({ amount: '999999999999.99', taxAmount: '0' })).valid).toBe(true);
+});
+
 });

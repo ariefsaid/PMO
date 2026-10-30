@@ -24,6 +24,9 @@ vi.mock('@/src/lib/import/procurementCycle/commit', () => ({
   commitGroups: vi.fn(),
 }));
 import { commitGroups } from '@/src/lib/import/procurementCycle/commit';
+vi.mock('@/src/lib/import/procurementCycle/dryRunConflictReport', () => ({ buildDryRunConflictReport: vi.fn() }));
+import { buildDryRunConflictReport } from '@/src/lib/import/procurementCycle/dryRunConflictReport';
+vi.mock('@/src/lib/db/procurementImportSkip', () => ({ supabaseImportSkipLookup: {}, startProcurementImportRun: vi.fn().mockResolvedValue('server-run') }));
 
 // 3. useOrgCurrency — the preview's org-default currency (FR-L10N-020). Stubbed so the
 // wizard doesn't need an AuthProvider/QueryClientProvider in these unit tests. Mutable
@@ -130,6 +133,7 @@ async function driveToPreview(user: ReturnType<typeof userEvent.setup>, rows: st
 describe('ProcurementCycleImportWizard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(buildDryRunConflictReport).mockResolvedValue({ wouldCreate: 1, wouldSkip: 0, wouldCollide: 0 });
     orgCurrencyState.value = 'USD';
   });
 
@@ -571,4 +575,13 @@ describe('ProcurementCycleImportWizard', () => {
     await user.click(screen.getByRole('button', { name: /^back$/i }));
     expect(screen.getByLabelText(/choose an \.xlsx file/i)).toBeInTheDocument();
   });
+});
+
+it('shows reconciliation details from preview', async () => {
+  vi.mocked(buildDryRunConflictReport).mockResolvedValue({ wouldCreate: 0, wouldSkip: 0, wouldCollide: 1, conflicts: [{ caseRef: 'case-001', rowNumber: 2, type: 'PR', id: 'existing-id', message: 'Existing source requires reconciliation.' }] });
+  const user = userEvent.setup();
+  renderWizard();
+  await driveToPreview(user);
+  expect(await screen.findByText(/existing source requires reconciliation/i)).toBeInTheDocument();
+  expect(screen.getByText(/existing-id/)).toBeInTheDocument();
 });

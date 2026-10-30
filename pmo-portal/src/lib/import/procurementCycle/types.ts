@@ -127,3 +127,6 @@ export interface CommitResult {
   failed: number;
   cases: CommitCaseResult[];
 }
+
+/** A preview has no registered run until the user confirms the import. */
+export type ImportRunIdentity = { kind: 'provisional' } | { kind: 'registered'; id: string };

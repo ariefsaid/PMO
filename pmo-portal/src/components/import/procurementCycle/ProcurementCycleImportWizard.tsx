@@ -208,7 +208,7 @@ export function ProcurementCycleImportWizard({
                 variant="primary"
                 size="sm"
                 onClick={() => void wiz.commit()}
-                disabled={validRecordCount === 0}
+                disabled={validRecordCount === 0 || !wiz.conflictReport}
               >
                 Import {validRecordCount} record{validRecordCount !== 1 ? 's' : ''}
               </Button>
@@ -355,6 +355,27 @@ function CyclePreviewStep({ wiz }: { wiz: Wiz }) {
           </button>
         )}
       </div>
+
+      {wiz.parseError && (
+        <div role="alert" className="text-[13px] text-destructive-text">
+          <p>{wiz.parseError}</p>
+          <button type="button" onClick={() => void wiz.goPreview()} className="underline">Retry preview</button>
+        </div>
+      )}
+      {!wiz.conflictReport && !wiz.parseError && <p role="status" className="text-[13px] text-muted-foreground">Checking import identities…</p>}
+      {wiz.conflictReport?.conflicts?.length ? (
+        <div className="text-[13px] text-destructive-text">
+          <p>Reconcile these conflicts before importing the affected records:</p>
+          <ul>
+            {wiz.conflictReport.conflicts.map((conflict, index) => (
+              <li key={`${conflict.caseRef}-${conflict.rowNumber ?? ''}-${conflict.id ?? ''}-${index}`}>
+                <span className="break-all">{conflict.caseRef}{conflict.rowNumber != null ? ` · row ${conflict.rowNumber}` : ''}{conflict.type ? ` · ${conflict.type}` : ''}{conflict.id ? ` · ${conflict.id}` : ''}</span>{' '}
+                <span>{conflict.message}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {/* Case/record tree */}
       <div className="flex flex-col gap-2">

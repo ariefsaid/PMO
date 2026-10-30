@@ -22,8 +22,8 @@
  * (historicalImportRecordInsert.mjs) that stamp org_id + the provenance columns directly — the
  * service-role bypasses RLS, and the DB partial-unique index (0072) still enforces idempotency.
  *
- * RE-RUN SAFETY (fix-round B2, FR-HIST-011/AC-HIST-006): every write goes through insertOrSkip —
- * a same-(import_key, batch) re-run skips instead of duplicating. --dry-run performs zero writes.
+ * Procurement re-runs compare registered creation identities within the resolved case. The
+ * operator's --batch-id resumes a registered run; --dry-run performs zero writes.
  *
  * The service-role key is loaded by the OPERATOR'S OWN SHELL (op-get.sh from 1Password vault AS,
  * per docs/environments.md) — this script NEVER reads a file or 1Password directly (NFR-ONB-007).
@@ -36,18 +36,36 @@ import { validateProjectRow, validateCaseRow, COMMITTED_STATUSES } from './lib/h
 import { warnIfOlderThanOneYear, buildSummary } from './lib/historicalImportSummary.mjs';
 import { resolveOrCreateStub, buildProvenanceEvent } from './lib/historicalImportResolve.mjs';
 import { groupRows } from './lib/historicalImportGroup.mjs';
-import { computeRecordImportKey } from './lib/historicalImportKey.mjs';
+import { computeRecordImportKey, computeLegacyRecordImportKey, projectCreationFacts } from './lib/historicalImportKey.mjs';
 import { buildRecordInsert } from './lib/historicalImportRecordInsert.mjs';
 import { insertOrSkip } from './lib/historicalImportInsertOrSkip.mjs';
 
 function parseCsv(path) {
-  const text = readFileSync(path, 'utf8').trim();
-  const [headerLine, ...lines] = text.split('\n');
-  const headers = headerLine.split(',');
-  return lines.map((line) => {
-    const cells = line.split(',');
-    return Object.fromEntries(headers.map((h, i) => [h, cells[i] ?? '']));
-  });
+  const text = readFileSync(path, 'utf8');
+  const records = [];
+  let record = [], cell = '', quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (quoted) {
+      if (char === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (char === '"') quoted = false;
+      else cell += char;
+    } else if (char === '"' && cell === '') quoted = true;
+    else if (char === ',') { record.push(cell); cell = ''; }
+    else if (char === '\n' || char === '\r') {
+      if (char === '\r' && text[i + 1] === '\n') i++;
+      record.push(cell); records.push(record); record = []; cell = '';
+    } else cell += char;
+  }
+  if (quoted) throw new Error('CSV contains an unterminated quoted field.');
+  if (record.length || cell) { record.push(cell); records.push(record); }
+  const [headers = [], ...rows] = records;
+  return rows.filter(row => row.some(value => value !== ''))
+    .map(row => Object.fromEntries(headers.map((header, i) => [header, row[i] ?? ''])));
+}
+
+function exactKeyFilter(keys) {
+  return `(${keys.map(key => `"${key.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`).join(',')})`;
 }
 
 function normVendorKey(name) {
@@ -98,7 +116,28 @@ export async function main(argv, { promptConfirmFn = promptConfirm } = {}) {
     console.log(`[dry-run] no writes will be performed (org: ${org.name}).`);
   }
 
-  console.log(`import_batch_id: ${args.batchId}`);
+  if (args.file?.endsWith('procurement_cases.csv') && !dryRun) {
+    if (argv.includes('--batch-id')) {
+      const { data, error } = await supabase.from('procurement_import_runs').select('id, org_id, identity_version')
+        .eq('id', args.batchId).eq('org_id', args.orgId).eq('identity_version', 2).maybeSingle();
+      if (error || !data) {
+        console.error('The supplied import batch is not a registered current run. Upgrade and reconcile before retrying.');
+        process.exitCode = 1;
+        return;
+      }
+    } else {
+      const { data, error } = await supabase.rpc('start_procurement_import_run', { p_org_id: args.orgId });
+      if (error || typeof data !== 'string' || !data) {
+        console.error('Could not register an import run. Retry before importing.');
+        process.exitCode = 1;
+        return;
+      }
+      args.batchId = data;
+    }
+  }
+  const procurementPreview = dryRun && args.file?.endsWith('procurement_cases.csv');
+  if (procurementPreview) args.batchId = null;
+  console.log(procurementPreview ? 'Preview only; no import run registered.' : `import_batch_id: ${args.batchId}`);
   const importedAt = new Date().toISOString();
   const prov = { importBatchId: args.batchId, importedAt };
 
@@ -187,9 +226,47 @@ export async function main(argv, { promptConfirmFn = promptConfirm } = {}) {
       rowNumber: i + 2,
     }));
     const { groups } = groupRows(cycleRows);
+    const refs = [...new Set([...cycleRows.map(row => row.caseRef), ...groups.map(group => group.caseRef)].filter(ref => typeof ref === 'string' && ref.trim()))];
+    const normalized = new Map();
+    try {
+      for (let start = 0; start < refs.length; start += 200) {
+        const chunk = refs.slice(start, start + 200);
+        const { data, error } = await supabase.rpc('normalize_procurement_import_refs', { p_refs: chunk });
+        if (error) throw error;
+        if (!Array.isArray(data) || data.length !== chunk.length) throw new Error('Invalid normalization response');
+        for (const item of data) {
+          if (typeof item.input_ref !== 'string' || typeof item.normalized_ref !== 'string') throw new Error('Invalid normalization response');
+          normalized.set(item.input_ref, item.normalized_ref);
+        }
+        if (chunk.some(ref => !normalized.has(ref))) throw new Error('Incomplete normalization response');
+      }
+    } catch (error) {
+      console.error(`Case normalization failed: ${error.message ?? error}`);
+      process.exitCode = 1;
+      return;
+    }
+    const byNormalized = new Map();
+    const ambiguous = new Set();
+    for (const group of groups) {
+      const key = normalized.get(group.caseRef);
+      if (key === undefined || group.rows.some(row => normalized.get(row.caseRef) !== key)) ambiguous.add(group);
+      const owners = byNormalized.get(key) ?? [];
+      owners.push(group);
+      byNormalized.set(key, owners);
+    }
+    for (const owners of byNormalized.values()) if (owners.length > 1) for (const group of owners) ambiguous.add(group);
 
     for (const group of groups) {
-      const caseRow = raw.find((r) => r.case_ref === group.caseRef && r.terminal_status);
+      if (ambiguous.has(group)) {
+        console.error(`✗ ${group.caseRef}: ambiguous case references require reconciliation.`);
+        summary.cases.failed++;
+        for (const row of group.rows) {
+          summary.recordsByType[row.type] ??= { created: 0, skipped: 0, failed: 0 };
+          summary.recordsByType[row.type].failed++;
+        }
+        continue;
+      }
+      const caseRow = group.rows.map(row => raw[row.rowNumber - 2]).find(row => row?.terminal_status);
       const { valid, errors } = validateCaseRow(caseRow ?? {});
       if (!valid) {
         console.error(`HIST-E001 case rejected (${group.caseRef}): ${errors.join('; ')}`);
@@ -205,8 +282,13 @@ export async function main(argv, { promptConfirmFn = promptConfirm } = {}) {
       let projectId = null;
       const projectCode = group.rows.map((r) => r.project).find((p) => p?.trim());
       if (projectCode?.trim()) {
-        const { data: proj } = await supabase.from('projects').select('id')
+        const { data: proj, error: projectError } = await supabase.from('projects').select('id')
           .eq('org_id', args.orgId).eq('code', projectCode.trim()).maybeSingle();
+        if (projectError) {
+          console.error(`✗ ${group.caseRef}: project lookup failed; retry this case.`);
+          summary.cases.failed++;
+          continue;
+        }
         if (proj) { projectId = proj.id; summary.references.resolved++; }
         else if (args.strictRefs) {
           console.error(`HIST-E003 case ${group.caseRef}: project_code "${projectCode}" not found and --strict-refs is set.`);
@@ -217,16 +299,53 @@ export async function main(argv, { promptConfirmFn = promptConfirm } = {}) {
 
       // FR-HIST-012: resolve/stub vendors referenced by this case's rows (for quotations + report).
       const vendorMap = {};
+      let vendorError = false;
       for (const r of group.rows) {
         const vk = normVendorKey(r.vendor);
         if (!vk || vendorMap[vk] !== undefined) continue;
-        if (dryRun) { vendorMap[vk] = null; summary.references.resolved++; continue; }
-        const { action, id } = await resolveOrCreateStub(r.vendor.trim(), {
-          findFn: async (name) => (await supabase.from('companies').select('id').ilike('name', name).maybeSingle()).data,
-          createFn: async (name) => (await supabase.from('companies').insert({ org_id: args.orgId, name, type: 'Vendor' }).select('id').single()).data,
-        });
-        vendorMap[vk] = id;
-        summary.references[action === 'found' ? 'resolved' : 'created']++;
+        try {
+          const { data, error } = await supabase.from('companies').select('id').eq('org_id', args.orgId).ilike('name', r.vendor.trim()).maybeSingle();
+          if (error) throw error;
+          if (data) { vendorMap[vk] = data.id; summary.references.resolved++; }
+          else if (dryRun) { vendorMap[vk] = null; }
+          else {
+            const created = await supabase.from('companies').insert({ org_id: args.orgId, name: r.vendor.trim(), type: 'Vendor' }).select('id').single();
+            if (created.error || !created.data?.id) throw created.error ?? new Error('Vendor creation returned no ID.');
+            vendorMap[vk] = created.data.id;
+            summary.references.created++;
+          }
+        } catch (error) {
+          console.error(`✗ ${group.caseRef}: vendor lookup failed; retry this case.`);
+          vendorError = true;
+          break;
+        }
+      }
+      if (vendorError) { summary.cases.failed++; continue; }
+
+      const incomingKeys = new Map();
+      let invalidIdentity = false;
+      for (const row of group.rows) {
+        try {
+          const previewInvoice = row.type === 'Payment' && group.rows.some(item => item.type === 'VI') ? 'pending-invoice' : null;
+          const { payload } = buildRecordInsert(row, null, vendorMap, { ...prov, importKey: '', invoiceId: previewInvoice });
+          const key = `${row.type}:${computeRecordImportKey(row, projectCreationFacts(row.type, payload))}`;
+          const numbers = incomingKeys.get(key) ?? [];
+          numbers.push(row.rowNumber);
+          incomingKeys.set(key, numbers);
+        } catch (error) {
+          console.error(`✗ ${group.caseRef}/${row.type}: ${error.message}`);
+          invalidIdentity = true;
+        }
+      }
+      const duplicates = [...incomingKeys.values()].filter(numbers => numbers.length > 1);
+      if (invalidIdentity || duplicates.length) {
+        if (duplicates.length) console.error(`✗ ${group.caseRef}: duplicate source identities on rows ${duplicates.flat().join(', ')} require reconciliation.`);
+        summary.cases.failed++;
+        for (const row of group.rows) {
+          summary.recordsByType[row.type] ??= { created: 0, skipped: 0, failed: 0 };
+          summary.recordsByType[row.type].failed++;
+        }
+        continue;
       }
 
       const casePayload = {
@@ -235,26 +354,45 @@ export async function main(argv, { promptConfirmFn = promptConfirm } = {}) {
         import_batch_id: args.batchId, imported_at: importedAt, import_key: group.caseRef,
       };
 
+      const findCases = async () => {
+        const result = [];
+        let afterKey = null, afterId = null;
+        for (;;) {
+          const { data, error } = await supabase.rpc('lookup_procurement_import_cases', {
+            p_refs: [group.caseRef], p_after_key: afterKey, p_after_id: afterId, p_limit: 200, p_org_id: args.orgId,
+          });
+          if (error) throw error;
+          if (!Array.isArray(data) || data.some(item => typeof item.id !== 'string' || typeof item.normalized_ref !== 'string')) throw new Error('Invalid case lookup response');
+          result.push(...data);
+          if (data.length < 200) return result;
+          afterKey = data[data.length - 1].normalized_ref;
+          afterId = data[data.length - 1].id;
+        }
+      };
       let procurementId;
       let headerAction;
-      if (dryRun) {
-        const { data: existing } = await supabase.from('procurements').select('id')
-          .eq('import_key', group.caseRef).eq('import_batch_id', args.batchId).maybeSingle();
-        headerAction = existing ? 'skipped' : 'created';
-        procurementId = existing?.id ?? null;
+      try {
+        let matches = await findCases();
+        if (!dryRun) matches = await findCases();
+        if (matches.length > 1) throw new Error('Multiple matching cases require reconciliation.');
+        if (matches.length === 1) {
+          procurementId = matches[0].id;
+          headerAction = 'skipped';
+        } else if (dryRun) {
+          procurementId = null;
+          headerAction = 'created';
+        } else {
+          const { data, error } = await supabase.from('procurements').insert(casePayload).select('id').single();
+          if (error) throw error;
+          if (!data?.id) throw new Error('Case creation returned no ID.');
+          procurementId = data.id;
+          headerAction = 'created';
+        }
         summary.cases[headerAction]++;
-      } else {
-        const findCase = async () => (await supabase.from('procurements').select('id')
-          .eq('import_key', group.caseRef).eq('import_batch_id', args.batchId).maybeSingle()).data;
-        const res = await insertOrSkip({
-          findExisting: findCase,
-          insert: async () => supabase.from('procurements').insert(casePayload).select('id').single(),
-          reResolve: findCase,
-        });
-        if (res.action === 'failed') { console.error(`✗ ${group.caseRef}: ${res.error}`); summary.cases.failed++; continue; }
-        procurementId = res.id;
-        headerAction = res.action;
-        summary.cases[res.action]++;
+      } catch (error) {
+        console.error(`✗ ${group.caseRef}: ${error.message ?? error}`);
+        summary.cases.failed++;
+        continue;
       }
 
       if (args.markProvenance && headerAction === 'created' && procurementId && !dryRun) {
@@ -267,9 +405,17 @@ export async function main(argv, { promptConfirmFn = promptConfirm } = {}) {
 
       // ── Records (schema-correct per type, re-run-safe, VI id tracked for Payment FK) ──
       let groupInvoiceId = null;
-      for (const row of group.rows) {
+      let invoiceState = 'none';
+      const invoiceCount = group.rows.filter(row => row.type === 'VI').length;
+      const order = ['PR', 'RFQ', 'Quotation', 'PO', 'GR', 'VI', 'Payment'];
+      for (const row of [...group.rows].sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type))) {
         summary.recordsByType[row.type] ??= { created: 0, skipped: 0, failed: 0 };
-        const recordKey = computeRecordImportKey(row);
+        if (row.type === 'Payment' && invoiceCount && (invoiceCount !== 1 || invoiceState === 'none' || invoiceState === 'failed')) {
+          console.error(`✗ ${group.caseRef}/Payment: linked invoice could not be uniquely resolved.`);
+          summary.recordsByType[row.type].failed++;
+          continue;
+        }
+        let recordKey = computeLegacyRecordImportKey(row);
         let table, payload;
         try {
           ({ table, payload } = buildRecordInsert(
@@ -281,37 +427,65 @@ export async function main(argv, { promptConfirmFn = promptConfirm } = {}) {
           summary.recordsByType[row.type].failed++;
           continue;
         }
+        recordKey = computeRecordImportKey(row, projectCreationFacts(row.type, payload));
+        payload.import_key = recordKey;
         payload.org_id = args.orgId;
 
-        if (dryRun) {
-          if (!procurementId) { summary.recordsByType[row.type].created++; continue; }
-          const { data: existing } = await supabase.from(table).select('id')
-            .eq('procurement_id', procurementId).eq('import_key', recordKey)
-            .eq('import_batch_id', args.batchId).maybeSingle();
-          summary.recordsByType[row.type][existing ? 'skipped' : 'created']++;
-          continue;
-        }
-
-        const findRec = async () => (await supabase.from(table).select('id')
-          .eq('procurement_id', procurementId).eq('import_key', recordKey)
-          .eq('import_batch_id', args.batchId).maybeSingle()).data;
-        const res = await insertOrSkip({
-          findExisting: findRec,
-          insert: async () => supabase.from(table).insert(payload).select('id').single(),
-          reResolve: findRec,
-        });
-        if (res.action === 'failed') {
-          console.error(`✗ ${group.caseRef}/${row.type}: ${res.error}`);
-          summary.recordsByType[row.type].failed++;
-        } else {
-          if (row.type === 'VI' && res.id) groupInvoiceId = res.id; // Payment FK settlement
+        const oldKey = computeLegacyRecordImportKey(row);
+        const facts = projectCreationFacts(row.type, payload);
+        const probe = async () => {
+          const candidates = [];
+          let cursor;
+          for (;;) {
+            let query = supabase.from(table).select('id, import_key, import_batch_id, import_identity_version, import_identity_facts')
+              .eq('procurement_id', procurementId).filter('import_key', 'in', exactKeyFilter([...new Set(row.type === 'Payment' && invoiceState === 'new' && !row.externalRef?.trim() ? [oldKey] : [oldKey, recordKey])])).order('id');
+            if (cursor) query = query.gt('id', cursor);
+            const { data, error } = await query.limit(200);
+            if (error) throw error;
+            if (!Array.isArray(data)) throw new Error('Invalid record lookup response');
+            candidates.push(...data);
+            if (data.length < 200) break;
+            cursor = data[data.length - 1].id;
+          }
+          const unknown = candidates.find(item => item.import_identity_version !== 2 || !Array.isArray(item.import_identity_facts));
+          if (unknown) return { action: 'failed', id: unknown.id, error: 'Existing source requires reconciliation.' };
+          const match = candidates.find(item => item.import_key === recordKey);
+          if (!match) return { action: 'created' };
+          if (row.type === 'Payment' && invoiceState === 'new') return { action: 'failed', id: match.id, error: 'Existing source requires reconciliation.' };
+          return JSON.stringify(match.import_identity_facts) === JSON.stringify(facts)
+            ? { action: 'skipped', id: match.id }
+            : { action: 'failed', id: match.id, error: 'Changed source requires reconciliation.' };
+        };
+        try {
+          let res = procurementId ? await probe() : { action: 'created' };
+          if (!dryRun) {
+            res = await probe();
+            if (res.action === 'created') {
+              const { data, error } = await supabase.from(table).insert(payload).select('id').single();
+              if (error?.code === '23505') {
+                res = await probe();
+                if (res.action === 'created') throw error;
+              } else if (error) throw error;
+              else if (!data?.id) throw new Error('Record creation returned no ID.');
+              else res = { action: 'created', id: data.id };
+            }
+          }
+          if (res.action === 'failed') console.error(`✗ ${group.caseRef}/${row.type}: ${res.error}`);
+          if (row.type === 'VI') {
+            if (res.id && res.action !== 'failed') { groupInvoiceId = res.id; invoiceState = 'resolved'; }
+            else invoiceState = res.action === 'created' && dryRun ? 'new' : 'failed';
+          }
           summary.recordsByType[row.type][res.action]++;
+        } catch (err) {
+          console.error(`✗ ${group.caseRef}/${row.type}: ${err.message ?? err}`);
+          if (row.type === 'VI') invoiceState = 'failed';
+          summary.recordsByType[row.type].failed++;
         }
       }
     }
   }
 
-  console.log(buildSummary({ importBatchId: args.batchId, ...summary }));
+  console.log(buildSummary({ importBatchId: procurementPreview ? 'not registered (preview)' : args.batchId, ...summary }));
 }
 
 const isMain = process.argv[1] && process.argv[1].endsWith('import-historical.mjs');
