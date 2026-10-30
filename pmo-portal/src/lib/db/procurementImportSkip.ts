@@ -11,7 +11,10 @@ import { supabase } from '@/src/lib/supabase/client';
  * relational filters, not tenancy substitutes.
  */
 
+export interface ImportRecordMatch { id: string; import_key: string; import_batch_id: string }
+
 export interface ImportSkipLookup {
+  listCaseRecords?(table: RecordTableName, procurementId: string, keys: string[]): Promise<ImportRecordMatch[]>;
   /** Looks up an existing procurement (case header) by (import_key, import_batch_id) within
    *  the caller's RLS-scoped org. */
   findExistingCase(importKey: string, importBatchId: string): Promise<{ id: string } | null>;
@@ -39,24 +42,45 @@ export type RecordTableName =
   | 'procurement_receipts' | 'procurement_invoices' | 'payments';
 
 export const supabaseImportSkipLookup: ImportSkipLookup = {
+  async listCaseRecords(table, procurementId, keys) {
+    const rows: ImportRecordMatch[] = [];
+    const pageSize = 200;
+    const uniqueKeys = [...new Set(keys)];
+    for (let start = 0; start < uniqueKeys.length; start += 100) {
+      const chunk = uniqueKeys.slice(start, start + 100);
+      for (let offset = 0; ; offset += pageSize) {
+        const { data, error } = await supabase.from(table).select('id, import_key, import_batch_id')
+          .eq('procurement_id', procurementId).in('import_key', chunk)
+          .not('import_batch_id', 'is', null).order('id').range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        const page = (data ?? []) as ImportRecordMatch[];
+        rows.push(...page);
+        if (page.length < pageSize) break;
+      }
+    }
+    return rows;
+  },
+
   async findExistingCase(importKey, importBatchId) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('procurements')
       .select('id')
       .eq('import_key', importKey)
       .eq('import_batch_id', importBatchId)
       .maybeSingle();
+    if (error) throw error;
     return data ?? null;
   },
 
   async findExistingRecord(table, procurementId, importKey, importBatchId) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from(table)
       .select('id')
       .eq('procurement_id', procurementId)
       .eq('import_key', importKey)
       .eq('import_batch_id', importBatchId)
       .maybeSingle();
+    if (error) throw error;
     return data ?? null;
   },
 
@@ -69,15 +93,16 @@ export const supabaseImportSkipLookup: ImportSkipLookup = {
       neq: (col: string, val: string) => typeof query;
       not: (col: string, op: string, val: unknown) => typeof query;
       limit: (n: number) => typeof query;
-      maybeSingle: () => Promise<{ data: { id: string; import_batch_id: string } | null }>;
+      maybeSingle: () => Promise<{ data: { id: string; import_batch_id: string } | null; error: unknown }>;
     };
     if (procurementId !== undefined) query = query.eq('procurement_id', procurementId);
-    const { data } = await query
+    const { data, error } = await query
       .eq('import_key', importKey)
       .neq('import_batch_id', excludeBatchId)
       .not('import_batch_id', 'is', null)
       .limit(1)
       .maybeSingle();
+    if (error) throw error;
     return data ?? null;
   },
 };

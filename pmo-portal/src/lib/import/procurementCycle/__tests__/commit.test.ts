@@ -689,7 +689,7 @@ describe('commitGroups — A4: a 23505 unique-violation on insert is treated as 
     expect(result.failed).toBe(0);
   });
 
-  it('records a record as skipped (not failed) when its create fn raises 23505', async () => {
+  it('reports an unmatched unique violation as a failure', async () => {
     vi.mocked(createProcurement).mockResolvedValue({ id: 'proc-race' } as never);
     vi.mocked(createPurchaseOrder).mockRejectedValue(Object.assign(new Error('duplicate'), { code: '23505' }));
     const skipLookup = makeStubSkipLookup();
@@ -710,8 +710,8 @@ describe('commitGroups — A4: a 23505 unique-violation on insert is treated as 
       importBatchId: BATCH_ID, skipLookup,
     });
 
-    expect(result.cases[0].records[0].status).toBe('skipped');
-    expect(result.failed).toBe(0);
+    expect(result.cases[0].records[0].status).toBe('failed');
+    expect(result.failed).toBe(1);
   });
 
   it('the raced-record lookup passes the SAME importBatchId used for the pre-insert skip-check (commit.ts:339 guard)', async () => {
@@ -719,7 +719,7 @@ describe('commitGroups — A4: a 23505 unique-violation on insert is treated as 
     // stale/incorrect id could be attributed to a same-batch VI/record FK settlement.
     vi.mocked(createProcurement).mockResolvedValue({ id: 'proc-race-2' } as never);
     vi.mocked(createPurchaseOrder).mockRejectedValue(Object.assign(new Error('duplicate'), { code: '23505' }));
-    const findExistingRecord = vi.fn().mockResolvedValue({ id: 'raced-po-id' });
+    const findExistingRecord = vi.fn().mockResolvedValueOnce(null).mockResolvedValue({ id: 'raced-po-id' });
     const skipLookup = makeStubSkipLookup({ findExistingRecord });
     const group: ValidatedGroup = {
       valid: true, groupErrors: [],
@@ -744,6 +744,7 @@ describe('commitGroups — A4: a 23505 unique-violation on insert is treated as 
       expect.any(String),
       BATCH_ID,
     );
+    expect(findExistingRecord).toHaveBeenCalledTimes(2);
     expect(result.cases[0].records[0].id).toBe('raced-po-id');
     expect(result.cases[0].records[0].status).toBe('skipped');
   });
@@ -957,4 +958,58 @@ describe('commitGroups — #505: the tax-less-VI-at-commit guard', () => {
       }),
     ]);
   });
+});
+
+it('reports a case lookup failure without creating its header', async () => {
+  vi.clearAllMocks();
+  const group: ValidatedGroup = {
+    valid: true, groupErrors: [],
+    group: { caseRef: 'CASE', attrs: { title: 'Case', project: undefined, caseStatus: undefined }, rows: [], errors: [] },
+    rows: [],
+  };
+  const result = await commitGroups([group], {
+    requestedById: REQUESTER, projectLookup, vendorLookup, importBatchId: BATCH_ID,
+    skipLookup: makeStubSkipLookup({ findExistingCase: vi.fn().mockRejectedValue(new Error('read failed')) }),
+  });
+  expect(result.cases[0].headerStatus).toBe('failed');
+  expect(createProcurement).not.toHaveBeenCalled();
+});
+
+it('stops a case after a record lookup failure', async () => {
+  vi.clearAllMocks();
+  const rows: CycleRow[] = [
+    { caseRef: 'C', type: 'PR', title: 'C', project: undefined, caseStatus: undefined, vendor: undefined, externalRef: 'A', status: 'Approved', date: '2025-01-01', amount: '1', rowNumber: 1 },
+    { caseRef: 'C', type: 'PO', title: 'C', project: undefined, caseStatus: undefined, vendor: undefined, externalRef: 'B', status: 'Approved', date: '2025-01-01', amount: '1', rowNumber: 2 },
+  ];
+  const group: ValidatedGroup = { valid: true, groupErrors: [], group: { caseRef: 'C', attrs: { title: 'C', project: undefined, caseStatus: undefined }, rows, errors: [] }, rows: rows.map(row => ({ rowNumber: row.rowNumber, valid: true, errors: [] })) };
+  const result = await commitGroups([group], { requestedById: REQUESTER, projectLookup, vendorLookup, importBatchId: BATCH_ID, skipLookup: makeStubSkipLookup({ findExistingCase: vi.fn().mockResolvedValue({ id: 'case' }), findExistingRecord: vi.fn().mockRejectedValue(new Error('read failed')) }) });
+  expect(result.cases[0].records[0].status).toBe('failed');
+  expect(createPurchaseRequest).not.toHaveBeenCalled();
+  expect(createPurchaseOrder).not.toHaveBeenCalled();
+});
+
+it('reports a failed race recheck without continuing to later records', async () => {
+  vi.mocked(createProcurement).mockResolvedValue({ id: 'race-case' } as never);
+  vi.mocked(createPurchaseOrder).mockRejectedValue(Object.assign(new Error('duplicate'), { code: '23505' }));
+  const lookup = makeStubSkipLookup({ findExistingRecord: vi.fn().mockResolvedValueOnce(null).mockRejectedValueOnce(new Error('recheck unavailable')) });
+  const group: ValidatedGroup = {
+    valid: true, groupErrors: [],
+    group: { caseRef: 'race', attrs: { title: 'Race', project: undefined, caseStatus: undefined }, errors: [], rows: [
+      { caseRef: 'race', type: 'PO', title: undefined, project: undefined, caseStatus: undefined, vendor: undefined, externalRef: 'PO', status: 'Ordered', date: '2025-02-01', amount: '10', rowNumber: 1 },
+      { caseRef: 'race', type: 'Payment', title: undefined, project: undefined, caseStatus: undefined, vendor: undefined, externalRef: 'PAY', status: 'Paid', date: '2025-02-01', amount: '10', rowNumber: 2 },
+    ] }, rows: [{ rowNumber: 1, valid: true, errors: [] }, { rowNumber: 2, valid: true, errors: [] }],
+  };
+  const result = await commitGroups([group], { requestedById: REQUESTER, projectLookup, vendorLookup, importBatchId: BATCH_ID, skipLookup: lookup });
+  expect(result.cases[0].records).toHaveLength(1);
+  expect(result.cases[0].records[0].status).toBe('failed');
+  expect(createPayment).not.toHaveBeenCalled();
+});
+
+it('reports a header race recheck error and preserves subsequent cases', async () => {
+  vi.mocked(createProcurement).mockReset().mockRejectedValueOnce(Object.assign(new Error('duplicate'), { code: '23505' })).mockResolvedValueOnce({ id: 'next-case' } as never);
+  const lookup = makeStubSkipLookup({ findExistingCase: vi.fn().mockResolvedValueOnce(null).mockRejectedValueOnce(new Error('recheck unavailable')).mockResolvedValue(null) });
+  const group = (caseRef: string): ValidatedGroup => ({ valid: true, groupErrors: [], group: { caseRef, attrs: { title: caseRef, project: undefined, caseStatus: undefined }, rows: [], errors: [] }, rows: [] });
+  const result = await commitGroups([group('first'), group('next')], { requestedById: REQUESTER, projectLookup, vendorLookup, importBatchId: BATCH_ID, skipLookup: lookup });
+  expect(result.cases.map(item => item.headerStatus)).toEqual(['failed', 'created']);
+  expect(result.cases[0].headerError).toBeTruthy();
 });

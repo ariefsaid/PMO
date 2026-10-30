@@ -286,11 +286,11 @@ export function useProcurementCycleImport(
     setStep('preview');
     const validGroups = validatedGroups.filter((g) => g.valid);
     const report = await buildDryRunConflictReport(validGroups, {
-      importBatchId, skipLookup: supabaseImportSkipLookup, projectLookup, vendorLookup,
+      importBatchId, skipLookup: supabaseImportSkipLookup,
     });
     if (!aliveRef.current) return;
     setConflictReport(report);
-  }, [allRequiredMapped, validatedGroups, importBatchId, projectLookup, vendorLookup]);
+  }, [allRequiredMapped, validatedGroups, importBatchId]);
 
   const back = useCallback(() => {
     setStep((s) => (s === 'preview' ? 'mapping' : 'upload'));
