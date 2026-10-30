@@ -1,4 +1,4 @@
-import { parseSafeCents, formatNumberCents } from '../exactDecimal';
+import { parseSafeCents, formatNumberCents } from '../exactDecimal.ts';
 import { AdapterError } from '../adapterSeam/contract.ts';
 
 /** Parse a signed decimal amount into exact integer cents; floating point is never involved. */
