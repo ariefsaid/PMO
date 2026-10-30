@@ -50,12 +50,12 @@ function ProcurementIntake({
   choices,
   description,
   onChoose,
-  lockToNeed = false,
+  lockedChoice = null,
 }: {
   choices: IntakeChoice[];
   description: string;
   onChoose: (choice: IntakeChoice['value']) => void;
-  lockToNeed?: boolean;
+  lockedChoice?: ProcurementHave | null;
 }) {
   const { t } = useTranslation('procurementCreate');
 
@@ -67,9 +67,9 @@ function ProcurementIntake({
       <p className="mt-2 text-sm text-muted-foreground">
         {description}
       </p>
-      {lockToNeed && (
+      {lockedChoice && (
         <p role="status" className="mt-4 text-sm text-muted-foreground">
-          {t('continueNeed', 'A purchase request is saved with lines still to finish. Continue with the same need.')}
+          {t('continueAttempt', 'The save may have completed. Continue with the same choice to retry.')}
         </p>
       )}
       <div className="mt-6 divide-y divide-border">
@@ -77,7 +77,7 @@ function ProcurementIntake({
           <button
             key={choice.value}
             type="button"
-            disabled={lockToNeed && choice.value !== 'need'}
+            disabled={lockedChoice !== null && choice.value !== lockedChoice}
             onClick={() => onChoose(choice.value)}
             className="group flex min-h-[68px] w-full items-center gap-3 py-3 text-left transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-60"
           >
@@ -127,7 +127,7 @@ export default function ProcurementCreate() {
   const [errors, setErrors] = useState<{ title?: string; save?: string; conflict?: boolean }>({});
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
-  const [attempt, setAttempt] = useState<AtomicProcurementInput | null>(null);
+  const [attempt, setAttempt] = useState<{ input: AtomicProcurementInput; have: ProcurementHave } | null>(null);
 
   const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
   const dirty = saving || attempt !== null || (
@@ -223,7 +223,7 @@ export default function ProcurementCreate() {
     savingRef.current = true;
     setSaving(true);
 
-    const input: AtomicProcurementInput = attempt ?? {
+    const input: AtomicProcurementInput = attempt?.input ?? {
       id: crypto.randomUUID(),
       header: {
         title: title.trim(), projectId: selectedProject, vendorId: supplierId,
@@ -231,11 +231,12 @@ export default function ProcurementCreate() {
       },
       lines: have === 'need' ? lines.map(({ id, name, quantity, rate, description }) => ({ id, name, quantity, rate, description })) : [],
     };
-    setAttempt(input);
+    const attemptHave = attempt?.have ?? have;
+    setAttempt({ input, have: attemptHave });
     try {
       const procurement = await create.mutateAsync(input);
-      if (have !== 'need') {
-        navigate(`/procurement/${procurement.id}/timeline?record=${RECORD_KIND[have]}`, { replace: true });
+      if (attemptHave !== 'need') {
+        navigate(`/procurement/${procurement.id}/timeline?record=${RECORD_KIND[attemptHave]}`, { replace: true });
       } else {
         navigate(`/procurement/${procurement.id}`, { replace: true });
       }
@@ -243,7 +244,7 @@ export default function ProcurementCreate() {
       const classified = classifyMutationError(error);
       const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
       const conflict = code === '23505';
-      if (code === '22023' || code === '23503' || code === '23514') setAttempt(null);
+      if (!attempt && (code === '22003' || code === '22023' || code === '23503' || code === '23514')) setAttempt(null);
       const detail = conflict
         ? t('reconcile', 'Open the saved request to reconcile it before retrying.')
         : classified.detail;
@@ -268,7 +269,7 @@ export default function ProcurementCreate() {
             ? t('questionDescription', 'Start with a new need or a document already in hand.')
             : t('choices.need.description', 'Raise a purchase request.')}
           onChoose={choose}
-          lockToNeed={Boolean(attempt)}
+          lockedChoice={attempt?.have ?? null}
         />
         <ConfirmDialog
           open={pendingLeave !== null}
@@ -362,7 +363,7 @@ export default function ProcurementCreate() {
           </fieldset>
         </section>
         {errors.save && <p role="alert" className="mb-4 text-sm text-destructive-text">{errors.save}</p>}
-        {errors.conflict && attempt && <Button type="button" variant="outline" onClick={() => guardLeave(() => navigate(`/procurement/${attempt.id}`))}>{t('openSavedRequest', 'Open saved request')}</Button>}
+        {errors.conflict && attempt && <Button type="button" variant="outline" onClick={() => guardLeave(() => navigate(`/procurement/${attempt.input.id}`))}>{t('openSavedRequest', 'Open saved request')}</Button>}
         {needForm && (
           <fieldset disabled={saving || Boolean(attempt)} className="contents">
             <LineItemsSection

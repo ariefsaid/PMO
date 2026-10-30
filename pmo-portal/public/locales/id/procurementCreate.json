@@ -4,6 +4,7 @@
   "denied": "Anda tidak memiliki izin untuk membuat pengadaan.",
   "question": "Apa yang Anda miliki?",
   "questionDescription": "Mulai dari kebutuhan baru atau dokumen yang sudah tersedia.",
+  "continueAttempt": "Penyimpanan mungkin sudah selesai. Lanjutkan dengan pilihan yang sama untuk mencoba lagi.",
   "continueNeed": "Permintaan pembelian tersimpan dengan item yang belum selesai. Lanjutkan kebutuhan yang sama.",
   "choices": {
     "need": {

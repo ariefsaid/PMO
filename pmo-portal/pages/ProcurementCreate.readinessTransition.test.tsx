@@ -33,6 +33,7 @@ vi.mock('@/src/hooks/useFkOptions', () => ({
   useVendorOptions: () => mocks.vendorQuery,
 }));
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
+  useCreateProcurementWithItems: () => ({ mutateAsync: mocks.createRequest, isPending: false }),
   useCreateProcurement: () => ({ mutateAsync: mocks.createRequest, isPending: false }),
   useCreateProcurementItem: () => ({ mutateAsync: mocks.createItem, isPending: false }),
 }));

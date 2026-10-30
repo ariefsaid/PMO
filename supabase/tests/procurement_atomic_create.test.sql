@@ -1,5 +1,5 @@
 begin;
-select plan(25);
+select plan(40);
 insert into organizations (id,name) values ('f5000000-0000-0000-0000-000000000001','Atomic org');
 insert into auth.users (id,email) values ('f5000000-0000-0000-0000-000000000002','atomic@example.test');
 insert into profiles (id,org_id,full_name,email,role) values ('f5000000-0000-0000-0000-000000000002','f5000000-0000-0000-0000-000000000001','Atomic','atomic@example.test','Engineer');
@@ -8,6 +8,7 @@ insert into auth.users (id,email) values ('f5000000-0000-0000-0000-000000000102'
 insert into profiles (id,org_id,full_name,email,role) values
  ('f5000000-0000-0000-0000-000000000102','f5000000-0000-0000-0000-000000000101','Other','other-atomic@example.test','Project Manager'),
  ('f5000000-0000-0000-0000-000000000103','f5000000-0000-0000-0000-000000000001','Other Engineer','other-engineer@example.test','Engineer');
+insert into projects (id,org_id,name,status) values ('f5000000-0000-0000-0000-000000000106','f5000000-0000-0000-0000-000000000101','Other project','Ongoing Project');
 insert into companies (id,org_id,name,type) values ('f5000000-0000-0000-0000-000000000104','f5000000-0000-0000-0000-000000000101','Other supplier','Vendor');
 insert into auth.users (id,email) values ('f5000000-0000-0000-0000-000000000105','disabled-atomic@example.test');
 insert into profiles (id,org_id,full_name,email,role,status) values ('f5000000-0000-0000-0000-000000000105','f5000000-0000-0000-0000-000000000001','Disabled','disabled-atomic@example.test','Engineer','disabled');
@@ -34,7 +35,7 @@ select throws_ok($$select public.create_procurement_with_items('f5000000-0000-00
 set local request.jwt.claims = '{"sub":"f5000000-0000-0000-0000-000000000103","role":"authenticated"}';
 select throws_ok($$select public.create_procurement_with_items('f5000000-0000-0000-0000-000000000010', '{"title":"Draft","project_id":null,"vendor_id":null}', '[{"id":"f5000000-0000-0000-0000-000000000011","name":"Item","quantity":2,"rate":1.25,"description":null}]')$$,'23505',null,'other requester cannot adopt ID');
 set local request.jwt.claims = '{"sub":"f5000000-0000-0000-0000-000000000002","role":"authenticated"}';
-select throws_ok($$select public.create_procurement_with_items('f5000000-0000-0000-0000-000000000050', '{"title":"Cross org","project_id":null,"vendor_id":"f5000000-0000-0000-0000-000000000104"}', '[]')$$,'42501',null,'foreign supplier denied');
+select throws_ok($$select public.create_procurement_with_items('f5000000-0000-0000-0000-000000000050', '{"title":"Cross org","project_id":null,"vendor_id":"f5000000-0000-0000-0000-000000000104"}', '[]')$$,'23503',null,'foreign supplier denied');
 set local request.jwt.claims = '{"sub":"f5000000-0000-0000-0000-000000000105","role":"authenticated"}';
 select throws_ok($$select public.create_procurement_with_items('f5000000-0000-0000-0000-000000000051', '{"title":"Disabled","project_id":null,"vendor_id":null}', '[]')$$,'42501',null,'disabled requester denied');
 select throws_ok($$select public.create_procurement_with_items('f5000000-0000-0000-0000-000000000052', '{"title":"Spoof","project_id":null,"vendor_id":null,"requested_by_id":"f5000000-0000-0000-0000-000000000002"}', '[]')$$,'42501',null,'disabled requester cannot spoof identity');
@@ -47,5 +48,30 @@ select throws_ok($$select public.create_procurement_with_items('f5000000-0000-00
 select lives_ok($$select public.create_procurement_with_items('f5000000-0000-0000-0000-000000000060', '{"title":"Legacy","project_id":null,"vendor_id":null}', '[{"id":"f5000000-0000-0000-0000-000000000061","name":"Existing","quantity":1,"rate":5},{"id":"f5000000-0000-0000-0000-000000000062","name":"Missing","quantity":2,"rate":6}]')$$,'matching legacy partial draft reconciles');
 select is((select count(*) from public.procurement_items where procurement_id='f5000000-0000-0000-0000-000000000060'),2::bigint,'legacy reconciliation keeps existing and adds missing line');
 select lives_ok($$select public.create_procurement_with_items('f5000000-0000-0000-0000-000000000060', '{"title":"Legacy","project_id":null,"vendor_id":null}', '[{"id":"f5000000-0000-0000-0000-000000000061","name":"Existing","quantity":1,"rate":5},{"id":"f5000000-0000-0000-0000-000000000062","name":"Missing","quantity":2,"rate":6}]')$$,'legacy reconciliation retry is idempotent');
+-- Unavailable and cross-organization references are rejected before writes.
+select throws_ok($$select public.create_procurement_with_items('f5000000-0000-0000-0000-000000000090', '{"title":"Stale supplier","project_id":null,"vendor_id":"f5000000-0000-0000-0000-000000000099"}', '[{"id":"f5000000-0000-0000-0000-000000000091","name":"Item","quantity":1,"rate":1}]')$$,'23503',null,'unavailable supplier rejected');
+select throws_ok($$select public.create_procurement_with_items('f5000000-0000-0000-0000-000000000092', '{"title":"Stale project","project_id":"f5000000-0000-0000-0000-000000000099","vendor_id":null}', '[]')$$,'23503',null,'unavailable project rejected');
+select throws_ok($$select public.create_procurement_with_items('f5000000-0000-0000-0000-000000000093', '{"title":"Foreign project","project_id":"f5000000-0000-0000-0000-000000000106","vendor_id":null}', '[]')$$,'23503',null,'foreign project denied');
+reset role;
+select is((select count(*) from public.procurements where id in ('f5000000-0000-0000-0000-000000000050','f5000000-0000-0000-0000-000000000090','f5000000-0000-0000-0000-000000000092','f5000000-0000-0000-0000-000000000093')),0::bigint,'reference denials leave no headers');
+select is((select count(*) from public.procurement_items where procurement_id in ('f5000000-0000-0000-0000-000000000050','f5000000-0000-0000-0000-000000000090','f5000000-0000-0000-0000-000000000092','f5000000-0000-0000-0000-000000000093')),0::bigint,'reference denials leave no lines');
+select is((select count(*) from public.procurement_create_intents where procurement_id in ('f5000000-0000-0000-0000-000000000050','f5000000-0000-0000-0000-000000000090','f5000000-0000-0000-0000-000000000092','f5000000-0000-0000-0000-000000000093')),0::bigint,'reference denials leave no intents');
+set local role authenticated;
+reset role;
+select is((select count(*) from public.procurements where id='f5000000-0000-0000-0000-000000000093'),0::bigint,'unavailable project leaves no header');
+set local role authenticated;
+-- An overflowing generated amount rolls the whole RPC back.
+select throws_ok($$select public.create_procurement_with_items('f5000000-0000-0000-0000-000000000070', '{"title":"Overflow","project_id":null,"vendor_id":null}', '[{"id":"f5000000-0000-0000-0000-000000000071","name":"Valid","quantity":1,"rate":1},{"id":"f5000000-0000-0000-0000-000000000072","name":"Overflow","quantity":1000000,"rate":1000000}]')$$,'22003',null,'numeric overflow rejects RPC');
+reset role;
+select is((select count(*) from public.procurements where id='f5000000-0000-0000-0000-000000000070'),0::bigint,'overflow leaves no header');
+select is((select count(*) from public.procurement_items where procurement_id='f5000000-0000-0000-0000-000000000070'),0::bigint,'overflow leaves no lines');
+select is((select count(*) from public.procurement_create_intents where procurement_id='f5000000-0000-0000-0000-000000000070'),0::bigint,'overflow leaves no intent');
+insert into public.org_features(org_id,feature_key,enabled) values ('f5000000-0000-0000-0000-000000000001','procurement',false);
+set local role authenticated;
+select throws_ok($$select public.create_procurement_with_items('f5000000-0000-0000-0000-000000000080', '{"title":"Disabled feature","project_id":null,"vendor_id":null}', '[{"id":"f5000000-0000-0000-0000-000000000081","name":"Item","quantity":1,"rate":1}]')$$,'42501',null,'disabled procurement feature denies RPC');
+reset role;
+select is((select count(*) from public.procurements where id='f5000000-0000-0000-0000-000000000080'),0::bigint,'feature denial leaves no header');
+select is((select count(*) from public.procurement_items where procurement_id='f5000000-0000-0000-0000-000000000080'),0::bigint,'feature denial leaves no lines');
+select is((select count(*) from public.procurement_create_intents where procurement_id='f5000000-0000-0000-0000-000000000080'),0::bigint,'feature denial leaves no intent');
 select * from finish();
 rollback;

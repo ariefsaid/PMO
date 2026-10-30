@@ -4,6 +4,7 @@
   "denied": "You do not have permission to create procurements.",
   "question": "What do you have?",
   "questionDescription": "Start with a new need or a document already in hand.",
+  "continueAttempt": "The save may have completed. Continue with the same choice to retry.",
   "continueNeed": "A purchase request is saved with lines still to finish. Continue with the same need.",
   "choices": {
     "need": {

@@ -36,7 +36,7 @@ begin
   v_category := (p_header->>'budget_category')::public.budget_category;
   if (v_project is not null and not exists (select 1 from public.projects where id=v_project and org_id=v_org))
      or (v_vendor is not null and not exists (select 1 from public.companies where id=v_vendor and org_id=v_org)) then
-    raise exception 'Reference is not available' using errcode = '42501';
+    raise exception 'Reference is not available' using errcode = '23503';
   end if;
   if exists (select 1 from jsonb_array_elements(p_items) x group by (x->>'id')::uuid having count(*) > 1) then
     raise exception 'Duplicate line ID' using errcode = '23505';

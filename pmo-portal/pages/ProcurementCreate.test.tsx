@@ -303,6 +303,87 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(screen.getByLabelText(/title/i)).toBeEnabled();
   });
 
+  it('permits correcting an overflow line and retrying the draft', async () => {
+    mocks.createAtomic.mockRejectedValueOnce(new ProcurementError('Numeric overflow', '22003'));
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Overflow' } });
+    fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
+    fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '1000000' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '1000000' } });
+    fireEvent.click(screen.getByRole('button', { name: /add line item/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Paper' }));
+    fireEvent.change(screen.getByLabelText('Edit quantity for Paper'), { target: { value: '2' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Save' }).at(-1)!);
+    await waitFor(() => expect(screen.queryByLabelText('Edit quantity for Paper')).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
+    expect(mocks.createAtomic.mock.calls[1][0].lines[0].quantity).toBe(2);
+  });
+
+  it.each([
+    ['An order', 'po'], ['A supplier invoice', 'invoice'], ['A scheduled payment', 'payment'],
+  ])('retains %s capture mode through an uncertain save and intake', async (choice, record) => {
+    mocks.createAtomic.mockRejectedValueOnce(new Error('network'));
+    renderCreate('/procurement/new');
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(choice, 'i') }));
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Existing document' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: /what do you have/i }));
+    expect(screen.getByRole('button', { name: /A new need/i })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(choice, 'i') }));
+    expect(screen.getByLabelText(/title/i)).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith(`/procurement/new-id/timeline?record=${record}`, { replace: true }));
+    expect(mocks.createAtomic.mock.calls[1][0]).toEqual(mocks.createAtomic.mock.calls[0][0]);
+  });
+
+  it('allows a stale supplier to be corrected after a definitive reference rejection', async () => {
+    mocks.createAtomic.mockRejectedValueOnce(new ProcurementError('Reference unavailable', '23503'));
+    mocks.vendorQuery.data = [{ value: 'v1', label: 'Supplier One', sub: 'Vendor' }, { value: 'v2', label: 'Supplier Two', sub: 'Vendor' }];
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Supplies' } });
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
+    fireEvent.click(await screen.findByRole('option', { name: /Supplier One/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alert');
+    expect(screen.getByRole('combobox', { name: 'Supplier' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
+    fireEvent.click(await screen.findByRole('option', { name: /Supplier Two/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
+    expect(mocks.createAtomic.mock.calls[1][0].header.vendorId).toBe('v2');
+  });
+
+  it('keeps an uncertain attempt frozen when a later retry rejects a stale reference', async () => {
+    mocks.createAtomic.mockRejectedValueOnce(new Error('network')).mockRejectedValueOnce(new ProcurementError('Reference unavailable', '23503'));
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Original' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mocks.createAtomic).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled());
+    expect(screen.getByLabelText(/title/i)).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
+    expect(mocks.createAtomic.mock.calls[2][0]).toEqual(mocks.createAtomic.mock.calls[0][0]);
+  });
+
+  it('retains the immutable attempt after an authorization denial', async () => {
+    mocks.createAtomic.mockRejectedValueOnce(new ProcurementError('Denied', '42501'));
+    renderCreate();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Original' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('alert');
+    expect(screen.getByLabelText(/title/i)).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
+    expect(mocks.createAtomic.mock.calls[1][0]).toEqual(mocks.createAtomic.mock.calls[0][0]);
+  });
+
   it('shows server reconciliation instructions for a conflicting ID', async () => {
     mocks.createAtomic.mockRejectedValueOnce(new ProcurementError('Open the saved request to reconcile it before retrying.', '23505'));
     renderCreate();
