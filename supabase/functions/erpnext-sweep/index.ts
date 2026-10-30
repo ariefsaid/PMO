@@ -2453,8 +2453,7 @@ async function reconcileOrgBudgetArchiveCancellationsLive(
 
       const authorization = await checkErpnextCommandAuthorization(serviceClient as never, job.org_id, job.actor_user_id, {
         domain: ERPNEXT_BUDGET_DOMAIN,
-        operation: 'create',
-        record: { id: job.budget_version_id, erp_doc_kind: 'budget' },
+        record: { erp_doc_kind: 'budget' },
       });
       if (!authorization.ok) throw new AppError(authorization.message, 'commit-rejected');
 
@@ -3202,8 +3201,7 @@ export function expensePostingBackstopDepsLive(
     driveFresh: async (row, truth, refs) => {
       const built = buildExpensePostingCommand(truth, refs, erpDatetime(Date.now() - 60_000));
       const auth = await checkErpnextCommandAuthorization(serviceClient as never, org.orgId, truth.actor_id, {
-        domain: ERPNEXT_EXPENSES_DOMAIN, operation: built.operation,
-        record: { id: built.outboxIdentity, erp_doc_kind: built.record.erp_doc_kind },
+        domain: ERPNEXT_EXPENSES_DOMAIN, record: { erp_doc_kind: built.record.erp_doc_kind },
       });
       if (!auth.ok) {
         await recordOutcome(row, { state: 'failed', reason: auth.message });
@@ -3584,8 +3582,7 @@ export async function buildMoneyWriteDepsLive(
       }
       const res = await checkErpnextCommandAuthorization(serviceClient as never, org.orgId, args.actorUserId, {
         domain: command.domain,
-        operation,
-        record: { id: args.outboxRecordId, erp_doc_kind: payload.erp_doc_kind },
+        record: { erp_doc_kind: payload.erp_doc_kind },
       });
       if (!res.ok) return { ok: res.ok, message: res.message };
       // A reissued procurement create answers the org's CURRENT purchase rules (the same question the outbox claim

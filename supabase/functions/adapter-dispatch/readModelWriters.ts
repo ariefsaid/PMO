@@ -184,14 +184,13 @@ const companiesWriter: ReadModelWriter = {
  *  nulling (the insert would fail on the constraint anyway), so `missing` throws the SAME classified
  *  error as cross-org rather than a raw 23503. Defined below `checkLinkSameOrg`/`resolveLinkOrNull`
  *  is not possible (hoisting is fine for function declarations) — it reuses them, never a second copy. */
-async function requireOwnOrgLink(ctx: ReadModelWriterCtx, table: string, id: string): Promise<string> {
+async function requireOwnOrgLink(ctx: ReadModelWriterCtx, table: string, id: string): Promise<void> {
   if ((await checkLinkSameOrg(ctx, table, id)) === 'missing') {
     throw new AppError(
       `cross-org link rejected: ${table} '${id}' does not exist in org '${ctx.orgId}'`,
       'cross-org-link-rejected',
     );
   }
-  return id;
 }
 
 /** A registered-but-not-yet-wired erp_doc_kind WITHIN the 'procurement' writer (task 4.5's own

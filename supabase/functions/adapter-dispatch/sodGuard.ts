@@ -131,7 +131,7 @@ export function requiresSiAuthorClaim(command: AdapterCommand): boolean {
  * BEST-EFFORT by construction: the freeze already has a TTL, so a failed release must never turn a
  * RESOLVED money dispatch into a client-visible error. It is logged, never thrown.
  */
-export async function releaseSiSubmitClearance(client: SodRpcClient, siId: string, clearanceId: string): Promise<boolean> {
+export async function releaseSiSubmitClearance(client: SodRpcClient, siId: string, clearanceId: string): Promise<void> {
   const { error } = await client.rpc('release_sales_invoice_submit_clearance', {
     p_si_id: siId,
     p_clearance_id: clearanceId,
@@ -141,9 +141,7 @@ export async function releaseSiSubmitClearance(client: SodRpcClient, siId: strin
       `[adapter-dispatch] submit clearance release failed for sales invoice ${siId} (clearance ${clearanceId}): `
         + `code=${error.code ?? 'none'} message=${error.message} — the clearance TTL remains the backstop`,
     );
-    return false;
   }
-  return true;
 }
 
 /** Claim authorship of the sales invoice's body BEFORE the ERP write, under the CALLER's JWT.
