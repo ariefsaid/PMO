@@ -12,6 +12,7 @@ vi.mock('@/src/lib/db/financialStatements', () => ({
   getFinancialStatementCatalogue: vi.fn(),
 }));
 vi.mock('@/src/lib/db/companyCollections', () => ({
+  listCompanyPartyRefs: vi.fn(),
   listCompanyCustomerRefs: vi.fn(),
   listCompanyCustomerRefsByErpCustomerIds: vi.fn(),
 }));
@@ -81,6 +82,7 @@ vi.mock('@/src/lib/db/procurementLifecycle', () => ({
 }));
 vi.mock('@/src/lib/db/procurementPaymentCeiling', () => ({ approveProcurementAmount: vi.fn() }));
 vi.mock('@/src/lib/db/procurementCrud', () => ({
+  procurementItemValuesEditable: vi.fn(),
   createProcurement: vi.fn(),
   updateProcurementHeader: vi.fn(),
   updateProcurementVendor: vi.fn(),
@@ -120,6 +122,7 @@ vi.mock('@/src/lib/db/timesheetPush', () => ({
 }));
 vi.mock('@/src/lib/db/budgets', () => ({
   deriveProjectBudget: vi.fn(),
+  importBudgetLine: vi.fn(),
   listBudgetVersions: vi.fn(),
   createLineItem: vi.fn(),
   updateLineItem: vi.fn(),
@@ -167,6 +170,7 @@ import * as financialStatementsDal from '@/src/lib/db/financialStatements';
 import * as opportunityDal from '@/src/lib/db/opportunity';
 import * as projectTransitionsDal from '@/src/lib/db/projectTransitions';
 import * as companiesDal from '@/src/lib/db/companies';
+import * as companyCollectionsDal from '@/src/lib/db/companyCollections';
 import * as documentsDal from '@/src/lib/db/documents';
 import * as profilesDal from '@/src/lib/db/profiles';
 import * as adminUsersDal from '@/src/lib/db/adminUsers';
@@ -218,7 +222,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
   });
 
   it('companyCollections exposes both canonical-reference batch reads', () => {
-    expect(Object.keys(repositories.companyCollections).sort()).toEqual(['listForCompanies', 'listForErpCustomerIds']);
+    expect(Object.keys(repositories.companyCollections).sort()).toEqual(['listForCompanies', 'listForErpCustomerIds', 'listPartyIds']);
   });
 
   it('m365DocumentSettings exposes the default-library repository methods', () => {
@@ -314,6 +318,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'deleteDocument',
         'deleteItem',
         'get',
+        'itemValuesEditable',
         'linkMicrosoftDocument',
         'list',
         'listDocuments',
@@ -330,7 +335,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'pushApproved', 'reject', 'submit', 'upsertEntries', 'saveWeek', 'reopen', 'attestNoErpDocument', 'listReopenableApproved', 'listPushesNeedingAttention', 'confirmEmployeeLink', 'getPushState'].sort(),
     );
     expect(Object.keys(repositories.budget).sort()).toEqual(
-      ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'listDocumentLinks', 'listVersions', 'removeDocumentLink', 'updateLineItem'].sort(),
+      ['activateVersion', 'addDocumentLink', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'getActivationMode', 'importLine', 'listArchiveLiveTargets', 'listDocumentLinks', 'listVersions', 'precheckActivation', 'removeDocumentLink', 'updateLineItem'].sort(),
     );
     expect(Object.keys(repositories.incident).sort()).toEqual(
       ['create', 'delete', 'get', 'list', 'transition', 'update'].sort(),
@@ -339,6 +344,20 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
 });
 
 describe('delegation — methods pass args through and return the DAL result', () => {
+  it('company party mapping delegates its IDs and returns the result', async () => {
+    const ids = ['company-a', 'company-b'];
+    const mapped = ['company-a'];
+    vi.mocked(companyCollectionsDal.listCompanyPartyRefs).mockResolvedValue(mapped);
+    await expect(repositories.companyCollections.listPartyIds(ids)).resolves.toBe(mapped);
+    expect(companyCollectionsDal.listCompanyPartyRefs).toHaveBeenCalledWith(ids);
+  });
+
+  it('procurement line eligibility delegates the case and returns the decision', async () => {
+    vi.mocked(procCrudDal.procurementItemValuesEditable).mockResolvedValue(true);
+    await expect(repositories.procurement.itemValuesEditable('case-1')).resolves.toBe(true);
+    expect(procCrudDal.procurementItemValuesEditable).toHaveBeenCalledWith('case-1');
+  });
+
   it('project.list delegates to listProjects', async () => {
     const rows = [{ id: 'p1' }];
     vi.mocked(projectsDal.listProjects).mockResolvedValue(rows as never);
@@ -897,6 +916,10 @@ describe('delegation — methods pass args through and return the DAL result', (
     expect(budgetsDal.listBudgetVersions).toHaveBeenCalledWith('p1');
 
     const item = { category: 'Labour', description: null, budgeted_amount: 5 } as never;
+    const importRequest = { versionId: 'v1', item, batchId: 'b1', importedAt: 'now', v2Key: 'v2', legacyKey: 'old', hasReference: true };
+    vi.mocked(budgetsDal.importBudgetLine).mockResolvedValue({ outcome: 'created', line_id: 'line' });
+    await expect(repositories.budget.importLine(importRequest)).resolves.toEqual({ outcome: 'created', line_id: 'line' });
+    expect(budgetsDal.importBudgetLine).toHaveBeenCalledWith(importRequest);
     await repositories.budget.createLineItem('v1', item);
     expect(budgetsDal.createLineItem).toHaveBeenCalledWith('v1', item, undefined);
 

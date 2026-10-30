@@ -72,6 +72,13 @@ interface ResolvedLineItem {
   po_item_child_name?: string;
 }
 
+export interface ProcurementSourceLine {
+  name: string;
+  description?: string | null;
+  quantity: number | string;
+  rate: number | string | null;
+}
+
 /** The companies-domain external id encodes its doctype (`Supplier:<name>`/`Customer:<name>`, task
  *  3.2's adopt design) so the collision rule is deterministic; PO/GR bodies want the raw ERP name. */
 function stripPartyDoctypePrefix(externalId: string): string {
@@ -104,10 +111,14 @@ async function resolveCaseSupplierName(
 
 /** The case's line items (`procurement_items`, the shared item list every procurement sub-doctype
  *  draws from) mapped to the PMO-shaped line-item draft `erpnext/bodies/*`'s `toBody`s read. */
-async function resolveCaseItems(serviceClient: DispatchServiceClient, procurementId: string): Promise<ResolvedLineItem[]> {
+async function resolveCaseItems(serviceClient: DispatchServiceClient, procurementId: string,
+  capture?: (lines: ProcurementSourceLine[]) => void): Promise<ResolvedLineItem[]> {
   const { data, error } = await serviceClient.from('procurement_items').select('name,quantity,rate,description').eq('procurement_id', procurementId);
+  if (capture && (error || !Array.isArray(data))) throw new AppError(error?.message ?? 'procurement line items are unavailable', error?.code);
   if (error || !Array.isArray(data)) return [];
-  return (data as Array<{ name: string; quantity: number | string; rate: number | string | null; description?: string | null }>).map((row) => ({
+  const lines = data as ProcurementSourceLine[];
+  capture?.(lines);
+  return lines.map((row) => ({
     item_code: row.name,
     qty: row.quantity,
     rate: row.rate ?? undefined,
@@ -746,7 +757,7 @@ async function resolveProcurementOrderRefs(
   let resolvedItems: ResolvedLineItem[] | undefined;
   const hasOwnItems = Array.isArray(record.items) && record.items.length > 0;
   if (!hasOwnItems) {
-    const caseItems = await resolveCaseItems(deps.serviceClient, procurementId);
+    const caseItems = await resolveCaseItems(deps.serviceClient, procurementId, deps.captureProcurementSourceLines);
     resolvedItems = kind === 'purchase-order'
       ? caseItems.map((item) => ({ ...item, schedule_date: record.date ?? todayPlusDaysIso(7) }))
       : caseItems;
@@ -1122,6 +1133,10 @@ export interface ErpDispatchFactoryDeps {
   /** #858: a sweep recovery of an already-persisted command. A sales-invoice create then keeps the server-built `items`/`taxes`
    *  the outbox payload already carries (they are inside its digest) and makes no ERPNext read; only the foreground create resolves them. */
   replay?: boolean;
+  /** Set only after the persisted receipt witness is verified by the server. */
+  trustedReceiptSnapshot?: boolean;
+  /** Server-owned observation of the source rows used to build an ERP case command. */
+  captureProcurementSourceLines?: (lines: ProcurementSourceLine[]) => void;
 }
 
 /**
@@ -1592,7 +1607,15 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
     contactRefs.contact_party_name = match[2];
   }
   const { refs: purchaseProjectRefs } = await resolvePurchaseProjectRefs(deps, binding);
-  const { refs: procurementRefs, resolvedItems } = await resolveProcurementOrderRefs(deps, binding);
+  const savedReceipt = deps.replay && deps.trustedReceiptSnapshot && deps.command.record.erp_doc_kind === 'goods-receipt'
+    ? deps.command.record.pmo_gr_snapshot as { supplier?: unknown; po?: unknown } | undefined
+    : undefined;
+  const { refs: procurementRefs, resolvedItems } = savedReceipt
+    ? { refs: {
+      supplier: typeof savedReceipt.supplier === 'string' ? savedReceipt.supplier : null,
+      po: typeof savedReceipt.po === 'string' ? savedReceipt.po : null,
+    }, resolvedItems: undefined }
+    : await resolveProcurementOrderRefs(deps, binding);
   const { refs: revenueRefs } = await resolveRevenueRefs(deps, binding);
   // #910: the vendor-payment gate (bill anchor + amount vs outstanding) — before the outbox snapshot,
   // so a refused payment leaves no outbox row and touches no ERP.
@@ -1604,6 +1627,19 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // Resolve authoring items before the outbox snapshot. Catalog validation belongs to the actual
   // adapter commit, so an already-committed recovery can converge its mirror without ERP reads.
   const itemKind = deps.command.record.erp_doc_kind;
+  const receiptSupplier = itemKind === 'goods-receipt'
+    ? savedReceipt ? procurementRefs.supplier : procurementRefs.supplier ?? await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)
+    : undefined;
+  if (itemKind === 'goods-receipt' && deps.command.operation === 'create' && !deps.replay
+      && typeof deps.command.record.procurementId === 'string') {
+    if (resolvedItems && (!Array.isArray(deps.command.record.items) || deps.command.record.items.length === 0)) {
+      deps.command.record.items = resolvedItems;
+    }
+    deps.command.record.pmo_gr_snapshot = {
+      supplier: receiptSupplier ?? null,
+      po: procurementRefs.po ?? null,
+    };
+  }
   let validateAuthoringItems: ErpAdapterDeps['validateAuthoringItems'];
   if (
     ['sales-invoice', 'purchase-order', 'purchase-invoice'].includes(String(itemKind)) &&
@@ -1652,7 +1688,8 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
     // Revenue commands (sales-invoice/incoming-payment) resolve customer + project + SI ref via
     // `resolveRevenueRefs` (task 2.3, FR-SAR-100/101/121).
     ctx: {
-      refs: { ...contactRefs, ...procurementRefs, ...purchaseProjectRefs, ...revenueRefs, ...paymentRefs, ...budgetRefs, ...timesheetRefs, supplier: procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
+      refs: { ...contactRefs, ...procurementRefs, ...purchaseProjectRefs, ...revenueRefs, ...paymentRefs, ...budgetRefs, ...timesheetRefs,
+        supplier: itemKind === 'goods-receipt' ? receiptSupplier ?? null : procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
       config: budgetConfig,
       resolvedItems,
       ...(isBudgetCommand(deps.command) ? {

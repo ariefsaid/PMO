@@ -185,9 +185,9 @@ export async function checkCreateTargetUnmapped(
   // receipt (an ERP-path row whose mapping has not landed yet, or a PMO-native one, which is never mapped at all).
   // Both are global primary keys, so any occupied identity is refused — except this command's own retry.
   if (command.domain === 'revenue') {
-    const occupied = await revenueRowsFor(client, String(command.record.id));
-    if (occupied === 'lookup-failed') return { ok: false, status: 503, message: 'Revenue record identity could not be validated' };
-    if (occupied.length > 0 && !(idempotencyKey && await outboxRowExists(client, orgId, command.domain, pmoRecordId, idempotencyKey))) {
+    const target = await revenueTargetStateFor(client, String(command.record.id));
+    if (target === 'lookup-failed') return { ok: false, status: 503, message: 'Revenue record identity could not be validated' };
+    if (target.occupied && !(idempotencyKey && await outboxRowExists(client, orgId, command.domain, pmoRecordId, idempotencyKey))) {
       return { ok: false, status: 422, message: 'a revenue create must name a new record — record.id is already a sales invoice or customer receipt' };
     }
   }
@@ -329,21 +329,27 @@ async function outboxRowExists(
 /** The two revenue read-model tables a revenue `record.id` can name (both keyed by a global uuid). */
 const REVENUE_ROW_TABLES = ['sales_invoices', 'incoming_payments'] as const;
 
-interface RevenueRow { table: (typeof REVENUE_ROW_TABLES)[number]; pmoNative: boolean }
+/** Whether `id` names an existing revenue row at all (`occupied`), and whether any such row is
+ *  PMO-native (`hasNative`). `'lookup-failed'` fails closed. */
+interface RevenueTargetState { occupied: boolean; hasNative: boolean }
 
-/** Every revenue row whose id is `id`, read with the service role (RLS-blind, so another org's row counts too).
- *  A non-uuid id cannot be a row of either table, so it is not looked up — a revenue command's own `record.id`
- *  is canonical by the time it reaches here (the guard below refuses the rest first); the shape skip remains
- *  for the `salesInvoiceId` a receipt cites. `'lookup-failed'` fails closed. */
-async function revenueRowsFor(client: GuardLookupClient, id: string): Promise<RevenueRow[] | 'lookup-failed'> {
-  if (!UUID_RE.test(id)) return [];
-  const rows: RevenueRow[] = [];
+/** The occupancy + PMO-nativeness of the revenue rows whose id is `id`, read with the service role
+ *  (RLS-blind, so another org's row counts too). A non-uuid id cannot be a row of either table, so it is
+ *  not looked up — a revenue command's own `record.id` is canonical by the time it reaches here (the
+ *  guards below refuse the rest first); the shape skip remains for the `salesInvoiceId` a receipt cites.
+ *  `'lookup-failed'` fails closed. */
+async function revenueTargetStateFor(client: GuardLookupClient, id: string): Promise<RevenueTargetState | 'lookup-failed'> {
+  if (!UUID_RE.test(id)) return { occupied: false, hasNative: false };
+  const state: RevenueTargetState = { occupied: false, hasNative: false };
   for (const table of REVENUE_ROW_TABLES) {
     const { data, error } = await client.from(table).select('id, pmo_native').eq('id', id).maybeSingle();
     if (error) return 'lookup-failed';
-    if (data) rows.push({ table, pmoNative: (data as { pmo_native?: unknown }).pmo_native === true });
+    if (data) {
+      state.occupied = true;
+      if ((data as { pmo_native?: unknown }).pmo_native === true) state.hasNative = true;
+    }
   }
-  return rows;
+  return state;
 }
 
 /**
@@ -369,9 +375,9 @@ export async function checkRevenueErpPathTarget(
   const cited = (command.record as { salesInvoiceId?: unknown }).salesInvoiceId;
   const ids = [String(command.record.id), ...(typeof cited === 'string' && cited.length > 0 ? [cited] : [])];
   for (const id of ids) {
-    const rows = await revenueRowsFor(client, id);
-    if (rows === 'lookup-failed') return { ok: false, status: 503, message: 'Revenue record could not be validated' };
-    if (rows.some((row) => row.pmoNative)) {
+    const target = await revenueTargetStateFor(client, id);
+    if (target === 'lookup-failed') return { ok: false, status: 503, message: 'Revenue record could not be validated' };
+    if (target.hasNative) {
       return {
         ok: false,
         status: 422,

@@ -686,6 +686,16 @@ describe('overview restructure rulings (L5/L6/L10/C4/L12)', () => {
     expect(within(block).getByText('25% of project')).toBeInTheDocument();
   });
 
+  it('withholds budget use when the project purchase read fails', () => {
+    state.role = 'Admin';
+    state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '1000' }])];
+    state.finances = actuals([{ category: 'Labor', mapped: true, amount: '100' }]);
+    state.procurementsError = true;
+    renderWithQueryClient(<MemoryRouter><CostBlock project={project()} /></MemoryRouter>);
+    expect(screen.queryByText(/10% used/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Couldn't check commitments/)).toBeInTheDocument();
+  });
+
   it('L12: Budget vs actual counts committed spend from the same calculation as the Budget tab, Uncategorized included', () => {
     state.role = 'Admin';
     state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '1000' }])];

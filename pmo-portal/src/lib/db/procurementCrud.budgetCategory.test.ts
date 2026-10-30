@@ -3,6 +3,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const h = vi.hoisted(() => ({ inserted: null as unknown, updated: null as unknown }));
 vi.mock('@/src/lib/supabase/client', () => ({
   supabase: {
+    rpc: async (_name: string, args: { p_patch: unknown }) => {
+      h.updated = args.p_patch;
+      return { data: true, error: null };
+    },
     from: () => ({
       insert: (row: unknown) => {
         h.inserted = row;

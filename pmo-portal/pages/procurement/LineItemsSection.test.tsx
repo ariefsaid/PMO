@@ -36,6 +36,7 @@ function renderSection(props: Partial<React.ComponentProps<typeof LineItemsSecti
       <LineItemsSection
         items={props.items ?? items}
         editable={props.editable ?? true}
+        valuesEditable={props.valuesEditable}
         onAdd={onAdd}
         onUpdate={onUpdate}
         onDelete={onDelete}
@@ -65,6 +66,18 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     await user.click(screen.getByRole('button', { name: /add line item/i }));
     expect(onAdd).toHaveBeenCalledWith({ name: 'ITEM-TEST', description: 'Inspection of test unit', quantity: 2, rate: 10 });
   });
+  it('saves a label without resending protected values', async () => {
+    const { onUpdate } = renderSection({ valuesEditable: false });
+    await userEvent.click(screen.getByRole('button', { name: /edit MIG welding wire/i }));
+    expect(screen.getByLabelText(/edit quantity for MIG welding wire/i)).toBeDisabled();
+    expect(screen.getByLabelText(/edit unit price for MIG welding wire/i)).toBeDisabled();
+    const label = screen.getByLabelText(/edit description for MIG welding wire/i);
+    await userEvent.clear(label);
+    await userEvent.type(label, 'Wire');
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    expect(onUpdate).toHaveBeenCalledWith('it1', { name: 'Wire' });
+  });
+
   it('renders the item search placeholder in Indonesian when the UI language is Indonesian', async () => {
     const i18n = createInstance();
     await i18n.init({

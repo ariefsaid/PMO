@@ -94,7 +94,7 @@ export const OPERATOR_READ_RPCS = Object.freeze(['project_mapped_actuals', 'link
  * The database guard (migration 0239) allows these only to an active Admin's OAuth token: POST on the
  * RPCs, GET/POST on the tables (budgets and contract lines; never PATCH/DELETE). The RPCs keep their own org, role, SoD and audit rules.
  */
-export const LOAD_RPCS = Object.freeze(['set_project_contract_value', 'transition_project']);
+export const LOAD_RPCS = Object.freeze(['set_project_contract_value', 'transition_project', 'import_budget_line_v2']);
 export const LOAD_TABLES = Object.freeze(['budget_versions', 'budget_line_items', 'boq_items']);
 
 /**

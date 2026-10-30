@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { amountFromDashboard, exactFromDashboard, selectCollectedTotals, selectInvoicedTotals, selectUnbilledTotals } from './useCompanyFigures';
+import { amountFromDashboard, currencyFigure, exactFromDashboard, selectCollectedTotals, selectInvoicedTotals, selectUnbilledTotals } from './useCompanyFigures';
 import type { ManagementPack } from '@/src/lib/reports/managementPack';
 import { monthsBetween } from '@/src/lib/reports/months';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
@@ -48,8 +48,18 @@ describe('company period totals', () => {
       { status: 'Scheduled', date: '2026-01-15', currency: 'USD', amount: 500, id: 'c' },
       { status: 'Paid', date: null, currency: 'USD', amount: 900, id: 'd' },
     ] as unknown as IncomingPaymentRow[];
-    expect(selectCollectedTotals(payments, '2026-01', '2026-01')).toEqual({ totals: [{ currency: 'USD', amount: 100 }], unknownCurrencies: [] });
+    expect(selectCollectedTotals(payments, '2026-01', '2026-01')).toEqual({ totals: [{ currency: 'USD', amount: '100.00' }], unknownCurrencies: [] });
   });
+
+  it('renders the collected KPI for fractional paid receipts', () => {
+    const payments = [
+      { status: 'Paid', date: '2026-01-15', currency: 'USD', amount: 0.1 },
+      { status: 'Paid', date: '2026-01-16', currency: 'USD', amount: 0.2 },
+    ] as unknown as IncomingPaymentRow[];
+    const collected = selectCollectedTotals(payments, '2026-01', '2026-01')!;
+    expect(currencyFigure(collected.totals, 'USD', 'Unavailable')?.value).toBe('$0');
+  });
+
 
   it('does not turn paid receipts with an unknown amount into a zero collected total', () => {
     const payments = [

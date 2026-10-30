@@ -11,6 +11,9 @@ const h = vi.hoisted(() => ({
   effectiveRole: 'Finance',
   toast: vi.fn(),
 }));
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
+
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
   useProcurementDetail: () => h.detail,
   useProcurementMutations: () => ({ transition: { mutateAsync: vi.fn(), isPending: false }, createQuotation: { mutateAsync: vi.fn(), isPending: false }, createReceipt: { mutateAsync: vi.fn(), isPending: false }, createInvoice: { mutateAsync: vi.fn(), isPending: false }, captureVendorInvoice: { mutateAsync: vi.fn(), isPending: false }, setEfaktur: { mutateAsync: vi.fn(), isPending: false } }),

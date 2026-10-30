@@ -17,6 +17,8 @@ import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ realRole: 'Admin', effectiveRole: 'Admin' }),
 }));

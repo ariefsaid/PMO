@@ -1966,3 +1966,31 @@ test('AC-PFE-011: a CSV with a misspelt column is refused before anything is sen
     fs.rmSync(configDir, { recursive: true, force: true });
   }
 });
+
+test('pmo load sends budget lines through the transactional RPC with the resolved project id', async () => {
+  const handler = (ctx) => {
+    if (ctx.req.method === 'POST' && ctx.url.pathname === '/rest/v1/projects') { ctx.send(201, [{ id: 'ABCD-1234' }]); return true; }
+    if (ctx.req.method === 'POST' && ctx.url.pathname === '/rest/v1/companies') { ctx.send(201, [{ id: 'company-1' }]); return true; }
+    if (ctx.req.method === 'POST' && ctx.url.pathname === '/rest/v1/budget_versions') { ctx.send(201, [{ id: 'version-1' }]); return true; }
+    if (ctx.req.method === 'POST' && ctx.url.pathname === '/rest/v1/rpc/import_budget_line_v2') { ctx.send(200, [{ outcome: 'created', line_id: 'line-1' }]); return true; }
+    return emptyDbAs('Admin')(ctx);
+  };
+  const fake = await fakeSupabase({ handler });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const doc = { companies: [{ name: 'Client' }], projects: [{ code: 'P', name: 'Project', client: 'Client', stage: 'Leads',
+      budget: [{ category: 'Labor', description: 'Crew', budgeted_amount: 1234.5 }] }] };
+    const result = await runCli(['load', writeLoadFile(configDir, doc), '--url', fake.url], { configDir });
+    assert.equal(result.code, 0, result.err);
+    const request = fake.requests.find((r) => r.path === '/rest/v1/rpc/import_budget_line_v2');
+    const body = JSON.parse(request.body);
+    assert.equal(body.p_v2_key, 'bimp2:["f","abcd-1234","Labor","Crew","","1234.50"]');
+    assert.equal(body.p_legacy_key, 'fp:P|Labor|Crew||1234.5');
+    assert.equal(body.p_version_id, 'version-1');
+    assert.equal(fake.requests.some((r) => r.path === '/rest/v1/budget_line_items' && r.method === 'POST'), false);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});

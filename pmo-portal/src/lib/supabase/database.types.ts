@@ -659,6 +659,7 @@ export type Database = {
           id: string
           import_batch_id: string | null
           import_key: string | null
+          import_origin: number | null
           imported_at: string | null
           org_id: string
         }
@@ -672,6 +673,7 @@ export type Database = {
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
+          import_origin?: number | null
           imported_at?: string | null
           org_id?: string
         }
@@ -685,6 +687,7 @@ export type Database = {
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
+          import_origin?: number | null
           imported_at?: string | null
           org_id?: string
         }
@@ -3070,6 +3073,7 @@ export type Database = {
           payload: Json | null
           payload_digest: string | null
           pmo_record_id: string
+          procurement_input_digest: string | null
           reconcile_after: string | null
           state: string
           updated_at: string
@@ -3092,6 +3096,7 @@ export type Database = {
           payload?: Json | null
           payload_digest?: string | null
           pmo_record_id: string
+          procurement_input_digest?: string | null
           reconcile_after?: string | null
           state: string
           updated_at?: string
@@ -3114,6 +3119,7 @@ export type Database = {
           payload?: Json | null
           payload_digest?: string | null
           pmo_record_id?: string
+          procurement_input_digest?: string | null
           reconcile_after?: string | null
           state?: string
           updated_at?: string
@@ -8143,6 +8149,12 @@ export type Database = {
         Args: { p_org_id?: string | null }
         Returns: string
       }
+      update_procurement_header: { Args: { p_id: string; p_patch: Json }; Returns: boolean }
+      procurement_item_values_editable: { Args: { p_case: string }; Returns: boolean }
+      budget_version_read_totals: {
+        Args: { p_project_id: string }
+        Returns: { version_id: string; total: number }[]
+      }
       _m365_disconnect_cascade_core: {
         Args: {
           p_actor_id: string
@@ -8391,6 +8403,7 @@ export type Database = {
           payload: Json | null
           payload_digest: string | null
           pmo_record_id: string
+          procurement_input_digest: string | null
           reconcile_after: string | null
           state: string
           updated_at: string
@@ -9064,6 +9077,24 @@ export type Database = {
         Args: { p_role: Database["public"]["Enums"]["user_role"] }
         Returns: boolean
       }
+      import_budget_line_v2: {
+        Args: {
+          p_batch_id: string
+          p_budgeted_amount: number
+          p_category: Database["public"]["Enums"]["budget_category"]
+          p_description: string
+          p_fiscal_year: string
+          p_has_reference: boolean
+          p_imported_at: string
+          p_legacy_key: string
+          p_v2_key: string
+          p_version_id: string
+        }
+        Returns: {
+          line_id: string
+          outcome: string
+        }[]
+      }
       insert_timesheet_outbox_pending: {
         Args: {
           p_actor: string
@@ -9094,6 +9125,7 @@ export type Database = {
           payload: Json | null
           payload_digest: string | null
           pmo_record_id: string
+          procurement_input_digest: string | null
           reconcile_after: string | null
           state: string
           updated_at: string
@@ -9775,6 +9807,7 @@ export type Database = {
           payload: Json | null
           payload_digest: string | null
           pmo_record_id: string
+          procurement_input_digest: string | null
           reconcile_after: string | null
           state: string
           updated_at: string
@@ -9828,6 +9861,14 @@ export type Database = {
       progress_assessment_line_ok: {
         Args: { p_boq_item_id: string; p_entry_id: string }
         Returns: boolean
+      }
+      project_reserved_position: {
+        Args: { p_project_id: string }
+        Returns: {
+          project_currency: string | null
+          budget_currency: string | null
+          positions: Json
+        }[]
       }
       project_committed_spend: {
         Args: { p_project_id: string }
@@ -9884,6 +9925,7 @@ export type Database = {
           payload: Json | null
           payload_digest: string | null
           pmo_record_id: string
+          procurement_input_digest: string | null
           reconcile_after: string | null
           state: string
           updated_at: string

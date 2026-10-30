@@ -122,6 +122,22 @@ describe('useProcurementMutations', () => {
     clearOwnershipCache();
   });
 
+  it('holds and refreshes line eligibility around an external receipt', async () => {
+    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    let resolveReceipt!: (value: unknown) => void;
+    procurement.createReceipt.mockReturnValueOnce(new Promise((resolve) => { resolveReceipt = resolve; }));
+    const { qc, Wrapper } = makeWrapper();
+    const key = ['procurement-item-eligibility', 'org-1', 'proc-1'];
+    qc.setQueryData(key, true);
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useProcurementMutations('proc-1'), { wrapper: Wrapper });
+    let pending!: Promise<unknown>;
+    act(() => { pending = result.current.createReceipt.mutateAsync({ status: 'Partial', receiptDate: '2026-06-04' }); });
+    await waitFor(() => expect(qc.getQueryData(key)).toBe(false));
+    await act(async () => { resolveReceipt({ id: 'receipt-1' }); await pending; });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
+  });
+
   it('AC-SEC-220 (hook): approveAmount sends the billed amount through the repository and refreshes the detail', async () => {
     const { qc, Wrapper } = makeWrapper();
     const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');

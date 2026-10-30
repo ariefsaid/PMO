@@ -67,7 +67,7 @@ import type {
   RecordFolderTarget,
 } from '@/src/lib/m365/recordFolders';
 import type { PreparedAgentAttachmentUpload } from '@/src/lib/db/agentAttachments';
-import type { ActivateVersionResult, ArchiveVersionResult } from '@/src/lib/db/budgets';
+import type { ActivateVersionResult, ArchiveVersionResult, BudgetImportRequest } from '@/src/lib/db/budgets';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import type { UserRow, UserRole, InviteUserInput, SetUserStatusInput } from '@/src/lib/db/adminUsers';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -119,7 +119,10 @@ import type {
   TimesheetAwaitingApproval,
 } from '@/src/lib/db/timesheetTransition';
 import type { EntryUpsert } from '@/src/lib/timesheet-edit';
+import type { BudgetActivationPrecheckResult } from '@/src/lib/budget/budgetGate';
 import type {
+  BudgetActivationMode,
+  BudgetArchiveLiveTarget,
   BudgetVersionRow,
   BudgetVersionWithItems,
   BudgetDocumentLinkRow,
@@ -396,6 +399,7 @@ export interface AgentAttachmentRepository {
 }
 
 export interface ProcurementRepository {
+  itemValuesEditable(id: string): Promise<boolean>;
   list(params?: PageParams): Promise<ProcurementWithRefs[]>;
   get(id: string): Promise<ProcurementDetail>;
   transition(id: string, to: ProcurementStatus, notes?: string): Promise<void>;
@@ -601,7 +605,11 @@ export interface TimesheetRepository {
 }
 
 export interface BudgetRepository {
+  importLine(request: BudgetImportRequest): Promise<{ outcome: 'created' | 'skipped' | 'conflict'; line_id: string }>;
   deriveProjectBudget(projectId: string): Promise<number>;
+  getActivationMode(versionId: string): Promise<BudgetActivationMode>;
+  precheckActivation(versionId: string): Promise<BudgetActivationPrecheckResult>;
+  listArchiveLiveTargets(versionIds: readonly string[]): Promise<BudgetArchiveLiveTarget[]>;
   listVersions(projectId: string): Promise<BudgetVersionWithItems[]>;
   createLineItem(
     versionId: string,
@@ -610,7 +618,7 @@ export interface BudgetRepository {
   ): Promise<BudgetLineItemRow>;
   updateLineItem(
     id: string,
-    patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'actual_amount'>>,
+    patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'actual_amount' | 'fiscal_year'>>,
   ): Promise<void>;
   deleteLineItem(id: string): Promise<void>;
   createVersion(
@@ -1006,6 +1014,7 @@ export interface ErpSnapshotsRepository {
 
 /** Read-only canonical Customer-reference reads for composing ERP aging by PMO company. */
 export interface CompanyCollectionsRepository {
+  listPartyIds(companyIds: readonly string[]): Promise<string[]>;
   listForCompanies(companyIds: readonly string[]): Promise<CompanyCustomerRef[]>;
   listForErpCustomerIds(erpCustomerIds: readonly string[]): Promise<CompanyCustomerRef[]>;
 }

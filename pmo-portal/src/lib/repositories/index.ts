@@ -170,6 +170,7 @@ import {
   updateProcurementVendor,
   createProcurementItem,
   updateProcurementItem,
+  procurementItemValuesEditable,
   deleteProcurementItem,
   selectProcurementQuote,
   listProcurementDocuments,
@@ -197,6 +198,10 @@ import {
 import { approvedTimesheetForPush, listPushesNeedingAttention, confirmEmployeeLink, getPushState } from '@/src/lib/db/timesheetPush';
 import {
   deriveProjectBudget,
+  getBudgetActivationMode,
+  precheckBudgetActivation,
+  listBudgetArchiveLiveTargets,
+  importBudgetLine,
   listBudgetVersions,
   createLineItem,
   updateLineItem,
@@ -557,6 +562,7 @@ const task: TaskRepository = {
 };
 
 const procurement: ProcurementRepository = {
+  itemValuesEditable: (id) => wrap(() => procurementItemValuesEditable(id)),
   list: (params) => wrap(() => listProcurements(params)),
   get: (id) => wrap(() => getProcurementDetail(id)),
   // Task 4.9 (finding-3 path fix): the case-AGGREGATE status transition is PMO-derived, never an ERP
@@ -878,7 +884,11 @@ const m365RecordFolders: M365RecordFoldersRepository = {
 };
 
 const budget: BudgetRepository = {
+  importLine: (request) => wrap(() => importBudgetLine(request)),
   deriveProjectBudget: (projectId) => wrap(() => deriveProjectBudget(projectId)),
+  getActivationMode: (versionId) => wrap(() => getBudgetActivationMode(versionId)),
+  precheckActivation: (versionId) => wrap(() => precheckBudgetActivation(versionId)),
+  listArchiveLiveTargets: (versionIds) => wrap(() => listBudgetArchiveLiveTargets(versionIds)),
   listVersions: (projectId) => wrap(() => listBudgetVersions(projectId)),
   createLineItem: (versionId, item, provenance) =>
     wrap(() => createLineItem(versionId, item, provenance)),

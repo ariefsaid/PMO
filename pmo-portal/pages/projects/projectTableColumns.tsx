@@ -37,7 +37,11 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     const money = projectMoney?.[project.id];
     return money?.ledgerBasis === 'erp' && money.actuals.categories.some((category) => !category.mapped || category.amount == null);
   });
-  const unknownActualRows = filtered.filter((project) => projectMoney?.[project.id]?.actuals.total == null);
+  const unknownActualRows = filtered.filter((project) => {
+    const money = projectMoney?.[project.id];
+    return money?.actuals.total == null || (money.ledgerBasis === 'pmo'
+      && (money.actuals.complete === false || money.actuals.currency !== project.currency));
+  });
   const coverageAsOf = filtered.reduce<string | null>((latest, project) => {
     const asOf = projectMoney?.[project.id]?.ledgerBasis === 'erp' ? projectMoney?.[project.id]?.actuals.asOf ?? null : null;
     return asOf && (!latest || asOf > latest) ? asOf : latest;
@@ -99,9 +103,10 @@ export function projectTableColumns({ filtered, deliverySummary, deliveryPending
     if (moneyPending || moneyError || !money) return { text: '' };
     const actualPosition = deriveActualPosition({
       ledgerBasis: money.ledgerBasis,
-      committedSpend: money.ledgerBasis === 'pmo' && money.actuals.total != null ? Number(money.actuals.total) : undefined,
+      committedSpend: money.ledgerBasis === 'pmo' && money.actuals.currency === p.currency ? money.actuals.total ?? undefined : undefined,
       commitmentPending: moneyPending,
       commitmentError: moneyError,
+      commitmentComplete: money.actuals.complete,
       projectCurrency: p.currency,
       actuals: {
         currency: money.actuals.currency,

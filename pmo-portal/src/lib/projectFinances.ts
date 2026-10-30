@@ -1,3 +1,4 @@
+import { parseExactCents, formatExactCents } from './exactDecimal';
 import { formatExactMoney } from './format';
 
 export type ExactMoney = string;
@@ -78,9 +79,10 @@ export type ProjectMoneyPositionInput = {
   contractValue: number | null;
   activeBudget: number | undefined;
   ledgerBasis: ActualPosition['basis'];
-  committedSpend: number | undefined;
+  committedSpend: number | string | undefined;
   commitmentPending: boolean;
   commitmentError: boolean;
+  commitmentComplete?: boolean;
   actuals: ProjectFinances['actuals'] | undefined;
 };
 
@@ -96,17 +98,21 @@ export type ProjectMoneyPosition = {
 
 export function deriveActualPosition(input: {
   ledgerBasis: 'pmo' | 'erp' | 'unavailable';
-  committedSpend: number | undefined;
+  committedSpend: number | string | undefined;
   commitmentPending: boolean;
   commitmentError: boolean;
+  commitmentComplete?: boolean;
   projectCurrency: string;
   actuals: ProjectFinances['actuals'] | undefined;
 }): ActualPosition {
   if (input.ledgerBasis === 'pmo') {
-    if (input.commitmentPending || input.commitmentError || input.committedSpend === undefined || !Number.isFinite(input.committedSpend)) {
+    const units = typeof input.committedSpend === 'string' ? moneyUnits(input.committedSpend)
+      : input.committedSpend !== undefined && Number.isFinite(input.committedSpend)
+        ? BigInt(Math.round(input.committedSpend * 100)) : null;
+    if (input.commitmentPending || input.commitmentError || input.commitmentComplete === false || units === null) {
       return { amount: null, currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: false };
     }
-    return { amount: moneyText(BigInt(Math.round(input.committedSpend * 100))), currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: true };
+    return { amount: moneyText(units), currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: true };
   }
   if (input.ledgerBasis === 'unavailable') {
     return { amount: null, currency: null, asOf: null, basis: 'unavailable', complete: false };
@@ -197,7 +203,7 @@ export function isActualComplete(input: {
   coverageTotal?: number | null;
   budgetedCategories?: readonly string[];
 }): boolean {
-  if (input.basis === 'pmo') return input.readSucceeded;
+  if (input.basis === 'pmo') return input.readSucceeded && input.complete !== false;
   if (input.basis !== 'erp' || !input.readSucceeded) return false;
   if (input.complete !== null && input.complete !== undefined) return input.complete;
   if (input.actuals) return categoriesComplete(input.actuals, input.budgetedCategories);
@@ -238,16 +244,11 @@ export interface AssignInvoiceProjectInput {
 }
 
 export function moneyUnits(value: ExactMoney | null): bigint | null {
-  if (value === null || !/^-?\d+(?:\.\d{1,2})?$/.test(value)) return null;
-  const negative = value.startsWith('-');
-  const [whole, fraction = ''] = (negative ? value.slice(1) : value).split('.');
-  const units = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'));
-  return negative ? -units : units;
+  return value === null ? null : parseExactCents(value);
 }
 
 export function moneyText(units: bigint): ExactMoney {
-  const n = units < 0n ? -units : units;
-  return `${units < 0n ? '-' : ''}${n / 100n}.${String(n % 100n).padStart(2, '0')}`;
+  return formatExactCents(units);
 }
 
 const receiptCashReasons: readonly ReceiptCashReason[] = [

@@ -1,3 +1,5 @@
+import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
+import { contactIdentityChanged } from '@/src/lib/crmOwnership';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useMemo, useState } from 'react';
 import {
@@ -31,6 +33,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useContacts, useContactMutations } from '@/src/hooks/useContacts';
 import { useCompanies } from '@/src/hooks/useCompanies';
+import { useCompanyPartyMappings } from '@/src/hooks/useCompanyPartyMappings';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useListSearchWorkingSet } from '@/src/hooks/useListSearchWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
@@ -69,6 +72,10 @@ const Contacts: React.FC = () => {
   const { data, isPending, isError, refetch } = useContacts();
   const { data: companyData } = useCompanies();
   const { create, update, archive, remove } = useContactMutations();
+  const ownership = useDomainOwnershipMode('companies');
+  const ownershipReady = ownership.mode === 'pmo' || ownership.mode === 'external';
+  const external = ownership.mode === 'external';
+  const mappings = useCompanyPartyMappings((companyData ?? []).map((company) => company.id), external);
 
   // CRM directory view = the master-data roles (Engineer = ○, no nav/page) — mirrors Companies §D.
   const canView = may('view', 'contact');
@@ -85,10 +92,10 @@ const Contacts: React.FC = () => {
   const [archiveTarget, setArchiveTarget] = useState<ContactRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ContactRow | null>(null);
 
-  const canCreate = may('create', 'contact');
-  const canEdit = may('edit', 'contact');
-  const canArchive = may('archive', 'contact');
-  const canDelete = may('delete', 'contact');
+  const canCreate = ownershipReady && may('create', 'contact') && (!external || (!mappings.isPending && !mappings.isError && mappings.ids.length > 0));
+  const canEdit = ownershipReady && may('edit', 'contact');
+  const canArchive = ownershipReady && may('archive', 'contact');
+  const canDelete = ownership.mode === 'pmo' && may('delete', 'contact');
   const canRowWrite = canEdit || canArchive || canDelete;
 
   const companies = useMemo(() => companyData ?? [], [companyData]);
@@ -117,7 +124,9 @@ const Contacts: React.FC = () => {
     }
     return options;
   }, [companyById, companyData, companyFilter, companyOptions, t]);
-  const importDescriptor = useMemo(() => makeContactImportDescriptor(companies), [companies]);
+  const creatableCompanies = external ? companies.filter((company) => mappings.ids.includes(company.id)) : companies;
+  const createOptions = creatableCompanies.map((company) => ({ value: company.id, label: companyDisplayName(company) }));
+  const importDescriptor = makeContactImportDescriptor(creatableCompanies);
 
   const all = useMemo(() => data ?? [], [data]);
 
@@ -294,7 +303,7 @@ const Contacts: React.FC = () => {
         )
       }
       importAction={
-        state !== 'loading' && (
+        state !== 'loading' && canCreate && (
           <ImportButton
             entity="contact"
             descriptor={importDescriptor}
@@ -303,6 +312,15 @@ const Contacts: React.FC = () => {
         )
       }
     >
+      {!ownershipReady && <p className="mb-3 text-sm text-muted-foreground">{ownership.mode === 'error' ? t('crm:ownershipError', 'Ownership could not be loaded. Try again.') : t('crm:ownershipChecking', 'Checking ownership…')}{ownership.mode === 'error' && <Button variant="ghost" size="sm" onClick={ownership.retry}>{t('crm:retry', 'Retry')}</Button>}</p>}
+      {external && may('create', 'contact') && (
+        <p className="mb-3 text-sm text-muted-foreground">
+          {mappings.isError ? t('crm:mappingUnavailable', 'Company mappings could not be loaded. Try again later.')
+            : mappings.isPending ? t('crm:mappingLoading', 'Checking company mappings…')
+              : t('crm:mappingRequired', 'Map a company to ERP before adding or importing its contacts.')}
+        </p>
+      )}
+      {external && may('delete', 'contact') && <p className="mb-3 text-sm text-muted-foreground">{t('crm:deleteManaged', 'Records managed in ERP can be archived here.')}</p>}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
           <ListState variant="loading" rows={6} />
@@ -366,7 +384,8 @@ const Contacts: React.FC = () => {
       {formTarget && (
         <ContactFormModal
           contact={formTarget.contact}
-          companyOptions={companyOptions}
+          ownership={ownership.mode}
+          companyOptions={formTarget.contact ? companyOptions : createOptions}
           onClose={() => setFormTarget(null)}
           onCreate={async (input) => {
             await create.mutateAsync(input);
@@ -429,6 +448,7 @@ const Contacts: React.FC = () => {
 
 interface ContactFormModalProps {
   contact: ContactRow | null;
+  ownership: 'pmo' | 'external' | 'unknown' | 'error';
   companyOptions: { value: string; label: string }[];
   /** When provided (T14 — "Add contact" from CompanyDetail), pre-fills and locks
    *  the company_id field so the user cannot change it. */
@@ -441,6 +461,7 @@ interface ContactFormModalProps {
 
 const ContactFormModal: React.FC<ContactFormModalProps> = ({
   contact,
+  ownership,
   companyOptions,
   defaultCompanyId,
   onClose,
@@ -450,6 +471,8 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const isEdit = !!contact;
+  const ready = ownership === 'pmo' || ownership === 'external';
+  const mirrorReadOnly = !ready || (isEdit && ownership === 'external');
   // Identity changes only when `t` does (i.e. on a language change), so `useEntityForm`'s
   // `runValidate` memo behaves exactly as it did with the old module-level function.
   const validate = useMemo(() => makeValidate(t), [t]);
@@ -488,16 +511,19 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
     form.errors.full_name ? { fieldId: nameField.id, message: form.errors.full_name } : null,
     form.errors.company_id ? { fieldId: companyField.id, message: form.errors.company_id } : null,
   ].filter(Boolean) as { fieldId: string; message: string }[];
+  const identityChanged = mirrorReadOnly && contact !== null && contactIdentityChanged(form.values, contact);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
+      if (!ready || (mirrorReadOnly && contact && contactIdentityChanged(values, contact))
+        || (!isEdit && !companyOptions.some((option) => option.value === values.company_id))) return;
       const input: ContactInput = {
-        company_id: values.company_id,
-        full_name: values.full_name.trim(),
+        company_id: mirrorReadOnly ? contact!.company_id : values.company_id,
+        full_name: mirrorReadOnly ? contact!.full_name : values.full_name.trim(),
         title: values.title.trim() || null,
-        email: values.email.trim() || null,
-        phone: values.phone.trim() || null,
+        email: mirrorReadOnly ? contact!.email : values.email.trim() || null,
+        phone: mirrorReadOnly ? contact!.phone : values.phone.trim() || null,
         notes: values.notes.trim() || null,
       };
       try {
@@ -537,13 +563,16 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
-      submitDisabled={!form.isComplete}
+      submitDisabled={!form.isComplete || !ready || identityChanged || (!isEdit && !companyOptions.some((option) => option.value === form.values.company_id))}
       errorSummary={errorSummary.length ? errorSummary : undefined}
       submitError={saveError}
     >
+      {identityChanged && <p className="mb-3 text-sm text-muted-foreground">{t('crm:ownershipChanged', 'Ownership changed while you were editing. Close and reopen the form to continue.')}</p>}
+      {mirrorReadOnly && <p className="mb-3 text-sm text-muted-foreground">{t('crm:mirrorFields', 'Name, company, email and phone are managed in ERP.')}</p>}
       <FormSection legend={t('contacts.form.sections.identity', 'Identity')}>
         <FormGrid>
           <TextField
+            disabled={mirrorReadOnly}
             id={nameField.id}
             label={t('contacts.form.fullName.label', 'Full name')}
             required
@@ -567,7 +596,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
               { value: '', label: t('contacts.form.company.placeholder', 'Select a company…') },
               ...companyOptions,
             ]}
-            disabled={!!lockedCompanyId}
+            disabled={!!lockedCompanyId || mirrorReadOnly}
           />
           <TextField
             id={titleField.id}
@@ -582,6 +611,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
       <FormSection legend={t('contacts.form.sections.contactDetails', 'Contact details')}>
         <FormGrid>
           <TextField
+            disabled={mirrorReadOnly}
             id={emailField.id}
             label={t('contacts.form.email.label', 'Email')}
             type="email"
@@ -592,6 +622,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
             autoComplete="email"
           />
           <TextField
+            disabled={mirrorReadOnly}
             id={phoneField.id}
             label={t('contacts.form.phone.label', 'Phone')}
             value={phoneField.value}

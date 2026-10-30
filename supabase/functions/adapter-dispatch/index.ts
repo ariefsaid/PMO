@@ -34,7 +34,7 @@ import { CLICKUP_TASKS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/cl
 import { resolveClickUpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/dispatchFactory.ts';
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
 import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_REVENUE_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN, ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
-import { resolveErpDispatchAdapter, withPaymentTypeDiscriminator, readCategoryAccountMap, readBudgetLineItems } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
+import { resolveErpDispatchAdapter, withPaymentTypeDiscriminator, readCategoryAccountMap, readBudgetLineItems, type ProcurementSourceLine } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import {
   runBudgetGate,
   runBudgetActivationPrecheck,
@@ -132,6 +132,11 @@ interface AdapterSelectContext {
   /** #651: the per-REQUEST auth-pair memo. Not module-level — a shared isolate must never hold one
    *  tenant's credential across requests, and a rotated credential must not outlive a request. */
   erpAuth: ErpAuthPairCache;
+  replay?: boolean;
+  trustedReceiptSnapshot?: boolean;
+  captureProcurementSourceLines?: (lines: ProcurementSourceLine[]) => void;
+  procurementSnapshot?: { caseId: string; lines: ProcurementSourceLine[] };
+  procurementInputDigest?: string;
 }
 
 type AdapterFactory = (ctx: AdapterSelectContext) => Promise<Adapter>;
@@ -256,6 +261,9 @@ async function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
     fetchImpl: guardedErpFetch(binding.site_url),
     apiKey,
     apiSecret,
+    replay: ctx.replay,
+    trustedReceiptSnapshot: ctx.trustedReceiptSnapshot,
+    captureProcurementSourceLines: ctx.captureProcurementSourceLines,
     rateLimiter: erpRateLimiter,
     // The (kind)->{toBody,fromDoc} side table (task 4.3): additive across slices 3-6, never a
     // per-slice edit to another kind's entry (confinement, FR-ENA-014).
@@ -371,6 +379,8 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
     reissueOnInconclusiveAbsence: reissueOnInconclusiveAbsence(entry),
     payload,
     payloadDigest,
+    procurementSnapshot: ctx.procurementSnapshot,
+    procurementInputDigest: ctx.procurementInputDigest,
     legacyPayloadDigests,
     encodeExternalRecordId,
     // A quarantined procurement create whose probe finds nothing is reissued as a NEW ERP document; the org's purchase
@@ -771,6 +781,9 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   if (command.domain === ERPNEXT_REVENUE_DOMAIN && command.record.erp_doc_kind === 'sales-invoice') {
     delete (command.record as Record<string, unknown>).vat_flag_at_resolution;
   }
+  if (command.domain === ERPNEXT_PROCUREMENT_DOMAIN && command.record.erp_doc_kind === 'goods-receipt') {
+    delete (command.record as Record<string, unknown>).pmo_gr_snapshot;
+  }
 
   // Compute isErpDomain early so it's available for both the auth guard and idempotency check.
   const isErpDomain = command.domain === ERPNEXT_COMPANIES_DOMAIN || command.domain === ERPNEXT_PROCUREMENT_DOMAIN || command.domain === ERPNEXT_REVENUE_DOMAIN || command.domain === ERPNEXT_BUDGET_DOMAIN || command.domain === ERPNEXT_TIMESHEETS_DOMAIN;
@@ -805,7 +818,11 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     }
   }
   if (isErpDomain) {
-    const auth = await checkErpnextCommandAuthorization(callerClient as never, orgId, userId, command);
+    // The guard reads only the authorization inputs (domain + the named ERP document kind).
+    const auth = await checkErpnextCommandAuthorization(callerClient as never, orgId, userId, {
+      domain: command.domain,
+      record: { erp_doc_kind: command.record.erp_doc_kind },
+    });
     if (!auth.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: auth.message }), {
         status: auth.status,
@@ -1454,13 +1471,56 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   let adapter: Adapter;
   let money: DispatchMoneyOutboxDeps | undefined;
   try {
-    adapter = await adapterFactory({ orgId, command, serviceClient, faultGate, userId, erpAuth });
+    const context: AdapterSelectContext = { orgId, command, serviceClient, faultGate, userId, erpAuth };
+    const record = command.record as Record<string, unknown>;
+    const isReceiptCreate = command.domain === ERPNEXT_PROCUREMENT_DOMAIN && command.operation === 'create'
+      && record.erp_doc_kind === 'goods-receipt';
+    let rawReceiptDigest: string | undefined;
+    if (isReceiptCreate) {
+      rawReceiptDigest = await canonicalCommandDigest({ domain: command.domain, operation: command.operation, record });
+      const { data, error } = await serviceClient.from('external_command_outbox')
+        .select('payload,payload_digest,procurement_input_digest')
+        .eq('org_id', orgId).eq('domain', command.domain).eq('pmo_record_id', command.record.id)
+        .eq('idempotency_key', command.idempotencyKey!).maybeSingle();
+      if (error) throw new AppError(error.message, error.code);
+      if (data) {
+        context.replay = true;
+        const stored = data as { payload: Record<string, unknown> | null; payload_digest: string | null; procurement_input_digest: string | null };
+        if (stored.procurement_input_digest != null) {
+          const snapshot = stored.payload?.pmo_gr_snapshot as { raw_digest?: unknown; supplier?: unknown; po?: unknown } | undefined;
+          const { created_after: _createdAfter, ...material } = stored.payload ?? {};
+          const storedDigest = await canonicalCommandDigest({ domain: command.domain, operation: command.operation, record: material });
+          if (!/^[0-9a-f]{64}$/.test(stored.procurement_input_digest) || !snapshot || snapshot.raw_digest !== stored.procurement_input_digest
+              || (snapshot.supplier !== null && typeof snapshot.supplier !== 'string')
+              || (snapshot.po !== null && typeof snapshot.po !== 'string')
+              || stored.payload_digest !== storedDigest || rawReceiptDigest !== stored.procurement_input_digest) {
+            throw new AppError('idempotency-key-payload-mismatch', 'commit-rejected');
+          }
+          command.record = stored.payload as PmoRecord;
+          context.trustedReceiptSnapshot = true;
+        }
+      }
+    }
+    let sourceLines: ProcurementSourceLine[] | undefined;
+    if (!context.replay && command.domain === ERPNEXT_PROCUREMENT_DOMAIN && command.operation === 'create'
+        && ['purchase-order', 'goods-receipt', 'purchase-invoice'].includes(String(record.erp_doc_kind))) {
+      context.captureProcurementSourceLines = (lines) => { sourceLines = lines; };
+    }
+    adapter = await adapterFactory(context);
+    const snapshot = command.record.pmo_gr_snapshot as Record<string, unknown> | undefined;
+    if (isReceiptCreate && !context.replay && snapshot && rawReceiptDigest) {
+      snapshot.raw_digest = rawReceiptDigest;
+      context.procurementInputDigest = rawReceiptDigest;
+    }
+    if (sourceLines !== undefined && typeof command.record.procurementId === 'string') {
+      context.procurementSnapshot = { caseId: command.record.procurementId, lines: sourceLines };
+    }
     // Task 6.4 (ADR-0058): every non-read-only erpnext command routes through the money-idempotency
     // outbox — `dispatchExternallyOwnedWrite` requires `money` to be set for this tier (it throws
     // "dispatched without outbox deps" otherwise, the exact failure this task closes). P0/P1 (every
     // other tier) never resolves this — `money` stays `undefined`, their path is byte-for-byte.
     if (adapter.tier === ERPNEXT_TIER && (command.operation as string) !== 'read') {
-      money = await resolveErpMoneyOutboxDeps({ orgId, command, serviceClient, faultGate, userId, erpAuth });
+      money = await resolveErpMoneyOutboxDeps(context);
     }
   } catch (err) {
     // The submit never reaches ERP — end the body-rewrite freeze now rather than in five minutes.
