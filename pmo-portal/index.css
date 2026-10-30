@@ -89,8 +89,7 @@
   /* Borders and controls */
   --border: 217.5 12.9032% 87.8431%;
   --border-subtle: 220 11.1111% 94.7059%;
-  --input: var(--border);
-  --input-hover: 0 0% 54.9%;
+  --input: 0 0% 54.9%;
   --input-subtle: 222.8571 10.7692% 12.7451% / 16.0784%;
 
   /* Status and feedback */
@@ -229,8 +228,7 @@
   /* Borders and controls */
   --border: 210 13.7255% 20%;
   --border-subtle: 206.6667 11.6883% 15.098%;
-  --input: var(--border);
-  --input-hover: 0 0% 42.35%;
+  --input: 0 0% 42.35%;
   --input-subtle: 209 50.8475% 76.8627% / 16.0784%;
 
   /* Status and feedback */
@@ -356,7 +354,6 @@
   --color-panel-border: hsl(var(--panel-border));
   --color-border-subtle: hsl(var(--border-subtle));
   --color-input: hsl(var(--input));
-  --color-input-hover: hsl(var(--input-hover));
   --color-input-subtle: hsl(var(--input-subtle));
   --color-ring: hsl(var(--ring));
   --color-violet: hsl(var(--violet));
