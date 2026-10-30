@@ -3,9 +3,9 @@ import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
-const project = vi.hoisted(() => ({ transition: vi.fn().mockResolvedValue(undefined), listPipelineStageConfig: vi.fn().mockResolvedValue([{ status: 'Leads', win_probability: 0.1 }, { status: 'Negotiation', win_probability: 0.75 }]) }));
-const integrations = vi.hoisted(()=>({getBinding:vi.fn(async()=>null),ensureErpProject:vi.fn()}));
-vi.mock('@/src/lib/repositories',()=>({repositories:{integrations,project}}));
+const project = vi.hoisted(() => ({ transition: vi.fn().mockResolvedValue(undefined), listPipelineStageConfig: vi.fn().mockResolvedValue([{ status: 'Leads', win_probability: 0.1 }, { status: 'Negotiation', win_probability: 0.75 }]), winEligibility: vi.fn() }));
+const integrations = vi.hoisted(() => ({ getBinding: vi.fn(async () => null), ensureErpProject: vi.fn() }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations, project } }));
 
 // ---------------------------------------------------------------------------
 // Mock the DAL
@@ -22,8 +22,7 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: vi.fn(() => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' })),
 }));
 
-import { usePipelineStageConfig, useProjectTransition } from './useProjectTransitions';
-
+import { usePipelineStageConfig, useProjectTransition, useProjectWinEligibility } from './useProjectTransitions';
 import { useAuth } from '@/src/auth/useAuth';
 
 // ---------------------------------------------------------------------------
@@ -35,6 +34,54 @@ function makeWrapper() {
     React.createElement(QueryClientProvider, { client: qc }, children);
   return { qc, Wrapper };
 }
+
+describe('useProjectWinEligibility', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    project.winEligibility.mockReset();
+    vi.mocked(useAuth).mockReturnValue({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' } as unknown as ReturnType<typeof useAuth>);
+  });
+
+  it('reads the selected project and updates when its value witness changes', async () => {
+    project.winEligibility.mockResolvedValue('allowed');
+    const { Wrapper } = makeWrapper();
+    const { result, rerender } = renderHook(({ revision }) => useProjectWinEligibility('p1', true, revision), { wrapper: Wrapper, initialProps: { revision: 'one' } });
+    await waitFor(() => expect(result.current.data).toBe('allowed'));
+    rerender({ revision: 'two' });
+    await waitFor(() => expect(project.winEligibility).toHaveBeenCalledTimes(2));
+    expect(project.winEligibility).toHaveBeenCalledWith('p1');
+  });
+
+  it('refreshes the actor-specific decision when the role changes', async () => {
+    project.winEligibility.mockResolvedValueOnce('allowed').mockResolvedValueOnce('reviewer_required');
+    vi.mocked(useAuth).mockReturnValue({ currentUser: { id: 'u1', org_id: 'org-1', role: 'Finance' } } as unknown as ReturnType<typeof useAuth>);
+    const { Wrapper } = makeWrapper();
+    const { result, rerender } = renderHook(() => useProjectWinEligibility('p1', true), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.data).toBe('allowed'));
+    vi.mocked(useAuth).mockReturnValue({ currentUser: { id: 'u1', org_id: 'org-1', role: 'Project Manager' } } as unknown as ReturnType<typeof useAuth>);
+    rerender();
+    await waitFor(() => expect(result.current.data).toBe('reviewer_required'));
+    expect(project.winEligibility).toHaveBeenCalledTimes(2);
+  });
+
+  it('refreshes the decision when the actor manager changes', async () => {
+    project.winEligibility.mockResolvedValueOnce('allowed').mockResolvedValueOnce('reviewer_required');
+    vi.mocked(useAuth).mockReturnValue({ currentUser: { id: 'u1', org_id: 'org-1', role: 'Project Manager', manager_id: 'manager-1' } } as unknown as ReturnType<typeof useAuth>);
+    const { Wrapper } = makeWrapper();
+    const { result, rerender } = renderHook(() => useProjectWinEligibility('p1', true), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.data).toBe('allowed'));
+    vi.mocked(useAuth).mockReturnValue({ currentUser: { id: 'u1', org_id: 'org-1', role: 'Project Manager', manager_id: 'manager-2' } } as unknown as ReturnType<typeof useAuth>);
+    rerender();
+    await waitFor(() => expect(result.current.data).toBe('reviewer_required'));
+  });
+
+  it('does not fetch while disabled', () => {
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useProjectWinEligibility('p1', false), { wrapper: Wrapper });
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(project.winEligibility).not.toHaveBeenCalled();
+  });
+});
 
 // ---------------------------------------------------------------------------
 // C1 — usePipelineStageConfig (supports AC-1003)

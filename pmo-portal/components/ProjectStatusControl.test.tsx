@@ -8,6 +8,9 @@ import { ToastProvider } from '@/src/components/ui';
 // Mocks
 // ---------------------------------------------------------------------------
 
+const winEligibility = vi.hoisted(() => ({ data: 'allowed' as string | undefined, isFetching: false, isError: false }));
+
+const mockEligibility = vi.fn((..._args: unknown[]) => winEligibility);
 const mockMutate = vi.fn();
 const mockMutateAsync = vi.fn();
 
@@ -16,6 +19,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
+  useProjectWinEligibility: (...args: unknown[]) => mockEligibility(...args),
   useProjectTransition: vi.fn(() => ({
     mutate: mockMutate,
     mutateAsync: mockMutateAsync,
@@ -55,6 +59,9 @@ const getConfirmButton = (label: RegExp) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  winEligibility.data = 'allowed';
+  winEligibility.isFetching = false;
+  winEligibility.isError = false;
   // Reset to PM role
   vi.mocked(useEffectiveRole).mockReturnValue({ effectiveRole: 'Project Manager', realRole: 'Project Manager', canImpersonate: false, viewAs: vi.fn() });
   vi.mocked(useProjectTransition).mockReturnValue({
@@ -107,6 +114,78 @@ describe('ProjectStatusControl', () => {
       to: 'Won, Pending KoM',
       opts: { customerContractRef: 'CPO-TEST-1', contractDate: '2026-03-15' },
     });
+  });
+
+  it('subscribes to win eligibility only while its chooser or form is open', async () => {
+    const user = userEvent.setup();
+    renderControl(negotiationProject);
+    expect(mockEligibility).toHaveBeenLastCalledWith('proj-1', false);
+    await user.click(screen.getByRole('button', { name: /change status/i }));
+    expect(mockEligibility).toHaveBeenLastCalledWith('proj-1', true);
+    await user.click(screen.getByRole('button', { name: /Won, Pending KoM/i }));
+    expect(mockEligibility).toHaveBeenLastCalledWith('proj-1', true);
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+    expect(mockEligibility).toHaveBeenLastCalledWith('proj-1', false);
+  });
+
+  it('keeps an open win form bound to the current decision', async () => {
+    const user = userEvent.setup();
+    const view = renderControl(negotiationProject);
+    await user.click(screen.getByRole('button', { name: /change status/i }));
+    await user.click(screen.getByRole('button', { name: /Won, Pending KoM/i }));
+    await user.type(screen.getByLabelText(/customer contract ref/i), 'CPO-TEST');
+    await user.type(screen.getByLabelText(/contract date/i), '2026-03-15');
+    winEligibility.isFetching = true;
+    view.rerender(<ToastProvider><ProjectStatusControl project={negotiationProject} /></ToastProvider>);
+    expect(screen.queryByRole('button', { name: /^confirm$/i })).not.toBeInTheDocument();
+    expect(screen.getByText('Checking win eligibility…')).toBeInTheDocument();
+    winEligibility.isFetching = false;
+    winEligibility.isError = true;
+    view.rerender(<ToastProvider><ProjectStatusControl project={negotiationProject} /></ToastProvider>);
+    expect(screen.queryByRole('button', { name: /^confirm$/i })).not.toBeInTheDocument();
+    expect(screen.getByText('Win eligibility is unavailable. Refresh this page and try again.')).toBeInTheDocument();
+    winEligibility.isError = false;
+    winEligibility.data = 'reviewer_required';
+    view.rerender(<ToastProvider><ProjectStatusControl project={negotiationProject} /></ToastProvider>);
+    expect(screen.queryByRole('button', { name: /^confirm$/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/Ask your supervisor or a more senior reviewer/)).toBeInTheDocument();
+    expect(mockMutate).not.toHaveBeenCalled();
+    winEligibility.data = 'allowed';
+    view.rerender(<ToastProvider><ProjectStatusControl project={negotiationProject} /></ToastProvider>);
+    await user.click(screen.getByRole('button', { name: /^confirm$/i }));
+    expect(mockMutate).toHaveBeenCalledOnce();
+  });
+
+  it('waits for a fresh eligibility decision before offering win', async () => {
+    winEligibility.isFetching = true;
+    renderControl(negotiationProject);
+    await userEvent.click(screen.getByRole('button', { name: /change status/i }));
+    expect(screen.queryByRole('button', { name: /Won, Pending KoM/i })).not.toBeInTheDocument();
+  });
+
+  it('asks for a refresh when win eligibility is unavailable', async () => {
+    winEligibility.data = 'unavailable';
+    renderControl(negotiationProject);
+    await userEvent.click(screen.getByRole('button', { name: /change status/i }));
+    expect(screen.queryByRole('button', { name: /Won, Pending KoM/i })).not.toBeInTheDocument();
+    expect(screen.getByText('Win eligibility is unavailable. Refresh this page and try again.')).toBeInTheDocument();
+  });
+
+  it('asks for an active reviewer when the recorded reviewer is inactive', async () => {
+    winEligibility.data = 'inactive_reviewer';
+    renderControl(negotiationProject);
+    await userEvent.click(screen.getByRole('button', { name: /change status/i }));
+    expect(screen.queryByRole('button', { name: /Won, Pending KoM/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/Ask an active supervisor/)).toBeInTheDocument();
+  });
+
+  it('explains a win that requires an eligible reviewer before collecting contract details', async () => {
+    winEligibility.data = 'reviewer_required';
+    renderControl(negotiationProject);
+    await userEvent.click(screen.getByRole('button', { name: /change status/i }));
+    expect(screen.queryByRole('button', { name: /Won, Pending KoM/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/Ask your supervisor or a more senior reviewer/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/customer contract ref/i)).not.toBeInTheDocument();
   });
 
   it('surfaces mutation error inline (NFR-PR-UI-001)', () => {

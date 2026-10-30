@@ -55,11 +55,17 @@
     }
   },
   "ceiling": {
+    "checking": "Memeriksa kelayakan persetujuan…",
+    "unavailable": "Kelayakan persetujuan tidak tersedia. Muat ulang halaman ini dan coba lagi.",
     "exceeds": "Jumlah tagihan melebihi jumlah yang disetujui sebesar {{amount}}. Pemberi persetujuan harus menyetujui jumlah yang lebih tinggi.",
     "approveHigher": "Setujui jumlah lebih tinggi",
     "confirmBody": "Jumlah yang disetujui menjadi {{billed}} (saat ini {{approved}}). Anda tidak dapat membayar pengadaan ini sendiri.",
     "confirm": "Setujui",
-    "approved": "Jumlah lebih tinggi disetujui"
+    "approved": "Jumlah lebih tinggi disetujui",
+    "billRecorder": "Orang yang mencatat tagihan tidak dapat menyetujui jumlah yang lebih tinggi.",
+    "quoteSelector": "Orang yang memilih penawaran tidak dapat menyetujui jumlah yang lebih tinggi.",
+    "requester": "Pemohon tidak dapat menyetujui jumlah yang lebih tinggi.",
+    "routing": "Pemberi persetujuan yang ditunjuk harus menyetujui jumlah yang lebih tinggi."
   },
   "quoteSelection": {
     "reroutedDetail": "Penawaran melebihi jumlah yang disetujui, sehingga pengadaan dikembalikan untuk persetujuan."

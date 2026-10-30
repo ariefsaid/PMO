@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { mockRpc } = vi.hoisted(() => ({ mockRpc: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: mockRpc } }));
 
-import { getProcurementPaymentCeiling, approveProcurementAmount, attachPaymentCeiling } from './procurementPaymentCeiling';
+import { getProcurementPaymentCeiling, getProcurementAmountEligibility, approveProcurementAmount, attachPaymentCeiling } from './procurementPaymentCeiling';
 import { AppError } from '@/src/lib/appError';
 
 beforeEach(() => mockRpc.mockReset());
@@ -42,6 +42,14 @@ describe('getProcurementPaymentCeiling', () => {
   });
 });
 
+describe('getProcurementAmountEligibility', () => {
+  it('returns the server decision for the amount presented to the user', async () => {
+    mockRpc.mockResolvedValue({ data: 'bill_recorder', error: null });
+    await expect(getProcurementAmountEligibility('proc-1', 1200)).resolves.toBe('bill_recorder');
+    expect(mockRpc).toHaveBeenCalledWith('procurement_amount_eligibility', { p_procurement_id: 'proc-1', p_amount: 1200 });
+  });
+});
+
 describe('approveProcurementAmount', () => {
   it('AC-SEC-220: sends the procurement id and the amount to the approval RPC', async () => {
     mockRpc.mockResolvedValue({ data: null, error: null });
@@ -74,6 +82,19 @@ describe('attachPaymentCeiling', () => {
       status: 'Vendor Invoiced',
       paymentCeiling: { ok: true, reason: null, billedNet: 900, approvedAmount: 1000 },
     });
+  });
+
+  it('attaches the decision for the actual billed overage', async () => {
+    mockRpc.mockResolvedValueOnce({ data: [{ ok: false, reason: 'overage', billed_net: 1200, approved_amount: 1000 }], error: null });
+    mockRpc.mockResolvedValueOnce({ data: 'bill_recorder', error: null });
+    await expect(attachPaymentCeiling({ id: 'proc-1', status: 'Vendor Invoiced' })).resolves.toMatchObject({ paymentEligibility: 'bill_recorder' });
+    expect(mockRpc).toHaveBeenLastCalledWith('procurement_amount_eligibility', { p_procurement_id: 'proc-1', p_amount: 1200 });
+  });
+
+  it('fails closed when the eligibility read fails', async () => {
+    mockRpc.mockResolvedValueOnce({ data: [{ ok: false, reason: 'overage', billed_net: 1200, approved_amount: 1000 }], error: null });
+    mockRpc.mockResolvedValueOnce({ data: null, error: { message: 'unavailable' } });
+    await expect(attachPaymentCeiling({ id: 'proc-1', status: 'Vendor Invoiced' })).resolves.toMatchObject({ paymentEligibility: null });
   });
 
   it('AC-SEC-220: an unreadable ceiling leaves the page readable with no ceiling (payment stays server-enforced)', async () => {

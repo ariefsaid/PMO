@@ -41,8 +41,9 @@ const { procurement } = vi.hoisted(() => ({
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { procurement } }));
 
+const actor = vi.hoisted(() => ({ id: 'u1', role: 'Finance' }));
 vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Finance' }),
+  useAuth: () => ({ currentUser: { id: actor.id, org_id: 'org-1', role: actor.role }, role: actor.role }),
 }));
 
 import { useProcurementDetail, useProcurementMutations } from './useProcurementDetail';
@@ -64,7 +65,7 @@ function makeWrapper() {
 // ---------------------------------------------------------------------------
 
 describe('useProcurementDetail', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => { vi.clearAllMocks(); actor.id = 'u1'; actor.role = 'Finance'; });
 
   it("AC-816 (hook): useProcurementDetail keys cache by ['procurement', orgId, id] and calls getProcurementDetail", async () => {
     const { Wrapper } = makeWrapper();
@@ -72,6 +73,27 @@ describe('useProcurementDetail', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(getProcurementDetail).toHaveBeenCalledWith('proc-1');
     expect(result.current.data).toMatchObject({ id: 'proc-1', title: 'Test Procurement' });
+  });
+
+  it('refreshes the actor-specific decision when the role changes', async () => {
+    vi.mocked(getProcurementDetail).mockImplementation(async () => ({ id: 'proc-1', paymentEligibility: actor.role === 'Finance' ? 'allowed' : 'routing' }) as never);
+    const { Wrapper } = makeWrapper();
+    const { result, rerender } = renderHook(() => useProcurementDetail('proc-1'), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.data?.paymentEligibility).toBe('allowed'));
+    actor.role = 'Project Manager';
+    rerender();
+    await waitFor(() => expect(result.current.data?.paymentEligibility).toBe('routing'));
+    expect(getProcurementDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not reuse another actor’s approval decision', async () => {
+    vi.mocked(getProcurementDetail).mockImplementation(async () => ({ id: 'proc-1', paymentEligibility: actor.id === 'u1' ? 'allowed' : 'bill_recorder' }) as never);
+    const { Wrapper } = makeWrapper();
+    const { result, rerender } = renderHook(() => useProcurementDetail('proc-1'), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.data?.paymentEligibility).toBe('allowed'));
+    actor.id = 'u2';
+    rerender();
+    await waitFor(() => expect(result.current.data?.paymentEligibility).toBe('bill_recorder'));
   });
 
   it('is disabled when id is empty string', () => {

@@ -29,6 +29,9 @@ vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
   return { ...actual, transitionProject };
 });
 
+const winEligibility = vi.hoisted(() => ({ data: 'allowed' as string | undefined, isFetching: false, isError: false }));
+vi.mock('@/src/hooks/useProjectTransitions', () => ({ useProjectWinEligibility: () => winEligibility }));
+
 vi.mock('@/src/lib/repositories', async (orig) => {
   const actual = await orig() as typeof import('@/src/lib/repositories');
   return { ...actual, repositories: { ...actual.repositories, project: { ...actual.repositories.project, transition: repositoryTransition } } };
@@ -92,12 +95,51 @@ const renderLens = () =>
   );
 
 beforeEach(() => {
+  winEligibility.data = 'allowed';
+  winEligibility.isFetching = false;
+  winEligibility.isError = false;
   transitionProject.mockClear();
   repositoryTransition.mockClear();
   invalidateQueries.mockReset().mockResolvedValue(undefined);
 });
 
 describe('PipelineLens — mark-won shows the booked value (AC-IXD-DASH-005)', () => {
+  it('withdraws the open win action until the current decision allows it', async () => {
+    const user = userEvent.setup();
+    const view = renderLens();
+    await user.click(screen.getByRole('button', { name: /Mark won/i }));
+    const refresh = () => view.rerender(<ImpersonationProvider realRole="Project Manager"><ToastProvider><PipelineLens project={dealRow} /></ToastProvider></ImpersonationProvider>);
+    winEligibility.isFetching = true; refresh();
+    expect(screen.queryByLabelText(/Customer contract reference/i)).not.toBeInTheDocument();
+    expect(screen.getAllByText('Checking win eligibility…').length).toBeGreaterThan(0);
+    winEligibility.isFetching = false; winEligibility.isError = true; refresh();
+    expect(screen.queryByRole('button', { name: /Mark won/i })).not.toBeInTheDocument();
+    expect(screen.getAllByText('Win eligibility is unavailable. Refresh this page and try again.').length).toBeGreaterThan(0);
+    winEligibility.isError = false; winEligibility.data = 'reviewer_required'; refresh();
+    expect(screen.queryByRole('button', { name: /Mark won/i })).not.toBeInTheDocument();
+    expect(repositoryTransition).not.toHaveBeenCalled();
+    expect(transitionProject).not.toHaveBeenCalled();
+    winEligibility.data = 'allowed'; refresh();
+    await user.type(screen.getByLabelText(/Customer contract reference/i), 'CPO-RECOVERED');
+    await user.type(screen.getByLabelText(/Contract date/i), '2026-03-15');
+    await user.click(screen.getByRole('button', { name: /Confirm won/i }));
+    expect(repositoryTransition).toHaveBeenCalledWith('d1', 'Won, Pending KoM', { customerContractRef: 'CPO-RECOVERED', contractDate: '2026-03-15' });
+  });
+
+  it('asks for a refresh when win eligibility is unavailable', () => {
+    winEligibility.data = 'unavailable';
+    renderLens();
+    expect(screen.queryByRole('button', { name: /Mark won/i })).not.toBeInTheDocument();
+    expect(screen.getByText('Win eligibility is unavailable. Refresh this page and try again.')).toBeInTheDocument();
+  });
+
+  it('shows review guidance instead of an ineligible win action', () => {
+    winEligibility.data = 'reviewer_required';
+    renderLens();
+    expect(screen.queryByRole('button', { name: /Mark won/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/Ask your supervisor or a more senior reviewer/)).toBeInTheDocument();
+  });
+
   it('AC-IXD-DASH-005: the won-capture panel states the value being booked to contract value', async () => {
     renderLens();
     await userEvent.click(screen.getByRole('button', { name: /Mark won/i }));
