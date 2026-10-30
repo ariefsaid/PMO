@@ -187,6 +187,9 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     milestonesState.data = [];
     navigate.mockClear();
     session.role = 'Project Manager';
+    // The lens composes the server's win-eligibility preflight (3700397d9) before offering
+    // Mark won; this suite runs the real hooks, so the repository seam answers 'allowed'.
+    vi.spyOn(repositories.project, 'winEligibility').mockResolvedValue('allowed');
   });
 
   it('AC-IFW-RECORD-01: pre-win record renders PipelineLens (Project journey / Next actions) BEFORE the Delivery phases section', async () => {
@@ -237,9 +240,10 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
   it('AC-IFW-RECORD-01: pre-win record renders the Advance / Mark won / Mark lost sales levers', async () => {
     await renderAt('/projects/opp1');
 
-    // The sales action buttons from PipelineLens must be visible
+    // The sales action buttons from PipelineLens must be visible. Mark won arrives with the
+    // server's eligibility answer (an async query), so it is awaited like any read.
     expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Mark won/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /Mark won/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark lost/i })).toBeInTheDocument();
   });
 

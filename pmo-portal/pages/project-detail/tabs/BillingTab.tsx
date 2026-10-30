@@ -600,7 +600,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
                 onWorkOrder={() => {
                   navigate(`/projects/${encodeURIComponent(projectId)}/work-orders`);
                 }}
-                onQuantity={canBill && claimDataReady ? () => setClaimFormOpen(true) : undefined}
+                onQuantity={canBill ? () => setClaimFormOpen(true) : undefined}
               />
             )
           }

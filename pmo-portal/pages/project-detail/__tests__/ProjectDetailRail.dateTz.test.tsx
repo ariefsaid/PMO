@@ -27,6 +27,9 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
     error: null,
     isPending: false,
   }),
+  // ProjectStatusControl composes the win-eligibility preflight (3700397d9); these date-rendering
+  // tests stub it so the rail renders without a QueryClient.
+  useProjectWinEligibility: () => ({ data: 'allowed' }),
 }));
 
 import ProjectDetailRail from '../ProjectDetailRail';
