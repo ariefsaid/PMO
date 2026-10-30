@@ -542,6 +542,15 @@ describe('ProcurementCycleImportWizard', () => {
     expect(screen.getByText('PR')).toBeInTheDocument();
   });
 
+  it('allows an individual case to expand after collapsing all cases', async () => {
+    const user = userEvent.setup();
+    renderWizard();
+    await driveToPreview(user);
+    await user.click(screen.getByRole('button', { name: /collapse all/i }));
+    await user.click(screen.getByRole('button', { name: /case-001/i }));
+    expect(screen.getByText('PR')).toBeInTheDocument();
+  });
+
   // ── E15: button label rename ──────────────────────────────────────────────
 
   // ── ESC / scrim ───────────────────────────────────────────────────────────
@@ -584,4 +593,19 @@ it('shows reconciliation details from preview', async () => {
   await driveToPreview(user);
   expect(await screen.findByText(/existing source requires reconciliation/i)).toBeInTheDocument();
   expect(screen.getByText(/existing-id/)).toBeInTheDocument();
+});
+
+it('shows preview failure and enables import only after retry succeeds', async () => {
+  const user = userEvent.setup();
+  renderWizard();
+  vi.mocked(parseWorkbook).mockResolvedValue({ headers: FULL_HEADERS, rows: FULL_ROWS } as never);
+  vi.mocked(buildDryRunConflictReport).mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValueOnce({ wouldCreate: 3, wouldSkip: 1, wouldCollide: 0 });
+  await user.upload(screen.getByLabelText(/choose an \.xlsx file/i), file());
+  await user.click(await screen.findByRole('button', { name: /^next$/i }));
+  expect(await screen.findByRole('alert')).toHaveTextContent(/retry/i);
+  expect(screen.getByRole('button', { name: /import \d+ record/i })).toBeDisabled();
+  await user.click(screen.getByRole('button', { name: /retry preview/i }));
+  expect(await screen.findByText(/3 to create, 1 to skip, 0 conflicts/i)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /import \d+ record/i })).toBeEnabled();
 });
