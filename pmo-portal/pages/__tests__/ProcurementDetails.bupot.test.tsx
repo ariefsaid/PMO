@@ -89,6 +89,28 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
     expect(await screen.findByRole('option', { name: 'Updated supplier' })).toBeVisible();
   });
 
+  it('closes the open supplier picker when cached references fail and permits selection after retry', async () => {
+    h.detail.data = { ...procurement, vendor_id: null };
+    const view = renderAt('/procurement/proc-001/files');
+    fireEvent.click(screen.getByRole('button', { name: 'Set supplier' }));
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
+    const cached = await screen.findByRole('option', { name: 'New supplier' });
+    h.vendor.isError = true;
+    view.rerender(<MemoryRouter initialEntries={['/procurement/proc-001/files']}><Routes><Route path="/procurement/:procurementId/:tab?" element={<><ProcurementDetails /><LocationText /></>} /></Routes></MemoryRouter>);
+    expect(screen.getByRole('combobox', { name: 'Supplier' })).toBeDisabled();
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    fireEvent.click(cached);
+    expect(screen.getByRole('button', { name: 'Save supplier' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: /retry suppliers/i }));
+    expect(h.vendor.refetch).toHaveBeenCalled();
+    h.vendor.isError = false; h.vendor.data = [{ value: 'updated', label: 'Updated supplier' }];
+    view.rerender(<MemoryRouter initialEntries={['/procurement/proc-001/files']}><Routes><Route path="/procurement/:procurementId/:tab?" element={<><ProcurementDetails /><LocationText /></>} /></Routes></MemoryRouter>);
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'Updated supplier' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save supplier' }));
+    await waitFor(() => expect(h.updateVendor).toHaveBeenCalledWith('updated'));
+  });
+
   it('lets Finance set only the missing supplier on a billed procurement record, then permits slip recording', async () => {
     const vendorlessBilled = { ...procurement, vendor_id: null };
     h.detail.data = vendorlessBilled;

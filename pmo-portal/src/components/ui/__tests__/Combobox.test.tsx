@@ -78,6 +78,56 @@ describe('Combobox: open + load + select', () => {
   });
 });
 
+describe('Combobox: disabled while open', () => {
+  it('closes the open picker, blocks stale interactions and permits selection after re-enabling', async () => {
+    const onChange = vi.fn();
+    const props = { label: 'Client company', value: null, onChange, loadOptions: loadOk };
+    const view = render(<Combobox {...props} />);
+    await userEvent.click(screen.getByRole('combobox'));
+    const option = await screen.findByRole('option', { name: /Cascade Port Authority/ });
+    const search = screen.getByRole('searchbox');
+    fireEvent.keyDown(search, { key: 'ArrowDown' });
+    view.rerender(<Combobox {...props} disabled />);
+    expect(screen.getByRole('combobox')).toBeDisabled();
+    expect(screen.getByRole('combobox')).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    fireEvent.click(option);
+    fireEvent.keyDown(search, { key: 'Enter' });
+    expect(onChange).not.toHaveBeenCalled();
+    view.rerender(<Combobox {...props} />);
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('combobox'));
+    await userEvent.click(await screen.findByRole('option', { name: /Camden Waterworks/ }));
+    expect(onChange).toHaveBeenCalledWith('c2', OPTIONS[1]);
+  });
+
+  it('disables the clear action with the selected picker', async () => {
+    const onClear = vi.fn();
+    const view = render(<Combobox label="Client company" value="c1" selectedOption={OPTIONS[0]} onChange={() => {}} loadOptions={loadOk} clearable onClear={onClear} disabled />);
+    expect(screen.getByRole('button', { name: /clear option/i })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: /clear option/i }));
+    expect(onClear).not.toHaveBeenCalled();
+    view.rerender(<Combobox label="Client company" value="c1" selectedOption={OPTIONS[0]} onChange={() => {}} loadOptions={loadOk} clearable onClear={onClear} />);
+    await userEvent.click(screen.getByRole('button', { name: /clear option/i }));
+    expect(onClear).toHaveBeenCalledOnce();
+  });
+
+  it('discards an in-flight load on disable and reloads after re-enabling', async () => {
+    let resolveFirst!: (options: ComboboxOption[]) => void;
+    const loadOptions = vi.fn().mockImplementationOnce(() => new Promise<ComboboxOption[]>((resolve) => { resolveFirst = resolve; })).mockResolvedValueOnce([OPTIONS[1]]);
+    const props = { label: 'Client company', value: null, onChange: vi.fn(), loadOptions };
+    const view = render(<Combobox {...props} />);
+    await userEvent.click(screen.getByRole('combobox'));
+    expect(await screen.findByTestId('combo-loading')).toBeInTheDocument();
+    view.rerender(<Combobox {...props} disabled />);
+    await act(async () => { resolveFirst([OPTIONS[0]]); });
+    view.rerender(<Combobox {...props} />);
+    await userEvent.click(screen.getByRole('combobox'));
+    expect(await screen.findByRole('option', { name: /Camden Waterworks/ })).toBeVisible();
+    expect(screen.queryByRole('option', { name: /Cascade Port Authority/ })).not.toBeInTheDocument();
+  });
+});
+
 describe('Combobox: keyboard navigation', () => {
   it('ArrowDown moves active option (aria-activedescendant) and Enter selects it', async () => {
     const onChange = vi.fn();
