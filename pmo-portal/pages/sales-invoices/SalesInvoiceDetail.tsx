@@ -7,7 +7,7 @@ import { formatCurrencyAuto, formatDateOnly } from '@/src/lib/format';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
-import { isPartlyPaid } from '@/src/lib/revenue/nativeInvoice';
+import { invoiceNumber, isPartlyPaid } from '@/src/lib/revenue/nativeInvoice';
 import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceApprovalRow';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { SalesInvoiceEvidenceSection } from './SalesInvoiceEvidence';
@@ -30,6 +30,7 @@ interface Props {
 }
 export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode, organizationToday, onBack, refetch, recordPrimaryAction, invoiceDisplayLabel, may, pdfDownload, dialogs }: Props) {
   const { t } = useTranslation();
+  const viewTargetNumber = viewTarget ? invoiceNumber(viewTarget) : null;
     return (
       <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
         <Button variant="ghost" onClick={onBack} className="mb-4 -ml-3">
@@ -50,8 +51,8 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
             <header className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
               <div>
                 <h1 className="text-[24px] font-bold tracking-[-0.02em]">
-                  {viewTarget.si_number
-                    ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: viewTarget.si_number })
+                  {viewTargetNumber
+                    ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: viewTargetNumber })
                     : invoiceDisplayLabel(viewTarget)}
                 </h1>
                 <p className="mt-1 text-sm text-muted-foreground">{viewTarget.customer_name ?? '—'}</p>

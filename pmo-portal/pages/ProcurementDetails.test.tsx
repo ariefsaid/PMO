@@ -31,6 +31,7 @@ async function confirmInDialog(label: RegExp | string) {
 const detailState = {
   data: undefined as Record<string, unknown> | undefined,
   isPending: false,
+  isFetching: false,
   isError: false,
   error: null as (Error & { code?: string }) | null,
   refetch: vi.fn(),
@@ -119,14 +120,13 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
     createDocument: { mutateAsync: mockCreateDocument, isPending: false },
     deleteDocument: { mutateAsync: mockDeleteDocument, isPending: false },
   }),
-  useProcurementDocuments: () => docsState,
 }));
 
 // FK pickers (header edit project/vendor, quotation vendor) read cached option
 // hooks; stub them so the detail test needs no QueryClient.
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [{ value: 'proj-1', label: 'HQ Fit-Out' }] }),
-  useVendorOptions: () => ({ data: [{ value: 'v1', label: 'Apex Supply', sub: 'Vendor' }] }),
+  useVendorOptions: () => ({ data: [{ value: 'v1', label: 'Apex Supply', sub: 'Vendor' }, { value: 'v-syn', label: 'Synergy Systems', sub: 'Vendor' }, { value: 'v-apx', label: 'Apex Supply', sub: 'Vendor' }] }),
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
@@ -534,15 +534,22 @@ describe('AC-IXD-PROC-004: selected-quote binds on the Quote Selected state (PRO
     expect(within(comparisons).getByText('Chosen')).toBeInTheDocument();
   });
 
-  it('PROC-004: the selected quotation row carries the "Selected · best value" pill', () => {
+  it('PROC-004: selected and lowest-price pills appear only on the chosen lowest quote row', () => {
     renderPage('proc-001', 'quotes');
-    // VendorQuotesTab (Slice 3) replaced QuotationsSection — testid is now vendor-quotes.
     const section = screen.getByTestId('vendor-quotes');
-    // The chosen $148,000 (VQ-2602050001) row shows "Selected · best value"; the $152,000 one does not.
-    // Both desktop + mobile branches render the pill so at least one match expected.
-    expect(within(section).getAllByText(/Selected · best value/i).length).toBeGreaterThanOrEqual(1);
-    // The VQ number is present in the section
-    expect(within(section).getAllByText('VQ-2602050001').length).toBeGreaterThanOrEqual(1);
+    const quoteRows = Array.from(section.querySelectorAll('tr'));
+    const chosenRow = quoteRows.find((row) => row.textContent?.includes('VQ-2602050001'));
+    expect(chosenRow).toBeInTheDocument();
+    expect(chosenRow).toHaveTextContent('$148,000');
+    expect(chosenRow).toHaveTextContent('Synergy Systems');
+    expect(within(chosenRow as HTMLElement).getByText('Selected')).toBeInTheDocument();
+    expect(within(chosenRow as HTMLElement).getByText('Lowest price')).toBeInTheDocument();
+
+    const higherQuoteRow = quoteRows.find((row) => row.textContent?.includes('VQ-2602050002'));
+    expect(higherQuoteRow).toBeInTheDocument();
+    expect(higherQuoteRow).toHaveTextContent('$152,000');
+    expect(within(higherQuoteRow as HTMLElement).queryByText('Selected')).not.toBeInTheDocument();
+    expect(within(higherQuoteRow as HTMLElement).queryByText('Lowest price')).not.toBeInTheDocument();
   });
 });
 
@@ -1518,14 +1525,36 @@ describe('0349: approved-amount ceiling and quote re-route (AC-SEC-220/221)', ()
     approved_by_id: 'u-approver',
     approved_total_value: 1000,
     paymentCeiling: { ok: false, reason: 'vendor bill exceeds approved amount', billedNet: 1200, approvedAmount: 1000 },
+    paymentEligibility: 'allowed',
   };
   beforeEach(() => {
     detailState.isPending = false;
+    detailState.isFetching = false;
     detailState.isError = false;
     mockEffectiveRole = 'Finance';
     mockApproveAmount.mockClear();
     mockSelectQuote.mockClear();
     toast.mockClear();
+  });
+
+  it('requires a current approval decision while confirming', async () => {
+    detailState.data = invoicedOver;
+    const view = renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Approve higher amount' }));
+    const refresh = () => view.rerender(<MemoryRouter initialEntries={['/procurement/proc-001']}><Routes><Route path="/procurement/:procurementId" element={<ProcurementDetails />} /></Routes></MemoryRouter>);
+    detailState.isFetching = true; refresh();
+    expect(screen.getByText('Checking approval eligibility…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeDisabled();
+    detailState.isFetching = false; detailState.isError = true; refresh();
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+    expect(mockApproveAmount).not.toHaveBeenCalled();
+    detailState.isError = false; detailState.data = { ...invoicedOver, paymentEligibility: 'routing' }; refresh();
+    expect(screen.queryByRole('button', { name: 'Approve higher amount' })).not.toBeInTheDocument();
+    expect(screen.getByText('A designated approver must approve the higher amount.')).toBeInTheDocument();
+    detailState.data = invoicedOver; refresh();
+    fireEvent.click(screen.getByRole('button', { name: 'Approve higher amount' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(mockApproveAmount).toHaveBeenCalledWith(1200));
   });
 
   it('AC-SEC-220: a blocked payment explains the overage and lets an eligible approver approve the billed amount', async () => {
@@ -1535,6 +1564,13 @@ describe('0349: approved-amount ceiling and quote re-route (AC-SEC-220/221)', ()
     fireEvent.click(screen.getByRole('button', { name: 'Approve higher amount' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
     await waitFor(() => expect(mockApproveAmount).toHaveBeenCalledWith(1200));
+  });
+
+  it('uses the server decision to explain why a bill recorder cannot approve', () => {
+    detailState.data = { ...invoicedOver, paymentEligibility: 'bill_recorder' };
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Approve higher amount' })).toBeNull();
+    expect(screen.getByText('The person who recorded the bill cannot approve the higher amount.')).toBeInTheDocument();
   });
 
   it('AC-SEC-220: the requester sees the explanation but no approval action', () => {

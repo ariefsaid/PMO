@@ -14,7 +14,7 @@
  *   C3-10 Breadcrumb mobile truncation — at narrow width only current crumb shown
  *   C3-11 Touch targets — hamburger and ⌘K trigger have .touch-target
  *   C3-12 Safe-area — drawer panel has safe-area padding class
- *   C3-13 Content gutter — main content div has max-md:px-4
+ *   C3-13 Content gutter — main content uses the responsive page-gutter token
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, waitFor, fireEvent } from '@testing-library/react';
@@ -410,10 +410,10 @@ describe('AC-IXD-MOBILE-W4-C3 C3-12: drawer has safe-area-inset padding', () => 
 });
 
 // ---------------------------------------------------------------------------
-// C3-13: Content gutter uses max-md:px-4
+// C3-13: Content gutter uses the shared responsive page-gutter token
 // ---------------------------------------------------------------------------
-describe('AC-IXD-MOBILE-W4-C3 C3-13: content gutter has max-md:px-4', () => {
-  it('the inner content wrapper in main carries max-md:px-4', () => {
+describe('AC-IXD-MOBILE-W4-C3 C3-13: content gutter uses the page-gutter token', () => {
+  it('the inner content wrapper in main uses the shared responsive page gutter', () => {
     wrap(
       <AppShell rail={null} header={null}>
         <div data-testid="child">content</div>
@@ -423,7 +423,6 @@ describe('AC-IXD-MOBILE-W4-C3 C3-13: content gutter has max-md:px-4', () => {
     // Find the direct padded div inside main
     const contentDiv = main.querySelector('div');
     expect(contentDiv).not.toBeNull();
-    // Should have the mobile gutter class
-    expect(contentDiv!.className).toMatch(/max-\[921px\]:px-4/);
+    expect(contentDiv!.className).toContain('px-[var(--space-page-gutter)]');
   });
 });

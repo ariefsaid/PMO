@@ -143,7 +143,7 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
 
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const scopeOptions: SelectOption[] = [
-    { value: 'private', label: t('viewBuilder.privateScope', 'Private — only you') },
+    { value: 'private', label: t('viewBuilder.privateScope', 'Private: only you') },
     { value: 'shared_org', label: t('viewBuilder.sharedScope', 'Shared with your organisation') },
   ];
 
@@ -311,7 +311,7 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
           <div aria-live="polite" aria-atomic="true" className="min-h-[1.25rem]">
             {aiDraft && (
               <span className="text-[12px] font-medium text-warning-foreground">
-                {t('viewBuilder.aiDraftReview', 'AI-composed draft — review before saving')}
+                {t('viewBuilder.aiDraftReview', 'AI-composed draft: review before saving')}
               </span>
             )}
           </div>

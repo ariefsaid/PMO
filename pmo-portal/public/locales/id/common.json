@@ -11,7 +11,7 @@
     "scopeTail": ". Koneksi pribadi tidak mengaktifkan integrasi organisasi.",
     "connectionOptions": "Opsi koneksi",
     "reviewRecords": "Tinjau data dari koneksi",
-    "liveRecordCheck": "Belum terverifikasi — tinjau data dari layanan terhubung untuk memastikan data dapat digunakan.",
+    "liveRecordCheck": "Belum terverifikasi: tinjau data dari layanan terhubung untuk memastikan data dapat digunakan.",
     "pendingZero": "Tidak ada pembaruan yang menunggu untuk dikirim",
     "pendingOne": "{{count}} pembaruan menunggu untuk dikirim",
     "pendingMany": "{{count}} pembaruan menunggu untuk dikirim",
@@ -24,7 +24,7 @@
     "reviewFailed": "Tinjau pembaruan yang gagal",
     "reviewQuarantined": "Tinjau pembaruan yang dikarantina",
     "reviewHeld": "Tinjau pembaruan yang ditahan",
-    "notReady": "Belum siap — {{count}} langkah tersisa",
+    "notReady": "Belum siap: {{count}} langkah tersisa",
     "setupChecking": "Memeriksa penyiapan",
     "setupUnavailable": "Status penyiapan tidak tersedia",
     "setupAdminRequired": "Minta administrator memeriksa penyiapan",
@@ -258,10 +258,10 @@
     "unchangedCount": "{{count}} tidak berubah",
     "duplicates": "{{count}} duplikat identik diabaikan",
     "rejectedRows": "Baris yang ditolak",
-    "rejected": "Baris {{row}}: {{value}} — {{reason}}",
+    "rejected": "Baris {{row}}: {{value}} ({{reason}})",
     "previewRows": "Pratinjau kurs yang dinormalisasi",
     "confirmUpload": "Simpan kurs JISDOR ini?",
-    "confirmUploadDescription": "USD → IDR · JISDOR — {{new}} baru, {{changed}} diubah, {{unchanged}} tidak berubah.",
+    "confirmUploadDescription": "USD → IDR · JISDOR: {{new}} baru, {{changed}} diubah, {{unchanged}} tidak berubah.",
     "rateError": "Kurs JISDOR tidak dapat dimuat.",
     "noRateForDate": "Kurs JISDOR untuk {{date}} tidak tersedia."
   },
@@ -451,7 +451,7 @@
       "toast": {
         "saved": "Akun biaya disimpan"
       },
-      "unmapped": "Belum dipetakan — posting biaya berhenti",
+      "unmapped": "Belum dipetakan: posting biaya berhenti",
       "unmappedIdle": "Belum dipetakan"
     },
     "access": {
@@ -487,8 +487,8 @@
         "savedDetail": "Kontrak, work order, dan invoice baru akan memakai basis ini. Record yang sudah ada tidak berubah."
       },
       "value": {
-        "exclusive": "Exclusive — pajak ditambahkan di atas nilai",
-        "inclusive": "Inclusive — nilai sudah termasuk pajak"
+        "exclusive": "Exclusive: pajak ditambahkan di atas nilai",
+        "inclusive": "Inclusive: nilai sudah termasuk pajak"
       },
       "loadError": {
         "title": "Gagal memuat perlakuan pajak default"
@@ -574,8 +574,8 @@
         "description": "Kelola role, status, dan atasan langsung pengguna. Administrasi hanya untuk Admin; perubahan role berdampak besar dan dicatat."
       },
       "inviteForm": {
-        "subtitleOperator": "Undang seseorang lewat email — mereka akan menetapkan kata sandi sendiri dan role langsung berlaku.",
-        "subtitle": "Undang seseorang ke organisasi Anda lewat email — mereka akan menetapkan kata sandi sendiri.",
+        "subtitleOperator": "Undang seseorang lewat email. Mereka akan menetapkan kata sandi sendiri dan role langsung berlaku.",
+        "subtitle": "Undang seseorang ke organisasi Anda lewat email. Mereka akan menetapkan kata sandi sendiri.",
         "legend": "Detail undangan",
         "email": "Email",
         "roleHelper": "Menentukan apa yang dapat dilihat dan dilakukan orang ini setelah masuk.",
@@ -632,10 +632,10 @@
         "erpAccount": "Akun ERP",
         "actions": "Aksi"
       },
-      "unmapped": "Belum dipetakan — memblokir setiap pengiriman",
+      "unmapped": "Belum dipetakan: memblokir setiap pengiriman",
       "map": "Petakan {{category}}",
       "multiNote": "Satu kategori boleh memiliki beberapa akun. Realisasinya dijumlahkan dari semua akun tersebut; anggarannya hanya dikirim ke akun bertanda Pengiriman anggaran.",
-      "noPush": "Tanpa akun pengiriman — memblokir setiap pengiriman",
+      "noPush": "Tanpa akun pengiriman: memblokir setiap pengiriman",
       "pushBadge": "Pengiriman anggaran",
       "addAccount": "Tambah akun ke {{category}}",
       "editAccount": "Edit {{account}}",
@@ -709,7 +709,7 @@
       "addOrg": "Tambah penyetuju overhead",
       "addProject": "Tambah penyetuju proyek",
       "remove": "Hapus {{name}}",
-      "empty": "Belum ada — aturan peran standar berlaku.",
+      "empty": "Belum ada. Aturan peran standar berlaku.",
       "adminOnly": "Hanya Admin yang dapat mengubah ini.",
       "loadError": {
         "title": "Gagal memuat penyetuju pengeluaran"
@@ -754,7 +754,7 @@
     "bulk": {
       "approveN": "Setujui {{count}}",
       "clear": "Bersihkan",
-      "confirmDescription": "Ini menyetujui minggu yang dipilih. Anda tidak dapat menyetujui timesheet Anda sendiri — pemisahan tugas diberlakukan.",
+      "confirmDescription": "Ini menyetujui minggu yang dipilih. Anda tidak dapat menyetujui timesheet Anda sendiri. Pemisahan tugas diberlakukan.",
       "confirmTitleMany": "Setujui {{count}} timesheet?",
       "confirmTitleOne": "Setujui 1 timesheet?",
       "groupLabel": "Setujui massal",
@@ -783,11 +783,11 @@
       "title": "Anda tidak memiliki akses ke persetujuan"
     },
     "attest": {
-      "body": "Nyatakan bahwa Anda telah memeriksa ERPNext dan yang tercatat di sana adalah <strong>tidak ada Timesheet</strong> untuk minggu {{person}}. Tindakan ini mencatat atestasi yang diaudit dan membuka kembali minggu tersebut untuk koreksi — tanpa menghubungi ERPNext.",
+      "body": "Nyatakan bahwa Anda telah memeriksa ERPNext dan yang tercatat di sana adalah <strong>tidak ada Timesheet</strong> untuk minggu {{person}}. Tindakan ini mencatat atestasi yang diaudit dan membuka kembali minggu tersebut untuk koreksi, tanpa menghubungi ERPNext.",
       "cancelLabel": "Batal",
-      "confirmLabel": "Konfirmasi — tanpa dokumen ERP",
+      "confirmLabel": "Konfirmasi: tanpa dokumen ERP",
       "reasonLabel": "Apa yang Anda periksa di ERPNext?",
-      "reasonPlaceholder": "mis. Mencari Timesheet untuk karyawan dan minggu ini — tidak ada.",
+      "reasonPlaceholder": "mis. Mencari Timesheet untuk karyawan dan minggu ini: tidak ada.",
       "thisPerson": "orang ini",
       "title": "Konfirmasi apa yang tercatat di ERPNext"
     },
@@ -854,20 +854,20 @@
     "queueRegionLabel": "Antrean persetujuan",
     "reopen": {
       "action": "Buka kembali untuk koreksi",
-      "alreadyPushed": "Sudah dikirim ke ERP — jalur koreksi menyusul",
+      "alreadyPushed": "Sudah dikirim ke ERP: jalur koreksi menyusul",
       "attestFailure": "Gagal mengonfirmasi hasil ERP",
-      "attestSuccess": "Terkonfirmasi — minggu ini siap dibuka kembali",
+      "attestSuccess": "Terkonfirmasi: minggu ini siap dibuka kembali",
       "attestSuccessDetail": "Tidak ada dokumen di ERPNext",
       "confirmErpButton": "Konfirmasi apa yang tercatat di ERPNext",
-      "errorDocumentHeld": "Sudah ada di ERP — minggu ini belum dapat dibuka kembali.",
+      "errorDocumentHeld": "Sudah ada di ERP. Minggu ini belum dapat dibuka kembali.",
       "errorGeneric": "Gagal membuka kembali",
-      "errorOutcomeUnknown": "Hasil ERP minggu ini tidak diketahui — administrator harus mengonfirmasi apa yang tercatat di ERPNext sebelum minggu ini dapat dibuka kembali.",
-      "errorPushInFlight": "Pengiriman untuk minggu ini sedang berlangsung — coba lagi sebentar lagi.",
+      "errorOutcomeUnknown": "Hasil ERP minggu ini tidak diketahui. Administrator harus mengonfirmasi apa yang tercatat di ERPNext sebelum minggu ini dapat dibuka kembali.",
+      "errorPushInFlight": "Pengiriman untuk minggu ini sedang berlangsung. Coba lagi sebentar lagi.",
       "heading": "Riwayat persetujuan dan koreksi",
-      "outcomeUnknown": "Hasil ERP tidak diketahui — administrator harus mengonfirmasi apa yang tercatat di ERPNext",
+      "outcomeUnknown": "Hasil ERP tidak diketahui: administrator harus mengonfirmasi apa yang tercatat di ERPNext",
       "pushInProgress": "Pengiriman sedang berlangsung",
       "sectionLabel": "Timesheet yang disetujui dalam {{days}} hari terakhir yang dapat dibuka kembali untuk koreksi",
-      "success": "Dibuka kembali — minggu ini kembali ke Draf untuk diedit.",
+      "success": "Dibuka kembali: minggu ini kembali ke Draf untuk diedit.",
       "window": "{{days}} hari terakhir"
     },
     "scope": {
@@ -881,7 +881,7 @@
       "policyHelp": "Aturan: timesheet disetujui oleh orang yang berbeda."
     },
     "scopeToggleLabel": "Cakupan persetujuan",
-    "subtitle": "Perlu persetujuan saya — semua yang menunggu keputusan Anda: pengadaan, timesheet, klaim biaya, dan faktur pelanggan.",
+    "subtitle": "Perlu persetujuan saya. Semua yang menunggu keputusan Anda: pengadaan, timesheet, klaim biaya, dan faktur pelanggan.",
     "title": "Persetujuan",
     "unknownOwner": "Tidak diketahui",
     "unknownRequester": "Peminta tidak diketahui",
@@ -1265,10 +1265,10 @@
       "archiveDescription": "Kontak akan disembunyikan dari daftar default. Aktivitas yang ada tetap utuh. Anda dapat memulihkannya kapan saja.",
       "archiveTitle": "Arsipkan kontak ini?",
       "deleteConfirm": "Hapus kontak",
-      "deleteDescription": "Tindakan ini menghapus kontak beserta seluruh aktivitas yang tercatat secara permanen. Tindakan ini tidak dapat dibatalkan — arsipkan saja untuk menyimpan riwayatnya.",
+      "deleteDescription": "Tindakan ini menghapus kontak beserta seluruh aktivitas yang tercatat secara permanen. Tindakan ini tidak dapat dibatalkan. Arsipkan saja untuk menyimpan riwayatnya.",
       "deleteTitle": "Hapus kontak ini?"
     },
-    "description": "Orang di perusahaan yang bekerja sama dengan Anda. Master data yang dibagikan ke seluruh organisasi — catat telepon dan email untuk setiap kontak. Rapat bernotulen ada di",
+    "description": "Orang di perusahaan yang bekerja sama dengan Anda. Master data yang dibagikan ke seluruh organisasi. Catat telepon dan email untuk setiap kontak. Rapat bernotulen ada di",
     "descriptionMeetingsLink": "modul Rapat",
     "filters": {
       "allCompanies": "Semua perusahaan",
@@ -1353,7 +1353,7 @@
       "errorSub": "Terjadi kesalahan. Coba lagi.",
       "emptyTitle": "Tidak ada proyek selesai dalam periode ini",
       "emptySub": "Pilih periode lebih panjang untuk melihat tingkat kemenangan.",
-      "declined": "{{n}} tidak ikut tender — tidak dihitung dalam win rate"
+      "declined": "{{n}} tidak ikut tender, tidak dihitung dalam win rate"
     },
     "bva": {
       "atRisk": "Berisiko"
@@ -1417,7 +1417,7 @@
     "kpi": {
       "awaitingApproval": {
         "label": "Menunggu persetujuan Anda",
-        "unavailable": "tidak tersedia — periksa koneksi",
+        "unavailable": "tidak tersedia: periksa koneksi",
         "one": "{{count}} item menunggu",
         "many": "{{count}} item menunggu",
         "linkUnavailable": "{{label}}: tidak tersedia",
@@ -1717,7 +1717,7 @@
       "externalGate": "Tugas dikelola oleh sistem tugas yang terhubung, jadi action item tidak dapat dibuat dari notulen ini.",
       "modalSection": "Tugas tindak lanjut",
       "modalSubmit": "Buat tugas",
-      "modalSubtitle": "Tindakan ini membuat tugas sungguhan. Namanya terlihat oleh semua yang dapat melihat tugas — edit sebelum diterbitkan.",
+      "modalSubtitle": "Tindakan ini membuat tugas sungguhan. Namanya terlihat oleh semua yang dapat melihat tugas. Edit sebelum diterbitkan.",
       "modalTitle": "Action item baru",
       "personNoun": "orang",
       "nameHelper": "Terisi otomatis dari baris notulen. Jika dikosongkan, tugas dibuat dengan nama placeholder.",
@@ -1797,7 +1797,7 @@
       "openTask": "Buka tugas: {{name}}",
       "ownerLabel": "Penanggung jawab",
       "dueLabel": "Tenggat",
-      "unassigned": "Belum ditugaskan — pilih penanggung jawab",
+      "unassigned": "Belum ditugaskan: pilih penanggung jawab",
       "editorLabel": "Notulen rapat",
       "empty": "Tidak ada notulen yang tercatat untuk rapat ini.",
       "save": "Simpan notulen",
@@ -1989,7 +1989,7 @@
     },
     "capture": {
       "action": "Catat {{record}}",
-      "next": "+ Catat {{record}} — dokumen berikutnya untuk tahap ini."
+      "next": "+ Catat {{record}}: dokumen berikutnya untuk tahap ini."
     }
   },
   "procurementDetail": {
@@ -2041,8 +2041,8 @@
       "invoiceDate": "Tanggal faktur",
       "taxTreatment": "Perlakuan pajak",
       "taxTreatmentPlaceholder": "Pilih perlakuan pajak",
-      "taxInclusive": "Inklusif — termasuk PPN",
-      "taxExclusive": "Eksklusif — PPN ditambahkan",
+      "taxInclusive": "Inklusif: termasuk PPN",
+      "taxExclusive": "Eksklusif: PPN ditambahkan",
       "taxTreatmentHelper": "Inklusif: PPN sudah termasuk dalam jumlah tagihan. Eksklusif: PPN ditambahkan ke jumlah tersebut.",
       "taxAmount": "Jumlah pajak",
       "confirmMarkInvoiced": "Konfirmasi & tandai ditagih"
@@ -2166,10 +2166,10 @@
         },
         "month": "Bulan (YYYY-MM)",
         "note": "Catatan (opsional)",
-        "quantityToDate": "{{item}} — selesai s.d. saat ini ({{unit}})",
+        "quantityToDate": "{{item}}: selesai s.d. saat ini ({{unit}})",
         "record": "Catat progres",
         "save": "Simpan progres",
-        "subtitle": "Kuantitas yang selesai s.d. bulan ini. Ini penilaian operasional — tidak pernah membuat faktur.",
+        "subtitle": "Kuantitas yang selesai s.d. bulan ini. Ini penilaian operasional, tidak pernah membuat faktur.",
         "title": "Catat progres",
         "toast": {
           "saved": "Progres tercatat: {{pct}}% selesai"
@@ -2232,11 +2232,11 @@
         },
         "kind": "Jenis tagihan",
         "kindDownPayment": "Uang muka",
-        "kindProgress": "Progres — kuantitas terhadap bill of quantities",
+        "kindProgress": "Progres: kuantitas terhadap bill of quantities",
         "linesLegend": "Kuantitas yang ditagih",
         "noLines": "Tidak ada baris bill of quantities dalam cakupan ini.",
         "prefill": "Mulai dari penilaian {{month}}",
-        "quantity": "{{item}} — {{description}} ({{unit}})",
+        "quantity": "{{item}}: {{description}} ({{unit}})",
         "recoverRest": "Pulihkan sisa uang muka dengan tagihan ini",
         "recoveryHelp": "Proporsional terhadap kontrak: {{pct}}%",
         "recoveryPct": "Dipulihkan dari setiap tagihan (%)",
@@ -2273,7 +2273,7 @@
         "error": "Tagihan tidak dapat dimuat",
         "errorSub": "Coba lagi, atau buka ulang proyek.",
         "errors": {
-          "claimWithdrawn": "Tagihan ini telah ditarik — fakturnya tidak dapat diterbitkan."
+          "claimWithdrawn": "Tagihan ini telah ditarik. Fakturnya tidak dapat diterbitkan."
         },
         "evidenceNeeded": "Lampirkan bukti sebelum menerbitkan",
         "kind": {
@@ -2389,7 +2389,7 @@
         "explanation": "Menyetujui dokumen adalah langkah pemisahan tugas, jadi reviewer lain yang harus menyetujui atau menolaknya.",
         "ownDocument": "Anda tidak dapat menyetujui dokumen Anda sendiri"
       },
-      "supersededNotice": "Hanya lihat — lanjutkan di Rev",
+      "supersededNotice": "Hanya lihat: lanjutkan di Rev",
       "toast": {
         "added": "Dokumen ditambahkan",
         "deleted": "Dokumen dihapus",
@@ -2804,7 +2804,7 @@
       "endDate": "Tanggal selesai",
       "errors": {
         "inclusiveTaxTooLarge": "Nilai order inclusive sudah mengandung pajaknya, jadi pajak tidak boleh lebih besar daripada nilainya sendiri",
-        "taxAmount": "Isi jumlah pajak — 0 jika tidak ada pajak",
+        "taxAmount": "Isi jumlah pajak (0 jika tidak ada pajak)",
         "titleRequired": "Judul wajib diisi",
         "treatmentRequired": "Pilih apakah nilai order sudah termasuk pajak",
         "value": "Isi nilai order berupa angka non-negatif"
@@ -2826,13 +2826,13 @@
       "current": "Nilai saat ini",
       "errors": {
         "inclusiveTaxTooLarge": "Nilai inclusive sudah mengandung pajaknya, jadi pajak tidak boleh lebih besar daripada nilainya sendiri",
-        "taxAmount": "Isi jumlah pajak — 0 jika tidak ada pajak",
+        "taxAmount": "Isi jumlah pajak (0 jika tidak ada pajak)",
         "treatmentRequired": "Pilih apakah nilai ini sudah termasuk pajak",
         "value": "Isi nilai order berupa angka non-negatif"
       },
       "legend": "Nilai dan dasar pajak",
       "save": "Tetapkan nilai",
-      "subtitle": "Nama Anda tercatat pada angka ini. Yang menetapkan nilainya tidak boleh sekaligus menerbitkan Work Order-nya — itulah pasangan mata kedua atas uangnya.",
+      "subtitle": "Nama Anda tercatat pada angka ini. Yang menetapkan nilainya tidak boleh sekaligus menerbitkan Work Order-nya. Itulah pasangan mata kedua atas uangnya.",
       "taxAmount": "Jumlah pajak",
       "taxAmountHelper": "Isi 0 jika tidak ada pajak.",
       "taxTreatment": "Perlakuan pajak",
@@ -2915,12 +2915,12 @@
       },
       "confirm": {
         "cancel": {
-          "body": "Pembatalan bersifat final dan tidak dapat diurungkan — inilah cara menarik sebuah Work Order, karena tidak ada fungsi hapus. Nilainya berhenti dihitung dalam penyerapan.",
+          "body": "Pembatalan bersifat final dan tidak dapat diurungkan. Inilah cara menarik sebuah Work Order, karena tidak ada fungsi hapus. Nilainya berhenti dihitung dalam penyerapan.",
           "confirm": "Batalkan Work Order",
           "title": "Batalkan Work Order ini?"
         },
         "close": {
-          "body": "Penutupan bersifat final. Nilainya tetap terhitung dalam penyerapan — Work Order yang ditutup tetap dihitung sebagai komitmen, sama seperti yang diterbitkan.",
+          "body": "Penutupan bersifat final. Nilainya tetap terhitung dalam penyerapan. Work Order yang ditutup tetap dihitung sebagai komitmen, sama seperti yang diterbitkan.",
           "confirm": "Tutup Work Order",
           "title": "Tutup Work Order ini?"
         },
@@ -2973,7 +2973,7 @@
   "projectForm": {
     "value": {
       "helper": "Estimasi, sebelum menang. Dapat diedit oleh Admin, Eksekutif, dan PM.",
-      "formatError": "Gunakan \"{{group}}\" untuk pemisah ribuan dan \"{{decimal}}\" untuk desimal — misalnya {{example}}."
+      "formatError": "Gunakan \"{{group}}\" untuk pemisah ribuan dan \"{{decimal}}\" untuk desimal (misalnya {{example}})."
     },
     "title": {
       "create": "Proyek baru",
@@ -2993,7 +2993,7 @@
     },
     "name": {
       "label": "Nama proyek",
-      "placeholder": "mis. Terminal Pelabuhan — Pekerjaan Sipil",
+      "placeholder": "mis. Terminal Pelabuhan: Pekerjaan Sipil",
       "required": "Nama proyek wajib diisi."
     },
     "client": {
@@ -3016,7 +3016,7 @@
     "estimatedValue": "Nilai estimasi",
     "expectedStart": "Perkiraan mulai",
     "expectedEnd": "Perkiraan selesai",
-    "taxRequiredHint": "Nyatakan perlakuan pajak dan jumlah pajak untuk nilai kontrak ini — isi 0 jika tidak ada pajak. Tanpa itu, penyerapan work order membandingkan pagu ini dengan nilai order pada basis yang tidak diketahui.",
+    "taxRequiredHint": "Nyatakan perlakuan pajak dan jumlah pajak untuk nilai kontrak ini (isi 0 jika tidak ada pajak). Tanpa itu, penyerapan work order membandingkan pagu ini dengan nilai order pada basis yang tidak diketahui.",
     "endCustomer": {
       "label": "Pelanggan akhir",
       "placeholder": "Pilih perusahaan…",
@@ -3112,7 +3112,7 @@
       "today": "Hari ini",
       "noEventsTitle": "Tidak ada acara bulan ini",
       "phaseEventLabel": "{{project}} · {{phase}}",
-      "phaseEventAriaLabel": "{{project}} — Fase: {{phase}}",
+      "phaseEventAriaLabel": "{{project}} (Fase: {{phase}})",
       "noEventsSub": "Tidak ada tanggal target proyek atau fase pada bulan ini."
     },
     "unnamedUser": "Pengguna tanpa nama",
@@ -3152,7 +3152,7 @@
       "quotationSubmitted": "Penawaran diajukan",
       "tenderSubmitted": "Tender diajukan",
       "negotiation": "Negosiasi",
-      "wonPendingKom": "Menang — menunggu rapat awal",
+      "wonPendingKom": "Menang, menunggu rapat awal",
       "ongoingProject": "Proyek berjalan",
       "onHold": "Ditunda",
       "closeOut": "Penutupan",
@@ -3235,7 +3235,7 @@
     "lastTouch": {
       "daysAgo": "hari lalu",
       "oneDayAgo": "1 hari lalu",
-      "stale": "Tidak tersentuh selama {{days}} hari — perlu perhatian",
+      "stale": "Tidak tersentuh selama {{days}} hari: perlu perhatian",
       "today": "hari ini"
     },
     "lastTouchUnavailable": "Aktivitas terakhir tidak tersedia",
@@ -3270,7 +3270,7 @@
         "title": "Tidak ada proyek yang kalah"
       },
       "needsAttention": {
-        "sub": "Tidak ada proyek yang tak tersentuh selama {{days}}+ hari — pipeline aktif.",
+        "sub": "Tidak ada proyek yang tak tersentuh selama {{days}}+ hari. Pipeline aktif.",
         "title": "Tidak ada proyek yang perlu perhatian"
       },
       "search": {
@@ -3391,7 +3391,7 @@
       "recordContact": "Kontak",
       "recordIncident": "Insiden",
       "noResults": "Tidak ada hasil untuk “{{query}}”",
-      "moreResults": "+{{count}} lainnya — persempit pencarian",
+      "moreResults": "+{{count}} lainnya: persempit pencarian",
       "resultsLabel": "Hasil perintah",
       "retry": "Coba lagi"
     },
@@ -3433,8 +3433,8 @@
     },
     "treatment": {
       "choose": "— pilih —",
-      "exclusive": "Exclusive — pajak ditambahkan di atas jumlahnya",
-      "inclusive": "Inclusive — jumlahnya sudah termasuk pajak"
+      "exclusive": "Exclusive: pajak ditambahkan di atas jumlahnya",
+      "inclusive": "Inclusive: jumlahnya sudah termasuk pajak"
     },
     "details": {
       "unknownRate": "tarif belum dicatat",
@@ -3502,7 +3502,7 @@
     },
     "save": "Simpan",
     "status": {
-      "draftNotSubmitted": "Draf — belum diajukan",
+      "draftNotSubmitted": "Draf: belum diajukan",
       "Draft": "Draf",
       "Submitted": "Diajukan",
       "Approved": "Disetujui",
@@ -3519,7 +3519,7 @@
     "toast": {
       "deleteFailed": "Gagal menghapus",
       "reopened": {
-        "detail": "Minggu dikembalikan ke Draf — lakukan perubahan lalu ajukan ulang.",
+        "detail": "Minggu dikembalikan ke Draf. Lakukan perubahan lalu ajukan ulang.",
         "headline": "Dibuka kembali untuk diedit"
       },
       "rowDeleted": {
@@ -3547,15 +3547,15 @@
         "disconnectedAt": "Terputus",
         "connectAction": "Hubungkan {{service}}",
         "disconnectAction": "Putuskan {{service}}",
-        "clickupLocation": "ClickUp adalah layanan SaaS yang dihosting di AS — data tugas berada di ClickUp",
-        "erpLocation": "ERP yang dihosting sendiri — data berada di instans ERPNext Anda",
+        "clickupLocation": "ClickUp adalah layanan SaaS yang dihosting di AS: data tugas berada di ClickUp",
+        "erpLocation": "ERP yang dihosting sendiri: data berada di instans ERPNext Anda",
         "retry": "Coba lagi",
         "bindUnknown": "Status koneksi tidak tersedia",
         "bindUnavailableTitle": "Tidak dapat membaca status koneksi",
         "bindUnavailableSub": "Status koneksi tidak diketahui saat ini. Coba baca lagi, atau hubungkan jika Anda belum melakukannya.",
         "bindRetry": "Muat ulang status",
         "erpActivation": {
-          "pending": "Menunggu aktivasi — pilih Perusahaan untuk mengaktifkan",
+          "pending": "Menunggu aktivasi: pilih Perusahaan untuk mengaktifkan",
           "pausedNote": "Sinkronisasi ERP dijeda sampai sebuah Perusahaan dipilih.",
           "select": "Pilih Perusahaan",
           "selectRequired": "Pilih Perusahaan untuk mengaktifkan.",
@@ -3572,7 +3572,7 @@
           "emptySub": "Buat sebuah Perusahaan di ERPNext sebelum mengaktifkan integrasi ini.",
           "activateFailed": "Aktivasi gagal. Pilihan Anda tetap tersimpan; Anda dapat mencoba lagi.",
           "missingReads": "Pengguna integrasi ERPNext tidak dapat membaca: {{doctypes}}. Berikan akses baca untuk semuanya di ERPNext, lalu aktifkan lagi. Pilihan Anda tetap tersimpan.",
-          "unsupportedVersion": "ERPNext {{version}} tidak didukung — PMO mendukung ERPNext {{supported}}. Tidak ada yang diaktifkan."
+          "unsupportedVersion": "ERPNext {{version}} tidak didukung. PMO mendukung ERPNext {{supported}}. Tidak ada yang diaktifkan."
         },
         "health": {
           "loading": "Memeriksa status pekerjaan keluar…",
@@ -3715,7 +3715,7 @@
       "effective": "Bahasa aktif: {{value}}",
       "options": {
         "inherit": "Default organisasi",
-        "inheritWithEffective": "Default organisasi — {{value}}",
+        "inheritWithEffective": "Default organisasi: {{value}}",
         "id": "Bahasa Indonesia",
         "en": "English"
       }
@@ -3726,7 +3726,7 @@
       "effective": "Format angka aktif: {{value}}",
       "options": {
         "inherit": "Default organisasi",
-        "inheritWithEffective": "Default organisasi — {{value}}",
+        "inheritWithEffective": "Default organisasi: {{value}}",
         "id": "Indonesia (1.234.567,89)",
         "en": "Inggris (1,234,567.89)"
       }
@@ -3739,7 +3739,7 @@
       "effective": "Zona waktu aktif: {{value}}",
       "options": {
         "inherit": "Default organisasi",
-        "inheritWithEffective": "Default organisasi — {{timezone}}"
+        "inheritWithEffective": "Default organisasi: {{timezone}}"
       }
     },
     "save": "Simpan",
@@ -3811,12 +3811,12 @@
     "receiptCancelled": "Penerimaan dibatalkan",
     "invoicePdf": {
       "download": "Unduh PDF",
-      "downloaded": "PDF diunduh — {{name}}",
+      "downloaded": "PDF diunduh: {{name}}",
       "failed": "PDF tidak dapat diunduh",
       "notPermitted": "ERP menolak mencetak faktur ini. Minta administrator memberi pengguna integrasi akses Cetak untuk Faktur Penjualan.",
       "notPermittedAdmin": "ERP menolak mencetak faktur ini. Buka Administrasi → Integrasi untuk memeriksa koneksi, lalu beri pengguna integrasi akses Cetak untuk Faktur Penjualan di ERPNext.",
       "documentMissing": "ERP tidak lagi memiliki faktur ini.",
-      "notSubmitted": "Hanya faktur yang sudah diajukan yang dapat diunduh — faktur ini mungkin sudah dibatalkan.",
+      "notSubmitted": "Hanya faktur yang sudah diajukan yang dapat diunduh. Faktur ini mungkin sudah dibatalkan.",
       "notErpInvoice": "Faktur ini tidak diterbitkan melalui ERP, jadi tidak ada PDF dari ERP.",
       "notConnected": "Koneksi ERP tidak aktif. Minta administrator memeriksa Integrasi.",
       "notConnectedAdmin": "Koneksi ERP tidak aktif. Buka Administrasi → Integrasi dan hubungkan kembali ERP.",
@@ -3824,7 +3824,7 @@
       "forbidden": "Anda tidak memiliki akses untuk mengunduh faktur ini.",
       "unreachable": "PMO tidak dapat menghubungi layanan unduhan. Coba lagi sebentar lagi.",
       "preparing": "Menyiapkan PDF…",
-      "sessionExpired": "Sesi Anda telah berakhir — masuk lagi."
+      "sessionExpired": "Sesi Anda telah berakhir. Masuk lagi."
     },
     "receivedDate": "Diterima",
     "recordReceivedDate": "Catat tanggal diterima",
@@ -3947,8 +3947,8 @@
     "budgetCategoryOverheads": "Biaya operasional proyek",
     "budgetCategoryContingency": "Kontingensi",
     "budgetVersionCreated": "Versi anggaran dibuat",
-    "versionActivatedERPNotUpdated": "Versi diaktifkan — tetapi ERPNext belum diperbarui",
-    "versionActivatedNothingSent": "Versi diaktifkan — tidak ada yang dikirim ke ERPNext",
+    "versionActivatedERPNotUpdated": "Versi diaktifkan, tetapi ERPNext belum diperbarui",
+    "versionActivatedNothingSent": "Versi diaktifkan: tidak ada yang dikirim ke ERPNext",
     "noBudgetLinesToPush": "{{version}} tidak memiliki baris anggaran, sehingga Anggaran ERPNext tidak dibuat. Tambahkan baris dan aktifkan versi baru untuk menerapkannya.",
     "versionActivated": "Versi diaktifkan",
     "versionCloned": "Versi disalin",
@@ -3959,13 +3959,13 @@
     "actionFailed": "Tindakan gagal",
     "lineItemUpdated": "Baris item diperbarui",
     "budgetPushHoldReleased": "Penahanan pengiriman dilepas",
-    "budgetPushHoldReleasedDetail": "Pengiriman kembali masuk antrean — ERPNext akan dihubungi pada proses pemulihan berikutnya dan semua pemeriksaan diulang.",
+    "budgetPushHoldReleasedDetail": "Pengiriman kembali masuk antrean. ERPNext akan dihubungi pada proses pemulihan berikutnya dan semua pemeriksaan diulang.",
     "budgetPushedToERP": "Anggaran dikirim ke ERPNext",
     "erpEnforcingBudget": "ERPNext sedang menerapkan anggaran ini.",
     "noBudgetLinesToPushTitle": "Tidak ada yang perlu dikirim",
     "noBudgetLinesToPushDetail": "Versi anggaran aktif tidak memiliki baris anggaran, sehingga Anggaran ERPNext tidak dibuat. Tambahkan baris dan aktifkan versi baru.",
     "budgetPushIncomplete": "Pengiriman belum selesai",
-    "erpUnavailableRetryShortly": "ERPNext tidak dapat dijangkau. Tidak ada yang perlu diperbaiki di layar ini — coba lagi sebentar.",
+    "erpUnavailableRetryShortly": "ERPNext tidak dapat dijangkau. Tidak ada yang perlu diperbaiki di layar ini. Coba lagi sebentar.",
     "budgetPushReasonNeedsFixing": "Penyebab yang ditampilkan di atas mungkin perlu diperbaiki terlebih dahulu.",
     "statusAll": "Semua",
     "statusSubmitted": "Diajukan",
@@ -4044,7 +4044,7 @@
     "receivePaymentSubtitle": "Catat pembayaran masuk baru dari klien",
     "recordPayment": "Catat pembayaran",
     "amountOutstanding": "{{amount}} belum dibayar",
-    "pmoNative": "Faktur ini dibuat di PMO — setujui dari Persetujuan",
+    "pmoNative": "Faktur ini dibuat di PMO. Setujui dari Persetujuan",
     "withheldAmountRefused": "Periksa jumlah pajak yang dipotong.",
     "receiptSplitMismatch": "Kas yang diterima ditambah pajak yang dipotong harus sama dengan jumlah yang dibayar.",
     "withholdingSlipMissing": "Isi nomor bukti potong.",
@@ -4056,21 +4056,21 @@
     "invoiceHasReceipts": "Batalkan penerimaan faktur ini terlebih dahulu",
     "receiptAlreadyCancelled": "Penerimaan ini sudah dibatalkan",
     "invoiceIllegalTransition": "Perubahan itu tidak diizinkan dari status faktur saat ini.",
-    "sodSelfApproval": "Anda membuat faktur ini — orang lain harus menyetujuinya",
+    "sodSelfApproval": "Anda membuat faktur ini. Orang lain harus menyetujuinya",
     "sodAuthorMissing": "Faktur ini tidak memiliki pembuat tercatat, sehingga tidak dapat disetujui",
     "nativeDraftsOpen": "Masih ada faktur PMO yang berstatus draf",
     "activateEditorBlocked": "Anda menyusun draf atau mengedit versi ini, jadi orang lain yang harus mengaktifkannya.",
     "activateNeedsAdminOrFinance": "Penyusun versi ini tidak tercatat, jadi hanya Admin atau Finance yang dapat mengaktifkannya."
   },
   "viewBuilder": {
-    "privateScope": "Pribadi — hanya Anda",
+    "privateScope": "Pribadi: hanya Anda",
     "sharedScope": "Dibagikan dengan organisasi Anda",
     "viewNotFound": "Tampilan tidak ditemukan.",
     "viewNotFoundDescription": "Tampilan ini mungkin telah diarsipkan atau Anda tidak memiliki akses.",
     "goToMyViews": "Buka Tampilan Saya",
     "newView": "Tampilan Baru",
     "editView": "Edit: {{name}}",
-    "aiDraftReview": "Draf buatan AI — tinjau sebelum disimpan",
+    "aiDraftReview": "Draf buatan AI: tinjau sebelum disimpan",
     "composeWithAi": "Susun tampilan dengan AI",
     "cancel": "Batal",
     "saveView": "Simpan tampilan",
@@ -4112,7 +4112,7 @@
     "filterOperator": "Operator filter",
     "filterValue": "Nilai filter",
     "removeFilter": "Hapus filter",
-    "currentTeamWarning": "$current_team memerlukan konteks teamId saat ditampilkan — pratinjau mungkin gagal.",
+    "currentTeamWarning": "$current_team memerlukan konteks teamId saat ditampilkan. Pratinjau mungkin gagal.",
     "addFilter": "+ Tambah filter",
     "groupBy": "Kelompokkan berdasarkan",
     "aggregate": "Agregasi",
@@ -4440,7 +4440,7 @@
     "cancel": "Batal",
     "saveFailed": "Gagal menyimpan",
     "formErrors": "Kesalahan formulir",
-    "nothingSaved": "Tidak ada yang tersimpan — isian Anda masih ada.",
+    "nothingSaved": "Tidak ada yang tersimpan. Isian Anda masih ada.",
     "completeRequired": "Lengkapi semua kolom wajib (bertanda bintang) untuk menyimpan.",
     "discardTitle": "Buang perubahan Anda?",
     "discardBody": "Formulir ini memiliki perubahan yang belum disimpan. Membuangnya akan menghilangkannya.",
@@ -4472,7 +4472,7 @@
     "pmoCoverage": "Pesanan pembelian PMO yang dikomitmenkan",
     "actualUnavailable": "Pengeluaran aktual masih menunggu konfirmasi.",
     "actualLoading": "Memuat Aktual…",
-    "actualPartial": "Belum lengkap — lihat rincian pengeluaran",
+    "actualPartial": "Belum lengkap: lihat rincian pengeluaran",
     "completeCoverage": "Cakupan kategori lengkap",
     "partialCoverage": "Cakupan sebagian · {{mapped}} dari {{total}} kategori tercatat",
     "coverageUnavailable": "Cakupan pengeluaran tidak tersedia",
@@ -4582,7 +4582,7 @@
     "actualAsOf": "Per {{date}}",
     "financeDashboardTitle": "Dasbor Keuangan",
     "financeDashboardSubtitle": "Pendapatan, pengeluaran, margin, dan pemakaian anggaran portofolio.",
-    "financeBudgetReviewTitle": "Tinjauan anggaran — 5 teratas berdasarkan selisih (seluruh portofolio)",
+    "financeBudgetReviewTitle": "Tinjauan anggaran: 5 teratas berdasarkan selisih (seluruh portofolio)",
     "financeProjectColumn": "Proyek",
     "financeReadyToPay": "Siap dibayar"
   },
@@ -4595,15 +4595,15 @@
     "routeUnavailable": "Belum bisa memastikan siapa yang dapat menyetujui saat ini.",
     "noEligible": "Tidak ada orang di daftar yang dapat menyetujui saat ini. Hanya Admin yang dapat memutuskan catatan pengadaan ini sampai ada yang memenuhi syarat ditambahkan.",
     "escalate": "Tidak ada orang di daftar yang dapat menyetujui saat ini. Catatan pengadaan ini diteruskan ke penyetuju overhead.",
-    "projectEmpty": "Belum ada penyetuju proyek. Catatan pengadaan dalam anggaran mengikuti aturan standar — {{roles}} dapat menyetujui. Catatan pengadaan yang melebihi garis anggaran, atau ketika garis anggaran tidak dapat diperiksa, diteruskan ke penyetuju overhead."
+    "projectEmpty": "Belum ada penyetuju proyek. Catatan pengadaan dalam anggaran mengikuti aturan standar: {{roles}} dapat menyetujui. Catatan pengadaan yang melebihi garis anggaran, atau ketika garis anggaran tidak dapat diperiksa, diteruskan ke penyetuju overhead."
   },
   "uxs38": {
-    "emptyScope": "Kurs referensi hanya memengaruhi ekuivalen rupiah yang ditampilkan — catatan akuntansi tidak pernah diubah.",
+    "emptyScope": "Kurs referensi hanya memengaruhi ekuivalen rupiah yang ditampilkan. Catatan akuntansi tidak pernah diubah.",
     "emptyNeedRole": "Admin atau anggota Finance dapat mengunggahnya dari halaman ini.",
-    "pageSummary": "Tanggal dari {{first}} hingga {{last}} — {{count}} memiliki kurs",
+    "pageSummary": "Tanggal dari {{first}} hingga {{last}}: {{count}} memiliki kurs",
     "pageGaps": "Tidak ada kurs untuk {{dates}}",
     "moreEarlier": "kurs lebih lama di halaman berikutnya",
-    "previewCoverage": "Tanggal dari {{first}} hingga {{last}} — {{count}} memiliki kurs",
+    "previewCoverage": "Tanggal dari {{first}} hingga {{last}}: {{count}} memiliki kurs",
     "previewGaps": "Tidak ada kurs untuk {{dates}}"
   },
   "uxs17": {
@@ -4814,7 +4814,7 @@
     "unlinkConfirm": "Lepas tautan",
     "unlinked": "Referensi dihapus",
     "checkingConnection": "Memeriksa koneksi Microsoft 365 Anda…",
-    "referenceOnly": "Referensi folder — isi folder tidak diterbitkan atau disetujui",
+    "referenceOnly": "Referensi folder: isi folder tidak diterbitkan atau disetujui",
     "newRevisionFromLatest": "Buat revisi baru dari pembaruan file terbaru",
     "revisionLatestNote": "Revisi baru akan merujuk file Microsoft terbaru: {{name}}.",
     "latestFailedTitle": "Tidak dapat membaca file terbaru",
@@ -4899,15 +4899,15 @@
       "issuedVersionLabel": "Versi diterbitkan"
     },
     "drift": {
-      "sinceApproval": "sejak disetujui",
-      "sinceIssue": "sejak diterbitkan",
+      "sinceApproval": "dibandingkan dengan acuan konten saat dokumen diterbitkan",
+      "sinceIssue": "dibandingkan dengan acuan konten saat dokumen diterbitkan",
       "changed": "Berubah",
       "unchanged": "Tidak berubah",
       "checked": "Diperiksa {{date}}",
-      "changedSinceApproval": "Berubah sejak disetujui",
-      "changedSinceIssue": "Berubah sejak diterbitkan",
-      "unchangedSinceApproval": "Tidak berubah sejak disetujui. Diverifikasi {{date}}.",
-      "unchangedSinceIssue": "Tidak berubah sejak diterbitkan. Diverifikasi {{date}}.",
+      "changedSinceApproval": "Isi file berbeda dari acuan konten saat diterbitkan.",
+      "changedSinceIssue": "Isi file berbeda dari acuan konten saat diterbitkan.",
+      "unchangedSinceApproval": "Isi file sesuai dengan acuan konten saat diterbitkan. Diverifikasi {{date}}.",
+      "unchangedSinceIssue": "Isi file sesuai dengan acuan konten saat diterbitkan. Diverifikasi {{date}}.",
       "notVerified": "Belum diverifikasi",
       "notVerifiedSince": "Belum diverifikasi sejak {{date}}. Microsoft tidak dapat diperiksa.",
       "notVerifiedYet": "Belum diverifikasi.",

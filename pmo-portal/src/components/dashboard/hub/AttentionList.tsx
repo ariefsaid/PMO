@@ -8,7 +8,7 @@ import { Tooltip } from '@/src/components/ui/Tooltip';
 export interface AttentionItem {
   id: string;
   tone: 'warn' | 'lost' | 'neutral';
-  /** Used by the ApprovalStrip chip; attention rows mark tone with a dot, not a decorative icon tile. */
+  /** Used by the ApprovalStrip chip; attention rows carry tone through the row's text, no decorative dot or icon tile. */
   icon?: IconName;
   count: React.ReactNode;
   label: string;
@@ -24,21 +24,14 @@ export interface AttentionListProps {
   compact?: boolean;
 }
 
-const TONE_DOT: Record<AttentionItem['tone'], string> = {
-  warn: 'bg-warning',
-  lost: 'bg-destructive',
-  neutral: 'bg-muted-foreground/50',
-};
-
 const AttentionRows: React.FC<{ items: AttentionItem[]; compact?: boolean }> = ({ items, compact = false }) => (
   <ul className="divide-y divide-border">
     {items.map((item) => {
       const link = (
         <Link
           to={item.href}
-          className={`grid min-h-12 w-full grid-cols-[0.5rem_auto_minmax(0,1fr)_1rem] items-center gap-x-3 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${compact ? 'px-0' : 'px-4'}`}
+          className={`grid min-h-12 w-full grid-cols-[auto_minmax(0,1fr)_1rem] items-center gap-x-3 py-2.5 text-foreground hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${compact ? 'px-0' : 'px-4'}`}
         >
-          <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${TONE_DOT[item.tone]}`} />
           <span className="whitespace-nowrap text-right text-base font-bold tabular-nums">{item.count}</span>
           {' '}
           <span className="grid min-w-0 grid-cols-1 items-center gap-x-3 sm:grid-cols-[minmax(0,1fr)_auto]">

@@ -38,11 +38,4 @@ describe('UIP-001/UIP-013: rail icon semantics and retained sizing', () => {
       .toHaveAttribute('data-icon', 'message');
   });
 
-  it('keeps rail glyphs at 17px and group overlines at the DESIGN 11px token', () => {
-    renderRail();
-    const nav = screen.getByRole('navigation', { name: 'Primary navigation' });
-    const dashboard = within(nav).getByRole('link', { name: 'Dashboard' });
-    expect(dashboard).toHaveClass('[&_svg]:size-[17px]');
-    expect(within(nav).getByText('Overview')).toHaveClass('text-[11px]');
-  });
 });

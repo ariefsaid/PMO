@@ -362,7 +362,7 @@ function EmployeeLinkConfirmSection() {
  * (the I-13 lesson two sections up: a silent affordance is indistinguishable from a broken one).
  * Hence four distinct renderings, never a greyed-out button:
  *   • no mirror row                    → "Re-open for correction" (the action)
- *   • mirror.ts_number set             → "Already pushed to ERP — correction path coming" (Slice B)
+ *   • mirror.ts_number set             → "Already pushed to ERP: correction path coming" (Slice B)
  *   • mirror.post_submit_unknown_at    → "ERP result unknown — an administrator must confirm what
  *                                        ERPNext holds" (⚑ round-8 BLOCK: NOT visible from push_state,
  *                                        which reads an ordinary `failed` once a hold is released)
@@ -399,7 +399,7 @@ function ReopenableApprovedSection({ hasPending }: { hasPending: boolean }) {
         onSuccess: () => {
           closeAttest();
           toast(
-            t('approvals.reopen.attestSuccess', 'Confirmed — the week is clear to re-open'),
+            t('approvals.reopen.attestSuccess', 'Confirmed: the week is clear to re-open'),
             `${target.owner}: ${t('approvals.reopen.attestSuccessDetail', 'ERPNext holds no document')}`,
             'success',
           );
@@ -477,14 +477,14 @@ function ReopenableApprovedSection({ hasPending }: { hasPending: boolean }) {
               </div>
               {pushed ? (
                 <span className="text-[12px] text-muted-foreground">
-                  {t('approvals.reopen.alreadyPushed', 'Already pushed to ERP — correction path coming')}
+                  {t('approvals.reopen.alreadyPushed', 'Already pushed to ERP: correction path coming')}
                 </span>
               ) : outcomeUnknown ? (
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   <span className="text-[12px] text-muted-foreground">
                     {t(
                       'approvals.reopen.outcomeUnknown',
-                      'ERP result unknown — an administrator must confirm what ERPNext holds',
+                      'ERP result unknown: an administrator must confirm what ERPNext holds',
                     )}
                   </span>
                   {offerAttest && (
@@ -522,7 +522,7 @@ function ReopenableApprovedSection({ hasPending }: { hasPending: boolean }) {
                           toast(
                             t(
                               'approvals.reopen.success',
-                              'Re-opened — the week is back in Draft for editing.',
+                              'Re-opened: the week is back in Draft for editing.',
                             ),
                             'success',
                           );
@@ -536,7 +536,7 @@ function ReopenableApprovedSection({ hasPending }: { hasPending: boolean }) {
                             toast(
                               t(
                                 'approvals.reopen.errorDocumentHeld',
-                                'Already in ERP — this week cannot be re-opened yet.',
+                                'Already in ERP: this week cannot be re-opened yet.',
                               ),
                               'error',
                             );
@@ -550,7 +550,7 @@ function ReopenableApprovedSection({ hasPending }: { hasPending: boolean }) {
                             toast(
                               t(
                                 'approvals.reopen.errorOutcomeUnknown',
-                                'This week’s ERP result is unknown — an administrator must confirm what ERPNext holds before it can be re-opened.',
+                                'This week’s ERP result is unknown. An administrator must confirm what ERPNext holds before it can be re-opened.',
                               ),
                               'error',
                             );
@@ -558,7 +558,7 @@ function ReopenableApprovedSection({ hasPending }: { hasPending: boolean }) {
                             toast(
                               t(
                                 'approvals.reopen.errorPushInFlight',
-                                'A push is in flight for this week — try again shortly.',
+                                'A push is in flight for this week. Try again shortly.',
                               ),
                               'error',
                             );
@@ -593,7 +593,7 @@ function ReopenableApprovedSection({ hasPending }: { hasPending: boolean }) {
                   differently still reads as prose. */}
               <Trans
                 i18nKey="approvals.attest.body"
-                defaults="Certify that you have checked ERPNext and it holds <strong>no Timesheet</strong> for {{person}}’s week. This records an audited attestation and re-opens the week for correction — it does not contact ERPNext."
+                defaults="Certify that you have checked ERPNext and it holds <strong>no Timesheet</strong> for {{person}}’s week. This records an audited attestation and re-opens the week for correction. It does not contact ERPNext."
                 values={{
                   person: attestFor
                     ? attestFor.owner
@@ -609,12 +609,12 @@ function ReopenableApprovedSection({ hasPending }: { hasPending: boolean }) {
               onChange={setAttestReason}
               placeholder={t(
                 'approvals.attest.reasonPlaceholder',
-                'e.g. Searched Timesheets for this employee and week — none exists.',
+                'e.g. Searched Timesheets for this employee and week: none exists.',
               )}
             />
           </div>
         }
-        confirmLabel={t('approvals.attest.confirmLabel', 'Confirm — no ERP document')}
+        confirmLabel={t('approvals.attest.confirmLabel', 'Confirm: no ERP document')}
         cancelLabel={t('approvals.attest.cancelLabel', 'Cancel')}
         loading={attestNoErpDocument.isPending}
         confirmDisabled={attestReason.trim() === ''}
@@ -816,7 +816,7 @@ const ApprovalsPage: React.FC = () => {
         <p className="mt-0.5 max-w-[72ch] text-sm text-muted-foreground">
           {t(
             'approvals.subtitle',
-            'Needs my approval — everything waiting on your decision: procurement, timesheets, expense claims and customer invoices.',
+            'Needs my approval. Everything waiting on your decision: procurement, timesheets, expense claims and customer invoices.',
           )}
         </p>
       </div>

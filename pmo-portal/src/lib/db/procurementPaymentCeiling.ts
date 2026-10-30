@@ -46,6 +46,16 @@ export async function getProcurementPaymentCeiling(procurementId: string): Promi
   };
 }
 
+/** The server's advisory decision for the billed amount; the write RPC rechecks it under lock. */
+export async function getProcurementAmountEligibility(procurementId: string, amount: number): Promise<string | null> {
+  const { data, error } = await supabase.rpc('procurement_amount_eligibility', {
+    p_procurement_id: procurementId,
+    p_amount: amount,
+  });
+  if (error) throwRpc(error);
+  return data;
+}
+
 /** Approve a higher amount for a procurement awaiting payment; the server enforces eligibility. */
 export async function approveProcurementAmount(procurementId: string, amount: number): Promise<void> {
   const { error } = (await supabase.rpc('approve_procurement_amount', {
@@ -62,8 +72,13 @@ export async function approveProcurementAmount(procurementId: string, amount: nu
  */
 export async function attachPaymentCeiling<T extends { id: string; status: string }>(
   detail: T,
-): Promise<T & { paymentCeiling?: ProcurementPaymentCeiling | null }> {
+): Promise<T & { paymentCeiling?: ProcurementPaymentCeiling | null; paymentEligibility?: string | null }> {
   if (detail.status !== 'Vendor Invoiced') return detail;
   const paymentCeiling = await getProcurementPaymentCeiling(detail.id).catch(() => null);
+  if (paymentCeiling?.billedNet != null && paymentCeiling.approvedAmount != null
+      && paymentCeiling.billedNet > paymentCeiling.approvedAmount) {
+    const paymentEligibility = await getProcurementAmountEligibility(detail.id, paymentCeiling.billedNet).catch(() => null);
+    return { ...detail, paymentCeiling, paymentEligibility };
+  }
   return { ...detail, paymentCeiling };
 }

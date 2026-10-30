@@ -41,7 +41,7 @@
   "project": "Project",
   "selectProject": "Select a project…",
   "supplier": "Supplier",
-  "selectSupplier": "Optional — select a supplier…",
+  "selectSupplier": "Optional: select a supplier…",
   "budgetCategory": "Budget category",
   "linesFailed": "Procurement saved, but some lines were not saved. Save again to retry.",
   "unsaved": {

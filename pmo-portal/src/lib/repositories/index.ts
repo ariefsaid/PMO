@@ -59,7 +59,7 @@ import {
   proposeProjectNumber,
 } from '@/src/lib/db/projects';
 import { getOpportunity } from '@/src/lib/db/opportunity';
-import { transitionProject, listPipelineStageConfig } from '@/src/lib/db/projectTransitions';
+import { getProjectWinEligibility, transitionProject, listPipelineStageConfig } from '@/src/lib/db/projectTransitions';
 import {
   listClientCompanies,
   listCompanies,
@@ -408,6 +408,7 @@ const project: ProjectRepository = {
   listIdentity: () => wrap(() => listProjectIdentity()),
   get: (id) => wrap(() => getOpportunity(id)),
   transition: (id, to, opts) => wrap(() => transitionProject(id, to, opts)),
+  winEligibility: (id) => wrap(() => getProjectWinEligibility(id)),
   create: (input) => wrap(() => createProject(input)),
   updateHeader: (id, input) => wrap(() => updateProjectHeader(id, input)),
   archive: (id) => wrap(() => archiveProject(id)),

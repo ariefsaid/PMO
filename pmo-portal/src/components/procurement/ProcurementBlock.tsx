@@ -68,12 +68,17 @@ export interface ProcurementBlockProps {
   toolbarExtra?: React.ReactNode;
   /** Clears the host page's filters too when the user clears a zero-match table. */
   onClearFilters?: () => void;
+  /** Reports the already-loaded project list count to its host tab. */
+  onCountChange?: (count: number | null) => void;
 }
 
 /** Four stage tiles: a 2×2 grid on phones (nothing clipped), one row from `sm` up. */
 export const ProcurementStageBand: React.FC<React.PropsWithChildren<{ label: string }>> = ({ label, children }) => (
-  <section aria-label={label} className="overflow-hidden rounded-lg border border-border bg-border">
-    <div className="grid grid-cols-2 gap-px sm:grid-cols-4">{children}</div>
+  // Owner tidy ruling 2026-10-29: one surface level — the stage tiles are segments
+  // of this band, not cards inside it (hairline gaps between the segments, the
+  // panel edge closes the group; no nested rounded borders).
+  <section aria-label={label} className="panel-card overflow-hidden">
+    <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-4 [&>*]:bg-card">{children}</div>
   </section>
 );
 
@@ -90,11 +95,11 @@ export interface ProcurementListProps extends Omit<DataTableProps<ProcurementWit
 
 /** Shared list surface and DataTable contract, including its controlled selection and row menu. */
 export const ProcurementList: React.FC<ProcurementListProps> = ({ label, rows, columns, children, embedded = false, bareEmpty = false, tableId, ...tableProps }) => (
-  <section aria-label={label} className={embedded ? 'overflow-hidden' : 'overflow-hidden rounded-lg border border-border bg-card'}>
+  <section aria-label={label} className={embedded ? 'overflow-hidden' : 'panel-card overflow-hidden'}>
     {children}
     {bareEmpty && tableProps.state === 'empty'
       ? <ListState variant="empty" title={tableProps.emptyTitle} sub={tableProps.emptySub} action={tableProps.emptyAction} />
-      : <DataTable rows={rows} columns={columns} rowKey={(row) => row.id} {...tableProps} className={embedded ? 'rounded-none border-0 bg-transparent' : undefined} tableId={`procurement-block-${tableId}`} />}
+      : <DataTable embedded rows={rows} columns={columns} rowKey={(row) => row.id} {...tableProps} className="rounded-none border-0 bg-transparent" tableId={`procurement-block-${tableId}`} />}
   </section>
 );
 
@@ -304,7 +309,7 @@ function ProcurementBudgetLeft({
   );
 }
 
-export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, rowFilter, rowOrder, showCreate = true, toolbarExtra, onClearFilters }) => {
+export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, rowFilter, rowOrder, showCreate = true, toolbarExtra, onClearFilters, onCountChange }) => {
   const { t } = useTranslation('procurement');
   // The state main action reuses the record page's labels, which live in the common catalogue.
   const { t: tCommon } = useTranslation();
@@ -319,6 +324,9 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
   const projectQuery = useProjectProcurements(projectId);
   const procurementQuery = projectId ? projectQuery : companyQuery;
   const { data, isPending, isError, refetch } = procurementQuery;
+  React.useEffect(() => {
+    onCountChange?.(isPending || isError || data == null ? null : data.length);
+  }, [data, isError, isPending, onCountChange]);
   const ownScoped = !projectId && role === 'Engineer';
   const scopedRows = useMemo(() => (data ?? []).filter((row) => !ownScoped || row.requested_by_id === currentUser?.id),
     [data, ownScoped, currentUser?.id]);
@@ -519,7 +527,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
     );
   }, [t, erp.data]);
 
-  /** B7: one amount per row, the most real one, with its basis; the unpaid balance sits in its tooltip. */
+  /** One amount per row; the unpaid balance remains available in its tooltip. */
   const rowAmount = useCallback((row: ProcurementWithRefs, inline = false) => {
     const money = moneyFor(row, erp.data);
     const amount = money.mostReal?.amount;
@@ -529,19 +537,23 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
       unpaid ? `${unpaid}. ${t('procurement.unpaidTooltip', 'Invoice amount less recorded payments, or the ERP outstanding balance.')}` : null,
     ].filter(Boolean).join(' ');
     if (amount === undefined) return <span className="text-xs text-muted-foreground">{t('procurement.moneyUnknown', 'Not recorded')}</span>;
+    // Owner tidy ruling 2026-10-29: the stage word under the amount is gone — the
+    // Stage pill in its own column already says it (the balance stays in the tooltip).
     return (
-      <span className={inline ? 'inline-flex items-baseline gap-1.5' : 'block space-y-0.5 text-right'}>
+      <span className={inline ? 'inline-flex items-baseline gap-1.5' : 'block text-right'}>
         <Tooltip content={tip}>
           <span tabIndex={0} className="rounded-sm font-medium tabular focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
             {formatCurrency(amount, row.currency)}
           </span>
         </Tooltip>
-        <span className={inline ? 'text-xs text-muted-foreground' : 'block text-xs text-muted-foreground'}>{moneyBasisText(money.mostReal!.kind, t)}</span>
       </span>
     );
   }, [erp.data, role, t]);
 
   const columns = useMemo<Column<ProcurementWithRefs>[]>(() => {
+    // Owner tidy ruling 2026-10-29: when every row in view is uncategorized the
+    // Category column carries no information — hide it until a category appears.
+    const hideCategory = filteredRows.length > 0 && filteredRows.every((row) => !row.budget_category);
     const valueColumn: Column<ProcurementWithRefs> = {
       key: 'value',
       header: <Tooltip content={t('procurement.moneyTooltip', 'Most recorded amount: paid, invoiced, ordered, then requested. Source: procurement records.')}><span tabIndex={0}>{t('projectDetail.procurement.table.value', 'Value')}</span></Tooltip>,
@@ -567,7 +579,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         return (
           <Tooltip content={t('procurement.settlementTooltip', 'Recorded paid amount compared with recorded invoices.')}>
             <span tabIndex={0} className="inline-flex min-w-0 w-full items-center gap-1.5 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-              <span aria-hidden="true" className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-secondary"><span className={`block h-full ${percent >= 100 ? 'bg-success' : 'bg-muted-foreground/55'}`} style={{ width: `${percent}%` }} /></span>
+              <span aria-hidden="true" className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-secondary"><span className={`block h-full ${percent >= 100 ? 'bg-success' : 'bg-primary'}`} style={{ width: `${percent}%` }} /></span>
               <span className="shrink-0 text-xs tabular text-muted-foreground" title={`${formatCurrency(paid, row.currency)} / ${formatCurrency(money.invoiced.amount, row.currency)}`}>
                 {percent}%
               </span>
@@ -579,6 +591,16 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         const money = moneyFor(row, erp.data);
         return money.invoiced.unknown || money.paid.unknown ? '' : `${money.paid.amount ?? 0} / ${money.invoiced.amount ?? 0}`;
       },
+    };
+    const categoryColumn: Column<ProcurementWithRefs> = {
+      key: 'category',
+      header: t('projectDetail.procurement.table.category', 'Category'),
+      kind: 'text',
+      size: 110,
+      minSize: 100,
+      sortKey: 'category',
+      cell: (row) => categoryLabel(row.budget_category),
+      exportValue: (row) => categoryLabel(row.budget_category),
     };
     const tableColumns: Column<ProcurementWithRefs>[] = [
       {
@@ -596,7 +618,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
           const items = detailQuery.data?.id === row.id ? detailQuery.data.items : [];
           return (
             <div className="min-w-0 space-y-2">
-              <div className="flex min-w-0 items-start gap-2">
+              <div className="flex min-w-0 items-start gap-1">
                 <button type="button" aria-label={t('table.openRow', 'Open {{name}}', { name: row.title })} onClick={() => setSelected(row)} title={row.title} className="min-w-0 line-clamp-2 break-words text-left font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                   {row.title}
                 </button>
@@ -633,16 +655,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         },
         exportValue: (row) => row.title,
       },
-      {
-        key: 'category',
-        header: t('projectDetail.procurement.table.category', 'Category'),
-        kind: 'text',
-        size: 110,
-        minSize: 100,
-        sortKey: 'category',
-        cell: (row) => categoryLabel(row.budget_category),
-        exportValue: (row) => categoryLabel(row.budget_category),
-      },
+      ...(hideCategory ? [] : [categoryColumn]),
       ...(canSeeMoney ? [valueColumn] : []),
       ...(canSeeMoney ? [settlementColumn] : []),
       {
@@ -665,11 +678,13 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         key: 'next-step',
         header: t('projectDetail.procurement.table.nextStep', 'Next step'),
         kind: 'text',
-        size: 125,
-        minSize: 105,
+        // Owner tidy ruling 2026-10-29: an action label is never truncated — the
+        // column gets the width it needs and wraps to two lines instead.
+        size: 210,
+        minSize: 150,
         cell: (row) => {
           const next = nextStepText(row.status, canDecideRow(row), t);
-          return <Tooltip content={next}><span title={next} className={`block min-w-0 w-full max-w-full truncate ${row.status === 'Requested' && canDecideRow(row) ? 'font-medium text-primary-text' : 'text-muted-foreground'}`}>{next}</span></Tooltip>;
+          return <Tooltip content={next}><span title={next} className={`block min-w-0 w-full max-w-full line-clamp-2 break-words ${row.status === 'Requested' && canDecideRow(row) ? 'font-medium text-primary-text' : 'text-muted-foreground'}`}>{next}</span></Tooltip>;
         },
         exportValue: (row) => nextStepText(row.status, canDecideRow(row), t),
       },
@@ -717,7 +732,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
       },
     ];
     return tableColumns;
-  }, [canSeeMoney, t, categoryLabel, canDecideRow, stageDateTooltip, erp.data, expandedId, detailQuery.data, detailQuery.isError, detailQuery.isPending, project, projectId, setSelected, rowAmount]);
+  }, [canSeeMoney, t, categoryLabel, canDecideRow, stageDateTooltip, erp.data, expandedId, detailQuery.data, detailQuery.isError, detailQuery.isPending, project, projectId, setSelected, rowAmount, filteredRows]);
 
   const exportColumns = columns;
   const selectedForExport = selectedRows;
@@ -838,16 +853,16 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
                   type="button"
                   aria-pressed={selectedStage === key}
                   onClick={() => setSelectedStage((current) => current === key ? null : key)}
-                  className={`flex min-h-[68px] w-full min-w-0 flex-col items-start justify-center px-3 py-2 text-left transition-colors focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selectedStage === key ? 'bg-accent' : 'bg-card hover:bg-accent/40'}`}
+                  className={`flex min-h-[68px] w-full min-w-0 flex-col items-start justify-center px-3 py-2 text-left transition-colors focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selectedStage === key ? 'bg-accent outline outline-1 -outline-offset-1 outline-primary/30' : 'bg-card hover:bg-accent/40'}`}
                 >
                   <span className="flex w-full min-w-0 items-center justify-between gap-1 text-xs font-semibold text-muted-foreground">
                     <span className="truncate">{stageLabel}</span>
                     {forYou > 0 && <span className="shrink-0 font-medium text-primary-text">{t('projectDetail.procurement.forYou', '{{count}} for you', { count: forYou })}</span>}
                   </span>
-                  <span className="mt-1 flex w-full min-w-0 items-baseline justify-between gap-2">
+                  <span className="mt-1 flex w-full min-w-0 flex-wrap items-baseline justify-start gap-x-2">
                     <span className="text-[18px] font-semibold leading-tight tabular text-foreground">{stageRows.length}</span>
                   {canSeeMoney && currencyTotals.length > 0 && (
-                    <span className="flex min-w-0 flex-wrap justify-end gap-x-2 text-xs text-muted-foreground">
+                    <span className="flex min-w-0 flex-wrap justify-start gap-x-2 text-xs text-muted-foreground">
                       {currencyTotals.map((item) => <span key={item.currency} title={formatCurrency(item.value, item.currency)}>{formatShortMoney(item.value, item.currency)}</span>)}
                     </span>
                   )}
@@ -863,7 +878,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         label={heading}
         rows={filteredRows}
         columns={columns}
-        embedded={Boolean(projectId)}
+        embedded={false}
         bareEmpty={!hasUnfilteredRows}
         accessibleName={projectId ? t('projectDetail.procurement.table.accessibleName', 'Project procurement') : t('procurement.table.accessibleName', 'Procurement')}
         rowMenu={(row) => rowMenu(row)}
@@ -1117,7 +1132,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
                   <Button variant="outline" size="sm" onClick={() => { void detailQuery.refetch(); }}>{t('common.retry', 'Retry')}</Button>
                 </div>
               ) : documents.length > 0 ? (
-                <ul className="divide-y divide-border border-y border-border">
+                <ul className="divide-y divide-border">
                   {documents.map((document) => (
                     <li key={document.label} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-2 text-sm">
                       <span>{document.label}</span>

@@ -90,7 +90,7 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                 if (interactive) e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest' });
               }}
               className={cn(
-                'relative flex flex-col border border-r-0 border-border px-3.5 pb-3 pt-[13px] first:rounded-l-lg last:rounded-r-lg last:border-r',
+                'relative flex flex-col border border-r-0 border-border px-3 pb-3 pt-3 first:rounded-l-lg last:rounded-r-lg last:border-r',
                 interactive && 'cursor-pointer',
                 // Discover fix I-1 (2026-09-28): the global `*:focus-visible` ring draws OUTWARD
                 // (2px width, 2px offset) from the stage, but the scroll viewport's own
@@ -103,7 +103,7 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                 selected && 'bg-primary/[0.06] shadow-[inset_0_-2px_0_hsl(var(--primary))]'
               )}
             >
-              <div className="mb-2 flex items-center gap-[7px]">
+              <div className="mb-2 flex items-center gap-2">
                 <span
                   aria-hidden
                   className="size-[9px] shrink-0 rounded-full"
@@ -118,7 +118,7 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                 {s.value}
               </div>
               {s.weighted && (
-                <div data-funnel-stage-weighted className="mt-[7px] text-[11px] text-muted-foreground">
+                <div data-funnel-stage-weighted className="mt-2 text-[11px] text-muted-foreground">
                   {s.weighted}
                 </div>
               )}
@@ -138,8 +138,8 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                       className="block h-full rounded-full"
                       style={{
                         width: `${Math.max(0, Math.min(100, s.barPct))}%`,
-                        // One-Blue: bars are neutral; the action blue marks only the selected stage.
-                        background: s.barColor ?? (selected ? chartTheme.series.primary : chartTheme.axis),
+                        // The funnel is one series across stages: keep every bar in the primary channel.
+                        background: s.barColor ?? chartTheme.series.primary,
                       }}
                     />
                   </div>

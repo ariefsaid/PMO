@@ -31,7 +31,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(19);
+select plan(21);
 
 -- ── Fixtures (inserted as table owner, RLS bypassed) ────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -126,6 +126,7 @@ select lives_ok(
 -- ⚑ pgTAP matches errmsg EXACTLY. This is 0183's NEW offboarded-witness message — deliberately
 -- distinguishable from 0181's "not set by anyone senior to you" (FR-AMG-004): it fires because the
 -- witness HAD authority (D is W's manager) but is no longer active, not because the witness lacks rank.
+select is(public.project_win_eligibility('01760000-0000-0000-0000-0000000000b1'), 'inactive_reviewer', 'AC-WMA-033: inactive witness is reflected before win');
 select throws_ok(
   $$ select transition_project('01760000-0000-0000-0000-0000000000b1'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-WMA-1', '2026-03-02'::date) $$,
@@ -163,6 +164,7 @@ select is(
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01760000-0000-0000-0000-0000000000c1","role":"authenticated"}';
+select is(public.project_win_eligibility('01760000-0000-0000-0000-0000000000b3'), 'inactive_reviewer', 'AC-WMA-042: a banned witness is ineligible before win');
 select throws_ok(
   $$ select transition_project('01760000-0000-0000-0000-0000000000b3'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-WMA-3', '2026-03-02'::date) $$,

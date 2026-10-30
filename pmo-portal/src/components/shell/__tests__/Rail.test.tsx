@@ -234,8 +234,8 @@ describe('Rail — routes that live under a module without sharing its URL', () 
         <Rail />
       </MemoryRouter>,
     );
-    expect(screen.getByRole('link', { name: 'Procurement' }).className).toMatch(/bg-primary\/10/);
-    expect(screen.getByRole('link', { name: 'Dashboard' }).className).not.toMatch(/bg-primary\/10/);
+    expect(screen.getByRole('link', { name: 'Procurement' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute('aria-current', 'page');
   });
 });
 

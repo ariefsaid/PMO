@@ -164,5 +164,9 @@
   },
   "list": {
     "label": "Procurement list"
+  },
+  "kpi": {
+    "oldestInvoiceBasis_one": "Oldest supplier invoice date (or record creation date) · {{count}} day ago",
+    "oldestInvoiceBasis_other": "Oldest supplier invoice date (or record creation date) · {{count}} days ago"
   }
 }

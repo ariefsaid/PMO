@@ -15,6 +15,18 @@ describe('PaymentCeilingNotice', () => {
     expect(screen.queryByRole('button', { name: 'Approve higher amount' })).toBeNull();
   });
 
+  it.each([
+    ['bill_recorder', 'The person who recorded the bill cannot approve the higher amount.'],
+    ['quote_selector', 'The person who selected the quote cannot approve the higher amount.'],
+    ['requester', 'The requester cannot approve the higher amount.'],
+    ['routing', 'A designated approver must approve the higher amount.'],
+    ['unavailable', 'Approval eligibility is unavailable. Refresh this page and try again.'],
+  ])('explains the server decision %s', (eligibilityReason, message) => {
+    render(<PaymentCeilingNotice ceiling={OVER} currency="USD" canApprove={false} eligibilityReason={eligibilityReason} onApprove={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Approve higher amount' })).toBeNull();
+    expect(screen.getByText(message)).toBeInTheDocument();
+  });
+
   it('AC-SEC-220: an eligible approver confirms and approves the billed amount', async () => {
     const onApprove = vi.fn().mockResolvedValue(undefined);
     render(<PaymentCeilingNotice ceiling={OVER} currency="USD" canApprove onApprove={onApprove} />);

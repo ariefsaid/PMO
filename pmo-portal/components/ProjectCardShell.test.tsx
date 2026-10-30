@@ -80,7 +80,7 @@ describe('ProjectCardShell (CW-3b canonical project-card vocabulary)', () => {
     expect(title.className).not.toMatch(/truncate|line-clamp/);
   });
 
-  it('AC-KTR-002: preserves the grid title button, clamp, and status placement', () => {
+  it('AC-KTR-002: preserves the grid title button and places status below the full title and meta', () => {
     render(<ProjectCardShell {...baseProps} />);
     const gridName = screen.getByRole('button', { name: /Innovate Corp HQ Fit-Out/i });
     const textColumn = gridName.parentElement!;
@@ -90,6 +90,18 @@ describe('ProjectCardShell (CW-3b canonical project-card vocabulary)', () => {
     expect(gridName.className).toContain('break-words');
     expect(textColumn).not.toContainElement(status);
     expect(textColumn.parentElement).toContainElement(status);
+    expect(status.parentElement?.className).toContain('col-start-2');
+    expect(status.parentElement?.className).toContain('row-start-2');
+    expect(status.parentElement?.className).not.toContain('sm:col-start-3');
+  });
+
+  it('joins only non-empty project references in the accessible label and visible subtitle', () => {
+    const { rerender } = render(<ProjectCardShell {...baseProps} pmoProjectNumber="   " code="CLIENT-77" />);
+    expect(screen.getByRole('button', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
+    expect(screen.getByTestId('project-card')).toHaveTextContent('Client Project Code: CLIENT-77');
+    expect(screen.queryByText(/^·/)).not.toBeInTheDocument();
+    rerender(<ProjectCardShell {...baseProps} variant="kanban" pmoProjectNumber="   " code="CLIENT-77" />);
+    expect(screen.getByRole('button', { name: 'Innovate Corp HQ Fit-Out. Client Project Code: CLIENT-77' })).toBeInTheDocument();
   });
 
   it('exposes a single project-card test carrier so every surface is the same molecule', () => {

@@ -12,7 +12,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   size?: ButtonSize;
   /** Renders a spinner, sets aria-busy, and disables the button. */
   loading?: boolean;
-  /** 32px square icon button. Requires an aria-label for a11y. */
+  /** Compact square icon button. Requires an aria-label for a11y. */
   iconOnly?: boolean;
 }
 

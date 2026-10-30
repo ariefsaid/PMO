@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, ListState, Tooltip } from '@/src/components/ui';
+import { Button, Card, CardHead, CardPad, Icon, ListState, Tooltip } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import type { AttentionItem } from './useProjectPosition';
 
@@ -17,18 +17,25 @@ export const ProjectAttention: React.FC<{
   if (isPending) {
     return (
       <section aria-labelledby="pd-attention" className={className}>
-        <h2 id="pd-attention" className="mb-4 text-sm font-semibold text-foreground">{t('projectDetail.attention.title', 'Needs attention')}</h2>
-        <ListState variant="loading" rows={2} />
+        <Card>
+          <CardHead id="pd-attention">{t('projectDetail.attention.title', 'Needs attention')}</CardHead>
+          <CardPad><ListState variant="loading" rows={2} /></CardPad>
+        </Card>
       </section>
     );
   }
   if (error) {
     return (
-      <section aria-label={t('projectDetail.attention.title', 'Needs attention')} className={className}>
-        <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
-          <span>{t('projectDetail.attention.checkFailed', "Couldn't check {{what}}", { what: error.what })}</span>
-          <Button variant="ghost" size="sm" onClick={() => void error.retry()}>{t('common.retry', 'Retry')}</Button>
-        </p>
+      <section aria-labelledby="pd-attention" className={className}>
+        <Card>
+          <CardHead id="pd-attention">{t('projectDetail.attention.title', 'Needs attention')}</CardHead>
+          <CardPad>
+            <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+              <span>{t('projectDetail.attention.checkFailed', "Couldn't check {{what}}", { what: error.what })}</span>
+              <Button variant="ghost" size="sm" onClick={() => void error.retry()}>{t('common.retry', 'Retry')}</Button>
+            </p>
+          </CardPad>
+        </Card>
       </section>
     );
   }
@@ -36,24 +43,30 @@ export const ProjectAttention: React.FC<{
   if (excludeKeys && visibleItems.length === 0) return null;
   if (visibleItems.length === 0) {
     return (
-      <section aria-label={t('projectDetail.attention.title', 'Needs attention')} className={className}>
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Icon name="check" className="size-4 text-success-text" />
-          {t('projectDetail.attention.onTrack', 'Nothing needs you on this project right now.')}
-        </p>
+      <section aria-labelledby="pd-attention" className={className}>
+        <Card>
+          <CardHead id="pd-attention">{t('projectDetail.attention.title', 'Needs attention')}</CardHead>
+          <CardPad>
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Icon name="check" className="size-4 text-success-text" />
+              {t('projectDetail.attention.onTrack', 'Nothing needs you on this project right now.')}
+            </p>
+          </CardPad>
+        </Card>
       </section>
     );
   }
   // Flat rows: the status word sits in `what`; its size carries the status colour (UX SD1). No stripes, no pills.
   return (
     <section aria-labelledby="pd-attention" className={className}>
-      <h2 id="pd-attention" className="mb-4 text-sm font-semibold text-foreground">
-        {t('projectDetail.attention.title', 'Needs attention')}{' '}
-        <Tooltip content={t('projectDetail.attention.countTooltip', 'Count of current project items that need follow-up.')}>
+      <Card>
+        <CardHead id="pd-attention" actions={<Tooltip content={t('projectDetail.attention.countTooltip', 'Count of current project items that need follow-up.')}>
           <span tabIndex={0} className="font-normal text-muted-foreground">{visibleItems.length}</span>
-        </Tooltip>
-      </h2>
-      <ul className="divide-y divide-border/70 border-y border-border/70">
+        </Tooltip>}>
+          {t('projectDetail.attention.title', 'Needs attention')}
+        </CardHead>
+        <CardPad>
+          <ul className="divide-y divide-border/70">
         {visibleItems.map((item) => (
           <li key={item.key}>
             <Tooltip content={item.explanation ?? t('projectDetail.attention.rowTooltip', 'Status is based on project records and their current workflow state.')} block>
@@ -67,7 +80,9 @@ export const ProjectAttention: React.FC<{
             </Tooltip>
           </li>
         ))}
-      </ul>
+          </ul>
+        </CardPad>
+      </Card>
     </section>
   );
 };

@@ -109,10 +109,30 @@ describe('reads', () => {
     expect(JSON.stringify(h.calls)).not.toContain('org_id');
   });
 
+  it('attaches the server issue decision for each visible work order', async () => {
+    h.result.value = { data: [{ id: 'wo-1', status: 'Draft' }], error: null };
+    h.rpcResult.value = { data: [{ work_order_id: 'wo-1', reason: 'inactive_reviewer' }], error: null };
+    await expect(listProjectWorkOrders('proj-1')).resolves.toEqual([{ id: 'wo-1', status: 'Draft', issue_eligibility: 'inactive_reviewer' }]);
+    expect(h.calls.rpc).toContainEqual(['work_order_issue_eligibility', { p_ids: ['wo-1'] }]);
+  });
+
+  it('keeps a draft readable but blocks issue when the decision cannot be read', async () => {
+    h.result.value = { data: [{ id: 'wo-1', status: 'Draft' }], error: null };
+    h.rpcResult.value = { data: null, error: { message: 'unavailable' } };
+    await expect(listProjectWorkOrders('proj-1')).resolves.toEqual([{ id: 'wo-1', status: 'Draft', issue_eligibility: null }]);
+  });
+
+  it('attaches a decision when reading one draft', async () => {
+    h.result.value = { data: { id: 'wo-1', status: 'Draft' }, error: null };
+    h.rpcResult.value = { data: [{ work_order_id: 'wo-1', reason: 'allowed' }], error: null };
+    await expect(getWorkOrder('wo-1')).resolves.toEqual({ id: 'wo-1', status: 'Draft', issue_eligibility: 'allowed' });
+  });
+
   it('returns null for an unreadable work order rather than a fabricated row', async () => {
     h.result.value = { data: null, error: null };
     await expect(getWorkOrder('wo-1')).resolves.toBeNull();
     expect(h.calls.maybeSingle).toBe(1);
+    expect(h.calls.selectArgs).toEqual(['*']);
   });
 
   it('surfaces a read failure as an AppError carrying the Postgres code', async () => {

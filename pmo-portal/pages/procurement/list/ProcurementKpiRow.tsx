@@ -34,7 +34,7 @@ export const ProcurementKpiRow: React.FC<ProcurementKpiRowProps> = ({ rows, role
       totals: totalsByCurrency(unpaidRows, role, 'pay'),
       tooltip: t('money.pay', 'Supplier invoices use the unpaid balance; paid procurements contribute zero. Kept in each procurement currency.'),
       meaning: oldestInvoice
-        ? t('kpi.oldestUnpaid', { count: daysSince(new Date(oldestInvoice)), defaultValue: `Oldest invoiced ${daysSince(new Date(oldestInvoice))} days ago` })
+        ? t('kpi.oldestInvoiceBasis', { count: daysSince(new Date(oldestInvoice)), defaultValue: 'Oldest supplier invoice date (or record creation date) · {{count}} days ago' })
         : t('kpi.noneUnpaid', 'Nothing waiting for payment'),
     }]),
     {

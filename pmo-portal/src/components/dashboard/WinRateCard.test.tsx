@@ -51,6 +51,7 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
   it('AC-1117: defaults to count basis and uses the RPC currency row for value basis', () => {
     render(<WinRateCard currency="USD" />);
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
+    expect(screen.getAllByRole('progressbar')[0].firstElementChild).toHaveClass('bg-primary');
     fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
     const usdRow = screen.getByTestId('win-rate-currency-USD');
     expect(usdRow).toHaveTextContent('92.5%');

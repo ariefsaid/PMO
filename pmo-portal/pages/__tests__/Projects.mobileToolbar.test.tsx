@@ -83,7 +83,6 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, error: null, isPending: false }),
-  usePipelineStageConfig: () => ({ data: [], isSuccess: true }),
 }));
 vi.mock('../../components/ProjectCalendarView', () => ({
   default: () => <div data-testid="project-calendar-view" />,

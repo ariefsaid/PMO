@@ -91,7 +91,7 @@ const renderOverview = async () => {
 describe('PD-B active Overview renders the approved money and delivery composition', () => {
   it('PD-B: with no budget, phases, work orders, requests or statements, Overview renders the live money position, budget comparison and phase line', async () => {
     const panel = await renderOverview();
-    expect(within(panel).getAllByRole('heading', { level: 2 }).map((el) => el.textContent)).toEqual(['Money position', 'Budget vs actual', 'Phase timeline']);
+    expect(within(panel).getAllByRole('heading', { level: 2 }).map((el) => el.textContent)).toEqual(['Needs attention', 'Money position', 'Budget vs actual', 'Phase timeline']);
     const phases = within(panel).getByRole('region', { name: 'Phase timeline' });
     expect(phases).toHaveTextContent('No phases yet. Add phases to track delivery progress.');
     expect(within(phases).getByRole('button', { name: 'Update phases' })).toBeInTheDocument();

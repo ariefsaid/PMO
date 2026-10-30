@@ -18,6 +18,7 @@ import {
   MenuButton,
   TaxBasisLabel,
   SelectField,
+  cn,
   useToast,
   type RowMenuItem,
 } from '@/src/components/ui';
@@ -466,7 +467,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     return <SalesInvoiceDetail viewTarget={viewTarget} isPending={isPending} isError={isError} data={data} mode={mode} organizationToday={organizationToday} onBack={recordContext.closeRecord} refetch={refetch} recordPrimaryAction={recordPrimaryAction} invoiceDisplayLabel={invoiceDisplayLabel} may={may} pdfDownload={pdfDownload} dialogs={<SalesInvoiceDialogs actions={actions} submitFallback={invoiceDisplayLabel} />} />;
   }
 
-  const { projectLabelOf, displayColumns, exportColumns, statusColumn } = salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus });
+  const { projectLabelOf, displayColumns, exportColumns, mobileCardDetails } = salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus });
   const groupRowsBy = groupMode === 'client'
     ? (inv: SalesInvoiceRow) => inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')
     : groupMode === 'project'
@@ -609,7 +610,9 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
                 updateListParam('status', v);
                 trackFilterApplied('status', statusFilters.length, 'salesInvoices');
               }}
-              className="h-11 min-w-[10rem] text-[16px]"
+              fullWidth
+              wrapperClassName="w-full"
+              className="h-11 w-full text-[16px]"
             />}
             <div data-testid="invoice-filter-group" className={embedded ? (isDesktop ? 'flex shrink-0 items-center gap-2' : 'flex min-w-0 max-w-full flex-wrap items-center gap-2') : 'mt-2 flex flex-wrap items-end gap-2'}>
               {requestedCustomerId && (
@@ -641,10 +644,17 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
               )}
               <Button
                 type="button"
-                variant={searchParams.get('overdue') === 'true' ? 'outline' : 'ghost'}
+                variant="outline"
+                size="sm"
                 aria-pressed={searchParams.get('overdue') === 'true'}
                 disabled={!organizationToday && searchParams.get('overdue') !== 'true'}
                 onClick={() => updateListParam('overdue', searchParams.get('overdue') === 'true' ? '' : 'true')}
+                className={cn(
+                  'h-8',
+                  searchParams.get('overdue') === 'true'
+                    ? 'border-primary/40 bg-primary/10 font-semibold text-primary'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
               >{t('uxs05.overdueOnly', 'Overdue only')}</Button>
               {embedded && <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-medium text-muted-foreground">{t('finance:receivables.groupBy', 'Group by')}</span>
@@ -769,25 +779,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
             <span className="min-w-0 truncate text-[13px] font-semibold">{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
             <span className="min-w-0 truncate font-mono text-xs font-normal text-muted-foreground">{invoiceNumber(inv) ?? t('financeCopy.draftInvoiceLabel', 'Draft · {{customer}}', { customer: inv.customer_name ?? '—' })}</span>
           </span> : undefined}
-          mobileCardDetails={embedded ? (inv) => {
-            const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date);
-            const total = invoiceGross(inv) ?? inv.amount;
-            const outstanding = inv.erp_outstanding_amount ?? total;
-            // ponytail: wrap instead of overlap — the money drops to its own line when status + date fill the row.
-            return <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
-              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                {statusColumn.cell(inv)}
-                <span className="shrink-0 text-xs text-muted-foreground">{due ? formatDateOnly(due) : '—'}</span>
-              </div>
-              {/* O9: a settled, cancelled or untouched invoice shows its total; only a part-paid balance reads "X of total". */}
-              {total != null && (outstanding == null || outstanding === total || outstanding === 0 || inv.status === 'Paid' || inv.status === 'Cancelled')
-                ? <span className="shrink-0 text-right text-xs tabular">{formatCurrency(total, inv.currency)}</span>
-                : <span className="shrink-0 text-right text-xs tabular">
-                  <span>{outstanding == null ? '—' : formatCurrency(outstanding, inv.currency)}</span>
-                  {total != null && <span className="ml-1 text-muted-foreground">{t('finance:receivables.ofTotal', 'of {{total}}', { total: formatCurrency(total, inv.currency) })}</span>}
-                </span>}
-            </div>;
-          } : undefined}
+          mobileCardDetails={embedded ? mobileCardDetails : undefined}
           selection={embedded ? {
             selectedIds: effectiveSelectedKeys,
             onChange: handleSelectionChange,

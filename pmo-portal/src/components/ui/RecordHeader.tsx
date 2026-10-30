@@ -9,6 +9,8 @@ export interface RecordHeaderProps {
   name: React.ReactNode;
   /** Status pill — mandatory on every record (DESIGN.md §7 RecordHeader anatomy). */
   status: React.ReactNode;
+  /** Keep a long record name full width on mobile, with status below its metadata. */
+  statusBelowMetaOnMobile?: boolean;
   meta?: React.ReactNode;
   /** Optional in-header metric strip. */
   stats?: PageStat[];
@@ -40,6 +42,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   iconColor,
   name,
   status,
+  statusBelowMetaOnMobile = false,
   meta,
   stats,
   actions,
@@ -56,6 +59,8 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
     iconColor={iconColor}
     name={name}
     status={status}
+    statusInline
+    statusBelowMetaOnMobile={statusBelowMetaOnMobile}
     meta={meta}
     stats={stats}
     actions={
@@ -65,8 +70,10 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
         </span>
       ) : undefined
     }
-    // A full mobile basis still shrinks beside status unless shrink is disabled; restore it on desktop.
-    className={cn('[&_h1]:basis-full [&_h1]:shrink-0 sm:[&_h1]:basis-0 sm:[&_h1]:shrink', className)}
+    className={cn(
+      variant === 'drawer' && '[&_h1]:text-control [&_h1]:font-semibold [&_h1]:leading-5',
+      className,
+    )}
   />
 );
 

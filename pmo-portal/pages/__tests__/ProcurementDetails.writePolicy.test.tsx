@@ -75,7 +75,6 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
   }),
 }));
 
-const docsState = { data: [] as Record<string, unknown>[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useProcurementCrudMutations: () => ({
     updateHeader: { mutateAsync: vi.fn(), isPending: false },
@@ -86,7 +85,6 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
     createDocument: { mutateAsync: vi.fn(), isPending: false },
     deleteDocument: { mutateAsync: vi.fn(), isPending: false },
   }),
-  useProcurementDocuments: () => docsState,
 }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [{ value: 'proj-1', label: 'HQ Fit-Out' }] }),

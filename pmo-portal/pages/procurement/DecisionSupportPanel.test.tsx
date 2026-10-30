@@ -294,7 +294,9 @@ describe('AC-IXD-PROC-W5-2f — heading + no progress bar', () => {
 
   it('renders the five budget figures in a five-column strip at sm+ so no empty sixth cell appears', () => {
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
-    expect(screen.getByTestId('stat-tiles').className).toContain('sm:grid-cols-5');
+    const tiles = within(screen.getByTestId('stat-tiles')).getAllByTestId('stat-tile');
+    expect(tiles).toHaveLength(5);
+    for (const tile of tiles) expect(tile).not.toBeEmptyDOMElement();
   });
 
   it('does NOT render a progress bar (uninformative 0% bar removed — I1)', () => {

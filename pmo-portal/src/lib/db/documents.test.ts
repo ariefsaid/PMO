@@ -32,6 +32,7 @@ const h = vi.hoisted(() => {
   builder.eq = chain('eq');
   builder.is = chain('is');
   builder.order = chain('order');
+  builder.range = () => builder;
   builder.insert = chain('insert');
   builder.update = chain('update');
   builder.delete = chain('delete');
@@ -280,6 +281,19 @@ describe('AC-DOC-052 createDocumentRevision', () => {
 
   const revInput = { title: 'T', code: 'C', category: 'Drawing', revision: 'B', doc_date: '' };
   const ref = { drive_id: 'drive-1', item_id: 'item-1', web_url: 'https://example.invalid/f', name: 'Synthetic.pdf', item_kind: 'file' as const };
+
+  it('allows repeated revision requests for the same parent', async () => {
+    h.result.value = { data: { id: 'd1', project_id: 'p1' }, error: null };
+    await Promise.all([
+      createDocumentRevision('d1', revInput, 'author-1'),
+      createDocumentRevision('d1', { ...revInput, revision: 'C' }, 'author-2'),
+    ]);
+    expect(h.calls.insert).toHaveLength(2);
+    expect(h.calls.insert).toEqual(expect.arrayContaining([
+      expect.objectContaining({ parent_document_id: 'd1', revision: 'B' }),
+      expect.objectContaining({ parent_document_id: 'd1', revision: 'C' }),
+    ]));
+  });
 
   it('AC-M365DOC-068: a Microsoft reference rides the single child INSERT, with no inherited pin/baseline', async () => {
     h.result.value = { data: { id: 'child-1', project_id: 'p1' }, error: null };

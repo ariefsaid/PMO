@@ -206,7 +206,7 @@ describe('Project Manager area hub', () => {
     }];
     renderDashboard();
 
-    const area = screen.getByRole('heading', { name: 'Project One' }).closest('.rounded-lg.border');
+    const area = screen.getByRole('heading', { name: 'Project One' }).closest('.panel-card');
     expect(area).not.toBeNull();
     expect(within(area as HTMLElement).getByRole('link', { name: /budget is at least 90% spent/i })).toHaveAttribute('href', '/projects/p1');
     expect(within(area as HTMLElement).getByRole('link', { name: /2 overdue tasks/i })).toHaveAttribute('href', '/projects/p1/tasks');
@@ -277,7 +277,7 @@ describe('Project Manager area hub', () => {
     })];
     renderDashboard();
 
-    const area = screen.getByRole('heading', { name: 'No Budget Project' }).closest('.rounded-lg.border');
+    const area = screen.getByRole('heading', { name: 'No Budget Project' }).closest('.panel-card');
     expect(area).not.toBeNull();
     expect(within(area as HTMLElement).getAllByText('Budget not set')).toHaveLength(1);
     expect(within(area as HTMLElement).queryByText(/budget risk can.t be checked yet/i)).not.toBeInTheDocument();
@@ -367,7 +367,7 @@ const baseline = [
 const baselineDelivery = baseline.filter((project) => !['Loss Tender', 'Leads'].includes(project.status));
 
 const areaFor = (name: string) => {
-  const area = screen.getByRole('heading', { name }).closest('.rounded-lg.border');
+  const area = screen.getByRole('heading', { name }).closest('.panel-card');
   expect(area).not.toBeNull();
   return area as HTMLElement;
 };
@@ -514,7 +514,7 @@ describe('PMDashboard — ported Bahasa (AC-UXA-001)', () => {
     expect(openMine.length).toBeGreaterThan(0);
     for (const link of openMine) expect(link).toHaveAttribute('href', '/projects?filter=My+Projects');
     // The status is translated for the reader; the stored enum is unchanged.
-    expect(screen.getByText('Menang — menunggu rapat awal')).toBeInTheDocument();
+    expect(screen.getByText('Menang, menunggu rapat awal')).toBeInTheDocument();
     expect(baseline.find((project) => project.id === 'b2')?.status).toBe('Won, Pending KoM');
     // Money follows the Indonesian number locale: short on the tile, exact in the title.
     const contract = screen.getByTestId('kpi-my-contract-value');

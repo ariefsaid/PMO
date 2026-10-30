@@ -328,14 +328,17 @@ describe('AC-IXD-DASH-W5-C2C — I3: at-risk rows convey budget utilization reas
     expect(budgetUsedCell.querySelector('[title]')).toHaveAttribute('title', '$475,000 of $500,000 Active budget');
   });
 
-  it('C2C-I3-2: the at-risk pill in the project cell is text+dot (not color-only) — a11y', () => {
+  it('C2C-I3-2: the at-risk pill in the project cell is a labelled StatusPill (not color-only) — a11y', () => {
     renderProjectsPage('/projects');
-    // Find the at-risk row and verify the pill within it has a dot indicator
+    // Find the at-risk row and verify its status pill carries visible text — the
+    // label (not a colour-only cue, and since 2026-10-29 no dot either) conveys it.
     const rows = screen.getAllByRole('row');
     const atRiskRow = rows.find((r) => r.textContent?.includes('Burning Beta'));
     expect(atRiskRow).toBeDefined();
-    const pillDot = atRiskRow?.querySelector('[data-pill-dot]');
-    expect(pillDot).toBeTruthy();
+    const pill = [...(atRiskRow?.querySelectorAll('span[class*="bg-status-"]') ?? [])]
+      .find((s) => (s.textContent ?? '').trim().length > 0);
+    expect(pill).toBeDefined();
+    expect(pill!.textContent!.trim().length).toBeGreaterThan(0);
   });
 });
 

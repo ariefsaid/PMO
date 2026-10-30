@@ -21,14 +21,16 @@ export function DocumentDriftBadge({ status, driftState, lastVerifiedAt, compact
   const { t } = useTranslation();
   const approval = APPROVED_STATUSES.has(status);
   const verifiedOn = lastVerifiedAt ? formatInstantDate(lastVerifiedAt) : null;
-  const since = approval ? t('m365Documents.drift.sinceApproval', 'since approval') : t('m365Documents.drift.sinceIssue', 'since issue');
+  const since = approval
+    ? t('m365Documents.drift.sinceApproval', 'compared with the issue-time baseline')
+    : t('m365Documents.drift.sinceIssue', 'compared with the issue-time baseline');
 
   if (driftState === 'drifted') {
     // Compact keeps the as-of date: it only shows on the rare changed file, so rows stay short.
     return (
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
         <StatusPill variant="warn">
-          {compact ? <>{t('m365Documents.drift.changed', 'Changed')}<span className="sr-only">{since}</span></> : approval ? t('m365Documents.drift.changedSinceApproval', 'Changed since approval') : t('m365Documents.drift.changedSinceIssue', 'Changed since issue')}
+          {compact ? <>{t('m365Documents.drift.changed', 'Changed')}<span className="sr-only">{since}</span></> : approval ? t('m365Documents.drift.changedSinceApproval', 'File content differs from its issue-time baseline.') : t('m365Documents.drift.changedSinceIssue', 'File content differs from its issue-time baseline.')}
         </StatusPill>
         {verifiedOn && <span className="text-[12px] text-muted-foreground">{t('m365Documents.drift.checked', 'Checked {{date}}', { date: verifiedOn })}</span>}
       </div>
@@ -36,8 +38,8 @@ export function DocumentDriftBadge({ status, driftState, lastVerifiedAt, compact
   }
   if (driftState === 'clean' && verifiedOn) {
     const full = approval
-      ? t('m365Documents.drift.unchangedSinceApproval', 'Unchanged since approval. Verified {{date}}.', { date: verifiedOn })
-      : t('m365Documents.drift.unchangedSinceIssue', 'Unchanged since issue. Verified {{date}}.', { date: verifiedOn });
+      ? t('m365Documents.drift.unchangedSinceApproval', 'File content matches its issue-time baseline. Verified {{date}}.', { date: verifiedOn })
+      : t('m365Documents.drift.unchangedSinceIssue', 'File content matches its issue-time baseline. Verified {{date}}.', { date: verifiedOn });
     return (
       <span className="inline-flex min-w-0 items-start gap-1 break-words text-[12px] text-muted-foreground" title={compact ? full : undefined}>
         <Icon name="check" className="mt-0.5 shrink-0" />

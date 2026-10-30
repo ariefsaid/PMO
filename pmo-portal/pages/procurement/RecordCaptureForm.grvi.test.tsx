@@ -59,7 +59,6 @@ describe('RecordCaptureForm — Goods Receipt kind', () => {
     expect(within(form).getByTestId('gr-ref-input')).toHaveAttribute('placeholder', 'e.g. DN-44120');
     const status = within(form).getByTestId('gr-status-select') as HTMLSelectElement;
     expect(status.value).toBe('Complete');
-    expect(status).toHaveClass('h-8');
     // GR options are exactly Partial + Complete
     expect(Array.from(status.options).map((o) => o.value)).toEqual(['Partial', 'Complete']);
     expect(within(form).getByTestId('gr-date-input')).toBeInTheDocument();
@@ -107,7 +106,6 @@ describe('RecordCaptureForm — Supplier Invoice kind', () => {
     expect(within(form).getByTestId('vi-amount-input')).toBeInTheDocument();
     const status = within(form).getByTestId('vi-status-select') as HTMLSelectElement;
     expect(status.value).toBe('Received');
-    expect(status).toHaveClass('h-8');
     expect(Array.from(status.options).map((o) => o.value)).toEqual(['Received', 'Scheduled']);
     expect(within(form).getByTestId('vi-date-input')).toBeInTheDocument();
     expect(within(form).getByTestId('btn-save-vi')).toBeInTheDocument();

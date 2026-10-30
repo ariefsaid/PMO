@@ -35,11 +35,14 @@ describe('AccountingSnapshotsSection saved-width identities', () => {
     seen.length = 0;
     render(
       <AccountingSnapshotsSection
+        actualsCollapsed
         actuals={actuals} actualsPending={false} actualsError={false}
         apAging={aging('snap-2', 'Supplier')} apAgingPending={false} apAgingError={false}
         arAging={aging('snap-3', 'Customer')} arAgingPending={false} arAgingError={false}
       />,
     );
+    const collapsedSummary = document.querySelector('summary');
+    expect(collapsedSummary?.className.split(/\s+/)).toContain('py-3');
     expect(seen.length).toBeGreaterThanOrEqual(3);
     const shapesById = new Map<string, Set<string>>();
     for (const { tableId, shape } of seen) {

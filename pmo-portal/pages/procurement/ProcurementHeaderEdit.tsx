@@ -156,7 +156,7 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
             <Combobox
               label="Supplier"
               noun="supplier"
-              placeholder={vendorName ?? 'Optional — select a supplier…'}
+              placeholder={vendorName ?? 'Optional: select a supplier…'}
               value={form.values.vendorId}
               selectedOption={
                 form.values.vendorId && vendorName

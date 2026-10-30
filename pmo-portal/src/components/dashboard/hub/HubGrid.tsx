@@ -5,5 +5,5 @@ export interface HubGridProps {
 }
 
 export const HubGrid: React.FC<HubGridProps> = ({ children }) => (
-  <div className="grid grid-cols-1 items-start gap-4 min-[1180px]:grid-cols-2">{children}</div>
+  <div className="grid grid-cols-1 items-start gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2">{children}</div>
 );

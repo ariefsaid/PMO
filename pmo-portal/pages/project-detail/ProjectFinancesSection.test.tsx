@@ -539,7 +539,7 @@ describe('ProjectFinancesSection reading states', () => {
         } else {
           expect(screen.queryByText(cashLabel, { exact: true })).not.toBeInTheDocument();
         }
-        expect(view.container).not.toHaveTextContent(/Unavailable|Tidak tersedia|Incomplete —|Belum lengkap —/);
+        expect(view.container).not.toHaveTextContent(/Unavailable|Tidak tersedia|Incomplete:|Belum lengkap:/);
         expect(await axe(view.container)).toHaveNoViolations();
         view.unmount();
       }

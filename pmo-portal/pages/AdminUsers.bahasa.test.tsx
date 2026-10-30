@@ -116,7 +116,7 @@ describe('Admin Users in Bahasa (#693 F-1)', () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: 'Undang pengguna' }));
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText('Undang seseorang ke organisasi Anda lewat email — mereka akan menetapkan kata sandi sendiri.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Undang seseorang ke organisasi Anda lewat email. Mereka akan menetapkan kata sandi sendiri.')).toBeInTheDocument();
     expect(within(dialog).getByText('Detail undangan')).toBeInTheDocument();
     expect(within(dialog).getByRole('option', { name: 'Manajer proyek' })).toBeInTheDocument();
     expect(within(dialog).getByRole('option', { name: 'Eksekutif' })).toBeInTheDocument();

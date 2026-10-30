@@ -1,5 +1,6 @@
 import TaxBasisLabel from '@/src/components/ui/TaxBasisLabel';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Trans, useTranslation } from 'react-i18next';
 import {
@@ -12,6 +13,7 @@ import {
   useToast,
   type StatTile,
 } from '@/src/components/ui';
+import { useProjectWinEligibility } from '@/src/hooks/useProjectTransitions';
 import { invalidateProjectProjections } from '@/src/hooks/projectQueryKeys';
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
 import { useAuth } from '@/src/auth/useAuth';
@@ -112,8 +114,24 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
   const [refError, setRefError] = useState<string | null>(null);
   const [dateError, setDateError] = useState<string | null>(null);
 
-  const legalTargets = LEGAL_PROJECT_TRANSITIONS[liveStatus] ?? [];
-  const canWin = legalTargets.includes('Won, Pending KoM');
+  const legalTargets = useMemo(
+    () => LEGAL_PROJECT_TRANSITIONS[liveStatus] ?? [],
+    [liveStatus],
+  );
+  const winIsLegal = legalTargets.includes('Won, Pending KoM');
+  const winEligibility = useProjectWinEligibility(project.id, canTransition && winIsLegal, project.contract_value_set_at);
+  const canWin = canTransition && winIsLegal && winEligibility.data === 'allowed' && !winEligibility.isPending && !winEligibility.isFetching && !winEligibility.isError;
+  const winReason = canTransition && winIsLegal && (winEligibility.isPending || winEligibility.isFetching)
+    ? t('winEligibility.checking', 'Checking win eligibility…')
+    : canTransition && winIsLegal && winEligibility.isError
+    ? t('winEligibility.unavailable', 'Win eligibility is unavailable. Refresh this page and try again.')
+    : canTransition && winIsLegal && winEligibility.data && winEligibility.data !== 'allowed'
+    ? winEligibility.data === 'unavailable'
+      ? t('winEligibility.unavailable', 'Win eligibility is unavailable. Refresh this page and try again.')
+      : winEligibility.data === 'inactive_reviewer'
+      ? t('winEligibility.inactive', 'Ask an active supervisor or a more senior reviewer to confirm the value.')
+      : t('winEligibility.reviewer', 'Ask your supervisor or a more senior reviewer to confirm the value before winning this project.')
+    : null;
   const canLose = legalTargets.includes('Loss Tender');
   const canDecline = legalTargets.includes('Declined');
   const nextStage = legalTargets.find((t) => PIPELINE_STATUSES.includes(t));
@@ -192,6 +210,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
   };
 
   const submitWon = () => {
+    if (!canWin) return;
     const refMissing = !contractRef.trim();
     const dateMissing = !contractDate;
     setRefError(
@@ -277,6 +296,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
             {t('projectDetail.pipeline.markWon', 'Mark won')}
           </Button>
         ) : null}
+        {canTransition && !detailsOpen && winReason && <p role="status" className="text-sm text-muted-foreground">{winReason}</p>}
       </div>}
 
       {!isDesktop && projectJourney}
@@ -328,6 +348,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
 
                 {!isTerminal && (
                   <RecordActionZone>
+                    {winReason && <p role="status" className="text-sm text-muted-foreground">{winReason}</p>}
                     <div className="flex flex-wrap gap-2">
                       {isDesktop && nextStage && (
                         <Button variant="primary" disabled={pending} onClick={() => void runTransition(nextStage)}>
@@ -398,12 +419,13 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
               </>
             )}
 
-            <a
-              href={listReturnNavigation(locationState, 'sales').path}
+            <Link
+              to={listReturnNavigation(locationState, 'sales').path}
+              state={listReturnNavigation(locationState, 'sales').state}
               className="mt-1 inline-flex text-xs font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
             >
               {t('projectDetail.pipeline.backToSalesPipeline', '← Back to Sales Pipeline')}
-            </a>
+            </Link>
           </section>
         </div>
         </>}
