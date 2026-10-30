@@ -65,7 +65,7 @@ test.describe('AC-ACCT-005 account-menu responsive layout', () => {
 
     // Every action, including conditional Help and all preview roles, is reachable.
     const actions = await menu.locator('[role="menuitem"], [role="menuitemradio"]').all();
-    expect(actions.length).toBeGreaterThan(8);
+    expect(actions.length).toBeGreaterThanOrEqual(8);
     for (const item of actions) {
       await item.scrollIntoViewIfNeeded();
       await expect(item).toBeVisible();

@@ -44,6 +44,9 @@ test('AC-DOC-020/021/040/041: PM uploads, downloads, replaces, and previews a pr
   await login(page, 'pm@acme.test');
   await openDocumentsTab(page);
   const row = await createDocument(page, { title, code, category: 'Drawing' });
+  // The success notification can cover a row action and pauses while hovered.
+  const dismissNotification = page.getByRole('button', { name: 'Dismiss notification' });
+  if (await dismissNotification.isVisible()) await dismissNotification.click();
 
   // Upload a valid small file to the Draft document.
   await row.getByLabel(`View ${title}`).click();
