@@ -43,7 +43,7 @@ const procurementDetailKey = (orgId: string | undefined, id: string | undefined)
 
 /**
  * Fetches the full procurement detail (header + quotations + receipts + invoices).
- * Cache key is org-scoped: ['procurement', orgId, id] (AC-816).
+ * Cache key is scoped to the org and actor because approval eligibility is caller-specific.
  * Disabled when orgId or id are falsy.
  */
 export function useProcurementDetail(id: string | undefined) {
@@ -51,7 +51,7 @@ export function useProcurementDetail(id: string | undefined) {
   const orgId = currentUser?.org_id;
 
   return useQuery<ProcurementDetail>({
-    queryKey: procurementDetailKey(orgId, id),
+    queryKey: [...procurementDetailKey(orgId, id), currentUser?.id, currentUser?.role],
     queryFn: () => getProcurementDetail(id!),
     enabled: Boolean(orgId && id),
   });

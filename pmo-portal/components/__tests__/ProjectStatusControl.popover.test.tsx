@@ -16,6 +16,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
+  useProjectWinEligibility: () => ({ data: 'allowed' }),
   useProjectTransition: vi.fn(() => ({
     mutate: mockMutate,
     mutateAsync: vi.fn(),

@@ -8195,6 +8195,9 @@ export type Database = {
         Returns: string
       }
       budget_activation_mode: { Args: { version_id: string }; Returns: string }
+      project_win_eligibility: { Args: { p_id: string }; Returns: string }
+      work_order_issue_eligibility: { Args: { p_ids: string[] }; Returns: { work_order_id: string; reason: string }[] }
+      procurement_amount_eligibility: { Args: { p_procurement_id: string; p_amount: number }; Returns: string }
       budget_fiscal_year_token: {
         Args: { p_fiscal_year: string }
         Returns: string

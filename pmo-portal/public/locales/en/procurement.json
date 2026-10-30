@@ -55,11 +55,17 @@
     }
   },
   "ceiling": {
+    "checking": "Checking approval eligibility…",
+    "unavailable": "Approval eligibility is unavailable. Refresh this page and try again.",
     "exceeds": "Billed amount exceeds the approved amount by {{amount}}. An approver must approve the higher amount.",
     "approveHigher": "Approve higher amount",
     "confirmBody": "The approved amount becomes {{billed}} (now {{approved}}). You will not be able to pay this procurement yourself.",
     "confirm": "Approve",
-    "approved": "Higher amount approved"
+    "approved": "Higher amount approved",
+    "billRecorder": "The person who recorded the bill cannot approve the higher amount.",
+    "quoteSelector": "The person who selected the quote cannot approve the higher amount.",
+    "requester": "The requester cannot approve the higher amount.",
+    "routing": "A designated approver must approve the higher amount."
   },
   "quoteSelection": {
     "reroutedDetail": "The quote is above the approved amount, so the procurement went back for approval."

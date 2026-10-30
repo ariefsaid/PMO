@@ -102,6 +102,7 @@ vi.mock('@/src/hooks/useProjectsDelivery', () => ({
 vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({ useProjectsMoneyCollection: () => projectMoneyState }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: roleBox.value, realRole: roleBox.value, canImpersonate: false, viewAs: vi.fn() }) }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
+  useProjectWinEligibility: () => ({ data: 'allowed' }),
   useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, error: null, isPending: false }),
   usePipelineStageConfig: () => ({ data: [], isSuccess: true }),
 }));
