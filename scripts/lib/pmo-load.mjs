@@ -576,10 +576,12 @@ async function applyBudget(e, api, write, note, { batchId, importedAt }) {
       return { version_id: v.id };
     });
   }
-  return write({ kind: 'budget.lines', key: e.key, count: e.budget.lines.length, decision: 'pending server classification' }, async () => {
+  const action = { kind: 'budget.lines', key: e.key, count: e.budget.lines.length, decision: 'pending server classification' };
+  return write(action, async () => {
     let created = 0;
     let skipped = 0;
     for (const l of e.budget.lines) {
+      action.row = l.row + 1;
       const identity = encodeBudgetImportIdentity({ projectUuid: e.id, project: e.key,
         category: l.category, rawCategory: l.rawCategory, description: String(l.description ?? ''),
         fiscalYear: String(l.fiscal_year ?? ''), amountText: String(l.budgeted_amount),
@@ -595,6 +597,7 @@ async function applyBudget(e, api, write, note, { batchId, importedAt }) {
       else skipped += 1;
       note({ kind: `budget.line.${result.outcome}`, key: e.key, row: l.row + 1, id: result.line_id });
     }
+    delete action.row;
     return { version_id: versionId, created, skipped };
   });
 }

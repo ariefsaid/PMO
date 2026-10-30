@@ -807,20 +807,29 @@ test('budget retry preserves successful rows, resolves a new project id, and nor
   const doc = { projects: [{ code: 'NEW', name: 'New', client: 'Client Legal A', stage: 'Leads', budget: [
     { category: 'Labor', budgeted_amount: 0.30000000000000004, reference: 'A' },
     { category: 'Labor', budgeted_amount: 1, reference: 'B' },
+    { category: 'Labor', budgeted_amount: 2, reference: 'C' },
   ] }] };
   let failSecond = true;
   const api = fakeApi({ tables: { companies: COMPANIES() }, fail: (_kind, target, body) =>
     target === 'import_budget_line_v2' && body.p_legacy_key === 'B' && failSecond && '23505' });
-  await assert.rejects(load(api, doc), (err) => err.code === '23505' && err.loadReport.done.some((a) => a.kind === 'budget.line.created'));
+  await assert.rejects(load(api, doc), (err) => {
+    assert.equal(err.code, '23505');
+    assert.equal(err.status, 403);
+    assert.equal(err.loadReport.failed.key, 'NEW');
+    assert.equal(err.loadReport.failed.row, 2);
+    assert.ok(err.loadReport.done.some((a) => a.kind === 'budget.line.created' && a.row === 1));
+    return true;
+  });
+  assert.equal(api.calls.filter((c) => c.target === 'import_budget_line_v2').length, 2);
   const first = api.calls.find((c) => c.target === 'import_budget_line_v2');
   assert.equal(first.body.p_budgeted_amount, 0.3);
   assert.equal(first.body.p_v2_key, 'bimp2:["r","A"]');
   assert.equal(api.tables.budget_line_items.length, 1);
   failSecond = false;
   const report = await load(api, doc);
-  assert.equal(report.find((a) => a.kind === 'budget.lines').created, 1);
+  assert.equal(report.find((a) => a.kind === 'budget.lines').created, 2);
   assert.equal(report.find((a) => a.kind === 'budget.lines').skipped, 1);
-  assert.equal(api.tables.budget_line_items.length, 2);
+  assert.equal(api.tables.budget_line_items.length, 3);
 });
 
 test('new project fingerprint uses resolved project id and classified category', async () => {
@@ -868,4 +877,36 @@ test('loader reports a legacy fp-prefixed reference as ambiguous', async () => {
     budget_line_items: [{ id: 'old-line', budget_version_id: 'v-1', import_key: 'fp:ambiguous' }] } });
   await assert.rejects(load(api, doc), /row 1.*old-line/);
   assert.equal(api.tables.budget_line_items.length, 1);
+});
+
+
+test('budget malformed and uncertain transport failures identify the row and preserve completed work', async () => {
+  for (const mode of ['malformed', 'transport']) {
+    const doc = { projects: [DOC().projects[0]] };
+    const api = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING()],
+      budget_versions: [{ id: 'v-1', project_id: 'p-1', status: 'Draft', version: 1 }] } });
+    const rpc = api.rpc.bind(api);
+    let n = 0;
+    const transport = Object.assign(new Error('connection lost; outcome unknown'), { code: 'NETWORK' });
+    api.rpc = async (...args) => {
+      n += 1;
+      const result = await rpc(...args);
+      if (n === 2) {
+        if (mode === 'transport') throw transport;
+        return [];
+      }
+      return result;
+    };
+    await assert.rejects(load(api, doc), (err) => {
+      if (mode === 'transport') assert.equal(err, transport);
+      else assert.match(err.message, /Unexpected budget import result/);
+      assert.equal(err.loadReport.failed.key, 'ORG-001');
+      assert.equal(err.loadReport.failed.row, 2);
+      assert.ok(err.loadReport.done.some((a) => a.kind === 'budget.line.created' && a.row === 1));
+      return true;
+    });
+    assert.equal(api.tables.budget_line_items.length, 2); // The server committed before the response was lost or malformed.
+    const retry = await load(api, doc);
+    assert.equal(retry.find((a) => a.kind === 'budget.lines').skipped, 2);
+  }
 });
