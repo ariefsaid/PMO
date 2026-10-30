@@ -184,7 +184,8 @@ async function runTabWorkCase(
     await expect(projectFacts.getByRole('link', { name: 'Overview', exact: true })).toHaveCount(0);
     if (viewport.width === 390) {
       // #1402 recomposition: keyboard users reach current financial context through Overview's Money position.
-      const tasksTab = initialSections.getByRole('tab', { name: 'Tasks', exact: true });
+      // The approved section design appends the loaded task count to the tab name.
+      const tasksTab = initialSections.getByRole('tab', { name: /^Tasks(?: \d+)?$/ });
       await tasksTab.focus();
       await page.keyboard.press('Home');
       await page.keyboard.press('Enter');
@@ -195,9 +196,9 @@ async function runTabWorkCase(
       await page.keyboard.press('ArrowRight');
       await expect(initialSections.getByRole('tab', { name: 'Budget', exact: true })).toHaveAttribute('aria-selected', 'true');
       await page.keyboard.press('ArrowRight');
-      await expect(initialSections.getByRole('tab', { name: 'Procurement', exact: true })).toHaveAttribute('aria-selected', 'true');
+      await expect(initialSections.getByRole('tab', { name: /^Procurement(?: \d+)?$/ })).toHaveAttribute('aria-selected', 'true');
       await page.keyboard.press('ArrowRight');
-      await expect(initialSections.getByRole('tab', { name: 'Tasks', exact: true })).toHaveAttribute('aria-selected', 'true');
+      await expect(initialSections.getByRole('tab', { name: /^Tasks(?: \d+)?$/ })).toHaveAttribute('aria-selected', 'true');
     }
   }
 
@@ -247,7 +248,7 @@ async function runTabWorkCase(
     await expect(openTimeline).toHaveAttribute('href', `${projectPath}/tasks?view=timeline`);
     await openTimeline.click();
     await expect(page).toHaveURL(`${projectPath}/tasks?view=timeline`);
-    await expect(sections.getByRole('tab', { name: 'Tasks', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(sections.getByRole('tab', { name: /^Tasks(?: \d+)?$/ })).toHaveAttribute('aria-selected', 'true');
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     if (viewport.width === 1440) {
       const panelBox = await panel.boundingBox();
