@@ -33,7 +33,7 @@ import type { RefLookup } from '@/src/lib/import/refLookup';
 import { refId } from '@/src/lib/import/refLookup';
 import { parseNeutralMoneyInputAtScale } from '@/src/lib/format';
 import type { ImportSkipLookup } from '@/src/lib/db/procurementImportSkip';
-import { decideCase, recordDecider, TYPE_TO_TABLE } from './decisions';
+import { caseDecider, recordDecider, TYPE_TO_TABLE } from './decisions';
 import { computeCaseImportKey, computeRecordImportKey } from './importKey';
 import type {
   ValidatedGroup,
@@ -263,9 +263,17 @@ async function commitCase(
   // once at the end preserves the PER-CLASSIFICATION reason distribution (RLS vs duplicates
   // stays answerable) instead of one lump total.
   classificationCounts: Partial<Record<FrictionClass, number>>,
+  decideHeader?: ReturnType<typeof caseDecider>,
 ): Promise<CommitCaseResult> {
   const { group, rows: validatedRows } = validated;
   const { attrs } = group;
+  const notAttemptedRows = (): CommitRecordResult[] => {
+    const validNumbers = new Set(validatedRows.filter(row => row.valid).map(row => row.rowNumber));
+    return group.rows.filter(row => validNumbers.has(row.rowNumber)).map(row => ({
+      rowNumber: row.rowNumber, type: row.type, status: 'failed',
+      error: 'not attempted because a case lookup failed; retry this case.',
+    }));
+  };
 
   // Resolve project and vendor for the header (vendor optional — may be null)
   const projectId = attrs.project ? refId(projectLookup, attrs.project) : null;
@@ -285,11 +293,12 @@ async function commitCase(
     // org_id is resolved server-side by the skip-lookup's RLS-scoped read (never client-supplied).
     let decision;
     try {
-      decision = await decideCase(skipLookup, caseImportKey, importBatchId);
+      decision = await decideHeader!(caseImportKey);
+      if (decision.kind === 'new' && skipLookup.listCases) decision = await decideHeader!(caseImportKey, true);
     } catch (err) {
       const { headline, detail, classification } = classifyMutationError(err, undefined, { suppressCapture: true });
       classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
-      return { caseRef: group.caseRef, headerStatus: 'failed', headerError: `${headline}: ${detail}`, records: [] };
+      return { caseRef: group.caseRef, headerStatus: 'failed', headerError: `${headline}: ${detail}`, records: notAttemptedRows() };
     }
     if (decision.kind !== 'new') {
       procurementId = decision.id;
@@ -322,7 +331,7 @@ async function commitCase(
           } catch (probeError) {
             const { headline, detail, classification } = classifyMutationError(probeError, undefined, { suppressCapture: true });
             classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
-            return { caseRef: group.caseRef, headerStatus: 'failed', headerError: `${headline}: ${detail}`, records: [] };
+            return { caseRef: group.caseRef, headerStatus: 'failed', headerError: `${headline}: ${detail}`, records: notAttemptedRows() };
           }
           if (raced) {
             procurementId = raced.id;
@@ -404,14 +413,22 @@ async function commitCase(
 
   const decideRecord = importBatchId && skipLookup ? recordDecider(skipLookup, procurementId, importBatchId, validRows) : null;
 
-  for (const row of validRows) {
+  for (const [rowIndex, row] of validRows.entries()) {
+    const failRemaining = () => {
+      for (const remaining of validRows.slice(rowIndex + 1)) {
+        records.push({ rowNumber: remaining.rowNumber, type: remaining.type, status: 'failed', error: 'not attempted because an earlier lookup failed; retry this case.' });
+      }
+    };
     const recordImportKey = importBatchId ? computeRecordImportKey(row) : null;
 
     // ── Per-record: skip-if-exists, evaluated INDEPENDENTLY of the header decision (FR-IDEM-003/005) ──
     if (importBatchId && skipLookup && recordImportKey) {
       const table = TYPE_TO_TABLE[row.type as CycleType];
       try {
-        const decision = table && decideRecord ? await decideRecord(table, recordImportKey) : { kind: 'new' as const };
+        let decision = table && decideRecord ? await decideRecord(table, recordImportKey) : { kind: 'new' as const };
+        if (decision.kind === 'new' && table && decideRecord && skipLookup.listCaseRecords) {
+          decision = await decideRecord(table, recordImportKey, true);
+        }
         if (decision.kind !== 'new') {
           if (row.type === 'VI') groupInvoiceId = decision.id;
           records.push({ rowNumber: row.rowNumber, type: row.type, id: decision.id, status: 'skipped',
@@ -422,6 +439,7 @@ async function commitCase(
         const { headline, detail, classification } = classifyMutationError(err, undefined, { suppressCapture: true });
         classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
         records.push({ rowNumber: row.rowNumber, type: row.type, status: 'failed', error: `${headline}: ${detail}` });
+        failRemaining();
         break;
       }
     }
@@ -459,6 +477,7 @@ async function commitCase(
           const { headline, detail, classification } = classifyMutationError(probeError, undefined, { suppressCapture: true });
           classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
           records.push({ rowNumber: row.rowNumber, type: row.type, status: 'failed', error: `${headline}: ${detail}` });
+          failRemaining();
           break;
         }
       }
@@ -509,18 +528,19 @@ export async function commitGroups(
   // classification (not one lump total) matters.
   const classificationCounts: Partial<Record<FrictionClass, number>> = {};
 
+  const decideHeader = options.importBatchId && options.skipLookup
+    ? caseDecider(options.skipLookup, validatedGroups.filter(item => item.valid).map(item => computeCaseImportKey(item.group)), options.importBatchId)
+    : undefined;
   for (const validated of validatedGroups) {
     // Skip invalid groups entirely
     if (!validated.valid) continue;
 
-    const caseResult = await commitCase(validated, options, classificationCounts);
+    const caseResult = await commitCase(validated, options, classificationCounts, decideHeader);
     cases.push(caseResult);
-    if (caseResult.headerStatus === 'created' || caseResult.headerStatus === 'skipped') {
-      for (const rec of caseResult.records) {
-        if (rec.status === 'created') created++;
-        else if (rec.status === 'failed') failed++;
-        // 'skipped' counts toward neither — surfaced via the per-case/per-record detail instead.
-      }
+    for (const rec of caseResult.records) {
+      if (rec.status === 'created') created++;
+      else if (rec.status === 'failed') failed++;
+      // 'skipped' counts toward neither — surfaced via the per-case/per-record detail instead.
     }
     // headerStatus === 'failed' is tallied by classifyMutationError inside commitCase itself
     // (classificationCounts, above) — no separate counter needed here.

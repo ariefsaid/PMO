@@ -19,6 +19,32 @@ export async function decideCase(lookup: ImportSkipLookup, key: string, batch: s
   return other ? { kind: 'other', id: other.id, batch: other.import_batch_id } : { kind: 'new' };
 }
 
+function matchDecision(matches: ImportRecordMatch[], batch: string): ImportDecision {
+  const same = matches.filter(row => row.import_batch_id === batch);
+  if (same.length > 1) throw new Error('Unexpected duplicate import records');
+  if (same[0]) return { kind: 'same', id: same[0].id };
+  const other = matches.find(row => row.import_batch_id !== batch);
+  return other ? { kind: 'other', id: other.id, batch: other.import_batch_id } : { kind: 'new' };
+}
+
+export function caseDecider(lookup: ImportSkipLookup, keys: string[], batch: string) {
+  let snapshot: Promise<Map<string, ImportRecordMatch[]>> | undefined;
+  return async (key: string, fresh = false): Promise<ImportDecision> => {
+    if (!lookup.listCases) return decideCase(lookup, key, batch);
+    if (fresh) return matchDecision(await lookup.listCases([key]), batch);
+    snapshot ??= lookup.listCases(keys).then(rows => {
+      const index = new Map<string, ImportRecordMatch[]>();
+      for (const row of rows) {
+        const matches = index.get(row.import_key) ?? [];
+        matches.push(row);
+        index.set(row.import_key, matches);
+      }
+      return index;
+    });
+    return matchDecision((await snapshot).get(key) ?? [], batch);
+  };
+}
+
 export function recordDecider(lookup: ImportSkipLookup, caseId: string, batch: string, rows: CycleRow[]) {
   const keys = new Map<RecordTableName, string[]>();
   for (const row of rows) {
@@ -30,7 +56,7 @@ export function recordDecider(lookup: ImportSkipLookup, caseId: string, batch: s
     }
   }
   const indexes = new Map<RecordTableName, Promise<Map<string, ImportRecordMatch[]>>>();
-  return async (table: RecordTableName, key: string): Promise<ImportDecision> => {
+  return async (table: RecordTableName, key: string, fresh = false): Promise<ImportDecision> => {
     if (lookup.listCaseRecords) {
       let index = indexes.get(table);
       if (!index) {
@@ -45,12 +71,8 @@ export function recordDecider(lookup: ImportSkipLookup, caseId: string, batch: s
         });
         indexes.set(table, index);
       }
-      const matches = (await index).get(key) ?? [];
-      const same = matches.filter(row => row.import_batch_id === batch);
-      if (same.length > 1) throw new Error('Unexpected duplicate import records');
-      if (same[0]) return { kind: 'same', id: same[0].id };
-      const other = matches.find(row => row.import_batch_id !== batch);
-      return other ? { kind: 'other', id: other.id, batch: other.import_batch_id } : { kind: 'new' };
+      const matches = fresh ? await lookup.listCaseRecords(table, caseId, [key]) : (await index).get(key) ?? [];
+      return matchDecision(matches, batch);
     }
     const same = await lookup.findExistingRecord(table, caseId, key, batch);
     if (same) return { kind: 'same', id: same.id };

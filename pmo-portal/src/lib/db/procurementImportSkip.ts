@@ -14,6 +14,7 @@ import { supabase } from '@/src/lib/supabase/client';
 export interface ImportRecordMatch { id: string; import_key: string; import_batch_id: string }
 
 export interface ImportSkipLookup {
+  listCases?(keys: string[]): Promise<ImportRecordMatch[]>;
   listCaseRecords?(table: RecordTableName, procurementId: string, keys: string[]): Promise<ImportRecordMatch[]>;
   /** Looks up an existing procurement (case header) by (import_key, import_batch_id) within
    *  the caller's RLS-scoped org. */
@@ -41,24 +42,40 @@ export type RecordTableName =
   | 'purchase_requests' | 'rfqs' | 'procurement_quotations' | 'purchase_orders'
   | 'procurement_receipts' | 'procurement_invoices' | 'payments';
 
-export const supabaseImportSkipLookup: ImportSkipLookup = {
-  async listCaseRecords(table, procurementId, keys) {
-    const rows: ImportRecordMatch[] = [];
-    const pageSize = 200;
-    const uniqueKeys = [...new Set(keys)];
-    for (let start = 0; start < uniqueKeys.length; start += 100) {
-      const chunk = uniqueKeys.slice(start, start + 100);
-      for (let offset = 0; ; offset += pageSize) {
-        const { data, error } = await supabase.from(table).select('id, import_key, import_batch_id')
-          .eq('procurement_id', procurementId).in('import_key', chunk)
-          .not('import_batch_id', 'is', null).order('id').range(offset, offset + pageSize - 1);
-        if (error) throw error;
-        const page = (data ?? []) as ImportRecordMatch[];
-        rows.push(...page);
-        if (page.length < pageSize) break;
-      }
+async function listMatches(table: RecordTableName | 'procurements', keys: string[], procurementId?: string): Promise<ImportRecordMatch[]> {
+  const rows: ImportRecordMatch[] = [];
+  const pageSize = 200;
+  const uniqueKeys = [...new Set(keys)];
+  for (let start = 0; start < uniqueKeys.length; start += 100) {
+    const chunk = uniqueKeys.slice(start, start + 100);
+    let cursor: string | undefined;
+    for (;;) {
+      let query = supabase.from(table).select('id, import_key, import_batch_id')
+        .in('import_key', chunk).not('import_batch_id', 'is', null).order('id') as unknown as {
+          eq(column: string, value: string): typeof query;
+          gt(column: string, value: string): typeof query;
+          limit(count: number): Promise<{ data: ImportRecordMatch[] | null; error: unknown }>;
+        };
+      if (procurementId !== undefined) query = query.eq('procurement_id', procurementId);
+      if (cursor !== undefined) query = query.gt('id', cursor);
+      const { data, error } = await query.limit(pageSize);
+      if (error) throw error;
+      const page = (data ?? []) as ImportRecordMatch[];
+      rows.push(...page);
+      if (page.length < pageSize) break;
+      cursor = page[page.length - 1].id;
     }
-    return rows;
+  }
+  return rows;
+}
+
+export const supabaseImportSkipLookup: ImportSkipLookup = {
+  async listCases(keys) {
+    return listMatches('procurements', keys);
+  },
+
+  async listCaseRecords(table, procurementId, keys) {
+    return listMatches(table, keys, procurementId);
   },
 
   async findExistingCase(importKey, importBatchId) {

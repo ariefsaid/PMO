@@ -108,3 +108,29 @@ it('indexes same and earlier batch records for the matched case with one read pe
   expect(listCaseRecords).toHaveBeenCalledOnce();
   expect(listCaseRecords).toHaveBeenCalledWith('purchase_requests', 'matched-case', ['same', 'earlier', 'new']);
 });
+
+it('bulk probes 500 case keys during preview', async () => {
+  const listCases = vi.fn().mockResolvedValue([]);
+  const lookup = { findExistingCase: vi.fn().mockResolvedValue(null), findExistingRecord: vi.fn(), findCrossBatchCollision: vi.fn().mockResolvedValue(null), listCases };
+  const result = await buildDryRunConflictReport(Array.from({ length: 500 }, (_, i) => makeGroup(`C${i}`)), { importBatchId: 'batch', skipLookup: lookup });
+  expect(result.wouldCreate).toBe(1000);
+  expect(listCases).toHaveBeenCalledTimes(1);
+  expect(listCases.mock.calls[0][0]).toHaveLength(500);
+  expect(lookup.findExistingCase).not.toHaveBeenCalled();
+});
+
+it('prefers a same-batch case and rejects duplicate same-batch matches in bulk', async () => {
+  const group = makeGroup('C');
+  const { computeCaseImportKey } = await import('../importKey');
+  const key = computeCaseImportKey(group.group);
+  const listCases = vi.fn().mockResolvedValue([
+    { id: 'old', import_key: key, import_batch_id: 'old' },
+    { id: 'same', import_key: key, import_batch_id: 'batch' },
+  ]);
+  const listCaseRecords = vi.fn().mockResolvedValue([]);
+  const lookup = { findExistingCase: vi.fn(), findExistingRecord: vi.fn(), findCrossBatchCollision: vi.fn(), listCases, listCaseRecords };
+  expect(await buildDryRunConflictReport([group], { importBatchId: 'batch', skipLookup: lookup })).toEqual({ wouldCreate: 1, wouldSkip: 1, wouldCollide: 0 });
+  expect(listCaseRecords).toHaveBeenCalledWith('purchase_requests', 'same', expect.any(Array));
+  listCases.mockResolvedValueOnce([{ id: 'a', import_key: key, import_batch_id: 'batch' }, { id: 'b', import_key: key, import_batch_id: 'batch' }]);
+  await expect(buildDryRunConflictReport([group], { importBatchId: 'batch', skipLookup: lookup })).rejects.toThrow('Unexpected duplicate');
+});

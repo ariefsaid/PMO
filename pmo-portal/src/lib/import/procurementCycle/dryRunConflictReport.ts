@@ -5,7 +5,7 @@
  */
 import type { ImportSkipLookup } from '@/src/lib/db/procurementImportSkip';
 import { computeCaseImportKey, computeRecordImportKey } from './importKey';
-import { decideCase, recordDecider, TYPE_TO_TABLE } from './decisions';
+import { caseDecider, recordDecider, TYPE_TO_TABLE } from './decisions';
 import type { CycleType, ValidatedGroup } from './types';
 
 export interface DryRunConflictReport { wouldCreate: number; wouldSkip: number; wouldCollide: number }
@@ -19,11 +19,12 @@ export async function buildDryRunConflictReport(
   let wouldSkip = 0;
   let wouldCollide = 0;
 
+  const decideHeader = caseDecider(skipLookup, validatedGroups.filter(item => item.valid).map(item => computeCaseImportKey(item.group)), importBatchId);
   for (const validated of validatedGroups) {
     if (!validated.valid) continue;
     const { group } = validated;
 
-    const decision = await decideCase(skipLookup, computeCaseImportKey(group), importBatchId);
+    const decision = await decideHeader(computeCaseImportKey(group));
     const count = (kind: 'new' | 'same' | 'other') => {
       if (kind === 'new') wouldCreate++;
       else if (kind === 'same') wouldSkip++;
