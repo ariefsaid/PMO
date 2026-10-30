@@ -1,3 +1,4 @@
+import { toStorageAppError } from '@/src/lib/storageError';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { sanitizeFilename } from '@/src/lib/storageKey';
@@ -19,8 +20,8 @@ export const RECEIPT_INPUT_ACCEPT = RECEIPT_EXTENSIONS.join(',');
 function throwWrite(error: { message: string; code?: string }): never {
   throw new AppError(error.message, error.code);
 }
-function throwStorage(error: { message: string; name?: string }): never {
-  throwWrite({ message: error.message, code: error.name === 'StorageError' ? '42501' : undefined });
+function throwStorage(error: { message: string; status?: number | string; statusCode?: string; code?: string }): never {
+  throw toStorageAppError(error);
 }
 
 export function receiptExtension(fileName: string): string {
@@ -43,17 +44,28 @@ export async function listExpenseReceipts(claimId: string): Promise<ExpenseRecei
   return data ?? [];
 }
 
-export async function prepareExpenseReceiptUpload(claimId: string, fileName: string): Promise<{ signedUrl: string; path: string }> {
+export async function prepareReceiptUploadWithId(
+  claimId: string,
+  fileId: string,
+  fileName: string,
+  stable: boolean,
+): Promise<{ signedUrl: string; path: string }> {
   const ext = receiptExtension(fileName);
   if (!(RECEIPT_EXTENSIONS as readonly string[]).includes(ext)) throw new AppError(`File type not allowed (${ext || 'none'})`);
+  if (stable && !fileId.trim()) throw new AppError('Receipt capture requires a stable file ID.', '22023');
   const { data: claim, error } = await supabase.from('expense_claims').select('org_id').eq('id', claimId).maybeSingle();
   if (error) throwWrite(error);
   if (!claim) throw new AppError('Expense claim not found');
-  const path = buildExpenseReceiptPath((claim as { org_id: string }).org_id, claimId, crypto.randomUUID(), fileName);
+  const path = buildExpenseReceiptPath((claim as { org_id: string }).org_id, claimId, fileId, fileName);
   const { data, error: storageError } = await supabase.storage.from(BUCKET).createSignedUploadUrl(path);
   if (storageError) throwStorage(storageError);
+  if (stable && (!data?.signedUrl || data.path !== path)) throw new AppError('Could not create a stable receipt upload URL.');
   if (!data?.signedUrl) throw new AppError('Could not create upload URL');
   return { signedUrl: data.signedUrl, path: data.path };
+}
+
+export async function prepareExpenseReceiptUpload(claimId: string, fileName: string): Promise<{ signedUrl: string; path: string }> {
+  return prepareReceiptUploadWithId(claimId, crypto.randomUUID(), fileName, false);
 }
 
 export async function confirmExpenseReceiptUpload(claimId: string, path: string, title: string | null): Promise<ExpenseReceiptRow> {

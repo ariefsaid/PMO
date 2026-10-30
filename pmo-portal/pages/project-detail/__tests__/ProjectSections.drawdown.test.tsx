@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -51,6 +51,9 @@ vi.mock('../ProjectProfitLossSection', () => ({ default: () => null }));
 vi.mock('../ProjectSCurve', () => ({ default: () => null }));
 vi.mock('../tabs/BillingTab', () => ({ default: () => null }));
 vi.mock('../tabs/WorkOrdersTab', () => ({ default: () => null }));
+vi.mock('../tabs/ProcurementTab', () => ({ default: ({ onCountChange }: { onCountChange?: (count: number | null) => void }) => <button type="button" onClick={() => onCountChange?.(4)}>Resolve procurement count</button> }));
+vi.mock('../tabs/TasksTab', () => ({ default: ({ onCountChange }: { onCountChange?: (count: number | null) => void }) => <button type="button" onClick={() => onCountChange?.(5)}>Resolve task count</button> }));
+vi.mock('../tabs/DocumentsTab', () => ({ default: ({ onCountChange }: { onCountChange?: (count: number | null) => void }) => <button type="button" onClick={() => onCountChange?.(6)}>Resolve document count</button> }));
 vi.mock('../ProjectBlocks', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../ProjectBlocks')>();
   return {
@@ -86,5 +89,25 @@ describe('Project contract drawdown (#566 / OD-CR-13)', () => {
     expect(drawdown).toHaveTextContent('$100,000');
     expect(drawdown).toHaveTextContent('$900,000');
     expect(within(panel).queryByRole('button', { name: /Drawdown headroom/i })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['procurement', 'Procurement', 4, 'Resolve procurement count'],
+    ['tasks', 'Tasks', 5, 'Resolve task count'],
+    ['documents', 'Documents', 6, 'Resolve document count'],
+  ] as const)('shows the %s count only after its loaded data reports it', async (area, label, count, reportButton) => {
+    render(
+      <FinanceI18nTestProvider>
+        <MemoryRouter>
+          <ProjectSections project={project} area={area} setArea={vi.fn()} isPipeline={false} header={<h1>Alpha</h1>} />
+        </MemoryRouter>
+      </FinanceI18nTestProvider>,
+    );
+
+    const tab = screen.getByRole('tab', { name: label });
+    expect(tab).toBeInTheDocument();
+    await screen.findByRole('tabpanel', { name: label });
+    fireEvent.click(await screen.findByRole('button', { name: reportButton }));
+    expect(screen.getByRole('tab', { name: `${label} ${count}` })).toBeInTheDocument();
   });
 });

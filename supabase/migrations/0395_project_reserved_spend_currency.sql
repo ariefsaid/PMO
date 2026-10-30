@@ -1,5 +1,5 @@
 -- One complete set of reserved positions, under the caller's existing row visibility.
--- Rollback: supabase/migrations/rollback/0394_project_reserved_spend_currency_down.sql
+-- Rollback: supabase/migrations/rollback/0395_project_reserved_spend_currency_down.sql
 create function public.project_reserved_position(p_project_id uuid)
 returns table (project_currency text, budget_currency text, positions jsonb)
 language sql stable security invoker set search_path = public, pg_catalog as $$

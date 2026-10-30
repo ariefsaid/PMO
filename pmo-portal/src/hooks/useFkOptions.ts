@@ -127,18 +127,3 @@ export function useClientCompanyOptions() {
     staleTime: FK_STALE_MS,
   });
 }
-
-/** Project managers as FK options (id→value, full_name→label). */
-export function useProjectManagerOptions() {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<ComboboxOption[]>({
-    queryKey: ['fk-options', 'pm', orgId],
-    queryFn: async () => {
-      const rows = await repositories.profile.listProjectManagers();
-      return rows.map((m) => ({ value: m.id, label: m.full_name }));
-    },
-    enabled: Boolean(orgId),
-    staleTime: FK_STALE_MS,
-  });
-}

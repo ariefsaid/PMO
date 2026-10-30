@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui/Toast';
+import { chartTheme } from '@/src/components/ui/chartTheme';
 
 const state = vi.hoisted(() => ({
   role: 'Finance',
@@ -138,7 +139,7 @@ describe('L12(a): Ready to pay uses the procurement record\'s unpaid balance', (
       invoiced('p2', 'Surge protection', { procurement_invoices: [], total_value: 30_000 }),
     ];
     renderDashboard('Finance');
-    const card = screen.getByRole('heading', { name: 'Ready to pay' }).closest('.rounded-lg.border') as HTMLElement;
+    const card = screen.getByRole('heading', { name: 'Ready to pay' }).closest('.panel-card') as HTMLElement;
     const row = within(card).getByText('Inverter replacement, block B').closest('tr') as HTMLElement;
     expect(row).toHaveTextContent('$62,000');
     expect(card).not.toHaveTextContent('$110,500');
@@ -154,7 +155,7 @@ describe('L12(a): Ready to pay uses the procurement record\'s unpaid balance', (
     state.ageing = { ...state.ageing, payables: [{ procurement, ageDays: 28, amount: null }] } as typeof state.ageing;
     state.erp = [{ id: 'e1', doctype: 'Purchase Invoice', name: 'ACC-PINV-1', procurementId: 'p3', grandTotal: 62_000, outstanding: 62_000, currency: 'USD', isReturn: false, projectIds: [] }];
     renderDashboard('Finance');
-    const card = screen.getByRole('heading', { name: 'Ready to pay' }).closest('.rounded-lg.border') as HTMLElement;
+    const card = screen.getByRole('heading', { name: 'Ready to pay' }).closest('.panel-card') as HTMLElement;
     expect(within(card).getByText('Inverter replacement, block B').closest('tr')).toHaveTextContent('$62,000');
     expect(within(card).queryByText(/has no recorded amount yet/)).toBeNull();
   });
@@ -162,7 +163,7 @@ describe('L12(a): Ready to pay uses the procurement record\'s unpaid balance', (
   it('L12: payments already made reduce the unpaid balance', () => {
     state.procurements = [invoiced('p1', 'Partly paid', { payments: [{ amount: 20_000, status: 'Paid' }] })];
     renderDashboard('Finance');
-    const card = screen.getByRole('heading', { name: 'Ready to pay' }).closest('.rounded-lg.border') as HTMLElement;
+    const card = screen.getByRole('heading', { name: 'Ready to pay' }).closest('.panel-card') as HTMLElement;
     expect(card).toHaveTextContent('$42,000');
   });
 });
@@ -174,10 +175,11 @@ describe('L12(g): purchasing by stage uses Request · Order · Receive · Pay', 
       { status: 'Ordered', count: 3 }, { status: 'Received', count: 1 }, { status: 'Vendor Invoiced', count: 7 }, { status: 'Paid', count: 5 },
     ];
     renderDashboard('Executive');
-    const panel = screen.getByRole('heading', { name: 'Purchasing' }).closest('.rounded-lg.border') as HTMLElement;
+    const panel = screen.getByRole('heading', { name: 'Purchasing' }).closest('.panel-card') as HTMLElement;
     const links = within(panel).getAllByRole('link', { name: /: \d+$/ });
     expect(links.map((link) => link.getAttribute('aria-label'))).toEqual(['Request: 9', 'Order: 3', 'Receive: 1', 'Pay: 12']);
     expect(links.map((link) => link.getAttribute('href'))).toEqual(['/procurement?stage=request', '/procurement?stage=order', '/procurement?stage=receive', '/procurement?stage=pay']);
+    expect(within(panel).getAllByTestId('legend-dot').map((dot) => (dot as HTMLElement).style.background)).toEqual(chartTheme.categorical.slice(0, 4));
     expect(within(panel).queryByText(/Purchase Request|Goods Receipt|Supplier invoiced/)).not.toBeInTheDocument();
   });
 });
@@ -205,7 +207,7 @@ describe('C4: unknown spending is left out and said once', () => {
       { id: 'u', name: 'Unknown', client_name: null, status: 'Ongoing Project', currency: 'USD', budget: 2_000, budget_currency: 'USD', spent: null, variance: null, actual_currency: 'USD', actual_complete: false, actual_coverage_count: 0, actual_coverage_total: 1, actual_as_of: null },
     ];
     renderDashboard('Finance');
-    const card = screen.getByRole('heading', { name: 'Budget review' }).closest('.rounded-lg.border') as HTMLElement;
+    const card = screen.getByRole('heading', { name: 'Budget review' }).closest('.panel-card') as HTMLElement;
     expect(within(card).queryByText('—')).not.toBeInTheDocument();
     expect(card).toHaveTextContent('1 has incomplete spending');
     expect(within(card).getByText('$500')).toBeInTheDocument();
@@ -220,7 +222,7 @@ describe('L6: the ageing source note is said once', () => {
     };
     renderDashboard('Finance');
     expect(screen.getByRole('region', { name: 'Client balances by age · tax included' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Supplier invoices by age · since invoice date' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Supplier invoices by age · since invoiced status or last update' })).toBeInTheDocument();
     expect(screen.getAllByText(/From invoices recorded in PMO/)).toHaveLength(1);
   });
 

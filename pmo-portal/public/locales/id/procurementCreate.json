@@ -41,7 +41,7 @@
   "project": "Proyek",
   "selectProject": "Pilih proyek…",
   "supplier": "Pemasok",
-  "selectSupplier": "Opsional — pilih pemasok…",
+  "selectSupplier": "Opsional: pilih pemasok…",
   "budgetCategory": "Kategori anggaran",
   "linesFailed": "Pengadaan tersimpan, tetapi beberapa item belum tersimpan. Simpan lagi untuk mencoba ulang.",
   "unsaved": {

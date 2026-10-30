@@ -62,7 +62,7 @@ describe('ProjectFormModal in Bahasa (#693 F-2)', () => {
     expect(screen.getByText('Buat proyek', { selector: 'p, div, span' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Buat proyek' })).toBeInTheDocument();
     expect(screen.getByLabelText(/Nama proyek/)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('mis. Terminal Pelabuhan — Pekerjaan Sipil')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('mis. Terminal Pelabuhan: Pekerjaan Sipil')).toBeInTheDocument();
     expect(screen.getByText(/Perusahaan klien/)).toBeInTheDocument();
     // #758: Client and End customer both use the same company placeholder, so it may appear more
     // than once — at least one is required.
@@ -92,7 +92,7 @@ describe('ProjectFormModal in Bahasa (#693 F-2)', () => {
     expect(await screen.findByLabelText(/Perlakuan pajak/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Jumlah pajak/)).toBeInTheDocument();
     expect(screen.getByRole('option', { name: '— pilih —' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: /^Exclusive — pajak ditambahkan di atas jumlahnya$/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /^Exclusive: pajak ditambahkan di atas jumlahnya$/ })).toBeInTheDocument();
     expect(screen.getByTestId('project-tax-required-hint')).toHaveTextContent(/Nyatakan perlakuan pajak/);
   });
 

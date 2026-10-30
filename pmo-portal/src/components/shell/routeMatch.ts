@@ -483,7 +483,11 @@ export function breadcrumbForPath(
         onClick: () => navigate?.('/'),
         ariaLabel: 'My Views — back to Dashboard',
       },
-      viewCrumb,
+      // The create route is not a record deep-link: it renders the working New View form
+      // (tidy audit TA-012) — never the record Loading/Not-found crumbs.
+      ...(pathname === '/views/new'
+        ? [{ label: 'New View', i18nKey: 'viewBuilder.newView' }] // i18n-exempt: fallback label is replaced from i18nKey at render
+        : [viewCrumb]),
     ];
   }
 
@@ -513,9 +517,17 @@ export function breadcrumbForPath(
           ? { label: recordLabel }
           : pathname === '/projects/new'
             ? { label: 'New project', i18nKey: 'projectForm.title.create' } // i18n-exempt: fallback label is replaced from i18nKey at render
-          : recordResolved
-            ? { label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' } // i18n-exempt: fallback label is replaced from i18nKey at render
-            : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' }; // i18n-exempt: fallback label is replaced from i18nKey at render
+            // Create routes render their working forms, never a record — the crumb names the
+            // form instead of a stuck "Loading…" (tidy audit TA-015/018/019).
+            : pathname === '/procurement/new'
+              ? { label: 'New procurement', i18nKey: 'projectDetail.procurement.newRequest' } // i18n-exempt: fallback label is replaced from i18nKey at render
+              : pathname === '/meetings/new'
+                ? { label: 'New meeting', i18nKey: 'meetings.form.newTitle' } // i18n-exempt: fallback label is replaced from i18nKey at render
+                : pathname === '/expenses/new'
+                  ? { label: 'New expense claim', i18nKey: 'expenses.form.claimTitle' } // i18n-exempt: fallback label is replaced from i18nKey at render
+                  : recordResolved
+                    ? { label: 'Not found', i18nKey: 'shell.breadcrumb.recordNotFound' } // i18n-exempt: fallback label is replaced from i18nKey at render
+                    : { label: 'Loading…', i18nKey: 'shell.breadcrumb.recordLoading' }; // i18n-exempt: fallback label is replaced from i18nKey at render
         // FIX-2 (coherence): /projects/:id ALWAYS roots at "Projects", regardless of the
         // record's pipeline status. "Sales Pipeline" is a filter lens, not the record's home —
         // the breadcrumb and rail must agree: the rail highlights "Projects" for /projects/:id,

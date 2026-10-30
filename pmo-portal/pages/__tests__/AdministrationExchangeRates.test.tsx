@@ -252,12 +252,12 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
     renderPage();
     await screen.findByRole('table');
     const summary = screen.getByTestId('fx-page-summary');
-    expect(summary).toHaveTextContent('Dates from Sep 12, 2026 to Oct 31, 2026 — 50 with rates');
+    expect(summary).toHaveTextContent('Dates from Sep 12, 2026 to Oct 31, 2026: 50 with rates');
     expect(summary).toHaveTextContent('earlier rates on the next pages');
 
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     const lastPage = await screen.findByTestId('fx-page-summary');
-    expect(lastPage).toHaveTextContent('Dates from Sep 11, 2026 to Sep 11, 2026 — 1 with rates');
+    expect(lastPage).toHaveTextContent('Dates from Sep 11, 2026 to Sep 11, 2026: 1 with rates');
     expect(lastPage).not.toHaveTextContent('earlier rates on the next pages');
   });
 
@@ -282,7 +282,7 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
     fireEvent.change(input, { target: { files: [file] } });
     expect(await screen.findByText('3 new')).toBeInTheDocument();
     const summary = screen.getByLabelText('Import preview summary');
-    expect(summary).toHaveTextContent('Dates from Oct 5, 2026 to Oct 9, 2026 — 3 with rates');
+    expect(summary).toHaveTextContent('Dates from Oct 5, 2026 to Oct 9, 2026: 3 with rates');
     expect(summary).toHaveTextContent('No rate for Oct 6, 2026, Oct 8, 2026');
   });
 
@@ -297,7 +297,7 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
 
     expect(await screen.findByText('1 new')).toBeInTheDocument();
     const summary = screen.getByLabelText('Import preview summary');
-    expect(summary).toHaveTextContent('Dates from Oct 12, 2026 to Oct 12, 2026 — 1 with rates');
+    expect(summary).toHaveTextContent('Dates from Oct 12, 2026 to Oct 12, 2026: 1 with rates');
     expect(summary).not.toHaveTextContent('No rate for');
   });
 });

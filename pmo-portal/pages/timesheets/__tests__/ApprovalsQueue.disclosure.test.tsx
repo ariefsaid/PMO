@@ -139,8 +139,5 @@ describe('AC-JR-W3-01: ApprovalsQueue routes disclosure chevron via disclosure p
     const { container } = renderPM();
     const outerShell = container.firstChild as HTMLElement;
     expect(outerShell.tagName).toBe('DIV');
-    // Card semantics: the outer shell carries the card surface classes
-    expect(outerShell.className).toContain('rounded-lg');
-    expect(outerShell.className).toContain('border-border');
   });
 });

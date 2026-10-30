@@ -498,7 +498,9 @@ const ProcurementDetails: React.FC = () => {
   // approver (the Approve role set, never the requester) may approve the higher amount. UX only — the
   // server decides eligibility from the approval route and refuses the quote selector / bill recorder.
   const canApproveAmount = canApproveReject(role) && !isRequester;
+  const currentAmountApproval = canApproveAmount && !detailQuery.isPending && !detailQuery.isFetching && !detailQuery.isError && p.paymentEligibility === 'allowed';
   const approveHigherAmount = async (amount: number) => {
+    if (!currentAmountApproval) return;
     try {
       await mutations.approveAmount.mutateAsync(amount);
       toast(t('procurement:ceiling.approved', 'Higher amount approved'), undefined, 'success');
@@ -510,7 +512,8 @@ const ProcurementDetails: React.FC = () => {
     <PaymentCeilingNotice
       ceiling={p.paymentCeiling}
       currency={p.currency}
-      canApprove={canApproveAmount}
+      canApprove={currentAmountApproval}
+      eligibilityReason={detailQuery.isPending || detailQuery.isFetching ? 'checking' : detailQuery.isError ? 'unavailable' : p.paymentEligibility}
       busy={mutations.approveAmount?.isPending ?? false}
       onApprove={approveHigherAmount}
     />
@@ -525,13 +528,13 @@ const ProcurementDetails: React.FC = () => {
   // approver who cannot pay learns who can. Display-only; the transition RPC enforces it.
   const payerSodNote = p.status === 'Vendor Invoiced' && INVOICE_PAY_ROLES.has(role)
     ? isApprover
-      ? t('procurementRecord:sod.approverCannotPay', "Payment must be released by a different finance user — the approver can't also pay this procurement.")
+      ? t('procurementRecord:sod.approverCannotPay', "Payment must be released by a different finance user. The approver can't also pay this procurement.")
       : actionFor('Paid')
-        ? t('procurementRecord:sod.payerHint', "Releasing payment — the approver can't also pay (separation of duties).")
+        ? t('procurementRecord:sod.payerHint', "Releasing payment: the approver can't also pay (separation of duties).")
         : null
     : null;
   const decisionContextNote = p.status === 'Requested' && isRequester ? null : gateMsg ?? (p.status === 'Requested' && !isRequester && actionFor('Approved')
-    ? t('procurementRecord:sod.approverHint', 'You may approve or reject this procurement. The requester cannot self-approve — separation of duties requires a different reviewer.')
+    ? t('procurementRecord:sod.approverHint', 'You may approve or reject this procurement. The requester cannot self-approve. Separation of duties requires a different reviewer.')
     : payerSodNote);
   // AC-IXD-PROC-005: a create affordance disappears once its stage has passed.
   // The GR form is offered only while goods are being received (Ordered |
@@ -968,6 +971,7 @@ const ProcurementDetails: React.FC = () => {
         className="mb-4"
         icon={null}
         name={p.title}
+        statusBelowMetaOnMobile
         status={
           <span data-testid="procurement-status-badge" data-status={p.status}>
             <StatusPill variant={pillVariantForStatus(p.status)}>
@@ -1036,7 +1040,7 @@ const ProcurementDetails: React.FC = () => {
       {approverLimitLine && <p className="mt-2 text-[12.5px] font-medium text-muted-foreground">{approverLimitLine}</p>}
       {decisionContextNote && <p data-testid="sod-ready-hint" className="mb-3 text-[12.5px] text-muted-foreground">{decisionContextNote}</p>}
       {isDraft && p.items.length === 0 && mainAction?.to === 'Requested' && <p data-testid="line-items-gate" className="mb-3 text-[12.5px] text-muted-foreground">{t('procurementRecord:gate.addLineItem', 'Add at least one line item before submitting.')}</p>}
-      {isDraft && isRequester && <p data-testid="sod-pre-announce" className="mb-3 text-[12.5px] text-muted-foreground">{t('procurementRecord:sod.preAnnounce', "Submitting hands this to another approver — you can't approve your own procurement.")}</p>}
+      {isDraft && isRequester && <p data-testid="sod-pre-announce" className="mb-3 text-[12.5px] text-muted-foreground">{t('procurementRecord:sod.preAnnounce', "Submitting hands this to another approver. You can't approve your own procurement.")}</p>}
       {routeNote && !(showVICapture || showCreateGR || showCreateVI) && <p data-testid="approval-route-note" className="mb-3 text-[12.5px] text-muted-foreground">{routeNote}</p>}
       {mainAction?.to === 'Approved' && <label className="mb-4 mt-2 block max-w-xl text-[12px] font-medium text-muted-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
         <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-[13px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />

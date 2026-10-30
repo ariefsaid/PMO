@@ -85,8 +85,8 @@ const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbo
   })();
 
   const basisOptions = [
-    { value: 'unit_rate', label: t('projectTabs:contractQuantities.billing.boqForm.basisUnitRate', 'Unit rate — quantity × rate') },
-    { value: 'lump_sum', label: t('projectTabs:contractQuantities.billing.boqForm.basisLumpSum', 'Lump sum — 1 lot, earned by percent') },
+    { value: 'unit_rate', label: t('projectTabs:contractQuantities.billing.boqForm.basisUnitRate', 'Unit rate: quantity × rate') },
+    { value: 'lump_sum', label: t('projectTabs:contractQuantities.billing.boqForm.basisLumpSum', 'Lump sum: 1 lot, earned by percent') },
   ];
   const itemLabel = t('projectDetail.billing.boqForm.item', 'ERP item');
 

@@ -100,7 +100,7 @@ const WinRateFigure: React.FC<{
           aria-valuemax={100}
           className="block h-3 min-w-12 flex-1 overflow-hidden rounded-full bg-secondary"
         >
-          <span className="block h-full rounded-full bg-success" style={{ width: `${figure.rate === null ? 0 : figure.rate * 100}%` }} />
+          <span className="block h-full rounded-full bg-primary" style={{ width: `${figure.rate === null ? 0 : figure.rate * 100}%` }} />
         </span>
         {detail && <span className="min-w-0 break-words text-[11px] text-muted-foreground">{detail}</span>}
       </div>
@@ -139,7 +139,7 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
   const declined = wr?.declined_count ?? 0;
   const declinedNote = declined > 0 && (
     <p data-testid="win-rate-declined" className="mt-2 text-xs text-muted-foreground">
-      {t('dashboard.winRate.declined', '{{n}} declined to bid — not counted in the win rate', { n: declined })}
+      {t('dashboard.winRate.declined', '{{n}} declined to bid, not counted in the win rate', { n: declined })}
     </p>
   );
 

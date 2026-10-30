@@ -16,7 +16,7 @@ export function nativeRevenueHeadlines(t: T): Record<NativeRevenueRefusal, strin
     'vat-rate-missing': t('financeCopy.vatRateMissing', 'This project has no VAT rate recorded'),
     'not-pmo-native': t('financeCopy.notPmoNative', 'This invoice belongs to the ERP'),
     'erp-owns-revenue': t('financeCopy.erpOwnsRevenue', 'The connected ERP now raises and settles invoices'),
-    'pmo-native': t('financeCopy.pmoNative', "This invoice was raised in PMO \u2014 approve it from Approvals"),
+    'pmo-native': t('financeCopy.pmoNative', "This invoice was raised in PMO. Approve it from Approvals"),
     'withheld-amount-invalid': t('financeCopy.withheldAmountRefused', "Check the withheld tax amount."),
     'receipt-split-mismatch': t('financeCopy.receiptSplitMismatch', "Cash received plus withheld tax must equal the amount paid."),
     'withholding-slip-missing': t('financeCopy.withholdingSlipMissing', "Enter the withholding-slip number."),
@@ -28,7 +28,7 @@ export function nativeRevenueHeadlines(t: T): Record<NativeRevenueRefusal, strin
     'invoice-has-receipts': t('financeCopy.invoiceHasReceipts', "Cancel this invoice's receipts first"),
     'receipt-already-cancelled': t('financeCopy.receiptAlreadyCancelled', "This receipt is already cancelled"),
     'illegal-transition': t('financeCopy.invoiceIllegalTransition', "That change isn't allowed from the invoice's current status."),
-    'sod-self-approval': t('financeCopy.sodSelfApproval', "You raised this invoice \u2014 a different person must approve it"),
+    'sod-self-approval': t('financeCopy.sodSelfApproval', "You raised this invoice. A different person must approve it"),
     'sod-author-missing': t('financeCopy.sodAuthorMissing', "This invoice has no recorded author, so it cannot be approved"),
     'native-drafts-open': t('financeCopy.nativeDraftsOpen', "Invoices raised in PMO are still in draft"),
   };

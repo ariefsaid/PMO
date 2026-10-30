@@ -9,7 +9,10 @@ import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 import { HELP_URL } from '@/src/lib/legalConfig';
 import { useTheme } from '@/src/hooks/useTheme';
+import { useTextSize, type TextSize } from '@/src/hooks/useTextSize';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
+
+const SHOW_LEGAL_SUPPORT = false;
 
 const IMPERSONATION_ROLES = Object.values(UserRole).filter((r) => r !== UserRole.Admin) as Role[];
 
@@ -47,7 +50,6 @@ const MyIntegrationsItem: React.FC<{ className: string; onSelect: () => void }> 
  *   - the Profile & preferences link (`/settings/profile`, still directly routable);
  *   - the Theme section (Light / Dark `menuitemradio`, driven by `useTheme`);
  *   - the sample-org-only, view-only View-as-role section (gated by `canImpersonate`);
- *   - Legal & support (Terms, Privacy, optional Help);
  *   - Sign out.
  *
  * Authority contracts preserved: `canImpersonate` remains the sole UI eligibility input and
@@ -59,6 +61,7 @@ export const AccountMenu: React.FC = () => {
   const { currentUser, signOut } = useAuth();
   const { realRole, effectiveRole, canImpersonate, viewAs } = useEffectiveRole();
   const { theme, setTheme } = useTheme();
+  const { textSize, setTextSize } = useTextSize();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -142,7 +145,7 @@ export const AccountMenu: React.FC = () => {
         aria-expanded={open}
         aria-label={t('shell.contextBar.accountMenu', 'Account menu')}
         onClick={() => setOpen((v) => !v)}
-        className="touch-target inline-flex h-8 max-w-[220px] shrink-0 items-center gap-2 rounded-lg border border-input bg-background pl-1.5 pr-2.5 hover:bg-accent"
+        className="touch-target inline-flex h-8 max-w-[220px] shrink-0 items-center gap-2 rounded-lg border border-transparent bg-card pl-1.5 pr-2.5 hover:bg-accent"
       >
         <span
           aria-hidden
@@ -165,8 +168,8 @@ export const AccountMenu: React.FC = () => {
           onKeyDown={onMenuKeyDown}
           className="absolute right-0 top-full z-50 mt-2 overflow-y-auto rounded-lg border border-border bg-popover p-[5px] shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]"
           style={{
-            width: 'min(320px, calc(100vw - 24px))',
-            maxHeight: 'calc(100dvh - var(--header-h) - 16px)',
+            width: 'min(320px, calc(100vw / var(--app-zoom) - 24px))',
+            maxHeight: 'calc(100dvh / var(--app-zoom) - var(--header-h) - 16px)',
           }}
         >
           {/* Signed-in identity header */}
@@ -234,6 +237,20 @@ export const AccountMenu: React.FC = () => {
             {t('shell.contextBar.themeDark', 'Dark')}
           </button>
 
+          <div className="my-1 border-t border-border" />
+          <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            {t('profilePreferences:textSize.label', 'Text size')}
+          </div>
+          <div role="group" aria-label={t('profilePreferences:textSize.label', 'Text size')}>
+            {(['default', 'large', 'larger'] as TextSize[]).map((size) => (
+              <button key={size} type="button" role="menuitemradio" aria-checked={textSize === size}
+                onClick={() => setTextSize(size)}
+                className={cn(rowBase, textSize === size ? 'bg-primary/10 font-medium text-nav-active-text' : 'text-foreground hover:bg-accent')}>
+                {size === 'default' ? t('profilePreferences:textSize.default', 'Default') : size === 'large' ? t('profilePreferences:textSize.large', 'Large') : t('profilePreferences:textSize.larger', 'Larger')}
+              </button>
+            ))}
+          </div>
+
           {/* Sample-org-only, view-only role preview — gated by the existing canImpersonate. */}
           {canImpersonate && (
             <>
@@ -277,26 +294,31 @@ export const AccountMenu: React.FC = () => {
             </>
           )}
 
-          <div className="my-1 border-t border-border" />
-          <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            {t('shell.contextBar.legalAndSupport', 'Legal & support')}
-          </div>
-          <Link
-            to="/terms"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className={cn(rowBase, 'text-foreground hover:bg-accent')}
-          >
-            {t('shell.contextBar.terms', 'Terms')}
-          </Link>
-          <Link
-            to="/privacy"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className={cn(rowBase, 'text-foreground hover:bg-accent')}
-          >
-            {t('shell.contextBar.privacy', 'Privacy')}
-          </Link>
+          {SHOW_LEGAL_SUPPORT && (
+            <>
+              <div className="my-1 border-t border-border" />
+              <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                {t('shell.contextBar.legalAndSupport', 'Legal & support')}
+              </div>
+              <Link
+                to="/terms"
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className={cn(rowBase, 'text-foreground hover:bg-accent')}
+              >
+                {t('shell.contextBar.terms', 'Terms')}
+              </Link>
+              <Link
+                to="/privacy"
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className={cn(rowBase, 'text-foreground hover:bg-accent')}
+              >
+                {t('shell.contextBar.privacy', 'Privacy')}
+              </Link>
+            </>
+          )}
+
           {HELP_URL && (
             <a
               href={HELP_URL}

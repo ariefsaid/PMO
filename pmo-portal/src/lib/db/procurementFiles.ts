@@ -1,3 +1,4 @@
+import { toStorageAppError } from '@/src/lib/storageError';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { sanitizeFilename } from '@/src/lib/storageKey';
@@ -106,8 +107,8 @@ function throwWrite(error: PostgrestErrorLike): never {
 }
 
 /** Normalize a Supabase StorageError into a code-bearing throw (42501 for access errors). */
-function throwStorage(error: { message: string; name?: string }): never {
-  throwWrite({ message: error.message, code: error.name === 'StorageError' ? '42501' : undefined });
+function throwStorage(error: { message: string; status?: number | string; statusCode?: string; code?: string }): never {
+  throw toStorageAppError(error);
 }
 
 const nullable = (v: string | null | undefined): string | null => {

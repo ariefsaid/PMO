@@ -142,7 +142,7 @@ function moneyError(raw: string, t: TFunction, locale = getNumberLocale()): stri
   if (moneyInputErrorKind(raw, 2, locale) === 'format') {
     const { decimal, group } = numberSymbols(locale);
     return t('projectForm.value.formatError', {
-      defaultValue: 'Use "{{group}}" to group thousands and "{{decimal}}" for decimals — for example {{example}}.',
+      defaultValue: 'Use "{{group}}" to group thousands and "{{decimal}}" for decimals (for example {{example}}).',
       group,
       decimal,
       example: formatMoneyInputValue(1234.56, locale),
@@ -441,7 +441,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             onChange={nameField.onChange}
             onBlur={nameField.onBlur}
             error={nameField.error}
-            placeholder={t('projectForm.name.placeholder', 'e.g. Harborside Terminal — Civil Works')}
+            placeholder={t('projectForm.name.placeholder', 'e.g. Harborside Terminal: Civil Works')}
             fullWidth
           />
 

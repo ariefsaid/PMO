@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { amountFromDashboard, exactFromDashboard, selectCollectedTotals, selectInvoicedTotals, selectUnbilledTotals } from './useCompanyFigures';
 import type { ManagementPack } from '@/src/lib/reports/managementPack';
+import { monthsBetween } from '@/src/lib/reports/months';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import type { UnbilledWorkOrderTotal } from '@/src/lib/db/workOrderBilling';
 
@@ -16,6 +17,28 @@ describe('company period totals', () => {
       { currency: 'USD', amount: 2_000 },
       { currency: 'IDR', amount: 5_000 },
     ]);
+  });
+
+  it('includes both selected ISO months and excludes outside months by currency', () => {
+    const months = monthsBetween('2026-01-01', '2026-04-01');
+    const pack = {
+      totals: [
+        { currency: 'USD', months: months.map((month, index) => ({ month, invoiced: [90_000, 12_345, 6_789, 80_000][index] })) },
+        { currency: 'IDR', months: months.map((month, index) => ({ month, invoiced: [50_000, 10_000, 20_000, 70_000][index] })) },
+      ],
+    } as unknown as ManagementPack;
+
+    expect(selectInvoicedTotals(pack, '2026-02', '2026-03')).toEqual([
+      { currency: 'USD', amount: 191.34 },
+      { currency: 'IDR', amount: 300 },
+    ]);
+    expect(selectInvoicedTotals(pack, '2026-03', '2026-03')).toEqual([
+      { currency: 'USD', amount: 67.89 },
+      { currency: 'IDR', amount: 200 },
+    ]);
+    expect(selectInvoicedTotals(undefined, '2026-02', '2026-03')).toBeUndefined();
+    expect(selectInvoicedTotals(pack, null, '2026-03')).toBeUndefined();
+    expect(selectInvoicedTotals(pack, '2026-02', null)).toBeUndefined();
   });
 
   it('collects only paid receipts dated inside the inclusive period', () => {

@@ -20,6 +20,7 @@ import {
   TaxBasisLabel,
   SelectField,
   Badge,
+  cn,
   useToast,
   type Column,
   type RowMenuItem,
@@ -619,6 +620,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   }
 
   if (invoiceId) {
+    const viewTargetNumber = viewTarget ? invoiceNumber(viewTarget) : null;
     return (
       <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
         <Button variant="ghost" onClick={recordContext.closeRecord} className="mb-4 -ml-3">
@@ -639,8 +641,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
             <header className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
               <div>
                 <h1 className="text-[24px] font-bold tracking-[-0.02em]">
-                  {viewTarget.si_number
-                    ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: viewTarget.si_number })
+                  {viewTargetNumber
+                    ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: viewTargetNumber })
                     : invoiceDisplayLabel(viewTarget)}
                 </h1>
                 <p className="mt-1 text-sm text-muted-foreground">{viewTarget.customer_name ?? '—'}</p>
@@ -1165,7 +1167,9 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
                 updateListParam('status', v);
                 trackFilterApplied('status', statusFilters.length, 'salesInvoices');
               }}
-              className="h-11 min-w-[10rem] text-[16px]"
+              fullWidth
+              wrapperClassName="w-full"
+              className="h-11 w-full text-[16px]"
             />}
             <div data-testid="invoice-filter-group" className={embedded ? (isDesktop ? 'flex shrink-0 items-center gap-2' : 'flex min-w-0 max-w-full flex-wrap items-center gap-2') : 'mt-2 flex flex-wrap items-end gap-2'}>
               {requestedCustomerId && (
@@ -1197,10 +1201,17 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
               )}
               <Button
                 type="button"
-                variant={searchParams.get('overdue') === 'true' ? 'outline' : 'ghost'}
+                variant="outline"
+                size="sm"
                 aria-pressed={searchParams.get('overdue') === 'true'}
                 disabled={!organizationToday && searchParams.get('overdue') !== 'true'}
                 onClick={() => updateListParam('overdue', searchParams.get('overdue') === 'true' ? '' : 'true')}
+                className={cn(
+                  'h-8',
+                  searchParams.get('overdue') === 'true'
+                    ? 'border-primary/40 bg-primary/10 font-semibold text-primary'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
               >{t('uxs05.overdueOnly', 'Overdue only')}</Button>
               {embedded && <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-medium text-muted-foreground">{t('finance:receivables.groupBy', 'Group by')}</span>
@@ -1327,21 +1338,15 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
           </span> : undefined}
           mobileCardDetails={embedded ? (inv) => {
             const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date);
-            const total = invoiceGross(inv) ?? inv.amount;
-            const outstanding = inv.erp_outstanding_amount ?? total;
-            // ponytail: wrap instead of overlap — the money drops to its own line when status + date fill the row.
+            const unknown = (inv.status === 'Unpaid' || inv.status === 'Submitted') && inv.erp_outstanding_amount == null;
+            const total = invoiceGross(inv);
+            const partial = isPartlyPaid(inv);
             return <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                 {statusColumn.cell(inv)}
                 <span className="shrink-0 text-xs text-muted-foreground">{due ? formatDateOnly(due) : '—'}</span>
               </div>
-              {/* O9: a settled, cancelled or untouched invoice shows its total; only a part-paid balance reads "X of total". */}
-              {total != null && (outstanding == null || outstanding === total || outstanding === 0 || inv.status === 'Paid' || inv.status === 'Cancelled')
-                ? <span className="shrink-0 text-right text-xs tabular">{formatCurrency(total, inv.currency)}</span>
-                : <span className="shrink-0 text-right text-xs tabular">
-                  <span>{outstanding == null ? '—' : formatCurrency(outstanding, inv.currency)}</span>
-                  {total != null && <span className="ml-1 text-muted-foreground">{t('finance:receivables.ofTotal', 'of {{total}}', { total: formatCurrency(total, inv.currency) })}</span>}
-                </span>}
+              <span className="text-right text-xs tabular">{inv.tax_treatment === 'inclusive' ? t('finance:receivables.mobileInvoiceAmountInclusive', 'Invoice total incl. PPN') : inv.tax_treatment === 'exclusive' ? t('finance:receivables.mobileInvoiceAmount', 'Invoice total excl. PPN') : t('finance:receivables.mobileInvoiceAmountUnspecified', 'Invoice amount')}: {inv.amount == null ? '—' : formatCurrency(inv.amount, inv.currency)}{total != null && total !== inv.amount && <span className="block">{t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: formatCurrency(total, inv.currency) })}</span>}{unknown ? <span className="block text-muted-foreground">{t('finance:receivables.mobileOutstandingUnknown', 'Outstanding balance unknown')}</span> : inv.erp_outstanding_amount != null && inv.status !== 'Paid' && inv.status !== 'Cancelled' && <span className="block text-muted-foreground">{t('financeCopy.outstanding', 'Outstanding')}: {formatCurrency(inv.erp_outstanding_amount, inv.currency)}{partial && total != null && <span> {t('finance:receivables.ofTotal', 'of {{total}}', { total: formatCurrency(total, inv.currency) })}</span>}</span>}</span>
             </div>;
           } : undefined}
           selection={embedded ? {

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Checkbox, DataTable, MenuButton, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
+import { ExportButton } from '@/src/components/export';
 import { formatCurrency, formatDate } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ErpLinkRow, ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
@@ -16,7 +17,7 @@ export interface ErpOrphansSectionProps {
   projectId?: string;
   /** Who may link (Admin · Executive · PM · Finance); the link RPC is the authority. */
   canLink: boolean;
-  /** Org-wide view: adds a Project column; ids not in the map read "No project". */
+  /** Org-wide view: adds a Project column; unresolved project ids stay visible as unavailable references. */
   projectNames?: ReadonlyMap<string, string>;
   /** Distinguishes the project-tab table from the org-wide one (saved column widths). */
   tableId?: string;
@@ -108,8 +109,12 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
     return items;
   };
 
-  const projectLabel = (r: ErpPurchaseRow) =>
-    r.projectIds.map((id) => projectNames?.get(id)).filter(Boolean).join(', ') || t('erpPurchases.noProject', 'No project');
+  const projectLabel = (r: ErpPurchaseRow) => r.projectIds.length === 0
+    ? t('erpPurchases.noProject', 'No project')
+    : r.projectIds.map((id) => {
+      const name = projectNames?.get(id);
+      return name?.trim() ? name : t('erpPurchases.projectUnavailable', 'Project unavailable ({{id}})', { id });
+    }).join(', ');
   const amountOf = (r: ErpPurchaseRow) => {
     const amount = erpPreTaxAmount(r);
     return amount === null || !r.currency ? '—' : formatCurrency(amount, r.currency);
@@ -142,7 +147,12 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
     { key: 'supplier', header: t('erpPurchases.column.supplier', 'Supplier'), size: 200, cell: (r) => r.supplier ?? '—', exportValue: (r) => r.supplier ?? '' },
     ...(projectNames ? [{
       key: 'project', header: t('erpPurchases.column.project', 'Project'), size: 220,
-      cell: (r: ErpPurchaseRow) => projectLabel(r), exportValue: (r: ErpPurchaseRow) => projectLabel(r),
+      cell: (r: ErpPurchaseRow) => projectLabel(r), exportValue: (r: ErpPurchaseRow) => r.projectIds.length === 0
+        ? projectLabel(r)
+        : r.projectIds.map((id) => {
+          const name = projectNames?.get(id);
+          return name?.trim() ? `${name} (${id})` : t('erpPurchases.projectUnavailable', 'Project unavailable ({{id}})', { id });
+        }).join(', '),
     }] : []),
     { key: 'date', header: t('erpPurchases.column.date', 'Date'), kind: 'date', size: 130, cell: (r) => formatDate(r.docDate), exportValue: (r) => r.docDate ?? '' },
     {
@@ -164,6 +174,12 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
       )),
     }] : []),
   ];
+
+  const exportColumns: Column<ErpPurchaseRow>[] = columns.filter((column) => column.exportValue !== undefined).flatMap((column) =>
+    column.key === 'amount' ? [
+      { ...column, header: t('erpPurchases.column.amountPreTax', 'Amount (pre-tax)') },
+      { key: 'currency', header: t('erpPurchases.column.currency', 'Currency'), cell: () => null, exportValue: (r: ErpPurchaseRow) => r.currency ?? '' },
+    ] : [column]);
 
   return (
     <div>
@@ -206,6 +222,14 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
           )}
         </div>
       )}
+      {projectId === undefined && projectNames && <div className="mb-3 flex justify-end">
+        <ExportButton
+          rows={rows}
+          columns={exportColumns}
+          entity={t('erpPurchases.exportEntity', 'ERP documents')}
+          label={t('erpPurchases.exportList', 'Export list')}
+        />
+      </div>}
       {outcome && <OutcomeNotice outcome={outcome} />}
       <DataTable<ErpPurchaseRow>
         rows={rows}

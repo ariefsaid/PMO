@@ -184,7 +184,8 @@ async function runTabWorkCase(
     await expect(projectFacts.getByRole('link', { name: 'Overview', exact: true })).toHaveCount(0);
     if (viewport.width === 390) {
       // #1402 recomposition: keyboard users reach current financial context through Overview's Money position.
-      const tasksTab = initialSections.getByRole('tab', { name: 'Tasks', exact: true });
+      // The approved section design appends the loaded task count to the tab name.
+      const tasksTab = initialSections.getByRole('tab', { name: /^Tasks(?: \d+)?$/ });
       await tasksTab.focus();
       await page.keyboard.press('Home');
       await page.keyboard.press('Enter');
@@ -195,9 +196,9 @@ async function runTabWorkCase(
       await page.keyboard.press('ArrowRight');
       await expect(initialSections.getByRole('tab', { name: 'Budget', exact: true })).toHaveAttribute('aria-selected', 'true');
       await page.keyboard.press('ArrowRight');
-      await expect(initialSections.getByRole('tab', { name: 'Procurement', exact: true })).toHaveAttribute('aria-selected', 'true');
+      await expect(initialSections.getByRole('tab', { name: /^Procurement(?: \d+)?$/ })).toHaveAttribute('aria-selected', 'true');
       await page.keyboard.press('ArrowRight');
-      await expect(initialSections.getByRole('tab', { name: 'Tasks', exact: true })).toHaveAttribute('aria-selected', 'true');
+      await expect(initialSections.getByRole('tab', { name: /^Tasks(?: \d+)?$/ })).toHaveAttribute('aria-selected', 'true');
     }
   }
 
@@ -247,7 +248,7 @@ async function runTabWorkCase(
     await expect(openTimeline).toHaveAttribute('href', `${projectPath}/tasks?view=timeline`);
     await openTimeline.click();
     await expect(page).toHaveURL(`${projectPath}/tasks?view=timeline`);
-    await expect(sections.getByRole('tab', { name: 'Tasks', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(sections.getByRole('tab', { name: /^Tasks(?: \d+)?$/ })).toHaveAttribute('aria-selected', 'true');
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     if (viewport.width === 1440) {
       const panelBox = await panel.boundingBox();
@@ -259,6 +260,7 @@ async function runTabWorkCase(
   }
 }
 
+// #1402: seed.sql:935-950 has Paid USD 1,680,000 + Ordered USD 680,000, for 2,360,000 committed.
 for (const role of ['pm', 'finance'] as const) {
   test(`UIP-006: ${role} contract and committed values remain visible at 1440px`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -266,11 +268,11 @@ for (const role of ['pm', 'finance'] as const) {
     await page.goto(`${projectPath}/overview`);
     const contractAmount = page.getByRole('region', { name: 'Money position' }).getByTestId('contract-value-amount');
     const budgetActual = page.getByRole('region', { name: 'Budget vs actual' });
-    const committedValue = budgetActual.getByText('Plus 2,558,500 committed in purchase orders', { exact: true });
+    const committedValue = budgetActual.getByText('Plus 2,360,000 committed in purchase orders', { exact: true });
     await expect(contractAmount).toBeVisible();
     // #1402 copy (#1437): the block names USD once in its unit; keep the seeded committed total exact.
     await expect(budgetActual.getByText('USD · excl. PPN', { exact: true })).toBeVisible();
-    await expect(committedValue).toHaveText('Plus 2,558,500 committed in purchase orders');
+    await expect(committedValue).toHaveText('Plus 2,360,000 committed in purchase orders');
     // look relation retired: recomposed (#1402)
   });
 

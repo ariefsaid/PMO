@@ -66,7 +66,6 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
     createDocument: { mutateAsync: vi.fn(), isPending: false },
     deleteDocument: { mutateAsync: vi.fn(), isPending: false },
   }),
-  useProcurementDocuments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/auth/impersonation', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
@@ -281,7 +280,7 @@ describe('Enforcement: PipelineLens renders advance verbs through RecordActionZo
     render(
       <ImpersonationProvider realRole="Project Manager">
         <ToastProvider>
-          <PipelineLens project={pipelineProject} />
+          <MemoryRouter><PipelineLens project={pipelineProject} /></MemoryRouter>
         </ToastProvider>
       </ImpersonationProvider>,
     );

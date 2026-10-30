@@ -32,7 +32,7 @@
 -- shape, the Draft budget line-item editor, an Admin's project hard-delete, and the whole legitimate
 -- two-person win.
 begin;
-select plan(102);
+select plan(109);
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- Fixtures (as postgres — an unattributed BYPASSRLS authority, exempt by design).
@@ -678,6 +678,7 @@ insert into public.projects (id, org_id, name, status, contract_value, tax_treat
   ('01710000-0000-0000-0000-0000000000b5','01710000-0000-0000-0000-000000000001','SCC Self-set deal','Leads',99999999,'exclusive',0);
 select transition_project('01710000-0000-0000-0000-0000000000b5'::uuid,'PQ Submitted'::project_status);
 select transition_project('01710000-0000-0000-0000-0000000000b5'::uuid,'Quotation Submitted'::project_status);
+select is(public.project_win_eligibility('01710000-0000-0000-0000-0000000000b5'), 'reviewer_required', 'AC-SCC-070: self-authored value is ineligible before win');
 select throws_ok(
   $$ select transition_project('01710000-0000-0000-0000-0000000000b5'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-SCC-2', '2026-03-02'::date) $$,
@@ -729,6 +730,7 @@ select lives_ok(
   'AC-SCC-072 ROW 3 the PM''s line manager re-sets the value');
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(public.project_win_eligibility('01710000-0000-0000-0000-0000000000b5'), 'allowed', 'AC-SCC-072: manager-authored value is eligible before win');
 select lives_ok(
   $$ select transition_project('01710000-0000-0000-0000-0000000000b5'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-SCC-2', '2026-03-02'::date) $$,
@@ -750,6 +752,7 @@ select lives_ok(
   'AC-SCC-073 ROW 4 a FINANCE user ratifies the PM''s figure — at the SAME number, which is the ratifier''s natural act and which must still re-stamp the witness');
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(public.project_win_eligibility('01710000-0000-0000-0000-0000000000b6'), 'allowed', 'AC-SCC-073: senior-authored value is eligible before win');
 select lives_ok(
   $$ select transition_project('01710000-0000-0000-0000-0000000000b6'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-SCC-3', '2026-03-02'::date) $$,
@@ -1042,6 +1045,21 @@ select is(
       and grantee in ('authenticated','anon') and privilege_type in ('INSERT','UPDATE')),
   0,
   'AC-SCC-097 no client role holds a COLUMN-level INSERT/UPDATE on the billing claim tables — the RPCs are the sole writers');
+
+reset role;
+set local request.jwt.claims = '{}';
+insert into public.projects(id, org_id, name, status) values
+  ('01710000-0000-0000-0000-0000000000ee','01710000-0000-0000-0000-000000000002','Other project','Leads');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(public.project_win_eligibility('01710000-0000-0000-0000-0000000000ee'), null::text, 'cross-organization win eligibility reveals no detail');
+select is(public.project_win_eligibility('01710000-0000-0000-0000-000000009999'), null::text, 'missing win eligibility reveals no detail');
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"01710000-0000-0000-0000-0000000000a5","role":"authenticated"}';
+select is(public.project_win_eligibility('01710000-0000-0000-0000-0000000000b5'), null::text, 'inactive callers receive no win eligibility detail');
+reset role;
+select ok(not has_function_privilege('anon','public.project_win_eligibility(uuid)','EXECUTE'), 'anonymous callers cannot read win eligibility');
 
 select * from finish();
 rollback;

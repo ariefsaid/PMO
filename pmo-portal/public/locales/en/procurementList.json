@@ -157,6 +157,8 @@
   },
   "orphans": {
     "error": "Couldn't load documents not in a procurement",
+    "projectsError": "Couldn't load project names",
+    "projectsErrorSub": "Retry before reviewing project references.",
     "empty": {
       "title": "Every accounting-system document is in a procurement",
       "sub": "New documents appear here after the next sync."
@@ -164,5 +166,9 @@
   },
   "list": {
     "label": "Procurement list"
+  },
+  "kpi": {
+    "oldestInvoiceBasis_one": "Oldest supplier invoice date (or record creation date) · {{count}} day ago",
+    "oldestInvoiceBasis_other": "Oldest supplier invoice date (or record creation date) · {{count}} days ago"
   }
 }

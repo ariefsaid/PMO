@@ -334,24 +334,24 @@ const ProcurementPage: React.FC = () => {
   const filterControls = (withRaisedBy = true) => (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
       <label className="sr-only" htmlFor="procurement-project-filter">{t('filter.project', 'Project')}</label>
-      <select id="procurement-project-filter" aria-label={t('filter.project', 'Project')} value={projectId} onChange={(event) => updateQuery({ project: event.target.value || null })} className="h-8 max-w-48 rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <select id="procurement-project-filter" aria-label={t('filter.project', 'Project')} value={projectId} onChange={(event) => updateQuery({ project: event.target.value || null })} className="h-8 max-w-48 rounded-md border border-input bg-background px-3 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <option value="">{t('filter.project', 'Project')}</option>
         {projectFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
       <label className="sr-only" htmlFor="procurement-supplier-filter">{t('filter.supplier', 'Supplier')}</label>
-      <select id="procurement-supplier-filter" aria-label={t('filter.supplier', 'Supplier')} value={supplierId} onChange={(event) => updateQuery({ supplier: event.target.value || null })} className="h-8 max-w-48 rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <select id="procurement-supplier-filter" aria-label={t('filter.supplier', 'Supplier')} value={supplierId} onChange={(event) => updateQuery({ supplier: event.target.value || null })} className="h-8 max-w-48 rounded-md border border-input bg-background px-3 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <option value="">{t('filter.supplier', 'Supplier')}</option>
         {supplierFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
       {withRaisedBy && <>
       <label className="sr-only" htmlFor="procurement-raised-by-filter">{t('filter.raisedBy', 'Raised by')}</label>
-      <select id="procurement-raised-by-filter" aria-label={t('filter.raisedBy', 'Raised by')} value={raisedById} onChange={(event) => updateQuery({ raisedBy: event.target.value || null })} className="h-8 max-w-48 rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <select id="procurement-raised-by-filter" aria-label={t('filter.raisedBy', 'Raised by')} value={raisedById} onChange={(event) => updateQuery({ raisedBy: event.target.value || null })} className="h-8 max-w-48 rounded-md border border-input bg-background px-3 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <option value="">{t('filter.raisedBy', 'Raised by')}</option>
         {raisedByFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
       </>}
       <label className="sr-only" htmlFor="procurement-status-filter">{t('filter.status', 'Status')}</label>
-      <select id="procurement-status-filter" aria-label={t('filter.status', 'Status')} value={statusValue} onChange={(event) => changeStatusFilter(event.target.value)} className="h-8 max-w-48 rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <select id="procurement-status-filter" aria-label={t('filter.status', 'Status')} value={statusValue} onChange={(event) => changeStatusFilter(event.target.value)} className="h-8 max-w-48 rounded-md border border-input bg-background px-3 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
     </div>
@@ -378,7 +378,7 @@ const ProcurementPage: React.FC = () => {
         className="relative shrink-0"
         panelClassName="absolute right-0 top-full z-30 mt-1 flex w-auto min-w-48 flex-col gap-1 rounded-md border border-border bg-popover p-2 text-popover-foreground shadow-md"
       >
-        <ExportButton rows={filtered} columns={exportColumns} entity="Procurement" label={t('moreTools.exportList', 'Export list')} className="w-full justify-start" />
+        {tab !== 'orphans' && <ExportButton rows={filtered} columns={exportColumns} entity="Procurement" label={t('moreTools.exportList', 'Export list')} className="w-full justify-start" />}
         {userId && <ImportButton entity="procurement" descriptor={importDescriptor} onImported={() => void refetch()} label={t('moreTools.importProcurements', 'Import procurements')} className="w-full justify-start" />}
         {userId && canCreate && <Button variant="outline" onClick={() => setShowCycleImport(true)} className="w-full justify-start"><Icon name="upload" />{t('moreTools.importCycle', 'Import cycle data')}</Button>}
       </MobileToolbarDisclosure>
@@ -477,7 +477,15 @@ const ProcurementPage: React.FC = () => {
             orphanQuery.isPending ? <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={5} /></div>
               : orphanQuery.isError ? <ListState variant="error" title={t('orphans.error', "Couldn't load documents not in a procurement")} onRetry={() => void orphanQuery.refetch()} />
                 : orphanRows.length === 0 ? <ListState variant="empty" icon="table" title={t('orphans.empty.title', 'Every accounting-system document is in a procurement')} sub={t('orphans.empty.sub', 'New documents appear here after the next sync.')} />
-                  : <Card className="overflow-hidden"><ErpOrphansSection rows={orphanRows} canLink={may('create', 'erpPurchaseLink')} projectNames={projectNames} /></Card>
+                  : projectQueryForOrphans.isPending ? <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={5} /></div>
+                    : projectQueryForOrphans.isError || projectQueryForOrphans.data === undefined
+                      ? <ListState
+                        variant="error"
+                        title={t('orphans.projectsError', "Couldn't load project names")}
+                        sub={t('orphans.projectsErrorSub', 'Retry before reviewing project references.')}
+                        onRetry={() => void projectQueryForOrphans.refetch()}
+                      />
+                      : <Card className="overflow-hidden"><ErpOrphansSection rows={orphanRows} canLink={may('create', 'erpPurchaseLink')} projectNames={projectNames} /></Card>
           )}
 
           {ready && tab !== 'orphans' && all.length === 0 && (

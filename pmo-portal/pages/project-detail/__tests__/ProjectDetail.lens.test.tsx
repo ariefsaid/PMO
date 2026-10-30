@@ -7,6 +7,7 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import ProjectDetail from '../ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { formatCurrency } from '@/src/lib/format';
 
 vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => ({ data: { project_id: 'p1', contract_invoiced: null, remaining_to_invoice: null, invoices: [], budget: null, actuals: { currency: null, as_of: null, total: null, excludes_restricted_rows: false, categories: [] } }, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useProjectVatEditability', () => ({ useProjectVatEditability: () => ({ data: { eligible: true, reason: null, hasInvoices: false }, isPending: false, isFetching: false, isError: false, refetch: vi.fn() }) }));
@@ -86,6 +87,7 @@ vi.mock('@/src/lib/db/opportunity', () => ({
   useOpportunity: () => ({ data: undefined, isPending: false }),
 }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
+  useProjectWinEligibility: () => ({ data: 'allowed' }),
   useProjectTransition: () => ({
     mutate: vi.fn(),
     mutateAsync: vi.fn(),
@@ -200,7 +202,7 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(screen.getByRole('heading', { name: 'Money position' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Budget vs actual' })).toBeInTheDocument();
     // L6: the contract value is shown once on the screen — in Money position, not again in the header facts.
-    expect(within(screen.getByRole('region', { name: /Money position/ })).getByText('$5,000,000')).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: /Money position/ })).getByText(formatCurrency(5_000_000, 'USD'))).toBeInTheDocument();
     expect(within(screen.getByLabelText('Project facts')).queryByText(/5,000,000/)).not.toBeInTheDocument();
     view.unmount();
   });
@@ -210,8 +212,8 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     roleBox.value = 'Engineer';
     tasksState.data = [{ id: 'task-17', name: 'Review drawings', status: 'Blocked', assignee_id: 'u-alice', end_date: '2000-01-01' }];
     const engineer = await renderAt('/projects/p1');
-    const myTasks = screen.getByRole('heading', { name: /My open tasks/ });
-    expect(myTasks).toHaveTextContent('1');
+    const myTasks = screen.getByRole('region', { name: /My open tasks/ });
+    expect(within(myTasks).getByText('1')).toBeVisible();
     expect(screen.queryByRole('heading', { name: /Needs attention/ })).not.toBeInTheDocument();
     expect(screen.queryAllByText('Review drawings is blocked')).toHaveLength(0);
     for (const taskLink of screen.getAllByRole('link', { name: /Review drawings/ })) {
@@ -220,7 +222,7 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(screen.getByRole('heading', { name: 'Phase timeline' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Money position' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Budget vs actual' })).not.toBeInTheDocument();
-    expect(screen.queryByText('$5,000,000')).not.toBeInTheDocument();
+    expect(screen.queryByText(/5,000,000/)).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Budget' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Contract & billing' })).not.toBeInTheDocument();
     await userEvent.click(screen.getByLabelText('More actions'));
@@ -243,15 +245,15 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     tasksState.data = [{ id: 'task-pipeline', name: 'Review scope', status: 'Blocked', assignee_id: 'u-alice', end_date: '2000-01-01' }];
     await renderAt('/projects/d1');
 
-    const myTasks = screen.getByRole('heading', { name: /My open tasks/ });
-    expect(myTasks).toHaveTextContent('1');
+    const myTasks = screen.getByRole('region', { name: /My open tasks/ });
+    expect(within(myTasks).getByText('1')).toBeVisible();
     expect(screen.queryByRole('heading', { name: /Needs attention/ })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Phase timeline' })).toBeInTheDocument();
     for (const taskLink of screen.getAllByRole('link', { name: /Review scope/ })) {
       expect(taskLink).toHaveAttribute('href', '/projects/d1/tasks?open=task-pipeline');
     }
     expect(screen.queryByRole('heading', { name: 'Budget' })).not.toBeInTheDocument();
-    expect(screen.queryByText('$1,200,000')).not.toBeInTheDocument();
+    expect(screen.queryByText(/1,200,000/)).not.toBeInTheDocument();
   });
 
   it('AC-009 support: Overview mounts project totals once, inside Money position, before the phase timeline and Activity', async () => {

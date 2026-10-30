@@ -7,6 +7,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'node:fs';
+import { formatUtcMonthYear } from '../src/lib/format';
 import { signIn, requireServiceRoleKey } from './helpers';
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:54321';
@@ -53,6 +54,11 @@ test('AC-MMP-016: Finance records progress and exports the monthly management pa
     await page.getByRole('link', { name: 'Reports' }).click();
     await expect(page).toHaveURL(/\/reports/);
     await page.getByLabel('As at').fill(ym);
+    await expect(
+      page.getByRole('heading', {
+        name: `Projects as at ${formatUtcMonthYear(new Date(`${ym}-01T00:00:00Z`))}`,
+      }),
+    ).toBeVisible();
 
     const row = page.locator('tr', { hasText: name });
     await expect(row.getByTestId('pack-cell-invoicedToDate')).toHaveText(/250[.,]000/);

@@ -245,11 +245,11 @@ const BudgetAccountMap: React.FC = () => {
         const accounts = accountsByCategory.get(category) ?? [];
         const hasPush = accounts.some((a) => a.isPushTarget);
         if (accounts.length === 0) {
-          return <StatusPill variant="warn">{t('admin.budgetMap.unmapped', 'Not mapped — blocks every push')}</StatusPill>;
+          return <StatusPill variant="warn">{t('admin.budgetMap.unmapped', 'Not mapped: blocks every push')}</StatusPill>;
         }
         return (
           <div className="space-y-2">
-            {!hasPush && <StatusPill variant="warn">{t('admin.budgetMap.noPush', 'No push account — blocks every push')}</StatusPill>}
+            {!hasPush && <StatusPill variant="warn">{t('admin.budgetMap.noPush', 'No push account: blocks every push')}</StatusPill>}
             {accounts.filter((account) => account.isPushTarget).map((account) => (
               <div key={account.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="break-words">{account.erpAccount}</span>

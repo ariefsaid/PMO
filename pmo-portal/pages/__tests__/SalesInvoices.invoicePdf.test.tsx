@@ -186,7 +186,7 @@ describe('SalesInvoices — Download PDF saves the ERP document', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Download PDF' }));
     expect((await toastWith('Preparing PDF…')).kind).toBe('info');
     release(pdf);
-    const done = await toastWith(/PDF downloaded — ACC-SINV-2026-00001\.pdf/);
+    const done = await toastWith(/PDF downloaded: ACC-SINV-2026-00001\.pdf/);
     expect(done.kind).toBe('success');
     expect(queryToastAnnouncement('status', 'Preparing PDF…')).toBeNull();
   });
@@ -280,7 +280,7 @@ describe('SalesInvoices — Download PDF saves the ERP document', () => {
     renderPage('Finance');
     await openMenu(user, 'ACC-SINV-2026-00001');
     await user.click(screen.getByRole('menuitem', { name: 'Download PDF' }));
-    expect((await toastWith('Your session expired — sign in again.', 'alert')).kind).toBe('warning');
+    expect((await toastWith('Your session expired. Sign in again.', 'alert')).kind).toBe('warning');
     expect(screen.queryByText(/PMO could not reach the download service/)).not.toBeInTheDocument();
     expect(triggerBlobDownload).not.toHaveBeenCalled();
   });

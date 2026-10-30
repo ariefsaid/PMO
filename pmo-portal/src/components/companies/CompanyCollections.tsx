@@ -16,7 +16,7 @@ export const CompanyCollections: React.FC<CompanyCollectionsProps> = ({ companyI
   if (!collections.isEnabled) return null;
 
   const position = collections.byCompany.get(companyId) ?? { state: 'unavailable' as const, positions: [] };
-  const invoiceUrl = `/sales-invoices?customer=${encodeURIComponent(companyId)}`;
+  const invoiceUrl = `/finance/receivables?customer=${encodeURIComponent(companyId)}`;
   const overdueUrl = `${invoiceUrl}&overdue=true`;
 
   return (

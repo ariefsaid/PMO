@@ -100,7 +100,7 @@ const LocationProbe = () => {
   return <><button onClick={() => navigate(-1)}>History back</button><button onClick={() => navigate(1)}>History forward</button><output data-testid="location">{`${location.pathname}${location.search}`}</output><button onClick={() => navigate('/sales-invoices?q=INV-002')}>Change search URL</button></>;
 };
 
-function renderAt(url: string, role: 'Finance' | 'Project Manager' = 'Finance', entries = [url]) {
+function renderAt(url: string, role: 'Finance' | 'Project Manager' = 'Finance', entries = [url], embedded = false) {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
       <ImpersonationProvider realRole={role}>
@@ -108,7 +108,7 @@ function renderAt(url: string, role: 'Finance' | 'Project Manager' = 'Finance', 
           <ToastProvider>
             <LocationProbe />
             <Routes>
-              <Route path="/sales-invoices" element={<SalesInvoices />} />
+              <Route path="/sales-invoices" element={<SalesInvoices embedded={embedded} />} />
               <Route path="/sales-invoices/:invoiceId" element={<SalesInvoices />} />
             </Routes>
           </ToastProvider>
@@ -135,6 +135,15 @@ beforeEach(() => {
 });
 
 describe('FIN-S1 / AC-RD-TBL-INV-001: invoice list default state', () => {
+  it('labels the mobile invoice amount and reports an unknown outstanding balance', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({ matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() })));
+    h.invoices.data = [invoice('INV-001', { amount: 1000, tax_amount: 100, erp_outstanding_amount: null })];
+    renderAt('/sales-invoices', 'Finance', undefined, true);
+    expect(screen.getByText(/Invoice total excl. PPN:.*1,000/)).toBeInTheDocument();
+    expect(screen.getByText('Outstanding balance unknown')).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+
   it('shows at most 7 columns, with no Date, Received, separate Customer or empty e-Faktur column', () => {
     renderAt('/sales-invoices');
     const cols = headers();

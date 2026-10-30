@@ -141,7 +141,8 @@
         "unknownCount_one": "{{count}} balance unknown",
         "unknownCount_other": "{{count}} balances unknown",
         "unknownNote_one": "{{count}} supplier invoice has no amount on record, so its balance is left out of the total. Open the procurement to record it.",
-        "unknownNote_other": "{{count}} supplier invoices have no amount on record, so their balances are left out of the total. Open the procurement to record them."
+        "unknownNote_other": "{{count}} supplier invoices have no amount on record, so their balances are left out of the total. Open the procurement to record them.",
+        "oldestBasis": "Calendar days since invoiced status was recorded, or last update if unavailable"
       },
       "attention": {
         "finance": "Needs attention",
@@ -156,7 +157,8 @@
         "unknownCount_other": "{{count}} balances unknown",
         "plusUnknown": "+ {{label}}"
       }
-    }
+    },
+    "payableBucketBasis": "Calendar days since invoiced status was recorded, or last update if unavailable. Unknown balances are counted, not added."
   },
   "nav": {
     "finance": "Finance",
@@ -187,6 +189,8 @@
       "invoicedToDate": "Invoiced to date",
       "invoicedToDateHelp": "Cumulative dated invoice value and invoice count through the as-at month.",
       "invoiceCount": "{{count}} invoices",
+      "invoiceCount_one": "{{count}} invoice",
+      "invoiceCount_other": "{{count}} invoices",
       "thisMonthDelta": "This month {{amount}}",
       "backlog": "Backlog of contract total",
       "backlogHelp": "Contract total minus revenue earned to date; unavailable if a foreign-currency invoice needs reconciliation."

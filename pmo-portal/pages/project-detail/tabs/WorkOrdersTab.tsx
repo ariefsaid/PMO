@@ -130,14 +130,6 @@ function thisMonth(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
 }
 
-const ROLE_RANK: Record<string, number> = {
-  Engineer: 10,
-  'Project Manager': 20,
-  Finance: 30,
-  Executive: 40,
-  Admin: 50,
-};
-
 /** A pending status move awaiting its confirm. */
 interface PendingTransition {
   row: WorkOrderRow;
@@ -169,7 +161,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const { currentUser } = useAuth();
   const { toast } = useToast();
 
-  const { data, isPending, isError, refetch } = useProjectWorkOrders(projectId);
+  const { data, isPending, isFetching, isError, refetch } = useProjectWorkOrders(projectId);
   const { create, update, setValue, transition } = useWorkOrderMutations(projectId);
 
   // `undefined` = closed · `null` = create a draft · a row = edit that draft's body.
@@ -214,6 +206,10 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const openClaimDrawer = (claim: ProgressClaimWithInvoice) => { setClaimDrawerFor(claim); updateOpenRecord(claim.id, 'workOrderClaim'); };
 
   const rows = useMemo(() => data ?? [], [data]);
+  const canIssue = (id: string) => !isPending && !isFetching && !isError && rows.some((row) => row.id === id && row.status === 'Draft' && row.issue_eligibility === 'allowed');
+  const requestIssue = (row: WorkOrderRow) => {
+    if (canIssue(row.id) && may('transition', 'workOrder')) setPending({ row, to: 'Issued' });
+  };
   const prefix = currencySymbol(currency);
 
   // ── ADR-0091: contract lines (allocations) and BAST per work order. One project-scoped read of each, grouped
@@ -361,6 +357,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 
   /** The confirmed status move. An over-ceiling refusal is re-offered; it is never retried automatically. */
   const runTransition = async ({ row, to }: PendingTransition) => {
+    if (to === 'Issued' && (!may('transition', 'workOrder') || !canIssue(row.id))) return;
     try {
       await transition.mutateAsync({ id: row.id, to });
       toast(t('projectDetail.workOrders.toast.transitioned', 'Work order updated'), row.title, 'success');
@@ -376,6 +373,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   };
 
   const runAcknowledgedIssue = async (row: WorkOrderRow) => {
+    if (!may('transition', 'workOrder') || !canIssue(row.id)) return;
     try {
       await transition.mutateAsync({ id: row.id, to: 'Issued', overCommitAck: true });
       toast(t('projectDetail.workOrders.toast.issuedOverCeiling', 'Work order issued over the ceiling'), t('projectDetail.workOrders.toast.issuedOverCeilingSub', 'Your acknowledgement is recorded against this work order.'), 'success');
@@ -418,7 +416,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       if (confirmFor.acceptance.is_final && result && result.dpHeld > 0) setDpHeldAfterClose(result.dpHeld);
       toast(
         result && result.closingValue !== null
-          ? t('projectTabs:contractQuantities.workOrders.acceptances.toast.closed', 'Final BAST confirmed — closed at {{amount}}', { amount: formatCurrency(result.closingValue, currency), interpolation: { escapeValue: false } })
+          ? t('projectTabs:contractQuantities.workOrders.acceptances.toast.closed', 'Final BAST confirmed: closed at {{amount}}', { amount: formatCurrency(result.closingValue, currency), interpolation: { escapeValue: false } })
           : t('projectTabs:contractQuantities.workOrders.acceptances.toast.confirmed', 'BAST confirmed'),
         undefined,
         'success',
@@ -471,7 +469,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       toast(t('projectDetail.billing.claims.toast.raised', 'Invoice raised in the ERP'), undefined, 'success');
     } catch (err) {
       failClaim(err, {
-        '55000': t('projectDetail.billing.claims.errors.claimWithdrawn', "This claim was withdrawn — its invoice can't be raised."),
+        '55000': t('projectDetail.billing.claims.errors.claimWithdrawn', "This claim was withdrawn. Its invoice can't be raised."),
       });
     } finally {
       setRaiseFor(null);
@@ -507,7 +505,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         title: t('projectDetail.workOrders.confirm.close.title', 'Close this work order?'),
         description: t(
           'projectDetail.workOrders.confirm.close.body',
-          'Closing is final. The value stays in the drawdown — closed work orders count as committed, exactly as issued ones do.',
+          'Closing is final. The value stays in the drawdown. Closed work orders count as committed, exactly as issued ones do.',
         ),
         confirmLabel: t('projectDetail.workOrders.confirm.close.confirm', 'Close work order'),
         tone: 'default' as const,
@@ -517,7 +515,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       title: t('projectDetail.workOrders.confirm.cancel.title', 'Cancel this work order?'),
       description: t(
         'projectDetail.workOrders.confirm.cancel.body',
-        'Cancelling is final and cannot be undone — it is how a work order is withdrawn, since there is no delete. Its value stops counting towards the drawdown.',
+        'Cancelling is final and cannot be undone. It is how a work order is withdrawn, since there is no delete. Its value stops counting towards the drawdown.',
       ),
       confirmLabel: t('projectDetail.workOrders.confirm.cancel.confirm', 'Cancel work order'),
       tone: 'destructive' as const,
@@ -607,11 +605,11 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   }, [openRecordId, openRecordType, rows, drawerLineRows, invoiceRows, claimRows, canViewBilling]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-[var(--space-panel-gap)]">
       {canViewBilling && dpNotice !== null && (
         <div role="status" data-testid="wo-dp-held-notice" className="border-b border-border pb-3 text-[13px] text-muted-foreground">
           {t('projectTabs:contractQuantities.workOrders.closing.dpHeld',
-            '{{amount}} of the down payment is still held after closing. Finance should recover the rest with the next progress claim, or refund it explicitly — closing does not clear it.',
+            '{{amount}} of the down payment is still held after closing. Finance should recover the rest with the next progress claim, or refund it explicitly. Closing does not clear it.',
             { amount: formatCurrency(dpNotice, currency), interpolation: { escapeValue: false } })}
         </div>
       )}
@@ -629,8 +627,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         </div>
       )}
 
-      <section aria-labelledby="pd-customer-orders" className="min-w-0">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+      <section aria-labelledby="pd-customer-orders" className="panel-card min-w-0">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-[var(--panel-inset)] py-4">
           <div className="flex flex-wrap items-baseline gap-x-2">
             <h2 id="pd-customer-orders" className="text-sm font-semibold text-foreground">
               {t('projectDetail.contract.orders', 'Customer orders')}
@@ -657,7 +655,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           </div>
         </div>
 
-        <div className="mb-4 flex flex-wrap items-end gap-2">
+        <div className="flex flex-wrap items-end gap-2 px-[var(--panel-inset)] pt-4">
           <label className="flex min-w-[190px] flex-1 flex-col gap-1 text-xs text-muted-foreground sm:flex-none">
             {t('projectDetail.workOrders.filter.orders', 'Order')}
             <select aria-label={t('projectDetail.workOrders.filter.orders', 'Order')} value={orderFilter} onChange={(event) => setOrderFilter(event.target.value)}
@@ -678,7 +676,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         {/* L6/C4: the "Still to invoice" total only adds information across several orders (one order's own line
             already says it); "Not yet submitted" is said only here. An incomplete total is left out — each order
             states why its figures are incomplete. */}
-        {canViewBilling && <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm" role="status">
+        {canViewBilling && rows.length > 0 && billing.data && billing.data.length > 0 && billingTotals.complete && <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 px-[var(--panel-inset)] text-sm" role="status">
           {rows.length > 0 && billing.data && billing.data.length > 0 && billingTotals.complete && <span data-testid="wo-billing-summary" aria-label={t('common:projectDetail.workOrders.billing.summaryTitle', 'Billing against work orders')} className="flex flex-wrap gap-x-4 gap-y-1">
             {billing.data.length > 1 && <span>
               <span className="text-muted-foreground">{t('common:projectDetail.workOrders.billing.stillToInvoice', 'Still to invoice')}</span>
@@ -706,22 +704,23 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           />
         ) : (
           <>
+
             {visibleCustomerOrders.length === 0 && (lineReadsFailed
               ? <ListState variant="error" title={t('projectDetail.cascade.error', "Couldn't load the contract")} onRetry={() => { void boq.refetch(); void projectBilling.refetch(); void lines.refetch(); }} />
               : lineReadsPending ? <ListState variant="loading" rows={3} /> : null)}
-            {!lineReadsPending && !lineReadsFailed && !showQuantities && visibleCustomerOrders.length === 0 && visibleDraftOrders.length === 0 && (
-              <p className="py-3 text-sm text-muted-foreground">
+            {!showQuantities && visibleCustomerOrders.length === 0 && visibleDraftOrders.length === 0 && (
+              <p className="px-[var(--panel-inset)] py-4 text-sm text-muted-foreground">
                 {t('projectDetail.workOrders.emptyRegister', 'No customer orders yet. Client purchase orders are recorded here and draw down the project contract ceiling when issued.')}
               </p>
             )}
             {showQuantities && visibleCustomerOrders.length === 0 && visibleDraftOrders.length === 0 && (
-              <p className="py-3 text-sm text-muted-foreground">
+              <p className="px-[var(--panel-inset)] py-4 text-sm text-muted-foreground">
                 {t('projectDetail.contract.noOrders', 'No customer orders yet.')}
               </p>
             )}
 
             {visibleDraftOrders.length > 0 && (
-              <section aria-labelledby="pd-draft-orders" className="mb-6">
+              <section aria-labelledby="pd-draft-orders" className="mb-6 mt-4 px-[var(--panel-inset)]">
                 <h3 id="pd-draft-orders" className="mb-2 text-xs font-medium text-muted-foreground">
                   {t('projectDetail.workOrders.drafts', 'Draft orders')}
                 </h3>
@@ -730,18 +729,18 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                     const canEdit = may('edit', 'workOrder', { record: { status: row.status } });
                     const canSetValue = may('setValue', 'workOrder', { record: { status: row.status } });
                     const canTransition = may('transition', 'workOrder');
-                    const author = row.value_author;
-                    const issuerRole = currentUser?.role ?? '';
-                    const authorIsSelf = row.order_value_set_by === currentUser?.id;
-                    const authorRelationshipFails = authorIsSelf || !author || author.status !== 'active' || !currentUser?.id
-                      || !(author.manager_id === currentUser.id || (ROLE_RANK[author.role] ?? 0) > (ROLE_RANK[issuerRole] ?? 0));
-                    const issueBlocked = Number(row.order_value ?? 0) > 0 && !['Finance', 'Executive', 'Admin'].includes(issuerRole)
-                      && (!row.order_value_set_at || authorRelationshipFails);
-                    const issueGateBody = !row.order_value_set_at
+                    const issueBlocked = isPending || isFetching || isError || row.issue_eligibility !== 'allowed';
+                    const issueGateBody = isPending || isFetching
+                      ? t('project:workOrderEligibility.checking', 'Checking issue eligibility…')
+                      : isError
+                      ? t('project:workOrderEligibility.unavailable', 'Issue eligibility could not be checked. Refresh this page and try again.')
+                      : row.issue_eligibility === 'missing_witness'
                       ? t('projectDetail.workOrders.issueGate.unstampedBody', 'The value must be set by an authorized reviewer before this order can be issued.')
-                      : authorIsSelf
+                      : row.issue_eligibility === 'self'
                         ? t('projectDetail.workOrders.issueGate.body', 'You set its value. Ask another authorized reviewer to review and issue it.')
-                        : t('projectDetail.workOrders.issueGate.peerBody', 'The value must be set by your supervisor or a more senior active reviewer before it can be issued.');
+                        : row.issue_eligibility === 'reviewer_required' || row.issue_eligibility === 'inactive_reviewer'
+                          ? t('projectDetail.workOrders.issueGate.peerBody', 'The value must be set by your supervisor or a more senior active reviewer before it can be issued.')
+                          : t('project:workOrderEligibility.unavailable', 'Issue eligibility could not be checked. Refresh this page and try again.');
                     return (
                       <li key={row.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
                         <div className="min-w-0">
@@ -758,13 +757,13 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                           {canEdit && <Button variant="ghost" size="sm" onClick={() => setFormFor(row)}>{t('projectDetail.workOrders.action.editOrder', 'Edit order')}</Button>}
                           {canSetValue && <Button variant="ghost" size="sm" onClick={() => setValueFor(row)}>{t('projectDetail.workOrders.action.setValue', 'Set value')}</Button>}
                           {issueBlocked && canTransition ? <GateNotice variant="blocked" className="max-w-sm px-2 py-1.5 text-xs">{issueGateBody}</GateNotice>
-                            : canTransition && <Button variant="ghost" size="sm" onClick={() => setPending({ row, to: 'Issued' })}>{t('projectDetail.workOrders.action.issue', 'Issue')}</Button>}
+                            : canTransition && <Button variant="ghost" size="sm" onClick={() => requestIssue(row)}>{t('projectDetail.workOrders.action.issue', 'Issue')}</Button>}
                           {canTransition && <Button variant="ghost" size="sm" className="text-destructive-text" onClick={() => setPending({ row, to: 'Cancelled' })}>{t('projectDetail.workOrders.action.cancelGeneric', 'Cancel')}</Button>}
                           <MenuButton ariaLabel={t('projectDetail.workOrders.action.orderMenuLabel', 'Actions for {{order}}', { order: row.wo_number ?? row.title })} items={[
                             ...(canEdit ? [{ label: t('projectDetail.workOrders.action.editOrder', 'Edit order'), onClick: () => setFormFor(row) }] : []),
                             ...(canSetValue ? [{ label: t('projectDetail.workOrders.action.setValue', 'Set value'), onClick: () => setValueFor(row) }] : []),
                             ...(!lineReadsPending && !lineReadsFailed && may('create', 'workOrderLine', { record: { status: row.status } }) ? [{ label: t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Allocate contract lines'), onClick: () => setLinesFor(row) }] : []),
-                            ...(!issueBlocked && canTransition ? [{ label: t('projectDetail.workOrders.action.issue', 'Issue'), onClick: () => setPending({ row, to: 'Issued' }) }] : []),
+                            ...(!issueBlocked && canTransition ? [{ label: t('projectDetail.workOrders.action.issue', 'Issue'), onClick: () => requestIssue(row) }] : []),
                             ...(canTransition ? [{ label: t('projectDetail.workOrders.action.cancelGeneric', 'Cancel'), danger: true, onClick: () => setPending({ row, to: 'Cancelled' }) }] : []),
                             { label: t('projectDetail.workOrders.action.viewPo', 'View customer PO'), onClick: () => openPoDrawer(row) },
                           ]} />
@@ -776,7 +775,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               </section>
             )}
 
-            {visibleCustomerOrders.map((row) => {
+            {visibleCustomerOrders.length > 0 && <div className="flex flex-col gap-4 p-[var(--panel-inset)] pt-4">{visibleCustomerOrders.map((row) => {
               const orderAllocations = (projectBilling.data?.contractLines ?? []).flatMap((line) =>
                 line.allocations.filter((allocation) => allocation.workOrderId === row.id).map((allocation) => ({ line, allocation })),
               );
@@ -1021,7 +1020,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                     {(hasOrderLines || bastList.length > 0 || canPrepare || row.status === 'Issued') && (
                       <details className="group">
                         <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-                          {t('projectTabs:contractQuantities.workOrders.quantities.summary', 'Contract lines and BAST — {{wo}}', { wo: row.wo_number ?? row.title })}
+                          {t('projectTabs:contractQuantities.workOrders.quantities.summary', 'Contract lines and BAST: {{wo}}', { wo: row.wo_number ?? row.title })}
                           <span className="ml-2">{t('projectTabs:contractQuantities.workOrders.quantities.counts', '{{lines}} lines · {{basts}} BAST', { lines: rawLines.length, basts: bastList.length })}</span>
                         </summary>
                         <div className="mt-3 flex flex-col gap-4">
@@ -1065,12 +1064,12 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                   </div>
                 </article>
               );
-            })}
+            })}</div>}
           </>
         )}
       </section>
 
-      {canViewBilling && <Card variant="bare" className="min-w-0">
+      {canViewBilling && <Card className="min-w-0">
         <CardHead level={2} className="text-base" actions={<div className="flex flex-wrap items-center gap-2">
           {canAssess && boqRows.length > 0 && <Button variant="outline" size="sm" onClick={() => setAssessOpen(true)}>
             {t('projectDetail.billing.assessment.record', 'Record progress')}
@@ -1084,7 +1083,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         </div>}>
           {t('projectDetail.billing.claims.title', 'Claims & down payment')}
         </CardHead>
-        <CardPad>
+        <CardPad className="pt-0">
           <dl className="mb-4 grid grid-cols-2 gap-x-4 gap-y-3 border-b border-border pb-4 sm:grid-cols-3">
             {/* C4: an unknown figure is left out, never a "—"; N13: billing ahead of the work done reads as that, not a negative. */}
             {summary?.unbilledWork !== null && summary?.unbilledWork !== undefined && <div data-testid="claims-gap">
@@ -1123,7 +1122,10 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               <MoneyFigure label={t('projectDetail.billing.summary.notSubmitted', 'Claims raised, not yet submitted')} value={formatNumberWhole(summary.notSubmitted)} detail={t('projectDetail.billing.source.notSubmitted', 'Source: claim invoices created in accounting but not yet submitted.')} />
             </dl> : <p className="mt-3 text-sm text-muted-foreground">{t('projectDetail.billing.summary.unavailable', 'Billing summary is unavailable.')}</p>}
           </details>
-          <DataTable<ProgressClaimWithInvoice>
+          {!claimsQuery.isPending && !claimsQuery.isError && claimRows.length === 0 ? <ListState variant="empty"
+            title={t('projectDetail.billing.claims.empty', 'No billing claims yet')}
+            sub={t('projectDetail.billing.claims.emptySub', 'A claim bills a down payment or accepted quantities as one invoice.')} /> : <DataTable<ProgressClaimWithInvoice>
+            embedded
             rows={claimRows}
             columns={projectClaimColumns}
             rowKey={(claim) => claim.id}
@@ -1149,14 +1151,13 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             onRetry={() => void claimsQuery.refetch()}
             cardBelow={1000}
             tableId="project-detail-claims-register"
-          />
+          />}
         </CardPad>
       </Card>}
 
-      {canViewBilling && (orderlessInvoices.length > 0 || ((!customerOrders.length && !draftOrders.length) && !invoiceReadReady)) && <section className="min-w-0" role="region" aria-label={t('projectDetail.workOrders.billing.orderlessHeading', 'Invoices without a customer order')} data-testid="orderless-invoices">
-        <div className="mb-3 border-b border-border pb-2">
-          <h2 className="text-sm font-semibold text-foreground">{t('projectDetail.workOrders.billing.orderlessHeading', 'Invoices without a customer order')}</h2>
-        </div>
+      {canViewBilling && (orderlessInvoices.length > 0 || ((!customerOrders.length && !draftOrders.length) && !invoiceReadReady)) && <section className="panel-card min-w-0" role="region" aria-label={t('projectDetail.workOrders.billing.orderlessHeading', 'Invoices without a customer order')} data-testid="orderless-invoices">
+        <CardHead>{t('projectDetail.workOrders.billing.orderlessHeading', 'Invoices without a customer order')}</CardHead>
+        <CardPad className="pt-0">
         {invoicesQuery.isPending ? (
           <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role="status">
             <span>{t('projectDetail.cascade.invoiceLoading', 'Invoice figures are loading.')}</span>
@@ -1172,6 +1173,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           </p>}
           {/* F10: the shared DataTable (resizable columns, mobile cards, row → drawer). */}
           <DataTable<InvoiceWithWorkOrder>
+            embedded
             rows={orderlessInvoices}
             columns={orderlessColumns}
             rowKey={(invoice) => invoice.id}
@@ -1182,6 +1184,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             tableId="project-detail-orderless-invoices"
           />
         </>}
+        </CardPad>
       </section>}
 
       {deliverySelectorOpen && <Drawer open title={t('projectDetail.workOrders.action.recordDelivery', 'Record delivery')} onClose={() => setDeliverySelectorOpen(false)}>
@@ -1223,8 +1226,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               {canViewBilling && selected.rate !== null && <QuantityFigure label={t('projectDetail.cascade.colRate', 'Rate')} value={formatCurrency(selected.rate, currency)} detail={t('projectDetail.cascade.source.rate', 'Source: the rate on this bill of quantities line.')} />}
             </dl>
             <section aria-labelledby="line-order-split">
-              <h4 id="line-order-split" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.lineSplit', 'Per-order split')}</h4>
-              {split.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noLineSplit', 'No order allocation history is available.')}</p> : <ul className="divide-y divide-border border-y border-border text-sm">
+              <h2 id="line-order-split" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.lineSplit', 'Per-order split')}</h2>
+              {split.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noLineSplit', 'No order allocation history is available.')}</p> : <ul className="divide-y divide-border text-sm">
                 {split.map((allocation) => {
                   const order = rows.find((candidate) => candidate.id === allocation.workOrderId);
                   return <li key={allocation.workOrderId} className="flex flex-wrap items-center justify-between gap-2 py-2">
@@ -1237,8 +1240,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               </ul>}
             </section>
             <section aria-labelledby="line-quantity-history">
-              <h4 id="line-quantity-history" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.quantityHistory', 'Quantity history')}</h4>
-              {history.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noConfirmedBastHistory', 'No confirmed BAST quantity history yet.')}</p> : <ul className="divide-y divide-border border-y border-border text-sm">
+              <h2 id="line-quantity-history" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.quantityHistory', 'Quantity history')}</h2>
+              {history.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noConfirmedBastHistory', 'No confirmed BAST quantity history yet.')}</p> : <ul className="divide-y divide-border text-sm">
                 {history.map(({ acceptance, quantity }) => <li key={acceptance.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                   <span>{formatDateOnly(acceptance.acceptance_date)} · {acceptance.is_final ? t('projectTabs:contractQuantities.workOrders.acceptances.final', 'Final') : t('projectTabs:contractQuantities.workOrders.acceptances.stage', 'Stage')}</span>
                   <Tooltip content={t('projectDetail.cascade.source.acceptedHistory', 'Source: quantity recorded on this BAST.') }><span className="cursor-help tabular-nums">{formatNumberExact(quantity)} {selected.item?.unit ?? ''}</span></Tooltip>
@@ -1302,7 +1305,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         </dl>
         <section className="border-t border-border px-4 py-3">
           <h3 className="text-sm font-semibold">{t('projectDetail.billing.claims.evidence', 'Evidence')}</h3>
-          {(claimDrawerFor.evidence ?? []).length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p> : <ul className="mt-2 divide-y divide-border border-y border-border text-sm">
+          {(claimDrawerFor.evidence ?? []).length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p> : <ul className="mt-2 divide-y divide-border text-sm">
             {(claimDrawerFor.evidence ?? []).map((evidence) => <li key={evidence.id} className="flex items-center justify-between gap-3 py-2"><span>{evidence.document_id}</span><StatusPill variant={evidence.document_status === 'active' ? 'won' : 'neutral'}>{evidence.document_status}</StatusPill></li>)}
           </ul>}
         </section>
@@ -1499,6 +1502,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         <ConfirmDialog
           open
           {...confirmCopy(pending)}
+          confirmDisabled={pending.to === 'Issued' && (!may('transition', 'workOrder') || !canIssue(pending.row.id))}
           loading={transition.isPending}
           onConfirm={() => void runTransition(pending)}
           onCancel={() => setPending(null)}
@@ -1532,6 +1536,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             'Acknowledge and issue',
           )}
           loading={transition.isPending}
+          confirmDisabled={!may('transition', 'workOrder') || !canIssue(overCommit.row.id)}
           onConfirm={() => void runAcknowledgedIssue(overCommit.row)}
           onCancel={() => setOverCommit(null)}
         />

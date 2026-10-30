@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -29,6 +30,7 @@ vi.mock('@/src/lib/repositories/projectErpSetup', () => ({ synchronizeErpProject
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => ({ data: { stages: [], projects: [] } }),
 }));
+vi.mock('@/src/hooks/useProjectTransitions', () => ({ useProjectWinEligibility: () => ({ data: 'allowed' }) }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
@@ -61,11 +63,13 @@ const dealRow = {
 
 async function markWon() {
   render(
-    <ImpersonationProvider realRole="Project Manager">
-      <ToastProvider>
-        <PipelineLens project={dealRow} />
-      </ToastProvider>
-    </ImpersonationProvider>,
+    <MemoryRouter>
+      <ImpersonationProvider realRole="Project Manager">
+        <ToastProvider>
+          <PipelineLens project={dealRow} />
+        </ToastProvider>
+      </ImpersonationProvider>
+    </MemoryRouter>,
   );
   await userEvent.click(screen.getByRole('button', { name: /Mark won/i }));
   await userEvent.type(screen.getByLabelText(/Customer contract reference/i), 'CPO-1');

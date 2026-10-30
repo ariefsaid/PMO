@@ -100,7 +100,7 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     expect(screen.getByRole('columnheader', { name: 'Kategori' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Akun ERP' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Aksi' })).toBeInTheDocument();
-    expect(screen.getAllByText('Belum dipetakan — memblokir setiap pengiriman').length).toBe(9);
+    expect(screen.getAllByText('Belum dipetakan: memblokir setiap pengiriman').length).toBe(9);
     const labor = (await screen.findByText('Labor')).closest('tr')!;
     expect(within(labor).getByText('Opsi akun')).toBeInTheDocument();
     await userEvent.click(within(labor).getByText('Opsi akun'));

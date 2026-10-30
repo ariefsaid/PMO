@@ -297,7 +297,7 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
                   </span>
                   {preview.coverage.firstDate && preview.coverage.lastDate && (
                     <span className="text-muted-foreground">
-                      {t('uxs38.previewCoverage', 'Dates from {{first}} to {{last}} — {{count}} with rates', {
+                      {t('uxs38.previewCoverage', 'Dates from {{first}} to {{last}}: {{count}} with rates', {
                         first: formatDateOnly(preview.coverage.firstDate),
                         last: formatDateOnly(preview.coverage.lastDate),
                         count: preview.rows.length,
@@ -334,7 +334,7 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
                       <ul className="space-y-1 text-sm">
                         {preview.rejected.map((item) => (
                           <li key={`${item.row}:${item.reason}`}>
-                            {t('fx.rejected', 'Row {{row}}: {{value}} — {{reason}}', {
+                            {t('fx.rejected', 'Row {{row}}: {{value}} ({{reason}})', {
                               row: item.row,
                               value: item.value ?? '',
                               reason: reasonCopy(item.reason, t),
@@ -367,7 +367,7 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
           <p>
             {t(
               'fx.confirmUploadDescription',
-              'USD → IDR · JISDOR — {{new}} new, {{changed}} changed, {{unchanged}} unchanged.',
+              'USD → IDR · JISDOR: {{new}} new, {{changed}} changed, {{unchanged}} unchanged.',
               {
                 new: preview?.new ?? 0,
                 changed: preview?.changed ?? 0,

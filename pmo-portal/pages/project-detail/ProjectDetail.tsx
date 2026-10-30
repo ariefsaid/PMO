@@ -38,27 +38,30 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
     : t('projectDetail.facts.noDates', 'Dates not set');
   const updated = project.last_update ? formatRelativeTime(project.last_update) : null;
   return (
-    <section aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="mb-6 flex min-w-0 flex-wrap items-center gap-x-5 gap-y-3 border-b border-border/70 pb-4 text-xs text-muted-foreground">
+    <section aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="mb-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/70 pb-2 text-control font-normal text-muted-foreground md:mb-6 md:gap-y-2 md:pb-4">
       {manager && (
         <span className="inline-flex min-w-0 items-center gap-2">
           <span aria-hidden="true" className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-foreground">{initial}</span>
-          <span className="truncate font-medium text-foreground">{manager}</span>
+          <span className="truncate">{manager}</span>
         </span>
       )}
       <span>{dates}</span>
       {/* L6: the contract value lives once on the screen — in Money position (Overview) / Contract & billing. */}
       {progress !== null && (
         <Tooltip content={t('projectDetail.facts.progressTooltip', 'Weighted average of phase completion using each phase weight; source: project phase plan.')}>
-          <span tabIndex={0} className="inline-flex min-w-40 items-center gap-2">
+          {/* Owner tidy ruling 2026-10-29: the segment is content-sized (compact bar,
+              label and value tight) so the meta row keeps ONE consistent gap before
+            "Updated" — the old min-w-40 left dead slack that read as a hole. */}
+          <span tabIndex={0} className="inline-flex items-center gap-2">
             <span>{t('projectDetail.facts.progress', 'Progress')}</span>
-            <ProgressBar value={progress} tone={progress >= 100 ? 'success' : 'primary'} showValue aria-label={t('projectDetail.facts.progressAria', 'Project progress {{percent}}%', { percent: progress })} />
+            <ProgressBar value={progress} tone={progress >= 100 ? 'success' : 'primary'} showValue compact className="[&>span:last-child]:text-control [&>span:last-child]:font-normal" aria-label={t('projectDetail.facts.progressAria', 'Project progress {{percent}}%', { percent: progress })} />
           </span>
         </Tooltip>
       )}
       {phases.isPending && <span>{t('projectDetail.facts.progressLoading', 'Progress loading')}</span>}
       {updated && (
         <Tooltip content={t('projectDetail.facts.updatedTooltip', 'Last updated on {{date}}.', { date: formatInstantDate(project.last_update) })}>
-          <time tabIndex={0} dateTime={project.last_update} className="ml-auto text-muted-foreground">
+          <time tabIndex={0} dateTime={project.last_update} className="text-muted-foreground">
             {t('projectDetail.facts.updated', 'Updated {{when}}', { when: updated })}
           </time>
         </Tooltip>
@@ -186,7 +189,7 @@ const ProjectDetail: React.FC = () => {
         menuContent={<ProjectDetailRail project={project} detailsOnly />} />
       <ProjectHeaderFacts project={project} />
       {isPipelineRecord && <div className="mb-8"><PipelineLens project={project} locationState={location.state} /></div>}
-      <div className="mb-4" />
+      <div className="md:mb-4" />
     </>
   );
 

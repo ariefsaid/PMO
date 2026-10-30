@@ -34,6 +34,12 @@ const isRunAsMain = import.meta.url === pathToFileURL(process.argv[1] ?? '').hre
  */
 export const ALLOWED_SKIPS = [
   {
+    file: 'AC-LEG-024-mobile-account-menu.spec.ts',
+    reason: 'owner hid legal links from the account menu 2026-10-30',
+    restore: 'Unhide the Terms and Privacy links in the account menu.',
+    verified: '2026-10-30',
+  },
+  {
     file: 'serial/AC-WHT-002-receipt-withholding.spec.ts',
     reason: 'Receipt withholding settlement proof requires the local served-functions lane and throwaway ERPNext bench.',
     restore: 'Run with scripts/serve-functions.sh against the local ERPNext bench.',

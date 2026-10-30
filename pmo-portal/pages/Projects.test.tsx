@@ -102,8 +102,8 @@ vi.mock('@/src/hooks/useProjectsDelivery', () => ({
 vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({ useProjectsMoneyCollection: () => projectMoneyState }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: roleBox.value, realRole: roleBox.value, canImpersonate: false, viewAs: vi.fn() }) }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
+  useProjectWinEligibility: () => ({ data: 'allowed' }),
   useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, error: null, isPending: false }),
-  usePipelineStageConfig: () => ({ data: [], isSuccess: true }),
 }));
 // list-working-set-return (#682): the page writes URL changes through the real router navigate
 // (one replace per event), so tests read the REAL location to assert the URL and the record-open
@@ -266,11 +266,14 @@ describe('Projects index — IA-3 (real data)', () => {
     expect(screen.getAllByTestId('project-card').length).toBeGreaterThan(0);
   });
 
-  it('renders status as a StatusPill (dot + text), not a legacy badge (AC-C)', () => {
+  it('renders status as a StatusPill (paired surface + text), not a legacy badge (AC-C)', () => {
     renderPage();
     const pill = screen.getAllByText('Ongoing Project')[0];
-    // The StatusPill carries a 6px dot sibling (color-not-only).
-    expect(pill.querySelector('[data-pill-dot]')).not.toBeNull();
+    // The StatusPill carries the pill chrome + the paired neutral status surface
+    // (owner ban 2026-10-29: the former decorative leading dot is gone; the label
+    // + surface carry the status).
+    expect(pill.className).toContain('rounded-full');
+    expect(pill.className).toContain('bg-status-neutral-surface');
   });
 
   it('CW-7: a zero/missing-budget project states why usage cannot be shown, never literal NaN% or $NaN', () => {
