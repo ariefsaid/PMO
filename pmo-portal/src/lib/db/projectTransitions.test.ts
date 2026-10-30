@@ -16,11 +16,20 @@ vi.mock('@/src/lib/supabase/client', () => ({
 }));
 
 import {
+  getProjectWinEligibility,
   isLegalProjectTransition,
   projectStatusGroup,
   transitionProject,
   listPipelineStageConfig,
 } from './projectTransitions';
+
+describe('win eligibility', () => {
+  it('reads the server decision for the selected project', async () => {
+    mockRpc.mockResolvedValue({ data: 'reviewer_required', error: null });
+    await expect(getProjectWinEligibility('project-1')).resolves.toBe('reviewer_required');
+    expect(mockRpc).toHaveBeenCalledWith('project_win_eligibility', { p_id: 'project-1' });
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Builder helpers

@@ -262,7 +262,7 @@ export const IntegrationsView: React.FC = () => {
     if (refusal?.kind === 'unsupported-version') {
       return t(
         'integrations.organization.readiness.erpActivation.unsupportedVersion',
-        'ERPNext {{version}} is not supported — PMO supports ERPNext {{supported}}. Nothing was activated.',
+        'ERPNext {{version}} is not supported. PMO supports ERPNext {{supported}}. Nothing was activated.',
         {
           version: refusal.versionMajor,
           // The supported set is the server's; the list joins it in the viewer's language ("15 and 16" / "15 dan 16").
@@ -434,7 +434,7 @@ export const IntegrationsView: React.FC = () => {
           if (!isError) {
             if (tier === 'erpnext' && isConnected && !binding?.config?.company) {
               pillVariant = 'warn';
-              pillLabel = t('integrations.organization.readiness.erpActivation.pending', 'Awaiting activation — select a Company to activate');
+              pillLabel = t('integrations.organization.readiness.erpActivation.pending', 'Awaiting activation: select a Company to activate');
             } else if (isConnected) {
               pillVariant = 'won';
               pillLabel = t('integrations.organization.readiness.connected', 'Connected');
@@ -473,7 +473,7 @@ export const IntegrationsView: React.FC = () => {
                 <Icon name="plug" />
                 <h3 className="text-[15px] text-foreground font-semibold">{tierLabel(tier)}</h3>
                 {setupIncomplete
-                  ? <StatusPill variant="warn" className="min-w-0 max-w-full shrink whitespace-normal break-words">{t('uxs07.notReady', 'Not ready yet — {{count}} steps left', { count: missingSetupSteps.length })}</StatusPill>
+                  ? <StatusPill variant="warn" className="min-w-0 max-w-full shrink whitespace-normal break-words">{t('uxs07.notReady', 'Not ready yet: {{count}} steps left', { count: missingSetupSteps.length })}</StatusPill>
                   : tier === 'erpnext' && isConnected && !isConnectedButNotActivated && !canManageIntegrations
                   ? <StatusPill variant="neutral" className="min-w-0 max-w-full shrink whitespace-normal break-words">{t('uxs07.setupAdminRequired', 'Ask an administrator to check setup')}</StatusPill>
                   : tier === 'erpnext' && isConnected && !isConnectedButNotActivated && !erpSetup
@@ -593,13 +593,13 @@ export const IntegrationsView: React.FC = () => {
               {tier === 'clickup' && (
                 <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
                   <Icon name="info" className="size-3.55 shrink-0" aria-hidden="true" />
-                  <span>{t('integrations.organization.readiness.clickupLocation', 'ClickUp is US-hosted SaaS — task-domain data resides with ClickUp')}</span>
+                  <span>{t('integrations.organization.readiness.clickupLocation', 'ClickUp is US-hosted SaaS: task-domain data resides with ClickUp')}</span>
                 </p>
               )}
               {tier === 'erpnext' && (
                 <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
                   <Icon name="info" className="size-3.55 shrink-0" aria-hidden="true" />
-                  <span>{t('integrations.organization.readiness.erpLocation', 'Self-hosted ERP — data resides on your ERPNext instance')}</span>
+                  <span>{t('integrations.organization.readiness.erpLocation', 'Self-hosted ERP: data resides on your ERPNext instance')}</span>
                 </p>
               )}
             </Card>
@@ -758,13 +758,13 @@ export const IntegrationsView: React.FC = () => {
                   {tier === 'clickup' && (
                     <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
                       <Icon name="info" className="size-3.55 shrink-0" aria-hidden="true" />
-                      <span>{t('integrations.organization.readiness.clickupLocation', 'ClickUp is US-hosted SaaS — task-domain data resides with ClickUp')}</span>
+                      <span>{t('integrations.organization.readiness.clickupLocation', 'ClickUp is US-hosted SaaS: task-domain data resides with ClickUp')}</span>
                     </p>
                   )}
                   {tier === 'erpnext' && (
                     <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
                       <Icon name="info" className="size-3.55 shrink-0" aria-hidden="true" />
-                      <span>{t('integrations.organization.readiness.erpLocation', 'Self-hosted ERP — data resides on your ERPNext instance')}</span>
+                      <span>{t('integrations.organization.readiness.erpLocation', 'Self-hosted ERP: data resides on your ERPNext instance')}</span>
                     </p>
                   )}
                 </Card>
@@ -1001,7 +1001,7 @@ const HealthPanel: React.FC<HealthPanelProps> = ({ state, onRetry, t }) => {
         </p>
       ))}
       <p className="flex flex-wrap items-center gap-2 text-muted-foreground">
-        <span>{t('uxs07.liveRecordCheck', 'Not yet verified — review a connected record to confirm the data is usable.')}</span>
+        <span>{t('uxs07.liveRecordCheck', 'Not yet verified: review a connected record to confirm the data is usable.')}</span>
         <a className="font-medium text-foreground underline underline-offset-4" href={recordsHref}>
           {t('uxs07.reviewRecords', 'Review connected records')}
         </a>

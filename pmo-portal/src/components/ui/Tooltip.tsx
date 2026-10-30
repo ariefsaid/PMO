@@ -18,8 +18,8 @@ const GUTTER = 8;
 const GAP = 8;
 
 /**
- * Dark-surface tooltip (DESIGN.md `#tip`). Opens on hover AND focus so it is
- * keyboard-reachable. Portals out of clipping ancestors and clamps its preferred
+ * Inverse dark tooltip surface. Opens on hover AND focus so it is keyboard-reachable.
+ * Portals out of clipping ancestors and clamps its preferred
  * 280px width/position to the viewport. It is non-interactive and never steals focus.
  */
 export const Tooltip: React.FC<TooltipProps> = ({ content, title, children, block = false, className }) => {
@@ -91,17 +91,18 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, title, children, bloc
           id={id}
           data-placement={position?.placement ?? 'bottom'}
           className={cn(
-            'tooltip-surface pointer-events-none fixed z-[900] w-[280px] max-w-[calc(100vw-16px)] rounded-[7px] px-3 py-2 text-[12.5px] leading-snug',
+            'tooltip-surface pointer-events-none fixed z-[900] w-[280px] max-w-[calc(100vw-16px)] rounded-sm px-2 py-1 text-control',
             className,
           )}
           style={{
             left: position?.left ?? GUTTER,
             top: position?.top ?? GUTTER,
             visibility: position ? 'visible' : 'hidden',
+            boxShadow: 'var(--shadow-xs)',
           }}
         >
-          {title && <span className="mb-0.5 block font-bold">{title}</span>}
-          <span className="block text-[hsl(var(--tooltip-muted))]">{content}</span>
+          {title && <span className="mb-1 block font-semibold">{title}</span>}
+          <span className="block text-tooltip-muted">{content}</span>
         </span>,
         document.body,
       )}

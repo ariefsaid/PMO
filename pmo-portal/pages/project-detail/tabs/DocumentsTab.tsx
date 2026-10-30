@@ -1,7 +1,14 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { isMicrosoftFolder } from './documentUtils';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
+import { DocumentFormModal } from './DocumentFormModal';
+import { useDocumentWorkflow } from './useDocumentWorkflow';
+import { useDocumentFiles } from './useDocumentFiles';
+import { MicrosoftEntry } from './ProjectDocumentMicrosoft';
+import { useDocumentMicrosoft } from './useDocumentMicrosoft';
+import { DocumentDrawer, DocumentPreviewPanel, DocumentTitleCell } from './DocumentDrawer';
 import {
   Toolbar,
   SearchMini,
@@ -9,15 +16,7 @@ import {
   DataTable,
   StatusPill,
   ConfirmDialog,
-  Drawer,
-  EntityFormModal,
-  type SubmitError,
-  TextField,
-  SelectField,
-  FormSection,
-  FormGrid,
   GateNotice,
-  useEntityForm,
   useToast,
   Button,
   Icon,
@@ -32,26 +31,16 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useDocuments, useDocumentMutations } from '@/src/hooks/useDocuments';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
-import { useFileUpload } from '@/src/hooks/useFileUpload';
 import { useRevision } from '@/src/hooks/useRevision';
 import { RecordFolderAction } from '@/src/components/m365/RecordFolderAction';
-import { FileCell } from '@/src/components/FileCell';
 import { LinkedDocumentCell } from '@/src/components/m365/LinkedDocumentCell';
-import { MicrosoftDocumentPicker } from '@/src/components/m365/MicrosoftDocumentPicker';
 import { useDocumentLinkPermissions } from '@/src/components/m365/DocumentLinkPermissions';
-import { M365BrowseNotice } from '@/src/components/m365/M365BrowseNotice';
-import { useMicrosoftDocuments } from '@/src/hooks/useMicrosoftDocuments';
-import { getItem } from '@/src/lib/m365/graphClient';
 import { projectOwner, projectReference, validMicrosoftBrowserUrl, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 import { NewRevisionModal } from '@/src/components/NewRevisionModal';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { CATEGORY_OPTIONS } from '@/src/lib/documentCategories';
-import { validateFile } from '@/src/lib/validateFile';
 import { FILE_INPUT_ACCEPT } from '@/src/lib/fileConstants';
-import { repositories } from '@/src/lib/repositories';
 import type {
   ProjectDocumentRow,
-  ProjectDocumentInput,
   DocStatus,
 } from '@/src/lib/db/documents';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
@@ -61,17 +50,14 @@ import { formatDateOnly } from '@/src/lib/format';
 
 export interface DocumentsTabProps {
   projectId: string;
+  /** Reports the register row count (null while unavailable) so the parent chrome can badge it. */
+  onCountChange?: (count: number | null) => void;
   /** The PROJECT's code (loaded by the parent), used to suggest convention folders in the picker. */
   projectCode?: string | null;
 }
 
-/** True for a register row that references a Microsoft folder (reference-only: never issued/approved). */
 /** Search shows only when the register is long enough to need it (owner ruling B7: "search only beyond ~10"). */
 const SEARCH_THRESHOLD = 10;
-const isMicrosoftFolder = (d: ProjectDocumentRow) => d.source === 'onedrive' && d.ms_item_kind === 'folder';
-
-/** The Microsoft entry point in flight: a new document seeded from a reference, or linking an existing Draft. */
-type MicrosoftEntryTarget = { kind: 'create' } | { kind: 'link'; doc: ProjectDocumentRow };
 
 /**
  * Per-project DOCUMENT REGISTER with repository-backed metadata, local-file actions, and
@@ -83,26 +69,6 @@ type MicrosoftEntryTarget = { kind: 'create' } | { kind: 'link'; doc: ProjectDoc
  */
 
 // Status pills use the single workflow variant registry. Labels carry the exact state identity.
-
-interface FormValues {
-  title: string;
-  code: string;
-  category: string;
-  revision: string;
-  doc_date: string;
-}
-
-const validate = (v: FormValues, t: TFunction, isFolder = false): Partial<Record<keyof FormValues, string>> => {
-  const errors: Partial<Record<keyof FormValues, string>> = {};
-  if (!v.title.trim())
-    errors.title = t('projectDetail.documents.form.errors.titleRequired', 'Title is required.');
-  if (!isFolder && !v.category.trim())
-    errors.category = t(
-      'projectDetail.documents.form.errors.categoryRequired',
-      'Category is required.',
-    );
-  return errors;
-};
 
 /**
  * The bare action word for a transition, used as the confirm-dialog title verb.
@@ -124,15 +90,7 @@ function transitionActionLabel(to: DocStatus, t: TFunction): string {
   }
 }
 
-/** A pending status transition launched from a row. */
-interface PendingTransition {
-  doc: ProjectDocumentRow;
-  to: DocStatus;
-  /** Confirm button verb, e.g. "Issue document". */
-  verb: string;
-}
-
-const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = null }) => {
+const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = null, onCountChange }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { t } = useTranslation('project');
   const isDesktop = useIsDesktop();
@@ -141,9 +99,11 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useDocuments(projectId);
+  useEffect(() => {
+    onCountChange?.(isPending || isError || data == null ? null : data.length);
+  }, [data, isError, isPending, onCountChange]);
   const { data: orgProfiles } = useAssignableProfiles();
   const { create, update, transition, remove, link, unlink } = useDocumentMutations(projectId);
-  const { upload, replace, progress, uploadErrors, cancelUpload, clearUploadError } = useFileUpload(projectId);
   const { createRevision } = useRevision(projectId);
 
   const [search, setSearch] = useState('');
@@ -158,18 +118,11 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
 
   // Modal: null = closed; { doc: null } = create; { doc } = edit.
   const [formTarget, setFormTarget] = useState<{ doc: ProjectDocumentRow | null; reference?: MicrosoftReferenceInput } | null>(null);
-  // At most one Microsoft entry (picker or its gate notice) is mounted; closing it precedes any next modal.
-  const [microsoftEntry, setMicrosoftEntry] = useState<MicrosoftEntryTarget | null>(null);
-  const [unlinkTarget, setUnlinkTarget] = useState<ProjectDocumentRow | null>(null);
-  // Latest-file revision: the metadata is re-read BEFORE the form opens so the child references
-  // what Microsoft holds now, never a copied baseline.
-  const [latestRevision, setLatestRevision] = useState<{ parent: ProjectDocumentRow; reference: MicrosoftReferenceInput } | null>(null);
-  const [latestBusy, setLatestBusy] = useState<string | null>(null);
-  const [pending, setPending] = useState<PendingTransition | null>(null);
+  const { microsoftEntry, setMicrosoftEntry, unlinkTarget, setUnlinkTarget, latestRevision,
+    setLatestRevision, startLatestRevision, onUnlinkConfirm, onSelectReference } = useDocumentMicrosoft(
+    documentLinkPermissions, link, unlink, (reference) => setFormTarget({ doc: null, reference }),
+  );
   const [deleteTarget, setDeleteTarget] = useState<ProjectDocumentRow | null>(null);
-  // The author who tried to act on their own Issued document (SoD block) — drives the
-  // inline GateNotice that explains why Approve/Reject is unavailable.
-  const [sodBlocked, setSodBlocked] = useState<ProjectDocumentRow | null>(null);
   // The selected document lives in URL state so copied register links reopen the same preview.
   const drawerId = searchParams.get('open');
   const setDrawerDoc = useCallback((doc: ProjectDocumentRow | null) => {
@@ -180,9 +133,6 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       return next;
     }, { replace: doc === null });
   }, [setSearchParams]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [activeFileDoc, setActiveFileDoc] = useState<{ docId: string; mode: 'upload' | 'replace' } | null>(null);
-  const [clientUploadErrors, setClientUploadErrors] = useState<Record<string, string>>({});
   const [revisionParent, setRevisionParent] = useState<ProjectDocumentRow | null>(null);
 
   const currentUserId = currentUser?.id ?? null;
@@ -195,19 +145,20 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   const canDelete = may('delete', 'document');
   const canApprove = may('transition', 'documentStatus');
 
+  const { pending, setPending, sodBlocked, setSodBlocked, reviewUnavailableLabel,
+    isOwnDocument, statusActions, allowedStatusTargets, onTransitionConfirm } = useDocumentWorkflow({
+    canWriteDocs, canApprove, currentUserId, transition,
+  });
+
   // A-7 (rbac-visibility §H): Edit a document = ◆ author. The policy predicate is record-scoped,
   // so pass the row's author_id + the current user. Admin is break-glass (edit is not an SoD
   // axis). RLS/RPC stays the authority; this is FE clarity.
   const canEditDoc = (d: ProjectDocumentRow) =>
     may('edit', 'document', { currentUserId, record: { author_id: d.author_id } });
 
-  // Used as a row-menu label AND as the identity the drawer filters that row out by.
-  const reviewUnavailableLabel = t(
-    'projectDetail.documents.action.whyUnavailable',
-    'Why is review unavailable?',
-  );
-
   const all = useMemo(() => (data ?? []) as ProjectDocumentRow[], [data]);
+  const { fileInputRef, handleFileSelected, handleDownload, openPreview, downloadSelected, drawerFileContent, fileCell } =
+    useDocumentFiles(projectId, all, canEditDoc);
   const profileNames = useMemo(
     () => new Map<string, string>((orgProfiles ?? []).map((profile) => [profile.id, profile.full_name?.trim() ?? ''] as const)),
     [orgProfiles],
@@ -241,10 +192,12 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   }, [all]);
 
   const childDocumentsByParentId = useMemo(() => {
-    const map = new Map<string, ProjectDocumentRow>();
+    const map = new Map<string, ProjectDocumentRow[]>();
     all.forEach((doc) => {
       if (doc.parent_document_id) {
-        map.set(doc.parent_document_id, doc);
+        const children = map.get(doc.parent_document_id) ?? [];
+        children.push(doc);
+        map.set(doc.parent_document_id, children);
       }
     });
     return map;
@@ -307,10 +260,6 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     },
     rowLabel: (doc) => t('projectDetail.documents.selectDocument', 'Select {{title}}', { title: doc.title }),
   };
-
-  // approver ≠ author (Document approval SoD): the author can never approve/reject their own doc.
-  const isOwnDocument = (d: ProjectDocumentRow) =>
-    !!currentUserId && d.author_id === currentUserId;
 
   // A complete Microsoft reference renders through the shared linked-document details in the
   // preview; a row with an incomplete reference remains an ordinary upload/source row.
@@ -390,7 +339,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         <DocumentTitleCell
           doc={d}
           parentDoc={d.parent_document_id ? (documentsById.get(d.parent_document_id) ?? null) : null}
-          childDoc={childDocumentsByParentId.get(d.id) ?? null}
+          childDocs={childDocumentsByParentId.get(d.id) ?? []}
           onViewDocument={setDrawerDoc}
         />
       ),
@@ -445,65 +394,11 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     } satisfies Column<ProjectDocumentRow>] : []),
   ];
 
-  /** The status actions available on a row, per the workflow + SoD + role gates. */
-  const statusActions = (d: ProjectDocumentRow): RowMenuItem[] => {
-    // A Microsoft folder is a reference only: it is never issued, approved or closed.
-    if (isMicrosoftFolder(d)) return [];
-    const items: RowMenuItem[] = [];
-    // Draft → Issued (a non-approval move: any document write-role).
-    if (d.status === 'Draft' && canWriteDocs) {
-      items.push({ label: t('projectDetail.documents.action.issue', 'Issue'), onClick: () => setPending({ doc: d, to: 'Issued', verb: t('projectDetail.documents.verb.issue', 'Issue document') }) });
-    }
-    // Issued → Approved / Rejected (the SoD step: approver must NOT be the author).
-    if (d.status === 'Issued' && canApprove) {
-      if (isOwnDocument(d)) {
-        // Author of their own document: the approve/reject path is hidden; expose the reason.
-        items.push({ label: reviewUnavailableLabel, onClick: () => setSodBlocked(d) });
-      } else {
-        items.push({ label: t('projectDetail.documents.action.approve', 'Approve'), onClick: () => setPending({ doc: d, to: 'Approved', verb: t('projectDetail.documents.verb.approve', 'Approve document') }) });
-        items.push({ label: t('projectDetail.documents.action.reject', 'Reject'), onClick: () => setPending({ doc: d, to: 'Rejected', verb: t('projectDetail.documents.verb.reject', 'Reject document') }), danger: true });
-      }
-    }
-    // Approved → Closed (terminal close-out: any document write-role).
-    if (d.status === 'Approved' && canWriteDocs) {
-      items.push({ label: t('projectDetail.documents.action.close', 'Close'), onClick: () => setPending({ doc: d, to: 'Closed', verb: t('projectDetail.documents.verb.close', 'Close document') }) });
-    }
-    // Rejected → Draft (rework path) / Rejected → Closed (abandon path). AC-W3-B2.
-    // These are non-approval moves (same gate as Draft→Issued / Approved→Closed: canWriteDocs).
-    // The SoD approver≠author rule applies only to the Issued→Approved/Rejected step; not here.
-    if (d.status === 'Rejected' && canWriteDocs) {
-      items.push({ label: t('projectDetail.documents.action.reopen', 'Reopen for revision'), onClick: () => setPending({ doc: d, to: 'Draft', verb: t('projectDetail.documents.verb.reopen', 'Reopen for revision') }) });
-      items.push({ label: t('projectDetail.documents.action.close', 'Close'), onClick: () => setPending({ doc: d, to: 'Closed', verb: t('projectDetail.documents.verb.close', 'Close document') }) });
-    }
-    return items;
-  };
-
-  const allowedStatusTargets = (doc: ProjectDocumentRow): DocStatus[] => {
-    if (isMicrosoftFolder(doc)) return [];
-    if (doc.status === 'Draft' && canWriteDocs) return ['Issued'];
-    if (doc.status === 'Issued' && canApprove && !isOwnDocument(doc)) return ['Approved', 'Rejected'];
-    if (doc.status === 'Approved' && canWriteDocs) return ['Closed'];
-    if (doc.status === 'Rejected' && canWriteDocs) return ['Draft', 'Closed'];
-    return [];
-  };
   const bulkStatusTargets = selectedDocuments.length > 0
     ? allowedStatusTargets(selectedDocuments[0]).filter((target) =>
         selectedDocuments.every((doc) => allowedStatusTargets(doc).includes(target)),
       )
     : [];
-
-  const openPreview = (doc: ProjectDocumentRow) => {
-    const reference = projectReference(doc);
-    if (reference?.web_url) {
-      if (!validMicrosoftBrowserUrl(reference.web_url)) {
-        toast(t('m365Documents.cell.openRefused', 'This Microsoft link cannot be opened.'), undefined, 'warning');
-        return;
-      }
-      window.open(reference.web_url, '_blank', 'noopener,noreferrer');
-      return;
-    }
-    void handlePreview(doc);
-  };
 
   const copyDocumentLink = async (doc: ProjectDocumentRow) => {
     try {
@@ -557,26 +452,6 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     return items;
   };
 
-  const onTransitionConfirm = async () => {
-    if (!pending) return;
-    const { doc, to } = pending;
-    try {
-      await transition.mutateAsync({ id: doc.id, status: to });
-      // ⚑ `to` is a raw DB status folded into an English sentence. The shell is
-      // translatable; the status word itself still arrives in English (see handover).
-      toast(
-        `${t('projectDetail.documents.toast.transitioned', 'Document')} ${to.toLowerCase()}`,
-        doc.title,
-        'success',
-      );
-      setPending(null);
-    } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
-      toast(headline, detail, 'warning');
-      setPending(null);
-    }
-  };
-
   const onBulkStatusConfirm = async () => {
     if (!pendingBulkStatus) return;
     const targets = selectedDocuments.filter((doc) => allowedStatusTargets(doc).includes(pendingBulkStatus));
@@ -609,14 +484,6 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         'warning',
       );
     }
-  };
-
-  const downloadSelected = async () => {
-    selectedDocuments.forEach((doc) => {
-      const url = !doc.file_path ? projectReference(doc)?.web_url : null;
-      if (url && validMicrosoftBrowserUrl(url)) window.open(url, '_blank', 'noopener,noreferrer');
-    });
-    for (const doc of selectedDocuments.filter((item) => Boolean(item.file_path))) await handleDownload(doc);
   };
 
   const exportSelectedRegister = () => {
@@ -664,153 +531,6 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     }
   };
 
-  const removeClientUploadError = (docId: string) => {
-    setClientUploadErrors((prev) => {
-      const next = { ...prev };
-      delete next[docId];
-      return next;
-    });
-  };
-
-  const clearAnyUploadError = (docId: string) => {
-    removeClientUploadError(docId);
-    clearUploadError(docId);
-  };
-
-  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !activeFileDoc) return;
-
-    const target = all.find((doc) => doc.id === activeFileDoc.docId);
-    if (!target || target.status !== 'Draft' || !canEditDoc(target)) {
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      setActiveFileDoc(null);
-      return;
-    }
-    clearAnyUploadError(activeFileDoc.docId);
-    const validation = validateFile(file);
-    if (!validation.ok) {
-      setClientUploadErrors((prev) => ({
-        ...prev,
-        [activeFileDoc.docId]:
-          validation.message ??
-          t('projectDetail.documents.fileValidationFailed', 'File validation failed'),
-      }));
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      setActiveFileDoc(null);
-      return;
-    }
-
-    if (activeFileDoc.mode === 'upload') {
-      upload.mutate({ docId: activeFileDoc.docId, file });
-    } else {
-      replace.mutate({ docId: activeFileDoc.docId, file });
-    }
-
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    setActiveFileDoc(null);
-  };
-
-  const handleUploadClick = (docId: string) => {
-    const doc = all.find((item) => item.id === docId);
-    if (!doc || doc.status !== 'Draft' || !canEditDoc(doc)) return;
-    clearAnyUploadError(docId);
-    setActiveFileDoc({ docId, mode: 'upload' });
-    fileInputRef.current?.click();
-  };
-
-  const handleReplaceClick = (docId: string) => {
-    const doc = all.find((item) => item.id === docId);
-    if (!doc || doc.status !== 'Draft' || !canEditDoc(doc)) return;
-    clearAnyUploadError(docId);
-    setActiveFileDoc({ docId, mode: 'replace' });
-    fileInputRef.current?.click();
-  };
-
-  const handleDownload = async (doc: ProjectDocumentRow) => {
-    if (!doc.file_path) return;
-    try {
-      const url = await repositories.document.getSignedUrl(doc.file_path, { download: true });
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = doc.file_path.split('/').pop() || 'file';
-      a.click();
-    } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
-      toast(headline, detail, 'warning');
-    }
-  };
-
-  const handlePreview = async (doc: ProjectDocumentRow) => {
-    if (!doc.file_path) return;
-    try {
-      const url = await repositories.document.getSignedUrl(doc.file_path);
-      window.open(url, '_blank', 'noopener,noreferrer');
-    } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
-      toast(headline, detail, 'warning');
-    }
-  };
-
-  // C4: the drawer shows a File field only when there is a file, a Draft to upload to, an upload in flight or an error.
-  const drawerFileContent = (doc: ProjectDocumentRow) => (doc.source !== 'onedrive'
-    && (doc.file_path || doc.status === 'Draft' || progress[doc.id] != null || clientUploadErrors[doc.id] || uploadErrors[doc.id]) ? fileCell(doc) : undefined);
-  const fileCell = (doc: ProjectDocumentRow) => {
-    if (doc.source === 'onedrive') return <span className="text-muted-foreground">{'—'}</span>;
-    return (
-      <FileCell
-        status={String(doc.status)}
-        filePath={doc.file_path}
-        title={doc.title}
-        uploadProgress={progress[doc.id] ?? null}
-        uploadError={clientUploadErrors[doc.id] ?? uploadErrors[doc.id]?.message ?? null}
-        onUpload={doc.status === 'Draft' && canEditDoc(doc) ? () => handleUploadClick(doc.id) : undefined}
-        onReplace={doc.status === 'Draft' && canEditDoc(doc) ? () => handleReplaceClick(doc.id) : undefined}
-        onCancelUpload={progress[doc.id] != null ? () => cancelUpload(doc.id) : undefined}
-        onRemoveError={clientUploadErrors[doc.id] || uploadErrors[doc.id] ? () => clearAnyUploadError(doc.id) : undefined}
-        onDownload={doc.file_path ? () => void handleDownload(doc) : undefined}
-        onPreview={doc.file_path ? () => void handlePreview(doc) : undefined}
-      />
-    );
-  };
-
-  // Re-read the file's CURRENT identity from Microsoft before offering the revision form. Failure
-  // never creates anything and never discloses a raw Microsoft body (generic reviewed copy only).
-  const startLatestRevision = async (parent: ProjectDocumentRow) => {
-    const current = projectReference(parent);
-    if (!current || latestBusy || !documentLinkPermissions.projectCreate()) return;
-    setLatestBusy(parent.id);
-    try {
-      const item = await getItem(current);
-      if (item.item_kind !== 'file') throw new Error('not-a-file');
-      setLatestRevision({
-        parent,
-        reference: { drive_id: item.drive_id, item_id: item.item_id, web_url: item.web_url, name: item.name, item_kind: 'file' },
-      });
-    } catch {
-      toast(
-        t('m365Documents.latestFailedTitle', 'Could not read the latest file'),
-        t('m365Documents.latestFailed', 'Microsoft could not load this file. Check access and SharePoint availability with your Microsoft admin, or retry.'),
-        'warning',
-      );
-    } finally {
-      setLatestBusy(null);
-    }
-  };
-
-  const onUnlinkConfirm = async () => {
-    if (!unlinkTarget || !documentLinkPermissions.projectEdit(unlinkTarget.author_id, unlinkTarget.status)) return;
-    const target = unlinkTarget;
-    try {
-      await unlink.mutateAsync(target.id);
-      toast(t('m365Documents.unlinked', 'Reference removed'), target.title, 'success');
-    } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
-      toast(headline, detail, 'warning');
-    }
-    setUnlinkTarget(null);
-  };
-
   const handleCreateRevision = (data: { title: string; code: string; category: string; revision: string; doc_date: string; microsoft?: MicrosoftReferenceInput }) => {
     const parent = latestRevision?.parent ?? revisionParent;
     if (!parent || (data.microsoft && !documentLinkPermissions.projectCreate())) return;
@@ -835,7 +555,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   };
 
   const previewParentDoc = drawerDoc?.parent_document_id ? documentsById.get(drawerDoc.parent_document_id) ?? null : null;
-  const previewChildDoc = drawerDoc ? childDocumentsByParentId.get(drawerDoc.id) ?? null : null;
+  const previewChildDocs = drawerDoc ? childDocumentsByParentId.get(drawerDoc.id) ?? [] : [];
   const previewTransitions = drawerDoc ? statusActions(drawerDoc).filter((action) => action.label !== reviewUnavailableLabel) : [];
   const previewSodBlocked = Boolean(drawerDoc && drawerDoc.status === 'Issued' && canApprove && isOwnDocument(drawerDoc));
   const previewCanEdit = Boolean(drawerDoc && canEditDoc(drawerDoc) && drawerDoc.status !== 'Closed' && drawerDoc.status !== 'Superseded');
@@ -877,20 +597,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         <MicrosoftEntry
           code={projectCode}
           onClose={() => setMicrosoftEntry(null)}
-          onSelect={async (reference) => {
-            if (microsoftEntry.kind === 'link') {
-              if (!documentLinkPermissions.projectEdit(microsoftEntry.doc.author_id, microsoftEntry.doc.status)) return;
-              // A failure propagates: the picker keeps the selection and shows its own persistent alert.
-              await link.mutateAsync({ id: microsoftEntry.doc.id, reference });
-              toast(t('m365Documents.linked', 'Microsoft item linked'), microsoftEntry.doc.title, 'success');
-              setMicrosoftEntry(null);
-            } else {
-              if (!documentLinkPermissions.projectCreate()) return;
-              // Close the picker FIRST, then open the ordinary form seeded with the reference.
-              setMicrosoftEntry(null);
-              setFormTarget({ doc: null, reference });
-            }
-          }}
+          onSelect={onSelectReference}
         />
       )}
 
@@ -923,7 +630,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         </GateNotice>
       )}
 
-      <Toolbar className="mb-3.5 min-w-0 border-0 bg-transparent px-0 py-0">
+      <Toolbar standalone className="min-w-0 border-0 bg-transparent px-[var(--panel-inset)] py-3">
         <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
           {/* B7: search earns its place only beyond about ten documents; the filters cover a short register. */}
           {(all.length > SEARCH_THRESHOLD || search) && <SearchMini
@@ -1007,7 +714,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
           <span className="mr-auto text-sm font-medium text-foreground">
             {t('projectDetail.documents.bulk.selected', '{{count}} selected', { count: selectedDocuments.length })}
           </span>
-          <Button variant="outline" size="sm" disabled={!selectedDocumentsHaveFile} onClick={() => void downloadSelected()}>
+          <Button variant="outline" size="sm" disabled={!selectedDocumentsHaveFile} onClick={() => void downloadSelected(selectedDocuments)}>
             {t('projectDetail.documents.bulk.download', 'Download')}
           </Button>
           {bulkStatusOpen ? (
@@ -1097,7 +804,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
             <DocumentPreviewPanel
               doc={drawerDoc}
               parentDoc={previewParentDoc}
-              childDoc={previewChildDoc}
+              childDocs={previewChildDocs}
               transitions={previewTransitions}
               sodBlocked={previewSodBlocked}
               fileContent={drawerFileContent(drawerDoc)}
@@ -1122,7 +829,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         <DocumentDrawer
           doc={drawerDoc}
           parentDoc={previewParentDoc}
-          childDoc={previewChildDoc}
+          childDocs={previewChildDocs}
           transitions={previewTransitions}
           sodBlocked={previewSodBlocked}
           fileContent={drawerFileContent(drawerDoc)}
@@ -1282,649 +989,6 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         onConfirm={onDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
       />
-    </div>
-  );
-};
-
-// ── D12: read-first quick-view drawer + inline status workflow ────────────────
-
-interface LineageButtonProps {
-  revision: string;
-  title: string;
-  direction: 'back' | 'forward';
-  onClick: () => void;
-}
-
-const LineageButton: React.FC<LineageButtonProps> = ({ revision, title, direction, onClick }) => {
-  const { t } = useTranslation('project');
-  return (
-  <button
-    type="button"
-    className="w-fit text-[11px] text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-    aria-label={`${t('projectDetail.documents.viewRevision', 'View revision')} ${revision} ${t(
-      'projectDetail.documents.ofWord',
-      'of',
-    )} ${title}`}
-    onClick={(e) => {
-      e.stopPropagation();
-      onClick();
-    }}
-  >
-    {direction === 'back' ? '←' : '→'}{' '}
-    {`${t('projectDetail.documents.revLabel', 'Rev')} ${revision}`}
-  </button>
-  );
-};
-
-const DocumentTitleCell: React.FC<{
-  doc: ProjectDocumentRow;
-  parentDoc: ProjectDocumentRow | null;
-  childDoc: ProjectDocumentRow | null;
-  onViewDocument: (doc: ProjectDocumentRow) => void;
-}> = ({ doc, parentDoc, childDoc, onViewDocument }) => {
-  const { t } = useTranslation('project');
-  return (
-    <div className="min-w-0">
-      <button
-        type="button"
-        aria-label={`${t('projectDetail.documents.viewDocument', 'View')} ${doc.title}`}
-        onClick={() => onViewDocument(doc)}
-        className="block w-full rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-      >
-        <span className="block whitespace-normal break-words font-semibold" title={doc.title}>
-          {doc.title}
-        </span>
-        {(doc.code || doc.revision) && (
-          <span className="text-[12px] text-muted-foreground">
-            {[
-              doc.code,
-              doc.revision ? `${t('projectDetail.documents.revLabel', 'Rev')} ${doc.revision}` : null,
-            ].filter(Boolean).join(' · ')}
-          </span>
-        )}
-      </button>
-      {parentDoc?.revision && (
-        <div className="mt-1">
-          <LineageButton
-            revision={parentDoc.revision}
-            title={doc.title}
-            direction="back"
-            onClick={() => onViewDocument(parentDoc)}
-          />
-        </div>
-      )}
-      {childDoc?.revision && (
-        <div className="mt-1 flex flex-col gap-1">
-          <LineageButton
-            revision={childDoc.revision}
-            title={doc.title}
-            direction="forward"
-            onClick={() => onViewDocument(childDoc)}
-          />
-          {doc.status === 'Superseded' && (
-            <span className="text-[11px] text-muted-foreground">
-              {`${t(
-                'projectDetail.documents.supersededNotice',
-                'Read-only — continue on Rev',
-              )} ${childDoc.revision}`}
-            </span>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-
-interface DocumentPreviewProps {
-  /** The in-hand ProjectDocumentRow (no extra fetch). */
-  doc: ProjectDocumentRow;
-  parentDoc: ProjectDocumentRow | null;
-  childDoc: ProjectDocumentRow | null;
-  transitions: RowMenuItem[];
-  sodBlocked: boolean;
-  onViewDocument: (doc: ProjectDocumentRow) => void;
-  fileContent: React.ReactNode;
-  microsoftFile: React.ReactNode;
-}
-
-interface DocumentActionFooterProps {
-  canEdit: boolean;
-  canDelete: boolean;
-  hasFile: boolean;
-  sharePointUrl: string | null;
-  onEdit: () => void;
-  onDelete: () => void;
-  onDownload: () => void;
-}
-
-interface DocumentHeaderActionsProps {
-  primaryAction?: RowMenuItem;
-  fullRecordHref: string;
-}
-
-const DocumentHeaderActions: React.FC<DocumentHeaderActionsProps> = ({ primaryAction, fullRecordHref }) => {
-  const { t } = useTranslation('project');
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      {primaryAction && (
-        <Button
-          size="sm"
-          variant={primaryAction.danger ? 'destructive' : 'primary'}
-          onClick={primaryAction.onClick}
-          disabled={primaryAction.disabled}
-        >
-          {primaryAction.label}
-        </Button>
-      )}
-      <Link
-        to={fullRecordHref}
-        className="inline-flex min-h-10 items-center rounded-sm text-sm font-medium text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-      >
-        {t('projectDetail.drawer.openFullPage', 'Open full page')}
-      </Link>
-    </div>
-  );
-};
-
-const DocumentActionFooter: React.FC<DocumentActionFooterProps> = ({
-  canEdit,
-  canDelete,
-  hasFile,
-  sharePointUrl,
-  onEdit,
-  onDelete,
-  onDownload,
-}) => {
-  const { t } = useTranslation('project');
-  return (
-    <>
-      {canEdit && (
-        <Button variant="outline" size="sm" onClick={onEdit}>
-          {t('projectDetail.documents.action.edit', 'Edit')}
-        </Button>
-      )}
-      {hasFile && (
-        <Button variant="outline" size="sm" onClick={onDownload}>
-          {t('projectDetail.documents.action.download', 'Download')}
-        </Button>
-      )}
-      {sharePointUrl && (
-        <a
-          href={sharePointUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="touch-target inline-flex items-center rounded-sm px-2 text-sm font-medium text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          {t('projectDetail.documents.action.openSharePoint', 'Open in SharePoint')}
-        </a>
-      )}
-      {canDelete && (
-        // B1: Delete stays reachable but quiet; it is confirmed, and the drawer's one filled action is the next step.
-        <Button variant="ghost" size="sm" className="text-destructive-text! sm:ml-auto" onClick={onDelete}>
-          {t('projectDetail.documents.action.delete', 'Delete')}
-        </Button>
-      )}
-    </>
-  );
-};
-
-const DocumentPreviewFields: React.FC<DocumentPreviewProps> = ({
-  doc,
-  parentDoc,
-  childDoc,
-  transitions,
-  sodBlocked,
-  onViewDocument,
-  fileContent,
-  microsoftFile,
-}) => {
-  const { t } = useTranslation('project');
-  const isFolder = isMicrosoftFolder(doc);
-  return (
-    <>
-      <dl className="flex flex-col gap-4">
-        {!isFolder && doc.revision && (
-          <DocField label={t('projectDetail.documents.field.revision', 'Revision')}>
-            {`${t('projectDetail.documents.revLabel', 'Rev')} ${doc.revision}`}
-          </DocField>
-        )}
-        {!isFolder && (
-          <>
-            {/* C4: empty fields are left out, never shown as "—". */}
-            {doc.code && <DocField label={t('projectDetail.documents.field.code', 'Code')}>
-              <span className="font-mono text-[13px]">{doc.code}</span>
-            </DocField>}
-            <DocField label={t('projectDetail.documents.field.category', 'Category')}>
-              {doc.category || t('projectDetail.documents.category.uncategorized', 'Uncategorized')}
-            </DocField>
-            {doc.doc_date && <DocField label={t('projectDetail.documents.field.docDate', 'Document date')}>
-              <span className="tabular-nums">{formatDateOnly(doc.doc_date)}</span>
-            </DocField>}
-          </>
-        )}
-        {parentDoc?.revision && (
-          <DocField label={t('projectDetail.documents.field.lineage', 'Revision lineage')}>
-            <LineageButton revision={parentDoc.revision} title={doc.title} direction="back" onClick={() => onViewDocument(parentDoc)} />
-          </DocField>
-        )}
-        {doc.status === 'Superseded' && childDoc?.revision && (
-          <DocField label={t('projectDetail.documents.field.supersededBy', 'Superseded by')}>
-            <LineageButton revision={childDoc.revision} title={doc.title} direction="forward" onClick={() => onViewDocument(childDoc)} />
-          </DocField>
-        )}
-        {microsoftFile && (
-          <DocField label={t('projectDetail.documents.field.microsoft', 'Microsoft 365 item')}>
-            {microsoftFile}
-          </DocField>
-        )}
-        {fileContent && <DocField label={t('projectDetail.documents.field.file', 'File')}>
-          {fileContent}
-        </DocField>}
-      </dl>
-
-      {(transitions.length > 0 || sodBlocked) && (
-        <div className="mt-5 border-t border-border pt-4">
-          <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-            {t('projectDetail.documents.updateStatus', 'Update status')}
-          </h3>
-          {sodBlocked ? (
-            <GateNotice variant="blocked" data-testid="drawer-sod-gate">
-              <div>
-                {t(
-                  'projectDetail.documents.sod.drawerNotice',
-                  "You can't approve your own document. Approving is a segregation-of-duties step, so a different reviewer must approve or reject it.",
-                )}
-              </div>
-            </GateNotice>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {transitions.map((action) => (
-                <Button
-                  key={action.label}
-                  size="sm"
-                  variant={action.danger ? 'destructive' : 'outline'}
-                  onClick={action.onClick}
-                >
-                  {action.label}
-                </Button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </>
-  );
-};
-
-interface DocumentDrawerProps extends DocumentPreviewProps, DocumentActionFooterProps {
-  fullRecordHref: string;
-  nestedOpen: boolean;
-  onClose: () => void;
-}
-
-/** Definition-list row — label (overline voice) + value. */
-const DocField: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <div className="flex flex-col gap-1">
-    <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-      {label}
-    </dt>
-    <dd className="text-[14px] text-foreground">{children}</dd>
-  </div>
-);
-
-const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
-  doc,
-  parentDoc,
-  childDoc,
-  transitions,
-  sodBlocked,
-  canEdit,
-  canDelete,
-  hasFile,
-  sharePointUrl,
-  fullRecordHref,
-  nestedOpen,
-  onClose,
-  onEdit,
-  onDelete,
-  onViewDocument,
-  onDownload,
-  fileContent,
-  microsoftFile,
-}) => {
-  const isFolder = isMicrosoftFolder(doc);
-  const [primaryTransition, ...secondaryTransitions] = transitions;
-
-  return (
-    <Drawer
-      open
-      title={doc.title}
-      status={!isFolder ? <StatusPill variant={workflowVariant(doc.status)}>{doc.status}</StatusPill> : undefined}
-      headerActions={<DocumentHeaderActions primaryAction={primaryTransition} fullRecordHref={fullRecordHref} />}
-      nestedOpen={nestedOpen}
-      onClose={onClose}
-      footer={<DocumentActionFooter
-        canEdit={canEdit}
-        canDelete={canDelete}
-        hasFile={hasFile}
-        sharePointUrl={sharePointUrl}
-        onEdit={onEdit}
-        onDelete={onDelete}
-        onDownload={onDownload}
-      />}
-    >
-      <DocumentPreviewFields doc={doc} parentDoc={parentDoc} childDoc={childDoc} transitions={secondaryTransitions} sodBlocked={sodBlocked} onViewDocument={onViewDocument} fileContent={fileContent} microsoftFile={microsoftFile} />
-    </Drawer>
-  );
-};
-
-const DocumentPreviewPanel: React.FC<DocumentDrawerProps> = ({
-  doc,
-  parentDoc,
-  childDoc,
-  transitions,
-  sodBlocked,
-  canEdit,
-  canDelete,
-  hasFile,
-  sharePointUrl,
-  fullRecordHref,
-  nestedOpen,
-  onClose,
-  onEdit,
-  onDelete,
-  onViewDocument,
-  onDownload,
-  fileContent,
-  microsoftFile,
-}) => {
-  const { t } = useTranslation('project');
-  const isFolder = isMicrosoftFolder(doc);
-  const [primaryTransition, ...secondaryTransitions] = transitions;
-  return (
-    <aside
-      aria-labelledby="document-preview-title"
-      aria-hidden={nestedOpen || undefined}
-      inert={nestedOpen || undefined}
-      className="flex min-h-[440px] min-w-0 flex-col rounded-lg border border-border bg-card"
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-3.5">
-        <div className="min-w-0">
-          <h3 id="document-preview-title" className="break-words text-base font-semibold text-foreground">{doc.title}</h3>
-          {!isFolder && <div className="mt-1.5"><StatusPill variant={workflowVariant(doc.status)}>{doc.status}</StatusPill></div>}
-        </div>
-        <div className="flex max-w-full flex-wrap items-center gap-2">
-          <DocumentHeaderActions primaryAction={primaryTransition} fullRecordHref={fullRecordHref} />
-          <Button variant="ghost" iconOnly aria-label={t('projectDetail.documents.action.closePreview', 'Close preview')} onClick={onClose}>
-            <Icon name="x" />
-          </Button>
-        </div>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        <DocumentPreviewFields doc={doc} parentDoc={parentDoc} childDoc={childDoc} transitions={secondaryTransitions} sodBlocked={sodBlocked} onViewDocument={onViewDocument} fileContent={fileContent} microsoftFile={microsoftFile} />
-      </div>
-      <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3.5">
-        <DocumentActionFooter canEdit={canEdit} canDelete={canDelete} hasFile={hasFile} sharePointUrl={sharePointUrl} onEdit={onEdit} onDelete={onDelete} onDownload={onDownload} />
-      </div>
-    </aside>
-  );
-};
-
-// ── Create / edit metadata form modal ────────────────────────────────────────
-
-/** A file's title starts from its name without the extension; a folder keeps its whole name. Still editable. */
-const seedTitle = (reference: MicrosoftReferenceInput): string =>
-  reference.item_kind === 'folder' ? reference.name : reference.name.replace(/\.[A-Za-z0-9]{1,5}$/, '');
-
-interface DocumentFormModalProps {
-  doc: ProjectDocumentRow | null;
-  /** A Microsoft reference chosen first; the title is seeded from its name but stays editable. */
-  reference?: MicrosoftReferenceInput;
-  /** Reopens the Microsoft picker so the chosen item can be swapped before saving. */
-  onChangeReference?: () => void;
-  readOnly?: boolean;
-  onClose: () => void;
-  onCreate: (input: ProjectDocumentInput) => Promise<void>;
-  onUpdate: (id: string, input: ProjectDocumentInput) => Promise<void>;
-  onError: (err: unknown) => void;
-}
-
-const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
-  doc,
-  reference,
-  onChangeReference,
-  readOnly = false,
-  onClose,
-  onCreate,
-  onUpdate,
-  onError,
-}) => {
-  const { t } = useTranslation('project');
-  const { t: tf } = useTranslation('recordFolders');
-  const isEdit = !!doc;
-  // A folder is a reference, not a register document: it has no category, revision, code or date.
-  const isFolder = reference ? reference.item_kind === 'folder' : !!doc && isMicrosoftFolder(doc);
-  // Memoised on `t` so the validator identity is stable between renders.
-  const validateWithT = useCallback((v: FormValues) => validate(v, t, isFolder), [t, isFolder]);
-  const form = useEntityForm<FormValues>({
-    initialValues: {
-      title: doc?.title ?? (reference ? seedTitle(reference) : ''),
-      code: doc?.code ?? '',
-      category: doc?.category ?? (isFolder ? 'Reference' : 'Drawing'),
-      revision: doc?.revision ?? '',
-      doc_date: doc?.doc_date ?? '',
-    },
-    validate: validateWithT,
-    idPrefix: 'document-form',
-    module: 'projects',
-    // F8 (AC-IXD-FORM-F8): submit stays disabled until the required title + category
-    // are present (category defaults to a value, so the title is the live gate).
-    requiredFields: isFolder ? ['title'] : ['title', 'category'],
-  });
-
-  const titleField = form.fieldProps('title');
-  const codeField = form.fieldProps('code');
-  const categoryField = form.fieldProps('category');
-  const revisionField = form.fieldProps('revision');
-  const dateField = form.fieldProps('doc_date');
-
-  const errorSummary = [
-    form.errors.title ? { fieldId: titleField.id, message: form.errors.title } : null,
-    form.errors.category ? { fieldId: categoryField.id, message: form.errors.category } : null,
-  ].filter(Boolean) as { fieldId: string; message: string }[];
-
-  // #559 / AC-ERR-001: a rejected save must leave PERSISTENT evidence in the dialog. The toast
-  // auto-dismisses after 4s, ~700px from where the user is looking, after which the modal is
-  // indistinguishable from a pristine form with data in it — so the save looks like it worked.
-  const [saveError, setSaveError] = useState<SubmitError | null>(null);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    void form.handleSubmit(async (values) => {
-      const input: ProjectDocumentInput = {
-        title: values.title.trim(),
-        code: values.code.trim(),
-        category: values.category,
-        revision: values.revision.trim(),
-        doc_date: values.doc_date,
-      };
-      try {
-        if (isEdit && doc) await onUpdate(doc.id, input);
-        else await onCreate(input);
-      } catch (err) {
-        // `suppressCapture` only: the page's own `onError` classifies this same rejection for the
-        // toast and owns the single `save_failed` event (ADR-0067).
-        const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
-        setSaveError({ headline, detail });
-        onError(err);
-      }
-    });
-  };
-
-  return (
-    <EntityFormModal
-      open
-      title={
-        isEdit
-          ? t('projectDetail.documents.form.editTitle', 'Edit document')
-          : t('projectDetail.documents.addDocument', 'Add document')
-      }
-      subtitle={
-        isEdit
-          ? t('projectDetail.documents.form.editSubtitle', 'Update this register entry')
-          : reference
-            ? isFolder
-              ? tf('folderFiles.linkedFolderSubtitle', 'Link this folder to the project. Its files stay in Microsoft 365.')
-              : t('m365Documents.docsTab.linkedSubtitle', 'Record a drawing, specification, or transmittal. Its file stays in Microsoft 365.')
-            : t(
-                'projectDetail.documents.form.newSubtitle',
-                'Record a drawing, specification, or transmittal. Upload a file once the Draft row is created.',
-              )
-      }
-      submitLabel={
-        isEdit
-          ? t('projectDetail.documents.form.save', 'Save document')
-          : t('projectDetail.documents.addDocument', 'Add document')
-      }
-      onSubmit={handleSubmit}
-      submitError={saveError}
-      onClose={onClose}
-      loading={form.isSubmitting}
-      dirty={form.isDirty || !!reference}
-      submitDisabled={readOnly || !form.isComplete}
-      errorSummary={errorSummary.length ? errorSummary : undefined}
-    >
-      {reference && (
-        <div data-testid="document-linked-item" className="mb-3 flex min-w-0 items-center gap-2 rounded-lg border border-border px-3 py-2 text-[13px]">
-          <Icon name={reference.item_kind === 'folder' ? 'folder' : 'doc'} className="shrink-0 text-muted-foreground" />
-          <span className="min-w-0 flex-1 break-words font-medium text-foreground" title={reference.name}>{reference.name}</span>
-          {onChangeReference && (
-            <Button type="button" variant="ghost" size="sm" onClick={onChangeReference}>
-              {t('m365Documents.docsTab.change', 'Change')}
-            </Button>
-          )}
-        </div>
-      )}
-      <FormSection legend={t('projectDetail.documents.form.legend', 'Document')}>
-        <FormGrid>
-          <TextField
-            id={titleField.id}
-            label={t('projectDetail.documents.form.title', 'Title')}
-            required
-            value={titleField.value}
-            onChange={titleField.onChange}
-            onBlur={titleField.onBlur}
-            error={titleField.error}
-            placeholder={t('projectDetail.documents.form.titlePlaceholder', 'e.g. Foundation general arrangement')}
-            fullWidth
-          />
-          {!isFolder && (
-            <>
-            <TextField
-              id={codeField.id}
-              label={t('projectDetail.documents.form.code', 'Code')}
-              mono
-              value={codeField.value}
-              onChange={codeField.onChange}
-              onBlur={codeField.onBlur}
-              placeholder={t('projectDetail.documents.form.codePlaceholder', 'e.g. DWG-001')}
-              helper={t(
-                'projectDetail.documents.form.codeHelper',
-                'Optional document number or drawing code.',
-              )}
-            />
-            <SelectField
-              id={categoryField.id}
-              label={t('projectDetail.documents.form.category', 'Category')}
-              required
-              value={categoryField.value}
-              onChange={categoryField.onChange}
-              onBlur={categoryField.onBlur}
-              error={categoryField.error}
-              options={CATEGORY_OPTIONS}
-            />
-            <TextField
-              id={revisionField.id}
-              label={t('projectDetail.documents.form.revision', 'Revision')}
-              value={revisionField.value}
-              onChange={revisionField.onChange}
-              onBlur={revisionField.onBlur}
-              placeholder={t('projectDetail.documents.form.revisionPlaceholder', 'e.g. A')}
-            />
-            <TextField
-              id={dateField.id}
-              label={t('projectDetail.documents.form.docDate', 'Document date')}
-              type="date"
-              value={dateField.value}
-              onChange={dateField.onChange}
-              onBlur={dateField.onBlur}
-            />
-            </>
-          )}
-        </FormGrid>
-      </FormSection>
-    </EntityFormModal>
-  );
-};
-
-// ── Microsoft 365 entry: connection gate + picker ────────────────────────────
-
-interface MicrosoftEntryProps {
-  code: string | null;
-  onClose: () => void;
-  onSelect: (reference: MicrosoftReferenceInput) => Promise<void>;
-}
-
-/**
- * The caller's connection decides ONLY whether browsing is offered. Mounted on demand, so the
- * status read happens for a mutation browse entry and never for committed rows: those render and
- * open with no connection at all. Pending/error never guess "active"; every non-active state is a
- * secondary notice (setup link, reconnect, retry) and no picker request is made.
- */
-const MicrosoftEntry: React.FC<MicrosoftEntryProps> = ({ code, onClose, onSelect }) => {
-  const { t } = useTranslation('project');
-  const { connection, isPending, refetch } = useMicrosoftDocuments();
-  const canBrowse = connection?.connected === true && connection.status === 'active';
-
-  if (canBrowse) {
-    return <MicrosoftDocumentPicker open context={{ kind: 'project', code }} onClose={onClose} onSelect={onSelect} />;
-  }
-
-  let notice: React.ReactNode;
-  if (!connection && isPending) {
-    notice = (
-      <p role="status" className="text-[13px] text-muted-foreground">
-        {t('m365Documents.checkingConnection', 'Checking your Microsoft 365 connection…')}
-      </p>
-    );
-  } else if (!connection) {
-    // Unknown (status read failed): never assume active; offer an explicit retry next to the action.
-    notice = <M365BrowseNotice code="external-unreachable" onRetry={() => void refetch()} />;
-  } else if (!connection.connected) {
-    // The personal connection page (/integrations) is open to every role; the Admin area is not.
-    notice = (
-      <div className="min-w-0 space-y-2">
-        <GateNotice variant="blocked">
-          {t('m365Documents.docsTab.notConnected', 'Connect Microsoft 365 first to browse documents.')}
-        </GateNotice>
-        <Link
-          to="/integrations"
-          className="touch-target inline-flex h-8 items-center rounded-lg border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent"
-        >
-          {t('m365Documents.docsTab.myIntegrations', 'My integrations')}
-        </Link>
-      </div>
-    );
-  } else {
-    notice = <M365BrowseNotice connection={connection} code={connection.status === 'revoked' ? 'CONNECTION_REVOKED' : 'CONNECTION_STALE'} />;
-  }
-
-  return (
-    <div className="mb-3.5 space-y-2" data-testid="m365-connection-gate">
-      {notice}
-      <Button variant="ghost" size="sm" onClick={onClose}>
-        {t('projectDetail.documents.dismiss', 'Dismiss')}
-      </Button>
     </div>
   );
 };

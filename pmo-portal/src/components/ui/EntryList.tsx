@@ -40,7 +40,7 @@ export const EntryList: React.FC<EntryListProps> = ({ entries }) => {
       {entries.map((entry) => {
         const noteText = entry.notes?.trim() || t('dashboard.engineer.noNote', 'No note');
         return (
-          <li key={entry.id} className="flex items-start gap-3 px-4 py-[9px]">
+          <li key={entry.id} className="flex items-start gap-3 px-4 py-2">
             <span className="w-[52px] shrink-0 pt-px text-[11px] text-muted-foreground">
               {formatEntryDate(entry.entry_date)}
             </span>

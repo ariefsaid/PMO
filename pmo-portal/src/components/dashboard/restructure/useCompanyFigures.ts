@@ -48,7 +48,7 @@ export function selectInvoicedTotals(pack: ManagementPack | undefined, from: str
   if (!pack || !from || !to) return undefined;
   return pack.totals.map((row) => ({
     currency: row.currency,
-    amount: row.months.filter((month) => month.month >= from && month.month <= to)
+    amount: row.months.filter((month) => month.month.slice(0, 7) >= from.slice(0, 7) && month.month.slice(0, 7) <= to.slice(0, 7))
       .reduce((sum, month) => sum + month.invoiced, 0) / 100,
   }));
 }

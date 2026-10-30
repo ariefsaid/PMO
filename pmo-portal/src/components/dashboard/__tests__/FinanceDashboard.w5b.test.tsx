@@ -236,7 +236,7 @@ describe('AC-IXD-DASH-W5-C2B — N17: Budget review variance ranking', () => {
     // projects by committed-basis variance server-side); the card shows the worst 5.
     expect(screen.getAllByText(/budget review/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/variance/i).length).toBeGreaterThan(0);
-    const cardHead = screen.getByText(/budget review — top 5 by variance \(portfolio-wide\)/i);
+    const cardHead = screen.getByText(/budget review: top 5 by variance \(portfolio-wide\)/i);
     expect(cardHead).toBeInTheDocument();
   });
 

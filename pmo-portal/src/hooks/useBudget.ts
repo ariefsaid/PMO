@@ -50,10 +50,11 @@ export function useProjectBudget(projectId: string) {
 
 /** RPC contract: budget_activation_mode's complete set of mode strings. */
 export function useBudgetActivationMode(versionId: string | undefined) {
+  const { currentUser } = useAuth();
   return useQuery<BudgetActivationMode>({
-    queryKey: ['budget-activation-mode', versionId],
+    queryKey: ['budget-activation-mode', versionId, currentUser?.org_id, currentUser?.id, currentUser?.role],
     queryFn: () => getBudgetActivationMode(versionId!),
-    enabled: Boolean(versionId),
+    enabled: Boolean(versionId && currentUser?.id),
   });
 }
 

@@ -1,3 +1,4 @@
+import { toStorageAppError } from '@/src/lib/storageError';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import {
@@ -75,7 +76,7 @@ export async function prepareAgentAttachmentUpload(
   const { data, error } = await supabase.storage
     .from(BUCKET)
     .createSignedUploadUrl(row.storage_path);
-  if (error) throwWrite({ message: error.message, code: error.name === 'StorageError' ? '42501' : undefined });
+  if (error) throw toStorageAppError(error);
   if (!data?.signedUrl) throw new AppError('Could not create upload URL');
 
   return {

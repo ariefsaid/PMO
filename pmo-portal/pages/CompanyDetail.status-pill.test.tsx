@@ -6,11 +6,13 @@ import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 
 /**
- * Fix #9 — CompanyDetail: related-project rows must use StatusPill (dot+pill)
- * rather than rendering status as bare grey text (violates the Tinted-Status rule).
+ * Fix #9 — CompanyDetail: related-project rows must use StatusPill (paired status
+ * surface + label) rather than rendering status as bare grey text (violates the
+ * Tinted-Status rule). Amended 2026-10-29: the pill is text-only (decorative dot
+ * banned); the pill chrome + paired surface identify it.
  *
  * AC-FIX9-PILL-01: a project row in the related-projects list renders a StatusPill,
- *   identified by `data-pill-dot` (the dot element inside every StatusPill).
+ *   identified by its pill chrome + paired `bg-status-*` surface class.
  * AC-FIX9-PILL-02: status text is NOT rendered as a plain <span class="text-muted-foreground">.
  */
 
@@ -126,25 +128,23 @@ beforeEach(() => {
 });
 
 describe('CompanyDetail — related-project status pill (fix #9)', () => {
-  it('AC-FIX9-PILL-01: related-project row contains a StatusPill dot (not bare text)', () => {
+  it('AC-FIX9-PILL-01: related-project row contains a StatusPill (not bare text)', () => {
     renderPage();
-    // StatusPill renders a <span data-pill-dot aria-hidden> inside every pill
-    const dots = document.querySelectorAll('[data-pill-dot]');
-    expect(dots.length).toBeGreaterThan(0);
+    // StatusPill renders its label inside a rounded pill carrying a paired `bg-status-*` surface
+    const pills = document.querySelectorAll('span[class*="bg-status-"]');
+    expect(pills.length).toBeGreaterThan(0);
+    expect(pills[0].className).toContain('rounded-full');
   });
 
   it('AC-FIX9-PILL-02: status text is wrapped in a StatusPill, not a bare muted span', () => {
     renderPage();
     // The status text "Ongoing Project" must be inside a pill, not a bare <span>
-    // with only text-muted-foreground styling. The pill itself will contain the text.
+    // with only text-muted-foreground styling. The pill itself contains the text.
     const statusText = screen.getByText('Ongoing Project');
-    // StatusPill renders as a <span> containing a dot + the text child.
-    // Its parent span has the pill classes (bg-secondary, h-[22px], etc).
+    // The pill's own element carries the pill chrome + the paired status surface.
     // Bare text renders as: <span class="text-[12px] text-muted-foreground">Ongoing Project</span>
-    // We assert it is NOT that bare pattern: it should have a sibling [data-pill-dot] element.
-    const siblings = statusText.parentElement
-      ? [...statusText.parentElement.querySelectorAll('[data-pill-dot]')]
-      : [];
-    expect(siblings.length).toBeGreaterThan(0);
+    const pill = statusText.closest('span[class*="bg-status-"]');
+    expect(pill).not.toBeNull();
+    expect(pill!.className).toContain('rounded-full');
   });
 });

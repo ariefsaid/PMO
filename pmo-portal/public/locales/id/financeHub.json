@@ -141,7 +141,8 @@
         "unknownCount_one": "{{count}} saldo tidak diketahui",
         "unknownCount_other": "{{count}} saldo tidak diketahui",
         "unknownNote_one": "{{count}} faktur pemasok belum memiliki jumlah tercatat, sehingga saldonya tidak dimasukkan ke total. Buka pengadaan untuk mencatatnya.",
-        "unknownNote_other": "{{count}} faktur pemasok belum memiliki jumlah tercatat, sehingga saldonya tidak dimasukkan ke total. Buka pengadaan untuk mencatatnya."
+        "unknownNote_other": "{{count}} faktur pemasok belum memiliki jumlah tercatat, sehingga saldonya tidak dimasukkan ke total. Buka pengadaan untuk mencatatnya.",
+        "oldestBasis": "Hari kalender sejak status ditagih dicatat, atau pembaruan terakhir jika tidak tersedia"
       },
       "attention": {
         "finance": "Perlu perhatian",
@@ -156,7 +157,8 @@
         "unknownCount_other": "{{count}} saldo tidak diketahui",
         "plusUnknown": "+ {{label}}"
       }
-    }
+    },
+    "payableBucketBasis": "Hari kalender sejak status ditagih dicatat, atau pembaruan terakhir jika tidak tersedia. Saldo tidak diketahui dihitung, tidak dijumlahkan."
   },
   "nav": {
     "finance": "Keuangan",
@@ -187,6 +189,8 @@
       "invoicedToDate": "Ditagih sampai saat ini",
       "invoicedToDateHelp": "Nilai faktur bertanggal kumulatif dan jumlah faktur hingga bulan laporan.",
       "invoiceCount": "{{count}} faktur",
+      "invoiceCount_one": "{{count}} faktur",
+      "invoiceCount_other": "{{count}} faktur",
       "thisMonthDelta": "Bulan ini {{amount}}",
       "backlog": "Sisa nilai kontrak",
       "backlogHelp": "Nilai kontrak dikurangi pendapatan yang diperoleh; belum tersedia jika faktur mata uang asing perlu direkonsiliasi."

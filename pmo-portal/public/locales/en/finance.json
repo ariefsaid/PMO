@@ -71,7 +71,13 @@
     "periodBalanceSheet": "Balance sheet",
     "periodTrialBalance": "Trial balance",
     "latestStatement": "Latest period {{period}}",
-    "back": "Back"
+    "back": "Back",
+    "payablesAgeingBasis": "Supplier invoices by age · since invoiced status or last update",
+    "ageingUnknown_one": "No known balances to group · {{count}} balance unknown",
+    "ageingUnknown_other": "No known balances to group · {{count}} balances unknown",
+    "ageingUnknownCount_one": "{{count}} balance unknown",
+    "ageingUnknownCount_other": "{{count}} balances unknown",
+    "ageingEmpty": "No balances to group by age"
   },
   "table": {
     "selectRow": "Select {{name}}"
@@ -91,7 +97,8 @@
     "receivedVsLastMonth": "vs last month",
     "otherCurrencies": "{{amounts}} in other currencies",
     "otherCurrencyDeltas": "{{amounts}} vs last month",
-    "invoiceClients": "{{invoices}} invoices · {{clients}} {{clientLabel}}",
+    "invoiceClients_one": "{{count}} invoice · {{clients}} {{clientLabel}}",
+    "invoiceClients_other": "{{count}} invoices · {{clients}} {{clientLabel}}",
     "clientSingular": "client",
     "clientPlural": "clients",
     "overdueDetails": "{{percent}} of owed · {{count}} {{invoiceLabel}} · oldest {{days}} days",
@@ -178,7 +185,11 @@
     "overdueUnavailable": "Overdue results are unavailable",
     "evidenceLoadError": "Couldn't load the invoice lines from the accounting system.",
     "amount": "Amount",
-    "outstandingUnknown": "The outstanding balance is not known yet: the accounting system has not reported it for this invoice."
+    "outstandingUnknown": "The outstanding balance is not known yet: the accounting system has not reported it for this invoice.",
+    "mobileInvoiceAmount": "Invoice total excl. PPN",
+    "mobileOutstandingUnknown": "Outstanding balance unknown",
+    "mobileInvoiceAmountInclusive": "Invoice total incl. PPN",
+    "mobileInvoiceAmountUnspecified": "Invoice amount"
   },
   "invoices": {
     "description": "Client invoices.",
@@ -204,6 +215,9 @@
     "emptySub": "They appear here after the next sync once ERPNext is connected.",
     "amountPreTaxTooltip": "Pre-tax total from the accounting-system document. Source: ERP purchase document.",
     "noProject": "No project",
+    "projectUnavailable": "Project unavailable ({{id}})",
+    "exportEntity": "ERP documents",
+    "exportList": "Export list",
     "type": {
       "order": "Purchase order",
       "invoice": "Supplier invoice",
@@ -217,7 +231,8 @@
       "date": "Date",
       "amount": "Amount",
       "erpStatus": "ERPNext status",
-      "amountPreTax": "Amount (pre-tax)"
+      "amountPreTax": "Amount (pre-tax)",
+      "currency": "Currency"
     },
     "aging": {
       "title": "Unpaid by age",
@@ -239,6 +254,8 @@
     "uncategorized": "Uncategorized"
   },
   "budgetActivation": {
+    "eligibilityChecking": "Checking activation eligibility…",
+    "eligibilityUnavailable": "Activation eligibility is unavailable. Refresh this page and try again.",
     "checking": "Checking project dates, line phasing, ERPNext fiscal years and account mapping…",
     "checkFailed": "Couldn't check budget readiness. Refresh and try again.",
     "erpUnavailable": "Couldn't check ERPNext; it'll be checked again when the budget is pushed.",
@@ -460,6 +477,8 @@
       "activeBudgetSource": "Source: active budget version line items, grouped by category.",
       "spendingUnavailable": "Spending is unknown or unavailable.",
       "commitmentsUnavailable": "Commitments are unknown or unavailable.",
+      "currencyBasisNotice": "Budget: {{budgetCurrency}}. Spending and commitments: {{projectCurrency}}. Comparisons are unavailable across currencies.",
+      "currencyComparisonUnavailable": "Comparison unavailable because budget and spending use different currencies.",
       "leftUnavailable": "Left is unknown while spending or commitments are unavailable.",
       "budgetVsActual": "Budget vs actual",
       "selectedCategories": "Selected categories",

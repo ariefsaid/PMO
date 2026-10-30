@@ -31,6 +31,12 @@ describe('ViewToggle (segmented control)', () => {
     expect(active.className).toContain('font-semibold');
   });
 
+  it('keeps compact labels in the accessible name when they are visually hidden', () => {
+    render(<ViewToggle options={opts} value="table" onChange={() => {}} ariaLabel="View" labelClassName="max-sm:sr-only" />);
+    expect(screen.getByRole('tab', { name: 'Table' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Table' }).querySelector('span')).toHaveClass('max-sm:sr-only');
+  });
+
   it('calls onChange with the clicked value', async () => {
     const onChange = vi.fn();
     render(<ViewToggle options={opts} value="table" onChange={onChange} ariaLabel="View" />);

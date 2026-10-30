@@ -27,8 +27,9 @@ const { workOrder } = vi.hoisted(() => ({
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { workOrder } }));
+const actor = vi.hoisted(() => ({ id: 'u1', role: 'Finance', manager_id: 'manager-1' }));
 vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
+  useAuth: () => ({ currentUser: { id: actor.id, org_id: 'org-1', role: actor.role, manager_id: actor.manager_id }, role: actor.role }),
 }));
 
 import { useProjectWorkOrders, useProjectDrawdown, useWorkOrderMutations } from './useWorkOrders';
@@ -40,6 +41,10 @@ const wrap = (client: QueryClient) =>
 const freshClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
 beforeEach(() => {
+  actor.id = 'u1';
+  actor.role = 'Finance';
+  actor.manager_id = 'manager-1';
+  workOrder.list.mockReset();
   workOrder.list.mockResolvedValue([{ id: 'wo-1' }]);
   workOrder.drawdown.mockResolvedValue({
     committed: 1,
@@ -60,7 +65,41 @@ describe('reads', () => {
     const { result } = renderHook(() => useProjectWorkOrders('p1'), { wrapper: wrap(client) });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(workOrder.list).toHaveBeenCalledWith('p1');
-    expect(client.getQueryData(['work-orders', 'org-1', 'p1'])).toEqual([{ id: 'wo-1' }]);
+    expect(client.getQueryData(['work-orders', 'org-1', 'p1', 'u1', 'Finance', 'manager-1'])).toEqual([{ id: 'wo-1' }]);
+  });
+
+  it('refreshes the actor-specific decision when the role changes', async () => {
+    const client = freshClient();
+    workOrder.list.mockResolvedValueOnce([{ id: 'wo-1', issue_eligibility: 'allowed' }])
+      .mockResolvedValueOnce([{ id: 'wo-1', issue_eligibility: 'self' }]);
+    const { result, rerender } = renderHook(() => useProjectWorkOrders('p1'), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current.data?.[0]?.issue_eligibility).toBe('allowed'));
+    actor.role = 'Project Manager';
+    rerender();
+    await waitFor(() => expect(result.current.data?.[0]?.issue_eligibility).toBe('self'));
+    expect(workOrder.list).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not reuse another actor’s issue decision', async () => {
+    const client = freshClient();
+    workOrder.list.mockResolvedValueOnce([{ id: 'wo-1', issue_eligibility: 'allowed' }])
+      .mockResolvedValueOnce([{ id: 'wo-1', issue_eligibility: 'self' }]);
+    const { result, rerender } = renderHook(() => useProjectWorkOrders('p1'), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current.data?.[0]?.issue_eligibility).toBe('allowed'));
+    actor.id = 'u2';
+    rerender();
+    await waitFor(() => expect(result.current.data?.[0]?.issue_eligibility).toBe('self'));
+  });
+
+  it('refreshes the issue decision when the actor manager changes', async () => {
+    const client = freshClient();
+    workOrder.list.mockResolvedValueOnce([{ id: 'wo-1', issue_eligibility: 'allowed' }])
+      .mockResolvedValueOnce([{ id: 'wo-1', issue_eligibility: 'reviewer_required' }]);
+    const { result, rerender } = renderHook(() => useProjectWorkOrders('p1'), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current.data?.[0]?.issue_eligibility).toBe('allowed'));
+    actor.manager_id = 'manager-2';
+    rerender();
+    await waitFor(() => expect(result.current.data?.[0]?.issue_eligibility).toBe('reviewer_required'));
   });
 
   it('reads the drawdown under its own org-scoped key', async () => {

@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
   orgDay: { day: '2026-10-18' as string | null, isPending: false, isError: false, retry: vi.fn() },
   mode: 'erp' as 'erp' | 'native',
   received: vi.fn(async () => {}),
+  submit: vi.fn(async (_input: { siId: string; intent: unknown }) => {}),
   projectsError: false,
   retryProjects: vi.fn(async () => ({ data: [], error: null })),
   projects: [
@@ -33,7 +34,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
     setReceivedDate: { mutateAsync: h.received, isPending: false },
     setEfaktur: { mutateAsync: vi.fn(), isPending: false },
-    submitInvoice: { mutateAsync: vi.fn(), isPending: false },
+    submitInvoice: { mutateAsync: h.submit, isPending: false },
     cancelInvoice: { mutateAsync: vi.fn(), isPending: false },
     pendingPush: { status: 'idle', lastError: null, lastPushAt: null },
   }),
@@ -100,7 +101,7 @@ const LocationProbe = () => {
   return <><button onClick={() => navigate(-1)}>History back</button><button onClick={() => navigate(1)}>History forward</button><output data-testid="location">{`${location.pathname}${location.search}`}</output><button onClick={() => navigate('/sales-invoices?q=INV-002')}>Change search URL</button></>;
 };
 
-function renderAt(url: string, role: 'Finance' | 'Project Manager' = 'Finance', entries = [url]) {
+function renderAt(url: string, role: 'Finance' | 'Project Manager' = 'Finance', entries = [url], embedded = false) {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
       <ImpersonationProvider realRole={role}>
@@ -108,7 +109,7 @@ function renderAt(url: string, role: 'Finance' | 'Project Manager' = 'Finance', 
           <ToastProvider>
             <LocationProbe />
             <Routes>
-              <Route path="/sales-invoices" element={<SalesInvoices />} />
+              <Route path="/sales-invoices" element={<SalesInvoices embedded={embedded} />} />
               <Route path="/sales-invoices/:invoiceId" element={<SalesInvoices />} />
             </Routes>
           </ToastProvider>
@@ -132,9 +133,19 @@ beforeEach(() => {
   h.projectsError = false;
   h.retryProjects.mockClear();
   h.received.mockReset().mockResolvedValue(undefined);
+  h.submit.mockReset().mockResolvedValue(undefined);
 });
 
 describe('FIN-S1 / AC-RD-TBL-INV-001: invoice list default state', () => {
+  it('labels the mobile invoice amount and reports an unknown outstanding balance', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({ matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() })));
+    h.invoices.data = [invoice('INV-001', { amount: 1000, tax_amount: 100, erp_outstanding_amount: null })];
+    renderAt('/sales-invoices', 'Finance', undefined, true);
+    expect(screen.getByText(/Invoice total excl. PPN:.*1,000/)).toBeInTheDocument();
+    expect(screen.getByText('Outstanding balance unknown')).toBeInTheDocument();
+    vi.unstubAllGlobals();
+  });
+
   it('shows at most 7 columns, with no Date, Received, separate Customer or empty e-Faktur column', () => {
     renderAt('/sales-invoices');
     const cols = headers();
@@ -339,4 +350,51 @@ it('restores search on history back and forward while typing replaces the curren
   expect(search).toHaveValue('INV-001');
   await user.click(screen.getByRole('button', { name: 'History forward' }));
   expect(search).toHaveValue('INV');
+});
+
+
+it.each(['list', 'detail'] as const)('approves the selected invoice from %s and retains its command on retry', async (route) => {
+  h.invoices.data = [invoice('INV-001', { status: 'Draft', erp_docstatus: 0, pmo_native: false })];
+  h.submit.mockRejectedValueOnce(new Error('Save failed'));
+  const user = userEvent.setup();
+  renderAt(route === 'list' ? '/sales-invoices' : '/sales-invoices/INV-001');
+  if (route === 'list') {
+    await user.click(within(screen.getByRole('row', { name: /INV-001/ })).getByRole('button', { name: /row actions/i }));
+    await user.click(screen.getByRole('menuitem', { name: 'Submit' }));
+  } else {
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+  }
+  const dialog = screen.getByRole('dialog');
+  await user.click(within(dialog).getByRole('button', { name: 'Submit invoice' }));
+  expect(h.submit).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole('dialog')).toBeInTheDocument();
+  await user.click(within(dialog).getByRole('button', { name: 'Submit invoice' }));
+  expect(h.submit).toHaveBeenCalledTimes(2);
+  expect(h.submit.mock.calls[0][0]).toEqual(h.submit.mock.calls[1][0]);
+  expect(h.submit.mock.calls[1][0]).toMatchObject({ siId: 'INV-001' });
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+it('keeps invoice approval identities separate until each approval succeeds', async () => {
+  h.invoices.data = [invoice('INV-001', { status: 'Draft', erp_docstatus: 0, pmo_native: false }), invoice('INV-002', { status: 'Draft', erp_docstatus: 0, pmo_native: false })];
+  h.submit.mockRejectedValueOnce(new Error('First attempt failed')).mockRejectedValueOnce(new Error('Second attempt failed'));
+  const user = userEvent.setup();
+  renderAt('/sales-invoices');
+  const open = async (id: string) => {
+    await user.click(within(screen.getByRole('row', { name: new RegExp(id) })).getByRole('button', { name: /row actions/i }));
+    await user.click(screen.getByRole('menuitem', { name: 'Submit' }));
+  };
+  await open('INV-001');
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Submit invoice' }));
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+  await open('INV-002');
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Submit invoice' }));
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+  await open('INV-001');
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Submit invoice' }));
+  expect(h.submit.mock.calls[0][0].intent).not.toEqual(h.submit.mock.calls[1][0].intent);
+  expect(h.submit.mock.calls[2][0]).toEqual(h.submit.mock.calls[0][0]);
+  await open('INV-001');
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Submit invoice' }));
+  expect(h.submit.mock.calls[3][0].intent).not.toEqual(h.submit.mock.calls[0][0].intent);
 });

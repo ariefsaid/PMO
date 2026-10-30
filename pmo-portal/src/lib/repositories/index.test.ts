@@ -17,6 +17,8 @@ vi.mock('@/src/lib/db/companyCollections', () => ({
 }));
 vi.mock('@/src/lib/db/projects', () => ({
   listProjects: vi.fn(),
+  listProjectsByClient: vi.fn(),
+  getProject: vi.fn(),
   createProject: vi.fn(),
   updateProjectHeader: vi.fn(),
   archiveProject: vi.fn(),
@@ -24,7 +26,7 @@ vi.mock('@/src/lib/db/projects', () => ({
   setProjectContractValue: vi.fn(),
 }));
 vi.mock('@/src/lib/db/opportunity', () => ({ getOpportunity: vi.fn() }));
-vi.mock('@/src/lib/db/projectTransitions', () => ({ transitionProject: vi.fn() }));
+vi.mock('@/src/lib/db/projectTransitions', () => ({ transitionProject: vi.fn(), getProjectWinEligibility: vi.fn(), listPipelineStageConfig: vi.fn() }));
 vi.mock('@/src/lib/db/companies', () => ({
   listClientCompanies: vi.fn(),
   listCompanies: vi.fn(),
@@ -58,6 +60,7 @@ vi.mock('@/src/lib/db/usage', () => ({
 }));
 vi.mock('@/src/lib/db/tasks', () => ({
   listTasks: vi.fn(),
+  listMyTasks: vi.fn(),
   getTask: vi.fn(),
   createTask: vi.fn(),
   updateTask: vi.fn(),
@@ -252,7 +255,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     expect(Object.keys(repositories.project).sort()).toEqual(
       // 'getWithRefs'/'listByClient'/'listPipelineStageConfig' added with 2d97e91d5 (project &
       // task projection refresh). Exhaustive API-seam contract — extend only deliberately.
-      ['archive', 'create', 'delete', 'get', 'getVatEditability', 'getWithRefs', 'list', 'listByClient', 'listIdentity', 'listPipelineStageConfig', 'proposeNumber', 'setContractValue', 'transition', 'updateHeader'].sort(),
+      ['archive', 'create', 'delete', 'get', 'getVatEditability', 'getWithRefs', 'list', 'listByClient', 'listIdentity', 'listPipelineStageConfig', 'proposeNumber', 'setContractValue', 'transition', 'updateHeader', 'winEligibility'].sort(),
     );
     expect(Object.keys(repositories.company).sort()).toEqual(
       ['archive', 'create', 'delete', 'get', 'list', 'listClients', 'setProjectNumberSegment', 'setTaxDefaults', 'update'].sort(),
@@ -349,6 +352,27 @@ describe('delegation — methods pass args through and return the DAL result', (
     vi.mocked(opportunityDal.getOpportunity).mockResolvedValue({ id: 'o1' } as never);
     await repositories.project.get('o1');
     expect(opportunityDal.getOpportunity).toHaveBeenCalledWith('o1');
+  });
+
+  it('retains the project and task read projections', async () => {
+    vi.mocked(projectsDal.listProjectsByClient).mockResolvedValue([]);
+    vi.mocked(projectsDal.getProject).mockResolvedValue(null);
+    vi.mocked(projectTransitionsDal.listPipelineStageConfig).mockResolvedValue([]);
+    vi.mocked(tasksDal.listMyTasks).mockResolvedValue([]);
+    await repositories.project.listByClient('client-1');
+    await repositories.project.getWithRefs('project-1');
+    await repositories.project.listPipelineStageConfig();
+    await repositories.task.listByAssignee('user-1');
+    expect(projectsDal.listProjectsByClient).toHaveBeenCalledWith('client-1');
+    expect(projectsDal.getProject).toHaveBeenCalledWith('project-1');
+    expect(projectTransitionsDal.listPipelineStageConfig).toHaveBeenCalledOnce();
+    expect(tasksDal.listMyTasks).toHaveBeenCalledWith('user-1');
+  });
+
+  it('project.winEligibility reads the decision for the selected project', async () => {
+    vi.mocked(projectTransitionsDal.getProjectWinEligibility).mockResolvedValue('allowed');
+    await expect(repositories.project.winEligibility('p1')).resolves.toBe('allowed');
+    expect(projectTransitionsDal.getProjectWinEligibility).toHaveBeenCalledWith('p1');
   });
 
   it('project.transition delegates to transitionProject with opts', async () => {

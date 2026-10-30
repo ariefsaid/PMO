@@ -83,7 +83,7 @@ const ProgressAssessmentModal: React.FC<ProgressAssessmentModalProps> = ({
       open
       width="lg"
       title={t('projectDetail.billing.assessment.title', 'Record progress')}
-      subtitle={t('projectDetail.billing.assessment.subtitle', 'Quantities done to date for the month. This is the operational assessment — it never creates an invoice.')}
+      subtitle={t('projectDetail.billing.assessment.subtitle', 'Quantities done to date for the month. This is the operational assessment. It never creates an invoice.')}
       submitLabel={t('projectDetail.billing.assessment.save', 'Save progress')}
       onSubmit={handleSubmit}
       submitError={saveError}
@@ -98,8 +98,8 @@ const ProgressAssessmentModal: React.FC<ProgressAssessmentModalProps> = ({
           {boqItems.map((line) => (
             <NumberField key={line.id} id={`assessment-qty-${line.id}`}
               label={line.earning_basis === 'lump_sum'
-                ? t('projectTabs:contractQuantities.billing.assessment.percentToDate', '{{item}} — % done to date', { item: `${line.item_code} — ${line.description}` })
-                : t('projectDetail.billing.assessment.quantityToDate', '{{item}} — done to date ({{unit}})',
+                ? t('projectTabs:contractQuantities.billing.assessment.percentToDate', '{{item}}: % done to date', { item: `${line.item_code} — ${line.description}` })
+                : t('projectDetail.billing.assessment.quantityToDate', '{{item}}: done to date ({{unit}})',
                   { item: `${line.item_code} — ${line.description}`, unit: line.unit })}
               value={quantities[line.id] ?? ''}
               onChange={(value) => setQuantities((current) => ({ ...current, [line.id]: value }))}

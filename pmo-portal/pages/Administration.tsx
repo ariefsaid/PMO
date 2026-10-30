@@ -110,7 +110,7 @@ const AdministrationNavigation: React.FC<{
   const { t } = useTranslation();
   const linkClass = (active: boolean) =>
     cn(
-      'touch-target flex min-h-11 min-w-0 items-center justify-center rounded-md px-2.5 py-1.5 text-center text-[13px] leading-tight transition-colors md:min-h-0',
+      'touch-target flex min-h-11 min-w-0 shrink-0 items-center justify-center rounded-md px-3 py-1.5 text-center text-[13px] leading-tight transition-colors md:min-h-0 md:shrink',
       'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
       active
         ? 'bg-background font-semibold text-nav-active-text shadow-sm'
@@ -130,12 +130,12 @@ const AdministrationNavigation: React.FC<{
     ));
 
   return (
-    <nav aria-label={t('admin.nav.ariaLabel', 'Administration sections')} className="mb-6 min-w-0">
-      <div className="grid min-w-0 grid-cols-2 gap-1 rounded-lg bg-secondary p-1 md:flex md:flex-wrap">
+    <nav aria-label={t('admin.nav.ariaLabel', 'Administration sections')} className="mb-4 min-w-0 md:mb-6">
+      <div className="flex min-w-0 max-w-full items-center gap-1 overflow-x-auto rounded-lg bg-secondary p-1 md:flex-wrap">
         {links([...ORGANIZATION_SECTIONS, 'cost-attribution' as const].filter((id) => sections.includes(id)))}
         {isOperator && (
           <>
-            <span className="col-span-2 px-2 pt-2 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground md:col-span-1 md:ml-1 md:self-center md:px-1 md:pt-0">
+            <span className="shrink-0 px-2 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground md:ml-1 md:self-center md:px-1">
               {t('admin.nav.platform', 'Platform')}
             </span>
             {links(OPERATOR_SECTIONS)}

@@ -97,9 +97,9 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
   }
 
   return (
-    <section aria-label={t('finance:area.attention', 'Finance attention')} className="grid min-w-0 gap-6 lg:grid-cols-2">
+    <section aria-label={t('finance:area.attention', 'Finance attention')} className="grid min-w-0 grid-cols-1 gap-6">
       {overdueCount > 0 && (
-        <div className={waiting.length === 0 ? 'lg:col-span-2' : undefined}>
+        <div>
           <Tooltip content={t('financeHub:hub.overdueHint', 'Count of open invoices past their derived due date; total sums known outstanding balances, including tax, by currency.')}>
             <h2 tabIndex={0} className="mb-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
               {overdueCurrencyLines[0]
@@ -110,7 +110,7 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
             </h2>
           </Tooltip>
           {overdueCurrencyLines.slice(1).map((amount) => <p key={amount} className="mb-2 text-xs text-muted-foreground">{amount}</p>)}
-          <div className="divide-y divide-border border-y border-border">
+          <div className="divide-y divide-border">
             {position.overdue.slice(0, 5).map(({ invoice, daysOverdue, outstanding }) => {
               const project = invoice.project_id ? projects.get(invoice.project_id) : undefined;
               const pm = project?.pm?.full_name?.trim();
@@ -155,9 +155,9 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
       )}
 
       {waiting.length > 0 && (
-        <div className={overdueCount === 0 ? 'lg:col-span-2' : undefined}>
+        <div>
           {canAct && <h2 className="mb-1 text-sm font-semibold">{t('finance:area.waitingOnYou', 'Waiting on you')}</h2>}
-          <div className="divide-y divide-border border-y border-border">
+          <div className="divide-y divide-border">
             {waiting.map((item) => (
               <div key={item.key} className="flex min-w-0 items-center gap-3 py-2.5">
                 <span className="min-w-0 flex-1">

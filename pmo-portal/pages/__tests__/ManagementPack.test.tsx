@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
@@ -20,10 +20,19 @@ const h = vi.hoisted(() => ({
   salesInvoices: [] as unknown[],
 }));
 
+const queryListeners = new Set<() => void>();
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => true }));
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: () => h.revenue }));
 vi.mock('@/src/hooks/useManagementPack', () => ({
-  useManagementPack: () => h.query,
+  useManagementPack: () => {
+    const [, setTick] = React.useState(0);
+    React.useEffect(() => {
+      const listener = () => setTick((t) => t + 1);
+      queryListeners.add(listener);
+      return () => { queryListeners.delete(listener); };
+    }, []);
+    return h.query;
+  },
   useRecordProjectProgress: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDelivery: () => ({ data: {} }) }));
@@ -130,6 +139,33 @@ describe('AC-MMP-012 who sees the pack and who records progress', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Actions for Alpha' }));
     expect(screen.getByRole('menuitem', { name: 'Record progress' })).toBeInTheDocument();
+  });
+
+  it('Split2: preserves open action menu and allows Finance to record progress across background query refetch', async () => {
+    h.role = 'Finance';
+    renderPage();
+
+    const user = userEvent.setup();
+    const alpha = screen.getByText('Alpha').closest('tr')!;
+    const actionsButton = within(alpha).getByRole('button', { name: 'Actions for Alpha' });
+    await user.click(actionsButton);
+
+    const recordItem = screen.getByRole('menuitem', { name: 'Record progress' });
+    expect(recordItem).toBeInTheDocument();
+
+    // Settle a pending / background refetch response with new pack data object
+    await act(async () => {
+      h.query = { ...h.query, data: buildManagementPack(facts) };
+      queryListeners.forEach((fn) => fn());
+    });
+
+    // The menuitem must STILL be in the document (not detached) and clickable by Finance
+    const stableRecordItem = screen.getByRole('menuitem', { name: 'Record progress' });
+    expect(stableRecordItem).toBeInTheDocument();
+    await user.click(stableRecordItem);
+
+    // Record progress modal opens
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 });
 

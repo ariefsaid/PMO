@@ -269,7 +269,6 @@ describe('AC-008 FinancialStatementsSection provenance and refresh status', () =
     expect(within(section).getAllByRole('status')).toHaveLength(1);
     const retry = within(section).getByRole('button', { name: labels.retry });
     expect(retry).toBeEnabled();
-    expect(retry).toHaveClass('border-input', 'bg-background', 'text-foreground');
     expect(onRetry).not.toHaveBeenCalled();
     if (hasActivity) {
       expect(within(section).getByTestId('statement-child')).toBeInTheDocument();

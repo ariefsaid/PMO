@@ -1,4 +1,6 @@
 {
+  "workOrderEligibility": {"checking": "Memeriksa kelayakan penerbitan…", "unavailable": "Kelayakan penerbitan tidak dapat diperiksa. Muat ulang halaman ini dan coba lagi."},
+  "winEligibility": {"checking": "Memeriksa kelayakan memenangkan proyek…", "unavailable": "Kelayakan memenangkan proyek tidak tersedia. Muat ulang halaman ini dan coba lagi.", "reviewer": "Minta atasan atau peninjau yang lebih senior untuk memastikan nilai sebelum memenangkan proyek ini.", "inactive": "Minta atasan yang aktif atau peninjau yang lebih senior untuk memastikan nilai."},
   "finishSpendingSetup": "Selesaikan penyiapan pengeluaran",
   "spendingAdminHandoff": "Minta administrator menyelesaikan penyiapan pengeluaran.",
   "spendingSetupPrompt": "Pengeluaran tercatat akan muncul setelah penyiapan akun selesai.",
@@ -8,6 +10,9 @@
   "categoryNeedsSetup": "Penyiapan pengeluaran untuk kategori ini belum selesai.",
   "invoiceBalanceUnavailable": "Saldo faktur masih menunggu konfirmasi.",
   "invoiceScope": "Hanya faktur yang ditautkan ke proyek ini yang disertakan.",
+  "history": {
+    "referenceNamesError": "Beberapa nama catatan tidak dapat dimuat."
+  },
   "noLinkedInvoices": "Belum ada faktur yang ditautkan ke proyek ini",
   "billedWork": "Pendapatan pekerjaan tertagih",
   "billedWorkQualifier": "Tanpa pajak; tidak termasuk uang muka",
@@ -196,7 +201,7 @@
           "confirm": "Tarik tagihan"
         },
         "errors": {
-          "claimWithdrawn": "Tagihan ini telah ditarik — fakturnya tidak dapat diterbitkan."
+          "claimWithdrawn": "Tagihan ini telah ditarik. Fakturnya tidak dapat diterbitkan."
         },
         "withdrawn": "Ditarik",
         "kind": {
@@ -246,9 +251,9 @@
       },
       "assessment": {
         "note": "Catatan (opsional)",
-        "quantityToDate": "{{item}} — selesai s.d. saat ini ({{unit}})",
+        "quantityToDate": "{{item}}: selesai s.d. saat ini ({{unit}})",
         "save": "Simpan progres",
-        "subtitle": "Kuantitas yang selesai s.d. bulan ini. Ini penilaian operasional — tidak pernah membuat faktur.",
+        "subtitle": "Kuantitas yang selesai s.d. bulan ini. Ini penilaian operasional, tidak pernah membuat faktur.",
         "errors": {
           "quantity": "Setiap kuantitas selesai harus 0 atau lebih dengan paling banyak 3 angka desimal",
           "month": "Isi bulan dengan format YYYY-MM"
@@ -273,7 +278,7 @@
         "linesLegend": "Kuantitas yang ditagih",
         "kindDownPayment": "Uang muka",
         "recoveryHelp": "Proporsional terhadap kontrak: {{pct}}%",
-        "quantity": "{{item}} — {{description}} ({{unit}})",
+        "quantity": "{{item}}: {{description}} ({{unit}})",
         "kind": "Jenis tagihan",
         "save": "Buat tagihan",
         "subtitle": "Satu tagihan menjadi satu faktur ERP. Lampirkan bukti sebelum menerbitkannya.",
@@ -282,7 +287,7 @@
         "scopeContract": "Baris tanpa work order",
         "title": "Tagihan baru",
         "prefill": "Mulai dari penilaian {{month}}",
-        "kindProgress": "Progres — kuantitas terhadap bill of quantities"
+        "kindProgress": "Progres: kuantitas terhadap bill of quantities"
       },
       "boqForm": {
         "quantity": "Kuantitas",
@@ -611,7 +616,6 @@
       "reasonStaleAttribution": "Atribusi anggaran sudah lama atau belum lengkap. Tinjau pembagian baris.",
       "recordsBehindSpending": "Catatan sumber pengeluaran",
       "retryFailedEtc": "Coba lagi perubahan yang gagal",
-      "spent": "Terpakai",
       "spentAndCommitted": "Terpakai + komitmen",
       "unavailable": "Tidak tersedia",
       "watch": "Perlu dipantau",
@@ -854,5 +858,10 @@
     "contractPosition": "Posisi penagihan kontrak",
     "purchaseOrdersUnavailable": "Total pesanan pembelian masih menunggu konfirmasi.",
     "reviewInvoices": "Tinjau faktur"
+  },
+  "m365Documents": {
+    "history": {
+      "openVerified": "Buka riwayat versi yang terverifikasi"
+    }
   }
 }

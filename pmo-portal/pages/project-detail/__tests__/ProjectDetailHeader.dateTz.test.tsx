@@ -90,4 +90,19 @@ describe('AC-W2-3-01: ProjectDetailHeader contract date — no UTC day-shift', (
     // Must NOT render the UTC-shifted day-before.
     expect(screen.queryByText(/Jun 13, 2026/)).not.toBeInTheDocument();
   });
+
+  it('uses the shared group gap for finance figure tiles', () => {
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <ProjectDetailHeader project={project} committedSpend={0} />
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+
+    const tiles = screen.getAllByTestId('stat-tiles');
+    expect(tiles.length).toBeGreaterThan(1);
+    expect(tiles[1].className).toContain('gap-[var(--space-group)]');
+    expect(tiles[1].className).not.toMatch(/gap-[xy]-3|gap-y-2/);
+  });
 });

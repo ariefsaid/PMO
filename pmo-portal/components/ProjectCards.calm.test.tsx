@@ -59,9 +59,11 @@ describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
       })}
     />);
     const card = screen.getByTestId('project-card');
-    const bars = screen.getByTestId('project-card-bars');
-    expect(bars).toHaveClass('items-start');
-    expect(within(bars).queryByText('At risk')).not.toBeInTheDocument();
+    // The delivery/usage bars are rows of the ONE shared fact grid (director fix), which keeps
+    // items-start alignment; the At-risk pill must not repeat inside it.
+    const grid = card.querySelector('dl');
+    expect(grid).toHaveClass('items-start');
+    expect(within(grid as HTMLElement).queryByText('At risk')).not.toBeInTheDocument();
     expect(within(card).getAllByText('At risk')).toHaveLength(1);
   });
 
@@ -70,7 +72,7 @@ describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
       projectMoney={money({ activeBudgetAmount: null, activeBudgetCurrency: null, hasActiveBudget: false })} />);
     expect(screen.getAllByText('No active budget')).toHaveLength(1);
     expect(screen.queryByText('Budget used')).not.toBeInTheDocument();
-    // Same without a delivery summary: no second grid.
+    // Same without a delivery summary: the Delivery row still renders in the shared grid.
     expect(screen.getByLabelText('Delivery 40%')).toBeInTheDocument();
   });
 
@@ -78,7 +80,7 @@ describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
     render(<ProjectCard project={project} onOpen={vi.fn()}
       projectMoney={money({ activeBudgetAmount: null, activeBudgetCurrency: null, hasActiveBudget: false })} />);
     expect(screen.getAllByText('No active budget')).toHaveLength(1);
-    expect(screen.queryByTestId('project-card-bars')).not.toBeInTheDocument();
+    expect(screen.queryByText('Budget used')).not.toBeInTheDocument();
   });
 
   it('has no status-change control; the status pill remains', () => {

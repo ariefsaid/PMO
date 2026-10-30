@@ -71,7 +71,13 @@
     "periodBalanceSheet": "Neraca",
     "periodTrialBalance": "Neraca saldo",
     "latestStatement": "Periode terbaru {{period}}",
-    "back": "Kembali"
+    "back": "Kembali",
+    "payablesAgeingBasis": "Faktur pemasok berdasarkan usia · sejak status ditagih atau pembaruan terakhir",
+    "ageingUnknown_one": "Tidak ada saldo diketahui untuk dikelompokkan · {{count}} saldo tidak diketahui",
+    "ageingUnknown_other": "Tidak ada saldo diketahui untuk dikelompokkan · {{count}} saldo tidak diketahui",
+    "ageingUnknownCount_one": "{{count}} saldo tidak diketahui",
+    "ageingUnknownCount_other": "{{count}} saldo tidak diketahui",
+    "ageingEmpty": "Tidak ada saldo untuk dikelompokkan berdasarkan usia"
   },
   "table": {
     "selectRow": "Pilih {{name}}"
@@ -91,7 +97,8 @@
     "receivedVsLastMonth": "dibanding bulan lalu",
     "otherCurrencies": "{{amounts}} dalam mata uang lain",
     "otherCurrencyDeltas": "{{amounts}} dibanding bulan lalu",
-    "invoiceClients": "{{invoices}} faktur · {{clients}} {{clientLabel}}",
+    "invoiceClients_one": "{{count}} faktur · {{clients}} {{clientLabel}}",
+    "invoiceClients_other": "{{count}} faktur · {{clients}} {{clientLabel}}",
     "clientSingular": "klien",
     "clientPlural": "klien",
     "overdueDetails": "{{percent}} dari piutang · {{count}} {{invoiceLabel}} · terlama {{days}} hari",
@@ -178,7 +185,11 @@
     "overdueUnavailable": "Hasil jatuh tempo tidak tersedia",
     "evidenceLoadError": "Gagal memuat baris faktur dari sistem akuntansi.",
     "amount": "Jumlah",
-    "outstandingUnknown": "Saldo terutang belum diketahui: sistem akuntansi belum melaporkannya untuk faktur ini."
+    "outstandingUnknown": "Saldo terutang belum diketahui: sistem akuntansi belum melaporkannya untuk faktur ini.",
+    "mobileInvoiceAmount": "Total faktur tidak termasuk PPN",
+    "mobileOutstandingUnknown": "Saldo terutang tidak diketahui",
+    "mobileInvoiceAmountInclusive": "Total faktur termasuk PPN",
+    "mobileInvoiceAmountUnspecified": "Jumlah faktur"
   },
   "invoices": {
     "description": "Faktur klien.",
@@ -204,6 +215,9 @@
     "emptySub": "Pembelian tampil di sini setelah sinkronisasi berikutnya, begitu ERPNext terhubung.",
     "amountPreTaxTooltip": "Total sebelum pajak dari dokumen di sistem akuntansi. Sumber: dokumen pembelian ERP.",
     "noProject": "Tanpa proyek",
+    "projectUnavailable": "Proyek tidak tersedia ({{id}})",
+    "exportEntity": "Dokumen ERP",
+    "exportList": "Ekspor daftar",
     "type": {
       "order": "Pesanan pembelian",
       "invoice": "Faktur pemasok",
@@ -217,7 +231,8 @@
       "date": "Tanggal",
       "amount": "Jumlah",
       "erpStatus": "Status ERPNext",
-      "amountPreTax": "Jumlah (sebelum pajak)"
+      "amountPreTax": "Jumlah (sebelum pajak)",
+      "currency": "Mata uang"
     },
     "aging": {
       "title": "Belum dibayar menurut umur",
@@ -239,6 +254,8 @@
     "uncategorized": "Tanpa kategori"
   },
   "budgetActivation": {
+    "eligibilityChecking": "Memeriksa kelayakan aktivasi…",
+    "eligibilityUnavailable": "Kelayakan aktivasi tidak tersedia. Muat ulang halaman ini dan coba lagi.",
     "checking": "Memeriksa tanggal proyek, pembagian item, tahun fiskal ERPNext, dan pemetaan akun…",
     "checkFailed": "Kesiapan anggaran tidak dapat diperiksa. Muat ulang dan coba lagi.",
     "erpUnavailable": "ERPNext tidak dapat diperiksa; pemeriksaan akan dilakukan lagi saat anggaran dikirim.",
@@ -460,6 +477,8 @@
       "activeBudgetSource": "Sumber: baris versi anggaran aktif, dikelompokkan menurut kategori.",
       "spendingUnavailable": "Pengeluaran tidak diketahui atau tidak tersedia.",
       "commitmentsUnavailable": "Komitmen tidak diketahui atau tidak tersedia.",
+      "currencyBasisNotice": "Anggaran: {{budgetCurrency}}. Pengeluaran dan komitmen: {{projectCurrency}}. Perbandingan antar mata uang tidak tersedia.",
+      "currencyComparisonUnavailable": "Perbandingan tidak tersedia karena anggaran dan pengeluaran menggunakan mata uang yang berbeda.",
       "leftUnavailable": "Sisa anggaran tidak diketahui saat pengeluaran atau komitmen tidak tersedia.",
       "budgetVsActual": "Anggaran vs aktual",
       "selectedCategories": "Kategori yang dipilih",

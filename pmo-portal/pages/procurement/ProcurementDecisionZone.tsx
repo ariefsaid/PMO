@@ -152,7 +152,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
       case 'Requested':
         return tProcurement(
           'procurementDetail.readyHint.requested',
-          'You may approve or reject this procurement. The requester cannot self-approve — separation of duties requires a different reviewer.',
+          'You may approve or reject this procurement. The requester cannot self-approve. Separation of duties requires a different reviewer.',
         );
       case 'Vendor Invoiced':
         return approver
@@ -580,8 +580,8 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
                 ...TAX_TREATMENT_OPTIONS.map((o) => ({
                   value: o.value,
                   label: o.value === 'inclusive'
-                    ? t('procurementDetail.vendorInvoice.taxInclusive', 'Inclusive — VAT included')
-                    : t('procurementDetail.vendorInvoice.taxExclusive', 'Exclusive — VAT added'),
+                    ? t('procurementDetail.vendorInvoice.taxInclusive', 'Inclusive: VAT included')
+                    : t('procurementDetail.vendorInvoice.taxExclusive', 'Exclusive: VAT added'),
                 })),
               ]}
               helper={t('procurementDetail.vendorInvoice.taxTreatmentHelper', 'Inclusive: VAT is already in the bill amount. Exclusive: VAT is added to it.')}

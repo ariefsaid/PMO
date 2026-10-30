@@ -19,7 +19,8 @@ test('AC-1117: dashboard shows dual-lens KPIs and Sales Pipeline renders weighte
   // Sign in as the seed Executive
   await pinViewerLocale(page);
   await signIn(page, 'exec@acme.test');
-  await page.goto('/');
+  // #1403: signIn already opens the authenticated dashboard.
+  await expect(page).toHaveURL(/\/$/);
 
   // ── Exec Dashboard: contract and billed-work margin stay distinct ────────────
   // SP-2402 has a synthetic, submitted billed-work invoice and complete mapped
@@ -63,7 +64,11 @@ test('AC-1117: dashboard shows dual-lens KPIs and Sales Pipeline renders weighte
   // Wave-5 Cluster-2 PR-A: the Pipeline KPI is now itself the doorway (drill-through),
   // so the natural journey is to click the tile. (Also disambiguates from the nav-rail
   // "Sales Pipeline" link.) Goal-oracle below — weighted stages render — is unchanged.
-  await pipelineWeightedTile.click();
+  // #1404: KPITile's full-surface link is a sibling of the text content wrapper.
+  await pipelineWeightedTile.locator('..').getByRole('link', {
+    name: 'Open related records for Pipeline (weighted).',
+    exact: true,
+  }).click();
   await page.waitForURL('**/sales');
 
   // pipeline-weighted-total KPI renders

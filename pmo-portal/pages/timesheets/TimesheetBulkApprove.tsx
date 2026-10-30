@@ -149,7 +149,7 @@ export function TimesheetBulkConfirm({ controller, sheets }: { controller: BulkC
       title={title}
       description={(
         <span className="block">
-          {t('approvals.bulk.confirmDescription', "This approves the selected weeks. You can't approve your own timesheet — separation of duties is enforced.")}
+          {t('approvals.bulk.confirmDescription', "This approves the selected weeks. You can't approve your own timesheet. Separation of duties is enforced.")}
           <span className="mt-2 block space-y-0.5">
             {sheets.filter((sheet) => controller.effectiveSelected.has(sheet.id)).map((sheet) => (
               <span key={sheet.id} className="block text-[13px]">
