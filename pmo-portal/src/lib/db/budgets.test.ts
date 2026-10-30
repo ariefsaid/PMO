@@ -405,6 +405,45 @@ describe('createLineItem and deleteLineItem', () => {
   });
 });
 
+describe('version allocation under contention', () => {
+  it('re-reads the maximum after a project-version collision', async () => {
+    const conflict = { code: '23505', message: 'duplicate key value violates unique constraint "budget_versions_project_id_version_key"' };
+    const result = { id: 'created', version: 3 };
+    let read = 0;
+    const inserted: number[] = [];
+    mockFrom.mockImplementation(() => {
+      const b: Record<string, unknown> = {};
+      for (const method of ['select', 'eq', 'order', 'limit', 'single']) b[method] = () => b;
+      let isInsert = false;
+      b.insert = (row: { version: number }) => { isInsert = true; inserted.push(row.version); return b; };
+      b.then = (resolve: (value: unknown) => void) => Promise.resolve(!isInsert
+        ? { data: [{ version: ++read }], error: null }
+        : inserted.length === 1 ? { data: null, error: conflict } : { data: result, error: null }).then(resolve);
+      return b;
+    });
+    await expect(createBudgetVersion('p1', 'Draft')).resolves.toEqual(result);
+    expect(inserted).toEqual([2, 3]);
+  });
+
+  it('does not retry a different unique constraint', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "budget_versions_import_key_uidx"' } });
+    await expect(cloneVersion('source')).rejects.toMatchObject({ code: '23505' });
+    expect(mockRpc).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops retrying persistent version collisions and preserves the error', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "budget_versions_project_id_version_key"' } });
+    await expect(cloneVersion('source')).rejects.toMatchObject({ code: '23505' });
+    expect(mockRpc).toHaveBeenCalledTimes(4);
+  });
+
+  it('retries a clone when another allocation wins its version', async () => {
+    mockRpc.mockResolvedValueOnce({ data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "budget_versions_project_id_version_key"' } });
+    mockRpc.mockResolvedValueOnce({ data: 'copy', error: null });
+    await expect(cloneVersion('source')).resolves.toBe('copy');
+  });
+});
+
 describe('createBudgetVersion', () => {
   it('new version is Draft with version = max+1 (AC-724, FR-BV-004)', async () => {
     // First call: read max version → returns [{version: 2}]

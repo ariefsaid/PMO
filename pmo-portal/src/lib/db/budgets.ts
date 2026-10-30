@@ -314,6 +314,13 @@ export async function deleteLineItem(id: string): Promise<void> {
 // Phase C — writes (version lifecycle)
 // ---------------------------------------------------------------------------
 
+const VERSION_ALLOCATION_ATTEMPTS = 4;
+
+function isVersionAllocationConflict(error: { code?: string; message?: string }): boolean {
+  return error.code === '23505' && error.message ===
+    'duplicate key value violates unique constraint "budget_versions_project_id_version_key"';
+}
+
 /**
  * Creates a new Draft budget version at max(version)+1 for the project.
  * org_id is NEVER sent (AC-724, FR-BV-004).
@@ -323,41 +330,47 @@ export async function createBudgetVersion(
   name: string,
   provenance?: ImportProvenance,
 ): Promise<BudgetVersionRow> {
-  // Step 1: read current max version for this project
-  const { data: maxData, error: maxError } = await supabase
-    .from('budget_versions')
-    .select('version')
-    .eq('project_id', projectId)
-    .order('version', { ascending: false })
-    .limit(1);
-  if (maxError) throw new Error(maxError.message);
+  for (let attempt = 0; attempt < VERSION_ALLOCATION_ATTEMPTS; attempt++) {
+    // Step 1: read current max version for this project
+    const { data: maxData, error: maxError } = await supabase
+      .from('budget_versions')
+      .select('version')
+      .eq('project_id', projectId)
+      .order('version', { ascending: false })
+      .limit(1);
+    if (maxError) throw new Error(maxError.message);
 
-  const rows = (maxData ?? []) as { version: number }[];
-  const nextVersion = rows.length > 0 ? rows[0].version + 1 : 1;
+    const rows = (maxData ?? []) as { version: number }[];
+    const nextVersion = rows.length > 0 ? rows[0].version + 1 : 1;
 
-  // Step 2: insert new Draft at next version
-  const { data, error } = await supabase
-    .from('budget_versions')
-    .insert({
-      project_id: projectId,
-      version: nextVersion,
-      name,
-      status: 'Draft',
-      // ⚑ `currency` is DELIBERATELY absent (FR-BIMP-006 / DD-BIMP-2): 0187's `stamp_currency`
-      // BEFORE-INSERT trigger resolves it from `organizations.default_currency`. A client
-      // hand-carrying a currency is the thing that seam exists to prevent, exactly as with org_id.
-      ...(provenance
-        ? {
-            import_batch_id: provenance.importBatchId,
-            imported_at: provenance.importedAt,
-            import_key: provenance.importKey ?? null,
-          }
-        : {}),
-    })
-    .select()
-    .single();
-  if (error) throw toAppError(error);
-  return data as unknown as BudgetVersionRow;
+    // Step 2: insert new Draft at next version
+    const { data, error } = await supabase
+      .from('budget_versions')
+      .insert({
+        project_id: projectId,
+        version: nextVersion,
+        name,
+        status: 'Draft',
+        // ⚑ `currency` is DELIBERATELY absent (FR-BIMP-006 / DD-BIMP-2): 0187's `stamp_currency`
+        // BEFORE-INSERT trigger resolves it from `organizations.default_currency`. A client
+        // hand-carrying a currency is the thing that seam exists to prevent, exactly as with org_id.
+        ...(provenance
+          ? {
+              import_batch_id: provenance.importBatchId,
+              imported_at: provenance.importedAt,
+              import_key: provenance.importKey ?? null,
+            }
+          : {}),
+      })
+      .select()
+      .single();
+    if (error) {
+      if (isVersionAllocationConflict(error) && attempt + 1 < VERSION_ALLOCATION_ATTEMPTS) continue;
+      throw toAppError(error);
+    }
+    return data as unknown as BudgetVersionRow;
+  }
+  throw new Error('Version allocation attempts exhausted');
 }
 
 /**
@@ -366,11 +379,17 @@ export async function createBudgetVersion(
  * org_id is NEVER sent — the RPC re-asserts org from auth context (AC-725, FR-BV-007).
  */
 export async function cloneVersion(versionId: string): Promise<string> {
-  const { data, error } = await supabase.rpc('clone_budget_version', {
-    version_id: versionId,
-  });
-  if (error) throw toAppError(error);
-  return data as string;
+  for (let attempt = 0; attempt < VERSION_ALLOCATION_ATTEMPTS; attempt++) {
+    const { data, error } = await supabase.rpc('clone_budget_version', {
+      version_id: versionId,
+    });
+    if (error) {
+      if (isVersionAllocationConflict(error) && attempt + 1 < VERSION_ALLOCATION_ATTEMPTS) continue;
+      throw toAppError(error);
+    }
+    return data as string;
+  }
+  throw new Error('Version allocation attempts exhausted');
 }
 
 /**
