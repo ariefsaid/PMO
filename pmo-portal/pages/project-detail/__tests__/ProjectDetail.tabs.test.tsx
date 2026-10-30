@@ -177,17 +177,29 @@ describe('ProjectDetail — section deep links (AC-W2-IA-004)', () => {
   });
 
   it('scrolls the selected project tab into view on mount and after a tab change', async () => {
-    const scrollSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
+    // jsdom has no layout: place every tab past the strip's right edge so the selected one must be scrolled to.
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const isTab = this.getAttribute('role') === 'tab';
+      return { left: isTab ? 400 : 0, right: isTab ? 480 : 300, top: 0, bottom: 32, width: isTab ? 80 : 300, height: 32, x: 0, y: 0, toJSON() {} } as DOMRect;
+    });
+    const scrollBySpy = vi.fn();
+    const pageScroll = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    Object.defineProperty(HTMLElement.prototype, 'scrollBy', { configurable: true, value: scrollBySpy });
     try {
       await renderAt('/projects/p1/tasks');
-      expect(scrollSpy).toHaveBeenCalledWith(expect.objectContaining({ inline: 'nearest', block: 'nearest' }));
+      await waitFor(() => expect(scrollBySpy).toHaveBeenCalledWith(expect.objectContaining({ left: 180 })));
 
-      scrollSpy.mockClear();
+      scrollBySpy.mockClear();
       fireEvent.click(screen.getByRole('tab', { name: 'Documents' }));
       await waitFor(() => expect(screen.getByRole('tab', { name: 'Documents' })).toHaveAttribute('aria-selected', 'true'));
-      expect(scrollSpy).toHaveBeenCalledWith(expect.objectContaining({ inline: 'nearest', block: 'nearest' }));
+      await waitFor(() => expect(scrollBySpy).toHaveBeenCalledWith(expect.objectContaining({ left: 180 })));
+      // Only the strip scrolls horizontally; the page never scrolls.
+      expect(scrollBySpy.mock.calls.every(([arg]) => !('top' in arg))).toBe(true);
+      expect(pageScroll).not.toHaveBeenCalled();
     } finally {
-      scrollSpy.mockRestore();
+      rectSpy.mockRestore();
+      pageScroll.mockRestore();
+      delete (HTMLElement.prototype as Partial<HTMLElement>).scrollBy;
     }
   });
 
