@@ -495,6 +495,82 @@ describe('BudgetProjection — cost to finish editing (OD-BUDGET-3, UX-039)', ()
     expect(upsertEtcMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR, 'Materials', 45000);
   });
 
+  it('retains typing during a partial save and retries only unsaved changes in the same year', async () => {
+    let finish!: () => void;
+    upsertEtcMock.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }))
+      .mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined);
+    const user = await openEditor();
+    await type(user, 'Labor', '41000');
+    await type(user, 'Materials', '42000');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(upsertEtcMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR, 'Labor', 41000);
+    await type(user, 'Labor', '43000');
+    await act(async () => finish());
+    await screen.findByText(/Not saved: Materials/);
+    expect(screen.getByRole('textbox', { name: 'Cost to finish for Labor' })).toHaveValue('43000');
+    expect(screen.getByRole('textbox', { name: 'Cost to finish for Labor' })).toHaveFocus();
+    expect(screen.getByRole('textbox', { name: 'Cost to finish for Materials' })).toHaveValue('42000');
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Retry failed edits' }));
+    await waitFor(() => expect(upsertEtcMock).toHaveBeenCalledTimes(4));
+    expect(upsertEtcMock.mock.calls.slice(2)).toEqual([
+      ['proj-1', ERP_FISCAL_YEAR, 'Labor', 43000],
+      ['proj-1', ERP_FISCAL_YEAR, 'Materials', 42000],
+    ]);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Edit cost to finish' })).toHaveFocus());
+  });
+
+  it('keeps newer typing open after a successful pending save', async () => {
+    let finish!: () => void;
+    upsertEtcMock.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; })).mockResolvedValue(undefined);
+    const user = await openEditor([ROW]);
+    await type(user, 'Labor', '41000');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await type(user, 'Labor', '43000');
+    await act(async () => finish());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled());
+    expect(screen.getByRole('textbox', { name: 'Cost to finish for Labor' })).toHaveValue('43000');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(upsertEtcMock).toHaveBeenLastCalledWith('proj-1', ERP_FISCAL_YEAR, 'Labor', 43000));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Edit cost to finish' })).toHaveFocus());
+  });
+
+  it('keeps a new editor session intact when a cancelled save finishes', async () => {
+    let finish!: () => void;
+    upsertEtcMock.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
+    const user = await openEditor([ROW]);
+    await type(user, 'Labor', '41000');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await user.click(screen.getByRole('button', { name: 'Edit cost to finish' }));
+    await type(user, 'Labor', '43000');
+    await act(async () => finish());
+    expect(screen.getByRole('textbox', { name: 'Cost to finish for Labor' })).toHaveValue('43000');
+    expect(screen.getByRole('textbox', { name: 'Cost to finish for Labor' })).toHaveFocus();
+  });
+
+  it('retries only the failed entry and then saves a separately selected year', async () => {
+    upsertEtcMock.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined);
+    const user = await openEditor();
+    await type(user, 'Labor', '41000');
+    await type(user, 'Materials', '42000');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText(/Not saved: Materials/);
+    await user.click(screen.getByRole('button', { name: 'Retry failed edits' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Edit cost to finish' })).toHaveFocus());
+    expect(upsertEtcMock.mock.calls).toEqual([
+      ['proj-1', ERP_FISCAL_YEAR, 'Labor', 41000],
+      ['proj-1', ERP_FISCAL_YEAR, 'Materials', 42000],
+      ['proj-1', ERP_FISCAL_YEAR, 'Materials', 42000],
+    ]);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), PRIOR_ERP_FISCAL_YEAR);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('proj-1', PRIOR_ERP_FISCAL_YEAR));
+    await user.click(await screen.findByRole('button', { name: 'Edit cost to finish' }));
+    await type(user, 'Labor', '44000');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(upsertEtcMock).toHaveBeenLastCalledWith('proj-1', PRIOR_ERP_FISCAL_YEAR, 'Labor', 44000));
+  });
+
   it('I-2 UX-039 there is ONE edit trigger for the whole table, never one per category', async () => {
     fetchMock.mockResolvedValue([ROW, MATERIALS]);
     renderForecast();
@@ -507,6 +583,14 @@ describe('BudgetProjection — cost to finish editing (OD-BUDGET-3, UX-039)', ()
     expect(screen.getByRole('textbox', { name: 'Cost to finish for Labor' })).toHaveFocus();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Edit cost to finish' })).toHaveFocus());
+  });
+
+  it('moves focus into the editor when the forecast renders as narrow cards', async () => {
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 390, height: 100, x: 0, y: 0, top: 0, bottom: 100, left: 0, right: 390, toJSON: () => ({}) });
+    try {
+      await openEditor();
+      expect(screen.getByRole('textbox', { name: 'Cost to finish for Labor' })).toHaveFocus();
+    } finally { rect.mockRestore(); }
   });
 
   it('I-3 saving also returns focus to the trigger, never to <body>', async () => {
