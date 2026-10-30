@@ -1,3 +1,4 @@
+import { encodeBudgetImportIdentity } from '../../../../scripts/lib/budget-import-identity.mjs';
 import { repositories } from '@/src/lib/repositories';
 import { parseNeutralMoneyInputAtScale } from '@/src/lib/format';
 import { Constants } from '@/src/lib/supabase/database.types';
@@ -13,47 +14,18 @@ type BudgetCategory = BudgetLineItemRow['category'];
 /** One sheet row: exactly one budget LINE ITEM (FR-BIMP-001). */
 export interface BudgetImportInput {
   projectId: string;
+  projectLabel: string;
   category: BudgetCategory;
   description: string | null;
   budgetedAmount: number;
   fiscalYear: string | null;
   /** FR-BIMP-011 — the row's `Reference` cell, else a fingerprint of its content. */
   importKey: string;
+  v2Key: string;
+  hasReference: boolean;
 }
 
-/**
- * FR-BIMP-011 — the stable per-row dedupe key, `procurementCycle/importKey.ts`'s shape verbatim:
- * an operator-supplied reference is PREFERRED, and the content fingerprint is the documented
- * fallback. Pure and deterministic, so the same row yields the same key in any later session —
- * which is the whole of the re-run guarantee (the batch id is NOT part of it, DD-BIMP-3).
- *
- * ⚑ Two byte-identical lines in one sheet with no `Reference` therefore collapse to one. That is
- * the cost of a content fingerprint and `Reference` is the way out — stated rather than hidden,
- * because the row that vanishes does so quietly.
- */
-export function computeBudgetLineImportKey(cells: {
-  project: string;
-  category: string;
-  description: string;
-  fiscalYear: string;
-  amount: string;
-  reference: string;
-}): string {
-  if (cells.reference.trim()) return cells.reference.trim();
-  const parts = [
-    cells.project.trim(),
-    cells.category.trim(),
-    cells.description.trim(),
-    cells.fiscalYear.trim(),
-    cells.amount.trim(),
-  ];
-  return `fp:${parts.join('|')}`;
-}
-
-/** 0195's partial unique index turns a concurrent duplicate into 23505 — that is a skip, not a failure. */
-function isUniqueViolation(err: unknown): boolean {
-  return (err as { code?: unknown })?.code === '23505';
-}
+export { computeBudgetLineImportKey } from '../../../../scripts/lib/budget-import-identity.mjs';
 
 /**
  * #684 (AC-PLC-009): `budgeted_amount` is numeric(14,2), read with the NEUTRAL import parser — the
@@ -61,7 +33,8 @@ function isUniqueViolation(err: unknown): boolean {
  * display preference. The same parse validates the cell and produces the written number.
  */
 function parseBudgetedAmount(raw: string): number | null {
-  return parseNeutralMoneyInputAtScale(raw, 2);
+  const amount = parseNeutralMoneyInputAtScale(raw, 2);
+  return amount !== null && amount >= 0 && amount < 1e12 ? amount : null;
 }
 
 function requireBudgetedAmount(raw: string): number {
@@ -144,47 +117,31 @@ export function makeBudgetImportDescriptor(
       { key: 'fiscalYear', label: 'Fiscal year', required: false, validate: () => null },
       { key: 'importKey', label: 'Reference', required: false, validate: () => null },
     ],
-    toInput: (cells) => ({
-      projectId: refId(project, cells.projectId ?? '') ?? '',
-      category: cells.category.trim() as BudgetCategory,
-      description: cells.description?.trim() || null,
-      budgetedAmount: requireBudgetedAmount(cells.budgetedAmount),
-      // FR-BFY-060: an omitted year stays NULL (un-phased) — PMO never invents another system's
-      // calendar name.
-      fiscalYear: cells.fiscalYear?.trim() || null,
-      importKey: computeBudgetLineImportKey({
-        project: cells.projectId ?? '',
-        category: cells.category ?? '',
-        description: cells.description ?? '',
-        fiscalYear: cells.fiscalYear ?? '',
-        amount: cells.budgetedAmount ?? '',
-        reference: cells.importKey ?? '',
-      }),
-    }),
+    toInput: (cells) => {
+      const projectId = refId(project, cells.projectId ?? '') ?? '';
+      const category = cells.category.trim() as BudgetCategory;
+      const amount = requireBudgetedAmount(cells.budgetedAmount);
+      const identity = encodeBudgetImportIdentity({
+        projectUuid: projectId, project: cells.projectId ?? '', category,
+        rawCategory: cells.category ?? '', description: cells.description ?? '',
+        fiscalYear: cells.fiscalYear ?? '', amountText: cells.budgetedAmount ?? '',
+        amount, reference: cells.importKey ?? '',
+      });
+      return { projectId, projectLabel: (cells.projectId ?? '').trim(), category, description: cells.description?.trim() || null,
+        budgetedAmount: amount, fiscalYear: cells.fiscalYear?.trim() || null,
+        importKey: identity.legacyKey, v2Key: identity.v2Key, hasReference: identity.hasReference };
+    },
     create: async (input) => {
       const versionId = await resolveVersionId(input.projectId);
-      // FR-BIMP-007 layer 1 — the application skip. Keyed on (version, import_key) with NO batch,
-      // so a re-run in any later session finds it (DD-BIMP-3).
-      if (await repositories.budget.findImportedLine(versionId, input.importKey)) {
-        return IMPORT_SKIPPED;
-      }
-      try {
-        return await repositories.budget.createLineItem(
-          versionId,
-          {
-            category: input.category,
-            description: input.description,
-            budgeted_amount: input.budgetedAmount,
-            fiscal_year: input.fiscalYear,
-          },
-          { importBatchId, importedAt, importKey: input.importKey },
-        );
-      } catch (err) {
-        // Layer 2 — the index. Two concurrent imports both pass the check above; the loser gets
-        // 23505, which means "already imported", not "failed".
-        if (isUniqueViolation(err)) return IMPORT_SKIPPED;
-        throw err;
-      }
+      const result = await repositories.budget.importLine({
+        versionId, item: { category: input.category, description: input.description,
+          budgeted_amount: input.budgetedAmount, fiscal_year: input.fiscalYear },
+        batchId: importBatchId, importedAt, v2Key: input.v2Key,
+        legacyKey: input.importKey, hasReference: input.hasReference,
+      });
+      if (result.outcome === 'skipped') return IMPORT_SKIPPED;
+      if (result.outcome === 'conflict') throw new Error(`Import identity for project ${input.projectLabel} is ambiguous with line ${result.line_id}. Inspect the draft and source and reconcile before retrying.`);
+      return result;
     },
   };
 }

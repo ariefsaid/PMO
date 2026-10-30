@@ -198,6 +198,7 @@ import {
 import { approvedTimesheetForPush, listPushesNeedingAttention, confirmEmployeeLink, getPushState } from '@/src/lib/db/timesheetPush';
 import {
   deriveProjectBudget,
+  importBudgetLine,
   listBudgetVersions,
   createLineItem,
   updateLineItem,
@@ -880,6 +881,7 @@ const m365RecordFolders: M365RecordFoldersRepository = {
 };
 
 const budget: BudgetRepository = {
+  importLine: (request) => wrap(() => importBudgetLine(request)),
   deriveProjectBudget: (projectId) => wrap(() => deriveProjectBudget(projectId)),
   listVersions: (projectId) => wrap(() => listBudgetVersions(projectId)),
   createLineItem: (versionId, item, provenance) =>
