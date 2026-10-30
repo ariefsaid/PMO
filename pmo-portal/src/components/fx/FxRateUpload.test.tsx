@@ -226,3 +226,21 @@ describe('AC-FX-007 JISDOR upload preview', () => {
     expect(screen.queryByText('16,234.56')).not.toBeInTheDocument();
   });
 });
+
+it('renders a bounded summary for a long coverage gap', async () => {
+  h.parseFile.mockResolvedValueOnce({ rows: [
+    { rate_date: '0100-01-01', rate: 16000 },
+    { rate_date: '2026-01-01', rate: 16000 },
+  ], rejected: [], duplicates: 0 });
+  renderUpload();
+  selectFile();
+  expect(await screen.findByText(/703456 dates without rates across 1 gaps/)).toBeInTheDocument();
+});
+
+it('explains the expanded workbook limit when parsing rejects it', async () => {
+  const { ImportParseError } = await import('@/src/lib/import/types');
+  h.parseFile.mockRejectedValueOnce(new ImportParseError('fileTooLarge', 'Expanded workbook exceeds 20 MiB.'));
+  renderUpload();
+  selectFile();
+  expect(await screen.findByText('Expanded workbook exceeds 20 MiB.')).toBeInTheDocument();
+});
