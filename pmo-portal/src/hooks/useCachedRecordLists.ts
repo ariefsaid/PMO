@@ -32,7 +32,7 @@ function useCached<T>(key: readonly unknown[] | undefined, enabledByOrg: boolean
 }
 
 /** The detail query key (the page's own by-id read) for a detail route, plus its record id. */
-function detailKeyFor(pathname: string, orgId: string | undefined) {
+function detailKeyFor(pathname: string, orgId: string | undefined, actorId: string | undefined, role: string | undefined) {
   const routes: [prefix: string, key: string][] = [
     ['/projects/', 'project'],
     ['/procurement/', 'procurement'],
@@ -46,7 +46,7 @@ function detailKeyFor(pathname: string, orgId: string | undefined) {
   for (const [prefix, key] of routes) {
     if (!pathname.startsWith(prefix)) continue;
     const id = pathname.slice(prefix.length).split('/')[0];
-    if (id) return { prefix, key: [key, orgId, id] as const, id };
+    if (id) return { prefix, key: key === 'procurement' ? [key, orgId, id, actorId, role] : [key, orgId, id], id };
   }
   return undefined;
 }
@@ -86,7 +86,7 @@ export function useCachedRecordLists(pathname: string): CachedRecordLists {
   const meetings = useCached<{ id: string; title: string }[]>(['meetings', orgId, 'all', ''], has);
   const userViews = useCached<UserViewRow[]>(['user_views', orgId], has);
 
-  const detailRoute = detailKeyFor(pathname, orgId);
+  const detailRoute = detailKeyFor(pathname, orgId, currentUser?.id, currentUser?.role);
   const detailPrefix = detailRoute?.prefix;
   const detail = useCached<Record<string, unknown> | null>(detailRoute?.key, has);
 
