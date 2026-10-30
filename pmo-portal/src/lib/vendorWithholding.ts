@@ -7,6 +7,8 @@
  * exactly what the user submits (DD-VWH-13/19).
  */
 import { parseMoneyInputAtScale } from './format';
+import { divRoundHalfAwayFromZero } from './taxNormalize';
+import { calculateStandaloneTax } from './taxTreatment';
 
 export type TaxBasis = 'inclusive' | 'exclusive';
 export type PphType = 'pph23' | 'pph4_2';
@@ -81,24 +83,25 @@ export function vendorTaxDefaultOf(row: CompanyTaxColumns | null | undefined): V
 const toCents = (n: number): bigint => BigInt(Math.round(n * 100));
 const rateMilli = (rate: number): bigint => BigInt(Math.round(rate * 1000));
 const fromCents = (c: bigint): number => Number(c) / 100;
-/** num / den rounded half away from zero (den > 0). */
-function divRound(num: bigint, den: bigint): bigint {
-  const negative = num < 0n;
-  const magnitude = negative ? -num : num;
-  const q = (magnitude * 2n + den) / (2n * den);
-  return negative ? -q : q;
-}
 
-/** The VAT on an amount: rate × amount when tax-exclusive; amount × rate / (100 + rate) inside a tax-inclusive one. */
+/**
+ * The VAT on an amount: rate × amount when tax-exclusive; amount × rate / (100 + rate) inside a
+ * tax-inclusive one. A positive, in-domain draft shares the standalone calculator's arithmetic,
+ * so the suggested VAT and the figure the standalone calculation records are one answer; drafts
+ * outside the calculator's validated domain (negative, over-bound or finer-scaled figures) keep
+ * this module's own signed arithmetic, which never refuses a value the forms still render.
+ */
 export function suggestVat(amount: number, treatment: TaxBasis, vatRate: number): number {
+  const calculated = calculateStandaloneTax(amount, treatment, vatRate);
+  if (calculated) return calculated.taxAmount;
   const a = toCents(amount);
   const r = rateMilli(vatRate);
-  return fromCents(treatment === 'exclusive' ? divRound(a * r, 100000n) : divRound(a * r, 100000n + r));
+  return fromCents(treatment === 'exclusive' ? divRoundHalfAwayFromZero(a * r, 100000n) : divRoundHalfAwayFromZero(a * r, 100000n + r));
 }
 
 /** The PPh on the net (DPP): rate × net. */
 export function suggestWithheld(net: number, pphRate: number): number {
-  return fromCents(divRound(toCents(net) * rateMilli(pphRate), 100000n));
+  return fromCents(divRoundHalfAwayFromZero(toCents(net) * rateMilli(pphRate), 100000n));
 }
 
 /** The net (before VAT): the amount itself when tax-exclusive, amount − VAT when tax-inclusive. */
