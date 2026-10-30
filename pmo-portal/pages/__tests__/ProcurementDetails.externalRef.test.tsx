@@ -83,12 +83,6 @@ const mockDeleteItem = vi.fn().mockResolvedValue(undefined);
 const mockSelectQuote = vi.fn().mockResolvedValue(undefined);
 const mockCreateDocument = vi.fn().mockResolvedValue({ id: 'd-new' });
 const mockDeleteDocument = vi.fn().mockResolvedValue(undefined);
-const docsState = {
-  data: [] as Record<string, unknown>[],
-  isPending: false,
-  isError: false,
-  refetch: vi.fn(),
-};
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useProcurementCrudMutations: () => ({
     updateHeader: { mutateAsync: mockUpdateHeader, isPending: false },
@@ -99,7 +93,6 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
     createDocument: { mutateAsync: mockCreateDocument, isPending: false },
     deleteDocument: { mutateAsync: mockDeleteDocument, isPending: false },
   }),
-  useProcurementDocuments: () => docsState,
 }));
 
 vi.mock('@/src/hooks/useFkOptions', () => ({

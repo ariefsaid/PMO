@@ -79,7 +79,6 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
     createDocument: { mutateAsync: vi.fn(), isPending: false },
     deleteDocument: { mutateAsync: vi.fn(), isPending: false },
   }),
-  useProcurementDocuments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 
 vi.mock('@/src/hooks/useFkOptions', () => ({

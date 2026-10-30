@@ -118,7 +118,6 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
     createDocument: { mutateAsync: vi.fn().mockResolvedValue({ id: 'd-new' }), isPending: false },
     deleteDocument: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
   }),
-  useProcurementDocuments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 
 vi.mock('@/src/hooks/useFkOptions', () => ({
