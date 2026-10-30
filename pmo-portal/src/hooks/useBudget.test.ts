@@ -124,7 +124,7 @@ describe('useBudgetMutations', () => {
       await result.current.createVersion.mutateAsync({ projectId: 'p-1', name: 'V3' });
     });
 
-    expect(createBudgetVersion).toHaveBeenCalledWith('p-1', 'V3');
+    expect(createBudgetVersion).toHaveBeenCalledWith('p-1', 'V3', undefined);
     expectBothKeysInvalidated(invalidateSpy);
   });
 
@@ -178,7 +178,7 @@ describe('useBudgetMutations', () => {
     });
 
     // Order matters: catches a swapped/dropped arg like createLineItem(item, versionId).
-    expect(createLineItem).toHaveBeenCalledWith('v-draft', item);
+    expect(createLineItem).toHaveBeenCalledWith('v-draft', item, undefined);
     expectBothKeysInvalidated(invalidateSpy);
     expect(invalidateSpy.mock.calls.some(([filters]) => {
       const key = (filters as { queryKey?: unknown[] }).queryKey;
@@ -208,7 +208,7 @@ describe('useBudgetMutations', () => {
     await act(async () => {
       await result.current.createLineItem.mutateAsync({ versionId: 'v-draft', item });
     });
-    expect(createLineItem).toHaveBeenCalledWith('v-draft', item);
+    expect(createLineItem).toHaveBeenCalledWith('v-draft', item, undefined);
   });
 
   it('AC-BFY-016 updateLineItem can RE-PHASE a line, and can un-phase it back to NULL', async () => {
@@ -249,4 +249,22 @@ describe('useBudgetMutations', () => {
     expect(typeof result.current.updateLineItem.mutateAsync).toBe('function');
     expect(typeof result.current.deleteLineItem.mutateAsync).toBe('function');
   });
+});
+
+it.each(['activate', 'archive'] as const)('%s refreshes only this organization’s money collections', async (operation) => {
+  const { qc, Wrapper } = makeWrapper();
+  const keys = [
+    ['projects-money', 'org-1', 'p-1,p-2'], ['projects-money', 'org-2', 'p-1'],
+    ['finance-budget-review', 'org-1'], ['finance-budget-review', 'org-2'],
+  ];
+  keys.forEach(key => qc.setQueryData(key, 'old'));
+  const { result } = renderHook(() => useBudgetMutations('p-1'), { wrapper: Wrapper });
+  await act(async () => {
+    if (operation === 'activate') await result.current.activate.mutateAsync('v-1');
+    else await result.current.archive.mutateAsync({ versionId: 'v-1', cancelErp: false });
+  });
+  expect(qc.getQueryState(keys[0])?.isInvalidated).toBe(true);
+  expect(qc.getQueryState(keys[1])?.isInvalidated).toBe(false);
+  expect(qc.getQueryState(keys[2])?.isInvalidated).toBe(true);
+  expect(qc.getQueryState(keys[3])?.isInvalidated).toBe(false);
 });

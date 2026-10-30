@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import React from 'react';
 
 vi.mock('@/src/auth/useAuth', () => ({
@@ -391,3 +391,108 @@ it('refreshes mounted correction eligibility after approval and push', async () 
   await waitFor(() => expect(result.current.correction.data).toHaveLength(1));
   expect(invalidate).toHaveBeenCalledWith({ queryKey: ['timesheets-reopenable-approved', 'org-1', 'u1'] });
 });
+
+it.each(['approve', 'approve-push-failure', 'approve-refusal', 'retry', 'retry-failure'] as const)(
+  '%s refreshes settled push surfaces for the correct scope', async (operation) => {
+    pushApprovedMock.mockReset().mockResolvedValue(undefined);
+    vi.mocked(listPushesNeedingAttention).mockClear();
+    vi.mocked(approveTimesheet).mockReset().mockResolvedValue(undefined);
+    if (operation === 'approve-push-failure' || operation === 'retry-failure') pushApprovedMock.mockRejectedValueOnce(new Error('push failed'));
+    if (operation === 'approve-refusal') vi.mocked(approveTimesheet).mockRejectedValueOnce(new Error('refused'));
+    const { qc, Wrapper } = makeWrapper();
+    const keys = [
+      ['timesheet-pushes-attention', 'org-1'], ['timesheet-pushes-attention', 'org-2'],
+      ['timesheet-push-state', 'ts-1'], ['timesheet-push-state', 'ts-2'],
+      ['timesheets-reopenable-approved', 'org-1', 'u1', 'Project Manager'],
+      ['timesheets-reopenable-approved', 'org-1', 'u2', 'Project Manager'],
+    ];
+    keys.forEach(key => qc.setQueryData(key, 'old'));
+    const { result } = renderHook(() => ({ mutation: useTimesheetMutations(), attention: usePushesNeedingAttention() }), { wrapper: Wrapper });
+    await waitFor(() => expect(listPushesNeedingAttention).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(result.current.attention.fetchStatus).toBe('idle'));
+    await act(async () => {
+      const promise = operation.startsWith('retry') ? result.current.attention.retry.mutateAsync({ timesheetId: 'ts-1' }) : result.current.mutation.approve.mutateAsync({ id: 'ts-1' });
+      if (operation === 'retry-failure' || operation === 'approve-refusal') await expect(promise).rejects.toThrow();
+      else await expect(promise).resolves.toBeUndefined();
+    });
+    expect(qc.getQueryState(keys[1])?.isInvalidated).toBe(false);
+    expect(qc.getQueryState(keys[2])?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(keys[3])?.isInvalidated).toBe(false);
+    expect(qc.getQueryState(keys[4])?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(keys[5])?.isInvalidated).toBe(false);
+    expect(listPushesNeedingAttention).toHaveBeenCalledTimes(2);
+  },
+);
+
+it('keeps the pending row until the settled correction history refresh finishes', async () => {
+  pushApprovedMock.mockReset().mockResolvedValue(undefined);
+  vi.mocked(approveTimesheet).mockReset().mockResolvedValue(undefined);
+  let finishHistory!: (value: Awaited<ReturnType<typeof repositories.timesheet.listReopenableApproved>>) => void;
+  const history = vi.mocked(repositories.timesheet.listReopenableApproved);
+  history.mockReset().mockResolvedValueOnce([]).mockImplementationOnce(() => new Promise(resolve => { finishHistory = resolve; }));
+  const pending = vi.mocked(repositories.timesheet.listAwaitingApproval);
+  pending.mockReset().mockResolvedValue([{ id: 'ts-1' }] as Awaited<ReturnType<typeof repositories.timesheet.listAwaitingApproval>>);
+  const { Wrapper } = makeWrapper();
+  const { result } = renderHook(() => ({ pending: useTimesheetsAwaitingApproval(), history: useReopenableApprovedTimesheets(), mutation: useTimesheetMutations() }), { wrapper: Wrapper });
+  await waitFor(() => expect(result.current.history.isSuccess && result.current.pending.isSuccess).toBe(true));
+  let approval!: Promise<void>;
+  act(() => { approval = result.current.mutation.approve.mutateAsync({ id: 'ts-1' }); });
+  await waitFor(() => expect(history).toHaveBeenCalledTimes(2));
+  expect(pending).toHaveBeenCalledTimes(1);
+  expect(result.current.pending.data).toHaveLength(1);
+  await act(async () => { finishHistory([]); await approval; });
+  await waitFor(() => expect(pending).toHaveBeenCalledTimes(2));
+});
+
+
+it.each(['resolve', 'reject'] as const)(
+  'refreshes mounted retry consumers only after the push %ss', async (outcome) => {
+    let settle!: () => void;
+    let fail!: (error: Error) => void;
+    pushApprovedMock.mockReset().mockImplementationOnce(() => new Promise<void>((resolve, reject) => { settle = resolve; fail = reject; }));
+    let state = 'before';
+    const attention = vi.mocked(listPushesNeedingAttention);
+    const history = vi.mocked(repositories.timesheet.listReopenableApproved);
+    const sheet = vi.mocked(getPushState);
+    attention.mockReset().mockImplementation(async () => [{ timesheet_id: state }] as Awaited<ReturnType<typeof listPushesNeedingAttention>>);
+    history.mockReset().mockImplementation(async () => [{ id: state }] as Awaited<ReturnType<typeof repositories.timesheet.listReopenableApproved>>);
+    sheet.mockReset().mockImplementation(async (id) => ({ push_state: id === 'ts-1' ? state : 'other-sheet', push_error: null, ts_number: null }) as Awaited<ReturnType<typeof getPushState>>);
+    const otherOrg = vi.fn(async () => 'other-org');
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => ({
+      attention: usePushesNeedingAttention(),
+      history: useReopenableApprovedTimesheets(),
+      sheet: useOwnTimesheetPushState('ts-1'),
+      otherSheet: useOwnTimesheetPushState('ts-2'),
+      otherOrg: useQuery({ queryKey: ['timesheet-pushes-attention', 'org-2'], queryFn: otherOrg }),
+      otherHistory: useQuery({ queryKey: ['timesheets-reopenable-approved', 'org-2', 'u2', 'Project Manager'], queryFn: otherOrg }),
+    }), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.attention.data?.[0]?.timesheet_id).toBe('before'));
+    await waitFor(() => expect(result.current.history.data?.[0]?.id).toBe('before'));
+    await waitFor(() => expect(result.current.sheet.data?.push_state).toBe('before'));
+    await waitFor(() => expect(result.current.otherSheet.data?.push_state).toBe('other-sheet'));
+    await waitFor(() => expect(otherOrg).toHaveBeenCalledTimes(2));
+    let retry!: Promise<unknown>;
+    act(() => { retry = result.current.attention.retry.mutateAsync({ timesheetId: 'ts-1' }).then(() => 'resolved', () => 'rejected'); });
+    await waitFor(() => expect(pushApprovedMock).toHaveBeenCalledOnce());
+    state = 'after';
+    expect(attention).toHaveBeenCalledTimes(1);
+    expect(history).toHaveBeenCalledTimes(1);
+    expect(sheet).toHaveBeenCalledTimes(2);
+    expect(result.current.attention.data?.[0]?.timesheet_id).toBe('before');
+    expect(result.current.history.data?.[0]?.id).toBe('before');
+    expect(result.current.sheet.data?.push_state).toBe('before');
+    await act(async () => {
+      if (outcome === 'resolve') settle(); else fail(new Error('push failed'));
+      expect(await retry).toBe(outcome === 'resolve' ? 'resolved' : 'rejected');
+    });
+    await waitFor(() => expect(result.current.attention.data?.[0]?.timesheet_id).toBe('after'));
+    await waitFor(() => expect(result.current.history.data?.[0]?.id).toBe('after'));
+    await waitFor(() => expect(result.current.sheet.data?.push_state).toBe('after'));
+    expect(otherOrg).toHaveBeenCalledTimes(2);
+    expect(result.current.otherOrg.data).toBe('other-org');
+    expect(result.current.otherHistory.data).toBe('other-org');
+    expect(result.current.otherSheet.data?.push_state).toBe('other-sheet');
+    expect(sheet.mock.calls.filter(([id]) => id === 'ts-2')).toHaveLength(1);
+  },
+);
