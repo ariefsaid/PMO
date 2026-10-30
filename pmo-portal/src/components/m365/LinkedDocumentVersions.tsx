@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Button, EntityFormModal, ListState } from '@/src/components/ui';
+import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import { getItem, listVersions, type GraphReadRequest, type GraphVersion } from '@/src/lib/m365/graphClient';
 import { buildVersionHistoryUrl, toReferenceInput, type MicrosoftReference } from '@/src/lib/m365/reference';
 import { formatInstantDate } from '@/src/lib/format';
@@ -108,6 +109,7 @@ function readFailureReason(code: string | undefined): Reason {
 type Outcome =
   | { kind: 'idle' }
   | { kind: 'checking' }
+  | { kind: 'ready'; url: string }
   | { kind: 'partial'; url: string; next: GraphReadRequest }
   | { kind: 'reason'; reason: Reason };
 
@@ -118,35 +120,42 @@ type Outcome =
  * stated reason, and the separate "Open latest" action is never touched.
  */
 export function ApprovedVersionHistory({ reference, pinnedVersionId }: { reference: MicrosoftReference; pinnedVersionId: string | null }) {
-  const { t } = useTranslation();
-  const [outcome, setOutcome] = useState<Outcome>({ kind: 'idle' });
+  const { t } = useTranslation(['common', 'project']);
+  const identity = JSON.stringify([
+    reference.drive_id, reference.item_id, reference.web_url, reference.name, reference.item_kind, pinnedVersionId,
+  ]);
+  const [savedOutcome, setSavedOutcome] = useState<{ identity: string; outcome: Outcome }>({ identity: '', outcome: { kind: 'idle' } });
+  const outcome = savedOutcome.identity === identity ? savedOutcome.outcome : { kind: 'idle' as const };
   const generation = useRef(0);
-  useEffect(() => () => { generation.current += 1; }, []);
+  useEffect(() => {
+    generation.current += 1;
+    return () => { generation.current += 1; };
+  }, [identity]);
+  const saveOutcome = (next: Outcome) => setSavedOutcome({ identity, outcome: next });
 
   async function check(resume?: { url: string; next: GraphReadRequest }) {
-    if (!pinnedVersionId) { setOutcome({ kind: 'reason', reason: 'notRecorded' }); return; }
+    if (!pinnedVersionId) { saveOutcome({ kind: 'reason', reason: 'notRecorded' }); return; }
     const seq = ++generation.current;
-    setOutcome({ kind: 'checking' });
+    saveOutcome({ kind: 'checking' });
     try {
       const input = toReferenceInput(reference);
       let url = resume?.url ?? null;
       if (!url) {
         url = buildVersionHistoryUrl(await getItem(input));
         if (seq !== generation.current) return;
-        if (!url) { setOutcome({ kind: 'reason', reason: 'noSharepointIds' }); return; }
+        if (!url) { saveOutcome({ kind: 'reason', reason: 'noSharepointIds' }); return; }
       }
       const page = await listVersions(input, resume?.next);
       if (seq !== generation.current) return;
       if (page.value.some((version) => version.id === pinnedVersionId)) {
-        window.open(url, '_blank', 'noopener,noreferrer');
-        setOutcome({ kind: 'idle' });
+        saveOutcome({ kind: 'ready', url });
       } else if (page.next) {
-        setOutcome({ kind: 'partial', url, next: page.next });
+        saveOutcome({ kind: 'partial', url, next: page.next });
       } else {
-        setOutcome({ kind: 'reason', reason: page.value.length === 0 && !resume ? 'noVersioning' : 'pruned' });
+        saveOutcome({ kind: 'reason', reason: page.value.length === 0 && !resume ? 'noVersioning' : 'pruned' });
       }
     } catch (error) {
-      if (seq === generation.current) setOutcome({ kind: 'reason', reason: readFailureReason(codeOf(error)) });
+      if (seq === generation.current) saveOutcome({ kind: 'reason', reason: readFailureReason(codeOf(error)) });
     }
   }
 
@@ -162,6 +171,16 @@ export function ApprovedVersionHistory({ reference, pinnedVersionId }: { referen
       >
         {t('m365Documents.history.view', 'View approved version history')}
       </Button>
+      {outcome.kind === 'ready' && (
+        <a
+          href={outcome.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={buttonClasses('outline', 'sm')}
+        >
+          {t('project:m365Documents.history.openVerified', 'Open verified version history')}
+        </a>
+      )}
       {outcome.kind === 'partial' && (
         <>
           <p role="status" className="text-[12px] text-muted-foreground">{t('m365Documents.history.partial', 'Approved version not found in loaded history.')}</p>

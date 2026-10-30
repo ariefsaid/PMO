@@ -260,7 +260,7 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
     return present.size;
   }, [events]);
   const showKindChips = kindFilters && (kind !== 'all' || kindsPresent >= 2);
-  const refs = useHistoryRefs({ entityType, entityId, enabled, companyIds, recordIdsByType });
+  const { refs, nameLookupFailed } = useHistoryRefs({ entityType, entityId, enabled, companyIds, recordIdsByType });
   const enumLabel = useHistoryEnumLabel();
   const loadingOlder = q.isFetchingNextPage;
 
@@ -311,6 +311,11 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
         />
       ) : (
         <>
+          {nameLookupFailed && (
+            <p role="alert" className="mb-2 text-[12.5px] text-muted-foreground">
+              {t('project:history.referenceNamesError', 'Some record names could not be loaded.')}
+            </p>
+          )}
           <ul>
             {groups.map((group) => group.events.length > 1 ? (
               <HistoryEventGroup

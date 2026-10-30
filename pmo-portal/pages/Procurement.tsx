@@ -378,7 +378,7 @@ const ProcurementPage: React.FC = () => {
         className="relative shrink-0"
         panelClassName="absolute right-0 top-full z-30 mt-1 flex w-auto min-w-48 flex-col gap-1 rounded-md border border-border bg-popover p-2 text-popover-foreground shadow-md"
       >
-        <ExportButton rows={filtered} columns={exportColumns} entity="Procurement" label={t('moreTools.exportList', 'Export list')} className="w-full justify-start" />
+        {tab !== 'orphans' && <ExportButton rows={filtered} columns={exportColumns} entity="Procurement" label={t('moreTools.exportList', 'Export list')} className="w-full justify-start" />}
         {userId && <ImportButton entity="procurement" descriptor={importDescriptor} onImported={() => void refetch()} label={t('moreTools.importProcurements', 'Import procurements')} className="w-full justify-start" />}
         {userId && canCreate && <Button variant="outline" onClick={() => setShowCycleImport(true)} className="w-full justify-start"><Icon name="upload" />{t('moreTools.importCycle', 'Import cycle data')}</Button>}
       </MobileToolbarDisclosure>
@@ -477,7 +477,15 @@ const ProcurementPage: React.FC = () => {
             orphanQuery.isPending ? <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={5} /></div>
               : orphanQuery.isError ? <ListState variant="error" title={t('orphans.error', "Couldn't load documents not in a procurement")} onRetry={() => void orphanQuery.refetch()} />
                 : orphanRows.length === 0 ? <ListState variant="empty" icon="table" title={t('orphans.empty.title', 'Every accounting-system document is in a procurement')} sub={t('orphans.empty.sub', 'New documents appear here after the next sync.')} />
-                  : <Card className="overflow-hidden"><ErpOrphansSection rows={orphanRows} canLink={may('create', 'erpPurchaseLink')} projectNames={projectNames} /></Card>
+                  : projectQueryForOrphans.isPending ? <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={5} /></div>
+                    : projectQueryForOrphans.isError || projectQueryForOrphans.data === undefined
+                      ? <ListState
+                        variant="error"
+                        title={t('orphans.projectsError', "Couldn't load project names")}
+                        sub={t('orphans.projectsErrorSub', 'Retry before reviewing project references.')}
+                        onRetry={() => void projectQueryForOrphans.refetch()}
+                      />
+                      : <Card className="overflow-hidden"><ErpOrphansSection rows={orphanRows} canLink={may('create', 'erpPurchaseLink')} projectNames={projectNames} /></Card>
           )}
 
           {ready && tab !== 'orphans' && all.length === 0 && (
