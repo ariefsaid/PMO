@@ -862,6 +862,11 @@
   "m365Documents": {
     "history": {
       "openVerified": "Buka riwayat versi yang terverifikasi"
+    },
+    "verification": {
+      "checking": "Memeriksa konten file Microsoft…",
+      "failed": "Tidak dapat memeriksa Microsoft. Status ini mungkin sudah tidak terbaru.",
+      "retry": "Coba periksa lagi"
     }
   }
 }
