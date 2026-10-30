@@ -27,7 +27,9 @@ const base = (process.env.SHOT_BASE || 'http://localhost:5173').replace(/\/$/, '
 const area = (process.env.AREA || 'misc').replace(/[^a-zA-Z0-9_-]/g, '-');
 const output = path.join(ROOT, 'docs/private/ux-shots', area);
 const detector = path.join(ROOT, '.claude/skills/impeccable/scripts/impeccable');
-const authFile = path.join(APP, 'e2e/.auth/exec@acme.test.json');
+const authFile = process.env.UX_PROOF_AUTH
+  ? path.join(APP, 'e2e/.auth', process.env.UX_PROOF_AUTH)
+  : path.join(APP, 'e2e/.auth/exec@acme.test.json');
 if (!fs.existsSync(detector)) throw new Error(`Vendored detector missing: ${detector}; run scripts/vendor-skills.sh.`);
 if (!fs.existsSync(authFile)) throw new Error(`Auth storage state missing: ${authFile}; run the Playwright setup project first.`);
 

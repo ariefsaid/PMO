@@ -606,7 +606,7 @@ describe('ProjectBudget Draft version actions', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     await userEvent.click(screen.getByRole('button', { name: /Delete draft/i }));
-    expect(screen.queryByText('Version activated — but ERPNext was not updated')).not.toBeInTheDocument();
+    expect(screen.queryByText('Version activated, but ERPNext was not updated')).not.toBeInTheDocument();
     resetState();
   });
 

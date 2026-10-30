@@ -181,7 +181,7 @@ const ExpenseAccountMap: React.FC = () => {
                   // Until the `expenses` domain can be employed (#901, like ErpSetupChecklist), nothing posts, so an
                   // unmapped key stops nothing: say so plainly instead of warning.
                   : isReady
-                    ? <StatusPill variant="warn">{t('admin.expenseMap.unmapped', 'Not mapped — expense posting stops')}</StatusPill>
+                    ? <StatusPill variant="warn">{t('admin.expenseMap.unmapped', 'Not mapped: expense posting stops')}</StatusPill>
                     : <span className="text-muted-foreground">{t('admin.expenseMap.unmappedIdle', 'Not mapped')}</span>}
                 {canManage && (
                   <>

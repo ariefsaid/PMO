@@ -818,12 +818,12 @@ describe('SalesPipeline funnel truth and table stage names (RD-S5)', () => {
     expect(within(tenderRow).getByText('Tender')).toBeInTheDocument();
   });
 
-  it('AC-RD-SALES-001 funnel bars are neutral except the selected stage', () => {
+  it('AC-RD-SALES-001 funnel bars use the primary channel for the single series', () => {
     pipelineState.data = { stages: seedStages, projects: seedProjects.filter((p) => p.currency === 'USD') };
     renderPage('/sales?status=Tender%20Submitted');
     const funnel = screen.getByLabelText('Pipeline summary');
     const fills = Array.from(funnel.querySelectorAll('[data-funnel-stage-bar]')).map((b) => (b.firstElementChild as HTMLElement).style.background);
-    expect(fills.filter((f) => f === 'hsl(var(--primary))')).toHaveLength(1);
+    expect(fills.every((f) => f === 'hsl(var(--primary))')).toBe(true);
   });
 });
 

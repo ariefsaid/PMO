@@ -54,7 +54,7 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
       <RailSectionLabel>
         <span id="project-details-heading">{t('projectDetail.rail.detailsHeading', 'Details')}</span>
       </RailSectionLabel>
-      <dl className="divide-y divide-border/70 border-y border-border/70">
+      <dl className="divide-y divide-border/70">
         {/* #1325: the header leads with the short name; the contractual name is readable here without hovering. */}
         {projectDisplayName(project) !== project.name && (
           <DetailRow label={t('projects:shortName.contractName', 'Contract name')} value={project.name} />

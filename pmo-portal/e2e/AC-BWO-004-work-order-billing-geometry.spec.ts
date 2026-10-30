@@ -4,13 +4,8 @@
  * AC-BWO-004 (#785 Discover) — on the project's Work orders tab, beside the record panel, the Invoice action is inside
  * the visible box of the work-order list and nothing scrolls sideways, at 1024 / 1280 / 1440px, in English and Bahasa.
  *
- * WHAT BROKE. At 1024px the record column is ~350px; the four-column table needed ~530px, so it scrolled sideways
- * inside a clipped box — Invoice sat behind a scrollbar nobody saw and the billing words were cut mid-word at the clip.
- * The table now becomes the record cards below 576px (`@xl`) of its OWN width (DataTable `cardBelow`, AC-TBL-CARDS-001).
- *
- * ORACLE: geometry measured in the browser — every visible Invoice button lies within the list's box (table scroller
- * or card list), the table scroller (when there is one) has scrollWidth ≤ clientWidth, and the page itself does not
- * scroll sideways.
+ * ORACLE: each visible Invoice button is inside its customer-order card and the customer-orders
+ * region, with no horizontal overflow on either the cards, region, or page.
  */
 import { test, expect, type Page } from '@playwright/test';
 import path from 'node:path';
@@ -99,25 +94,30 @@ test.describe('AC-BWO-004 work-order billing geometry beside the record panel (#
         await expect(page.getByRole('button', { name: invoice }).first()).toBeVisible();
         await waitForFonts(page);
 
-        const m = await page.evaluate((label) => {
-          const box = document.querySelector<HTMLElement>('[data-testid="dt-table-branch"], [data-testid="dt-card-branch"]');
-          const b = box!.getBoundingClientRect();
-          const buttons = [...document.querySelectorAll<HTMLButtonElement>('button')]
-            .filter((x) => x.textContent?.trim() === label && x.offsetParent !== null)
-            .map((x) => { const r = x.getBoundingClientRect(); return { left: r.left, right: r.right }; });
-          return {
-            box: { left: b.left, right: b.right },
-            buttons,
-            scroller: box!.dataset.testid === 'dt-table-branch' ? { scroll: box!.scrollWidth, client: box!.clientWidth } : null,
-            page: { scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth },
-          };
-        }, invoice);
-
-        expect(m.buttons.length, 'expected Invoice on the billable work orders').toBeGreaterThanOrEqual(2);
-        const outside = m.buttons.filter((x) => x.left < m.box.left - EPSILON || x.right > m.box.right + EPSILON);
-        expect(outside, `Invoice outside the list's visible box ${JSON.stringify(m.box)}`).toEqual([]);
-        if (m.scroller) expect(m.scroller.scroll, 'the work-order table scrolls sideways').toBeLessThanOrEqual(m.scroller.client);
-        expect(m.page.scroll, 'the page scrolls sideways').toBeLessThanOrEqual(m.page.client);
+        const orders = page.getByRole('region', { name: bahasa ? 'Pesanan pelanggan' : 'Customer orders' });
+        await expect(orders).toBeVisible();
+        const buttons = orders.getByRole('button', { name: invoice, exact: true });
+        expect(await buttons.count(), 'expected Invoice on the billable work orders').toBeGreaterThanOrEqual(2);
+        const regionBox = await orders.boundingBox();
+        expect(regionBox).not.toBeNull();
+        for (const button of await buttons.all()) {
+          await expect(button).toBeVisible();
+          const card = button.locator('xpath=ancestor::article');
+          const cardBox = await card.boundingBox();
+          const buttonBox = await button.boundingBox();
+          expect(cardBox).not.toBeNull();
+          expect(buttonBox).not.toBeNull();
+          expect(buttonBox!.x).toBeGreaterThanOrEqual(cardBox!.x - EPSILON);
+          expect(buttonBox!.x + buttonBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width + EPSILON);
+          expect(cardBox!.x).toBeGreaterThanOrEqual(regionBox!.x - EPSILON);
+          expect(cardBox!.x + cardBox!.width).toBeLessThanOrEqual(regionBox!.x + regionBox!.width + EPSILON);
+          const cardOverflow = await card.evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }));
+          expect(cardOverflow.scroll, 'the work-order card scrolls sideways').toBeLessThanOrEqual(cardOverflow.client);
+        }
+        const regionOverflow = await orders.evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }));
+        expect(regionOverflow.scroll, 'the customer-orders region scrolls sideways').toBeLessThanOrEqual(regionOverflow.client);
+        const pageOverflow = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
+        expect(pageOverflow.scroll, 'the page scrolls sideways').toBeLessThanOrEqual(pageOverflow.client);
       });
     }
   }

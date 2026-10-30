@@ -19,7 +19,7 @@
         "errors": {
           "percent": "Isi persentase 0 sampai 100 dengan paling banyak 1 angka desimal"
         },
-        "percentToDate": "{{item}} — % selesai s.d. saat ini"
+        "percentToDate": "{{item}}: % selesai s.d. saat ini"
       },
       "boq": {
         "column": {
@@ -34,8 +34,8 @@
       },
       "boqForm": {
         "basis": "Diperoleh menurut",
-        "basisLumpSum": "Lump sum — 1 lot, diperoleh menurut persentase",
-        "basisUnitRate": "Harga satuan — kuantitas × harga",
+        "basisLumpSum": "Lump sum: 1 lot, diperoleh menurut persentase",
+        "basisUnitRate": "Harga satuan: kuantitas × harga",
         "errors": {
           "lineNo": "Isi nomor baris berupa bilangan bulat, atau kosongkan"
         },
@@ -43,7 +43,7 @@
       },
       "claimForm": {
         "prefillBast": "Mulai dari kuantitas BAST yang diterima",
-        "percentLine": "{{item}} — % untuk ditagih",
+        "percentLine": "{{item}}: % untuk ditagih",
         "errors": {
           "percent": "Masukkan persentase di atas 0 hingga 100 dengan paling banyak 1 angka desimal"
         }
@@ -84,7 +84,7 @@
           "documentHelp": "Dari daftar dokumen proyek ini: berstatus diterbitkan atau disetujui, dengan berkas. Diperlukan untuk konfirmasi.",
           "errors": {
             "date": "Isi tanggal BAST",
-            "finalComplete": "BAST final mencantumkan setiap baris yang dipesan — isi kuantitas, walaupun 0",
+            "finalComplete": "BAST final mencantumkan setiap baris yang dipesan. Isi kuantitas, walaupun 0",
             "noLines": "Isi kuantitas yang diterima untuk setidaknya satu baris",
             "quantity": "Setiap kuantitas yang diterima harus 0 atau lebih dengan paling banyak 3 angka desimal"
           },
@@ -97,14 +97,14 @@
           "noteLegend": "Catatan",
           "ordered": "Dipesan {{qty}} {{unit}}",
           "overMeasured": "Melebihi yang dipesan sebesar {{qty}} {{unit}} ({{item}}).",
-          "percentLine": "{{item}} — % diterima",
+          "percentLine": "{{item}}: % diterima",
           "prepare": "Siapkan BAST",
           "quantities": "Diterima s.d. saat ini",
-          "quantityLine": "{{item}} — diterima s.d. saat ini ({{unit}})",
+          "quantityLine": "{{item}}: diterima s.d. saat ini ({{unit}})",
           "save": "Simpan BAST",
           "subtitle": "Penerimaan pekerjaan oleh klien, sebagai kuantitas kumulatif s.d. saat ini. Pihak lain yang mengonfirmasinya; ini tidak membuat faktur.",
-          "titleEdit": "Ubah BAST — {{wo}}",
-          "titleNew": "Siapkan BAST — {{wo}}"
+          "titleEdit": "Ubah BAST: {{wo}}",
+          "titleNew": "Siapkan BAST: {{wo}}"
         },
         "heading": "Penerimaan (BAST)",
         "noDocument": "Belum ada dokumen BAST bertanda tangan yang ditautkan",
@@ -118,7 +118,7 @@
           "withdrawn": "Ditarik"
         },
         "toast": {
-          "closed": "BAST final terkonfirmasi — ditutup pada {{amount}}",
+          "closed": "BAST final terkonfirmasi: ditutup pada {{amount}}",
           "confirmed": "BAST terkonfirmasi",
           "prepared": "BAST disiapkan",
           "preparedSub": "Pihak lain mengonfirmasinya sebelum berlaku.",
@@ -133,7 +133,7 @@
       },
       "closing": {
         "closedAt": "Ditutup pada {{amount}} (belum termasuk PPN)",
-        "dpHeld": "{{amount}} uang muka masih tertahan setelah penutupan. Finance perlu memulihkan sisanya dengan tagihan progres berikutnya, atau mengembalikannya secara eksplisit — penutupan tidak menghapusnya."
+        "dpHeld": "{{amount}} uang muka masih tertahan setelah penutupan. Finance perlu memulihkan sisanya dengan tagihan progres berikutnya, atau mengembalikannya secara eksplisit. Penutupan tidak menghapusnya."
       },
       "contractLines": {
         "balance": "Belum dipesan {{qty}} {{unit}}",
@@ -161,11 +161,11 @@
         "save": "Simpan",
         "saveRow": "Simpan {{item}}",
         "subtitle": "Kuantitas yang diambil Work Order ini dari kontrak. Setiap baris disimpan sendiri-sendiri; memesan lebih dari sisa diperbolehkan dan ditandai.",
-        "title": "Baris kontrak — {{wo}}"
+        "title": "Baris kontrak: {{wo}}"
       },
       "quantities": {
         "counts": "{{lines}} baris · {{basts}} BAST",
-        "summary": "Baris kontrak dan BAST — {{wo}}"
+        "summary": "Baris kontrak dan BAST: {{wo}}"
       }
     }
   }

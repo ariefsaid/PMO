@@ -220,14 +220,14 @@ describe('company area hub (#1403)', () => {
     projectsState.data = [{ id: 'project-1', pm: { full_name: 'Project Manager' } }];
     renderPage();
 
-    const sales = screen.getByRole('heading', { name: 'Sales' }).closest('.rounded-lg.border');
-    const delivery = screen.getByRole('heading', { name: 'Delivery' }).closest('.rounded-lg.border');
-    const purchasing = screen.getByRole('heading', { name: 'Purchasing' }).closest('.rounded-lg.border');
+    const sales = screen.getByRole('heading', { name: 'Sales' }).closest('.panel-card');
+    const delivery = screen.getByRole('heading', { name: 'Delivery' }).closest('.panel-card');
+    const purchasing = screen.getByRole('heading', { name: 'Purchasing' }).closest('.panel-card');
     expect(sales).not.toBeNull();
-    expect(screen.getByRole('group', { name: 'Weighted pipeline value by stage' }).closest('.rounded-lg.border')).toBe(sales);
-    expect(screen.getByRole('region', { name: 'Win rate' }).closest('.rounded-lg.border')).toBe(sales);
-    expect(screen.getByRole('heading', { name: 'Spending vs contract' }).closest('.rounded-lg.border')).toBe(delivery);
-    expect(screen.getByRole('heading', { name: 'Purchasing by stage' }).closest('.rounded-lg.border')).toBe(purchasing);
+    expect(screen.getByRole('group', { name: 'Weighted pipeline value by stage' }).closest('.panel-card')).toBe(sales);
+    expect(screen.getByRole('region', { name: 'Win rate' }).closest('.panel-card')).toBe(sales);
+    expect(screen.getByRole('heading', { name: 'Spending vs contract' }).closest('.panel-card')).toBe(delivery);
+    expect(screen.getByRole('heading', { name: 'Purchasing by stage' }).closest('.panel-card')).toBe(purchasing);
   });
 
   it('F2: shows the five most-attention delivery projects with compact details and an all-projects link', async () => {
@@ -339,11 +339,11 @@ describe('company area hub (#1403)', () => {
     };
     renderPage();
     expect(screen.queryByText('No aging data to show yet.')).not.toBeInTheDocument();
-    const billing = screen.getAllByRole('heading', { name: 'Billing and collections' })[0]?.closest('.rounded-lg.border');
+    const billing = screen.getAllByRole('heading', { name: 'Billing and collections' })[0]?.closest('.panel-card');
     const clientAgeing = screen.getByRole('region', { name: 'Client balances by age · tax included' });
-    expect(clientAgeing.closest('.rounded-lg.border')).toBe(billing);
+    expect(clientAgeing.closest('.panel-card')).toBe(billing);
     expect(within(clientAgeing).getByText('$100')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Supplier invoices by age · since invoice date' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Supplier invoices by age · since invoiced status or last update' })).toBeInTheDocument();
   });
 
   it('F2: Finance budget review shows the top five active budgets by RPC variance order', () => {
@@ -369,9 +369,9 @@ describe('company area hub (#1403)', () => {
     state.role = 'Finance';
     renderPage();
 
-    const billing = screen.getAllByRole('heading', { name: 'Billing and collections' })[0]?.closest('.rounded-lg.border');
+    const billing = screen.getAllByRole('heading', { name: 'Billing and collections' })[0]?.closest('.panel-card');
     expect(billing).not.toBeNull();
-    expect(screen.getByRole('heading', { name: 'Client receivables (AR)' }).closest('.rounded-lg.border')).toBe(billing);
+    expect(screen.getByRole('heading', { name: 'Client receivables (AR)' }).closest('.panel-card')).toBe(billing);
   });
 
   it('AC-DASH-1403-11: a ready-to-pay row opens its procurement record page', () => {
@@ -524,7 +524,7 @@ describe('company hub — behaviour carried over from the previous dashboard', (
 // purchasing scope and stage links, help copy, states and a11y — re-asserted on the company hub.
 describe('company hub — ported baseline cases', () => {
   const purchasingPanel = () => {
-    const panel = screen.getByRole('heading', { name: 'Purchasing' }).closest('.rounded-lg.border');
+    const panel = screen.getByRole('heading', { name: 'Purchasing' }).closest('.panel-card');
     expect(panel).not.toBeNull();
     return panel as HTMLElement;
   };

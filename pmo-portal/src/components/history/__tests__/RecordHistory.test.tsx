@@ -411,7 +411,7 @@ describe('RecordHistory — enum values use the module label helpers (AC-CHG-015
     expect(screen.getByText('Draft → Active')).toBeInTheDocument();
     expect(screen.getByText('Labor → Materials')).toBeInTheDocument();
     expect(
-      screen.getByText('Exclusive — tax is on top of the amount → Inclusive — the amount already includes tax'),
+      screen.getByText('Exclusive: tax is on top of the amount → Inclusive: the amount already includes tax'),
     ).toBeInTheDocument();
     expect(screen.queryByText(/tender → |direct|Received/)).toBeNull();
   });

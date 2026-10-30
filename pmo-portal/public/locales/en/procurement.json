@@ -43,7 +43,7 @@
     "project": "Project",
     "selectProject": "Select a project…",
     "vendor": "Supplier",
-    "selectVendor": "Optional — select a supplier…",
+    "selectVendor": "Optional: select a supplier…",
     "budgetCategory": "Budget category",
     "denied": "You do not have permission to create procurement records.",
     "unsaved": {
@@ -343,7 +343,7 @@
     "approved": "Procurement approved",
     "rejected": "Procurement rejected",
     "reject": "Reject procurement",
-    "approveDescription": "Approve {{title}} — {{amount}}? This will advance the procurement to the ordering stage.",
+    "approveDescription": "Approve {{title}} ({{amount}})? This will advance the procurement to the ordering stage.",
     "rejectDescription": "Reject {{title}}? The requester will be notified and may revise and resubmit."
   },
   "decisionSupport": {
@@ -363,11 +363,11 @@
   "procurementDetail": {
     "readyHint": {
       "draftOther": "Ready to submit this procurement for approval.",
-      "requested": "You may approve or reject this procurement. The requester cannot self-approve — separation of duties requires a different reviewer.",
-      "vendorInvoicedApprover": "Payment must be released by a different finance user — the approver can't also pay this procurement.",
-      "vendorInvoiced": "Releasing payment — the approver can't also pay (separation of duties). You may mark this as paid below.",
+      "requested": "You may approve or reject this procurement. The requester cannot self-approve. Separation of duties requires a different reviewer.",
+      "vendorInvoicedApprover": "Payment must be released by a different finance user. The approver can't also pay this procurement.",
+      "vendorInvoiced": "Releasing payment: the approver can't also pay (separation of duties). You may mark this as paid below.",
       "default": "Ready to advance. Select an action below to move this procurement to its next stage."
     },
-    "sodPreannounce": "Submitting hands this to another approver — you can't approve your own procurement record."
+    "sodPreannounce": "Submitting hands this to another approver. You can't approve your own procurement record."
   }
 }

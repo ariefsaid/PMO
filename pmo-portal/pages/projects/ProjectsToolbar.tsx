@@ -73,9 +73,9 @@ export function projectsToolbar({ model, exportColumns, t, filtersOpen, setFilte
   ];
 
   const mobileToolbar = (
-    <div data-testid="projects-mobile-toolbar" className="w-full min-w-0 space-y-2.5">
+    <div data-testid="projects-mobile-toolbar" className="flex w-full min-w-0 flex-col gap-2.5">
       {/* status — bounded horizontal scroller (must stay reachable at 390px) */}
-      <div data-testid="status-filter-scroll" className="min-w-0 max-w-full overflow-x-auto scroll-fade-x">
+      <div data-testid="status-filter-scroll" className="order-2 min-w-0 max-w-full overflow-x-auto scroll-fade-x">
         <ViewToggle<StatusFilter>
           options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
           value={filter}
@@ -87,8 +87,8 @@ export function projectsToolbar({ model, exportColumns, t, filtersOpen, setFilte
         />
       </div>
 
-      {/* search + selected view */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Search gets a full row before the status tabs. */}
+      <div data-testid="projects-mobile-search-row" className="order-1 min-w-0">
         <SearchMini
           placeholder={t('projects.search.placeholder', 'Search projects…')}
           aria-label={t('projects.search.ariaLabel', 'Search projects')}
@@ -97,27 +97,12 @@ export function projectsToolbar({ model, exportColumns, t, filtersOpen, setFilte
           searchSurface="projects-list"
           module="projects"
           resultCount={filtered.length}
-          containerClassName="min-w-0 flex-1 basis-40"
+          containerClassName="w-full min-w-0"
         />
-        {/* The 4-option view toggle can exceed a 360px row; keep it reachable within the
-            toolbar without page bleed — it scrolls inside this bounded container. */}
-        <div data-testid="projects-mobile-view-scroll" className="ml-auto min-w-0 max-w-full overflow-x-auto">
-          <ViewToggle<'table' | 'cards' | 'calendar' | 'kanban'>
-            options={[
-              { value: 'table', label: t('projects.view.table', 'Table'), icon: 'table' },
-              { value: 'cards', label: t('projects.view.cards', 'Cards'), icon: 'cards' },
-              { value: 'calendar', label: t('projects.view.calendar', 'Calendar'), icon: 'cal' },
-              { value: 'kanban', label: t('projects.view.board', 'Board'), icon: 'cols' },
-            ]}
-            value={view}
-            onChange={onViewChange}
-            ariaLabel={t('projects.view.ariaLabel', 'Projects view')}
-          />
-        </div>
       </div>
 
       {/* filters + more actions disclosures */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="order-3 flex min-w-0 flex-wrap items-center gap-2">
         <ProjectClassificationFilters
           {...classificationFilterProps}
           panel={(fields, disclosure) => (
@@ -135,6 +120,22 @@ export function projectsToolbar({ model, exportColumns, t, filtersOpen, setFilte
             </MobileToolbarDisclosure>
           )}
         />
+
+        {/* Keep the four view choices reachable without widening the page. */}
+        <div data-testid="projects-mobile-view-scroll" className="min-w-0 max-w-full overflow-x-auto">
+          <ViewToggle<'table' | 'cards' | 'calendar' | 'kanban'>
+            options={[
+              { value: 'table', label: t('projects.view.table', 'Table'), icon: 'table' },
+              { value: 'cards', label: t('projects.view.cards', 'Cards'), icon: 'cards' },
+              { value: 'calendar', label: t('projects.view.calendar', 'Calendar'), icon: 'cal' },
+              { value: 'kanban', label: t('projects.view.board', 'Board'), icon: 'cols' },
+            ]}
+            value={view}
+            onChange={onViewChange}
+            ariaLabel={t('projects.view.ariaLabel', 'Projects view')}
+            labelClassName="max-sm:sr-only"
+          />
+        </div>
 
           <MobileToolbarDisclosure
             label={t('uxs14.moreActions', 'More actions')}
@@ -216,7 +217,6 @@ export function projectsToolbar({ model, exportColumns, t, filtersOpen, setFilte
 
   return {
     mobileToolbar,
-    desktopToolbarClassName: "xl:grid xl:grid-cols-[minmax(0,1fr)_220px_auto] xl:items-center xl:gap-x-2 xl:gap-y-2 xl:overflow-visible xl:[&>*:nth-child(1)]:col-start-1 xl:[&>*:nth-child(1)]:row-start-1 xl:[&>*:nth-child(2)]:col-start-2 xl:[&>*:nth-child(2)]:row-start-1 xl:[&>*:nth-child(3)]:col-start-1 xl:[&>*:nth-child(3)]:row-start-2 xl:[&>*:nth-child(4)]:col-start-2 xl:[&>*:nth-child(4)]:row-start-2 xl:[&>*:nth-child(5)]:col-start-3 xl:[&>*:nth-child(5)]:row-span-2",
     filters: (
         /* AC-2: wrap in overflow-x-auto so the full filter strip (incl. "At risk") is
            reachable at 390px without clipping. scroll-fade-x adds the right-edge fade

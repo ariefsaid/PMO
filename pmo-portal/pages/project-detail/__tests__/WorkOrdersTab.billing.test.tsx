@@ -180,8 +180,9 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     await user.click(screen.getByRole('button', { name: 'Open Cable installation quantity history' }));
 
     const drawer = screen.getByRole('dialog');
-    expect(within(drawer).getByText('Per-order split')).toBeInTheDocument();
-    expect(within(drawer).getByText('Quantity history')).toBeInTheDocument();
+    expect(within(drawer).getByRole('heading', { name: 'Cable installation', level: 1 })).toBeInTheDocument();
+    expect(within(drawer).getByRole('heading', { name: 'Per-order split', level: 2 })).toBeInTheDocument();
+    expect(within(drawer).getByRole('heading', { name: 'Quantity history', level: 2 })).toBeInTheDocument();
     expect(within(drawer).getByRole('link', { name: 'Open full page' })).toHaveAttribute('href', '/projects/p1/work-orders?wo=wo-1');
   });
 

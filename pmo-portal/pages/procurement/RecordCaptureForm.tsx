@@ -706,8 +706,8 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
               options={TAX_TREATMENT_OPTIONS.map((option) => ({
                 ...option,
                 label: option.value === 'inclusive'
-                  ? t('procurementDetail.vendorInvoice.taxInclusive', 'Inclusive — VAT included')
-                  : t('procurementDetail.vendorInvoice.taxExclusive', 'Exclusive — VAT added'),
+                  ? t('procurementDetail.vendorInvoice.taxInclusive', 'Inclusive: VAT included')
+                  : t('procurementDetail.vendorInvoice.taxExclusive', 'Exclusive: VAT added'),
               }))}
               data-testid={VI_FIELD_TEST_IDS.taxTreatment}
             />

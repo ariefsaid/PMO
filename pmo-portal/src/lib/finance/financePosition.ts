@@ -33,6 +33,7 @@ export interface FinancePositionInput {
 export interface FinancePosition {
   /** Open client invoices, including rows whose ERP outstanding balance is unknown. */
   receivablesCount: number;
+  receivablesUnknownCount: number;
   overdue: Array<{ invoice: SalesInvoiceRow; daysOverdue: number; outstanding: number | null }>;
   overdueTotals: CurrencyTotals;
   overdueUnknownCount: number;
@@ -100,10 +101,12 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
   const overdueTotals: CurrencyTotals = {};
   const receivablesAgeing: Record<string, AgeingBuckets> = {};
   let overdueUnknownCount = 0;
+  let receivablesUnknownCount = 0;
 
   for (const invoice of invoices) {
     if (!OPEN_INVOICE_STATUSES.has(invoice.status)) continue;
     const outstanding = invoice.erp_outstanding_amount;
+    if (outstanding == null || !Number.isFinite(outstanding)) receivablesUnknownCount += 1;
     const dueDate = deriveArDueDate(
       invoice.invoice_date,
       invoice.erp_payment_terms_days,
@@ -179,6 +182,7 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
 
   return {
     receivablesCount,
+    receivablesUnknownCount,
     overdue,
     overdueTotals,
     overdueUnknownCount,

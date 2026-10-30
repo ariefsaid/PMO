@@ -417,7 +417,7 @@ describe('EntityFormModal: the save-error "nothing saved" line is localized (#89
       </I18nextProvider>,
     );
     const region = screen.getByTestId('entity-modal-save-error');
-    expect(region).toHaveTextContent('Tidak ada yang tersimpan — isian Anda masih ada.');
+    expect(region).toHaveTextContent('Tidak ada yang tersimpan. Isian Anda masih ada.');
     expect(region).not.toHaveTextContent('Nothing was saved');
   });
 
@@ -431,7 +431,7 @@ describe('EntityFormModal: the save-error "nothing saved" line is localized (#89
       </I18nextProvider>,
     );
     expect(screen.getByTestId('entity-modal-save-error')).toHaveTextContent(
-      'Nothing was saved — your entries are still here.',
+      'Nothing was saved: your entries are still here.',
     );
   });
 });
