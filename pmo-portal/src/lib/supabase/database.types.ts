@@ -8060,6 +8060,10 @@ export type Database = {
       }
     }
     Functions: {
+      budget_version_read_totals: {
+        Args: { p_project_id: string }
+        Returns: { version_id: string; total: number }[]
+      }
       _m365_disconnect_cascade_core: {
         Args: {
           p_actor_id: string

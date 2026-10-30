@@ -267,12 +267,19 @@ describe('listBudgetVersions', () => {
       },
     ];
 
-    makeFromBuilder({ data: versions, error: null });
+    const rows = { budget_versions: versions, budget_line_items: versions.flatMap(v => v.line_items), budget_version_editors: [] };
+    const makeRead = (data: unknown) => {
+      const b = { select: mockSelect, eq: mockEq, order: mockOrder, range: vi.fn(), then: (resolve: (v: unknown) => void) => Promise.resolve({ data, error: null }).then(resolve) };
+      for (const method of [mockSelect, mockEq, mockOrder, b.range]) method.mockReturnValue(b);
+      return b;
+    };
+    mockFrom.mockImplementation((table: keyof typeof rows) => makeRead(rows[table]));
+    mockRpc.mockImplementation(() => makeRead([{ version_id: 'v1', total: 4700000 }, { version_id: 'v2', total: 0 }]));
 
     const result = await listBudgetVersions('p1');
 
     expect(mockFrom).toHaveBeenCalledWith('budget_versions');
-    expect(mockSelect).toHaveBeenCalledWith('*, line_items:budget_line_items(*)');
+    expect(mockSelect).toHaveBeenCalledWith('*, budget_versions!inner(project_id)');
     expect(mockEq).toHaveBeenCalledWith('project_id', 'p1');
     expect(mockOrder).toHaveBeenCalledWith('version', { ascending: true });
 
@@ -302,7 +309,14 @@ describe('listBudgetVersions', () => {
         ],
       },
     ];
-    makeFromBuilder({ data: versions, error: null });
+    const rows = { budget_versions: versions, budget_line_items: versions.flatMap(v => v.line_items), budget_version_editors: [] };
+    const makeRead = (data: unknown) => {
+      const b = { select: mockSelect, eq: mockEq, order: mockOrder, range: vi.fn(), then: (resolve: (v: unknown) => void) => Promise.resolve({ data, error: null }).then(resolve) };
+      for (const method of [mockSelect, mockEq, mockOrder, b.range]) method.mockReturnValue(b);
+      return b;
+    };
+    mockFrom.mockImplementation((table: keyof typeof rows) => makeRead(rows[table]));
+    mockRpc.mockImplementation(() => makeRead([{ version_id: 'v1', total: '3000000' }]));
 
     const result = await listBudgetVersions('p1');
 

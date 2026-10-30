@@ -151,41 +151,40 @@ export async function deriveProjectBudget(projectId: string): Promise<number> {
   return Number(data);
 }
 
-const VERSIONS_SELECT = '*, line_items:budget_line_items(*)';
-
-type RawVersionWithItems = BudgetVersionRow & { line_items: BudgetLineItemRow[] };
-
-/**
- * Returns all budget versions for a project, ordered ascending by version number,
- * with their line_items nested and a normalised numeric `total` (FR-BV-010 read side).
- * org_id is NEVER sent — RLS scopes via `auth_org_id()`.
- */
+/** Read all visible versions and their related rows independently, with bounded ordered pages. */
 export async function listBudgetVersions(projectId: string): Promise<BudgetVersionWithItems[]> {
-  const { data, error } = await supabase
-    .from('budget_versions')
-    .select(VERSIONS_SELECT)
-    .eq('project_id', projectId)
-    .order('version', { ascending: true });
-  if (error) throw toAppError(error);
-  const rows = (data ?? []) as unknown as RawVersionWithItems[];
-  if (rows.length === 0) return [];
-  const { data: editors, error: editorError } = await supabase
-    .from('budget_version_editors')
-    .select('budget_version_id, user_id')
-    .in('budget_version_id', rows.map((v) => v.id));
-  if (editorError) throw toAppError(editorError);
+  const versions = await fetchAllPages((from, to) => supabase.from('budget_versions')
+    .select('*').eq('project_id', projectId)
+    .order('version', { ascending: true }).order('id', { ascending: true }).range(from, to));
+  if (!versions.length) return [];
+  const [lines, editors, totals] = await Promise.all([
+    fetchAllPages((from, to) => supabase.from('budget_line_items')
+      .select('*, budget_versions!inner(project_id)').eq('budget_versions.project_id', projectId)
+      .order('id', { ascending: true }).range(from, to)),
+    fetchAllPages((from, to) => supabase.from('budget_version_editors')
+      .select('budget_version_id,user_id,budget_versions!inner(project_id)').eq('budget_versions.project_id', projectId)
+      .order('budget_version_id', { ascending: true }).order('user_id', { ascending: true }).range(from, to)),
+    fetchAllPages((from, to) => supabase.rpc('budget_version_read_totals', { p_project_id: projectId })
+      .order('version_id', { ascending: true }).range(from, to)),
+  ]);
+  const linesByVersion = new Map<string, BudgetLineItemRow[]>();
+  for (const { budget_versions: _parent, ...line } of lines) {
+    const items = linesByVersion.get(line.budget_version_id) ?? [];
+    items.push(line);
+    linesByVersion.set(line.budget_version_id, items);
+  }
   const editorsByVersion = new Map<string, string[]>();
-  for (const editor of editors ?? []) {
+  for (const editor of editors) {
     const ids = editorsByVersion.get(editor.budget_version_id) ?? [];
     ids.push(editor.user_id);
     editorsByVersion.set(editor.budget_version_id, ids);
   }
-  return rows.map((v) => ({
-    ...v,
-    line_items: v.line_items ?? [],
-    total: (v.line_items ?? []).reduce((sum, li) => sum + Number(li.budgeted_amount), 0),
-    editor_ids: editorsByVersion.get(v.id) ?? [],
-  }));
+  const totalsByVersion = new Map(totals.map(row => [row.version_id, Number(row.total)]));
+  return versions.map(v => {
+    const total = totalsByVersion.get(v.id);
+    if (total === undefined || !Number.isFinite(total)) throw new Error('Missing or invalid budget version total');
+    return { ...v, line_items: linesByVersion.get(v.id) ?? [], total, editor_ids: editorsByVersion.get(v.id) ?? [] };
+  });
 }
 
 /**
