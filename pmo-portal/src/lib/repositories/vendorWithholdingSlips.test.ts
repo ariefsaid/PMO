@@ -40,19 +40,63 @@ describe('vendor withholding bill coverage batching', () => {
     expect(out.map((r) => (r as { invoice_id: string }).invoice_id)).toEqual(unique);
   });
 
-  it('concatenates deferred results in input chunk order regardless of completion order', async () => {
-    h.listBills.mockImplementation(async ({ p_invoice_ids }: { p_invoice_ids: string[] }) => {
-      // The FIRST chunk is the slowest, so later chunks always finish before it.
-      const delay = p_invoice_ids[0]!.startsWith('a-') ? 30 : 1;
-      await new Promise((resolve) => setTimeout(resolve, delay));
-      return { rows: p_invoice_ids.map(row), nextCursor: null };
+  it('holds three requests before starting the fourth chunk and preserves input chunk order', async () => {
+    const unique = range('pool', 401);
+    const started: string[] = [];
+    const pending = new Map<string, () => void>();
+    let inFlight = 0;
+    let peakInFlight = 0;
+    let resolveFourthStarted!: () => void;
+    let resolveFifthStarted!: () => void;
+    const fourthStarted = new Promise<void>((resolve) => { resolveFourthStarted = resolve; });
+    const fifthStarted = new Promise<void>((resolve) => { resolveFifthStarted = resolve; });
+
+    h.listBills.mockImplementation(({ p_invoice_ids }: { p_invoice_ids: string[] }) => {
+      const firstId = p_invoice_ids[0]!;
+      started.push(firstId);
+      inFlight += 1;
+      peakInFlight = Math.max(peakInFlight, inFlight);
+      if (firstId === 'pool-300') resolveFourthStarted();
+      if (firstId === 'pool-400') resolveFifthStarted();
+
+      return new Promise((resolve) => {
+        pending.set(firstId, () => {
+          pending.delete(firstId);
+          inFlight -= 1;
+          resolve({ rows: p_invoice_ids.map(row), nextCursor: null });
+        });
+      });
     });
 
-    const out = await vendorWithholdingSlipsRepository.coverage([...range('a', 100), ...range('b', 100), ...range('c', 100)]);
+    const outPromise = vendorWithholdingSlipsRepository.coverage(unique);
 
-    expect(out.map((r) => (r as { invoice_id: string }).invoice_id.slice(0, 1))).toEqual(
-      [...Array<string>(100).fill('a'), ...Array<string>(100).fill('b'), ...Array<string>(100).fill('c')],
-    );
+    expect(started).toEqual(['pool-000', 'pool-100', 'pool-200']);
+    expect(inFlight).toBe(3);
+    expect(peakInFlight).toBe(3);
+
+    const releaseFirst = pending.get('pool-000');
+    expect(releaseFirst).toBeDefined();
+    releaseFirst!();
+    await fourthStarted;
+    expect(started).toEqual(['pool-000', 'pool-100', 'pool-200', 'pool-300']);
+    expect(inFlight).toBe(3);
+
+    const releaseFourth = pending.get('pool-300');
+    expect(releaseFourth).toBeDefined();
+    releaseFourth!();
+    await fifthStarted;
+    expect(started).toEqual(['pool-000', 'pool-100', 'pool-200', 'pool-300', 'pool-400']);
+    expect(inFlight).toBe(3);
+
+    pending.get('pool-400')!();
+    pending.get('pool-200')!();
+    pending.get('pool-100')!();
+
+    const out = await outPromise;
+    expect(peakInFlight).toBeLessThanOrEqual(3);
+    expect(peakInFlight).toBe(3);
+    expect(inFlight).toBe(0);
+    expect(out.map((r) => (r as { invoice_id: string }).invoice_id)).toEqual(unique);
   });
 
   it('propagates a chunk failure instead of resolving a partial success', async () => {
