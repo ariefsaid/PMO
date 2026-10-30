@@ -2,6 +2,14 @@
 alter table public.budget_line_items add column import_origin smallint
   constraint budget_line_items_import_origin_check check (import_origin is null or import_origin = 2);
 
+-- Change-history registry (record_changes_catalog_gate): import_origin is server-assigned at insert
+-- and immutable afterwards (guard_budget_import_identity refuses any later change), so it is OMITTED
+-- — the same treatment import_key/import_batch_id/imported_at already receive on this table.
+update public.record_history_config
+   set omit_cols = omit_cols || array(select c from unnest(array['import_origin']) c
+                                      where not (c = any (omit_cols)))
+ where table_name = 'budget_line_items';
+
 -- Binary-collated lookups match the classifier without changing the unique index.
 create index budget_line_items_import_lookup_c_idx
   on public.budget_line_items (budget_version_id, import_key collate "C")

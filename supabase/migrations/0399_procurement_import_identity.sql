@@ -15,14 +15,15 @@ create policy procurement_import_runs_select on public.procurement_import_runs f
 create function public.start_procurement_import_run(p_org_id uuid default null)
 returns uuid language plpgsql security definer set search_path = pg_catalog, public as $$
 declare
-  v_selected_role text := current_setting('role', true);
-  v_bypass boolean;
   v_org uuid;
   v_id uuid;
 begin
-  if v_selected_role is null or v_selected_role = 'none' then v_selected_role := session_user; end if;
-  select coalesce(r.rolbypassrls, false) into v_bypass from pg_catalog.pg_roles r where r.rolname = v_selected_role;
-  if coalesce(v_bypass, false) then
+  -- SECURITY DEFINER: current_user inside this body is the owner, never the caller, so the bypass
+  -- check resolves the CALLER's session role and hands it to the one shared trust-boundary
+  -- predicate (0168 AC-UPS-053: exactly one copy of the catalog lookup, and it lives in
+  -- actor_bypasses_rls). The text overload exists precisely for definer contexts: the no-arg form
+  -- would always read postgres here and exempt every caller.
+  if public.actor_bypasses_rls(coalesce(nullif(current_setting('role', true), 'none'), session_user)) then
     v_org := p_org_id;
   else
     perform public.assert_is_active_member();
@@ -143,3 +144,25 @@ begin
     execute format('create trigger zzzz_import_identity before insert or update on public.%I for each row execute function public.procurement_import_identity_stamp()', t);
   end loop;
 end $$;
+
+-- Change-history registry (record_changes_catalog_gate): classify the columns this migration adds.
+-- The import identity pair is server-assigned at insert and immutable afterwards (the zzzz_import_identity
+-- stamp trigger refuses any later change), and import_normalized_ref is generated always — neither is a
+-- user-visible row change, so both are OMITTED, the same treatment import_key/import_batch_id/imported_at
+-- already receive (0260/0271).
+do $$
+declare t text;
+begin
+  foreach t in array array['purchase_requests','rfqs','purchase_orders','procurement_invoices','payments'] loop
+    update public.record_history_config
+       set omit_cols = omit_cols || array(select c from unnest(array['import_identity_version','import_identity_facts']) c
+                                          where not (c = any (omit_cols)))
+     where table_name = t;
+  end loop;
+end $$;
+update public.record_history_config
+   set omit_cols = omit_cols || array(select c from unnest(array['import_normalized_ref']) c
+                                      where not (c = any (omit_cols)))
+ where table_name = 'procurements';
+
+notify pgrst, 'reload schema';

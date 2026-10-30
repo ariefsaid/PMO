@@ -327,8 +327,10 @@ delete from external_domain_ownership where org_id = '01680000-0000-0000-0000-00
 -- F. actor_bypasses_rls() hardening (I-4) — the guard predicate every create-path trigger delegates to.
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 select is(
+  -- 0407 added the caller-role overload (the definer-context entry point of the same predicate);
+  -- this assertion pins the CLIENT form — the no-arg helper — so the subquery names that signature.
   (select proconfig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname = 'actor_bypasses_rls'),
+    where n.nspname = 'public' and p.proname = 'actor_bypasses_rls' and p.pronargs = 0),
   array['search_path=pg_catalog, public'],
   'AC-UPS-050 actor_bypasses_rls resolves pg_catalog FIRST — a public.pg_roles relation cannot shadow the catalog');
 
