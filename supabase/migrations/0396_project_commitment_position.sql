@@ -9,6 +9,7 @@ language sql stable security invoker set search_path = public, pg_catalog as $$
   from public.projects p left join public.procurements pr on pr.project_id=p.id and pr.org_id=p.org_id
     and pr.status::text=any(public.committed_procurement_statuses())
   where p.id=p_project_id and p.org_id=public.auth_org_id()
+    and public.auth_role() in ('Admin','Executive','Project Manager','Finance')
   group by p.id
 $$;
 revoke all on function public.project_pmo_commitment_position(uuid) from public, anon;
@@ -221,6 +222,7 @@ as $$
     select count(*)::int as n from public.projects p
     where p.status::text=any(public.active_delivery_project_statuses()) and p.archived_at is null
       and exists (select 1 from public.budget_versions v where v.project_id=p.id and v.status='Active')
+      and (select v.currency=p.currency from public.budget_versions v where v.project_id=p.id and v.status='Active' order by v.version desc,v.created_at desc,v.id desc limit 1)
       and ((not public.org_reads_erp_ledger() and (select complete from public.project_pmo_commitment_position(p.id))) or (public.org_reads_erp_ledger() and
         (select o.default_currency=p.currency from public.organizations o where o.id=p.org_id)
         and (select v.currency=p.currency from public.budget_versions v where v.project_id=p.id and v.status='Active' order by v.version desc limit 1)

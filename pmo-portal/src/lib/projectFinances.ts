@@ -78,7 +78,7 @@ export type ProjectMoneyPositionInput = {
   contractValue: number | null;
   activeBudget: number | undefined;
   ledgerBasis: ActualPosition['basis'];
-  committedSpend: number | undefined;
+  committedSpend: number | string | undefined;
   commitmentPending: boolean;
   commitmentError: boolean;
   commitmentComplete?: boolean;
@@ -97,7 +97,7 @@ export type ProjectMoneyPosition = {
 
 export function deriveActualPosition(input: {
   ledgerBasis: 'pmo' | 'erp' | 'unavailable';
-  committedSpend: number | undefined;
+  committedSpend: number | string | undefined;
   commitmentPending: boolean;
   commitmentError: boolean;
   commitmentComplete?: boolean;
@@ -105,10 +105,13 @@ export function deriveActualPosition(input: {
   actuals: ProjectFinances['actuals'] | undefined;
 }): ActualPosition {
   if (input.ledgerBasis === 'pmo') {
-    if (input.commitmentPending || input.commitmentError || input.commitmentComplete === false || input.committedSpend === undefined || !Number.isFinite(input.committedSpend)) {
+    const units = typeof input.committedSpend === 'string' ? moneyUnits(input.committedSpend)
+      : input.committedSpend !== undefined && Number.isFinite(input.committedSpend)
+        ? BigInt(Math.round(input.committedSpend * 100)) : null;
+    if (input.commitmentPending || input.commitmentError || input.commitmentComplete === false || units === null) {
       return { amount: null, currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: false };
     }
-    return { amount: moneyText(BigInt(Math.round(input.committedSpend * 100))), currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: true };
+    return { amount: moneyText(units), currency: input.projectCurrency, asOf: null, basis: 'pmo', complete: true };
   }
   if (input.ledgerBasis === 'unavailable') {
     return { amount: null, currency: null, asOf: null, basis: 'unavailable', complete: false };

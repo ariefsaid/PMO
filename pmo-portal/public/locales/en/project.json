@@ -12,6 +12,8 @@
   "billedWork": "Billed-work revenue",
   "billedWorkQualifier": "Net of tax; advances excluded",
   "projectFinances": {
+    "currencyUnavailable": "Currency unavailable",
+    "pmoPartial": "Partial position; other currencies or unavailable amounts are excluded.",
     "contractAfterCostSource": "Contract value minus comparable recorded Actual.",
     "contractAfterCostPending": "Shown once recorded spending is complete."
   },
@@ -442,6 +444,7 @@
       "categoryOverSub": "Spent {{spent}} of its {{budget}} budget",
       "within": "Within budget",
       "withinSub": "Spent {{spent}} of {{budget}}",
+      "commitmentsError": "Couldn't check commitments",
       "spendingChecking": "Checking spending…",
       "spendingError": "Couldn't check spending",
       "spendingUnlinked": "Spending isn't linked yet.",

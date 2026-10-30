@@ -5,9 +5,11 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { renderWithQueryClient } from '@/test/renderWithQueryClient';
 import { ToastProvider } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { formatCurrency } from '@/src/lib/format';
 
 const state = vi.hoisted(() => ({
   role: 'Project Manager',
+  orgDay: '2026-10-27',
   forceInvoiceView: false,
   orgCurrency: 'IDR',
   fxRateCalls: [] as unknown[][],
@@ -60,7 +62,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoices: () => ({ data: state.invoices, isPending: state.invoicesPending, isError: state.invoicesError, refetch: state.invoicesRefetch }),
 }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({
-  useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }),
+  useFxOrgDay: () => ({ day: state.orgDay, isPending: false, isError: false, retry: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({
   useOrgCurrencyState: () => ({ currency: state.orgCurrency, isResolved: true, isError: false }),
@@ -109,6 +111,7 @@ const invoice = (overrides: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   state.role = 'Project Manager';
+  state.orgDay = '2026-10-27';
   state.forceInvoiceView = false;
   state.orgCurrency = 'IDR';
   state.fxRateCalls = [];
@@ -215,11 +218,12 @@ describe('project money position', () => {
   });
 
   it('collects over-budget, overdue, late-phase and waiting-request actions with danger items first', () => {
-    const twoDaysAgo = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
+    const twoDaysAgo = new Date(`${state.orgDay}T00:00:00Z`);
+    twoDaysAgo.setUTCDate(twoDaysAgo.getUTCDate() - 2);
     state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
     state.finances = actuals([{ category: 'Labor', mapped: true, amount: '130' }]);
     state.invoices = [invoice({ id: 'inv-1', erp_due_date: '2026-10-20', erp_outstanding_amount: '40' })];
-    state.milestones = [{ id: 'm1', name: 'Design', target_date: twoDaysAgo, effective_pct: 40, task_count: 2 }];
+    state.milestones = [{ id: 'm1', name: 'Design', target_date: twoDaysAgo.toISOString().slice(0, 10), effective_pct: 40, task_count: 2 }];
     state.procurements = [{
       id: 'req-1', status: 'Requested', requested_by_id: 'another-user',
       approvalRoute: { route: 'flat', approvers: [] },
@@ -526,7 +530,7 @@ describe('contract billing block', () => {
     expect(screen.getByText('25% invoiced')).toHaveClass('text-2xl');
     expect(screen.getByText('20% paid')).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: 'Delivered is 40% of contract' })).toBeInTheDocument();
-    expect(screen.getByText('1,000')).toBeInTheDocument();
+    expect(screen.getByTestId('contract-value-amount').textContent).toBe(formatCurrency(1_000, 'USD'));
     expect(screen.getByText('500')).toBeInTheDocument();
     expect(screen.getByText('400')).toBeInTheDocument();
     expect(screen.getByText('250')).toBeInTheDocument();
@@ -680,6 +684,16 @@ describe('overview restructure rulings (L5/L6/L10/C4/L12)', () => {
     expect(within(block).getByRole('progressbar', { name: 'Design 50% complete' })).toBeInTheDocument();
     expect(within(block).getByText(/Overdue/)).toBeInTheDocument();
     expect(within(block).getByText('25% of project')).toBeInTheDocument();
+  });
+
+  it('withholds budget use when the project purchase read fails', () => {
+    state.role = 'Admin';
+    state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '1000' }])];
+    state.finances = actuals([{ category: 'Labor', mapped: true, amount: '100' }]);
+    state.procurementsError = true;
+    renderWithQueryClient(<MemoryRouter><CostBlock project={project()} /></MemoryRouter>);
+    expect(screen.queryByText(/10% used/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Couldn't check commitments/)).toBeInTheDocument();
   });
 
   it('L12: Budget vs actual counts committed spend from the same calculation as the Budget tab, Uncategorized included', () => {

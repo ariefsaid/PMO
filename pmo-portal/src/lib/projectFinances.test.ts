@@ -181,6 +181,11 @@ describe('exact project-finance money', () => {
       .toMatchObject({ amount: null, complete: false });
   });
 
+  it('preserves exact project-currency totals from the collection', () => {
+    expect(deriveActualPosition({ ledgerBasis: 'pmo', committedSpend: '90071992547409.91', commitmentPending: false,
+      commitmentError: false, projectCurrency: 'USD', actuals: undefined }).amount).toBe('90071992547409.91');
+  });
+
   it('DD-MONEY-1 withholds Actual while its selected source is loading or failed', () => {
     const actuals = { currency: null, as_of: null, total: null, excludes_restricted_rows: false, categories: [] };
     expect(deriveActualPosition({ ledgerBasis: 'pmo', committedSpend: undefined, commitmentPending: true, commitmentError: false, projectCurrency: 'IDR', actuals }).amount).toBeNull();

@@ -12,6 +12,8 @@
   "billedWork": "Pendapatan pekerjaan tertagih",
   "billedWorkQualifier": "Tanpa pajak; tidak termasuk uang muka",
   "projectFinances": {
+    "currencyUnavailable": "Mata uang tidak tersedia",
+    "pmoPartial": "Posisi belum lengkap; mata uang lain atau jumlah yang tidak tersedia tidak disertakan.",
     "contractAfterCostSource": "Nilai kontrak dikurangi Aktual tercatat yang dapat dibandingkan.",
     "contractAfterCostPending": "Ditampilkan setelah pengeluaran tercatat lengkap."
   },
@@ -442,6 +444,7 @@
       "categoryOverSub": "Terpakai {{spent}} dari anggaran {{budget}}",
       "within": "Sesuai anggaran",
       "withinSub": "Terpakai {{spent}} dari {{budget}}",
+      "commitmentsError": "Tidak dapat memeriksa komitmen",
       "spendingChecking": "Memeriksa pengeluaran…",
       "spendingError": "Pengeluaran tidak dapat diperiksa",
       "spendingUnlinked": "Pengeluaran belum ditautkan.",

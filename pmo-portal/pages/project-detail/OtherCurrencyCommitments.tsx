@@ -11,7 +11,9 @@ import type { CommittedOtherCurrencies } from '@/src/hooks/useProcurements';
 export function OtherCurrencyCommitments({ positions }: { positions: CommittedOtherCurrencies | undefined }) {
   const { t } = useTranslation('project');
   if (!positions || positions.length === 0) return null;
-  const amounts = positions.map((position) => formatCurrency(position.amount, position.currency)).join(', ');
+  const amounts = positions.map((position) => typeof position.currency === 'string' && /^[A-Z]{3}$/.test(position.currency)
+    ? formatCurrency(position.amount, position.currency)
+    : t('projectFinances.currencyUnavailable', 'Currency unavailable')).join(', ');
   return (
     <span className="block text-xs text-muted-foreground" data-testid="committed-other-currencies">
       {t('projects:committed.otherCurrencies', 'Plus amounts in other currencies: {{amounts}}', { amounts })}

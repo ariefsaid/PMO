@@ -63,7 +63,7 @@ const { roleBox, projectMutations, deliverySummaryState, projectMoneyState } = v
     isError: false,
   },
   projectMoneyState: {
-    data: {} as Record<string, { ledgerBasis?: 'erp' | 'pmo'; actuals: { currency: string; total: string | null; asOf: string | null; excludesRestrictedRows: boolean; categories: { category: string; mapped: boolean; amount: string | null }[] }; activeBudgetAmount: string | null; activeBudgetCurrency: string | null; hasActiveBudget: boolean }> | undefined,
+    data: {} as Record<string, { ledgerBasis?: 'erp' | 'pmo'; actuals: { currency: string; total: string | null; asOf: string | null; excludesRestrictedRows: boolean; complete?: boolean; categories: { category: string; mapped: boolean; amount: string | null }[] }; activeBudgetAmount: string | null; activeBudgetCurrency: string | null; hasActiveBudget: boolean }> | undefined,
     isPending: false,
     isError: false,
     refetch: vi.fn(),
@@ -632,6 +632,22 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     renderPage();
     const body = document.querySelector('tbody')!;
     expect(within(body).getByText('US$125.000')).toBeInTheDocument();
+  });
+
+  it('explains an incomplete PMO currency position in the collection', () => {
+    projectMoneyState.data = { p1: { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '125000', asOf: null,
+      excludesRestrictedRows: false, complete: false, categories: [] }, activeBudgetAmount: '500000', activeBudgetCurrency: 'USD', hasActiveBudget: true } };
+    renderPage();
+    expect(screen.getByText('Actual is unknown on 1 of 1 projects.')).toBeInTheDocument();
+    expect(screen.queryByText('25%')).not.toBeInTheDocument();
+  });
+
+  it('does not relabel a cached PMO position in another currency', () => {
+    projectMoneyState.data = { p1: { ledgerBasis: 'pmo', actuals: { currency: 'EUR', total: '125000', asOf: null,
+      excludesRestrictedRows: false, complete: true, categories: [] }, activeBudgetAmount: '500000', activeBudgetCurrency: 'USD', hasActiveBudget: true } };
+    renderPage();
+    expect(within(document.querySelector('tbody')!).queryByText('$125,000')).not.toBeInTheDocument();
+    expect(screen.getByText('Actual is unknown on 1 of 1 projects.')).toBeInTheDocument();
   });
 
   it('AC-S02-008: displays canonical Actual, freshness and Active-budget utilization instead of committedSpend', () => {

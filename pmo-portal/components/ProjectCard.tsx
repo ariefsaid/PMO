@@ -19,7 +19,7 @@ export interface ProjectCardProps {
   /** Drill into the full-page project detail. */
   onOpen: (project: ProjectWithRefs) => void;
   /** I5: delivery summary (from useProjectsDeliverySummary) for consistent card-view display. */
-  deliverySummary?: { deliveryPct: number | null; committedSpend: number; budget: number } | undefined;
+  deliverySummary?: { deliveryPct: number | null; committedSpend: number | null; budget: number } | undefined;
   /** Batched canonical Actual and Active-budget read for this project. */
   projectMoney?: ProjectMoneyRead;
   /**
