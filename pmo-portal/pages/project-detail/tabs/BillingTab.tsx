@@ -533,7 +533,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           >
             {t('uxs15.contractInvoice', 'Contract invoice')}
           </Link>}
-          <Button variant="ghost" size="sm" className="h-auto min-h-8 px-0 text-xs text-muted-foreground underline underline-offset-4"
+          <Button variant="ghost" size="sm" className="h-auto min-h-8 px-0! text-xs text-muted-foreground underline underline-offset-4"
             onClick={() => setContractLinesOpen(true)}>
             {t('projectDetail.billing.boq.manage', 'Edit contract lines')}
           </Button>
