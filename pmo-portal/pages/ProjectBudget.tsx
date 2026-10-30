@@ -19,13 +19,9 @@ import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import {
   formatCurrency,
-  formatCurrencyAuto,
-  formatCurrencyCents,
-  formatMoneyInputValue,
   formatNumberMax2,
   formatShortMoney,
   formatInstantDate,
-  parseMoneyInputAtScale,
 } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { budgetVersionVariant } from '@/src/lib/status/statusVariants';
@@ -43,7 +39,6 @@ import {
   ConfirmDialog,
   Checkbox,
   useToast,
-  NumberField,
   TaxBasisLabel,
   StatusPill,
   Tooltip,
@@ -54,505 +49,17 @@ import {
   Drawer,
   MenuButton,
 } from '@/src/components/ui';
-import type { BudgetVersionWithItems, BudgetLineItemRow, NewLineItem } from '@/src/lib/db/budgets';
+import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
 import type { BudgetReadinessIssue } from '@/src/lib/budget/budgetGate';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useBudgetPosition } from './project-detail/useProjectPosition';
 import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
 import BudgetErpNotice from './project-detail/budget/BudgetErpNotice';
 import { buildBudgetSummaryRows, committedTotal, type BudgetSummaryRow } from './project-detail/budget/budgetModel';
-import { Constants, type Enums } from '@/src/lib/supabase/database.types';
 import BudgetProjection from './BudgetProjection';
 import { AttributedSpendingNote } from './project-detail/AttributedSpendingNote';
+import BudgetLineItemEditor from './project-budget/BudgetLineItemEditor';
 import { fetchBudgetPushStatus, type BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-const BUDGET_CATEGORIES = Constants.public.Enums.budget_category;
-
-// ---------------------------------------------------------------------------
-// Line-item editor (for Draft versions)
-// ---------------------------------------------------------------------------
-interface LineItemEditorProps {
-  lineItems: BudgetLineItemRow[];
-  /** The parent budget version's currency (the record's own — every line item shares it). */
-  currency: string;
-  onCreateLineItem: (item: NewLineItem) => Promise<unknown>;
-  /** Stages a destructive confirm at the page level — does not delete on click. */
-  onDeleteLineItem: (id: string) => void;
-  /** Routine inline update (OD-UX-1: single-click + toast, no confirm). */
-  onUpdateLineItem: (id: string, patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'fiscal_year'>>) => Promise<unknown>;
-  onSaveSuccess: () => void;
-  /** B-0.7: isPending flags from the parent mutation (createLineItem / updateLineItem).
-   *  Disables Save while a write is in-flight — prevents double-submit duplication. */
-  createIsPending?: boolean;
-  updateIsPending?: boolean;
-  /** B-0.6: called when a line-item write fails so the page-level toast fires. */
-  onSaveError?: (err: unknown) => void;
-  fiscalYearNames?: string[] | null;
-}
-
-/** One DataTable row of the editor: an existing line, or the single in-progress new line. */
-type EditorRow = { kind: 'item'; li: BudgetLineItemRow } | { kind: 'new' };
-
-/** Per-row inline edit state: `null` = reading, `string` = that row's id is open. */
-type EditingId = string | null;
-
-const LineItemEditor: React.FC<LineItemEditorProps> = ({
-  lineItems,
-  currency,
-  onCreateLineItem,
-  onDeleteLineItem,
-  onUpdateLineItem,
-  onSaveSuccess,
-  createIsPending = false,
-  updateIsPending = false,
-  onSaveError,
-  fiscalYearNames = null,
-}) => {
-  const { t } = useTranslation('finance');
-  const [adding, setAdding] = useState(false);
-  const [newCategory, setNewCategory] = useState<Enums<'budget_category'>>('Labor');
-  const [newDesc, setNewDesc] = useState('');
-  const [newAmount, setNewAmount] = useState('');
-  const [newAmountError, setNewAmountError] = useState<string | null>(null);
-  const [newFiscalYearError, setNewFiscalYearError] = useState<string | null>(null);
-  // Fiscal-year names come from the read-only Draft precheck when ERPNext is reachable. Keep this as
-  // text input because customer calendars use their own names; the live list is suggestions, not a select.
-  const [newFiscalYear, setNewFiscalYear] = useState('');
-
-  // Inline edit state
-  const [editingId, setEditingId] = useState<EditingId>(null);
-  const [editCategory, setEditCategory] = useState<Enums<'budget_category'>>('Labor');
-  const [editDesc, setEditDesc] = useState('');
-  const [editAmount, setEditAmount] = useState('');
-  const [editFiscalYear, setEditFiscalYear] = useState('');
-  const [editAmountError, setEditAmountError] = useState<string | null>(null);
-  const [editFiscalYearError, setEditFiscalYearError] = useState<string | null>(null);
-  /** The years this project's own lines already name — suggestions, never a constraint. */
-  const knownFiscalYears = useMemo(
-    () => [...new Set([
-      ...lineItems.map((li) => li.fiscal_year).filter((y): y is string => !!y),
-      ...(fiscalYearNames ?? []),
-    ])].sort(),
-    [lineItems, fiscalYearNames],
-  );
-
-  const validateFiscalYear = (value: string): boolean => {
-    const fiscalYear = value.trim();
-    if (!fiscalYear) return true;
-    // ERPNext's exact names are authoritative when available. During an outage, reject obviously
-    // numeric typos like "202" while preserving arbitrary client labels until the next live check.
-    return fiscalYearNames === null
-      ? !/^\d+$/.test(fiscalYear) || /^\d{4}$/.test(fiscalYear)
-      : fiscalYearNames.includes(fiscalYear);
-  };
-
-  const openEdit = (li: BudgetLineItemRow) => {
-    setEditingId(li.id);
-    setEditCategory(li.category as Enums<'budget_category'>);
-    setEditDesc(li.description ?? '');
-    setEditAmount(formatMoneyInputValue(Number(li.budgeted_amount)));
-    setEditFiscalYear(li.fiscal_year ?? '');
-    setEditAmountError(null);
-    setEditFiscalYearError(null);
-  };
-
-  const closeEdit = () => {
-    setEditingId(null);
-    setEditAmountError(null);
-    setEditFiscalYearError(null);
-  };
-
-  const handleSaveEdit = async (li: BudgetLineItemRow) => {
-    if (!validateFiscalYear(editFiscalYear)) {
-      setEditFiscalYearError(t('finance:budgetActivation.invalidFiscalYearName', 'Choose a fiscal year from ERPNext, or leave it blank.'));
-      return;
-    }
-    setEditFiscalYearError(null);
-    // Validate with the same locale-aware, storage-scale parser used for the write.
-    const parsed = parseMoneyInputAtScale(editAmount, 2);
-    if (parsed === null) {
-      setEditAmountError('Enter a valid amount with no more than 2 decimal places');
-      return;
-    }
-    if (parsed <= 0) {
-      setEditAmountError(t('financeCopy.amountMustBeGreaterThanZero', 'Amount must be greater than 0'));
-      return;
-    }
-    setEditAmountError(null);
-    // B-0.6: wrap in try/catch → surface failure via onSaveError (no silent no-op).
-    try {
-      await onUpdateLineItem(li.id, {
-        category: editCategory,
-        description: editDesc || null,
-        budgeted_amount: parsed,
-        // An emptied field UN-phases the line (NULL), which is a real, deliberate state — never ''.
-        fiscal_year: editFiscalYear.trim() || null,
-      });
-      setEditingId(null);
-      onSaveSuccess();
-    } catch (err) {
-      onSaveError?.(err);
-    }
-  };
-
-  const handleAdd = async () => {
-    if (!validateFiscalYear(newFiscalYear)) {
-      setNewFiscalYearError(t('finance:budgetActivation.invalidFiscalYearName', 'Choose a fiscal year from ERPNext, or leave it blank.'));
-      return;
-    }
-    setNewFiscalYearError(null);
-    const amount = parseMoneyInputAtScale(newAmount, 2);
-    if (!newCategory) return;
-    if (amount === null) {
-      setNewAmountError('Enter a valid amount with no more than 2 decimal places');
-      return;
-    }
-    if (amount <= 0) {
-      setNewAmountError(t('financeCopy.amountMustBeGreaterThanZero', 'Amount must be greater than 0'));
-      return;
-    }
-    setNewAmountError(null);
-    // B-0.6: wrap in try/catch → surface failure via onSaveError (no silent no-op).
-    try {
-      await onCreateLineItem({
-        category: newCategory,
-        description: newDesc || null,
-        budgeted_amount: amount,
-        fiscal_year: newFiscalYear.trim() || null,
-      });
-      setAdding(false);
-      setNewDesc('');
-      setNewAmount('');
-      setNewAmountError(null);
-      setNewFiscalYearError(null);
-      setNewFiscalYear('');
-    } catch (err) {
-      onSaveError?.(err);
-    }
-  };
-
-  const fieldCls =
-    'h-8 rounded-md border border-input bg-background px-2.5 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
-
-  const total = lineItems.reduce((sum, li) => sum + Number(li.budgeted_amount), 0);
-  const rows: EditorRow[] = [
-    ...lineItems.map((li): EditorRow => ({ kind: 'item', li })),
-    ...(adding ? [{ kind: 'new' } as EditorRow] : []),
-  ];
-
-  const fiscalYearDatalist = (
-    // ⚑ A datalist, not a <select>: the valid values are the CLIENT's own ERPNext Fiscal
-    // Year names, which this write path cannot read (FR-BFY-022). The years the project
-    // already uses are offered; a year it is only now moving into stays typeable.
-    <datalist id="budget-fiscal-year-options">
-      {knownFiscalYears.map((y) => (
-        <option key={y} value={y} />
-      ))}
-    </datalist>
-  );
-
-  const categorySelect = (props: { id?: string; label: string; value: Enums<'budget_category'>; onChange: (v: Enums<'budget_category'>) => void; autoFocus?: boolean }) => (
-    <select
-      id={props.id}
-      aria-label={props.label}
-      value={props.value}
-      onChange={(e) => props.onChange(e.target.value as Enums<'budget_category'>)}
-      className={fieldCls}
-      autoFocus={props.autoFocus}
-    >
-      {BUDGET_CATEGORIES.map((c) => (
-        <option key={c} value={c}>
-          {budgetCategoryLabel(c, t)}
-        </option>
-      ))}
-    </select>
-  );
-
-  const columns: Column<EditorRow>[] = [
-    {
-      key: 'category',
-      header: t('financeCopy.category', "Category"),
-      kind: 'text',
-      size: 170,
-      cell: (row) => {
-        if (row.kind === 'new') {
-          return categorySelect({ label: t('financeCopy.lineItemCategory', "Line item category"), value: newCategory, onChange: setNewCategory });
-        }
-        const li = row.li;
-        return editingId === li.id
-          ? categorySelect({ id: `edit-category-${li.id}`, label: t('financeCopy.category', "Category"), value: editCategory, onChange: setEditCategory, autoFocus: true })
-          : budgetCategoryLabel(li.category as Enums<'budget_category'>, t);
-      },
-    },
-    {
-      key: 'description',
-      header: t('financeCopy.description', "Description"),
-      kind: 'meta',
-      size: 260,
-      cell: (row) => {
-        if (row.kind === 'new') {
-          return (
-            <input
-              type="text"
-              aria-label={t('financeCopy.lineItemDescription', "Line item description")}
-              placeholder={t('financeCopy.description', "Description")}
-              value={newDesc}
-              onChange={(e) => setNewDesc(e.target.value)}
-              className={`${fieldCls} w-full`}
-            />
-          );
-        }
-        const li = row.li;
-        return editingId === li.id ? (
-          <input
-            type="text"
-            aria-label={t('financeCopy.description', "Description")}
-            placeholder={t('financeCopy.description', "Description")}
-            value={editDesc}
-            onChange={(e) => setEditDesc(e.target.value)}
-            className={`${fieldCls} w-full`}
-          />
-        ) : (
-          <span className="text-muted-foreground">{li.description ?? '—'}</span>
-        );
-      },
-    },
-    // ⚑ FR-BFY-060: which fiscal year this line belongs to. A multi-fiscal-year project cannot
-    // reach ERPNext at all until every line names one (the gate refuses an un-phased line
-    // rather than inventing a split), so the column is not an advanced option — it is the
-    // control that makes the capability reachable.
-    {
-      key: 'fiscal_year',
-      header: t('financeCopy.fiscalYear', "Fiscal year"),
-      kind: 'text',
-      size: 150,
-      cell: (row) => {
-        if (row.kind === 'new') {
-          return (
-            <>
-              <input
-                type="text"
-                aria-label={t('financeCopy.lineItemFiscalYear', "Line item fiscal year")}
-                placeholder={t('financeCopy.unPhased', "Un-phased")}
-                list="budget-fiscal-year-options"
-                value={newFiscalYear}
-                onChange={(e) => {
-                  setNewFiscalYear(e.target.value);
-                  setNewFiscalYearError(null);
-                }}
-                className={`${fieldCls} w-32`}
-              />
-              {newFiscalYearError && <p role="alert" className="text-xs text-destructive-text">{newFiscalYearError}</p>}
-              {fiscalYearDatalist}
-            </>
-          );
-        }
-        const li = row.li;
-        // ⚑ An un-phased line SAYS SO. A blank cell would read as "we forgot"; un-phased is a
-        // real, deliberate state with a consequence (a multi-fiscal-year project cannot push
-        // until it is resolved), so it is stated rather than left empty.
-        return editingId === li.id ? (
-          <>
-            <label htmlFor={`edit-fy-${li.id}`} className="sr-only">
-              {t('financeCopy.fiscalYear', "Fiscal year")}</label>
-            <input
-              id={`edit-fy-${li.id}`}
-              type="text"
-              aria-label={t('financeCopy.fiscalYear', "Fiscal year")}
-              placeholder={t('financeCopy.unPhased', "Un-phased")}
-              list="budget-fiscal-year-options"
-              value={editFiscalYear}
-              onChange={(e) => {
-                setEditFiscalYear(e.target.value);
-                setEditFiscalYearError(null);
-              }}
-              className={`${fieldCls} w-32`}
-            />
-            {editFiscalYearError && <p role="alert" className="text-xs text-destructive-text">{editFiscalYearError}</p>}
-            {fiscalYearDatalist}
-          </>
-        ) : (
-          <span className="text-muted-foreground">
-            {li.fiscal_year ?? <span className="italic">{t('financeCopy.unPhased', "Un-phased")}</span>}
-          </span>
-        );
-      },
-    },
-    {
-      key: 'amount',
-      header: t('financeCopy.budgeted', "Budgeted"),
-      kind: 'money',
-      align: 'num',
-      size: 184,
-      cell: (row) => {
-        if (row.kind === 'new') {
-          return (
-            <NumberField
-              label={t('financeCopy.lineItemAmount', "Line item amount")}
-              hideLabel
-              placeholder={t('financeCopy.amount', "Amount")}
-              value={newAmount}
-              onChange={(value) => {
-                setNewAmount(value);
-                setNewAmountError(null);
-              }}
-              error={newAmountError ?? undefined}
-              localeAware
-              className="w-28"
-            />
-          );
-        }
-        const li = row.li;
-        return editingId === li.id ? (
-          <div className="flex flex-col items-end gap-0.5">
-            {/* NumberField owns the (visually hidden) label — a second <label> here doubled
-                the accessible name to "Amount Amount". */}
-            <NumberField
-              id={`edit-amount-${li.id}`}
-              label={t('financeCopy.amount', "Amount")}
-              hideLabel
-              value={editAmount}
-              onChange={(value) => {
-                setEditAmount(value);
-                setEditAmountError(null);
-              }}
-              error={editAmountError ?? undefined}
-              localeAware
-              className="w-28"
-            />
-          </div>
-        ) : (
-          <span className="font-medium">{formatCurrencyAuto(Number(li.budgeted_amount), currency)}</span>
-        );
-      },
-    },
-    {
-      key: 'actions',
-      header: <span className="sr-only">{t('table.actions', 'Actions')}</span>,
-      kind: 'actions',
-      align: 'num',
-      size: 230,
-      minSize: 230,
-      maxSize: 230,
-      cell: (row) => {
-        if (row.kind === 'new') {
-          return (
-            <div className="space-x-1">
-              {/* B-0.7: loading/disabled while createIsPending — prevents double-submit. */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => void handleAdd()}
-                className="text-primary-text"
-                loading={createIsPending}
-                disabled={createIsPending}
-              >
-                {t('financeCopy.save', "Save")}</Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setAdding(false);
-                  setNewAmountError(null);
-                }}
-                disabled={createIsPending}
-              >
-                {t('financeCopy.cancel', "Cancel")}</Button>
-            </div>
-          );
-        }
-        const li = row.li;
-        const deleteLabel = t('financeCopy.deleteBudgetLineItemNamed', 'Delete line item {{category}}', { category: budgetCategoryLabel(li.category, t) });
-        return editingId === li.id ? (
-          <div className="space-x-1">
-            {/* B-0.7: loading/disabled while updateIsPending — prevents double-submit. */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => void handleSaveEdit(li)}
-              className="text-primary-text"
-              aria-label={t('financeCopy.save', "Save")}
-              loading={updateIsPending}
-              disabled={updateIsPending}
-            >
-              {t('financeCopy.save', "Save")}</Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={closeEdit}
-              aria-label={t('financeCopy.cancel', "Cancel")}
-              disabled={updateIsPending}
-            >
-              {t('financeCopy.cancel', "Cancel")}</Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onDeleteLineItem(li.id)}
-              className="text-destructive-text hover:bg-destructive/10"
-              aria-label={deleteLabel}
-              disabled={updateIsPending}
-            >
-              {t('financeCopy.delete', "Delete")}</Button>
-          </div>
-        ) : (
-          <div className="space-x-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => openEdit(li)}
-              className="text-primary-text hover:bg-primary/10"
-              aria-label={t('financeCopy.editBudgetLineItemNamed', 'Edit line item {{category}}', { category: budgetCategoryLabel(li.category, t) })}
-            >
-              {t('financeCopy.edit', "Edit")}</Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onDeleteLineItem(li.id)}
-              className="text-destructive-text hover:bg-destructive/10"
-              aria-label={deleteLabel}
-            >
-              {t('financeCopy.delete', "Delete")}</Button>
-          </div>
-        );
-      },
-    },
-  ];
-
-  return (
-    <div className="relative mt-4">
-      <DataTable
-        rows={rows}
-        columns={columns}
-        rowKey={(row) => (row.kind === 'new' ? '__new__' : row.li.id)}
-        tableId="budget-line-items-editor"
-        accessibleName={t('financeCopy.lineItemsSection', 'Line items')}
-        className="rounded-none border-0 bg-transparent"
-        totals={[{
-          key: 'total',
-          label: t('financeCopy.total', "Total"),
-          values: {
-            amount: <span data-testid="budget-edit-total" className="font-bold">{formatCurrencyCents(total, currency)}</span>,
-          },
-        }]}
-      />
-      {!adding && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            setNewAmountError(null);
-            setAdding(true);
-          }}
-          className="mt-2 text-primary-text"
-        >
-          {t('financeCopy.addBudgetLineItem', "+ Add line item")}</Button>
-      )}
-    </div>
-  );
-};
 
 // ---------------------------------------------------------------------------
 // Main page component (NFR-BV-UI-001)
@@ -644,6 +151,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     versions.map((version) => version.id),
     versions.some((version) => version.status === 'Archived'),
   );
+  const archiveTargetsLoading = archiveTargetsQuery.isPending || (archiveTargetsQuery.isFetching && (archiveTargetsQuery.isError || !archiveTargetsQuery.data));
   const archiveTargets = archiveTargetsQuery.data ?? [];
   const pushedActiveGrains = new Set(
     archiveTargets.flatMap((target) => {
@@ -1137,13 +645,13 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     />
   );
 
-  const draftEditor = draftVersion && canWrite && draftEditorOpen && selectedVersion?.id === draftVersion.id ? (
-    <section aria-label={t('projectDetail.budget.draftEditor', 'Draft budget editor')} className="min-w-0 space-y-3" data-testid="budget-draft-editor">
+  const draftEditor = draftVersion && canWrite ? (
+    <section hidden={!draftEditorOpen || selectedVersion?.id !== draftVersion.id || view !== 'actual'} aria-label={t('projectDetail.budget.draftEditor', 'Draft budget editor')} className="min-w-0 space-y-3" data-testid="budget-draft-editor">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">{draftVersion.name} · v{draftVersion.version}</h3>
         <Button variant="ghost" size="sm" onClick={() => setDraftEditorOpen(false)}>{t('common.close', 'Close')}</Button>
       </div>
-      <LineItemEditor
+      <BudgetLineItemEditor
         key={draftVersion.id}
         lineItems={draftVersion.line_items}
         currency={draftVersion.currency || project.currency}
@@ -1250,10 +758,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             {view === 'actual' && <Button variant="outline" size="sm" onClick={() => exportRows(enrichedRows, 'ProjectBudget')}>{t('projectDetail.budget.export', 'Export')}</Button>}
           </div>
         </div>}
+        {view === 'actual' && selectedVersion && selectedVersion.status !== 'Active' && <p className="text-sm text-muted-foreground">{t('projectDetail.budget.viewingVersion', 'Viewing {{status}} v{{version}}; project spending and commitments reflect the current project totals.', { status: selectedVersion.status, version: selectedVersion.version })}</p>}
+        {draftEditor}
         {view === 'actual' ? (
           selectedVersion ? <>
-            {selectedVersion.status !== 'Active' && <p className="text-sm text-muted-foreground">{t('projectDetail.budget.viewingVersion', 'Viewing {{status}} v{{version}}; project spending and commitments reflect the current project totals.', { status: selectedVersion.status, version: selectedVersion.version })}</p>}
-            {draftEditor}
             {!compatibleBasis && <p role="status" className="text-sm text-muted-foreground">{t('projectDetail.budget.currencyBasisNotice', 'Budget: {{budgetCurrency}}. Spending and commitments: {{projectCurrency}}. Comparisons are unavailable across currencies.', { budgetCurrency: selectedCurrency, projectCurrency: project.currency })}</p>}
             <DataTable
               embedded
@@ -1309,7 +817,16 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         /> : null}
       </Card>
 
-      {archivedLiveTargets.length > 0 && (
+      {versions.some((version) => version.status === 'Archived') && archiveTargetsLoading && (
+        <p role="status" className="text-sm text-muted-foreground">{t('budgetArchive.checkingArchivedBudget', 'Checking archived budget status…')}</p>
+      )}
+      {versions.some((version) => version.status === 'Archived') && !archiveTargetsLoading && archiveTargetsQuery.isError && (
+        <div role="alert" className="rounded-lg border border-warning/30 bg-warning/[0.07] px-3.5 py-3 text-sm text-foreground">
+          <p>{t('budgetArchive.archivedBudgetStatusError', 'Could not check archived budget status.')}</p>
+          <Button variant="ghost" size="sm" onClick={() => void archiveTargetsQuery.refetch()}>{t('budgetArchive.retryArchivedBudget', 'Retry archived budget check')}</Button>
+        </div>
+      )}
+      {!archiveTargetsLoading && !archiveTargetsQuery.isError && archivedLiveTargets.length > 0 && (
         <div role="alert" className="rounded-lg border border-warning/30 bg-warning/[0.07] px-3.5 py-3 text-sm text-foreground">
           {t('budgetArchive.archivedBudgetStillLiveInErp')}
         </div>

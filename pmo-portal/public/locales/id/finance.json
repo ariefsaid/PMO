@@ -272,6 +272,9 @@
     "invalidFiscalYearName": "Pilih tahun fiskal dari ERPNext, atau kosongkan kolom ini."
   },
   "budgetArchive": {
+    "checkingArchivedBudget": "Memeriksa status anggaran yang diarsipkan…",
+    "archivedBudgetStatusError": "Status anggaran yang diarsipkan tidak dapat diperiksa.",
+    "retryArchivedBudget": "Coba periksa kembali anggaran yang diarsipkan",
     "alsoCancelErpBudgets_one": "Batalkan juga {{count}} dokumen Budget di ERPNext",
     "alsoCancelErpBudgets_other": "Batalkan juga {{count}} dokumen Budget di ERPNext",
     "archivedBudgetStillLiveInErp": "ERPNext masih menerapkan anggaran yang diarsipkan untuk proyek ini. Batalkan dokumen Budget di ERPNext atau aktifkan anggaran PMO yang baru.",

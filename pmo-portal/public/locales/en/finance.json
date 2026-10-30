@@ -272,6 +272,9 @@
     "invalidFiscalYearName": "Choose a fiscal year from ERPNext, or leave it blank."
   },
   "budgetArchive": {
+    "checkingArchivedBudget": "Checking archived budget status…",
+    "archivedBudgetStatusError": "Could not check archived budget status.",
+    "retryArchivedBudget": "Retry archived budget check",
     "alsoCancelErpBudgets_one": "Also cancel {{count}} Budget document in ERPNext",
     "alsoCancelErpBudgets_other": "Also cancel {{count}} Budget documents in ERPNext",
     "archivedBudgetStillLiveInErp": "ERPNext is still enforcing an archived budget for this project. Cancel the ERPNext Budget documents or activate a new PMO budget.",
