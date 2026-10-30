@@ -62,8 +62,8 @@ export interface ListPageProps {
  *   [title + count] … [primary "New <Entity>"]
  *   toolbar: status/filter controls · fixed search · view/actions
  *
- * Groups keep search first on phones and place status/filter controls, fixed-width
- * search, and view/actions on one desktop row.
+ * Groups keep status/filter controls, search, and view/actions in reading order
+ * on phones and on the desktop row.
  */
 export const ListPage: React.FC<ListPageProps> = ({
   title,
@@ -136,15 +136,15 @@ export const ListPage: React.FC<ListPageProps> = ({
           </Toolbar>
         ) : (
           <Toolbar standalone data-testid="list-page-toolbar" className={`grid min-w-0 grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-center ${desktopToolbarClassName ?? ''}`}>
-            {search && <div data-testid="list-page-search-group" className="order-1 min-w-0 md:order-2 md:col-start-2 md:row-start-1">{search}</div>}
             {(filters || secondaryFilter) && (
-              <div data-testid="list-page-filter-group" className="order-2 flex min-w-0 flex-wrap items-center gap-2 md:order-1 md:col-start-1 md:row-start-1">
+              <div data-testid="list-page-filter-group" className="flex min-w-0 flex-wrap items-center gap-2 md:col-start-1 md:row-start-1">
                 {filters}
                 {secondaryFilter}
               </div>
             )}
+            {search && <div data-testid="list-page-search-group" className="min-w-0 md:col-start-2 md:row-start-1">{search}</div>}
             {(view || exportAction || importAction) && (
-              <div data-testid="list-page-action-group" className="order-3 flex min-w-0 flex-wrap items-center gap-2 md:col-start-3 md:row-start-1">
+              <div data-testid="list-page-action-group" className="flex min-w-0 flex-wrap items-center gap-2 md:col-start-3 md:row-start-1">
                 {view && <div data-testid="list-page-view" className="shrink-0">{view}</div>}
                 {exportAction}
                 {importAction}

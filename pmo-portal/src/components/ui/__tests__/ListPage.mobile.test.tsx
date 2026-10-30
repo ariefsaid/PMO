@@ -36,11 +36,11 @@ afterEach(() => vi.unstubAllGlobals());
 
 const desktopSlots = [
   'slot-filters',
-  'slot-search',
   'slot-secondary',
+  'slot-search',
+  'slot-view',
   'slot-export',
   'slot-import',
-  'slot-view',
 ];
 
 const renderWithMobile = (mobileToolbar: React.ReactNode) =>

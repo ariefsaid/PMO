@@ -52,16 +52,18 @@ export const MyOpenTasks: React.FC<{ projectId: string }> = ({ projectId }) => {
   const overdue = mine.filter((task) => task.end_date && task.end_date < today).length;
   return (
     <Card role="region" aria-labelledby="pd-my-tasks" className="min-w-0">
-      <CardHead id="pd-my-tasks" actions={<Link to={`/projects/${projectId}/tasks`} className="touch-target inline-flex items-center text-xs font-semibold text-primary-text hover:underline">
-        {t('projectDetail.myTasks.all', 'All tasks')}
-      </Link>}>
-          {t('projectDetail.myTasks.title', 'My open tasks')}{' '}
+      <CardHead id="pd-my-tasks" actions={<>
           <Tooltip content={t('projectDetail.myTasks.countTooltip', 'Open tasks assigned to you on this project.')}>
             <span tabIndex={0} className="font-normal text-muted-foreground">{mine.length}</span>
           </Tooltip>
           {overdue > 0 && <Tooltip content={t('projectDetail.myTasks.overdueTooltip', 'Open tasks assigned to you with a due date before today.')}>
             <span tabIndex={0} className="ml-2 font-medium text-destructive-text">{t('projectDetail.myTasks.overdueCount', '{{count}} overdue', { count: overdue })}</span>
           </Tooltip>}
+          <Link to={`/projects/${projectId}/tasks`} className="touch-target inline-flex items-center text-xs font-semibold text-primary-text hover:underline">
+            {t('projectDetail.myTasks.all', 'All tasks')}
+          </Link>
+        </>}>
+          {t('projectDetail.myTasks.title', 'My open tasks')}
       </CardHead>
       <CardPad flush>
       {mine.length === 0 ? (

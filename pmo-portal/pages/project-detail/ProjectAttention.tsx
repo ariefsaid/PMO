@@ -60,11 +60,10 @@ export const ProjectAttention: React.FC<{
   return (
     <section aria-labelledby="pd-attention" className={className}>
       <Card>
-        <CardHead id="pd-attention">
-          {t('projectDetail.attention.title', 'Needs attention')}{' '}
-        <Tooltip content={t('projectDetail.attention.countTooltip', 'Count of current project items that need follow-up.')}>
+        <CardHead id="pd-attention" actions={<Tooltip content={t('projectDetail.attention.countTooltip', 'Count of current project items that need follow-up.')}>
           <span tabIndex={0} className="font-normal text-muted-foreground">{visibleItems.length}</span>
-        </Tooltip>
+        </Tooltip>}>
+          {t('projectDetail.attention.title', 'Needs attention')}
         </CardHead>
         <CardPad>
           <ul className="divide-y divide-border/70">
