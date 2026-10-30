@@ -11,7 +11,10 @@ function invalidWorkbook(): never {
   throw new ImportParseError('not_xlsx', 'That file is not a valid .xlsx workbook.');
 }
 
-function checkSheet(xml: string, limits: { maxRows: number; maxColumns: number }): number {
+type Limits = { maxRows: number; maxColumns: number };
+type Budget = { used: number };
+
+function checkSheet(xml: string, limits: Limits, budget: Budget): number {
   const rowBound = (n: number) => {
     if (!Number.isSafeInteger(n) || n < 1) invalidWorkbook();
     if (n > limits.maxRows) throw new ImportParseError('too_many_rows', 'Too many worksheet rows.');
@@ -28,6 +31,13 @@ function checkSheet(xml: string, limits: { maxRows: number; maxColumns: number }
     const row = Number(match[2]);
     rowBound(row); colBound(col);
     return { row, col };
+  };
+  const range = (value: string) => {
+    const parts = value.split(':');
+    if (parts.length > 2) invalidWorkbook();
+    const a = address(parts[0]); const b = address(parts[1] ?? parts[0]);
+    budget.used += (Math.abs(b.row - a.row) + 1) * (Math.abs(b.col - a.col) + 1);
+    if (budget.used > DEFAULT_LIMITS.maxRows * DEFAULT_LIMITS.maxColumns) invalidWorkbook();
   };
   let mergedCells = 0;
   let mergeCount = 0;
@@ -48,6 +58,9 @@ function checkSheet(xml: string, limits: { maxRows: number; maxColumns: number }
     if (node.name === 'col') {
       colBound(Number(attrs.min)); colBound(Number(attrs.max));
     }
+    if (node.name === 'dataValidation') {
+      for (const ref of String(attrs.sqref ?? '').split(/\s+/)) range(ref);
+    }
     if (node.name === 'mergeCell') {
       const parts = String(attrs.ref ?? '').split(':');
       if (parts.length > 2) invalidWorkbook();
@@ -58,7 +71,43 @@ function checkSheet(xml: string, limits: { maxRows: number; maxColumns: number }
     }
   });
   parser.write(xml).close();
+  budget.used += cellCount + mergedCells;
+  if (budget.used > DEFAULT_LIMITS.maxRows * DEFAULT_LIMITS.maxColumns) invalidWorkbook();
   return cellCount + mergedCells;
+}
+
+// ExcelJS's defined-name transform accepts comma-separated references, then its
+// model setter materializes each qualifying range into a cell matrix.
+function checkDefinedNames(xml: string, limits: Limits, budget: Budget): void {
+  let content: string | undefined;
+  const parser = new SaxesParser();
+  parser.on('doctype', () => invalidWorkbook());
+  parser.on('opentag', node => { if (node.name === 'definedName') content = ''; });
+  parser.on('text', text => { if (content !== undefined) content += text; });
+  parser.on('cdata', text => { if (content !== undefined) content += text; });
+  parser.on('closetag', node => {
+    if (node.name !== 'definedName' || content === undefined) return;
+    // Commas inside quoted sheet names are part of the name, not separators.
+    const refs = content.match(/(?:'[^']*(?:''[^']*)*'|[^,])+/g) ?? [];
+    for (const ref of refs) {
+      const tail = ref.split('!').pop() ?? '';
+      if (!/[$](\w+)[$](\d+)(:[$](\w+)[$](\d+))?/.test(tail)) continue;
+      const match = /^(?:(?:'(?:[^']|'')*'|[^'^ !]*)!)?\$([A-Z]+)\$([1-9]\d*)(?::\$([A-Z]+)\$([1-9]\d*))?$/.exec(ref);
+      if (!match) invalidWorkbook();
+      const col = (letters: string) => [...letters].reduce((n, c) => n * 26 + c.charCodeAt(0) - 64, 0);
+      const a = { col: col(match[1]), row: Number(match[2]) };
+      const b = { col: col(match[3] ?? match[1]), row: Number(match[4] ?? match[2]) };
+      for (const point of [a, b]) {
+        if (!Number.isSafeInteger(point.row) || !Number.isSafeInteger(point.col)) invalidWorkbook();
+        if (point.row > limits.maxRows) throw new ImportParseError('too_many_rows', 'Too many worksheet rows.');
+        if (point.col > limits.maxColumns) throw new ImportParseError('too_many_columns', 'Too many worksheet columns.');
+      }
+      budget.used += (Math.abs(b.row - a.row) + 1) * (Math.abs(b.col - a.col) + 1);
+      if (budget.used > DEFAULT_LIMITS.maxRows * DEFAULT_LIMITS.maxColumns) invalidWorkbook();
+    }
+    content = undefined;
+  });
+  parser.write(xml).close();
 }
 
 /** Verify actual inflated bytes and sheet coordinates before passing the archive to ExcelJS. */
@@ -79,6 +128,7 @@ async function preflightWorkbook(buf: ArrayBuffer, limits: { maxRows: number; ma
     let total = 0;
     let sheetCount = 0;
     let sheetCells = 0;
+    const budget: Budget = { used: 0 };
     for (let i = 0; i < count; i += 1) {
       if (u32(pos) !== 0x02014b50) invalidWorkbook();
       const flags = u16(pos + 8); const method = u16(pos + 10);
@@ -97,12 +147,13 @@ async function preflightWorkbook(buf: ArrayBuffer, limits: { maxRows: number; ma
       const isSheet = /^\/?xl\/worksheets\/sheet\d+\.xml$/.test(name);
       if (!isSheet && /xl\/worksheets\/sheet\d+\.xml/.test(name)) invalidWorkbook();
       if (isSheet && ++sheetCount > 10) invalidWorkbook();
+      const isBook = name === 'xl/workbook.xml' || name === '/xl/workbook.xml';
       const chunks: Uint8Array[] = [];
       let actual = 0;
       const add = (chunk: Uint8Array) => {
         actual += chunk.length; total += chunk.length;
         if (total > MAX_EXPANDED_BYTES) throw new ImportParseError('fileTooLarge', 'Expanded workbook exceeds 20 MiB.');
-        if (isSheet) chunks.push(chunk);
+        if (isSheet || isBook) chunks.push(chunk);
       };
       if (method === 0) add(bytes.subarray(start, start + compressed));
       else {
@@ -122,11 +173,14 @@ async function preflightWorkbook(buf: ArrayBuffer, limits: { maxRows: number; ma
         } finally { await reader.cancel().catch(() => {}); }
       }
       if (actual !== expected) invalidWorkbook();
-      if (isSheet) {
+      if (isSheet || isBook) {
         const data = new Uint8Array(actual); let offset = 0;
         for (const chunk of chunks) { data.set(chunk, offset); offset += chunk.length; }
-        sheetCells += checkSheet(new TextDecoder('utf-8', { fatal: true }).decode(data), limits);
-        if (sheetCells > DEFAULT_LIMITS.maxRows * DEFAULT_LIMITS.maxColumns) invalidWorkbook();
+        const xml = new TextDecoder('utf-8', { fatal: true }).decode(data);
+        if (isSheet) {
+          sheetCells += checkSheet(xml, limits, budget);
+          if (sheetCells > DEFAULT_LIMITS.maxRows * DEFAULT_LIMITS.maxColumns) invalidWorkbook();
+        } else checkDefinedNames(xml, limits, budget);
       }
       pos += 46 + nameLength + extra + comment;
     }

@@ -309,9 +309,9 @@ const FxRateUpload: React.FC<FxRateUploadProps> = ({ today, onClose, onCommitted
                         count: preview.rows.length,
                       })}
                       {preview.coverage.gapSummary && (
-                        <> · {t('uxs38.previewGapSummary', '{{count}} dates without rates across {{ranges}} gaps', {
-                          count: preview.coverage.gapSummary.count,
-                          ranges: preview.coverage.gapSummary.ranges.length,
+                        <> · {t('uxs38.previewGapSummary', '{{dates}} dates without rates across {{count}} gaps', {
+                          dates: preview.coverage.gapSummary.count,
+                          count: preview.coverage.gapSummary.ranges.length,
                         })}</>
                       )}
                       {preview.coverage.missingDates.length > 0 && (

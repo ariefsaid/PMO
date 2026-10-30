@@ -169,3 +169,51 @@ it('enforces physical row and column boundaries before materialization', async (
   ws.getCell('CW1').value = 'over';
   await expect(parseWorkbook(await wb.xlsx.writeBuffer() as ArrayBuffer)).rejects.toMatchObject({ code: 'too_many_columns' });
 });
+
+async function workbookWithRanges(validations: string, definedNames = ''): Promise<ArrayBuffer> {
+  const JSZip = (await import('jszip')).default;
+  const zip = await JSZip.loadAsync(await xlsxBuf(['Name'], [['A']]));
+  const sheet = await zip.file('xl/worksheets/sheet1.xml')!.async('string');
+  zip.file('xl/worksheets/sheet1.xml', sheet.replace('</worksheet>', `${validations}</worksheet>`));
+  const book = await zip.file('xl/workbook.xml')!.async('string');
+  zip.file('xl/workbook.xml', book.replace('</workbook>', `${definedNames}</workbook>`));
+  return zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' });
+}
+
+it('bounds validation ranges before ExcelJS expands them', async () => {
+  const validation = '<dataValidations count="1"><dataValidation sqref="A1:A2001"/></dataValidations>';
+  await expect(parseWorkbook(await workbookWithRanges(validation))).rejects.toMatchObject({ code: 'too_many_rows' });
+});
+
+it('bounds defined-name ranges before ExcelJS expands them', async () => {
+  const names = '<definedNames><definedName name="Test">Companies!$A$1:$A$2001</definedName></definedNames>';
+  await expect(parseWorkbook(await workbookWithRanges('', names))).rejects.toMatchObject({ code: 'too_many_rows' });
+});
+
+it('counts repeated ranges across validation and defined-name consumers', async () => {
+  const validation = `<dataValidations count="1"><dataValidation sqref="${Array(501).fill('A1:A200').join(' ')}"/></dataValidations>`;
+  const names = `<definedNames><definedName name="Test">${Array(501).fill('Companies!$A$1:$A$200').join(',')}</definedName></definedNames>`;
+  await expect(parseWorkbook(await workbookWithRanges(validation, names))).rejects.toMatchObject({ code: 'not_xlsx' });
+});
+
+it('accepts small validation and defined-name ranges through the real importer', async () => {
+  const validation = '<dataValidations count="1"><dataValidation sqref="A1:A2 B1"/></dataValidations>';
+  const names = '<definedNames><definedName name="Test">Companies!$A$1:$A$2</definedName></definedNames>';
+  expect((await parseWorkbook(await workbookWithRanges(validation, names))).rows).toEqual([['A']]);
+});
+
+it('checks a leading-slash workbook path consumed by ExcelJS', async () => {
+  const JSZip = (await import('jszip')).default;
+  const source = await workbookWithRanges('', '<definedNames><definedName name="Test">Companies!$A$1:$A$2001</definedName></definedNames>');
+  const zip = await JSZip.loadAsync(source);
+  const xml = await zip.file('xl/workbook.xml')!.async('string');
+  zip.remove('xl/workbook.xml');
+  zip.file('/xl/workbook.xml', xml);
+  await expect(parseWorkbook(await zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' }))).rejects.toMatchObject({ code: 'too_many_rows' });
+});
+
+it('enforces the FX consumer limit on validation ranges', async () => {
+  const { parseFxFile } = await import('../fxRateParser');
+  const buf = await workbookWithRanges('<dataValidations count="1"><dataValidation sqref="A1:A521"/></dataValidations>');
+  await expect(parseFxFile(new File([buf], 'rates.xlsx'), '2026-10-31')).rejects.toMatchObject({ code: 'too_many_rows' });
+});
