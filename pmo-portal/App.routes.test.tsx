@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { matchRoutes, MemoryRouter, Route, Routes, useLocation } from 'react-router';
+import { matchRoutes, MemoryRouter, Route, Routes, useLocation, useRoutes } from 'react-router';
 import React from 'react';
 const permissionState = vi.hoisted(() => ({ role: 'Finance' }));
 vi.mock('@/src/auth/usePermission', () => ({
@@ -101,6 +101,14 @@ describe('Application route table', () => {
       expect(route?.path, path).not.toBe('*');
       expect(React.isValidElement(route?.element), path).toBe(true);
     }
+  });
+
+  it('AC-M365SEP-018: the old /admin/integrations target resolves to the not-found page', async () => {
+    const route = matchRoutes(appRouteConfig, '/admin/integrations')?.at(-1)?.route;
+    expect(route?.path).toBe('*');
+    const MatchedRoute = () => useRoutes(appRouteConfig);
+    render(<MemoryRouter initialEntries={['/admin/integrations']}><React.Suspense fallback={null}><MatchedRoute /></React.Suspense></MemoryRouter>);
+    expect(await screen.findByText('Page not found')).toBeVisible();
   });
 
   it('AC-ADMIA-003: unknown Administration sections resolve to their section fallback', () => {

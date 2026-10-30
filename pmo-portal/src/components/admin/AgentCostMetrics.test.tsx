@@ -7,7 +7,7 @@
  * ListState variants, and an axe-core zero-blocking-violations check per state.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { axeViolations } from '../__tests__/axe';
@@ -135,6 +135,20 @@ const defaultProps = {
 };
 
 describe('AgentCostMetrics', () => {
+  it('AC-ACD-010: usage displays the derived cache hit rate and metric labels', () => {
+    render(<AgentCostMetrics {...defaultProps}
+      summaryRows={[{ ...summaryRows[0], prompt_tokens: 1000, cached_tokens: 600 }]}
+      runStatsRows={[runStatsRows[0]]} />);
+    expect(screen.getByRole('heading', { name: /agent cost overview/i })).toBeVisible();
+    const tiles = within(screen.getByTestId('stat-tiles'));
+    expect(tiles.getByText('Cache hit-rate')).toBeVisible();
+    expect(tiles.getByText('60.0%')).toBeVisible();
+    expect(tiles.getByText('Reasoning share')).toBeVisible();
+    expect(tiles.getByText(/Cost \/ run \(p50/i)).toBeVisible();
+    expect(tiles.getByText(/Cost \/ run \(p95/i)).toBeVisible();
+    expect(tiles.getByText(/Latency \(p95/i)).toBeVisible();
+  });
+
   // ── Loading / error / empty states ────────────────────────────────────────
 
   it('loading state renders ListState loading skeleton', () => {

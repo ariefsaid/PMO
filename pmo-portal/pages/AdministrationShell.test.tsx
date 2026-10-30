@@ -261,6 +261,14 @@ describe('Administration route-backed shell', () => {
     expect(panelMounts.features).toBe(0);
   });
 
+  it('AC-ACD-010: an Operator opens Usage from Administration', async () => {
+    renderShell('/administration', 'Admin', true);
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/users'));
+    await userEvent.click(screen.getByRole('link', { name: 'Usage' }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/usage'));
+    expect(screen.getByTestId('administration-panel-usage')).toBeInTheDocument();
+  });
+
   it('AC-CAT-018: an Admin can open Cost attribution from the Administration section navigation', async () => {
     renderShell('/administration/cost-attribution');
     const nav = await screen.findByRole('navigation', { name: 'Administration sections' });

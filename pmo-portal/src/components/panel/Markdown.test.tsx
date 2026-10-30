@@ -27,6 +27,14 @@ describe('Markdown', () => {
     expect(screen.queryByText(/^1\./)).toBeNull();
   });
 
+  it('AC-AXP-014: narrative answer renders formatted markdown', () => {
+    renderMarkdown('## Procurement approvals\n\n**For your role:** you may review requests that are assigned to you.\n\n- Check budget impact.\n- Confirm separation of duties.');
+    expect(screen.getByRole('heading', { name: 'Procurement approvals' })).toBeVisible();
+    expect(screen.getByText('For your role:').tagName).toBe('STRONG');
+    expect(screen.getByText('Check budget impact.').tagName).toBe('LI');
+    expect(screen.queryByText(/\*\*For your role:\*\*/)).not.toBeInTheDocument();
+  });
+
   it('AC-SEC-205: remote markdown image renders no image element', () => {
     const { container } = renderMarkdown('![x](https://example.com/a.png)');
     expect(container.querySelector('img')).toBeNull();
