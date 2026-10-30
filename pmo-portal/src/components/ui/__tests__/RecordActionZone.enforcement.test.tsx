@@ -252,10 +252,12 @@ vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, transitionProject: pipelineTransitionMock };
 });
-vi.mock('@tanstack/react-query', async (orig) => {
-  const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
-});
+// The merged tree's PipelineLens consumes react-query; render under a real QueryClientProvider
+// (as the ProcurementDetails section above already does) and stub the eligibility read at the
+// hook seam, mirroring the PipelineLens.queryStatus harness.
+vi.mock('@/src/hooks/useProjectTransitions', () => ({
+  useProjectWinEligibility: () => ({ data: 'allowed' }),
+}));
 
 const pipelineProject = {
   id: 'd1',
@@ -281,11 +283,13 @@ import PipelineLens from '../../../../pages/project-detail/PipelineLens';
 describe('Enforcement: PipelineLens renders advance verbs through RecordActionZone', () => {
   it('AC-ENFORCE-PIPE: Advance / Mark won / Mark lost buttons live inside data-testid="record-action-zone"', () => {
     render(
-      <ImpersonationProvider realRole="Project Manager">
-        <ToastProvider>
-          <MemoryRouter><PipelineLens project={pipelineProject} /></MemoryRouter>
-        </ToastProvider>
-      </ImpersonationProvider>,
+      <QueryClientProvider client={makeClient()}>
+        <ImpersonationProvider realRole="Project Manager">
+          <ToastProvider>
+            <MemoryRouter><PipelineLens project={pipelineProject} /></MemoryRouter>
+          </ToastProvider>
+        </ImpersonationProvider>
+      </QueryClientProvider>,
     );
     const zone = screen.getByTestId('record-action-zone');
     expect(zone).toBeInTheDocument();

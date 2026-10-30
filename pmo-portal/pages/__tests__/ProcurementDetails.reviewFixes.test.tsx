@@ -113,7 +113,9 @@ vi.mock('@/src/hooks/useBudget', () => ({
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 150000, isPending: false, isError: false }),
-  useProjectReservedSpend: () => ({ data: 0, isPending: false, isError: false }),
+  // The currency-honesty rework has the budget signal/panel guard on the project + budget currency
+  // before it renders any figure; the stub names both (matching the USD fixture) so the tiles render.
+  useProjectReservedSpend: () => ({ data: 0, isPending: false, isError: false, projectCurrency: 'USD', budgetCurrency: 'USD' }),
 }));
 
 vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({

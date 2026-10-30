@@ -84,7 +84,12 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
   // stays the authority — a denied role sees a clean read-only note, not dead buttons.
   const canTransition = may('edit', 'project');
 
-  const { data: pipeline } = useSalesPipeline();
+  const {
+    data: pipeline,
+    isPending: isPipelinePending,
+    isError: isPipelineError,
+    refetch: refetchPipeline,
+  } = useSalesPipeline();
 
   const liveStatus = project.status as string;
   // The pipeline projection carries win_probability; the project row carries the value.
@@ -143,8 +148,39 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
   // org's denomination is the silent wrong number this seam exists to remove.
   const currency = project.currency;
   const canSeeMoney = may('view', 'salesInvoice');
-  const winProb = cached?.win_probability ?? 0;
-  const weighted = cached ? weightedValue(cached) : 0;
+
+  const renderTileUnavailable = () => (
+    <span className="inline-flex items-center gap-1.5 text-sm font-normal text-muted-foreground">
+      {t('projectDetail.pipeline.statUnavailable', 'Unavailable')}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => void refetchPipeline()}
+      >
+        {t('projectDetail.pipeline.retry', 'Retry')}
+      </Button>
+    </span>
+  );
+
+  const winProbNode: React.ReactNode = isPipelinePending ? (
+    <span className="text-sm font-normal text-muted-foreground">
+      {t('projectDetail.pipeline.statLoading', 'Loading…')}
+    </span>
+  ) : isPipelineError || !cached ? (
+    renderTileUnavailable()
+  ) : (
+    formatPercent(cached.win_probability)
+  );
+
+  const weightedValueNode: React.ReactNode = isPipelinePending ? (
+    <span className="text-sm font-normal text-muted-foreground">
+      {t('projectDetail.pipeline.statLoading', 'Loading…')}
+    </span>
+  ) : isPipelineError || !cached ? (
+    renderTileUnavailable()
+  ) : (
+    formatCurrency(weightedValue(cached), currency)
+  );
 
   const runTransition = async (
     to: string,
@@ -257,8 +293,8 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
       ]
     : [
         ...(canSeeMoney ? [valueTile] : []),
-        { label: t('projectDetail.pipeline.stat.winProbability', 'Win probability'), value: formatPercent(winProb) },
-        ...(canSeeMoney ? [{ label: t('projectDetail.pipeline.stat.weighted', 'Weighted'), value: formatCurrency(weighted, currency) }] : []),
+        { label: t('projectDetail.pipeline.stat.winProbability', 'Win probability'), value: winProbNode },
+        ...(canSeeMoney ? [{ label: t('projectDetail.pipeline.stat.weighted', 'Weighted'), value: weightedValueNode }] : []),
         ownerTile,
       ];
 

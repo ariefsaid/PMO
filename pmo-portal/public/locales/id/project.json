@@ -323,7 +323,10 @@
     "pipeline": {
       "currentStage": "Tahap saat ini",
       "readOnlyShort": "Manajer proyek mengelola alur ini.",
-      "moreAboutDeal": "Selengkapnya tentang peluang ini"
+      "moreAboutDeal": "Selengkapnya tentang peluang ini",
+      "statLoading": "Memuat…",
+      "statUnavailable": "Tidak tersedia",
+      "retry": "Coba lagi"
     },
     "activity": {
       "title": "Aktivitas",
@@ -862,6 +865,11 @@
   "m365Documents": {
     "history": {
       "openVerified": "Buka riwayat versi yang terverifikasi"
+    },
+    "verification": {
+      "checking": "Memeriksa konten file Microsoft…",
+      "failed": "Tidak dapat memeriksa Microsoft. Status ini mungkin sudah tidak terbaru.",
+      "retry": "Coba periksa lagi"
     }
   }
 }

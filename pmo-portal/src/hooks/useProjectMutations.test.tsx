@@ -59,7 +59,8 @@ describe('useProjectMutations', () => {
       await result.current.create.mutateAsync(input);
     });
     expect(project.create).toHaveBeenCalledWith(input);
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['projects'] });
+    // Keys are org-scoped (projectQueryKeys); 'projects' + 'org-1' is the projects-list family.
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['projects', 'org-1'] });
   });
 
   it('AC-W3-INTEG-001 (F1): create also invalidates the fk-options project picker (so procurement FK pickers do not serve a stale/missing project for ~5 min)', async () => {
@@ -95,8 +96,8 @@ describe('useProjectMutations', () => {
       ['fk-options', 'invoice-project'],
       ['financial-statements', 'mapped-project-name'],
       ['uxs40', 'references'],
-      ['sales-pipeline'],
-      ['lost-deals'],
+      ['sales-pipeline', 'org-1'],
+      ['lost-deals', 'org-1'],
     ]) expect(invalidate).toHaveBeenCalledWith({ queryKey });
 
     invalidate.mockClear();
@@ -142,7 +143,8 @@ describe('useProjectMutations', () => {
       await result.current.remove.mutateAsync('p1');
     });
     expect(project.delete).toHaveBeenCalledWith('p1');
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['projects'] });
+    // Keys are org-scoped (projectQueryKeys); the delete invalidates the whole project family.
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['projects', 'org-1'] });
   });
 
   it('AC-PRJ-006 (#513): setContractValue passes the value AND its stated tax basis through to the SoD RPC repository', async () => {

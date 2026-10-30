@@ -813,12 +813,16 @@ describe('Document trail renders PR/VQ/PO/GR/VI numbers (AC-816 data)', () => {
     expect(screen.getAllByText('VI-2601100001').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders total_value via formatCurrency (money never raw)', () => {
+  it('renders total_value formatted and grouped, never raw (money never raw)', () => {
     detailState.data = { ...baseProcurement, total_value: 50000, currency: 'USD' };
     renderPage();
-    // formatCurrency(50000) = "$50,000"
-    // May appear in multiple places (header + DecisionSupportPanel stat tiles) — any occurrence is proof.
-    expect(screen.getAllByText('$50,000').length).toBeGreaterThanOrEqual(1);
+    // Money-honesty rework: figures render grouped WITHOUT an inline "$" — the money card's
+    // "Money · USD, before tax" head carries the currency, and the tile shows formatNumber(50000).
+    // The oracle is unchanged: total_value is never rendered raw. Justification: the symbol-on-figure
+    // journey this test pinned was deliberately replaced by label-on-card + grouped figure.
+    expect(screen.getAllByText('50,000').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Money · USD, before tax')).toBeInTheDocument();
+    expect(screen.queryByText('50000')).not.toBeInTheDocument();
   });
 
   it('renders procurement title in the header', () => {
