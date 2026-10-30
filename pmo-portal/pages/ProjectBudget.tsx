@@ -1,13 +1,11 @@
-import React, { useState, useMemo, useRef } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import {
   useProjectBudget,
   useBudgetVersions,
   useBudgetMutations,
-  useBudgetActivationMode,
-  useBudgetActivationPrecheck,
   useBudgetArchiveTargets,
 } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
@@ -27,18 +25,15 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { budgetVersionVariant } from '@/src/lib/status/statusVariants';
 import {
   Button,
+  useToast,
   Card,
   CardHead,
   CardPad,
   Icon,
   ListState,
-  Toolbar,
   DataTable,
   type Column,
   type RowMenuItem,
-  ConfirmDialog,
-  Checkbox,
-  useToast,
   TaxBasisLabel,
   StatusPill,
   Tooltip,
@@ -50,7 +45,6 @@ import {
   MenuButton,
 } from '@/src/components/ui';
 import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
-import type { BudgetReadinessIssue } from '@/src/lib/budget/budgetGate';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useBudgetPosition } from './project-detail/useProjectPosition';
 import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
@@ -59,6 +53,8 @@ import { buildBudgetSummaryRows, committedTotal, type BudgetSummaryRow } from '.
 import BudgetProjection from './BudgetProjection';
 import { AttributedSpendingNote } from './project-detail/AttributedSpendingNote';
 import BudgetLineItemEditor from './project-budget/BudgetLineItemEditor';
+import { useBudgetReadiness } from './project-budget/BudgetReadiness';
+import { useBudgetVersionActions } from './project-budget/BudgetVersionActions';
 import { fetchBudgetPushStatus, type BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
 
 // ---------------------------------------------------------------------------
@@ -69,18 +65,9 @@ interface ProjectBudgetProps {
   project: ProjectWithRefs;
 }
 
-/** A staged, not-yet-committed budget mutation awaiting the ConfirmDialog
- *  (owner rule: nothing writes on a single click). B1-B5 + delete-line-item. */
-type PendingBudgetConfirm =
-  | { kind: 'create'; name: string }
-  | { kind: 'activate'; id: string; label: string }
-  | { kind: 'clone'; id: string; label: string }
-  | { kind: 'archive'; id: string; label: string; cancelCount: number; cancelErp: boolean }
-  | { kind: 'deleteDraft'; id: string; label: string }
-  | { kind: 'deleteLineItem'; id: string; label: string };
-
 const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => {
   const { t } = useTranslation('finance');
+  const { toast } = useToast();
   const can = usePermission();
   const { realRole } = useEffectiveRole();
   const canWrite = can('edit', 'budgetLine');
@@ -93,13 +80,6 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const usersQuery = useUsers();
   const erpBindingQuery = useErpnextBinding();
   const currentUserId = currentUser?.id ?? null;
-  const { toast, dismiss: dismissToast } = useToast();
-  const activationNoticeId = useRef<number | null>(null);
-  const dismissActivationNotice = () => {
-    if (activationNoticeId.current !== null) dismissToast(activationNoticeId.current);
-    activationNoticeId.current = null;
-  };
-  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedForecast = searchParams.get('budgetView') === 'forecast';
   const setBudgetView = (nextView: 'actual' | 'forecast') => {
@@ -131,10 +111,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     enabled: canViewBudgetEnforcement && Boolean(projectId),
   });
 
-  const [newVersionName, setNewVersionName] = useState('');
-  const [showNewVersionForm, setShowNewVersionForm] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
-  const [pendingConfirm, setPendingConfirm] = useState<PendingBudgetConfirm | null>(null);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const [draftEditorOpen, setDraftEditorOpen] = useState(false);
   const [hasOpenLineBuffers, setHasOpenLineBuffers] = useState(false);
@@ -146,8 +123,6 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   );
   const activeVersion = versions.find((version) => version.status === 'Active');
   const draftVersion = versions.find((version) => version.status === 'Draft');
-  const activationPrecheckQuery = useBudgetActivationPrecheck(draftVersion?.id);
-  const activationPrecheck = activationPrecheckQuery.data;
   const archiveTargetsQuery = useBudgetArchiveTargets(
     versions.map((version) => version.id),
     versions.some((version) => version.status === 'Archived'),
@@ -179,49 +154,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const selectedVersion = view === 'forecast'
     ? activeVersion
     : versions.find((version) => version.id === selectedVersionId) ?? activeVersion ?? draftVersion ?? orderedVersions.at(-1);
-  const activationModeQuery = useBudgetActivationMode(draftVersion?.id);
 
-  const readinessMessages: string[] = [];
-  const issueMessage = (issue: BudgetReadinessIssue): string => {
-    const categories = issue.categories?.map((category) => budgetCategoryLabel(category, t)).join(', ') ??
-      issue.lines?.map((line) => budgetCategoryLabel(line.category, t)).join(', ') ?? '';
-    const lines = issue.lines?.map((line) => `${budgetCategoryLabel(line.category, t)}${line.fiscalYear ? ` (${line.fiscalYear})` : ''}`).join(', ') ?? categories;
-    switch (issue.code) {
-      case 'budget-multi-fiscal-year-unphased':
-        return t('finance:budgetActivation.unphased', 'Phase every line before activating this multi-year budget. Un-phased categories: {{categories}}.', { categories });
-      case 'budget-category-unmapped':
-        return t('finance:budgetActivation.unmapped', 'Map these budget categories before activating: {{categories}}.', { categories });
-      case 'budget-fiscal-year-invalid':
-        return t('finance:budgetActivation.invalidYear', 'Choose a fiscal year listed by ERPNext for these lines: {{lines}}.', { lines });
-      case 'budget-fiscal-year-out-of-span':
-        return t('finance:budgetActivation.outOfSpan', 'These lines use a fiscal year outside the project dates: {{lines}}.', { lines });
-      case 'budget-fiscal-year-ambiguous':
-        return t('finance:budgetActivation.ambiguousYear', 'ERPNext has overlapping fiscal years on {{date}} ({{fiscalYears}}). Ask an administrator to correct the calendar.', { date: issue.date ?? '', fiscalYears: issue.fiscalYears?.join(', ') ?? '' });
-      case 'budget-project-start-date-missing':
-        return t('finance:budgetActivation.missingStart', 'Add a project start date before activating this budget.');
-      case 'budget-fiscal-year-unresolved':
-        return issue.datePart === 'end'
-          ? t('finance:budgetActivation.unresolvedEndYear', 'ERPNext has no fiscal year for the project end date {{date}}.', { date: issue.date ?? '' })
-          : t('finance:budgetActivation.unresolvedStartYear', 'ERPNext has no fiscal year for the project start date {{date}}.', { date: issue.date ?? '' });
-      default:
-        return t('finance:budgetActivation.issue', 'Budget readiness check found an issue that must be resolved before activation.');
-    }
-  };
-  if (activationPrecheckQuery.isPending || activationPrecheckQuery.isFetching) {
-    readinessMessages.push(t('finance:budgetActivation.checking', 'Checking project dates, line phasing, ERPNext fiscal years and account mapping…'));
-  } else if (activationPrecheckQuery.isError) {
-    readinessMessages.push(t('finance:budgetActivation.checkFailed', "Couldn't check budget readiness. Refresh and try again."));
-  } else if (activationPrecheck) {
-    if (activationPrecheck.erpCheck === 'unavailable') {
-      readinessMessages.push(t('finance:budgetActivation.erpUnavailable', "Couldn't check ERPNext; it'll be checked again when the budget is pushed."));
-    }
-    readinessMessages.push(...activationPrecheck.issues.map(issueMessage));
-    if (!hasOpenLineBuffers && activationPrecheck.status === 'ready' && activationPrecheck.erpCheck === 'available') {
-      readinessMessages.push(t('finance:budgetActivation.ready', 'Ready to activate. ERPNext fiscal years and budget account mappings are available.'));
-    }
-  }
-  const canConfirmActivation = !!activationPrecheck && !activationPrecheckQuery.isError &&
-    !activationPrecheckQuery.isPending && !activationPrecheckQuery.isFetching && activationPrecheck.status !== 'blocked';
+  const { readinessMessages, canConfirmActivation, canActivate, activateBlockedReason, soleOperator, activationPrecheckQuery } = useBudgetReadiness(draftVersion, currentUserId, hasOpenLineBuffers);
+
+  const { newVersionForm, showNewVersionForm, setShowNewVersionForm, pendingConfirm, budgetConfirm, dismissActivationNotice, requestActivate, requestClone, requestArchive, requestDeleteDraft, requestDeleteLineItem } = useBudgetVersionActions({ projectId, versions, draftVersion, canActivate, canConfirmActivation, hasOpenLineBuffers, soleOperator, activateBlockedReason, readinessMessages, archiveTargetsQuery, activationPrecheckQuery, mutations, setSelectedVersionId, setDraftEditorOpen, setBudgetView });
 
   if (budgetQuery.isPending || versionsQuery.isPending) {
     return <div data-testid="budget-loading"><ListState variant="loading" rows={4} /></div>;
@@ -239,66 +175,6 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       />
     );
   }
-
-  const modeCurrent = !activationModeQuery.isPending && !activationModeQuery.isFetching && !activationModeQuery.isError;
-  const soleOperator = modeCurrent && activationModeQuery.data === 'sole_operator';
-  const modeAllows = modeCurrent && (activationModeQuery.data === 'allowed' || soleOperator);
-  const canActivate = !!draftVersion && modeAllows && (soleOperator || can('transition', 'budgetVersion', {
-    currentUserId,
-    record: { status: draftVersion.status, created_by: draftVersion.created_by, editor_ids: draftVersion.editor_ids },
-  }));
-  const activateBlockedReason = !draftVersion || canActivate ? null
-    : activationModeQuery.isPending || activationModeQuery.isFetching
-      ? t('finance:budgetActivation.eligibilityChecking', 'Checking activation eligibility…')
-    : activationModeQuery.isError || !activationModeQuery.data || activationModeQuery.data === 'blocked'
-      ? t('finance:budgetActivation.eligibilityUnavailable', 'Activation eligibility is unavailable. Refresh this page and try again.')
-    : draftVersion.created_by == null
-      ? t('financeCopy.activateNeedsAdminOrFinance', 'No drafter is recorded for this version, so only Admin or Finance can activate it.')
-      : draftVersion.editor_ids?.includes(currentUserId ?? '') || draftVersion.created_by === currentUserId
-        ? t('financeCopy.activateEditorBlocked', 'You drafted or edited this version, so someone else must activate it.')
-        : t('projectDetail.budget.activationSeparationNextStep', 'The drafter and activator must be different people. Ask an eligible Admin or Finance user who did not edit this draft to activate it.');
-  const versionLabel = (id: string): string => {
-    const version = versions.find((item) => item.id === id);
-    return version ? version.name + ' (v' + version.version + ')' : id;
-  };
-  const requestCreate = (name: string) => {
-    dismissActivationNotice();
-    setPendingConfirm({ kind: 'create', name });
-  };
-  const requestActivate = (id: string) => {
-    if (!canActivate || hasOpenLineBuffers || draftVersion?.id !== id) return;
-    dismissActivationNotice();
-    void activationPrecheckQuery.refetch();
-    setPendingConfirm({ kind: 'activate', id, label: versionLabel(id) });
-  };
-  const requestClone = (id: string) => {
-    dismissActivationNotice();
-    setPendingConfirm({ kind: 'clone', id, label: versionLabel(id) });
-  };
-  const requestArchive = async (id: string) => {
-    dismissActivationNotice();
-    try {
-      const refreshed = await archiveTargetsQuery.refetch();
-      if (refreshed.error) throw refreshed.error;
-      const targets = (refreshed.data ?? []).filter((target) =>
-        target.archive_cancellation_available && target.budget_version_id === id && target.budget_intent === 'ensure' &&
-        versions.some((version) => version.id === id && version.activated_at === target.activated_at_witness),
-      );
-      setPendingConfirm({
-        kind: 'archive', id, label: versionLabel(id), cancelCount: targets.length, cancelErp: targets.length > 0,
-      });
-    } catch (error) {
-      toast(t('financeCopy.actionFailed', 'Action failed'), error instanceof Error ? error.message : undefined, 'warning');
-    }
-  };
-  const requestDeleteDraft = (id: string) => {
-    dismissActivationNotice();
-    setPendingConfirm({ kind: 'deleteDraft', id, label: versionLabel(id) });
-  };
-  const requestDeleteLineItem = (id: string) => {
-    dismissActivationNotice();
-    setPendingConfirm({ kind: 'deleteLineItem', id, label: id });
-  };
 
   const canSeeActuals = canReadMoney && position.canSeeActual;
   const canSeeCommitments = canReadMoney && canReadProcurements && !procurementsQuery.isPending && !procurementsQuery.isError;
@@ -504,148 +380,6 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     ...(canWrite && version.status === 'Draft' ? [{ label: t('financeCopy.deleteDraft', 'Delete draft'), onClick: () => requestDeleteDraft(version.id), danger: true }] : []),
   ];
 
-  const commitBudgetConfirm = async () => {
-    const confirm = pendingConfirm;
-    if (!confirm) return;
-    try {
-      switch (confirm.kind) {
-        case 'create': {
-          const created = await mutations.createVersion.mutateAsync({ projectId, name: confirm.name });
-          // BU-1: the new Draft is the version in view, as after "Clone to revise".
-          setSelectedVersionId(created.id);
-          setBudgetView('actual');
-          setShowNewVersionForm(false);
-          setNewVersionName('');
-          setPendingConfirm(null);
-          toast(t('financeCopy.budgetVersionCreated', 'Budget version created'), confirm.name, 'success');
-          break;
-        }
-        case 'activate': {
-          if (!canActivate || !canConfirmActivation || hasOpenLineBuffers || draftVersion?.id !== confirm.id) return;
-          const { pushState } = await mutations.activate.mutateAsync(confirm.id);
-          void queryClient.invalidateQueries({ queryKey: ['budget-push-status', projectId] });
-          setPendingConfirm(null);
-          if (pushState === 'failed') {
-            activationNoticeId.current = toast(
-              t('financeCopy.versionActivatedERPNotUpdated', 'Version activated, but ERPNext was not updated'),
-              t('projectDetail.budget.erpReviewHint', "{{version}}. The budget is active; ask Finance or an administrator to review ERP enforcement.", { version: confirm.label }),
-              'warning',
-            );
-          } else if (pushState === 'nothing-to-push') {
-            toast(
-              t('financeCopy.versionActivatedNothingSent', 'Version activated: nothing was sent to ERPNext'),
-              t('financeCopy.noBudgetLinesToPush', '{{version}} has no budget lines, so no ERPNext Budget was created. Add lines and activate a new version to enforce one.', { version: confirm.label }),
-              'warning',
-            );
-          } else {
-            toast(t('financeCopy.versionActivated', 'Version activated'), confirm.label, 'success');
-          }
-          break;
-        }
-        case 'clone': {
-          const newDraftId = await mutations.cloneVersion.mutateAsync(confirm.id);
-          setPendingConfirm(null);
-          setSelectedVersionId(newDraftId);
-          setDraftEditorOpen(false);
-          setBudgetView('actual');
-          toast(t('financeCopy.versionCloned', 'Version cloned'), t('financeCopy.newDraftFrom', 'New draft from {{version}}', { version: confirm.label }), 'success');
-          break;
-        }
-        case 'archive': {
-          const result = await mutations.archive.mutateAsync({ versionId: confirm.id, cancelErp: confirm.cancelErp });
-          void queryClient.invalidateQueries({ queryKey: ['budget-push-status', projectId] });
-          setPendingConfirm(null);
-          if (result.cancelErp && result.queuedCount > 0) {
-            toast(
-              t('budgetArchive.versionArchivedCancellationQueued'),
-              t('budgetArchive.cancellationQueuedDetail', { count: result.queuedCount }),
-              'success',
-            );
-          } else {
-            toast(t('financeCopy.versionArchived', 'Version archived'), confirm.label, 'success');
-          }
-          break;
-        }
-        case 'deleteDraft':
-          await mutations.deleteDraft.mutateAsync(confirm.id);
-          setPendingConfirm(null);
-          toast(t('financeCopy.draftDeleted', 'Draft deleted'), confirm.label, 'success');
-          break;
-        case 'deleteLineItem':
-          await mutations.deleteLineItem.mutateAsync(confirm.id);
-          setPendingConfirm(null);
-          toast(t('financeCopy.lineItemDeleted', 'Line item deleted'), undefined, 'success');
-          break;
-      }
-    } catch (error) {
-      setPendingConfirm(null);
-      toast(t('financeCopy.actionFailed', 'Action failed'), error instanceof Error ? error.message : undefined, 'warning');
-    }
-  };
-
-  const confirmInFlight = mutations.createVersion.isPending || mutations.activate.isPending || mutations.cloneVersion.isPending ||
-    mutations.archive.isPending || mutations.deleteDraft.isPending || mutations.deleteLineItem.isPending;
-  const confirmCopy: Record<PendingBudgetConfirm['kind'], { tone: 'default' | 'destructive'; title: string; confirmLabel: string }> = {
-    create: { tone: 'default', title: t('financeCopy.createBudgetVersion', 'Create budget version?'), confirmLabel: t('financeCopy.createVersion', 'Create version') },
-    activate: { tone: 'default', title: t('financeCopy.makeThisTheActiveBudget', 'Make this the active budget?'), confirmLabel: t('financeCopy.activateVersion', 'Activate version') },
-    clone: { tone: 'default', title: t('financeCopy.cloneToANewDraft', 'Clone to a new draft?'), confirmLabel: t('financeCopy.cloneVersion', 'Clone version') },
-    archive: { tone: 'destructive', title: t('financeCopy.archiveThisVersion', 'Archive this version?'), confirmLabel: t('financeCopy.archiveVersion', 'Archive version') },
-    deleteDraft: { tone: 'destructive', title: t('financeCopy.deleteThisDraft', 'Delete this draft?'), confirmLabel: t('financeCopy.deleteDraft', 'Delete draft') },
-    deleteLineItem: { tone: 'destructive', title: t('financeCopy.deleteThisLineItem', 'Delete this line item?'), confirmLabel: t('financeCopy.delete', 'Delete') },
-  };
-  type ConfirmDescriptions = { [K in PendingBudgetConfirm['kind']]: (confirm: Extract<PendingBudgetConfirm, { kind: K }>) => React.ReactNode };
-  const confirmDescriptions: ConfirmDescriptions = {
-    create: (confirm) => t('financeCopy.confirmCreateDescription', 'This creates a new Draft budget version named "{{name}}".', { name: confirm.name }),
-    activate: (confirm) => [
-      soleOperator
-        ? t('financeCopy.confirmSoleOperatorActivation', "You're the only person in this organisation, so you can activate a budget you prepared yourself. Once a colleague joins, a second person will need to activate it.")
-        : t('financeCopy.confirmActivateDescription', 'This makes {{version}} the live active budget and supersedes the current active version.', { version: confirm.label }),
-      ...(!canActivate && activateBlockedReason ? [activateBlockedReason] : []),
-      ...readinessMessages,
-    ].join(' '),
-    clone: (confirm) => t('financeCopy.confirmCloneDescription', 'This copies {{version}} into a new editable Draft.', { version: confirm.label }),
-    archive: (confirm) => (
-      <div className="flex flex-col gap-3">
-        <p>{t('financeCopy.confirmArchiveDescription', 'This removes {{version}} as the active budget. You can clone it later to revise.', { version: confirm.label })}</p>
-        {confirm.cancelCount > 0 && (
-          <div className="flex items-start gap-2">
-            <Checkbox
-              label={t('budgetArchive.alsoCancelErpBudgets', { count: confirm.cancelCount })}
-              labelledBy="budget-archive-cancel-label"
-              checked={confirm.cancelErp}
-              onChange={(checked) => setPendingConfirm((current) => current?.kind === 'archive' ? { ...current, cancelErp: checked } : current)}
-            />
-            <span
-              id="budget-archive-cancel-label"
-              className="cursor-pointer text-sm text-foreground"
-              onClick={() => setPendingConfirm((current) => current?.kind === 'archive' ? { ...current, cancelErp: !current.cancelErp } : current)}
-            >
-              {t('budgetArchive.alsoCancelErpBudgets', { count: confirm.cancelCount })}
-            </span>
-          </div>
-        )}
-      </div>
-    ),
-    deleteDraft: (confirm) => t('financeCopy.confirmDeleteDraftDescription', 'This permanently deletes the draft {{version}}. This cannot be undone.', { version: confirm.label }),
-    deleteLineItem: () => t('financeCopy.confirmDeleteLineItemDescription', 'This permanently removes the line item from the draft. This cannot be undone.'),
-  };
-  const describeConfirm = (confirm: PendingBudgetConfirm): React.ReactNode =>
-    (confirmDescriptions[confirm.kind] as (value: PendingBudgetConfirm) => React.ReactNode)(confirm);
-  const budgetConfirm = pendingConfirm && (
-    <ConfirmDialog
-      open
-      tone={confirmCopy[pendingConfirm.kind].tone}
-      title={confirmCopy[pendingConfirm.kind].title}
-      description={describeConfirm(pendingConfirm)}
-      confirmLabel={confirmCopy[pendingConfirm.kind].confirmLabel}
-      loading={confirmInFlight}
-      confirmDisabled={pendingConfirm.kind === 'activate' && (!canConfirmActivation || !canActivate || hasOpenLineBuffers || pendingConfirm.id !== draftVersion?.id)}
-      restoreFocusFallback={() => document.querySelector<HTMLElement>('#budget-primary-action, #budget-versions-trigger')}
-      onCancel={() => setPendingConfirm(null)}
-      onConfirm={() => void commitBudgetConfirm()}
-    />
-  );
-
   const draftEditor = draftVersion && canWrite ? (
     <section hidden={!draftEditorOpen || selectedVersion?.id !== draftVersion.id || view !== 'actual'} aria-label={t('projectDetail.budget.draftEditor', 'Draft budget editor')} className="min-w-0 space-y-3" data-testid="budget-draft-editor">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -667,7 +401,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           const { headline, detail } = classifyMutationError(error);
           toast(headline, detail, 'warning');
         }}
-        fiscalYearNames={activationPrecheck?.fiscalYearNames ?? null}
+        fiscalYearNames={activationPrecheckQuery.data?.fiscalYearNames ?? null}
       />
     </section>
   ) : null;
@@ -715,7 +449,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       {/* SUB-D: with no versions at all, the empty state below says it once. */}
       {!activeVersion && versions.length > 0 && <p role="status" className="text-sm text-muted-foreground">{t('projectDetail.budget.noActiveBudget', 'No active budget')}</p>}
 
-      {showNewVersionForm && canWrite && <NewVersionForm onSubmit={requestCreate} onCancel={() => setShowNewVersionForm(false)} value={newVersionName} onChange={setNewVersionName} />}
+      {showNewVersionForm && canWrite && newVersionForm}
 
       {versions.length === 0 && <ListState variant="empty" icon="dollar" title={t('financeCopy.noBudgetVersionsYet', 'No budget versions yet')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} action={canWrite ? { label: t('projectDetail.budget.createBudget', 'Create budget'), onClick: () => { dismissActivationNotice(); setShowNewVersionForm(true); } } : undefined} />}
 
@@ -928,36 +662,6 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       />
       {budgetConfirm}
     </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// New version form
-// ---------------------------------------------------------------------------
-const NewVersionForm: React.FC<{
-  /** Stages a create-version confirm (no write on click). */
-  onSubmit: (name: string) => void;
-  onCancel: () => void;
-  value: string;
-  onChange: (v: string) => void;
-}> = ({ onSubmit, onCancel, value, onChange }) => {
-  const { t } = useTranslation('finance');
-  return (
-    <Toolbar standalone className="items-center">
-    <input
-      type="text"
-      aria-label={t('financeCopy.versionName', "Version name")}
-      placeholder={t('financeCopy.versionNameEGBudgetV1', "Version name (e.g. Budget v1)")}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="h-8 flex-1 rounded-md border border-input bg-background px-2.5 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-      autoFocus
-    />
-    <Button variant="primary" onClick={() => value.trim() && onSubmit(value.trim())} disabled={!value.trim()}>
-      {t('financeCopy.create', "Create")}</Button>
-    <Button variant="outline" onClick={onCancel}>
-      {t('financeCopy.cancel', "Cancel")}</Button>
-    </Toolbar>
   );
 };
 
