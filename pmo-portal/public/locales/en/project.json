@@ -862,6 +862,11 @@
   "m365Documents": {
     "history": {
       "openVerified": "Open verified version history"
+    },
+    "verification": {
+      "checking": "Checking Microsoft file content…",
+      "failed": "Couldn't check with Microsoft. This status may be out of date.",
+      "retry": "Retry check"
     }
   }
 }
