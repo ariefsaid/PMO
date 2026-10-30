@@ -12,6 +12,7 @@ vi.mock('@/src/lib/db/financialStatements', () => ({
   getFinancialStatementCatalogue: vi.fn(),
 }));
 vi.mock('@/src/lib/db/companyCollections', () => ({
+  listCompanyPartyRefs: vi.fn(),
   listCompanyCustomerRefs: vi.fn(),
   listCompanyCustomerRefsByErpCustomerIds: vi.fn(),
 }));
@@ -81,6 +82,7 @@ vi.mock('@/src/lib/db/procurementLifecycle', () => ({
 }));
 vi.mock('@/src/lib/db/procurementPaymentCeiling', () => ({ approveProcurementAmount: vi.fn() }));
 vi.mock('@/src/lib/db/procurementCrud', () => ({
+  procurementItemValuesEditable: vi.fn(),
   createProcurement: vi.fn(),
   updateProcurementHeader: vi.fn(),
   updateProcurementVendor: vi.fn(),
@@ -167,6 +169,7 @@ import * as financialStatementsDal from '@/src/lib/db/financialStatements';
 import * as opportunityDal from '@/src/lib/db/opportunity';
 import * as projectTransitionsDal from '@/src/lib/db/projectTransitions';
 import * as companiesDal from '@/src/lib/db/companies';
+import * as companyCollectionsDal from '@/src/lib/db/companyCollections';
 import * as documentsDal from '@/src/lib/db/documents';
 import * as profilesDal from '@/src/lib/db/profiles';
 import * as adminUsersDal from '@/src/lib/db/adminUsers';
@@ -218,7 +221,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
   });
 
   it('companyCollections exposes both canonical-reference batch reads', () => {
-    expect(Object.keys(repositories.companyCollections).sort()).toEqual(['listForCompanies', 'listForErpCustomerIds']);
+    expect(Object.keys(repositories.companyCollections).sort()).toEqual(['listForCompanies', 'listForErpCustomerIds', 'listPartyIds']);
   });
 
   it('m365DocumentSettings exposes the default-library repository methods', () => {
@@ -314,6 +317,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'deleteDocument',
         'deleteItem',
         'get',
+        'itemValuesEditable',
         'linkMicrosoftDocument',
         'list',
         'listDocuments',
@@ -339,6 +343,20 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
 });
 
 describe('delegation — methods pass args through and return the DAL result', () => {
+  it('company party mapping delegates its IDs and returns the result', async () => {
+    const ids = ['company-a', 'company-b'];
+    const mapped = ['company-a'];
+    vi.mocked(companyCollectionsDal.listCompanyPartyRefs).mockResolvedValue(mapped);
+    await expect(repositories.companyCollections.listPartyIds(ids)).resolves.toBe(mapped);
+    expect(companyCollectionsDal.listCompanyPartyRefs).toHaveBeenCalledWith(ids);
+  });
+
+  it('procurement line eligibility delegates the case and returns the decision', async () => {
+    vi.mocked(procCrudDal.procurementItemValuesEditable).mockResolvedValue(true);
+    await expect(repositories.procurement.itemValuesEditable('case-1')).resolves.toBe(true);
+    expect(procCrudDal.procurementItemValuesEditable).toHaveBeenCalledWith('case-1');
+  });
+
   it('project.list delegates to listProjects', async () => {
     const rows = [{ id: 'p1' }];
     vi.mocked(projectsDal.listProjects).mockResolvedValue(rows as never);

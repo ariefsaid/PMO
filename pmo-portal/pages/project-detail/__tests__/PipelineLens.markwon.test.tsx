@@ -108,7 +108,7 @@ describe('PipelineLens — mark-won shows the booked value (AC-IXD-DASH-005)', (
     const user = userEvent.setup();
     const view = renderLens();
     await user.click(screen.getByRole('button', { name: /Mark won/i }));
-    const refresh = () => view.rerender(<ImpersonationProvider realRole="Project Manager"><ToastProvider><PipelineLens project={dealRow} /></ToastProvider></ImpersonationProvider>);
+    const refresh = () => view.rerender(<MemoryRouter><ImpersonationProvider realRole="Project Manager"><ToastProvider><PipelineLens project={dealRow} /></ToastProvider></ImpersonationProvider></MemoryRouter>);
     winEligibility.isFetching = true; refresh();
     expect(screen.queryByLabelText(/Customer contract reference/i)).not.toBeInTheDocument();
     expect(screen.getAllByText('Checking win eligibility…').length).toBeGreaterThan(0);
