@@ -324,6 +324,22 @@ describe('#684 AC-PLC-010: LineItemsSection distinguishes a FORMAT mistake from 
 });
 
 describe('#684 minor: live line total and unit-price placeholder follow the number convention', () => {
+  it('shows the rounded line total and recovers from invalid input before adding', async () => {
+    const { onAdd } = renderSection();
+    const row = screen.getByTestId('line-item-add-row');
+    const qty = within(row).getByLabelText(/new item quantity/i);
+    const rate = within(row).getByLabelText(/new item unit price/i);
+    await userEvent.type(within(row).getByLabelText(/new item description/i), 'Bolts');
+    await userEvent.type(qty, 'bad');
+    await userEvent.type(rate, '5.50');
+    expect(within(row).getByLabelText('New line total')).toHaveTextContent('—');
+    await userEvent.clear(qty);
+    await userEvent.type(qty, '0.03');
+    expect(within(row).getByLabelText('New line total')).toHaveTextContent('0.17');
+    await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
+    expect(onAdd).toHaveBeenCalledWith({ name: 'Bolts', quantity: 0.03, rate: 5.5 });
+  });
+
   it('shows "—" (not $0) while the rate cannot be parsed, even with a valid quantity', async () => {
     setActiveLocale(EN_LOCALE);
     renderSection();
