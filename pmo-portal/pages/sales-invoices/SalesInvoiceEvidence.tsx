@@ -40,6 +40,9 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }>
   }, [invoice.id, invoice.si_number, payments.data]);
 
   const hasReceipts = payments.isError || paymentEvidence.allocations.length > 0 || paymentEvidence.hasUnknown;
+  // The ONE lines render on the record page: native lines come from the invoice row, ERP lines from
+  // the accounting-system evidence read. The approval preview below passes hideLines so the same
+  // lines are not announced twice (the approvals panel keeps the preview as its own lines surface).
   const lines = invoice.pmo_native ? invoice.native_lines : canFetchEvidence ? evidence.data?.lines : null;
   return (
     <section aria-labelledby="invoice-evidence-heading" className="mb-5 border-b border-border pb-4">
@@ -54,24 +57,48 @@ export const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }>
       ) : (
         <div className="grid gap-5 sm:grid-cols-[minmax(0,2fr)_minmax(12rem,1fr)]">
           <div>
-            {lines != null && lines.length === 0 ? null : <h3 className="text-sm font-medium">{t('uxs17.invoiceLines', 'Invoice lines')}</h3>}
-            {lines == null ? (
-              <p className="mt-1 text-sm text-muted-foreground">{t('uxs17.linesUnknown', 'Line details are not available.')}</p>
-            ) : lines.length === 0 ? null : (
-              <ul className="mt-2 divide-y divide-border/70">
-                {lines.map((line, index) => (
-                  <li key={`${line.item_code ?? 'line'}-${index}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2 text-sm">
-                    <span className="min-w-0 flex-1 break-words">
-                      <span className="block">{line.description ?? line.item_code ?? t('uxs17.lineDescriptionUnavailable', 'Description not available')}</span>
-                      {line.item_code && line.description && <span className="font-mono text-xs text-muted-foreground">{line.item_code}</span>}
-                    </span>
-                    <span className="tabular text-right text-muted-foreground">
-                      {line.qty == null ? '—' : line.qty}{' × '}{line.rate == null ? '—' : formatCurrencyCents(line.rate, invoice.currency)}{' = '}
-                      <span className="font-medium text-foreground">{line.amount == null ? '—' : formatCurrencyCents(line.amount, invoice.currency)}</span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
+            {/* AC-991-001: the record's line list keeps its accessible "Line items" naming for a
+                PMO-native invoice; an ERP invoice's accounting-system lines stay "Invoice lines". */}
+            {invoice.pmo_native ? (
+              <>
+                <h3 className="text-sm font-medium">{t('financeCopy.lineItemsSection', 'Line items')}</h3>
+                <ul className="mt-2 divide-y divide-border/70" aria-label={t('financeCopy.lineItemsSection', 'Line items')}>
+                  {(lines ?? []).map((line, index) => (
+                    <li key={`${line.item_code ?? 'line'}-${index}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2 text-sm">
+                      <span className="min-w-0 flex-1 break-words">
+                        <span className="block">{line.description ?? line.item_code ?? t('uxs17.lineDescriptionUnavailable', 'Description not available')}</span>
+                        {line.item_code && line.description && <span className="font-mono text-xs text-muted-foreground">{line.item_code}</span>}
+                      </span>
+                      <span className="tabular text-right text-muted-foreground">
+                        {line.qty == null ? '—' : line.qty}{' × '}{line.rate == null ? '—' : formatCurrencyCents(line.rate, invoice.currency)}{' = '}
+                        <span className="font-medium text-foreground">{line.amount == null ? '—' : formatCurrencyCents(line.amount, invoice.currency)}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <>
+                {lines != null && lines.length === 0 ? null : <h3 className="text-sm font-medium">{t('uxs17.invoiceLines', 'Invoice lines')}</h3>}
+                {lines == null ? (
+                  <p className="mt-1 text-sm text-muted-foreground">{t('uxs17.linesUnknown', 'Line details are not available.')}</p>
+                ) : lines.length === 0 ? null : (
+                  <ul className="mt-2 divide-y divide-border/70">
+                    {lines.map((line, index) => (
+                      <li key={`${line.item_code ?? 'line'}-${index}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2 text-sm">
+                        <span className="min-w-0 flex-1 break-words">
+                          <span className="block">{line.description ?? line.item_code ?? t('uxs17.lineDescriptionUnavailable', 'Description not available')}</span>
+                          {line.item_code && line.description && <span className="font-mono text-xs text-muted-foreground">{line.item_code}</span>}
+                        </span>
+                        <span className="tabular text-right text-muted-foreground">
+                          {line.qty == null ? '—' : line.qty}{' × '}{line.rate == null ? '—' : formatCurrencyCents(line.rate, invoice.currency)}{' = '}
+                          <span className="font-medium text-foreground">{line.amount == null ? '—' : formatCurrencyCents(line.amount, invoice.currency)}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
             )}
           </div>
           {canFetchEvidence && evidence.data?.contact ? (
