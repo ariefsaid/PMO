@@ -449,8 +449,8 @@ async function buildCycleXlsx(fixture: CycleFixture): Promise<Buffer> {
 
   // ── case-001: partial PR→VI→Payment (no PO/Quotation — still legal under Model-C) ──
   // PR row
-  ws.addRow([fixture.fullCaseRef, 'PR', '', fixture.fullTitle, 'Draft', '', fixture.fullPrRef, '', '', '', '', '']);
-  // VI row (required: status ∈ {Received,Scheduled,Paid}, date YYYY-MM-DD, plus the #505 tax basis)
+  ws.addRow([fixture.fullCaseRef, 'PR', '', fixture.fullTitle, '', '', fixture.fullPrRef, '', '', '', '', '']);
+  // VI row (required: status ∈ {Received,Scheduled}, date YYYY-MM-DD, plus the #505 tax basis)
   ws.addRow([fixture.fullCaseRef, 'VI', '', '', '', '', fixture.fullInvoiceRef, 'Received', '2024-03-15', '10000', 'exclusive', '1100']);
   // Payment row
   ws.addRow([fixture.fullCaseRef, 'Payment', '', '', '', '', fixture.fullPaymentRef, '', '2024-03-20', '10000', '', '']);
@@ -462,6 +462,10 @@ async function buildCycleXlsx(fixture: CycleFixture): Promise<Buffer> {
   ws.addRow([fixture.invoiceCaseRef, 'VI', '', fixture.invoiceTitle, '', '', fixture.invoiceOnlyInvoiceRef, 'Received', '2024-04-01', '5000', 'inclusive', '0']);
   // Payment row
   ws.addRow([fixture.invoiceCaseRef, 'Payment', '', '', '', '', fixture.invoiceOnlyPaymentRef, '', '2024-04-05', '5000', '', '']);
+
+  // A third case contains an unsupported creation value and must stay unwritten.
+  ws.addRow([`e2e-invalid-${fixture.runTag}`, 'PR', '', `E2E Invalid ${fixture.runTag}`, '', '', '', 'Draft', '', '', '', '']);
+  ws.addRow([`e2e-invalid-${fixture.runTag}`, 'Payment', '', '', '', '', '', 'Paid', '', '', '', '']);
 
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf as ArrayBuffer);
@@ -516,7 +520,8 @@ test(
     // ── Step 5: preview — 2 cases shown; zero writes yet ─────────────────────
     const summary = dialog.getByTestId('cycle-import-summary');
     await expect(summary).toBeVisible({ timeout: 10_000 });
-    await expect(summary).toContainText('2 cases');
+    await expect(summary).toContainText('3 cases');
+    await expect(summary).toContainText('5 records valid');
 
     // Both case refs visible in the preview tree
     await expect(dialog.getByText(currentFixture.fullCaseRef)).toBeVisible();
@@ -534,6 +539,11 @@ test(
     await expect(resultSummary).toBeVisible({ timeout: 30_000 });
     // 5 records total: 3 for case-001 (PR+VI+Payment), 2 for case-002 (VI+Payment)
     await expect(resultSummary).toContainText('created');
+
+    const { data: invalidCases, error: invalidError } = await admin!.from('procurements')
+      .select('id').eq('org_id', ORG_ID).eq('title', `E2E Invalid ${currentFixture.runTag}`);
+    expect(invalidError).toBeNull();
+    expect(invalidCases).toEqual([]);
 
     // ── Step 8: Done — closes wizard and refetches list ───────────────────────
     await dialog.getByRole('button', { name: /^done$/i }).click();

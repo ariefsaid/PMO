@@ -1,0 +1,31 @@
+begin;
+select no_plan();
+insert into organizations(id,name) values ('d0500000-0000-0000-0000-000000000001','Import values');
+insert into auth.users(id,email) values ('d0500000-0000-0000-0000-000000000011','values-admin@example.invalid'),('d0500000-0000-0000-0000-000000000012','values-engineer@example.invalid');
+insert into profiles(id,org_id,full_name,email,role) values
+ ('d0500000-0000-0000-0000-000000000011','d0500000-0000-0000-0000-000000000001','Admin','values-admin@example.invalid','Admin'),
+ ('d0500000-0000-0000-0000-000000000012','d0500000-0000-0000-0000-000000000001','Engineer','values-engineer@example.invalid','Engineer');
+insert into procurements(id,org_id,title,status,requested_by_id) values ('d0500000-0000-0000-0000-000000000021','d0500000-0000-0000-0000-000000000001','Case','Ordered','d0500000-0000-0000-0000-000000000011');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"d0500000-0000-0000-0000-000000000011","role":"authenticated"}';
+select lives_ok(format('select public.create_purchase_request(%L,null,%L,null,null)', 'd0500000-0000-0000-0000-000000000021', s), 'request ' || s) from unnest(array['Draft','Submitted','Approved','Closed']) s;
+select lives_ok(format('select public.create_rfq(%L,null,%L,null,null)', 'd0500000-0000-0000-0000-000000000021', s), 'rfq ' || s) from unnest(array['Draft','Issued','Closed']) s;
+select lives_ok(format('select public.create_purchase_order(%L,null,%L,null,null)', 'd0500000-0000-0000-0000-000000000021', s), 'order ' || s) from unnest(array['Draft','Issued','Acknowledged','Closed']) s;
+select throws_ok($$select public.create_purchase_request('d0500000-0000-0000-0000-000000000021',null,'Other',null,null)$$,'23514',null,'request domain');
+select throws_ok($$select public.create_rfq('d0500000-0000-0000-0000-000000000021',null,'Other',null,null)$$,'23514',null,'rfq domain');
+select throws_ok($$select public.create_purchase_order('d0500000-0000-0000-0000-000000000021',null,'Other',null,null)$$,'23514',null,'order domain');
+select lives_ok(format('select public.create_procurement_invoice(%L,%L,current_date,p_tax_treatment=>%L,p_tax_amount=>0)', 'd0500000-0000-0000-0000-000000000021',s,'inclusive'), 'invoice ' || s) from unnest(array['Received','Scheduled']) s;
+select throws_ok($$select public.create_procurement_invoice('d0500000-0000-0000-0000-000000000021','Paid',current_date,p_tax_treatment=>'inclusive',p_tax_amount=>0)$$,'P0001',null,'invoice origination');
+select lives_ok($$select public.create_payment('d0500000-0000-0000-0000-000000000021',null,null,'Scheduled',null,null)$$,'scheduled payment');
+select lives_ok($$select public.create_payment('d0500000-0000-0000-0000-000000000021',null,null,null,null,null)$$,'default payment');
+select throws_ok($$select public.create_payment('d0500000-0000-0000-0000-000000000021',null,null,'Paid',null,null)$$,'P0001',null,'payment origination');
+select is((select array_agg(status order by status) from public.purchase_requests where procurement_id='d0500000-0000-0000-0000-000000000021'), array['Approved','Closed','Draft','Submitted'], 'request statuses persist');
+select is((select array_agg(status order by status) from public.rfqs where procurement_id='d0500000-0000-0000-0000-000000000021'), array['Closed','Draft','Issued'], 'rfq statuses persist');
+select is((select array_agg(status order by status) from public.purchase_orders where procurement_id='d0500000-0000-0000-0000-000000000021'), array['Acknowledged','Closed','Draft','Issued'], 'order statuses persist');
+select is((select array_agg(status::text order by status::text) from public.procurement_invoices where procurement_id='d0500000-0000-0000-0000-000000000021'), array['Received','Scheduled'], 'invoice statuses persist');
+select is((select array_agg(status order by status) from public.payments where procurement_id='d0500000-0000-0000-0000-000000000021'), array['Scheduled','Scheduled'], 'payment defaults persist');
+set local request.jwt.claims = '{"sub":"d0500000-0000-0000-0000-000000000012","role":"authenticated"}';
+select throws_ok($$select public.create_payment('d0500000-0000-0000-0000-000000000021',null,null,'Scheduled',null,null)$$,'42501',null,'role gate');
+reset role;
+select * from finish();
+rollback;

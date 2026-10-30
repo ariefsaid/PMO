@@ -92,7 +92,7 @@ export interface ValidatedGroup {
   group: CaseGroup;
   groupErrors: string[];
   rows: ValidatedRow[];
-  /** True iff groupErrors is empty AND ≥1 row is valid. */
+  /** True when the case is importable and at least one row is valid. */
   valid: boolean;
 }
 

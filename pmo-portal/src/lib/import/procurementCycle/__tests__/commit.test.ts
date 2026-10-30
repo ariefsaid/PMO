@@ -838,7 +838,7 @@ describe('commitGroups — #505: a VI row with no tax treatment is rejected befo
     const prRow: CycleRow = {
       caseRef: 'CASE-505-MIX', type: 'PR', title: 'Legacy Invoice', project: 'Solar EPC',
       caseStatus: undefined, vendor: undefined, externalRef: 'PR-505',
-      status: 'Open', date: '2025-01-10', amount: '1000', rowNumber: 1,
+      status: 'Submitted', date: '2025-01-10', amount: '1000', rowNumber: 1,
     };
     const invalidViRow: CycleRow = {
       ...viRow({ taxTreatment: undefined, taxAmount: '500' }),
@@ -1264,4 +1264,17 @@ it('creates, retries and reclassifies a race for tax-distinct invoices with the 
   const retry = await commitGroups([group], options);
   expect(retry.cases[0].records.map(record => [record.status, record.id])).toEqual([['skipped', 'invoice-1'], ['skipped', 'invoice-2']]);
   expect(createInvoice).toHaveBeenCalledTimes(2);
+});
+
+it('does not write a case containing an unsupported creation status', async () => {
+  vi.clearAllMocks();
+  const rows: CycleRow[] = [
+    { caseRef: 'C', type: 'PR', title: 'Case', project: undefined, caseStatus: undefined, vendor: undefined, externalRef: undefined, status: 'Draft', date: undefined, amount: undefined, rowNumber: 1 },
+    { caseRef: 'C', type: 'Payment', title: undefined, project: undefined, caseStatus: undefined, vendor: undefined, externalRef: undefined, status: 'Paid', date: undefined, amount: undefined, rowNumber: 2 },
+  ];
+  const validated = validateGroups(groupRows(rows).groups, { projectLookup, vendorLookup });
+  await commitGroups(validated, { requestedById: REQUESTER, projectLookup, vendorLookup });
+  expect(createProcurement).not.toHaveBeenCalled();
+  expect(createPurchaseRequest).not.toHaveBeenCalled();
+  expect(createPayment).not.toHaveBeenCalled();
 });
