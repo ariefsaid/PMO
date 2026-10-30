@@ -63,7 +63,6 @@ vi.mock('@/src/hooks/useProjectsDelivery', () => ({
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: roleBox.value, realRole: roleBox.value, canImpersonate: false, viewAs: vi.fn() }) }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, error: null, isPending: false }),
-  usePipelineStageConfig: () => ({ data: [], isSuccess: true }),
 }));
 const navigate = vi.fn();
 vi.mock('react-router', async (orig) => {

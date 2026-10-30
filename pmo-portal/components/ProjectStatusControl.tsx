@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
-import { useProjectTransition } from '@/src/hooks/useProjectTransitions';
+import { useProjectTransition, useProjectWinEligibility } from '@/src/hooks/useProjectTransitions';
 import { Button, ConfirmDialog, useToast } from '@/src/components/ui';
 import {
   LEGAL_PROJECT_TRANSITIONS,
@@ -18,6 +18,25 @@ interface ProjectStatusControlProps {
   triggerVariant?: 'outline' | 'primary';
   triggerSize?: 'sm' | 'default';
 }
+
+/** A win is offered only after the server has checked the current actor and value witness. */
+const WinTarget: React.FC<{ eligibility: ReturnType<typeof useProjectWinEligibility>; onSelect: () => void }> = ({ eligibility, onSelect }) => {
+  const { t } = useTranslation();
+  if (eligibility.data === 'allowed' && !eligibility.isPending && !eligibility.isFetching && !eligibility.isError) {
+    return <button type="button" onClick={onSelect}
+      className="block w-full rounded-md px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring">Won, Pending KoM</button>;
+  }
+  if (eligibility.isPending || eligibility.isFetching) return <p role="status" className="px-2.5 py-1 text-xs text-muted-foreground">{t('project:winEligibility.checking', 'Checking win eligibility…')}</p>;
+  if (eligibility.isError || !eligibility.data) return <p role="status" className="px-2.5 py-1 text-xs text-muted-foreground">{t('project:winEligibility.unavailable', 'Win eligibility is unavailable. Refresh this page and try again.')}</p>;
+  if (eligibility.data === 'allowed') return null;
+  return <p role="status" className="px-2.5 py-1 text-xs text-muted-foreground">
+    {eligibility.data === 'unavailable'
+      ? t('project:winEligibility.unavailable', 'Win eligibility is unavailable. Refresh this page and try again.')
+      : eligibility.data === 'inactive_reviewer'
+      ? t('project:winEligibility.inactive', 'Ask an active supervisor or a more senior reviewer to confirm the value.')
+      : t('project:winEligibility.reviewer', 'Ask your supervisor or a more senior reviewer to confirm the value before winning this project.')}
+  </p>;
+};
 
 /**
  * Per-project status-change control (AC-1004, FR-PR-005/011, NFR-PR-UI-001).
@@ -44,6 +63,10 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
   // Confirm-before-write (owner rule, PR1-PR3): a chosen non-win target is
   // staged here and only commits when the ConfirmDialog's Confirm is pressed.
   const [confirmTarget, setConfirmTarget] = useState<ProjectStatus | null>(null);
+  const legalTargets = (LEGAL_PROJECT_TRANSITIONS[project.status as string] ?? []) as ProjectStatus[];
+  const mayTransition = can('transition', 'project');
+  const winEligibility = useProjectWinEligibility(project.id, mayTransition && (open || pendingTarget === 'Won, Pending KoM') && legalTargets.includes('Won, Pending KoM'));
+  const canWin = mayTransition && legalTargets.includes('Won, Pending KoM') && winEligibility.data === 'allowed' && !winEligibility.isPending && !winEligibility.isFetching && !winEligibility.isError;
 
   // Focus management (W2-6): capture trigger + restore on close; focus into popover on open.
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -96,9 +119,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
   // Cosmetic gate on the REAL role (ADR-0016): hide for non-write roles. The RPC
   // is the real authority — gating on realRole keeps the affordance honest under
   // Admin impersonation (the banner explains the view-as state).
-  if (!can('transition', 'project')) return null;
-
-  const legalTargets = (LEGAL_PROJECT_TRANSITIONS[project.status as string] ?? []) as ProjectStatus[];
+  if (!mayTransition) return null;
 
   // No transitions available (e.g. Internal Project terminal)
   if (legalTargets.length === 0) return null;
@@ -108,6 +129,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
 
   const handleTargetSelect = (target: ProjectStatus) => {
     if (target === 'Won, Pending KoM') {
+      if (!canWin) return;
       // PR2 (unchanged): the inline win form's Confirm IS the confirm step.
       setPendingTarget(target);
       setContractRef('');
@@ -137,7 +159,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
 
   const handleWinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!contractRef.trim() || !contractDate) return;
+    if (!canWin || !contractRef.trim() || !contractDate) return;
     setOpen(false);
     setPendingTarget(null);
     mutation.mutate({
@@ -190,7 +212,9 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
           <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
             Move to
           </p>
-          {legalTargets.map(target => (
+          {legalTargets.map(target => target === 'Won, Pending KoM' ? (
+            <WinTarget key={target} eligibility={winEligibility} onSelect={() => handleTargetSelect(target)} />
+          ) : (
             <button
               key={target}
               type="button"
@@ -211,7 +235,15 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
       )}
 
       {/* Win form — requires customer contract ref + date */}
-      {pendingTarget === 'Won, Pending KoM' && (
+      {pendingTarget === 'Won, Pending KoM' && !canWin && (
+        <div className="absolute right-0 z-20 mt-1 min-w-[240px] rounded-lg border border-border bg-popover p-3 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
+          {winEligibility.data === 'allowed' && !winEligibility.isPending && !winEligibility.isFetching && !winEligibility.isError
+            ? <p role="status" className="text-xs text-muted-foreground">{t('project:winEligibility.unavailable', 'Win eligibility is unavailable. Refresh this page and try again.')}</p>
+            : <WinTarget eligibility={winEligibility} onSelect={() => {}} />}
+          <button type="button" onClick={handleCancel} className="mt-2 text-xs text-foreground">Cancel</button>
+        </div>
+      )}
+      {pendingTarget === 'Won, Pending KoM' && canWin && (
         <form
           onSubmit={handleWinSubmit}
           className="absolute right-0 z-20 mt-1 min-w-[240px] rounded-lg border border-border bg-popover p-3 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)] space-y-2"

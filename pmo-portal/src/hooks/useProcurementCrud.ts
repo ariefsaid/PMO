@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useStartRecordFolder } from '@/src/hooks/useStartRecordFolder';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
@@ -30,20 +30,6 @@ const procurementDetailKey = (orgId: string | undefined, id: string) =>
 
 const procurementDocsKey = (orgId: string | undefined, id: string) =>
   ['procurement-docs', orgId, id] as const;
-
-/**
- * The document-metadata register for a PR (AC-PROC-005). Org-scoped cache key;
- * the document mutations below invalidate it so the register refetches.
- */
-export function useProcurementDocuments(id: string | undefined) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<ProcurementDocumentRow[]>({
-    queryKey: procurementDocsKey(orgId, id ?? ''),
-    queryFn: () => repositories.procurement.listDocuments(id!),
-    enabled: Boolean(orgId && id),
-  });
-}
 
 /**
  * Raise a new Purchase Request (AC-PROC-001). The requester id is supplied from

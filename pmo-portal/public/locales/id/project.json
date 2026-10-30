@@ -1,4 +1,6 @@
 {
+  "workOrderEligibility": {"checking": "Memeriksa kelayakan penerbitan…", "unavailable": "Kelayakan penerbitan tidak dapat diperiksa. Muat ulang halaman ini dan coba lagi."},
+  "winEligibility": {"checking": "Memeriksa kelayakan memenangkan proyek…", "unavailable": "Kelayakan memenangkan proyek tidak tersedia. Muat ulang halaman ini dan coba lagi.", "reviewer": "Minta atasan atau peninjau yang lebih senior untuk memastikan nilai sebelum memenangkan proyek ini.", "inactive": "Minta atasan yang aktif atau peninjau yang lebih senior untuk memastikan nilai."},
   "finishSpendingSetup": "Selesaikan penyiapan pengeluaran",
   "spendingAdminHandoff": "Minta administrator menyelesaikan penyiapan pengeluaran.",
   "spendingSetupPrompt": "Pengeluaran tercatat akan muncul setelah penyiapan akun selesai.",
@@ -8,6 +10,9 @@
   "categoryNeedsSetup": "Penyiapan pengeluaran untuk kategori ini belum selesai.",
   "invoiceBalanceUnavailable": "Saldo faktur masih menunggu konfirmasi.",
   "invoiceScope": "Hanya faktur yang ditautkan ke proyek ini yang disertakan.",
+  "history": {
+    "referenceNamesError": "Beberapa nama catatan tidak dapat dimuat."
+  },
   "noLinkedInvoices": "Belum ada faktur yang ditautkan ke proyek ini",
   "billedWork": "Pendapatan pekerjaan tertagih",
   "billedWorkQualifier": "Tanpa pajak; tidak termasuk uang muka",
@@ -850,5 +855,10 @@
     "contractPosition": "Posisi penagihan kontrak",
     "purchaseOrdersUnavailable": "Total pesanan pembelian masih menunggu konfirmasi.",
     "reviewInvoices": "Tinjau faktur"
+  },
+  "m365Documents": {
+    "history": {
+      "openVerified": "Buka riwayat versi yang terverifikasi"
+    }
   }
 }

@@ -566,7 +566,7 @@ interface ProjectBudgetProps {
  *  (owner rule: nothing writes on a single click). B1-B5 + delete-line-item. */
 type PendingBudgetConfirm =
   | { kind: 'create'; name: string }
-  | { kind: 'activate'; id: string; label: string; soleOperator: boolean }
+  | { kind: 'activate'; id: string; label: string }
   | { kind: 'clone'; id: string; label: string }
   | { kind: 'archive'; id: string; label: string; cancelCount: number; cancelErp: boolean }
   | { kind: 'deleteDraft'; id: string; label: string }
@@ -731,12 +731,18 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     );
   }
 
-  const soleOperator = activationModeQuery.data === 'sole_operator';
-  const canActivate = !!draftVersion && (soleOperator || can('transition', 'budgetVersion', {
+  const modeCurrent = !activationModeQuery.isPending && !activationModeQuery.isFetching && !activationModeQuery.isError;
+  const soleOperator = modeCurrent && activationModeQuery.data === 'sole_operator';
+  const modeAllows = modeCurrent && (activationModeQuery.data === 'allowed' || soleOperator);
+  const canActivate = !!draftVersion && modeAllows && (soleOperator || can('transition', 'budgetVersion', {
     currentUserId,
     record: { status: draftVersion.status, created_by: draftVersion.created_by, editor_ids: draftVersion.editor_ids },
   }));
   const activateBlockedReason = !draftVersion || canActivate ? null
+    : activationModeQuery.isPending || activationModeQuery.isFetching
+      ? t('finance:budgetActivation.eligibilityChecking', 'Checking activation eligibility…')
+    : activationModeQuery.isError || !activationModeQuery.data || activationModeQuery.data === 'blocked'
+      ? t('finance:budgetActivation.eligibilityUnavailable', 'Activation eligibility is unavailable. Refresh this page and try again.')
     : draftVersion.created_by == null
       ? t('financeCopy.activateNeedsAdminOrFinance', 'No drafter is recorded for this version, so only Admin or Finance can activate it.')
       : draftVersion.editor_ids?.includes(currentUserId ?? '') || draftVersion.created_by === currentUserId
@@ -751,9 +757,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     setPendingConfirm({ kind: 'create', name });
   };
   const requestActivate = (id: string) => {
+    if (!canActivate || draftVersion?.id !== id) return;
     dismissActivationNotice();
     void activationPrecheckQuery.refetch();
-    setPendingConfirm({ kind: 'activate', id, label: versionLabel(id), soleOperator });
+    setPendingConfirm({ kind: 'activate', id, label: versionLabel(id) });
   };
   const requestClone = (id: string) => {
     dismissActivationNotice();
@@ -1005,6 +1012,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           break;
         }
         case 'activate': {
+          if (!canActivate || !canConfirmActivation || draftVersion?.id !== confirm.id) return;
           const { pushState } = await mutations.activate.mutateAsync(confirm.id);
           void queryClient.invalidateQueries({ queryKey: ['budget-push-status', projectId] });
           setPendingConfirm(null);
@@ -1080,9 +1088,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const confirmDescriptions: ConfirmDescriptions = {
     create: (confirm) => t('financeCopy.confirmCreateDescription', 'This creates a new Draft budget version named "{{name}}".', { name: confirm.name }),
     activate: (confirm) => [
-      confirm.soleOperator
+      soleOperator
         ? t('financeCopy.confirmSoleOperatorActivation', "You're the only person in this organisation, so you can activate a budget you prepared yourself. Once a colleague joins, a second person will need to activate it.")
         : t('financeCopy.confirmActivateDescription', 'This makes {{version}} the live active budget and supersedes the current active version.', { version: confirm.label }),
+      ...(!canActivate && activateBlockedReason ? [activateBlockedReason] : []),
       ...readinessMessages,
     ].join(' '),
     clone: (confirm) => t('financeCopy.confirmCloneDescription', 'This copies {{version}} into a new editable Draft.', { version: confirm.label }),
@@ -1121,7 +1130,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       description={describeConfirm(pendingConfirm)}
       confirmLabel={confirmCopy[pendingConfirm.kind].confirmLabel}
       loading={confirmInFlight}
-      confirmDisabled={pendingConfirm.kind === 'activate' && !canConfirmActivation}
+      confirmDisabled={pendingConfirm.kind === 'activate' && (!canConfirmActivation || !canActivate || pendingConfirm.id !== draftVersion?.id)}
       restoreFocusFallback={() => document.querySelector<HTMLElement>('#budget-primary-action, #budget-versions-trigger')}
       onCancel={() => setPendingConfirm(null)}
       onConfirm={() => void commitBudgetConfirm()}
@@ -1188,7 +1197,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {canWrite && <Button variant="outline" size="sm" onClick={() => { setSelectedVersionId(draftVersion.id); setDraftEditorOpen(true); }}>{t('projectDetail.budget.editDraft', 'Edit draft')}</Button>}
-            {canActivate && <Button variant="success" size="sm" onClick={() => requestActivate(draftVersion.id)}>{t('projectDetail.budget.activateVersionNamed', 'Activate v{{version}}', { version: draftVersion.version })}</Button>}
+            {canActivate && <Button variant="primary" size="sm" onClick={() => requestActivate(draftVersion.id)}>{t('projectDetail.budget.activateVersionNamed', 'Activate v{{version}}', { version: draftVersion.version })}</Button>}
           </div>
         </section>
       )}

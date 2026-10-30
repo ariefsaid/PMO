@@ -130,14 +130,6 @@ function thisMonth(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
 }
 
-const ROLE_RANK: Record<string, number> = {
-  Engineer: 10,
-  'Project Manager': 20,
-  Finance: 30,
-  Executive: 40,
-  Admin: 50,
-};
-
 /** A pending status move awaiting its confirm. */
 interface PendingTransition {
   row: WorkOrderRow;
@@ -169,7 +161,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const { currentUser } = useAuth();
   const { toast } = useToast();
 
-  const { data, isPending, isError, refetch } = useProjectWorkOrders(projectId);
+  const { data, isPending, isFetching, isError, refetch } = useProjectWorkOrders(projectId);
   const { create, update, setValue, transition } = useWorkOrderMutations(projectId);
 
   // `undefined` = closed · `null` = create a draft · a row = edit that draft's body.
@@ -214,6 +206,10 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const openClaimDrawer = (claim: ProgressClaimWithInvoice) => { setClaimDrawerFor(claim); updateOpenRecord(claim.id, 'workOrderClaim'); };
 
   const rows = useMemo(() => data ?? [], [data]);
+  const canIssue = (id: string) => !isPending && !isFetching && !isError && rows.some((row) => row.id === id && row.status === 'Draft' && row.issue_eligibility === 'allowed');
+  const requestIssue = (row: WorkOrderRow) => {
+    if (canIssue(row.id) && may('transition', 'workOrder')) setPending({ row, to: 'Issued' });
+  };
   const prefix = currencySymbol(currency);
 
   // ── ADR-0091: contract lines (allocations) and BAST per work order. One project-scoped read of each, grouped
@@ -361,6 +357,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 
   /** The confirmed status move. An over-ceiling refusal is re-offered; it is never retried automatically. */
   const runTransition = async ({ row, to }: PendingTransition) => {
+    if (to === 'Issued' && (!may('transition', 'workOrder') || !canIssue(row.id))) return;
     try {
       await transition.mutateAsync({ id: row.id, to });
       toast(t('projectDetail.workOrders.toast.transitioned', 'Work order updated'), row.title, 'success');
@@ -376,6 +373,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   };
 
   const runAcknowledgedIssue = async (row: WorkOrderRow) => {
+    if (!may('transition', 'workOrder') || !canIssue(row.id)) return;
     try {
       await transition.mutateAsync({ id: row.id, to: 'Issued', overCommitAck: true });
       toast(t('projectDetail.workOrders.toast.issuedOverCeiling', 'Work order issued over the ceiling'), t('projectDetail.workOrders.toast.issuedOverCeilingSub', 'Your acknowledgement is recorded against this work order.'), 'success');
@@ -731,18 +729,18 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                     const canEdit = may('edit', 'workOrder', { record: { status: row.status } });
                     const canSetValue = may('setValue', 'workOrder', { record: { status: row.status } });
                     const canTransition = may('transition', 'workOrder');
-                    const author = row.value_author;
-                    const issuerRole = currentUser?.role ?? '';
-                    const authorIsSelf = row.order_value_set_by === currentUser?.id;
-                    const authorRelationshipFails = authorIsSelf || !author || author.status !== 'active' || !currentUser?.id
-                      || !(author.manager_id === currentUser.id || (ROLE_RANK[author.role] ?? 0) > (ROLE_RANK[issuerRole] ?? 0));
-                    const issueBlocked = Number(row.order_value ?? 0) > 0 && !['Finance', 'Executive', 'Admin'].includes(issuerRole)
-                      && (!row.order_value_set_at || authorRelationshipFails);
-                    const issueGateBody = !row.order_value_set_at
+                    const issueBlocked = isPending || isFetching || isError || row.issue_eligibility !== 'allowed';
+                    const issueGateBody = isPending || isFetching
+                      ? t('project:workOrderEligibility.checking', 'Checking issue eligibility…')
+                      : isError
+                      ? t('project:workOrderEligibility.unavailable', 'Issue eligibility could not be checked. Refresh this page and try again.')
+                      : row.issue_eligibility === 'missing_witness'
                       ? t('projectDetail.workOrders.issueGate.unstampedBody', 'The value must be set by an authorized reviewer before this order can be issued.')
-                      : authorIsSelf
+                      : row.issue_eligibility === 'self'
                         ? t('projectDetail.workOrders.issueGate.body', 'You set its value. Ask another authorized reviewer to review and issue it.')
-                        : t('projectDetail.workOrders.issueGate.peerBody', 'The value must be set by your supervisor or a more senior active reviewer before it can be issued.');
+                        : row.issue_eligibility === 'reviewer_required' || row.issue_eligibility === 'inactive_reviewer'
+                          ? t('projectDetail.workOrders.issueGate.peerBody', 'The value must be set by your supervisor or a more senior active reviewer before it can be issued.')
+                          : t('project:workOrderEligibility.unavailable', 'Issue eligibility could not be checked. Refresh this page and try again.');
                     return (
                       <li key={row.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
                         <div className="min-w-0">
@@ -759,13 +757,13 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                           {canEdit && <Button variant="ghost" size="sm" onClick={() => setFormFor(row)}>{t('projectDetail.workOrders.action.editOrder', 'Edit order')}</Button>}
                           {canSetValue && <Button variant="ghost" size="sm" onClick={() => setValueFor(row)}>{t('projectDetail.workOrders.action.setValue', 'Set value')}</Button>}
                           {issueBlocked && canTransition ? <GateNotice variant="blocked" className="max-w-sm px-2 py-1.5 text-xs">{issueGateBody}</GateNotice>
-                            : canTransition && <Button variant="ghost" size="sm" onClick={() => setPending({ row, to: 'Issued' })}>{t('projectDetail.workOrders.action.issue', 'Issue')}</Button>}
+                            : canTransition && <Button variant="ghost" size="sm" onClick={() => requestIssue(row)}>{t('projectDetail.workOrders.action.issue', 'Issue')}</Button>}
                           {canTransition && <Button variant="ghost" size="sm" className="text-destructive-text" onClick={() => setPending({ row, to: 'Cancelled' })}>{t('projectDetail.workOrders.action.cancelGeneric', 'Cancel')}</Button>}
                           <MenuButton ariaLabel={t('projectDetail.workOrders.action.orderMenuLabel', 'Actions for {{order}}', { order: row.wo_number ?? row.title })} items={[
                             ...(canEdit ? [{ label: t('projectDetail.workOrders.action.editOrder', 'Edit order'), onClick: () => setFormFor(row) }] : []),
                             ...(canSetValue ? [{ label: t('projectDetail.workOrders.action.setValue', 'Set value'), onClick: () => setValueFor(row) }] : []),
                             ...(!lineReadsPending && !lineReadsFailed && may('create', 'workOrderLine', { record: { status: row.status } }) ? [{ label: t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Allocate contract lines'), onClick: () => setLinesFor(row) }] : []),
-                            ...(!issueBlocked && canTransition ? [{ label: t('projectDetail.workOrders.action.issue', 'Issue'), onClick: () => setPending({ row, to: 'Issued' }) }] : []),
+                            ...(!issueBlocked && canTransition ? [{ label: t('projectDetail.workOrders.action.issue', 'Issue'), onClick: () => requestIssue(row) }] : []),
                             ...(canTransition ? [{ label: t('projectDetail.workOrders.action.cancelGeneric', 'Cancel'), danger: true, onClick: () => setPending({ row, to: 'Cancelled' }) }] : []),
                             { label: t('projectDetail.workOrders.action.viewPo', 'View customer PO'), onClick: () => openPoDrawer(row) },
                           ]} />
@@ -1504,6 +1502,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         <ConfirmDialog
           open
           {...confirmCopy(pending)}
+          confirmDisabled={pending.to === 'Issued' && (!may('transition', 'workOrder') || !canIssue(pending.row.id))}
           loading={transition.isPending}
           onConfirm={() => void runTransition(pending)}
           onCancel={() => setPending(null)}
@@ -1537,6 +1536,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             'Acknowledge and issue',
           )}
           loading={transition.isPending}
+          confirmDisabled={!may('transition', 'workOrder') || !canIssue(overCommit.row.id)}
           onConfirm={() => void runAcknowledgedIssue(overCommit.row)}
           onCancel={() => setOverCommit(null)}
         />

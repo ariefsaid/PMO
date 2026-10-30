@@ -86,7 +86,6 @@ vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({ useProjectsMoneyColle
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: roleBox.value, realRole: roleBox.value, canImpersonate: false, viewAs: vi.fn() }) }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, error: null, isPending: false }),
-  usePipelineStageConfig: () => ({ data: [], isSuccess: true }),
 }));
 // Export oracle: wrap the real workbook writer to capture its bytes (exportCurrencyColumn pattern).
 const hoisted = vi.hoisted(() => ({ captured: [] as ArrayBuffer[] }));

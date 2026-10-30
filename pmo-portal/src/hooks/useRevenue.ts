@@ -35,22 +35,6 @@ export function useSalesInvoices(projectId?: string, { enabled = true }: { enabl
   });
 }
 
-/**
- * A single sales invoice by id over the repository seam (ADR-0017).
- * queryKey includes org_id so the cache is tenant-scoped; disabled until both
- * an org and an id are present. Returns `null` when the record is absent or
- * RLS-scoped out (the page renders a calm not-found).
- */
-export function useSalesInvoice(id: string | undefined) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<SalesInvoiceRow | null>({
-    queryKey: ['salesInvoice', orgId, id],
-    queryFn: () => repositories.revenue.getInvoice(id!),
-    enabled: Boolean(orgId && id),
-  });
-}
-
 /** Lazy read-only ERP evidence for an invoice detail; never fetched for PMO-native invoices. */
 export function useSalesInvoiceEvidence(id: string | undefined, enabled: boolean) {
   const { currentUser } = useAuth();
@@ -92,19 +76,6 @@ export function useIncomingPayments(customerId?: string, enabled = true, salesIn
       ...(salesInvoiceId ? { salesInvoiceId } : {}),
     }),
     enabled: Boolean(orgId && enabled),
-  });
-}
-
-/**
- * A single incoming payment by id over the repository seam (ADR-0017).
- */
-export function useIncomingPayment(id: string | undefined) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<IncomingPaymentRow | null>({
-    queryKey: ['incomingPayment', orgId, id],
-    queryFn: () => repositories.revenue.getPayment(id!),
-    enabled: Boolean(orgId && id),
   });
 }
 

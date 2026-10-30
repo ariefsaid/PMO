@@ -201,6 +201,7 @@ export interface ProjectRepository {
   listIdentity(): Promise<Array<Pick<ProjectRow, 'id' | 'name'>>>;
   get(id: string): Promise<OpportunityRow | null>;
   transition(id: string, to: ProjectStatus, opts?: TransitionProjectOpts): Promise<void>;
+  winEligibility(id: string): Promise<string | null>;
   /** Create a new opportunity (Leads / Internal Project only; org_id stamped by RLS). */
   create(input: CreateProjectInput): Promise<ProjectRow>;
   /** Update the project's header fields (name/code/client/end customer/PM/dates). */

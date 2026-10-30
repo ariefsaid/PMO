@@ -82,6 +82,7 @@ export type ProcurementDetail = Omit<
   statusEvents: Tables<'procurement_status_events'>[];
   /** The server payment ceiling, read only while the request awaits payment (Vendor Invoiced). */
   paymentCeiling?: ProcurementPaymentCeiling | null;
+  paymentEligibility?: string | null;
 };
 
 // ---------------------------------------------------------------------------

@@ -34,6 +34,7 @@ const row = (over: Record<string, unknown> = {}) => ({
 const procState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 const authState = { userId: 'u-pm' };
 const roleState = { role: 'Project Manager' as string | null };
+const projectsState = { data: [] as { id: string; name: string }[], isPending: false, isError: false, refetch: vi.fn() };
 const erpState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState, useProjectProcurements: () => procState }));
@@ -43,7 +44,7 @@ vi.mock('@/src/hooks/useErpPurchases', () => ({
   useHasErpPurchases: () => ({ data: false }),
 }));
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }), useProject: () => ({ data: null }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => projectsState, useProject: () => ({ data: null }) }));
 vi.mock('@/src/hooks/useProcurementDetail', () => ({ useProcurementDetail: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/pages/project-detail/useProjectPosition', () => ({ useBudgetPosition: () => ({ rows: [], hasBudget: false, isPending: false, actualsPending: false }) }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
@@ -84,12 +85,46 @@ describe('Procurement list restructure', () => {
     procState.data = [row()];
     procState.isPending = false;
     procState.isError = false;
+    projectsState.data = [];
+    projectsState.isPending = false;
+    projectsState.isError = false;
+    projectsState.refetch.mockReset();
     erpState.data = [];
     erpState.isPending = false;
     erpState.isError = false;
     authState.userId = 'u-pm';
     roleState.role = 'Project Manager';
     sessionStorage.clear();
+  });
+
+  it('waits for project references and offers a safe retry on failure', async () => {
+    roleState.role = 'Finance';
+    authState.userId = 'u-finance';
+    erpState.data = [{ id: 'orphan-1', name: 'ORPHAN-1', doctype: 'Purchase Order', projectIds: ['p1'], currency: 'USD' }];
+    projectsState.isPending = true;
+    const view = renderPage('/procurement?tab=orphans');
+    expect(screen.queryByText('ORPHAN-1')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Export list' })).not.toBeInTheDocument();
+    projectsState.isPending = false;
+    projectsState.isError = true;
+    view.unmount();
+    renderPage('/procurement?tab=orphans');
+    expect(screen.queryByText('ORPHAN-1')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Export list' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(projectsState.refetch).toHaveBeenCalled();
+  });
+
+  it('shows the orphan export only after project names are ready', () => {
+    roleState.role = 'Finance';
+    authState.userId = 'u-finance';
+    projectsState.data = [{ id: 'p1', name: 'Tower' }];
+    erpState.data = [{ id: 'orphan-1', name: 'ORPHAN-1', doctype: 'Purchase Order', projectIds: ['p1', 'missing-1'], currency: 'USD' }];
+
+    renderPage('/procurement?tab=orphans');
+
+    expect(screen.getByRole('row', { name: /ORPHAN-1/ })).toHaveTextContent('Tower, Project unavailable (missing-1)');
+    expect(screen.getByRole('button', { name: 'Export list' })).toBeEnabled();
   });
 
   it('Finance opens Needs you with the oldest unpaid supplier invoice first', () => {
