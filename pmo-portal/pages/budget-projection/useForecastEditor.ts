@@ -17,6 +17,9 @@ export function useForecastEditor(projectId: string, fiscalYear: string, rows: B
   const draftRef = useRef(draft);
   const baseline = useRef<Record<string, number>>({});
   const session = useRef(0);
+  const editorKey = useRef<{ project: string; year: string } | null>(null);
+  const inFlight = useRef(false);
+  const [pending, setPending] = useState(false);
   const sectionRef = useRef<HTMLElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const restoreFocus = useRef(false);
@@ -38,24 +41,29 @@ export function useForecastEditor(projectId: string, fiscalYear: string, rows: B
     },
     onSuccess: ({ failed, saved }, { project, year, sessionId }) => {
       void queryClient.invalidateQueries({ queryKey: ['budget-projection', project, year] });
+      if (editorKey.current?.project === project && editorKey.current.year === year) {
+        for (const entry of saved) baseline.current[entry.category] = entry.amount;
+      }
       if (session.current !== sessionId) return;
-      for (const entry of saved) baseline.current[entry.category] = entry.amount;
       setErrors(Object.fromEntries(failed.map((item) => [item.category, t('projectDetail.budget.etcRowNotSaved', 'Not saved. {{reason}}', { reason: item.reason })])));
       const hasNewerDraft = Object.entries(draftRef.current).some(([category, value]) => parseMoneyInputAtScale(value, 2) !== baseline.current[category]);
       if (failed.length === 0 && !hasNewerDraft) closeEdit();
     },
+    onSettled: () => { inFlight.current = false; setPending(false); },
   });
   const beginEdit = () => {
     session.current += 1;
+    editorKey.current = { project: projectId, year: fiscalYear };
     baseline.current = Object.fromEntries(rows.map((row) => [row.category, row.pmoEtc]));
     updateDraft(Object.fromEntries(rows.map((row) => [row.category, String(row.pmoEtc)])));
     setErrors({});
     save.reset();
     setEditing(true);
   };
-  const cancelEdit = () => { session.current += 1; setErrors({}); updateDraft({}); closeEdit(); };
+  const cancelEdit = () => { session.current += 1; editorKey.current = null; setErrors({}); updateDraft({}); closeEdit(); };
   const changeDraft = (category: string, value: string) => updateDraft({ ...draftRef.current, [category]: value });
   const saveEdits = () => {
+    if (inFlight.current) return;
     const entries: Entry[] = [];
     const nextErrors: Record<string, string> = {};
     for (const row of rows) {
@@ -66,7 +74,9 @@ export function useForecastEditor(projectId: string, fiscalYear: string, rows: B
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
     if (!entries.length) { closeEdit(); return; }
+    inFlight.current = true;
+    setPending(true);
     save.mutate({ entries, project: projectId, year: fiscalYear, sessionId: session.current });
   };
-  return { editing, draft, errors, sectionRef, triggerRef, beginEdit, cancelEdit, changeDraft, saveEdits, save };
+  return { editing, draft, errors, sectionRef, triggerRef, beginEdit, cancelEdit, changeDraft, saveEdits, save: { ...save, isPending: pending } };
 }

@@ -8,7 +8,7 @@
  */
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -34,6 +34,7 @@ vi.mock('@/src/lib/repositories/budgetProjection', () => ({
 }));
 
 import BudgetProjection from './BudgetProjection';
+import { useForecastEditor } from './budget-projection/useForecastEditor';
 import { FinanceI18nTestProvider } from './__tests__/financeI18nTestProvider';
 import { financeTestI18n } from './__tests__/financeI18nTestInstance';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
@@ -547,6 +548,72 @@ describe('BudgetProjection — cost to finish editing (OD-BUDGET-3, UX-039)', ()
     await act(async () => finish());
     expect(screen.getByRole('textbox', { name: 'Cost to finish for Labor' })).toHaveValue('43000');
     expect(screen.getByRole('textbox', { name: 'Cost to finish for Labor' })).toHaveFocus();
+  });
+
+  it('waits for a cancelled write before saving the newer session value', async () => {
+    let finish!: () => void;
+    let stored = 35000;
+    upsertEtcMock.mockImplementation(async (_project, _year, _category, amount) => {
+      if (amount === 41000) await new Promise<void>((resolve) => { finish = resolve; });
+      stored = amount;
+    });
+    const user = await openEditor([ROW]);
+    await type(user, 'Labor', '41000');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await user.click(screen.getByRole('button', { name: 'Edit cost to finish' }));
+    await type(user, 'Labor', '43000');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toBeDisabled();
+    await act(async () => finish());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(stored).toBe(43000));
+    expect(upsertEtcMock.mock.calls.map((call) => call[3])).toEqual([41000, 43000]);
+  });
+
+  it('saves the reopened baseline if the cancelled write changed it', async () => {
+    let finish!: () => void;
+    upsertEtcMock.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; })).mockResolvedValue(undefined);
+    const user = await openEditor([ROW]);
+    await type(user, 'Labor', '41000');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await user.click(screen.getByRole('button', { name: 'Edit cost to finish' }));
+    await act(async () => finish());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(upsertEtcMock).toHaveBeenLastCalledWith('proj-1', ERP_FISCAL_YEAR, 'Labor', 35000));
+  });
+
+  it('keeps a different-year session intact when the cancelled write fails late', async () => {
+    let fail!: (reason: Error) => void;
+    upsertEtcMock.mockImplementationOnce(() => new Promise<void>((_resolve, reject) => { fail = reject; }));
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <FinanceI18nTestProvider><QueryClientProvider client={client}>{children}</QueryClientProvider></FinanceI18nTestProvider>
+    );
+    const { result, rerender } = renderHook(({ project, year }) => useForecastEditor(project, year, [ROW]), {
+      wrapper, initialProps: { project: 'proj-1', year: ERP_FISCAL_YEAR },
+    });
+    act(() => result.current.beginEdit());
+    act(() => result.current.changeDraft('Labor', '41000'));
+    act(() => result.current.saveEdits());
+    await waitFor(() => expect(upsertEtcMock).toHaveBeenCalledTimes(1));
+    act(() => result.current.cancelEdit());
+    rerender({ project: 'proj-2', year: PRIOR_ERP_FISCAL_YEAR });
+    act(() => result.current.beginEdit());
+    act(() => result.current.changeDraft('Labor', '43000'));
+    act(() => result.current.saveEdits());
+    expect(upsertEtcMock).toHaveBeenCalledTimes(1);
+    await act(async () => fail(new Error('offline')));
+    await waitFor(() => expect(result.current.save.isPending).toBe(false));
+    expect(result.current.editing).toBe(true);
+    expect(result.current.draft.Labor).toBe('43000');
+    expect(result.current.errors).toEqual({});
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['budget-projection', 'proj-1', ERP_FISCAL_YEAR] });
+    expect(upsertEtcMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR, 'Labor', 41000);
   });
 
   it('retries only the failed entry and then saves a separately selected year', async () => {
