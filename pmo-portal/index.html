@@ -21,6 +21,8 @@
     <script>
       (function () {
         try {
+          var size = localStorage.getItem('text-size');
+          if (size === 'large' || size === 'larger') document.documentElement.dataset.textSize = size;
           var stored = localStorage.getItem('theme');
           var prefersDark =
             window.matchMedia &&

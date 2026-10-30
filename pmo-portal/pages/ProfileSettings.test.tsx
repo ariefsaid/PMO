@@ -56,6 +56,8 @@ vi.mock('@/src/hooks/useResolvedLocale', () => ({
 import ProfileSettings from './ProfileSettings';
 
 beforeEach(() => {
+  delete document.documentElement.dataset.textSize;
+  localStorage.removeItem('text-size');
   setLocalePreferences.mockReset();
   refreshMock.mockReset();
   resolvedLocaleState.current = { locale: 'en', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
@@ -81,6 +83,13 @@ function languageSelect() {
 }
 
 describe('ProfileSettings (profile language settings slice)', () => {
+  it('applies text size immediately and remembers it on this device', () => {
+    renderPage();
+    fireEvent.change(screen.getByLabelText(/text size/i), { target: { value: 'larger' } });
+    expect(document.documentElement.dataset.textSize).toBe('larger');
+    expect(localStorage.getItem('text-size')).toBe('larger');
+  });
+
   it('UIP-012: keeps the resting preferences card flat, bordered, and keyboard-focusable', () => {
     renderPage();
 

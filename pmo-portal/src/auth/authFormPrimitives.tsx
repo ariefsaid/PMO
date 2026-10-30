@@ -71,7 +71,7 @@ export const AuthInput: React.FC<{
       disabled={disabled}
       aria-describedby={errorId}
       className={cn(
-        'h-8 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] text-foreground',
+        'h-8 w-full rounded-md border border-input hover:enabled:border-input-hover bg-card px-2.5 text-[13.5px] text-foreground',
         'placeholder:text-muted-foreground',
         'transition-[border-color,box-shadow] duration-100',
         'disabled:cursor-not-allowed disabled:opacity-45',

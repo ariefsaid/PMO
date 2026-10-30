@@ -89,7 +89,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
           )}>{status}</span>}
         </div>
         {meta && <div className={cn(
-          'mt-0.5 text-support text-muted-foreground',
+          'mt-1 text-control font-normal text-muted-foreground',
           statusBelowMetaOnMobile && 'col-span-2 row-start-2 sm:row-start-auto',
         )}>{meta}</div>}
       </div>

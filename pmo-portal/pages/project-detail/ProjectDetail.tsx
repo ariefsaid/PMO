@@ -38,11 +38,11 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
     : t('projectDetail.facts.noDates', 'Dates not set');
   const updated = project.last_update ? formatRelativeTime(project.last_update) : null;
   return (
-    <section aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="mb-6 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border/70 pb-4 text-xs text-muted-foreground">
+    <section aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="mb-6 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border/70 pb-4 text-control font-normal text-muted-foreground">
       {manager && (
         <span className="inline-flex min-w-0 items-center gap-2">
           <span aria-hidden="true" className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-foreground">{initial}</span>
-          <span className="truncate font-medium text-foreground">{manager}</span>
+          <span className="truncate">{manager}</span>
         </span>
       )}
       <span>{dates}</span>
@@ -54,7 +54,7 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
             "Updated" — the old min-w-40 left dead slack that read as a hole. */}
           <span tabIndex={0} className="inline-flex items-center gap-2">
             <span>{t('projectDetail.facts.progress', 'Progress')}</span>
-            <ProgressBar value={progress} tone={progress >= 100 ? 'success' : 'primary'} showValue compact aria-label={t('projectDetail.facts.progressAria', 'Project progress {{percent}}%', { percent: progress })} />
+            <ProgressBar value={progress} tone={progress >= 100 ? 'success' : 'primary'} showValue compact className="[&>span:last-child]:text-control [&>span:last-child]:font-normal" aria-label={t('projectDetail.facts.progressAria', 'Project progress {{percent}}%', { percent: progress })} />
           </span>
         </Tooltip>
       )}
