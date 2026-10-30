@@ -16,7 +16,7 @@ export interface StatTile {
 
 export interface StatTilesProps {
   tiles: StatTile[];
-  /** Columns at sm+ breakpoint (default 4). Mobile is always 2-col. */
+  /** Columns once the strip's container fits N tiles (default 4). Narrow containers stay 2-col. */
   columns?: number;
   className?: string;
   /**
@@ -31,18 +31,31 @@ export interface StatTilesProps {
 }
 
 /**
- * Stat-tile column count map: for each columns value, the Tailwind `sm:grid-cols-*`
- * class that overrides the mobile 2-col base at the sm+ breakpoint.
+ * Stat-tile column map: for each columns value, the container-query classes that
+ * grow the grid from the 2-col mobile base as the STRIP's container widens.
  * Hardcoded so Tailwind's JIT can statically detect these classes.
  * Covers 1–6 columns; add entries here if larger counts are ever needed.
+ *
+ * Container queries, not viewport breakpoints: the strip lives in wide canvases AND in
+ * narrow hosts (the approvals pane is ~650px at 1440), and a 5-up viewport grid in a
+ * narrow host broke a currency figure mid-number ("$6,900,00 / 0", tidy sweep 2026-10-30).
+ * Sizing rule of thumb: a tile needs ~12rem for a 24px tabular amount.
  */
-const SM_COLS_CLASS: Record<number, string> = {
-  1: 'sm:grid-cols-1',
-  2: 'sm:grid-cols-2',
-  3: 'sm:grid-cols-3',
-  4: 'sm:grid-cols-4',
-  5: 'sm:grid-cols-5',
-  6: 'sm:grid-cols-6',
+const CONTAINER_COLS_CLASS: Record<number, string> = {
+  1: '',
+  2: '',
+  3: '@xl:grid-cols-3',
+  4: '@3xl:grid-cols-4',
+  5: '@2xl:grid-cols-3 @5xl:grid-cols-5',
+  6: '@2xl:grid-cols-3 @5xl:grid-cols-6',
+};
+
+/** When the N-col layout activates, the odd-count last tile stops spanning the row. */
+const CONTAINER_SPAN_RESET: Record<number, string> = {
+  3: '@xl:col-span-1',
+  4: '@3xl:col-span-1',
+  5: '@5xl:col-span-1',
+  6: '@5xl:col-span-1',
 };
 
 /**
@@ -69,16 +82,19 @@ export const StatTiles: React.FC<StatTilesProps> = ({
   className,
   variant = 'framed',
 }) => {
-  const smColsClass = SM_COLS_CLASS[columns] ?? `sm:grid-cols-${columns}`;
+  const smColsClass = CONTAINER_COLS_CLASS[columns] ?? '';
+  const spanReset = CONTAINER_SPAN_RESET[columns] ?? '';
   const isOdd = tiles.length % 2 !== 0;
   const isBare = variant === 'bare';
   return (
     <div
       data-testid="stat-tiles"
       className={cn(
-        // mobile: 2-col grid — all tiles visible at a glance (I6, no carousel)
-        'grid grid-cols-2',
-        // sm+: N-col equal-width grid per the columns prop
+        // mobile: 2-col grid — all tiles visible at a glance (I6, no carousel).
+        // Container query: the N-col layout is driven by the strip's OWN width, so the
+        // same tiles sit 2-up in a narrow pane and N-up on a wide canvas (tidy fix).
+        '@container grid grid-cols-2',
+        // N-col equal-width grid per the columns prop once the container fits it
         smColsClass,
         // framed = the hairline-gap card strip; bare = borderless on the canvas
         isBare
@@ -100,7 +116,7 @@ export const StatTiles: React.FC<StatTilesProps> = ({
               isBare
                 ? 'py-1'
                 : 'bg-card px-[var(--space-content-inset)] py-3 first:rounded-l-lg last:rounded-r-lg',
-              isLastOdd && 'col-span-2 sm:col-span-1',
+              isLastOdd && cn('col-span-2', spanReset),
             )}
           >
             <div className="mb-1 text-control text-muted-foreground">{t.label}</div>
