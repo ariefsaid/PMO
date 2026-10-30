@@ -203,7 +203,7 @@ describe('Projects page — Engineer default filter (B-11, AC-W2-IXD-009)', () =
     milestoneState.isError = false;
     milestoneState.data = [{ id: 'm1', projectId: 'p1', name: 'Design review', targetDate: '2026-10-15' }];
     rerender(<ImpersonationProvider realRole="Project Manager"><MemoryRouter initialEntries={['/projects?view=calendar&month=2026-10']}><ToastProvider><Projects /></ToastProvider></MemoryRouter></ImpersonationProvider>);
-    expect(screen.getByRole('button', { name: /Northwind ERP — Phase: Design review/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Northwind ERP \(Phase: Design review\)/i })).toBeInTheDocument();
     expect(screen.queryByText(/no events this month/i)).not.toBeInTheDocument();
   });
 

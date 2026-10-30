@@ -151,7 +151,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     { query: allocations, name: t('projectDetail.billing.sources.allocations', 'order allocations') },
   ];
   const claimDataReady = claimSources.every(({ query }) => !query.isPending && !query.isError && query.data != null);
-  const canStartInvoice = may('create', 'salesInvoice') && erp.connected && revenueRouteReady && clientId !== null;
+  const canStartInvoice = may('create', 'salesInvoice') && revenueRouteReady && clientId !== null;
   const canAssess = may('edit', 'projectProgress', { currentUserId: currentUser?.id, record: { project_manager_id: projectManagerId } });
   const liveDownPayment = claimRows.some((c) => c.kind === 'down_payment' && !c.withdrawn_at && c.invoice?.status !== 'Cancelled');
 
