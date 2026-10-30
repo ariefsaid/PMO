@@ -4,7 +4,7 @@
 -- twin triggers), index-eligible plans on populated tables, and the case-insensitive,
 -- malformed-ID, conflict, witness, lock and scope rules unchanged.
 begin;
-select plan(24);
+select plan(30);
 
 -- ── fixtures ────────────────────────────────────────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -18,14 +18,27 @@ insert into projects (id, org_id, name, status, contract_value, tax_treatment, t
   ('04050000-0000-0000-0000-0000000000b1', '04050000-0000-0000-0000-000000000001', 'VAT UUID project', 'Ongoing Project', 1000, 'exclusive', 120, true),
   ('04050000-0000-0000-0000-0000000000b2', '04050000-0000-0000-0000-000000000001', 'Other VAT project', 'Ongoing Project', 500, 'exclusive', 60, true),
   ('04050000-0000-0000-0000-0000000000b3', '04050000-0000-0000-0000-000000000001', 'Volume project', 'Leads', 0, 'exclusive', 0, false),
-  ('04050000-0000-0000-0000-0000000000b4', '04050000-0000-0000-0000-000000000002', 'Other org project', 'Ongoing Project', 500, 'exclusive', 60, true);
+  ('04050000-0000-0000-0000-0000000000b4', '04050000-0000-0000-0000-000000000002', 'Other org project', 'Ongoing Project', 500, 'exclusive', 60, true),
+  ('04050000-0000-0000-0000-0000000000b5', '04050000-0000-0000-0000-000000000001', 'Claim only project', 'Ongoing Project', 500, 'exclusive', 60, true);
 
 insert into sales_invoices (id, org_id, project_id, amount, tax_treatment, tax_amount) values
   ('04050000-0000-0000-0000-0000000000c1', '04050000-0000-0000-0000-000000000001', '04050000-0000-0000-0000-0000000000b1', 100, 'exclusive', 12),
   ('04050000-0000-0000-0000-0000000000c2', '04050000-0000-0000-0000-000000000002', '04050000-0000-0000-0000-0000000000b4', 100, 'exclusive', 12),
   ('04050000-0000-0000-0000-0000000000c3', '04050000-0000-0000-0000-000000000001', '04050000-0000-0000-0000-0000000000b2', 100, 'exclusive', 12);
 insert into progress_claims (id, org_id, project_id, kind, currency, gross_amount, created_by) values
-  ('04050000-0000-0000-0000-0000000000d1', '04050000-0000-0000-0000-000000000001', '04050000-0000-0000-0000-0000000000b1', 'progress', 'USD', 100, '04050000-0000-0000-0000-0000000000a1');
+  ('04050000-0000-0000-0000-0000000000d1', '04050000-0000-0000-0000-000000000001', '04050000-0000-0000-0000-0000000000b1', 'progress', 'USD', 100, '04050000-0000-0000-0000-0000000000a1'),
+  ('04050000-0000-0000-0000-0000000000d2', '04050000-0000-0000-0000-000000000001', '04050000-0000-0000-0000-0000000000b5', 'progress', 'USD', 100, '04050000-0000-0000-0000-0000000000a1'),
+  ('04050000-0000-0000-0000-0000000000d3', '04050000-0000-0000-0000-000000000002', '04050000-0000-0000-0000-0000000000b4', 'progress', 'USD', 100, '04050000-0000-0000-0000-0000000000a1');
+
+-- A real pending claim command must satisfy the separate billing-evidence fence.
+insert into project_documents (id, org_id, project_id, category, title, status, revision, file_path)
+values ('04050000-0000-0000-0000-0000000000e1', '04050000-0000-0000-0000-000000000001',
+  '04050000-0000-0000-0000-0000000000b5', 'Report', 'Claim evidence', 'Issued', 'A',
+  '04050000-0000-0000-0000-000000000001/04050000-0000-0000-0000-0000000000b5/04050000-0000-0000-0000-0000000000e1/report.pdf');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"04050000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select public.attach_claim_evidence('04050000-0000-0000-0000-0000000000d2', '04050000-0000-0000-0000-0000000000e1');
+reset role;
 
 -- Representative population so plan shapes reflect a real table, not a one-page toy.
 insert into sales_invoices (id, org_id, project_id, amount, tax_treatment, tax_amount)
@@ -184,6 +197,22 @@ from (values
     'external_tier', 'erpnext', 'operation', 'create', 'state', 'pending',
     'payload', jsonb_build_object('erp_doc_kind', 'sales-invoice',
       'projectId', '04050000-0000-0000-0000-0000000000b2', 'vat_flag_at_resolution', true))),
+  ('claim requires witness', jsonb_build_object(
+    'org_id', '04050000-0000-0000-0000-000000000001', 'domain', 'revenue',
+    'pmo_record_id', '04050000-0000-0000-0000-0000000000D2', 'idempotency_key', 'g7',
+    'external_tier', 'erpnext', 'operation', 'create', 'state', 'pending',
+    'payload', jsonb_build_object('erp_doc_kind', 'sales-invoice'))),
+  ('claim conflict', jsonb_build_object(
+    'org_id', '04050000-0000-0000-0000-000000000001', 'domain', 'revenue',
+    'pmo_record_id', '04050000-0000-0000-0000-0000000000D2', 'idempotency_key', 'g8',
+    'external_tier', 'erpnext', 'operation', 'create', 'state', 'pending',
+    'payload', jsonb_build_object('erp_doc_kind', 'sales-invoice',
+      'projectId', '04050000-0000-0000-0000-0000000000b1', 'vat_flag_at_resolution', true))),
+  ('other org claim', jsonb_build_object(
+    'org_id', '04050000-0000-0000-0000-000000000001', 'domain', 'revenue',
+    'pmo_record_id', '04050000-0000-0000-0000-0000000000D3', 'idempotency_key', 'g9',
+    'external_tier', 'erpnext', 'operation', 'create', 'state', 'pending',
+    'payload', jsonb_build_object('erp_doc_kind', 'sales-invoice'))),
   ('confirmed state skips the context resolution', jsonb_build_object(
     'org_id', '04050000-0000-0000-0000-000000000001', 'domain', 'revenue',
     'pmo_record_id', 'whatever', 'idempotency_key', 'g6',
@@ -204,6 +233,13 @@ select is((select curr->>'outcome' from vat_guard_probes where name like 'anothe
   'another org''s record id is never resolved into this org''s context');
 select is((select curr->>'detail' from vat_guard_probes where name like 'payload conflicting%'), 'vat-context-changed',
   'a payload conflict still raises the context-changed outcome');
+
+select is((select curr->>'detail' from vat_guard_probes where name = 'claim requires witness'), 'vat-context-unavailable',
+  'a mixed-case claim record requires a VAT witness');
+select is((select curr->>'detail' from vat_guard_probes where name = 'claim conflict'), 'vat-context-changed',
+  'a claim and a different payload project produce a context conflict');
+select is((select curr->>'outcome' from vat_guard_probes where name = 'other org claim'), 'accept',
+  'a claim in another organization does not supply context');
 
 -- ── plans: the record-ID lookup reaches the row keys' indexes on populated tables ───────────
 create function pg_temp.explain_text(q text) returns text language plpgsql as $$
@@ -243,6 +279,18 @@ select is(public.project_invoice_vat_lock_reason('04050000-0000-0000-0000-000000
   'vat-live-invoice', 'a project with a live invoice keeps that lock');
 select is(public.project_invoice_vat_lock_reason('04050000-0000-0000-0000-000000000002', '04050000-0000-0000-0000-0000000000b1'),
   null, 'lookups stay inside their organization');
+
+-- This project has no invoice; the pending claim is the only possible lock source.
+insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
+values ('04050000-0000-0000-0000-000000000001', 'revenue', '04050000-0000-0000-0000-0000000000D2', '0405-claim', 'erpnext', 'create', 'pending',
+        '{"erp_doc_kind":"sales-invoice","vat_flag_at_resolution":true}');
+select is((select count(*)::integer from public.sales_invoices where project_id = '04050000-0000-0000-0000-0000000000b5'),
+  0, 'claim-only project has no invoice');
+select is(public.project_invoice_vat_lock_reason('04050000-0000-0000-0000-000000000001', '04050000-0000-0000-0000-0000000000b5'),
+  'vat-command-pending', 'a mixed-case claim record alone produces a pending lock');
+select is(public.project_invoice_vat_lock_reason('04050000-0000-0000-0000-000000000001', '04050000-0000-0000-0000-0000000000b5'),
+  pg_temp.lock_reason_previous('04050000-0000-0000-0000-000000000001', '04050000-0000-0000-0000-0000000000b5'),
+  'pending claim lock matches the previous definition');
 
 -- ── live trigger: insert-level semantics unchanged ──────────────────────────────────────────
 select lives_ok($$insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, payload)
