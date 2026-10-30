@@ -3,6 +3,7 @@ import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { assertMicrosoftReference, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 import { issueMicrosoftDocument } from '@/src/lib/m365/graphClient';
+import { fetchAllPages } from '@/src/lib/pagedRead';
 
 /**
  * project_documents DAL — the per-project document REGISTER (metadata only).
@@ -55,18 +56,22 @@ const nullable = (v: string): string | null => {
 /**
  * List the document register for a project (AC-DOC-001). org_id is NEVER sent — RLS
  * (project_documents_select: org_id = auth_org_id()) scopes rows. Ordered by code (nulls
- * last via the DB default), then created_at, for a stable, scannable list. Throws an
+ * last via the DB default), then created_at and id, for a stable, scannable list. Throws an
  * `AppError` (code preserved) on failure.
  */
 export async function listProjectDocuments(projectId: string): Promise<ProjectDocumentRow[]> {
-  const { data, error } = await supabase
+  return fetchAllPages(async (from, to) => {
+    const result = await supabase
     .from('project_documents')
     .select('*')
     .eq('project_id', projectId)
     .order('code', { nullsFirst: false })
-    .order('created_at', { ascending: false });
-  if (error) throwWrite(error);
-  return data ?? [];
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: true })
+    .range(from, to);
+    if (result.error) throwWrite(result.error);
+    return result;
+  });
 }
 
 /**
