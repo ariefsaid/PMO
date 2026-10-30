@@ -447,6 +447,15 @@ describe('BudgetProjection — a NULL budget, continued (HIGH-1, FU-2)', () => {
     expect(within(await rowFor('Labor')).getAllByText('$12,000').length).toBeGreaterThan(0);
   });
 
+  it('makes no attribution claim when phasing cannot be read', async () => {
+    fetchMock.mockResolvedValue([{ ...NO_BUDGET, attributionKnown: false }]);
+    phasingMock.mockRejectedValue(new Error('unavailable'));
+    renderForecast();
+    const incomplete = await screen.findByTestId('forecast-incomplete');
+    await waitFor(() => expect(phasingMock).toHaveBeenCalled());
+    expect(incomplete).not.toHaveTextContent(/cannot be attributed|stale|No budget|another fiscal year/);
+  });
+
   it('makes NO claim while the phasing fact is still in flight — never a transient false reason', async () => {
     fetchMock.mockResolvedValue([{ ...NO_BUDGET, attributionKnown: false }]);
     let deliver!: (value: ReturnType<typeof phasing>) => void;
