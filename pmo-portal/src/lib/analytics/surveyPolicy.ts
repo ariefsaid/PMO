@@ -1,3 +1,4 @@
+import { instantToZonedDatetimeLocal } from '@/src/lib/format';
 /**
  * When a prompted survey may appear (#1532 S9). Pure rules; `SurveyHost` feeds them a snapshot.
  * The 30-day cap is PostHog's own wait period (survey setting), not decided here.
@@ -50,7 +51,12 @@ function readDays(storage: Store): string[] {
   }
 }
 
-/** Remember that the user was here today (a local date string); keeps the last fourteen distinct days. */
+/** The calendar day (YYYY-MM-DD) of an instant in the given timezone: the org's day, not UTC's. */
+export function dayInZone(ms: number, timeZone: string): string {
+  return instantToZonedDatetimeLocal(new Date(ms), timeZone).slice(0, 10);
+}
+
+/** Remember that the user was here on `today` (a YYYY-MM-DD day from `dayInZone`); keeps the last fourteen distinct days. */
 export function recordActiveDay(storage: Store, today: string): void {
   try {
     const days = readDays(storage);

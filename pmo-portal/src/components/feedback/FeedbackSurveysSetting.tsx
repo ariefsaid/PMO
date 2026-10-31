@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { StatusPill, Switch, useToast } from '@/src/components/ui';
 import { repositories } from '@/src/lib/repositories';
@@ -13,6 +14,7 @@ import { useFeedbackSurveysEnabled } from '@/src/hooks/useFeedbackSurveys';
  * UX only: `admin_set_feedback_surveys` (0419) re-checks the Admin role.
  */
 export const FeedbackSurveysSetting: React.FC = () => {
+  const { t } = useTranslation('administration');
   const { toast } = useToast();
   const qc = useQueryClient();
   const canAct = usePermission();
@@ -25,7 +27,7 @@ export const FeedbackSurveysSetting: React.FC = () => {
       toast(headline, detail, 'warning');
     },
   });
-  const label = 'Feedback and surveys';
+  const label = t('feedbackSurveys.title', 'Feedback and surveys');
   return (
     <div className="mt-4 rounded-lg border border-border bg-card px-4 py-3">
       <div className="flex items-center justify-between gap-3">
@@ -33,12 +35,14 @@ export const FeedbackSurveysSetting: React.FC = () => {
         {canAct('manage', 'orgFeedback') ? (
           <Switch checked={on} onChange={() => mutation.mutate(!on)} label={label} disabled={mutation.isPending} />
         ) : (
-          <StatusPill variant={on ? 'won' : 'neutral'}>{on ? 'On' : 'Off'}</StatusPill>
+          <StatusPill variant={on ? 'won' : 'neutral'}>{on ? t('feedbackSurveys.on', 'On') : t('feedbackSurveys.off', 'Off')}</StatusPill>
         )}
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
-        A Feedback button in the header and, at most once every 30 days, a short question after a first task or a
-        quarterly check-in. Never shown while someone is filling in a form. Answers carry no record contents.
+        {t(
+          'feedbackSurveys.description',
+          'A Feedback button in the header and, at most once every 30 days, a short question after a first task or a quarterly check-in. Never shown while someone is filling in a form. Answers carry no record contents.',
+        )}
       </p>
     </div>
   );

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useLocation } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { Icon } from '@/src/components/ui/icons';
 import { buildSurveyContext, showSurvey } from '@/src/lib/analytics';
 import { useSurveyId } from '@/src/hooks/useSurveyId';
@@ -14,10 +15,10 @@ export const FEEDBACK_TRIGGER_ID = 'pmo-feedback-trigger';
  */
 export const FeedbackWidget: React.FC = () => {
   const { pathname } = useLocation();
+  const { t } = useTranslation();
   const id = useSurveyId('feedback');
   if (!id) return null;
-  // ponytail: one English word, also the usual Indonesian UI term; a feature namespace + catalogue entry if it ever needs translating.
-  const label = 'Feedback';
+  const label = t('shell.contextBar.feedback', 'Feedback');
   return (
     <button
       id={FEEDBACK_TRIGGER_ID}

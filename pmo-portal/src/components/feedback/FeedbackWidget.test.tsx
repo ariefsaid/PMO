@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
+import { I18nextProvider } from 'react-i18next';
+import i18next from 'i18next';
+import idCatalogue from '../../../public/locales/id/common.json';
+import enCatalogue from '../../../public/locales/en/common.json';
 
 const h = vi.hoisted(() => ({
   enabled: true,
@@ -65,5 +69,18 @@ describe('AC-PHO-105 Feedback button', () => {
     h.published = 'survey-feedback';
     act(() => void vi.advanceTimersByTime(3000));
     expect(screen.getByRole('button', { name: 'Feedback' })).toBeInTheDocument();
+  });
+
+  it('shows the Indonesian label for an Indonesian-locale user', () => {
+    const i18n = i18next.createInstance();
+    void i18n.init({ lng: 'id', fallbackLng: 'en', defaultNS: 'common', resources: { id: { common: idCatalogue }, en: { common: enCatalogue } }, initImmediate: false });
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter initialEntries={['/projects']}>
+          <FeedbackWidget />
+        </MemoryRouter>
+      </I18nextProvider>,
+    );
+    expect(screen.getByRole('button', { name: 'Masukan' })).toBeInTheDocument();
   });
 });

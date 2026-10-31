@@ -7,6 +7,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
+import { I18nextProvider } from 'react-i18next';
+import i18next from 'i18next';
+import idCatalogue from '../../../public/locales/id/administration.json';
+import enCatalogue from '../../../public/locales/en/administration.json';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
@@ -63,5 +67,26 @@ describe('AC-PHO-101 Admin switch for feedback and surveys', () => {
     renderAs('Finance');
     expect(screen.queryByRole('switch', { name: /feedback and surveys/i })).toBeNull();
     expect(screen.getByText(/feedback and surveys/i)).toBeInTheDocument();
+  });
+
+  it('an Indonesian-locale non-Admin sees the title, state and description in Indonesian', () => {
+    const i18n = i18next.createInstance();
+    void i18n.init({ lng: 'id', fallbackLng: 'en', defaultNS: 'administration', resources: { id: { administration: idCatalogue }, en: { administration: enCatalogue } }, initImmediate: false });
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ImpersonationProvider realRole="Finance">
+          <MemoryRouter>
+            <ToastProvider>
+              <I18nextProvider i18n={i18n}>
+                <FeedbackSurveysSetting />
+              </I18nextProvider>
+            </ToastProvider>
+          </MemoryRouter>
+        </ImpersonationProvider>
+      </QueryClientProvider>,
+    );
+    expect(screen.getByText('Masukan dan survei')).toBeInTheDocument();
+    expect(screen.getByText('Aktif')).toBeInTheDocument();
+    expect(screen.getByText(/Tombol Masukan di header/)).toBeInTheDocument();
   });
 });

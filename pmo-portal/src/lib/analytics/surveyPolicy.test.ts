@@ -4,6 +4,7 @@ import {
   QUIET_MS,
   isActiveUser,
   isPastFirstWeek,
+  dayInZone,
   momentRefusal,
   recordActiveDay,
   type Moment,
@@ -66,5 +67,13 @@ describe('AC-PHO-102 active user: three distinct days in the last fourteen', () 
     expect(isActiveUser(['2026-11-01', '2026-11-05'], '2026-11-10')).toBe(false);
     expect(isActiveUser(['2026-11-01', '2026-11-05', '2026-11-09'], '2026-11-10')).toBe(true);
     expect(isActiveUser(['2026-10-01', '2026-10-02', '2026-10-03'], '2026-11-10')).toBe(false);
+  });
+});
+
+describe('dayInZone', () => {
+  it('counts 02:00 Jakarta time as that Jakarta day, not the previous UTC day', () => {
+    const t = Date.parse('2026-11-09T19:00:00Z');
+    expect(dayInZone(t, 'Asia/Jakarta')).toBe('2026-11-10');
+    expect(dayInZone(t, 'UTC')).toBe('2026-11-09');
   });
 });

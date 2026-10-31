@@ -12,7 +12,9 @@ import {
   showSurvey,
   surveysLive,
 } from '@/src/lib/analytics';
+import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import {
+  dayInZone,
   isActiveUser,
   isPastFirstWeek,
   momentRefusal,
@@ -57,7 +59,7 @@ export const SurveyHost: React.FC = () => {
   const retryAfter = useRef(0);
 
   useEffect(() => {
-    recordActiveDay(localStorage, new Date().toISOString().slice(0, 10));
+    recordActiveDay(localStorage, dayInZone(Date.now(), getActiveLocale().timezone));
     const touch = () => (lastInteractionAt.current = Date.now());
     window.addEventListener('keydown', touch, true);
     window.addEventListener('pointerdown', touch, true);
@@ -67,7 +69,7 @@ export const SurveyHost: React.FC = () => {
       const now = Date.now();
       if (shown.current || !s.enabled || !surveysLive() || now < retryAfter.current) return;
       if (!isPastFirstWeek(s.createdAt, now)) return;
-      const today = new Date(now).toISOString().slice(0, 10);
+      const today = dayInZone(now, getActiveLocale().timezone);
       const id = flowDone.current && s.flowId
         ? s.flowId
         : now - startedAt.current >= NPS_AFTER_MS && s.npsId && isActiveUser(readActiveDays(localStorage), today)
