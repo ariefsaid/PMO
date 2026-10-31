@@ -132,7 +132,7 @@ grant select on public.stock_warehouse_keepers to authenticated;      -- NO writ
 -- §5 audit (FR-STK-066). One definer trigger function; log_audit is not client-executable (0076).
 create or replace function public.audit_stock_master() returns trigger
   language plpgsql security definer set search_path = public as $$
-declare v_row record; v_action text;
+declare v_row record; v_action text; v_detail jsonb;
 begin
   if tg_op = 'DELETE' then v_row := old; v_action := 'delete';
   elsif tg_op = 'INSERT' then v_row := new; v_action := 'create';
@@ -142,8 +142,13 @@ begin
                      when old.archived_at is not null and new.archived_at is null then 'restore'
                      else 'update' end;
   end if;
-  perform public.log_audit('stock.' || tg_argv[0] || '.' || v_action, v_row.org_id, auth.uid(), v_row.id,
-    jsonb_build_object('code', v_row.code, 'name', v_row.name));
+  v_detail := jsonb_build_object('code', v_row.code, 'name', v_row.name);
+  if tg_op = 'UPDATE' then       -- what changed, old and new (created_at never changes; the rest is the audit value)
+    v_detail := v_detail || jsonb_build_object('changed', coalesce((
+      select jsonb_object_agg(k, jsonb_build_object('old', to_jsonb(old) -> k, 'new', to_jsonb(new) -> k))
+        from jsonb_object_keys(to_jsonb(new)) k where to_jsonb(new) -> k is distinct from to_jsonb(old) -> k), '{}'::jsonb));
+  end if;
+  perform public.log_audit('stock.' || tg_argv[0] || '.' || v_action, v_row.org_id, auth.uid(), v_row.id, v_detail);
   return null;
 end $$;
 revoke all on function public.audit_stock_master() from public, anon, authenticated;

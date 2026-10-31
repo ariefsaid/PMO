@@ -36,7 +36,7 @@ begin
 end $$;
 -- usage: select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4'); ... reset role;
 
-select plan(16);
+select plan(32);
 -- 1-3: master-data writers (rank >= 20) can create; Engineer cannot (AC-STK-034)
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');          -- U_PM
 select lives_ok($$ insert into stock_units (code, name, whole_only) values ('kg','Kilogram',false) $$, 'FR-STK-007 a Project Manager creates a unit');
@@ -90,5 +90,66 @@ select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
 delete from stock_units where code = 'tmp';
 reset role;
 select ok(not exists (select 1 from stock_units where code = 'tmp' and org_id = '15120000-0000-0000-0000-000000000001'), 'FR-STK-007 an Admin deletes an unreferenced unit');
+-- 17-24: review hardening (security review L2/L3) - each control below fails a named assertion when removed
+reset role;
+insert into auth.users (id, email) values ('15120000-0000-0000-0000-0000000000a7', 'stk-exec@example.com');
+insert into profiles (id, org_id, full_name, email, role, status) values
+  ('15120000-0000-0000-0000-0000000000a7', '15120000-0000-0000-0000-000000000001', 'STK Exec', 'stk-exec@example.com', 'Executive', 'active');
+insert into companies (id, org_id, name, type) values ('15120000-0000-0000-0000-0000000000f2', '15120000-0000-0000-0000-000000000002', 'STK X Client', 'Client');
+insert into projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount, client_id, project_manager_id) values
+  ('15120000-0000-0000-0000-0000000000c9', '15120000-0000-0000-0000-000000000002', 'STK X Project', 'Ongoing Project', 1000, 'exclusive', 0,
+   '15120000-0000-0000-0000-0000000000f2', '15120000-0000-0000-0000-0000000000b1');
+insert into stock_units (id, org_id, code, name) values ('15120000-0000-0000-0000-0000000000d9', '15120000-0000-0000-0000-000000000002', 'xu', 'X unit');
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');          -- U_PM
+select throws_ok($$ insert into stock_warehouses (code, name, kind, project_id) values ('XP','XP','site','15120000-0000-0000-0000-0000000000c9') $$,
+  'P0001', null, 'AC-STK-019 a warehouse cannot point at another org''s project');
+select throws_ok($$ update stock_items set unit_id = '15120000-0000-0000-0000-0000000000d9' where code = 'STEEL' $$,
+  'P0001', null, 'AC-STK-019 re-pointing an item at another org''s unit is refused on UPDATE too');
+update stock_units set whole_only = true where code = 'kg';
+reset role;
+select is((select detail->'changed'->'whole_only' from audit_events where action = 'stock.unit.update'
+            and org_id = '15120000-0000-0000-0000-000000000001' order by created_at desc, id limit 1),
+  '{"old": false, "new": true}'::jsonb, 'FR-STK-066 an edit audit event records the changed field, old and new');
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');          -- U_ADMIN
+select throws_ok($$ select set_stock_warehouse_keeper((select id from stock_warehouses where code='CENTRAL'), '15120000-0000-0000-0000-0000000000b1', true) $$,
+  'P0001', null, 'AC-STK-019 a keeper must be an active member of the caller''s org');
+reset role;
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a7');          -- U_EXEC (rank 40, below Admin)
+select throws_ok($$ select set_stock_warehouse_keeper((select id from stock_warehouses where code='CENTRAL'), '15120000-0000-0000-0000-0000000000a5', true) $$,
+  '42501', null, 'AC-STK-034 an Executive cannot assign a keeper (Admin only)');
+reset role;
+-- 24-33: spec review hardening
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a6');          -- U_ENG: no master-data edit (AC-STK-034)
+update stock_units set name = 'hijack' where code = 'kg';
+update stock_items set name = 'hijack' where code = 'STEEL';
+update stock_warehouses set name = 'hijack' where code = 'CENTRAL';
+reset role;
+select is((select name from stock_units where code = 'kg' and org_id = '15120000-0000-0000-0000-000000000001'), 'Kilogram', 'AC-STK-034 an Engineer cannot edit a unit');
+select is((select name from stock_items where code = 'STEEL' and org_id = '15120000-0000-0000-0000-000000000001'), 'Rebar 12mm', 'AC-STK-034 an Engineer cannot edit an item');
+select is((select name from stock_warehouses where code = 'CENTRAL' and org_id = '15120000-0000-0000-0000-000000000001'), 'Central store', 'AC-STK-034 an Engineer cannot edit a warehouse');
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000b1');          -- U_XORG is an Admin, of the other org
+delete from stock_units where code = 'kg'; delete from stock_items where code = 'STEEL'; delete from stock_warehouses where code = 'CENTRAL';
+reset role;
+select ok(exists (select 1 from stock_units where code = 'kg' and org_id = '15120000-0000-0000-0000-000000000001') and exists (select 1 from stock_items where code = 'STEEL' and org_id = '15120000-0000-0000-0000-000000000001')
+          and exists (select 1 from stock_warehouses where code = 'CENTRAL' and org_id = '15120000-0000-0000-0000-000000000001'), 'AC-STK-019 another org''s Admin cannot delete this org''s master data');
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');          -- U_PM
+select throws_ok($$ insert into stock_items (code, name, unit_id) select 'steel','Dup', id from stock_units where code='kg' $$, '23505', null, 'FR-STK-002 item codes are unique ignoring case');
+select throws_ok($$ insert into stock_warehouses (code, name, kind) values ('central','Dup','site') $$, '23505', null, 'FR-STK-003 warehouse codes are unique ignoring case');
+reset role;
+select ok(exists (select 1 from audit_events where action = 'stock.item.create' and org_id = '15120000-0000-0000-0000-000000000001' and actor_id = '15120000-0000-0000-0000-0000000000a3'), 'FR-STK-066 item creation is audited with the actor');
+select ok(exists (select 1 from audit_events where action = 'stock.warehouse.create' and org_id = '15120000-0000-0000-0000-000000000001' and actor_id = '15120000-0000-0000-0000-0000000000a3'), 'FR-STK-066 warehouse creation is audited with the actor');
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');          -- U_ADMIN removes the keeper assigned in 9
+select set_stock_warehouse_keeper((select id from stock_warehouses where code='CENTRAL'), '15120000-0000-0000-0000-0000000000a4', false);
+reset role;
+select ok(exists (select 1 from audit_events where action = 'stock.keeper.remove' and org_id = '15120000-0000-0000-0000-000000000001' and actor_id = '15120000-0000-0000-0000-0000000000a1')
+          and exists (select 1 from audit_events where action = 'stock.keeper.assign' and org_id = '15120000-0000-0000-0000-000000000001' and actor_id = '15120000-0000-0000-0000-0000000000a1'),
+  'FR-STK-004 keeper assignment and removal are each audited with the actor');
+update profiles set status = 'disabled' where id = '15120000-0000-0000-0000-0000000000a3';
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');
+select throws_ok($$ insert into stock_units (code, name) values ('late','Late') $$, '42501', null, 'FR-STK-007 a disabled Project Manager cannot write master data');
+reset role;
+select ok(not has_table_privilege('anon', 'public.stock_units', 'select') and not has_table_privilege('anon', 'public.stock_warehouse_keepers', 'select')
+          and not has_function_privilege('anon', 'public.set_stock_warehouse_keeper(uuid,uuid,boolean)', 'execute'),
+  'FR-STK-060 the anon role has no table access and cannot call the keeper RPC');
 select * from finish();
 rollback;
