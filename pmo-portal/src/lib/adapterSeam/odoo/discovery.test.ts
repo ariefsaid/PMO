@@ -99,3 +99,14 @@ describe('odoo/discovery — AC-ODC-011 capability snapshot', () => {
     await expect(discoverCapabilities(call, { versionMajor: 20, now: NOW })).rejects.toBeInstanceOf(OdooError);
   });
 });
+
+describe('odoo/discovery — discovery deadline', () => {
+  it('a discovery past its deadline stops with a timeout, not after every model', async () => {
+    const fake = createFakeOdoo({ key: 'k' });
+    let calls = 0;
+    const slow = bindCall({ baseUrl: 'https://odoo.example.test', apiKey: 'k', database: 'db1', fetchImpl: (...a) => { calls++; return new Promise((r) => setTimeout(r, 15)).then(() => fake.fetch(...a)); } });
+    await expect(discoverCapabilities(slow, { versionMajor: 20, now: NOW, deadlineAt: Date.now() + 40 }))
+      .rejects.toMatchObject({ errorClass: 'timeout' });
+    expect(calls).toBeLessThan(10);
+  });
+});

@@ -39,9 +39,16 @@ export function nextConnection(
   return { ...prev, failures, state: failures >= UNREACHABLE_AFTER ? 'unreachable' : prev.state, last_checked_at: at, error_class: o.errorClass };
 }
 
-/** FR-ODC-034 / PQ-7: a good state older than two sweep intervals shows as `unverified`. Browser-only, never stored. */
-export function displayedConnection(rec: ConnectionRecord | null, now: Date, sweepIntervalMs = 300_000): ConnectionStateName | 'unverified' {
-  if (!rec) return 'not-activated';
+/** FR-ODC-034 / PQ-7: a disconnected or not-activated binding never shows a stored state; a good state older than two sweep intervals shows as `unverified`. Browser-only, never stored. */
+export function displayedConnection(
+  rec: ConnectionRecord | null,
+  now: Date,
+  binding: { status: string; activated: boolean },
+  sweepIntervalMs = 300_000,
+): ConnectionStateName | 'unverified' {
+  // The stored record outlives a disconnect or a reconnect; the binding row decides these two before it is read.
+  if (binding.status !== 'active') return 'disconnected';
+  if (!binding.activated || !rec) return 'not-activated';
   const stale = !rec.last_checked_at || now.getTime() - Date.parse(rec.last_checked_at) > 2 * sweepIntervalMs;
   return stale && ['healthy', 'credential-expiring', 'degraded'].includes(rec.state) ? 'unverified' : rec.state;
 }

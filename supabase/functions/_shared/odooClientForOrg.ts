@@ -14,8 +14,12 @@ export type OdooClientForOrgResult =
   | { client: OdooClientDeps; config: Record<string, unknown>; companyId: number | null }
   | { refusal: OdooClientRefusal };
 
-/** Requests per second for one client: `paceFor` unless the deployment sets ODOO_PACE_RPS (a calibration knob). */
-const paceRps = (siteUrl: string) => Number(Deno.env.get('ODOO_PACE_RPS')) || paceFor(siteUrl);
+/** Requests per second for one client: `paceFor`, or lower when the deployment sets ODOO_PACE_RPS. It never raises the plan's cap. */
+const paceRps = (siteUrl: string) => {
+  const cap = paceFor(siteUrl);
+  const set = Number(Deno.env.get('ODOO_PACE_RPS'));
+  return set > 0 ? Math.min(set, cap) : cap;
+};
 
 /** Activation and company are required unless a setup step (company listing, activation) opts out. */
 export async function odooClientForOrg(
