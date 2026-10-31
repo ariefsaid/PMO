@@ -1,6 +1,6 @@
 # ADR-0094 — PMO's route to a standalone ERP
 
-- **Status:** Proposed
+- **Status:** Accepted (owner, 2026-10-31)
 - **Date:** 2026-10-30
 - **Related:** ADR-0048, ADR-0055, ADR-0058, ADR-0059; decision map #1481, especially #1485–#1486
 

@@ -18,6 +18,8 @@
 
 ## 0. Open questions for the owner (each with the default taken)
 
+**Owner sign-off, 2026-10-31:** spec approved with all ten defaults (OQ-STK-1..10); ADR-0094 approved.
+
 Defaults let a builder start; a different answer changes only the slice named.
 
 | # | Question | Default taken | Slice touched |
