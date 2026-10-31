@@ -30,7 +30,10 @@ export interface ConnectCredential {
     token?: string;           // ClickUp personal access token
     apiKey?: string;          // ERPNext API key
     apiSecret?: string;       // ERPNext API secret
-    siteUrl?: string;         // ERPNext site URL
+    siteUrl?: string;         // ERPNext / Odoo site URL
+    database?: string;        // Odoo database name
+    keyExpiresOn?: string | null; // Odoo: the expiry the client declared for the key
+    confirmDiscard?: boolean; // Odoo: confirm discarding the mirror of a previous database
   };
 }
 
@@ -38,9 +41,11 @@ export interface ConnectCredential {
 export interface ConnectResponse {
   ok: true;
   binding: {
-    secret_ref: string;
+    secret_ref?: string;      // absent for Odoo: the browser never sees the secret reference
     status: IntegrationStatus;
   };
+  /** Odoo: the companies the key can see (activation picks one). */
+  companies?: Array<{ id: number; name: string }>;
 }
 
 /** Response from disconnect edge function. */

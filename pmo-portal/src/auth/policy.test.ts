@@ -19,6 +19,7 @@ const STATEMENT_NON_VIEW_ACTIONS: Exclude<Action, 'view'>[] = [
   'record_efaktur',
   'assign_project',
   'manage_external_bindings',
+  'view_financial_directory',
   'manage',
   'push_timesheet',
   'confirm_employee_link',

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { O1_MODELS } from './discovery.ts';
-import { companyDomain, DIRECTORY_KINDS, KIND_SPECS, parsePage, type DirectoryKind } from './kinds.ts';
+import { companyDomain, DIRECTORY_KINDS, KIND_SPECS, missingForKind, parsePage, type DirectoryKind } from './kinds.ts';
 
 const W = '2026-10-31 10:00:00';
 const FIXTURES: Record<DirectoryKind, { raw: Record<string, unknown>; row: Record<string, unknown> }> = {
@@ -81,5 +81,14 @@ describe('odoo/kinds — AC-ODC-024', () => {
     expect(companyDomain(KIND_SPECS.product, 3)).toEqual([['company_id', 'in', [3, false]]]);
     expect(companyDomain(KIND_SPECS.account, 3)).toEqual([['company_ids', 'in', [3]]]);
     expect(companyDomain(KIND_SPECS.uom, 3)).toEqual([]);
+  });
+});
+
+describe('missingForKind (FR-ODC-111)', () => {
+  const wh = KIND_SPECS.warehouse.model;
+  it('names the model, its read access and its fields, and ignores send-only gaps and other models', () => {
+    const missing = [wh, `${wh}:read`, `${wh}:code`, `${wh}:create`, `${wh}:write`, KIND_SPECS.tax.model, `${KIND_SPECS.location.model}:read`];
+    expect(missingForKind('warehouse', missing)).toEqual([wh, `${wh}:read`, `${wh}:code`]);
+    expect(missingForKind('uom', missing)).toEqual([]);
   });
 });

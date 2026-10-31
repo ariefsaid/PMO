@@ -709,6 +709,11 @@ export function formatDateTime(d: Date): string {
   }).format(d);
 }
 
+/** "03:45 PM" — time of day only, in the org's zone (a state banner's "as of"). */
+export function formatClockTime(d: Date): string {
+  return dateFormatterFor('clockTime', getDateLocale(), { hour: '2-digit', minute: '2-digit', timeZone: getActiveLocale().timezone }).format(d);
+}
+
 /** "6/14/2026" — numeric M/D/YYYY; byte-identical to bare toLocaleDateString() in en-US. */
 export function formatDateNumeric(d: Date): string {
   return dateFormatterFor('dateNumeric', getDateLocale(), {

@@ -3176,6 +3176,65 @@ export type Database = {
           },
         ]
       }
+      external_master_records: {
+        Row: {
+          active: boolean
+          as_of: string
+          attrs: Json
+          census_seen_at: string | null
+          code: string | null
+          external_id: string
+          external_tier: string
+          id: string
+          kind: string
+          name: string
+          org_id: string
+          parent_external_id: string | null
+          source_write_date: string
+          tombstoned_at: string | null
+        }
+        Insert: {
+          active?: boolean
+          as_of?: string
+          attrs?: Json
+          census_seen_at?: string | null
+          code?: string | null
+          external_id: string
+          external_tier: string
+          id?: string
+          kind: string
+          name: string
+          org_id?: string
+          parent_external_id?: string | null
+          source_write_date: string
+          tombstoned_at?: string | null
+        }
+        Update: {
+          active?: boolean
+          as_of?: string
+          attrs?: Json
+          census_seen_at?: string | null
+          code?: string | null
+          external_id?: string
+          external_tier?: string
+          id?: string
+          kind?: string
+          name?: string
+          org_id?: string
+          parent_external_id?: string | null
+          source_write_date?: string
+          tombstoned_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_master_records_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       external_org_bindings: {
         Row: {
           activated_at: string | null

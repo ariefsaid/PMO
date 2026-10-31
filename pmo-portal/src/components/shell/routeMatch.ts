@@ -454,6 +454,16 @@ export function breadcrumbForPath(
     ];
   }
 
+  if (/^\/master-data\/[^/]+$/.test(pathname)) {
+    // Reached from the Odoo card on Organization integrations, so the trail is its parent trail.
+    return [
+      { label: 'Administration', i18nKey: 'shell.nav.administration', href: '/administration/users', onClick: () => navigate?.('/administration/users') }, // i18n-exempt: translated from i18nKey by Breadcrumb
+      { label: ADMINISTRATION_SECTION_LABELS.integrations, i18nKey: ADMINISTRATION_SECTION_I18N_KEY.integrations, href: '/administration/integrations', onClick: () => navigate?.('/administration/integrations') },
+      { label: 'Odoo directories', // i18n-exempt: translated from i18nKey by Breadcrumb
+        i18nKey: 'administration:odoo.master.title' },
+    ];
+  }
+
   const childCrumb = CHILD_PAGE_CRUMB[pathname];
   const childParent = MODULES.find((m) => m.path === RAIL_PARENT_FOR_PATH[pathname]);
   if (childCrumb && childParent) {

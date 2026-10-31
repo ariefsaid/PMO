@@ -76,6 +76,7 @@ const ProcurementCreate = React.lazy(() => import('./pages/ProcurementCreate'));
 const TimesheetsPage = React.lazy(() => import('./pages/Timesheets'));
 const ApprovalsPage = React.lazy(() => import('./pages/Approvals'));
 const CompaniesPage = React.lazy(() => import('./pages/Companies'));
+const MasterDataPage = React.lazy(() => import('./pages/MasterData'));
 const CompanyDetailPage = React.lazy(() => import('./pages/CompanyDetail'));
 const ContactsPage = React.lazy(() => import('./pages/Contacts'));
 const ContactDetailPage = React.lazy(() => import('./pages/ContactDetail'));
@@ -186,6 +187,8 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/timesheets', element: <TimesheetsPage /> },
   { path: '/approvals', element: <ApprovalsPage /> },
   { path: '/companies', element: <CompaniesPage /> },
+  // #1504 S5 (FR-ODC-111): the Odoo directories, read from PMO's mirror. Reached from the Odoo card.
+  { path: '/master-data/:kind', element: <MasterDataPage /> },
   // CW-4b: /companies/:id — the routable Company record page (retires the drawer-as-record).
   { path: '/companies/:companyId', element: <CompanyDetailPage /> },
   { path: '/contacts', element: <ContactsPage /> },
