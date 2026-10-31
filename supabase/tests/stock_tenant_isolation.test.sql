@@ -52,7 +52,7 @@ begin
 end $$;
 -- usage: select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4'); ... reset role;
 
-select plan(6);   -- 6 assertions: the four `is` counts, the foreign-warehouse refusal, the unchanged-row proof
+select plan(16);  -- S1: the four `is` counts, the foreign-warehouse refusal, the unchanged-row proof (6); S2a: 10
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000b1');   -- U_XORG sees none of org A
 select is((select count(*)::int from stock_units),      0, 'AC-STK-019 stock_units: org B reads none of org A');
 select is((select count(*)::int from stock_items),      0, 'AC-STK-019 stock_items: org B reads none of org A');
@@ -64,5 +64,29 @@ update stock_items set name = 'hijack' where id = '15120000-0000-0000-0000-00000
 reset role;
 select is((select name from stock_items where id = '15120000-0000-0000-0000-000000001001'), 'Cement 50kg',
   'AC-STK-019 org B cannot update org A''s item (the row is unchanged)');
+-- S2a: documents, lines, ledger, balances and the posting RPCs (0413).
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');   -- org A Admin: one posted receipt, one draft
+select public.create_stock_document(jsonb_build_object('kind','receive','warehouse_id','15120000-0000-0000-0000-000000002001'),
+  jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001001','quantity',5,'unit_cost',10)), true);
+select set_config('stk.adraft', public.create_stock_document(jsonb_build_object('kind','receive','warehouse_id','15120000-0000-0000-0000-000000002001'),
+  jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001001','quantity',1,'unit_cost',10)))::text, false);
+reset role;
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000b1');
+select is((select count(*)::int from stock_documents), 0, 'AC-STK-019 stock_documents: org B reads none of org A');
+select is((select count(*)::int from stock_document_lines), 0, 'AC-STK-019 stock_document_lines: org B reads none of org A');
+select throws_ok($$ select * from stock_ledger $$, '42501', null, 'AC-STK-019 stock_ledger has no client read grant');
+select throws_ok($$ select * from stock_balances $$, '42501', null, 'AC-STK-019 stock_balances has no client read grant');
+select throws_like($$ select create_stock_document(jsonb_build_object('kind','receive','warehouse_id','15120000-0000-0000-0000-000000002001'),
+  jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001001','quantity',1,'unit_cost',1)), true) $$,
+  'STK_NOT_FOUND%', 'AC-STK-019 create_stock_document refuses org A''s warehouse');
+select throws_like($$ select create_stock_document(jsonb_build_object('kind','receive','warehouse_id','15120000-0000-0000-0000-000000002009'),
+  jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001001','quantity',1,'unit_cost',1)), true) $$,
+  'STK_NOT_FOUND%', 'AC-STK-019 create_stock_document refuses org A''s item on org B''s own warehouse');
+select throws_like($$ select post_stock_document(current_setting('stk.adraft')::uuid) $$, 'STK_NOT_FOUND%', 'AC-STK-019 post_stock_document refuses org A''s draft');
+select throws_like($$ select save_stock_draft(current_setting('stk.adraft')::uuid, jsonb_build_object('warehouse_id','15120000-0000-0000-0000-000000002009'),
+  jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001001','quantity',1,'unit_cost',1))) $$, 'STK_NOT_FOUND%', 'AC-STK-019 save_stock_draft refuses org A''s draft');
+select throws_like($$ select cancel_stock_document(current_setting('stk.adraft')::uuid) $$, 'STK_NOT_FOUND%', 'AC-STK-019 cancel_stock_document refuses org A''s draft');
+reset role;
+select is((select status from stock_documents where id = current_setting('stk.adraft')::uuid), 'Draft', 'AC-STK-019 org A''s draft is untouched');
 select * from finish();
 rollback;
