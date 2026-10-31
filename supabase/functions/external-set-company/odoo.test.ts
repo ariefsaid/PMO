@@ -43,6 +43,8 @@ function setup(o: Opts = {}) {
       response: (c: FetchCall) => fake.fetch(c.url.toString(), { method: 'POST', headers: { Authorization: c.headers.get('authorization') ?? '' }, body: c.bodyText }) },
     { label: 'odoo-version', host: ODOO, pathname: '/web/webclient/version_info',
       response: () => jsonResponse({ result: { server_version_info: [o.version === undefined ? 20 : o.version, 0, 0, 'final', 0, ''] } }) },
+    supabaseRpc('merge_external_org_binding_config', () => jsonResponse(null)),
+    supabaseRpc('log_audit', () => jsonResponse(null)),
     supabaseRpc('activate_odoo_binding', () => (o.activate ? o.activate() : jsonResponse('2026-11-01T00:00:00+00:00'))),
   ];
   return { fake, routes };
@@ -200,5 +202,65 @@ describe('external-set-company — Odoo gates', () => {
     const r = await call({ setupAction: 'drop-everything' });
     assertEquals([r.res.status, r.json.error], [400, 'BAD_REQUEST']);
     assertEquals(odooCalls(r.calls).length, 0);
+  });
+});
+
+describe('external-set-company — Odoo recheck (FR-ODC-020, FR-ODC-031)', () => {
+  const ACTIVATED = { site_url: `https://${ODOO}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z',
+    config: { database: 'db1', odoo_company_id: 1, connection: { state: 'healthy', failures: 0, last_ok_at: null, last_checked_at: null, error_class: null, missing: [] } } };
+  const merged = (calls: FetchCall[]) => rpcCall(calls, 'merge_external_org_binding_config').map((c) => c.bodyJson as { p_org_id: string; p_external_tier: string; p_patch: { connection: ConnectionRecord; capabilities?: CapabilitySnapshot } });
+
+  it('FR-ODC-031 an Admin recheck probes now and stores a healthy state with the snapshot', async () => {
+    const r = await call({ setupAction: 'recheck' }, { binding: ACTIVATED });
+    assertEquals([r.res.status, r.json.state], [200, 'healthy']);
+    const m = merged(r.calls);
+    assertEquals(m.length, 1);
+    assertEquals([m[0].p_org_id, m[0].p_external_tier, m[0].p_patch.connection.state, m[0].p_patch.capabilities?.missing], ['org-1', 'odoo', 'healthy', []]);
+    assertEquals(r.text.includes(KEY), false);
+    assertEquals(JSON.stringify(m).includes(KEY), false);
+  });
+
+  it('FR-ODC-031 Odoo rejecting the key → 200 credential-rejected (the probe ran), stored with the class', async () => {
+    const { routes } = setup({ binding: ACTIVATED });
+    const r = await withFetchMock(routes.map((rt) => rt.label === 'supabase-rpc-read_vault_secret' ? supabaseRpc('read_vault_secret', () => jsonResponse('wrong-key')) : rt), async ({ calls }) => {
+      const res = await handleSetCompanyRequest(createAuthedRequest('http://edge.test/set-company', { tier: 'odoo', setupAction: 'recheck' }, await auth.mintJwt({ sub: 'user-1' })));
+      return { res, calls };
+    });
+    assertEquals([r.res.status, (await r.res.json()).state], [200, 'credential-rejected']);
+    const m = merged(r.calls);
+    assertEquals([m[0].p_patch.connection.state, m[0].p_patch.connection.error_class, 'capabilities' in m[0].p_patch], ['credential-rejected', 'key-rejected', false]);
+    assertEquals(rpcCall(r.calls, 'log_audit').length, 1);
+  });
+
+  it('FR-ODC-031 a network failure counts once; the previous state is kept until the third', async () => {
+    const r = await call({ setupAction: 'recheck' }, { binding: ACTIVATED, prepare: (f) => f.failNext('transport') });
+    assertEquals([r.res.status, r.json.state], [200, 'healthy']);
+    assertEquals(merged(r.calls)[0].p_patch.connection.failures, 1);
+  });
+
+  it('FR-ODC-020 a missing model on recheck → degraded naming it', async () => {
+    const r = await call({ setupAction: 'recheck' }, { binding: ACTIVATED, prepare: (f) => f.dropModel('uom.uom') });
+    assertEquals([r.res.status, r.json.state, r.json.missing], [200, 'degraded', ['uom.uom']]);
+  });
+
+  it('FR-ODC-020 a binding that is not activated → 422 inactive, no Odoo call, nothing stored', async () => {
+    const r = await call({ setupAction: 'recheck' }, { binding: { ...ACTIVATED, activated_at: null } });
+    assertEquals([r.res.status, r.json.error], [422, 'inactive']);
+    assertEquals(odooCalls(r.calls).length, 0);
+    assertEquals(merged(r.calls).length, 0);
+  });
+
+  for (const role of ['Engineer', 'Finance', 'Project Manager', 'Executive']) {
+    it(`FR-ODC-020 a ${role} cannot recheck → 403, no key read, nothing stored`, async () => {
+      const r = await call({ setupAction: 'recheck' }, { role, binding: ACTIVATED });
+      assertEquals(r.res.status, 403);
+      assertEquals(rpcCall(r.calls, 'read_vault_secret').length, 0);
+      assertEquals(merged(r.calls).length, 0);
+    });
+  }
+
+  it('FR-ODC-020 a platform operator may recheck', async () => {
+    const r = await call({ setupAction: 'recheck' }, { role: 'Engineer', operator: true, binding: ACTIVATED });
+    assertEquals(r.res.status, 200);
   });
 });
