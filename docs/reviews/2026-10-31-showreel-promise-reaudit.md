@@ -85,8 +85,7 @@ Status is *then → now*. "Old #" is the row in the 2026-10-05 audit.
 
 ## 2. Issues filed and reused
 
-**Filed under map #791 (this audit).** The map is at GitHub's 100-sub-issue limit, so #1597, #1598 and #1599 carry
-`Map: #791` as their first line but could not be linked as sub-issues; see §4.
+**Filed under map #791 (this audit)**, all eight linked as sub-issues (see §4 for the cap).
 
 | Issue | Label | Covers rows |
 |---|---|---|
@@ -130,8 +129,8 @@ personal-data audit (rows 26, 45) · #1494 statements without ERPNext (rows 10, 
 
 ## 4. Notes
 
-- Map #791 refuses new sub-issues ("Parent cannot have more than 100 sub-issues"): 100 children, most closed.
-  #1597, #1598, #1599 are unlinked until a closed child is detached or a new map takes them.
+- Map #791 is capped at 100 sub-issues. With the coordinator's OK, closed #769, #771 and #774 were detached from the map
+  to make room; they keep their history.
 - Not re-read this round: the outbox push and read-back functions in row 41 (their directories exist; behaviour carried
   from 2026-10-05).
 - Inferred promises from the first audit that still hold: cards drag (row 12), the whole app in Bahasa (row 34),
