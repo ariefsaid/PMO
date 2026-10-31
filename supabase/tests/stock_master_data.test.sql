@@ -68,7 +68,7 @@ select throws_ok($$ insert into stock_warehouse_keepers (warehouse_id, user_id) 
 reset role;
 select is((select count(*)::int from audit_events where action = 'stock.keeper.assign'), 1, 'FR-STK-004 the keeper assignment is audited with actor and time');
 -- 12: tenancy of the parent id (AC-STK-019 for stock_items)
-select set_config('stk.unit', (select id::text from stock_units where code = 'kg'), false);   -- superuser reads org A's unit id
+select set_config('stk.unit', (select id::text from stock_units where code = 'kg' and org_id = '15120000-0000-0000-0000-000000000001'), false);   -- superuser reads org A's unit id
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000b1');          -- U_XORG cannot see it, only name it
 select throws_ok($$ insert into stock_items (code, name, unit_id) values ('Y','Y', current_setting('stk.unit')::uuid) $$, 'P0001', null,
   'AC-STK-019 an item cannot point at another org''s unit (the parent is invisible to the caller, so it fails closed)');
@@ -79,6 +79,6 @@ select throws_ok($$ insert into stock_units (org_id, code, name) values ('151200
   'FR-STK-065 org_id in a payload is refused');
 -- 14: master changes are audited (FR-STK-066)
 reset role;
-select ok(exists (select 1 from audit_events where action = 'stock.unit.create'), 'FR-STK-066 master-data creation writes an audit event');
+select ok(exists (select 1 from audit_events where action = 'stock.unit.create' and org_id = '15120000-0000-0000-0000-000000000001' and actor_id = '15120000-0000-0000-0000-0000000000a3'), 'FR-STK-066 master-data creation writes an audit event with the actor');
 select * from finish();
 rollback;

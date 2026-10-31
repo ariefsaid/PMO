@@ -171,3 +171,37 @@ established and yet unusable. (Clarified 2026-07-29 after "a proven live connect
 covering both legs when only the connect leg had ever run — four documents went stale on the
 ambiguity, and a feature was nearly built on the unproven leg.)
 _Avoid_: "live connection" unqualified — always name the leg.
+
+---
+
+## Stock & inventory (#1512)
+
+**Stock item** — a material the organisation holds and tracks by quantity. Has a code, name and one base unit. Not a
+procurement line (`procurement_items` is free text) and not a BoQ line.
+
+**Unit** — a base unit of measure on an org-owned list (bag, m, kg …) with a "whole numbers only" flag. No conversion.
+
+**Warehouse** — a place that holds stock: **central** (head-office store) or **site**. Not a PMO Entity, not a project.
+
+**Keeper** — a user assigned to a warehouse who may record its stock movements.
+
+**Stock document** — one recorded movement event with a system-assigned number: **Receive**, **Transfer**, **Issue**,
+**Return**, **Adjustment**, **Count**. Posted documents are immutable; a mistake is corrected by a later document, never
+an edit. Distinct from the **Goods Receipt** procurement record, which stays header-only.
+
+**Stock ledger entry** — one signed quantity-and-value line per item and warehouse written when a document posts.
+Append-only. The ledger is the trace.
+
+**On hand** — quantity and value of an item at a warehouse now: the sum of its ledger entries (kept in a balance row).
+
+**Moving-average cost** — value on hand ÷ quantity on hand at the moment of a stock-out.
+
+**Work item** — a BoQ line (`boq_items`). Every issue names a project and a work item of that project.
+
+**Material allowance** — the planned quantity of an item for a work item.
+
+**Consumption** — net quantity (and value) of an item taken to a project work item: issues minus returns, by period.
+It is operational and is not committed spend or an ERP actual.
+
+**Reorder level / suggestion** — the on-hand quantity at which an item should be reordered at a warehouse; a
+*suggestion* is computed from past usage and only a person turns it into a level.
