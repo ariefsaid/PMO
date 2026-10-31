@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals } from "jsr:@std/assert@1";
 import { PROC_FILE_PHASES, validPreviewEmbedUrl } from "./microsoftDocumentPreview.ts";
 
 Deno.test("document-preview AC-003 validPreviewEmbedUrl accepts https Microsoft hosts only", () => {
