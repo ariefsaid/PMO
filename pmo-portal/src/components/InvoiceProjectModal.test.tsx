@@ -3,14 +3,14 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'jest-axe';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { InvoiceProjectModal } from './InvoiceProjectModal';
 
-const invoice = (projectId: string | null): SalesInvoiceRow => ({
-  id: 'invoice-1', project_id: projectId, si_number: 'SI-100',
+const invoice = (projectId: string | null, billingKind: 'contract' | 'other' = 'contract'): SalesInvoiceRow => ({
+  id: 'invoice-1', project_id: projectId, si_number: 'SI-100', billing_kind: billingKind,
 } as unknown as SalesInvoiceRow);
 const projects = [
   { value: 'project-1', label: 'Project One' },
@@ -64,6 +64,9 @@ describe('InvoiceProjectModal', () => {
     const selector = screen.getByRole('combobox', { name: 'Project' });
     selector.focus();
     expect(document.activeElement).toBe(selector);
+    // The billing kind select now sits right after the project: one more stop before Cancel and Save (deliberate, #1471).
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole('combobox', { name: 'Billing kind' }));
     await user.tab();
     await user.tab();
     const save = screen.getByRole('button', { name: 'Save project' });
@@ -83,7 +86,7 @@ describe('InvoiceProjectModal', () => {
     expect(screen.getByRole('button', { name: 'Save project' })).toBeEnabled();
     expect(await axe(container)).toHaveNoViolations();
     fireEvent.click(screen.getByRole('button', { name: 'Save project' }));
-    await waitFor(() => expect(onSave).toHaveBeenCalledWith('project-1'));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith('project-1', 'contract'));
   });
 
   it('AC-PFIN-009 keeps the selection after a rejected save and prevents concurrent saves', async () => {
@@ -133,5 +136,111 @@ describe('InvoiceProjectModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Change project' }));
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
     expect(onSave).toHaveBeenCalledTimes(2);
+  });
+  it('AC-008 offers both billing kinds with an explanation and defaults a new choice to Contract billing', async () => {
+    const user = userEvent.setup();
+    renderModal();
+    const kind = screen.getByRole('combobox', { name: 'Billing kind' });
+    expect(kind).toHaveValue('contract');
+    expect(within(kind).getByRole('option', { name: 'Contract billing' })).toBeInTheDocument();
+    expect(within(kind).getByRole('option', { name: 'Other billing' })).toBeInTheDocument();
+    expect(kind).toHaveAccessibleDescription(/reduces Remaining to invoice/);
+    await user.selectOptions(kind, 'other');
+    expect(kind).toHaveAccessibleDescription(/never reduces Remaining to invoice/);
+  });
+
+  it('AC-008 shows the saved kind when editing', () => {
+    renderModal({ invoice: invoice('project-1', 'other'), currentProjectName: 'Project One' });
+    expect(screen.getByRole('combobox', { name: 'Billing kind' })).toHaveValue('other');
+  });
+
+  it('AC-008 a kind-only change enables Save and saves without the project-change confirmation', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    renderModal({ invoice: invoice('project-1'), currentProjectName: 'Project One', onSave, onClose });
+    expect(screen.getByRole('button', { name: 'Save project' })).toBeDisabled();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Billing kind' }), 'other');
+    expect(screen.getByRole('button', { name: 'Save project' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Save project' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledExactlyOnceWith('project-1', 'other'));
+    expect(screen.queryByText(/From Project One to/)).not.toBeInTheDocument();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-008 Save stays disabled when neither project nor kind changed', () => {
+    renderModal({ invoice: invoice('project-1', 'other'), currentProjectName: 'Project One' });
+    expect(screen.getByRole('button', { name: 'Save project' })).toBeDisabled();
+  });
+
+  it('AC-008 blocks a duplicate submit while saving', async () => {
+    const user = userEvent.setup();
+    let resolveSave!: () => void;
+    const onSave = vi.fn().mockImplementation(() => new Promise<void>((resolve) => { resolveSave = resolve; }));
+    renderModal({ invoice: invoice('project-1'), currentProjectName: 'Project One', onSave });
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Billing kind' }), 'other');
+    const save = screen.getByRole('button', { name: 'Save project' });
+    fireEvent.click(save);
+    fireEvent.click(save);
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('combobox', { name: 'Billing kind' })).toBeDisabled();
+    resolveSave();
+  });
+
+  it('AC-008 failure retains the project and kind and lets the user retry', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockRejectedValueOnce(Object.assign(new Error('refused'), { code: '42501' })).mockResolvedValueOnce(undefined);
+    const onClose = vi.fn();
+    renderModal({ onSave, onClose });
+    await selectProject('Project Two');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Billing kind' }), 'other');
+    await user.click(screen.getByRole('button', { name: 'Save project' }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.getByText('Project Two')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Billing kind' })).toHaveValue('other');
+    expect(onClose).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Save project' }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(onSave).toHaveBeenNthCalledWith(2, 'project-2', 'other');
+  });
+
+  it('AC-008 cancel persists nothing', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    renderModal({ invoice: invoice('project-1'), currentProjectName: 'Project One', onSave, onClose });
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Billing kind' }), 'other');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await user.click(await screen.findByRole('button', { name: 'Discard' }));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('AC-008 locks the project for a native or PMO-authored invoice but keeps the kind editable', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    renderModal({ invoice: invoice('project-1'), currentProjectName: 'Project One', onSave, projectLocked: true });
+    expect(screen.getByRole('dialog', { name: 'Change billing kind' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Project' })).toBeDisabled();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Billing kind' }), 'other');
+    await user.click(screen.getByRole('button', { name: 'Save billing kind' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledExactlyOnceWith('project-1', 'other'));
+  });
+
+  it('AC-008 renders the billing kind control in Indonesian from the shipped catalogue, axe clean', async () => {
+    await localeI18n.init({
+      lng: 'id', fallbackLng: 'en', defaultNS: 'common',
+      resources: { en: { common: enCatalogue }, id: { common: idCatalogue } },
+      interpolation: { escapeValue: false }, react: { useSuspense: false },
+    });
+    const view = render(<I18nextProvider i18n={localeI18n}>
+      <InvoiceProjectModal invoice={invoice('project-1', 'other')} projects={projects} loadProjects={async () => projects}
+        currentProjectName="Project One" loading={false} onClose={vi.fn()} onSave={vi.fn().mockResolvedValue(undefined)} />
+    </I18nextProvider>);
+    const kind = screen.getByRole('combobox', { name: 'Jenis penagihan' });
+    expect(within(kind).getByRole('option', { name: 'Penagihan kontrak' })).toBeInTheDocument();
+    expect(within(kind).getByRole('option', { name: 'Penagihan lainnya' })).toBeInTheDocument();
+    expect(screen.queryByText(/^invoiceProject\./)).not.toBeInTheDocument();
+    expect(await axe(view.container)).toHaveNoViolations();
   });
 });

@@ -512,6 +512,9 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
           : t('invoiceProject.assign', 'Assign project'),
         onClick: () => setProjectTarget(inv),
       });
+    } else if (may('assign_project', 'salesInvoice') && inv.project_id) {
+      // #1471 FR-004: a native or PMO-authored linked invoice keeps its project; only its billing kind is correctable.
+      items.push({ label: t('invoiceProject.changeKind', 'Change billing kind'), onClick: () => setProjectTarget(inv) });
     }
     // #767 AC-DUE-001: receipt is learned after submission, so this is offered in any non-cancelled
     // state to the revenue write set (the RPC enforces it; `can()` is UX only).
@@ -820,12 +823,14 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
           loadProjects={loadProjectOptions}
           currentProjectName={projectOptionsById.get(projectTarget.project_id ?? '')?.label ?? null}
           loading={assignProject.isPending}
+          projectLocked={!canAttributeInvoice(projectTarget)}
           onClose={() => setProjectTarget(null)}
-          onSave={async (projectId) => {
+          onSave={async (projectId, billingKind) => {
             await assignProject.mutateAsync({
               siId: projectTarget.id,
               projectId,
               oldProjectId: projectTarget.project_id,
+              billingKind,
             });
           }}
         />

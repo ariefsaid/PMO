@@ -101,6 +101,27 @@ describe('SalesInvoices project attribution', () => {
     }
   });
 
+  it('FR-004 a linked native invoice offers only the billing kind correction; an unlinked one offers neither', async () => {
+    h.invoices = [
+      invoice('native-linked', 'project-1', { pmo_native: true }),
+      invoice('native-unlinked', null, { pmo_native: true }),
+    ];
+    renderAs('Finance');
+    await openActions('SI-native-linked');
+    expect(screen.getByRole('menuitem', { name: 'Change billing kind' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Change project' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Change billing kind' }));
+    expect(screen.getByRole('combobox', { name: 'Project' })).toBeDisabled();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Billing kind' }), 'other');
+    await userEvent.click(screen.getByRole('button', { name: 'Save billing kind' }));
+    await waitFor(() => expect(h.assignProject).toHaveBeenCalledWith({
+      siId: 'native-linked', projectId: 'project-1', oldProjectId: 'project-1', billingKind: 'other',
+    }));
+    await openActions('SI-native-unlinked');
+    expect(screen.queryByRole('menuitem', { name: 'Change billing kind' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Change project' })).not.toBeInTheDocument();
+  });
+
   it('AC-PFIN-009 opens the shared modal, filters unassigned before search, and sends the existing project context', async () => {
     renderAs('Finance', '/sales-invoices?attribution=unassigned&status=Unpaid&q=SI-unassigned');
     expect(screen.getByText('Unassigned invoices')).toBeInTheDocument();
@@ -112,7 +133,7 @@ describe('SalesInvoices project attribution', () => {
     await userEvent.click(await screen.findByRole('option', { name: 'Project One' }));
     await userEvent.click(screen.getByRole('button', { name: 'Save project' }));
     await waitFor(() => expect(h.assignProject).toHaveBeenCalledWith({
-      siId: 'unassigned', projectId: 'project-1', oldProjectId: null,
+      siId: 'unassigned', projectId: 'project-1', oldProjectId: null, billingKind: 'contract',
     }));
     await userEvent.click(screen.getByRole('button', { name: 'Clear filter' }));
     expect(screen.queryByText('Unassigned invoices')).not.toBeInTheDocument();
