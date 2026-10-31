@@ -149,7 +149,16 @@ function statefulFakeDb() {
       b.gt = () => b;
       b.lt = () => b;
       b.ilike = () => b;
-      b.insert = () => Promise.resolve({ data: null, error: null });
+      // The adopt claim is an insert-only `external_refs` link (#1600): record it exactly as the upsert did.
+      const recordRef = (payload: unknown) => {
+        const p = payload as { domain: string; external_record_id: string; pmo_record_id: string };
+        refUpserts.push(payload as Record<string, unknown>);
+        refsByExternal.set(`${p.domain}\u0000${p.external_record_id}`, p.pmo_record_id);
+      };
+      b.insert = (payload: unknown) => {
+        if (table === 'external_refs') recordRef(payload);
+        return Promise.resolve({ data: null, error: null });
+      };
       b.update = () => b;
       b.upsert = (payload: unknown) => {
         if (table === 'external_sync_watermarks') {
@@ -161,11 +170,7 @@ function statefulFakeDb() {
           watermarks.set(p.domain, p.watermark_cursor);
           wmUpdatedAt.set(p.domain, new Date(Date.UTC(2026, 0, 1, 0, 0, stampSeq++)).toISOString());
         }
-        if (table === 'external_refs') {
-          const p = payload as { domain: string; external_record_id: string; pmo_record_id: string };
-          refUpserts.push(payload as Record<string, unknown>);
-          refsByExternal.set(`${p.domain}\u0000${p.external_record_id}`, p.pmo_record_id);
-        }
+        if (table === 'external_refs') recordRef(payload);
         return Promise.resolve({ data: null, error: null });
       };
       b.limit = () => Promise.resolve({ data: [], error: null });

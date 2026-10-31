@@ -30,6 +30,23 @@ export async function recordExternalRef(client: ServiceRoleTableClient, input: E
   if (error) throw new AppError(error.message, error.code);
 }
 
+/** Insert-only `external_refs` link: refuses (23505) when the PMO record OR the external record is already
+ *  linked, instead of `recordExternalRef`'s upsert, which would silently re-point a PMO record that is
+ *  already linked to another external record. Used where a first-time link claims an existing PMO row. */
+export interface ExternalRefInsertClient {
+  from(table: string): { insert(row: unknown): PromiseLike<{ error: { message: string; code?: string } | null }> };
+}
+export async function insertExternalRef(client: ExternalRefInsertClient, input: ExternalRefRecord): Promise<void> {
+  const { error } = await client.from('external_refs').insert({
+    org_id: input.orgId,
+    domain: input.domain,
+    pmo_record_id: input.pmoRecordId,
+    external_tier: input.externalTier,
+    external_record_id: input.externalRecordId,
+  });
+  if (error) throw new AppError(error.message, error.code);
+}
+
 /** Structural service-role client seam for the `external_refs` lookups (matches supabase-js):
  *  `.from(t).select(c).eq(...).eq(...).eq(...).maybeSingle()` — the filter builder is chainable.
  *  Same shape as `clickup/dispatchFactory.ts`'s `DispatchServiceClient` (task 1.6 generalizes it). */

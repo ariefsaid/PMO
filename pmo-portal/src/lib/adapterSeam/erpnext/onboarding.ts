@@ -5,6 +5,7 @@
  * `external_refs` mapping — never a duplicate. Mirrors `clickup/onboarding.ts`'s pure/Deno-importable
  * shape (the edge fn `supabase/functions/erpnext-onboard/index.ts` is thin wiring around this).
  */
+import { AppError } from '../../appError.ts';
 import { adoptParty, externalIdFor, type ErpPartySource, type PartyCandidate } from './partyAdopt.ts';
 import { erpnextRequest, ERP_RESPONSE_MAX_BYTES, type ErpClientDeps } from './client.ts';
 import { getDoc } from './client.ts';
@@ -76,7 +77,14 @@ export interface OnboardPartiesDeps {
   findCandidates: (doctype: ErpPartySource['doctype'], name: string) => Promise<PartyCandidate[]>;
   insertCompaniesMirror: (canonical: PmoRecord) => Promise<void>;
   updateCompaniesMirror: (pmoRecordId: string, canonical: PmoRecord) => Promise<void>;
+  /** Insert-only claim of the `external_refs` link. Taken BEFORE any company write: it is the adoption lock the
+   *  change feed also takes, so a loser of the race (23505) writes no company at all (#1600). */
   recordExternalRef: (mapping: { pmoRecordId: string; externalRecordId: string }) => Promise<void>;
+  /** Does the company row for this PMO id exist? `false` for a claimed link whose company never landed
+   *  (the run died between the claim and the write): re-written with the SAME id on the next run. */
+  mirrorExists: (pmoRecordId: string) => Promise<boolean>;
+  /** Tell the org's admins an ERP party was neither linked nor brought in (same text and dedupe as the feed). */
+  notifyUnclearMatch: (entry: { doctype: ErpPartySource['doctype']; id: string; name: string; reason: string }) => Promise<void>;
 }
 
 export interface OnboardPartiesResult {
@@ -84,6 +92,11 @@ export interface OnboardPartiesResult {
   adopted: number;
   /** Already-mapped parties re-applied this run (idempotent retry — no new mirror row). */
   reconciled: number;
+  /** Parties whose PMO match is unclear (several candidates, or a conflicting tax ID): nothing was
+   *  written for them; the rest of the run applied (#1600). */
+  needsDecision: Array<{ doctype: ErpPartySource['doctype']; id: string; name: string; reason: string }>;
+  /** Internal-type parties are PMO's own org marker, never ERP-flipped: skipped, not an error. */
+  skippedInternal: number;
 }
 
 /**
@@ -96,7 +109,17 @@ export interface OnboardPartiesResult {
 export async function onboardParties(sources: readonly ErpPartySource[], deps: OnboardPartiesDeps): Promise<OnboardPartiesResult> {
   let adopted = 0;
   let reconciled = 0;
+  let skippedInternal = 0;
+  const needsDecision: OnboardPartiesResult['needsDecision'] = [];
+  const flagForDecision = async (entry: OnboardPartiesResult['needsDecision'][number]) => {
+    needsDecision.push(entry);
+    await deps.notifyUnclearMatch(entry);
+  };
   for (const source of sources) {
+    if (source.isInternal) {
+      skippedInternal += 1;
+      continue;
+    }
     // Keyed by the ERPNext ID, never the display name, so a ref the sweep minted is found here (#760).
     const externalRecordId = externalIdFor(source.doctype, source.id);
     const existingPmoRecordId = await deps.findPmoRecordId(externalRecordId);
@@ -106,16 +129,43 @@ export async function onboardParties(sources: readonly ErpPartySource[], deps: O
       const { canonical } = await adoptParty(source, {
         findCandidates: async () => [{ pmoRecordId: existingPmoRecordId, taxId: source.taxId ?? null }],
       });
-      await deps.updateCompaniesMirror(existingPmoRecordId, canonical);
-      reconciled += 1;
+      if (await deps.mirrorExists(existingPmoRecordId)) {
+        await deps.updateCompaniesMirror(existingPmoRecordId, canonical);
+        reconciled += 1;
+      } else {
+        await deps.insertCompaniesMirror(canonical); // claimed link, company never landed: repair with the same id
+        adopted += 1;
+      }
       continue;
     }
-    const { canonical, externalRecordId: mintedExternalId } = await adoptParty(source, { findCandidates: deps.findCandidates });
-    await deps.insertCompaniesMirror(canonical);
-    await deps.recordExternalRef({ pmoRecordId: canonical.id, externalRecordId: mintedExternalId });
+    let adoptedParty;
+    try {
+      adoptedParty = await adoptParty(source, { findCandidates: deps.findCandidates });
+    } catch (err) {
+      if (!(err instanceof AppError) || err.code !== 'action-required') throw err;
+      await flagForDecision({ doctype: source.doctype, id: source.id, name: source.name, reason: err.details ?? 'unclear-match' });
+      continue;
+    }
+    const { canonical, externalRecordId: mintedExternalId, matched } = adoptedParty;
+    // Claim the link FIRST (#1600): a concurrent sweep that already linked this ERP party wins (23505) and no
+    // company is written here; a company already linked to another ERP party is a decision, never a re-point.
+    try {
+      await deps.recordExternalRef({ pmoRecordId: canonical.id, externalRecordId: mintedExternalId });
+    } catch (err) {
+      if ((err as { code?: string }).code !== '23505') throw err;
+      if (await deps.findPmoRecordId(externalRecordId)) {
+        reconciled += 1;
+      } else {
+        await flagForDecision({ doctype: source.doctype, id: source.id, name: source.name, reason: 'already-linked' });
+      }
+      continue;
+    }
+    // A matched company already exists under `canonical.id`: link it, never insert it again (#1600).
+    if (matched) await deps.updateCompaniesMirror(canonical.id, canonical);
+    else await deps.insertCompaniesMirror(canonical);
     adopted += 1;
   }
-  return { adopted, reconciled };
+  return { adopted, reconciled, needsDecision, skippedInternal };
 }
 
 /** Contacts require their Dynamic Link children, so enumerate scalars then hydrate each changed doc. */
