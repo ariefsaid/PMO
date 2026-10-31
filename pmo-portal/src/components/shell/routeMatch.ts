@@ -289,6 +289,8 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   '/stock/new/transfer': '/stock',
   '/stock/new/issue': '/stock',
   '/stock/new/return': '/stock',
+  '/stock/new/count': '/stock',
+  '/stock/new/adjustment': '/stock',
 };
 
 /** Finance record routes remain addressable while their list parent is the Receivables area. */
@@ -305,6 +307,8 @@ const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }> = {
   '/stock/new/transfer': { label: 'Transfer', i18nKey: 'stock:kinds.transfer' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/new/issue': { label: 'Issue to project', i18nKey: 'stock:kinds.issue' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/new/return': { label: 'Return from project', i18nKey: 'stock:kinds.return' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/new/count': { label: 'Stock count', i18nKey: 'stock:kinds.count' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/new/adjustment': { label: 'Adjustment', i18nKey: 'stock:kinds.adjustment' }, // i18n-exempt: fallback label is replaced from i18nKey at render
 };
 
 /** Canonical Administration child routes and their route-derived breadcrumb labels (English source). */
@@ -613,6 +617,8 @@ export interface RecordLists {
   expenses?: { id: string; claim_number?: string | null; title?: string | null }[];
   /** I3: user views — the record "name" is view.name, resolved from the useUserViews() cache. */
   userViews?: { id: string; name: string }[];
+  /** #1512: stock documents resolve from the detail query cache; the label is the document number. */
+  stockDocuments?: { id: string; number: string }[];
 }
 
 /** Cached lists carrying a status (for stage-aware breadcrumb ancestry, Model B). */
@@ -734,6 +740,9 @@ export function recordLabelForPath(
   // I3: user views — resolve view name from the useUserViews() cache (FR-VR-082).
   const viewId = idFrom('/views');
   if (viewId) return lists.userViews?.find((v) => v.id === viewId)?.name;
+
+  const stockDocumentId = idFrom('/stock/documents');
+  if (stockDocumentId) return lists.stockDocuments?.find((d) => d.id === stockDocumentId)?.number;
 
   return undefined;
 }

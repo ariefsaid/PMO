@@ -80,6 +80,15 @@ describe('AC-OVERFETCH-001 shell breadcrumb reads the cache and never triggers a
     expect(qc.isFetching()).toBe(0);
   });
 
+  it('#1512 a stock document detail (and its /edit route) resolves its number from the page\'s own query', async () => {
+    const { qc, result } = setup('/stock/documents/d1/edit');
+    expect(result.current.resolved).toBe(false);
+    act(() => { qc.setQueryData(['stock-document', 'org-1', 'd1'], { id: 'd1', number: 'CNT-000007' }); });
+    await waitFor(() => expect(result.current.resolved).toBe(true));
+    expect(recordLabelForPath('/stock/documents/d1/edit', result.current.lists)).toBe('CNT-000007');
+    expect(qc.isFetching()).toBe(0);
+  });
+
   it('resolves a not-found detail (settled with no record) so the crumb stops saying Loading', async () => {
     const { qc, result } = setup('/projects/p2');
     act(() => {

@@ -2304,25 +2304,25 @@ insert into public.stock_warehouse_keepers (org_id, warehouse_id, user_id) value
 on conflict do nothing;
 
 -- #1512 S2a opening stock, posted THROUGH the posting RPC as the seeded Admin (no direct ledger write: the seed obeys the
--- single-writer invariant it tests). Fixed client_request_ids make a re-run a no-op (FR-STK-015).
+-- single-writer invariant it tests). Fixed client_request_ids make a re-run a no-op (FR-STK-015). Unit costs are in the seed org's currency (USD).
 do $$
 declare c text := '15121000-0000-0000-0000-'; w_cen uuid := '15121000-0000-0000-0000-000000002001';
 begin
   perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a5","role":"authenticated"}', true);
   perform public.create_stock_document(jsonb_build_object('kind','receive','warehouse_id',w_cen,'note','Opening stock'),
     jsonb_build_array(
-      jsonb_build_object('item_id',c||'000000001001','quantity',400,  'unit_cost',75000),
-      jsonb_build_object('item_id',c||'000000001002','quantity',5000, 'unit_cost',14000),
-      jsonb_build_object('item_id',c||'000000001003','quantity',1500, 'unit_cost',12000),
-      jsonb_build_object('item_id',c||'000000001004','quantity',600,  'unit_cost',35000),
-      jsonb_build_object('item_id',c||'000000001005','quantity',20000,'unit_cost',300),
-      jsonb_build_object('item_id',c||'000000001006','quantity',25000,'unit_cost',350),
-      jsonb_build_object('item_id',c||'000000001007','quantity',200,  'unit_cost',60000),
-      jsonb_build_object('item_id',c||'000000001008','quantity',2000, 'unit_cost',13500),
-      jsonb_build_object('item_id',c||'000000001009','quantity',10000,'unit_cost',900),
-      jsonb_build_object('item_id',c||'00000000100a','quantity',800,  'unit_cost',5000),
-      jsonb_build_object('item_id',c||'00000000100b','quantity',300,  'unit_cost',45000),
-      jsonb_build_object('item_id',c||'00000000100c','quantity',120,  'unit_cost',250000)),
+      jsonb_build_object('item_id',c||'000000001001','quantity',400,  'unit_cost',8.50),
+      jsonb_build_object('item_id',c||'000000001002','quantity',5000, 'unit_cost',0.95),
+      jsonb_build_object('item_id',c||'000000001003','quantity',1500, 'unit_cost',1.20),
+      jsonb_build_object('item_id',c||'000000001004','quantity',600,  'unit_cost',3.50),
+      jsonb_build_object('item_id',c||'000000001005','quantity',20000,'unit_cost',0.03),
+      jsonb_build_object('item_id',c||'000000001006','quantity',25000,'unit_cost',0.035),
+      jsonb_build_object('item_id',c||'000000001007','quantity',200,  'unit_cost',9.00),
+      jsonb_build_object('item_id',c||'000000001008','quantity',2000, 'unit_cost',1.10),
+      jsonb_build_object('item_id',c||'000000001009','quantity',10000,'unit_cost',0.45),
+      jsonb_build_object('item_id',c||'00000000100a','quantity',800,  'unit_cost',0.60),
+      jsonb_build_object('item_id',c||'00000000100b','quantity',300,  'unit_cost',4.50),
+      jsonb_build_object('item_id',c||'00000000100c','quantity',120,  'unit_cost',28.00)),
     true, (c||'0000000f0001')::uuid);
   perform public.create_stock_document(jsonb_build_object('kind','transfer','warehouse_id',w_cen,'to_warehouse_id',c||'000000002002'),
     jsonb_build_array(jsonb_build_object('item_id',c||'000000001001','quantity',80),

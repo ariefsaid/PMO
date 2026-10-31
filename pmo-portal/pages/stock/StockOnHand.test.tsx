@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -46,6 +46,13 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
     expect(await screen.findByText('CEM')).toBeInTheDocument();
     expect(screen.getByText('70')).toBeInTheDocument();
+  });
+
+  it('the warehouse column names the warehouse, its code secondary (like items)', async () => {
+    renderPage();
+    const table = await screen.findByRole('table');
+    const name = await within(table).findByText('Site A');
+    expect(name.closest('td')).toHaveTextContent(/Site A\s*SITE-A/);
   });
 
   it('AC-STK-032 empty: no stock yet', async () => {

@@ -162,6 +162,7 @@
     "STK_TOO_MANY": "Too many rows to show. Narrow the filter.",
     "STK_KIND_UNAVAILABLE": "This kind of document is not available yet.",
     "STK_IMMUTABLE": "A posted or cancelled document cannot be changed.",
+    "STK_STALE": "This draft changed since you opened it. Review the new version, then post.",
     "STK_INSUFFICIENT_DETAIL": "Only {{available}} on hand; you asked for {{requested}}."
   },
   "actions": {
@@ -316,7 +317,7 @@
   },
   "form": {
     "unknownKind": "Unknown document kind",
-    "unknownKindSub": "Use Receive, Transfer, Issue or Return from the Stock page.",
+    "unknownKindSub": "Use Receive, Transfer, Issue, Return, Stock count or Adjustment from the Stock page.",
     "intro": {
       "receive": "Book goods into a warehouse you keep.",
       "transfer": "Move stock between two warehouses in one step.",
@@ -378,5 +379,48 @@
       "quantity": "Enter a quantity above zero (up to 3 decimals).",
       "unitCost": "Enter the unit cost (zero or more)."
     }
+  },
+  "count": {
+    "intro": {
+      "count": "Count what is on the shelf. The system quantity is shown beside each line.",
+      "adjustment": "Correct stock for damage, loss or a find, with a reason."
+    },
+    "sections": {
+      "sheet": "Count sheet"
+    },
+    "counted": "Counted",
+    "systemNow": "System now",
+    "variance": "Difference",
+    "fill": "Fill from stock on hand",
+    "reason": "Reason",
+    "reasonHelp": "For example: damaged, lost, found in the yard.",
+    "direction": "Direction",
+    "out": "Remove stock",
+    "in": "Add stock",
+    "costDefault": "Leave empty to use the average cost.",
+    "anotherPerson": "Another person must post this: a Project Manager or above who did not write it.",
+    "saveDraft": "Save draft",
+    "post": "Post count",
+    "saved": "Draft saved",
+    "editDraft": "Edit draft",
+    "onHandFailed": "Couldn't load the quantities on hand",
+    "notEditable": {
+      "title": "This document can't be edited",
+      "sub": "Only a draft adjustment or count can be reopened."
+    },
+    "detail": {
+      "counted": "Counted",
+      "expected": "System at posting",
+      "direction": "Direction",
+      "unitCost": "Unit cost",
+      "atAverage": "At average cost"
+    },
+    "errors": {
+      "reason": "Say why the stock changed.",
+      "duplicate": "This item is already on the sheet.",
+      "counted": "Enter the counted quantity (0 or more, up to 3 decimals).",
+      "costNeeded": "Enter the unit cost: the system holds none of this item."
+    },
+    "costOnFile": "A unit cost is on file. Leave empty to keep it."
   }
 }

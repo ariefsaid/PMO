@@ -823,6 +823,11 @@ export function formatList(items: readonly string[]): string {
 }
 
 /** Exact decimal STRING formatting (stock quantities and unit costs, #1512): the digits are never routed through a JS float. */
+/** Currency style with up to 4 decimals (a stock unit cost); the string input keeps every digit exact. */
+export function formatCurrencyDecimal4(value: string, currency: string, locale: string): string {
+  return numberFormatterFor('cur-dec4', locale, currency, { style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(value as unknown as number);
+}
+
 export function formatDecimalString(value: string, locale: string, maxFractionDigits: number): string {
   return numberFormatterFor(`dec${maxFractionDigits}`, locale, undefined, { maximumFractionDigits: maxFractionDigits }).format(value as unknown as number);
 }

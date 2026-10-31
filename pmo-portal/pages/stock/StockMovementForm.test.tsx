@@ -197,7 +197,7 @@ describe('StockMovementForm', () => {
   });
 
   it('AC-STK-030 an unknown kind is a calm empty state', async () => {
-    renderForm('adjustment');
+    renderForm('bogus');
     expect(await screen.findByText('Unknown document kind')).toBeInTheDocument();
   });
 });

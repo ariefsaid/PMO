@@ -5,7 +5,7 @@ import {
   setWarehouseKeeper,
 } from '@/src/lib/db/stockMaster';
 import {
-  cancelStockDocument, createStockDocument, getStockDocument, listIssuableWorkItems, listProjectIssueLines, listStockDocuments, postStockDocument, saveStockDraft,
+  cancelStockDocument, createStockDocument, getStockDocument, getStockDocumentCosts, listIssuableWorkItems, listProjectIssueLines, listStockDocuments, postStockDocument, saveStockDraft,
 } from '@/src/lib/db/stockDocuments';
 import { getStockLedgerAll, getStockLedgerPage, getStockOnHand } from '@/src/lib/db/stockReports';
 import { wrap } from './repositoryErrors';
@@ -31,7 +31,8 @@ export const stockRepository: StockRepository = {
     get: (id) => wrap(() => getStockDocument(id)),
     create: (i, o) => wrap(() => createStockDocument(i, o)),
     saveDraft: (id, i) => wrap(() => saveStockDraft(id, i)),
-    post: (id) => wrap(() => postStockDocument(id)),
+    post: (id, revision) => wrap(() => postStockDocument(id, revision)),
+    costs: (id) => wrap(() => getStockDocumentCosts(id)),
     cancel: (id) => wrap(() => cancelStockDocument(id)),
     issuableWorkItems: (p) => wrap(() => listIssuableWorkItems(p)),
     issueLines: (p) => wrap(() => listProjectIssueLines(p)),

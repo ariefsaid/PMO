@@ -44,6 +44,20 @@ describe('stock document policy', () => {
       expect(can('post', 'stockDocument', { realRole: role, currentUserId: 'u1', record: doc({ kind, created_by: 'u1' }) })).toBe(false);
     }
   });
+  it.each(roles)('AC-STK-033 %s: adjustment and count x {author, other} x {real, view-as}', (role) => {
+    const writer = ['Admin', 'Executive', 'Finance', 'Project Manager'].includes(role);
+    for (const kind of ['adjustment', 'count']) {
+      for (const viewOnly of [false, true]) {
+        for (const createdBy of ['u1', 'u2']) {
+          for (const isKeeper of [true, false]) {
+            const ctx = { realRole: role, currentUserId: 'u1', record: doc({ kind, created_by: createdBy, isKeeper, status: 'Draft', viewOnly }) };
+            expect(can('create', 'stockDocument', ctx)).toBe(!viewOnly && (isKeeper || role === 'Admin')); // PQ-1: authors keep the site
+            expect(can('post', 'stockDocument', ctx)).toBe(!viewOnly && writer && createdBy !== 'u1'); // FR-STK-062: no keeper needed, never the author
+          }
+        }
+      }
+    }
+  });
   it.each(roles)('AC-STK-033 %s: everyone can view; a view-as session can do nothing', (role) => {
     expect(can('view', 'stockDocument', { realRole: role })).toBe(true);
     const v = { realRole: role, currentUserId: 'u1', record: doc({ viewOnly: true, isKeeper: true, kind: 'issue', status: 'Draft', created_by: 'u1' }) };

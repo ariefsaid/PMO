@@ -15,7 +15,7 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
-import { listProjectIssueLines, cancelStockDocument, createStockDocument, getStockDocument, listIssuableWorkItems, listStockDocuments, postStockDocument, saveStockDraft } from './stockDocuments';
+import { listProjectIssueLines, cancelStockDocument, createStockDocument, getStockDocument, getStockDocumentCosts, listIssuableWorkItems, listStockDocuments, postStockDocument, saveStockDraft } from './stockDocuments';
 
 beforeEach(() => {
   h.queue.length = 0; h.from.mockClear(); h.rpc.mockClear();
@@ -49,6 +49,47 @@ describe('stockDocuments DAL', () => {
     await postStockDocument('d1');
     await cancelStockDocument('d1');
     expect(h.rpc.mock.calls.map((c) => (c as unknown as [string])[0])).toEqual(['save_stock_draft', 'post_stock_document', 'cancel_stock_document']);
+  });
+
+  it('FR-STK-062 a post carries the revision the approver reviewed', async () => {
+    await postStockDocument('d1', 3);
+    expect(h.rpc).toHaveBeenCalledWith('post_stock_document', { p_document_id: 'd1', p_expected_revision: 3 });
+  });
+
+  it('FR-STK-063 line costs come from the rank-gated read; a cost is absent when the server omits it', async () => {
+    h.queue.push({ data: [{ line_id: 'l1', has_cost: true, unit_cost: '70.0000' }, { line_id: 'l2', has_cost: true }], error: null });
+    const costs = await getStockDocumentCosts('d1');
+    expect(h.rpc).toHaveBeenCalledWith('get_stock_document_costs', { p_document_id: 'd1' });
+    expect(costs).toEqual([{ lineId: 'l1', hasCost: true, unitCost: '70.0000' }, { lineId: 'l2', hasCost: true, unitCost: undefined }]);
+  });
+
+  it('FR-STK-025 a count payload maps countedQuantity to counted_quantity and keeps an optional unit cost', async () => {
+    h.queue.push({ data: 'doc-c', error: null });
+    await createStockDocument({ kind: 'count', warehouseId: 'w1', lines: [{ itemId: 'i1', countedQuantity: '0' }, { itemId: 'i2', countedQuantity: '5', unitCost: '40' }] },
+      { post: false, clientRequestId: 'r' });
+    expect(h.rpc).toHaveBeenCalledWith('create_stock_document', {
+      p_header: { kind: 'count', warehouse_id: 'w1' },
+      p_lines: [{ item_id: 'i1', counted_quantity: '0' }, { item_id: 'i2', counted_quantity: '5', unit_cost: '40' }], p_post: false, p_client_request_id: 'r',
+    });
+  });
+
+  it('FR-STK-024 an adjustment maps the reason to the header and the direction to each line', async () => {
+    h.queue.push({ data: 'doc-a', error: null });
+    await createStockDocument({ kind: 'adjustment', warehouseId: 'w1', reason: 'damaged', lines: [{ itemId: 'i1', quantity: '2', direction: 'out' }] },
+      { post: false, clientRequestId: 'r' });
+    expect(h.rpc).toHaveBeenCalledWith('create_stock_document', {
+      p_header: { kind: 'adjustment', warehouse_id: 'w1', reason: 'damaged' },
+      p_lines: [{ item_id: 'i1', quantity: '2', direction: 'out' }], p_post: false, p_client_request_id: 'r',
+    });
+  });
+
+  it('FR-STK-011 saveStockDraft sends the same count and adjustment shapes as create', async () => {
+    await saveStockDraft('d1', { kind: 'count', warehouseId: 'w1', lines: [{ itemId: 'i1', countedQuantity: '92' }] });
+    await saveStockDraft('d2', { kind: 'adjustment', warehouseId: 'w1', reason: 'found', lines: [{ itemId: 'i1', quantity: '3', direction: 'in', unitCost: '60' }] });
+    expect(h.rpc).toHaveBeenNthCalledWith(1, 'save_stock_draft', { p_document_id: 'd1', p_header: { kind: 'count', warehouse_id: 'w1' }, p_lines: [{ item_id: 'i1', counted_quantity: '92' }] });
+    expect(h.rpc).toHaveBeenNthCalledWith(2, 'save_stock_draft', {
+      p_document_id: 'd2', p_header: { kind: 'adjustment', warehouse_id: 'w1', reason: 'found' }, p_lines: [{ item_id: 'i1', quantity: '3', unit_cost: '60', direction: 'in' }],
+    });
   });
 
   it('a failed create throws an AppError carrying the stable code message', async () => {
