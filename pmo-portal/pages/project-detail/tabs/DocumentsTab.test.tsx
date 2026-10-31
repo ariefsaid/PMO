@@ -6,6 +6,7 @@ import { MemoryRouter, useLocation, useNavigate } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { DocumentViewerProvider } from '@/src/components/documents';
 import { AppError } from '@/src/lib/appError';
 
 // ── Repository-seam-backed hooks are mocked; the tab is the unit under test. ──
@@ -165,7 +166,7 @@ const renderTab = (role: Role = 'Admin', uid = 'admin-1', initialEntry = '/', sh
       <MemoryRouter initialEntries={[initialEntry]}>
         <RouteSearch />
         {showBack && <RouteBack />}
-        <DocumentsTab projectId="p1" onCountChange={onCountChange} />
+        <DocumentViewerProvider><DocumentsTab projectId="p1" onCountChange={onCountChange} /></DocumentViewerProvider>
       </MemoryRouter>
     </ToastProvider></QueryClientProvider>,
   );
@@ -803,13 +804,14 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     expect(repositoryState.document.getSignedUrl).toHaveBeenCalledWith('org-1/p1/d5/structural-calc-rev-a.pdf', { download: true });
   });
 
-  it('AC-DOC-041: preview affordances open the signed URL in a new tab', async () => {
+  it('AC-DOC-041: preview affordances open the side-panel viewer with a fresh signed URL (document-preview AC-001)', async () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     renderTab('Admin', 'admin-1');
     await userEvent.click(screen.getByRole('button', { name: 'View Survey Report' }));
     await userEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Preview file for Survey Report/i }));
-    expect(repositoryState.document.getSignedUrl).toHaveBeenCalledWith('org-1/p1/d3/survey-report-rev-a.pdf');
-    expect(openSpy).toHaveBeenCalledWith('https://signed.example.com/file', '_blank', 'noopener,noreferrer');
+    expect(await screen.findByRole('dialog', { name: 'Survey Report' })).toBeInTheDocument();
+    expect(repositoryState.document.getSignedUrl).toHaveBeenCalledWith('org-1/p1/d3/survey-report-rev-a.pdf', undefined);
+    expect(openSpy).not.toHaveBeenCalled();
   });
 
   it('AC-DOC-083: preview file actions are available after opening a document', async () => {

@@ -25,3 +25,16 @@ export function useDocumentViewer(): DocumentViewerApi {
 export function useOptionalDocumentViewer(): DocumentViewerApi | null {
   return useContext(DocumentViewerContext);
 }
+
+const MISSING: DocumentViewerApi = {
+  open: () => { throw new Error('Preview needs <DocumentViewerProvider>'); },
+  close: () => {},
+};
+
+/**
+ * For leaf surfaces rendered bare in many tests: resolves without a provider and fails loudly only when a
+ * preview is actually opened (the shell always mounts the provider).
+ */
+export function useViewerOnDemand(): DocumentViewerApi {
+  return useContext(DocumentViewerContext) ?? MISSING;
+}

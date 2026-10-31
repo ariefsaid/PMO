@@ -1,7 +1,9 @@
 import React, { useRef, useState } from 'react';
 import { Icon, ConfirmDialog, useToast } from '@/src/components/ui';
 import { useProcurementFiles } from '@/src/hooks/useProcurementFiles';
-import { FILE_INPUT_ACCEPT, PREVIEWABLE_EXTENSIONS } from '@/src/lib/fileConstants';
+import { FILE_INPUT_ACCEPT, VIEWABLE_EXTENSIONS } from '@/src/lib/fileConstants';
+import { procurementFileName, procurementFileTarget } from '@/src/components/documents/targets/procurement';
+import { useViewerOnDemand } from '@/src/components/documents/viewerContext';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ProcPhase, ProcurementFileRow } from '@/src/lib/db/procurementFiles';
 
@@ -29,7 +31,8 @@ export interface ProcurementFilesSubsectionProps {
   files?: EmbeddedProcurementFile[];
 }
 
-export type EmbeddedProcurementFile = Pick<ProcurementFileRow, 'id' | 'title' | 'file_path' | 'archived_at'>;
+export type EmbeddedProcurementFile = Pick<ProcurementFileRow, 'id' | 'title' | 'file_path' | 'archived_at'> &
+  Partial<Pick<ProcurementFileRow, 'source' | 'ms_web_url' | 'ms_item_name'>>;
 
 function filename(path: string | null): string {
   if (!path) return 'file';
@@ -37,13 +40,15 @@ function filename(path: string | null): string {
   return parts[parts.length - 1] || 'file';
 }
 
+const sharePointBacked = (f: EmbeddedProcurementFile) => f.source === 'onedrive' && !!f.ms_web_url;
+
 function getExtension(path: string): string {
   const lastDot = path.lastIndexOf('.');
   return lastDot >= 0 ? path.slice(lastDot).toLowerCase() : '';
 }
 
 function isPreviewable(path: string | null): boolean {
-  return path != null && (PREVIEWABLE_EXTENSIONS as readonly string[]).includes(getExtension(path));
+  return path != null && (VIEWABLE_EXTENSIONS as readonly string[]).includes(getExtension(path));
 }
 
 export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProps> = ({
@@ -55,6 +60,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
   files: embedded,
 }) => {
   const { toast } = useToast();
+  const viewer = useViewerOnDemand();
   const { list, upload, archive, download, progress, uploadError, clearUploadError } =
     useProcurementFiles(phase, parentId, procurementId, uploadedById, {
       list: embedded === undefined,
@@ -86,16 +92,26 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
     );
   };
 
-  const openFile = async (file: EmbeddedProcurementFile, asDownload: boolean) => {
+  const downloadFile = async (file: EmbeddedProcurementFile) => {
     if (!file.file_path) return;
     try {
-      const url = await download(file.file_path, { download: asDownload });
+      const url = await download(file.file_path, { download: true });
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
       toast(headline, detail, 'warning');
     }
   };
+
+  const preview = (file: EmbeddedProcurementFile, opener: HTMLElement) =>
+    viewer.open(
+      procurementFileTarget({
+        phase,
+        file: { source: null, ms_web_url: null, ms_item_name: null, ...file },
+        getSignedUrl: (path, opts) => download(path, opts),
+      }),
+      opener,
+    );
 
   const confirmArchive = () => {
     if (!pendingArchive) return;
@@ -151,7 +167,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
       ) : (
         <ul className="flex flex-col gap-1">
           {files.map((f) => {
-            const name = filename(f.file_path);
+            const name = procurementFileName({ source: null, ms_web_url: null, ms_item_name: null, ...f });
             return (
               <li key={f.id} className="flex items-center gap-2 text-[13px]">
                 <Icon name="file" className="size-3.5 shrink-0 text-muted-foreground" />
@@ -159,10 +175,10 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
                   {name}
                 </span>
                 <span className="ml-auto flex items-center gap-1.5">
-                  {f.file_path && isPreviewable(f.file_path) && (
+                  {(sharePointBacked(f) || isPreviewable(f.file_path)) && (
                     <button
                       type="button"
-                      onClick={() => void openFile(f, false)}
+                      onClick={(e) => preview(f, e.currentTarget)}
                       aria-label={`Preview file ${name}`}
                       title="Preview"
                       className="touch-target rounded-sm p-0.5 text-muted-foreground hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
@@ -170,15 +186,15 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
                       <Icon name="eye" className="size-4" />
                     </button>
                   )}
-                  <button
+                  {f.file_path && <button
                     type="button"
-                    onClick={() => void openFile(f, true)}
+                    onClick={() => void downloadFile(f)}
                     aria-label={`Download file ${name}`}
                     title="Download"
                     className="touch-target rounded-sm p-0.5 text-muted-foreground hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   >
                     <Icon name="download" className="size-4" />
-                  </button>
+                  </button>}
                   {canWrite && (
                     <button
                       type="button"

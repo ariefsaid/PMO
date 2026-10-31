@@ -54,10 +54,5 @@ export const VIEWABLE_EXTENSIONS: readonly string[] = [
   '.docx', '.xlsx', '.pptx', '.doc', '.xls', '.ppt',
 ] as const;
 
-/** Extensions that can be previewed in a new browser tab. FR-DOC-042. */
-export const PREVIEWABLE_EXTENSIONS: readonly string[] = [
-  '.pdf', '.png', '.jpg', '.jpeg', '.webp',
-] as const;
-
 /** The `accept` attribute string for the file input. */
 export const FILE_INPUT_ACCEPT = ALLOWED_FILE_TYPES.join(',');

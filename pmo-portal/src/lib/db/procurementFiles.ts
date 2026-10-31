@@ -51,6 +51,10 @@ export interface ProcurementFileRow {
   archived_at: string | null;
   /** The owning parent id (quotation_id | receipt_id | invoice_id | …), normalized. */
   parent_id: string;
+  /** `onedrive` = a SharePoint-backed attachment (no `file_path`); null = a private-Storage upload (migration 0409). */
+  source?: 'upload' | 'onedrive' | null;
+  ms_web_url?: string | null;
+  ms_item_name?: string | null;
 }
 
 /** Phase → the parent FK column on its child table (used to normalize rows). */
@@ -155,6 +159,9 @@ function normalizeRow(phase: ProcPhase, row: Record<string, unknown>): Procureme
     created_at: row.created_at as string,
     archived_at: (row.archived_at as string | null) ?? null,
     parent_id: row[parentCol] as string,
+    source: (row.source as ProcurementFileRow['source']) ?? null,
+    ms_web_url: (row.ms_web_url as string | null) ?? null,
+    ms_item_name: (row.ms_item_name as string | null) ?? null,
   };
 }
 

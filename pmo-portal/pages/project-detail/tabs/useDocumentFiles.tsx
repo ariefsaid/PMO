@@ -6,12 +6,16 @@ import { useFileUpload } from '@/src/hooks/useFileUpload';
 import { validateFile } from '@/src/lib/validateFile';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { projectReference, validMicrosoftBrowserUrl } from '@/src/lib/m365/reference';
+import { projectOwner, projectReference, validMicrosoftBrowserUrl } from '@/src/lib/m365/reference';
+import { useViewerOnDemand } from '@/src/components/documents/viewerContext';
+import { storageTarget } from '@/src/components/documents/targets/storage';
+import { referenceTarget } from '@/src/components/documents/targets/reference';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 
 export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], canEditDoc: (doc: ProjectDocumentRow) => boolean) {
   const { t } = useTranslation('project');
   const { toast } = useToast();
+  const viewer = useViewerOnDemand();
   const { upload, replace, progress, uploadErrors, cancelUpload, clearUploadError } = useFileUpload(projectId);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeFileDoc, setActiveFileDoc] = useState<{ docId: string; mode: 'upload' | 'replace' } | null>(null);
@@ -93,17 +97,7 @@ export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], c
     }
   };
 
-  const handlePreview = async (doc: ProjectDocumentRow) => {
-    if (!doc.file_path) return;
-    try {
-      const url = await repositories.document.getSignedUrl(doc.file_path);
-      window.open(url, '_blank', 'noopener,noreferrer');
-    } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
-      toast(headline, detail, 'warning');
-    }
-  };
-
+  /** FR-001: one side-panel viewer for a stored file and for a Microsoft reference alike. */
   const openPreview = (doc: ProjectDocumentRow) => {
     const reference = projectReference(doc);
     if (reference?.web_url) {
@@ -111,10 +105,16 @@ export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], c
         toast(t('m365Documents.cell.openRefused', 'This Microsoft link cannot be opened.'), undefined, 'warning');
         return;
       }
-      window.open(reference.web_url, '_blank', 'noopener,noreferrer');
+      viewer.open(referenceTarget({ reference, owner: projectOwner(doc), title: doc.title }));
       return;
     }
-    void handlePreview(doc);
+    if (!doc.file_path) return;
+    viewer.open(storageTarget({
+      key: `project-document:${doc.id}`,
+      name: doc.title,
+      filePath: doc.file_path,
+      getSignedUrl: (path, opts) => repositories.document.getSignedUrl(path, opts),
+    }));
   };
 
   const downloadSelected = async (selectedDocuments: ProjectDocumentRow[]) => {
@@ -142,7 +142,7 @@ export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], c
         onCancelUpload={progress[doc.id] != null ? () => cancelUpload(doc.id) : undefined}
         onRemoveError={clientUploadErrors[doc.id] || uploadErrors[doc.id] ? () => clearAnyUploadError(doc.id) : undefined}
         onDownload={doc.file_path ? () => void handleDownload(doc) : undefined}
-        onPreview={doc.file_path ? () => void handlePreview(doc) : undefined}
+        onPreview={doc.file_path ? () => openPreview(doc) : undefined}
       />
     );
   };

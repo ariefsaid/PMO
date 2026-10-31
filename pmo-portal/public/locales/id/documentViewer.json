@@ -9,7 +9,9 @@
     "latestNotice": "Versi terbaru di {{place}}. Ini bukan versi yang disetujui.",
     "officeBlankHint": "Jika pratinjau tetap kosong, unduh berkasnya.",
     "openIntegrations": "Buka Integrasi Saya",
-    "sourceLabel": "Sumber: {{place}}"
+    "sourceLabel": "Sumber: {{place}}",
+    "preview": "Pratinjau",
+    "previewNamed": "Pratinjau {{name}}"
   },
   "failure": {
     "accessDenied": "Akun Microsoft Anda tidak dapat membuka berkas ini. Minta akses kepada pemiliknya, atau buka di {{place}}.",

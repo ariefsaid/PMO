@@ -6,6 +6,9 @@ interface ProcFileRow {
   id: string;
   file_path: string | null;
   title: string | null;
+  source?: 'upload' | 'onedrive' | null;
+  ms_web_url?: string | null;
+  ms_item_name?: string | null;
 }
 
 const hookState = vi.hoisted(() => ({
@@ -41,6 +44,7 @@ vi.mock('@/src/components/ui', async (orig) => {
 });
 
 import { ProcurementFilesSubsection } from './ProcurementFilesSubsection';
+import { renderViewer } from '@/src/components/documents/testkit';
 
 beforeEach(() => {
   hookState.files = [];
@@ -148,18 +152,23 @@ describe('AC-PF-013 ProcurementFilesSubsection list + archive confirm', () => {
     expect(screen.getByRole('alert')).toBeTruthy();
   });
 
-  it('AC-PF-013: a previewable file shows a Preview affordance that opens inline (download:false)', async () => {
+  it('AC-PF-013: a viewable file shows a Preview affordance that opens the side-panel viewer with a fresh inline URL', async () => {
     hookState.files = [{ id: 'f1', file_path: 'org-1/proc-1/quotation/file-1/scan.png', title: null }];
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
-    renderSub({ canWrite: false });
+    renderViewer(<ProcurementFilesSubsection phase="quotation" parentId="q1" procurementId="proc-1" canWrite={false} uploadedById="user-9" />);
     fireEvent.click(screen.getByRole('button', { name: /preview file/i }));
-    await waitFor(() =>
-      expect(hookState.download).toHaveBeenCalledWith(
-        'org-1/proc-1/quotation/file-1/scan.png',
-        { download: false },
-      ),
-    );
+    expect(await screen.findByRole('dialog', { name: 'scan.png' })).toBeTruthy();
+    await waitFor(() => expect(hookState.download).toHaveBeenCalledWith('org-1/proc-1/quotation/file-1/scan.png', undefined));
+    expect(openSpy).not.toHaveBeenCalled();
     openSpy.mockRestore();
+  });
+
+  it('document-preview AC-001: a SharePoint-backed attachment previews through custody and has no stored download', () => {
+    hookState.files = [{ id: 'f9', file_path: null, title: null, source: 'onedrive', ms_web_url: 'https://tenant.sharepoint.com/sites/x/Quote.pdf', ms_item_name: 'Quote.pdf' }];
+    renderViewer(<ProcurementFilesSubsection phase="quotation" parentId="q1" procurementId="proc-1" canWrite={false} uploadedById="user-9" />);
+    expect(screen.getByText('Quote.pdf')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /preview file Quote\.pdf/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /download file/i })).toBeNull();
   });
 
   it('AC-PF-013: a download failure surfaces a warning toast (does not throw)', async () => {

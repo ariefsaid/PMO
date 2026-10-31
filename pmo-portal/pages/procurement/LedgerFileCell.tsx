@@ -18,9 +18,11 @@
  * Compact by design (dense table cell). Reuses existing file helpers + sized Icon.
  * DESIGN.md tokens only; no raw hex/px. WCAG-AA: buttons have aria-label.
  */
-import React, { useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import { Icon, useToast } from '@/src/components/ui';
 import { getSignedDownloadUrl } from '@/src/lib/db/procurementFiles';
+import { procurementFileTarget } from '@/src/components/documents/targets/procurement';
+import { useViewerOnDemand } from '@/src/components/documents/viewerContext';
 import { useProcurementFiles } from '@/src/hooks/useProcurementFiles';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { FILE_INPUT_ACCEPT } from '@/src/lib/fileConstants';
@@ -73,54 +75,31 @@ export interface LedgerFileCellProps {
 // ---------------------------------------------------------------------------
 
 interface SingleFileButtonProps {
+  phase: ProcPhase;
+  recordId: string;
   fileHref: string;
   fileTitle: string;
   label: string;
 }
 
-const SingleFileButton: React.FC<SingleFileButtonProps> = ({ fileHref, fileTitle, label }) => {
-  const { toast } = useToast();
-  const [busy, setBusy] = useState(false);
-  const [inlineError, setInlineError] = useState<string | null>(null);
-
-  const handleClick = async () => {
-    if (busy) return;
-    setBusy(true);
-    setInlineError(null);
-    try {
-      const url = await getSignedDownloadUrl(fileHref);
-      window.open(url, '_blank', 'noopener,noreferrer');
-    } catch (err) {
-      // Non-fatal: seed rows exist with no storage object. Show inline message.
-      const { headline } = classifyMutationError(err);
-      setInlineError(headline);
-      toast(headline, 'The file could not be opened. It may not have been uploaded yet.', 'warning');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (inlineError) {
-    return (
-      <span
-        role="alert"
-        className="inline-flex items-center gap-1 text-[12px] text-destructive"
-        title={inlineError}
-      >
-        <Icon name="file" className="size-3.5 shrink-0" />
-        <span className="truncate max-w-[120px]">{fileTitle}</span>
-      </span>
-    );
-  }
-
+/** Opens the record's file in the side-panel viewer; the viewer signs the URL fresh and reports a failure itself. */
+const SingleFileButton: React.FC<SingleFileButtonProps> = ({ phase, recordId, fileHref, fileTitle, label }) => {
+  const viewer = useViewerOnDemand();
   return (
     <button
       type="button"
-      onClick={() => void handleClick()}
-      disabled={busy}
+      onClick={(e) => viewer.open(
+        procurementFileTarget({
+          phase,
+          // The ledger bundle carries only the first file's path and title; the key is per record and phase.
+          file: { id: recordId, title: fileTitle, file_path: fileHref, source: null, ms_web_url: null, ms_item_name: null },
+          getSignedUrl: getSignedDownloadUrl,
+        }),
+        e.currentTarget,
+      )}
       aria-label={label}
       title={fileTitle}
-      className="inline-flex items-center gap-1 text-[12.5px] font-medium text-primary-text hover:underline underline-offset-4 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className="inline-flex items-center gap-1 text-[12.5px] font-medium text-primary-text hover:underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
       <Icon name="file" className="size-3.5 shrink-0" />
       <span className="truncate max-w-[120px]">{fileTitle}</span>
@@ -232,6 +211,8 @@ export const LedgerFileCell: React.FC<LedgerFileCellProps> = ({
   if (fileHref && fileTitle) {
     return (
       <SingleFileButton
+        phase={PHASE_BY_TYPE[type]}
+        recordId={recordId}
         fileHref={fileHref}
         fileTitle={fileTitle}
         label={`Open file for ${systemNumber ?? type}`}

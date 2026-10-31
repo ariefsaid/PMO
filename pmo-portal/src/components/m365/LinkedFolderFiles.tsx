@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Icon } from '@/src/components/ui';
+import { Button, Icon } from '@/src/components/ui';
+import { useOptionalDocumentViewer } from '@/src/components/documents/viewerContext';
+import { folderChildTarget } from '@/src/components/documents/targets/reference';
+import type { ReferenceOwner } from '@/src/lib/m365/reference';
 import { listChildren, type GraphItem } from '@/src/lib/m365/graphClient';
 import { formatInstantDate } from '@/src/lib/format';
 import { M365BrowseNotice } from './M365BrowseNotice';
@@ -12,8 +15,10 @@ type State = { loading: true } | { loading: false; error: unknown; items: GraphI
  * (metadata only: nothing is copied or stored). The drive/item ids come from the stored reference,
  * never from user input. Mounted only while the folder is expanded, so it reads on open.
  */
-export function LinkedFolderFiles({ reference }: { reference: { drive_id: string; item_id: string } }) {
+export function LinkedFolderFiles({ reference, owner }: { reference: { drive_id: string; item_id: string }; owner?: ReferenceOwner }) {
   const { t } = useTranslation('recordFolders');
+  const { t: tv } = useTranslation('documentViewer');
+  const viewer = useOptionalDocumentViewer();
   const [state, setState] = useState<State>({ loading: true });
   const [attempt, setAttempt] = useState(0);
   const generation = useRef(0);
@@ -50,6 +55,16 @@ export function LinkedFolderFiles({ reference }: { reference: { drive_id: string
             <Icon name={file.item_kind === 'folder' ? 'folder' : 'doc'} className="shrink-0 self-center text-muted-foreground" />
             <span className="min-w-0 flex-1 break-words font-medium text-foreground">{file.name}</span>
             {file.modified_at && <span className="tabular text-[12px] text-muted-foreground">{formatInstantDate(file.modified_at)}</span>}
+            {viewer && owner && file.item_kind !== 'folder' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={tv('viewer.previewNamed', 'Preview {{name}}', { name: file.name })}
+                onClick={(event) => viewer.open(folderChildTarget({ owner, childItemId: file.item_id, name: file.name, webUrl: file.web_url }), event.currentTarget)}
+              >
+                {tv('viewer.preview', 'Preview')}
+              </Button>
+            )}
             <a
               href={file.web_url}
               target="_blank"

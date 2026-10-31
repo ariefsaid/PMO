@@ -9,7 +9,9 @@
     "latestNotice": "Latest in {{place}}. This is not the approved version.",
     "officeBlankHint": "If the preview stays blank, download the file.",
     "openIntegrations": "Open My integrations",
-    "sourceLabel": "Source: {{place}}"
+    "sourceLabel": "Source: {{place}}",
+    "preview": "Preview",
+    "previewNamed": "Preview {{name}}"
   },
   "failure": {
     "accessDenied": "Your Microsoft account can't open this file. Ask the owner for access, or open it in {{place}}.",
