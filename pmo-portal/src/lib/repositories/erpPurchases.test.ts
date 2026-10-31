@@ -20,7 +20,7 @@ const h = vi.hoisted(() => {
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
 import {
-  hasErpPurchases, linkErpPurchaseDocuments, listErpOrphans, listErpPurchases, listLinkedErpDocuments, unlinkErpPurchaseDocument,
+  erpPurchasesRepository, hasErpPurchases, linkErpPurchaseDocuments, listErpOrphans, listErpPurchases, listLinkedErpDocuments, unlinkErpPurchaseDocument,
 } from './erpPurchases';
 
 const db = (over: Record<string, unknown>) => ({
@@ -105,5 +105,42 @@ describe('erpPurchases repository', () => {
     expect(h.calls).not.toContainEqual(['from', ['erp_purchase_documents_linked']]);
     expect(h.calls).toContainEqual(['contains', ['project_ids', ['p1']]]);
     expect(rows[0]).toMatchObject({ name: 'PINV-A', procurementId: null, linkId: null, grandTotal: 100 });
+  });
+});
+
+describe('erpPurchasesRepository (ADR-0017 seam)', () => {
+  it('list / listOrphans / listLinked scope the underlying reads and map rows', async () => {
+    h.set({ data: [db({})], error: null });
+    expect((await erpPurchasesRepository.list('p1'))[0].name).toBe('PINV-A');
+    expect(h.calls).toContainEqual(['from', ['erp_purchase_documents_linked']]);
+    h.calls.length = 0;
+    expect((await erpPurchasesRepository.listOrphans('p1'))[0].name).toBe('PINV-A');
+    expect(h.calls).toContainEqual(['from', ['erp_purchase_orphans']]);
+    h.calls.length = 0;
+    expect((await erpPurchasesRepository.listLinked('pur-1'))[0].name).toBe('PINV-A');
+    expect(h.calls).toContainEqual(['eq', ['procurement_id', 'pur-1']]);
+  });
+
+  it('hasAny is true only when an orphan exists', async () => {
+    h.set({ data: [{ id: 'a' }], error: null });
+    expect(await erpPurchasesRepository.hasAny()).toBe(true);
+    h.set({ data: [], error: null });
+    expect(await erpPurchasesRepository.hasAny()).toBe(false);
+  });
+
+  it('link defaults dryRun to false and passes an explicit true; unlink sends the link id', async () => {
+    h.rpc.mockResolvedValue({ data: { dry_run: false, counts: { link: 1, skip: 0, refused: 0 }, results: [] }, error: null });
+    await erpPurchasesRepository.link([{ erp_name: 'PINV-A' }]);
+    expect(h.rpc).toHaveBeenLastCalledWith('link_erp_purchase_documents', { p_rows: [{ erp_name: 'PINV-A' }], p_dry_run: false });
+    await erpPurchasesRepository.link([{ erp_name: 'PINV-A' }], true);
+    expect(h.rpc).toHaveBeenLastCalledWith('link_erp_purchase_documents', { p_rows: [{ erp_name: 'PINV-A' }], p_dry_run: true });
+    h.rpc.mockResolvedValue({ error: null });
+    await erpPurchasesRepository.unlink('l-1');
+    expect(h.rpc).toHaveBeenLastCalledWith('unlink_erp_purchase_document', { p_link_id: 'l-1' });
+  });
+
+  it('a read error surfaces as an AppError keeping the code', async () => {
+    h.set({ data: null, error: { message: 'denied', code: '42501' } });
+    await expect(erpPurchasesRepository.hasAny()).rejects.toMatchObject({ message: 'denied', code: '42501' });
   });
 });

@@ -151,3 +151,16 @@ export async function unlinkErpPurchaseDocument(linkId: string): Promise<void> {
   const { error } = await supabase.rpc('unlink_erp_purchase_document', { p_link_id: linkId });
   if (error) throw new AppError(error.message, error.code);
 }
+
+// Repository wrapper (ADR-0017 seam) — moved here from the composition root (T-29).
+import { wrap } from './repositoryErrors';
+import type { ErpPurchaseRepository } from './contracts/erpPurchases';
+
+export const erpPurchasesRepository: ErpPurchaseRepository = {
+  list: (projectId) => wrap(() => listErpPurchases(projectId)),
+  listOrphans: (projectId) => wrap(() => listErpOrphans(projectId)),
+  hasAny: () => wrap(() => hasErpPurchases()),
+  listLinked: (procurementId) => wrap(() => listLinkedErpDocuments(procurementId)),
+  link: (rows, dryRun) => wrap(() => linkErpPurchaseDocuments(rows, dryRun ?? false)),
+  unlink: (linkId) => wrap(() => unlinkErpPurchaseDocument(linkId)),
+};
