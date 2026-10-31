@@ -39,6 +39,7 @@ vi.mock('@/src/hooks/useProcurementFiles', () => ({
 import { LinkedDocumentCell } from '@/src/components/m365/LinkedDocumentCell';
 import { LinkedFolderFiles } from '@/src/components/m365/LinkedFolderFiles';
 import { ProcurementFilesSubsection } from '@/pages/procurement/ProcurementFilesSubsection';
+import { LedgerFileCell } from '@/pages/procurement/LedgerFileCell';
 import { useDocumentFiles } from '@/pages/project-detail/tabs/useDocumentFiles';
 import { ReceiptPreviewButton } from './targets/ReceiptPreviewButton';
 
@@ -70,6 +71,13 @@ const surfaces: Surface[] = [
       files={[{ id: 'f1', title: null, file_path: 'org/pr-1/quotation/f1/scan.png', archived_at: null }]} />,
     control: /Preview file scan\.png/i,
   },
+  {
+    name: 'purchase ledger SharePoint file', fileName: 'DN.pdf',
+    ui: <LedgerFileCell type="GR" recordId="gr-1" systemNumber="GR-1" fileHref={SP} fileTitle="DN.pdf" fileCount={1}
+      fileRef={{ id: 'f9', source: 'onedrive', ms_web_url: SP, ms_item_name: 'DN.pdf' }}
+      canWrite={false} procurementId="pr-1" uploadedById={null} />,
+    control: /Open file for GR-1/,
+  },
   { name: 'budget link', fileName: 'Plan.pdf', ui: <LinkedDocumentCell reference={file} owner={{ kind: 'budget', id: 'bl-1' }} />, control: /Preview Plan\.pdf/ },
   {
     name: 'folder child', fileName: 'Spec.pdf',
@@ -84,6 +92,24 @@ const surfaces: Surface[] = [
 ];
 
 beforeEach(() => h.children.mockReset());
+
+describe('document-preview AC-001 the ledger previews a SharePoint-backed attachment through custody', () => {
+  it('addresses the file row, not the receipt, so the server reads the right reference', async () => {
+    const open = vi.fn<DocumentViewerApi['open']>();
+    render(
+      <ToastProvider>
+        <DocumentViewerContext.Provider value={{ open, close: vi.fn() }}>
+          <LedgerFileCell type="GR" recordId="gr-1" systemNumber="GR-1" fileHref={SP} fileTitle="DN.pdf" fileCount={1}
+            fileRef={{ id: 'f9', source: 'onedrive', ms_web_url: SP, ms_item_name: 'DN.pdf' }}
+            canWrite procurementId="pr-1" uploadedById={null} />
+        </DocumentViewerContext.Provider>
+      </ToastProvider>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /Open file for GR-1/ }));
+    expect(open.mock.calls[0][0].key).toMatch(/^ms:procurement_file:receipt:f9/);
+    expect(screen.queryByRole('button', { name: /Attach file/ })).toBeNull();
+  });
+});
 
 describe('document-preview AC-001 every entry point opens the side-panel viewer', () => {
   it.each(surfaces)('$name', async ({ ui, control, fileName, preList }) => {

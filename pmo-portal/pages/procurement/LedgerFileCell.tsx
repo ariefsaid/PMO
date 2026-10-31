@@ -20,14 +20,13 @@
  */
 import React, { useRef } from 'react';
 import { Icon, useToast } from '@/src/components/ui';
-import { getSignedDownloadUrl } from '@/src/lib/db/procurementFiles';
 import { procurementFileTarget } from '@/src/components/documents/targets/procurement';
 import { useViewerOnDemand } from '@/src/components/documents/viewerContext';
 import { useProcurementFiles } from '@/src/hooks/useProcurementFiles';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { FILE_INPUT_ACCEPT } from '@/src/lib/fileConstants';
 import type { ProcPhase } from '@/src/lib/db/procurementFiles';
-import type { RecordType } from '@/src/lib/db/procurementLedger';
+import type { LedgerFileRef, RecordType } from '@/src/lib/db/procurementLedger';
 
 // ---------------------------------------------------------------------------
 // RecordType → ProcPhase mapping
@@ -57,6 +56,8 @@ export interface LedgerFileCellProps {
   fileTitle: string | null;
   /** Count of non-archived files for this record (0 = none). */
   fileCount: number;
+  /** The first file's row id and SharePoint reference (from the same bundle embed). */
+  fileRef?: LedgerFileRef;
   /** Whether write affordances (upload) are shown. UX gate; RLS is authoritative. */
   canWrite: boolean;
   /** The owning procurement id (upload path + query invalidation). */
@@ -79,21 +80,27 @@ interface SingleFileButtonProps {
   recordId: string;
   fileHref: string;
   fileTitle: string;
+  fileRef?: LedgerFileRef;
+  procurementId: string;
+  uploadedById: string | null;
   label: string;
 }
 
 /** Opens the record's file in the side-panel viewer; the viewer signs the URL fresh and reports a failure itself. */
-const SingleFileButton: React.FC<SingleFileButtonProps> = ({ phase, recordId, fileHref, fileTitle, label }) => {
+const SingleFileButton: React.FC<SingleFileButtonProps> = ({ phase, recordId, fileHref, fileTitle, fileRef, procurementId, uploadedById, label }) => {
   const viewer = useViewerOnDemand();
+  const { download } = useProcurementFiles(phase, recordId, procurementId, uploadedById, { list: false });
   return (
     <button
       type="button"
       onClick={(e) => viewer.open(
         procurementFileTarget({
           phase,
-          // The ledger bundle carries only the first file's path and title; the key is per record and phase.
-          file: { id: recordId, title: fileTitle, file_path: fileHref, source: null, ms_web_url: null, ms_item_name: null },
-          getSignedUrl: getSignedDownloadUrl,
+          // The ledger bundle carries only the first file; a SharePoint row is addressed by its own row id.
+          file: fileRef?.source === 'onedrive'
+            ? { id: fileRef.id, title: fileTitle, file_path: null, source: 'onedrive', ms_web_url: fileRef.ms_web_url, ms_item_name: fileRef.ms_item_name }
+            : { id: recordId, title: fileTitle, file_path: fileHref, source: null, ms_web_url: null, ms_item_name: null },
+          getSignedUrl: download,
         }),
         e.currentTarget,
       )}
@@ -187,6 +194,7 @@ export const LedgerFileCell: React.FC<LedgerFileCellProps> = ({
   fileHref,
   fileTitle,
   fileCount,
+  fileRef,
   canWrite,
   procurementId,
   uploadedById,
@@ -215,6 +223,9 @@ export const LedgerFileCell: React.FC<LedgerFileCellProps> = ({
         recordId={recordId}
         fileHref={fileHref}
         fileTitle={fileTitle}
+        fileRef={fileRef}
+        procurementId={procurementId}
+        uploadedById={uploadedById}
         label={`Open file for ${systemNumber ?? type}`}
       />
     );
