@@ -362,7 +362,11 @@ plain super property registered at identify. No amounts, ids, names or free text
 
 ## S6 Demo funnels
 
-_Owned by slice S6 (#1532)._
+`[PMO] Demo · Money path (project → budget → purchase → invoice)` is a funnel over four existing events,
+no new event: `project_detail_opened` → `budget_activated` → `purchase_approved` → `invoice_issued`. It is filtered
+to the event property `demo_audience = prospect` and broken down by `demo_account` (both are super properties
+registered on every event in demo mode, see `AnalyticsProvider.tsx`). Defined in `scripts/posthog/spec/demo.mjs`;
+`node scripts/check-dashboard-tiles.mjs` fails if any of the four events loses its call site.
 
 ## S7 Logs (conditional)
 

@@ -106,7 +106,15 @@ fails if any of the four events loses its call site.
 
 ## S6 Demo funnels
 
-_Owned by slice S6 (#1532)._
+The funnel sits on the existing `[PMO] Demo · Prospect Funnel` dashboard (persona → login → module, unchanged).
+Run the provisioning script as usual; it adds the tile and leaves the other four alone (second run is
+`+0 / =all`).
+
+**Dashboard note (FR-PHO-051).** The funnel shows the furthest step each demo account reaches. A persona whose
+role cannot perform a step (budget activation, purchase approval and invoice approval are role- and
+separation-of-duties-gated, `src/auth/policy.ts`) stops there; no event is invented for a step nobody did. The
+new description is applied when the dashboard is first created. On an environment where the dashboard already
+exists, add the sentence by hand: Dashboards, open the Demo dashboard, Edit, Description.
 
 ## S7 Logs (conditional)
 

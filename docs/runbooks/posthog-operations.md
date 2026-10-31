@@ -84,7 +84,50 @@ _Owned by slice S5._
 
 ## S6 Demo funnels
 
-_Owned by slice S6._
+### Funnel filter shape (S6-T1)
+
+Not read against the live project (no key in a builder's hands). The shape follows PostHog's `FunnelsQuery`
+schema and the shipped builder: `source.properties = [{ type: 'event', key: 'demo_audience', operator: 'exact',
+value: ['prospect'] }]` and `breakdownFilter = { breakdown: 'demo_account', breakdown_type: 'event' }`.
+**Operator check (owner or Director, once, after provisioning):** open the funnel; with a prospect-labelled
+session recorded, the breakdown must list that session's `demo_account` and nothing else. If it is empty or
+unfiltered, the filter belongs elsewhere (cohort or `filterTestAccounts`): change `demo.mjs`, do not guess.
+
+### Heatmap and replay recipe (FR-PHO-052)
+
+No code: `capture_heatmaps` is on for everyone, replay runs for the prospect demo only (`demo_audience = prospect`,
+ADR-0022). Demo screens to review:
+
+1. Projects list
+2. A project's Budget tab
+3. Procurement board
+4. Receivables
+
+For each: open the demo app on that route, open the PostHog toolbar (Toolbar, Heatmaps, set the URL to that
+route), pick Clicks, then Rageclicks. Replays: Session replay, filter `demo_audience = prospect`, watch sessions
+that visited the same route. Heatmaps are not billed against events (`client.ts`, comment at `capture_heatmaps`).
+Heatmaps and replays exist only for demo sessions; do not point the toolbar at a real organisation.
+
+### Role limits (FR-PHO-051)
+
+Budget activation, purchase approval and invoice approval are role- and separation-of-duties-gated
+(`src/auth/policy.ts`; the database is the authority). No single demo persona completes all four steps. The
+funnel therefore reads as "furthest step reached per account"; a drop at a step can be a role limit, not a
+usability problem. Read it with the persona chosen (`Demo personas chosen` tile) before drawing conclusions.
+
+### Quota check (NFR-PHO-QUOTA-001)
+
+Not run by the builder (needs the operator's key). Operator: run `node scripts/posthog/check-quota.mjs` exactly as
+in `docs/analytics-events.md` § Quota safety, and write `recordings` and `events` as a percentage of the allowance
+in the line below. Only `recordings` is at risk from this slice; the funnel adds no events.
+
+- Quota read: not yet run (date, `recordings` %, `events` %).
+
+### AC-PHO-051 (owner verification)
+
+Scripted pass as the demo personas through project, budget, purchase and invoice; open the funnel and record
+the reached steps in the Evidence table above (evidence location in `docs/private/`). Not automatable against a
+third-party SaaS.
 
 ## S7 Logs (conditional)
 
