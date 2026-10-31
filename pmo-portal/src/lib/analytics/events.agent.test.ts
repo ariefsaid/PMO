@@ -66,12 +66,19 @@ describe('agent event builders', () => {
   });
 
   it('AC-APH-016 trackAgent* property keys match FR-declared set: agent_feedback_rated', () => {
-    const built = buildAgentFeedbackRatedEvent('down', 'wrong_tool');
+    const built = buildAgentFeedbackRatedEvent('down', 'wrong_tool', 'run-1');
     expect(built.event).toBe('agent_feedback_rated');
-    expect(Object.keys(built.properties).sort()).toEqual(['downvote_reason', 'rating']);
-    // FR-APH-011: no eventId/run_id property present.
+    expect(Object.keys(built.properties).sort()).toEqual(['$ai_trace_id', 'downvote_reason', 'rating', 'run_id']);
+    // FR-APH-011 (amended by FR-PHO-005): run_id joins the rating to its AI trace; never the event id.
     expect(built.properties).not.toHaveProperty('eventId');
-    expect(built.properties).not.toHaveProperty('run_id');
+  });
+
+  it('AC-PHO-005 feedback carries run_id and the matching $ai_trace_id; thumbs-up has no reason', () => {
+    expect(buildAgentFeedbackRatedEvent('down', 'wrong_answer' as never, 'run-1').properties)
+      .toEqual({ rating: 'down', downvote_reason: 'wrong_answer', run_id: 'run-1', $ai_trace_id: 'run-1' });
+    const up = buildAgentFeedbackRatedEvent('up', undefined, 'run-2');
+    expect(up.properties).toMatchObject({ rating: 'up', run_id: 'run-2', $ai_trace_id: 'run-2' });
+    expect(up.properties.downvote_reason).toBeUndefined();
   });
 
   it('AC-APH-016 trackAgent* property keys match FR-declared set: agent_compose_view_saved', () => {

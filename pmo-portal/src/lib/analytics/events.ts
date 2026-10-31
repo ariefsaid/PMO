@@ -245,8 +245,11 @@ export function buildAgentThreadResumedEvent(
 export function buildAgentFeedbackRatedEvent(
   rating: 'up' | 'down',
   downvoteReason: DownvoteReason | undefined,
+  runId: string,
 ): TrackedEvent {
-  return { event: 'agent_feedback_rated', properties: { rating, downvote_reason: downvoteReason } };
+  // run_id (FR-PHO-005) joins the rating to its AI trace; `$ai_trace_id` is the same uuid under
+  // PostHog's own LLM-analytics key so insights can filter ratings and generations on one property.
+  return { event: 'agent_feedback_rated', properties: { rating, downvote_reason: downvoteReason, run_id: runId, $ai_trace_id: runId } };
 }
 
 export function buildAgentComposeViewSavedEvent(runId: string): TrackedEvent {

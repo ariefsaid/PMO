@@ -77,7 +77,7 @@ export const TranscriptItem: React.FC<TranscriptItemProps> = ({
             <span className="sr-only">Assistant: </span>
             <Markdown text={event.text ?? ''} />
           </div>
-          {onRate && <FeedbackControl eventId={event.id} onRate={onRate} />}
+          {onRate && <FeedbackControl eventId={event.id} runId={event.runId} onRate={onRate} />}
         </div>
       );
 

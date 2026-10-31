@@ -53,7 +53,26 @@ Dashboard fragments live in `scripts/posthog/spec/{ai,jobs,pushes,usage,demo}.mj
 
 ## S1 AI
 
-_Owned by slice S1 (#1532)._
+_Owned by slice S1 (#1532)._ Dashboard **[PMO] AI · Cost & Quality** (`scripts/posthog/spec/ai.mjs`, provisioned by `provision-dashboards.mjs`).
+
+| Tile | Source |
+|---|---|
+| AI cost per org per day / per day (alert source) | `$ai_generation` sum `$ai_total_cost_usd`, breakdown `org_id` |
+| AI cost per user per day (consenting users only) | same, breakdown `user_id` (set only when the user's analytics is on) |
+| AI tokens by model, cost by model, generations by model | `$ai_generation`, breakdown `$ai_model` |
+| AI tool calls / tool errors by tool | `$ai_span` by `$ai_span_name`; errors filter `$ai_is_error = true` |
+| AI slowest tools (p95 seconds) | `$ai_span` p95 of `$ai_latency` |
+| AI runs per day, run errors per day (alert source), errors by code | `$ai_trace` |
+| AI feedback by rating | `agent_feedback_rated` by `rating` |
+| AI online-eval verdicts / failures by name | `ai_eval` by `eval_name`; failures filter `eval_pass = false` |
+
+**Known limitation (thumbs-down rate by model).** A cross-event join of `agent_feedback_rated.run_id` to `$ai_trace_id` is not expressible in a `TrendsQuery`, so ratings and generations-by-model sit side by side. For an ad-hoc join use a SQL insight: `SELECT g.properties.$ai_model, countIf(f.properties.rating = 'down') FROM events g JOIN events f ON f.properties.run_id = g.properties.$ai_trace_id WHERE g.event = '$ai_generation' AND f.event = 'agent_feedback_rated' GROUP BY 1`.
+
+**Owner click-paths (need the owner's PostHog login; not done from code):**
+
+1. **Cost and error alerts.** Open insight "AI cost per day (alert source)" > Alerts > New alert: condition "value above", threshold set after 7 days of data (do not guess a number now), check daily. Repeat on "AI run errors per day (alert source)" (condition above, small threshold, check hourly). Destination per the S2 alert-channel setup.
+2. **PostHog-native judge for the demo org (optional, only where text exists).** LLM analytics > Evaluations > New: type LLM judge, filter `org_id` equals the demo org's id (or event property `$ai_input` is set), run on every generation. Judge provider key: a non-Claude model (owner rule: no Claude via OpenRouter). Real-org traces carry no text, so this evaluator would have nothing to score there: their verdicts come from the in-function `ai_eval` events.
+3. **Replay link.** On a demo-org generation open LLM analytics > the generation; the session link opens the replay when `$session_id` is set (consenting demo sessions).
 
 ## S2 Alerts and source maps
 

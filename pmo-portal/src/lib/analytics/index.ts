@@ -210,9 +210,9 @@ export function trackAgentThreadResumed(
   analyticsClient.capture(built.event, built.properties);
 }
 
-export function trackAgentFeedbackRated(rating: 'up' | 'down', downvoteReason: DownvoteReason | undefined): void {
+export function trackAgentFeedbackRated(rating: 'up' | 'down', downvoteReason: DownvoteReason | undefined, runId: string): void {
   if (!isFeatureEnabled('agentAssistant')) return;
-  const built = buildAgentFeedbackRatedEvent(rating, downvoteReason);
+  const built = buildAgentFeedbackRatedEvent(rating, downvoteReason, runId);
   analyticsClient.capture(built.event, built.properties);
 }
 

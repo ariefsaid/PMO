@@ -24,13 +24,15 @@ const DOWNVOTE_REASONS: { value: DownvoteReason; label: string }[] = [
 
 interface FeedbackControlProps {
   eventId: string;
+  /** The run this response belongs to; joins the rating to its AI trace (FR-PHO-005). */
+  runId: string;
   onRate: (eventId: string, rating: 'up' | 'down', reason?: DownvoteReason) => void;
 }
 
 const thumbButtonClasses =
   'rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring';
 
-export const FeedbackControl: React.FC<FeedbackControlProps> = ({ eventId, onRate }) => {
+export const FeedbackControl: React.FC<FeedbackControlProps> = ({ eventId, runId, onRate }) => {
   const [rating, setRating] = useState<'up' | 'down' | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -38,7 +40,7 @@ export const FeedbackControl: React.FC<FeedbackControlProps> = ({ eventId, onRat
     setRating('up');
     setPickerOpen(false);
     onRate(eventId, 'up', undefined);
-    safeTrack(() => trackAgentFeedbackRated('up', undefined));
+    safeTrack(() => trackAgentFeedbackRated('up', undefined, runId));
   };
 
   const handleDown = () => {
@@ -49,7 +51,7 @@ export const FeedbackControl: React.FC<FeedbackControlProps> = ({ eventId, onRat
   const handleReason = (reason: DownvoteReason) => {
     setPickerOpen(false);
     onRate(eventId, 'down', reason);
-    safeTrack(() => trackAgentFeedbackRated('down', reason));
+    safeTrack(() => trackAgentFeedbackRated('down', reason, runId));
   };
 
   return (

@@ -296,7 +296,25 @@ Server-emitted operational events follow [ADR-0096](adr/0096-server-operational-
 
 ## S1 AI
 
-_Owned by slice S1 (#1532)._
+_Owned by slice S1 (#1532)._ Emitted by `agent-chat` (`agent-chat/aiTelemetry.ts`) and `compose-view`, through `_shared/posthogAi.ts`. Server events, person-less (`$process_person_profile: false`), distinct id `edge:<fn>`.
+
+| Event | Properties (allowlist, `posthogServer.ts`) |
+|---|---|
+| `$ai_generation` | `$ai_trace_id` (= run id), `$ai_session_id` (= thread id), `$ai_span_id`, `$ai_model`, `$ai_provider`, `$ai_input_tokens`, `$ai_output_tokens`, `$ai_total_cost_usd`, `$ai_latency` (seconds), `$ai_is_error`, `$ai_http_status`, `action` (`chat`/`compose`/`automation`), `cached_tokens`, `reasoning_tokens`, `error_code`, `org_id` |
+| `$ai_span` | `$ai_trace_id`, `$ai_span_id`, `$ai_parent_id` (the requesting generation), `$ai_span_name` (tool name), `$ai_latency`, `$ai_is_error`, `org_id` |
+| `$ai_trace` | `$ai_trace_id`, `$ai_session_id`, `$ai_latency`, `$ai_is_error`, `error_code`, `action`, `org_id` |
+| `ai_eval` | `$ai_trace_id`, `$ai_session_id`, `eval_name` (`right_tool`, `answered_question`), `eval_pass`, `judge_model`, `action`, `org_id` |
+| `agent_feedback_rated` (browser) | adds `run_id` and `$ai_trace_id` (same uuid): the rating joins its trace |
+
+**Two privacy tiers, enforced by the emitter allowlist (a key not listed is dropped on the edge and thrown under Vitest):**
+
+1. **Everyone (real orgs, test orgs, unknown):** numbers, booleans and short codes only. Never a prompt, reply, tool argument or result, provider message or title.
+2. **Link keys `$session_id` (browser replay session) and `user_id` (opaque auth uuid):** added only when the user's browser sent the analytics-consent flag (`analytics` on the agent-chat request; present only while analytics is active: not opted out, no Do Not Track). Drives cost per user and replay linking.
+3. **Text keys (`$ai_input`, `$ai_output_choices`, `$ai_input_state`, `$ai_output_state`):** added only when BOTH the org's `organizations.lifecycle_state` is exactly `demo` (read under the caller's JWT; any error, NULL, `live` or `test` means no text) AND the consent flag is present. Truncated to 4000 characters per message; system prompt never included.
+
+**Online evals.** After a run completes, a judge (the deployed non-Claude model; a Claude model id is refused) scores `right_tool` and `answered_question` from the question, tool list and final answer held in memory. Only the two booleans are sent. Sampling: the demo org always; other orgs 1 run in 4, chosen deterministically from the run id. No judge call or lookup happens when no PostHog key is configured.
+
+**Not sent:** the judge's reasoning text, `compose_view` prompt text (numbers only for that function), tool arguments for real orgs.
 
 ## S2 Alerts and source maps
 

@@ -63,6 +63,20 @@ const Privacy: React.FC = () => (
         applies to your live account.
       </p>
       <p className="text-muted-foreground">
+        Separately from browser analytics, our servers send operational telemetry about how the
+        service runs: error codes, job run results, push outcomes to connected accounting systems,
+        and Assistant usage counts (model, tokens, cost, timings, and whether a tool call or an
+        automated quality check passed). It contains no record contents, prompts, replies or names,
+        and is not linked to your account. It is not affected by the analytics opt-out below. When
+        analytics is on for you, the Assistant usage counts are also tagged with your internal
+        account ID so we can see usage per person; turning analytics off removes that tag.
+      </p>
+      <p className="text-muted-foreground">
+        On the public product-demonstration site only, the Assistant&rsquo;s prompts and replies
+        are additionally recorded with the session replay, to review how the Assistant performs on
+        sample data. This never applies to your live account.
+      </p>
+      <p className="text-muted-foreground">
         We honour your browser&rsquo;s Do Not Track setting. You can also opt out here at any time:
       </p>
       <AnalyticsOptOutToggle />
