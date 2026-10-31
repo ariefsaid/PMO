@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(33);   -- finalized in T6.3 (pgTAP fails loudly on a mismatch)
+select plan(60);   -- finalized in T6.3 (pgTAP fails loudly on a mismatch)
 
 -- ── fixture ────────────────────────────────────────────────────────────────────────────────────
 insert into public.organizations (id,name) values
@@ -170,6 +170,109 @@ select throws_ok($$select public.create_native_sales_invoice('04080000-0000-0000
                  '23514', null, 'AC-011 an invalid kind is refused');
 select is((select count(*)::int from public.sales_invoices), (select n from bk_count_before),
           'AC-011 the refused create left no partial invoice');
+reset role;
+
+-- ── T5: contract aggregate + excess contributors (AC-002, AC-003, AC-005, FR-009) ────────────
+insert into public.projects (id,org_id,name,status,currency,contract_value,tax_treatment,tax_amount,tax_rate,
+                             tax_base_numerator,tax_base_denominator,subject_to_vat,customer_contract_ref) values
+ ('04080000-0000-0000-0000-0000000000d5','04080000-0000-0000-0000-000000000001','BK P5','Ongoing Project','USD',1000,'exclusive',0,0,1,1,false,'BK-5'),
+ ('04080000-0000-0000-0000-0000000000d6','04080000-0000-0000-0000-000000000001','BK P6','Ongoing Project','USD',1000,'exclusive',0,0,1,1,false,'BK-6'),
+ ('04080000-0000-0000-0000-0000000000d7','04080000-0000-0000-0000-000000000001','BK P7','Ongoing Project','USD',1000,'exclusive',0,0,1,1,false,'BK-7');
+set local request.jwt.claims = '{}';
+set local role service_role;
+insert into public.budget_category_account_map (org_id,category,erp_account,is_push_target) values
+ ('04080000-0000-0000-0000-000000000001','Labor','ACC-BK-LABOR',true);
+insert into public.erp_actuals_snapshot (org_id,project_id,account,fiscal_year,net,as_of,snapshot_id,created_at) values
+ ('04080000-0000-0000-0000-000000000001','04080000-0000-0000-0000-0000000000d5','ACC-BK-LABOR','FY-2026',200,'2026-10-01','04080000-0000-0000-0000-0000000000b1','2026-10-02');
+reset role;
+insert into public.sales_invoices (id,org_id,project_id,si_number,invoice_date,amount,erp_outstanding_amount,tax_treatment,
+                                   tax_amount,currency,status,erp_docstatus,billing_kind) values
+ ('04080000-0000-0000-0000-0000000000f1','04080000-0000-0000-0000-000000000001','04080000-0000-0000-0000-0000000000d5','SI-BK-C1','2026-02-01',600,100,'exclusive',0,'USD','Unpaid',1,'contract'),
+ ('04080000-0000-0000-0000-0000000000f2','04080000-0000-0000-0000-000000000001','04080000-0000-0000-0000-0000000000d5','SI-BK-O1','2026-02-02',300,0,'exclusive',0,'USD','Paid',1,'other');
+set local role authenticated;
+set local request.jwt.claims='{"sub":"04080000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((public.get_project_finances('04080000-0000-0000-0000-0000000000d5')->>'contract_invoiced')::numeric, 600::numeric, 'AC-002 contract invoiced counts only Contract billing');
+select is((public.get_project_finances('04080000-0000-0000-0000-0000000000d5')->>'remaining_to_invoice')::numeric, 400::numeric, 'AC-002 remaining is contract value minus contract billing');
+select is((select (b->>'invoiced')::numeric from jsonb_array_elements(public.get_project_finances('04080000-0000-0000-0000-0000000000d5')->'invoices') b where b->>'currency'='USD'),
+          900::numeric, 'AC-002 total invoiced retains both kinds');
+select is((select (b->>'work_revenue')::numeric from jsonb_array_elements(public.get_project_finances('04080000-0000-0000-0000-0000000000d5')->'invoices') b where b->>'currency'='USD'),
+          900::numeric, 'AC-002 billed-work revenue retains both kinds');
+select is((public.get_project_finances('04080000-0000-0000-0000-0000000000d5')->'actuals'->>'total')::numeric, 200::numeric, 'AC-002 complete same-currency cost is 200, so margin inputs give 900 - 200 = 700');
+select is((select (b->>'outstanding')::numeric from jsonb_array_elements(public.get_project_finances('04080000-0000-0000-0000-0000000000d5')->'invoices') b where b->>'currency'='USD'),
+          100::numeric, 'AC-002 outstanding retains both kinds');
+select is((select (b->>'settled')::numeric from jsonb_array_elements(public.get_project_finances('04080000-0000-0000-0000-0000000000d5')->'invoices') b where b->>'currency'='USD'),
+          800::numeric, 'AC-002 settlement retains both kinds (500 + 300)');
+select is(public.get_project_finances('04080000-0000-0000-0000-0000000000d5')->'contract_excess', 'null'::jsonb, 'AC-002 no excess while contract billing is within the contract');
+reset role;
+
+-- AC-003: only Other billing, plus draft/cancelled rows of either kind, on P2
+insert into public.sales_invoices (id,org_id,project_id,si_number,invoice_date,amount,erp_outstanding_amount,tax_treatment,
+                                   tax_amount,currency,status,erp_docstatus,billing_kind) values
+ ('04080000-0000-0000-0000-0000000000f3','04080000-0000-0000-0000-000000000001','04080000-0000-0000-0000-0000000000d2','SI-BK-O2','2026-02-03',300,0,'exclusive',0,'USD','Paid',1,'other'),
+ ('04080000-0000-0000-0000-0000000000f4','04080000-0000-0000-0000-000000000001','04080000-0000-0000-0000-0000000000d2','SI-BK-D1','2026-02-04',500,500,'exclusive',0,'USD','Draft',0,'contract'),
+ ('04080000-0000-0000-0000-0000000000f5','04080000-0000-0000-0000-000000000001','04080000-0000-0000-0000-0000000000d2','SI-BK-X1','2026-02-05',200,0,'exclusive',0,'USD','Cancelled',2,'other');
+set local role authenticated;
+set local request.jwt.claims='{"sub":"04080000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((public.get_project_finances('04080000-0000-0000-0000-0000000000d2')->>'contract_invoiced')::numeric, 0::numeric,
+          'AC-003 Other billing and draft/cancelled rows never consume the contract');
+select is((public.get_project_finances('04080000-0000-0000-0000-0000000000d2')->>'remaining_to_invoice')::numeric, 1000::numeric,
+          'AC-003 zero eligible contract billing gives the full contract value as remaining');
+reset role;
+insert into public.sales_invoices (id,org_id,project_id,si_number,invoice_date,amount,erp_outstanding_amount,tax_treatment,
+                                   tax_amount,currency,status,erp_docstatus,billing_kind) values
+ ('04080000-0000-0000-0000-0000000000f6','04080000-0000-0000-0000-000000000001','04080000-0000-0000-0000-0000000000d6','SI-BK-C2','2026-02-06',1000,1000,'exclusive',0,'USD','Unpaid',1,'contract');
+set local role authenticated;
+set local request.jwt.claims='{"sub":"04080000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((public.get_project_finances('04080000-0000-0000-0000-0000000000d6')->>'contract_invoiced')::numeric, 1000::numeric, 'AC-003 contract billing equal to the contract is fully invoiced');
+select is((public.get_project_finances('04080000-0000-0000-0000-0000000000d6')->>'remaining_to_invoice')::numeric, 0::numeric, 'AC-003 exact equality gives remaining zero');
+select is(public.get_project_finances('04080000-0000-0000-0000-0000000000d6')->'contract_excess', 'null'::jsonb, 'AC-003 exact equality is not an excess');
+reset role;
+
+-- AC-005: tax-basis normalization + incomparable rows, on P3
+insert into public.sales_invoices (id,org_id,project_id,si_number,invoice_date,amount,erp_outstanding_amount,tax_treatment,
+                                   tax_amount,currency,status,erp_docstatus,billing_kind) values
+ ('04080000-0000-0000-0000-0000000000f7','04080000-0000-0000-0000-000000000001','04080000-0000-0000-0000-0000000000d3','SI-BK-C3','2026-02-07',1100,1100,'inclusive',100,'USD','Unpaid',1,'contract'),
+ ('04080000-0000-0000-0000-0000000000f8','04080000-0000-0000-0000-000000000001','04080000-0000-0000-0000-0000000000d3','SI-BK-O3','2026-02-08',50,50,'inclusive',0,'EUR','Unpaid',1,'other');
+set local role authenticated;
+set local request.jwt.claims='{"sub":"04080000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((public.get_project_finances('04080000-0000-0000-0000-0000000000d3')->>'contract_invoiced')::numeric, 1000::numeric,
+          'AC-005 a known contract row normalizes onto the recorded contract basis');
+select is((public.get_project_finances('04080000-0000-0000-0000-0000000000d3')->>'remaining_to_invoice')::numeric, 0::numeric,
+          'AC-005 Other billing in another currency does not affect the contract comparison');
+select is((select (b->>'invoiced')::numeric from jsonb_array_elements(public.get_project_finances('04080000-0000-0000-0000-0000000000d3')->'invoices') b where b->>'currency'='EUR'),
+          50::numeric, 'AC-005 Other billing stays in its own revenue bucket');
+reset role;
+update public.sales_invoices set currency='EUR' where id='04080000-0000-0000-0000-0000000000f7';
+set local role authenticated;
+set local request.jwt.claims='{"sub":"04080000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(public.get_project_finances('04080000-0000-0000-0000-0000000000d3')->'contract_invoiced', 'null'::jsonb, 'AC-005 an incomparable Contract row makes contract billing unavailable');
+select is(public.get_project_finances('04080000-0000-0000-0000-0000000000d3')->'remaining_to_invoice', 'null'::jsonb, 'AC-005 an incomparable Contract row makes remaining unavailable');
+select is(public.get_project_finances('04080000-0000-0000-0000-0000000000d3')->'contract_excess', 'null'::jsonb, 'AC-005 an incomparable Contract row invents no excess');
+reset role;
+
+-- FR-009: excess contributors on P7 (contract 1000; contract 700 + 400; other 250; draft and cancelled contract 90)
+insert into public.sales_invoices (id,org_id,project_id,si_number,invoice_date,amount,erp_outstanding_amount,tax_treatment,
+                                   tax_amount,currency,status,erp_docstatus,billing_kind) values
+ ('04080000-0000-0000-0000-0000000000f9','04080000-0000-0000-0000-000000000001','04080000-0000-0000-0000-0000000000d7','SI-BK-E1','2026-03-03',700,700,'exclusive',0,'USD','Unpaid',1,'contract'),
+ ('04080000-0000-0000-0000-0000000000fa','04080000-0000-0000-0000-000000000001','04080000-0000-0000-0000-0000000000d7','SI-BK-E2','2026-03-01',400,0,'exclusive',0,'USD','Paid',1,'contract'),
+ ('04080000-0000-0000-0000-0000000000fb','04080000-0000-0000-0000-000000000001','04080000-0000-0000-0000-0000000000d7','SI-BK-E3','2026-03-02',250,250,'exclusive',0,'USD','Unpaid',1,'other'),
+ ('04080000-0000-0000-0000-0000000000fc','04080000-0000-0000-0000-000000000001','04080000-0000-0000-0000-0000000000d7','SI-BK-E4','2026-03-04',90,90,'exclusive',0,'USD','Draft',0,'contract'),
+ ('04080000-0000-0000-0000-0000000000fd','04080000-0000-0000-0000-000000000001','04080000-0000-0000-0000-0000000000d7','SI-BK-E5','2026-03-05',90,0,'exclusive',0,'USD','Cancelled',2,'contract');
+set local role authenticated;
+set local request.jwt.claims='{"sub":"04080000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((public.get_project_finances('04080000-0000-0000-0000-0000000000d7')->>'remaining_to_invoice')::numeric, -100::numeric, 'FR-009 remaining is negative internally when contract billing exceeds the contract');
+select is((public.get_project_finances('04080000-0000-0000-0000-0000000000d7')->'contract_excess'->>'amount')::numeric, 100::numeric, 'FR-009 the exact excess is reported');
+select is((public.get_project_finances('04080000-0000-0000-0000-0000000000d7')->'contract_excess'->>'contract_billing')::numeric, 1100::numeric, 'FR-009 the contract billing total is reported');
+select is(jsonb_array_length(public.get_project_finances('04080000-0000-0000-0000-0000000000d7')->'contract_excess'->'contributors'), 2, 'FR-009 every contributing Contract invoice is listed, and only those');
+select is((select jsonb_agg(c->>'invoice_id' order by c->>'invoice_id') from jsonb_array_elements(public.get_project_finances('04080000-0000-0000-0000-0000000000d7')->'contract_excess'->'contributors') c),
+          jsonb_build_array('04080000-0000-0000-0000-0000000000f9','04080000-0000-0000-0000-0000000000fa'),
+          'FR-009 Other, draft and cancelled invoices are absent from the contributors');
+select is((select sum((c->>'contribution')::numeric) from jsonb_array_elements(public.get_project_finances('04080000-0000-0000-0000-0000000000d7')->'contract_excess'->'contributors') c),
+          1100::numeric, 'FR-009 the contributors reconcile to the contract billing');
+select is(public.get_project_finances('04080000-0000-0000-0000-0000000000d7')->'contract_excess'->'contributors'->0->>'invoice_id', '04080000-0000-0000-0000-0000000000f9',
+          'FR-009 contributors are ordered by invoice date, newest first');
+select is(public.get_project_finances('04080000-0000-0000-0000-0000000000d7')->'contract_excess'->'contributors'->0->>'invoice_number', 'SI-BK-E1',
+          'FR-009 an adopted invoice is identified by its ERP number');
 reset role;
 select * from finish();
 rollback;
