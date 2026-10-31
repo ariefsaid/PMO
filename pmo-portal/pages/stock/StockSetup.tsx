@@ -2,10 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ListPage, ListState, DataTable, StatusPill, ConfirmDialog, EntityFormModal, TextField, TextArea, SelectField, FormGrid,
-  Checkbox, Drawer, Tabs, Button, Icon, useEntityForm, useToast,
+  Checkbox, Drawer, Tabs, Button, Icon, useEntityForm, useToast, tabId, tabPanelId,
   type Column, type RowMenuItem, type SubmitError,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useProjectIdentity } from '@/src/hooks/useProjects';
 import {
   useStockUnits, useStockItems, useStockWarehouses, useStockKeepers, useStockKeeperCandidates, useStockMasterMutations,
@@ -35,6 +36,9 @@ function useErrorCopy() {
 const StockSetup: React.FC = () => {
   const { t } = useTranslation('stock');
   const may = usePermission();
+  const { realRole, effectiveRole } = useEffectiveRole();
+  // View-as shares the real login, so the server cannot tell it apart: the page must keep it read-only (FR-STK-064).
+  const ctx = { record: { viewOnly: realRole !== effectiveRole } };
   const { toast } = useToast();
   const errorCopy = useErrorCopy();
   const [tab, setTab] = useState<Tab>('units');
@@ -52,10 +56,10 @@ const StockSetup: React.FC = () => {
   const projects = useProjectIdentity();
   const m = useStockMasterMutations();
 
-  const canCreate = may('create', ENTITY[tab]);
-  const canEdit = may('edit', ENTITY[tab]);
-  const canArchive = may('archive', ENTITY[tab]);
-  const canKeepers = may('manage', 'warehouse');
+  const canCreate = may('create', ENTITY[tab], ctx);
+  const canEdit = may('edit', ENTITY[tab], ctx);
+  const canArchive = may('archive', ENTITY[tab], ctx);
+  const canKeepers = may('manage', 'warehouse', ctx);
 
   const unitName = useMemo(() => new Map((allUnits.data ?? []).map((u) => [u.id, u.name])), [allUnits.data]);
   const projectName = useMemo(() => new Map((projects.data ?? []).map((p) => [p.id, p.name])), [projects.data]);
@@ -64,7 +68,9 @@ const StockSetup: React.FC = () => {
 
   const query = tab === 'units' ? units : tab === 'items' ? items : warehouses;
   const rows = (query.data ?? []) as Array<StockUnitRow | StockItemRow | StockWarehouseRow>;
-  const state: 'loading' | 'empty' | 'error' | undefined = query.isPending ? 'loading' : query.isError ? 'error' : rows.length === 0 ? 'empty' : undefined;
+  // A tab's cells read lookups too (unit names, keepers, people, projects): any failed lookup is an error, never a blank or a zero.
+  const needed = tab === 'items' ? [query, allUnits] : tab === 'warehouses' ? [query, keepers, people, projects] : [query];
+  const state: 'loading' | 'empty' | 'error' | undefined = needed.some((q) => q.isError) ? 'error' : needed.some((q) => q.isPending) ? 'loading' : rows.length === 0 ? 'empty' : undefined;
 
   const archivedPill = (r: { archived_at: string | null }) =>
     r.archived_at ? <StatusPill variant="neutral">{t('setup.archivedBadge')}</StatusPill> : null;
@@ -163,13 +169,13 @@ const StockSetup: React.FC = () => {
           { value: 'warehouses', label: t('setup.tabs.warehouses') },
         ]}
       />
-      {!may('create', ENTITY[tab]) && state === undefined && (
+      {!canCreate && state === undefined && (
         <p className="mt-3 text-sm text-muted-foreground">{t('setup.states.readOnlyHint')}</p>
       )}
-      <div className="mt-3">
+      <div className="mt-3" role="tabpanel" id={tabPanelId('stock-setup', tab)} aria-labelledby={tabId('stock-setup', tab)}>
         {state === 'loading' && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={6} /></div>}
         {state === 'error' && (
-          <ListState variant="error" title={t('setup.states.errorTitle')} sub={t('setup.states.errorSub')} retryLabel={t('setup.actions.retry')} onRetry={() => void query.refetch()} />
+          <ListState variant="error" title={t('setup.states.errorTitle')} sub={t('setup.states.errorSub')} retryLabel={t('setup.actions.retry')} onRetry={() => needed.filter((q) => q.isError).forEach((q) => void q.refetch())} />
         )}
         {state === 'empty' && (
           <ListState

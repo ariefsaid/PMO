@@ -7,6 +7,7 @@ import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import i18next from 'i18next';
 import stockEn from '@/public/locales/en/stock.json';
 
@@ -23,7 +24,8 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master }, pr
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 
 let realRole: Role = 'Admin';
-vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole, effectiveRole: realRole }) }));
+let effectiveRole: Role = 'Admin';
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole, effectiveRole }) }));
 
 import StockSetup from './StockSetup';
 
@@ -35,8 +37,9 @@ const members = [
   { id: 'p2', full_name: 'Bima Gone', status: 'disabled' },
 ];
 
-const renderPage = (role: Role = 'Admin') => {
+const renderPage = (role: Role = 'Admin', viewingAs: Role = role) => {
   realRole = role;
+  effectiveRole = viewingAs;
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
@@ -97,6 +100,21 @@ describe('StockSetup screen states (AC-STK-032)', () => {
   });
 });
 
+describe('StockSetup tabs a11y', () => {
+  it('AC-STK-032 each tab points at a real tabpanel labelled by it (axe aria-valid-attr-value)', async () => {
+    renderPage();
+    await screen.findByText('Bag');
+    const tab = screen.getByRole('tab', { name: 'Units' });
+    const panel = document.getElementById(tab.getAttribute('aria-controls') ?? '');
+    expect(panel).not.toBeNull();
+    expect(panel).toHaveAttribute('role', 'tabpanel');
+    expect(panel).toHaveAttribute('aria-labelledby', tab.id);
+    await userEvent.click(screen.getByRole('tab', { name: 'Items' }));
+    await screen.findByText('Cement 50kg');
+    expect(document.getElementById('stock-setup-tabpanel-items')).not.toBeNull();
+  });
+});
+
 describe('StockSetup permissions (AC-STK-033)', () => {
   it('AC-STK-033 an Engineer sees the data but no Add / Edit affordance', async () => {
     renderPage('Engineer');
@@ -115,6 +133,36 @@ describe('StockSetup permissions (AC-STK-033)', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Warehouses' }));
     await screen.findByText('Central store');
     expect(screen.queryByRole('button', { name: /^Keepers/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('StockSetup view-as and failed loads', () => {
+  it('FR-STK-064 a view-as session is read-only: no add, no row actions, no keepers button', async () => {
+    renderPage('Admin', 'Engineer');
+    await screen.findByText('Bag');
+    expect(screen.queryByRole('button', { name: 'New unit' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /row actions/i })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: 'Warehouses' }));
+    await screen.findByText('Central store');
+    expect(screen.queryByRole('button', { name: /^Keepers/ })).not.toBeInTheDocument();
+  });
+
+  it('AC-STK-032 a failed keeper list is an error with retry, never "Keepers 0"', async () => {
+    master.listKeepers.mockRejectedValueOnce(new AppError('boom'));
+    renderPage('Admin');
+    await userEvent.click(await screen.findByRole('tab', { name: 'Warehouses' }));
+    expect(await screen.findByText("Couldn't load stock setup")).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Keepers/ })).not.toBeInTheDocument();
+    master.listKeepers.mockResolvedValue([]);
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(await screen.findByRole('button', { name: /^Keepers/ })).toBeInTheDocument();
+  });
+
+  it('AC-STK-032 a failed unit lookup on the Items tab is an error, never a blank unit', async () => {
+    master.listUnits.mockRejectedValue(new AppError('boom'));
+    renderPage('Project Manager');
+    await userEvent.click(await screen.findByRole('tab', { name: 'Items' }));
+    expect(await screen.findByText("Couldn't load stock setup")).toBeInTheDocument();
   });
 });
 
@@ -139,6 +187,19 @@ describe('StockSetup writes', () => {
     await userEvent.type(within(dialog).getByLabelText(/^Name/), 'Kilogram');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Create unit' }));
     expect(await within(dialog).findByText('Some of the details are not valid.')).toBeInTheDocument();
+  });
+
+  it('FR-STK-080 a non-stock failure falls back to the shared classifier copy', async () => {
+    const err = new AppError('permission denied for table stock_units', '42501');
+    master.createUnit.mockRejectedValueOnce(err);
+    renderPage('Project Manager');
+    await userEvent.click(await screen.findByRole('button', { name: 'New unit' }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText(/^Code/), 'kg');
+    await userEvent.type(within(dialog).getByLabelText(/^Name/), 'Kilogram');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create unit' }));
+    const { detail } = classifyMutationError(err);
+    expect(await within(dialog).findByText(detail)).toBeInTheDocument();
   });
 
   it('FR-STK-004 the keepers panel is Admin only and toggling calls setKeeper', async () => {
