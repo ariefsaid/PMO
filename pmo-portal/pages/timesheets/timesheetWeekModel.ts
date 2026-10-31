@@ -1,4 +1,5 @@
-import { format, startOfWeek } from 'date-fns';
+import { format } from 'date-fns/format';
+import { startOfWeek } from 'date-fns/startOfWeek';
 import type { TimesheetDay, TimesheetGridRow } from '@/src/components/ui';
 import type { TimesheetEntryWithProject } from '@/src/lib/db/timesheets';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';

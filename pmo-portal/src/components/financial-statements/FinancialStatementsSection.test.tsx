@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import i18next from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { axe } from 'jest-axe';
+import 'jest-axe/extend-expect'; // global registration moved out of test/setup.ts (unit-speed #1584)
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
