@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { SPEC } from '../../../../scripts/posthog/dashboardSpec.mjs';
 
-type Insight = { name: string; query: { source: any } };
+type Insight = { name: string; query: { source: { kind: string; series: { event: string }[]; properties: unknown; breakdownFilter: unknown } } };
 type Entry = { dashboard: string; insights: Insight[] };
 const spec = SPEC as Entry[];
 
