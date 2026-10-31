@@ -64,7 +64,7 @@ The judge runs inside `agent-chat` after the run completes, using the deployed (
 
 ### How the build behaves
 
-`npm run build` runs `postbuild` (`scripts/upload-sourcemaps.mjs`). Only a Cloudflare Pages **production** build is a deploy build: it writes hidden maps, injects, uploads, then deletes every `.map` from `dist`. Any other build (CI `verify`, forks, local) prints `sourcemaps skipped: not a deploy build` and exits 0. A deploy build with a missing credential, no maps, or a failed upload **fails the build**.
+`npm run build` runs `postbuild` (`scripts/upload-sourcemaps.mjs`). Only a Cloudflare Pages **production** build is a deploy build: it writes hidden maps, injects, uploads, then deletes every `.map` from `dist`. Any other build (CI `verify`, forks, local) prints `sourcemaps skipped: not a deploy build` and exits 0. A deploy build never fails on this step: a missing credential, no maps, or a failed inject or upload logs `sourcemaps WARNING: <reason>`, exits 0, and every `.map` is still deleted, so no map is served.
 
 ### Owner steps (PostHog / Cloudflare accounts; nothing is stored in the repo)
 
@@ -82,7 +82,7 @@ In a scratch checkout: `CF_PAGES=1 CF_PAGES_BRANCH=production CF_PAGES_COMMIT_SH
 No non-production deploy has source maps (Cloudflare previews are off). In a scratch checkout:
 
 1. Add an uncommitted `throw new Error('fire-drill')` in a real route component's render path (a console-thrown error has no app frames and proves nothing).
-2. Build with the rehearsal environment above and `CF_PAGES_COMMIT_SHA=fire-drill-<date>` style sha (any 7+ chars).
+2. Build with the rehearsal environment above and `CF_PAGES_COMMIT_SHA=fire-drill-<date>` style sha (any 7+ chars). Check the build log: no `sourcemaps WARNING` line, and `uploaded N maps`.
 3. `npx vite preview`, load the route.
 4. Confirm in PostHog: (a) the issue shows original file names and lines, (b) the alert arrived on the chosen channel.
 5. Discard the checkout, resolve the drill issue, fill the AC-PHO-010 row of the Evidence table (evidence path in `docs/private/`).

@@ -30,17 +30,62 @@ describe('AC-PHO-011 upload step', () => {
     expect(calls[1]).toEqual(expect.arrayContaining(['--release-version', 'abcdef1']));
     expect(existsSync(join(d, 'assets/a.js.map'))).toBe(false);
   });
-  it('a failed upload returns non-zero, keeps nothing claimed', async () => {
+  const mapGone = (d: string) => !existsSync(join(d, 'assets/a.js.map'));
+  const warn = (logs: string[]) => expect(logs.join('\n')).toMatch(/sourcemaps WARNING: /);
+
+  it('a failed upload warns, returns 0 and serves no maps', async () => {
     const d = dist();
     const logs: string[] = [];
     const code = await runSourcemapStep({ env: { ...DEPLOY_WITH_CRED }, distDir: d, run: async () => 1, log: (m: string) => logs.push(m) });
-    expect(code).not.toBe(0);
+    expect(code).toBe(0);
+    warn(logs);
     expect(logs.join('\n')).not.toMatch(/uploaded/);
+    expect(mapGone(d)).toBe(true);
   });
-  it('deploy build without credential exits non-zero; fork/CI build exits 0 with a visible message', async () => {
+  it('a failed inject warns, returns 0 and serves no maps', async () => {
+    const d = dist();
     const logs: string[] = [];
-    expect(await runSourcemapStep({ env: { CF_PAGES: '1', CF_PAGES_BRANCH: 'production' }, distDir: dist(), run: async () => 0, log: (m: string) => logs.push(m) })).not.toBe(0);
-    expect(await runSourcemapStep({ env: {}, distDir: dist(), run: async () => 0, log: (m: string) => logs.push(m) })).toBe(0);
+    const code = await runSourcemapStep({ env: { ...DEPLOY_WITH_CRED }, distDir: d, run: async (a: string[]) => (a[1] === 'inject' ? 1 : 0), log: (m: string) => logs.push(m) });
+    expect(code).toBe(0);
+    warn(logs);
+    expect(mapGone(d)).toBe(true);
+  });
+  it('a CLI that throws warns, returns 0 and serves no maps', async () => {
+    const d = dist();
+    const logs: string[] = [];
+    const code = await runSourcemapStep({ env: { ...DEPLOY_WITH_CRED }, distDir: d, run: async () => { throw new Error('spawn'); }, log: (m: string) => logs.push(m) });
+    expect(code).toBe(0);
+    warn(logs);
+    expect(mapGone(d)).toBe(true);
+  });
+  it('deploy build without credential warns, returns 0 and serves no maps', async () => {
+    const d = dist();
+    const logs: string[] = [];
+    const code = await runSourcemapStep({ env: { CF_PAGES: '1', CF_PAGES_BRANCH: 'production', CF_PAGES_COMMIT_SHA: 'abcdef1234567890' }, distDir: d, run: async () => 0, log: (m: string) => logs.push(m) });
+    expect(code).toBe(0);
+    warn(logs);
+    expect(mapGone(d)).toBe(true);
+  });
+  it('deploy build with missing sha warns, returns 0 and serves no maps', async () => {
+    const d = dist();
+    const logs: string[] = [];
+    const { CF_PAGES_COMMIT_SHA: _sha, ...env } = DEPLOY_WITH_CRED;
+    const code = await runSourcemapStep({ env, distDir: d, run: async () => 0, log: (m: string) => logs.push(m) });
+    expect(code).toBe(0);
+    warn(logs);
+    expect(mapGone(d)).toBe(true);
+  });
+  it('deploy build with no maps warns and returns 0', async () => {
+    const d = mkdtempSync(join(tmpdir(), 'dist-'));
+    const logs: string[] = [];
+    expect(await runSourcemapStep({ env: { ...DEPLOY_WITH_CRED }, distDir: d, run: async () => 0, log: (m: string) => logs.push(m) })).toBe(0);
+    warn(logs);
+  });
+  it('non-deploy build exits 0 with a visible message and keeps its maps', async () => {
+    const d = dist();
+    const logs: string[] = [];
+    expect(await runSourcemapStep({ env: {}, distDir: d, run: async () => 0, log: (m: string) => logs.push(m) })).toBe(0);
     expect(logs.join('\n')).toMatch(/skipped: not a deploy build/);
+    expect(mapGone(d)).toBe(false);
   });
 });

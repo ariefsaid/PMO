@@ -10,14 +10,14 @@ describe('AC-PHO-011 source-map policy', () => {
     expect(isDeployBuild({})).toBe(false);
     expect(isDeployBuild({ CF_PAGES: '1', CF_PAGES_BRANCH: 'dev' })).toBe(false);
   });
-  it('deploy build without the upload credential FAILS', () => {
+  it('deploy build without the upload credential is planned as fail (the step downgrades it to a warning)', () => {
     expect(planSourcemapUpload(deploy, ['a.js.map'])).toMatchObject({ action: 'fail' });
     expect(planSourcemapUpload({ ...deploy, POSTHOG_CLI_API_KEY: 'k' }, ['a.js.map'])).toMatchObject({ action: 'fail' });
   });
   it('non-deploy build SKIPS visibly, never fails', () => {
     expect(planSourcemapUpload({}, [])).toEqual({ action: 'skip', reason: expect.stringContaining('not a deploy build') });
   });
-  it('deploy build with credential but no maps FAILS', () => {
+  it('deploy build with credential but no maps is planned as fail', () => {
     expect(planSourcemapUpload({ ...deploy, ...CRED }, [])).toMatchObject({ action: 'fail' });
   });
   it('deploy build with credential and maps UPLOADS', () => {
