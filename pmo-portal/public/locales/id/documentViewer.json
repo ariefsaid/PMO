@@ -1,0 +1,32 @@
+{
+  "viewer": {
+    "loading": "Memuat pratinjau…",
+    "retry": "Coba lagi",
+    "retryIn": "Coba lagi dalam {{seconds}} dtk",
+    "download": "Unduh",
+    "downloadFailed": "Berkas tidak dapat diunduh.",
+    "openInSource": "Buka di {{place}}",
+    "latestNotice": "Versi terbaru di {{place}}. Ini bukan versi yang disetujui.",
+    "officeBlankHint": "Jika pratinjau tetap kosong, unduh berkasnya.",
+    "openIntegrations": "Buka Integrasi Saya",
+    "sourceLabel": "Sumber: {{place}}"
+  },
+  "failure": {
+    "accessDenied": "Akun Microsoft Anda tidak dapat membuka berkas ini. Minta akses kepada pemiliknya, atau buka di {{place}}.",
+    "notConnected": "Hubungkan akun Microsoft Anda untuk melihat pratinjau berkas ini.",
+    "consentNeeded": "Hubungkan ulang akun Microsoft Anda untuk melihat pratinjau berkas ini.",
+    "notFound": "Berkas ini tidak tersedia. Mungkin sudah dipindahkan atau dihapus.",
+    "unsupported": "Pratinjau tidak tersedia untuk jenis berkas ini.",
+    "unavailable": "Pratinjau tidak dapat dimuat. Coba lagi.",
+    "noFile": "Tidak ada berkas yang dilampirkan.",
+    "rateLimited": "Microsoft sedang sibuk. Coba lagi sebentar lagi."
+  },
+  "upload": {
+    "folderUnavailable": "Catatan ini belum memiliki folder SharePoint. Buat folder, lalu unggah lagi. Tidak ada yang disimpan.",
+    "connectionNeeded": "Hubungkan akun Microsoft Anda, lalu unggah lagi. Tidak ada yang disimpan.",
+    "consentNeeded": "Mengunggah ke SharePoint memerlukan satu izin tambahan dari Microsoft. Hubungkan ulang, lalu unggah lagi. Tidak ada yang disimpan.",
+    "accessDenied": "Microsoft menolak unggahan. Periksa akses Anda ke folder catatan. Tidak ada yang disimpan.",
+    "unavailable": "Microsoft tidak dapat menyimpan berkas. Coba lagi. Tidak ada yang disimpan.",
+    "linkLater": "Berkas sudah ada di SharePoint tetapi tidak dapat dilampirkan di sini. Tautkan dari pemilih Microsoft."
+  }
+}

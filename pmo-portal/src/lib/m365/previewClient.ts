@@ -11,6 +11,9 @@ export type { PreviewDocumentRequest } from '../../../../supabase/functions/_sha
 
 const FUNCTION_NAME = 'm365-token-custody';
 
+/** The typed identity a caller names; `Omit` over the union would collapse it, so the action is dropped per member. */
+export type PreviewRequestInput = PreviewDocumentRequest extends infer R ? (R extends unknown ? Omit<R, 'action'> : never) : never;
+
 /** The wire error code of a failed invoke, plus Microsoft's throttling hint when the server sent one. */
 export async function parseInvokeFailure(error: unknown): Promise<{ code?: string; retryAfter?: number }> {
   const context = (error as { context?: Response } | null)?.context;
@@ -45,7 +48,7 @@ const KIND_BY_CODE: Record<string, PreviewFailureKind> = {
  * straight to the viewer's state and never written to a cache, log or storage (NFR-002).
  */
 export async function previewMicrosoftDocument(
-  request: Omit<PreviewDocumentRequest, 'action'>,
+  request: PreviewRequestInput,
   signal?: AbortSignal,
 ): Promise<PreviewResult> {
   const { data, error } = await invokeWithTimeout(

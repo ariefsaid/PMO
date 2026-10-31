@@ -36,10 +36,10 @@ export interface DocumentViewTarget {
   load: (signal: AbortSignal) => Promise<PreviewResult>;
   /** Authorized download of the original, independent of preview (FR-010). Rejects with the reason on a denial. */
   download?: () => Promise<void>;
-  /** Validated https URL; the label is the source-appropriate "Open in SharePoint". */
-  openInSource?: { url: string; label: string };
-  /** FR-012: e.g. "Latest in SharePoint. This is not the approved version." */
-  notice?: string;
+  /** Validated https URL; the panel words the action from `sourceLabel` ("Open in SharePoint"). */
+  openInSource?: { url: string };
+  /** FR-012: the preview shows the latest source bytes, never the issued or approved version. */
+  latestNotice?: boolean;
   /** Existing recovery / drift UI rendered under the preview (project controlled files). */
   extra?: ReactNode;
 }
