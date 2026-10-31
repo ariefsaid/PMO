@@ -33,7 +33,7 @@ const ALLOWED: Record<string, number> = {
   'pmo-portal/src/components/integrations/IntegrationsView.tsx': 14,
   'pmo-portal/src/hooks/useErpItemOptions.ts': 1,
   'pmo-portal/src/hooks/useExpensePostingReadiness.ts': 1,
-  'pmo-portal/src/lib/repositories/index.ts': 2,
+  'pmo-portal/src/lib/repositories/integrations.ts': 2,
   'pmo-portal/src/lib/adapterSeam/dispatch.ts': 1,
   'supabase/functions/external-unlink/index.ts': 2,
   'supabase/functions/external-invoice-evidence/index.ts': 1,
