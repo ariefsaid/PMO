@@ -342,7 +342,23 @@ _Owned by slice S4 (#1532)._
 
 ## S5 Business events
 
-_Owned by slice S5 (#1532)._
+Four browser events record **observed use** (FR-PHO-040..045): best effort, never a record, and nothing
+commercial reads from them. They go through the consent-gated browser facade, so an opted-out user or an
+ad blocker sends nothing (AC-PHO-042). Properties are `module` and `role` only; `org_id` rides along as the
+plain super property registered at identify. No amounts, ids, names or free text; no Group Analytics.
+
+| Event | Fires when | `module` | Boundary hook |
+|---|---|---|---|
+| `budget_activated` | a budget version is activated | `budget` | `useBudgetMutations().activate` `onSuccess` |
+| `invoice_issued` | a sales invoice is submitted (ERP submit or native approve); a draft is not counted | `revenue` | `useRevenueMutations().submitInvoice` `onSuccess` |
+| `payment_recorded` | an incoming payment is saved | `revenue` | `useRevenueMutations().createPayment` `onSuccess` |
+| `purchase_approved` | a procurement transition to `Approved` succeeds | `procurement` | `useProcurementMutations().transition` and `ProcurementBlock` `transition` `onSuccess` |
+
+- `role` is the **real** role (`useEffectiveRole().realRole`); impersonation is view-only, so the real role is the actor.
+- Each call sits inside `onSuccess` and is wrapped in `safeTrack`. A refused or failed write fires nothing (AC-PHO-041).
+- A bulk approve in the procurement list fires once per approved row.
+- Builders: `src/lib/analytics/events.business.ts`; facade: `src/lib/analytics/business.ts`. Dashboard: `[PMO] Usage per org (observed use)`.
+- **Coverage gap, by design:** a purchase approved by the Assistant (an agent action) or by a direct API call fires no browser event. These events count what people do in the screens, not what the database holds.
 
 ## S6 Demo funnels
 
