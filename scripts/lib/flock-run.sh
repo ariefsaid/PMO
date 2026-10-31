@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # flock-run.sh — the SHARED flock-and-run core behind the machine-global mutex
-# wrappers with-db-lock.sh / with-erpnext-lock.sh / with-test-lock.sh. Collapses
+# wrappers with-odoo-lock.sh / with-erpnext-lock.sh / with-db-lock.sh / with-test-lock.sh. Collapses
 # three byte-for-byte-identical python3/fcntl copies into one (T2/D1).
 #
 # Dependency-free: bash + python3 stdlib only. macOS ships no flock(1), which is
@@ -9,9 +9,9 @@
 # OS lock (fcntl.flock) the kernel releases the instant the holding process exits
 # (crash included), so there is never a stale lock to clean up.
 #
-# ── ACQUISITION ORDER (machine-global, outermost first): erpnext -> db -> test ──
+# ── ACQUISITION ORDER (machine-global, outermost first): odoo -> erpnext -> db -> test ──
 # When a command needs MORE THAN ONE of these locks, acquire them in THIS order
-# only, to avoid cross-lock deadlock: ERPNext is outermost, DB sits between it and
+# only, to avoid cross-lock deadlock: Odoo is outermost, then ERPNext, DB sits between it and
 # test, and test is innermost.
 # Each wrapper is independently re-entrant-safe via its OWN *_LOCK_HELD env var:
 # a self-wrapping script — see scripts/m365-race-probe.sh, which relies on
