@@ -65,7 +65,7 @@ create table public.stock_warehouse_keepers (
   org_id       uuid not null references public.organizations(id),
   warehouse_id uuid not null references public.stock_warehouses(id),
   user_id      uuid not null references public.profiles(id),
-  created_by   uuid references public.profiles(id) default auth.uid(),
+  created_by   uuid default auth.uid(),   -- no FK: a 2nd profiles FK makes every unqualified `profiles` embed ambiguous (postgrest_embed_ambiguity_guard)
   created_at   timestamptz not null default now(),
   primary key (warehouse_id, user_id)
 );

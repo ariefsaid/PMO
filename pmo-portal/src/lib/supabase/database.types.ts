@@ -7270,13 +7270,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "stock_warehouse_keepers_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "stock_warehouse_keepers_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
