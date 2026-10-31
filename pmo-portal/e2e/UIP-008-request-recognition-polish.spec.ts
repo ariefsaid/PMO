@@ -6,6 +6,16 @@ import { loadEnv } from 'vite';
 import { signIn, requireServiceRoleKey, waitForFonts } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
+/**
+ * UIP-008 — the approvals inbox previews the selected request by keyboard at desktop and phone.
+ *
+ * Phase 2 (#1529) moved the geometry rows (UIP-007 value alignment, UIP-009 phone header stacking)
+ * to the /procurement layout sweep (e2e/layout/procurement.layout.spec.ts). These remaining tests
+ * are the DOWN lane's MOVE-COMPONENT rows (target:
+ * pmo-portal/pages/__tests__/Approvals.inbox.test.tsx) and stay in the browser until that lane
+ * moves them below the browser.
+ */
+
 const env = loadEnv('development', process.cwd(), 'VITE_');
 const url = requireMatchingLocalSupabaseUrls(process.env.SUPABASE_URL, env.VITE_SUPABASE_URL);
 const org = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -91,33 +101,4 @@ test('UIP-008 previews the South request by keyboard at desktop 1440x900', async
 test('UIP-008 previews the South request by keyboard at phone 390x844', async ({ page }) => {
   await signIn(page, 'finance@acme.test');
   await assertApprovalPreview(page, 390);
-});
-
-test('UIP-007 keeps comparative procurement values and the header right-aligned at desktop', async ({ page }) => {
-  await signIn(page, 'finance@acme.test');
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto('/procurement?view=grouped');
-  await page.getByRole('searchbox', { name: 'Search procurements' }).fill(titles[0].split(' Switchgear')[0]);
-  await expect(page.locator('[data-procurement-value]')).toHaveCount(2);
-  await waitForFonts(page);
-  const edges = await page.locator('[data-procurement-value]').evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().right));
-  expect(Math.abs(edges[0] - edges[1])).toBeLessThanOrEqual(1);
-  const headerEdge = await page.getByTestId('procurement-list-columns').getByText('Value', { exact: true }).evaluate(node => node.getBoundingClientRect().right);
-  expect(Math.abs(headerEdge - edges[0])).toBeLessThanOrEqual(1);
-  await expect(page.locator('[data-procurement-value]').first()).toHaveCSS('font-variant-numeric', 'tabular-nums');
-});
-
-test('UIP-009 stacks the full South request title and status in the phone header', async ({ page }) => {
-  await signIn(page, 'finance@acme.test');
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`/procurement/${ids[1]}`);
-  const header = page.getByTestId('record-header');
-  const title = header.getByRole('heading', { name: titles[1], exact: true });
-  await expect(title).toBeVisible();
-  await waitForFonts(page);
-  const titleBox = (await title.boundingBox())!;
-  const statusBox = (await header.getByText('Purchase Request', { exact: true }).boundingBox())!;
-  expect(statusBox.y).toBeGreaterThanOrEqual(titleBox.y + titleBox.height);
-  expect(await title.evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

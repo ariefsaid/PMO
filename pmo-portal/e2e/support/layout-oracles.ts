@@ -1,5 +1,5 @@
 import { expect, type Page, type Locator } from '@playwright/test';
-import { waitForFonts } from '../helpers';
+import { signIn, waitForFonts } from '../helpers';
 
 export async function findBleeders(page: Page, vw: number) {
   return page.evaluate((vw) => {
@@ -652,4 +652,734 @@ export async function assertMinutesWithinViewport(page: Page, scheme: string) {
     });
     expect(bleed.scroll, `${scheme}: page scroll width`).toBeLessThanOrEqual(0);
     expect(bleed.worst, `${scheme}: widest editor element`).toBeLessThanOrEqual(1);
+}
+
+// ── Phase 2 (#1529) consolidated route oracles — ported verbatim from the single-purpose geometry
+// specs they replace, so each route's layout sweep pays one page load per viewport/theme instead of
+// one page load per assertion. ──────────────────────────────────────────────────────────────
+
+/** AC-SBC-001 (#696): every Sales board card's money row stays inside the card's inner right edge,
+ *  and no column's card list scrolls sideways. Assumes /sales?view=kanban is loaded and settled. */
+export async function assertSalesBoardCards(page: Page) {
+  const { cardCount, cardOverflows, listScroll } = await page.evaluate(() => {
+    const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-testid="project-card"]'));
+    const cardOverflows: { card: string; overflowing: { el: string; right: number; innerRight: number }[] }[] = [];
+    const lists = new Set<HTMLElement>();
+    for (const card of cards) {
+      const cs = getComputedStyle(card);
+      const rect = card.getBoundingClientRect();
+      const innerRight = rect.right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight);
+      const overflowing: { el: string; right: number; innerRight: number }[] = [];
+      card.querySelectorAll<HTMLElement>('*').forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 && r.height === 0) return;
+        if (r.right > innerRight + 1) {
+          overflowing.push({
+            el: `${el.tagName.toLowerCase()}:${(el.textContent ?? '').trim().slice(0, 24)}`,
+            right: Math.round(r.right * 10) / 10,
+            innerRight: Math.round(innerRight * 10) / 10,
+          });
+        }
+      });
+      cardOverflows.push({ card: card.getAttribute('aria-label') ?? '?', overflowing });
+      if (card.parentElement) lists.add(card.parentElement);
+    }
+    const listScroll = Array.from(lists).map((l) => ({ scrollWidth: l.scrollWidth, clientWidth: l.clientWidth }));
+    return { cardCount: cards.length, cardOverflows, listScroll };
+  });
+  expect(cardCount, 'expected seeded deal cards on the board').toBeGreaterThanOrEqual(5);
+
+  const bad = cardOverflows.filter((c) => c.overflowing.length > 0);
+  expect(bad, `card descendants end past the card's inner right edge (+1px): ${JSON.stringify(bad.slice(0, 3))}`).toEqual([]);
+
+  const scrolling = listScroll.filter((l) => l.scrollWidth > l.clientWidth);
+  expect(scrolling, `a column card list scrolls sideways: ${JSON.stringify(scrolling.slice(0, 3))}`).toEqual([]);
+}
+
+const FUNNEL_VIEWPORT_WIDTH = 768;
+
+/** AC-SFA-001: every funnel stage amount stays inside its own stage and the page never pans at the
+ *  768px breakpoint. Probes the layout with a representative long IDR amount (the seed is USD). */
+export async function assertFunnelAmountsContained(page: Page) {
+  await expect(page.getByRole('region', { name: 'Pipeline summary' })).toBeVisible();
+  await expect(page.locator('[data-funnel-stage]')).toHaveCount(5);
+  await waitForFonts(page);
+
+  // At least one stage must show a currency symbol plus a grouped thousands separator (not a
+  // compact form), then the layout is probed against a noncompact long IDR amount.
+  const amounts = await page.locator('[data-funnel-stage-amount]').allTextContents();
+  const LONG_AMOUNT_SHAPE = /[\p{Sc}]\s?\d{1,3}(?:[.,]\d{3})+/u;
+  expect(
+    amounts.some((text) => LONG_AMOUNT_SHAPE.test(text)),
+    `expected a grouped long amount among stage values, got: ${amounts.join(' | ')}`,
+  ).toBe(true);
+
+  await page.evaluate(() => {
+    const idr = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(1_250_000_000_000);
+    document.querySelectorAll('[data-funnel-stage-amount]').forEach((el) => {
+      el.textContent = idr;
+    });
+  });
+
+  const containment = await page.evaluate(() => {
+    const results: { i: number; stage: DOMRect | null; amount: DOMRect | null }[] = [];
+    document.querySelectorAll('[data-funnel-stage]').forEach((stageEl, i) => {
+      const amount = stageEl.querySelector('[data-funnel-stage-amount]');
+      results.push({
+        i,
+        stage: stageEl.getBoundingClientRect().toJSON() as unknown as DOMRect,
+        amount: amount ? (amount.getBoundingClientRect().toJSON() as unknown as DOMRect) : null,
+      });
+    });
+    return results;
+  });
+
+  for (const { i, stage, amount } of containment) {
+    expect(stage, `stage ${i} box missing`).not.toBeNull();
+    expect(amount, `stage ${i} amount box missing`).not.toBeNull();
+    expect(amount!.x, `stage ${i} amount starts before its stage`).toBeGreaterThanOrEqual(stage!.x - 1);
+    expect(
+      amount!.x + amount!.width,
+      `stage ${i} amount overflows its stage: amount.right=${(amount!.x + amount!.width).toFixed(1)} > stage.right=${(stage!.x + stage!.width).toFixed(1)}`,
+    ).toBeLessThanOrEqual(stage!.x + stage!.width + 1);
+  }
+
+  const pageScrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+  expect(pageScrollWidth).toBeLessThanOrEqual(FUNNEL_VIEWPORT_WIDTH + 2);
+}
+
+/** AC-SFA-006: every stage progress bar keeps an 8px gap below its weighted line and all bar tops
+ *  align across the row (1px rendering tolerance). */
+export async function assertFunnelBarGapAndAlignment(page: Page) {
+  await expect(page.locator('[data-funnel-stage]')).toHaveCount(5);
+  await waitForFonts(page);
+
+  const bars = await page.evaluate(() => {
+    const results: { i: number; weightedBottom: number; barTop: number }[] = [];
+    document.querySelectorAll('[data-funnel-stage]').forEach((stageEl, i) => {
+      const weighted = stageEl.querySelector('[data-funnel-stage-weighted]');
+      const bar = stageEl.querySelector('[data-funnel-stage-bar]');
+      if (!weighted || !bar) return;
+      results.push({
+        i,
+        weightedBottom: weighted.getBoundingClientRect().bottom,
+        barTop: bar.getBoundingClientRect().top,
+      });
+    });
+    return results;
+  });
+
+  expect(bars, 'expected a weighted line + progress bar on every one of the 5 stages').toHaveLength(5);
+
+  for (const { i, weightedBottom, barTop } of bars) {
+    expect(
+      barTop - weightedBottom,
+      `stage ${i} bar sits closer than 8px below its weighted line: gap=${(barTop - weightedBottom).toFixed(1)}px`,
+    ).toBeGreaterThanOrEqual(7);
+  }
+
+  const barTops = bars.map((b) => b.barTop);
+  const firstTop = barTops[0];
+  for (const [i, top] of barTops.entries()) {
+    expect(
+      Math.abs(top - firstTop),
+      `stage ${i} bar top (${top.toFixed(1)}) is not aligned with stage 0's bar top (${firstTop.toFixed(1)})`,
+    ).toBeLessThanOrEqual(1);
+  }
+}
+
+/** AC-SFA-007: a focused stage's visible focus ring lies inside the funnel viewport, never clipped
+ *  by the scroll area's own overflow. Measures the ring from computed style. */
+export async function assertFunnelFocusRingInsideViewport(page: Page) {
+  await expect(page.locator('[data-funnel-stage]')).toHaveCount(5);
+  await waitForFonts(page);
+
+  const stages = page.locator('[data-funnel-stage]');
+  for (const index of [0, 2]) {
+    // Native `.focus()` dispatches the same focus event a real Tab keypress produces and reliably
+    // matches `:focus-visible` in Chromium (no prior pointer interaction targeted the element).
+    await stages.nth(index).focus();
+
+    const result = await page.evaluate((i) => {
+      const scrollArea = document.querySelector('[data-testid="funnel-scroll-area"]')!;
+      const stageEl = document.querySelectorAll('[data-funnel-stage]')[i] as HTMLElement;
+      const cs = getComputedStyle(stageEl);
+      const outlineWidth = parseFloat(cs.outlineWidth) || 0;
+      const outlineOffset = parseFloat(cs.outlineOffset) || 0;
+      const grow = outlineOffset + outlineWidth;
+      const stageRect = stageEl.getBoundingClientRect();
+      return {
+        outlineStyle: cs.outlineStyle,
+        outlineWidth,
+        ring: {
+          top: stageRect.top - grow,
+          bottom: stageRect.bottom + grow,
+          left: stageRect.left - grow,
+          right: stageRect.right + grow,
+        },
+        scrollRect: scrollArea.getBoundingClientRect().toJSON() as unknown as DOMRect,
+      };
+    }, index);
+
+    expect(result.outlineStyle, `stage ${index} is not showing a visible focus outline`).not.toBe('none');
+    expect(result.outlineWidth, `stage ${index} has a 0px outline width while focused`).toBeGreaterThan(0);
+
+    const { ring, scrollRect } = result;
+    expect(ring.top, `stage ${index} focus ring top is clipped above the funnel viewport`)
+      .toBeGreaterThanOrEqual(scrollRect.top - 1);
+    expect(ring.bottom, `stage ${index} focus ring bottom is clipped below the funnel viewport`)
+      .toBeLessThanOrEqual(scrollRect.top + scrollRect.height + 1);
+    expect(ring.left, `stage ${index} focus ring left is clipped left of the funnel viewport`)
+      .toBeGreaterThanOrEqual(scrollRect.left - 1);
+    expect(ring.right, `stage ${index} focus ring right is clipped right of the funnel viewport`)
+      .toBeLessThanOrEqual(scrollRect.left + scrollRect.width + 1);
+  }
+}
+
+// ── AC-TBL-STICKY-001: Sales Invoices row-actions sticky geometry. ───────────────────────────
+
+export const STICKY_EPSILON = 1.5;
+
+/** Luminance columns of a 1-2px-wide screenshot strip, averaged per device pixel row. */
+async function stripLuminance(page: Page, x: number, y: number, width: number, height: number): Promise<number[]> {
+  const buffer = await page.screenshot({ clip: { x, y, width, height } });
+  const b64 = buffer.toString('base64');
+  return page.evaluate(async (b64) => {
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = 'data:image/png;base64,' + b64; });
+    const c = document.createElement('canvas');
+    c.width = img.width; c.height = img.height;
+    const ctx = c.getContext('2d');
+    if (!ctx) throw new Error('no 2d context');
+    ctx.drawImage(img, 0, 0);
+    const d = ctx.getImageData(0, 0, c.width, c.height).data;
+    const cols: number[] = [];
+    for (let cx = 0; cx < c.width; cx++) {
+      let sum = 0;
+      for (let cy = 0; cy < c.height; cy++) {
+        const i = (cy * c.width + cx) * 4;
+        sum += (d[i] + d[i + 1] + d[i + 2]) / 3;
+      }
+      cols.push(sum / c.height);
+    }
+    return cols;
+  }, b64);
+}
+
+export interface StickyGeometry {
+  scroller: { left: number; right: number; top: number; bottom: number; clientWidth: number; scrollWidth: number };
+  stickyTd: { left: number; right: number; top: number; bottom: number; width: number } | null;
+  stickyTh: { left: number; right: number; top: number; bottom: number; width: number } | null;
+  triggers: { left: number; right: number; top: number; bottom: number }[];
+}
+
+export async function measureSticky(page: Page): Promise<StickyGeometry> {
+  return page.evaluate(() => {
+    const scroller = document.querySelector('[data-testid="dt-table-branch"]');
+    if (!scroller) throw new Error('dt-table-branch not found');
+    const sBox = scroller.getBoundingClientRect();
+    const sStyle = getComputedStyle(scroller);
+    const row = scroller.querySelector('tbody tr');
+    const td = row?.querySelector('td:last-child');
+    const th = scroller.querySelector('thead th:last-child');
+    const box = (el: Element | null | undefined) => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width };
+    };
+    const triggers = [...scroller.querySelectorAll<HTMLButtonElement>('tbody button[aria-label="Row actions"]')]
+      .filter((b) => b.offsetParent !== null)
+      .map((b) => {
+        const r = b.getBoundingClientRect();
+        return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+      });
+    return {
+      scroller: {
+        left: sBox.left,
+        // The visible (clip) right edge of the scrollport.
+        right: sBox.left + scroller.clientWidth - parseFloat(sStyle.borderRightWidth || '0'),
+        top: sBox.top,
+        bottom: sBox.bottom,
+        clientWidth: scroller.clientWidth,
+        scrollWidth: scroller.scrollWidth,
+      },
+      stickyTd: box(td),
+      stickyTh: box(th),
+      triggers,
+    };
+  });
+}
+
+/** The rendered seam must be clean surface: no glyph ink in the last pixel column of the scroller.
+ *  Sampled across the header + first body row only — headless Chromium draws classic (light)
+ *  scrollbars inside the scroller's bottom edge, which would pollute a full-height strip. */
+export async function expectSeamClean(page: Page, scroller: { right: number; top: number; bottom: number }, mode: 'light' | 'dark') {
+  const bandBottom = Math.min(scroller.top + 92, scroller.bottom - 2);
+  const lums = await stripLuminance(page, scroller.right - 2, scroller.top + 1, 2, bandBottom - scroller.top - 1);
+  const min = Math.min(...lums);
+  const max = Math.max(...lums);
+  if (mode === 'light') {
+    expect(
+      min,
+      `seam column must carry no ink in light mode (min luminance ${min.toFixed(1)} — a glyph sliver past the sticky cell renders as dark pixels)`,
+    ).toBeGreaterThanOrEqual(195);
+  } else {
+    expect(
+      max,
+      `seam column must carry no ink in dark mode (max luminance ${max.toFixed(1)} — scrolled text shows as light pixels)`,
+    ).toBeLessThanOrEqual(100);
+  }
+}
+
+/** The inset hairline on the sticky cells' left edge must actually render (travels with the cell). */
+export async function expectHairlineVisible(page: Page, tdLeft: number, scroller: { top: number; bottom: number }, mode: 'light' | 'dark') {
+  const bandBottom = Math.min(scroller.top + 92, scroller.bottom - 2);
+  const lums = await stripLuminance(page, tdLeft + 0.25, scroller.top + 1, 1, bandBottom - scroller.top - 1);
+  const min = Math.min(...lums);
+  const max = Math.max(...lums);
+  if (mode === 'light') {
+    expect(
+      min,
+      `divider hairline must be visible in light mode (min luminance ${min.toFixed(1)} — absent reads as pure card white 255)`,
+    ).toBeLessThanOrEqual(247);
+  } else {
+    expect(
+      max,
+      `divider hairline must be visible in dark mode (max luminance ${max.toFixed(1)} — absent reads as flat card ~28)`,
+    ).toBeGreaterThanOrEqual(33);
+  }
+}
+
+/** Flip the theme AFTER mount: index.html's no-flash script seeds the class from localStorage on
+ *  every load and would wipe a pre-goto class. */
+export async function setDarkTheme(page: Page, dark: boolean) {
+  await page.evaluate((d) => document.documentElement.classList.toggle('dark', d), dark);
+  expect(await page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(dark);
+}
+
+/** AC-1201: the persistent rail shows at desktop with nav links and no hamburger; collapsed at
+ *  mobile where the hamburger opens a drawer copy of the rail. Installs the English-profile read
+ *  rewrite BEFORE sign-in so the DOM landmark labels never depend on a persisted seed locale. */
+export async function assertResponsiveRailAndDrawer(page: Page, email = 'exec@acme.test') {
+  // The DOM landmark labels below are English; avoid dependence on a persisted seed locale.
+  await page.route('**/rest/v1/profiles?*', async (route) => {
+    const url = route.request().url();
+    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(url)) return route.fallback();
+    const response = await route.fetch();
+    const body: unknown = await response.json();
+    if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) {
+      return route.fulfill({ response, json: { ...body, locale: 'en', number_locale: 'en-US' } });
+    }
+    return route.fulfill({ response, json: body });
+  });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await signIn(page, email);
+  await page.goto('/');
+
+  // --- Desktop: persistent grid-area rail is visible, no hamburger. ---
+  const persistent = page.locator('.rail-persistent');
+  await expect(persistent).toBeVisible();
+  const desktopNavCount = await persistent.locator('nav a').count();
+  expect(desktopNavCount).toBeGreaterThan(0);
+  await expect(page.locator('.mobile-rail-toggle')).toBeHidden();
+
+  // --- Mobile: persistent rail collapses, hamburger appears. ---
+  await page.setViewportSize({ width: 560, height: 800 });
+  await expect(persistent).toBeHidden();
+  const hamburger = page.locator('.mobile-rail-toggle');
+  await expect(hamburger).toBeVisible();
+
+  // Opening the hamburger reveals a drawer copy of the rail WITH nav links.
+  await hamburger.click();
+  const drawerNav = page.locator('nav[aria-label="Primary navigation"]').nth(1);
+  await expect(drawerNav.getByRole('link', { name: /Approvals/ })).toBeVisible();
+  const drawerNavCount = await page.evaluate(() => {
+    const navs = Array.from(document.querySelectorAll('nav[aria-label="Primary navigation"]'));
+    const drawer = navs.find((n) => !n.closest('.rail-persistent'));
+    return drawer ? drawer.querySelectorAll('a').length : 0;
+  });
+  expect(drawerNavCount).toBeGreaterThan(0);
+}
+
+/** UX-001: every persistent-rail nav link — Approvals included — stays inside the rail box and the
+ *  800px desktop viewport height. */
+export async function assertRailNavWithinViewport(page: Page, height: number) {
+  const nav = page.locator('.rail-persistent nav[aria-label="Primary navigation"]');
+  const approvals = nav.getByRole('link', { name: /Approvals/ });
+  const sales = nav.getByRole('link', { name: 'Sales Pipeline' });
+  await expect(approvals).toBeVisible();
+  await expect(sales).toBeAttached();
+  await waitForFonts(page);
+
+  const railBox = await nav.boundingBox();
+  const approvalsBox = await approvals.boundingBox();
+  expect(railBox).not.toBeNull();
+  expect(approvalsBox).not.toBeNull();
+  expect(approvalsBox!.y).toBeGreaterThanOrEqual(railBox!.y);
+  expect(approvalsBox!.y + approvalsBox!.height).toBeLessThanOrEqual(railBox!.y + railBox!.height);
+  expect(approvalsBox!.y + approvalsBox!.height).toBeLessThanOrEqual(height);
+}
+
+// ── AC-ADMIA-005: Administration destinations reachability + overflow. ───────────────────────
+
+export const ADMINISTRATION_ORGANIZATION_SECTIONS = [
+  { name: 'Users', url: '/administration/users', testid: 'administration-panel-users', heading: 'Users' },
+  {
+    name: 'Organization integrations',
+    url: '/administration/integrations',
+    testid: 'administration-panel-integrations',
+    heading: 'Organization integrations',
+  },
+  {
+    name: 'Accounting setup',
+    url: '/administration/accounting',
+    testid: 'administration-panel-accounting',
+    heading: 'Accounting setup',
+  },
+  { name: 'Credits', url: '/administration/credits', testid: 'administration-panel-credits', heading: 'Credits' },
+] as const;
+
+export const ADMINISTRATION_OPERATOR_SECTIONS = [
+  ...ADMINISTRATION_ORGANIZATION_SECTIONS,
+  { name: 'Usage', url: '/administration/usage', testid: 'administration-panel-usage', heading: 'Usage' },
+  { name: 'Features', url: '/administration/features', testid: 'administration-panel-features', heading: 'Features' },
+] as const;
+
+/** Drive every Administration section: the link is reachable and navigates, the selected panel is
+ *  visible, phone controls sit in the first scroll region with 44px touch targets, and neither the
+ *  elements nor the page overflow horizontally. */
+export async function driveAdministrationSections(
+  page: Page,
+  vw: number,
+  height: number,
+  sections: ReadonlyArray<(typeof ADMINISTRATION_OPERATOR_SECTIONS)[number]> = ADMINISTRATION_ORGANIZATION_SECTIONS,
+) {
+  const sectionNav = page.getByRole('navigation', { name: 'Administration sections' });
+  for (const s of sections) {
+    const link = sectionNav.getByRole('link', { name: s.name });
+    await expect(link).toBeVisible();
+    await link.click();
+    await expect(page).toHaveURL(new RegExp(`${s.url}$`));
+    await expect(page.getByTestId(s.testid)).toBeVisible();
+
+    const heading = page.getByRole('heading', { level: 1, name: 'Administration' });
+    const panelHeading = page.getByRole('heading', { level: 2, name: s.heading });
+    await expect(heading).toBeVisible();
+    await expect(panelHeading).toBeVisible();
+    await waitForFonts(page);
+    if (vw < 600) {
+      for (const el of [heading, sectionNav.getByRole('link', { name: s.name }), panelHeading]) {
+        const box = await el.boundingBox();
+        expect(box, `${s.name} control should have a layout box at ${vw}px`).not.toBeNull();
+        expect(
+          box!.y,
+          `${s.name} control must sit within the first scroll region at ${vw}px — its top (${Math.round(box!.y)}px) is below the ${height}px viewport.`,
+        ).toBeLessThan(height);
+      }
+      const linkBox = await link.boundingBox();
+      expect(linkBox, `${s.name} link should have a layout box at ${vw}px`).not.toBeNull();
+      expect(
+        linkBox!.height,
+        `${s.name} link must offer a 44px-tall phone touch target, without overlap from adjacent links`,
+      ).toBeGreaterThanOrEqual(44);
+    }
+
+    await assertNoBleed(page, vw);
+  }
+}
+
+/** AC-PVT-001 (#715): at 390px the Procurement view switch has a real in-viewport box, the page
+ *  does not pan, and choosing Board then Table changes what the page renders. */
+export async function assertProcurementViewToggle(page: Page) {
+  const toggle = page.getByRole('tablist', { name: 'Procurement view' });
+  await expect(toggle).toBeVisible({ timeout: 60_000 });
+  await waitForFonts(page);
+  const box = await toggle.boundingBox();
+  expect(box, 'the view tablist has a rendered box').not.toBeNull();
+  expect(box!.width).toBeGreaterThan(0);
+  expect(box!.height).toBeGreaterThan(0);
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(390 + 1);
+
+  const overflow = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }));
+  expect(overflow.scrollWidth, 'the page must not pan sideways at 390px').toBeLessThanOrEqual(overflow.clientWidth);
+
+  const boardStage = page.locator('[data-testid^="prstage-"]').first();
+  const tableTab = toggle.getByRole('tab', { name: 'Table' });
+  const boardTab = toggle.getByRole('tab', { name: 'Board' });
+
+  await expect(tableTab).toHaveAttribute('aria-selected', 'true');
+  await expect(boardStage).toHaveCount(0);
+
+  await boardTab.click();
+  await expect(boardTab).toHaveAttribute('aria-selected', 'true');
+  await expect(boardStage).toBeVisible();
+
+  await tableTab.click();
+  await expect(tableTab).toHaveAttribute('aria-selected', 'true');
+  await expect(boardStage).toHaveCount(0);
+}
+
+/** AC-BWO-004 (#785): on the project Work orders tab each visible Invoice action is inside its
+ *  customer-order card and the customer-orders region, with no sideways scroll on card, region or
+ *  page. `names` carries the locale-specific accessible names. */
+export async function assertWorkOrderInvoiceContainment(
+  page: Page,
+  names: { invoice: string; region: string; billableDetail: string },
+) {
+  const billableWorkOrder = page.getByRole('button', { name: names.billableDetail, exact: true });
+  await expect(billableWorkOrder).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole('button', { name: names.invoice }).first()).toBeVisible();
+  await waitForFonts(page);
+
+  const orders = page.getByRole('region', { name: names.region });
+  await expect(orders).toBeVisible();
+  const buttons = orders.getByRole('button', { name: names.invoice, exact: true });
+  expect(await buttons.count(), 'expected Invoice on the billable work orders').toBeGreaterThanOrEqual(2);
+  const regionBox = await orders.boundingBox();
+  expect(regionBox).not.toBeNull();
+  const EPSILON = 1;
+  for (const button of await buttons.all()) {
+    await expect(button).toBeVisible();
+    const card = button.locator('xpath=ancestor::article');
+    const cardBox = await card.boundingBox();
+    const buttonBox = await button.boundingBox();
+    expect(cardBox).not.toBeNull();
+    expect(buttonBox).not.toBeNull();
+    expect(buttonBox!.x).toBeGreaterThanOrEqual(cardBox!.x - EPSILON);
+    expect(buttonBox!.x + buttonBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width + EPSILON);
+    expect(cardBox!.x).toBeGreaterThanOrEqual(regionBox!.x - EPSILON);
+    expect(cardBox!.x + cardBox!.width).toBeLessThanOrEqual(regionBox!.x + regionBox!.width + EPSILON);
+    const cardOverflow = await card.evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }));
+    expect(cardOverflow.scroll, 'the work-order card scrolls sideways').toBeLessThanOrEqual(cardOverflow.client);
+  }
+  const regionOverflow = await orders.evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }));
+  expect(regionOverflow.scroll, 'the customer-orders region scrolls sideways').toBeLessThanOrEqual(regionOverflow.client);
+  const pageOverflow = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
+  expect(pageOverflow.scroll, 'the page scrolls sideways').toBeLessThanOrEqual(pageOverflow.client);
+}
+
+/** AC-RAM-004 (#688): the LifecycleStepper scroll region's :focus-visible ring is drawn inward, so
+ *  its overflow-hidden clip wrapper never slices it. */
+export async function assertStepperFocusRingNotClipped(page: Page) {
+  const scrollContainer = page.getByTestId('stepper-scroll-container');
+  await scrollContainer.focus();
+
+  const result = await page.evaluate(() => {
+    const wrapper = document.querySelector('[data-testid="stepper-clip-wrapper"]')!;
+    const region = document.querySelector('[data-testid="stepper-scroll-container"]') as HTMLElement;
+    const cs = getComputedStyle(region);
+    const outlineWidth = parseFloat(cs.outlineWidth) || 0;
+    const outlineOffset = parseFloat(cs.outlineOffset) || 0;
+    const grow = outlineOffset + outlineWidth;
+    const regionRect = region.getBoundingClientRect();
+    return {
+      outlineStyle: cs.outlineStyle,
+      outlineWidth,
+      ring: {
+        top: regionRect.top - grow,
+        bottom: regionRect.bottom + grow,
+        left: regionRect.left - grow,
+        right: regionRect.right + grow,
+      },
+      wrapperRect: wrapper.getBoundingClientRect().toJSON() as unknown as DOMRect,
+    };
+  });
+
+  expect(result.outlineStyle, 'the stepper scroll region shows no visible focus outline when focused').not.toBe('none');
+  expect(result.outlineWidth, 'the stepper scroll region has a 0px outline width while focused').toBeGreaterThan(0);
+
+  const { ring, wrapperRect } = result;
+  expect(ring.top, `focus ring top (${ring.top.toFixed(1)}) is clipped above the wrapper (${wrapperRect.top.toFixed(1)})`)
+    .toBeGreaterThanOrEqual(wrapperRect.top - 1);
+  expect(ring.bottom, `focus ring bottom (${ring.bottom.toFixed(1)}) is clipped below the wrapper (${(wrapperRect.top + wrapperRect.height).toFixed(1)})`)
+    .toBeLessThanOrEqual(wrapperRect.top + wrapperRect.height + 1);
+  expect(ring.left, `focus ring left (${ring.left.toFixed(1)}) is clipped left of the wrapper (${wrapperRect.left.toFixed(1)})`)
+    .toBeGreaterThanOrEqual(wrapperRect.left - 1);
+  expect(ring.right, `focus ring right (${ring.right.toFixed(1)}) is clipped right of the wrapper (${(wrapperRect.left + wrapperRect.width).toFixed(1)})`)
+    .toBeLessThanOrEqual(wrapperRect.left + wrapperRect.width + 1);
+}
+
+/** Open the milestone card grid on a project overview (the seeded phase-editor surface). */
+export async function openMilestoneCardGrid(page: Page) {
+  await page.getByRole('region', { name: 'Phase timeline' })
+    .getByRole('button', { name: 'Update phases', exact: true }).click();
+  await expect(page.getByTestId('milestone-card-grid')).toBeVisible({ timeout: 20_000 });
+  await waitForFonts(page);
+}
+
+/** AC-RAM-004: the milestone percentage column never collides with the (possibly long) phase name. */
+export async function assertMilestonePctClearOfName(page: Page) {
+  const card = page
+    .getByTestId('milestone-card-grid')
+    .locator('section')
+    .filter({ hasText: 'Commissioning & Grid Connection' });
+  await expect(card).toBeVisible();
+  await waitForFonts(page);
+
+  const nameBox = await card.getByTestId('milestone-phase-name').boundingBox();
+  const pctBox = await card.getByTestId('milestone-phase-pct').boundingBox();
+  expect(nameBox, 'milestone phase name did not render a bounding box').not.toBeNull();
+  expect(pctBox, 'milestone phase percentage did not render a bounding box').not.toBeNull();
+
+  const nameRight = nameBox!.x + nameBox!.width;
+  const pctLeft = pctBox!.x;
+  const horizontallyClear = nameRight <= pctLeft + 1;
+  const nameBottom = nameBox!.y + nameBox!.height;
+  const pctTop = pctBox!.y;
+  const pctBottom = pctBox!.y + pctBox!.height;
+  const verticallyClear = nameBottom <= pctTop + 1 || nameBox!.y >= pctBottom - 1;
+
+  expect(
+    horizontallyClear || verticallyClear,
+    `phase name box (right=${nameRight.toFixed(1)}, y=${nameBox!.y.toFixed(1)}..${nameBottom.toFixed(1)}) overlaps the percentage box (left=${pctLeft.toFixed(1)}, y=${pctTop.toFixed(1)}..${pctBottom.toFixed(1)})`,
+  ).toBe(true);
+}
+
+/** AC-RAM-004 round 3: every milestone phase name renders each of its words on a single line — a
+ *  word split across two line tops means the browser had to break INSIDE the word. */
+export async function assertMilestoneNamesWrapAtWords(page: Page) {
+  const grid = page.getByTestId('milestone-card-grid');
+  await expect(grid).toBeVisible({ timeout: 20_000 });
+  await waitForFonts(page);
+
+  const nameEls = grid.getByTestId('milestone-phase-name');
+  const count = await nameEls.count();
+  expect(count, 'expected the seeded delivery phases to render as cards').toBeGreaterThan(0);
+
+  for (let i = 0; i < count; i += 1) {
+    const nameEl = nameEls.nth(i);
+    const result = await nameEl.evaluate((el) => {
+      const node = el.firstChild;
+      if (!node || node.nodeType !== Node.TEXT_NODE) {
+        return { name: el.textContent ?? '', brokenWords: [] as string[] };
+      }
+      const text = node.textContent ?? '';
+      const brokenWords: string[] = [];
+      for (const match of text.matchAll(/\S+/g)) {
+        const range = document.createRange();
+        range.setStart(node, match.index!);
+        range.setEnd(node, match.index! + match[0].length);
+        const lineTops = new Set(Array.from(range.getClientRects()).map((r) => Math.round(r.top)));
+        if (lineTops.size > 1) brokenWords.push(match[0]);
+      }
+      return { name: el.textContent ?? '', brokenWords };
+    });
+
+    expect(
+      result.brokenWords,
+      `"${result.name}" broke word(s) [${result.brokenWords.join(', ')}] mid-word — every word must stay on one line`,
+    ).toEqual([]);
+  }
+}
+
+/** AC-RD-HDR-001: the compact project header strip — one details disclosure, every figure inside
+ *  its tile (a figure or an em dash, never prose), no horizontal bleed at 1024px. */
+export async function assertCompactProjectHeader(page: Page) {
+  const moneyPosition = page.getByRole('region', { name: 'Money position' });
+  const stages = moneyPosition.locator('dl[aria-label="Contract to payment"] > div');
+  await expect(moneyPosition.getByTestId('contract-value-amount')).toBeVisible();
+  // Net fewer always-visible elements: the header's own disclosure is gone, the rail owns the codes.
+  await expect(page.getByText('More project details', { exact: true })).toHaveCount(0);
+  const moreActions = page.locator('summary[aria-label="More actions"]');
+  await expect(moreActions).toHaveCount(1);
+  await moreActions.click();
+  const projectDetails = page.getByRole('button', { name: 'Project details', exact: true });
+  await expect(projectDetails).toHaveCount(1);
+  await projectDetails.click();
+  await expect(page.getByTestId('project-detail-rail')).toBeVisible();
+  // No prose in a figure slot: every figure is a money amount, a percentage or an em dash.
+  await expect(stages.first()).toBeVisible();
+  const count = await stages.count();
+  for (let i = 0; i < count; i++) {
+    const value = stages.nth(i).locator(':scope > dd.text-right').first();
+    const visible = (await value.evaluate((el) => {
+      const clone = el.cloneNode(true) as HTMLElement;
+      clone.querySelectorAll('.sr-only, button, [data-testid="fx-equivalent"]').forEach((n) => n.remove());
+      return clone.textContent ?? '';
+    })).trim();
+    expect(visible, `tile ${i} value is a figure or omitted when unknown, never prose`)
+      .toMatch(/^(|[^A-Za-z]*\d[\d.,%\s]*[^A-Za-z]*|[A-Z$€£]{1,4}\s?[\d.,\s]+)$/);
+    const box = await stages.nth(i).evaluate((el) => {
+      const stage = el.getBoundingClientRect();
+      const v = el.querySelector(':scope > dd.text-right') as HTMLElement;
+      const value = v.getBoundingClientRect();
+      return { overflow: v.scrollWidth - v.clientWidth, left: value.left, right: value.right, stageLeft: stage.left, stageRight: stage.right, vw: window.innerWidth };
+    });
+    expect(box.overflow, `tile ${i} figure fits its box`).toBeLessThanOrEqual(1);
+    expect(box.left, `tile ${i} figure stays inside its row`).toBeGreaterThanOrEqual(box.stageLeft - 0.5);
+    expect(box.right, `tile ${i} figure stays inside its row`).toBeLessThanOrEqual(box.stageRight + 0.5);
+    expect(box.stageRight, `tile ${i} stays inside the viewport`).toBeLessThanOrEqual(box.vw + 0.5);
+  }
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+}
+
+/** AC-S24-004: the selected-stage phone list — the stage list, first card and its complete long
+ *  amount all render inside a 390px viewport that never pans sideways. */
+export async function assertPhonePipelineGeometry(page: Page) {
+  const measure = await page.evaluate(() => {
+    const viewportWidth = document.documentElement.clientWidth;
+    const pageWidth = document.documentElement.scrollWidth;
+    const list = document.querySelector<HTMLElement>('[data-testid="sales-phone-stage-list"]');
+    const card = list?.querySelector<HTMLElement>('[data-testid="project-card"]');
+    const name = card?.querySelector<HTMLElement>('button');
+    const customer = card?.querySelector<HTMLElement>('span.truncate');
+    const listBox = list?.getBoundingClientRect();
+    const cardBox = card?.getBoundingClientRect();
+    const amount = Array.from(card?.querySelectorAll('span') ?? []).find(
+      (el) => el.textContent?.replace(/\D/g, '') === '1250000000000',
+    );
+    const amountBox = amount?.getBoundingClientRect();
+    return {
+      viewportWidth,
+      pageWidth,
+      viewportHeight: document.documentElement.clientHeight,
+      listBox: listBox ? { left: listBox.left, right: listBox.right, width: listBox.width } : null,
+      cardBox: cardBox ? { top: cardBox.top, bottom: cardBox.bottom, left: cardBox.left, right: cardBox.right } : null,
+      amountBox: amountBox ? { top: amountBox.top, bottom: amountBox.bottom, left: amountBox.left, right: amountBox.right } : null,
+      name: name ? { clientWidth: name.clientWidth, scrollWidth: name.scrollWidth } : null,
+      customer: customer ? { clientWidth: customer.clientWidth, scrollWidth: customer.scrollWidth } : null,
+    };
+  });
+  expect(measure.pageWidth, 'the phone document must not pan sideways').toBeLessThanOrEqual(measure.viewportWidth);
+  expect(measure.listBox, 'the selected-stage result list has a rendered box').not.toBeNull();
+  expect(measure.listBox!.left).toBeGreaterThanOrEqual(0);
+  expect(measure.listBox!.right).toBeLessThanOrEqual(measure.viewportWidth + 1);
+  expect(measure.cardBox, 'the first phone opportunity is rendered above the fold').not.toBeNull();
+  expect(measure.cardBox!.top).toBeGreaterThanOrEqual(0);
+  expect(measure.cardBox!.bottom).toBeLessThanOrEqual(measure.viewportHeight);
+  expect(measure.amountBox, 'the complete long source-currency amount has a rendered box').not.toBeNull();
+  expect(measure.amountBox!.left).toBeGreaterThanOrEqual(measure.cardBox!.left - 1);
+  expect(measure.amountBox!.right).toBeLessThanOrEqual(measure.cardBox!.right + 1);
+  expect(measure.name?.scrollWidth).toBeLessThanOrEqual(measure.name?.clientWidth ?? 0);
+  expect(measure.customer?.scrollWidth).toBeLessThanOrEqual(measure.customer?.clientWidth ?? 0);
+}
+
+/** UIP-007: comparative procurement values share one right edge with each other and the Value
+ *  column header, set in tabular numerals (1px tolerance). */
+export async function assertGroupedProcurementValueAlignment(page: Page) {
+  await expect(page.locator('[data-procurement-value]')).toHaveCount(2);
+  await waitForFonts(page);
+  const edges = await page.locator('[data-procurement-value]').evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().right));
+  expect(Math.abs(edges[0] - edges[1])).toBeLessThanOrEqual(1);
+  const headerEdge = await page.getByTestId('procurement-list-columns').getByText('Value', { exact: true }).evaluate((node) => node.getBoundingClientRect().right);
+  expect(Math.abs(headerEdge - edges[0])).toBeLessThanOrEqual(1);
+  await expect(page.locator('[data-procurement-value]').first()).toHaveCSS('font-variant-numeric', 'tabular-nums');
+}
+
+/** UIP-009: the phone record header stacks the full title above the status chip, the title never
+ *  clips, and the page never pans. */
+export async function assertRecordHeaderStacksTitleAboveStatus(page: Page, title: string, statusText: string) {
+  const header = page.getByTestId('record-header');
+  const titleLoc = header.getByRole('heading', { name: title, exact: true });
+  await expect(titleLoc).toBeVisible();
+  await waitForFonts(page);
+  const titleBox = (await titleLoc.boundingBox())!;
+  const statusBox = (await header.getByText(statusText, { exact: true }).boundingBox())!;
+  expect(statusBox.y).toBeGreaterThanOrEqual(titleBox.y + titleBox.height);
+  expect(await titleLoc.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 }

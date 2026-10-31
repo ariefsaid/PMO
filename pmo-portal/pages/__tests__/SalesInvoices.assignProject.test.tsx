@@ -119,4 +119,17 @@ describe('SalesInvoices project attribution', () => {
     expect(screen.getByRole('searchbox', { name: 'Search sales invoices' })).toHaveValue('SI-unassigned');
     expect(screen.getByRole('tab', { name: 'Unpaid' })).toHaveAttribute('aria-selected', 'true');
   });
+
+  // AC-PFIN-015 (moved from the browser in phase 2, #1529): the assign dialog stays
+  // keyboard-operable — Tab lands inside the dialog and Escape dismisses it.
+  it('AC-PFIN-015 keeps the assign dialog keyboard-operable: Tab focuses inside and Escape closes', async () => {
+    renderAs('Finance');
+    await openActions('SI-unassigned');
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Assign project' }));
+    const dialog = screen.getByRole('dialog');
+    await userEvent.tab();
+    expect(dialog.contains(document.activeElement), 'Tab must move focus inside the assign dialog').toBe(true);
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
 });
