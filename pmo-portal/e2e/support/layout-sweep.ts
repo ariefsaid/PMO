@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 import { grantM365EntitlementFixture, signIn, stubM365StatusUnavailable, waitForFonts } from '../helpers';
 import { assertIconSizes, assertNoBleed, assertProjectsDisclosures, assertPageWithinWidth } from './layout-oracles';
 
@@ -7,6 +7,11 @@ interface LayoutRoute {
   label: string;
   icons: boolean;
   integrations?: boolean;
+  /** Must be visible before measuring — guards against sweeping an empty shell (e.g. a pre-win
+   *  pipeline-lens project whose journey region renders late). */
+  ready?: (page: Page) => Locator;
+  /** Extra AC ids carried in the generated test titles (traceability, e.g. "AC-RAM-003"). */
+  acs?: string;
 }
 
 async function settle(page: Page) {
@@ -18,7 +23,7 @@ async function settle(page: Page) {
 
 export function registerLayoutSweep(route: LayoutRoute) {
   for (const width of [360, 390]) {
-    test(`@layout AC-MOBILE-OVERFLOW-001 ${route.label} @${width}${route.path === '/projects' ? ' AC-PRJUX-003' : ''}${route.path === '/' && width === 390 ? ' UIP-002' : ''}${route.icons && width === 390 ? ' AC-VISUAL-ICON-001' : ''}`, async ({ page }) => {
+    test(`@layout AC-MOBILE-OVERFLOW-001 ${route.label} @${width}${route.acs ? ` ${route.acs}` : ''}${route.path === '/projects' ? ' AC-PRJUX-003' : ''}${route.path === '/' && width === 390 ? ' UIP-002' : ''}${route.icons && width === 390 ? ' AC-VISUAL-ICON-001' : ''}`, async ({ page }) => {
       await page.setViewportSize({ width, height: 844 });
       await signIn(page, 'admin@acme.test');
       if (route.integrations) {
@@ -26,6 +31,7 @@ export function registerLayoutSweep(route: LayoutRoute) {
         await stubM365StatusUnavailable(page);
       }
       await page.goto(route.path);
+      if (route.ready) await expect(route.ready(page)).toBeVisible({ timeout: 20_000 });
       if (route.integrations) await expect(page.getByTestId('m365-connection-card')).toBeVisible({ timeout: 20_000 });
       await settle(page);
       await assertNoBleed(page, width);
@@ -43,6 +49,7 @@ export function registerLayoutSweep(route: LayoutRoute) {
       await page.setViewportSize({ width: 1280, height: 860 });
       await signIn(page, 'admin@acme.test');
       await page.goto(route.path);
+      if (route.ready) await expect(route.ready(page)).toBeVisible({ timeout: 20_000 });
       await settle(page);
       await assertIconSizes(page);
     });

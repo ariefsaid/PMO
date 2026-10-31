@@ -113,6 +113,14 @@ const ROUTES: Route[] = [
   { name: 'pm', user: 'pm@acme.test', path: '/', ready: async (p) => { await expect(p.getByTestId('kpi-my-contract-value').locator('.tabular').filter({ hasText: /160[.,]9/ })).toBeVisible(); }, widths: WIDTHS, bahasaWidths: [] },
   { name: 'revenue by project', user: 'exec@acme.test', path: '/revenue-by-project', ready: reportReady, widths: [1440, 390], bahasaWidths: [1440] },
   { name: 'management pack', user: 'exec@acme.test', path: '/reports', ready: reportReady, widths: [1440, 390], bahasaWidths: [1440] },
+  // Phase 2 (#1529): the sales pipeline route joins the matrix — the weighted total is the loaded,
+  // independently fetched figure; at 390px the phone layout renders deal cards, so readiness binds
+  // to the phone card's full amount instead of the desktop weighted-total testid.
+  { name: 'sales pipeline', user: 'exec@acme.test', path: '/sales', ready: async (p, width) => {
+    const figure = width === 390 ? p.locator('main .tabular').filter({ hasText: /5,457,143,000/ }).first() : p.getByTestId('pipeline-weighted-total');
+    await expect(figure).toContainText(width === 390 ? /5,457,143,000/ : /75,185,000,000/);
+    await expect(figure).toBeVisible();
+  }, widths: WIDTHS, bahasaWidths: [] },
 ];
 
 export function registerFigureLayout(name: string) {

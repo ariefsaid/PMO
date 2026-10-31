@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 import { login, signIn, waitForFonts } from '../helpers';
 import { formatExactMoney, formatShortMoney } from '../../src/lib/format';
 import { getActiveLocale, setActiveLocale } from '../../src/lib/locale/activeLocale';
-import { assertDashboardPaintAndDesktopAccount, assertShortAccountMenu, expectMoneyFits } from '../support/layout-oracles';
+import { assertDashboardPaintAndDesktopAccount, assertRailNavWithinViewport, assertResponsiveRailAndDrawer, assertShortAccountMenu, expectMoneyFits } from '../support/layout-oracles';
 import { registerFigureLayout } from '../support/figure-layout';
 import { registerLayoutSweep } from '../support/layout-sweep';
 
@@ -71,4 +71,23 @@ test('@layout AC-ACCT-005 short phone menu and larger text remain reachable', as
   await signIn(page, 'admin@acme.test');
   await page.goto('/');
   await assertShortAccountMenu(page);
+});
+
+// AC-1201 — Responsive rail collapse (single source of truth at the 920px breakpoint). Durable
+// regression guard for the C1 bugs that slipped jsdom twice: jsdom never applies CSS media queries,
+// so the persistent-rail hide, the --rail-w collapse, and the hamburger/drawer swap can only be
+// proven in a real browser.
+test('@layout AC-1201 desktop shows the persistent rail; mobile hides it and the drawer carries nav', async ({
+  page,
+}) => {
+  await assertResponsiveRailAndDrawer(page, 'exec@acme.test');
+});
+
+// UX-001: every persistent-rail nav link — Approvals included — stays inside the rail box and the
+// 800px desktop viewport while Sales remains in navigation.
+test('@layout UX-001 Approvals stays within the 800px rail viewport while Sales remains in navigation', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await login(page, 'admin@acme.test');
+  await page.goto('/projects');
+  await assertRailNavWithinViewport(page, 800);
 });

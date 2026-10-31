@@ -1,7 +1,14 @@
-// @e2e-isolation: self-isolated — creates one uniquely named vendor/case/bill/slip per case and atomically removes only those rows.
+// @e2e-isolation: self-isolated — creates one uniquely named vendor/case/bill/slip set per case and atomically removes only those rows.
 /**
- * AC-BUPOT-021 — rendered bukti potong cell, capture form and details at mobile/desktop and en/id.
- * Goal oracle: each real surface remains usable, accessible and inside the viewport at the tested sizes.
+ * /procurement/:caseId/files layout sweep — AC-BUPOT-021: the rendered bukti potong ledger, capture
+ * modal and details at mobile/desktop and en/id, consolidated from the former single-purpose spec.
+ *
+ * The slip-recording UI journey is owned by AC-BUPOT-020; here a recorded slip is SET UP through the
+ * authenticated RPC (fixture preparation, still self-isolated and cleaned up atomically), and every
+ * case asserts the rendered geometry: ledger row + status, page overflow, serious/critical axe, and
+ * details. The 360px English case additionally proves the capture modal's long-list body scrolls
+ * with its reconciliation summary pinned above the sticky footer — opened from an unrecorded
+ * candidate bill and cancelled, so nothing is written by the UI.
  */
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -10,8 +17,8 @@ import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
-import { login, requireServiceRoleKey, waitForFonts } from './helpers';
-import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
+import { login, requireServiceRoleKey, waitForFonts } from '../helpers';
+import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
 
 const VITE_ENV = loadEnv('development', process.cwd(), 'VITE_');
 const SUPABASE_URL = requireMatchingLocalSupabaseUrls(process.env.SUPABASE_URL, VITE_ENV.VITE_SUPABASE_URL);
@@ -25,7 +32,6 @@ const lockScript = fileURLToPath(new URL('../../scripts/with-db-lock.sh', import
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Locale = 'en' | 'id';
-type CandidateInvoice = { id: string; viNumber: string };
 type Fixture = {
   locale: Locale;
   width: number;
@@ -33,7 +39,7 @@ type Fixture = {
   caseId: string;
   invoiceId: string;
   invoiceIds: string[];
-  candidateInvoices: CandidateInvoice[];
+  candidateInvoices: { id: string; viNumber: string }[];
   viNumber: string;
   slipNumber: string;
   slipId: string;
@@ -211,11 +217,11 @@ async function installLocaleOverride(page: Page, locale: Locale): Promise<void> 
   });
 }
 
-async function openDocuments(page: Page, fixture: Fixture, withDetails: boolean): Promise<void> {
+async function openProcurementFiles(page: Page, fixture: Fixture): Promise<void> {
   await page.setViewportSize({ width: fixture.width, height: 900 });
   await page.evaluate(() => localStorage.setItem('theme', 'light'));
-  const search = withDetails ? `?bupot=${encodeURIComponent(fixture.slipId)}` : '';
-  await page.goto(`/procurement/${fixture.caseId}/files${search}`);
+  // ?bupot= opens the recorded slip's details region alongside the ledger (one load).
+  await page.goto(`/procurement/${fixture.caseId}/files?bupot=${encodeURIComponent(fixture.slipId)}`);
   await expect(page.getByTestId('procurement-loading')).toBeHidden({ timeout: 20_000 });
   await expect(page.getByTestId('procurement-ledger')).toBeVisible({ timeout: 20_000 });
 }
@@ -236,7 +242,7 @@ async function assertRendered(page: Page, width: number): Promise<void> {
 async function assertLedger(
   page: Page,
   fixture: Fixture,
-  status: 'Not recorded' | 'Slipped' | 'Belum dicatat' | 'Sudah dipotong',
+  status: 'Slipped' | 'Sudah dipotong',
 ): Promise<import('@playwright/test').Locator> {
   await expect(page.locator('html')).toHaveAttribute('lang', fixture.locale);
   const billRow = page.getByTestId('procurement-ledger').locator('tr, li').filter({ hasText: fixture.viNumber });
@@ -246,6 +252,8 @@ async function assertLedger(
   return billRow;
 }
 
+/** Record the main bill's completed slip through the authenticated RPC (fixture preparation — the
+ *  UI recording journey is owned by AC-BUPOT-020). */
 async function recordCompletedSlipAsFinance(page: Page, fixture: Fixture): Promise<void> {
   if (!ANON_KEY) throw new Error('BUPOT authenticated RPC setup requires the local public anon key');
   const args = {
@@ -318,68 +326,59 @@ async function assertDetails(page: Page, fixture: Fixture): Promise<void> {
   await assertRendered(page, fixture.width);
 }
 
+/** The capture modal keeps its long invoice-selection list scrollable with the reconciliation
+ *  summary above the sticky footer — opened from an unrecorded candidate bill and CANCELLED (the
+ *  recording journey itself is AC-BUPOT-020's). */
+async function assertCaptureModalGeometry(page: Page, fixture: Fixture): Promise<void> {
+  // Candidate vi numbers share a suffix prefix (-1 matches -10..-15), so pin the first match.
+  const candidateRow = page.getByTestId('procurement-ledger').locator('tr, li').filter({ hasText: fixture.candidateInvoices[0].viNumber }).first();
+  await candidateRow.getByRole('button', { name: /Record bukti potong|Catat bukti potong/i }).click();
+  const modal = page.getByRole('dialog');
+  await expect(modal).toBeVisible();
+  await expect(modal.getByLabel(/Issued slip number|Nomor slip terbit/i)).toBeVisible();
+  const body = modal.locator('form > div.overflow-y-auto');
+  const reconciliation = modal.getByText(/Selection .* · Slip .* · Difference/);
+  await expect(body).toBeVisible();
+  await expect(reconciliation).toBeVisible();
+  expect(await body.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+  await body.evaluate((element) => {
+    element.scrollTop = Math.floor((element.scrollHeight - element.clientHeight) / 2);
+  });
+  const scrollPosition = await body.evaluate((element) => element.scrollTop);
+  expect(scrollPosition).toBeGreaterThan(0);
+  expect(scrollPosition).toBeLessThan(await body.evaluate((element) => element.scrollHeight - element.clientHeight));
+  await expect(reconciliation).toBeInViewport();
+  const summaryBox = await reconciliation.boundingBox();
+  const footerBox = await modal.locator('form > div.border-t').boundingBox();
+  expect(summaryBox).not.toBeNull();
+  expect(footerBox).not.toBeNull();
+  expect(summaryBox!.y + summaryBox!.height).toBeLessThanOrEqual(footerBox!.y);
+  await assertRendered(page, fixture.width);
+  await modal.getByRole('button', { name: /Cancel|Batal/i }).click();
+  await expect(modal).not.toBeVisible();
+}
+
 const detailCases = [
-  { locale: 'en', width: 360, capture: true, title: 'AC-BUPOT-021 en 360px captures a long-list slip and reads its details' },
+  { locale: 'en', width: 360, capture: true, title: 'AC-BUPOT-021 en 360px keeps the long-list capture modal scrollable with its reconciliation above the footer, and reads the recorded slip details' },
   { locale: 'en', width: 1440, capture: false, title: 'AC-BUPOT-021 en 1440px renders a recorded ledger and details' },
   { locale: 'id', width: 360, capture: false, title: 'AC-BUPOT-021 id 360px renders a recorded ledger and details' },
   { locale: 'id', width: 1440, capture: false, title: 'AC-BUPOT-021 id 1440px renders a recorded ledger and details' },
 ] as const;
 
 for (const scenario of detailCases) {
-  test(scenario.title, async ({ page }) => {
+  test(`@layout ${scenario.title}`, async ({ page }) => {
     const fixture = makeFixture(scenario.locale, scenario.width, scenario.capture);
-    await runWithFixture(page, fixture, async (admin) => {
+    await runWithFixture(page, fixture, async () => {
       await installLocaleOverride(page, fixture.locale);
       await login(page, 'finance@acme.test');
 
-      if (!scenario.capture) {
-        await recordCompletedSlipAsFinance(page, fixture);
-      }
-      await openDocuments(page, fixture, !scenario.capture);
-      const status = scenario.capture
-        ? 'Not recorded'
-        : fixture.locale === 'en' ? 'Slipped' : 'Sudah dipotong';
-      const billRow = await assertLedger(page, fixture, status);
+      // Fixture preparation (not a UI journey): the main bill arrives already recorded.
+      await recordCompletedSlipAsFinance(page, fixture);
+      await openProcurementFiles(page, fixture);
+      const status = fixture.locale === 'en' ? 'Slipped' : 'Sudah dipotong';
+      await assertLedger(page, fixture, status);
 
-      if (scenario.capture) {
-        await billRow.getByRole('button', { name: /Record bukti potong|Catat bukti potong/i }).click();
-        const modal = page.getByRole('dialog');
-        await expect(modal).toBeVisible();
-        await expect(modal.getByLabel(/Issued slip number|Nomor slip terbit/i)).toBeVisible();
-        const body = modal.locator('form > div.overflow-y-auto');
-        const reconciliation = modal.getByText(/Selection .* · Slip .* · Difference/);
-        await expect(body).toBeVisible();
-        await expect(reconciliation).toBeVisible();
-        expect(await body.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
-        await body.evaluate((element) => {
-          element.scrollTop = Math.floor((element.scrollHeight - element.clientHeight) / 2);
-        });
-        const scrollPosition = await body.evaluate((element) => element.scrollTop);
-        expect(scrollPosition).toBeGreaterThan(0);
-        expect(scrollPosition).toBeLessThan(await body.evaluate((element) => element.scrollHeight - element.clientHeight));
-        await expect(reconciliation).toBeInViewport();
-        const summaryBox = await reconciliation.boundingBox();
-        const footerBox = await modal.locator('form > div.border-t').boundingBox();
-        expect(summaryBox).not.toBeNull();
-        expect(footerBox).not.toBeNull();
-        expect(summaryBox!.y + summaryBox!.height).toBeLessThanOrEqual(footerBox!.y);
-        await assertRendered(page, fixture.width);
-        await modal.getByLabel(/Issued slip number|Nomor slip terbit/i).fill(fixture.slipNumber);
-        await modal.getByLabel(/Tax base|Dasar pengenaan pajak/i).fill('100000');
-        await modal.getByLabel(/Issued withheld amount|Jumlah potongan pada slip/i).fill('20000');
-        await modal.getByRole('button', { name: /Record bukti potong|Catat bukti potong/i }).click();
-        await expect(billRow.getByText(/Slipped|Sudah dipotong/i)).toBeVisible({ timeout: 20_000 });
-        await billRow.getByRole('button', { name: /View bukti potong|Lihat bukti potong/i }).click();
-        await expect(page.getByLabel(/Bukti potong details|Detail bukti potong/i)).toBeVisible({ timeout: 20_000 });
-        const { data, error } = await admin
-          .from('vendor_withholding_slips')
-          .select('id')
-          .eq('slip_number', fixture.slipNumber)
-          .eq('org_id', ORG_ID)
-          .single();
-        if (error || !data) throw new Error(`visual slip readback failed: ${error?.message}`);
-        fixture.slipId = data.id as string;
-      }
+      if (scenario.capture) await assertCaptureModalGeometry(page, fixture);
 
       await assertDetails(page, fixture);
     });

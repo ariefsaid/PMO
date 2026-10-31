@@ -1,24 +1,31 @@
-// @e2e-isolation: read-only — uses the seeded Finance and project records and scoped statement RPC fixtures; it performs no writes or native calls.
-import { expect, test, type Page } from '@playwright/test';
-import { mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
-import { signIn, waitForFonts } from './helpers';
+// @e2e-isolation: read-only — the statement catalogue/read RPCs are answered at the route boundary
+// with synthetic payloads; no write and no native call.
+/**
+ * Shared scoped-statement fixtures for the financial-statement layout sweeps (AC-008).
+ *
+ * Extracted verbatim from the former single-purpose presentation spec so the company
+ * (`/financial-statements`) and project (`/projects/:id/overview`) sweeps share one source of truth.
+ * Bahasa is a route-rewritten profile read — no seed profile is ever written.
+ */
+import type { Page } from '@playwright/test';
 
-type Locale = 'en' | 'id';
-type Theme = 'light' | 'dark';
-type PeriodKind = 'month' | 'quarter' | 'fiscal_year';
-type Statement = 'trial_balance' | 'profit_and_loss' | 'balance_sheet';
+export type Locale = 'en' | 'id';
+export type Theme = 'light' | 'dark';
+export type PeriodKind = 'month' | 'quarter' | 'fiscal_year';
+export type Statement = 'trial_balance' | 'profit_and_loss' | 'balance_sheet';
 
-const FINANCE = 'finance@acme.test';
-const PROJECT_ID = '41000000-0000-0000-0000-000000000001';
-const COMPANY_NAME = 'Example Business';
-const periodPairs = [
+export const FINANCE = 'finance@acme.test';
+/** Seeded delivery project SP-2401 (supabase/seed.sql). */
+export const STATEMENT_PROJECT_ID = '41000000-0000-0000-0000-000000000001';
+export const COMPANY_NAME = 'Example Business';
+
+export const periodPairs = [
   { kind: 'quarter', currentStart: '2026-04-01', currentEnd: '2026-06-30', priorStart: '2026-01-01', priorEnd: '2026-03-31' },
   { kind: 'fiscal_year', currentStart: '2026-04-01', currentEnd: '2027-03-31', priorStart: '2025-04-01', priorEnd: '2026-03-31' },
   { kind: 'month', currentStart: '2026-09-01', currentEnd: '2026-09-30', priorStart: '2026-08-01', priorEnd: '2026-08-31' },
 ] as const;
 
-const generation = (delayed = false) => ({
+export const generation = (delayed = false) => ({
   snapshotId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   sourceGeneration: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   asOf: '2026-10-17T13:00:00.000Z',
@@ -29,7 +36,7 @@ const generation = (delayed = false) => ({
   delayed,
 });
 
-function catalogue(projectId: string | null) {
+export function catalogue(projectId: string | null) {
   return {
     state: 'complete',
     companyLabel: COMPANY_NAME,
@@ -41,7 +48,7 @@ function catalogue(projectId: string | null) {
   };
 }
 
-function nativePeriod(pair: (typeof periodPairs)[number], side: 'current' | 'prior') {
+export function nativePeriod(pair: (typeof periodPairs)[number], side: 'current' | 'prior') {
   const start = side === 'current' ? pair.currentStart : pair.priorStart;
   const end = side === 'current' ? pair.currentEnd : pair.priorEnd;
   return {
@@ -53,7 +60,7 @@ function nativePeriod(pair: (typeof periodPairs)[number], side: 'current' | 'pri
   };
 }
 
-function nativeReport(
+export function nativeReport(
   pair: (typeof periodPairs)[number],
   side: 'current' | 'prior',
   statement: Statement,
@@ -101,9 +108,9 @@ function nativeReport(
   };
 }
 
-type ReadMode = 'populated' | 'empty' | 'mixed' | 'delayed' | 'error' | 'persistent-error';
+export type ReadMode = 'populated' | 'empty' | 'mixed' | 'delayed' | 'error' | 'persistent-error';
 
-async function installRoutes(page: Page, options: { projectId: string | null; mode?: ReadMode }) {
+export async function installRoutes(page: Page, options: { projectId: string | null; mode?: ReadMode }) {
   let reads = 0;
   const { projectId, mode = 'populated' } = options;
   await page.route('**/rest/v1/rpc/get_financial_statement_catalogue', async (route) => {
@@ -198,7 +205,8 @@ async function installRoutes(page: Page, options: { projectId: string | null; mo
   return { readCount: () => reads };
 }
 
-async function forceLocale(page: Page, locale: Locale) {
+/** Deterministic viewer language without a persisted write; other profile preferences are preserved. */
+export async function forceLocale(page: Page, locale: Locale) {
   await page.route('**/rest/v1/profiles?*', async (route) => {
     const url = new URL(route.request().url());
     if (route.request().method() !== 'GET' || !url.searchParams.has('id')) return route.fallback();
@@ -209,103 +217,4 @@ async function forceLocale(page: Page, locale: Locale) {
       : row;
     return route.fulfill({ response, json: Array.isArray(body) ? body.map(patch) : patch(body) });
   });
-}
-
-async function expectNoHorizontalOverflow(page: Page) {
-  const dimensions = await page.evaluate(() => ({
-    client: document.documentElement.clientWidth,
-    scroll: document.documentElement.scrollWidth,
-  }));
-  expect(dimensions.scroll, `document overflowed by ${dimensions.scroll - dimensions.client}px`).toBeLessThanOrEqual(dimensions.client + 1);
-}
-
-async function expectProjectTotalsGeometry(page: Page) {
-  const amountCells = page.locator('[data-testid="dt-card-branch"] dd');
-  await expect(amountCells).toHaveCount(6);
-  const measurements = await amountCells.evaluateAll((cells) => cells.map((cell) => {
-    const range = document.createRange();
-    range.selectNodeContents(cell);
-    const text = cell.textContent ?? '';
-    const digitsByLine = new Map<number, number>();
-    const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
-    while (walker.nextNode()) {
-      const node = walker.currentNode;
-      const nodeText = node.textContent ?? '';
-      for (let index = 0; index < nodeText.length; index += 1) {
-        const character = nodeText[index] ?? '';
-        const characterRange = document.createRange();
-        characterRange.setStart(node, index);
-        characterRange.setEnd(node, index + 1);
-        const characterBox = characterRange.getBoundingClientRect();
-        const line = Math.round(characterBox.top);
-        if (/\d/.test(character)) digitsByLine.set(line, (digitsByLine.get(line) ?? 0) + 1);
-      }
-    }
-    return {
-      width: cell.getBoundingClientRect().width,
-      renderedLines: range.getClientRects().length,
-      digits: (text.match(/[0-9]/g) ?? []).length,
-      digitsByLine: [...digitsByLine.values()],
-      whiteSpace: getComputedStyle(cell).whiteSpace,
-      overflowWrap: getComputedStyle(cell).overflowWrap,
-    };
-  }));
-  for (const measurement of measurements) {
-    expect(measurement.width, 'each current/prior value column should remain comfortably readable at 390px').toBeGreaterThanOrEqual(100);
-    expect(measurement.whiteSpace, 'future longer native amounts remain allowed to wrap').toBe('normal');
-    expect(measurement.overflowWrap, 'future longer native amounts remain contained without clipping').toBe('break-word');
-    expect(measurement.digitsByLine.every((digitCount) => digitCount >= 2),
-      `these retained values should not leave one digit alone on a line (line digit counts: ${measurement.digitsByLine.join(', ')})`).toBe(true);
-  }
-}
-
-async function saveMountedScreenshot(page: Page, surface: 'company' | 'project', width: number, locale: Locale, theme: Theme) {
-  const directory = process.env.PMO_DISPLAY_SCREENSHOT_DIR;
-  if (!directory) return;
-  await mkdir(directory, { recursive: true });
-  const path = join(directory, `${surface}-${width}-${locale}-${theme}.png`);
-  await page.screenshot({ path, fullPage: true });
-  if (surface === 'project' || width === 390) {
-    const title = surface === 'project'
-      ? locale === 'id' ? 'Laba rugi proyek' : 'Project profit and loss'
-      : locale === 'id' ? 'Neraca saldo' : 'Trial balance';
-    const sectionHeading = page.getByRole('heading', { level: 2, name: title });
-    await sectionHeading.locator('xpath=../../..').screenshot({ path: join(directory, `${surface}-${width}-${locale}-${theme}-section.png`) });
-  }
-  if (surface === 'company' && width === 390) {
-    await page.getByRole('button', { name: /Previous period|Periode sebelumnya/ }).click();
-    const statementTable = page.getByRole('table');
-    await statementTable.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: join(directory, `${surface}-${width}-${locale}-${theme}-prior-viewport.png`) });
-    await page.getByRole('button', { name: /Current period|Periode berjalan/ }).click();
-  }
-}
-
-for (const width of [390, 1440] as const) {
-  for (const locale of ['en', 'id'] as const) {
-    for (const theme of ['light', 'dark'] as const) {
-
-      test(`AC-008 support: project totals fit at ${width}px in ${locale}/${theme}`, async ({ page }) => {
-        await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
-        const routes = await installRoutes(page, { projectId: PROJECT_ID });
-        await forceLocale(page, locale);
-        await signIn(page, FINANCE);
-        await page.evaluate((value) => localStorage.setItem('theme', value), theme);
-        await page.goto(`/projects/${PROJECT_ID}/overview`);
-        await expect(page.locator('html')).toHaveAttribute('lang', locale);
-        if (theme === 'dark') await expect(page.locator('html')).toHaveClass(/dark/);
-        else await expect(page.locator('html')).not.toHaveClass(/dark/);
-        await expect(page.getByRole('heading', { level: 2, name: locale === 'id' ? 'Laba rugi proyek' : 'Project profit and loss' })).toBeVisible();
-        const currentIncome = locale === 'id' ? '12.345.678.901.234.567.890,01' : '12,345,678,901,234,567,890.01';
-        const priorIncome = locale === 'id' ? '76.543.210.987.654.321.098,76' : '76,543,210,987,654,321,098.76';
-        await expect(page.getByText(currentIncome)).toBeVisible();
-        await expect(page.getByText(priorIncome)).toBeVisible();
-        await waitForFonts(page);
-        await expectNoHorizontalOverflow(page);
-        if (width === 390) await expectProjectTotalsGeometry(page);
-        await expect.poll(routes.readCount).toBeGreaterThan(0);
-        await saveMountedScreenshot(page, 'project', width, locale, theme);
-      });
-    }
-  }
 }
