@@ -30,7 +30,7 @@ test('AC-STK-001: a storekeeper issues 30 of 100 bags to a project work item and
 
   // Then 1: the warehouse shows 70
   await page.goto('/stock');
-  await page.getByLabel('Warehouse', { exact: true }).selectOption({ label: `${wh.code} - ${wh.name}` });
+  await page.getByRole('combobox', { name: 'Warehouse', exact: true }).selectOption({ label: `${wh.code} - ${wh.name}` });
   const balance = page.getByRole('row', { name: new RegExp(item.code) });
   await expect(balance, 'the warehouse shows 70 of that item').toContainText('70');
 
