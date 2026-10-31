@@ -8,6 +8,8 @@ Everything below was checked against `origin/dev` at `e1576dcc5` (migration head
 
 ## Open questions (answer before dispatch, or accept the stated default)
 
+**Director, 2026-10-31:** all four defaults accepted. Migration number: billing kinds takes 0408; document preview takes 0409 (re-check with `scripts/check-migration-collisions.sh` before the PR).
+
 | # | Question | Default taken in this plan |
 |---|---|---|
 | Q1 | A link/assign call that **omits** the kind on an invoice that already carries `other`: keep `other`, or reset to `contract`? FR-002 says "omitted ⇒ Contract", but a silent flip changes a classification Finance chose. | **Keep the stored kind** (`coalesce(p_billing_kind, current)`). For every row that was never classified, stored = `contract`, so FR-002 holds. The UI always sends the kind, so only a legacy/other caller can hit this. |

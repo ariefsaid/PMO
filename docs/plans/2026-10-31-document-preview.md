@@ -25,6 +25,8 @@ One PR to dev for phases A-F is **too wide to review safely**. Split as in "Bran
 
 ## 0. Open questions (answer before dispatch; each has a default the builder may take)
 
+**Director, 2026-10-31:** Q2, Q4, Q5, Q6 defaults accepted. Q1 and Q3 are with the owner; build with the defaults (mocks; replacement goes to SharePoint). Migration 0409 (billing kinds takes 0408).
+
 | # | Question | Default taken in this plan | Who |
 |---|---|---|---|
 | Q1 | **Has the Microsoft app-level `write` grant on the organisation's SharePoint site been executed on the production client tenant** (ADR-0089 decision 1)? Upload needs it; preview does not. This plan makes no claim about the live tenant. | Build and test with mocks. The provider-proof task (G03) and the owner's grant decide go-live. Without the grant a connected-org upload shows the recovery state (Microsoft refuses; `SOURCE_ACCESS_DENIED`) and nothing is written. | owner / Director, before enabling upload for the client |
