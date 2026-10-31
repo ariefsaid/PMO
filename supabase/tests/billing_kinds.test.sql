@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(15);   -- finalized in T6.3 (pgTAP fails loudly on a mismatch)
+select plan(26);   -- finalized in T6.3 (pgTAP fails loudly on a mismatch)
 
 -- ── fixture ────────────────────────────────────────────────────────────────────────────────────
 insert into public.organizations (id,name) values
@@ -85,5 +85,56 @@ select lives_ok($$select public.assign_sales_invoice_project('04080000-0000-0000
 select is((select billing_kind from public.sales_invoices where id='04080000-0000-0000-0000-0000000000e3'), 'other',
           'FR-003 an omitted kind keeps the stored kind when the project changes');
 reset role;
+
+-- ── T3: kind-only correction (AC-006) ─────────────────────────────────────────────────────────
+-- snapshot of every column except the kind, to prove nothing else moved
+create temp table bk_before as
+  select id, to_jsonb(si) - 'billing_kind' as row_data from public.sales_invoices si
+   where id in ('04080000-0000-0000-0000-0000000000e1','04080000-0000-0000-0000-0000000000e2');
+grant select on bk_before to authenticated;
+create temp table bk_outbox_before as select count(*)::int n from public.external_command_outbox;
+grant select on bk_outbox_before to authenticated;
+delete from public.record_changes where entity_type='sales_invoice'
+   and entity_id in ('04080000-0000-0000-0000-0000000000e1','04080000-0000-0000-0000-0000000000e2');
+
+set local role authenticated;
+set local request.jwt.claims='{"sub":"04080000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select lives_ok($$select public.set_sales_invoice_billing_kind('04080000-0000-0000-0000-0000000000e1','other')$$,
+                'AC-006 Finance corrects the kind of a PAID adopted invoice on the same project');
+select lives_ok($$select public.set_sales_invoice_billing_kind('04080000-0000-0000-0000-0000000000e2','other')$$,
+                'AC-006 Finance corrects the kind of a native invoice');
+select is((select jsonb_object_agg(id::text, to_jsonb(si) - 'billing_kind') from public.sales_invoices si
+            where id in ('04080000-0000-0000-0000-0000000000e1','04080000-0000-0000-0000-0000000000e2')),
+          (select jsonb_object_agg(id::text, row_data) from bk_before),
+          'AC-006 project, money, state, receipts fields and authorship are untouched');
+select is((select count(*)::int from public.record_changes where entity_type='sales_invoice'
+            and entity_id='04080000-0000-0000-0000-0000000000e1'), 1,
+          'AC-006 exactly one history event exists for the correction');
+select is((select changes->'billing_kind' from public.record_changes where entity_type='sales_invoice'
+            and entity_id='04080000-0000-0000-0000-0000000000e1'),
+          '{"old":"contract","new":"other"}'::jsonb, 'AC-006 the event records old and new kind');
+select is((select actor_id from public.record_changes where entity_type='sales_invoice'
+            and entity_id='04080000-0000-0000-0000-0000000000e1'),
+          '04080000-0000-0000-0000-0000000000a1'::uuid, 'AC-006 the event is attributed to the operator');
+select lives_ok($$select public.set_sales_invoice_billing_kind('04080000-0000-0000-0000-0000000000e1','other')$$,
+                'AC-006 the identical save repeats without error');
+select is((select count(*)::int from public.record_changes where entity_type='sales_invoice'
+            and entity_id='04080000-0000-0000-0000-0000000000e1'), 1,
+          'AC-006 the repeat produced no duplicate event');
+select is((select count(*)::int from public.external_command_outbox), (select n from bk_outbox_before),
+          'AC-006 no ERP command was enqueued');
+select throws_ok($$select public.set_sales_invoice_billing_kind('04080000-0000-0000-0000-0000000000e1','bogus')$$,
+                 '23514', null, 'AC-006 an invalid kind is refused');
+-- an invoice with no project cannot carry a kind
+reset role;
+insert into public.sales_invoices (id,org_id,project_id,si_number,amount,tax_treatment,tax_amount,currency,status,erp_docstatus)
+ values ('04080000-0000-0000-0000-0000000000e5','04080000-0000-0000-0000-000000000001',null,'SI-BK-5',1,'exclusive',0,'USD','Unpaid',1);
+set local role authenticated;
+set local request.jwt.claims='{"sub":"04080000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$select public.set_sales_invoice_billing_kind('04080000-0000-0000-0000-0000000000e5','other')$$,
+                 '23514', null, 'AC-006 an unlinked invoice is refused (attribute a project first)');
+reset role;
+-- restore the two subjects to contract for the aggregate blocks that follow
+update public.sales_invoices set billing_kind='contract' where id in ('04080000-0000-0000-0000-0000000000e1','04080000-0000-0000-0000-0000000000e2');
 select * from finish();
 rollback;

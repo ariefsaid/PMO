@@ -105,3 +105,33 @@ end $$;
 alter function public.assign_sales_invoice_project(uuid,uuid,text) owner to postgres;
 revoke all on function public.assign_sales_invoice_project(uuid,uuid,text) from public,anon,authenticated;
 grant execute on function public.assign_sales_invoice_project(uuid,uuid,text) to authenticated;
+
+-- §5 kind-only correction: any already-linked invoice (native, adopted, authored, paid). Changes ONE column; never
+-- touches the outbox, the body, receipts, authorship or approval. Admin/Finance, active member, caller's org.
+create function public.set_sales_invoice_billing_kind(p_si_id uuid, p_billing_kind text) returns void
+language plpgsql security definer set search_path = public as $$
+declare v_si public.sales_invoices; v_role public.user_role := public.auth_role();
+begin
+  perform public.assert_is_active_member();
+  -- BKIND_ROLE_CHECK: mutation target; keep this exact marker and predicate.
+  if v_role is null or v_role not in ('Admin','Finance') then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+  if p_billing_kind is null or p_billing_kind not in ('contract','other') then
+    raise exception 'billing kind must be contract or other' using errcode = '23514', detail = 'billing-kind-invalid';
+  end if;
+  -- org filter in the SELECT: a foreign or missing invoice is the same P0002 (no existence signal).
+  select * into v_si from public.sales_invoices where id = p_si_id and org_id = public.auth_org_id() for update;
+  if not found then raise exception 'invoice not found' using errcode = 'P0002'; end if;
+  if v_si.project_id is null then
+    raise exception 'attribute a project to the invoice before choosing its billing kind'
+      using errcode = '23514', detail = 'billing-kind-needs-project';
+  end if;
+  if v_si.billing_kind = p_billing_kind then return; end if;   -- identical save: no write, no history event
+  update public.sales_invoices set billing_kind = p_billing_kind where id = p_si_id;
+end $$;
+alter function public.set_sales_invoice_billing_kind(uuid,text) owner to postgres;
+revoke all on function public.set_sales_invoice_billing_kind(uuid,text) from public,anon,authenticated;
+grant execute on function public.set_sales_invoice_billing_kind(uuid,text) to authenticated;
+comment on function public.set_sales_invoice_billing_kind(uuid,text) is
+  '#1471 FR-004: PMO-only billing-kind correction of an already-linked sales invoice. Admin/Finance; no ERP command.';
