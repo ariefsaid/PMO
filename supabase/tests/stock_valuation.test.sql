@@ -52,7 +52,7 @@ begin
 end $$;
 -- usage: select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4'); ... reset role;
 
-select plan(12);
+select plan(18);
 create function public.stk_t_rcv(p_wh uuid, p_item uuid, p_qty numeric, p_cost numeric) returns uuid language sql as $$
   select public.create_stock_document(jsonb_build_object('kind','receive','warehouse_id',p_wh),
     jsonb_build_array(jsonb_build_object('item_id',p_item,'quantity',p_qty,'unit_cost',p_cost)), true) $$;
@@ -103,6 +103,24 @@ reset role;
 drop trigger stk_t_fail_second_leg on public.stock_ledger;
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
 select is(public.stk_t_bal('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002') || ' ' || public.stk_t_bal('15120000-0000-0000-0000-000000002003', '15120000-0000-0000-0000-000000001002'), '110.000/6600.00 40.000/2400.00', 'AC-STK-006 neither leg was written (balances unchanged)');
+reset role;
+-- S2b: the Issue variants of AC-STK-002, 003 and 005 (0414).
+create function public.stk_t_issue(p_wh uuid, p_item uuid, p_qty numeric) returns uuid language sql as $$
+  select public.create_stock_document(jsonb_build_object('kind','issue','warehouse_id',p_wh,'project_id','15120000-0000-0000-0000-0000000000c1'),
+    jsonb_build_array(jsonb_build_object('item_id',p_item,'quantity',p_qty,'boq_item_id','15120000-0000-0000-0000-0000000000e1')), true) $$;
+create function public.stk_t_iout(p_doc uuid) returns text language sql security definer as $$
+  select sum(value_delta)::text from public.stock_ledger where document_id = p_doc $$;
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
+select set_config('stk.i1', public.stk_t_issue('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002', 50)::text, false);
+select is(public.stk_t_iout(current_setting('stk.i1')::uuid), '-3000.00', 'AC-STK-002 issuing 50 of 110 worth 6,600 (avg 60) takes 3,000');
+select is(public.stk_t_bal('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002'), '60.000/3600.00', 'AC-STK-002 the issue leaves 60 worth 3,600');
+select set_config('stk.i2', public.stk_t_issue('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001001', 3)::text, false);
+select is(public.stk_t_iout(current_setting('stk.i2')::uuid), '-100.01', 'AC-STK-003 issuing every bag takes the whole 100.01');
+select is(public.stk_t_bal('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001001'), '0.000/0.00', 'AC-STK-003 the issue leaves no value residue');
+reset role;
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4');                                                                     -- U_K1 keeps SITE-A (5 bags)
+select throws_like($$ select public.stk_t_issue('15120000-0000-0000-0000-000000002002', '15120000-0000-0000-0000-000000001001', 6) $$, 'STK_INSUFFICIENT: %available 5%requested 6%', 'AC-STK-005 an over-drawing issue is refused with available 5 / requested 6');
+select is(public.stk_t_rows('kind = ''issue'' and qty_delta = -6'), 0, 'AC-STK-005 no ledger entry exists for the refused issue');
 reset role;
 select * from finish();
 rollback;

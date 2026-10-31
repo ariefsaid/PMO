@@ -52,7 +52,7 @@ begin
 end $$;
 -- usage: select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4'); ... reset role;
 
-select plan(35);
+select plan(38);
 create function public.stk_t_rcv(p_wh uuid, p_item uuid, p_qty numeric, p_cost numeric) returns uuid language sql as $$
   select public.create_stock_document(jsonb_build_object('kind','receive','warehouse_id',p_wh),
     jsonb_build_array(jsonb_build_object('item_id',p_item,'quantity',p_qty,'unit_cost',p_cost)), true) $$;
@@ -146,6 +146,18 @@ reset role; select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
 select lives_ok($$ select public.cancel_stock_document(current_setting('stk.dr')::uuid) $$, 'FR-STK-011 the author cancels the Draft');
 reset role;
 
+-- S2b: AC-STK-010 Issue and Return variants (0414). Central cable is at average 10 here.
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
+select set_config('stk.ci', public.create_stock_document(jsonb_build_object('kind','issue','warehouse_id','15120000-0000-0000-0000-000000002001','project_id','15120000-0000-0000-0000-0000000000c1'),
+  jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001002','quantity',2,'unit_cost',999,'boq_item_id','15120000-0000-0000-0000-0000000000e1')), true)::text, false);
+select set_config('stk.cr', public.create_stock_document(jsonb_build_object('kind','return','warehouse_id','15120000-0000-0000-0000-000000002001'),
+  jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001002','quantity',1,'unit_cost',999,
+    'source_line_id',(select id from public.stock_document_lines where document_id = current_setting('stk.ci')::uuid)))), true)::text, false);
+reset role;
+select is((select count(*)::int from public.stock_document_lines where document_id in (current_setting('stk.ci')::uuid, current_setting('stk.cr')::uuid) and unit_cost is not null), 0,
+  'AC-STK-010 a client cost on an issue or return line is not stored');
+select is((select value_delta::text from public.stock_ledger where document_id = current_setting('stk.ci')::uuid), '-20.00', 'AC-STK-010 the issue is valued at the moving average (2 x 10), not 999');
+select is((select value_delta::text from public.stock_ledger where document_id = current_setting('stk.cr')::uuid), '10.00', 'AC-STK-010 the return re-enters at the issue''s cost (1 x 10), not 999');
 -- AC-STK-018: an externally-owned inventory domain refuses every post and writes nothing; reads still work.
 insert into external_domain_ownership (org_id, external_tier, domain) values ('15120000-0000-0000-0000-000000000001', 'odoo', 'inventory');
 select set_config('stk.docs', (select count(*) from stock_documents)::text || '/' || (select count(*) from stock_ledger)::text, false);
