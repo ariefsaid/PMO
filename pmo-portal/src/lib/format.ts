@@ -776,6 +776,15 @@ export function formatUtcMonthYear(d: Date): string {
   }).format(d);
 }
 
+/** UTC "Jun 2026" in the viewer's date locale: month + 4-digit year, so it never reads as a day. */
+export function formatUtcMonthYearFull(d: Date): string {
+  return dateFormatterFor('utcMonthYearFull', getDateLocale(), {
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(d);
+}
+
 /** UTC "15 Mar '25" — S-curve axis: en-GB day-month + quoted 2-digit year (AC-SC-AXIS-004/005).
  *  formatToParts + manual join so the apostrophe is explicit; stays Intl (not date-fns format)
  *  because date-fns is LOCAL-tz and would drift the day in behind-UTC zones. */
