@@ -7,6 +7,7 @@
 
 import { createErpFeedDeps } from './erpnextFeedDeps.ts';
 import { applyErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/applyFeed.ts';
+import { findCompanyCandidates } from './companyCandidates.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 type Row = Record<string, unknown>;
@@ -29,6 +30,10 @@ function memoryClient(seed: Record<string, Row[]>) {
       in(col: string, vals: unknown[]) { filters.push((r) => vals.includes(r[col])); return b; },
       contains(col: string, val: Row) { filters.push((r) => Object.entries(val).every(([k, v]) => (r[col] as Row | undefined)?.[k] === v)); return b; },
       is(col: string, val: unknown) { filters.push((r) => (r[col] ?? null) === val); return b; },
+      ilike(col: string, pattern: string) { // %word% only (what findCompanyCandidates sends), `\\` escapes
+        const needle = pattern.slice(1, -1).replace(/\\(.)/g, '$1').toLowerCase();
+        filters.push((r) => String(r[col] ?? '').toLowerCase().includes(needle)); return b;
+      },
       limit() { return b; },
       maybeSingle() { const out = run(filtered(table, filters)); return Promise.resolve({ ...out, data: Array.isArray(out.data) ? out.data[0] ?? null : out.data }); },
       then(resolve: (v: unknown) => void) { resolve(run(filtered(table, filters))); },
@@ -132,4 +137,40 @@ Deno.test('#1600 sweep: a same-name client does not match a supplier', async () 
 Deno.test('#1600 an unclear party match is a terminal skip for the feed, not a halt of the whole poll', async () => {
   const { erpFeedApplyErrorPolicy } = await import('../../../pmo-portal/src/lib/adapterSeam/erpnext/feedErrorPolicy.ts');
   assertEq(erpFeedApplyErrorPolicy({ code: 'party-match-unclear' }), 'skip', 'policy');
+});
+
+Deno.test('#1600 sweep: legal-form punctuation and case do not make a second company ("PT Acme" = "PT. ACME")', async () => {
+  const { client, tables } = memoryClient({ companies: [company('company-1', 'PT Acme Indonesia')] });
+  const outcome = await sweepSupplier(client, 'PT. ACME  INDONESIA');
+  assertEq(outcome, { kind: 'upserted', pmoRecordId: 'company-1', adopted: false }, 'linked');
+  assertEq(tables.companies.length, 1, 'still one company');
+});
+
+Deno.test('#1600 sweep: a different company that only shares a word is not matched', async () => {
+  const { client, tables } = memoryClient({ companies: [company('company-1', 'PT Acme Indonesia')] });
+  await sweepSupplier(client, 'PT Acme Logistics');
+  assertEq(tables.companies.length, 2, 'new company minted');
+});
+
+Deno.test('#1600 sweep: an archived PMO vendor is not a candidate', async () => {
+  const { client, tables } = memoryClient({ companies: [{ ...company('company-1', 'Test party'), archived_at: '2026-01-01T00:00:00Z' }] });
+  const outcome = await sweepSupplier(client, 'Test party');
+  assertEq(outcome.kind === 'upserted' && outcome.adopted, true, 'adopted as new');
+  assertEq(tables.companies.length, 2, 'archived row left alone');
+});
+
+// The shared lookup itself, so the setup step (which uses it directly) is bound too, not only the feed.
+Deno.test('#1600 findCompanyCandidates: same org + type + normalised name; never a linked or archived company', async () => {
+  const { client } = memoryClient({
+    companies: [
+      company('c-live', 'PT. Acme'),
+      company('c-linked', 'PT Acme'),
+      { ...company('c-archived', 'pt acme'), archived_at: '2026-01-01T00:00:00Z' },
+      company('c-client', 'PT Acme', 'Client'),
+      { ...company('c-other-org', 'PT Acme'), org_id: 'org-2' },
+    ],
+    external_refs: [ref('c-linked', 'Supplier:ERP-TEST-009')],
+  });
+  const found = await findCompanyCandidates(client, ORG, 'Supplier', 'PT ACME');
+  assertEq(found.map((c) => c.pmoRecordId), ['c-live'], 'only the live, unlinked, same-org vendor');
 });

@@ -26,6 +26,7 @@ import { resolveErpAuthPair } from '../_shared/erpAuthPair.ts';
 import { guardedErpFetch } from '../_shared/erpHostGuard.ts';
 import { findPmoRecordId, insertExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { findCompanyCandidates } from '../_shared/companyCandidates.ts';
+import { surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
 import { applyErpContact } from '../_shared/erpnextContacts.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
@@ -135,6 +136,13 @@ export async function handleOnboardRequest(req: Request): Promise<Response> {
         if (error) throw new AppError(error.message, error.code);
       },
       recordExternalRef: (mapping) => insertExternalRef(serviceClient as never, { ...mapping, orgId, domain: 'companies', externalTier: ERPNEXT_TIER }),
+      mirrorExists: async (pmoRecordId: string) => {
+        const { data, error } = await serviceClient.from('companies').select('id').eq('org_id', orgId).eq('id', pmoRecordId).maybeSingle();
+        if (error) throw new AppError(error.message, error.code);
+        return !!data;
+      },
+      // Same notification (text + unread dedupe) as the change feed's unclear match.
+      notifyUnclearMatch: (entry) => surfaceActionRequired(serviceClient, orgId, 'party-match-unclear', { erpName: entry.name }),
     });
 
     const contacts = {adopted: 0, reconciled: 0};

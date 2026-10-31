@@ -67,6 +67,13 @@ export function deriveErpPaymentTermsDays(templateCreditDays: number | null | un
   return templateCreditDays ?? 30;
 }
 
+/** The ONE party-name comparison key (FR-ECA-011): case-folded, legal-form punctuation dropped
+ *  ("PT. Acme, Tbk." = "pt acme tbk"), whitespace collapsed. The shared matcher extends THIS, so setup and the
+ *  feed can never disagree on what "the same name" means. */
+export function normalizePartyName(name: string): string {
+  return name.toLowerCase().replace(/[.,]/g, '').replace(/\s+/g, ' ').trim();
+}
+
 // The caller supplies same-name, same-type, same-org candidates. A present source tax ID narrows
 // that set to matching or unset IDs. Conflicting-only and multiple eligible matches require action.
 export function pickCandidate(source: ErpPartySource, candidates: PartyCandidate[]): PartyCandidate | undefined {

@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { AppError } from '../../appError.ts';
-import { adoptParty, externalIdFor, deriveErpPaymentTermsDays } from './partyAdopt.ts';
+import { adoptParty, externalIdFor, deriveErpPaymentTermsDays, normalizePartyName } from './partyAdopt.ts';
 
 describe('erpnext/partyAdopt — externalIdFor (the doctype-encoded external id, FR-ENA-091)', () => {
   it('encodes the ERP doctype into the external id so Supplier/Customer never collide', () => {
@@ -171,5 +171,15 @@ describe('erpnext/partyAdopt — deriveErpPaymentTermsDays (FR-ENA-094)', () => 
   it('defaults to 30 when no template is set (FR-ENA-094 default)', () => {
     expect(deriveErpPaymentTermsDays(null)).toBe(30);
     expect(deriveErpPaymentTermsDays(undefined)).toBe(30);
+  });
+});
+
+describe('#1600 normalizePartyName — the one name key for setup and the feed (FR-ECA-011)', () => {
+  it('folds case, drops legal-form punctuation and collapses spaces', () => {
+    expect(normalizePartyName('PT. ACME  Indonesia, Tbk.')).toBe(normalizePartyName('pt acme indonesia tbk'));
+    expect(normalizePartyName('PT Acme')).toBe(normalizePartyName('PT. ACME'));
+  });
+  it('keeps names that differ by a word apart', () => {
+    expect(normalizePartyName('PT Acme Indonesia')).not.toBe(normalizePartyName('PT Acme Logistics'));
   });
 });
