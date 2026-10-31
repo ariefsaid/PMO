@@ -9,6 +9,7 @@ import { evalSampled } from '../../../../supabase/functions/agent-chat/aiJudge';
 import type { AgentEvent } from './runtime/port';
 import type { AgentChatRequest } from './runtime/transport';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- PostHog payloads are inspected structurally
 type Ph = { event: string; properties: Record<string, any> };
 const QUESTION = 'How many active projects does Acme Corp payroll have?';
 const MODEL = 'deepseek/deepseek-v4-flash';
@@ -21,7 +22,7 @@ interface Opts {
   modelThrows?: Error; usageAction?: 'chat' | 'automation'; runId?: string; model?: string; judge?: string; threadId?: string;
 }
 async function runWith(o: Opts = {}) {
-  const usageRows: Record<string, any>[] = [];
+  const usageRows: Record<string, unknown>[] = [];
   const ph: Ph[] = [];
   const judgeCalls: unknown[] = [];
   const tables: string[] = [];
@@ -32,7 +33,7 @@ async function runWith(o: Opts = {}) {
       if (table === 'organizations') {
         return { select: () => ({ limit: async () => (o.orgState === 'error' ? { data: null, error: { message: 'x' } } : { data: [{ lifecycle_state: o.orgState === undefined ? 'live' : o.orgState }], error: null }) }) };
       }
-      if (table === 'agent_usage') return { insert: (row: Record<string, any>) => { usageRows.push(row); return { select: () => ({ single: async () => ({ data: { id: 'u' }, error: null }) }) }; } };
+      if (table === 'agent_usage') return { insert: (row: Record<string, unknown>) => { usageRows.push(row); return { select: () => ({ single: async () => ({ data: { id: 'u' }, error: null }) }) }; } };
       return { select: () => ({ limit: async () => ({ data: [{ name: 'A' }], error: null }), eq: () => ({ limit: async () => ({ data: [{ name: 'A' }], error: null }) }) }) };
     }),
   } as unknown as HandlerDeps['supabase'];
@@ -43,7 +44,7 @@ async function runWith(o: Opts = {}) {
     if (o.modelThrows) throw o.modelThrows;
     return script[Math.min(i++, script.length - 1)];
   });
-  if (o.posthog !== 'absent') (globalThis as any).Deno = { env: { get: (k: string) => (k === 'POSTHOG_PROJECT_KEY' ? 'phc_x' : undefined) } };
+  if (o.posthog !== 'absent') (globalThis as { Deno?: unknown }).Deno = { env: { get: (k: string) => (k === 'POSTHOG_PROJECT_KEY' ? 'phc_x' : undefined) } };
   vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
     if (o.posthog === 'hangs') return new Promise((_r, rej) => init.signal?.addEventListener('abort', () => rej(new Error('abort'))));
     if (o.posthog === 'rejects') throw new Error('down');
@@ -77,8 +78,8 @@ describe('AC-PHO-001 trace shape', () => {
     expect(by(r, '$ai_span')).toHaveLength(1);
     expect(by(r, '$ai_trace')).toHaveLength(1);
     expect(new Set(r.ph.map((e) => e.properties.$ai_trace_id)).size).toBe(1);
-    expect(sum(by(r, '$ai_generation').map((e) => e.properties.$ai_total_cost_usd))).toBeCloseTo(sum(r.usageRows.map((u) => u.cost)));
-    expect(sum(by(r, '$ai_generation').map((e) => e.properties.$ai_input_tokens))).toBe(sum(r.usageRows.map((u) => u.prompt_tokens)));
+    expect(sum(by(r, '$ai_generation').map((e) => e.properties.$ai_total_cost_usd))).toBeCloseTo(sum(r.usageRows.map((u) => u.cost as number)));
+    expect(sum(by(r, '$ai_generation').map((e) => e.properties.$ai_input_tokens))).toBe(sum(r.usageRows.map((u) => u.prompt_tokens as number)));
     expect(by(r, '$ai_span')[0].properties.$ai_parent_id).toBe(by(r, '$ai_generation')[0].properties.$ai_span_id);
     expect(by(r, '$ai_span')[0].properties.$ai_span_name).toBe('query_entity');
     expect(by(r, '$ai_generation')[0].properties.$ai_session_id).toBe('thread-1');

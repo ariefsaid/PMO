@@ -3,7 +3,7 @@ import {
   emitAiEval, emitAiGeneration, emitAiSpan, emitAiTrace,
   type AiAction, type AiLink, type AiMessage,
 } from '../_shared/posthogAi.ts';
-import type { ModelClient, ModelMessage } from '../_shared/modelClient.ts';
+import type { ModelClient, ModelMessage, ModelResponse } from '../_shared/modelClient.ts';
 import { serverTelemetryEnabled } from '../_shared/posthogServer.ts';
 import { evalSampled, isAllowedJudgeModel, runJudge } from './aiJudge.ts';
 
@@ -33,7 +33,7 @@ export interface AiRunTelemetry {
   setOrg(orgId: string, supabase: LifecycleLookup): void;
   setTools(catalog: string[]): void;
   /** `input` = the messages sent to the model (used only on the demo-text path). */
-  generation(resp: { model: string; usage?: Record<string, unknown>; message?: { content: string | null; tool_calls?: { function: { name: string } }[] } },
+  generation(resp: { model: string; usage?: ModelResponse['usage']; message?: ModelResponse['message'] },
     latencyMs: number, err?: { code: string; status: number }, input?: ModelMessage[]): void;
   span(toolName: string, latencyMs: number, isError: boolean, io?: { input: unknown; output: unknown }): void;
   /** Watches the event stream: question, last answer, tool outcomes (judge input + demo trace text). */
@@ -86,7 +86,7 @@ export function createAiRunTelemetry(ctx: AiRunContext): AiRunTelemetry {
       if (!orgId) return;
       const spanId = crypto.randomUUID();
       lastGeneration = spanId;
-      const u = resp.usage ?? {};
+      const u: Partial<NonNullable<ModelResponse['usage']>> = resp.usage ?? {};
       const out = resp.message;
       later(() => emitAiGeneration('agent-chat', {
         traceId: ctx.runId, spanId, sessionId: ctx.threadId ?? ctx.runId, model: resp.model,
@@ -98,7 +98,7 @@ export function createAiRunTelemetry(ctx: AiRunContext): AiRunTelemetry {
         text: textOk() && input
           ? {
             input: input.filter((m) => m.role !== 'system').slice(-MAX_CONTEXT_MESSAGES).map(toText),
-            output: out ? [toText({ role: 'assistant', content: out.content, tool_calls: out.tool_calls as never })] : [],
+            output: out ? [toText({ role: 'assistant', content: out.content, tool_calls: out.tool_calls })] : [],
           }
           : undefined,
       }));

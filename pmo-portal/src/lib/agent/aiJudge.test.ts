@@ -3,7 +3,7 @@ import { runJudge, isAllowedJudgeModel, evalSampled } from '../../../../supabase
 
 const input = { question: 'How many active projects?', answer: 'There are 4.', tools: [{ name: 'query_entity', error: false }], catalog: ['query_entity: read rows', 'notify: send note'] };
 const client = (content: string | Error) => ({
-  create: vi.fn(async () => {
+  create: vi.fn(async (_p: { messages: unknown[]; tools?: unknown }) => {
     if (content instanceof Error) throw content;
     return { finish_reason: 'stop', model: 'm', message: { role: 'assistant' as const, content } };
   }),

@@ -9,7 +9,8 @@ const supabase = { from: () => ({ select: () => ({ eq: () => ({ single: async ()
 const ok = { create: vi.fn().mockResolvedValue({ finish_reason: 'tool_calls', model: 'm', usage: { prompt_tokens: 100, completion_tokens: 200, total_tokens: 300, total_cost: 0.002 }, message: { role: 'assistant', content: null, tool_calls: [{ id: 'c', type: 'function', function: { name: 'compose_view', arguments: JSON.stringify(SPEC) } }] } }) };
 
 function stub() {
-  (globalThis as any).Deno = { env: { get: (k: string) => (k === 'POSTHOG_PROJECT_KEY' ? 'phc_x' : undefined) } };
+  (globalThis as { Deno?: unknown }).Deno = { env: { get: (k: string) => (k === 'POSTHOG_PROJECT_KEY' ? 'phc_x' : undefined) } };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- PostHog payloads are inspected structurally
   const sent: { event: string; properties: Record<string, any> }[] = [];
   vi.stubGlobal('fetch', vi.fn(async (_u: string, init: RequestInit) => { sent.push(JSON.parse(String(init.body))); return { ok: true } as Response; }));
   return sent;
