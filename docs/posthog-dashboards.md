@@ -69,7 +69,11 @@ _Owned by slice S4 (#1532)._
 
 ## S5 Business events
 
-_Owned by slice S5 (#1532)._
+`[PMO] Usage per org (observed use)` (`scripts/posthog/spec/usage.mjs`): one table tile, the four business
+events (budgets activated, invoices issued, payments recorded, purchases approved) per week, broken down by
+`org_id`. The dashboard description reads: "Observed use — browser events, best effort (ad blockers, opt-out).
+Not a record; nothing commercial reads from it." No PostHog-side setting is needed; `node scripts/check-dashboard-tiles.mjs`
+fails if any of the four events loses its call site.
 
 ## S6 Demo funnels
 
