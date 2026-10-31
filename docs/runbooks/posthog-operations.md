@@ -105,7 +105,15 @@ What exists: every scheduled job emits one `job_run` per run (see `docs/analytic
 
 ## S4 Push outcomes
 
-_Owned by slice S4._
+What exists: every fenced outbox transition (confirmed, failed, held, quarantined) emits one `erp_push_outcome` (see `docs/analytics-events.md` S4), from both the user's push and the sweep's recovery; the `[PMO] Money pushes` dashboard shows them.
+
+**Alerts** (click-path in `docs/posthog-dashboards.md` S4): A = any `failed` outcome in `budget`, `revenue`, `procurement`, `expenses` within 15 minutes; B = any `needs_human = true` (a held command), whatever its attempt count. Other domains are charted, not alerted. Only on environments with an ERP binding.
+
+**Triage.** The event names the outbox row (`outbox_id`) and a stable `error_code`; the ERP text lives only on the row's `last_error`. Open the row before acting. A held command is resolved only through the Admin-only, audited `release_outbox_hold` RPC (held → failed), never by re-pushing.
+
+**Guarantees (Deno `adapter-dispatch/moneyOutboxDeps.pushOutcome.test.ts`):** emitted only when the write-back reports this call transitioned the row (a retry or superseded finalize emits nothing); PostHog rejecting, throwing or hanging changes no write-back result; no amounts, names or ERP text leave. The existing `adapter-dispatch` and `erpnext-sweep` suites run unmodified.
+
+**Positive control (owner or Director, non-production):** with an ERP binding pointed at an unreachable host, push one budget; confirm alert A arrives with `error_code = external-unreachable`, then restore the binding. Record the date and evidence location on a line below this paragraph.
 
 ## S5 Business events
 

@@ -338,7 +338,20 @@ Held and quarantined counts are not here; they come from the `erp_push_outcome` 
 
 ## S4 Push outcomes
 
-_Owned by slice S4 (#1532)._
+`erp_push_outcome`, server event, one per outbox transition that the write-back itself made, emitted by `emitErpPushOutcome` (`supabase/functions/_shared/erpPushOutcome.ts`) from the four fenced write-backs in `adapter-dispatch/moneyOutboxDeps.ts`. That factory serves both `adapter-dispatch` (the user's push) and `erpnext-sweep` (recovery), so both paths report through one distinct id, `edge:money-outbox`. No user id. A write-back that changed nothing (superseded, already confirmed) emits nothing, so a retry never double-counts. Fire-and-forget after the write returned: PostHog down, slow or throwing never changes the push.
+
+| Property | Meaning |
+|---|---|
+| `outcome` | `confirmed`, `failed`, `held` (an operator must decide), `quarantined` (a stale claim fenced; the sweep resolves it after its window) |
+| `domain` | outbox domain (`budget`, `revenue`, `procurement`, `expenses`, `timesheets`, `companies`, …) |
+| `tier`, `operation` | external tier (`erpnext`) and `create` / `update` / `transition` |
+| `error_code` | `failed` / `held` / `quarantined` only: the leading code token of the outbox reason (`external-unreachable`, `recovery-inconclusive-absence`, `committing-lease-expired`, …), else `unclassified`. Never the ERP error text |
+| `attempt_count` | the claim's attempt number, when this run claimed the row |
+| `duration_ms` | claim to transition, when this run claimed the row |
+| `needs_human` | `true` exactly when `outcome = held` |
+| `org_id`, `outbox_id` | opaque ids; the outbox row is the record to open |
+
+No amounts, party names or ERP document ids, for any org.
 
 ## S5 Business events
 
