@@ -34,6 +34,8 @@ Issue #1532. Status: **Draft for owner sign-off** (2026-10-31). Spec prefix: `PH
 
 ## 0. Open questions for the owner (each with the default the builders will take)
 
+**Director, 2026-10-31:** all eight defaults taken (#1532 is ready-for-agent; Director decides tactical scope). Slice 8 (flags) held pending an owner yes.
+
 | # | Question | Default taken if no answer |
 |---|---|---|
 | OQ-1 | **Alert channel.** PostHog issue alerts go to Slack, Discord, Teams or an HTTP webhook; email exists only for trend alerts; Telegram has no native destination. Which channel? | Issue alerts (new error, spike) → HTTP-webhook destination pointed at the Telegram bot send call (no new PMO endpoint). Job-health and push-failure alerts → trend alerts by email. Owner action in PostHog settings (FR-PHO-004). Confirm the webhook route works at build; if not, email only. |
