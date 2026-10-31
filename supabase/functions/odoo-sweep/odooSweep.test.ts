@@ -12,8 +12,10 @@ import { createFakeOdoo, type FakeOdoo } from '../../../pmo-portal/src/lib/adapt
 import type { ConnectionRecord } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectionState.ts';
 
 const env = installEdgeEnv();
-Deno.env.set('ODOO_PACE_RPS', '100000');
-afterAll(() => { env.restore(); Deno.env.delete('ODOO_PACE_RPS'); });
+// The pacer can only slow a client down, so tests skip its waits by firing timers at once.
+const realSetTimeout = globalThis.setTimeout;
+globalThis.setTimeout = ((fn: () => void) => { queueMicrotask(fn); return 0; }) as unknown as typeof setTimeout;
+afterAll(() => { env.restore(); globalThis.setTimeout = realSetTimeout; });
 
 const ORG = '0d000000-0000-4000-8000-000000000004';
 const ODOO = 'odoo.example.test';
@@ -24,7 +26,7 @@ const binding = (over: Record<string, unknown> = {}) => ({
   config: { database: 'db1', odoo_company_id: 1, capabilities: { observed_at: FRESH, missing: [], models: {} } }, ...over,
 });
 
-interface Opts { binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; rejectAfter?: number; prepare?: (f: FakeOdoo) => void }
+interface Opts { binding?: Record<string, unknown>; lock?: { held: boolean }; applyError?: boolean; rejectAfter?: number; version?: number | null; prepare?: (f: FakeOdoo) => void }
 
 function harness(o: Opts = {}) {
   const fake = createFakeOdoo({ key: KEY });
@@ -59,7 +61,7 @@ function harness(o: Opts = {}) {
       const key = o.rejectAfter !== undefined && odooCalls > o.rejectAfter ? 'revoked' : (c.headers.get('authorization') ?? '');
       return fake.fetch(c.url.toString(), { method: 'POST', headers: { Authorization: key.startsWith('bearer') ? key : `bearer ${key}` }, body: c.bodyText });
     } },
-    { label: 'odoo-version', host: ODOO, pathname: '/web/webclient/version_info', response: () => jsonResponse({ result: { server_version_info: [20, 0] } }) },
+    { label: 'odoo-version', host: ODOO, pathname: '/web/webclient/version_info', response: () => (o.version === null ? new Response('no', { status: 404 }) : jsonResponse({ result: { server_version_info: [o.version ?? 20, 0] } })) },
   ];
   return { fake, cursors, lock, routes };
 }
@@ -143,6 +145,15 @@ describe('odooSweep — AC-ODC-025 budget and outcomes', () => {
     const r = await sweep({ binding: binding({ config: { database: 'db1', odoo_company_id: 1, capabilities: { observed_at: '2026-01-01T00:00:00Z', missing: [], models: {} } } }) });
     assert(r.fake.calls.some((c) => c.method === 'fields_get'));
     assert(stored(r.calls)?.capabilities);
+  });
+
+  it('FR-ODC-021 a stale snapshot whose version probe fails falls back to the stored version, and with none is a failure', async () => {
+    const old = { observed_at: '2026-01-01T00:00:00Z', missing: [], models: {} };
+    const kept = await sweep({ version: null, binding: binding({ config: { database: 'db1', odoo_company_id: 1, capabilities: { ...old, version_major: 20 } } }) });
+    assertEquals((stored(kept.calls)?.capabilities as { version_major: number }).version_major, 20);
+    const none = await sweep({ version: null, binding: binding({ config: { database: 'db1', odoo_company_id: 1, capabilities: old } }) });
+    assertEquals('ok' in none.result && none.result.failed, 'unreachable');
+    assertEquals(stored(none.calls)?.capabilities, undefined);
   });
 
   it('AC-ODC-025 a 401 mid-sweep → credential-rejected, and no Odoo call after it', async () => {

@@ -6,7 +6,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { bindCall, OdooError, type OdooCall } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import { fetchOdooVersionMajor } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connect.ts';
-import { discoverCapabilities, type CapabilitySnapshot } from '../../../pmo-portal/src/lib/adapterSeam/odoo/discovery.ts';
+import { discoverCapabilities, DISCOVERY_BUDGET_MS, type CapabilitySnapshot } from '../../../pmo-portal/src/lib/adapterSeam/odoo/discovery.ts';
 import { KIND_SPECS, type DirectoryKind, type DirectoryRow } from '../../../pmo-portal/src/lib/adapterSeam/odoo/kinds.ts';
 import { odooKindReaders, runCensus, runKind, type KindRunDeps } from '../../../pmo-portal/src/lib/adapterSeam/odoo/sweep.ts';
 import { odooClientForOrg, recordOdooProbe, type OdooClientRefusal } from './odooClientForOrg.ts';
@@ -89,9 +89,13 @@ export async function sweepOdooOrg(
       for (const step of AFTER_SWEEP) await step(sc, orgId, r, budget);
       // Daily re-discovery (FR-ODC-021) runs outside the sweep's call budget; it is ~60 calls once a day.
       const stale = !capabilities?.observed_at || Date.now() - Date.parse(capabilities.observed_at) > DAY_MS;
-      const snapshot = stale && budget.left()
-        ? await discoverCapabilities(call, { versionMajor: await fetchOdooVersionMajor(r.client), now: new Date() })
-        : undefined;
+      let snapshot: CapabilitySnapshot | undefined;
+      if (stale && budget.left()) {
+        // As recheck: a failed version probe falls back to the stored version; with none it is a failure.
+        const versionMajor = (await fetchOdooVersionMajor(r.client)) ?? capabilities?.version_major ?? null;
+        if (versionMajor === null) throw new OdooError('unreachable');
+        snapshot = await discoverCapabilities(call, { versionMajor, now: new Date(), deadlineAt: Date.now() + Math.min(DISCOVERY_BUDGET_MS, timeBudget - (Date.now() - started)) });
+      }
       await recordOdooProbe(sc, orgId, r.config, { ok: true, missing: (snapshot ?? capabilities)?.missing ?? [] }, snapshot);
       return { ok: true, calls, skipped_rows: skippedRows };
     } catch (err) {
