@@ -8,6 +8,8 @@ Everything cited below was checked against `origin/dev` at `1ccadb793` (migratio
 
 ## Open questions (answer before dispatch, or accept the stated default)
 
+**Director, 2026-10-31:** PQ-1..10 defaults accepted. Spec + ADR-0094 are owner-signed (2026-10-31). **Migration numbers shift by one: S1 0412, S2a 0413, S2b 0414, S3 0415, S4 0416, S5 0417, S6 0418** (0411 went to #1595). ADR-0097 as planned. Slices may stack on the previous slice's branch before its PR merges; each money/SoD slice still ships as its own PR.
+
 The spec already carries OQ-STK-1..10 with defaults. The plan takes all ten unchanged. The questions below are **new**, found while planning; each default lets a builder start, and each names the one slice that changes if the answer differs.
 
 | # | Question | Default taken | Slice |
