@@ -29,22 +29,14 @@ import { signIn, waitForFonts } from './helpers';
 const MERIDIAN = '41000000-0000-0000-0000-000000000001';
 
 const ROUTES: { path: string; label: string }[] = [
-  { path: '/', label: 'dashboard' },
-  { path: '/my-tasks', label: 'my-tasks' },
   { path: '/sales', label: 'sales-pipeline' },
-  { path: '/projects', label: 'projects-list' },
   { path: `/projects/${MERIDIAN}/overview`, label: 'project-overview' },
   { path: `/projects/${MERIDIAN}/budget`, label: 'project-budget' },
   { path: `/projects/${MERIDIAN}/tasks`, label: 'project-tasks' },
   { path: '/procurement', label: 'procurement-list' },
   { path: '/timesheets', label: 'timesheets' },
   { path: '/approvals', label: 'approvals' },
-  { path: '/companies', label: 'companies' },
-  { path: '/contacts', label: 'contacts' },
-  { path: '/administration', label: 'administration' },
   // Legal pages (FR-LEG-029): swept at desktop + mobile for no oversized shared icons.
-  { path: '/terms', label: 'terms' },
-  { path: '/privacy', label: 'privacy' },
 ];
 
 const VIEWPORTS = [

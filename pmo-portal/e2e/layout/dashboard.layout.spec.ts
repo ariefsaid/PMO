@@ -1,8 +1,25 @@
-// @e2e-isolation: read-only — confirms rendered KPI money stays inside its tile at desktop and phone widths.
-import { expect, test, type Locator } from '@playwright/test';
-import { signIn, waitForFonts } from './helpers';
-import { formatExactMoney, formatShortMoney } from '../src/lib/format';
-import { getActiveLocale, setActiveLocale } from '../src/lib/locale/activeLocale';
+// @e2e-isolation: read-only — layout measurements on a seeded route; no writes.
+import { test, expect } from '@playwright/test';
+import { login, signIn, waitForFonts } from '../helpers';
+import { formatExactMoney, formatShortMoney } from '../../src/lib/format';
+import { getActiveLocale, setActiveLocale } from '../../src/lib/locale/activeLocale';
+import { assertDashboardPaintAndDesktopAccount, assertShortAccountMenu, expectMoneyFits } from '../support/layout-oracles';
+import { registerFigureLayout } from '../support/figure-layout';
+import { registerLayoutSweep } from '../support/layout-sweep';
+
+registerLayoutSweep({ path: '/', label: 'dashboard', icons: true, integrations: false });
+
+test('@layout AC-ACCT-005 AC-1202 token utilities paint: active nav has a blue tint + blue text, ⌘K selection is highlighted', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await login(page, 'pm@acme.test');
+
+  await assertDashboardPaintAndDesktopAccount(page);
+});
+
+registerFigureLayout('executive');
+registerFigureLayout('pm');
 
 async function pinBahasaLocale(page: import('@playwright/test').Page) {
   await page.route('**/rest/v1/profiles?*', async (route) => {
@@ -25,42 +42,10 @@ function expectedShortIdUsd(value: number): string {
   }
 }
 
-async function expectMoneyFits(tile: Locator, locator: Locator, shortValue: string, exactValue: string) {
-  await expect(locator).toHaveText(shortValue);
-  // A7 (RD-S1): the short value span carries the title, so AT reads the amount once.
-  await expect(locator, 'the exact amount is the figure title').toHaveAttribute('title', exactValue);
-  const amountMetrics = await locator.evaluate((element) => {
-    const box = element.getBoundingClientRect();
-    return {
-      clientWidth: element.clientWidth,
-      scrollWidth: element.scrollWidth,
-      left: box.left,
-      right: box.right,
-    };
-  });
-  const containerMetrics = await tile.evaluate((container) => {
-    const containerBox = container.getBoundingClientRect();
-    const containerStyle = getComputedStyle(container);
-    return {
-      contentLeft: containerBox.left + Number.parseFloat(containerStyle.paddingLeft),
-      contentRight: containerBox.right - Number.parseFloat(containerStyle.paddingRight),
-    };
-  });
-  const metrics = { ...amountMetrics, ...containerMetrics };
-
-  expect(metrics.scrollWidth, 'the complete formatted amount fits within its own rendered box')
-    .toBeLessThanOrEqual(metrics.clientWidth);
-  expect(metrics.left, 'the formatted amount starts inside its tile content edge')
-    .toBeGreaterThanOrEqual(metrics.contentLeft - 0.5);
-  expect(metrics.right, 'the formatted amount box stays inside its tile content edge')
-    .toBeLessThanOrEqual(metrics.contentRight + 0.5);
-}
-
-test('AC-FAA-010: long Indonesian money values stay fully visible in Executive KPI tiles at desktop and phone widths', async ({ page }) => {
+test('@layout AC-FAA-010: long Indonesian money values stay fully visible in Executive KPI tiles at desktop and phone widths', async ({ page }) => {
   await pinBahasaLocale(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, 'exec@acme.test');
-  await page.goto('/');
   await waitForFonts(page);
 
   // #1403 owner ruling: active-contract tile removed; on-hand is the company figure
@@ -78,4 +63,12 @@ test('AC-FAA-010: long Indonesian money values stay fully visible in Executive K
   await expect(phoneSpendLink).toBeVisible();
   await waitForFonts(page);
   await expectMoneyFits(desktopTile, visibleAmount, expectedShortAmount, expectedExactAmount);
+});
+
+
+test('@layout AC-ACCT-005 short phone menu and larger text remain reachable', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 360 });
+  await signIn(page, 'admin@acme.test');
+  await page.goto('/');
+  await assertShortAccountMenu(page);
 });

@@ -25,7 +25,7 @@
  */
 // @e2e-isolation: read-only — viewport sweep + bleed measurement; login + nav to seeded routes; no DB writes.
 import { test, expect, type Page, type Locator } from '@playwright/test';
-import { signIn, grantM365EntitlementFixture, stubM365StatusUnavailable, waitForFonts } from './helpers';
+import { signIn, waitForFonts } from './helpers';
 
 // Known seed ids (stable across local + cloud — supabase/seed.sql).
 const MERIDIAN = '41000000-0000-0000-0000-000000000001';
@@ -43,10 +43,7 @@ const ROUTES: {
   /** Must be visible before measuring — guards against sweeping an empty shell. */
   ready?: (page: Page) => Locator;
 }[] = [
-  { path: '/', label: 'dashboard' },
-  { path: '/my-tasks', label: 'my-tasks' },
   { path: '/sales', label: 'sales-pipeline' },
-  { path: '/projects', label: 'projects-list' },
   { path: `/projects/${MERIDIAN}/overview`, label: 'project-overview' },
   { path: `/projects/${MERIDIAN}/budget`, label: 'project-budget' },
   { path: `/projects/${MERIDIAN}/tasks`, label: 'project-tasks' },
@@ -61,26 +58,6 @@ const ROUTES: {
   { path: `/procurement/${PROC_SHOWCASE}/details`, label: 'procurement-detail-details' },
   { path: '/timesheets', label: 'timesheets' },
   { path: '/approvals', label: 'approvals' },
-  // AC-MTG-021: the meeting routes join the EXISTING sweep, never a fork (spec §6 traceability).
-  // The detail is the §V seeded meeting (authored by pm@, but the sweep's admin@ reads all —
-  // the one role disjunct 0205 grants) so the editor/attendees/share surfaces get measured.
-  { path: '/meetings', label: 'meetings-list' },
-  { path: '/meetings/ee000000-0000-0000-0000-000000000001', label: 'meeting-detail' },
-  { path: '/companies', label: 'companies' },
-  { path: '/contacts', label: 'contacts' },
-  { path: '/administration', label: 'administration' },
-  {
-    path: '/integrations',
-    label: 'personal-integrations (AC-RAM-003)',
-    prepare: async (p) => {
-      await grantM365EntitlementFixture(p);
-      await stubM365StatusUnavailable(p);
-    },
-    ready: (p) => p.getByTestId('m365-connection-card'),
-  },
-  // Legal pages (FR-LEG-029): public bare pages, swept at 390/360px for no-bleed.
-  { path: '/terms', label: 'terms' },
-  { path: '/privacy', label: 'privacy' },
 ];
 
 const PHONE_WIDTHS = [390, 360];

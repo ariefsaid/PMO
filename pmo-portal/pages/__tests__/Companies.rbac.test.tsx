@@ -67,9 +67,10 @@ describe('Companies — Engineer page view-gate (A-5)', () => {
     expect(screen.getByText('Cascade Port Authority')).toBeInTheDocument();
   });
 
-  it('AC-W2-RBAC-010: an Engineer sees an access-denied surface, not the directory', () => {
+  it('AC-W2-RBAC-010 AC-CO-001b: an Engineer sees an access-denied surface, not the directory or New company button', () => {
     renderAs('Engineer');
     expect(screen.queryByText('Cascade Port Authority')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /new company/i })).not.toBeInTheDocument();
     expect(
       screen.getByRole('region', { name: /don't have access/i }),
     ).toBeInTheDocument();
