@@ -40,3 +40,17 @@ _Owned by slice S6._
 ## S7 Logs (conditional)
 
 _Owned by slice S7 (only if the Logs allowance check keeps it)._
+
+## Q Quota fixture capture (slice Q, needs the operator's key)
+
+Why: the quota check fails closed on shape, and its fixture must come from the live API, not from docs (the
+earlier invented fixture passed against a shape the API never returned). Slice Q's remaining tasks
+(unrecognised-resource guard, 85% cases for `events`, `exceptions`, `recordings`) start only from this capture.
+
+1. Run the check exactly as in `docs/analytics-events.md` § Quota safety (same key fetch, same project id), adding `--dump`:
+   `node scripts/posthog/check-quota.mjs --dump > /tmp/quota.live.json`
+2. The output holds only `{ resource: { limited, usage, limit } }` (booleans and numbers). Read it once: no key, host or id belongs in it.
+3. Save it as `pmo-portal/src/lib/analytics/quota.live.fixture.json` and tell the builder. Then: tests first in `quota.test.ts`
+   (fixture exits 0; `events`, `exceptions`, `recordings` at 85% exit 1 naming the resource; an extra unknown resource exits 2 naming it),
+   then `KNOWN_RESOURCES` in `quota.mjs` as a literal list with a "captured from a live response <date>" comment.
+4. Residual risk, stated: a resource PostHog adds later turns the daily workflow red (exit 2, "could not run") until its name is added. That is the chosen fail-closed behaviour.
