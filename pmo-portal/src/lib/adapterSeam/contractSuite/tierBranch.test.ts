@@ -27,12 +27,13 @@ const ALLOWED: Record<string, number> = {
   'pmo-portal/src/lib/adapterSeam/dispatch.ts': 1,
   'supabase/functions/external-unlink/index.ts': 2,
   'supabase/functions/external-invoice-evidence/index.ts': 1,
-  'supabase/functions/external-connect/index.ts': 2,
+  // +3 / +1 / +1: the Odoo connect, disconnect and setup routing and the one-ERP-tier check (#1504 S2, PQ-12).
+  'supabase/functions/external-connect/index.ts': 5,
   'supabase/functions/external-link/index.ts': 2,
   'supabase/functions/external-companies/index.ts': 1,
   'supabase/functions/external-invoice-pdf/index.ts': 1,
-  'supabase/functions/external-disconnect/index.ts': 1,
-  'supabase/functions/external-set-company/index.ts': 1,
+  'supabase/functions/external-disconnect/index.ts': 2,
+  'supabase/functions/external-set-company/index.ts': 2,
 };
 
 function sourceFiles(dir: string): string[] {
