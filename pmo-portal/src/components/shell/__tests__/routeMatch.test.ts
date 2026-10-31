@@ -406,8 +406,12 @@ describe('breadcrumbForPath: Stock module (#1512 S3)', () => {
     expect(crumbs[0].label).toBe('Stock');
     expect(crumbs[1].label).toBe('ISS-1');
   });
-  it.each(['/stock/ledger', '/stock/documents', '/stock/setup', '/stock/new/issue'])('%s is never "Not found" or "Dashboard"', (p) => {
-    const labels = breadcrumbForPath(p).map((c) => c.label);
+  it.each([['/stock/ledger', 'Ledger'], ['/stock/documents', 'Documents'], ['/stock/new/issue', 'Issue to project'], ['/stock/new/receive', 'Receive']])('%s reads [Stock > %s]', (p, label) => {
+    const crumbs = breadcrumbForPath(p);
+    expect(crumbs.map((c) => c.label)).toEqual(['Stock', label]);
+  });
+  it('/stock/setup is never "Not found" or "Dashboard"', () => {
+    const labels = breadcrumbForPath('/stock/setup').map((c) => c.label);
     expect(labels).not.toContain('Not found');
     expect(labels).not.toContain('Dashboard');
   });

@@ -83,6 +83,8 @@ const StockOnHand: React.FC = () => {
 
   const itemCount = new Set(rows.map((r) => r.itemId)).size;
   const whCount = new Set(rows.map((r) => r.warehouseId)).size;
+  const centralCount = rows.filter((r) => r.warehouseKind === 'central').length;
+  const siteCount = rows.length - centralCount;
 
   return (
     <ListPage
@@ -128,9 +130,9 @@ const StockOnHand: React.FC = () => {
           tiles={[
             { label: t('onHand.tiles.items'), value: itemCount },
             { label: t('onHand.tiles.warehouses'), value: whCount },
-            { label: t('onHand.tiles.lines'), value: rows.length },
+            { label: t('onHand.tiles.central'), value: centralCount },
+            { label: t('onHand.tiles.site'), value: siteCount },
           ]}
-          columns={3}
         />
       )}
       {state === 'loading' && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={6} /></div>}

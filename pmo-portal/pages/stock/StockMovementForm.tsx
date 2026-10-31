@@ -164,9 +164,9 @@ const StockMovementForm: React.FC = () => {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-4">
+      <h1 className="text-[24px] font-bold tracking-[-0.02em]">{heading}</h1>
+      <p className="mb-4 mt-1 text-sm text-muted-foreground">{t(`form.intro.${kind}`)}</p>
       <StockTabs />
-      <h1 className="mb-1 text-title font-semibold">{heading}</h1>
-      <p className="mb-4 text-sm text-muted-foreground">{t(`form.intro.${kind}`)}</p>
 
       {pending && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
       {!pending && loadError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={retry} />}

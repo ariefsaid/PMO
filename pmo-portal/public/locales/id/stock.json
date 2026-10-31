@@ -200,7 +200,8 @@
     "tiles": {
       "items": "Barang",
       "warehouses": "Gudang",
-      "lines": "Saldo"
+      "central": "Saldo gudang pusat",
+      "site": "Saldo gudang lokasi"
     },
     "states": {
       "tooManyTitle": "Terlalu banyak baris",

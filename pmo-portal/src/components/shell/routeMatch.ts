@@ -273,8 +273,6 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   '/revenue-by-project': 'Revenue by Project',
   // #1512: the Stock module's sub-pages that are not detail records.
   '/stock/setup': 'Stock setup',
-  '/stock/documents': 'Documents',
-  '/stock/ledger': 'Ledger',
 };
 
 /**
@@ -284,6 +282,13 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
 export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   // FR-PFE-041: the org-wide list of ERPNext documents not yet in a purchase is part of Procurement.
   '/erp-purchases': '/procurement',
+  // #1512: Stock's sub-pages read [Stock > <page>] and keep the Stock rail item lit.
+  '/stock/documents': '/stock',
+  '/stock/ledger': '/stock',
+  '/stock/new/receive': '/stock',
+  '/stock/new/transfer': '/stock',
+  '/stock/new/issue': '/stock',
+  '/stock/new/return': '/stock',
 };
 
 /** Finance record routes remain addressable while their list parent is the Receivables area. */
@@ -294,6 +299,12 @@ export function railParentForPath(pathname: string): string | undefined {
 
 const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }> = {
   '/erp-purchases': { label: 'ERPNext documents not in a purchase', i18nKey: 'finance:erpLinks.orphansTitle' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/documents': { label: 'Documents', i18nKey: 'stock:tabs.documents' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/ledger': { label: 'Ledger', i18nKey: 'stock:tabs.ledger' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/new/receive': { label: 'Receive', i18nKey: 'stock:kinds.receive' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/new/transfer': { label: 'Transfer', i18nKey: 'stock:kinds.transfer' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/new/issue': { label: 'Issue to project', i18nKey: 'stock:kinds.issue' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/new/return': { label: 'Return from project', i18nKey: 'stock:kinds.return' }, // i18n-exempt: fallback label is replaced from i18nKey at render
 };
 
 /** Canonical Administration child routes and their route-derived breadcrumb labels (English source). */

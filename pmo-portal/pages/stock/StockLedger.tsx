@@ -7,7 +7,7 @@ import { useStockItems, useStockLedger, useStockWarehouses } from '@/src/hooks/u
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatQuantity, formatStockValue } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
-import { formatInstantDate } from '@/src/lib/format';
+import { formatDateTime } from '@/src/lib/format';
 import type { StockLedgerRow } from '@/src/lib/db/stockReports';
 
 /** The stock trace: every posting with who, when, project, work item and the running balance (FR-STK-041). */
@@ -35,7 +35,7 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
 
   const columns: Column<StockLedgerRow>[] = useMemo(() => {
     const cols: Column<StockLedgerRow>[] = [
-      { key: 'when', header: t('ledger.columns.when'), cell: (r) => <span className="tabular-nums">{formatInstantDate(r.postedAt)}</span>, exportValue: (r) => r.occurredOn },
+      { key: 'when', header: t('ledger.columns.when'), cell: (r) => <span className="tabular-nums">{formatDateTime(new Date(r.postedAt))}</span>, exportValue: (r) => r.postedAt },
       {
         key: 'doc', header: t('ledger.columns.document'), rowHeader: true,
         cell: (r) => (

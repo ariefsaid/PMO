@@ -200,7 +200,8 @@
     "tiles": {
       "items": "Items",
       "warehouses": "Warehouses",
-      "lines": "Balances"
+      "central": "Central balances",
+      "site": "Site balances"
     },
     "states": {
       "tooManyTitle": "Too many rows to show",
