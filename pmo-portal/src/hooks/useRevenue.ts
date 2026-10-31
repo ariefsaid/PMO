@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
+import { useOptionalRealRole } from '@/src/auth/impersonation';
+import { safeTrack, trackInvoiceIssued, trackPaymentRecorded } from '@/src/lib/analytics';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import {
   IDLE_PENDING_PUSH,
@@ -109,6 +111,7 @@ export function useRevenueMutations() {
   const qc = useQueryClient();
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
+  const realRole = useOptionalRealRole();
   const [pendingPush, setPendingPush] = useState<PendingPushState>(IDLE_PENDING_PUSH);
   const isExternal = routeDomainWrite('revenue') === 'external';
 
@@ -151,6 +154,7 @@ export function useRevenueMutations() {
     onSuccess: () => {
       invalidate();
       invalidateVatEligibility();
+      safeTrack(() => trackInvoiceIssued(realRole ?? 'unknown'));
       if (isExternal) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
     },
     onError: (err) => {
@@ -201,6 +205,7 @@ export function useRevenueMutations() {
     },
     onSuccess: () => {
       invalidate();
+      safeTrack(() => trackPaymentRecorded(realRole ?? 'unknown'));
       if (isExternal) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
     },
     onError: (err) => {

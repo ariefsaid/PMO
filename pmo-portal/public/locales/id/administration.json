@@ -160,5 +160,11 @@
       "prev": "Halaman sebelumnya",
       "next": "Halaman berikutnya"
     }
+  },
+  "feedbackSurveys": {
+    "title": "Masukan dan survei",
+    "on": "Aktif",
+    "off": "Nonaktif",
+    "description": "Tombol Masukan di header dan, paling sering sebulan sekali, satu pertanyaan singkat setelah tugas pertama atau tinjauan triwulanan. Tidak pernah muncul saat seseorang mengisi formulir. Jawaban tidak memuat isi data."
   }
 }

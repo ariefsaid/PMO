@@ -31,6 +31,9 @@ const FUNCTIONS = process.env.EDGE_FN_ERROR_REPORTING_FUNCTIONS_DIR
   ? resolve(process.env.EDGE_FN_ERROR_REPORTING_FUNCTIONS_DIR)
   : resolve(REPO, 'supabase/functions');
 
+/** Background jobs (#1532 S3): each must wrap its handler in withJobRun('<own name>', …). Must equal JOB_NAMES in _shared/jobRun.ts (unit-tested). */
+export const JOB_FUNCTIONS = ['erpnext-sweep', 'clickup-sweep', 'clickup-webhook-worker', 'agent-dispatch', 'telegram-notify'];
+
 /** Every deployed edge-function directory (has an index.ts, name does not start with `_`). */
 export function deployedFunctionDirs(functionsDir) {
   return readdirSync(functionsDir, { withFileTypes: true })
@@ -65,6 +68,11 @@ export function checkFunctionSource(name, src) {
   // future author would plausibly reach for. Explicit alternation catches that shape too.
   if (/(^|[^.\w])Deno\.serve\s*\(/m.test(src) || /globalThis\.Deno\.serve\s*\(/.test(src)) {
     failures.push('bare Deno.serve( bypasses the error-reporting wrapper -- use serveWithErrorReporting');
+  }
+  if (JOB_FUNCTIONS.includes(name) && !new RegExp(`withJobRun\\(\\s*['"]${name}['"]`).test(src)) {
+    failures.push(
+      `is a registered job: its handler must be wrapped in withJobRun('${name}', …) -- a job without it can fail or stop silently (#1532)`,
+    );
   }
   return failures;
 }

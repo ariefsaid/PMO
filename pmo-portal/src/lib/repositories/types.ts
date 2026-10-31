@@ -27,6 +27,9 @@ import type {
   UserViewRepository,
 } from './contracts/admin';
 import type {
+  StockRepository,
+} from './contracts/stock';
+import type {
   BudgetRepository,
 } from './contracts/budget';
 import type {
@@ -111,6 +114,7 @@ export interface Repositories {
   milestone: MilestoneRepository;
   workOrder: WorkOrderRepository;
   progressBilling: ProgressBillingRepository;
+  stock: StockRepository;
   workOrderAcceptance: WorkOrderAcceptanceRepository;
   procurementFiles: ProcurementFileRepository;
   expenseClaim: ExpenseClaimRepository;
@@ -144,6 +148,7 @@ export type { ProcurementFileRepository, ProcurementRepository } from './contrac
 export type { RevenueRepository } from './contracts/revenue';
 export type { TimesheetRepository } from './contracts/timesheets';
 export type { BudgetRepository } from './contracts/budget';
+export type { StockMasterRepository, StockRepository } from './contracts/stock';
 export type { IncidentRepository } from './contracts/incidents';
 export type { MilestoneRepository, ProgressBillingRepository, WorkOrderAcceptanceRepository, WorkOrderRepository } from './contracts/workOrders';
 export type { ExpenseClaimRepository, ExpensePostingRepository, ExpenseReceiptRepository } from './contracts/expenses';

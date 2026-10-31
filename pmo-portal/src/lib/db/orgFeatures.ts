@@ -61,6 +61,12 @@ export async function toggleOrgFeature(args: {
   void data;
 }
 
+/** Admin-only: switch feedback and surveys for the caller's own org (the RPC stamps the org; 0419). */
+export async function setFeedbackSurveys(enabled: boolean): Promise<void> {
+  const { error } = await supabase.rpc('admin_set_feedback_surveys', { p_enabled: enabled });
+  if (error) throw new AppError(error.message, error.code);
+}
+
 /** The org's credit-pool balance (grants − usage) via the security-definer RPC (FR-CRE-002). */
 export async function getOrgCreditBalance(orgId: string): Promise<number> {
   const { data, error } = await supabase.rpc('org_credit_balance', { p_org_id: orgId });
