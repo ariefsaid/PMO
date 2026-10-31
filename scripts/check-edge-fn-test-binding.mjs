@@ -26,6 +26,7 @@ const repoPath = (file) => resolve(REPO, file);
 const REQUIRED = {
   'supabase/functions/external-connect/connect.test.ts': 'handleConnectRequest',
   'supabase/functions/external-connect/connect.odoo.test.ts': 'handleConnectRequest',
+  'supabase/functions/external-connect/connect.odoo.bed.test.ts': 'handleConnectRequest',
   'supabase/functions/external-companies/companies.test.ts': 'handleCompaniesRequest',
   'supabase/functions/external-items/items.test.ts': 'handleItemsRequest',
   'supabase/functions/external-invoice-pdf/invoice-pdf.test.ts': 'handleInvoicePdfRequest',

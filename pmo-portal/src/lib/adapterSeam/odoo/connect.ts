@@ -23,6 +23,16 @@ export async function validateOdooConnection(input: ConnectInput): Promise<{ com
   try { url = new URL(input.siteUrl); } catch { throw new OdooError('destination-refused'); }
   if (url.protocol !== 'https:' && !(input.allowHttp && url.protocol === 'http:')) throw new OdooError('destination-refused');
   const deps: OdooClientDeps = { baseUrl: url.origin, apiKey: input.apiKey, database: input.database, fetchImpl: input.fetchImpl, deadlineMs: 5_000 };
-  const companies = await odooCall<OdooCompany[]>(deps, 'res.company', 'search_read', { domain: [], fields: ['id', 'name'], limit: 50 });
+  let companies: OdooCompany[];
+  try {
+    companies = await odooCall<OdooCompany[]>(deps, 'res.company', 'search_read', { domain: [], fields: ['id', 'name'], limit: 50 });
+  } catch (err) {
+    // A host pinned to one database answers any other database with the same HTML 404 an Odoo without JSON-2 gives
+    // (bed, 2026-11-01). The unauthenticated version probe tells them apart: JSON-2 ships from Odoo 19.
+    if (err instanceof OdooError && err.errorClass === 'no-json2' && ((await fetchOdooVersionMajor(deps)) ?? 0) >= 19) {
+      throw new OdooError('database-not-found', err.status);
+    }
+    throw err;
+  }
   return { companies: companies.map(({ id, name }) => ({ id, name })), versionMajor: await fetchOdooVersionMajor(deps) };
 }

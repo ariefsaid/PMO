@@ -41,7 +41,18 @@ describe('odoo/connect — validateOdooConnection (S2-T1)', () => {
       .rejects.toMatchObject({ errorClass: 'key-rejected' });
   });
 
-  it('rethrows no-json2 when the endpoint is a plain 404', async () => {
+  it('reads an HTML 404 from an Odoo that reports JSON-2 (major >= 19) as database-not-found (bed: a pinned single-db host)', async () => {
+    const fetchImpl = (async (url: string) => String(url).endsWith('/web/webclient/version_info')
+      ? Response.json(VERSION_INFO) : new Response('<html>404</html>', { status: 404 })) as typeof fetch;
+    await expect(validateOdooConnection({ siteUrl: 'https://odoo.example.test', database: 'other', apiKey: 'K', fetchImpl }))
+      .rejects.toMatchObject({ errorClass: 'database-not-found' });
+  });
+
+  it('rethrows no-json2 when the endpoint is a plain 404 and the version is unknown or below 19', async () => {
+    const old = (async (url: string) => String(url).endsWith('/web/webclient/version_info')
+      ? Response.json({ result: { server_version_info: [17, 0] } }) : new Response('<html>404</html>', { status: 404 })) as typeof fetch;
+    await expect(validateOdooConnection({ siteUrl: 'https://odoo.example.test', database: 'db', apiKey: 'K', fetchImpl: old }))
+      .rejects.toMatchObject({ errorClass: 'no-json2' });
     const fetchImpl = (async () => new Response('<html>404</html>', { status: 404 })) as typeof fetch;
     const err = await validateOdooConnection({ siteUrl: 'https://odoo.example.test', database: 'db', apiKey: 'K', fetchImpl }).catch((e) => e);
     expect(err).toBeInstanceOf(OdooError);

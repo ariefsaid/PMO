@@ -30,6 +30,7 @@ interface Opts {
   role?: string;
   erpActive?: boolean;
   erpCheckFails?: boolean;
+  versionMajor?: number;
   companies?: () => Response;
   stage?: () => Response;
   finalize?: () => Response;
@@ -41,7 +42,7 @@ function routes(o: Opts = {}): MockRoute[] {
     supabaseSelect('external_org_bindings', () => (o.erpCheckFails ? pgError('boom', 'XX000') : o.erpActive ? one({ external_tier: 'erpnext' }) : none())),
     { label: 'odoo-companies', host: ODOO, pathname: '/json/2/res.company/search_read',
       response: () => (o.companies ? o.companies() : jsonResponse([{ id: 1, name: 'Main Co', partner_id: [1, 'Main Co'] }])) },
-    { label: 'odoo-version', host: ODOO, pathname: '/web/webclient/version_info', response: () => jsonResponse(VERSION) },
+    { label: 'odoo-version', host: ODOO, pathname: '/web/webclient/version_info', response: () => jsonResponse(o.versionMajor ? { result: { server_version_info: [o.versionMajor, 0] } } : VERSION) },
     supabaseRpc('stage_vault_secret_for_org', () => (o.stage ? o.stage() : jsonResponse('odoo_token_ref'))),
     supabaseRpc('finalize_odoo_connect', () => (o.finalize ? o.finalize() : jsonResponse('active'))),
     supabaseRpc('cleanup_external_connect_attempt', () => jsonResponse(null)),
@@ -135,7 +136,6 @@ describe('external-connect — AC-ODC-003 the sentinel key never leaks', () => {
 describe('external-connect — Odoo wire classes', () => {
   const cases: Array<[string, () => Response, number, string]> = [
     ['key-rejected', () => jsonResponse({ name: 'odoo.exceptions.AccessDenied', message: SENTINEL }, { status: 401 }), 422, 'key-rejected'],
-    ['no-json2', () => new Response('<html>404</html>', { status: 404 }), 422, 'no-json2'],
     ['database-not-found', () => jsonResponse({ name: 'odoo.exceptions.DatabaseNotFound', message: 'db' }, { status: 404 }), 422, 'database-not-found'],
     ['access-denied', () => jsonResponse({ name: 'odoo.exceptions.AccessError', message: 'm' }, { status: 403 }), 422, 'access-denied'],
     ['a redirect (not followed)', () => new Response(null, { status: 302, headers: { location: 'https://elsewhere.example.test/' } }), 422, 'not-odoo'],
@@ -148,6 +148,18 @@ describe('external-connect — Odoo wire classes', () => {
       assertNoLeak(r);
     });
   }
+
+  it('FR-ODC-002 an HTML 404 from an Odoo older than 19 → 422 no-json2, nothing staged', async () => {
+    const r = await connect({}, { companies: () => new Response('<html>404</html>', { status: 404 }), versionMajor: 17 });
+    assertEquals([r.res.status, body(r.text).error], [422, 'no-json2']);
+    assertEquals(rpcCall(r.calls, 'stage_vault_secret_for_org').length, 0);
+  });
+
+  it('FR-ODC-002 an HTML 404 from Odoo 20 (a pinned host, another database) → 422 database-not-found, nothing staged', async () => {
+    const r = await connect({ database: 'other' }, { companies: () => new Response('<html>404</html>', { status: 404 }) });
+    assertEquals([r.res.status, body(r.text).error], [422, 'database-not-found']);
+    assertEquals(rpcCall(r.calls, 'stage_vault_secret_for_org').length, 0);
+  });
 
   it('FR-ODC-002 a timeout → 502 timeout', async () => {
     const r = await connect({}, { companies: () => { throw new DOMException('t', 'TimeoutError'); } });
