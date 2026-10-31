@@ -18,7 +18,7 @@ import {
   archiveUserView,
   deleteUserView,
 } from '@/src/lib/db/userViews';
-import { listOwnOrgFeatures, toggleOrgFeature, getOrgCreditBalance, grantOrgCredits } from '@/src/lib/db/orgFeatures';
+import { listOwnOrgFeatures, toggleOrgFeature, setFeedbackSurveys, getOrgCreditBalance, grantOrgCredits } from '@/src/lib/db/orgFeatures';
 import {
   getOrgTaxDefault,
   setOrgTaxDefault,
@@ -74,6 +74,7 @@ export const userViewRepository: UserViewRepository = {
 export const orgFeatureRepository: OrgFeatureRepository = {
   listOwn: () => wrap(() => listOwnOrgFeatures()),
   toggle: (args) => wrap(() => toggleOrgFeature(args)),
+  setFeedbackSurveys: (enabled) => wrap(() => setFeedbackSurveys(enabled)),
 };
 
 /**

@@ -5,6 +5,7 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { vendorChunkFor } from './src/lib/build/vendorChunk';
+import { isDeployBuild } from '../scripts/sourcemapPolicy.mjs';
 
 // ADR-0042 §4: inline the product version + the deployed commit sha at build
 // time so a running instance always reports its exact `vX.Y.Z · <sha>`.
@@ -163,6 +164,8 @@ export default defineConfig({
     },
   },
   build: {
+    // AC-PHO-011: 'hidden' writes maps without the sourceMappingURL comment; postbuild uploads then deletes them.
+    sourcemap: isDeployBuild(process.env) ? 'hidden' : false,
     rollupOptions: {
       output: {
         // Vite 8 (rolldown) only accepts the function form of manualChunks.

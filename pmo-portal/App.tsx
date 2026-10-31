@@ -55,6 +55,8 @@ import { useReturnNavigate } from '@/src/hooks/useListReturn';
 import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvider';
 import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
 import { AssistantPanel } from '@/src/components/panel/AssistantPanel';
+import { FeedbackWidget } from '@/src/components/feedback/FeedbackWidget';
+import { SurveyHost } from '@/src/components/feedback/SurveyHost';
 import { useAssistantHotkey } from '@/src/hooks/useAssistantHotkey';
 // ADR-0056: seeds the fail-closed task-write ownership cache load-on-auth (mounted once in Shell).
 import { useOwnershipCacheSync } from '@/src/hooks/useOwnershipCacheSync';
@@ -505,6 +507,7 @@ export const ShellChrome: React.FC = () => {
             breadcrumb={breadcrumb}
             onOpenPalette={openPalette}
             onToggleRail={() => setRailOpen((v) => !v)}
+            beforeBell={<FeedbackWidget />}
           />
         }
         banner={<ImpersonationBanner />}
@@ -516,6 +519,7 @@ export const ShellChrome: React.FC = () => {
       >
         <AppRoutes />
       </AppShell>
+      <SurveyHost />
       <CommandPalette
         open={paletteOpen}
         items={paletteItems}

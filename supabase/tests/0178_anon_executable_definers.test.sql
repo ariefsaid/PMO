@@ -112,6 +112,9 @@
 -- ⚑ AMENDED BY 0393: `update_procurement_header` joins the retained set (+1, count 85).
 -- It checks active membership, org, requester/Admin authority and editable state;
 -- supabase/tests/procurement_header_requester.test.sql exercises its contract and ACL.
+--
+-- ⚑ AMENDED BY 0419 (#1532 S9): `admin_set_feedback_surveys` joins the retained set (+1, count 89 on top of dev's 88,
+-- re-derived by hand). Active-Admin writer under a member's JWT; supabase/tests/0419_feedback_surveys_switch.test.sql proves it.
 -- Anonymous grants remain subject to the sweep even for retained names.
 --
 -- ⚑ AMENDED BY 0412 (#1512): `set_stock_warehouse_keeper` joins the retained set (+1, count 89). A SECURITY
@@ -199,6 +202,7 @@ insert into client_callable_rpc_names (proname) values
   ('save_cost_attribution_rule'),
   ('end_cost_attribution_rule'),
   ('admin_change_domain_ownership'),
+  ('admin_set_feedback_surveys'),
   ('list_budget_fiscal_years'),
   ('operator_agent_run_stats'),
   ('operator_create_org'),

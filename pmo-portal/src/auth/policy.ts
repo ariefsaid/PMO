@@ -82,6 +82,7 @@ export type Entity =
   | 'externalBinding'
   | 'integration'
   | 'orgAccounting'
+  | 'orgFeedback'
   | 'costAttribution'
   | 'vendorTaxDefault'
   | 'orgProjectNumbering'
@@ -617,6 +618,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   orgAccounting: {
     manage: allow(ADMIN),
   },
+  // #1532 S9: the org's feedback-and-surveys switch. Mirrors admin_set_feedback_surveys (0419: active Admin). UX ONLY.
+  orgFeedback: { manage: allow(ADMIN) },
   // #1271: cost attribution rules — mirrors save/end/preview_cost_attribution (0376: active Admin or Finance).
   // UX ONLY — the RPCs are the authority (ADR-0016).
   costAttribution: { manage: allow(COST_ATTRIBUTION_WRITE) },

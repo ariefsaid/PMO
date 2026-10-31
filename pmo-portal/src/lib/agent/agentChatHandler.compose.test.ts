@@ -10,7 +10,7 @@
  * ModelClient and composeSpec are fully mocked; no live LLM calls (ADR-0039 decision 7).
  * Mock shape: OpenRouter/OpenAI (ModelResponse) per docs/specs/agent-model-client.spec.md.
  */
-import { it, expect, vi, beforeEach } from 'vitest';
+import { it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   agentChatHandler,
 } from '../../../../supabase/functions/agent-chat/handler';
@@ -109,6 +109,7 @@ function baseDeps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
 beforeEach(() => {
   vi.clearAllMocks();
 });
+afterEach(() => { delete (globalThis as { Deno?: unknown }).Deno; vi.unstubAllGlobals(); });
 
 // ── AC-CV-001: catalog includes compose_view when composeEnabled ──────────────
 
@@ -326,4 +327,36 @@ it('AC-CV-016 emits an assistant error event (not an artifact) on an upstream co
   const last = events.at(-1)!;
   expect(last.type).toBe('status');
   expect((last.payload as { status: string }).status).toBe('completed');
+});
+
+// ── #1532 S1: an assistant-driven compose is visible in the $ai_span tiles ───
+
+async function composeSpans(composeResult: Awaited<ReturnType<typeof mockRunComposeView>>) {
+  (globalThis as { Deno?: unknown }).Deno = { env: { get: (k: string) => (k === 'POSTHOG_PROJECT_KEY' ? 'phc_x' : undefined) } };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- PostHog payloads are inspected structurally
+  const sent: { event: string; properties: Record<string, any> }[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (_u: string, init: RequestInit) => { sent.push(JSON.parse(String(init.body))); return { ok: true } as Response; }));
+  const create = vi.fn()
+    .mockResolvedValueOnce({
+      finish_reason: 'tool_calls',
+      message: { role: 'assistant', content: null, tool_calls: [{ id: 'tu-c', type: 'function', function: { name: 'compose_view', arguments: JSON.stringify({ prompt: 'p' }) } }] },
+      usage: {}, model: 'deepseek/deepseek-v4-flash',
+    })
+    .mockResolvedValueOnce({ finish_reason: 'stop', message: { role: 'assistant', content: 'ok' }, usage: {}, model: 'deepseek/deepseek-v4-flash' });
+  vi.mocked(mockRunComposeView).mockResolvedValueOnce(composeResult);
+  await collect(agentChatHandler(REQ_COMPOSE, baseDeps({ modelClient: { create }, composeEnabled: true })));
+  for (let n = 0; n < 30; n++) await new Promise((r) => setTimeout(r, 0));
+  return sent.filter((e) => e.event === '$ai_span');
+}
+
+it('AC-PHO-001 a successful assistant-driven compose_view emits a compose_view $ai_span', async () => {
+  const spans = await composeSpans({ spec: VALID_SPEC, repairAttempts: 0, tokensUsed: 1, title: 't' });
+  expect(spans).toHaveLength(1);
+  expect(spans[0].properties).toMatchObject({ $ai_span_name: 'compose_view', $ai_is_error: false });
+});
+
+it('AC-PHO-001 a failed assistant-driven compose_view emits an errored compose_view $ai_span', async () => {
+  const spans = await composeSpans({ error: 'compose failed', code: 'REPAIR_EXHAUSTED' });
+  expect(spans).toHaveLength(1);
+  expect(spans[0].properties).toMatchObject({ $ai_span_name: 'compose_view', $ai_is_error: true });
 });

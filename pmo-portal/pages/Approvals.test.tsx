@@ -111,6 +111,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: authState.role, realRole: authState.role }),
+  useOptionalRealRole: () => authState.role,
 }));
 
 const submittedSheets: TimesheetAwaitingApproval[] = [

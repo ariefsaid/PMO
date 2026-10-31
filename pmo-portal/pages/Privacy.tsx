@@ -63,6 +63,33 @@ const Privacy: React.FC = () => (
         applies to your live account.
       </p>
       <p className="text-muted-foreground">
+        Separately from browser analytics, our servers send operational telemetry about how the
+        service runs: error codes, job run results, push outcomes to connected accounting systems,
+        and Assistant usage counts (model, tokens, cost, timings, and whether a tool call or an
+        automated quality check passed). It contains no record contents, prompts, replies or names,
+        and is not linked to your name or email. It is not affected by the analytics opt-out below.
+        When analytics is on for you, the Assistant usage counts are also tagged with an internal
+        account ID (not your name or email) so we can see usage per person; turning analytics off
+        removes that tag. The automated quality check is an AI model that reads an Assistant
+        question and answer inside our service; only its pass or fail result and its cost are
+        recorded.
+      </p>
+      <p className="text-muted-foreground">
+        In our demonstration organisation (sample data) only, and only while analytics is on for
+        you, the Assistant&rsquo;s prompts and replies are additionally recorded with the session
+        replay, to review how the Assistant performs on sample data. This never applies to a live
+        client account.
+      </p>
+      <p className="text-muted-foreground">
+        The product has a Feedback button, and occasionally asks a short question (at most one
+        every 30 days, never in your first week and never while you are filling in a form). Your
+        answer is sent to PostHog with the area of the product you were in. Free-text answers are
+        the one place you type something that is sent, so please leave out customer names and
+        amounts; we strip obvious email addresses and access keys automatically. Your
+        organisation&rsquo;s administrator can switch this off, and the opt-out below stops it
+        for you.
+      </p>
+      <p className="text-muted-foreground">
         We honour your browser&rsquo;s Do Not Track setting. You can also opt out here at any time:
       </p>
       <AnalyticsOptOutToggle />
