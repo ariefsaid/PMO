@@ -265,6 +265,8 @@ function doInit(config: AnalyticsConfig): void {
   if (!config.enabled || initialized || !config.posthogKey || readOptOut() || isDoNotTrack()) return;
   posthog.init(config.posthogKey, buildPosthogInitOptions(config));
   initialized = true;
+  // AC-PHO-012: same id the source-map upload uses, so PostHog filters issues by release.
+  posthog.register({ release: __GIT_SHA__ });
 }
 
 export const analyticsClient = {
