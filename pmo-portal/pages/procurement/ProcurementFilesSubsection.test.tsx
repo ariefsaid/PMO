@@ -22,6 +22,7 @@ const hookState = vi.hoisted(() => ({
   download: vi.fn(async () => 'https://signed/dl'),
   cancelUpload: vi.fn(),
   clearUploadError: vi.fn(),
+  toast: vi.fn(),
 }));
 
 vi.mock('@/src/hooks/useProcurementFiles', () => ({
@@ -40,10 +41,11 @@ vi.mock('@/src/hooks/useProcurementFiles', () => ({
 // useToast is provided by a global ToastProvider in the app; stub it for the unit test.
 vi.mock('@/src/components/ui', async (orig) => {
   const actual = await orig<typeof import('@/src/components/ui')>();
-  return { ...actual, useToast: () => ({ toast: vi.fn() }) };
+  return { ...actual, useToast: () => ({ toast: hookState.toast }) };
 });
 
 import { ProcurementFilesSubsection } from './ProcurementFilesSubsection';
+import { UploadFailure } from '@/src/lib/m365/uploadClient';
 import { renderViewer } from '@/src/components/documents/testkit';
 
 beforeEach(() => {
@@ -55,6 +57,7 @@ beforeEach(() => {
   hookState.upload = { mutate: vi.fn(), isPending: false };
   hookState.archive = { mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false };
   hookState.download = vi.fn(async () => 'https://signed/dl');
+  hookState.toast = vi.fn();
 });
 
 function renderSub(props?: Partial<React.ComponentProps<typeof ProcurementFilesSubsection>>) {
@@ -192,5 +195,21 @@ describe('AC-PF-013 ProcurementFilesSubsection list + archive confirm', () => {
     const f = new File(['data'], 'spec.pdf', { type: 'application/pdf' });
     fireEvent.change(input, { target: { files: [f] } });
     expect(hookState.upload.mutate).toHaveBeenCalled();
+  });
+
+  it('document-preview AC-008: a typed SharePoint failure is shown once, inline, with no second generic toast', () => {
+    hookState.upload.mutate = vi.fn((_args, opts?: { onError?: (e: unknown) => void }) => opts?.onError?.(new UploadFailure('folder')));
+    renderSub({ canWrite: true });
+    const input = screen.getByLabelText(/attach a file/i) as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['data'], 'spec.pdf', { type: 'application/pdf' })] } });
+    expect(hookState.toast).not.toHaveBeenCalled();
+  });
+
+  it('AC-PF-013: any other upload error still raises the warning toast', () => {
+    hookState.upload.mutate = vi.fn((_args, opts?: { onError?: (e: unknown) => void }) => opts?.onError?.(new Error('boom')));
+    renderSub({ canWrite: true });
+    const input = screen.getByLabelText(/attach a file/i) as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['data'], 'spec.pdf', { type: 'application/pdf' })] } });
+    expect(hookState.toast).toHaveBeenCalledWith(expect.any(String), expect.anything(), 'warning');
   });
 });

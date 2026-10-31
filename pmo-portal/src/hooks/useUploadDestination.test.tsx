@@ -43,7 +43,16 @@ describe('document-preview AC-008 recovery copy', () => {
     ['access', /refused the upload.*Nothing was saved/],
     ['entitlement', /isn't set up for Microsoft documents.*Nothing was saved/],
     ['unavailable', /could not store the file.*Nothing was saved/],
+    ['invalid', /too large or.*type.*Nothing was saved/],
   ] as const)('%s says nothing was saved', (kind, pattern) => {
     expect(renderHook(() => useUploadFailureText()).result.current(kind)).toMatch(pattern);
+  });
+
+  it('an attach failure on a purchase file does not point at a picker that purchase files do not have', () => {
+    const text = renderHook(() => useUploadFailureText()).result.current;
+    expect(text('attach')).toMatch(/Microsoft picker/);
+    const purchase = text('attach', { purchase: true });
+    expect(purchase).toMatch(/in SharePoint but was not recorded here/);
+    expect(purchase).not.toMatch(/picker/);
   });
 });

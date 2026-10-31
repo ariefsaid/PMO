@@ -20,16 +20,20 @@ export function useUploadDestination(): UploadDestination {
 }
 
 /** The recovery copy for a failed SharePoint upload. It always says nothing was saved or swapped. */
-export function useUploadFailureText(): (kind: UploadFailureKind) => string {
+export function useUploadFailureText(): (kind: UploadFailureKind, opts?: { purchase?: boolean }) => string {
   const { t } = useTranslation('documentViewer');
-  return (kind) => {
+  return (kind, opts) => {
     switch (kind) {
       case 'folder': return t('upload.folderUnavailable', 'This record has no SharePoint folder yet. Create the folder, then upload again. Nothing was saved.');
       case 'consent': return t('upload.consentNeeded', 'Uploading to SharePoint needs one more permission from Microsoft. Reconnect, then upload again. Nothing was saved.');
       case 'connection': return t('upload.connectionNeeded', 'Connect your Microsoft account, then upload again. Nothing was saved.');
       case 'access': return t('upload.accessDenied', 'Microsoft refused the upload. Check your access to the record folder. Nothing was saved.');
       case 'entitlement': return t('upload.entitlement', "Your organisation isn't set up for Microsoft documents. Nothing was saved.");
-      case 'attach': return t('upload.linkLater', 'The file is in SharePoint but could not be attached here. Link it from the Microsoft picker.');
+      case 'invalid': return t('upload.invalidFile', 'This file is too large or its type is not accepted. Choose another file. Nothing was saved.');
+      // Purchase attachments have no Microsoft picker to link from, so they get a recovery that exists.
+      case 'attach': return opts?.purchase
+        ? t('upload.linkLaterPurchase', 'The file is in SharePoint but was not recorded here. Tell an administrator or attach it again.')
+        : t('upload.linkLater', 'The file is in SharePoint but could not be attached here. Link it from the Microsoft picker.');
       default: return t('upload.unavailable', 'Microsoft could not store the file. Try again. Nothing was saved.');
     }
   };

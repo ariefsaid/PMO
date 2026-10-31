@@ -800,6 +800,19 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     expect(within(screen.getByRole('complementary')).queryByRole('button', { name: /Upload file for Site Plan|Replace file for Site Plan/i })).toBeNull();
   });
 
+  it('document-preview AC-008: a destination that turns unknown while the chooser is open never uploads privately', async () => {
+    renderTab('Admin', 'admin-1');
+    const fileInput = screen.getByTestId('file-input') as HTMLInputElement;
+    const file = new File(['x'], 'drawing.pdf', { type: 'application/pdf' });
+    await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
+    await userEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Upload file for Site Plan/i }));
+    destinationState.value = { kind: 'unknown' }; // the settings read failed while the OS chooser was open
+    await userEvent.click(screen.getByRole('button', { name: 'Close preview' })); // any re-render picks up the new destination
+    await userEvent.upload(fileInput, file);
+    expect(fileUploadState.upload.mutate).not.toHaveBeenCalled();
+    expect(fileUploadState.replace.mutate).not.toHaveBeenCalled();
+  });
+
   it('AC-DOC-021: selecting a valid file from Replace dispatches the replace mutation', async () => {
     listState.data = seed.map((doc) => doc.id === 'd1' ? { ...doc, file_path: 'org-1/p1/d1/site-plan.pdf' } : doc);
     renderTab('Admin', 'admin-1');

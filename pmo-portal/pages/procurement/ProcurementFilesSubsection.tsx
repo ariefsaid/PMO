@@ -5,6 +5,7 @@ import { FILE_INPUT_ACCEPT, VIEWABLE_EXTENSIONS } from '@/src/lib/fileConstants'
 import { procurementFileName, procurementFileTarget } from '@/src/components/documents/targets/procurement';
 import { useViewerOnDemand } from '@/src/components/documents/viewerContext';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { UploadFailure } from '@/src/lib/m365/uploadClient';
 import type { ProcPhase, ProcurementFileRow } from '@/src/lib/db/procurementFiles';
 
 // ---------------------------------------------------------------------------
@@ -85,6 +86,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
       {
         onSuccess: () => toast('File attached', file.name, 'success'),
         onError: (err: unknown) => {
+          if (err instanceof UploadFailure) return; // the hook already shows the typed recovery text inline
           const { headline, detail } = classifyMutationError(err);
           toast(headline, detail, 'warning');
         },

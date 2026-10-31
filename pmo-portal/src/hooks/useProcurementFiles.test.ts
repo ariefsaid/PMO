@@ -262,13 +262,13 @@ describe('AC-PF-009 useProcurementFiles.upload error path', () => {
       },
     );
 
-    it('AC-007: a refused record insert says to link the SharePoint file', async () => {
+    it('AC-007: a refused record insert says the file is in SharePoint but not recorded, with no picker to link from', async () => {
       dest.value = { kind: 'microsoft' };
       msUpload.mockResolvedValue(REF);
       repo.confirmMicrosoftUpload.mockRejectedValue({ code: '42501', message: 'rls' });
       const { result } = hook();
       await act(async () => { await result.current.upload.mutateAsync({ file }).catch(() => {}); });
-      await waitFor(() => expect(result.current.uploadError?.message).toMatch(/Link it from the Microsoft picker/));
+      await waitFor(() => expect(result.current.uploadError?.message).toMatch(/in SharePoint but was not recorded here/));
     });
 
     it('AC-008: the unknown destination disables upload and never uploads anywhere', async () => {

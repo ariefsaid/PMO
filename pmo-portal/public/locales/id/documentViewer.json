@@ -30,6 +30,8 @@
     "accessDenied": "Microsoft menolak unggahan. Periksa akses Anda ke folder catatan. Tidak ada yang disimpan.",
     "unavailable": "Microsoft tidak dapat menyimpan berkas. Coba lagi. Tidak ada yang disimpan.",
     "linkLater": "Berkas sudah ada di SharePoint tetapi tidak dapat dilampirkan di sini. Tautkan dari pemilih Microsoft.",
+    "linkLaterPurchase": "Berkas sudah ada di SharePoint tetapi tidak tercatat di sini. Beri tahu administrator atau lampirkan lagi.",
+    "invalidFile": "Berkas ini terlalu besar atau jenisnya tidak diterima. Pilih berkas lain. Tidak ada yang disimpan.",
     "entitlement": "Organisasi Anda belum diatur untuk dokumen Microsoft. Tidak ada yang disimpan."
   }
 }

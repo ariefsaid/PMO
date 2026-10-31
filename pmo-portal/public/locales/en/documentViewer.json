@@ -30,6 +30,8 @@
     "accessDenied": "Microsoft refused the upload. Check your access to the record folder. Nothing was saved.",
     "unavailable": "Microsoft could not store the file. Try again. Nothing was saved.",
     "linkLater": "The file is in SharePoint but could not be attached here. Link it from the Microsoft picker.",
+    "linkLaterPurchase": "The file is in SharePoint but was not recorded here. Tell an administrator or attach it again.",
+    "invalidFile": "This file is too large or its type is not accepted. Choose another file. Nothing was saved.",
     "entitlement": "Your organisation isn't set up for Microsoft documents. Nothing was saved."
   }
 }

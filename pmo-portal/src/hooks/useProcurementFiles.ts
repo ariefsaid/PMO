@@ -123,7 +123,7 @@ export function useProcurementFiles(
       const classified: ClassifiedUploadError = error instanceof UploadFailure
         ? error.kind === 'cancelled'
           ? { type: 'cancel', message: 'Upload cancelled' }
-          : { type: 'server', message: failureText(error.kind) }
+          : { type: 'server', message: failureText(error.kind, { purchase: true }) }
         : classifyUploadError(error, MAX_FILE_SIZE_MB);
       if (classified.type !== 'cancel') setUploadError(classified);
       setProgress(null);

@@ -24,6 +24,8 @@ import { procurementFileTarget } from '@/src/components/documents/targets/procur
 import { useViewerOnDemand } from '@/src/components/documents/viewerContext';
 import { useProcurementFiles } from '@/src/hooks/useProcurementFiles';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { UploadFailure } from '@/src/lib/m365/uploadClient';
+import { useUploadFailureText } from '@/src/hooks/useUploadDestination';
 import { FILE_INPUT_ACCEPT } from '@/src/lib/fileConstants';
 import type { ProcPhase } from '@/src/lib/db/procurementFiles';
 import type { LedgerFileRef, RecordType } from '@/src/lib/db/procurementLedger';
@@ -132,6 +134,7 @@ const AttachButton: React.FC<AttachButtonProps> = ({
   uploadedById,
 }) => {
   const { toast } = useToast();
+  const failureText = useUploadFailureText();
   const phase = PHASE_BY_TYPE[type];
   const inputRef = useRef<HTMLInputElement>(null);
   const { upload, uploadDisabled } = useProcurementFiles(phase, recordId, procurementId, uploadedById, {
@@ -147,6 +150,11 @@ const AttachButton: React.FC<AttachButtonProps> = ({
       {
         onSuccess: () => toast('File attached', file.name, 'success'),
         onError: (err: unknown) => {
+          // The ledger cell shows no inline upload error, so a typed SharePoint failure is toasted with its recovery text.
+          if (err instanceof UploadFailure) {
+            if (err.kind !== 'cancelled') toast(failureText(err.kind, { purchase: true }), undefined, 'warning');
+            return;
+          }
           const { headline, detail } = classifyMutationError(err);
           toast(headline, detail, 'warning');
         },

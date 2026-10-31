@@ -59,7 +59,12 @@ export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], c
       return;
     }
 
-    // `unknown` never reaches here: the affordances are withheld until the destination is known.
+    // The destination can turn unknown while the chooser is open: never fall back to private storage on a guess.
+    if (destination.kind === 'unknown') {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setActiveFileDoc(null);
+      return;
+    }
     const where = destination.kind === 'microsoft' ? 'microsoft' : 'private';
     const args = { docId: activeFileDoc.docId, file, destination: where, oldPath: target.file_path } as const;
     if (activeFileDoc.mode === 'upload') {
