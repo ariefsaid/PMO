@@ -438,6 +438,8 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
       customerId: 'cust-1',
       projectId: 'proj-1',
       items: [{ item_code: 'SVC', qty: 1, rate: 500000, description: 'Site survey' }],
+      // #1471: a chosen project always carries its billing kind; the default is Contract billing.
+      billingKind: 'contract',
       intent: { id: expect.any(String), idempotencyKey: expect.any(String) },
     });
   });

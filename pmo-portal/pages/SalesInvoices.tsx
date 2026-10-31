@@ -808,6 +808,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
               customerId: input.customerId,
               projectId: input.projectId,
               items: input.lineItems,
+              ...(input.billingKind ? { billingKind: input.billingKind } : {}),
               intent,
             });
             toast(t('financeCopy.invoiceCreated', 'Invoice created'), undefined, 'success');
