@@ -78,8 +78,19 @@ function walk(dir, out = []) {
   return out;
 }
 
+// The dashboard spec is split: dashboardSpec.mjs (legacy tiles) + one fragment per slice in
+// scripts/posthog/spec/*.mjs. Concatenated so every tile is scanned; zero files hard-fails.
+const SPEC_DIR = resolve(REPO, 'scripts/posthog');
+function readTilesSource() {
+  const files = [
+    join(SPEC_DIR, 'dashboardSpec.mjs'),
+    ...readdirSync(join(SPEC_DIR, 'spec')).filter((n) => n.endsWith('.mjs')).sort().map((n) => join(SPEC_DIR, 'spec', n)),
+  ];
+  return files.map((p) => readFileSync(p, 'utf8')).join('\n');
+}
+
 function main() {
-  const tilesSrc = readFileSync(resolve(REPO, 'scripts/posthog/provision-dashboards.mjs'), 'utf8');
+  const tilesSrc = readTilesSource();
   const registrySrc = readFileSync(resolve(APP, 'src/lib/analytics/eventCallSites.ts'), 'utf8');
 
   const tileEvents = extractTileEvents(tilesSrc);
@@ -88,7 +99,7 @@ function main() {
   // failure class this program keeps hitting — an emptied/broken SPEC must hard-fail, not pass.
   if (tileEvents.size === 0) {
     console.error(
-      `ERROR: 0 dashboard-tile events found in ${resolve(REPO, 'scripts/posthog/provision-dashboards.mjs')}.\n` +
+      `ERROR: 0 dashboard-tile events found in ${SPEC_DIR}/dashboardSpec.mjs + spec/*.mjs.\n` +
       '  Either the dashboard spec is empty/broken, or this script failed to parse it — either way,\n' +
       '  a gate that scanned nothing must not report success.',
     );
