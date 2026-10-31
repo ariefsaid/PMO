@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { QueryClientContext, type QueryClient } from '@tanstack/react-query';
 import React from 'react';
 
 const h = vi.hoisted(() => ({
@@ -16,9 +17,9 @@ const h = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useFeedbackSurveys', () => ({ useFeedbackSurveysEnabled: () => h.enabled }));
 vi.mock('@/src/hooks/useSurveyId', () => ({ useSurveyId: (k: string) => h.ids[k] ?? null }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { created_at: h.createdAt } }) }));
-vi.mock('@tanstack/react-query', async (orig) => ({ ...(await orig<typeof import('@tanstack/react-query')>()), useIsMutating: () => h.mutating }));
 vi.mock('@/src/lib/analytics', () => ({
   surveysLive: () => h.live,
+  setSurveyViewer: () => {},
   canShowSurvey: () => h.canShow,
   showSurvey: (...a: unknown[]) => h.show(...a),
   buildSurveyContext: (p: string) => ({ module: 'projects', route: p }),
@@ -32,10 +33,13 @@ import { SurveyHost } from './SurveyHost';
 
 const NOW = new Date('2026-11-10T10:00:00Z');
 const seedActive = () => localStorage.setItem('pmo.activeDays', JSON.stringify(['2026-11-02', '2026-11-05', '2026-11-08']));
+const client = { isMutating: () => h.mutating } as unknown as QueryClient;
 const tree = (path: string) => (
-  <MemoryRouter initialEntries={[path]}>
-    <SurveyHost />
-  </MemoryRouter>
+  <QueryClientContext.Provider value={client}>
+    <MemoryRouter initialEntries={[path]}>
+      <SurveyHost />
+    </MemoryRouter>
+  </QueryClientContext.Provider>
 );
 const mount = (path = '/projects') => render(tree(path));
 const wait = (ms: number) => act(() => void vi.advanceTimersByTime(ms));

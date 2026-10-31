@@ -7,6 +7,7 @@ import { analyticsClient, getConsentState } from './client';
 import { getAnalyticsConfig } from './config';
 import type { SafeProperties } from './events';
 import { routeAnalyticsForPath } from './route';
+import { isPastFirstWeek } from './surveyPolicy';
 
 /** The four surveys the owner publishes in PostHog (click-path in docs/posthog-dashboards.md). All type API. */
 export const SURVEY_NAMES = {
@@ -55,5 +56,24 @@ export const showSurvey = (id: string, context: SafeProperties, nextTo?: string)
 export function onCoreFlowCompleted(cb: () => void): () => void {
   return analyticsClient.surveys.onCaptured((event) => {
     if (CORE_FLOW_EVENTS.has(event)) cb();
+  });
+}
+
+// The thumbs-down control renders in places without the app providers, so the org switch and the user's
+// account age are handed over by SurveyHost (always mounted in the shell) rather than read by a hook.
+let viewer: { enabled: boolean; createdAt: string | undefined } = { enabled: true, createdAt: undefined };
+export function setSurveyViewer(next: { enabled: boolean; createdAt: string | undefined }): void {
+  viewer = next;
+}
+
+/**
+ * After a thumbs-down reason is picked: the optional "what went wrong?" survey, anchored beside the answer and
+ * tied to its run. Same gates as a prompted survey (org switch, live analytics, past the first week); the
+ * moment is the user's own click, so no safe-moment wait. PostHog's popover records shown / sent / dismissed.
+ */
+export function askWhatWentWrong(runId: string, anchor: string): void {
+  if (!viewer.enabled || !surveysLive() || !isPastFirstWeek(viewer.createdAt, Date.now())) return;
+  findSurvey('assistant', (id) => {
+    if (id) showSurvey(id, buildSurveyContext(window.location.pathname, runId), anchor);
   });
 }

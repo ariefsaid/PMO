@@ -1,10 +1,17 @@
-import { useEffect, useRef } from 'react';
+import { useContext, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router';
-import { useIsMutating } from '@tanstack/react-query';
+import { QueryClientContext } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { useFeedbackSurveysEnabled } from '@/src/hooks/useFeedbackSurveys';
 import { useSurveyId } from '@/src/hooks/useSurveyId';
-import { buildSurveyContext, canShowSurvey, onCoreFlowCompleted, showSurvey, surveysLive } from '@/src/lib/analytics';
+import {
+  buildSurveyContext,
+  canShowSurvey,
+  onCoreFlowCompleted,
+  setSurveyViewer,
+  showSurvey,
+  surveysLive,
+} from '@/src/lib/analytics';
 import {
   isActiveUser,
   isPastFirstWeek,
@@ -35,12 +42,14 @@ export const SurveyHost: React.FC = () => {
   const enabled = useFeedbackSurveysEnabled();
   const { currentUser } = useAuth();
   const { pathname } = useLocation();
-  const mutations = useIsMutating();
+  // Read the in-flight save count at tick time. Optional context: the shell tests mount without a client.
+  const queryClient = useContext(QueryClientContext);
   const flowId = useSurveyId('firstFlow');
   const npsId = useSurveyId('nps');
 
-  const live = useRef({ enabled, pathname, mutations, flowId, npsId, createdAt: currentUser?.created_at });
-  live.current = { enabled, pathname, mutations, flowId, npsId, createdAt: currentUser?.created_at };
+  const live = useRef({ enabled, pathname, queryClient, flowId, npsId, createdAt: currentUser?.created_at });
+  live.current = { enabled, pathname, queryClient, flowId, npsId, createdAt: currentUser?.created_at };
+  useEffect(() => setSurveyViewer({ enabled, createdAt: currentUser?.created_at }), [enabled, currentUser?.created_at]);
   const startedAt = useRef(Date.now());
   const lastInteractionAt = useRef(Date.now());
   const flowDone = useRef(false);
@@ -70,7 +79,7 @@ export const SurveyHost: React.FC = () => {
         lastInteractionAt: lastInteractionAt.current,
         openDialogs: document.querySelectorAll('[role="dialog"],[aria-modal="true"]').length,
         editableFocused: editableFocused(),
-        mutationsInFlight: s.mutations,
+        mutationsInFlight: s.queryClient?.isMutating() ?? 0,
         pathname: s.pathname,
       });
       if (refusal) return;

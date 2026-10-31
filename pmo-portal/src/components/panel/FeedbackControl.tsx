@@ -12,7 +12,7 @@
  */
 import React, { useState } from 'react';
 import type { DownvoteReason } from '@/src/lib/db/agentEvents';
-import { trackAgentFeedbackRated } from '@/src/lib/analytics';
+import { askWhatWentWrong, trackAgentFeedbackRated } from '@/src/lib/analytics';
 import { safeTrack } from '@/src/lib/analytics/safeTrack';
 
 const DOWNVOTE_REASONS: { value: DownvoteReason; label: string }[] = [
@@ -35,6 +35,7 @@ const thumbButtonClasses =
 export const FeedbackControl: React.FC<FeedbackControlProps> = ({ eventId, runId, onRate }) => {
   const [rating, setRating] = useState<'up' | 'down' | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const anchorId = eventId.replace(/[^\w-]/g, '');
 
   const handleUp = () => {
     setRating('up');
@@ -52,10 +53,12 @@ export const FeedbackControl: React.FC<FeedbackControlProps> = ({ eventId, runId
     setPickerOpen(false);
     onRate(eventId, 'down', reason);
     safeTrack(() => trackAgentFeedbackRated('down', reason, runId));
+    // #1532 S9: one optional "what went wrong?" beside this answer (gated + published check inside).
+    safeTrack(() => askWhatWentWrong(runId, `[data-feedback-event="${anchorId}"]`));
   };
 
   return (
-    <div className="mt-1 flex flex-col gap-1">
+    <div className="mt-1 flex flex-col gap-1" data-feedback-event={anchorId}>
       <div className="flex items-center gap-1">
         <button
           type="button"

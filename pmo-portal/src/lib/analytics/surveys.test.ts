@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const h = vi.hoisted(() => ({
@@ -7,7 +8,15 @@ const h = vi.hoisted(() => ({
 vi.mock('./client', () => ({ analyticsClient: { surveys: h.surveys }, getConsentState: () => h.consent }));
 vi.mock('./config', () => ({ getAnalyticsConfig: () => ({ enabled: true }) }));
 
-import { SURVEY_NAMES, buildSurveyContext, onCoreFlowCompleted, showSurvey, surveysLive } from './surveys';
+import {
+  SURVEY_NAMES,
+  askWhatWentWrong,
+  buildSurveyContext,
+  onCoreFlowCompleted,
+  setSurveyViewer,
+  showSurvey,
+  surveysLive,
+} from './surveys';
 
 beforeEach(() => {
   Object.values(h.surveys).forEach((f) => f.mockReset());
@@ -59,5 +68,34 @@ describe('AC-PHO-094 gating and wrappers', () => {
     relay('app_route_viewed');
     relay('agent_feedback_rated');
     expect(cb).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe('AC-PHO-097 the thumbs-down follow-up', () => {
+  const RUN = '0b1c2d3e-aaaa-bbbb-cccc-1234567890ab';
+  beforeEach(() => setSurveyViewer({ enabled: true, createdAt: '2020-01-01T00:00:00Z' }));
+  const published = () => h.surveys.find.mockImplementation((_n: string, done: (id: string | null) => void) => done('sid-assistant'));
+
+  it('opens the survey beside the rated answer with the run id attached', () => {
+    published();
+    askWhatWentWrong(RUN, '#anchor');
+    expect(h.surveys.find).toHaveBeenCalledWith('[PMO] Assistant: what went wrong?', expect.any(Function));
+    expect(h.surveys.show).toHaveBeenCalledWith('sid-assistant', expect.objectContaining({ run_id: RUN, $ai_trace_id: RUN }), '#anchor');
+  });
+  it.each([
+    ['the org Admin switched surveys off', () => setSurveyViewer({ enabled: false, createdAt: '2020-01-01T00:00:00Z' })],
+    ['the user is in their first week', () => setSurveyViewer({ enabled: true, createdAt: new Date().toISOString() })],
+    ['the account age is unknown', () => setSurveyViewer({ enabled: true, createdAt: undefined })],
+    ['analytics is not live', () => (h.consent = 'opted-out')],
+  ])('does nothing when %s', (_n, arrange) => {
+    published();
+    arrange();
+    askWhatWentWrong(RUN, '#anchor');
+    expect(h.surveys.show).not.toHaveBeenCalled();
+  });
+  it('does nothing when the survey is not published', () => {
+    h.surveys.find.mockImplementation((_n: string, done: (id: string | null) => void) => done(null));
+    askWhatWentWrong(RUN, '#anchor');
+    expect(h.surveys.show).not.toHaveBeenCalled();
   });
 });
