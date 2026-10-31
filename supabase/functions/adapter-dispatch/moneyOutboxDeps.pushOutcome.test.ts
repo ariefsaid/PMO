@@ -144,3 +144,15 @@ for (const mode of ['reject', 'throw', 'hang'] as const) {
     }),
   });
 }
+
+Deno.test('S4 fix: a sweep-path quarantined event carries attempt_count and duration_ms from the returned row', () => withPosthog('ok', async (sent) => {
+  const claimedAt = new Date(Date.now() - 30_000).toISOString();
+  // sweep builds fresh deps per candidate: no claimOutboxForCommit on this instance
+  const q = deps(fakeClient({ quarantine_committing: [{ ...ROW, claimed_at: claimedAt, state: 'quarantined' }] }));
+  assertEquals((await q.quarantineCommitting('ob-1'))?.state, 'quarantined');
+  await tick();
+  assertEquals(sent.length, 1);
+  assertEquals(sent[0].properties.outcome, 'quarantined');
+  assertEquals(sent[0].properties.attempt_count, 2);
+  assert(sent[0].properties.duration_ms >= 29_000 && sent[0].properties.duration_ms < 60_000, `duration ${sent[0].properties.duration_ms}`);
+}));

@@ -5,10 +5,15 @@ import { emitServerEvent } from './posthogServer.ts';
  * call made (confirmed / failed / held / quarantined). Codes and counts only — never amounts, party
  * names, ERP document ids or ERP error text. Called only from adapter-dispatch/moneyOutboxDeps.ts.
  */
-const CODE_TOKEN = /^([a-z][a-z0-9-]{2,48}):/;
-/** The leading `<code>:` that `redactErrorForOutbox` / the held reasons put in front of free text; nothing else leaves. */
+const KNOWN_CODES = new Set([
+  'commit-rejected', 'external-unreachable', 'destination_not_permitted', // AdapterErrorCode (contract.ts)
+  'recovery-probe-failed', 'recovery-inconclusive-absence', 'recovery-reissue-unauthorized', // held reasons (dispatch.ts)
+  'committing-lease-expired', // quarantined
+]);
+/** The leading `<code>:` that `redactErrorForOutbox` / the held reasons put in front of free text, only if it is a known code; nothing else leaves. */
 export function stableOutcomeCode(text: string | undefined): string {
-  return CODE_TOKEN.exec(text ?? '')?.[1] ?? 'unclassified';
+  const code = /^([a-z][a-z0-9_-]{2,48}):/.exec(text ?? '')?.[1];
+  return code && KNOWN_CODES.has(code) ? code : 'unclassified';
 }
 
 export interface ErpPushOutcomeProps {

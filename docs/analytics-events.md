@@ -345,9 +345,9 @@ Held and quarantined counts are not here; they come from the `erp_push_outcome` 
 | `outcome` | `confirmed`, `failed`, `held` (an operator must decide), `quarantined` (a stale claim fenced; the sweep resolves it after its window) |
 | `domain` | outbox domain (`budget`, `revenue`, `procurement`, `expenses`, `timesheets`, `companies`, …) |
 | `tier`, `operation` | external tier (`erpnext`) and `create` / `update` / `transition` |
-| `error_code` | `failed` / `held` / `quarantined` only: the leading code token of the outbox reason (`external-unreachable`, `recovery-inconclusive-absence`, `committing-lease-expired`, …), else `unclassified`. Never the ERP error text |
-| `attempt_count` | the claim's attempt number, when this run claimed the row |
-| `duration_ms` | claim to transition, when this run claimed the row |
+| `error_code` | `failed` / `held` / `quarantined` only: the leading code token of the outbox reason (`commit-rejected`, `recovery-inconclusive-absence`, `committing-lease-expired`, …; only a known code, else `unclassified`). An unreachable ERP (`external-unreachable`) marks nothing: it arrives later as `quarantined` / `committing-lease-expired`. Never the ERP error text |
+| `attempt_count` | the claim's attempt number (also on a sweep `quarantined`, read from the row; a sweep `confirmed` carries none) |
+| `duration_ms` | claim to transition (also on a sweep `quarantined`, from the row's claim time) |
 | `needs_human` | `true` exactly when `outcome = held` |
 | `org_id`, `outbox_id` | opaque ids; the outbox row is the record to open |
 

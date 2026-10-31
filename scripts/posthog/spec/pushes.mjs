@@ -5,6 +5,7 @@ import { trend, hogql, NS } from '../queryBuilders.mjs';
 
 const notConfirmed = [{ key: 'outcome', value: ['confirmed'], operator: 'is_not', type: 'event' }];
 const heldOrQuarantined = [{ key: 'outcome', value: ['held', 'quarantined'], operator: 'exact', type: 'event' }];
+const quarantined = [{ key: 'outcome', value: ['quarantined'], operator: 'exact', type: 'event' }];
 const last7d = (q) => ({ ...q, source: { ...q.source, dateRange: { date_from: '-7d' } } });
 
 export default [
@@ -36,6 +37,11 @@ GROUP BY day ORDER BY day`),
         // The dashboard cannot show "currently held": the outbox row is the record. This counts transitions.
         name: `${NS} Money pushes — held or quarantined in the last 7 days (transitions, not current state)`,
         query: last7d(trend([{ event: 'erp_push_outcome', label: 'held/quarantined' }], { breakdown: 'outcome', display: 'ActionsBarValue', properties: heldOrQuarantined })),
+      },
+      {
+        // Alert C reads this tile: an ERP outage leaves rows `committing`, the sweep quarantines them (no `failed` event).
+        name: `${NS} Money pushes — quarantined per domain per day`,
+        query: trend([{ event: 'erp_push_outcome', label: 'quarantined' }], { breakdown: 'domain', properties: quarantined }),
       },
       {
         name: `${NS} Money pushes — push duration p95 (ms)`,

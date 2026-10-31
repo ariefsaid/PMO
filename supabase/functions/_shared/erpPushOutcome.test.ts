@@ -7,6 +7,12 @@ Deno.test('stableOutcomeCode keeps a code token and never ERP text', () => {
   assertEquals(stableOutcomeCode('recovery-inconclusive-absence: mutable anchor cannot prove non-commit'), 'recovery-inconclusive-absence');
   assertEquals(stableOutcomeCode('Invoice ACC-SINV-0001 for PT Contoh is wrong'), 'unclassified'); // no leading code token
   assertEquals(stableOutcomeCode(undefined), 'unclassified');
+  assertEquals(stableOutcomeCode('commit-rejected: ACC-SINV-0001 invalid'), 'commit-rejected');
+  assertEquals(stableOutcomeCode('destination_not_permitted: host not allowed'), 'destination_not_permitted');
+  assertEquals(stableOutcomeCode('recovery-probe-failed: x'), 'recovery-probe-failed');
+  // a lowercase word is not a known code: it must not leave the edge
+  assertEquals(stableOutcomeCode('acme-holdings: wrong'), 'unclassified');
+  assertEquals(stableOutcomeCode('pt-contoh: wrong'), 'unclassified');
 });
 
 Deno.test('AC-PHO-030 payload has no amount, name or ERP id keys', async () => {
@@ -21,7 +27,7 @@ Deno.test('AC-PHO-030 payload has no amount, name or ERP id keys', async () => {
   try {
     await emitErpPushOutcome({
       tier: 'erpnext', domain: 'revenue', operation: 'create', outcome: 'failed',
-      errorCode: stableOutcomeCode('external-rejected: ACC-SINV-0001 PT Contoh 1500000'),
+      errorCode: stableOutcomeCode('commit-rejected: ACC-SINV-0001 PT Contoh 1500000'),
       attemptCount: 2, durationMs: 40, orgId: 'org-1', outboxId: 'ob-1',
     });
     assertEquals(sent.length, 1);
@@ -29,7 +35,7 @@ Deno.test('AC-PHO-030 payload has no amount, name or ERP id keys', async () => {
     assertEquals(sent[0].distinct_id, 'edge:money-outbox');
     const { $process_person_profile: _p, ...props } = sent[0].properties;
     for (const k of Object.keys(props)) assert(SERVER_EVENT_ALLOWLIST.erp_push_outcome.has(k), `unexpected key ${k}`);
-    assertEquals(props.error_code, 'external-rejected');
+    assertEquals(props.error_code, 'commit-rejected');
     assertEquals(props.needs_human, false);
     const body = JSON.stringify(sent[0]);
     for (const leak of ['ACC-', 'PT Contoh', '1500000']) assert(!body.includes(leak), `leaked ${leak}`);

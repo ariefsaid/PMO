@@ -55,6 +55,7 @@ interface OutboxDbRow {
   claim_generation: number;
   payload_digest: string | null;
   attempt_count?: number;
+  claimed_at?: string | null;
 }
 
 function mapRow(row: OutboxDbRow): OutboxRow {
@@ -179,6 +180,12 @@ export interface DbMoneyOutboxDepsOpts {
   reauthorizeRecoveryReissue?: () => Promise<{ ok: boolean; message: string }>;
 }
 
+/** attempt number + claim time from a raw outbox row, for erp_push_outcome on the recovery paths. */
+function claimInfo(raw: OutboxDbRow): { attempt?: number; claimedAtMs?: number } {
+  const t = raw.claimed_at ? Date.parse(raw.claimed_at) : NaN;
+  return { attempt: raw.attempt_count, claimedAtMs: Number.isNaN(t) ? undefined : t };
+}
+
 /** Builds the DB-backed `DispatchMoneyOutboxDeps` for ONE request's org/tier/operation. */
 export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMoneyOutboxDeps {
   const { serviceClient, orgId, externalTier, operation } = opts;
@@ -296,10 +303,11 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
     claimOutboxForCommit: (id) => callRowRpc(serviceClient, 'claim_outbox_for_commit', id, (raw) =>
       meta.set(raw.id, { domain: raw.domain, attempt: raw.attempt_count, claimedAtMs: Date.now() })),
     async quarantineCommitting(id) {
-      const row = await callRowRpc(serviceClient, 'quarantine_committing', id);
+      let raw: OutboxDbRow | undefined;
+      const row = await callRowRpc(serviceClient, 'quarantine_committing', id, (r) => { raw = r; });
       // 0096: a row comes back only when THIS call moved committing → quarantined (null otherwise).
       if (row && row.state === 'quarantined') {
-        meta.set(id, { ...meta.get(id), domain: row.domain });
+        meta.set(id, { ...meta.get(id), domain: row.domain, ...(raw ? claimInfo(raw) : {}) });
         outcome(id, 'quarantined', 'committing-lease-expired');
       }
       return row;
