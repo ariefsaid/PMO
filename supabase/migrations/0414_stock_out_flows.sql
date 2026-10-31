@@ -3,6 +3,9 @@
 -- Plan docs/plans/2026-10-31-inventory-project-consumption.md (S2b) · ADR-0097.
 -- Reversal: supabase/migrations/rollback/0414_stock_out_flows_down.sql (restores the stubs).
 
+-- The return cap looks up the issuing ledger row by line_id, under the balance locks at post.
+create index stock_ledger_line_idx on public.stock_ledger (line_id);
+
 create or replace function public.stock_apply_issue(p_doc public.stock_documents, p_post boolean) returns void
   language plpgsql volatile security definer set search_path = public as $$
 declare l record; v_status text; v_archived timestamptz; v_found boolean; v_active boolean; v_boq_ok boolean;

@@ -60,7 +60,7 @@ insert into projects (id, org_id, name, status, contract_value, tax_treatment, t
 insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate) values
   ('15120000-0000-0000-0000-0000000000e9', '15120000-0000-0000-0000-000000000002', '15120000-0000-0000-0000-0000000000c9', 'X-1', 'x', 'm3', 1, 1);
 
-select plan(21);
+select plan(22);
 create function public.stk_t_rcv(p_wh uuid, p_item uuid, p_qty numeric, p_cost numeric) returns uuid language sql as $$
   select public.create_stock_document(jsonb_build_object('kind','receive','warehouse_id',p_wh),
     jsonb_build_array(jsonb_build_object('item_id',p_item,'quantity',p_qty,'unit_cost',p_cost)), true) $$;
@@ -154,5 +154,6 @@ select lives_ok($$ select public.create_stock_document(jsonb_build_object('kind'
 reset role;
 select is((select sum(value_delta)::text from public.stock_ledger where kind = 'return' and source_line_id = current_setting('stk.iss3')::uuid), '0.05',
   'AC-STK-009 cumulative returned value never exceeds the issued value');
+select has_index('public', 'stock_ledger', 'stock_ledger_line_idx', 'line_id', 'AC-STK-009 the return cap looks up the issuing ledger row by an index on line_id');
 select * from finish();
 rollback;

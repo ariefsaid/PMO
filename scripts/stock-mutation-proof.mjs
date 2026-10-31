@@ -31,6 +31,7 @@ export const CASES = [
   { id: 'returnclamp', fn: 'public.stock_apply_return(public.stock_documents,boolean)', from: /(v_in := )least\(v_in, v_issued_val - v_ret_val\)(;\s*-- mut:returnclamp)/, to: '$1v_in$2', test: 'supabase/tests/stock_out_flows.test.sql' },
   { id: 'archivelock_wh',   fn: 'public.stock_post_core(uuid)', from: / for share;(\s*-- mut:archivelock_wh)/,   to: ';$1', cmd: ['node', 'pmo-portal/src/lib/db/stockPosting.concurrent.integration.mjs'] },
   { id: 'archivelock_item', fn: 'public.stock_post_core(uuid)', from: / for share;(\s*-- mut:archivelock_item)/, to: ';$1', cmd: ['node', 'pmo-portal/src/lib/db/stockPosting.concurrent.integration.mjs'] },
+  { id: 'returnlock', fn: 'public.stock_lock_for_document(public.stock_documents)', from: /( order by s\.id) for no key update;(\s*-- mut:returnlock)/, to: '$1;$2', cmd: ['node', 'pmo-portal/src/lib/db/stockPosting.concurrent.integration.mjs'] },
   { id: 'lockorder',   fn: 'public.stock_lock_for_document(public.stock_documents)',    from: /(order by l\.item_id, w\.wid)(\s*-- mut:lockorder)/, to: '$1 desc$2', cmd: ['node', 'pmo-portal/src/lib/db/stockPosting.concurrent.integration.mjs'] },
   // S3 (0415): read RPCs hide cost below rank 20.
   { id: 'cost',        fn: 'public.get_stock_on_hand(uuid,uuid,boolean)', from: /(v_cost := )[^;]+(;\s*-- mut:cost\b)/, to: '$1true$2', test: 'supabase/tests/stock_read_rpcs.test.sql' },
