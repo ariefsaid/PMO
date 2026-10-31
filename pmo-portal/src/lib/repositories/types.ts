@@ -357,6 +357,8 @@ export interface DocumentRepository {
   ): Promise<ProjectDocumentRow>;
   /** Atomically link a Microsoft item; actor/time stamps are server-owned. */
   linkMicrosoftDocument(id: string, reference: MicrosoftReferenceInput): Promise<void>;
+  /** Attach a file the custody upload stored in SharePoint, replacing any private upload (Draft only; one UPDATE). */
+  attachMicrosoftUpload(id: string, reference: MicrosoftReferenceInput): Promise<void>;
   /** Remove only the PMO reference; does not modify or delete the Microsoft item. */
   unlinkMicrosoftDocument(id: string): Promise<void>;
   /** Update a document's metadata (never status / author_id / org_id). */
@@ -753,6 +755,14 @@ export interface ProcurementFileRepository {
     phase: ProcPhase,
     parentId: string,
     path: string,
+    title: string | null,
+    uploadedById: string | null,
+  ): Promise<ProcurementFileRow>;
+  /** Record a file the custody upload stored in SharePoint as a phase attachment (no `file_path`). */
+  confirmMicrosoftUpload(
+    phase: ProcPhase,
+    parentId: string,
+    reference: MicrosoftReferenceInput,
     title: string | null,
     uploadedById: string | null,
   ): Promise<ProcurementFileRow>;

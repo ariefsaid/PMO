@@ -79,6 +79,7 @@ import {
   getProjectDocument,
   createProjectDocument,
   linkMicrosoftDocument,
+  attachMicrosoftUpload,
   unlinkMicrosoftDocument,
   updateProjectDocument,
   transitionProjectDocument,
@@ -266,6 +267,7 @@ import {
   listProcurementFiles,
   prepareUpload as prepareProcurementFileUpload,
   confirmUpload as confirmProcurementFileUpload,
+  confirmMicrosoftUpload as confirmProcurementMicrosoftUpload,
   archiveProcurementFile,
   getSignedDownloadUrl as getProcurementFileSignedUrl,
   cleanupStorageObject as cleanupProcurementFileObject,
@@ -502,6 +504,7 @@ const document: DocumentRepository = {
   create: (projectId, input, authorId) =>
     wrap(() => createProjectDocument(projectId, input, authorId)),
   linkMicrosoftDocument: (id, reference) => wrap(() => linkMicrosoftDocument(id, reference)),
+  attachMicrosoftUpload: (id, reference) => wrap(() => attachMicrosoftUpload(id, reference)),
   unlinkMicrosoftDocument: (id) => wrap(() => unlinkMicrosoftDocument(id)),
   update: (id, input) => wrap(() => updateProjectDocument(id, input)),
   transition: (id, status) => wrap(() => transitionProjectDocument(id, status)),
@@ -992,6 +995,8 @@ const procurementFiles: ProcurementFileRepository = {
     wrap(() => prepareProcurementFileUpload(phase, procurementId, fileName)),
   confirmUpload: (phase, parentId, path, title, uploadedById) =>
     wrap(() => confirmProcurementFileUpload(phase, parentId, path, title, uploadedById)),
+  confirmMicrosoftUpload: (phase, parentId, reference, title, uploadedById) =>
+    wrap(() => confirmProcurementMicrosoftUpload(phase, parentId, reference, title, uploadedById)),
   archive: (phase, id) => wrap(() => archiveProcurementFile(phase, id)),
   getSignedUrl: (filePath, opts) => wrap(() => getProcurementFileSignedUrl(filePath, opts)),
   cleanupObject: (filePath) => wrap(() => cleanupProcurementFileObject(filePath)),

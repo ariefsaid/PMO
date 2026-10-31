@@ -8,6 +8,7 @@ import {
   SIGNED_URL_EXPIRY_SECONDS,
 } from '@/src/lib/fileConstants';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import { assertMicrosoftReference, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 
 /**
  * Procurement attachments DAL — many files per procurement PHASE row (ADR-0023).
@@ -348,6 +349,43 @@ export async function confirmUpload(
   const { data, error } = await supabase
     .from('procurement_invoice_files')
     .insert({ invoice_id: parentId, ...common })
+    .select()
+    .single();
+  if (error) throwWrite(error);
+  return normalizeRow(phase, data as Record<string, unknown>);
+}
+
+/**
+ * Record a file already stored in SharePoint (by the custody upload) as a phase attachment: the same
+ * insert as `confirmUpload` but `source: onedrive` with the Microsoft reference and no `file_path`
+ * (migration 0409). The table comes from `FILE_TABLE_BY_PHASE`, so there is no per-phase copy.
+ */
+export async function confirmMicrosoftUpload(
+  phase: ProcPhase,
+  parentId: string,
+  reference: MicrosoftReferenceInput,
+  title: string | null,
+  uploadedById: string | null,
+): Promise<ProcurementFileRow> {
+  try {
+    assertMicrosoftReference(reference);
+  } catch {
+    throw new AppError('Cannot attach this file.', '23514', 'm365-reference-invalid');
+  }
+  const row = {
+    [PARENT_COL_BY_PHASE[phase]]: parentId,
+    source: 'onedrive',
+    file_path: null,
+    ms_drive_id: reference.drive_id,
+    ms_item_id: reference.item_id,
+    ms_web_url: reference.web_url,
+    ms_item_name: reference.name,
+    title: nullable(title),
+    uploaded_by_id: uploadedById,
+  };
+  const { data, error } = await supabase
+    .from(FILE_TABLE_BY_PHASE[phase])
+    .insert(row as never)
     .select()
     .single();
   if (error) throwWrite(error);
