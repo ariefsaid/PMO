@@ -126,6 +126,9 @@
 -- writers (documents, lines, ledger and balances have no client write grant); each gates on active membership and
 -- the JWT org, and posting on keeper-or-Admin; stock_posting_guards / stock_tenant_isolation prove the contract.
 --
+-- ⚑ AMENDED BY 0422 (#1515): five imprest writers join the retained set (+5, count 99). Each re-asserts org, active
+-- membership and role (or the plan author / route) in its body; proven by imprest_floats/imprest_plans pgTAP.
+--
 -- The budget import and procurement import-run commands retain authenticated access;
 -- their owning proofs are 0397_budget_import_protocol.test.sql and
 -- 0399_procurement_import_identity_authority.test.sql. Atomic draft creation is
@@ -179,6 +182,9 @@ insert into client_callable_rpc_names (proname) values
   ('create_procurement_invoice'),
   ('create_procurement_with_items'),
   ('create_stock_document'),
+  ('decide_imprest_float_change'),
+  ('establish_imprest_float'),
+  ('propose_imprest_float_amount'),
   ('record_vendor_withholding_slip'),
   ('correct_vendor_withholding_slip'),
   ('void_vendor_withholding_slip'),
@@ -238,12 +244,14 @@ insert into client_callable_rpc_names (proname) values
   ('set_sales_invoice_efaktur'),
   ('set_sales_invoice_received_date'),
   ('set_stock_warehouse_keeper'),
+  ('set_imprest_procurement_limit'),
   ('set_vendor_tax_defaults'),
   ('set_work_order_value'),
   ('start_procurement_import_run'),
   ('submit_sales_invoice'),
   ('transition_document_status'),
   ('transition_expense_claim'),
+  ('transition_imprest_plan'),
   ('transition_native_sales_invoice'),
   ('transition_procurement'),
   ('transition_project'),
@@ -274,8 +282,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  94,
-  'AC-ACL-002 all 94 retained client-callable RPC names still have a public function');
+  99,
+  'AC-ACL-002 all 99 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -284,8 +292,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  94,
-  'AC-ACL-003 all 94 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  99,
+  'AC-ACL-003 all 99 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
