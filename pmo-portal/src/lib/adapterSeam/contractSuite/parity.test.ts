@@ -6,6 +6,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { WORKFLOWS, type TierWorkflows } from '../connect/workflows.ts';
 import { ERPNEXT_WORKFLOWS } from '../erpnext/workflowDeclarations.ts';
+import { ODOO_WORKFLOWS } from '../odoo/workflowDeclarations.ts';
 import { SUITES } from './index.ts';
 import { parityProblems, suiteRunProblems, tierRegistrationProblems } from './parity.ts';
 import { TIER_HARNESSES, TIER_WORKFLOWS } from './tiers.ts';
@@ -16,6 +17,9 @@ describe('AC-ECA-042 registered tiers are in parity with the registry', () => {
   });
   it('registers ERPNext', () => {
     expect(TIER_WORKFLOWS.erpnext).toBe(ERPNEXT_WORKFLOWS);
+  });
+  it('AC-ODC-095 registers Odoo', () => {
+    expect(TIER_WORKFLOWS.odoo).toBe(ODOO_WORKFLOWS);
   });
 });
 
@@ -62,9 +66,8 @@ describe('AC-ECA-041 a stale version pin fails the parity test, naming tier and 
   it('flags a tier that pins the old version after a bump', () => {
     const bumped = { ...WORKFLOWS, 'party.match': { ...WORKFLOWS['party.match'], version: WORKFLOWS['party.match'].version + 1 } };
     const problems = parityProblems(TIER_WORKFLOWS, bumped, SUITES);
-    expect(problems).toHaveLength(1);
-    expect(problems[0]).toMatch(/erpnext/);
-    expect(problems[0]).toMatch(/party\.match/);
+    expect(problems).toHaveLength(Object.keys(TIER_WORKFLOWS).length);
+    for (const tier of Object.keys(TIER_WORKFLOWS)) expect(problems.join('\n')).toMatch(new RegExp(`${tier} party\\.match`));
   });
   it('accepts a tier that re-declares the bumped workflow as unavailable or pending against the new version', () => {
     const bumped = { ...WORKFLOWS, 'party.match': { ...WORKFLOWS['party.match'], version: 2 } };

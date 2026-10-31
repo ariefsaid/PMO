@@ -489,6 +489,33 @@ scripts/with-db-lock.sh scripts/with-erpnext-lock.sh scripts/serve-functions.sh 
   npx playwright test e2e/AC-ENA-053-*
 ```
 
+## Odoo 20 Community dev bed (#1504 prerequisite)
+
+A stock `odoo:20.0` + `postgres:17-alpine` Docker Compose project (`pmo-odoo`), separate from the Supabase and
+ERPNext stacks. Dev bed only, never CI. Localhost-only: Odoo on `127.0.0.1:8069` (ERPNext uses 8080); Postgres
+is not published. Memory is capped (`odoo` 1.5 GB, `db` 512 MB; idle use is about 270 MB, `--workers=0`).
+Throwaway credentials are generated into the untracked `.env.odoo.local` (gitignored); nothing secret is tracked.
+
+```bash
+scripts/with-odoo-lock.sh scripts/odoo-dev-bed.sh up      # start, seed the demo db (idempotent), mint a probe API key
+scripts/odoo-dev-bed.sh status                             # containers + installed modules
+node scripts/odoo-probe.mjs                                # run the API-claim probe (shapes only, no secrets)
+scripts/odoo-dev-bed.sh down                               # stop (data kept)
+scripts/with-odoo-lock.sh scripts/odoo-dev-bed.sh reset    # wipe volumes, reseed from scratch
+```
+
+Seeded modules (Community only): `purchase stock account project analytic hr_timesheet fleet maintenance` and
+`l10n_id`; demo data off. A bot user's API key goes to `.env.odoo.local`. The first `up` takes several minutes
+(image about 3.5 GB, module install about 2 min); later runs reuse the volumes.
+
+**Lock order, machine-global, outermost first: `odoo -> erpnext -> db -> test`.** `scripts/with-odoo-lock.sh`
+(`PMO_ODOO_LOCK`, default `~/.pmo-odoo.lock`) shares the core in `scripts/lib/flock-run.sh`. Wrap `up`, `reset`
+and any probe run (it creates and deletes records). The ERPNext example above lists db before erpnext; the
+binding order is the one stated here.
+
+What the bed showed about the Odoo API, including where the research docs were wrong:
+`docs/research/2026-10-31-odoo20-dev-bed-verification.md`.
+
 ## Observability & alerting (GTM item 3 — the floor)
 
 Four pieces, each config-per-deployed-project (ADR-0047): a Telegram alert webhook, PostHog FE error

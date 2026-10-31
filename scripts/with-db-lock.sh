@@ -23,7 +23,7 @@
 # clean up. macOS has no flock(1), hence python3 (stdlib fcntl; always present).
 # The flock core lives in scripts/lib/flock-run.sh.
 #
-# ── ACQUISITION ORDER (machine-global, outermost first): erpnext -> db -> test ──
+# ── ACQUISITION ORDER (machine-global, outermost first): odoo -> erpnext -> db -> test ──
 # This is the MIDDLE lock — acquire it after ERPNext and before the test lock
 # when all are needed (see scripts/lib/flock-run.sh).
 #

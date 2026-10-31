@@ -46,11 +46,12 @@ import {
   type ReadPermFailure,
 } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/binding.ts';
 import { applyErpSetup, type ErpSetupBody } from './setup.ts';
+import { routeOdoo } from './odoo/router.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { guardedErpFetch, isPermittedErpSiteUrl, isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
 
 interface SetCompanyBody extends ErpSetupBody {
-  tier: 'erpnext';
+  tier: 'erpnext' | 'odoo';
   companyId: string;
 }
 
@@ -234,6 +235,13 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
 
   const isAdmin = profile.role === 'Admin';
   const isPlatformOperator = !!isOperator;
+  // Odoo (#1504 S2, PQ-12): its router runs the active-member check and per-verb gates itself.
+  if (body.tier === 'odoo') {
+    return await routeOdoo({
+      sc: serviceClient, orgId: profile.org_id, userId, role: profile.role, operator: isPlatformOperator,
+      body: body as unknown as Record<string, unknown>, respond: json,
+    });
+  }
   const mayEnsureProject = body.setupAction === 'ensure-project' && ['Executive', 'Project Manager', 'Finance'].includes(profile.role);
   if (!isAdmin && !isPlatformOperator && !mayEnsureProject) {
     return errorResponse('Admin or Operator role required', 'FORBIDDEN', 403);

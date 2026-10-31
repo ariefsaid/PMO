@@ -38,7 +38,8 @@ import { TaskListMatchReview } from './TaskListMatchReview';
 import { proposeTaskListMatches } from '@/src/lib/repositories/taskListMatchReview';
 import type { LinkClickUpProjectInput } from '@/src/lib/repositories/types';
 
-const TIERS: ExternalTier[] = ['clickup', 'erpnext'];
+// ponytail: Odoo gets its own card in S5, so this list stays the two shipped tiers.
+const TIERS: Array<Exclude<ExternalTier, 'odoo'>> = ['clickup', 'erpnext'];
 
 /** Connect credential form values per tier */
 interface ConnectFormValues {
@@ -146,6 +147,7 @@ export const IntegrationsView: React.FC = () => {
   const domainsByTier: Record<ExternalTier, string[]> = {
     clickup: [],
     erpnext: [],
+    odoo: [],
   };
   ownershipRows.forEach((r) => {
     if (r.externalTier === 'clickup' || r.externalTier === 'erpnext') {

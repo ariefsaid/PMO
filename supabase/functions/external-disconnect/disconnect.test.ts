@@ -27,6 +27,22 @@ const notOperator = () => supabaseSelect('platform_operators', () =>
   new Response('null', { status: 200, headers: { 'content-type': 'application/json' } }));
 
 describe('external-disconnect', () => {
+  it('AC-ODC-007 an Odoo disconnect goes through the one revocation RPC with tier odoo → 200, no PATCH, no ownership call', async () => {
+    await withFetchMock(
+      [adminProfile(), notOperator(), supabaseRpc('disconnect_external_integration', () => jsonResponse(1)), supabaseRpc('log_audit', () => jsonResponse(null))],
+      async ({ calls }) => {
+        const res = await handleDisconnectRequest(await authed({ tier: 'odoo' }));
+        assertEquals(res.status, 200);
+        const rpc = rpcCall(calls, 'disconnect_external_integration');
+        assertEquals(rpc.length, 1);
+        assertEquals(rpc[0].bodyJson, { p_org_id: 'org-1', p_external_tier: 'odoo', p_actor_id: 'user-1' });
+        assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 0);
+        assertEquals(rpcCall(calls, 'admin_change_domain_ownership').length, 0);
+        assertEquals((rpcCall(calls, 'log_audit')[0].bodyJson as { p_detail: unknown }).p_detail, { tier: 'odoo', actor: 'user-1' });
+      },
+    );
+  });
+
   it('AC-EAC-114/AC-EAC-118 an ERPNext disconnect clears the activation stamps via the RPC and writes the fixed-shape audit event, not a PATCH', async () => {
     await withFetchMock(
       [
