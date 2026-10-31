@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(26);   -- finalized in T6.3 (pgTAP fails loudly on a mismatch)
+select plan(33);   -- finalized in T6.3 (pgTAP fails loudly on a mismatch)
 
 -- ── fixture ────────────────────────────────────────────────────────────────────────────────────
 insert into public.organizations (id,name) values
@@ -136,5 +136,40 @@ select throws_ok($$select public.set_sales_invoice_billing_kind('04080000-0000-0
 reset role;
 -- restore the two subjects to contract for the aggregate blocks that follow
 update public.sales_invoices set billing_kind='contract' where id in ('04080000-0000-0000-0000-0000000000e1','04080000-0000-0000-0000-0000000000e2');
+
+-- ── T4: native creation carries the kind (AC-011) ─────────────────────────────────────────────
+-- native creation needs an org where no ERP owns revenue
+delete from public.external_domain_ownership where org_id='04080000-0000-0000-0000-000000000001' and domain='revenue';
+insert into public.companies (id,org_id,name,type) values
+ ('04080000-0000-0000-0000-0000000000c1','04080000-0000-0000-0000-000000000001','BK Customer','Client');
+set local role authenticated;
+set local request.jwt.claims='{"sub":"04080000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+create temp table bk_new_ids (k text primary key, id uuid);
+grant all on bk_new_ids to authenticated;
+insert into bk_new_ids select 'omitted', public.create_native_sales_invoice(
+  '04080000-0000-0000-0000-0000000000d1','04080000-0000-0000-0000-0000000000c1',
+  '[{"description":"line","qty":1,"rate":10}]'::jsonb);
+insert into bk_new_ids select 'other', public.create_native_sales_invoice(
+  '04080000-0000-0000-0000-0000000000d1','04080000-0000-0000-0000-0000000000c1',
+  '[{"description":"line","qty":1,"rate":20}]'::jsonb, null, 'other');
+select is((select billing_kind from public.sales_invoices where id=(select id from bk_new_ids where k='omitted')), 'contract',
+          'AC-011 an omitted kind persists as Contract billing');
+select is((select billing_kind from public.sales_invoices where id=(select id from bk_new_ids where k='other')), 'other',
+          'AC-011 an explicit Other billing choice persists with the project');
+select is((select project_id::text from public.sales_invoices where id=(select id from bk_new_ids where k='other')),
+          '04080000-0000-0000-0000-0000000000d1', 'AC-011 the project is saved atomically with the kind');
+select ok((select pmo_native and status='Draft' and author_user_id='04080000-0000-0000-0000-0000000000a1'
+             from public.sales_invoices where id=(select id from bk_new_ids where k='other')),
+          'AC-011 the native body contract is unchanged: Draft, PMO-native, authored by the caller');
+select is((select count(*)::int from public.sales_invoice_authors where sales_invoice_id=(select id from bk_new_ids where k='other')), 1,
+          'AC-011 the author set row is still written');
+create temp table bk_count_before as select count(*)::int n from public.sales_invoices;
+grant select on bk_count_before to authenticated;
+select throws_ok($$select public.create_native_sales_invoice('04080000-0000-0000-0000-0000000000d1','04080000-0000-0000-0000-0000000000c1',
+                   '[{"description":"line","qty":1,"rate":30}]'::jsonb, null, 'bogus')$$,
+                 '23514', null, 'AC-011 an invalid kind is refused');
+select is((select count(*)::int from public.sales_invoices), (select n from bk_count_before),
+          'AC-011 the refused create left no partial invoice');
+reset role;
 select * from finish();
 rollback;
