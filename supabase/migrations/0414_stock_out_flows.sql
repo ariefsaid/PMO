@@ -47,17 +47,19 @@ begin
   if p_doc.project_id is distinct from v_project then
     update public.stock_documents set project_id = v_project where id = p_doc.id;                         -- Draft header, server-derived
   end if;
-  -- Cap pre-check (re-checked under the lock below). Cumulative per cited line, including other lines of this document.
-  for r in select x.source_line_id as src, sum(x.quantity) as q from public.stock_document_lines x where x.document_id = p_doc.id group by 1 order by 1 loop
-    select -e.qty_delta into v_issued from public.stock_ledger e where e.line_id = r.src and e.kind = 'issue';
-    select coalesce(sum(e.qty_delta), 0) into v_ret from public.stock_ledger e where e.source_line_id = r.src and e.kind = 'return';
-    v_cap_ok := v_ret + r.q <= v_issued;                                                                 -- mut:cap
-    if not v_cap_ok then
-      raise exception 'STK_RETURN_EXCEEDS: issued %, already returned %, requested %', trim_scale(v_issued)::text, trim_scale(v_ret)::text, trim_scale(r.q)::text
-        using errcode = 'P0001', detail = jsonb_build_object('issued', trim_scale(v_issued)::text, 'returned', trim_scale(v_ret)::text, 'requested', trim_scale(r.q)::text)::text;
-    end if;
-  end loop;
-  if not p_post then return; end if;
+  -- Draft-time cap check (unlocked; a posting re-checks under the lock below). Cumulative per cited line, including other lines of this document.
+  if not p_post then
+    for r in select x.source_line_id as src, sum(x.quantity) as q from public.stock_document_lines x where x.document_id = p_doc.id group by 1 order by 1 loop
+      select -e.qty_delta into v_issued from public.stock_ledger e where e.line_id = r.src and e.kind = 'issue';
+      select coalesce(sum(e.qty_delta), 0) into v_ret from public.stock_ledger e where e.source_line_id = r.src and e.kind = 'return';
+      v_cap_ok := v_ret + r.q <= v_issued;                                                                 -- mut:cap
+      if not v_cap_ok then
+        raise exception 'STK_RETURN_EXCEEDS: issued %, already returned %, requested %', trim_scale(v_issued)::text, trim_scale(v_ret)::text, trim_scale(r.q)::text
+          using errcode = 'P0001', detail = jsonb_build_object('issued', trim_scale(v_issued)::text, 'returned', trim_scale(v_ret)::text, 'requested', trim_scale(r.q)::text)::text;
+      end if;
+    end loop;
+    return;
+  end if;
   perform public.stock_lock_for_document(p_doc);               -- also locks the cited issue lines (order 2), so two returns of one line serialise
   for l in select x.*, s.boq_item_id as s_boq, sd.project_id as s_project
              from public.stock_document_lines x
@@ -67,9 +69,10 @@ begin
     select -e.qty_delta, -e.value_delta into v_issued, v_issued_val from public.stock_ledger e where e.line_id = l.source_line_id and e.kind = 'issue';
     select coalesce(sum(e.qty_delta), 0), coalesce(sum(e.value_delta), 0) into v_ret, v_ret_val
       from public.stock_ledger e where e.source_line_id = l.source_line_id and e.kind = 'return';
-    if v_ret + l.quantity > v_issued then
+    if v_ret + l.quantity > v_issued then                                                                -- mut:cap_post
       raise exception 'STK_RETURN_EXCEEDS: issued %, already returned %, requested %', trim_scale(v_issued)::text, trim_scale(v_ret)::text, trim_scale(l.quantity)::text
-        using errcode = 'P0001'; end if;
+        using errcode = 'P0001', detail = jsonb_build_object('issued', trim_scale(v_issued)::text, 'returned', trim_scale(v_ret)::text, 'requested', trim_scale(l.quantity)::text)::text;
+    end if;
     -- The cost the issue line left at; the last return takes the remainder so cumulative returned value never differs from issued value.
     v_in := case when v_ret + l.quantity = v_issued then v_issued_val - v_ret_val
                  else round(l.quantity * v_issued_val / v_issued, 2) end;                                -- mut:returncost

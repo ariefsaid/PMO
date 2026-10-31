@@ -60,7 +60,7 @@ insert into projects (id, org_id, name, status, contract_value, tax_treatment, t
 insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate) values
   ('15120000-0000-0000-0000-0000000000e9', '15120000-0000-0000-0000-000000000002', '15120000-0000-0000-0000-0000000000c9', 'X-1', 'x', 'm3', 1, 1);
 
-select plan(18);
+select plan(21);
 create function public.stk_t_rcv(p_wh uuid, p_item uuid, p_qty numeric, p_cost numeric) returns uuid language sql as $$
   select public.create_stock_document(jsonb_build_object('kind','receive','warehouse_id',p_wh),
     jsonb_build_array(jsonb_build_object('item_id',p_item,'quantity',p_qty,'unit_cost',p_cost)), true) $$;
@@ -131,6 +131,19 @@ select is((select qty_on_hand::text || '/' || value_on_hand::text from public.st
   'AC-STK-009 stock re-enters at the cost the issue left at');
 select is((select count(*)::int from public.stock_documents d where d.kind = 'return' and d.project_id is distinct from '15120000-0000-0000-0000-0000000000c1'), 0,
   'AC-STK-009 every return took its project from the cited issue, not from the client');
+-- the cap is checked on a draft (unlocked) and again at post (under the lock): two drafts that each fit cannot both post
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4');
+select set_config('stk.iss4', public.stk_t_line(public.stk_t_issue('15120000-0000-0000-0000-000000002002', '15120000-0000-0000-0000-0000000000c1', '15120000-0000-0000-0000-000000001002', 10, '15120000-0000-0000-0000-0000000000e1'))::text, false);
+select throws_like($$ select public.create_stock_document(jsonb_build_object('kind','return','warehouse_id','15120000-0000-0000-0000-000000002002'),
+    jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001002','quantity',11,'source_line_id',current_setting('stk.iss4')))) $$,
+  'STK_RETURN_EXCEEDS%', 'AC-STK-009 a return above the issued quantity is refused already as a draft');
+select set_config('stk.r1', public.create_stock_document(jsonb_build_object('kind','return','warehouse_id','15120000-0000-0000-0000-000000002002'),
+    jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001002','quantity',6,'source_line_id',current_setting('stk.iss4'))))::text, false);
+select set_config('stk.r2', public.create_stock_document(jsonb_build_object('kind','return','warehouse_id','15120000-0000-0000-0000-000000002002'),
+    jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001002','quantity',6,'source_line_id',current_setting('stk.iss4'))))::text, false);
+select lives_ok($$ select public.post_stock_document(current_setting('stk.r1')::uuid) $$, 'AC-STK-009 the first of two fitting drafts posts');
+select throws_like($$ select public.post_stock_document(current_setting('stk.r2')::uuid) $$, 'STK_RETURN_EXCEEDS%', 'AC-STK-009 the second is refused at post (6 + 6 of 10)');
+reset role;
 -- the clamp: 1 m worth 0.05 issued, returned as ten lines of 0.1 that each round up to 0.01; cumulative value stops at 0.05, never a negative remainder
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
 select public.stk_t_rcv('15120000-0000-0000-0000-000000002003', '15120000-0000-0000-0000-000000001002', 1, 0.05);

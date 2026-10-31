@@ -20,6 +20,15 @@ export const CASES = [
   { id: 'insufficient', fn: 'public.stock_write_entry(public.stock_documents,uuid,uuid,uuid,numeric,numeric,uuid,uuid,uuid)', from: /if v_out > b\.qty_on_hand then/, to: 'if false then', test: 'supabase/tests/stock_valuation.test.sql' },
   { id: 'immutable',    fn: 'public.guard_stock_ledger_append_only()', from: /raise exception 'STK_IMMUTABLE: the stock ledger is append-only' using errcode = 'P0001';/, to: 'return new;', test: 'supabase/tests/stock_immutability_idempotency.test.sql' },
   { id: 'conserve',     fn: 'public.stock_apply_transfer(public.stock_documents,boolean)', from: /-v_out(, null, null, null\);\s*-- mut:conserve)/, to: '-v_out + 1$1', test: 'supabase/tests/stock_valuation.test.sql' },
+  // S2b (0414): issue and return.
+  { id: 'projactive',  fn: 'public.stock_apply_issue(public.stock_documents,boolean)',  from: /(v_active := )[^;]+(;\s*-- mut:projactive)/, to: '$1true$2', test: 'supabase/tests/stock_out_flows.test.sql' },
+  { id: 'projorg',     fn: 'public.stock_apply_issue(public.stock_documents,boolean)',  from: / and p\.org_id = p_doc\.org_id;/,            to: ';',        test: 'supabase/tests/stock_tenant_isolation.test.sql' },
+  { id: 'boq',         fn: 'public.stock_apply_issue(public.stock_documents,boolean)',  from: /(v_boq_ok := )[\s\S]*?(;\s*-- mut:boq)/,      to: '$1true$2', test: 'supabase/tests/stock_out_flows.test.sql' },
+  { id: 'cap',         fn: 'public.stock_apply_return(public.stock_documents,boolean)', from: /(v_cap_ok := )[^;]+(;\s*-- mut:cap\b)/,       to: '$1true$2', test: 'supabase/tests/stock_out_flows.test.sql' },
+  { id: 'cap_post',    fn: 'public.stock_apply_return(public.stock_documents,boolean)', from: /(if )v_ret \+ l\.quantity > v_issued( then\s*-- mut:cap_post)/, to: '$1false$2', test: 'supabase/tests/stock_out_flows.test.sql' },
+  { id: 'returncost',  fn: 'public.stock_apply_return(public.stock_documents,boolean)', from: /(round\(l\.quantity \* v_issued_val \/ v_issued, 2\))(\s*end;\s*-- mut:returncost)/, to: '$1 + 1$2', test: 'supabase/tests/stock_out_flows.test.sql' },
+  { id: 'returnclamp', fn: 'public.stock_apply_return(public.stock_documents,boolean)', from: /(v_in := )least\(v_in, v_issued_val - v_ret_val\)(;\s*-- mut:returnclamp)/, to: '$1v_in$2', test: 'supabase/tests/stock_out_flows.test.sql' },
+  { id: 'lockorder',   fn: 'public.stock_lock_for_document(public.stock_documents)',    from: /(order by l\.item_id, w\.wid)(\s*-- mut:lockorder)/, to: '$1 desc$2', cmd: ['node', 'pmo-portal/src/lib/db/stockPosting.concurrent.integration.mjs'] },
 ];
 // S2b / S4 / S5 / S6 append their cases to this table in their own slice (ids named in each slice's mutation task).
 const run = (cmd, args, opts = {}) => spawnSync(cmd, args, { encoding: 'utf8', ...opts });
