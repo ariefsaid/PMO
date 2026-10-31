@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 
 const psql = process.env.PSQL ?? '/opt/homebrew/opt/libpq/bin/psql';
 const dbUrl = process.env.DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
-const ids = Object.fromEntries(['org', 'keeper', 'client', 'project', 'boq', 'unit', 'itemSell', 'itemLock', 'itemSwap', 'itemIdem', 'itemArch', 'whArch', 'crid'].map((k) => [k, randomUUID()]));
+const ids = Object.fromEntries(['org', 'keeper', 'client', 'project', 'boq', 'unit', 'itemSell', 'itemLock', 'itemSwap', 'itemIdem', 'itemArch', 'itemRet', 'itemRet2', 'whArch', 'crid'].map((k) => [k, randomUUID()]));
 const [whA, whB] = [randomUUID(), randomUUID()].sort();          // A < B, so "ascending" is observable
 const app = (tag) => `stk-race-${tag}-${randomUUID()}`;
 
@@ -63,14 +63,15 @@ insert into public.stock_units(id,org_id,code,name,whole_only) values ('${ids.un
 insert into public.stock_items(id,org_id,code,name,unit_id) values
   ('${ids.itemSell}','${ids.org}','SELL','Oversell','${ids.unit}'), ('${ids.itemLock}','${ids.org}','LOCK','Lock order','${ids.unit}'),
   ('${ids.itemSwap}','${ids.org}','SWAP','Opposing','${ids.unit}'),  ('${ids.itemIdem}','${ids.org}','IDEM','Idempotent','${ids.unit}'),
-  ('${ids.itemArch}','${ids.org}','ARCH','Archive race','${ids.unit}');
+  ('${ids.itemArch}','${ids.org}','ARCH','Archive race','${ids.unit}'),
+  ('${ids.itemRet}','${ids.org}','RET','Return cap','${ids.unit}'), ('${ids.itemRet2}','${ids.org}','RET2','Return deadlock','${ids.unit}');
 insert into public.stock_warehouses(id,org_id,code,name,kind) values ('${whA}','${ids.org}','RA','Race A','site'), ('${whB}','${ids.org}','RB','Race B','site'),
   ('${ids.whArch}','${ids.org}','RX','Race archive','site');
 insert into public.stock_warehouse_keepers(org_id,warehouse_id,user_id) values ('${ids.org}','${whA}','${ids.keeper}'), ('${ids.org}','${whB}','${ids.keeper}'),
   ('${ids.org}','${ids.whArch}','${ids.keeper}');
 `);
 await run(`begin; ${asKeeper} ${receive(whA, ids.itemSell, 10)} ${receive(whA, ids.itemLock, 10)} ${receive(whB, ids.itemLock, 10)}
-  ${receive(whA, ids.itemSwap, 1000)} ${receive(whB, ids.itemSwap, 1000)} commit;`);
+  ${receive(whA, ids.itemSwap, 1000)} ${receive(whB, ids.itemSwap, 1000)} ${receive(whA, ids.itemRet, 20)} ${receive(whA, ids.itemRet2, 20)} commit;`);
 
 // 1. Oversell: two issues of 6 against 10 on hand; B waits for A's balance lock, then is refused.
 {
@@ -168,6 +169,46 @@ await run(`begin; ${asKeeper} ${receive(whA, ids.itemSell, 10)} ${receive(whA, i
   assert(rp.code !== 0 && rp.err.includes('STK_ARCHIVED'), `archive vs post (warehouse): the post must be refused STK_ARCHIVED (${rp.err || 'it committed'})`);
   assert(await run(`select count(*) from public.stock_balances where warehouse_id='${ids.whArch}' and qty_on_hand > 0;`) === '0', 'archive vs post (warehouse): no stock in the archived warehouse');
   console.log('PASS archive vs post (warehouse): the receipt waited for the archive, then was refused STK_ARCHIVED.');
+}
+
+// Returns: issue 2 of an item, then return against that issue line.
+const issueLine = async (item) => {
+  await run(`begin; ${asKeeper} ${issue(whA, item, 2)} commit;`);
+  return run(`select l.id from public.stock_document_lines l join public.stock_documents d on d.id = l.document_id where d.org_id='${ids.org}' and d.kind='issue' and l.item_id='${item}';`);
+};
+const ret = (wh, item, src, qty, post = true) =>
+  `select public.create_stock_document(jsonb_build_object('kind','return','warehouse_id','${wh}','project_id','${ids.project}'), ${lines(item, qty, `,'source_line_id','${src}'`)}, ${post});`;
+
+// 8. Return cap race: two returns of the whole issue, into two different warehouses (different balance locks),
+//    A holds its post open; only the cited-line lock makes B wait, and B then re-checks the cap: it must be refused STK_RETURN_EXCEEDS.
+{
+  const src = await issueLine(ids.itemRet);
+  // Drafts first, then post: create-and-post would already serialise on the per-org document number.
+  const [dA, dB] = [await run(`begin; ${asKeeper} ${ret(whA, ids.itemRet, src, 2, false)} commit;`), await run(`begin; ${asKeeper} ${ret(whB, ids.itemRet, src, 2, false)} commit;`)];
+  const a = session(`begin; ${asKeeper} select public.post_stock_document('${dA}'); select pg_sleep(1.5); commit;`);
+  await sleep(300);
+  const b = session(`begin; ${asKeeper} select public.post_stock_document('${dB}'); commit;`, app('retcap-b'));
+  await waitForLock(b.appName);                       // B must queue on the cited line (it shares no balance row with A)
+  const rs = [await a.done, await b.done];
+  assert(rs.filter((r) => r.code === 0).length === 1, `return cap race: exactly one return posts (${rs.map((r) => r.err).join('|')})`);
+  assert(rs.filter((r) => r.err.includes('STK_RETURN_EXCEEDS')).length === 1, `return cap race: the other is refused STK_RETURN_EXCEEDS (${rs.map((r) => r.err).join('|')})`);
+  assert(await run(`select coalesce(sum(qty_delta),0)::text from public.stock_ledger where kind='return' and source_line_id='${src}';`) === '2.000', 'return cap race: returned in total 2');
+  console.log('PASS return cap race: two returns into two warehouses, one posted, one refused STK_RETURN_EXCEEDS.');
+}
+
+// 9. Return deadlock: S1 saves a draft return of an issue line and holds its FK key-share on that line while S2 create-and-posts
+//    a return of the same line; S1 then posts. The line lock must not conflict with the key-share, so neither is chosen as a deadlock victim.
+{
+  const src = await issueLine(ids.itemRet2);
+  const draft = await run(`begin; ${asKeeper} ${ret(whA, ids.itemRet2, src, 1, false)} commit;`);
+  const s1 = session(`begin; select 1 from public.stock_document_lines where id='${src}' for key share; select pg_sleep(1.5);
+    ${asKeeper} select public.post_stock_document('${draft}'); commit;`);
+  await sleep(400);
+  const s2 = session(`begin; ${asKeeper} ${ret(whA, ids.itemRet2, src, 1)} commit;`, app('retdead'));
+  const [r1, r2] = [await s1.done, await s2.done];
+  assert(!r1.err.includes('deadlock detected') && !r2.err.includes('deadlock detected'), `return deadlock: no victim (${r1.err}${r2.err})`);
+  assert(r1.code === 0 && r2.code === 0, `return deadlock: both returns post (${r1.err}${r2.err})`);
+  console.log('PASS return deadlock: two returns of one issue line, one holding the key-share, no deadlock.');
 }
 
 const outsideAfter = await run(`select count(*) from public.stock_ledger where org_id <> '${ids.org}';`);

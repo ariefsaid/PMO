@@ -113,7 +113,7 @@ create policy stock_documents_select      on public.stock_documents      for sel
 create policy stock_document_lines_select on public.stock_document_lines for select using (org_id = public.auth_org_id() and public.is_active_member());
 revoke all on public.stock_documents, public.stock_document_lines, public.stock_ledger, public.stock_balances from authenticated, anon;
 -- ADR-0097 §1: append-only for every role, the service key included (precedent 0114). The RPCs write as their owner.
-revoke insert, update, delete, truncate on public.stock_documents, public.stock_document_lines, public.stock_ledger, public.stock_balances from service_role;
+revoke insert, update, delete, truncate, trigger, references on public.stock_documents, public.stock_document_lines, public.stock_ledger, public.stock_balances from service_role;
 grant select on public.stock_documents to authenticated;
 grant select (id, org_id, document_id, line_no, item_id, quantity, counted_quantity, expected_quantity, direction, boq_item_id, source_line_id)
   on public.stock_document_lines to authenticated;                 -- unit_cost deliberately absent
@@ -228,14 +228,14 @@ begin
   if not v_old_ok then raise exception 'STK_BACKDATE: only an Admin may date a movement more than 31 days back' using errcode = 'P0001'; end if;
 end $$;
 
--- Fixed lock order (D3): (2) cited issue lines by id, (3) balances by (item, warehouse). The document row is (1), locked by the caller.
+-- Fixed lock order (D3): (2) cited issue lines by id (NO KEY UPDATE: serialises two returns of a line, but does not clash with the key-share a line insert takes), (3) balances by (item, warehouse). The document row is (1), locked by the caller.
 create or replace function public.stock_lock_for_document(p_doc public.stock_documents) returns void
   language plpgsql volatile security definer set search_path = public as $$
 declare r record;
 begin
   perform 1 from public.stock_document_lines s
    where s.id in (select l.source_line_id from public.stock_document_lines l where l.document_id = p_doc.id and l.source_line_id is not null)
-   order by s.id for update;
+   order by s.id for no key update;                                                                      -- mut:returnlock
   for r in select distinct l.item_id, w.wid as warehouse_id
              from public.stock_document_lines l
              cross join lateral (values (p_doc.warehouse_id), (p_doc.to_warehouse_id)) as w(wid)

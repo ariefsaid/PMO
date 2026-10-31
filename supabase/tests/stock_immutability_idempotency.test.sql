@@ -52,7 +52,7 @@ begin
 end $$;
 -- usage: select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4'); ... reset role;
 
-select plan(17);
+select plan(18);
 create function public.stk_t_rcv(p_wh uuid, p_item uuid, p_qty numeric, p_cost numeric) returns uuid language sql as $$
   select public.create_stock_document(jsonb_build_object('kind','receive','warehouse_id',p_wh),
     jsonb_build_array(jsonb_build_object('item_id',p_item,'quantity',p_qty,'unit_cost',p_cost)), true) $$;
@@ -94,5 +94,9 @@ select throws_ok($$ insert into public.stock_ledger (org_id) values ('15120000-0
 select throws_ok($$ delete from public.stock_documents $$, '42501', null, 'FR-STK-060 the service role cannot delete documents directly');
 select throws_ok($$ select public.stock_post_core('15120000-0000-0000-0000-000000000000') $$, '42501', null, 'FR-STK-072 the service role cannot call the posting internals');
 reset role;
+-- service key must not attach triggers or references either (it could block or rewrite postings).
+select is((select count(*)::int from (values ('stock_documents'), ('stock_document_lines'), ('stock_ledger'), ('stock_balances')) t(n)
+            where has_table_privilege('service_role', 'public.' || t.n, 'TRIGGER') or has_table_privilege('service_role', 'public.' || t.n, 'REFERENCES')), 0,
+          'ADR-0097 §1 the service role holds no TRIGGER or REFERENCES on the four stock tables');
 select * from finish();
 rollback;
