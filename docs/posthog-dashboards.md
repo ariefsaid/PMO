@@ -121,7 +121,16 @@ exists, add the sentence by hand: Dashboards, open the Demo dashboard, Edit, Des
 
 ## S7 Logs (conditional)
 
-_Owned by slice S7 (#1532)._
+_Owned by slice S7 (#1532)._ **Status: pending owner check. Nothing is built; no forwarder, no env switch.**
+
+**Owner click-path (needs the owner's PostHog login; not done from code).** In the live project: Settings > Billing (organization level) > the Logs product row. Record three things:
+1. **Free allowance**: GB of logs per month before billing starts.
+2. **Retention**: days logs are kept.
+3. **Ingestion endpoint**: Logs > Start sending logs (or the Logs product docs link on that page) shows the OTLP/HTTP logs URL for your region.
+
+**Decide:**
+- **Drop S7** if there is no free allowance, or retention is not materially longer than Supabase's edge-function log retention. Write the two numbers and the reason under this heading and close the slice.
+- **Keep S7** otherwise. Hand the Director the allowance, retention and endpoint. The builder then adds the error-line forwarder (`_shared/posthogLogs.ts`, one line in `logStructuredError`) behind a non-secret switch that is off by default (name to confirm, OQ-P10), and a Logs quota resource is added after a live capture (slice Q).
 
 ## S9 Feedback and surveys
 
