@@ -4497,16 +4497,7 @@
     "discardDetail": "Proyek yang dipilih tidak akan disimpan.",
     "discard": "Buang",
     "keep": "Lanjutkan mengedit",
-    "unassignedFilter": "Tagihan tanpa proyek",
-    "changeKind": "Ubah jenis penagihan",
-    "saveKind": "Simpan jenis penagihan",
-    "kind": {
-      "label": "Jenis penagihan",
-      "contract": "Penagihan kontrak",
-      "other": "Penagihan lainnya",
-      "contractHelp": "Dihitung terhadap kontrak: mengurangi Sisa untuk ditagih, dan dihitung dalam pendapatan serta margin.",
-      "otherHelp": "Lisensi, penggantian biaya, dan pekerjaan di luar kontrak: dihitung dalam pendapatan dan margin, tidak pernah mengurangi Sisa untuk ditagih."
-    }
+    "unassignedFilter": "Tagihan tanpa proyek"
   },
   "uxs28": {
     "nav": {

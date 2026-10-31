@@ -4497,16 +4497,7 @@
     "discardDetail": "The selected project will not be saved.",
     "discard": "Discard",
     "keep": "Keep editing",
-    "unassignedFilter": "Unassigned invoices",
-    "changeKind": "Change billing kind",
-    "saveKind": "Save billing kind",
-    "kind": {
-      "label": "Billing kind",
-      "contract": "Contract billing",
-      "other": "Other billing",
-      "contractHelp": "Counts against the contract: reduces Remaining to invoice, and counts toward revenue and margin.",
-      "otherHelp": "Licences, reimbursables and work outside the contract: counts toward revenue and margin, never reduces Remaining to invoice."
-    }
+    "unassignedFilter": "Unassigned invoices"
   },
   "uxs28": {
     "nav": {

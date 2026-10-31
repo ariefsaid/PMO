@@ -536,5 +536,14 @@
   },
   "budgetMap": {
     "overheadsHint": "Direct project cost, not company overhead."
+  },
+  "billingKind": {
+    "label": "Billing kind",
+    "contract": "Contract billing",
+    "other": "Other billing",
+    "contractHelp": "Counts against the contract: reduces Remaining to invoice, and counts toward revenue and margin.",
+    "otherHelp": "Licences, reimbursables and work outside the contract: counts toward revenue and margin, never reduces Remaining to invoice.",
+    "change": "Change billing kind",
+    "save": "Save billing kind"
   }
 }

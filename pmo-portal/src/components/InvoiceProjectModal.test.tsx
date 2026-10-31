@@ -19,6 +19,8 @@ const projects = [
 const localeI18n = createInstance();
 const enCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/common.json'), 'utf8')) as Record<string, unknown>;
 const idCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8')) as Record<string, unknown>;
+const enFinance = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/finance.json'), 'utf8')) as Record<string, unknown>;
+const idFinance = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/finance.json'), 'utf8')) as Record<string, unknown>;
 const renderModal = (props: Partial<React.ComponentProps<typeof InvoiceProjectModal>> = {}) => {
   const onSave = props.onSave ?? vi.fn().mockResolvedValue(undefined);
   const result = render(<InvoiceProjectModal invoice={invoice(null)} projects={projects}
@@ -37,7 +39,7 @@ describe('InvoiceProjectModal', () => {
   it('AC-PFIN-009 renders Indonesian attribution and correction copy from the shipped catalogue', async () => {
     await localeI18n.init({
       lng: 'id', fallbackLng: 'en', defaultNS: 'common',
-      resources: { en: { common: enCatalogue }, id: { common: idCatalogue } },
+      resources: { en: { common: enCatalogue, finance: enFinance }, id: { common: idCatalogue, finance: idFinance } },
       interpolation: { escapeValue: false }, react: { useSuspense: false },
     });
     const user = userEvent.setup();
@@ -230,7 +232,7 @@ describe('InvoiceProjectModal', () => {
   it('AC-008 renders the billing kind control in Indonesian from the shipped catalogue, axe clean', async () => {
     await localeI18n.init({
       lng: 'id', fallbackLng: 'en', defaultNS: 'common',
-      resources: { en: { common: enCatalogue }, id: { common: idCatalogue } },
+      resources: { en: { common: enCatalogue, finance: enFinance }, id: { common: idCatalogue, finance: idFinance } },
       interpolation: { escapeValue: false }, react: { useSuspense: false },
     });
     const view = render(<I18nextProvider i18n={localeI18n}>
@@ -240,7 +242,7 @@ describe('InvoiceProjectModal', () => {
     const kind = screen.getByRole('combobox', { name: 'Jenis penagihan' });
     expect(within(kind).getByRole('option', { name: 'Penagihan kontrak' })).toBeInTheDocument();
     expect(within(kind).getByRole('option', { name: 'Penagihan lainnya' })).toBeInTheDocument();
-    expect(screen.queryByText(/^invoiceProject\./)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^(invoiceProject|finance:billingKind)\./)).not.toBeInTheDocument();
     expect(await axe(view.container)).toHaveNoViolations();
   });
 });

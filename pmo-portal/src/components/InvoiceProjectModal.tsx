@@ -87,7 +87,7 @@ export function InvoiceProjectModal({
     <EntityFormModal
       open={!confirming}
       title={projectLocked
-        ? t('invoiceProject.changeKind', 'Change billing kind')
+        ? t('finance:billingKind.change', 'Change billing kind')
         : invoice.project_id
           ? t('invoiceProject.change', 'Change project')
           : t('invoiceProject.assign', 'Assign project')}
@@ -96,7 +96,7 @@ export function InvoiceProjectModal({
       loading={busy}
       dirty={form.isDirty}
       submitError={saveError}
-      submitLabel={projectLocked ? t('invoiceProject.saveKind', 'Save billing kind') : t('invoiceProject.save', 'Save project')}
+      submitLabel={projectLocked ? t('finance:billingKind.save', 'Save billing kind') : t('invoiceProject.save', 'Save project')}
       submitDisabled={!form.isComplete || unchanged}
       onSubmit={onSubmit}
       discardCopy={{
@@ -120,16 +120,16 @@ export function InvoiceProjectModal({
         />
         <SelectField
           id={form.fieldProps('billingKind').id}
-          label={t('invoiceProject.kind.label', 'Billing kind')}
+          label={t('finance:billingKind.label', 'Billing kind')}
           value={form.values.billingKind}
           disabled={busy}
           options={[
-            { value: 'contract', label: t('invoiceProject.kind.contract', 'Contract billing') },
-            { value: 'other', label: t('invoiceProject.kind.other', 'Other billing') },
+            { value: 'contract', label: t('finance:billingKind.contract', 'Contract billing') },
+            { value: 'other', label: t('finance:billingKind.other', 'Other billing') },
           ]}
           helper={form.values.billingKind === 'contract'
-            ? t('invoiceProject.kind.contractHelp', 'Counts against the contract: reduces Remaining to invoice, and counts toward revenue and margin.')
-            : t('invoiceProject.kind.otherHelp', 'Licences, reimbursables and work outside the contract: counts toward revenue and margin, never reduces Remaining to invoice.')}
+            ? t('finance:billingKind.contractHelp', 'Counts against the contract: reduces Remaining to invoice, and counts toward revenue and margin.')
+            : t('finance:billingKind.otherHelp', 'Licences, reimbursables and work outside the contract: counts toward revenue and margin, never reduces Remaining to invoice.')}
           onChange={(value) => form.setValue('billingKind', value as BillingKind)}
         />
       </FormGrid>
