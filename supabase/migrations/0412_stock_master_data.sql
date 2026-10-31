@@ -99,6 +99,7 @@ create trigger stock_items_zz_check_parent      before insert or update on publi
 create trigger stock_warehouses_zz_check_parent before insert or update on public.stock_warehouses for each row execute function public.check_stock_warehouse_parent();
 
 -- §4 RLS + grants -------------------------------------------------------------------------------------------
+-- ⚑ Every policy names is_active_member() literally (0203 AC-AMC-001 reads the policy text; the helpers repeat it by design).
 do $$
 declare t text;
 begin
@@ -106,10 +107,10 @@ begin
     execute format('alter table public.%I enable row level security', t);
     execute format('alter table public.%I force row level security', t);
     execute format($p$create policy %1$s_select on public.%1$I for select using (org_id = public.auth_org_id() and public.is_active_member())$p$, t);
-    execute format($p$create policy %1$s_insert on public.%1$I for insert with check (org_id = public.auth_org_id() and public.stock_master_writer())$p$, t);
-    execute format($p$create policy %1$s_update on public.%1$I for update using (org_id = public.auth_org_id() and public.stock_master_writer())
-                      with check (org_id = public.auth_org_id() and public.stock_master_writer())$p$, t);
-    execute format($p$create policy %1$s_delete on public.%1$I for delete using (org_id = public.auth_org_id() and public.stock_admin())$p$, t);
+    execute format($p$create policy %1$s_insert on public.%1$I for insert with check (org_id = public.auth_org_id() and public.is_active_member() and public.stock_master_writer())$p$, t);
+    execute format($p$create policy %1$s_update on public.%1$I for update using (org_id = public.auth_org_id() and public.is_active_member() and public.stock_master_writer())
+                      with check (org_id = public.auth_org_id() and public.is_active_member() and public.stock_master_writer())$p$, t);
+    execute format($p$create policy %1$s_delete on public.%1$I for delete using (org_id = public.auth_org_id() and public.is_active_member() and public.stock_admin())$p$, t);
     execute format('revoke all on public.%I from authenticated, anon', t);
     execute format('grant select on public.%I to authenticated', t);
     execute format('grant delete on public.%I to authenticated', t);   -- Admin only by policy; FK 23503 blocks a referenced row
