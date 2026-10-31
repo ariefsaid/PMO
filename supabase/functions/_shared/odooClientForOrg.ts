@@ -5,7 +5,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { guardedErpFetch, isPermittedErpSiteUrl } from './erpHostGuard.ts';
 import { externalConnectEnabled } from './externalConnectEnabled.ts';
-import type { OdooClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
+import { createPacer, paceFor, type OdooClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 
 export type OdooClientRefusal = 'not-found' | 'inactive' | 'invalid-site' | 'credentials' | 'company-not-set' | 'kill-switch';
 export type OdooClientForOrgResult =
@@ -31,7 +31,7 @@ export async function odooClientForOrg(
   // An Odoo key is one token; a `a:b` value is some other tier's pair under this reference — refuse it.
   if (keyError || typeof key !== 'string' || key === '' || key.includes(':')) return { refusal: 'credentials' };
   return {
-    client: { baseUrl: b.site_url, apiKey: key, database: String(config.database ?? ''), fetchImpl: guardedErpFetch(b.site_url) },
+    client: { baseUrl: b.site_url, apiKey: key, database: String(config.database ?? ''), fetchImpl: guardedErpFetch(b.site_url), pace: createPacer(paceFor(b.site_url)) },
     config,
     companyId,
   };
