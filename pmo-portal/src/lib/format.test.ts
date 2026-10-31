@@ -4,7 +4,7 @@ import {
   PLATFORM_CURRENCY, completionPct, currencySymbol, formatCompactCurrency, formatCurrency, parseMoneyInput, pct, formatDate, formatRelativeTime,
   formatCurrencyAuto, formatCurrencyCents, formatCurrencyFine, formatNumber, formatNumberMax2, formatPercent,
   formatDateNumeric, formatDateUtc, formatDateTime, formatDayMonth, formatExactMoney, formatFullDate, formatMonthDay,
-  formatMonthYear, formatUtcDayMonthYear, formatUtcMonthYear, formatWeekday, formatWeekdayMonthDay,
+  formatMonthYear, formatUtcDayMonthYear, formatUtcMonthYear, formatUtcMonthYearFull, formatWeekday, formatWeekdayMonthDay,
 } from './format';
 
 afterEach(() => resetActiveLocale());
@@ -263,6 +263,14 @@ describe('#477 date variants — all deterministic, TZ-stable (local or UTC-pinn
   });
   it('formatUtcMonthYear: "Jun 26"', () => {
     expect(formatUtcMonthYear(new Date(Date.UTC(2026, 5, 14)))).toBe('Jun 26');
+  });
+  it('formatUtcMonthYearFull: month + 4-digit year in the active date locale (en, id)', () => {
+    const d = new Date(Date.UTC(2026, 5, 14));
+    expect(formatUtcMonthYearFull(d)).toBe('Jun 2026');
+    setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+    expect(formatUtcMonthYearFull(d)).toBe('Jun 2026');
+    expect(formatUtcMonthYearFull(new Date(Date.UTC(2026, 7, 1)))).toBe('Agu 2026');
+    resetActiveLocale();
   });
   it("formatUtcDayMonthYear: \"15 Mar '25\" / \"31 Dec '26\" (quoted 2-digit year, UTC-stable)", () => {
     expect(formatUtcDayMonthYear(new Date(Date.UTC(2025, 2, 15)))).toBe("15 Mar '25");
