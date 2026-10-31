@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
+import { useOptionalRealRole } from '@/src/auth/impersonation';
+import { safeTrack, trackPurchaseApproved } from '@/src/lib/analytics';
 import { repositories } from '@/src/lib/repositories';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import {
@@ -76,6 +78,7 @@ export function useProcurementMutations(id: string) {
   const queryClient = useQueryClient();
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
+  const realRole = useOptionalRealRole();
 
   const invalidateDetail = () => {
     queryClient.invalidateQueries({ queryKey: procurementDetailKey(orgId, id) });
@@ -99,6 +102,7 @@ export function useProcurementMutations(id: string) {
       // folder is named by. Start the (fire-and-forget) folder step now; any other target status
       // starts nothing, and the transition result is never touched by what the folder does.
       if (to === 'Requested') startRecordFolder({ kind: 'procurement', id });
+      if (to === 'Approved') safeTrack(() => trackPurchaseApproved(realRole ?? 'unknown'));
     },
   });
 

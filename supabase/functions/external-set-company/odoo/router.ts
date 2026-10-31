@@ -5,6 +5,8 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { activate, listCompanies } from './activate.ts';
+import { recheck } from './recheck.ts';
+import { refresh, resetKind } from './sweepVerbs.ts';
 
 export interface OdooCtx {
   sc: SupabaseClient;
@@ -17,8 +19,11 @@ export interface OdooCtx {
 }
 
 const adminOrOperator = (c: OdooCtx) => c.role === 'Admin' || c.operator;
-const GATES: Record<string, (c: OdooCtx) => boolean> = { 'list-companies': adminOrOperator, activate: adminOrOperator };
-const VERBS: Record<string, (c: OdooCtx) => Promise<Response>> = { 'list-companies': listCompanies, activate };
+const adminOrFinance = (c: OdooCtx) => c.role === 'Admin' || c.role === 'Finance';
+const GATES: Record<string, (c: OdooCtx) => boolean> = {
+  'list-companies': adminOrOperator, activate: adminOrOperator, recheck: adminOrOperator, refresh: adminOrFinance, 'reset-kind': adminOrOperator,
+};
+const VERBS: Record<string, (c: OdooCtx) => Promise<Response>> = { 'list-companies': listCompanies, activate, recheck, refresh, 'reset-kind': resetKind };
 
 export function odooError(c: OdooCtx, message: string, code: string, status: number): Response {
   return c.respond({ error: code, message }, status);

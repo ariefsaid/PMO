@@ -73,7 +73,8 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
   // env flag (plan M5), so toggling them would look like a no-op; render them read-only instead.
   const toggleable: OrgFeatureKey[] = [...FEATURE_KEYS_TOGGLEABLE];
   const envGated: OrgFeatureKey[] = ([...FEATURE_KEYS] as OrgFeatureKey[]).filter(
-    (k) => !FEATURE_KEYS_TOGGLEABLE.includes(k),
+    // feedback_surveys is the org Admin's own switch (FeedbackSurveysSetting), not an Operator entitlement row.
+    (k) => !FEATURE_KEYS_TOGGLEABLE.includes(k) && k !== 'feedback_surveys',
   );
   const core: EntitleableKey[] = [...CORE_FEATURES];
 

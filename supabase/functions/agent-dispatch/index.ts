@@ -34,6 +34,7 @@ import { logStructuredError } from '../_shared/errorLog.ts';
 import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts';
 import { recordErrorEvent } from '../_shared/errorEvent.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+import { withJobRun, type JobSummary } from '../_shared/jobRun.ts';
 // Shared-module import of the SAME agent loop the interactive path uses (the fired run is an
 // ordinary run — no automation-only branch). This does NOT modify agent-chat source.
 import { agentChatHandler } from '../agent-chat/handler.ts';
@@ -44,7 +45,12 @@ import { agentChatHandler } from '../agent-chat/handler.ts';
 // function is unit-tested (pmo-portal/src/lib/agent/agentCan.test.ts + agentRoles drift guard).
 import { agentCan } from '../agent-chat/agentCan.ts';
 
-serveWithErrorReporting('agent-dispatch', async (req: Request): Promise<Response> => {
+/** job_run summary (#1532 S3). The flag-off no-op tick is `skipped`, not `ok`; the tick returns no count, so items stay 0. */
+export function summarizeAgentDispatch(body: unknown): JobSummary {
+  return (body as { skipped?: unknown } | null)?.skipped ? { items: 0, skipped: true } : { items: 0 };
+}
+
+serveWithErrorReporting('agent-dispatch', withJobRun('agent-dispatch', async (req: Request): Promise<Response> => {
   // ── 1. Authorization: the caller (the pg_cron tick) must present the DEDICATED dispatch
   // secret. Least-privilege (owner directive 2026-07-09): when AGENT_DISPATCH_SECRET is set,
   // the cron authenticates with THAT narrow secret (stored in Supabase Vault, read by the
@@ -209,4 +215,4 @@ serveWithErrorReporting('agent-dispatch', async (req: Request): Promise<Response
       headers: { 'Content-Type': 'application/json' },
     });
   }
-});
+}, { summarize: summarizeAgentDispatch }));

@@ -585,6 +585,12 @@ verify_jwt = false
 [functions.erpnext-sweep]
 verify_jwt = false
 
+# ── Edge Function: odoo-sweep ──────────────────────────────────────────────────
+# verify_jwt = false: invoked by pg_cron (odoo_sweep_tick, migration 0421); the handler verifies the
+# dedicated Odoo sweep secret itself, constant-time, exactly like erpnext-sweep.
+[functions.odoo-sweep]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

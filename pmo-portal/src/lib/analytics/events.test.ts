@@ -7,6 +7,7 @@ import {
   trackEmptyStateSeen,
 } from './events';
 import type { AuthMethod, AuthFailureReason } from './events';
+import { EVENT_PRODUCERS } from './eventCallSites';
 
 describe('analytics event sanitizer', () => {
   it('AC-PH-014: blocks forbidden property keys in dev/test', () => {
@@ -125,5 +126,16 @@ describe('auth analytics unions (FR-AUTHF-061)', () => {
       'expired_token',
     ];
     expectTypeOf(r).toEqualTypeOf<AuthFailureReason[]>();
+  });
+});
+
+describe('AC-PHO-043 business events are pre-registered with a facade producer (S5 fills the callers)', () => {
+  it.each([
+    ['budget_activated', 'trackBudgetActivated'],
+    ['invoice_issued', 'trackInvoiceIssued'],
+    ['payment_recorded', 'trackPaymentRecorded'],
+    ['purchase_approved', 'trackPurchaseApproved'],
+  ])('%s -> %s', (event, producer) => {
+    expect(EVENT_PRODUCERS[event as keyof typeof EVENT_PRODUCERS]).toEqual({ producer, kind: 'facade' });
   });
 });

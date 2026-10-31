@@ -5,7 +5,7 @@
  * to the org owner and are easy to miss.
  */
 import { describe, it, expect } from 'vitest';
-import { evaluateQuota, validateQuotaEnv, validateThreshold } from '../../../../scripts/posthog/quota.mjs';
+import { dumpQuota, evaluateQuota, validateQuotaEnv, validateThreshold } from '../../../../scripts/posthog/quota.mjs';
 
 /**
  * ⚑ THIS FIXTURE IS A REAL RESPONSE, captured live from
@@ -211,5 +211,30 @@ describe('validateQuotaEnv host allowlist (SECURITY, 2026-07-28 review MEDIUM-2)
   it('accepts the real PostHog origins', () => {
     expect(validateQuotaEnv('https://us.i.posthog.com', '465502')).toEqual([]);
     expect(validateQuotaEnv('https://eu.i.posthog.com', '465502')).toEqual([]);
+  });
+});
+
+describe('dumpQuota (Q-T1: capture a live fixture without leaking anything else)', () => {
+  it('keeps only limited/usage/limit per resource and nothing else from the payload', () => {
+    const noisy = {
+      ...payload,
+      account_secret: 'phx_should_never_print',
+      limited: { ...payload.limited, events: { limited: false, usage: 238, limit: 1_000_000, billing_token: 'x' } },
+    };
+    const out = dumpQuota(noisy);
+    expect(out.events).toEqual({ limited: false, usage: 238, limit: 1_000_000 });
+    expect(Object.keys(out)).toEqual(Object.keys(payload.limited));
+    expect(JSON.stringify(out)).not.toMatch(/phx_|billing_token|account_secret|code_usage_billing_active/);
+  });
+  it('coerces anything that is not a number to null and anything not boolean-true to false', () => {
+    const out = dumpQuota({ limited: { weird: { limited: 'yes', usage: '12', limit: { a: 1 } } } });
+    expect(out.weird).toEqual({ limited: false, usage: null, limit: null });
+  });
+  it('sanitises resource names like every other line this module prints', () => {
+    const out = dumpQuota({ limited: { 'a\n::add-mask::x': { limited: false, usage: 1, limit: 2 } } });
+    expect(Object.keys(out)[0]).not.toMatch(/[\n:]/);
+  });
+  it('a payload without a limited object dumps nothing to trust', () => {
+    expect(dumpQuota({})).toEqual({});
   });
 });

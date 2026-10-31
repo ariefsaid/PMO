@@ -3318,7 +3318,8 @@
       "themeDark": "Gelap",
       "themeHeading": "Tema",
       "themeLight": "Terang",
-      "viewAsRoleHeading": "Lihat sebagai role"
+      "viewAsRoleHeading": "Lihat sebagai role",
+      "feedback": "Masukan"
     },
     "drawer": {
       "close": "Tutup menu navigasi",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bindCall, odooCall, OdooError } from './client.ts';
+import { bindCall, createPacer, odooCall, OdooError, paceFor } from './client.ts';
 import { ERR_404_JSON } from './__fixtures__/json2.ts';
 
 const deps = (res: () => Promise<Response>) => ({ baseUrl: 'https://odoo.example.test', apiKey: 'SENTINEL-KEY', database: 'db1', fetchImpl: (() => res()) as typeof fetch });
@@ -49,4 +49,25 @@ describe('odoo/client — JSON-2 request shape (bed §1)', () => {
     await odooCall({ ...deps(async () => { order.push('fetch'); return Response.json(true); }), pace: async () => { order.push('pace'); } }, 'm', 'x');
     expect(order).toEqual(['pace', 'fetch']);
   });
+});
+
+describe('odoo/client — FR-ODC-046 pacing', () => {
+  it('createPacer(5) lets the third call start no sooner than 400 ms after the first', async () => {
+    let t = 1_000;
+    const pace = createPacer(5, () => t, async (ms) => { t += ms; });
+    const starts: number[] = [];
+    for (let i = 0; i < 3; i++) { await pace(); starts.push(t); }
+    expect(starts[2] - starts[0]).toBeGreaterThanOrEqual(400);
+    expect(starts[1] - starts[0]).toBeGreaterThanOrEqual(200);
+  });
+
+  it('an idle pacer does not wait', async () => {
+    let t = 0; let slept = 0;
+    const pace = createPacer(5, () => t, async (ms) => { slept += ms; });
+    await pace(); t += 5_000; await pace();
+    expect(slept).toBe(0);
+  });
+
+  it.each([['https://acme.odoo.com', 1], ['https://erp.acme.example', 5], ['http://host.docker.internal:8069', 5]])('paceFor(%s) = %i per second', (url, rps) =>
+    expect(paceFor(url)).toBe(rps));
 });

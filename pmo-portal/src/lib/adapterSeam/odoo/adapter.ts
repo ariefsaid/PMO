@@ -7,6 +7,7 @@ import { AdapterError, type Adapter, type PmoRecord } from '../contract.ts';
 import type { OdooCall } from './client.ts';
 import { createOdooConnectAdapter, LIST_PAGE, ODOO_TIER, toAdapterError, type OdooConnectCtx } from './connectAdapter.ts';
 import { normaliseParty } from './normalise.ts';
+import { keysetDomain } from './sweep.ts';
 
 type Raw = Record<string, unknown>;
 interface CompanyRecord { id: string; name: string; type: 'Vendor' | 'Client'; erp_tax_id?: string | null; externalRecordId?: string }
@@ -62,8 +63,7 @@ export function createOdooAdapter(call: OdooCall, ctx: OdooConnectCtx): Adapter 
     async listChangesSinceWatermark(domain, cursor) {
       companiesOnly(domain);
       const k = cursor ? (JSON.parse(cursor) as { w: string; id: number }) : null;
-      // ponytail: S4 moves this keyset into odoo/sweep.ts (keysetDomain) and imports it here.
-      const after = k ? ['|', ['write_date', '>', k.w], '&', ['write_date', '=', k.w], ['id', '>', k.id]] : [];
+      const after = k ? keysetDomain(k) : [];
       try {
         const rows = await call<Raw[]>('res.partner', 'search_read', {
           domain: [['parent_id', '=', false], ...after],

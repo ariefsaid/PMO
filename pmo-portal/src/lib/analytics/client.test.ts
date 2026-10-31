@@ -239,6 +239,17 @@ describe('analyticsClient', () => {
       expect(passedError.componentStack).toBe('    in Foo');
     });
 
+    it('AC-PHO-012: init registers the build release id so exceptions carry it; redaction hook stays', () => {
+      analyticsClient.init({ ...base, enabled: true, posthogKey: 'phc_' + 'a'.repeat(20) });
+      expect(posthog.register).toHaveBeenCalledWith({ release: expect.any(String) });
+      const [, initOpts] = posthog.init.mock.calls[0];
+      const out = (initOpts.before_send as (cr: unknown) => { properties: { $exception_message: string } })({
+        event: '$exception',
+        properties: { $exception_message: 'failed for a.b@example.com' },
+      });
+      expect(out.properties.$exception_message).not.toContain('a.b@example.com');
+    });
+
     it('FR-OF-011: the before_send hook registered at init() redacts $exception_* properties on an outbound exception event', () => {
       analyticsClient.__resetForTests();
       analyticsClient.init({ ...base, enabled: true, posthogKey: 'phc_' + 'a'.repeat(20) });
@@ -429,6 +440,7 @@ describe('analytics opt-out survives logout (CRITICAL fix — reset() used to si
 
   it('AC-CON-003: capture/captureException/identify/register are all no-ops for an opted-out browser even while `initialized` is still true — belt-and-braces: a privacy promise must not depend on SDK-internal consent state surviving reset()', () => {
     analyticsClient.init(enabledConfig());
+    posthog.register.mockClear(); // init itself registers the release id (AC-PHO-012); the opt-out claim is about what follows
     analyticsClient.optOut(); // sets OUR flag; does not by itself flip the module-level `initialized` bit
     analyticsClient.capture('app_route_viewed', {});
     analyticsClient.captureException({ name: 'TypeError', message: 'boom' });

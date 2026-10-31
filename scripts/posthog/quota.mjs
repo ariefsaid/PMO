@@ -96,6 +96,24 @@ export function evaluateQuota(payload, threshold = 0.8) {
 }
 
 /**
+ * Q-T1: reduce a live response to `{ resource: { limited, usage, limit } }` so an operator can paste
+ * it into a test fixture. Booleans and numbers only (anything else becomes false / null), names
+ * sanitised: nothing from the payload except the three fields can reach the output.
+ */
+export function dumpQuota(payload) {
+  const limited = payload?.limited;
+  /** @type {Record<string, { limited: boolean, usage: number | null, limit: number | null }>} */
+  const out = {};
+  if (limited === null || typeof limited !== 'object' || Array.isArray(limited)) return out;
+  for (const [resource, row] of Object.entries(limited)) {
+    const r = row !== null && typeof row === 'object' ? row : {};
+    const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+    out[safeResourceName(resource)] = { limited: r.limited === true, usage: num(r.usage), limit: num(r.limit) };
+  }
+  return out;
+}
+
+/**
  * SECURITY (2026-07-28 security review, MEDIUM-1): resource names are object KEYS from a
  * third-party HTTP response, interpolated into lines that reach a CI step's stderr — and GitHub
  * Actions parses workflow commands from every output line. A key containing newlines emitted three

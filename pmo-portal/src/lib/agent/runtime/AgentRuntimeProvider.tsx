@@ -6,6 +6,7 @@
  * NFR-AP-SEC-001: only the session JWT is forwarded; never service-role/provider API key.
  * FR-AP-024/025.
  */
+import { agentAnalyticsFlag } from '@/src/lib/analytics/agentAnalyticsFlag';
 import React, { useMemo, useRef, useState, useCallback } from 'react';
 import { AgentRuntimeContext } from './AgentRuntimeContext';
 import type { AgentRuntime } from './port';
@@ -44,6 +45,7 @@ export const AgentRuntimeProvider: React.FC<AgentRuntimeProviderProps> = ({ chil
       fnUrl: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/agent-chat`,
       // setEdgeVersion is a stable useState setter — safe to close over with [] deps.
       onDeployVersion: setEdgeVersion,
+      getAnalytics: agentAnalyticsFlag,
     });
     // sessionRef is stable (useRef returns the same object); no deps needed.
   }, []);

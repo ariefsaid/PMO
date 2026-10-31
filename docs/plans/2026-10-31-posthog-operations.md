@@ -1187,6 +1187,41 @@ Held (OQ-4, written non-goal in `observability-analytics.spec.md` §1.4). If the
 
 ---
 
+## 12b. Slice S9 — feedback widget and surveys (owner ruling; builder: Orca worker)
+
+Owner rulings (comment 2 on #1532) and the Director's answers at build time: surveys are **PostHog-native**, with PostHog's own wait period for the 30-day cap; **migration 0419** carries the org Admin switch (org_features key + Admin-only RPC); first-week gate is client-side from `profiles.created_at`; the demo deployment is always on, a real org is on by default and its Admin can switch it off; additive one-line edits to S0-owned files are allowed.
+
+**Design.** Four surveys are created in PostHog by the owner (click-path in `docs/posthog-dashboards.md`), all of type **API** so PostHog never pops one by itself. The SDK is initialised with `disable_surveys_automatic_display: true`; the app decides when to open each as **PostHog's own popover** (`displaySurvey`, so shown / sent / dismissed, the seen state and the wait period are the SDK's, not re-implemented): `[PMO] Feedback` (widget, user-initiated), `[PMO] Assistant: what went wrong?` (thumbs-down, optional), `[PMO] First core flow` (1-5, after the first budget / invoice / payment / purchase success), `[PMO] NPS` (quarterly, active users). Prompted surveys render only if `canRenderSurvey` (PostHog's wait period, targeting flag and already-seen rules) says so **and** the moment is safe (no open dialog, no focused field, no write in flight, not a create/edit route, quiet for 3 s) **and** the user is past their first week **and** the org switch is on **and** analytics is active (opted-out and Do-Not-Track users never load surveys). Answers carry no record contents: `before_send` redacts every `$survey_response*` string with the same scrubber as exceptions; the context properties passed with a survey are `module`, `route` (template) and, in the assistant, `run_id` / `$ai_trace_id`. The thumbs-down follow-up applies the same org-switch, live-analytics and first-week gates; its moment is the user's own click.
+
+**Known ceiling, recorded in the docs.** The SDK's "any survey in the last N days" wait period is read from this browser's storage, so across devices a person can see one survey per device per 30 days; a survey that is not repeatable is once per person (PostHog person property). A cross-device cap would need a per-user row (not built).
+
+Files (new unless noted): `supabase/migrations/0419_feedback_surveys_switch.sql`, `supabase/tests/0419_feedback_surveys_switch.test.sql`, `pmo-portal/src/lib/analytics/surveys.ts` (+ test), `pmo-portal/src/lib/analytics/surveyPolicy.ts` (+ test), `pmo-portal/src/components/feedback/{FeedbackWidget,SurveyHost,FeedbackSurveysSetting}.tsx` (+ tests), `pmo-portal/src/hooks/{useFeedbackSurveys,useSurveyId}.ts` (+ test), `scripts/posthog/spec/feedback.mjs`. Edited: `client.ts` (S2 also edits it, different hunks: init option, `analyticsClient.surveys`, `before_send`), `features.ts`, `policy.ts` (`orgFeedback`), `db/orgFeatures.ts`, repositories (`orgFeature.setFeedbackSurveys`), `database.types.ts`, `Administration.tsx` (mount the setting), `AdministrationFeatures.tsx` (one filter), `ContextBar.tsx` (`beforeBell` slot), `App.tsx` (mount `FeedbackWidget`, `SurveyHost`), `FeedbackControl.tsx` (follow-up call), `Privacy.tsx` (one paragraph), both `common.json` locale files (one key), and the S0-owned one-liners `analytics/index.ts` (two exports) and `dashboardSpec.mjs` (import).
+
+### S9-T1 — Migration 0419 and pgTAP (AC-PHO-100)
+Add `'feedback_surveys'` to the `org_features` CHECK; a policy that lets the definer insert/update only that key for the caller's org when the caller is an active org Admin; `admin_set_feedback_surveys(p_enabled boolean)` (security definer, active member, role `Admin`, writes the caller's own org only). Absence of a row = on. pgTAP: Admin of org A turns it off and on; a PM, an Engineer and a Finance user are denied (`42501`); Admin of A cannot touch org B; any other key is still Operator-only; absent row reads as on through the existing `listOwn` select. **Mutation check:** change the role test to `true` and the non-Admin assertions must go red; restore.
+### S9-T2 — Entitlement in the app and the Admin switch (AC-PHO-101)
+`feedback_surveys` in `FEATURE_KEYS`, `FEATURE_ENV_DEFAULT` (true), `FEATURE_LABELS`; repository `orgFeature.setFeedbackSurveys(enabled)` over the RPC; `useFeedbackSurveysEnabled()` (demo deployment: always true; else the stored row, default true). An Admin-only switch (`FeedbackSurveysSetting`, a separate block in Administration > Organization integrations, because the Features section is Operator-only and its AC-ENT-004 test stays untouched). Tests drive the user action: Admin flips, RPC called; non-Admin sees a pill only.
+### S9-T3 — Survey policy, pure (AC-PHO-102)
+`surveyPolicy.ts`: `isPastFirstWeek`, `momentRefusal` (dialog, focused field, save in flight, create/edit/import route, 3 s quiet), `isActiveUser` (3 distinct days of the last 14), `shouldOfferPrompted`. Table-driven tests; every refusal reason has a case.
+### S9-T4 — SDK boundary (AC-PHO-103)
+`client.ts`: `disable_surveys_automatic_display: true`; `analyticsClient.surveys` (`find(name)`, `canRender(id)`, `show(id, props, nextTo?)`, `onCaptured(cb)`) all no-ops when not initialised / opted out; `before_send` redacts `$survey_response*`. Tests: init options (real SDK), no-op when opted out, redaction (email, token, long id), non-survey events untouched.
+### S9-T5 — Survey facade and context (AC-PHO-104)
+`surveys.ts`: the four names, `buildSurveyContext(pathname, runId)` (module + route template, run id only if id-shaped), `surveysLive`, wrappers over the client, `setSurveyViewer` + `askWhatWentWrong` for the provider-free thumbs-down control.
+### S9-T6 — Feedback widget (AC-PHO-105)
+A header "Feedback" button (hidden when the switch is off, analytics inactive, or the survey is not published), opening `[PMO] Feedback` as PostHog's popover beside the button. Never opens by itself. Tests: opens on click with module and route context, absent in each hidden case, appears after the SDK finishes starting.
+### S9-T7 — Prompted surveys (AC-PHO-106)
+`SurveyHost` mounted once in the shell: subscribes to the four business events through the SDK's capture callback (no edit to the slices that own them; an opted-out user's events are never captured, so they get no survey), waits for a safe moment, renders `[PMO] First core flow` once; offers `[PMO] NPS` to active users on a safe moment. Tests with fake timers: not during a dialog, a focused field, a pending mutation or a create/edit route; not in week one; not when the switch is off; not when `canRender` says no; shown once.
+### S9-T8 — Assistant follow-up (AC-PHO-107)
+After the thumbs-down reason is picked, `FeedbackControl` renders `[PMO] Assistant: what went wrong?` with `run_id` and `$ai_trace_id`; optional, dismissible, one per rating. Existing FeedbackControl tests unmodified.
+### S9-T9 — Dashboard and gate (AC-PHO-108)
+`spec/feedback.mjs`: **[PMO] Feedback & Surveys** (shown / answered / dismissed by survey name, NPS and first-core-flow answer distribution, feedback by module). The SDK-emitted names have spaces, so the tile gate does not parse them; the provisioning test asserts the tiles exist. `node scripts/check-dashboard-tiles.mjs` stays green.
+### S9-T10 — Docs and privacy (AC-PHO-109)
+`docs/analytics-events.md` S9 H2 (SDK-emitted survey events, context keys, ceiling), `docs/posthog-dashboards.md` S9 H2 (survey definitions table, publishing click-path, wait period setting, alert on nothing), `docs/runbooks/posthog-operations.md` S9 H2 (operator checks), one paragraph in `/privacy`.
+### S9-T11 — Verify
+Local final gate, pgTAP for 0419 under `scripts/with-db-lock.sh`, touched e2e journey, `scripts/ux-proof.sh` on the touched routes. Branch `feat/posthog-s9`.
+
+---
+
 ## 13. Traceability — every AC → its one owning test
 
 Layers: **V** Vitest · **D** Deno · **G** CI gate / script test · **O** operator verification (Evidence table in `docs/runbooks/posthog-operations.md`) · **E** Playwright.
@@ -1217,6 +1252,16 @@ Layers: **V** Vitest · **D** Deno · **G** CI gate / script test · **O** opera
 | AC-PHO-043 | G | `checkDashboardTiles.test.ts` + `node scripts/check-dashboard-tiles.mjs` (delete-a-call mutation recorded in the S5 PR) | S5 |
 | AC-PHO-050 | G | `pmo-portal/src/lib/analytics/demoSpec.test.ts` + `provision.test.ts` ("AC-PHO-050 provision is idempotent") | S0, S6 |
 | AC-PHO-051 | O | Evidence table row AC-PHO-051 | S6 |
+| AC-PHO-100 | D | `supabase/tests/0419_feedback_surveys_switch.test.sql` (mutation: drop the Admin role test, the three denial assertions go red) | S9 |
+| AC-PHO-101 | V | `components/feedback/FeedbackSurveysSetting.test.tsx` + `hooks/useFeedbackSurveys.test.tsx` + `lib/db/orgFeatures.feedback.test.ts` | S9 |
+| AC-PHO-102 | V | `lib/analytics/surveyPolicy.test.ts` | S9 |
+| AC-PHO-103 | V | `lib/analytics/client.surveys.test.ts` (+ `client.surveys.realSdk.test.ts`) | S9 |
+| AC-PHO-104 | V | `lib/analytics/surveys.test.ts` | S9 |
+| AC-PHO-105 | V | `components/feedback/FeedbackWidget.test.tsx` | S9 |
+| AC-PHO-106 | V | `components/feedback/SurveyHost.test.tsx` (mutations: safe-moment, first-week, PostHog verdict, live gate each go red) | S9 |
+| AC-PHO-107 | V | `components/panel/FeedbackControl.followUp.test.tsx` + `surveys.test.ts` (gates) | S9 |
+| AC-PHO-108 | V | `lib/analytics/feedbackSpec.test.ts` | S9 |
+| AC-PHO-109 | V | `pmo-portal/pages/Privacy.surveys.test.tsx` | S9 |
 | AC-PHO-060 | V | `pmo-portal/src/lib/agent/posthogLogs.test.ts` (conditional) | S7 |
 | AC-PHO-070, 071 | — | S8 not planned | — |
 | AC-PHO-080 | G | `pmo-portal/src/lib/analytics/quota.test.ts` (live-shape fixture) | Q |

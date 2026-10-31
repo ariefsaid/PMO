@@ -112,14 +112,17 @@
 -- ⚑ AMENDED BY 0393: `update_procurement_header` joins the retained set (+1, count 85).
 -- It checks active membership, org, requester/Admin authority and editable state;
 -- supabase/tests/procurement_header_requester.test.sql exercises its contract and ACL.
+--
+-- ⚑ AMENDED BY 0419 (#1532 S9): `admin_set_feedback_surveys` joins the retained set (+1, count 89 on top of dev's 88,
+-- re-derived by hand). Active-Admin writer under a member's JWT; supabase/tests/0419_feedback_surveys_switch.test.sql proves it.
 -- Anonymous grants remain subject to the sweep even for retained names.
 --
--- ⚑ AMENDED BY 0412 (#1512): `set_stock_warehouse_keeper` joins the retained set (+1, count 89). A SECURITY
+-- ⚑ AMENDED BY 0412 (#1512): `set_stock_warehouse_keeper` joins the retained set (+1, count 90 once both 0419 and 0412 are on dev). A SECURITY
 -- DEFINER writer (the keeper table has no client write grant); its body gates on active membership, org and
 -- Admin rank; supabase/tests/stock_master_data.test.sql proves the contract.
 --
 -- ⚑ AMENDED BY 0413 (#1512 S2a): `create_stock_document`, `save_stock_draft`, `post_stock_document` and
--- `cancel_stock_document` join the retained set (+4, count 93, re-derived by hand from the list). SECURITY DEFINER
+-- `cancel_stock_document` join the retained set (+4, count 94 on dev's 90, re-derived by hand from the list). SECURITY DEFINER
 -- writers (documents, lines, ledger and balances have no client write grant); each gates on active membership and
 -- the JWT org, and posting on keeper-or-Admin; stock_posting_guards / stock_tenant_isolation prove the contract.
 --
@@ -207,6 +210,7 @@ insert into client_callable_rpc_names (proname) values
   ('save_stock_draft'),
   ('end_cost_attribution_rule'),
   ('admin_change_domain_ownership'),
+  ('admin_set_feedback_surveys'),
   ('list_budget_fiscal_years'),
   ('operator_agent_run_stats'),
   ('operator_create_org'),
@@ -270,8 +274,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  93,
-  'AC-ACL-002 all 93 retained client-callable RPC names still have a public function');
+  94,
+  'AC-ACL-002 all 94 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -280,8 +284,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  93,
-  'AC-ACL-003 all 93 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  94,
+  'AC-ACL-003 all 94 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
