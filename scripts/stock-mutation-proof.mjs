@@ -38,6 +38,15 @@ export const CASES = [
   { id: 'cost_ledger', fn: 'public.get_stock_ledger(uuid,uuid,uuid,uuid,uuid,date,date,bigint,integer)', from: /(v_cost := )[^;]+(;\s*-- mut:cost_ledger)/, to: '$1true$2', test: 'supabase/tests/stock_read_rpcs.test.sql' },
   { id: 'readorg',     fn: 'public.get_stock_on_hand(uuid,uuid,boolean)', from: /(from public\.stock_balances b\s+join[^;]*?where )b\.org_id = v_org/, to: '$1true', test: 'supabase/tests/stock_tenant_isolation.test.sql' },
   { id: 'readorg_ledger', fn: 'public.get_stock_ledger(uuid,uuid,uuid,uuid,uuid,date,date,bigint,integer)', from: /where l\.org_id = v_org/, to: 'where true', test: 'supabase/tests/stock_tenant_isolation.test.sql' },
+  // S4 (0416): adjustment, count and the two-person write-off.
+  { id: 'selfapprove',   fn: 'public.stock_assert_writeoff_approver(public.stock_documents,uuid)', from: /(v_self_ok := )[^;]+(;\s*-- mut:selfapprove)/,    to: '$1true$2', test: 'supabase/tests/stock_adjust_count.test.sql' },
+  { id: 'writeoff_rank', fn: 'public.stock_assert_writeoff_approver(public.stock_documents,uuid)', from: /(v_rank_ok := )[^;]+(;\s*-- mut:writeoff_rank)/, to: '$1true$2', test: 'supabase/tests/stock_adjust_count.test.sql' },
+  { id: 'variance',      fn: 'public.stock_apply_count(public.stock_documents,boolean)', from: /(if l\.counted_quantity )<>( b\.qty_on_hand then v_any := true; end if;\s*-- mut:variance)/, to: '$1=$2', test: 'supabase/tests/stock_adjust_count.test.sql' },
+  { id: 'adj_approver',  fn: 'public.stock_apply_adjustment(public.stock_documents,boolean)', from: /perform public\.stock_assert_writeoff_approver\(p_doc, auth\.uid\(\)\);(\s*-- mut:adj_approver)/, to: 'null;$1', test: 'supabase/tests/stock_adjust_count.test.sql' },
+  { id: 'adj_avg',       fn: 'public.stock_apply_adjustment(public.stock_documents,boolean)', from: /(round\(l\.quantity \* b\.value_on_hand \/ b\.qty_on_hand, 2\))( end;\s*-- mut:adj_avg)/, to: '$1 + 1$2', test: 'supabase/tests/stock_adjust_count.test.sql' },
+  { id: 'adj_nocost',    fn: 'public.stock_apply_adjustment(public.stock_documents,boolean)', from: /(if )v_in is null( then raise exception 'STK_INVALID: adjusting)/, to: '$1false$2', test: 'supabase/tests/stock_adjust_count.test.sql' },
+  { id: 'count_avg',     fn: 'public.stock_apply_count(public.stock_documents,boolean)', from: /(round\(v_var \* b\.value_on_hand \/ b\.qty_on_hand, 2\))(\s*-- mut:count_avg)/, to: '$1 + 1$2', test: 'supabase/tests/stock_adjust_count.test.sql' },
+  { id: 'count_nocost',  fn: 'public.stock_apply_count(public.stock_documents,boolean)', from: /(if )v_in is null( then raise exception 'STK_INVALID: finding)/, to: '$1false$2', test: 'supabase/tests/stock_adjust_count.test.sql' },
 ];
 // S2b / S4 / S5 / S6 append their cases to this table in their own slice (ids named in each slice's mutation task).
 const run = (cmd, args, opts = {}) => spawnSync(cmd, args, { encoding: 'utf8', ...opts });

@@ -52,7 +52,7 @@ begin
 end $$;
 -- usage: select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4'); ... reset role;
 
-select plan(26);  -- S1: the four `is` counts, the foreign-warehouse refusal, the unchanged-row proof (6); S2a: 12; S2b: 4; S3: 4
+select plan(28);  -- S1: the four `is` counts, the foreign-warehouse refusal, the unchanged-row proof (6); S2a: 12; S2b: 4; S3: 4; S4: 2
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000b1');   -- U_XORG sees none of org A
 select is((select count(*)::int from stock_units),      0, 'AC-STK-019 stock_units: org B reads none of org A');
 select is((select count(*)::int from stock_items),      0, 'AC-STK-019 stock_items: org B reads none of org A');
@@ -133,5 +133,15 @@ select is(jsonb_path_exists(public.get_stock_on_hand(), '$[*] ? (@.item_code != 
 select is(jsonb_path_exists(public.get_stock_ledger() -> 'rows', '$[*] ? (@.item_code != "XCEM")'), false, 'AC-STK-019 org B''s trace carries no org A entry');
 select is(jsonb_array_length(public.get_stock_ledger(p_document_id => current_setting('stk.aissdoc')::uuid) -> 'rows'), 0, 'AC-STK-019 org B cannot trace org A''s document');
 reset role;
+-- S4: org B cannot post org A's Draft count (0416).
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
+select set_config('stk.acnt', public.create_stock_document(jsonb_build_object('kind','count','warehouse_id','15120000-0000-0000-0000-000000002003'),
+  jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001002','counted_quantity',4,'unit_cost',10)))::text, false);
+reset role;
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000b1');
+select throws_like($$ select public.post_stock_document(current_setting('stk.acnt')::uuid) $$, 'STK_NOT_FOUND%', 'AC-STK-019 org B posting org A''s Draft count is refused');
+reset role;
+select is((select status || '/' || count(e.id)::text from public.stock_documents d left join public.stock_ledger e on e.document_id = d.id
+            where d.id = current_setting('stk.acnt')::uuid group by d.status), 'Draft/0', 'AC-STK-019 org A''s count stays a Draft with no entry');
 select * from finish();
 rollback;
