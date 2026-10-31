@@ -15,6 +15,7 @@ import { ActivityFooter, MyOpenTasks, ProjectActivity } from './ProjectActivity'
 
 const BudgetTab = React.lazy(() => import('./tabs/BudgetTab'));
 const ProcurementTab = React.lazy(() => import('./tabs/ProcurementTab'));
+const MaterialsTab = React.lazy(() => import('./tabs/MaterialsTab'));
 const TasksTab = React.lazy(() => import('./tabs/TasksTab'));
 const DocumentsTab = React.lazy(() => import('./tabs/DocumentsTab'));
 const WorkOrdersTab = React.lazy(() => import('./tabs/WorkOrdersTab'));
@@ -115,6 +116,7 @@ const AreaContent: React.FC<{ project: ProjectWithRefs; area: Exclude<Area, 'ove
     case 'budget': return <BudgetTab projectId={project.id} />;
     case 'procurement': return <ProcurementTab projectId={project.id} onCountChange={onCountChange} />;
     case 'tasks': return <TasksTab projectId={project.id} projectName={project.name} onCountChange={onCountChange} />;
+    case 'materials': return <MaterialsTab projectId={project.id} />;
     case 'documents': return <DocumentsTab projectId={project.id} projectCode={project.code} onCountChange={onCountChange} />;
     case 'activity': return <ProjectActivity projectId={project.id} />;
     case 'contract': {
@@ -141,6 +143,7 @@ function useAreaLabels(): Record<Area, string> {
     procurement: t('projectDetail.tabs.procurement', 'Procurement'),
     tasks: t('projectDetail.tabs.tasks', 'Tasks'),
     contract: t('projectDetail.tabs.contract', 'Contract & billing'),
+    materials: t('projectDetail.tabs.materials', 'Materials'),
     documents: t('projectDetail.tabs.documents', 'Documents'),
     activity: t('projectDetail.tabs.activity', 'Activity'),
   };
@@ -152,7 +155,7 @@ function useVisibleAreas(isPipeline: boolean): Area[] {
   return AREAS.filter((a) => {
     // A deal not yet won has no orders, billing or purchases (brief addendum, #1402).
     if (a === 'contract') return !isPipeline && lens !== 'delivery' && may('view', 'workOrder');
-    if (a === 'procurement') return !isPipeline;
+    if (a === 'procurement' || a === 'materials') return !isPipeline;
     if (a === 'budget') return lens !== 'delivery';
     return true;
   });

@@ -161,6 +161,222 @@
     "STK_NOT_FOUND": "Data itu tidak ditemukan di organisasi Anda.",
     "STK_TOO_MANY": "Terlalu banyak baris untuk ditampilkan. Persempit filter.",
     "STK_KIND_UNAVAILABLE": "Jenis dokumen ini belum tersedia.",
-    "STK_IMMUTABLE": "Dokumen yang sudah diposting atau dibatalkan tidak bisa diubah."
+    "STK_IMMUTABLE": "Dokumen yang sudah diposting atau dibatalkan tidak bisa diubah.",
+    "STK_INSUFFICIENT_DETAIL": "Hanya tersedia {{available}}; Anda meminta {{requested}}."
+  },
+  "actions": {
+    "cancel": "Batal",
+    "retry": "Coba lagi"
+  },
+  "states": {
+    "errorTitle": "Stok tidak dapat dimuat",
+    "errorSub": "Periksa koneksi lalu coba lagi. Tidak ada yang berubah."
+  },
+  "tabs": {
+    "label": "Bagian stok",
+    "onHand": "Persediaan",
+    "documents": "Dokumen",
+    "ledger": "Buku stok",
+    "setup": "Pengaturan"
+  },
+  "onHand": {
+    "title": "Persediaan stok",
+    "description": "Isi setiap gudang saat ini. Buka barang untuk melihat riwayatnya.",
+    "columns": {
+      "item": "Barang",
+      "warehouse": "Gudang",
+      "quantity": "Tersedia",
+      "avgCost": "Biaya rata-rata",
+      "value": "Nilai"
+    },
+    "filters": {
+      "warehouse": "Gudang",
+      "allWarehouses": "Semua gudang",
+      "search": "Cari barang",
+      "includeZero": "Tampilkan saldo nol"
+    },
+    "tiles": {
+      "items": "Barang",
+      "warehouses": "Gudang",
+      "central": "Saldo gudang pusat",
+      "site": "Saldo gudang lokasi"
+    },
+    "states": {
+      "tooManyTitle": "Terlalu banyak baris",
+      "noMatch": "Tidak ada yang cocok",
+      "noMatchSub": "Hapus pencarian atau pilih gudang lain.",
+      "emptySub": "Terima stok ke gudang dan akan tampil di sini."
+    }
+  },
+  "documents": {
+    "title": "Dokumen stok",
+    "description": "Setiap penerimaan, transfer, pengeluaran, dan pengembalian, terbaru dulu.",
+    "columns": {
+      "number": "Dokumen",
+      "status": "Status",
+      "warehouse": "Gudang",
+      "project": "Proyek",
+      "date": "Tanggal",
+      "by": "Oleh"
+    },
+    "status": {
+      "Draft": "Draf",
+      "Posted": "Diposting",
+      "Cancelled": "Dibatalkan"
+    },
+    "filters": {
+      "kind": "Jenis",
+      "allKinds": "Semua jenis",
+      "status": "Status",
+      "allStatuses": "Semua status"
+    },
+    "loadMore": "Muat lebih banyak",
+    "states": {
+      "empty": "Belum ada dokumen stok",
+      "emptySub": "Terima stok ke gudang untuk membuat yang pertama.",
+      "noMatch": "Tidak ada dokumen yang cocok",
+      "noMatchSub": "Hapus filter untuk melihat lebih banyak."
+    }
+  },
+  "detail": {
+    "notFound": {
+      "title": "Dokumen tidak ditemukan",
+      "sub": "Dokumen mungkin milik organisasi lain atau sudah tidak ada."
+    },
+    "backToList": "Kembali ke dokumen",
+    "fields": {
+      "warehouse": "Gudang",
+      "project": "Proyek",
+      "author": "Dibuat oleh",
+      "created": "Dibuat",
+      "reason": "Alasan",
+      "note": "Catatan"
+    },
+    "lines": "Baris",
+    "entries": "Catatan stok",
+    "noEntries": "Belum ada yang diposting untuk dokumen ini.",
+    "openInLedger": "Buka di buku stok",
+    "columns": {
+      "item": "Barang",
+      "quantity": "Jumlah",
+      "warehouse": "Gudang",
+      "change": "Perubahan",
+      "balance": "Saldo akhir",
+      "value": "Nilai"
+    },
+    "post": "Posting",
+    "posted": "Dokumen diposting",
+    "cancelDraft": "Batalkan draf",
+    "cancelled": "Draf dibatalkan",
+    "actionFailed": "Tindakan gagal",
+    "confirm": {
+      "title": "Batalkan draf ini?",
+      "description": "Draf tetap tersimpan sebagai catatan tetapi tidak dapat diposting lagi.",
+      "confirm": "Batalkan draf"
+    }
+  },
+  "ledger": {
+    "title": "Buku stok",
+    "description": "Setiap posting: siapa, kapan, proyek dan item pekerjaan mana, serta saldo sesudahnya.",
+    "columns": {
+      "when": "Diposting",
+      "occurred": "Tanggal",
+      "document": "Dokumen",
+      "item": "Barang",
+      "warehouse": "Gudang",
+      "project": "Proyek / item pekerjaan",
+      "change": "Perubahan",
+      "balance": "Saldo",
+      "valueChange": "Perubahan nilai",
+      "valueBalance": "Saldo nilai",
+      "by": "Oleh"
+    },
+    "filters": {
+      "item": "Barang",
+      "allItems": "Semua barang",
+      "warehouse": "Gudang",
+      "allWarehouses": "Semua gudang",
+      "from": "Dari",
+      "to": "Sampai",
+      "oneDocument": "Satu dokumen"
+    },
+    "loadMore": "Muat lebih banyak",
+    "end": "{{count}} catatan, akhir buku stok",
+    "states": {
+      "empty": "Belum ada posting",
+      "emptySub": "Posting muncul di sini begitu dibuat.",
+      "noMatch": "Tidak ada catatan yang cocok",
+      "noMatchSub": "Hapus filter untuk melihat lebih banyak."
+    }
+  },
+  "materials": {
+    "title": "Material",
+    "description": "Stok yang dikeluarkan untuk proyek ini, beserta siapa dan kapan.",
+    "issue": "Keluarkan material"
+  },
+  "form": {
+    "unknownKind": "Jenis dokumen tidak dikenal",
+    "unknownKindSub": "Gunakan Terima, Transfer, Keluarkan, atau Kembalikan dari halaman Stok.",
+    "intro": {
+      "receive": "Catat barang masuk ke gudang yang Anda kelola.",
+      "transfer": "Pindahkan stok antar dua gudang sekaligus.",
+      "issue": "Keluarkan stok dari gudang ke item pekerjaan proyek.",
+      "return": "Kembalikan stok yang tak terpakai dengan menyebut pengeluarannya."
+    },
+    "submit": {
+      "receive": "Posting penerimaan",
+      "transfer": "Posting transfer",
+      "issue": "Posting pengeluaran",
+      "return": "Posting pengembalian"
+    },
+    "sections": {
+      "where": "Lokasi",
+      "lines": "Baris",
+      "details": "Rincian"
+    },
+    "warehouse": "Gudang",
+    "fromWarehouse": "Dari gudang",
+    "toWarehouse": "Ke gudang",
+    "warehousePlaceholder": "Pilih gudang",
+    "project": "Proyek",
+    "projectPlaceholder": "Pilih proyek",
+    "item": "Barang",
+    "itemPlaceholder": "Pilih barang",
+    "itemSearch": "Cari dengan kode atau nama",
+    "itemNoun": "barang",
+    "workItem": "Item pekerjaan",
+    "workItemPlaceholder": "Pilih item pekerjaan",
+    "cite": "Pengeluaran yang dikembalikan",
+    "citePlaceholder": "Pilih baris pengeluaran",
+    "pickProjectFirst": "Pilih proyek dulu",
+    "issuedHelper": "Dikeluarkan: {{qty}} {{unit}}",
+    "quantity": "Jumlah",
+    "unitCost": "Biaya satuan",
+    "unitCostBlind": "Biaya satuan (tidak akan terlihat lagi oleh Anda)",
+    "occurredOn": "Tanggal",
+    "occurredOnHelp": "Kosongkan untuk hari ini.",
+    "note": "Catatan",
+    "addLine": "Tambah baris",
+    "removeLine": "Hapus baris",
+    "loading": "Memuat…",
+    "loadFailed": "Pilihan tidak dapat dimuat",
+    "posted": "Diposting",
+    "viewOnly": "Anda melihat sebagai peran lain, jadi tidak ada yang dapat diposting.",
+    "notKeeper": "Hanya penjaga gudang ini yang dapat memposting di sini.",
+    "pickWarehouse": "Pilih gudang untuk melanjutkan.",
+    "noWarehouse": {
+      "title": "Anda tidak mengelola gudang",
+      "sub": "Minta administrator menjadikan Anda penjaga sebuah gudang."
+    },
+    "errors": {
+      "warehouse": "Pilih gudang.",
+      "toWarehouse": "Pilih gudang lain sebagai tujuan.",
+      "project": "Pilih proyek.",
+      "item": "Pilih barang.",
+      "workItem": "Pilih item pekerjaan.",
+      "source": "Pilih baris pengeluaran yang dikembalikan.",
+      "quantity": "Masukkan jumlah di atas nol (maksimal 3 desimal).",
+      "unitCost": "Masukkan biaya satuan (nol atau lebih)."
+    }
   }
 }

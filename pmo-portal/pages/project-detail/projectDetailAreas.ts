@@ -1,5 +1,5 @@
-export type Area = 'overview' | 'budget' | 'procurement' | 'tasks' | 'contract' | 'documents' | 'activity';
-export const AREAS: Area[] = ['overview', 'budget', 'procurement', 'tasks', 'contract', 'documents', 'activity'];
+export type Area = 'overview' | 'budget' | 'procurement' | 'tasks' | 'contract' | 'materials' | 'documents' | 'activity';
+export const AREAS: Area[] = ['overview', 'budget', 'procurement', 'tasks', 'contract', 'materials', 'documents', 'activity'];
 /** Old deep links keep working: the merged areas absorb their former tabs. */
 export function areaFromParam(param: string | undefined): Area {
   if (param === 'work-orders' || param === 'billing') return 'contract';

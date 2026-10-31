@@ -7157,6 +7157,259 @@ export type Database = {
           },
         ]
       }
+      stock_balances: {
+        Row: {
+          item_id: string
+          org_id: string
+          qty_on_hand: number
+          updated_at: string
+          value_on_hand: number
+          warehouse_id: string
+        }
+        Insert: {
+          item_id: string
+          org_id: string
+          qty_on_hand?: number
+          updated_at?: string
+          value_on_hand?: number
+          warehouse_id: string
+        }
+        Update: {
+          item_id?: string
+          org_id?: string
+          qty_on_hand?: number
+          updated_at?: string
+          value_on_hand?: number
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_balances_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_balances_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_balances_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "stock_warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_document_lines: {
+        Row: {
+          boq_item_id: string | null
+          counted_quantity: number | null
+          direction: string | null
+          document_id: string
+          expected_quantity: number | null
+          id: string
+          item_id: string
+          line_no: number
+          org_id: string
+          quantity: number | null
+          source_line_id: string | null
+          unit_cost: number | null
+        }
+        Insert: {
+          boq_item_id?: string | null
+          counted_quantity?: number | null
+          direction?: string | null
+          document_id: string
+          expected_quantity?: number | null
+          id?: string
+          item_id: string
+          line_no: number
+          org_id: string
+          quantity?: number | null
+          source_line_id?: string | null
+          unit_cost?: number | null
+        }
+        Update: {
+          boq_item_id?: string | null
+          counted_quantity?: number | null
+          direction?: string | null
+          document_id?: string
+          expected_quantity?: number | null
+          id?: string
+          item_id?: string
+          line_no?: number
+          org_id?: string
+          quantity?: number | null
+          source_line_id?: string | null
+          unit_cost?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_document_lines_boq_item_id_fkey"
+            columns: ["boq_item_id"]
+            isOneToOne: false
+            referencedRelation: "boq_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_document_lines_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "stock_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_document_lines_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_document_lines_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_document_lines_source_line_id_fkey"
+            columns: ["source_line_id"]
+            isOneToOne: false
+            referencedRelation: "stock_document_lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_documents: {
+        Row: {
+          cancelled_at: string | null
+          cancelled_by: string | null
+          client_request_id: string | null
+          created_at: string
+          created_by: string
+          id: string
+          kind: string
+          note: string | null
+          number: string
+          occurred_on: string
+          org_id: string
+          posted_at: string | null
+          posted_by: string | null
+          procurement_id: string | null
+          project_id: string | null
+          reason: string | null
+          status: string
+          to_warehouse_id: string | null
+          warehouse_id: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          client_request_id?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          kind: string
+          note?: string | null
+          number: string
+          occurred_on: string
+          org_id: string
+          posted_at?: string | null
+          posted_by?: string | null
+          procurement_id?: string | null
+          project_id?: string | null
+          reason?: string | null
+          status?: string
+          to_warehouse_id?: string | null
+          warehouse_id: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          client_request_id?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          kind?: string
+          note?: string | null
+          number?: string
+          occurred_on?: string
+          org_id?: string
+          posted_at?: string | null
+          posted_by?: string | null
+          procurement_id?: string | null
+          project_id?: string | null
+          reason?: string | null
+          status?: string
+          to_warehouse_id?: string | null
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_documents_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_documents_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_documents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_documents_posted_by_fkey"
+            columns: ["posted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_documents_procurement_id_fkey"
+            columns: ["procurement_id"]
+            isOneToOne: false
+            referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_documents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_documents_to_warehouse_id_fkey"
+            columns: ["to_warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "stock_warehouses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_documents_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "stock_warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_items: {
         Row: {
           archived_at: string | null
@@ -7204,6 +7457,133 @@ export type Database = {
             columns: ["unit_id"]
             isOneToOne: false
             referencedRelation: "stock_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_ledger: {
+        Row: {
+          boq_item_id: string | null
+          document_id: string
+          id: string
+          item_id: string
+          kind: string
+          line_id: string
+          occurred_on: string
+          org_id: string
+          posted_at: string
+          posted_by: string
+          project_id: string | null
+          qty_after: number
+          qty_delta: number
+          seq: number
+          source_line_id: string | null
+          value_after: number
+          value_delta: number
+          warehouse_id: string
+        }
+        Insert: {
+          boq_item_id?: string | null
+          document_id: string
+          id?: string
+          item_id: string
+          kind: string
+          line_id: string
+          occurred_on: string
+          org_id: string
+          posted_at?: string
+          posted_by: string
+          project_id?: string | null
+          qty_after: number
+          qty_delta: number
+          seq?: never
+          source_line_id?: string | null
+          value_after: number
+          value_delta: number
+          warehouse_id: string
+        }
+        Update: {
+          boq_item_id?: string | null
+          document_id?: string
+          id?: string
+          item_id?: string
+          kind?: string
+          line_id?: string
+          occurred_on?: string
+          org_id?: string
+          posted_at?: string
+          posted_by?: string
+          project_id?: string | null
+          qty_after?: number
+          qty_delta?: number
+          seq?: never
+          source_line_id?: string | null
+          value_after?: number
+          value_delta?: number
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_ledger_boq_item_id_fkey"
+            columns: ["boq_item_id"]
+            isOneToOne: false
+            referencedRelation: "boq_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_ledger_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "stock_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_ledger_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_ledger_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "stock_document_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_ledger_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_ledger_posted_by_fkey"
+            columns: ["posted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_ledger_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_ledger_source_line_id_fkey"
+            columns: ["source_line_id"]
+            isOneToOne: false
+            referencedRelation: "stock_document_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_ledger_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "stock_warehouses"
             referencedColumns: ["id"]
           },
         ]
@@ -8701,6 +9081,10 @@ export type Database = {
         Args: { p_receipt_id: string }
         Returns: undefined
       }
+      cancel_stock_document: {
+        Args: { p_document_id: string }
+        Returns: undefined
+      }
       capture_vendor_invoice: {
         Args: {
           p_amount?: number
@@ -9158,6 +9542,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_stock_document: {
+        Args: {
+          p_client_request_id?: string
+          p_header: Json
+          p_lines: Json
+          p_post?: boolean
+        }
+        Returns: string
+      }
       create_vault_secret_for_org: {
         Args: {
           p_actor_id?: string
@@ -9400,6 +9793,28 @@ export type Database = {
         }[]
       }
       get_sales_pipeline: { Args: never; Returns: Json }
+      get_stock_ledger: {
+        Args: {
+          p_before_seq?: number
+          p_boq_item_id?: string
+          p_document_id?: string
+          p_from?: string
+          p_item_id?: string
+          p_limit?: number
+          p_project_id?: string
+          p_to?: string
+          p_warehouse_id?: string
+        }
+        Returns: Json
+      }
+      get_stock_on_hand: {
+        Args: {
+          p_include_zero?: boolean
+          p_item_id?: string
+          p_warehouse_id?: string
+        }
+        Returns: Json
+      }
       get_unbilled_work_orders: { Args: { p_limit?: number }; Returns: Json }
       get_vendor_withholding_slip: {
         Args: { p_slip_id: string }
@@ -10215,6 +10630,7 @@ export type Database = {
       }
       pipeline_project_statuses: { Args: never; Returns: string[] }
       confirm_work_order_acceptance: { Args: { p_id: string }; Returns: Json }
+      post_stock_document: { Args: { p_document_id: string }; Returns: string }
       prepare_work_order_acceptance: {
         Args: {
           p_acceptance_date: string
@@ -10470,6 +10886,10 @@ export type Database = {
       role_rank: {
         Args: { p_role: Database["public"]["Enums"]["user_role"] }
         Returns: number
+      }
+      save_stock_draft: {
+        Args: { p_document_id: string; p_header: Json; p_lines: Json }
+        Returns: undefined
       }
       save_timesheet_week: {
         Args: {

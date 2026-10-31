@@ -114,7 +114,14 @@ select set_eq(
             ('purchase_request_files -> profiles'),
             ('purchase_order_files -> profiles'),
             ('payment_files -> profiles'),
-            ('procurement_invoice_files -> profiles') $$,
+            ('procurement_invoice_files -> profiles'),
+            -- 0413 (#1512 S2a): stock_documents carries created_by, posted_by and cancelled_by -> profiles and
+            -- warehouse_id + to_warehouse_id -> stock_warehouses; stock_ledger carries line_id + source_line_id ->
+            -- stock_document_lines. CHECKED BEFORE ADDING: no DAL code reads these tables yet (S3 ships it); whatever
+            -- ships first MUST qualify each embed with !constraint_name.
+            ('stock_documents -> profiles'),
+            ('stock_documents -> stock_warehouses'),
+            ('stock_ledger -> stock_document_lines') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '
