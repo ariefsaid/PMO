@@ -127,4 +127,4 @@ _Owned by slice S9 (#1532)._ Dashboard **[PMO] Feedback & Surveys** (`scripts/po
 
 Then press **Launch** on each. Until a survey is launched the app simply shows nothing for it (the Feedback button stays hidden). The names are matched exactly; renaming one hides it.
 
-Checks after launching: in a normal session the Feedback button appears in the header; clicking it opens the survey beside the button; submitting adds a `survey sent` event with `module` and `route`. Opt out on /privacy and reload: the button disappears and no survey loads. Admin > Features > Feedback and surveys off: the same.
+Checks after launching: in a normal session the Feedback button appears in the header; clicking it opens the survey beside the button; submitting adds a `survey sent` event with `module` and `route`. Opt out on /privacy and reload: the button disappears and no survey loads. Administration > Organization integrations > Feedback and surveys off: the same.

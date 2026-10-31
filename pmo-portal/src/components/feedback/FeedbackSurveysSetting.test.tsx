@@ -1,5 +1,5 @@
 /**
- * AC-PHO-101 — Administration > Features carries one Admin-owned switch for feedback and surveys.
+ * AC-PHO-101 — Administration > Organization integrations carries one Admin-owned switch for feedback and surveys.
  * An Admin sees a real switch and flipping it calls the Admin RPC path; any other role sees a status
  * pill only. The Operator-only toggles above it are untouched (AC-ENT-004 keeps its own file).
  */

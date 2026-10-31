@@ -97,7 +97,7 @@ _Owned by slice S9._ Operator checks (the survey definitions are in `docs/postho
 1. **Published?** Header shows a Feedback button for a signed-in user; if not, the survey `[PMO] Feedback` is not launched or analytics is off for that browser.
 2. **Never in a form.** Open any "New ..." page and an edit dialog, wait two minutes after the first core flow: no survey appears until the form is closed.
 3. **One in 30 days.** After answering a prompted survey, reload in the same browser: no prompted survey for 30 days (the Feedback button still works). Another browser can show one: see the ceiling in `docs/analytics-events.md` § S9.
-4. **Switch.** As an org Admin turn Feedback and surveys off (Administration > Features): the button disappears after the next page load. As any other role the row is read-only.
+4. **Switch.** As an org Admin turn Feedback and surveys off (Administration > Organization integrations): the button disappears after the next page load. As any other role the row is read-only.
 5. **Quota.** Survey answers count against the `survey_responses` resource in the quota check (`node scripts/posthog/check-quota.mjs`); a prompted survey every 30 days per user is far below any plan.
 
 ## Q Quota fixture capture (slice Q, needs the operator's key)

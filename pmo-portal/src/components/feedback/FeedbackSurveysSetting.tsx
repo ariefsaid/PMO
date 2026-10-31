@@ -7,8 +7,9 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useFeedbackSurveysEnabled } from '@/src/hooks/useFeedbackSurveys';
 
 /**
- * Administration > Features: the org Admin's own switch for the feedback widget and surveys (#1532 S9).
- * Separate from the Operator-owned entitlement list above it. Admin sees a switch; everyone else the state.
+ * Administration > Organization integrations: the org Admin's own switch for the feedback widget and surveys (#1532 S9).
+ * (The Features section is Operator-only, so the Admin's switch lives where an org Admin already configures the org.)
+ * Admin sees a switch; everyone else the state.
  * UX only: `admin_set_feedback_surveys` (0419) re-checks the Admin role.
  */
 export const FeedbackSurveysSetting: React.FC = () => {

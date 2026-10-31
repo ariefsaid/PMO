@@ -235,6 +235,7 @@ const SelectedAdministrationPanel: React.FC<{
         <div data-testid="administration-panel-integrations" className="min-w-0">
           <SectionHeader title={label('integrations')} />
           <IntegrationsView />
+          <FeedbackSurveysSetting />
         </div>
       );
     case 'accounting':
@@ -295,7 +296,6 @@ const SelectedAdministrationPanel: React.FC<{
         <div data-testid="administration-panel-features" className="min-w-0">
           <SectionHeader title={label('features')} />
           <AdministrationFeatures isOperator={isOperator} orgId={orgId} />
-          <FeedbackSurveysSetting />
         </div>
       );
   }
