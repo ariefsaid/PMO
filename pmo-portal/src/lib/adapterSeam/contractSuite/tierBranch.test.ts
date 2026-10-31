@@ -31,6 +31,8 @@ const BRANCH = new RegExp([
 /** repo-relative file -> number of tier-name comparisons it holds today. */
 const ALLOWED: Record<string, number> = {
   'pmo-portal/src/components/integrations/IntegrationsView.tsx': 14,
+  // #1504 S5: the Odoo setup steps count only Odoo's own employed domains (the list is Odoo-only UI).
+  'pmo-portal/src/components/integrations/odoo/OdooSetupChecklist.tsx': 1,
   'pmo-portal/src/hooks/useErpItemOptions.ts': 1,
   'pmo-portal/src/hooks/useExpensePostingReadiness.ts': 1,
   'pmo-portal/src/lib/repositories/integrations.ts': 2,

@@ -23,6 +23,12 @@ vi.mock('@/src/components/integrations/M365DefaultLibraryCard', () => ({
   M365DefaultLibraryCard: () => createElement('div', { 'data-testid': 'm365-default-library-stub' }),
 }));
 
+// The Odoo section reads its own queries (connection, companies, ownership) that the Integrations view suites do not
+// provide. Its parts have their own suites; the view suites need only know it is mounted.
+vi.mock('@/src/components/integrations/odoo/OdooIntegrationSection', () => ({
+  OdooIntegrationSection: () => createElement('div', { 'data-testid': 'odoo-section-stub' }),
+}));
+
 // Some local Node/Vitest combinations expose jsdom but do not install a usable
 // localStorage global. Several app primitives persist per-device UI prefs, so
 // unit tests need a Storage-compatible shim when the environment lacks one.

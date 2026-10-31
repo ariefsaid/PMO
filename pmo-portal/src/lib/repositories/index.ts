@@ -56,6 +56,7 @@ import {
 } from './workOrders';
 import { expenseClaimRepository, expenseReceiptsRepository } from './expenses';
 import { integrationsRepository } from './integrations';
+import { odooRepository } from './odoo';
 import { erpSnapshotsRepository, reportsRepository } from './reporting';
 import type { Repositories } from './types';
 
@@ -116,6 +117,7 @@ export const repositories: Repositories = {
   companyCollections: companyCollectionsRepository,
   financialStatements: financialStatementsRepository,
   integrations: integrationsRepository,
+  odoo: odooRepository,
   reports: reportsRepository,
 };
 
