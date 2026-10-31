@@ -23,7 +23,8 @@
 // Relative imports so this module resolves under both Deno and Node/Vitest (Option B).
 // No .ts extension: Vite/Node resolves TypeScript modules without extensions.
 import { composeSpec, ComposeSpecError } from './composeSpec.ts';
-import { insertUsageRow } from '../_shared/usage.ts';
+import { clampUsageValue, insertUsageRow } from '../_shared/usage.ts';
+import { emitAiGeneration } from '../_shared/posthogAi.ts';
 import type { ComposeViewRequest, ComposeViewResponse, ComposeViewError } from '../../../pmo-portal/src/lib/agent/types.ts';
 
 // Re-export MAX_REPAIR_ATTEMPTS so any external importer doesn't need to change (AC-CV-005 regression).
@@ -188,6 +189,18 @@ export async function composeViewHandler(
 
   // ── Gate (5): compose+repair via composeSpec() (AC-AS-001,002,003) ──────────
   // composeSpec throws ComposeSpecError on exhaustion or upstream error.
+  const composeStartedAt = Date.now();
+  // #1532 S1: numbers and codes only (no prompt/spec text); fire-and-forget, never alters the response.
+  const aiGeneration = (isError: boolean, outputTokens: number, costUsd: number) => {
+    try {
+      void emitAiGeneration('compose-view', {
+        traceId: crypto.randomUUID(), spanId: crypto.randomUUID(), model, inputTokens: 0, outputTokens,
+        costUsd, latencySeconds: (Date.now() - composeStartedAt) / 1000, isError,
+        httpStatus: isError ? 502 : 200, action: 'compose', orgId: profileOrgId as string,
+        errorCode: isError ? 'UPSTREAM_ERROR' : undefined,
+      }).catch(() => undefined);
+    } catch { /* NFR-PHO-REL-001: telemetry never alters the response */ }
+  };
   try {
     const { spec, repairAttempts, tokensUsed, providerCost } = await composeSpec(
       req.prompt,
@@ -214,6 +227,7 @@ export async function composeViewHandler(
       );
     }
 
+    aiGeneration(false, tokensUsed, clampUsageValue(providerCost));
     return {
       status: 200,
       body: { spec, repairAttempts, tokensUsed },
@@ -243,6 +257,7 @@ export async function composeViewHandler(
       tokensUsed: err instanceof ComposeSpecError ? err.tokensUsed : 0,
     });
 
+    aiGeneration(true, 0, 0);
     return {
       status: 502,
       body: {
