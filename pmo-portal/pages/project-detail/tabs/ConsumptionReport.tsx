@@ -40,7 +40,8 @@ const Section: React.FC<{ title: string; sub?: string; children: React.ReactNode
   <section className="flex min-w-0 flex-col gap-1.5">
     <h4 className="text-sm font-semibold">{title}</h4>
     {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
-    <div className="overflow-x-auto rounded-lg border border-border bg-card">{children}</div>
+    {/* Focusable so a keyboard user can scroll a wide table at phone width (axe scrollable-region-focusable). */}
+    <div tabIndex={0} role="group" aria-label={title} className="overflow-x-auto rounded-lg border border-border bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{children}</div>
   </section>
 );
 
