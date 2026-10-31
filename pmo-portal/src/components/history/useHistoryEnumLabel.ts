@@ -33,6 +33,10 @@ export function useHistoryEnumLabel(): (entityType: string, column: string, valu
       if (value === 'pph23') return t('history.withholdingType.pph23', 'PPh 23');
       if (value === 'pph4_2') return t('history.withholdingType.pph4_2', 'PPh 4(2)');
     }
+    if (column === 'billing_kind') {
+      if (value === 'contract') return t('finance:billingKind.contract', 'Contract billing');
+      if (value === 'other') return t('finance:billingKind.other', 'Other billing');
+    }
     if (column === 'type_source') {
       if (value === 'bill') return t('history.typeSource.bill', 'Bill type');
       if (value === 'declared') return t('history.typeSource.declared', 'Declared from slip');
