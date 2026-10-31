@@ -199,7 +199,10 @@ to `main`; a red run there is fixed on `dev`. `scripts/ci-e2e.sh` on a dev branc
 - **⛔ HARD STOP — PRODUCTION (binding, owner directive 2026-06-17, RE-ENFORCED 2026-07-14 after a violation):** **NEVER push/deploy/promote to `production` without the owner's EXPLICIT, per-instance, this-message "yes" naming production.** This includes `git push origin main:production`, CF Pages prod, prod DB push (`db-push-prod.sh`), prod reseed, and prod edge-fn deploy. **Do NOT infer prod authorization** from "do it all", "ship it", "make it reachable", a stated deploy plan, or any prior approval — a prior "ship to prod" is **per-instance, never standing**, and ambiguity means STOP and ASK. Reaching `main` is the autonomous ceiling; the `main`→`production` step is ALWAYS a separate, explicit, owner-gated action. *(2026-07-14 incident: read "do it all and on by default" as prod authorization and promoted `main:production` without an explicit prod OK — this is exactly what must not happen; when in doubt, stop at `main` and ask.)*
 - **Branch flow (binding, owner directive 2026-06-17):** **work lands on `dev` → promoted to `main` (gated). `main` is the ceiling for autonomous work.** A prior "ship to prod" is per-instance, never standing. CI is tiered + resource-lean: PR→`dev` = `verify` + `pgtap` (fast lane; `ci.yml` gates pgtap on `base_ref == 'dev'`); PR→`main` = `verify` + `integration` (pgTAP + e2e + visual gates) so `main` is always clean; push to `main` = `verify` smoke (the only re-test of the merged result). `integration` fires automatically on the PR→`main`, and on a PR→`dev` only when dispatched via `scripts/ci-e2e.sh` (a dispatch skips `verify` + pgTAP — the PR ran them) and starts Supabase without the CI-unused containers (`studio,realtime,vector`) with Playwright browsers cached. `main`→`production` is a manual, owner-instructed promote only.
 - **Checkpoints:** the **owner** approves spec sign-off + **every production deploy** / irreversible infra (see Branch flow — prod requires a direct, per-instance instruction); the **Director** approves merge-to-`dev` and merge-to-`main` within the signed spec, and escalates anything strategic or out-of-spec.
-- **PRs:** one per issue — *for code*. **Docs-only changes (`docs/**`, `*.md`) push DIRECT to `dev`; no PR, no branch.**
+- **PRs: batch 3–5 related branches into one PR to `dev` (owner, 2026-10-31).** Workers push branches only; the
+  Director merges each into a batch branch with `git merge --no-ff` and opens one PR listing every `Closes`. Merge the
+  PR with a merge commit (`gh pr merge --merge`), never squash, so any one branch reverts on its own. Money, SoD and
+  auth changes ship alone. **Docs-only changes (`docs/**`, `*.md`) push DIRECT to `dev`; no PR, no branch.**
   CI paths-ignores them, so a docs PR gates on nothing and is pure ceremony (a docs PR reports "no checks
   reported"). This matches long-standing practice on `dev`. Exception: a docs change that is genuinely
   *reviewable content* (a spec/ADR you want the owner to sign off) may still take a PR — that's a review
@@ -317,7 +320,7 @@ immutable `headRefOid`, and, if the remote branch exists, require
 `git ls-remote --heads origin refs/heads/<branch>` to report the same OID. Any mismatch means stop and preserve
 the divergent branch. Only then confirm the exact issue worktree is clean, run
 `git worktree remove <exact-path>` (never `--force`) and `git worktree prune`, delete the local feature branch
-with `git branch -d <branch>` (use `-D` only after the exact-tip checks for a verified squash merge), and
+with `git branch -d <branch>` (use `-D` only after the exact-tip checks), and
 finally delete the still-matching repository-owned remote branch with `git push origin --delete <branch>`.
 Never remove a worktree or branch merely because it looks stale.
 

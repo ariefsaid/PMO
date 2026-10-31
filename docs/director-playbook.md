@@ -186,7 +186,7 @@ Each `AC-###` is owned by **one** test at the **lowest sufficient layer**:
   not permission to bypass fair-use.
 - **Never force-push. Never `git add -A`.** Stage the issue's files explicitly.
 - `release-engineer` opens the PR and **stops**. The **Director** approves & merges within the signed
-  spec (`gh pr merge <n> --squash`), then performs the ordered cleanup below. Remote branch deletion
+  spec (`gh pr merge <n> --merge`; batched branches, never squash — `CLAUDE.md` "PRs"), then performs the ordered cleanup below. Remote branch deletion
   is deliberately not bundled into the merge command because cleanup starts only after merge proof.
 - **Post-merge cleanup is verify-first, delete-last.** From the primary checkout:
   1. `git fetch origin <base>`; inspect
