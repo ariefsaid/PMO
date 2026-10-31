@@ -26,8 +26,9 @@ const COPY: Record<string, string> = {
   timeout: 'Odoo did not answer in time.',
   tls: 'Odoo\'s security certificate could not be verified.',
   'not-odoo': 'That address does not look like an Odoo instance.',
-  'no-json2': 'This Odoo does not offer the JSON-2 API (Odoo 19 or later is needed).',
-  'database-not-found': 'Odoo has no database with that name.',
+  'no-json2': 'This Odoo does not offer the JSON-2 API (Odoo 20 or later is needed).',
+  'unsupported-version': 'This Odoo version is not supported, or its version could not be read. Odoo 20 or later is needed.',
+  'database-not-found': 'Odoo has no database with that name, or its JSON-2 API is not reachable at this address.',
   'key-rejected': 'Odoo rejected the API key.',
   'access-denied': 'The API key works but cannot read companies.',
   'missing-model': 'This Odoo is missing an app PMO needs.',
@@ -40,7 +41,6 @@ const COPY: Record<string, string> = {
 const TRANSIENT = new Set(['unreachable', 'timeout', 'server-error']);
 
 type Respond = (body: unknown, status?: number) => Response;
-const fail = (respond: Respond, code: string, status: number) => respond({ error: code, message: COPY[code] ?? COPY.CONNECT_NOT_COMMITTED }, status);
 
 /** Maps a finalize refusal (fixed RPC texts, 0420) to a wire code; the message itself never reaches the response. */
 function finalizeCode(message: string): string {
@@ -59,6 +59,13 @@ export async function connectOdoo(
   if (!siteUrl || !database || !apiKey) return respond({ error: 'BAD_REQUEST', message: 'siteUrl, database and apiKey are required' }, 400);
   // An Odoo key is one token; odooClientForOrg refuses a two-part value, so never store one.
   if (/[:\s]/.test(apiKey)) return respond({ error: 'BAD_REQUEST', message: 'That is not an Odoo API key' }, 400);
+  // FR-ODC-011: a refused connect leaves an audit row with its outcome class (never the key or an upstream body).
+  // Best effort: a failed audit write never changes the answer.
+  const fail = async (_respond: Respond, code: string, status: number) => {
+    await sc.rpc('log_audit', { p_action: 'integration.connect.refused', p_org_id: orgId, p_actor_id: userId, p_entity_id: null,
+      p_detail: { tier: 'odoo', actor: userId, outcome_class: code } }).then(() => {}, () => {});
+    return respond({ error: code, message: COPY[code] ?? COPY.CONNECT_NOT_COMMITTED }, status);
+  };
 
   const { data: other, error: otherError } = await sc.from('external_org_bindings').select('external_tier')
     .eq('org_id', orgId).eq('external_tier', 'erpnext').eq('status', 'active').maybeSingle();
@@ -67,7 +74,7 @@ export async function connectOdoo(
   if (!(await isPermittedErpSiteUrl(siteUrl))) return fail(respond, 'destination-refused', 422);
 
   let companies: OdooCompany[];
-  let versionMajor: number | null;
+  let versionMajor: number;
   try {
     ({ companies, versionMajor } = await validateOdooConnection({
       siteUrl, database, apiKey, fetchImpl: guardedErpFetch(siteUrl), allowHttp: isLocalBenchSite(siteUrl),

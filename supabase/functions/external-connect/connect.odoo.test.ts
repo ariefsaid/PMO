@@ -31,6 +31,7 @@ interface Opts {
   erpActive?: boolean;
   erpCheckFails?: boolean;
   versionMajor?: number;
+  version?: () => Response;
   companies?: () => Response;
   stage?: () => Response;
   finalize?: () => Response;
@@ -42,10 +43,11 @@ function routes(o: Opts = {}): MockRoute[] {
     supabaseSelect('external_org_bindings', () => (o.erpCheckFails ? pgError('boom', 'XX000') : o.erpActive ? one({ external_tier: 'erpnext' }) : none())),
     { label: 'odoo-companies', host: ODOO, pathname: '/json/2/res.company/search_read',
       response: () => (o.companies ? o.companies() : jsonResponse([{ id: 1, name: 'Main Co', partner_id: [1, 'Main Co'] }])) },
-    { label: 'odoo-version', host: ODOO, pathname: '/web/webclient/version_info', response: () => jsonResponse(o.versionMajor ? { result: { server_version_info: [o.versionMajor, 0] } } : VERSION) },
+    { label: 'odoo-version', host: ODOO, pathname: '/web/webclient/version_info', response: () => o.version ? o.version() : jsonResponse(o.versionMajor ? { result: { server_version_info: [o.versionMajor, 0] } } : VERSION) },
     supabaseRpc('stage_vault_secret_for_org', () => (o.stage ? o.stage() : jsonResponse('odoo_token_ref'))),
     supabaseRpc('finalize_odoo_connect', () => (o.finalize ? o.finalize() : jsonResponse('active'))),
     supabaseRpc('cleanup_external_connect_attempt', () => jsonResponse(null)),
+    supabaseRpc('log_audit', () => jsonResponse(null)),
   ];
 }
 const pgError = (message: string, code = 'P0001') => jsonResponse({ code, message, details: null, hint: null }, { status: 400 });
@@ -161,6 +163,33 @@ describe('external-connect — Odoo wire classes', () => {
     assertEquals(rpcCall(r.calls, 'stage_vault_secret_for_org').length, 0);
   });
 
+  it('FR-ODC-022 an Odoo 19 → 422 unsupported-version naming the needed version, nothing staged', async () => {
+    const r = await connect({}, { versionMajor: 19 });
+    assertEquals([r.res.status, body(r.text).error], [422, 'unsupported-version']);
+    assert(String(body(r.text).message).includes('Odoo 20'));
+    assertEquals(rpcCall(r.calls, 'stage_vault_secret_for_org').length, 0);
+  });
+
+  it('FR-ODC-022 a version the probe cannot read (blocked by a proxy) → 422 unsupported-version, nothing staged', async () => {
+    const r = await connect({}, { version: () => new Response('<html>blocked</html>', { status: 403 }) });
+    assertEquals([r.res.status, body(r.text).error], [422, 'unsupported-version']);
+    assertEquals(rpcCall(r.calls, 'stage_vault_secret_for_org').length, 0);
+  });
+
+  it('FR-ODC-002 an HTML 404 on Odoo 20 says the database or the JSON-2 address may be wrong', async () => {
+    const r = await connect({ database: 'other' }, { companies: () => new Response('<html>404</html>', { status: 404 }) });
+    assert(/JSON-2/.test(String(body(r.text).message)));
+  });
+
+  it('FR-ODC-011 a refused connect writes one audit row with its outcome class, never the key', async () => {
+    const r = await connect({}, { companies: () => jsonResponse({ name: 'odoo.exceptions.AccessDenied', message: SENTINEL }, { status: 401 }) });
+    const audits = rpcCall(r.calls, 'log_audit');
+    assertEquals(audits.length, 1);
+    assertEquals((audits[0].bodyJson as Record<string, unknown>).p_action, 'integration.connect.refused');
+    assertEquals((audits[0].bodyJson as { p_detail: unknown }).p_detail, { tier: 'odoo', actor: 'user-1', outcome_class: 'key-rejected' });
+    assertNoLeak(r);
+  });
+
   it('FR-ODC-002 a timeout → 502 timeout', async () => {
     const r = await connect({}, { companies: () => { throw new DOMException('t', 'TimeoutError'); } });
     assertEquals([r.res.status, body(r.text).error], [502, 'timeout']);
@@ -232,7 +261,7 @@ describe('external-connect — Odoo refusals before any request or write', () =>
       const r = await connect({ siteUrl });
       assertEquals([r.res.status, body(r.text).error], [422, 'destination-refused']);
       assertEquals(r.calls.filter((c) => !c.url.pathname.startsWith('/rest/v1/profiles') && !c.url.pathname.startsWith('/rest/v1/platform_operators')
-        && c.url.pathname !== '/rest/v1/external_org_bindings' && !c.url.pathname.startsWith('/auth/')).length, 0);
+        && c.url.pathname !== '/rest/v1/external_org_bindings' && c.url.pathname !== '/rest/v1/rpc/log_audit' && !c.url.pathname.startsWith('/auth/')).length, 0);
     });
   }
 

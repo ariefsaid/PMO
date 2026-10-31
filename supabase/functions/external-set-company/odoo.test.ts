@@ -71,6 +71,21 @@ describe('external-set-company — Odoo list-companies', () => {
 });
 
 describe('external-set-company — Odoo activate', () => {
+  it('FR-ODC-005 a company past the first 50 can be activated', async () => {
+    const { fake, routes } = setup();
+    fake.seed('res.company', Array.from({ length: 60 }, (_, i) => ({ id: i + 1, name: `Co ${i + 1}` })));
+    await withFetchMock(routes, async ({ calls }) => {
+      const res = await handleSetCompanyRequest(createAuthedRequest('http://edge.test/set-company', { tier: 'odoo', companyId: 60 }, await auth.mintJwt({ sub: 'user-1' })));
+      assertEquals(res.status, 200);
+      assertEquals((rpcCall(calls, 'activate_odoo_binding')[0].bodyJson as Record<string, unknown>).p_company_id, 60);
+    });
+  });
+
+  it('FR-ODC-022 the RPC version refusal → 409 unsupported-version, not a reasonless refusal', async () => {
+    const r = await call({ companyId: 1 }, { activate: () => pgError('unsupported odoo major version 19') });
+    assertEquals([r.res.status, r.json.error], [409, 'unsupported-version']);
+  });
+
   it('AC-ODC-005 activates the chosen company with the version from version_info and the company name', async () => {
     const r = await call({ companyId: 1 });
     assertEquals(r.res.status, 200);
@@ -98,7 +113,7 @@ describe('external-set-company — Odoo activate', () => {
   });
 
   it('FR-ODC-022 any other RPC refusal → 409 activation-refused', async () => {
-    const r = await call({ companyId: 1 }, { activate: () => pgError('unsupported odoo major version 19') });
+    const r = await call({ companyId: 1 }, { activate: () => pgError('binding is not connectable') });
     assertEquals([r.res.status, r.json.error], [409, 'activation-refused']);
   });
 

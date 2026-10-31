@@ -4,7 +4,8 @@
  */
 export type OdooErrorClass =
   | 'unreachable' | 'timeout' | 'tls' | 'not-odoo' | 'no-json2' | 'database-not-found'
-  | 'key-rejected' | 'access-denied' | 'missing-model' | 'validation' | 'server-error' | 'destination-refused';
+  | 'key-rejected' | 'access-denied' | 'missing-model' | 'validation' | 'server-error' | 'destination-refused'
+  | 'unsupported-version';
 
 /** A classified failure (AC-ODC-002). The message is fixed text: never the upstream body or the key (FR-ODC-002). */
 export class OdooError extends Error {

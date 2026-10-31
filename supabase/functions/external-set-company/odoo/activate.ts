@@ -13,7 +13,7 @@ async function readCompanies(c: OdooCtx): Promise<Companies> {
   const r = await odooClientForOrg(c.sc, c.orgId, { requireActivated: false, requireCompany: false });
   if ('refusal' in r) return { response: odooError(c, 'The Odoo connection is not usable', r.refusal, 422) };
   try {
-    const rows = await odooCall<OdooCompany[]>(r.client, 'res.company', 'search_read', { domain: [], fields: ['id', 'name'], limit: 50 });
+    const rows = await odooCall<OdooCompany[]>(r.client, 'res.company', 'search_read', { domain: [], fields: ['id', 'name'] });
     return { companies: rows.map(({ id, name }) => ({ id, name })), client: r.client };
   } catch (err) {
     return { response: odooError(c, 'Odoo did not answer', err instanceof OdooError ? err.errorClass : 'unreachable', 502) };
@@ -37,8 +37,10 @@ export async function activate(c: OdooCtx): Promise<Response> {
     p_org_id: c.orgId, p_version_major: versionMajor, p_company_id: chosen.id, p_company_name: chosen.name, p_config_patch: {}, p_actor_id: c.userId,
   });
   if (error) {
-    const code = /already chosen/.test(error.message ?? '') ? 'company-locked' : 'activation-refused';
-    return odooError(c, code === 'company-locked' ? 'This connection is locked to the company picked first' : 'Activation was refused', code, 409);
+    const msg = error.message ?? '';
+    if (/already chosen/.test(msg)) return odooError(c, 'This connection is locked to the company picked first', 'company-locked', 409);
+    if (/unsupported odoo major version/.test(msg)) return odooError(c, 'This Odoo version is not supported. Odoo 20 or later is needed.', 'unsupported-version', 409);
+    return odooError(c, 'Activation was refused', 'activation-refused', 409);
   }
   return c.respond({ ok: true, companyId: chosen.id, versionMajor, activatedAt });
 }

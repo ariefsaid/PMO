@@ -4,6 +4,9 @@
  */
 import { odooCall, OdooError, type OdooClientDeps } from './client.ts';
 
+/** FR-ODC-022 tested minimum; activate_odoo_binding (0420) refuses below it too. Keep the two in step. */
+export const MIN_ODOO_MAJOR = 20;
+
 export interface OdooCompany { id: number; name: string }
 export interface ConnectInput { siteUrl: string; database: string; apiKey: string; fetchImpl: typeof fetch; allowHttp?: boolean }
 
@@ -18,14 +21,14 @@ export async function fetchOdooVersionMajor(deps: Pick<OdooClientDeps, 'baseUrl'
   } catch { return null; }
 }
 
-export async function validateOdooConnection(input: ConnectInput): Promise<{ companies: OdooCompany[]; versionMajor: number | null }> {
+export async function validateOdooConnection(input: ConnectInput): Promise<{ companies: OdooCompany[]; versionMajor: number }> {
   let url: URL;
   try { url = new URL(input.siteUrl); } catch { throw new OdooError('destination-refused'); }
   if (url.protocol !== 'https:' && !(input.allowHttp && url.protocol === 'http:')) throw new OdooError('destination-refused');
   const deps: OdooClientDeps = { baseUrl: url.origin, apiKey: input.apiKey, database: input.database, fetchImpl: input.fetchImpl, deadlineMs: 5_000 };
   let companies: OdooCompany[];
   try {
-    companies = await odooCall<OdooCompany[]>(deps, 'res.company', 'search_read', { domain: [], fields: ['id', 'name'], limit: 50 });
+    companies = await odooCall<OdooCompany[]>(deps, 'res.company', 'search_read', { domain: [], fields: ['id', 'name'] });
   } catch (err) {
     // A host pinned to one database answers any other database with the same HTML 404 an Odoo without JSON-2 gives
     // (bed, 2026-11-01). The unauthenticated version probe tells them apart: JSON-2 ships from Odoo 19.
@@ -34,5 +37,8 @@ export async function validateOdooConnection(input: ConnectInput): Promise<{ com
     }
     throw err;
   }
-  return { companies: companies.map(({ id, name }) => ({ id, name })), versionMajor: await fetchOdooVersionMajor(deps) };
+  // Decided here, not at activation: an unknown or older version would store a key activation always refuses.
+  const versionMajor = await fetchOdooVersionMajor(deps);
+  if (versionMajor === null || versionMajor < MIN_ODOO_MAJOR) throw new OdooError('unsupported-version');
+  return { companies: companies.map(({ id, name }) => ({ id, name })), versionMajor };
 }

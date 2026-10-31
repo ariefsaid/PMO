@@ -58,6 +58,21 @@ describe('odoo/connect — validateOdooConnection (S2-T1)', () => {
     expect(err).toBeInstanceOf(OdooError);
     expect(err.errorClass).toBe('no-json2');
   });
+
+  it.each([
+    ['an Odoo 19', async (url: string) => Response.json(String(url).endsWith('/web/webclient/version_info') ? { result: { server_version_info: [19, 0] } } : [])],
+    ['an unknown version', async (url: string) => (String(url).endsWith('/web/webclient/version_info') ? new Response('<html>blocked</html>', { status: 403 }) : Response.json([]))],
+  ])('FR-ODC-022 refuses %s with unsupported-version, so connect never stores a key activation would refuse', async (_label, impl) => {
+    await expect(validateOdooConnection({ siteUrl: 'https://odoo.example.test', database: 'db', apiKey: 'K', fetchImpl: impl as unknown as typeof fetch }))
+      .rejects.toMatchObject({ errorClass: 'unsupported-version' });
+  });
+
+  it('returns every company the key can see, not only the first 50', async () => {
+    const { fake, fetchImpl } = bed();
+    fake.seed('res.company', Array.from({ length: 60 }, (_, i) => ({ id: i + 1, name: `Co ${i + 1}` })));
+    const out = await validateOdooConnection({ siteUrl: 'https://odoo.example.test', database: 'db', apiKey: 'K', fetchImpl });
+    expect(out.companies).toHaveLength(60);
+  });
 });
 
 describe('odoo/connect — fetchOdooVersionMajor (V17)', () => {
