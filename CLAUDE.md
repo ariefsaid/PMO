@@ -36,6 +36,9 @@ B2B multi-tenancy without a rewrite.
 - `supabase/migrations/` — Postgres schema + RLS policies.
 - `.claude/agents/`, `.claude/skills/` — the role agents and vendored skills (skills gitignored, via `scripts/vendor-skills.sh`). **Edit skills ONLY in `.claude/skill-overrides/<name>/` (tracked)** — the vendor script overlays them; edits in `.claude/skills/` are destroyed on re-vendor. Config the skills read: `docs/agents/{issue-tracker,triage-labels,domain,skills}.md`.
 
+## What's next: the pinned Roadmap issue
+Start every session at **GitHub issue "Roadmap: vision, the maps, and what's next" (#1571, pinned)**: vision, every map, and the Now/Next/Later order. Every open issue sits under one map with a status label. When a Now item ships, update the roadmap in the same session.
+
 ## Operating model: Owner → Director → role agents
 The **owner** talks to the **Director** (Opus 4.8, the main session). The Director runs an
 **issue-driven loop** and takes each issue end-to-end — but **does not run the build itself by

@@ -1,5 +1,9 @@
 # PMO Portal — live backlog (status + what's next)
 
+> **⚑ 2026-10-31: what's next now lives in the pinned GitHub issue "Roadmap: vision, the maps, and what's next" (#1571).**
+> Every open issue is triaged under a map there. The status below is historical (last refreshed 2026-10-19, v0.22.0);
+> for current versions run the four commands in CURRENT STATE.
+
 **This is the living status doc — read it first.** Shipped-program *history* lives in
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
