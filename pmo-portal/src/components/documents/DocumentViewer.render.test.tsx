@@ -26,6 +26,7 @@ describe('document-preview AC-005 renderers inside the panel', () => {
     expect(frame.tagName).toBe('IFRAME');
     expect(frame).toHaveAttribute('src', 'https://signed.test/a.pdf');
     expect(frame).toHaveAttribute('tabindex', '0');
+    expect(frame).toHaveAttribute('referrerpolicy', 'no-referrer');
   });
 
   it('a Microsoft embed is sandboxed, titled and has no referrer', async () => {
@@ -54,13 +55,18 @@ describe('document-preview AC-005 renderers inside the panel', () => {
 
   it('Office files get a fresh signed URL on open and on every Retry', async () => {
     let n = 0;
-    const getSignedUrl = vi.fn(async () => `https://signed.test/a.docx?t=${++n}`);
+    const getSignedUrl = vi.fn(async () => {
+      n += 1;
+      if (n === 1) throw new Error('storage down'); // the first open fails so Retry is offered
+      return `https://signed.test/a.docx?t=${n}`;
+    });
     const t = storageTarget({ key: 'k', name: 'Brief.docx', filePath: 'org/p/a.docx', getSignedUrl, sourceLabel: 'PMO' });
     renderViewer(<Harness targets={[t]} />);
     await userEvent.click(screen.getByRole('button', { name: 'Preview Brief.docx' }));
-    const first = (await screen.findByTitle('Brief.docx')).getAttribute('src');
-    expect(first).toContain(encodeURIComponent('https://signed.test/a.docx?t=1'));
-    expect(getSignedUrl).toHaveBeenCalledTimes(1);
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    const src = (await screen.findByTitle('Brief.docx')).getAttribute('src');
+    expect(src).toContain(encodeURIComponent('https://signed.test/a.docx?t=2'));
+    expect(getSignedUrl).toHaveBeenCalledTimes(2);
   });
 });
 

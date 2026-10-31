@@ -45,6 +45,9 @@ export const DENIED_EXTENSIONS: readonly string[] = [
 /** Signed URL expiry in seconds (60 minutes). NFR-DOC-003 / FR-DOC-013. */
 export const SIGNED_URL_EXPIRY_SECONDS = 3600;
 
+/** Expiry for a link handed to Microsoft's public Office viewer, which fetches the file once when the preview opens. */
+export const OFFICE_PREVIEW_URL_SECONDS = 300;
+
 /**
  * Extensions the in-app document viewer can show (preview only; upload acceptance is `ALLOWED_FILE_TYPES`).
  * Legacy Word/Excel/PowerPoint are best effort through Microsoft's public viewer.

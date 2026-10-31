@@ -377,13 +377,13 @@ export async function cleanupStorageObject(filePath: string): Promise<void> {
  */
 export async function getSignedDownloadUrl(
   filePath: string,
-  opts?: { download?: boolean },
+  opts?: { download?: boolean; expiresIn?: number },
 ): Promise<string> {
   const { data, error } = await supabase.storage
     .from(BUCKET)
     .createSignedUrl(
       filePath,
-      SIGNED_URL_EXPIRY_SECONDS,
+      opts?.expiresIn ?? SIGNED_URL_EXPIRY_SECONDS,
       opts?.download ? { download: filePath.split('/').pop() || 'file' } : undefined,
     );
   if (error) throw toStorageAppError(error);

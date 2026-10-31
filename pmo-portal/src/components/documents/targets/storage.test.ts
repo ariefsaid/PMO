@@ -26,6 +26,8 @@ describe('document-preview AC-005 storageTarget', () => {
     expect(result).toEqual({ mode: 'embed', provider: 'office-online', url: `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent('https://signed.test/x')}` });
     await target.load(signal);
     expect(getSignedUrl).toHaveBeenCalledTimes(2); // every open / retry signs again
+    // Microsoft's public viewer fetches the file once on open, so the link it receives is short-lived.
+    expect(getSignedUrl).toHaveBeenCalledWith('org/p/file', { expiresIn: 300 });
   });
 
   it.each(['a.dwg', 'a.csv', 'a.zip', 'readme'])('%s is unsupported and never signs a URL', async (name) => {

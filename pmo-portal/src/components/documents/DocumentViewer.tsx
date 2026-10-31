@@ -40,7 +40,7 @@ function Preview({ result, name, onRenderError, t }: { result: PreviewResult; na
     case 'image':
       return <img src={result.url} alt={name} onError={onRenderError} className="mx-auto max-h-[70dvh] max-w-full object-contain" />;
     case 'pdf':
-      return <iframe src={result.url} title={name} tabIndex={0} className="h-[70dvh] min-h-[320px] w-full border-0" />;
+      return <iframe src={result.url} title={name} tabIndex={0} referrerPolicy="no-referrer" className="h-[70dvh] min-h-[320px] w-full border-0" />;
     case 'embed':
       return (
         <>

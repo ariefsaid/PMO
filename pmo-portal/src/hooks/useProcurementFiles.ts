@@ -137,7 +137,7 @@ export function useProcurementFiles(
   });
 
   const download = useCallback(
-    (filePath: string, opts?: { download?: boolean }) =>
+    (filePath: string, opts?: { download?: boolean; expiresIn?: number }) =>
       repositories.procurementFiles.getSignedUrl(filePath, opts),
     [],
   );

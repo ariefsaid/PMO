@@ -284,6 +284,11 @@ describe('AC-PF-006 getSignedDownloadUrl', () => {
     expect(args[2]).toEqual({ download: 'q.pdf' });
   });
 
+  it('document-preview AC-005: a shorter expiry is honoured for the public Office viewer', async () => {
+    await getSignedDownloadUrl('org/proc/quotation/f/q.docx', { expiresIn: 300 });
+    expect((h.storageCalls.createSignedUrl[0] as unknown[])[1]).toBe(300);
+  });
+
   it('AC-PF-006: a storage error throws', async () => {
     h.dlResult.value = { data: null, error: { message: 'bad', name: 'StorageError' } };
     await expect(getSignedDownloadUrl('p')).rejects.toBeInstanceOf(AppError);

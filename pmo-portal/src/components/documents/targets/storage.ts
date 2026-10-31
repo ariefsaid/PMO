@@ -1,9 +1,10 @@
 import { AppError } from '@/src/lib/appError';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { OFFICE_PREVIEW_URL_SECONDS } from '@/src/lib/fileConstants';
 import { officeViewerUrl, selectRenderer } from '../renderers';
 import { PreviewFailure, type DocumentViewTarget, type PreviewResult } from '../types';
 
-export type SignedUrlAccessor = (path: string, opts?: { download?: boolean }) => Promise<string>;
+export type SignedUrlAccessor = (path: string, opts?: { download?: boolean; expiresIn?: number }) => Promise<string>;
 
 export interface StorageTargetInput {
   key: string;
@@ -54,7 +55,10 @@ export function storageTarget(input: StorageTargetInput): DocumentViewTarget {
       if (renderer === 'unsupported' || renderer === 'microsoft') return { mode: 'unsupported' };
       let url: string;
       try {
-        url = await getSignedUrl(filePath);
+        // The public Office viewer fetches the file once on open, so its link is short-lived.
+        url = renderer === 'native-pdf' || renderer === 'native-image'
+          ? await getSignedUrl(filePath)
+          : await getSignedUrl(filePath, { expiresIn: OFFICE_PREVIEW_URL_SECONDS });
       } catch {
         throw new PreviewFailure('unavailable');
       }

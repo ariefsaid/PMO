@@ -374,7 +374,7 @@ export interface DocumentRepository {
   /** Delete a storage object (non-fatal cleanup). */
   cleanupObject(filePath: string): Promise<void>;
   /** Generate a signed download URL for a document file. `opts.download` forces attachment (true download); omit for inline preview. */
-  getSignedUrl(filePath: string, opts?: { download?: boolean }): Promise<string>;
+  getSignedUrl(filePath: string, opts?: { download?: boolean; expiresIn?: number }): Promise<string>;
   /** Create a revision (child) document row. */
   createRevision(
     parentId: string,
@@ -768,8 +768,8 @@ export interface ProcurementFileRepository {
   ): Promise<ProcurementFileRow>;
   /** Soft-archive a file (stamps archived_at; ADR-0018). */
   archive(phase: ProcPhase, id: string): Promise<void>;
-  /** Generate a signed download URL for a file. `opts.download` forces attachment. */
-  getSignedUrl(filePath: string, opts?: { download?: boolean }): Promise<string>;
+  /** Generate a signed download URL for a file. `opts.download` forces attachment; `opts.expiresIn` shortens the link. */
+  getSignedUrl(filePath: string, opts?: { download?: boolean; expiresIn?: number }): Promise<string>;
   /** Delete a storage object (non-fatal orphan cleanup). */
   cleanupObject(filePath: string): Promise<void>;
 }
