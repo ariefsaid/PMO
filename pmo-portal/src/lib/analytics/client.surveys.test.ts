@@ -11,6 +11,7 @@ const posthog = vi.hoisted(() => ({
   canRenderSurvey: vi.fn(),
   displaySurvey: vi.fn(),
   on: vi.fn(),
+  register: vi.fn(),
 }));
 vi.mock('posthog-js', () => ({ default: posthog }));
 

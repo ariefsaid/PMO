@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 import { FIRST_DOCUMENT_ORDER } from './firstDocument';
 import { LedgerCaptureRow } from './LedgerCaptureRow';
 
@@ -11,7 +11,7 @@ afterEach(() => clearOwnershipCache());
 
 const LINE = 'Record the payment in ERPNext; it links here on the next sync.';
 const bill = [{ id: 'inv-1', reference_number: 'INV-1', vi_number: 'VI-1', invoice_date: '2026-01-02' }] as never;
-const erpOwned = () => setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+const erpOwned = () => setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
 
 describe('payment doorway on an ERP-owned purchase', () => {
   it('a purchase with only linked ERP documents (no PMO bill) shows one line and no Capture Payment', () => {

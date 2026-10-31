@@ -1970,9 +1970,9 @@ export function reportVersionFromOrg(org: Pick<OrgBinding, 'versionMajor'>): str
  * while `0141_get_budget_projection.sql` joins `s.project_id = p_project_id`. "Actuals to date" was
  * structurally 0.00 for every project with real posted GL spend — variance = the entire budget, on the
  * primary money screen, with no error anywhere. Attribution now comes from the project dimension ERP
- * itself states on the GL row, resolved through the SAME `project_map` seam `dispatchFactory.ts` uses
- * for the budget push and every timesheet entry (`resolveErpProjectName`) — one mapping, consumed
- * inverted, never a second one invented here.
+ * itself states on the GL row, resolved through the SAME `project_map` seam the dispatch factory
+ * uses for the budget push and every timesheet entry (`resolveErpProjectName`, erpnext/dispatchRefs.ts) —
+ * one mapping, consumed inverted, never a second one invented here.
  */
 export async function feedOrgPurchasesLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): Promise<{ fed: number; error?: string }> {
   try {

@@ -112,6 +112,9 @@
 -- ⚑ AMENDED BY 0393: `update_procurement_header` joins the retained set (+1, count 85).
 -- It checks active membership, org, requester/Admin authority and editable state;
 -- supabase/tests/procurement_header_requester.test.sql exercises its contract and ACL.
+--
+-- ⚑ AMENDED BY 0419 (#1532 S9): `admin_set_feedback_surveys` joins the retained set (+1, count 89 on top of dev's 88,
+-- re-derived by hand). Active-Admin writer under a member's JWT; supabase/tests/0419_feedback_surveys_switch.test.sql proves it.
 -- Anonymous grants remain subject to the sweep even for retained names.
 --
 -- The budget import and procurement import-run commands retain authenticated access;
@@ -195,6 +198,7 @@ insert into client_callable_rpc_names (proname) values
   ('save_cost_attribution_rule'),
   ('end_cost_attribution_rule'),
   ('admin_change_domain_ownership'),
+  ('admin_set_feedback_surveys'),
   ('list_budget_fiscal_years'),
   ('operator_agent_run_stats'),
   ('operator_create_org'),
@@ -256,8 +260,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  88,
-  'AC-ACL-002 all 88 retained client-callable RPC names still have a public function');
+  89,
+  'AC-ACL-002 all 89 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -266,8 +270,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  88,
-  'AC-ACL-003 all 88 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  89,
+  'AC-ACL-003 all 89 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

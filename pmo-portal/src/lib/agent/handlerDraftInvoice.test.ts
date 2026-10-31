@@ -53,6 +53,28 @@ describe('draft_invoice through the handler (#787)', () => {
     expect(events.find((e) => e.type === 'tool')).toMatchObject({ payload: { name: 'draft_invoice', result: { ok: true, status: 'Draft' } } });
   });
 
+  it('AC-AIN-NAT-001 no ERP: the chip is native and approval creates the Draft through the RPC as the caller — never a dispatch', async () => {
+    const base = world({ external_domain_ownership: () => [] });
+    const NEW = '77777777-7777-4777-8777-777777777777';
+    const s = fakeSupabase((c: FakeCall) => (c.table === 'profiles' ? { data: { org_id: 'org-1', role: 'Finance' }, error: null } : base(c)));
+    const rpc = vi.fn(async () => ({ data: NEW, error: null }));
+    (s.client as unknown as { rpc: typeof rpc }).rpc = rpc;
+    const first = vi.fn().mockResolvedValueOnce(toolCall('draft_invoice', { workOrder: 'WO-20261001-001' })).mockResolvedValueOnce(stop('ok'));
+    const events = await collect(agentChatHandler({ runId: 'run-1', messages: [USER] }, deps(s.client, first)));
+    const chip = events.find((e) => (e.payload as { status?: string } | undefined)?.status === 'needs-approval')?.payload as
+      { pendingId: string; humanSummary: string; structuredArgs: Record<string, unknown> };
+    expect(chip.structuredArgs).toMatchObject({ path: 'native', items: [{ item_code: '', rate: 1_000_000 }] });
+    expect(rpc).not.toHaveBeenCalled();
+
+    const can = vi.fn(() => true);
+    const done = await collect(agentChatHandler(approveReq(chip.pendingId, chip.structuredArgs), deps(s.client, vi.fn().mockResolvedValueOnce(stop('Saved.')), can)));
+    expect(can).toHaveBeenCalledWith('create', 'salesInvoice', { realRole: 'Finance' });
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc.mock.calls[0]).toEqual(['create_native_sales_invoice', expect.objectContaining({ p_project_id: P1, p_customer_id: C1 })]);
+    expect(s.invoke).not.toHaveBeenCalled();
+    expect(done.find((e) => e.type === 'tool')).toMatchObject({ payload: { name: 'draft_invoice', result: { ok: true, status: 'Draft', id: NEW } } });
+  });
+
   it('AC-AIN-007 a PM gets the refusal, no chip, no dispatch', async () => {
     const { chip, invoke, create } = await propose('Project Manager');
     expect(chip).toBeUndefined();

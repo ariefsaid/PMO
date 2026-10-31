@@ -164,12 +164,6 @@ function v16Bodies(rec: PmoRecord, ctx: ErpCtx): Record<string, unknown>[] {
   });
 }
 
-/** Return account-grained v16 bodies or the unchanged single v15 body. */
-export function budgetBodiesForYear(rec: PmoRecord, ctx: ErpCtx): Record<string, unknown>[] {
-  if (ctx.versionMajor !== 16) return [budgetToBody(rec, ctx) as Record<string, unknown>];
-  return v16Bodies(rec, ctx);
-}
-
 /**
  * ⚑ LIFECYCLE ONLY (FR-BUD-140/152). PMO owns the budget figure, so an ERP-side `budget_amount` must
  * have NO route back into PMO — this mapper deliberately does not read `accounts` at all. A Desk edit to

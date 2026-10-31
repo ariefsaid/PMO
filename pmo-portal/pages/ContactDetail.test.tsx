@@ -1,4 +1,4 @@
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 import { ownershipMock } from '@/test/domainOwnershipMock';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen, within } from '@testing-library/react';
@@ -257,7 +257,7 @@ describe('ContactDetail', () => {
   });
 
   it('keeps mirrored contact details read-only and enhancements editable', async () => {
-    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
     renderPage('Admin');
     await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
     const dialog = await screen.findByRole('dialog', { name: /edit contact/i });
@@ -276,7 +276,7 @@ describe('ContactDetail', () => {
     const name = within(dialog).getByLabelText(/full name/i);
     await userEvent.clear(name);
     await userEvent.type(name, 'Jane Reyes');
-    act(() => setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
+    act(() => setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
     expect(within(dialog).getByRole('button', { name: /save contact/i })).toBeDisabled();
   });
 
