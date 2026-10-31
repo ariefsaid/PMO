@@ -7157,6 +7157,196 @@ export type Database = {
           },
         ]
       }
+      stock_items: {
+        Row: {
+          archived_at: string | null
+          code: string
+          created_at: string
+          description: string | null
+          id: string
+          lead_time_days: number | null
+          name: string
+          org_id: string
+          unit_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          code: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          lead_time_days?: number | null
+          name: string
+          org_id?: string
+          unit_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          code?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          lead_time_days?: number | null
+          name?: string
+          org_id?: string
+          unit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_items_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "stock_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_units: {
+        Row: {
+          archived_at: string | null
+          code: string
+          created_at: string
+          id: string
+          name: string
+          org_id: string
+          whole_only: boolean
+        }
+        Insert: {
+          archived_at?: string | null
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          org_id?: string
+          whole_only?: boolean
+        }
+        Update: {
+          archived_at?: string | null
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          org_id?: string
+          whole_only?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_units_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_warehouse_keepers: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          org_id: string
+          user_id: string
+          warehouse_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          org_id: string
+          user_id: string
+          warehouse_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          org_id?: string
+          user_id?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_warehouse_keepers_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_warehouse_keepers_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_warehouse_keepers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_warehouse_keepers_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "stock_warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_warehouses: {
+        Row: {
+          archived_at: string | null
+          code: string
+          created_at: string
+          id: string
+          kind: string
+          name: string
+          org_id: string
+          project_id: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          code: string
+          created_at?: string
+          id?: string
+          kind: string
+          name: string
+          org_id?: string
+          project_id?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          code?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          name?: string
+          org_id?: string
+          project_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_warehouses_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_warehouses_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_dependencies: {
         Row: {
           depends_on_id: string
@@ -10489,6 +10679,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      set_stock_warehouse_keeper: {
+        Args: { p_assigned: boolean; p_user_id: string; p_warehouse_id: string }
+        Returns: undefined
       }
       set_vendor_tax_defaults: {
         Args: {
