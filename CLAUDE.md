@@ -139,15 +139,17 @@ Do not merge, push or promote to `main` or production. This overrides the generi
 below and in older plans. Production additionally retains its separate per-instance approval rule.
 
 
-**v0.23.0 throughput override (owner, 2026-10-18):** every slice PR to dev requires the normal
-two unit shards, pgTAP and verify. (Browser cadence: see the 2026-10-30 rule below.) Up to **two** browser dispatches may
+**Dev CI runs what a PR can affect (owner, 2026-10-31, #1584):** a PR to dev runs only the affected unit
+tests, pgTAP only for `supabase/**`, Deno only for edge functions (`scripts/ci-test-scope.mjs`; config,
+setup, deps, `ci.yml`, deletions or >60 files force full). Every push to dev runs everything; a red push run
+is fixed on dev first. **v0.23.0 throughput override (owner, 2026-10-18):** (Browser cadence: see the 2026-10-30 rule below.) Up to **two** browser dispatches may
 run concurrently through the logged shared wrapper; at most **two** heavy local runs on the Mac.
 Build the three approved UX lanes in parallel with statements and money fixes; statements take
 priority on shared resources. Rebase translation-file edits immediately before each PR (#1070).
 Dev remains the ceiling. This supersedes older per-slice browser and single-dispatch limits.
 
 **Browser e2e runs on the PR to main, not on dev PRs (owner, 2026-10-30; replaces the 2026-10-23 and v0.23 browser cadences):**
-merge a PR to dev once `verify`, `pgtap` and both unit shards are green. CI's `integration` job runs the browser suite on the release PR
+merge a PR to dev once its `verify`, `unit` and (when run) `pgtap` checks are green. CI's `integration` job runs the browser suite on the release PR
 to `main`; a red run there is fixed on `dev`. `scripts/ci-e2e.sh` on a dev branch only to diagnose.
 
 - **CI is the full-suite gate for every PR (owner 2026-09-29/30):** PRs to `dev` gate on CI's `verify` +
