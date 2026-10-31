@@ -246,13 +246,15 @@ spec makes no claim about live database grants or production state.
 
 ## Implementation handoff checklist
 
+Implementation plan: `docs/plans/2026-10-31-document-preview.md` (branch `feat/document-preview`).
+
 - [ ] Obtain owner spec sign-off; design the side panel and complete source adapters.
-- [ ] Define the bounded Graph preview and record-folder upload operations, preserving
+- [x] Define the bounded Graph preview and record-folder upload operations, preserving
   ADR-0060/0089 boundaries and verifying existing write capability before implementation.
-- [ ] Specify the reversible purchase-attachment source migration and AC-010 pgTAP proof.
-- [ ] Implement the common viewer and wire every scoped entry point, preserving
+- [x] Specify the reversible purchase-attachment source migration and AC-010 pgTAP proof.
+- [x] Implement the common viewer and wire every scoped entry point, preserving
   parent permissions, legacy uploads and controlled-version semantics.
-- [ ] Add AC-tagged tests at the owning layers above and the curated real-file journey;
+- [x] Add AC-tagged tests at the owning layers above and the curated real-file journey;
   verify provider embedding with non-sensitive fixtures and reliable fallback behavior.
 - [ ] Apply the repository's local targeted gates, rendered proof and CI gates to
   the eventual code changes; no implementation checks are claimed by this spec.
