@@ -127,7 +127,7 @@ const AttachButton: React.FC<AttachButtonProps> = ({
   const { toast } = useToast();
   const phase = PHASE_BY_TYPE[type];
   const inputRef = useRef<HTMLInputElement>(null);
-  const { upload } = useProcurementFiles(phase, recordId, procurementId, uploadedById, {
+  const { upload, uploadDisabled } = useProcurementFiles(phase, recordId, procurementId, uploadedById, {
     list: false,
   });
 
@@ -160,7 +160,7 @@ const AttachButton: React.FC<AttachButtonProps> = ({
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        disabled={upload.isPending}
+        disabled={upload.isPending || uploadDisabled}
         aria-label="Attach file"
         title="Attach file"
         className="inline-flex items-center gap-1 text-[12px] font-medium text-muted-foreground hover:text-primary disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"

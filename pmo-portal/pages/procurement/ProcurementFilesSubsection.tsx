@@ -61,7 +61,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
 }) => {
   const { toast } = useToast();
   const viewer = useViewerOnDemand();
-  const { list, upload, archive, download, progress, uploadError, clearUploadError } =
+  const { list, upload, archive, download, progress, uploadError, clearUploadError, uploadDisabled } =
     useProcurementFiles(phase, parentId, procurementId, uploadedById, {
       list: embedded === undefined,
     });
@@ -146,7 +146,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              disabled={uploading || upload.isPending}
+              disabled={uploading || upload.isPending || uploadDisabled}
               className="touch-target inline-flex items-center gap-1 rounded-sm text-[12px] font-medium text-primary-text hover:underline disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               <Icon name="upload" className="size-3.5" />

@@ -39,6 +39,17 @@ const repo = vi.hoisted(() => ({
   archive: vi.fn<(phase: string, id: string) => Promise<void>>(),
   getSignedUrl: vi.fn<(filePath: string, opts?: { download?: boolean }) => Promise<string>>(),
   cleanupObject: vi.fn<(filePath: string) => Promise<void>>(),
+  confirmMicrosoftUpload: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
+}));
+const dest = vi.hoisted(() => ({ value: { kind: 'private' } as { kind: 'private' | 'microsoft' | 'unknown' } }));
+const msUpload = vi.hoisted(() => vi.fn());
+vi.mock('@/src/hooks/useUploadDestination', async (orig) => ({
+  ...(await orig<typeof import('@/src/hooks/useUploadDestination')>()),
+  useUploadDestination: () => dest.value,
+}));
+vi.mock('@/src/lib/m365/uploadClient', async (orig) => ({
+  ...(await orig<typeof import('@/src/lib/m365/uploadClient')>()),
+  uploadRecordFile: msUpload,
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { procurementFiles: repo } }));
 vi.mock('@/src/lib/uploadTransport', () => ({
@@ -52,6 +63,7 @@ vi.mock('@/src/lib/uploadTransport', () => ({
 
 import { useProcurementFiles } from './useProcurementFiles';
 import * as uploadTransport from '@/src/lib/uploadTransport';
+import { UploadFailure } from '@/src/lib/m365/uploadClient';
 
 function makeWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -62,6 +74,7 @@ function makeWrapper() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  dest.value = { kind: 'private' };
   repo.list.mockResolvedValue([]);
   repo.prepareUpload.mockResolvedValue({
     signedUrl: 'https://storage/upload?token=abc',
@@ -215,5 +228,64 @@ describe('AC-PF-009 useProcurementFiles.upload error path', () => {
       await result.current.upload.mutateAsync({ file }).catch(() => {});
     });
     expect(result.current.uploadError).toBeNull();
+  });
+
+  describe('document-preview AC-007 / AC-008 destination', () => {
+    const REF = { drive_id: 'd', item_id: 'i1', web_url: 'https://tenant.sharepoint.com/sites/x/q.pdf', name: 'q.pdf', item_kind: 'file' };
+    const hook = () => renderHook(() => useProcurementFiles('quotation', 'q1', 'proc-1', 'user-9'), { wrapper: makeWrapper().Wrapper });
+
+    it('AC-007: a connected organisation uploads through custody and records ONE SharePoint-backed row; no Storage call', async () => {
+      dest.value = { kind: 'microsoft' };
+      msUpload.mockResolvedValue(REF);
+      repo.confirmMicrosoftUpload.mockResolvedValue({ id: 'row-9' });
+      const { result } = hook();
+      await act(async () => { await result.current.upload.mutateAsync({ file }); });
+      expect(msUpload).toHaveBeenCalledWith({ kind: 'procurement_file', phase: 'quotation', parent_id: 'q1' }, file, expect.any(AbortSignal));
+      expect(repo.confirmMicrosoftUpload).toHaveBeenCalledTimes(1);
+      expect(repo.confirmMicrosoftUpload).toHaveBeenCalledWith('quotation', 'q1', REF, null, 'user-9');
+      expect(repo.prepareUpload).not.toHaveBeenCalled();
+      expect(repo.confirmUpload).not.toHaveBeenCalled();
+      expect(uploadTransport.uploadWithProgress).not.toHaveBeenCalled();
+    });
+
+    it.each(['folder', 'consent', 'connection', 'access', 'entitlement', 'unavailable'] as const)(
+      'AC-008: a %s failure saves nothing, says so, and never falls back to private storage',
+      async (kind) => {
+        dest.value = { kind: 'microsoft' };
+        msUpload.mockRejectedValue(new UploadFailure(kind));
+        const { result } = hook();
+        await act(async () => { await result.current.upload.mutateAsync({ file }).catch(() => {}); });
+        await waitFor(() => expect(result.current.uploadError?.message).toMatch(/Nothing was saved/));
+        expect(repo.confirmMicrosoftUpload).not.toHaveBeenCalled();
+        expect(repo.prepareUpload).not.toHaveBeenCalled();
+        expect(uploadTransport.uploadWithProgress).not.toHaveBeenCalled();
+      },
+    );
+
+    it('AC-007: a refused record insert says to link the SharePoint file', async () => {
+      dest.value = { kind: 'microsoft' };
+      msUpload.mockResolvedValue(REF);
+      repo.confirmMicrosoftUpload.mockRejectedValue({ code: '42501', message: 'rls' });
+      const { result } = hook();
+      await act(async () => { await result.current.upload.mutateAsync({ file }).catch(() => {}); });
+      await waitFor(() => expect(result.current.uploadError?.message).toMatch(/Link it from the Microsoft picker/));
+    });
+
+    it('AC-008: the unknown destination disables upload and never uploads anywhere', async () => {
+      dest.value = { kind: 'unknown' };
+      const { result } = hook();
+      expect(result.current.uploadDisabled).toBe(true);
+      await act(async () => { await result.current.upload.mutateAsync({ file }).catch(() => {}); });
+      expect(repo.prepareUpload).not.toHaveBeenCalled();
+      expect(msUpload).not.toHaveBeenCalled();
+    });
+
+    it('AC-009: the private destination is unchanged', async () => {
+      const { result } = hook();
+      expect(result.current.uploadDisabled).toBe(false);
+      await act(async () => { await result.current.upload.mutateAsync({ file }); });
+      expect(repo.confirmUpload).toHaveBeenCalled();
+      expect(msUpload).not.toHaveBeenCalled();
+    });
   });
 });

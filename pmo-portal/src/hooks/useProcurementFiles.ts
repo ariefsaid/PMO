@@ -4,6 +4,8 @@ import { repositories } from '@/src/lib/repositories';
 import { uploadWithProgress, classifyUploadError } from '@/src/lib/uploadTransport';
 import { FILE_MIME_BY_EXT, MAX_FILE_SIZE_MB } from '@/src/lib/fileConstants';
 import type { ClassifiedUploadError } from '@/src/lib/uploadTransport';
+import { UploadFailure, uploadRecordFile } from '@/src/lib/m365/uploadClient';
+import { useUploadDestination, useUploadFailureText } from '@/src/hooks/useUploadDestination';
 import type { ProcPhase, ProcurementFileRow } from '@/src/lib/db/procurementFiles';
 
 /**
@@ -37,6 +39,8 @@ export function useProcurementFiles(
   opts?: { list?: boolean },
 ) {
   const qc = useQueryClient();
+  const destination = useUploadDestination();
+  const failureText = useUploadFailureText();
   const queryKey = ['procurement-files', phase, parentId] as const;
   const invalidate = () => {
     qc.invalidateQueries({ queryKey });
@@ -63,6 +67,18 @@ export function useProcurementFiles(
     const controller = new AbortController();
     abortRef.current = controller;
     try {
+      if (destination.kind === 'microsoft') {
+        // SharePoint destination: custody stores the file in the purchase case's folder, then ONE insert records
+        // it. A failure leaves nothing saved and never falls back to private storage.
+        const reference = await uploadRecordFile({ kind: 'procurement_file', phase, parent_id: parentId }, file, controller.signal);
+        setProgress(100);
+        try {
+          return await repositories.procurementFiles.confirmMicrosoftUpload(phase, parentId, reference, title ?? null, uploadedById);
+        } catch {
+          throw new UploadFailure('attach');
+        }
+      }
+      if (destination.kind === 'unknown') throw new UploadFailure('unavailable');
       const { signedUrl, path } = await repositories.procurementFiles.prepareUpload(
         phase,
         procurementId,
@@ -104,7 +120,11 @@ export function useProcurementFiles(
       invalidate();
     },
     onError: (error: unknown) => {
-      const classified = classifyUploadError(error, MAX_FILE_SIZE_MB);
+      const classified: ClassifiedUploadError = error instanceof UploadFailure
+        ? error.kind === 'cancelled'
+          ? { type: 'cancel', message: 'Upload cancelled' }
+          : { type: 'server', message: failureText(error.kind) }
+        : classifyUploadError(error, MAX_FILE_SIZE_MB);
       if (classified.type !== 'cancel') setUploadError(classified);
       setProgress(null);
       abortRef.current = null;
@@ -129,5 +149,7 @@ export function useProcurementFiles(
 
   const clearUploadError = useCallback(() => setUploadError(null), []);
 
-  return { list, upload, archive, download, progress, uploadError, cancelUpload, clearUploadError };
+  /** True until the org's destination is known: callers withhold the attach control rather than guess. */
+  const uploadDisabled = destination.kind === 'unknown';
+  return { list, upload, archive, download, progress, uploadError, cancelUpload, clearUploadError, uploadDisabled };
 }

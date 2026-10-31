@@ -123,22 +123,28 @@ test('AC-DOC-020/021/040/041: PM uploads, downloads, replaces, and previews a pr
   await replacementDrawer.getByRole('button', { name: 'Close preview' }).click();
   await expect(replacementDrawer).not.toBeVisible({ timeout: 10_000 });
 
-  // Move the document into its read state, then preview the previewable file in a new tab.
+  // Move the document into its read state, then preview the previewable file in the in-app viewer.
   await issueDocument(page, documentRow(page, title));
   const issuedRow = documentRow(page, title);
   await expect(issuedRow.getByText('Issued')).toBeVisible({ timeout: 15_000 });
   if (await dismissNotification.isVisible()) await dismissNotification.click();
 
   await waitForFonts(page);
-  const popupPromise = page.waitForEvent('popup');
+  const projectUrl = page.url();
   const previewButton = issuedRow.getByLabel(`Preview file for ${title}`);
   await previewButton.click();
-  expect(await previewButton.evaluate((button) => {
-    const rect = button.getBoundingClientRect();
-    const topElement = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-    return topElement !== null && button.contains(topElement);
-  })).toBe(true);
-  const previewPage = await popupPromise;
-  await expect.poll(() => previewPage.url(), { timeout: 15_000 }).toContain('/storage/v1/object/sign/project-documents/');
-  await previewPage.close();
+  // The side-panel viewer opens over the register (no popup, no navigation) and shows the uploaded image.
+  const viewer = page.getByRole('dialog', { name: title });
+  await expect(viewer).toBeVisible({ timeout: 15_000 });
+  const image = viewer.getByRole('img', { name: title });
+  await expect(image).toBeVisible({ timeout: 15_000 });
+  const src = await image.getAttribute('src');
+  expect(src).toContain('/storage/v1/object/sign/project-documents/');
+  const shown = await page.request.get(src!);
+  expect(shown.ok()).toBe(true);
+  expect(Buffer.from(await shown.body()).equals(PNG_BYTES)).toBe(true);
+  expect(page.url()).toBe(projectUrl);
+  expect(page.context().pages()).toHaveLength(1);
+  await viewer.getByRole('button', { name: 'Close' }).click();
+  await expect(viewer).not.toBeVisible();
 });
