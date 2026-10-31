@@ -180,7 +180,7 @@ Private-repo rule respected: RIS-portal-2 features are named, never quoted.
 | User admin, invites, per-user profile language | ✅ `/administration/users` (`AdminUsers.tsx`), `/settings/profile` (`ProfileSettings.tsx`) | ✅ | ✅ | ✅ | ✅ | |
 | View-only impersonation with banner | ✅ `ImpersonationProvider` + banner (App.tsx) | ❌ | ✅ dev impersonation | ✅ login-as | 🟡 dev-side sudo | |
 | Per-org feature entitlements | ✅ `org_features` + `pages/AdministrationFeatures.tsx` (FR-ENT-001) | ✅ plan tiers | ❌ | 🟡 module toggles | ✅ apps per edition | |
-| AI credits + usage metering per org/user | ✅ `pages/AdministrationCredits.tsx`/`Usage.tsx`, `src/lib/db/usage.ts` | — | — | — | — | Unique to PMO's agent tier |
+| AI credits + usage metering per org/user | ✅ `pages/AdministrationCredits.tsx`/`AdministrationUsage.tsx`, `src/lib/db/usage.ts` | — | — | — | — | Unique to PMO's agent tier |
 | Append-only record change history | ✅ `record-change-history.spec.md`, `recordChanges.ts` | ✅ Enterprise audit | 🟡 | ✅ versions | ✅ | |
 | Operator CLI (checks, starting data) | ✅ `pmo-cli.spec.md`, `client-starting-data-cli.spec.md`, OAuth consent route (`/oauth/consent`) | ❌ | ❌ | ✅ bench CLI | ✅ | Operator-grade, not just shell access |
 | Employees, site assignments, rotation roster | ❌ #1516 (T5) | 🟡 | ❌ | ✅ HR | ✅ HR | First payroll increment on the EPC route |
@@ -314,7 +314,7 @@ Cited rulings live in `docs/decisions.md` and the ADR set; this section is the s
 ## Sources
 
 - PMO: this worktree at `origin/dev` — `pmo-portal/App.tsx` route table, `pmo-portal/pages/**`, `pmo-portal/src/lib/db/**`, `supabase/migrations/` (0001–0407), `supabase/functions/`, `docs/specs/` (134 specs), `docs/decisions.md` (OD-*), `docs/roadmap-spines.md`, `docs/product-expectations.md`.
-- Baselines re-checked: `docs/reviews/2026-06-11-kanna-gap-analysis.md`, `docs/reviews/2026-07-22-competitive-refresh-ris-cicle.md`, `review/epc-gap-analysis.md`.
+- Baselines re-checked: `docs/reviews/2026-06-11-kanna-gap-analysis.md`, `docs/reviews/2026-07-22-competitive-refresh-ris-cicle.md`, and the June 2026 EPC contractor gap analysis (local review notes, not in the repo).
 - RIS-portal-2: local source inventory (feature names only; private repo respected).
 - ERPNext: `docs/adr/0048`, `docs/adr/0055`; local bench `apps/erpnext/erpnext/` module listing.
 - Odoo 20: `docs/research/2026-10-30-odoo20-native-coverage.md`, `docs/research/2026-10-30-odoo20-api.md`, `docs/plans/2026-10-30-epc-odoo-build-route.md`.
