@@ -5,6 +5,8 @@ import { uploadWithProgress, classifyUploadError } from '@/src/lib/uploadTranspo
 import { FILE_MIME_BY_EXT, MAX_FILE_SIZE_MB } from '@/src/lib/fileConstants';
 import type { ClassifiedUploadError } from '@/src/lib/uploadTransport';
 import { useAuth } from '@/src/auth/useAuth';
+import { UploadFailure, uploadRecordFile } from '@/src/lib/m365/uploadClient';
+import { useUploadFailureText } from '@/src/hooks/useUploadDestination';
 
 /**
  * File upload/replace mutations for the project-documents register.
@@ -20,6 +22,10 @@ function getExtension(filename: string): string {
 export interface UploadArgs {
   docId: string;
   file: File;
+  /** Where the file goes (`useUploadDestination`): private PMO storage (default) or the record's SharePoint folder. */
+  destination?: 'private' | 'microsoft';
+  /** The row's current private path: removed best-effort AFTER a SharePoint upload took its place. */
+  oldPath?: string | null;
 }
 
 export type ReplaceArgs = UploadArgs;
@@ -28,6 +34,7 @@ export function useFileUpload(projectId: string) {
   const qc = useQueryClient();
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
+  const failureText = useUploadFailureText();
   const invalidate = () =>
     qc.invalidateQueries({ queryKey: ['project-documents', orgId, projectId] });
 
@@ -58,7 +65,24 @@ export function useFileUpload(projectId: string) {
     delete abortRefs.current[docId];
   };
 
-  const uploadDocumentFile = async (docId: string, file: File, allowReplace: boolean) => {
+  /**
+   * SharePoint destination: custody stores the file, then ONE repository UPDATE attaches it. A failure at any step
+   * leaves the previous attachment exactly as it was and never falls back to private storage. The old private
+   * object goes only after the attach landed, and only best-effort.
+   */
+  const uploadToMicrosoft = async (docId: string, file: File, oldPath: string | null, signal: AbortSignal) => {
+    const reference = await uploadRecordFile({ kind: 'project_document', id: docId }, file, signal);
+    setProgress((prev) => ({ ...prev, [docId]: 100 }));
+    try {
+      await repositories.document.attachMicrosoftUpload(docId, reference);
+    } catch {
+      throw new UploadFailure('attach');
+    }
+    if (oldPath) repositories.document.cleanupObject(oldPath).catch(() => {});
+    return reference.item_id;
+  };
+
+  const uploadDocumentFile = async (docId: string, file: File, allowReplace: boolean, destination: 'private' | 'microsoft' = 'private', knownOldPath: string | null = null) => {
     setProgress((prev) => ({ ...prev, [docId]: 0 }));
     clearError(docId);
 
@@ -66,6 +90,7 @@ export function useFileUpload(projectId: string) {
     abortRefs.current[docId] = controller;
 
     try {
+      if (destination === 'microsoft') return await uploadToMicrosoft(docId, file, knownOldPath, controller.signal);
       const { signedUrl, path, oldPath } = await repositories.document.prepareUpload(docId, file.name);
       const ext = getExtension(file.name);
       const contentType = FILE_MIME_BY_EXT[ext] || file.type || 'application/octet-stream';
@@ -94,7 +119,11 @@ export function useFileUpload(projectId: string) {
   };
 
   const onError = (error: unknown, docId: string) => {
-    const classified = classifyUploadError(error, MAX_FILE_SIZE_MB);
+    const classified: ClassifiedUploadError = error instanceof UploadFailure
+      ? error.kind === 'cancelled'
+        ? { type: 'cancel', message: 'Upload cancelled' }
+        : { type: 'server', message: failureText(error.kind) }
+      : classifyUploadError(error, MAX_FILE_SIZE_MB);
     if (classified.type !== 'cancel') {
       setUploadErrors((prev) => ({ ...prev, [docId]: classified }));
     }
@@ -103,7 +132,7 @@ export function useFileUpload(projectId: string) {
   };
 
   const upload = useMutation({
-    mutationFn: async ({ docId, file }: UploadArgs) => uploadDocumentFile(docId, file, true),
+    mutationFn: async ({ docId, file, destination, oldPath }: UploadArgs) => uploadDocumentFile(docId, file, true, destination, oldPath),
     onSuccess: (_data, variables) => {
       invalidate();
       clearProgress(variables.docId);
@@ -114,7 +143,7 @@ export function useFileUpload(projectId: string) {
   });
 
   const replace = useMutation({
-    mutationFn: async ({ docId, file }: ReplaceArgs) => uploadDocumentFile(docId, file, true),
+    mutationFn: async ({ docId, file, destination, oldPath }: ReplaceArgs) => uploadDocumentFile(docId, file, true, destination, oldPath),
     onSuccess: (_data, variables) => {
       invalidate();
       clearProgress(variables.docId);

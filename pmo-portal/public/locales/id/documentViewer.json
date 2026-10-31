@@ -29,6 +29,7 @@
     "consentNeeded": "Mengunggah ke SharePoint memerlukan satu izin tambahan dari Microsoft. Hubungkan ulang, lalu unggah lagi. Tidak ada yang disimpan.",
     "accessDenied": "Microsoft menolak unggahan. Periksa akses Anda ke folder catatan. Tidak ada yang disimpan.",
     "unavailable": "Microsoft tidak dapat menyimpan berkas. Coba lagi. Tidak ada yang disimpan.",
-    "linkLater": "Berkas sudah ada di SharePoint tetapi tidak dapat dilampirkan di sini. Tautkan dari pemilih Microsoft."
+    "linkLater": "Berkas sudah ada di SharePoint tetapi tidak dapat dilampirkan di sini. Tautkan dari pemilih Microsoft.",
+    "entitlement": "Organisasi Anda belum diatur untuk dokumen Microsoft. Tidak ada yang disimpan."
   }
 }

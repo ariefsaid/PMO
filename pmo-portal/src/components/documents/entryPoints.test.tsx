@@ -11,6 +11,12 @@ import { DocumentViewerContext, type DocumentViewerApi } from './viewerContext';
 import type { DocumentViewTarget } from './types';
 
 const h = vi.hoisted(() => ({ children: vi.fn() }));
+const destinationState = vi.hoisted(() => ({ value: { kind: 'private' } as { kind: 'private' | 'microsoft' | 'unknown' } }));
+vi.mock('@/src/hooks/useUploadDestination', async (orig) => ({
+  ...(await orig<typeof import('@/src/hooks/useUploadDestination')>()),
+  useUploadDestination: () => destinationState.value,
+}));
+
 vi.mock('@/src/lib/m365/graphClient', () => ({
   listChildren: (...a: unknown[]) => h.children(...a),
   getItem: vi.fn(), listVersions: vi.fn(),

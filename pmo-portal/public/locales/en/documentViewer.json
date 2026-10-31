@@ -29,6 +29,7 @@
     "consentNeeded": "Uploading to SharePoint needs one more permission from Microsoft. Reconnect, then upload again. Nothing was saved.",
     "accessDenied": "Microsoft refused the upload. Check your access to the record folder. Nothing was saved.",
     "unavailable": "Microsoft could not store the file. Try again. Nothing was saved.",
-    "linkLater": "The file is in SharePoint but could not be attached here. Link it from the Microsoft picker."
+    "linkLater": "The file is in SharePoint but could not be attached here. Link it from the Microsoft picker.",
+    "entitlement": "Your organisation isn't set up for Microsoft documents. Nothing was saved."
   }
 }

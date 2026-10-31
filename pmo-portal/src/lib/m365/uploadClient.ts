@@ -19,6 +19,7 @@ export type UploadFailureKind =
   | 'connection' // no usable Microsoft connection
   | 'access' // Microsoft refused the caller on the folder
   | 'entitlement' // the organisation is not entitled to Microsoft documents
+  | 'attach' // the file reached SharePoint but the PMO row refused it (raised by the caller, never by the client)
   | 'cancelled'
   | 'unavailable';
 

@@ -52,6 +52,12 @@ const { listState, childDocs, mutations, fileUploadState, revisionState, reposit
   },
 }));
 
+const destinationState = vi.hoisted(() => ({ value: { kind: 'private' } as { kind: 'private' | 'microsoft' | 'unknown' } }));
+vi.mock('@/src/hooks/useUploadDestination', async (orig) => ({
+  ...(await orig<typeof import('@/src/hooks/useUploadDestination')>()),
+  useUploadDestination: () => destinationState.value,
+}));
+
 vi.mock('@/src/hooks/useDocuments', () => ({
   useDocuments: () => listState,
   useDocumentMutations: () => mutations,
@@ -173,6 +179,7 @@ const renderTab = (role: Role = 'Admin', uid = 'admin-1', initialEntry = '/', sh
 };
 
 beforeEach(() => {
+  destinationState.value = { kind: 'private' };
   listState.data = seed;
   listState.isPending = false;
   listState.isError = false;
@@ -772,7 +779,25 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
     await userEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Upload file for Site Plan/i }));
     await userEvent.upload(fileInput, file);
-    expect(fileUploadState.upload.mutate).toHaveBeenCalledWith({ docId: 'd1', file });
+    expect(fileUploadState.upload.mutate).toHaveBeenCalledWith({ docId: 'd1', file, destination: 'private', oldPath: null });
+  });
+
+  it('document-preview AC-009: a connected organisation sends the upload to SharePoint; the replace carries the old private path', async () => {
+    destinationState.value = { kind: 'microsoft' };
+    listState.data = seed.map((doc) => doc.id === 'd1' ? { ...doc, file_path: 'org-1/p1/d1/site-plan.pdf' } : doc);
+    renderTab('Admin', 'admin-1');
+    const file = new File(['x'], 'drawing.pdf', { type: 'application/pdf' });
+    await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
+    await userEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Replace file for Site Plan/i }));
+    await userEvent.upload(screen.getByTestId('file-input') as HTMLInputElement, file);
+    expect(fileUploadState.replace.mutate).toHaveBeenCalledWith({ docId: 'd1', file, destination: 'microsoft', oldPath: 'org-1/p1/d1/site-plan.pdf' });
+  });
+
+  it('document-preview AC-008: while the destination is unknown no Upload or Replace is offered', async () => {
+    destinationState.value = { kind: 'unknown' };
+    renderTab('Admin', 'admin-1');
+    await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
+    expect(within(screen.getByRole('complementary')).queryByRole('button', { name: /Upload file for Site Plan|Replace file for Site Plan/i })).toBeNull();
   });
 
   it('AC-DOC-021: selecting a valid file from Replace dispatches the replace mutation', async () => {
@@ -784,7 +809,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     await userEvent.click(screen.getByRole('button', { name: 'View Site Plan' }));
     await userEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Replace file for Site Plan/i }));
     await userEvent.upload(fileInput, file);
-    expect(fileUploadState.replace.mutate).toHaveBeenCalledWith({ docId: 'd1', file });
+    expect(fileUploadState.replace.mutate).toHaveBeenCalledWith({ docId: 'd1', file, destination: 'private', oldPath: 'org-1/p1/d1/site-plan.pdf' });
   });
 
   it('AC-DOC-040: download affordances generate a signed URL in the preview', async () => {

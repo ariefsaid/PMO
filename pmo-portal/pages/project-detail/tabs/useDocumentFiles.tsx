@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useToast } from '@/src/components/ui';
 import { FileCell } from '@/src/components/FileCell';
 import { useFileUpload } from '@/src/hooks/useFileUpload';
+import { useUploadDestination } from '@/src/hooks/useUploadDestination';
 import { validateFile } from '@/src/lib/validateFile';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -16,6 +17,7 @@ export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], c
   const { t } = useTranslation('project');
   const { toast } = useToast();
   const viewer = useViewerOnDemand();
+  const destination = useUploadDestination();
   const { upload, replace, progress, uploadErrors, cancelUpload, clearUploadError } = useFileUpload(projectId);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeFileDoc, setActiveFileDoc] = useState<{ docId: string; mode: 'upload' | 'replace' } | null>(null);
@@ -57,10 +59,13 @@ export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], c
       return;
     }
 
+    // `unknown` never reaches here: the affordances are withheld until the destination is known.
+    const where = destination.kind === 'microsoft' ? 'microsoft' : 'private';
+    const args = { docId: activeFileDoc.docId, file, destination: where, oldPath: target.file_path } as const;
     if (activeFileDoc.mode === 'upload') {
-      upload.mutate({ docId: activeFileDoc.docId, file });
+      upload.mutate(args);
     } else {
-      replace.mutate({ docId: activeFileDoc.docId, file });
+      replace.mutate(args);
     }
 
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -69,7 +74,7 @@ export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], c
 
   const handleUploadClick = (docId: string) => {
     const doc = all.find((item) => item.id === docId);
-    if (!doc || doc.status !== 'Draft' || !canEditDoc(doc)) return;
+    if (!doc || doc.status !== 'Draft' || !canEditDoc(doc) || destination.kind === 'unknown') return;
     clearAnyUploadError(docId);
     setActiveFileDoc({ docId, mode: 'upload' });
     fileInputRef.current?.click();
@@ -77,7 +82,7 @@ export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], c
 
   const handleReplaceClick = (docId: string) => {
     const doc = all.find((item) => item.id === docId);
-    if (!doc || doc.status !== 'Draft' || !canEditDoc(doc)) return;
+    if (!doc || doc.status !== 'Draft' || !canEditDoc(doc) || destination.kind === 'unknown') return;
     clearAnyUploadError(docId);
     setActiveFileDoc({ docId, mode: 'replace' });
     fileInputRef.current?.click();
@@ -137,8 +142,8 @@ export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], c
         title={doc.title}
         uploadProgress={progress[doc.id] ?? null}
         uploadError={clientUploadErrors[doc.id] ?? uploadErrors[doc.id]?.message ?? null}
-        onUpload={doc.status === 'Draft' && canEditDoc(doc) ? () => handleUploadClick(doc.id) : undefined}
-        onReplace={doc.status === 'Draft' && canEditDoc(doc) ? () => handleReplaceClick(doc.id) : undefined}
+        onUpload={doc.status === 'Draft' && canEditDoc(doc) && destination.kind !== 'unknown' ? () => handleUploadClick(doc.id) : undefined}
+        onReplace={doc.status === 'Draft' && canEditDoc(doc) && destination.kind !== 'unknown' ? () => handleReplaceClick(doc.id) : undefined}
         onCancelUpload={progress[doc.id] != null ? () => cancelUpload(doc.id) : undefined}
         onRemoveError={clientUploadErrors[doc.id] || uploadErrors[doc.id] ? () => clearAnyUploadError(doc.id) : undefined}
         onDownload={doc.file_path ? () => void handleDownload(doc) : undefined}
