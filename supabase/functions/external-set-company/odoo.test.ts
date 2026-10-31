@@ -26,13 +26,14 @@ const one = (body: unknown) => jsonResponse(body, { headers: { 'content-type': '
 const none = () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } });
 const pgError = (message: string) => jsonResponse({ code: 'P0001', message, details: null, hint: null }, { status: 400 });
 
-interface Opts { role?: string; operator?: boolean; active?: boolean; activate?: () => Response; binding?: Record<string, unknown>; version?: number | null; prepare?: (fake: FakeOdoo) => void }
+interface Opts { role?: string; operator?: boolean; active?: boolean; activate?: () => Response; binding?: Record<string, unknown>; version?: number | null; prepare?: (fake: FakeOdoo) => void; extra?: MockRoute[] }
 function setup(o: Opts = {}) {
   const fake = createFakeOdoo({ key: KEY });
   fake.seed('res.company', [{ id: 1, name: 'Main Co' }, { id: 2, name: 'Second Co' }]);
   fake.seed('account.tax', [{ id: 1, name: '12%', amount: 12, type_tax_use: 'purchase' }]);
   o.prepare?.(fake);
   const routes: MockRoute[] = [
+    ...(o.extra ?? []),
     supabaseSelect('profiles', () => one({ org_id: 'org-1', role: o.role ?? 'Admin' })),
     supabaseSelect('platform_operators', () => (o.operator ? one({ user_id: 'user-1' }) : none())),
     supabaseRpc('actor_authorization_state', () => jsonResponse({ active: o.active ?? true })),
@@ -263,4 +264,90 @@ describe('external-set-company — Odoo recheck (FR-ODC-020, FR-ODC-031)', () =>
     const r = await call({ setupAction: 'recheck' }, { role: 'Engineer', operator: true, binding: ACTIVATED });
     assertEquals(r.res.status, 200);
   });
+});
+
+describe('external-set-company — Odoo refresh and reset-kind (FR-ODC-047, FR-ODC-048)', () => {
+  const ACTIVATED = { site_url: `https://${ODOO}`, secret_ref: 'odoo_ref', status: 'active', activated_at: '2026-11-01T00:00:00Z',
+    config: { database: 'db1', odoo_company_id: 1, capabilities: { observed_at: new Date().toISOString(), missing: [], models: {} } } };
+  const window = () => {
+    let hits = 0;
+    return supabaseRpc('rate_limit_hit', () => jsonResponse(++hits <= 1));
+  };
+  const sweepRoutes = (): MockRoute[] => [
+    window(),
+    supabaseRpc('claim_erp_sweep_lock', () => jsonResponse(true)),
+    supabaseRpc('release_erp_sweep_lock', () => jsonResponse(true)),
+    supabaseSelect('external_sync_watermarks', () => jsonResponse([])),
+    supabaseRpc('apply_odoo_master_page', () => jsonResponse(0)),
+    supabaseRpc('mark_odoo_census_seen', () => jsonResponse(null)),
+    supabaseRpc('finish_odoo_census', () => jsonResponse(0)),
+    supabaseRpc('reset_odoo_sync_kind', () => jsonResponse(null)),
+  ];
+  const run = async (bodies: Record<string, unknown>[], o: Opts) => {
+    const { routes } = setup({ binding: ACTIVATED, ...o, extra: o.extra ?? sweepRoutes() });
+    return await withFetchMock(routes, async ({ calls }) => {
+      const out = [];
+      for (const b of bodies) {
+        const res = await handleSetCompanyRequest(createAuthedRequest('http://edge.test/set-company', { tier: 'odoo', ...b }, await auth.mintJwt({ sub: 'user-1' })));
+        out.push({ status: res.status, json: await res.json() as Record<string, unknown> });
+      }
+      return { out, calls };
+    });
+  };
+
+  it('AC-ODC-025 Finance refresh → one rate-limit hit keyed to the org, then the sweep runs; a second within the minute → 429', async () => {
+    const r = await run([{ setupAction: 'refresh' }, { setupAction: 'refresh' }], { role: 'Finance' });
+    assertEquals(r.out[0].status, 200);
+    assertEquals(r.out[0].json.ok, true);
+    assertEquals(rpcCall(r.calls, 'rate_limit_hit')[0].bodyJson, { p_key: 'odoo-refresh:org-1', p_limit: 1, p_window_secs: 60 });
+    assertEquals(rpcCall(r.calls, 'claim_erp_sweep_lock').length, 1);
+    assertEquals([r.out[1].status, r.out[1].json.retryAfterSeconds], [429, 60]);
+  });
+
+  it('FR-ODC-047 an Admin may refresh', async () => {
+    const r = await run([{ setupAction: 'refresh' }], { role: 'Admin' });
+    assertEquals(r.out[0].status, 200);
+  });
+
+  for (const role of ['Engineer', 'Project Manager', 'Executive']) {
+    it(`FR-ODC-047 a ${role} cannot refresh → 403, no sweep`, async () => {
+      const r = await run([{ setupAction: 'refresh' }], { role });
+      assertEquals(r.out[0].status, 403);
+      assertEquals(rpcCall(r.calls, 'claim_erp_sweep_lock').length, 0);
+    });
+  }
+
+  it('FR-ODC-047 refresh is for the org\'s Admin or Finance, not a platform operator', async () => {
+    const r = await run([{ setupAction: 'refresh' }], { role: 'Engineer', operator: true });
+    assertEquals(r.out[0].status, 403);
+  });
+
+  it('FR-ODC-048 an Admin reset-kind → reset_odoo_sync_kind for the caller\'s org, kind and actor', async () => {
+    const r = await run([{ setupAction: 'reset-kind', kind: 'product' }], { role: 'Admin' });
+    assertEquals([r.out[0].status, r.out[0].json], [200, { reset: 'product' }]);
+    assertEquals(rpcCall(r.calls, 'reset_odoo_sync_kind')[0].bodyJson, { p_org_id: 'org-1', p_kind: 'product', p_actor_id: 'user-1' });
+  });
+
+  it('FR-ODC-048 an unknown kind → 400, nothing reset', async () => {
+    for (const kind of ['bogus', undefined, 7]) {
+      const r = await run([{ setupAction: 'reset-kind', kind }], { role: 'Admin' });
+      assertEquals(r.out[0].status, 400);
+      assertEquals(rpcCall(r.calls, 'reset_odoo_sync_kind').length, 0);
+    }
+  });
+
+  it('FR-ODC-048 a platform operator may reset; the database refusing → 403', async () => {
+    const ok = await run([{ setupAction: 'reset-kind', kind: 'uom' }], { role: 'Engineer', operator: true });
+    assertEquals(ok.out[0].status, 200);
+    const refused = await run([{ setupAction: 'reset-kind', kind: 'uom' }], { role: 'Admin', extra: [supabaseRpc('reset_odoo_sync_kind', () => jsonResponse({ code: '42501', message: 'x' }, { status: 403 }))] });
+    assertEquals(refused.out[0].status, 403);
+  });
+
+  for (const role of ['Finance', 'Engineer', 'Project Manager', 'Executive']) {
+    it(`AC-ODC-026 a ${role} cannot reset a kind → 403, nothing reset`, async () => {
+      const r = await run([{ setupAction: 'reset-kind', kind: 'product' }], { role });
+      assertEquals(r.out[0].status, 403);
+      assertEquals(rpcCall(r.calls, 'reset_odoo_sync_kind').length, 0);
+    });
+  }
 });
