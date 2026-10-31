@@ -5,7 +5,7 @@
  * no network calls. All date math via UTC midnight to avoid DST drift (same as sCurve.ts
  * `daysBetween`). Local-date parsing via `parseLocalDate` from monthMatrix (D7).
  */
-import { parseISO } from 'date-fns';
+import { parseISO } from 'date-fns/parseISO';
 import { parseLocalDate, toIso } from '@/src/lib/calendar/monthMatrix';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
