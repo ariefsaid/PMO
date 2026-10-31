@@ -99,10 +99,10 @@ export async function runKind(spec: KindSpec, raw: string, d: KindRunDeps): Prom
 
   let key = overlapStart({ w: c.w, id: c.id });
   while (d.budget.spend()) {
-    const page = (await d.read(keysetDomain(key), 'write_date asc, id asc', size)) as Key[];
+    const page = (await d.read(keysetDomain(key), 'write_date asc, id asc', size)) as { id: number; write_date: string }[];
     const last = page.at(-1);
     if (last) {
-      key = { w: last.write_date as string, id: last.id };
+      key = { w: last.write_date, id: last.id };
       // The overlap re-reads older rows; the stored cursor never moves backwards.
       if (after(key, { w: c.w!, id: c.id })) c = { ...c, ...key };
       await apply(page);
