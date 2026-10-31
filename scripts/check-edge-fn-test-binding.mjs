@@ -25,6 +25,7 @@ const repoPath = (file) => resolve(REPO, file);
 /** test file -> the shipped handler symbol it must import from ./index.ts */
 const REQUIRED = {
   'supabase/functions/external-connect/connect.test.ts': 'handleConnectRequest',
+  'supabase/functions/external-connect/connect.odoo.test.ts': 'handleConnectRequest',
   'supabase/functions/external-companies/companies.test.ts': 'handleCompaniesRequest',
   'supabase/functions/external-items/items.test.ts': 'handleItemsRequest',
   'supabase/functions/external-invoice-pdf/invoice-pdf.test.ts': 'handleInvoicePdfRequest',
