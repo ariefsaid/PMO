@@ -2,7 +2,9 @@
 // actual exported builder/allowlist; mocks only globalThis.fetch. It is a target of
 // scripts/m365-preview-upload-mutation.mjs: break the allowlist or an authorization step and it MUST go red.
 import { assert, assertEquals, assertFalse, assertThrows } from "@std/assert";
-import { makeScenarioRunner } from "./recordFolderTestKit.ts";
+import { graphCalls, graphError, graphSummary, gpost, makeScenarioRunner, newWorld, READ_SCOPES } from "./recordFolderTestKit.ts";
+import { jsonResponse } from "../_shared/testing/edgeTestKit.ts";
+import { openCallerDocumentPreview, type DocumentPreviewAccess } from "./graphRead.ts";
 import { ERROR_STATUS } from "./types.ts";
 import { buildPreviewRequest, previewAllowed, readPreviewGetUrl } from "./graphPreview.ts";
 
@@ -71,4 +73,66 @@ Deno.test("document-preview AC-003 preview error vocabulary maps to its statuses
   assertEquals(ERROR_STATUS.SOURCE_NOT_FOUND, 404);
   assertEquals(ERROR_STATUS.PREVIEW_UNSUPPORTED, 422);
   assertEquals(ERROR_STATUS.RECORD_FOLDER_UNAVAILABLE, 409);
+});
+
+const PREVIEW_PATH = "/drives/synthetic-drive/items/synthetic-item/preview";
+const EMBED = "https://synthetic.sharepoint.com/sites/x/_layouts/15/embed.aspx?a=b";
+
+async function previewOutcome(route: Parameters<typeof gpost>[1], over: Parameters<typeof newWorld>[0] = {}) {
+  return await run(newWorld({ graph: [gpost(PREVIEW_PATH, route)], ...over }), async (sc) => {
+    const access = await openCallerDocumentPreview(sc.deps);
+    assert("previewItem" in access);
+    return { outcome: await (access as DocumentPreviewAccess).previewItem("synthetic-drive", "synthetic-item"), calls: sc.calls };
+  });
+}
+
+Deno.test("document-preview AC-003 preview transport", async (t) => {
+  await t.step("sends exactly one bearer POST with an empty body", async () => {
+    const { outcome, calls } = await previewOutcome(() => jsonResponse({ getUrl: EMBED }));
+    assertEquals(outcome, { kind: "ok", url: EMBED });
+    assertEquals(graphSummary(calls), [`POST ${PREVIEW_PATH}`]);
+    const call = graphCalls(calls)[0]!;
+    assertEquals(call.headers.get("authorization"), "Bearer synthetic-access-token");
+    assertEquals(call.bodyJson, {});
+    assertEquals(call.redirect, "error");
+  });
+
+  await t.step("a connection without a Files read grant is refused before any refresh or Graph call", async () => {
+    const world = newWorld({ scopes: ["offline_access"], accessExpired: true, graph: [] });
+    const { calls, result } = await run(world, async (sc) => ({ result: await openCallerDocumentPreview(sc.deps), calls: sc.calls }));
+    assertEquals((result as { status: number }).status, 403);
+    assertEquals((result as { body: { error: string } }).body.error, "SCOPE_INSUFFICIENT");
+    assertEquals(graphCalls(calls).length, 0);
+    assertEquals(calls.filter((c) => c.url.host === "login.microsoftonline.com").length, 0);
+  });
+
+  await t.step("the Files read grant alone is enough (no write grant)", async () => {
+    const { outcome } = await previewOutcome(() => jsonResponse({ getUrl: EMBED }), { scopes: READ_SCOPES });
+    assertEquals(outcome.kind, "ok");
+  });
+
+  const cases: Array<[string, () => Response, string]> = [
+    ["403", () => graphError(403, "accessDenied"), "forbidden"],
+    ["404 itemNotFound", () => graphError(404, "itemNotFound"), "not_found"],
+    ["400 notSupported", () => graphError(400, "notSupported"), "unsupported"],
+    ["415", () => graphError(415, "unsupportedMediaType"), "unsupported"],
+    ["200 without getUrl (postUrl only)", () => jsonResponse({ postUrl: EMBED }), "unsupported"],
+    ["200 with a non-Microsoft host", () => jsonResponse({ getUrl: "https://evil.example/e" }), "unavailable"],
+    ["200 with a non-https url", () => jsonResponse({ getUrl: "http://synthetic.sharepoint.com/e" }), "unavailable"],
+    ["500", () => graphError(500, "generalException"), "unavailable"],
+    ["401", () => graphError(401, "InvalidAuthenticationToken"), "unavailable"],
+  ];
+  for (const [label, respond, kind] of cases) {
+    await t.step(`${label} -> ${kind}`, async () => {
+      const { outcome } = await previewOutcome(respond);
+      assertEquals(outcome.kind, kind);
+    });
+  }
+
+  await t.step("429 / 503 carry a capped Retry-After", async () => {
+    for (const status of [429, 503]) {
+      const { outcome } = await previewOutcome(() => graphError(status, "tooManyRequests", { "Retry-After": "120" }));
+      assertEquals(outcome, { kind: "unavailable", retryAfter: 30 });
+    }
+  });
 });

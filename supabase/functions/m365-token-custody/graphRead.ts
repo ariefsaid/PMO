@@ -25,6 +25,8 @@ import {
   validFolderWriteName,
 } from "./graphFolderWrite.ts";
 import type { GraphBudget } from "./folderBudget.ts";
+import { buildPreviewRequest, previewAllowed, readPreviewGetUrl } from "./graphPreview.ts";
+import { validPreviewEmbedUrl } from "../_shared/microsoftDocumentPreview.ts";
 
 const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 30_000;
@@ -196,6 +198,58 @@ export async function openCallerRecordFolderAccess(
   return ensure;
 }
 
+export type PreviewOutcome =
+  | { kind: "ok"; url: string }
+  | { kind: "forbidden" }
+  | { kind: "not_found" }
+  | { kind: "unsupported" }
+  | { kind: "unavailable"; result?: HandlerResult; retryAfter?: number };
+
+/** Read capability plus exactly one preview call. No write method, credential getter or generic request exists on it. */
+export interface DocumentPreviewAccess {
+  /** Scope-checked GET of ONE item's metadata (used only to prove a folder child's parent). */
+  readItem(driveId: string, itemId: string): Promise<HandlerResult>;
+  previewItem(driveId: string, itemId: string): Promise<PreviewOutcome>;
+}
+
+const FILES_READ_SCOPES = new Set(["Files.Read", "Files.ReadWrite", "Files.Read.All", "Files.ReadWrite.All"]);
+const PREVIEW_TIMEOUT_MS = 8_000;
+
+/**
+ * Open the caller's own connection for `preview_document`. The Files read grant every connection already
+ * holds is required BEFORE any token refresh or Graph call; no new consent is ever asked for.
+ */
+export async function openCallerDocumentPreview(
+  deps: HandlerDeps,
+): Promise<DocumentPreviewAccess | HandlerResult> {
+  const own = await openOwnConnection(
+    deps,
+    undefined,
+    (scopes) => scopes.some((scope) => FILES_READ_SCOPES.has(scope)),
+    undefined,
+    "previewing a file requires additional consent",
+  );
+  if (!("connection" in own)) return own;
+  const limited = await microsoftReadQuota(deps);
+  if (limited) return limited;
+  return {
+    readItem: (driveId, itemId) => {
+      if (!safeGraphId(driveId) || !safeGraphId(itemId)) {
+        return Promise.resolve({
+          status: 400,
+          body: { error: "BAD_REQUEST", message: "method and path must be valid Graph requests" },
+          headers: GRAPH_HEADERS,
+        });
+      }
+      return own.get({
+        path: `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(itemId)}`,
+        query: { "$select": FOLDER_ITEM_SELECT },
+      }, { timeoutMs: PREVIEW_TIMEOUT_MS, redact: true });
+    },
+    previewItem: (driveId, itemId) => own.previewItem(driveId, itemId, PREVIEW_TIMEOUT_MS),
+  };
+}
+
 interface OwnConnection {
   connection: ConnectionRow;
   get(
@@ -214,6 +268,11 @@ interface OwnConnection {
     name: string,
     timeoutMs: number,
   ): Promise<FolderOutcome>;
+  previewItem(
+    driveId: string,
+    itemId: string,
+    timeoutMs: number,
+  ): Promise<PreviewOutcome>;
 }
 
 const FOLDER_ITEM_SELECT = "id,name,webUrl,parentReference,file,folder";
@@ -223,6 +282,7 @@ async function openOwnConnection(
   beforeConnection?: () => HandlerResult | null,
   requireScope?: (scopes: string[]) => boolean,
   deadline?: GraphBudget,
+  scopeMessage = "folder creation requires additional consent",
 ): Promise<OwnConnection | HandlerResult> {
   const resolved = await resolveOrgOrResult(deps);
   if (typeof resolved !== "string") return resolved;
@@ -267,10 +327,7 @@ async function openOwnConnection(
   if (requireScope && !requireScope(connection.scopes ?? [])) {
     return {
       status: 403,
-      body: {
-        error: "SCOPE_INSUFFICIENT",
-        message: "folder creation requires additional consent",
-      },
+      body: { error: "SCOPE_INSUFFICIENT", message: scopeMessage },
       headers: GRAPH_HEADERS,
     };
   }
@@ -491,7 +548,86 @@ async function openOwnConnection(
     );
   };
 
-  return { connection, get, batch, readFolder, createFolder };
+  const previewItem = async (
+    driveId: string,
+    itemId: string,
+    timeoutMs: number,
+  ): Promise<PreviewOutcome> => {
+    const context = { driveId, itemId };
+    let request: ReturnType<typeof buildPreviewRequest>;
+    try {
+      request = buildPreviewRequest(context);
+    } catch {
+      return { kind: "unavailable" };
+    }
+    const bearer = await token();
+    if (typeof bearer !== "string") return { kind: "unavailable", result: bearer };
+    // A refresh can change the stored scopes; the read grant is re-checked on the refreshed set.
+    if (requireScope && !requireScope(connection.scopes ?? [])) {
+      return { kind: "unavailable", result: {
+        status: 403, body: { error: "SCOPE_INSUFFICIENT", message: scopeMessage }, headers: GRAPH_HEADERS,
+      } };
+    }
+    const url = graphUrl(request.path);
+    if (!url) return { kind: "unavailable" };
+    // The exact allowlist runs IMMEDIATELY before the only preview call in custody.
+    if (!previewAllowed(request, context)) return { kind: "unavailable" };
+    return await sendPreviewRequest(url, bearer, deps, connection, resolved, timeoutMs);
+  };
+
+  return { connection, get, batch, readFolder, createFolder, previewItem };
+}
+
+/**
+ * Preview transport: one bounded POST `{}`, never retried. Only an embeddable Microsoft `getUrl` is an
+ * `ok`; the URL is a short-lived capability, so nothing here logs or stores it, the item id or the name:
+ * a failure logs `{status, connectionId}` only and upstream text is never returned.
+ */
+async function sendPreviewRequest(
+  url: URL,
+  accessToken: string,
+  deps: HandlerDeps,
+  connection: ConnectionRow,
+  orgId: string,
+  timeoutMs: number,
+): Promise<PreviewOutcome> {
+  let graphRes: Response;
+  let data: unknown;
+  try {
+    ({ response: graphRes, data } = await fetchMicrosoftJson(deps.fetch ?? fetch, url.toString(), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, ...GRAPH_HEADERS },
+      body: "{}",
+    }, timeoutMs));
+  } catch {
+    await recordM365Error(deps.serviceClient, { errorCode: "GRAPH_ERROR", contextId: connection.id, orgId });
+    return { kind: "unavailable" };
+  }
+  if (!graphRes.ok) {
+    let upstreamCode = "";
+    try {
+      upstreamCode = String((data as { error?: { code?: unknown } } | null)?.error?.code ?? "");
+    } catch { /* non-JSON upstream body */ }
+    if (graphRes.status === 403) return { kind: "forbidden" };
+    if (graphRes.status === 404) return { kind: "not_found" };
+    if (
+      graphRes.status === 415 ||
+      (graphRes.status === 400 && ["notSupported", "unsupportedMediaType"].includes(upstreamCode))
+    ) return { kind: "unsupported" };
+    const retryAfter = graphRes.status === 429 || graphRes.status === 503
+      ? retryAfterSeconds(graphRes.headers.get("Retry-After"))
+      : undefined;
+    console.error("[m365-token-custody] preview upstream failure", {
+      status: graphRes.status,
+      connectionId: connection.id,
+    });
+    await recordM365Error(deps.serviceClient, { errorCode: "GRAPH_ERROR", contextId: connection.id, orgId });
+    return retryAfter === undefined ? { kind: "unavailable" } : { kind: "unavailable", retryAfter };
+  }
+  if (graphRes.status !== 200) return { kind: "unavailable" };
+  const getUrl = readPreviewGetUrl(data);
+  if (getUrl === null) return { kind: "unsupported" };
+  return validPreviewEmbedUrl(getUrl) ? { kind: "ok", url: getUrl } : { kind: "unavailable" };
 }
 
 /**
