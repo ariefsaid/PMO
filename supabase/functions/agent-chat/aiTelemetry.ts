@@ -4,6 +4,7 @@ import {
   type AiAction, type AiLink, type AiMessage,
 } from '../_shared/posthogAi.ts';
 import type { ModelClient, ModelMessage } from '../_shared/modelClient.ts';
+import { serverTelemetryEnabled } from '../_shared/posthogServer.ts';
 import { evalSampled, isAllowedJudgeModel, runJudge } from './aiJudge.ts';
 
 /**
@@ -70,7 +71,8 @@ export function createAiRunTelemetry(ctx: AiRunContext): AiRunTelemetry {
 
   return {
     setOrg(o, supabase) {
-      if (orgId) return;
+      // No PostHog key (tests, local, unconfigured deploy): stay a no-op, no lookups and no judge spend.
+      if (orgId || !serverTelemetryEnabled()) return;
       orgId = o;
       ready = (async () => {
         try {

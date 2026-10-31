@@ -93,6 +93,12 @@ export function sanitizeServerProps(
   return out;
 }
 
+/** True only on the edge with a PostHog key configured: callers use it to skip work (lookups, judge calls) whose only output is an event nobody would receive. */
+export function serverTelemetryEnabled(): boolean {
+  const deno = (globalThis as { Deno?: { env: { get(k: string): string | undefined } } }).Deno;
+  return !!deno?.env.get('POSTHOG_PROJECT_KEY');
+}
+
 export interface EmitOptions { timeoutMs?: number; strict?: boolean; allowText?: boolean }
 
 type DenoLike = { env: { get(k: string): string | undefined } };

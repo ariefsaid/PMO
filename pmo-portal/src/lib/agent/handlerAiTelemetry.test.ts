@@ -24,8 +24,10 @@ async function runWith(o: Opts = {}) {
   const usageRows: Record<string, any>[] = [];
   const ph: Ph[] = [];
   const judgeCalls: unknown[] = [];
+  const tables: string[] = [];
   const supabase = {
     from: vi.fn().mockImplementation((table: string) => {
+      tables.push(table);
       if (table === 'profiles') return { select: () => ({ eq: () => ({ single: async () => ({ data: { org_id: 'org-1', role: 'Project Manager' }, error: null }) }) }) };
       if (table === 'organizations') {
         return { select: () => ({ limit: async () => (o.orgState === 'error' ? { data: null, error: { message: 'x' } } : { data: [{ lifecycle_state: o.orgState === undefined ? 'live' : o.orgState }], error: null }) }) };
@@ -58,7 +60,7 @@ async function runWith(o: Opts = {}) {
     usageAction: o.usageAction, now: () => new Date('2026-07-03T00:00:00Z'),
   })) events.push(e);
   for (let n = 0; n < 30; n++) await new Promise((r) => setTimeout(r, 0)); // let fire-and-forget emissions land
-  return { events, usageRows, ph, judgeCalls, create };
+  return { events, usageRows, ph, judgeCalls, create, tables };
 }
 afterEach(() => { delete (globalThis as { Deno?: unknown }).Deno; vi.unstubAllGlobals(); });
 
@@ -181,5 +183,14 @@ describe('AC-PHO-093 online eval verdicts', () => {
     const r = await runWith({ orgState: 'demo', judge: 'garbage' });
     expect(by(r, 'ai_eval')).toHaveLength(0);
     expect(r.events.at(-1)?.payload).toMatchObject({ status: 'completed' });
+  });
+});
+
+describe('no PostHog key => telemetry is a pure no-op', () => {
+  it('no organizations read, no judge call, even for a sampled run', async () => {
+    const r = await runWith({ posthog: 'absent', runId: SAMPLED });
+    expect(r.tables).not.toContain('organizations');
+    expect(r.judgeCalls).toHaveLength(0);
+    expect(r.create).toHaveBeenCalledTimes(1);
   });
 });

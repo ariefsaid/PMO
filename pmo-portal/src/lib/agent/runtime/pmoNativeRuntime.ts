@@ -33,6 +33,11 @@ export interface PmoNativeRuntimeOptions {
    * answered (catches a stale deploy). Fired only when the header is present.
    */
   onDeployVersion?: (version: string) => void;
+  /**
+   * #1532 S1: returns the analytics-consent flag to send with each turn (undefined while the user
+   * has not consented / has opted out). Read per request so an opt-out takes effect immediately.
+   */
+  getAnalytics?: () => AgentChatRequest['analytics'];
 }
 
 interface RunState {
@@ -290,6 +295,7 @@ export class PmoNativeRuntime implements AgentRuntime {
       const attachmentIds = state.attachmentIds;
       state.attachmentIds = undefined;
 
+      const analytics = this._opts.getAnalytics?.();
       const body: AgentChatRequest = {
         runId,
         ...(state.threadId ? { threadId: state.threadId } : {}),
@@ -300,6 +306,7 @@ export class PmoNativeRuntime implements AgentRuntime {
         ...(decision ? { decision } : {}),
         // ADR-0045 §2: include answer on re-POST if present
         ...(answer ? { answer } : {}),
+        ...(analytics ? { analytics } : {}),
       };
 
       const resp = await fetchImpl(this._opts.fnUrl, {
