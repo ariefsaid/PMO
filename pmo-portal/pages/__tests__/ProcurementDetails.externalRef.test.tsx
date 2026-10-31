@@ -218,7 +218,7 @@ const renderPage = (id = 'proc-w3') =>
   );
 
 
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 afterEach(() => clearOwnershipCache());
 
@@ -261,7 +261,7 @@ describe('AC-EXT-001: inline vendor-invoice capture (atomic capture_vendor_invoi
   });
 
   it('an ERP-owned org is not asked for it, and nothing is sent', async () => {
-    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
     await openInlineCapture();
     expect(screen.queryByTestId('vendor_invoice-group-ref-input')).not.toBeInTheDocument();
     await userEvent.click(screen.getByTestId('btn-submit-vi-capture'));
@@ -298,14 +298,14 @@ describe('AC-EXT-001: staged vendor-invoice capture is forwarded through the con
   });
 
   it('an ERP-owned org is not asked for it on the form either', async () => {
-    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
     renderPage();
     await recordFromMenu('Supplier invoice');
     expect(screen.queryByTestId('vendor_invoice-group-ref-input')).not.toBeInTheDocument();
   });
 
   it('AC-520-9 an ERP-owned org: the chosen ERPNext tax template reaches createInvoice after the confirm', async () => {
-    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
     renderPage();
     await recordFromMenu('Supplier invoice');
     await userEvent.selectOptions(screen.getByTestId('vi-tax-template-select'), 'Input VAT 11');
@@ -356,7 +356,7 @@ describe('AC-VWH-030 / AC-VWH-032 (#876 slice 2): vendor tax reaches the write',
   });
 
   it('AC-VWH-032 an ERP-owned org forwards the entered VAT and PPh as erpTaxAmounts, and no template', async () => {
-    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
     mockEffectiveRole = 'Finance';
     detailState.data = { ...vendorInvoicedProcurement, invoices: [] };
     renderPage();

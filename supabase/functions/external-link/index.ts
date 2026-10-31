@@ -554,13 +554,13 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
       p_org_id: profile.org_id,
       p_actor_id: userId,
       p_entity_id: bindingId,
-      p_detail: jsonbBuildObject({
+      p_detail: {
         tier: 'clickup',
         project_id: projectId,
         list_id: listId,
         direction,
         actor: userId,
-      }),
+      },
     });
     if (auditError) console.error('log_audit failed', auditError);
 
@@ -635,11 +635,11 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
       p_org_id: profile.org_id,
       p_actor_id: userId,
       p_entity_id: null,
-      p_detail: jsonbBuildObject({
+      p_detail: {
         tier: 'erpnext',
         company_id: companyId,
         actor: userId,
-      }),
+      },
     });
     if (auditError) console.error('log_audit failed', auditError);
 
@@ -647,11 +647,6 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
   }
 
   return errorResponse('Unknown tier', 'BAD_REQUEST', 400);
-}
-
-// Helper to build JSONB object (since we can't use Postgres jsonb_build_object directly)
-export function jsonbBuildObject(obj: Record<string, unknown>): Record<string, unknown> {
-  return obj;
 }
 
 // Export validation functions for testing

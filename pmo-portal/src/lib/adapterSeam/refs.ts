@@ -1,5 +1,11 @@
 import { AppError } from '../appError.ts';
-import type { ServiceRoleTableClient } from './watermarks.ts';
+
+/** Structural service-role table client seam (matches supabase-js): `.from(t).upsert(rows, {onConflict})`. */
+export interface ServiceRoleTableClient {
+  from(table: string): {
+    upsert(rows: unknown, options: { onConflict: string }): Promise<{ error: { message: string; code?: string } | null }>;
+  };
+}
 
 export interface ExternalRefRecord {
   orgId: string;

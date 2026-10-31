@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/src/lib/adapterSeam/dispatchClient', () => ({ dispatchDomainCommand: vi.fn() }));
-vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ clearOwnershipCache: vi.fn(), setDomainOwnership: vi.fn(), routeDomainWrite: vi.fn() }));
+vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ clearOwnershipCache: vi.fn(), setTaskOwnership: vi.fn(), routeDomainWrite: vi.fn() }));
 vi.mock('@/src/lib/db/progressBilling', () => ({
   listBoqItems: vi.fn(), createBoqItem: vi.fn(), updateBoqItem: vi.fn(), deleteBoqItem: vi.fn(),
   listProjectClaims: vi.fn(), createProgressClaim: vi.fn(), withdrawProgressClaim: vi.fn(), getProjectBilling: vi.fn(),
