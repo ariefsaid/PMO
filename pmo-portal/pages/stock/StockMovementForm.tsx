@@ -6,7 +6,8 @@ import {
 } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
-import { StockError, useStockErrorText } from '@/src/components/stock/StockError';
+import { StockError } from '@/src/components/stock/StockError';
+import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';

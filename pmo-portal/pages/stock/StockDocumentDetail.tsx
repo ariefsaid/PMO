@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, DataTable, ListState, PageHeader, StatusPill, useToast, type Column } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
-import { useStockErrorText } from '@/src/components/stock/StockError';
+import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
@@ -12,7 +12,7 @@ import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatQuantity, formatStockValue } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { formatInstantDate } from '@/src/lib/format';
-import { statusVariant } from './StockDocuments';
+import { statusVariant } from '@/src/components/stock/stockStatus';
 import type { StockDocumentLine } from '@/src/lib/db/stockDocuments';
 import type { StockLedgerRow } from '@/src/lib/db/stockReports';
 

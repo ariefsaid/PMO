@@ -807,3 +807,8 @@ export function formatList(items: readonly string[]): string {
   }
   return formatter.format(items);
 }
+
+/** Exact decimal STRING formatting (stock quantities and unit costs, #1512): the digits are never routed through a JS float. */
+export function formatDecimalString(value: string, locale: string, maxFractionDigits: number): string {
+  return numberFormatterFor(`dec${maxFractionDigits}`, locale, undefined, { maximumFractionDigits: maxFractionDigits }).format(value as unknown as number);
+}

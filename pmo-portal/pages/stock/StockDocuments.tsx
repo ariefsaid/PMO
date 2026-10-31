@@ -4,10 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { Button, DataTable, ListPage, ListState, SelectField, StatusPill, type Column } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { useStockDocuments } from '@/src/hooks/useStock';
-import { formatInstantDate } from '@/src/lib/format';
+import { statusVariant } from '@/src/components/stock/stockStatus';
 import type { StockDocumentKind, StockDocumentListRow, StockDocumentStatus } from '@/src/lib/db/stockDocuments';
 
-export const statusVariant = (s: string): 'won' | 'draft' | 'neutral' => (s === 'Posted' ? 'won' : s === 'Draft' ? 'draft' : 'neutral');
 const KINDS: StockDocumentKind[] = ['receive', 'transfer', 'issue', 'return', 'adjustment', 'count'];
 const STATUSES: StockDocumentStatus[] = ['Draft', 'Posted', 'Cancelled'];
 
