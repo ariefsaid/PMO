@@ -9,12 +9,16 @@ import {
   createAuthedRequest, createJwtAuthority, createTestJwksResolver, installEdgeEnv, jsonResponse, rpcCall,
   supabaseRpc, supabaseSelect, withFetchMock, type FetchCall, type MockRoute,
 } from '../_shared/testing/edgeTestKit.ts';
-import { createFakeOdoo } from '../../../pmo-portal/src/lib/adapterSeam/odoo/fakeOdoo.ts';
+import type { CapabilitySnapshot } from '../../../pmo-portal/src/lib/adapterSeam/odoo/discovery.ts';
+import type { ConnectionRecord } from '../../../pmo-portal/src/lib/adapterSeam/odoo/connectionState.ts';
+import { createFakeOdoo, type FakeOdoo } from '../../../pmo-portal/src/lib/adapterSeam/odoo/fakeOdoo.ts';
 
 const env = installEdgeEnv();
 const auth = await createJwtAuthority(env.SUPABASE_URL);
 setTestJwks(createTestJwksResolver(auth));
-afterAll(() => env.restore());
+// Unpaced: discovery's ~60 calls at 5 per second would make every case take seconds.
+Deno.env.set('ODOO_PACE_RPS', '100000');
+afterAll(() => { env.restore(); Deno.env.delete('ODOO_PACE_RPS'); });
 
 const ODOO = 'odoo.example.test';
 const KEY = 'stored-odoo-key';
@@ -22,10 +26,12 @@ const one = (body: unknown) => jsonResponse(body, { headers: { 'content-type': '
 const none = () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } });
 const pgError = (message: string) => jsonResponse({ code: 'P0001', message, details: null, hint: null }, { status: 400 });
 
-interface Opts { role?: string; operator?: boolean; active?: boolean; activate?: () => Response; binding?: Record<string, unknown> }
+interface Opts { role?: string; operator?: boolean; active?: boolean; activate?: () => Response; binding?: Record<string, unknown>; version?: number | null; prepare?: (fake: FakeOdoo) => void }
 function setup(o: Opts = {}) {
   const fake = createFakeOdoo({ key: KEY });
   fake.seed('res.company', [{ id: 1, name: 'Main Co' }, { id: 2, name: 'Second Co' }]);
+  fake.seed('account.tax', [{ id: 1, name: '12%', amount: 12, type_tax_use: 'purchase' }]);
+  o.prepare?.(fake);
   const routes: MockRoute[] = [
     supabaseSelect('profiles', () => one({ org_id: 'org-1', role: o.role ?? 'Admin' })),
     supabaseSelect('platform_operators', () => (o.operator ? one({ user_id: 'user-1' }) : none())),
@@ -36,7 +42,7 @@ function setup(o: Opts = {}) {
     { label: 'odoo-json2', host: ODOO, pathname: /^\/json\/2\//,
       response: (c: FetchCall) => fake.fetch(c.url.toString(), { method: 'POST', headers: { Authorization: c.headers.get('authorization') ?? '' }, body: c.bodyText }) },
     { label: 'odoo-version', host: ODOO, pathname: '/web/webclient/version_info',
-      response: () => jsonResponse({ result: { server_version_info: [20, 0, 0, 'final', 0, ''] } }) },
+      response: () => jsonResponse({ result: { server_version_info: [o.version === undefined ? 20 : o.version, 0, 0, 'final', 0, ''] } }) },
     supabaseRpc('activate_odoo_binding', () => (o.activate ? o.activate() : jsonResponse('2026-11-01T00:00:00+00:00'))),
   ];
   return { fake, routes };
@@ -90,8 +96,46 @@ describe('external-set-company — Odoo activate', () => {
     const r = await call({ companyId: 1 });
     assertEquals(r.res.status, 200);
     assertEquals(r.json, { ok: true, companyId: 1, versionMajor: 20, activatedAt: '2026-11-01T00:00:00+00:00' });
-    assertEquals(rpcCall(r.calls, 'activate_odoo_binding')[0].bodyJson, {
-      p_org_id: 'org-1', p_version_major: 20, p_company_id: 1, p_company_name: 'Main Co', p_config_patch: {}, p_actor_id: 'user-1' });
+    const args = rpcCall(r.calls, 'activate_odoo_binding')[0].bodyJson as Record<string, unknown>;
+    const { p_config_patch: patch, ...rest } = args;
+    assertEquals(rest, { p_org_id: 'org-1', p_version_major: 20, p_company_id: 1, p_company_name: 'Main Co', p_actor_id: 'user-1' });
+    const { capabilities, connection } = patch as { capabilities: CapabilitySnapshot; connection: ConnectionRecord };
+    assertEquals([capabilities.missing, capabilities.version_major, connection.state, connection.failures], [[], 20, 'healthy', 0]);
+    assertEquals(Object.keys(patch as object).sort(), ['capabilities', 'connection']);
+    assertEquals(JSON.stringify(args).includes(KEY), false);
+  });
+
+  it('FR-ODC-021 activation stores what is missing and a degraded state', async () => {
+    const r = await call({ companyId: 1 }, { prepare: (f) => f.dropModel('stock.location') });
+    assertEquals(r.res.status, 200);
+    const patch = (rpcCall(r.calls, 'activate_odoo_binding')[0].bodyJson as { p_config_patch: { capabilities: CapabilitySnapshot; connection: ConnectionRecord } }).p_config_patch;
+    assertEquals([patch.capabilities.missing, patch.connection.state, patch.connection.missing], [['stock.location'], 'degraded', ['stock.location']]);
+  });
+
+  it('FR-ODC-020 activation runs discovery without reading the installed-modules model', async () => {
+    const r = await call({ companyId: 1 });
+    assertEquals(r.fake.calls.some((c) => c.model === 'ir.module.module'), false);
+    assertEquals(r.fake.calls.some((c) => c.method === 'fields_get' && c.model === 'res.partner'), true);
+  });
+
+  for (const version of [19, null]) {
+    it(`AC-ODC-012 version ${version} at activation → 422 below-tested, no RPC`, async () => {
+      const r = await call({ companyId: 1 }, { version });
+      assertEquals([r.res.status, r.json.error], [422, 'below-tested']);
+      assertEquals(rpcCall(r.calls, 'activate_odoo_binding').length, 0);
+    });
+  }
+
+  it('FR-ODC-022 a version past the tested range activates with the untested notice', async () => {
+    const r = await call({ companyId: 1 }, { version: 21 });
+    assertEquals(r.res.status, 200);
+    assertEquals((rpcCall(r.calls, 'activate_odoo_binding')[0].bodyJson as { p_config_patch: { capabilities: CapabilitySnapshot } }).p_config_patch.capabilities.untested_version, true);
+  });
+
+  it('FR-ODC-020 discovery failing on the network → 502 with the class, no RPC', async () => {
+    const r = await call({ companyId: 1 }, { prepare: (f) => { const orig = f.fetch; let n = 0; f.fetch = (async (...a: Parameters<typeof fetch>) => (++n === 2 ? Promise.reject(new TypeError('connection reset')) : orig(...a))) as typeof fetch; } });
+    assertEquals([r.res.status, r.json.error], [502, 'unreachable']);
+    assertEquals(rpcCall(r.calls, 'activate_odoo_binding').length, 0);
   });
 
   it('AC-ODC-005 setupAction activate is the same verb', async () => {
