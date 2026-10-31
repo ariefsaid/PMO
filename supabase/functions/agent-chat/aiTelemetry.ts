@@ -42,7 +42,7 @@ export interface AiRunTelemetry {
 }
 
 export interface LifecycleLookup {
-  from(table: string): { select(cols: string): { limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }> } };
+  from(table: string): { select(cols: string): { eq(col: string, val: string): { limit(n: number): PromiseLike<{ data: unknown[] | null; error: unknown }> } } };
 }
 
 const MAX_CONTEXT_MESSAGES = 20;
@@ -67,7 +67,11 @@ export function createAiRunTelemetry(ctx: AiRunContext): AiRunTelemetry {
   const textOk = () => demo && consent;
   // ponytail: emission errors are swallowed on purpose (never alter the run); the emitters' own
   // strict mode already fails unit tests for an allowlist breach.
-  const later = (fn: () => Promise<unknown>) => { void ready.then(fn).then(() => undefined, () => undefined); };
+  // EdgeRuntime.waitUntil keeps the worker alive past the SSE close (the lookup + the up-to-15s judge run after it).
+  const later = (fn: () => Promise<unknown>) => {
+    const p = ready.then(fn).then(() => undefined, () => undefined);
+    (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime?.waitUntil?.(p);
+  };
 
   return {
     setOrg(o, supabase) {
@@ -76,7 +80,7 @@ export function createAiRunTelemetry(ctx: AiRunContext): AiRunTelemetry {
       orgId = o;
       ready = (async () => {
         try {
-          const { data, error } = await supabase.from('organizations').select('lifecycle_state').limit(1);
+          const { data, error } = await supabase.from('organizations').select('lifecycle_state').eq('id', orgId).limit(1);
           demo = !error && (data?.[0] as { lifecycle_state?: unknown } | undefined)?.lifecycle_state === 'demo';
         } catch { demo = false; }
       })();
@@ -130,12 +134,23 @@ export function createAiRunTelemetry(ctx: AiRunContext): AiRunTelemetry {
       if (status !== 'completed' || !isAllowedJudgeModel(ctx.model)) return;
       later(async () => {
         if (!answer || !question || !evalSampled(ctx.runId, demo)) return;
-        const verdict = await runJudge(ctx.modelClient, ctx.model, { question, answer, tools, catalog });
-        if (!verdict) return;
-        const base = { traceId: ctx.runId, sessionId: ctx.threadId ?? ctx.runId, judgeModel: ctx.model, orgId, action: ctx.action, link };
+        const t = Date.now();
+        const res = await runJudge(ctx.modelClient, ctx.model, { question, answer, tools, catalog });
+        if (!res) return;
+        const base = { traceId: ctx.runId, sessionId: ctx.threadId ?? ctx.runId, orgId, link };
+        const u: Partial<NonNullable<ModelResponse['usage']>> = res.usage ?? {};
+        // The judge's own spend (never text): lets the cost tiles match the provider bill.
+        await emitAiGeneration('agent-chat', {
+          ...base, spanId: crypto.randomUUID(), model: res.model,
+          inputTokens: clampUsageValue(u.prompt_tokens), outputTokens: clampUsageValue(u.completion_tokens),
+          costUsd: clampUsageValue(u.total_cost), latencySeconds: (Date.now() - t) / 1000,
+          isError: false, httpStatus: 200, action: 'eval',
+        });
+        if (!res.verdict) return;
+        const ev = { ...base, judgeModel: res.model, action: ctx.action };
         await Promise.all([
-          emitAiEval('agent-chat', { ...base, name: 'right_tool', pass: verdict.right_tool }),
-          emitAiEval('agent-chat', { ...base, name: 'answered_question', pass: verdict.answered_question }),
+          emitAiEval('agent-chat', { ...ev, name: 'right_tool', pass: res.verdict.right_tool }),
+          emitAiEval('agent-chat', { ...ev, name: 'answered_question', pass: res.verdict.answered_question }),
         ]);
       });
     },

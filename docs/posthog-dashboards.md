@@ -64,9 +64,11 @@ _Owned by slice S1 (#1532)._ Dashboard **[PMO] AI · Cost & Quality** (`scripts/
 | AI slowest tools (p95 seconds) | `$ai_span` p95 of `$ai_latency` |
 | AI runs per day, run errors per day (alert source), errors by code | `$ai_trace` |
 | AI feedback by rating | `agent_feedback_rated` by `rating` |
+| AI thumbs-down rate by model | SQL insight: `agent_feedback_rated` joined to the run's latest non-judge `$ai_generation` on `$ai_trace_id` |
+| AI judge (eval) cost per day | `$ai_generation` sum `$ai_total_cost_usd`, filter `action = eval` (the online-eval judge's own calls; also included in every cost tile above, so tiles match the provider bill) |
 | AI online-eval verdicts / failures by name | `ai_eval` by `eval_name`; failures filter `eval_pass = false` |
 
-**Known limitation (thumbs-down rate by model).** A cross-event join of `agent_feedback_rated.run_id` to `$ai_trace_id` is not expressible in a `TrendsQuery`, so ratings and generations-by-model sit side by side. For an ad-hoc join use a SQL insight: `SELECT g.properties.$ai_model, countIf(f.properties.rating = 'down') FROM events g JOIN events f ON f.properties.run_id = g.properties.$ai_trace_id WHERE g.event = '$ai_generation' AND f.event = 'agent_feedback_rated' GROUP BY 1`.
+**Thumbs-down rate by model** is a SQL insight (a cross-event join is not expressible in a `TrendsQuery`). The answering model is the run's latest non-judge generation, so a run that fell back to another model counts under the model that finally answered.
 
 **Owner click-paths (need the owner's PostHog login; not done from code):**
 
@@ -90,7 +92,8 @@ Alerts and destinations need the owner's PostHog account.
 2. **Missing run** (one per job): series `job_run`, add a filter `job = <job>`, interval hour (minute jobs: use the tile's finest interval). Condition: value **is less than 1**, check **every hour**. Window per job (3x its cadence): `erpnext-sweep` 5 min, `clickup-webhook-worker` 5 min, `clickup-sweep` 20 min, `agent-dispatch` 3 h, `telegram-notify` 3 h. Use the finest check interval the alert offers; if it cannot go below an hour, the minute jobs' absence is caught within that hour, which is acceptable.
 3. **Failed run**: tile `Jobs — failed runs by job`. Condition: value **is greater than 0**, check hourly.
 4. Destination: the operator channel configured for error alerts (same as S2). Subscribers only; no customer addresses.
-5. Do not create the `erpnext-sweep` missing-run alert on an environment without an ERP-bound org: that job reports `skipped` there, and an alert on absence of `ok` would never be satisfied.
+5. The missing-run alert counts every `job_run` of the job whatever its status, so a `skipped` or `failed` run satisfies it: an environment with no ERP-bound org (job reports `skipped`) stays quiet, and failures are the failed-run alert's job (step 3), not this one's.
+6. **Partial ERP org failure** (`erpnext-sweep` reports `failed` only when every bound org errors): on the same dashboard add an alert on `job_run` filtered `job = erpnext-sweep`, math sum of `org_error_count`, condition **is greater than 0**, check hourly. A single failing org then surfaces without a failed run.
 
 ## S4 Push outcomes
 

@@ -1,16 +1,11 @@
 // AC-PHO-020 (#1532 S3): the SHIPPED agent-dispatch handler emits one job_run per tick.
+import { assertEquals } from 'jsr:@std/assert@1';
 let served: ((req: Request) => Promise<Response>) | undefined;
 (Deno as unknown as { serve: (h: (req: Request) => Promise<Response>) => unknown }).serve = (h) => {
   served = h;
   return { finished: Promise.resolve() };
 };
-await import('./index.ts');
-
-function assertEquals(actual: unknown, expected: unknown): void {
-  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-    throw new Error(`Expected ${JSON.stringify(expected)}, received ${JSON.stringify(actual)}`);
-  }
-}
+const { summarizeAgentDispatch } = await import('./index.ts');
 
 const SECRET = 'synthetic-dispatch-secret';
 
@@ -46,11 +41,16 @@ Deno.test('AC-PHO-020 real handler: missing configuration emits one failed job_r
   assertEquals(events[0].properties.error_code, 'MISCONFIGURED');
 });
 
-Deno.test('AC-PHO-020 real handler: the flag-off no-op tick is still a run, status ok', async () => {
+Deno.test('AC-PHO-020 real handler: the flag-off no-op tick is a run reported as skipped, not ok', async () => {
   const { res, events } = await run({ AGENT_AUTOMATIONS: 'false' });
   assertEquals(res.status, 200);
   assertEquals(events.length, 1);
-  assertEquals(events[0].properties.status, 'ok');
+  assertEquals(events[0].properties.status, 'skipped');
+});
+
+Deno.test('summarizeAgentDispatch: a normal tick is ok with no count (the tick returns none); flag-off is skipped', () => {
+  assertEquals(summarizeAgentDispatch({ ok: true }), { items: 0 });
+  assertEquals(summarizeAgentDispatch({ ok: true, skipped: 'flag off' }), { items: 0, skipped: true });
 });
 
 Deno.test('AC-PHO-020 real handler: a wrong secret is not a run', async () => {

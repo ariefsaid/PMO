@@ -1,4 +1,4 @@
-import type { ModelClient } from '../_shared/modelClient.ts';
+import type { ModelClient, ModelUsage } from '../_shared/modelClient.ts';
 
 /**
  * Online-eval LLM judge (#1532 S1, owner scope). Runs in the edge function AFTER a run completes,
@@ -13,6 +13,8 @@ export interface JudgeInput {
   catalog: string[];
 }
 export interface JudgeVerdict { right_tool: boolean; answered_question: boolean }
+/** `verdict` is null when the reply was unusable or a barred model answered; `model`/`usage` are what was actually spent. */
+export interface JudgeResult { verdict: JudgeVerdict | null; model: string; usage?: ModelUsage }
 
 export const JUDGE_TIMEOUT_MS = 15_000;
 // ponytail: flat 1-in-4 for real orgs; the demo org is always judged. Tune when the daily cost tile says so.
@@ -40,7 +42,7 @@ export async function runJudge(
   model: string,
   input: JudgeInput,
   timeoutMs = JUDGE_TIMEOUT_MS,
-): Promise<JudgeVerdict | null> {
+): Promise<JudgeResult | null> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const user = [
@@ -50,15 +52,25 @@ export async function runJudge(
       `Final answer:\n${input.answer.slice(0, 3000)}`,
     ].join('\n\n');
     const resp = await Promise.race([
-      client.create({ model, max_tokens: 60, temperature: 0, messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: user }] }),
+      // noFallback: the judge is served by `model` or not at all; a configured fallback list could otherwise route it to a Claude model.
+      client.create({ model, max_tokens: 60, temperature: 0, noFallback: true, messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: user }] }),
       new Promise<never>((_, rej) => { timer = setTimeout(() => rej(new Error('judge timeout')), timeoutMs); }),
     ]);
-    const m = resp.message.content?.match(/\{[\s\S]*\}/);
-    if (!m) return null;
-    const v = JSON.parse(m[0]) as Partial<JudgeVerdict>;
-    return typeof v.right_tool === 'boolean' && typeof v.answered_question === 'boolean'
-      ? { right_tool: v.right_tool, answered_question: v.answered_question }
-      : null;
+    const spent = { model: resp.model, usage: resp.usage };
+    // Defence in depth: whoever answered, a barred model's verdict is discarded (its spend is still reported).
+    if (!isAllowedJudgeModel(resp.model)) return { verdict: null, ...spent };
+    try {
+      const m = resp.message.content?.match(/\{[\s\S]*\}/);
+      const v = m ? JSON.parse(m[0]) as Partial<JudgeVerdict> : {};
+      return {
+        verdict: typeof v.right_tool === 'boolean' && typeof v.answered_question === 'boolean'
+          ? { right_tool: v.right_tool, answered_question: v.answered_question }
+          : null,
+        ...spent,
+      };
+    } catch {
+      return { verdict: null, ...spent };
+    }
   } catch {
     return null;
   } finally {

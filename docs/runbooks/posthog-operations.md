@@ -52,7 +52,7 @@ Cost per day and errored runs per day: see `docs/posthog-dashboards.md` S1 click
 
 ### Online-eval notes
 
-The judge runs inside `agent-chat` after the run completes, using the deployed (non-Claude) model, and costs one small model call per judged run (demo org: every run; other orgs: 1 in 4). It is not metered into `agent_usage` or credits. If the cost tile shows it matters, change `REAL_ORG_SAMPLE_MOD` in `agent-chat/aiJudge.ts`.
+The judge runs inside `agent-chat` after the run completes, using the deployed (non-Claude) model, and costs one small model call per judged run (demo org: every run; other orgs: 1 in 4). It is not metered into `agent_usage` or credits; its spend is reported to PostHog as a `$ai_generation` with `action = eval` (tile "AI judge (eval) cost per day"). If that tile shows it matters, change `REAL_ORG_SAMPLE_MOD` in `agent-chat/aiJudge.ts`. The judge asks for no model fallbacks and drops any verdict from a Claude model.
 
 ## S2 Alerts and source maps
 

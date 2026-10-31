@@ -934,7 +934,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       // ── A4: compose_view dispatch branch (ADR-0041 model-calling-action seam) ──
       // Divergence 1: only reachable when allowCompose (main pass).
       if (allowCompose && toolName === 'compose_view' && deps.composeEnabled) {
-        const out = await runComposeView(
+        const out = await timedSpan(deps, 'compose_view', toolInput, () => runComposeView(
           toolInput as { prompt: string },
           // Cast: HandlerSupabaseLike's `.eq()` returns a plain object (`.single()`/`.limit()`/
           // `.in()`), while the port's SupabaseLike requires `.eq()` itself to be PromiseLike —
@@ -944,7 +944,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
           // always the real (richer) Supabase client at runtime — never a mock without .eq().then.
           { jwt: '', userId: deps.userId, orgId, supabase: deps.supabase as unknown as import('../../../pmo-portal/src/lib/agent/runtime/port.ts').SupabaseLike },
           { modelClient: deps.modelClient, model: deps.model },
-        );
+        ));
 
         if ('error' in out) {
           // Compose failed — emit user-facing assistant error (FR-CV-006)

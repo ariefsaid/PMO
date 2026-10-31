@@ -67,14 +67,18 @@ const Privacy: React.FC = () => (
         service runs: error codes, job run results, push outcomes to connected accounting systems,
         and Assistant usage counts (model, tokens, cost, timings, and whether a tool call or an
         automated quality check passed). It contains no record contents, prompts, replies or names,
-        and is not linked to your account. It is not affected by the analytics opt-out below. When
-        analytics is on for you, the Assistant usage counts are also tagged with your internal
-        account ID so we can see usage per person; turning analytics off removes that tag.
+        and is not linked to your name or email. It is not affected by the analytics opt-out below.
+        When analytics is on for you, the Assistant usage counts are also tagged with an internal
+        account ID (not your name or email) so we can see usage per person; turning analytics off
+        removes that tag. The automated quality check is an AI model that reads an Assistant
+        question and answer inside our service; only its pass or fail result and its cost are
+        recorded.
       </p>
       <p className="text-muted-foreground">
-        On the public product-demonstration site only, the Assistant&rsquo;s prompts and replies
-        are additionally recorded with the session replay, to review how the Assistant performs on
-        sample data. This never applies to your live account.
+        In our demonstration organisation (sample data) only, and only while analytics is on for
+        you, the Assistant&rsquo;s prompts and replies are additionally recorded with the session
+        replay, to review how the Assistant performs on sample data. This never applies to a live
+        client account.
       </p>
       <p className="text-muted-foreground">
         We honour your browser&rsquo;s Do Not Track setting. You can also opt out here at any time:

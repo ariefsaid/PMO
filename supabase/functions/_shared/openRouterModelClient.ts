@@ -235,7 +235,7 @@ export class OpenRouterModelClient implements ModelClient {
         },
         body: JSON.stringify({
           model: params.model,
-          ...this.modelsField(params.model),
+          ...(params.noFallback ? {} : this.modelsField(params.model)),
           max_tokens: params.max_tokens,
           messages: params.messages,
           ...(params.tools ? { tools: params.tools } : {}),

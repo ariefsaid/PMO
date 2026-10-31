@@ -40,3 +40,8 @@ export function funnel(events, { interval = 'day', properties, breakdown } = {})
     },
   };
 }
+
+/** A SQL (HogQL) insight, for what TrendsQuery cannot express (cross-event joins). */
+export function hogql(query) {
+  return { kind: 'DataVisualizationNode', source: { kind: 'HogQLQuery', query } };
+}

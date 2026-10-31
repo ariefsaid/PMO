@@ -39,3 +39,21 @@ describe('AC-PHO-050 provision is idempotent', () => {
     expect(f.insights).toHaveLength(2);
   });
 });
+
+describe('AC-PHO-007 AI dashboard tiles added after review (#1532)', () => {
+  const tile = (name: string) => SPEC.flatMap((d: { insights: { name: string; query: unknown }[] }) => d.insights).find((i: { name: string }) => i.name.includes(name));
+  it('thumbs-down rate by model joins the rating to its generation by trace id, excluding judge calls', () => {
+    const q = JSON.stringify(tile('AI thumbs-down rate by model')?.query);
+    expect(q).toContain('HogQLQuery');
+    expect(q).toContain('agent_feedback_rated');
+    expect(q).toContain('$ai_generation');
+    expect(q).toContain('f.trace = g.trace');
+    expect(q).toContain("'eval'");
+  });
+  it('judge spend has its own tile, filtered to action = eval', () => {
+    const q = JSON.stringify(tile('AI judge (eval) cost per day')?.query);
+    expect(q).toContain('$ai_total_cost_usd');
+    expect(q).toContain('"key":"action"');
+    expect(q).toContain('"value":["eval"]');
+  });
+});

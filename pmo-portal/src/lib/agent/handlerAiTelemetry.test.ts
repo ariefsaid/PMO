@@ -20,18 +20,21 @@ const stopRound = resp({ finish_reason: 'stop', message: { role: 'assistant', co
 interface Opts {
   rounds?: 1 | 2; orgState?: string | null | 'error'; consent?: boolean; posthog?: 'ok' | 'hangs' | 'rejects' | 'absent';
   modelThrows?: Error; usageAction?: 'chat' | 'automation'; runId?: string; model?: string; judge?: string; threadId?: string;
+  judgeModel?: string; judgeDelayMs?: number;
 }
 async function runWith(o: Opts = {}) {
   const usageRows: Record<string, unknown>[] = [];
   const ph: Ph[] = [];
   const judgeCalls: unknown[] = [];
   const tables: string[] = [];
+  const orgEq: unknown[][] = [];
   const supabase = {
     from: vi.fn().mockImplementation((table: string) => {
       tables.push(table);
       if (table === 'profiles') return { select: () => ({ eq: () => ({ single: async () => ({ data: { org_id: 'org-1', role: 'Project Manager' }, error: null }) }) }) };
       if (table === 'organizations') {
-        return { select: () => ({ limit: async () => (o.orgState === 'error' ? { data: null, error: { message: 'x' } } : { data: [{ lifecycle_state: o.orgState === undefined ? 'live' : o.orgState }], error: null }) }) };
+        // Only the org-filtered path exists: a lookup without `.eq('id', orgId)` throws (fails closed => no text).
+        return { select: () => ({ eq: (col: string, val: string) => { orgEq.push([col, val]); return { limit: async () => (o.orgState === 'error' ? { data: null, error: { message: 'x' } } : { data: [{ lifecycle_state: o.orgState === undefined ? 'live' : o.orgState }], error: null }) }; } }) };
       }
       if (table === 'agent_usage') return { insert: (row: Record<string, unknown>) => { usageRows.push(row); return { select: () => ({ single: async () => ({ data: { id: 'u' }, error: null }) }) }; } };
       return { select: () => ({ limit: async () => ({ data: [{ name: 'A' }], error: null }), eq: () => ({ limit: async () => ({ data: [{ name: 'A' }], error: null }) }) }) };
@@ -40,10 +43,16 @@ async function runWith(o: Opts = {}) {
   const script = (o.rounds ?? 1) === 2 ? [toolRound, stopRound] : [stopRound];
   let i = 0;
   const create = vi.fn(async (p: { messages: { role: string; content: string | null }[] }) => {
-    if (String(p.messages[0]?.content).startsWith('You grade one turn')) { judgeCalls.push(p); return resp({ finish_reason: 'stop', message: { role: 'assistant', content: o.judge ?? '{"right_tool":true,"answered_question":true}' } }); }
+    if (String(p.messages[0]?.content).startsWith('You grade one turn')) {
+      judgeCalls.push(p);
+      if (o.judgeDelayMs) await new Promise((r) => setTimeout(r, o.judgeDelayMs));
+      return resp({ model: o.judgeModel ?? MODEL, finish_reason: 'stop', message: { role: 'assistant', content: o.judge ?? '{"right_tool":true,"answered_question":true}' } });
+    }
     if (o.modelThrows) throw o.modelThrows;
     return script[Math.min(i++, script.length - 1)];
   });
+  const registered: Promise<unknown>[] = [];
+  (globalThis as { EdgeRuntime?: unknown }).EdgeRuntime = { waitUntil: (p: Promise<unknown>) => { registered.push(p); } };
   if (o.posthog !== 'absent') (globalThis as { Deno?: unknown }).Deno = { env: { get: (k: string) => (k === 'POSTHOG_PROJECT_KEY' ? 'phc_x' : undefined) } };
   vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
     if (o.posthog === 'hangs') return new Promise((_r, rej) => init.signal?.addEventListener('abort', () => rej(new Error('abort'))));
@@ -60,10 +69,13 @@ async function runWith(o: Opts = {}) {
     modelClient: { create } as never, model: o.model ?? MODEL, supabase, userId: 'user-1', usage: { supabase }, verifyAnswer: false,
     usageAction: o.usageAction, now: () => new Date('2026-07-03T00:00:00Z'),
   })) events.push(e);
+  // What the runtime was asked to keep alive when the stream closed, and what it had delivered once those settled.
+  if (!o.posthog || o.posthog === 'ok') await Promise.all([...registered]); // a hanging PostHog would only stall the test
+  const evalsAfterWaitUntil = ph.filter((e) => e.event === 'ai_eval').length;
   for (let n = 0; n < 30; n++) await new Promise((r) => setTimeout(r, 0)); // let fire-and-forget emissions land
-  return { events, usageRows, ph, judgeCalls, create, tables };
+  return { events, usageRows, ph, judgeCalls, create, tables, orgEq, evalsAfterWaitUntil };
 }
-afterEach(() => { delete (globalThis as { Deno?: unknown }).Deno; vi.unstubAllGlobals(); });
+afterEach(() => { delete (globalThis as { Deno?: unknown }).Deno; delete (globalThis as { EdgeRuntime?: unknown }).EdgeRuntime; vi.unstubAllGlobals(); });
 
 const by = (r: { ph: Ph[] }, n: string) => r.ph.filter((e) => e.event === n);
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
@@ -184,6 +196,45 @@ describe('AC-PHO-093 online eval verdicts', () => {
     const r = await runWith({ orgState: 'demo', judge: 'garbage' });
     expect(by(r, 'ai_eval')).toHaveLength(0);
     expect(r.events.at(-1)?.payload).toMatchObject({ status: 'completed' });
+  });
+});
+
+describe('judge hardening (#1532 review)', () => {
+  it('the lifecycle lookup is filtered by the run org id', async () => {
+    const r = await runWith({ orgState: 'demo', consent: true });
+    expect(r.orgEq).toEqual([['id', 'org-1']]);
+  });
+  it('the judge call asks for no model fallbacks', async () => {
+    const r = await runWith({ orgState: 'demo' });
+    expect((r.judgeCalls[0] as { noFallback?: boolean }).noFallback).toBe(true);
+  });
+  it('a Claude model that answers the judge anyway yields no verdict, but its spend is still recorded', async () => {
+    const r = await runWith({ orgState: 'demo', judgeModel: 'anthropic/claude-sonnet-5-5' });
+    expect(by(r, 'ai_eval')).toHaveLength(0);
+    const spend = by(r, '$ai_generation').filter((e) => e.properties.action === 'eval');
+    expect(spend).toHaveLength(1);
+    expect(spend[0].properties.$ai_model).toBe('anthropic/claude-sonnet-5-5');
+  });
+  it('records the judge own spend as an action=eval $ai_generation: tokens, cost, model, no text, consent link kept', async () => {
+    const r = await runWith({ orgState: 'demo', consent: true, runId: UNSAMPLED });
+    const spend = by(r, '$ai_generation').filter((e) => e.properties.action === 'eval');
+    expect(spend).toHaveLength(1);
+    expect(spend[0].properties).toMatchObject({
+      $ai_trace_id: UNSAMPLED, $ai_model: MODEL, $ai_input_tokens: 100, $ai_output_tokens: 20, $ai_total_cost_usd: 0.001, $ai_is_error: false,
+      org_id: 'org-1', user_id: 'user-1',
+    });
+    expect(spend[0].properties.$ai_input).toBeUndefined();
+    expect(spend[0].properties.$ai_output_choices).toBeUndefined();
+    expect(by(r, 'ai_eval')[0].properties.judge_model).toBe(MODEL);
+  });
+  it('an unjudged run records no eval spend', async () => {
+    const r = await runWith({ runId: UNSAMPLED });
+    expect(by(r, '$ai_generation').filter((e) => e.properties.action === 'eval')).toHaveLength(0);
+  });
+  it('the judge chain is registered with waitUntil before the stream closes, so ai_eval survives the response', async () => {
+    const r = await runWith({ orgState: 'demo', judgeDelayMs: 20 });
+    expect(r.judgeCalls).toHaveLength(1);
+    expect(r.evalsAfterWaitUntil).toBe(2);
   });
 });
 

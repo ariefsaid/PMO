@@ -1,11 +1,6 @@
 // AC-PHO-020 (#1532 S3): the SHIPPED clickup-webhook-worker handler emits one job_run per tick.
+import { assertEquals } from 'jsr:@std/assert@1';
 const { jobHandler, summarizeWebhookWorker } = await import('./index.ts');
-
-function assertEquals(actual: unknown, expected: unknown): void {
-  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-    throw new Error(`Expected ${JSON.stringify(expected)}, received ${JSON.stringify(actual)}`);
-  }
-}
 
 Deno.test('AC-PHO-020 real handler: missing configuration emits one failed job_run MISCONFIGURED', async () => {
   const events: Record<string, any>[] = [];

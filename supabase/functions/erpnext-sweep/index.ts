@@ -3232,6 +3232,7 @@ async function reconcileOrgExpensePostingsLive(
 /**
  * job_run summary for the tick response (#1532 S3). `null` = not a tick (a maintenance request has no
  * `perOrg`). Zero bound orgs is `skipped`: a standalone deployment legitimately has none (ADR-0094).
+ * Every org erroring is `failed` ORG_SWEEP_FAILED (FR-PHO-022).
  * Held / quarantined counts come from the erp_push_outcome stream (S4), not from here.
  */
 export function summarizeErpSweep(body: unknown): JobSummary | null {
@@ -3246,13 +3247,16 @@ export function summarizeErpSweep(body: unknown): JobSummary | null {
     recovered += o.reconcile?.reconciled ?? 0;
     reconcileErrors += o.reconcile?.errors.length ?? 0;
     applied += o.sweep?.applied ?? 0;
-    if (o.errors.length > 0) orgErrors += 1;
+    // `statement-lock-held` is the routine "another tick holds the lock" marker, not a failure.
+    if (o.errors.some((e) => e !== 'statement-lock-held')) orgErrors += 1;
   }
   const orgs = typeof b.orgs === 'number' ? b.orgs : perOrg.length;
   return {
     items: recovered + applied,
     orgCount: orgs,
-    ...(orgs === 0 ? { skipped: true } : {}),
+    // Every bound org erroring = the tick did nothing useful (ERP down, credentials expired): failed, not ok.
+    // A partial failure stays ok; `org_error_count` carries it (sustained-count alert, docs/posthog-dashboards.md).
+    ...(orgs === 0 ? { skipped: true } : perOrg.length > 0 && orgErrors === perOrg.length ? { failedCode: 'ORG_SWEEP_FAILED' } : {}),
     extra: { recovered, reconcile_errors: reconcileErrors, org_error_count: orgErrors },
   };
 }

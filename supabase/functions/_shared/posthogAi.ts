@@ -8,7 +8,8 @@ import type { EdgeFunctionName } from './errorLog.ts';
  * that same consent flag.
  */
 export const AI_PROVIDER = 'openrouter';
-export type AiAction = 'chat' | 'compose' | 'automation';
+/** `eval` = the online-eval judge's own model call (so assistant cost can be filtered from it). */
+export type AiAction = 'chat' | 'compose' | 'automation' | 'eval';
 export interface AiMessage { role: string; content: string }
 /** Consent-gated joins: browser replay session and opaque user id (cost per user). */
 export interface AiLink { sessionId?: string; userId?: string }

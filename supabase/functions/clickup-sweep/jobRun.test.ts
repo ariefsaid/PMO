@@ -1,16 +1,11 @@
 // AC-PHO-020 (#1532 S3): the SHIPPED clickup-sweep handler emits one job_run per tick.
+import { assertEquals } from 'jsr:@std/assert@1';
 let served: ((req: Request) => Promise<Response>) | undefined;
 (Deno as unknown as { serve: (h: (req: Request) => Promise<Response>) => unknown }).serve = (h) => {
   served = h;
   return { finished: Promise.resolve() };
 };
 const { summarizeClickupSweep } = await import('./index.ts');
-
-function assertEquals(actual: unknown, expected: unknown): void {
-  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-    throw new Error(`Expected ${JSON.stringify(expected)}, received ${JSON.stringify(actual)}`);
-  }
-}
 
 const SECRET = 'synthetic-sweep-secret';
 
@@ -46,7 +41,7 @@ Deno.test('AC-PHO-020 real handler: missing configuration emits one failed job_r
 });
 
 Deno.test('summarizeClickupSweep: ok with applied and org count', () => {
-  assertEquals(summarizeClickupSweep({ ok: true, orgs: 2, applied: 5, failures: [] }), { items: 5, orgCount: 2 });
+  assertEquals(summarizeClickupSweep({ ok: true, orgs: 2, applied: 5, perOrg: [], failures: [] }), { items: 5, orgCount: 2 });
 });
 
 Deno.test('summarizeClickupSweep: an org failure fails the run', () => {

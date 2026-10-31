@@ -1,11 +1,6 @@
 // AC-PHO-020 (#1532 S3): the SHIPPED telegram-notify handler emits one job_run per tick.
+import { assertEquals } from 'jsr:@std/assert@1';
 const { jobHandler, summarizeTelegramNotify } = await import('./index.ts');
-
-function assertEquals(actual: unknown, expected: unknown): void {
-  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-    throw new Error(`Expected ${JSON.stringify(expected)}, received ${JSON.stringify(actual)}`);
-  }
-}
 
 // sanitizeOps off: the handler's own supabase-js client arms an auth auto-refresh interval that its
 // stopAutoRefresh races; that is the client's timer, not the job_run emit under test.

@@ -257,7 +257,7 @@ it replaces nothing. Dollar amounts or record contents in any property.
   **allowlist**; the browser facade keeps `buildEventProperties` (24-key denylist).
 - **NFR-PHO-PRIV-002** — Consent rules unchanged (ADR-0067, OD-OBS-1/2): browser events stay
   consent-gated and honour opt-out; no replay/autocapture for real users. Server operational events
-  carry no user id (OQ-2) and use a synthetic distinct id per function (existing `edge:<fn>` pattern),
+  carry no user id (OQ-2; sole exception: the AI events with the user's analytics-consent flag, FR-PHO-092) and use a synthetic distinct id per function (existing `edge:<fn>` pattern),
   with `$process_person_profile: false`. `/privacy` copy is updated in S1 to state that operational
   system telemetry (errors, job runs, push outcomes, AI usage counts) is collected server-side without
   personal content.
@@ -472,7 +472,7 @@ Each AC has exactly one owning layer; none is pushed up a layer for convention.
 
 - The edge tick for the two minute-cadence jobs is the highest-volume emitter; measure after S3 and use
   the quota alarm, not guesswork.
-- Server events cannot join to a browser person (by design, OQ-2). Dashboards join on `run_id` and
+- Server events cannot join to a browser person (by design, OQ-2), except the AI events carrying the consent-gated `user_id` / `$session_id` (FR-PHO-092). Dashboards join on `run_id` and
   `org_id` only.
 - PostHog's alert and Logs capabilities were checked against public docs on 2026-10-31; items marked
   "confirm at build" must be re-verified by the builder against the live project, and the answer

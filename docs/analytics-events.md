@@ -300,10 +300,10 @@ _Owned by slice S1 (#1532)._ Emitted by `agent-chat` (`agent-chat/aiTelemetry.ts
 
 | Event | Properties (allowlist, `posthogServer.ts`) |
 |---|---|
-| `$ai_generation` | `$ai_trace_id` (= run id), `$ai_session_id` (= thread id), `$ai_span_id`, `$ai_model`, `$ai_provider`, `$ai_input_tokens`, `$ai_output_tokens`, `$ai_total_cost_usd`, `$ai_latency` (seconds), `$ai_is_error`, `$ai_http_status`, `action` (`chat`/`compose`/`automation`), `cached_tokens`, `reasoning_tokens`, `error_code`, `org_id` |
+| `$ai_generation` | `$ai_trace_id` (= run id), `$ai_session_id` (= thread id), `$ai_span_id`, `$ai_model`, `$ai_provider`, `$ai_input_tokens`, `$ai_output_tokens`, `$ai_total_cost_usd`, `$ai_latency` (seconds), `$ai_is_error`, `$ai_http_status`, `action` (`chat`/`compose`/`automation`; `eval` = the online-eval judge's own call, never any text), `cached_tokens`, `reasoning_tokens`, `error_code`, `org_id` |
 | `$ai_span` | `$ai_trace_id`, `$ai_span_id`, `$ai_parent_id` (the requesting generation), `$ai_span_name` (tool name), `$ai_latency`, `$ai_is_error`, `org_id` |
 | `$ai_trace` | `$ai_trace_id`, `$ai_session_id`, `$ai_latency`, `$ai_is_error`, `error_code`, `action`, `org_id` |
-| `ai_eval` | `$ai_trace_id`, `$ai_session_id`, `eval_name` (`right_tool`, `answered_question`), `eval_pass`, `judge_model`, `action`, `org_id` |
+| `ai_eval` | `$ai_trace_id`, `$ai_session_id`, `eval_name` (`right_tool`, `answered_question`), `eval_pass`, `judge_model` (the model that actually answered), `action`, `org_id` |
 | `agent_feedback_rated` (browser) | adds `run_id` and `$ai_trace_id` (same uuid): the rating joins its trace |
 
 **Two privacy tiers, enforced by the emitter allowlist (a key not listed is dropped on the edge and thrown under Vitest):**
@@ -358,6 +358,7 @@ plain super property registered at identify. No amounts, ids, names or free text
 - Each call sits inside `onSuccess` and is wrapped in `safeTrack`. A refused or failed write fires nothing (AC-PHO-041).
 - A bulk approve in the procurement list fires once per approved row.
 - Builders: `src/lib/analytics/events.business.ts`; facade: `src/lib/analytics/business.ts`. Dashboard: `[PMO] Usage per org (observed use)`.
+- **Submission, not confirmation:** for an organisation on an external ERP tier, `invoice_issued` and `payment_recorded` fire when the write is accepted and queued for the ERP, not when the ERP confirms it; a push that fails later is still counted (the dashboard is "observed use", FR-PHO-045). Push outcomes are the `erp_push_outcome` stream (S4).
 - **Coverage gap, by design:** a purchase approved by the Assistant (an agent action) or by a direct API call fires no browser event. These events count what people do in the screens, not what the database holds.
 
 ## S6 Demo funnels

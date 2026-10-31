@@ -20,7 +20,7 @@ A dashboard tile on an operational event must have a call of its producer under 
 
 ## Consequences
 
-- Operational events cannot be joined to a browser person, by design.
+- Operational events cannot be joined to a browser person, by design. One owner-ruled exception (FR-PHO-092): the AI events carry `user_id` and `$session_id` only when the user's browser sent the analytics-consent flag with the request; without the flag they carry neither.
 - PostHog has no row-level security, so project membership stays operator-only.
 - The allowlist is the enforcement point: adding a key is a reviewed code change with a privacy question attached, and the strict test mode makes a smuggled key fail CI.
 - Any slice that needs a new operational key (for example a text field for a demo organisation) changes the allowlist deliberately and updates `/privacy`; it does not bypass the emitter.

@@ -3,8 +3,8 @@ import type { EdgeFunctionName } from './errorLog.ts';
 
 /**
  * posthogServer — generic, fire-and-forget emitter of OPERATIONAL server events to PostHog
- * (ADR-0096, #1532). Operational events are not product analytics: no user id, synthetic
- * `edge:<fn>` distinct id, `$process_person_profile: false`, codes/counts/durations only.
+ * (ADR-0096, #1532). Operational events are not product analytics: synthetic `edge:<fn>` distinct id,
+ * no user id (sole exception: the AI events' consent-gated `user_id` property), `$process_person_profile: false`, codes/counts/durations only.
  * The per-event key allowlist below is the enforcement point: a key not listed is dropped on
  * the edge and THROWN under Vitest (strict), so a smuggled prompt/record text fails a test.
  */
