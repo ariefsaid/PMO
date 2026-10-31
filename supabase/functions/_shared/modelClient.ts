@@ -35,6 +35,8 @@ export interface ModelClientParams {
   stream?: boolean;
   /** Sampling temperature (0–2). Lower = more deterministic tool routing, fewer thrash rounds. */
   temperature?: number;
+  /** Serve from `model` alone: no configured fallback models. For callers that must not be served by any other model (eval judge). */
+  noFallback?: boolean;
 }
 
 export interface ModelUsage {

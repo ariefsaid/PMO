@@ -24,7 +24,7 @@ export interface OdooClientDeps {
   database: string;
   fetchImpl: typeof fetch;
   deadlineMs?: number;
-  /** Waits for a request slot before each call (S3 adds the pacer). */
+  /** Waits for a request slot before each call (`createPacer`). */
   pace?: () => Promise<void>;
 }
 
@@ -69,3 +69,18 @@ export async function odooCall<T>(deps: OdooClientDeps, model: string, method: s
 }
 
 export const bindCall = (deps: OdooClientDeps): OdooCall => (model, method, body) => odooCall(deps, model, method, body);
+
+/** FR-ODC-046: at most `rps` request starts per second through one client. */
+export function createPacer(rps: number, now = () => Date.now(), sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))) {
+  const gap = 1000 / rps;
+  let next = 0;
+  return async () => {
+    const t = now();
+    const wait = Math.max(0, next - t);
+    next = Math.max(t, next) + gap;
+    if (wait) await sleep(wait);
+  };
+}
+
+/** Odoo-operated hosting gets 1 request per second (V11); any other host 5. */
+export const paceFor = (siteUrl: string) => (new URL(siteUrl).hostname.endsWith('.odoo.com') ? 1 : 5);

@@ -12,7 +12,7 @@
  */
 import React, { useState } from 'react';
 import type { DownvoteReason } from '@/src/lib/db/agentEvents';
-import { trackAgentFeedbackRated } from '@/src/lib/analytics';
+import { askWhatWentWrong, trackAgentFeedbackRated } from '@/src/lib/analytics';
 import { safeTrack } from '@/src/lib/analytics/safeTrack';
 
 const DOWNVOTE_REASONS: { value: DownvoteReason; label: string }[] = [
@@ -24,21 +24,24 @@ const DOWNVOTE_REASONS: { value: DownvoteReason; label: string }[] = [
 
 interface FeedbackControlProps {
   eventId: string;
+  /** The run this response belongs to; joins the rating to its AI trace (FR-PHO-005). */
+  runId: string;
   onRate: (eventId: string, rating: 'up' | 'down', reason?: DownvoteReason) => void;
 }
 
 const thumbButtonClasses =
   'rounded-md px-1.5 py-0.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring';
 
-export const FeedbackControl: React.FC<FeedbackControlProps> = ({ eventId, onRate }) => {
+export const FeedbackControl: React.FC<FeedbackControlProps> = ({ eventId, runId, onRate }) => {
   const [rating, setRating] = useState<'up' | 'down' | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const anchorId = eventId.replace(/[^\w-]/g, '');
 
   const handleUp = () => {
     setRating('up');
     setPickerOpen(false);
     onRate(eventId, 'up', undefined);
-    safeTrack(() => trackAgentFeedbackRated('up', undefined));
+    safeTrack(() => trackAgentFeedbackRated('up', undefined, runId));
   };
 
   const handleDown = () => {
@@ -49,11 +52,13 @@ export const FeedbackControl: React.FC<FeedbackControlProps> = ({ eventId, onRat
   const handleReason = (reason: DownvoteReason) => {
     setPickerOpen(false);
     onRate(eventId, 'down', reason);
-    safeTrack(() => trackAgentFeedbackRated('down', reason));
+    safeTrack(() => trackAgentFeedbackRated('down', reason, runId));
+    // #1532 S9: one optional "what went wrong?" beside this answer (gated + published check inside).
+    safeTrack(() => askWhatWentWrong(runId, `[data-feedback-event="${anchorId}"]`));
   };
 
   return (
-    <div className="mt-1 flex flex-col gap-1">
+    <div className="mt-1 flex flex-col gap-1" data-feedback-event={anchorId}>
       <div className="flex items-center gap-1">
         <button
           type="button"

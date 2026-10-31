@@ -113,6 +113,8 @@ export interface OrgFeatureRepository {
   listOwn(): Promise<Record<OrgFeatureKey, boolean>>;
   /** Upsert a feature row for an org via the Operator-only RPC. */
   toggle(args: { orgId: string; key: OrgFeatureKey; enabled: boolean }): Promise<void>;
+  /** Admin-only: switch feedback and surveys for the caller's own org (migration 0419). */
+  setFeedbackSurveys(enabled: boolean): Promise<void>;
 }
 
 /**

@@ -47,6 +47,15 @@ Issue #1532. Status: **Draft for owner sign-off** (2026-10-31). Spec prefix: `PH
 | OQ-7 | **Prompt/response text switch.** The issue says none "by default". | No switch is built. Content capture would be a new spec and a privacy review. |
 | OQ-8 | **"Missing run" threshold per job.** | Alert when a job has zero `job_run` events for 3× its cadence (minute jobs: 5 min; 5-min job: 20 min; hourly jobs: 3 h), plus any `failed` run. Tunable in PostHog without a deploy. |
 
+**Owner rulings on S1, 2026-10-31 (supersede OQ-2 and OQ-7 for the AI events).** Built as:
+
+- **FR-PHO-090** The demo org (`organizations.lifecycle_state = 'demo'`, read under the caller's JWT, fail closed) captures prompt, reply and tool I/O text on `$ai_generation`/`$ai_span`/`$ai_trace`, only for a user whose browser sent the analytics-consent flag, linked to the session replay (`$session_id`). Any other org: numbers and codes only (FR-PHO-004 stands for them). *AC-PHO-090, AC-PHO-091.*
+- **FR-PHO-092** AI events carry the opaque auth user id (`user_id`) and `$session_id` only with the consent flag; the browser sends the flag only while analytics is active (not opted out, no Do Not Track). *AC-PHO-092.*
+- **FR-PHO-093** After a completed run, an in-function LLM judge (never a Claude model) scores `right_tool` and `answered_question`; only booleans reach PostHog as `ai_eval`. Demo org always, other orgs 1 in 4. *AC-PHO-093.*
+- **FR-PHO-094** `/privacy` discloses the operational telemetry, the consent-gated user tag and demo-only prompt capture. *AC-PHO-094.*
+- Thumbs feedback joins its trace (FR-PHO-005); the PostHog-native `survey sent` shape and the "what went wrong?" follow-up belong to S9.
+- Cost and error alerts: runbook click-path (docs/posthog-dashboards.md § S1 AI), threshold after 7 days of data.
+
 ---
 
 ## 1. Problem and job story
@@ -248,7 +257,7 @@ it replaces nothing. Dollar amounts or record contents in any property.
   **allowlist**; the browser facade keeps `buildEventProperties` (24-key denylist).
 - **NFR-PHO-PRIV-002** — Consent rules unchanged (ADR-0067, OD-OBS-1/2): browser events stay
   consent-gated and honour opt-out; no replay/autocapture for real users. Server operational events
-  carry no user id (OQ-2) and use a synthetic distinct id per function (existing `edge:<fn>` pattern),
+  carry no user id (OQ-2; sole exception: the AI events with the user's analytics-consent flag, FR-PHO-092) and use a synthetic distinct id per function (existing `edge:<fn>` pattern),
   with `$process_person_profile: false`. `/privacy` copy is updated in S1 to state that operational
   system telemetry (errors, job runs, push outcomes, AI usage counts) is collected server-side without
   personal content.
@@ -463,7 +472,7 @@ Each AC has exactly one owning layer; none is pushed up a layer for convention.
 
 - The edge tick for the two minute-cadence jobs is the highest-volume emitter; measure after S3 and use
   the quota alarm, not guesswork.
-- Server events cannot join to a browser person (by design, OQ-2). Dashboards join on `run_id` and
+- Server events cannot join to a browser person (by design, OQ-2), except the AI events carrying the consent-gated `user_id` / `$session_id` (FR-PHO-092). Dashboards join on `run_id` and
   `org_id` only.
 - PostHog's alert and Logs capabilities were checked against public docs on 2026-10-31; items marked
   "confirm at build" must be re-verified by the builder against the live project, and the answer

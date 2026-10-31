@@ -180,4 +180,17 @@ describe('Privacy page', () => {
     b.unmount();
     expect(htmlA).toBe(htmlB);
   });
+
+  it('AC-PHO-094: discloses operational telemetry, the consent-gated user tag, and demo-organisation-only prompt capture, consistently', () => {
+    renderPrivacy();
+    const text = document.body.textContent ?? '';
+    expect(text).toContain('operational telemetry');
+    expect(text).toContain('not linked to your name or email');
+    expect(text).not.toContain('not linked to your account'); // contradicted the account-ID tag below
+    expect(text).toContain('tagged with an internal account ID');
+    expect(text).toContain('turning analytics off removes that tag');
+    expect(text).toContain('In our demonstration organisation (sample data) only');
+    expect(text).not.toContain('public product-demonstration site only'); // capture is by organisation, not by site
+    expect(text).toContain('never applies to a live client account');
+  });
 });

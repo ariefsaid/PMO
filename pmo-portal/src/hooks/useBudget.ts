@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
+import { useOptionalRealRole } from '@/src/auth/impersonation';
+import { safeTrack, trackBudgetActivated } from '@/src/lib/analytics';
 import { repositories } from '@/src/lib/repositories';
 import type { BudgetVersionWithItems, BudgetVersionRow, BudgetLineItemRow, NewLineItem, ActivateVersionResult, ArchiveVersionResult, BudgetArchiveLiveTarget, BudgetActivationMode } from '@/src/lib/db/budgets';
 
@@ -78,6 +80,7 @@ export function useBudgetMutations(projectId: string) {
   const queryClient = useQueryClient();
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
+  const realRole = useOptionalRealRole();
 
   const invalidateBoth = () => {
     queryClient.invalidateQueries({ queryKey: budgetKey(orgId, projectId) });
@@ -103,7 +106,11 @@ export function useBudgetMutations(projectId: string) {
 
   const activate = useMutation<ActivateVersionResult, Error, string>({
     mutationFn: (versionId) => repositories.budget.activateVersion(versionId),
-    onSuccess: () => { invalidateBoth(); invalidateMoneyCollections(); },
+    onSuccess: () => {
+      invalidateBoth();
+      invalidateMoneyCollections();
+      safeTrack(() => trackBudgetActivated(realRole ?? 'unknown'));
+    },
   });
 
   const archive = useMutation<ArchiveVersionResult, Error, { versionId: string; cancelErp: boolean }>({

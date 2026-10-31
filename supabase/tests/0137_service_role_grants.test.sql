@@ -36,6 +36,9 @@ select ok(has_table_privilege('service_role', 'public.projects', 'SELECT'),
 -- ONLY by the start_procurement_import_run definer, which stamps org and identity_version
 -- server-side — a direct service_role INSERT would let a caller register run identities the RPC
 -- path never attests. The owning proof is 0399_procurement_import_identity_authority.test.sql.
+-- Also the four stock tables (0413, ADR-0097 §1): append-only ledger, single-writer balances and the
+-- RPC-written documents/lines; service_role's writes are revoked on purpose. Proof:
+-- stock_immutability_idempotency.test.sql (service role cannot insert/update/delete/truncate them).
 -- Uses pg_class BY OID (relkind 'r'), which is authoritative —
 -- no name-resolution phantoms, unlike information_schema. If a future migration adds an ordinary
 -- table without the default-priv grant landing, this fails loud.
@@ -47,7 +50,11 @@ select is(
         'ms_graph_connections',
         'erp_financial_statement_dirty_date',
         'erp_financial_statement_published_context',
-        'procurement_import_runs'
+        'procurement_import_runs',
+        'stock_documents',
+        'stock_document_lines',
+        'stock_ledger',
+        'stock_balances'
       )
       and not has_table_privilege('service_role', c.oid, 'INSERT')),
   0,
