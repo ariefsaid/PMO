@@ -5,9 +5,12 @@ const h = vi.hoisted(() => ({ conn: { data: undefined as unknown }, owned: { dat
 vi.mock('@/src/hooks/useOdoo', () => ({ useOdooConnection: () => h.conn }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => h.owned }));
 
+import { KIND_SPECS } from '@/src/lib/adapterSeam/odoo/kinds';
 import { OdooSetupChecklist } from './OdooSetupChecklist';
 
 afterEach(cleanup);
+const WH = KIND_SPECS.warehouse.model;
+const TAX = KIND_SPECS.tax.model;
 const read = (config: Record<string, unknown>, over: Record<string, unknown> = {}) => ({ status: 'active', activated: true, capabilities: { missing: [] }, config, connection: null, ...over });
 const item = (name: string) => screen.getByRole('listitem', { name });
 const doneOf = (name: string) => within(item(name)).queryByText('Done') !== null;
@@ -22,7 +25,7 @@ it('FR-ODC-110 an Odoo org lists the Odoo steps and none of ERPNext\'s activity-
 });
 
 it('FR-ODC-110 each step is done only when its own fact holds', () => {
-  h.conn.data = read({ account_defaults: { payable: 1 }, unit_map: { m: 2 }, default_warehouse_id: 3, sends_finished_at: '2026-11-01' }, { capabilities: { missing: ['stock.warehouse'] } });
+  h.conn.data = read({ account_defaults: { payable: 1 }, unit_map: { m: 2 }, default_warehouse_id: 3, sends_finished_at: '2026-11-01' }, { capabilities: { missing: [WH] } });
   h.owned.data = [];
   render(<OdooSetupChecklist />);
   expect(['Odoo connected', 'Company chosen', 'Map once', 'Sends finished'].map(doneOf)).toEqual([true, true, true, true]);
@@ -45,9 +48,9 @@ it('FR-ODC-110 an org that is connected but not activated has only the first ste
 });
 
 it('FR-ODC-110 the missing apps are named on the capability step', () => {
-  h.conn.data = read({}, { capabilities: { missing: ['stock.warehouse', 'account.tax'] } });
+  h.conn.data = read({}, { capabilities: { missing: [WH, TAX] } });
   render(<OdooSetupChecklist />);
-  expect(within(item('Odoo apps available')).getByText(/stock\.warehouse, account\.tax/)).toBeInTheDocument();
+  expect(within(item('Odoo apps available')).getByText(`Missing: ${WH}, ${TAX}`)).toBeInTheDocument();
 });
 
 it('FR-ODC-110 ERPNext owning companies does not complete the Odoo employ step, and a partial map is not "mapped"', () => {

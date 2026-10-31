@@ -16,6 +16,7 @@ vi.mock('@/src/hooks/useOdoo', () => ({
 }));
 
 import MasterDataPage from './MasterData';
+import { KIND_SPECS } from '@/src/lib/adapterSeam/odoo/kinds';
 
 const row = (over: Record<string, unknown>) => ({ id: String(over.external_id), code: null, parent_external_id: null, active: true, tombstoned_at: null, attrs: {}, as_of: '2026-11-01T08:00:00Z', ...over });
 const page = (rows: unknown[], total = rows.length) => ({ data: { rows, total }, isPending: false, isError: false, isFetching: false, refetch: vi.fn() });
@@ -83,10 +84,10 @@ it('FR-ODC-111 the header shows inactive and deleted counts and an "as of" from 
 });
 
 it('FR-ODC-111 a kind whose Odoo app is missing is disabled with the reason, and nothing is requested for it', () => {
-  h.conn.data = { ...CONN, capabilities: { missing: ['stock.warehouse', 'stock.location:read'] } };
+  h.conn.data = { ...CONN, capabilities: { missing: [KIND_SPECS.warehouse.model, `${KIND_SPECS.location.model}:read`] } };
   mount('Admin', '/master-data/warehouse');
   expect(screen.getByText(/Odoo is missing an app this list needs/)).toBeInTheDocument();
-  expect(screen.getByText(/stock\.warehouse/)).toBeInTheDocument();
+  expect(screen.getByText(new RegExp(KIND_SPECS.warehouse.model.replace('.', '\\.')))).toBeInTheDocument();
   expect(h.records).not.toHaveBeenCalledWith(expect.anything(), true);
 });
 

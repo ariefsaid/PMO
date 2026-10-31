@@ -54,8 +54,8 @@ export const integrationsRepository: IntegrationsRepository = {
           body: { tier: credential.tier, credential: credential.credential },
         }),
       );
-      // Odoo answers with a code the card localises (key-rejected, confirm-discard, ...); keep it.
-      if (error) { if (credential.tier === 'odoo') await throwInvokeError(error); throw error; }
+      // The refusal's code and message reach the caller (Odoo's card localises key-rejected, confirm-discard, ...).
+      if (error) await throwInvokeError(error);
       return data as ConnectResponse;
     });
   },

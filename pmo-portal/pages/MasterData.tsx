@@ -7,19 +7,13 @@ import { useMasterRecords, useMasterSummary, useOdooConnection } from '@/src/hoo
 import type { DirectoryKind, MasterRecord } from '@/src/lib/repositories/odoo';
 import { OdooConnectionBanner } from '@/src/components/integrations/odoo/OdooConnectionBanner';
 import { useOdooCan } from '@/src/components/integrations/odoo/useOdooCan';
+import { missingForKind } from '@/src/lib/adapterSeam/odoo/kinds';
 import { formatInstantDate, formatNumberWhole } from '@/src/lib/format';
 
 const PAGE_SIZE = 50;
 type PageKind = Exclude<DirectoryKind, 'location'>;
 const KINDS: PageKind[] = ['product', 'uom', 'warehouse', 'analytic_account', 'account', 'tax'];
 const FINANCIAL: PageKind[] = ['account', 'tax'];
-/** The Odoo model each page reads; a `missing` entry that starts with it (read access or a needed field) disables the page. */
-const MODEL: Record<string, string> = {
-  product: 'product.product', uom: 'uom.uom', warehouse: 'stock.warehouse', location: 'stock.location',
-  analytic_account: 'account.analytic.account', account: 'account.account', tax: 'account.tax',
-};
-const lacks = (missing: string[], kind: string) =>
-  missing.filter((m) => m === MODEL[kind] || (m.startsWith(`${MODEL[kind]}:`) && !/:(create|write|unlink)$/.test(m)));
 
 export default function MasterDataPage() {
   const { t } = useTranslation();
@@ -41,13 +35,13 @@ export default function MasterDataPage() {
 
   const conn = useOdooConnection().data;
   const blocked = kind && FINANCIAL.includes(kind) && !may.viewFinancialDirectory;
-  const reasons = kind && conn?.capabilities ? lacks(conn.capabilities.missing ?? [], kind) : [];
+  const reasons = kind && conn?.capabilities ? missingForKind(kind, conn.capabilities.missing ?? []) : [];
   const enabled = Boolean(kind) && !blocked && reasons.length === 0;
   const isWarehouses = kind === 'warehouse';
   const list = useMasterRecords({ kind: kind ?? 'product', search: search || undefined, page, pageSize: PAGE_SIZE, includeInactive }, enabled);
   // Units name the unit column of items and the parent of units; locations nest under warehouses.
   const units = useMasterRecords({ kind: 'uom', page: 1, pageSize: 200, includeInactive: true }, enabled && (kind === 'product' || kind === 'uom'));
-  const locations = useMasterRecords({ kind: 'location', page: 1, pageSize: 500 }, enabled && isWarehouses && lacks(conn?.capabilities?.missing ?? [], 'location').length === 0);
+  const locations = useMasterRecords({ kind: 'location', page: 1, pageSize: 500 }, enabled && isWarehouses && missingForKind('location', conn?.capabilities?.missing ?? []).length === 0);
   const summary = useMasterSummary(kind ?? 'product', enabled);
 
   const unitName = useMemo(() => new Map((units.data?.rows ?? []).map((u) => [u.external_id, u.name])), [units.data]);

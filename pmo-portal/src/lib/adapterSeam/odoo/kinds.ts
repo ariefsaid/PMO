@@ -68,6 +68,12 @@ export const KIND_SPECS: Record<DirectoryKind, KindSpec> = {
     parse: (r) => withAttrs(base(r, r.name, r.code, r.plan_id), { company_id: m2o(r.company_id) }) },
 };
 
+/** The `capabilities.missing` entries that stop a kind's directory from being read (the model, its read access or a field the parser needs); create/write gaps only affect sends. */
+export function missingForKind(kind: DirectoryKind, missing: readonly string[]): string[] {
+  const model = KIND_SPECS[kind].model;
+  return missing.filter((m) => m === model || (m.startsWith(`${model}:`) && !/:(create|write|unlink)$/.test(m)));
+}
+
 /** The domain terms that limit a kind to the activated company (and rows shared by every company). */
 export function companyDomain(spec: KindSpec, companyId: number): unknown[] {
   if (spec.company === 'company_id') return [['company_id', 'in', [companyId, false]]];
