@@ -193,7 +193,7 @@ export function OdooConnectionCard() {
         <EntityFormModal open title={connectLabel} subtitle={t('administration:odoo.connect.subtitle', 'Use an API key made for PMO in Odoo. PMO stores it encrypted and never shows it again.')}
           submitLabel={connectLabel} onSubmit={onSubmit} onClose={() => { setFormOpen(false); held.current = null; }}
           loading={connect.isPending} dirty={form.isDirty} submitDisabled={!form.isComplete}
-          errorSummary={error ? [{ fieldId: form.fieldProps('siteUrl').id, message: error }] : undefined}>
+          submitError={error ? { headline: error } : null}>
           <FormSection legend={t('administration:odoo.connect.legend', 'Odoo connection')}>
             <FormGrid>
               <TextField {...form.fieldProps('siteUrl')} label={t('administration:odoo.connect.siteUrl', 'Site URL')} required placeholder="https://mycompany.odoo.com" autoComplete="off" fullWidth />

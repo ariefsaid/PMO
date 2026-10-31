@@ -137,7 +137,7 @@ export default function MasterDataPage() {
             </div>
           ) : (
             <div className="mt-3">
-              <DataTable<MasterRecord> rows={rows} columns={columns[kind]} rowKey={(r) => r.id} state={state} accessibleName={tabs.find((x) => x.value === kind)?.label}
+              <DataTable<MasterRecord> rows={rows} columns={columns[kind]} rowKey={(r) => r.id} tableId={`masterdata-${kind}`} state={state} accessibleName={tabs.find((x) => x.value === kind)?.label}
                 emptyTitle={t('administration:odoo.master.empty', 'Nothing here yet')} emptySub={t('administration:odoo.master.emptySub', 'Nothing matches, or the first sync has not finished.')}
                 errorTitle={t('administration:odoo.master.error', 'This list could not be loaded')} onRetry={() => void list.refetch()} />
             </div>

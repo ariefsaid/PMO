@@ -84,6 +84,16 @@ it('FR-ODC-110 a rejected key shows its localised message and the key field is e
   expect(screen.queryByText('English line from server')).not.toBeInTheDocument();
 });
 
+it('AC-ERR-001 a rejected connect shows the persistent save error inside the modal', async () => {
+  const user = userEvent.setup();
+  h.connectIntegration.mockRejectedValue(new AppError('x', 'key-rejected'));
+  mount('Admin', NONE);
+  await fillConnect(user);
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Connect Odoo' }));
+  const alert = await within(screen.getByRole('dialog')).findByTestId('entity-modal-save-error');
+  expect(alert).toHaveTextContent('Odoo rejected the API key. Check the key and try again.');
+});
+
 it('FR-ODC-110 confirm-discard asks, and Confirm resubmits with confirmDiscard true', async () => {
   const user = userEvent.setup();
   h.connectIntegration.mockRejectedValueOnce(new AppError('x', 'confirm-discard')).mockResolvedValueOnce({ ok: true, binding: { status: 'active' } });
