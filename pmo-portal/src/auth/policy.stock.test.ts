@@ -71,3 +71,18 @@ describe('stock document policy', () => {
     expect(can('withdraw', 'stockDocument', { realRole: 'Admin', currentUserId: 'u1', record: rec('Posted', 'u1') })).toBe(false);
   });
 });
+
+describe('material allowance policy (S5)', () => {
+  it.each(roles)('AC-STK-033 %s: everyone views; Finance rank and above set any allowance; a PM only on their own project', (role) => {
+    expect(can('view', 'materialAllowance', { realRole: role })).toBe(true);
+    const money = ['Admin', 'Executive', 'Finance'].includes(role);
+    for (const own of [true, false]) {
+      const ctx = { realRole: role, currentUserId: 'u1', record: { project_manager_id: own ? 'u1' : 'u2' } };
+      const want = money || (role === 'Project Manager' && own);
+      for (const a of ['create', 'edit', 'delete'] as const) expect(can(a, 'materialAllowance', ctx)).toBe(want);
+    }
+  });
+  it('AC-STK-033 a view-as session sets no allowance', () => {
+    expect(can('edit', 'materialAllowance', { realRole: 'Admin', currentUserId: 'u1', record: { viewOnly: true, project_manager_id: 'u1' } })).toBe(false);
+  });
+});
