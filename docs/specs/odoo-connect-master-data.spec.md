@@ -10,6 +10,8 @@
 
 ## 0. Open questions for the owner (each with the default taken if unanswered)
 
+**Owner sign-off, 2026-10-31:** defaults OQ-ODC-1..12 approved (they mirror the ERPNext rules). Added binding requirements: connect anytime (four scenarios) and ERPNext/Odoo parity through one adapter contract — see `docs/decisions.md` OD-ERP-ANYTIME-1. Dev-bed corrections to the research land in the plan.
+
 | # | Question | Default taken in this spec |
 |---|---|---|
 | **OQ-ODC-1** | Can a user create or edit a vendor/client **from PMO** (a command that creates/updates the Odoo partner), or is O1 read-and-map only? | **Yes, as the last slice (S7).** ADR-0094 makes PMO the only interface, so a vendor that can only be created in Odoo's own UI breaks that. Everything before S7 is read-and-map and ships first. |

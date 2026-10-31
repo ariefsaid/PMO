@@ -3596,3 +3596,6 @@ reference establishes the external record; recovery uses the submitted case snap
 A requester or same-organization Admin may edit the existing procurement header fields while the case
 is Draft or Rejected. The header command checks active membership, the procurement feature, referenced
 records and case ownership, and leaves identity, lifecycle and accounting fields outside its input.
+
+### OD-ERP-ANYTIME-1 — PMO syncs with the ERP whenever the connection is made (owner, 2026-10-31)
+PMO must sync with the ERP in all four cases: a new org whose ERP already holds data; a new org with no ERP (connected later); an operational org connecting to a new, empty ERP (PMO's data is pushed out); an operational org connecting to an ERP that already holds data (match both sides, no duplicates, no double count). Setup maps once with bulk-accepted auto-proposals. ERPNext and Odoo follow the same sync workflow through one adapter contract with one contract test suite; an ERPNext sync-workflow change is made in the shared seam or replicated to Odoo where the ERP allows. Spec: `docs/specs/erp-connect-anytime.spec.md`.
