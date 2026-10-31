@@ -47,7 +47,7 @@ export const InvoicedTrendTile: React.FC<{ trend: InvoicedTrend }> = ({ trend })
   const reason = t('figures.moneyUnknownReason', 'The accounting source did not provide a comparable amount.');
   const money = (amount: number) => moneyFigure(amount, trend.currency, reason, { labelHasCurrency: true });
   const total = money(trend.total);
-  const label = t('trend.label', 'Invoiced per month · {{currency}} · excl. tax', { currency: trend.currency });
+  const label = t('trend.label', 'Invoiced · {{currency}} · excl. tax', { currency: trend.currency });
   const { first, last } = { first: trend.points[0], last: trend.points[trend.points.length - 1] };
   const direction = {
     up: t('trend.rising', 'Rising'),
@@ -63,7 +63,7 @@ export const InvoicedTrendTile: React.FC<{ trend: InvoicedTrend }> = ({ trend })
           <FigureContent value={total.value} exactValue={total.exactValue} unavailableReason={total.unavailableReason} />
         </div>
         <div className="text-[12px] text-muted-foreground">
-          {t('trend.span', '{{from}} to {{to}}', { from: monthText(first.month), to: monthText(last.month) })}
+          {t('trend.span', '{{from}} to {{to}}, by month', { from: monthText(first.month), to: monthText(last.month) })}
         </div>
       </div>
       {trend.hasLine && (

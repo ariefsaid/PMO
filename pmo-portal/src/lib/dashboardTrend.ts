@@ -1,5 +1,9 @@
-import type { ManagementPack } from '@/src/lib/reports/managementPack';
 import { addMonths } from '@/src/lib/reports/months';
+
+/** The slice of the management pack's totals this needs; a full `ManagementPack` satisfies it. */
+interface PackTotals {
+  totals: Array<{ currency: string; months: Array<{ month: string; invoiced: number }> }>;
+}
 
 /** A line needs this many months of history (AC-DTR-001/002). */
 export const MIN_TREND_MONTHS = 3;
@@ -24,7 +28,7 @@ export interface InvoicedTrend {
  * invoiced month because months before it are "no history", not a zero.
  */
 export function selectInvoicedTrend(
-  pack: Pick<ManagementPack, 'totals'> | undefined,
+  pack: PackTotals | undefined,
   preferredCurrency: string,
 ): InvoicedTrend | null {
   const series = pack?.totals.find((row) => row.currency === preferredCurrency) ?? pack?.totals[0];
