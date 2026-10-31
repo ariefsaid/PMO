@@ -64,6 +64,15 @@ export const MODULES: ModuleDef[] = [
     // Projects: all roles (every role has the Projects nav item — rbac-visibility §B).
   },
   {
+    module: 'stock',
+    icon: 'grid',
+    label: 'Stock', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'shell.nav.stock',
+    path: '/stock',
+    detail: { pattern: '/stock/documents/:documentId', param: 'documentId' },
+    // Mirror Rail: every role (quantities are visible to all active members; the Engineer is the interim storekeeper).
+  },
+  {
     module: 'timesheets',
     icon: 'clock',
     label: 'Timesheets', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
@@ -262,8 +271,10 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   '/sales-invoices': 'Sales Invoices',
   '/incoming-payments': 'Incoming Payments',
   '/revenue-by-project': 'Revenue by Project',
-  // #1512 S1: stock master data. Routable by URL before S3 adds the Stock rail item; the title keeps the topbar off "Not found".
+  // #1512: the Stock module's sub-pages that are not detail records.
   '/stock/setup': 'Stock setup',
+  '/stock/documents': 'Documents',
+  '/stock/ledger': 'Ledger',
 };
 
 /**

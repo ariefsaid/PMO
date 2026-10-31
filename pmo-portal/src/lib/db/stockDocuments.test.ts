@@ -15,7 +15,7 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
-import { cancelStockDocument, createStockDocument, getStockDocument, listIssuableWorkItems, listStockDocuments, postStockDocument, saveStockDraft } from './stockDocuments';
+import { listProjectIssueLines, cancelStockDocument, createStockDocument, getStockDocument, listIssuableWorkItems, listStockDocuments, postStockDocument, saveStockDraft } from './stockDocuments';
 
 beforeEach(() => {
   h.queue.length = 0; h.from.mockClear(); h.rpc.mockClear();
@@ -82,5 +82,13 @@ describe('stockDocuments DAL', () => {
     await listIssuableWorkItems('p1');
     expect(h.calls.from[0]).toBe('boq_items');
     expect(h.calls.select[0]).not.toMatch(/rate|\*/);
+  });
+
+  it('FR-STK-009 the return picker lists posted issue lines of the project with explicit columns', async () => {
+    h.queue.push({ data: [{ id: 'l1', item_id: 'i', quantity: 5, boq_item_id: null, item: null, boq: null, document: { id: 'd', number: 'I-1', occurred_on: 'x', warehouse_id: 'w' } }], error: null });
+    const rows = await listProjectIssueLines('p1');
+    expect(h.calls.from[0]).toBe('stock_document_lines');
+    expect(h.calls.select[0]).not.toMatch(/\*\s*[,)]|unit_cost/);
+    expect(rows[0].quantity).toBe('5');
   });
 });

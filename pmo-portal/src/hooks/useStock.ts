@@ -57,6 +57,8 @@ export function useStockKeeperCandidates() {
   });
 }
 
+const DOC_PAGE = 50;
+
 /** Stock reads and document writes (#1512 S3). Quantities and money are decimal strings. */
 export function useStockOnHand(f: { warehouseId?: string; itemId?: string; includeZero?: boolean }) {
   const orgId = useAuth().currentUser?.org_id;
@@ -72,9 +74,19 @@ export function useStockLedger(f: StockLedgerFilters) {
     enabled: Boolean(orgId),
   });
 }
-export function useStockDocuments(f: StockDocumentFilters) {
+export function useStockDocuments(f: Omit<StockDocumentFilters, 'before' | 'limit'>) {
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-documents', orgId, f], queryFn: () => repositories.stock.documents.list(f), enabled: Boolean(orgId) });
+  return useInfiniteQuery({
+    queryKey: ['stock-documents', orgId, f],
+    queryFn: ({ pageParam }) => repositories.stock.documents.list({ ...f, limit: DOC_PAGE, before: pageParam }),
+    initialPageParam: undefined as { createdAt: string; id: string } | undefined,
+    getNextPageParam: (last) => (last.length < DOC_PAGE ? undefined : { createdAt: last[last.length - 1].created_at, id: last[last.length - 1].id }),
+    enabled: Boolean(orgId),
+  });
+}
+export function useStockDocumentEntries(documentId: string | undefined) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({ queryKey: ['stock-ledger', orgId, 'document', documentId], queryFn: () => repositories.stock.reports.ledgerAll({ documentId }), enabled: Boolean(orgId && documentId) });
 }
 export function useStockDocument(id: string | undefined) {
   const orgId = useAuth().currentUser?.org_id;
@@ -83,6 +95,16 @@ export function useStockDocument(id: string | undefined) {
 export function useIssuableWorkItems(projectId: string | undefined) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({ queryKey: ['stock-work-items', orgId, projectId], queryFn: () => repositories.stock.documents.issuableWorkItems(projectId as string), enabled: Boolean(orgId && projectId) });
+}
+
+export function useProjectIssueLines(projectId: string | undefined) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({ queryKey: ['stock-issue-lines', orgId, projectId], queryFn: () => repositories.stock.documents.issueLines(projectId as string), enabled: Boolean(orgId && projectId) });
+}
+/** Ongoing projects: the only ones stock can be issued to (FR-STK-020). */
+export function useIssuableProjects() {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({ queryKey: ['stock-issuable-projects', orgId], queryFn: () => repositories.project.list({ status: 'Ongoing Project' }), enabled: Boolean(orgId) });
 }
 
 /** Every mutation refreshes what a posting moves: balances, the trace, the lists, and the project's consumption (S5 key). */

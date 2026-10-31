@@ -42,7 +42,7 @@ describe('stock repository (master data)', () => {
 
 vi.mock('@/src/lib/db/stockDocuments', () => ({
   listStockDocuments: vi.fn(), getStockDocument: vi.fn(), createStockDocument: vi.fn(), saveStockDraft: vi.fn(),
-  postStockDocument: vi.fn(), cancelStockDocument: vi.fn(), listIssuableWorkItems: vi.fn(),
+  postStockDocument: vi.fn(), cancelStockDocument: vi.fn(), listIssuableWorkItems: vi.fn(), listProjectIssueLines: vi.fn(),
 }));
 vi.mock('@/src/lib/db/stockReports', () => ({ getStockOnHand: vi.fn(), getStockLedgerPage: vi.fn(), getStockLedgerAll: vi.fn() }));
 import * as docs from '@/src/lib/db/stockDocuments';

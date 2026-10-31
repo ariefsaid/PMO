@@ -3347,7 +3347,8 @@
       "profileSettings": "Profile & preferences",
       "expenses": "Expenses",
       "financialStatements": "Financial statements",
-      "managementPack": "Reports"
+      "managementPack": "Reports",
+      "stock": "Stock"
     },
     "notifications": {
       "empty": "No notifications yet.",

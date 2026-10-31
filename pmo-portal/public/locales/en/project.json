@@ -521,7 +521,8 @@
     },
     "tabs": {
       "contract": "Contract & billing",
-      "activity": "Activity"
+      "activity": "Activity",
+      "materials": "Materials"
     },
     "action": {
       "chasePayment": "Chase payment",

@@ -7,7 +7,7 @@ import type {
   StockItemInput, StockItemRow, StockKeeperRow, StockUnitInput, StockUnitRow, StockWarehouseInput, StockWarehouseRow,
 } from '@/src/lib/db/stockMaster';
 import type {
-  IssuableWorkItem, StockDocumentDetail, StockDocumentFilters, StockDocumentInput, StockDocumentListRow,
+  IssuableWorkItem, IssueLineRow, StockDocumentDetail, StockDocumentFilters, StockDocumentInput, StockDocumentListRow,
 } from '@/src/lib/db/stockDocuments';
 import type { StockLedgerFilters, StockLedgerPage, StockLedgerRow, StockOnHandRow } from '@/src/lib/db/stockReports';
 import type { OrgVendorTaxAccounts, ProjectClassificationOptions } from '@/src/lib/db/orgs';
@@ -936,6 +936,8 @@ export interface StockDocumentsRepository {
   post(id: string): Promise<void>;
   cancel(id: string): Promise<void>;
   issuableWorkItems(projectId: string): Promise<IssuableWorkItem[]>;
+  /** Posted issue lines of a project: what a Return may cite. */
+  issueLines(projectId: string): Promise<IssueLineRow[]>;
 }
 
 /** Stock reads (#1512 S3): cost keys are absent from the data below Project Manager rank. */

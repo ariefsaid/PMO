@@ -16,7 +16,7 @@ import {
   setWarehouseKeeper,
 } from '@/src/lib/db/stockMaster';
 import {
-  cancelStockDocument, createStockDocument, getStockDocument, listIssuableWorkItems, listStockDocuments, postStockDocument, saveStockDraft,
+  cancelStockDocument, createStockDocument, getStockDocument, listIssuableWorkItems, listProjectIssueLines, listStockDocuments, postStockDocument, saveStockDraft,
 } from '@/src/lib/db/stockDocuments';
 import { getStockLedgerAll, getStockLedgerPage, getStockOnHand } from '@/src/lib/db/stockReports';
 import { salesInvoiceCreateFields } from '@/src/lib/adapterSeam/erpnext/salesInvoiceCommand';
@@ -1364,6 +1364,7 @@ const stock: StockRepository = {
     post: (id) => wrap(() => postStockDocument(id)),
     cancel: (id) => wrap(() => cancelStockDocument(id)),
     issuableWorkItems: (p) => wrap(() => listIssuableWorkItems(p)),
+    issueLines: (p) => wrap(() => listProjectIssueLines(p)),
   },
   reports: {
     onHand: (f) => wrap(() => getStockOnHand(f)),
