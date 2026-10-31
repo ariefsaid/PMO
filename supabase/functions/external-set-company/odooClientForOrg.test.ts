@@ -1,10 +1,11 @@
 /**
- * AC-ODC-008 — the one Odoo client resolver refuses with a classified reason and makes no Odoo request.
+ * AC-ODC-008 — the one Odoo client resolver (`_shared/odooClientForOrg.ts`; tested here, its first consumer, because
+ * CI runs `_shared` tests under an import map without the edge test kit) refuses with a classified reason and makes no Odoo request.
  */
 import { assert, assertEquals, fail } from '@std/assert';
 import { createClient } from '@supabase/supabase-js';
-import { installEdgeEnv, jsonResponse, rpcCall, supabaseRpc, supabaseSelect, withFetchMock, type FetchCall } from './testing/edgeTestKit.ts';
-import { odooClientForOrg } from './odooClientForOrg.ts';
+import { installEdgeEnv, jsonResponse, rpcCall, supabaseRpc, supabaseSelect, withFetchMock, type FetchCall } from '../_shared/testing/edgeTestKit.ts';
+import { odooClientForOrg } from '../_shared/odooClientForOrg.ts';
 
 const ORG = '0d000000-0000-4000-8000-000000000001';
 const SITE = 'https://odoo.example.test';
