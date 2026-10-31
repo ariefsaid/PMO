@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(9);
+select plan(10);
 
 insert into public.organizations (id,name) values
   ('02900000-0000-0000-0000-000000000001','Project finance rollback test org');
@@ -21,8 +21,13 @@ values ('02900000-0000-0000-0000-000000000001','sales_invoice','02900000-0000-00
         'project','02900000-0000-0000-0000-0000000000d1','update',null,
         '{"project_id":{"old":"02900000-0000-0000-0000-0000000000d2","new":"02900000-0000-0000-0000-0000000000d1"}}');
 
+-- 0408 (#1471) replaced assign_sales_invoice_project / the mirror guard / get_project_finances, so rolling back 0290 at head
+-- means rolling back 0408 first (reverse order), exactly as an operator would.
+\set bk_embedded 1
+\ir 0408_billing_kinds_down_runner.sql
 \set pfin_embedded 1
 \ir 0290_project_finances_down_runner.sql
+select lives_ok('select pg_temp.run_bk_down()','NFR-005 the later 0408 rollback runs first (reverse order)');
 select throws_ok('select pg_temp.run_pfin_down()','P0001',null,
                  'AC-PFIN-008 rollback refuses provenance loss before DDL');
 select has_column('public','sales_invoices','erp_project','AC-PFIN-008 failed rollback leaves provenance in place');

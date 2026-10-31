@@ -3596,3 +3596,15 @@ reference establishes the external record; recovery uses the submitted case snap
 A requester or same-organization Admin may edit the existing procurement header fields while the case
 is Draft or Rejected. The header command checks active membership, the procurement feature, referenced
 records and case ownership, and leaves identity, lifecycle and accounting fields outside its input.
+
+### DD-BKIND-1 — billing kinds on project invoices (Director, 2026-10-31)
+
+A project invoice carries one billing kind, `contract` (default) or `other`, as a constrained column on
+`sales_invoices`. Only Contract billing draws down the contract value; `get_project_finances` is the single
+calculation authority and Other billing stays in revenue, settlement, outstanding and margin. When Contract
+billing exceeds a known contract value the same payload carries the exact excess and every contributing
+Contract invoice, so the list reconciles to the headline by construction and cannot be truncated. Kind is
+written by three definer paths only (project assignment, a kind-only correction for any linked invoice, native
+creation) plus the connected-creation mirror writer; an omitted kind keeps the stored one, so a classified
+invoice is never silently flipped. It is PMO metadata and never reaches an ERP body. Rollback refuses while any
+Other invoice exists, so no classification silently changes meaning.
