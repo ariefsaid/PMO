@@ -5,13 +5,25 @@
 type Row = Record<string, unknown> & { id: number };
 type Domain = unknown[];
 
-/** The fields `fields_get` reports per model (the adapter only asks which exist). */
+/** The fields `fields_get` reports per model (the adapter only asks which exist). Any other model answers 404. */
 const FIELDS: Record<string, string[]> = {
   'res.partner': ['name', 'vat', 'ref', 'email', 'is_company', 'parent_id', 'active', 'supplier_rank', 'customer_rank', 'company_id', 'write_date'],
-  'res.company': ['name', 'partner_id', 'write_date'],
+  'res.company': ['name', 'currency_id', 'partner_id', 'write_date'],
   'product.product': ['default_code', 'name', 'uom_id', 'purchase_ok', 'sale_ok', 'company_id', 'active', 'write_date'],
-  'account.analytic.account': ['name', 'code', 'plan_id', 'company_id', 'active', 'write_date'],
+  'uom.uom': ['name', 'relative_factor', 'relative_uom_id', 'active', 'write_date'],
+  'stock.warehouse': ['name', 'code', 'lot_stock_id', 'view_location_id', 'active', 'write_date'],
+  'stock.location': ['complete_name', 'usage', 'location_id', 'warehouse_id', 'active', 'write_date'],
   'account.account': ['code', 'name', 'account_type', 'active', 'write_date'],
+  'account.tax': ['name', 'amount', 'type_tax_use', 'active', 'write_date'],
+  'account.analytic.plan': ['name', 'write_date'],
+  'account.analytic.account': ['name', 'code', 'plan_id', 'company_id', 'active', 'write_date'],
+  'purchase.order': ['name', 'write_date'],
+  'account.move': ['name', 'write_date'],
+  'stock.picking': ['name', 'write_date'],
+  'stock.move': ['name', 'write_date'],
+  'account.analytic.line': ['name', 'write_date'],
+  'fleet.vehicle': ['name', 'write_date'],
+  'maintenance.equipment': ['name', 'write_date'],
 };
 
 const fmt = (n: number) => new Date(Date.UTC(2026, 0, 1) + n * 1000).toISOString().slice(0, 19).replace('T', ' ');
@@ -62,6 +74,10 @@ export interface FakeOdoo {
   seed(model: string, rows: Array<Record<string, unknown>>): void;
   rows(model: string): Row[];
   failNext(kind: 'transport' | 'lost-response'): void;
+  /** Capability faults for discovery: a model that 404s, a field `fields_get` omits, an operation `has_access` denies. */
+  dropModel(model: string): void;
+  dropField(model: string, field: string): void;
+  denyAccess(model: string, operation: string): void;
   /** Every call that reached the fake, in order. */
   readonly calls: Array<{ model: string; method: string }>;
 }
@@ -73,6 +89,9 @@ export function createFakeOdoo({ key }: { key: string }): FakeOdoo {
   let nextId = 1000;
   let fault: 'transport' | 'lost-response' | null = null;
   const calls: FakeOdoo['calls'] = [];
+  const fields = Object.fromEntries(Object.entries(FIELDS).map(([m, f]) => [m, [...f]]));
+  const denied = new Set<string>();
+  const dropped = new Set<string>();
 
   const select = (model: string, body: Record<string, unknown>) => {
     const ctx = (body.context ?? {}) as { active_test?: boolean };
@@ -101,7 +120,8 @@ export function createFakeOdoo({ key }: { key: string }): FakeOdoo {
       return true;
     },
     unlink: (m, b) => { for (const id of b.ids as number[]) table(m).delete(id); return true; },
-    fields_get: (m) => Object.fromEntries((FIELDS[m] ?? []).map((f) => [f, { type: 'char' }])),
+    fields_get: (m) => Object.fromEntries(fields[m].map((f) => [f, { type: 'char' }])),
+    has_access: (m, b) => !denied.has(`${m}:${b.operation}`),
   };
 
   const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
@@ -113,7 +133,8 @@ export function createFakeOdoo({ key }: { key: string }): FakeOdoo {
     const auth = (init?.headers as Record<string, string> | undefined)?.Authorization;
     if (auth !== `bearer ${key}`) return Response.json({ name: 'odoo.exceptions.AccessDenied', message: 'Access Denied' }, { status: 401 });
     const handler = methods[method];
-    if (!handler) return Response.json({ name: 'werkzeug.exceptions.NotFound', message: '404 Not Found', arguments: [], context: {}, debug: '' }, { status: 404 });
+    const capability = method === 'fields_get' || method === 'has_access';
+    if (!handler || dropped.has(model) || (capability && !fields[model])) return Response.json({ name: 'werkzeug.exceptions.NotFound', message: '404 Not Found', arguments: [], context: {}, debug: '' }, { status: 404 });
     const result = handler(model, JSON.parse(String(init?.body ?? '{}')));
     if (f === 'lost-response') throw new TypeError('error sending request: connection reset');
     return Response.json(result);
@@ -130,5 +151,8 @@ export function createFakeOdoo({ key }: { key: string }): FakeOdoo {
     },
     rows: (model) => [...table(model).values()],
     failNext(kind) { fault = kind; },
+    dropModel(model) { delete fields[model]; dropped.add(model); },
+    dropField(model, field) { fields[model] = fields[model].filter((f) => f !== field); },
+    denyAccess(model, operation) { denied.add(`${model}:${operation}`); },
   };
 }
