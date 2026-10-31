@@ -58,14 +58,14 @@ export function sanitizeUploadFileName(raw: string): string {
 }
 
 /** Server policy: the name is already sanitized, bounded, and its extension is allowed and not denied. */
-function validName(name: unknown): name is string {
+export function validUploadFileName(name: unknown): name is string {
   if (typeof name !== "string" || name === "" || sanitizeUploadFileName(name) !== name) return false;
   const ext = extensionOf(name);
   return ALLOWED_FILE_TYPES.includes(ext) && !DENIED_EXTENSIONS.includes(ext) && ext in FILE_MIME_BY_EXT;
 }
 
 function valid(c: UploadContext): boolean {
-  return !!c && safeGraphId(c.driveId) && safeGraphId(c.parentId) && validName(c.fileName) &&
+  return !!c && safeGraphId(c.driveId) && safeGraphId(c.parentId) && validUploadFileName(c.fileName) &&
     Number.isInteger(c.bytes) && c.bytes > 0 && c.bytes <= MAX_FILE_SIZE_BYTES; // mutation-witness:upload-size-cap
 }
 

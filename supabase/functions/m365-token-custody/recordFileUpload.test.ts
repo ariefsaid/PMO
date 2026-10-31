@@ -10,7 +10,8 @@ import {
   uploadAllowed,
   validateUploadedItem,
 } from "./graphFileUpload.ts";
-import { DRIVE, FULL_SCOPES, graphCalls, graphError, gput, graphSummary, makeScenarioRunner, newWorld, READ_SCOPES, SITE } from "./recordFolderTestKit.ts";
+import { CASE_ID, DRIVE, graphCalls, graphError, gput, graphSummary, makeScenarioRunner, newWorld, ORG, PROJECT_ID, READ_SCOPES, rpcBodies, SITE, settingsRow, USER, type World } from "./recordFolderTestKit.ts";
+import { parseUploadRequest } from "./recordFileUpload.ts";
 import { jsonResponse } from "../_shared/testing/edgeTestKit.ts";
 import { openCallerRecordFileUpload, type RecordFileUploadAccess } from "./graphRead.ts";
 import { createGraphBudget } from "./folderBudget.ts";
@@ -125,7 +126,7 @@ Deno.test("document-preview AC-007 upload builder emits only the exact content P
 });
 
 const PUT_PATH = `/drives/${DRIVE}/items/synthetic-parent-id:/Site plan.pdf:/content`;
-const BYTES = new Uint8Array([37, 80, 68, 70, 45, 49, 46, 55]);
+const BYTES: Uint8Array<ArrayBuffer> = new Uint8Array(new ArrayBuffer(8)); BYTES.set([37, 80, 68, 70, 45, 49, 46, 55]);
 const driveItem = (over: Record<string, unknown> = {}) => ({
   id: "synthetic-new-item", name: "Site plan.pdf", webUrl: "https://synthetic.sharepoint.com/sites/x/Site%20plan.pdf",
   file: { mimeType: "application/pdf" }, parentReference: { driveId: DRIVE, id: "synthetic-parent-id" }, ...over,
@@ -214,5 +215,232 @@ Deno.test("document-preview AC-007 upload transport", async (t) => {
       const access = await openCallerRecordFileUpload(sc.deps, { site_id: SITE, drive_id: DRIVE }, createGraphBudget(30_000));
       assertEquals(Object.keys(access).sort(), ["uploadFile"]);
     });
+  });
+});
+
+// ── served handler ───────────────────────────────────────────────────────────────────────────────
+const DOC_ID = "10200000-0000-0000-0000-0000000000d2";
+const PARENT_ID = "synthetic-parent-id";
+const NOT_RECORD = "This record is not available.";
+const docRow = (over: Record<string, unknown> = {}) => ({
+  id: DOC_ID, org_id: ORG, project_id: PROJECT_ID, status: "Draft", author_id: USER, source: null, ...over,
+});
+const folderRow = (over: Record<string, unknown> = {}) => ({
+  id: "10200000-0000-0000-0000-0000000000f2", ms_drive_id: DRIVE, ms_item_id: PARENT_ID, ms_item_kind: "folder", ms_linked_at: "2026-10-01T00:00:00Z", ...over,
+});
+/** project_documents / procurement_documents: the target row for `id=eq.` reads, the folder reference otherwise. */
+const registers = (target: Record<string, unknown>[] = [docRow()], folders: Record<string, unknown>[] = [folderRow()]) =>
+  (call: { url: URL }) => call.url.searchParams.get("id")?.startsWith("eq.") ? target : folders;
+const okPut = () => gput(PUT_PATH, () => jsonResponse(driveItem({ name: "Site plan 1.pdf" }), { status: 201 }));
+
+const file = (name = "Site plan.pdf", bytes: Uint8Array<ArrayBuffer> = BYTES, type = "application/pdf") => new File([bytes], name, { type });
+function projectForm(f: File | string = file(), over: Record<string, string | File | null> = {}): FormData {
+  const fd = new FormData();
+  const fields: Record<string, string | File | null> = { action: "upload_record_file", target_kind: "project_document", target_id: DOC_ID, file: f, ...over };
+  for (const [k, v] of Object.entries(fields)) if (v !== null) fd.append(k, v);
+  return fd;
+}
+function purchaseForm(over: Record<string, string | File | null> = {}): FormData {
+  const fd = new FormData();
+  const fields: Record<string, string | File | null> = { action: "upload_record_file", target_kind: "procurement_file", phase: "receipt", parent_id: DOC_ID, file: file(), ...over };
+  for (const [k, v] of Object.entries(fields)) if (v !== null) fd.append(k, v);
+  return fd;
+}
+async function serveUpload(world: World, body: FormData, authorized = true) {
+  return await run(world, async (sc) => {
+    const res = await handler(new Request("http://edge.test/m365-token-custody", {
+      method: "POST", headers: authorized ? { Authorization: `Bearer ${sc.token}` } : {}, body,
+    }));
+    return { res, json: await res.json().catch(() => null) as Record<string, unknown> | null, calls: sc.calls };
+  });
+}
+const dbCalls = (calls: { url: URL }[], name: string) => calls.filter((c) => c.url.pathname === `/rest/v1/${name}`);
+
+Deno.test("document-preview AC-007 the multipart contract is exactly one file plus the target fields", async (t) => {
+  await t.step("accepts the project and purchase shapes, ignoring the browser content type", async () => {
+    const project = await parseUploadRequest(projectForm(file("Site plan.pdf", BYTES, "text/html")));
+    assertEquals(project?.target, { kind: "project_document", id: DOC_ID });
+    assertEquals(project?.fileName, "Site plan.pdf");
+    assertEquals(project?.bytes, BYTES);
+    const purchase = await parseUploadRequest(purchaseForm());
+    assertEquals(purchase?.target, { kind: "procurement_file", phase: "receipt", parent_id: DOC_ID });
+  });
+
+  await t.step("sanitizes the name server-side", async () => {
+    assertEquals((await parseUploadRequest(projectForm(file("a/b:c.pdf"))))?.fileName, "a b c.pdf");
+  });
+
+  await t.step("rejects everything else", async () => {
+    const big = new Uint8Array(5 * 1024 * 1024 + 1);
+    const two = projectForm();
+    two.append("file", file());
+    const refused: Array<[string, FormData]> = [
+      ["extra drive field", projectForm(file(), { drive_id: "d" })],
+      ["extra parent_item_id", projectForm(file(), { parent_item_id: "p" })],
+      ["extra folder/path/name/conflict", projectForm(file(), { folder: "x", path: "y", name: "z", conflict: "replace" })],
+      ["project form with purchase fields", projectForm(file(), { phase: "receipt" })],
+      ["purchase form with target_id", purchaseForm({ target_id: DOC_ID })],
+      ["wrong action", projectForm(file(), { action: "ensure_record_folder" })],
+      ["unknown kind", projectForm(file(), { target_kind: "budget" })],
+      ["non-uuid target", projectForm(file(), { target_id: "x" })],
+      ["non-uuid parent", purchaseForm({ parent_id: "x" })],
+      ["unknown phase", purchaseForm({ phase: "nope" })],
+      ["missing phase", purchaseForm({ phase: null })],
+      ["no file part", projectForm(file(), { file: null })],
+      ["file is a string", projectForm("not a file")],
+      ["two file parts", two],
+      ["empty file", projectForm(file("a.pdf", new Uint8Array()))],
+      ["oversize", projectForm(file("a.pdf", big))],
+      ["denied extension", projectForm(file("a.exe"))],
+      ["archive", projectForm(file("a.zip"))],
+      ["unlisted extension", projectForm(file("a.html"))],
+      ["no extension", projectForm(file("readme"))],
+      ["name that sanitizes away", projectForm(file("///"))],
+    ];
+    for (const [label, form] of refused) assertEquals(await parseUploadRequest(form), null, label);
+    // exactly at the cap is fine
+    assert(await parseUploadRequest(projectForm(file("a.pdf", new Uint8Array(5 * 1024 * 1024)))));
+  });
+});
+
+Deno.test("document-preview AC-007 the shipped handler uploads into the record folder and returns the reference", async (t) => {
+  await t.step("project document: one PUT into the record folder, the returned name wins, no token in the answer", async () => {
+    const { res, json, calls } = await serveUpload(newWorld({ documents: registers(), graph: [okPut()] }), projectForm());
+    assertEquals(res.status, 200);
+    assertEquals(json, { reference: {
+      drive_id: DRIVE, item_id: "synthetic-new-item", name: "Site plan 1.pdf",
+      web_url: "https://synthetic.sharepoint.com/sites/x/Site%20plan.pdf", item_kind: "file",
+    } });
+    assertEquals(graphSummary(calls), [`PUT ${PUT_PATH}`]);
+    const put = graphCalls(calls)[0]!;
+    assertEquals(put.url.search, "?@microsoft.graph.conflictBehavior=rename");
+    assertEquals(put.headers.get("content-type"), "application/pdf");
+    assertEquals(put.bodyText, new TextDecoder().decode(BYTES));
+    for (const secret of ["access_token", "refresh_token", "synthetic-access-token"]) assertFalse(JSON.stringify(json).includes(secret));
+    // custody never writes a PMO table and never touches Storage
+    assertEquals(calls.filter((c) => c.method !== "GET" && /^\/rest\/v1\/(project_documents|procurement_documents|[a-z_]+_files)$/u.test(c.url.pathname)).length, 0);
+    assertEquals(calls.filter((c) => c.url.pathname.startsWith("/storage/")).length, 0);
+    // a metadata-only audit row, no file name or URL
+    const audits = rpcBodies(calls, "audit_m365_event");
+    assertEquals(audits.length, 1);
+    assertEquals(audits[0], { p_action: "m365.file_uploaded", p_org_id: ORG, p_actor_id: USER, p_entity_id: DOC_ID, p_detail: { kind: "project_document" } });
+  });
+
+  await t.step("purchase file: the purchase case's folder via the phase parent", async () => {
+    const world = newWorld({
+      documents: (call) => call.url.searchParams.get("procurement_id") === `eq.${CASE_ID}` ? [folderRow()] : [],
+      tables: { procurement_receipts: [{ id: DOC_ID, org_id: ORG, procurement_id: CASE_ID }] },
+      graph: [okPut()],
+    });
+    const { res, json, calls } = await serveUpload(world, purchaseForm());
+    assertEquals(res.status, 200);
+    assertEquals((json?.reference as { item_id: string }).item_id, "synthetic-new-item");
+    assertEquals(graphSummary(calls), [`PUT ${PUT_PATH}`]);
+  });
+
+  await t.step("an Admin may upload to someone else's Draft", async () => {
+    const { res } = await serveUpload(newWorld({ role: "Admin", documents: registers([docRow({ author_id: "someone-else" })]), graph: [okPut()] }), projectForm());
+    assertEquals(res.status, 200);
+  });
+
+  await t.step("the upload quota answers 429 before any connection or Graph call", async () => {
+    const { res, json, calls } = await serveUpload(newWorld({ documents: registers(), graph: [okPut()], rate: () => jsonResponse(false) }), projectForm());
+    assertEquals([res.status, json?.error], [429, "RATE_LIMITED"]);
+    assertEquals(graphCalls(calls).length, 0);
+    assertEquals(dbCalls(calls, "ms_graph_connections").length, 0);
+  });
+
+  await t.step("no JWT is a 401 before the body is read", async () => {
+    const { res, calls } = await serveUpload(newWorld({ documents: registers(), graph: [okPut()] }), projectForm(), false);
+    assertEquals(res.status, 401);
+    assertEquals(graphCalls(calls).length, 0);
+    assertEquals(dbCalls(calls, "project_documents").length, 0);
+  });
+
+  await t.step("a JSON body still routes as before", async () => {
+    await run(newWorld(), async (sc) => {
+      const res = await sc.call({ action: "connection_status" });
+      assert(res.status !== 400 || (await res.json()).message !== "invalid form body");
+    });
+  });
+});
+
+Deno.test("document-preview AC-008 a connected organisation never falls back to private Storage and writes nothing on failure", async (t) => {
+  const failures: Array<[string, Partial<World>, number, string]> = [
+    ["Microsoft refuses the write", { graph: [gput(PUT_PATH, () => graphError(403, "accessDenied"))] }, 403, "SOURCE_ACCESS_DENIED"],
+    ["the folder item is gone", { graph: [gput(PUT_PATH, () => graphError(404, "itemNotFound"))] }, 409, "RECORD_FOLDER_UNAVAILABLE"],
+    ["no Sites.Selected consent", { scopes: READ_SCOPES, graph: [okPut()] }, 403, "SCOPE_INSUFFICIENT"],
+    ["no connection", { connectionMissing: true, graph: [okPut()] }, 404, "NOT_CONNECTED"],
+    ["stale connection", { connectionStatus: "stale", graph: [okPut()] }, 409, "CONNECTION_STALE"],
+    ["revoked connection", { connectionStatus: "revoked", graph: [okPut()] }, 410, "CONNECTION_REVOKED"],
+    ["5xx", { graph: [gput(PUT_PATH, () => graphError(500, "generalException"))] }, 502, "GRAPH_ERROR"],
+    ["wrong parent in the answer", { graph: [gput(PUT_PATH, () => jsonResponse(driveItem({ parentReference: { driveId: DRIVE, id: "elsewhere" } }), { status: 201 }))] }, 502, "GRAPH_ERROR"],
+    ["folder facet in the answer", { graph: [gput(PUT_PATH, () => jsonResponse(driveItem({ file: undefined, folder: {} }), { status: 201 }))] }, 502, "GRAPH_ERROR"],
+    ["no webUrl in the answer", { graph: [gput(PUT_PATH, () => jsonResponse(driveItem({ webUrl: undefined }), { status: 201 }))] }, 502, "GRAPH_ERROR"],
+  ];
+  for (const [label, over, status, code] of failures) {
+    await t.step(label, async () => {
+      const { res, json, calls } = await serveUpload(newWorld({ documents: registers(), ...over }), projectForm());
+      assertEquals([res.status, json?.error], [status, code]);
+      assertEquals(json?.reference, undefined);
+      assertEquals(calls.filter((c) => c.url.pathname.startsWith("/storage/")).length, 0);
+      assertEquals(calls.filter((c) => c.method !== "GET" && /^\/rest\/v1\/(project_documents|procurement_documents|[a-z_]+_files)$/u.test(c.url.pathname)).length, 0);
+      assertEquals(rpcBodies(calls, "audit_m365_event").length, 0);
+      assertFalse(JSON.stringify(json).includes("synthetic upstream text"));
+    });
+  }
+
+  await t.step("a missing folder, an unset library or a folder outside the library is a recovery state with no Graph call", async () => {
+    const cases: Array<[string, Partial<World>]> = [
+      ["no folder reference", { documents: registers([docRow()], []) }],
+      ["no default library", { documents: registers(), settings: [] }],
+      ["folder in another drive", { documents: registers([docRow()], [folderRow({ ms_drive_id: "other-drive" })]) }],
+      ["unsafe folder item id", { documents: registers([docRow()], [folderRow({ ms_item_id: "a/b" })]) }],
+    ];
+    for (const [label, over] of cases) {
+      const { res, json, calls } = await serveUpload(newWorld({ graph: [okPut()], ...over }), projectForm());
+      assertEquals([res.status, json?.error], [409, "RECORD_FOLDER_UNAVAILABLE"], label);
+      assertEquals(graphCalls(calls).length, 0, label);
+      assertEquals(dbCalls(calls, "ms_graph_connections").length, 0, label);
+    }
+  });
+
+  await t.step("the folder is never created by an upload", async () => {
+    const { calls } = await serveUpload(newWorld({ documents: registers([docRow()], []), graph: [okPut()] }), projectForm());
+    assertEquals(graphCalls(calls).filter((c) => c.method === "POST").length, 0);
+    assertEquals(rpcBodies(calls, "m365_link_record_folder").length, 0);
+  });
+});
+
+Deno.test("document-preview AC-014 upload refuses an unreadable or unwritable target before any Microsoft operation", async (t) => {
+  const settings = [settingsRow()];
+  const refusals: Array<[string, Partial<World>, FormData, number, string]> = [
+    ["other-org project document", { documents: registers([docRow({ org_id: "other-org" })]) }, projectForm(), 404, "SOURCE_NOT_FOUND"],
+    ["RLS hides the project document", { documents: registers([]) }, projectForm(), 404, "SOURCE_NOT_FOUND"],
+    ["a different id comes back", { documents: registers([docRow({ id: "10200000-0000-0000-0000-0000000000ee" })]) }, projectForm(), 404, "SOURCE_NOT_FOUND"],
+    ["non-Draft document", { documents: registers([docRow({ status: "Issued" })]) }, projectForm(), 403, "FORBIDDEN"],
+    ["someone else's Draft as a non-Admin", { documents: registers([docRow({ author_id: "someone-else" })]) }, projectForm(), 403, "FORBIDDEN"],
+    ["already a Microsoft reference", { documents: registers([docRow({ source: "onedrive" })]) }, projectForm(), 403, "FORBIDDEN"],
+    ["read-only role", { role: "Engineer", documents: registers() }, projectForm(), 403, "FORBIDDEN"],
+    ["viewer-class role on a purchase", { role: "Viewer", tables: { procurement_receipts: [{ id: DOC_ID, org_id: ORG, procurement_id: CASE_ID }] }, documents: registers([], [folderRow()]) }, purchaseForm(), 403, "FORBIDDEN"],
+    ["unknown phase parent", { documents: registers([], [folderRow()]), tables: { procurement_receipts: [] } }, purchaseForm(), 404, "SOURCE_NOT_FOUND"],
+    ["phase parent in another org", { documents: registers([], [folderRow()]), tables: { procurement_receipts: [{ id: DOC_ID, org_id: "other-org", procurement_id: CASE_ID }] } }, purchaseForm(), 404, "SOURCE_NOT_FOUND"],
+  ];
+  for (const [label, over, form, status, code] of refusals) {
+    await t.step(label, async () => {
+      const { res, json, calls } = await serveUpload(newWorld({ graph: [okPut()], settings, ...over }), form);
+      assertEquals([res.status, json?.error], [status, code], label);
+      assertEquals(graphCalls(calls).length, 0);
+      assertEquals(dbCalls(calls, "ms_graph_connections").length, 0);
+      assertEquals(calls.filter((c) => c.url.pathname.startsWith("/storage/")).length, 0);
+      const text = JSON.stringify(json);
+      for (const leak of [DOC_ID, CASE_ID, PROJECT_ID, DRIVE, "other-org", "project_documents"]) assertFalse(text.includes(leak), leak);
+    });
+  }
+
+  await t.step("a read-only role reads no record and no connection", async () => {
+    const { calls } = await serveUpload(newWorld({ role: "Engineer", documents: registers(), graph: [okPut()] }), projectForm());
+    assertEquals(dbCalls(calls, "project_documents").length, 0);
+    assertEquals(dbCalls(calls, "org_m365_document_settings").length, 0);
   });
 });

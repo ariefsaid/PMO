@@ -34,6 +34,7 @@ import {
 import { handleEnsureRecordFolder } from "./recordFolders.ts";
 import { handleLinkExistingRecordFolders } from "./recordFolderBackfill.ts";
 import { handlePreviewDocument } from "./documentPreview.ts";
+import { handleUploadRecordFile } from "./recordFileUpload.ts";
 import { corsHeaders } from "./auth.ts";
 import type {
   GraphProxyRequest,
@@ -161,6 +162,29 @@ async function routeRequest(req: Request, scope?: RequestDeadline): Promise<Resp
   // No meaningful oracle either way, but the boundary now reads in the correct order.
   const authed = await authedDeps(req, env, scope?.fetch);
   if (authed instanceof Response) return authed;
+
+  // Multipart POST: the one file-upload action (ADR-0095). Authenticated above, BEFORE the body is read.
+  if ((req.headers.get("content-type") ?? "").startsWith("multipart/form-data")) {
+    scope?.limit(30_000); // mutation-witness:upload-request-deadline
+    const form = await req.formData().catch(() => null);
+    if (!form) {
+      return toResponse(
+        { status: 400, body: { error: "BAD_REQUEST", message: "invalid form body" } satisfies M365ErrorResponse },
+        env.allowedOrigin,
+      );
+    }
+    let uploaded: HandlerResult;
+    try {
+      uploaded = await handleUploadRecordFile(form, authed);
+    } catch (err) {
+      console.error("[m365-token-custody] unexpected error", {
+        errorCode: "INTERNAL_ERROR",
+        message: err instanceof Error ? err.name : "unknown",
+      });
+      uploaded = { status: 500, body: { error: "INTERNAL_ERROR", message: "unexpected error" } satisfies M365ErrorResponse };
+    }
+    return toResponse(uploaded, env.allowedOrigin);
+  }
 
   // POST: parse the {action} body, then route.
   let body: Omit<Partial<M365Request>, "action"> & {
