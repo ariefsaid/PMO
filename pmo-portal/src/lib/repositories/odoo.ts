@@ -29,6 +29,17 @@ export const odooRepository = {
     if (error) throw error;
     return { rows: (data ?? []) as MasterRecord[], total: count ?? 0 };
   }),
+  /** The counts and freshness the directory header shows: rows hidden by default (inactive, deleted in Odoo) and the newest sync time. */
+  masterSummary: (kind: DirectoryKind) => wrap(async () => {
+    const base = () => supabase.from('external_master_records').select('as_of', { count: 'exact', head: true }).eq('external_tier', 'odoo').eq('kind', kind);
+    const [inactive, tombstoned, newest] = await Promise.all([
+      base().eq('active', false),
+      base().not('tombstoned_at', 'is', null),
+      supabase.from('external_master_records').select('as_of').eq('external_tier', 'odoo').eq('kind', kind).order('as_of', { ascending: false }).limit(1),
+    ]);
+    for (const r of [inactive, tombstoned, newest]) if (r.error) throw r.error;
+    return { inactive: inactive.count ?? 0, tombstoned: tombstoned.count ?? 0, asOf: (newest.data?.[0]?.as_of ?? null) as string | null };
+  }),
   getConnection: () => wrap(async (): Promise<OdooConnectionRead> => {
     const { data, error } = await supabase.from('external_org_bindings').select('status,activated_at,config').eq('external_tier', 'odoo').maybeSingle();
     if (error) throw error;

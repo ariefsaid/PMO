@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import type { ListMasterInput } from '@/src/lib/repositories/odoo';
+import type { DirectoryKind, ListMasterInput } from '@/src/lib/repositories/odoo';
 import type { ConnectCredential } from '@/src/lib/repositories/types';
 import { useAuth } from '@/src/auth/useAuth';
 
@@ -61,5 +61,14 @@ export function useOdooDisconnect() {
       void qc.invalidateQueries({ queryKey: ['integrations', 'bindings', orgId] });
       void qc.invalidateQueries({ queryKey: ['integrations', 'health', orgId] });
     },
+  });
+}
+
+export function useMasterSummary(kind: DirectoryKind, enabled = true) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({
+    queryKey: ['odoo', 'master-summary', orgId, kind],
+    queryFn: () => repositories.odoo.masterSummary(kind),
+    enabled: Boolean(orgId) && enabled,
   });
 }

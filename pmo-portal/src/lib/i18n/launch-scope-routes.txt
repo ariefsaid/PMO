@@ -155,3 +155,6 @@
 # ── OAuth consent (#728): Supabase Auth's OAuth server sends the owner here to let the PMO CLI act
 #    as them. The screen names the requesting client and the signed-in account, in en + id.
 /oauth/consent                src/auth/OAuthConsentPage.tsx
+
+# ── Odoo directories (#1504 S5, FR-ODC-111): items, units, warehouses, cost accounts, accounts and taxes mirrored from Odoo.
+/master-data/:kind            pages/MasterData.tsx src/components/integrations/odoo/OdooConnectionBanner.tsx

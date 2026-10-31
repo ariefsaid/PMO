@@ -4,7 +4,7 @@ const h = vi.hoisted(() => {
   const calls: Array<[string, ...unknown[]]> = [];
   let result: { data: unknown; error: unknown; count?: number } = { data: [], error: null, count: 0 };
   const chain: Record<string, unknown> = {};
-  for (const m of ['select', 'eq', 'or', 'is', 'order', 'range']) {
+  for (const m of ['select', 'eq', 'or', 'is', 'not', 'order', 'range', 'limit']) {
     chain[m] = (...a: unknown[]) => { calls.push([m, ...a]); return chain; };
   }
   chain.maybeSingle = async () => result;
@@ -69,4 +69,14 @@ it('getConnection reports disconnected when there is no binding row', async () =
 it('setup sends the verb to external-set-company with tier odoo', async () => {
   await odooRepository.setup('activate', { companyId: 7 });
   expect(h.invoke).toHaveBeenCalledWith('external-set-company', { body: { tier: 'odoo', setupAction: 'activate', companyId: 7 } });
+});
+
+it('AC-ODC-081 masterSummary counts inactive and tombstoned rows and reads the newest as_of for the kind', async () => {
+  h.setResult({ data: [{ as_of: '2026-11-01T08:00:00Z' }], error: null, count: 4 });
+  const out = await odooRepository.masterSummary('product');
+  expect(h.calls).toContainEqual(['eq', 'active', false]);
+  expect(h.calls).toContainEqual(['not', 'tombstoned_at', 'is', null]);
+  expect(h.calls).toContainEqual(['order', 'as_of', { ascending: false }]);
+  expect(h.calls.filter((c) => c[0] === 'eq' && c[1] === 'kind' && c[2] === 'product')).toHaveLength(3);
+  expect(out).toEqual({ inactive: 4, tombstoned: 4, asOf: '2026-11-01T08:00:00Z' });
 });

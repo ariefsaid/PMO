@@ -426,6 +426,11 @@ export function breadcrumbForPath(
     ];
   }
 
+  if (/^\/master-data\/[^/]+$/.test(pathname)) {
+    return [{ label: 'Odoo directories', // i18n-exempt: translated from i18nKey by Breadcrumb
+      i18nKey: 'odoo.master.title' }];
+  }
+
   const childCrumb = CHILD_PAGE_CRUMB[pathname];
   const childParent = MODULES.find((m) => m.path === RAIL_PARENT_FOR_PATH[pathname]);
   if (childCrumb && childParent) {
