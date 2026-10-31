@@ -152,6 +152,7 @@ import type {
   EnsureRecordFolderRequest,
   RecordFolderBackfillRequest,
 } from "../_shared/microsoftRecordFolder.ts";
+import type { PreviewDocumentRequest } from "../_shared/microsoftDocumentPreview.ts";
 
 export type M365Request =
   | InitiateConnectRequest
@@ -163,7 +164,8 @@ export type M365Request =
   | IssueDocumentRequest
   | RefreshReferencesRequest
   | EnsureRecordFolderRequest
-  | RecordFolderBackfillRequest;
+  | RecordFolderBackfillRequest
+  | PreviewDocumentRequest;
 
 // ── Errors ────────────────────────────────────────────────────────────────────
 
@@ -186,6 +188,10 @@ export type M365ErrorCode =
   | "CONNECTION_STALE"
   | "CONNECTION_REVOKED"
   | "SCOPE_INSUFFICIENT"
+  | "SOURCE_ACCESS_DENIED"
+  | "SOURCE_NOT_FOUND"
+  | "PREVIEW_UNSUPPORTED"
+  | "RECORD_FOLDER_UNAVAILABLE"
   | "GRAPH_ERROR"
   | "INTERNAL_ERROR";
 
@@ -203,6 +209,10 @@ export const ERROR_STATUS: Record<M365ErrorCode, number> = {
   CONNECTION_STALE: 409,
   CONNECTION_REVOKED: 410,
   SCOPE_INSUFFICIENT: 403,
+  SOURCE_ACCESS_DENIED: 403,
+  SOURCE_NOT_FOUND: 404,
+  PREVIEW_UNSUPPORTED: 422,
+  RECORD_FOLDER_UNAVAILABLE: 409,
   GRAPH_ERROR: 502,
   INTERNAL_ERROR: 500,
 };

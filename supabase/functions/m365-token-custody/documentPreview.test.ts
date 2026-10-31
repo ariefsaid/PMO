@@ -3,6 +3,7 @@
 // scripts/m365-preview-upload-mutation.mjs: break the allowlist or an authorization step and it MUST go red.
 import { assert, assertEquals, assertFalse, assertThrows } from "@std/assert";
 import { makeScenarioRunner } from "./recordFolderTestKit.ts";
+import { ERROR_STATUS } from "./types.ts";
 import { buildPreviewRequest, previewAllowed, readPreviewGetUrl } from "./graphPreview.ts";
 
 const { handler, setTestJwks } = await import("./index.ts");
@@ -63,4 +64,11 @@ Deno.test("document-preview AC-003 preview builder emits only the exact POST", a
     assertEquals(readPreviewGetUrl(null), null);
     assertEquals(readPreviewGetUrl([]), null);
   });
+});
+
+Deno.test("document-preview AC-003 preview error vocabulary maps to its statuses", () => {
+  assertEquals(ERROR_STATUS.SOURCE_ACCESS_DENIED, 403);
+  assertEquals(ERROR_STATUS.SOURCE_NOT_FOUND, 404);
+  assertEquals(ERROR_STATUS.PREVIEW_UNSUPPORTED, 422);
+  assertEquals(ERROR_STATUS.RECORD_FOLDER_UNAVAILABLE, 409);
 });
