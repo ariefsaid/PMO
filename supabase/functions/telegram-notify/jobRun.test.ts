@@ -2,9 +2,7 @@
 import { assertEquals } from 'jsr:@std/assert@1';
 const { jobHandler, summarizeTelegramNotify } = await import('./index.ts');
 
-// sanitizeOps off: the handler's own supabase-js client arms an auth auto-refresh interval that its
-// stopAutoRefresh races; that is the client's timer, not the job_run emit under test.
-Deno.test({ name: 'AC-PHO-020 real handler: unset Telegram secrets emit one failed job_run SECRETS_UNSET, not ok', sanitizeOps: false, sanitizeResources: false, fn: async () => {
+Deno.test('AC-PHO-020 real handler: unset Telegram secrets emit one failed job_run SECRETS_UNSET, not ok', async () => {
   const events: Record<string, any>[] = [];
   const origFetch = globalThis.fetch;
   globalThis.fetch = ((_u: unknown, init: RequestInit) => {
@@ -31,7 +29,7 @@ Deno.test({ name: 'AC-PHO-020 real handler: unset Telegram secrets emit one fail
     globalThis.fetch = origFetch;
     for (const [k, v] of prior) v === undefined ? Deno.env.delete(k) : Deno.env.set(k, v);
   }
-} });
+});
 
 Deno.test('summarizeTelegramNotify: sent is ok; send or stamp failures and unset secrets fail the run', () => {
   assertEquals(summarizeTelegramNotify({ ok: true, sent: 2, sendFailures: 0, stampFailures: 0 }), { items: 2 });

@@ -143,6 +143,7 @@
     "activate_external_binding(uuid,text,integer,text,jsonb,uuid)",
     "actor_authorization_state(uuid,uuid)",
     "admin_change_domain_ownership(uuid,text,text,text,uuid)",
+    "admin_set_feedback_surveys(boolean)",
     "admin_set_user_status(uuid,profile_status,uuid)",
     "advance_procurement_status(uuid,text)",
     "agent_dispatch_tick()",
