@@ -15,6 +15,9 @@ export function DocumentViewerProvider({ children }: { children: ReactNode }) {
   const generation = useRef(0);
   const controller = useRef<AbortController | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
+  /** The target of the committed failed state: Retry reads it here, so no side effect runs inside a state updater. */
+  const failedTarget = useRef<DocumentViewTarget | null>(null);
+  useEffect(() => { failedTarget.current = state.phase === 'failed' ? state.target : null; }, [state]);
 
   const run = useCallback((target: DocumentViewTarget) => {
     controller.current?.abort();
@@ -54,10 +57,8 @@ export function DocumentViewerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const retry = useCallback(() => {
-    setState((s) => {
-      if (s.phase === 'failed') queueMicrotask(() => run(s.target));
-      return s;
-    });
+    const target = failedTarget.current;
+    if (target) run(target);
   }, [run]);
 
   // A route change closes the panel so a stale document never covers a new page; a search/filter change keeps it.

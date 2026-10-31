@@ -2,6 +2,7 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DocumentViewerProvider } from './DocumentViewerProvider';
@@ -40,6 +41,21 @@ describe('document-preview AC-006 the viewer state machine', () => {
     expect(load).toHaveBeenCalledTimes(2);
     expect(signals[1]).not.toBe(signals[0]);
     expect(signals[1]!.aborted).toBe(false);
+  });
+
+  it('one Retry click loads once even when React replays state updaters (StrictMode)', async () => {
+    const load = vi.fn(async (): Promise<PreviewResult> => {
+      if (load.mock.calls.length === 1) throw new PreviewFailure('expired');
+      return { mode: 'image', url: 'https://signed.test/fresh.png' };
+    });
+    render(
+      <MemoryRouter><DocumentViewerProvider><Harness targets={[target({ load })]} /></DocumentViewerProvider></MemoryRouter>,
+      { wrapper: StrictMode },
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Preview Plan.png' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    expect(await screen.findByRole('img', { name: 'Plan.png' })).toBeInTheDocument();
+    expect(load).toHaveBeenCalledTimes(2);
   });
 
   it('a late result for the first file never appears for the second, and its signal is aborted', async () => {
