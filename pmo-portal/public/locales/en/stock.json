@@ -161,6 +161,222 @@
     "STK_NOT_FOUND": "That record was not found in your organisation.",
     "STK_TOO_MANY": "Too many rows to show. Narrow the filter.",
     "STK_KIND_UNAVAILABLE": "This kind of document is not available yet.",
-    "STK_IMMUTABLE": "A posted or cancelled document cannot be changed."
+    "STK_IMMUTABLE": "A posted or cancelled document cannot be changed.",
+    "STK_INSUFFICIENT_DETAIL": "Only {{available}} on hand; you asked for {{requested}}."
+  },
+  "actions": {
+    "cancel": "Cancel",
+    "retry": "Retry"
+  },
+  "states": {
+    "errorTitle": "Couldn't load stock",
+    "errorSub": "Check your connection and try again. Nothing was changed."
+  },
+  "tabs": {
+    "label": "Stock sections",
+    "onHand": "On hand",
+    "documents": "Documents",
+    "ledger": "Ledger",
+    "setup": "Setup"
+  },
+  "onHand": {
+    "title": "Stock on hand",
+    "description": "What every warehouse holds right now. Open an item to see how it got there.",
+    "columns": {
+      "item": "Item",
+      "warehouse": "Warehouse",
+      "quantity": "On hand",
+      "avgCost": "Average cost",
+      "value": "Value"
+    },
+    "filters": {
+      "warehouse": "Warehouse",
+      "allWarehouses": "All warehouses",
+      "search": "Search items",
+      "includeZero": "Show zero balances"
+    },
+    "tiles": {
+      "items": "Items",
+      "warehouses": "Warehouses",
+      "central": "Central balances",
+      "site": "Site balances"
+    },
+    "states": {
+      "tooManyTitle": "Too many rows to show",
+      "noMatch": "Nothing matches",
+      "noMatchSub": "Clear the search or pick another warehouse.",
+      "emptySub": "Receive stock into a warehouse and it appears here."
+    }
+  },
+  "documents": {
+    "title": "Stock documents",
+    "description": "Every receipt, transfer, issue and return, newest first.",
+    "columns": {
+      "number": "Document",
+      "status": "Status",
+      "warehouse": "Warehouse",
+      "project": "Project",
+      "date": "Date",
+      "by": "By"
+    },
+    "status": {
+      "Draft": "Draft",
+      "Posted": "Posted",
+      "Cancelled": "Cancelled"
+    },
+    "filters": {
+      "kind": "Kind",
+      "allKinds": "All kinds",
+      "status": "Status",
+      "allStatuses": "All statuses"
+    },
+    "loadMore": "Load more",
+    "states": {
+      "empty": "No stock documents yet",
+      "emptySub": "Receive stock into a warehouse to create the first one.",
+      "noMatch": "No documents match",
+      "noMatchSub": "Clear a filter to see more."
+    }
+  },
+  "detail": {
+    "notFound": {
+      "title": "Document not found",
+      "sub": "It may belong to another organisation or no longer exist."
+    },
+    "backToList": "Back to documents",
+    "fields": {
+      "warehouse": "Warehouse",
+      "project": "Project",
+      "author": "Created by",
+      "created": "Created",
+      "reason": "Reason",
+      "note": "Note"
+    },
+    "lines": "Lines",
+    "entries": "Stock entries",
+    "noEntries": "Nothing has been posted for this document.",
+    "openInLedger": "Open in the ledger",
+    "columns": {
+      "item": "Item",
+      "quantity": "Quantity",
+      "warehouse": "Warehouse",
+      "change": "Change",
+      "balance": "Balance after",
+      "value": "Value"
+    },
+    "post": "Post",
+    "posted": "Document posted",
+    "cancelDraft": "Cancel draft",
+    "cancelled": "Draft cancelled",
+    "actionFailed": "That didn't work",
+    "confirm": {
+      "title": "Cancel this draft?",
+      "description": "The draft is kept for the record but can no longer be posted.",
+      "confirm": "Cancel draft"
+    }
+  },
+  "ledger": {
+    "title": "Stock ledger",
+    "description": "Every posting: who, when, which project and work item, and the balance after it.",
+    "columns": {
+      "when": "Posted",
+      "occurred": "Date",
+      "document": "Document",
+      "item": "Item",
+      "warehouse": "Warehouse",
+      "project": "Project / work item",
+      "change": "Change",
+      "balance": "Balance",
+      "valueChange": "Value change",
+      "valueBalance": "Value balance",
+      "by": "By"
+    },
+    "filters": {
+      "item": "Item",
+      "allItems": "All items",
+      "warehouse": "Warehouse",
+      "allWarehouses": "All warehouses",
+      "from": "From",
+      "to": "To",
+      "oneDocument": "One document"
+    },
+    "loadMore": "Load more",
+    "end": "{{count}} entries, end of the ledger",
+    "states": {
+      "empty": "Nothing posted yet",
+      "emptySub": "Postings appear here the moment they are made.",
+      "noMatch": "No entries match",
+      "noMatchSub": "Clear a filter to see more."
+    }
+  },
+  "materials": {
+    "title": "Materials",
+    "description": "Stock issued to this project, with who issued it and when.",
+    "issue": "Issue material"
+  },
+  "form": {
+    "unknownKind": "Unknown document kind",
+    "unknownKindSub": "Use Receive, Transfer, Issue or Return from the Stock page.",
+    "intro": {
+      "receive": "Book goods into a warehouse you keep.",
+      "transfer": "Move stock between two warehouses in one step.",
+      "issue": "Take stock out of a warehouse onto a project work item.",
+      "return": "Put unused stock back, citing the issue it came from."
+    },
+    "submit": {
+      "receive": "Post receipt",
+      "transfer": "Post transfer",
+      "issue": "Post issue",
+      "return": "Post return"
+    },
+    "sections": {
+      "where": "Where",
+      "lines": "Lines",
+      "details": "Details"
+    },
+    "warehouse": "Warehouse",
+    "fromWarehouse": "From warehouse",
+    "toWarehouse": "To warehouse",
+    "warehousePlaceholder": "Choose a warehouse",
+    "project": "Project",
+    "projectPlaceholder": "Choose a project",
+    "item": "Item",
+    "itemPlaceholder": "Choose an item",
+    "itemSearch": "Search by code or name",
+    "itemNoun": "item",
+    "workItem": "Work item",
+    "workItemPlaceholder": "Choose a work item",
+    "cite": "Issue to return",
+    "citePlaceholder": "Choose the issue line",
+    "pickProjectFirst": "Choose a project first",
+    "issuedHelper": "Issued: {{qty}} {{unit}}",
+    "quantity": "Quantity",
+    "unitCost": "Unit cost",
+    "unitCostBlind": "Unit cost (you will not see it again)",
+    "occurredOn": "Date",
+    "occurredOnHelp": "Leave empty for today.",
+    "note": "Note",
+    "addLine": "Add another line",
+    "removeLine": "Remove line",
+    "loading": "Loading…",
+    "loadFailed": "Couldn't load the options",
+    "posted": "Posted",
+    "viewOnly": "You are viewing as another role, so nothing can be posted.",
+    "notKeeper": "Only a keeper of this warehouse can post here.",
+    "pickWarehouse": "Choose a warehouse to continue.",
+    "noWarehouse": {
+      "title": "You keep no warehouse",
+      "sub": "Ask an administrator to make you a keeper of a warehouse."
+    },
+    "errors": {
+      "warehouse": "Choose a warehouse.",
+      "toWarehouse": "Choose a different warehouse to receive the stock.",
+      "project": "Choose a project.",
+      "item": "Choose an item.",
+      "workItem": "Choose the work item.",
+      "source": "Choose the issue line you are returning.",
+      "quantity": "Enter a quantity above zero (up to 3 decimals).",
+      "unitCost": "Enter the unit cost (zero or more)."
+    }
   }
 }

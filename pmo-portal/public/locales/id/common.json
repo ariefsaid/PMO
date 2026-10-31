@@ -3348,7 +3348,8 @@
       "profileSettings": "Profil & preferensi",
       "expenses": "Biaya",
       "financialStatements": "Laporan keuangan",
-      "managementPack": "Laporan"
+      "managementPack": "Laporan",
+      "stock": "Stok"
     },
     "notifications": {
       "empty": "Belum ada notifikasi.",

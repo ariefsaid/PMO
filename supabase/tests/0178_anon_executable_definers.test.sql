@@ -121,6 +121,11 @@
 -- DEFINER writer (the keeper table has no client write grant); its body gates on active membership, org and
 -- Admin rank; supabase/tests/stock_master_data.test.sql proves the contract.
 --
+-- ⚑ AMENDED BY 0413 (#1512 S2a): `create_stock_document`, `save_stock_draft`, `post_stock_document` and
+-- `cancel_stock_document` join the retained set (+4, count 94 on dev's 90, re-derived by hand from the list). SECURITY DEFINER
+-- writers (documents, lines, ledger and balances have no client write grant); each gates on active membership and
+-- the JWT org, and posting on keeper-or-Admin; stock_posting_guards / stock_tenant_isolation prove the contract.
+--
 -- The budget import and procurement import-run commands retain authenticated access;
 -- their owning proofs are 0397_budget_import_protocol.test.sql and
 -- 0399_procurement_import_identity_authority.test.sql. Atomic draft creation is
@@ -163,6 +168,7 @@ insert into client_callable_rpc_names (proname) values
   ('attach_claim_evidence'),
   ('attest_timesheet_no_erp_document'),
   ('cancel_native_receipt'),
+  ('cancel_stock_document'),
   ('capture_vendor_invoice'),
   ('claim_sales_invoice_author'),
   ('clone_budget_version'),
@@ -172,6 +178,7 @@ insert into client_callable_rpc_names (proname) values
   ('create_payment'),
   ('create_procurement_invoice'),
   ('create_procurement_with_items'),
+  ('create_stock_document'),
   ('record_vendor_withholding_slip'),
   ('correct_vendor_withholding_slip'),
   ('void_vendor_withholding_slip'),
@@ -200,6 +207,7 @@ insert into client_callable_rpc_names (proname) values
   ('mark_erp_purchase_documents'),
   ('link_m365_documents_batch'),
   ('save_cost_attribution_rule'),
+  ('save_stock_draft'),
   ('end_cost_attribution_rule'),
   ('admin_change_domain_ownership'),
   ('admin_set_feedback_surveys'),
@@ -210,6 +218,7 @@ insert into client_callable_rpc_names (proname) values
   ('operator_set_domain_ownership'),
   ('operator_set_org_lifecycle_state'),
   ('operator_list_orgs'),
+  ('post_stock_document'),
   ('operator_toggle_feature'),
   ('operator_usage_summary'),
   ('org_agent_run_stats'),
@@ -265,8 +274,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  90,
-  'AC-ACL-002 all 90 retained client-callable RPC names still have a public function');
+  94,
+  'AC-ACL-002 all 94 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -275,8 +284,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  90,
-  'AC-ACL-003 all 90 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  94,
+  'AC-ACL-003 all 94 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

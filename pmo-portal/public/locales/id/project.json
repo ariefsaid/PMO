@@ -521,7 +521,8 @@
     },
     "tabs": {
       "contract": "Kontrak & penagihan",
-      "activity": "Aktivitas"
+      "activity": "Aktivitas",
+      "materials": "Material"
     },
     "action": {
       "chasePayment": "Tindak lanjuti pembayaran",
