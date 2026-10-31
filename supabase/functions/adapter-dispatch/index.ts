@@ -671,6 +671,12 @@ const ADAPTER_REGISTRY: Record<string, AdapterFactory> = {
   [ERPNEXT_TIMESHEETS_DOMAIN]: resolveErpAdapter,
 };
 
+// The tiers whose non-read commands take the money-idempotency outbox (ADR-0058), keyed by tier like the
+// registry above. A new ERP tier registers its resolver here; the dispatch below never names a tier.
+const MONEY_OUTBOX_RESOLVERS: Record<string, (ctx: AdapterSelectContext) => Promise<DispatchMoneyOutboxDeps>> = {
+  [ERPNEXT_TIER]: resolveErpMoneyOutboxDeps,
+};
+
 // Same origin-narrowing seam as agent-chat/compose-view (AUDIT quick-win 2026-07-07): set
 // AGENT_ALLOWED_ORIGIN in prod; falls back to SITE_URL, then '' (fail-closed — never '*').
 function corsHeaders(): Record<string, string> {
@@ -1537,8 +1543,9 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     // outbox — `dispatchExternallyOwnedWrite` requires `money` to be set for this tier (it throws
     // "dispatched without outbox deps" otherwise, the exact failure this task closes). P0/P1 (every
     // other tier) never resolves this — `money` stays `undefined`, their path is byte-for-byte.
-    if (adapter.tier === ERPNEXT_TIER && (command.operation as string) !== 'read') {
-      money = await resolveErpMoneyOutboxDeps(context);
+    const resolveMoneyOutbox = MONEY_OUTBOX_RESOLVERS[adapter.tier];
+    if (resolveMoneyOutbox && (command.operation as string) !== 'read') {
+      money = await resolveMoneyOutbox(context);
     }
   } catch (err) {
     // The submit never reaches ERP — end the body-rewrite freeze now rather than in five minutes.
