@@ -78,7 +78,7 @@ _Owned by slice S1 (#1532)._ Dashboard **[PMO] AI · Cost & Quality** (`scripts/
 
 ## S2 Alerts and source maps
 
-_Owned by slice S2 (#1532)._
+No dashboard tiles: error tracking lives in PostHog's own Error tracking view. Alert click-path, source-map upload and the fire-drill are in `docs/runbooks/posthog-operations.md` § S2. Browser exceptions carry a `release` property (7-char commit id); filter issues by it after a deploy.
 
 ## S3 Jobs
 

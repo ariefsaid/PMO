@@ -318,7 +318,7 @@ _Owned by slice S1 (#1532)._ Emitted by `agent-chat` (`agent-chat/aiTelemetry.ts
 
 ## S2 Alerts and source maps
 
-_Owned by slice S2 (#1532)._
+Super property `release` (7-char commit id, same as `__GIT_SHA__`) is registered at init and rides every browser event, including `$exception`. It is not personal data. Server exception events are unchanged.
 
 ## S3 Jobs
 
