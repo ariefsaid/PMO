@@ -11,6 +11,7 @@
  */
 import { AppError } from '../../appError.ts';
 import type { PmoRecord } from '../contract.ts';
+import { pickPartyCandidate } from '../connect/match.ts';
 
 export type PartyDoctype = 'Supplier' | 'Customer';
 
@@ -65,22 +66,20 @@ export function deriveErpPaymentTermsDays(templateCreditDays: number | null | un
   return templateCreditDays ?? 30;
 }
 
-// The caller supplies same-name, same-type, same-org candidates. A present source tax ID narrows
-// that set to matching or unset IDs. Conflicting-only and multiple eligible matches require action.
+// Same-name, same-type, same-org candidates through the shared matcher (connect/match.ts); a review outcome is
+// `action-required` here, with the ERPNext doctype named.
 function pickCandidate(source: ErpPartySource, candidates: PartyCandidate[]): PartyCandidate | undefined {
-  if (candidates.length === 0) return undefined;
-  const matches = source.taxId
-    ? candidates.filter((candidate) => !candidate.taxId || candidate.taxId === source.taxId)
-    : candidates;
-  if (matches.length === 0) {
+  const pick = pickPartyCandidate(source.taxId, candidates);
+  if (pick.outcome === 'link') return pick.candidate;
+  if (pick.outcome === 'none') return undefined;
+  if (pick.reason === 'tax-conflict') {
     throw new AppError(
       `conflicting ${source.doctype} tax ID match for "${source.name}" — resolve manually (FR-ENA-093)`,
       'action-required',
     );
   }
-  if (matches.length === 1) return matches[0];
   throw new AppError(
-    `ambiguous ${source.doctype} match for "${source.name}" across ${matches.length} existing PMO companies — resolve manually (FR-ENA-093)`,
+    `ambiguous ${source.doctype} match for "${source.name}" across ${pick.eligible} existing PMO companies — resolve manually (FR-ENA-093)`,
     'action-required',
   );
 }
