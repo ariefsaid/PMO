@@ -52,7 +52,7 @@ begin
 end $$;
 -- usage: select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4'); ... reset role;
 
-select plan(35);
+select plan(40);
 create function public.stk_t_rcv(p_wh uuid, p_item uuid, p_qty numeric, p_cost numeric) returns uuid language sql as $$
   select public.create_stock_document(jsonb_build_object('kind','receive','warehouse_id',p_wh),
     jsonb_build_array(jsonb_build_object('item_id',p_item,'quantity',p_qty,'unit_cost',p_cost)), true) $$;
@@ -76,6 +76,7 @@ reset role;  select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1')
 select lives_ok($$ select public.stk_t_rcv('15120000-0000-0000-0000-000000002002', '15120000-0000-0000-0000-000000001001', 1, 10) $$, 'AC-STK-013 an Admin may post on any warehouse');
 reset role;
 select is((select count(*)::int from audit_events where action = 'stock.admin_post' and org_id = '15120000-0000-0000-0000-000000000001'), 1, 'AC-STK-013 the Admin override is audited');
+select is((select count(*)::int from audit_events where action = 'stock.admin_author' and org_id = '15120000-0000-0000-0000-000000000001'), 1, 'PQ-1 an Admin drafting on a warehouse they do not keep is audited');
 
 -- AC-STK-016: a whole-number item refuses a fraction; a metre item takes it
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
@@ -142,12 +143,18 @@ select set_config('stk.dr', public.create_stock_document(jsonb_build_object('kin
 select lives_ok($$ select public.save_stock_draft(current_setting('stk.dr')::uuid, jsonb_build_object('warehouse_id','15120000-0000-0000-0000-000000002002','note','edited'), jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001002','quantity',3,'unit_cost',10))) $$, 'FR-STK-011 the author edits a Draft');
 reset role; select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4');
 select throws_ok($$ select public.save_stock_draft(current_setting('stk.dr')::uuid, jsonb_build_object('warehouse_id','15120000-0000-0000-0000-000000002002'), jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001002','quantity',1,'unit_cost',10))) $$, '42501', null, 'FR-STK-011 another user cannot edit it');
+select throws_ok($$ select public.cancel_stock_document(current_setting('stk.dr')::uuid) $$, '42501', null, 'FR-STK-011 a non-author non-Admin cannot cancel it');
+select set_config('stk.kdr', public.create_stock_document(jsonb_build_object('kind','receive','warehouse_id','15120000-0000-0000-0000-000000002002'), jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001002','quantity',1,'unit_cost',10)))::text, false);
 reset role; select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
 select lives_ok($$ select public.cancel_stock_document(current_setting('stk.dr')::uuid) $$, 'FR-STK-011 the author cancels the Draft');
+select lives_ok($$ select public.cancel_stock_document(current_setting('stk.kdr')::uuid) $$, 'FR-STK-011 an Admin cancels another user''s Draft');
+select throws_like($$ select public.stk_t_rcv('15120000-0000-0000-0000-000000002002', '15120000-0000-0000-0000-000000001002', 1, 10000000000) $$, 'STK_INVALID%', 'NFR-STK precision: a unit cost beyond the column is refused with a stock code');
+select throws_like($$ select public.stk_t_rcv('15120000-0000-0000-0000-000000002002', '15120000-0000-0000-0000-000000001002', 100000000, 99999) $$, 'STK_INVALID%', 'NFR-STK precision: a line value beyond the column is refused with a stock code');
 reset role;
 
 -- AC-STK-018: an externally-owned inventory domain refuses every post and writes nothing; reads still work.
 insert into external_domain_ownership (org_id, external_tier, domain) values ('15120000-0000-0000-0000-000000000001', 'odoo', 'inventory');
+select set_config('stk.adocs', (select count(*) from stock_documents where org_id = '15120000-0000-0000-0000-000000000001')::text, false);
 select set_config('stk.docs', (select count(*) from stock_documents)::text || '/' || (select count(*) from stock_ledger)::text, false);
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
 select throws_like($$ select public.stk_t_rcv('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001001', 1, 10) $$,
@@ -156,7 +163,7 @@ reset role;
 select is((select count(*) from stock_documents)::text || '/' || (select count(*) from stock_ledger)::text, current_setting('stk.docs'),
   'AC-STK-018 nothing was written (no document row, no ledger entry)');
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
-select ok((select count(*) from stock_documents) >= 0, 'AC-STK-018 reads still work while ERP-owned');
+select is((select count(*) from stock_documents)::text, current_setting('stk.adocs'), 'AC-STK-018 reads still return every document while ERP-owned');
 reset role;
 select * from finish();
 rollback;

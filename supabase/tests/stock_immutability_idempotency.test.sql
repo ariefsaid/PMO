@@ -52,7 +52,7 @@ begin
 end $$;
 -- usage: select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4'); ... reset role;
 
-select plan(11);
+select plan(17);
 create function public.stk_t_rcv(p_wh uuid, p_item uuid, p_qty numeric, p_cost numeric) returns uuid language sql as $$
   select public.create_stock_document(jsonb_build_object('kind','receive','warehouse_id',p_wh),
     jsonb_build_array(jsonb_build_object('item_id',p_item,'quantity',p_qty,'unit_cost',p_cost)), true) $$;
@@ -85,5 +85,14 @@ reset role;
 select is((select count(*)::int from stock_documents where client_request_id = '15120000-0000-0000-0000-0000000f0001'), 1, 'AC-STK-012 one document exists');
 select is((select count(*)::int from stock_ledger where document_id = (select id from stock_documents where client_request_id = '15120000-0000-0000-0000-0000000f0001')), 1,
   'AC-STK-012 one ledger entry exists');
+-- ADR-0097 §1: append-only for every role, the service key included; only the posting RPCs write.
+select throws_like($$ truncate public.stock_ledger cascade $$, 'STK_IMMUTABLE%', 'AC-STK-011 the ledger cannot be truncated even with table-owner rights');
+set local role service_role;
+select throws_ok($$ truncate public.stock_ledger cascade $$, '42501', null, 'AC-STK-011 the service role cannot truncate the ledger');
+select throws_ok($$ update public.stock_balances set value_on_hand = value_on_hand + 1 $$, '42501', null, 'FR-STK-031 the service role cannot shift a balance directly');
+select throws_ok($$ insert into public.stock_ledger (org_id) values ('15120000-0000-0000-0000-000000000001') $$, '42501', null, 'FR-STK-072 the service role cannot insert a ledger row directly');
+select throws_ok($$ delete from public.stock_documents $$, '42501', null, 'FR-STK-060 the service role cannot delete documents directly');
+select throws_ok($$ select public.stock_post_core('15120000-0000-0000-0000-000000000000') $$, '42501', null, 'FR-STK-072 the service role cannot call the posting internals');
+reset role;
 select * from finish();
 rollback;

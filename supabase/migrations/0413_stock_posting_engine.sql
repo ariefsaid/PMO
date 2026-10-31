@@ -112,6 +112,8 @@ alter table public.stock_balances       enable row level security;  alter table 
 create policy stock_documents_select      on public.stock_documents      for select using (org_id = public.auth_org_id() and public.is_active_member());
 create policy stock_document_lines_select on public.stock_document_lines for select using (org_id = public.auth_org_id() and public.is_active_member());
 revoke all on public.stock_documents, public.stock_document_lines, public.stock_ledger, public.stock_balances from authenticated, anon;
+-- ADR-0097 §1: append-only for every role, the service key included (precedent 0114). The RPCs write as their owner.
+revoke insert, update, delete, truncate on public.stock_documents, public.stock_document_lines, public.stock_ledger, public.stock_balances from service_role;
 grant select on public.stock_documents to authenticated;
 grant select (id, org_id, document_id, line_no, item_id, quantity, counted_quantity, expected_quantity, direction, boq_item_id, source_line_id)
   on public.stock_document_lines to authenticated;                 -- unit_cost deliberately absent
@@ -143,6 +145,7 @@ begin raise exception 'STK_IMMUTABLE: the stock ledger is append-only' using err
 create trigger stock_documents_immutable before update or delete on public.stock_documents for each row execute function public.guard_stock_document_immutable();
 create trigger stock_document_lines_immutable before insert or update or delete on public.stock_document_lines for each row execute function public.guard_stock_line_immutable();
 create trigger stock_ledger_append_only before update or delete on public.stock_ledger for each row execute function public.guard_stock_ledger_append_only();
+create trigger stock_ledger_no_truncate before truncate on public.stock_ledger for each statement execute function public.guard_stock_ledger_append_only();
 
 -- Master-data rules that need the tables above (FR-STK-006, 008; PQ-9). Definer: balances/lines carry no client read.
 create or replace function public.guard_stock_archive() returns trigger
@@ -297,7 +300,7 @@ begin
     raise exception 'STK_NOT_FOUND: the warehouse is not in your organisation' using errcode = 'P0001'; end if;
   if p_kind = 'transfer' then
     if v_to is null or v_to = v_wh then raise exception 'STK_INVALID: a transfer needs a different destination warehouse' using errcode = 'P0001'; end if;
-    if not exists (select 1 from public.stock_warehouses w where w.id = v_to and w.org_id = p_org) then
+    if not exists (select 1 from public.stock_warehouses w where w.id = v_to and w.org_id = p_org) then          -- mut:xorg_dest
       raise exception 'STK_NOT_FOUND: the destination warehouse is not in your organisation' using errcode = 'P0001'; end if;
   elsif v_to is not null then
     raise exception 'STK_INVALID: only a transfer has a destination warehouse' using errcode = 'P0001'; end if;
@@ -334,6 +337,8 @@ begin
       raise exception 'STK_INVALID: a unit cost is 0 or more (4 decimals at most)' using errcode = 'P0001'; end if;
     if p_kind = 'adjustment' and (coalesce(v_dir, '') not in ('in','out') or (v_cost is not null and (v_cost < 0 or v_cost <> round(v_cost, 4)))) then
       raise exception 'STK_INVALID: an adjustment line needs a direction (in or out)' using errcode = 'P0001'; end if;
+    if v_cost is not null and (v_cost >= 10000000000::numeric or round(coalesce(v_q, v_c) * v_cost, 2) >= 1000000000000::numeric) then
+      raise exception 'STK_INVALID: a unit cost or line value is too large' using errcode = 'P0001'; end if;   -- §5 precision, not a raw 22003
     if p_kind <> 'issue'  and nullif(e->>'boq_item_id', '')    is not null then raise exception 'STK_INVALID: only an issue line names a work item'   using errcode = 'P0001'; end if;
     if p_kind <> 'return' and nullif(e->>'source_line_id', '') is not null then raise exception 'STK_INVALID: only a return line cites an issue line' using errcode = 'P0001'; end if;
   end loop;
@@ -432,7 +437,7 @@ end $$;
 
 create or replace function public.create_stock_document(p_header jsonb, p_lines jsonb, p_post boolean default false, p_client_request_id uuid default null)
   returns uuid language plpgsql volatile security definer set search_path = public as $$
-declare v_org uuid; v_uid uuid := auth.uid(); v_kind text; v_wh uuid; v_occ date; v_doc public.stock_documents; v_id uuid;
+declare v_org uuid; v_uid uuid := auth.uid(); v_kind text; v_wh uuid; v_occ date; v_doc public.stock_documents; v_id uuid; v_override boolean;
 begin
   perform public.assert_is_active_member();
   v_org := public.auth_org_id();
@@ -445,7 +450,7 @@ begin
   v_kind := p_header->>'kind';
   perform public.stock_validate_payload(v_org, v_kind, p_header, p_lines);
   v_wh := (p_header->>'warehouse_id')::uuid;
-  perform public.stock_assert_keeper(v_org, v_wh, v_uid);                                               -- PQ-1: authors are keepers (or Admin)
+  v_override := public.stock_assert_keeper(v_org, v_wh, v_uid);                                         -- PQ-1: authors are keepers (or Admin)
   v_occ := coalesce(nullif(p_header->>'occurred_on', '')::date, public.stock_org_today(v_org));
   perform public.stock_assert_dates(v_org, v_occ);
   insert into public.stock_documents (org_id, number, kind, warehouse_id, to_warehouse_id, project_id, procurement_id, reason, note,
@@ -462,7 +467,10 @@ begin
   end if;
   perform public.stock_insert_lines(v_doc, p_lines);
   perform public.stock_apply(v_doc, false);                                                              -- static validation per kind
-  if coalesce(p_post, false) then perform public.stock_post_core(v_doc.id); end if;
+  if coalesce(p_post, false) then perform public.stock_post_core(v_doc.id);                              -- a post audits its own override
+  elsif v_override then
+    perform public.log_audit('stock.admin_author', v_org, v_uid, v_doc.id, jsonb_build_object('kind', v_kind, 'warehouse_id', v_wh, 'number', v_doc.number));
+  end if;
   return v_doc.id;
 end $$;
 
@@ -478,7 +486,9 @@ begin
   if d.created_by <> v_uid then raise exception 'only the author edits a draft' using errcode = '42501'; end if;
   if coalesce(p_header->>'kind', d.kind) <> d.kind then raise exception 'STK_INVALID: a document''s kind cannot change' using errcode = 'P0001'; end if;
   perform public.stock_validate_payload(v_org, d.kind, p_header, p_lines);
-  perform public.stock_assert_keeper(v_org, (p_header->>'warehouse_id')::uuid, v_uid);
+  if public.stock_assert_keeper(v_org, (p_header->>'warehouse_id')::uuid, v_uid) then
+    perform public.log_audit('stock.admin_author', v_org, v_uid, d.id, jsonb_build_object('kind', d.kind, 'warehouse_id', p_header->>'warehouse_id', 'number', d.number));
+  end if;
   v_occ := coalesce(nullif(p_header->>'occurred_on', '')::date, d.occurred_on);
   perform public.stock_assert_dates(v_org, v_occ);
   update public.stock_documents set warehouse_id = (p_header->>'warehouse_id')::uuid, to_warehouse_id = nullif(p_header->>'to_warehouse_id', '')::uuid,
@@ -521,7 +531,7 @@ revoke all on function
   public.stock_apply_issue(public.stock_documents, boolean), public.stock_apply_return(public.stock_documents, boolean),
   public.stock_apply_adjustment(public.stock_documents, boolean), public.stock_apply_count(public.stock_documents, boolean),
   public.stock_apply(public.stock_documents, boolean), public.stock_post_core(uuid)
-  from public, anon, authenticated;
+  from public, anon, authenticated, service_role;
 revoke all on function public.create_stock_document(jsonb, jsonb, boolean, uuid), public.save_stock_draft(uuid, jsonb, jsonb),
   public.post_stock_document(uuid), public.cancel_stock_document(uuid) from public, anon;
 grant execute on function public.create_stock_document(jsonb, jsonb, boolean, uuid), public.save_stock_draft(uuid, jsonb, jsonb),

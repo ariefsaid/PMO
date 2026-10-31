@@ -52,7 +52,7 @@ begin
 end $$;
 -- usage: select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4'); ... reset role;
 
-select plan(16);  -- S1: the four `is` counts, the foreign-warehouse refusal, the unchanged-row proof (6); S2a: 10
+select plan(18);  -- S1: the four `is` counts, the foreign-warehouse refusal, the unchanged-row proof (6); S2a: 12
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000b1');   -- U_XORG sees none of org A
 select is((select count(*)::int from stock_units),      0, 'AC-STK-019 stock_units: org B reads none of org A');
 select is((select count(*)::int from stock_items),      0, 'AC-STK-019 stock_items: org B reads none of org A');
@@ -88,5 +88,19 @@ select throws_like($$ select save_stock_draft(current_setting('stk.adraft')::uui
 select throws_like($$ select cancel_stock_document(current_setting('stk.adraft')::uuid) $$, 'STK_NOT_FOUND%', 'AC-STK-019 cancel_stock_document refuses org A''s draft');
 reset role;
 select is((select status from stock_documents where id = current_setting('stk.adraft')::uuid), 'Draft', 'AC-STK-019 org A''s draft is untouched');
+-- A transfer from org B's own warehouse into org A's warehouse id is refused (the destination org check), and writes nothing.
+insert into stock_units (id, org_id, code, name, whole_only) values
+  ('15120000-0000-0000-0000-0000000000d9', '15120000-0000-0000-0000-000000000002', 'bag', 'Bag', true);
+insert into stock_items (id, org_id, code, name, unit_id) values
+  ('15120000-0000-0000-0000-000000001019', '15120000-0000-0000-0000-000000000002', 'XCEM', 'X Cement', '15120000-0000-0000-0000-0000000000d9');
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000b1');
+select public.create_stock_document(jsonb_build_object('kind','receive','warehouse_id','15120000-0000-0000-0000-000000002009'),
+  jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001019','quantity',5,'unit_cost',10)), true);
+select throws_like($$ select create_stock_document(jsonb_build_object('kind','transfer','warehouse_id','15120000-0000-0000-0000-000000002009','to_warehouse_id','15120000-0000-0000-0000-000000002001'),
+  jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001019','quantity',1)), true) $$,
+  'STK_NOT_FOUND%', 'AC-STK-019 a transfer into org A''s warehouse is refused');
+reset role;
+select is((select count(*)::int from stock_balances where warehouse_id = '15120000-0000-0000-0000-000000002001' and org_id = '15120000-0000-0000-0000-000000000002'), 0,
+  'AC-STK-019 no org B balance was opened on org A''s warehouse');
 select * from finish();
 rollback;
