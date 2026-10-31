@@ -18,6 +18,7 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'pm'
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Project Manager', effectiveRole: 'Project Manager' }) }));
 
 import { ExpenseClaimApprovalSection } from './ExpenseClaimApprovalSection';
+import { DocumentViewerProvider } from '@/src/components/documents';
 
 const item = (id: string, claimant: string, route: unknown) => ({
   claim: { id, claim_number: `EXP-${id}`, title: `Claim ${id}`, claimant_id: claimant, claimant: { full_name: 'X' }, amount: 100, currency: 'IDR', status: 'Submitted' },
@@ -37,7 +38,7 @@ describe('ExpenseClaimApprovalSection', () => {
     h.receipts = [{ id: 'file-1', file_path: 'claim/evidence/taxi-receipt.png' }];
     h.download.mockResolvedValue('https://signed.test/receipt.png');
     const user = userEvent.setup();
-    render(<MemoryRouter><ExpenseClaimApprovalSection /></MemoryRouter>);
+    render(<MemoryRouter><DocumentViewerProvider><ExpenseClaimApprovalSection /></DocumentViewerProvider></MemoryRouter>);
 
     await user.click(screen.getByRole('button', { name: /preview claim evidence/i }));
     expect(screen.getByTestId('decision-context-summary')).toHaveTextContent('EXP-evidence');

@@ -4220,8 +4220,15 @@ export type Database = {
           created_at: string
           file_path: string | null
           id: string
+          ms_drive_id: string | null
+          ms_item_id: string | null
+          ms_item_name: string | null
+          ms_linked_at: string | null
+          ms_linked_by: string | null
+          ms_web_url: string | null
           org_id: string
           payment_id: string
+          source: Database["public"]["Enums"]["doc_source"] | null
           title: string | null
           uploaded_by_id: string | null
         }
@@ -4230,8 +4237,15 @@ export type Database = {
           created_at?: string
           file_path?: string | null
           id?: string
+          ms_drive_id?: string | null
+          ms_item_id?: string | null
+          ms_item_name?: string | null
+          ms_linked_at?: string | null
+          ms_linked_by?: string | null
+          ms_web_url?: string | null
           org_id?: string
           payment_id: string
+          source?: Database["public"]["Enums"]["doc_source"] | null
           title?: string | null
           uploaded_by_id?: string | null
         }
@@ -4240,12 +4254,26 @@ export type Database = {
           created_at?: string
           file_path?: string | null
           id?: string
+          ms_drive_id?: string | null
+          ms_item_id?: string | null
+          ms_item_name?: string | null
+          ms_linked_at?: string | null
+          ms_linked_by?: string | null
+          ms_web_url?: string | null
           org_id?: string
           payment_id?: string
+          source?: Database["public"]["Enums"]["doc_source"] | null
           title?: string | null
           uploaded_by_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "payment_files_ms_linked_by_fkey"
+            columns: ["ms_linked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "payment_files_org_id_fkey"
             columns: ["org_id"]
@@ -4626,8 +4654,15 @@ export type Database = {
           created_at: string
           file_path: string | null
           id: string
+          ms_drive_id: string | null
+          ms_item_id: string | null
+          ms_item_name: string | null
+          ms_linked_at: string | null
+          ms_linked_by: string | null
+          ms_web_url: string | null
           invoice_id: string
           org_id: string
+          source: Database["public"]["Enums"]["doc_source"] | null
           title: string | null
           uploaded_by_id: string | null
         }
@@ -4636,8 +4671,15 @@ export type Database = {
           created_at?: string
           file_path?: string | null
           id?: string
+          ms_drive_id?: string | null
+          ms_item_id?: string | null
+          ms_item_name?: string | null
+          ms_linked_at?: string | null
+          ms_linked_by?: string | null
+          ms_web_url?: string | null
           invoice_id: string
           org_id?: string
+          source?: Database["public"]["Enums"]["doc_source"] | null
           title?: string | null
           uploaded_by_id?: string | null
         }
@@ -4646,12 +4688,26 @@ export type Database = {
           created_at?: string
           file_path?: string | null
           id?: string
+          ms_drive_id?: string | null
+          ms_item_id?: string | null
+          ms_item_name?: string | null
+          ms_linked_at?: string | null
+          ms_linked_by?: string | null
+          ms_web_url?: string | null
           invoice_id?: string
           org_id?: string
+          source?: Database["public"]["Enums"]["doc_source"] | null
           title?: string | null
           uploaded_by_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "procurement_invoice_files_ms_linked_by_fkey"
+            columns: ["ms_linked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "procurement_invoice_files_invoice_id_fkey"
             columns: ["invoice_id"]
@@ -4901,8 +4957,15 @@ export type Database = {
           created_at: string
           file_path: string | null
           id: string
+          ms_drive_id: string | null
+          ms_item_id: string | null
+          ms_item_name: string | null
+          ms_linked_at: string | null
+          ms_linked_by: string | null
+          ms_web_url: string | null
           org_id: string
           quotation_id: string
+          source: Database["public"]["Enums"]["doc_source"] | null
           title: string | null
           uploaded_by_id: string | null
         }
@@ -4911,8 +4974,15 @@ export type Database = {
           created_at?: string
           file_path?: string | null
           id?: string
+          ms_drive_id?: string | null
+          ms_item_id?: string | null
+          ms_item_name?: string | null
+          ms_linked_at?: string | null
+          ms_linked_by?: string | null
+          ms_web_url?: string | null
           org_id?: string
           quotation_id: string
+          source?: Database["public"]["Enums"]["doc_source"] | null
           title?: string | null
           uploaded_by_id?: string | null
         }
@@ -4921,12 +4991,26 @@ export type Database = {
           created_at?: string
           file_path?: string | null
           id?: string
+          ms_drive_id?: string | null
+          ms_item_id?: string | null
+          ms_item_name?: string | null
+          ms_linked_at?: string | null
+          ms_linked_by?: string | null
+          ms_web_url?: string | null
           org_id?: string
           quotation_id?: string
+          source?: Database["public"]["Enums"]["doc_source"] | null
           title?: string | null
           uploaded_by_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "procurement_quotation_files_ms_linked_by_fkey"
+            columns: ["ms_linked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "procurement_quotation_files_org_id_fkey"
             columns: ["org_id"]
@@ -5060,8 +5144,15 @@ export type Database = {
           created_at: string
           file_path: string | null
           id: string
+          ms_drive_id: string | null
+          ms_item_id: string | null
+          ms_item_name: string | null
+          ms_linked_at: string | null
+          ms_linked_by: string | null
+          ms_web_url: string | null
           org_id: string
           receipt_id: string
+          source: Database["public"]["Enums"]["doc_source"] | null
           title: string | null
           uploaded_by_id: string | null
         }
@@ -5070,8 +5161,15 @@ export type Database = {
           created_at?: string
           file_path?: string | null
           id?: string
+          ms_drive_id?: string | null
+          ms_item_id?: string | null
+          ms_item_name?: string | null
+          ms_linked_at?: string | null
+          ms_linked_by?: string | null
+          ms_web_url?: string | null
           org_id?: string
           receipt_id: string
+          source?: Database["public"]["Enums"]["doc_source"] | null
           title?: string | null
           uploaded_by_id?: string | null
         }
@@ -5080,12 +5178,26 @@ export type Database = {
           created_at?: string
           file_path?: string | null
           id?: string
+          ms_drive_id?: string | null
+          ms_item_id?: string | null
+          ms_item_name?: string | null
+          ms_linked_at?: string | null
+          ms_linked_by?: string | null
+          ms_web_url?: string | null
           org_id?: string
           receipt_id?: string
+          source?: Database["public"]["Enums"]["doc_source"] | null
           title?: string | null
           uploaded_by_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "procurement_receipt_files_ms_linked_by_fkey"
+            columns: ["ms_linked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "procurement_receipt_files_org_id_fkey"
             columns: ["org_id"]
@@ -6163,8 +6275,15 @@ export type Database = {
           created_at: string
           file_path: string | null
           id: string
+          ms_drive_id: string | null
+          ms_item_id: string | null
+          ms_item_name: string | null
+          ms_linked_at: string | null
+          ms_linked_by: string | null
+          ms_web_url: string | null
           org_id: string
           purchase_order_id: string
+          source: Database["public"]["Enums"]["doc_source"] | null
           title: string | null
           uploaded_by_id: string | null
         }
@@ -6173,8 +6292,15 @@ export type Database = {
           created_at?: string
           file_path?: string | null
           id?: string
+          ms_drive_id?: string | null
+          ms_item_id?: string | null
+          ms_item_name?: string | null
+          ms_linked_at?: string | null
+          ms_linked_by?: string | null
+          ms_web_url?: string | null
           org_id?: string
           purchase_order_id: string
+          source?: Database["public"]["Enums"]["doc_source"] | null
           title?: string | null
           uploaded_by_id?: string | null
         }
@@ -6183,12 +6309,26 @@ export type Database = {
           created_at?: string
           file_path?: string | null
           id?: string
+          ms_drive_id?: string | null
+          ms_item_id?: string | null
+          ms_item_name?: string | null
+          ms_linked_at?: string | null
+          ms_linked_by?: string | null
+          ms_web_url?: string | null
           org_id?: string
           purchase_order_id?: string
+          source?: Database["public"]["Enums"]["doc_source"] | null
           title?: string | null
           uploaded_by_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "purchase_order_files_ms_linked_by_fkey"
+            columns: ["ms_linked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "purchase_order_files_org_id_fkey"
             columns: ["org_id"]
@@ -6302,8 +6442,15 @@ export type Database = {
           created_at: string
           file_path: string | null
           id: string
+          ms_drive_id: string | null
+          ms_item_id: string | null
+          ms_item_name: string | null
+          ms_linked_at: string | null
+          ms_linked_by: string | null
+          ms_web_url: string | null
           org_id: string
           purchase_request_id: string
+          source: Database["public"]["Enums"]["doc_source"] | null
           title: string | null
           uploaded_by_id: string | null
         }
@@ -6312,8 +6459,15 @@ export type Database = {
           created_at?: string
           file_path?: string | null
           id?: string
+          ms_drive_id?: string | null
+          ms_item_id?: string | null
+          ms_item_name?: string | null
+          ms_linked_at?: string | null
+          ms_linked_by?: string | null
+          ms_web_url?: string | null
           org_id?: string
           purchase_request_id: string
+          source?: Database["public"]["Enums"]["doc_source"] | null
           title?: string | null
           uploaded_by_id?: string | null
         }
@@ -6322,12 +6476,26 @@ export type Database = {
           created_at?: string
           file_path?: string | null
           id?: string
+          ms_drive_id?: string | null
+          ms_item_id?: string | null
+          ms_item_name?: string | null
+          ms_linked_at?: string | null
+          ms_linked_by?: string | null
+          ms_web_url?: string | null
           org_id?: string
           purchase_request_id?: string
+          source?: Database["public"]["Enums"]["doc_source"] | null
           title?: string | null
           uploaded_by_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "purchase_request_files_ms_linked_by_fkey"
+            columns: ["ms_linked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "purchase_request_files_org_id_fkey"
             columns: ["org_id"]
@@ -6537,8 +6705,15 @@ export type Database = {
           created_at: string
           file_path: string | null
           id: string
+          ms_drive_id: string | null
+          ms_item_id: string | null
+          ms_item_name: string | null
+          ms_linked_at: string | null
+          ms_linked_by: string | null
+          ms_web_url: string | null
           org_id: string
           rfq_id: string
+          source: Database["public"]["Enums"]["doc_source"] | null
           title: string | null
           uploaded_by_id: string | null
         }
@@ -6547,8 +6722,15 @@ export type Database = {
           created_at?: string
           file_path?: string | null
           id?: string
+          ms_drive_id?: string | null
+          ms_item_id?: string | null
+          ms_item_name?: string | null
+          ms_linked_at?: string | null
+          ms_linked_by?: string | null
+          ms_web_url?: string | null
           org_id?: string
           rfq_id: string
+          source?: Database["public"]["Enums"]["doc_source"] | null
           title?: string | null
           uploaded_by_id?: string | null
         }
@@ -6557,12 +6739,26 @@ export type Database = {
           created_at?: string
           file_path?: string | null
           id?: string
+          ms_drive_id?: string | null
+          ms_item_id?: string | null
+          ms_item_name?: string | null
+          ms_linked_at?: string | null
+          ms_linked_by?: string | null
+          ms_web_url?: string | null
           org_id?: string
           rfq_id?: string
+          source?: Database["public"]["Enums"]["doc_source"] | null
           title?: string | null
           uploaded_by_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "rfq_files_ms_linked_by_fkey"
+            columns: ["ms_linked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "rfq_files_org_id_fkey"
             columns: ["org_id"]

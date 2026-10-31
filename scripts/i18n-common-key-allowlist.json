@@ -1,5 +1,9 @@
 [
   "fx.expandedFileTooLarge",
+  "integrations.personalM365.errors.previewUnsupported",
+  "integrations.personalM365.errors.recordFolderUnavailable",
+  "integrations.personalM365.errors.sourceAccessDenied",
+  "integrations.personalM365.errors.sourceNotFound",
   "m365Documents.backfill.done",
   "m365Documents.backfill.failed",
   "m365Documents.backfill.resolve",

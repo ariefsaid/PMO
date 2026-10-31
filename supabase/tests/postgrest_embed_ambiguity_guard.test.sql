@@ -102,7 +102,19 @@ select set_eq(
             ('vendor_withholding_slips -> profiles'),
             -- 0364 (#1319 AC-13): erp_purchase_document_marks carries set_aside_by and updated_by -> profiles.
             -- No DAL code embeds profiles from it; whatever ships first MUST qualify it with !constraint_name.
-            ('erp_purchase_document_marks -> profiles') $$,
+            ('erp_purchase_document_marks -> profiles'),
+            -- 0409 (#1474): the seven purchase attachment tables gained ms_linked_by -> profiles beside
+            -- their existing uploaded_by_id. CHECKED BEFORE ADDING: no DAL, repository, edge-function or
+            -- e2e code embeds profiles from any of them (procurementFiles.ts reads select('*'); the
+            -- procurementLifecycle.ts file sub-selects list scalar columns only), so nothing broke.
+            -- Whatever ships first MUST qualify it with !constraint_name.
+            ('procurement_receipt_files -> profiles'),
+            ('rfq_files -> profiles'),
+            ('procurement_quotation_files -> profiles'),
+            ('purchase_request_files -> profiles'),
+            ('purchase_order_files -> profiles'),
+            ('payment_files -> profiles'),
+            ('procurement_invoice_files -> profiles') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '

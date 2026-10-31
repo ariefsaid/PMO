@@ -21,6 +21,12 @@ const repo = vi.hoisted(() => ({
   prepareUpload: vi.fn<(docId: string, fileName: string) => Promise<PrepareUploadResult>>(),
   confirmUpload: vi.fn<(docId: string, path: string) => Promise<void>>(),
   cleanupObject: vi.fn<(filePath: string) => Promise<void>>(),
+  attachMicrosoftUpload: vi.fn<(docId: string, reference: unknown) => Promise<void>>(),
+}));
+const msUpload = vi.hoisted(() => vi.fn());
+vi.mock('@/src/lib/m365/uploadClient', async (orig) => ({
+  ...(await orig<typeof import('@/src/lib/m365/uploadClient')>()),
+  uploadRecordFile: msUpload,
 }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
@@ -41,6 +47,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 import { useFileUpload } from './useFileUpload';
+import { UploadFailure } from '@/src/lib/m365/uploadClient';
 import * as uploadTransport from '@/src/lib/uploadTransport';
 
 function makeWrapper() {
@@ -59,6 +66,7 @@ beforeEach(() => {
   });
   repo.confirmUpload.mockResolvedValue(undefined);
   repo.cleanupObject.mockResolvedValue(undefined);
+  repo.attachMicrosoftUpload.mockResolvedValue(undefined);
 });
 
 describe('useFileUpload', () => {
@@ -207,5 +215,87 @@ describe('useFileUpload', () => {
     });
 
     expect(result.current.uploadErrors['doc-1']).toBeUndefined();
+  });
+
+  describe('document-preview AC-007 / AC-009 destination', () => {
+    const REF = { drive_id: 'd', item_id: 'i1', web_url: 'https://tenant.sharepoint.com/sites/x/file.pdf', name: 'file.pdf', item_kind: 'file' };
+    const file = () => new File(['content'], 'file.pdf', { type: 'application/pdf' });
+
+    it('AC-009: the private destination (default and explicit) never touches SharePoint', async () => {
+      vi.mocked(uploadTransport.uploadWithProgress).mockResolvedValue(undefined);
+      const { Wrapper } = makeWrapper();
+      const { result } = renderHook(() => useFileUpload('proj1'), { wrapper: Wrapper });
+      await act(async () => { await result.current.upload.mutateAsync({ docId: 'doc-1', file: file(), destination: 'private' }); });
+      expect(msUpload).not.toHaveBeenCalled();
+      expect(repo.attachMicrosoftUpload).not.toHaveBeenCalled();
+      expect(repo.prepareUpload).toHaveBeenCalledWith('doc-1', 'file.pdf');
+      expect(repo.confirmUpload).toHaveBeenCalled();
+    });
+
+    it('AC-007: the Microsoft destination uploads through custody then attaches with ONE repository call; no Storage call', async () => {
+      msUpload.mockResolvedValue(REF);
+      const { Wrapper } = makeWrapper();
+      const { result } = renderHook(() => useFileUpload('proj1'), { wrapper: Wrapper });
+      const f = file();
+      await act(async () => { await result.current.upload.mutateAsync({ docId: 'doc-1', file: f, destination: 'microsoft' }); });
+      expect(msUpload).toHaveBeenCalledWith({ kind: 'project_document', id: 'doc-1' }, f, expect.any(AbortSignal));
+      expect(repo.attachMicrosoftUpload).toHaveBeenCalledTimes(1);
+      expect(repo.attachMicrosoftUpload).toHaveBeenCalledWith('doc-1', REF);
+      expect(repo.prepareUpload).not.toHaveBeenCalled();
+      expect(uploadTransport.uploadWithProgress).not.toHaveBeenCalled();
+      expect(repo.confirmUpload).not.toHaveBeenCalled();
+    });
+
+    it('AC-007: a replace removes the old private object only AFTER the attach landed', async () => {
+      const order: string[] = [];
+      msUpload.mockResolvedValue(REF);
+      repo.attachMicrosoftUpload.mockImplementation(async () => { order.push('attach'); });
+      repo.cleanupObject.mockImplementation(async () => { order.push('cleanup'); });
+      const { Wrapper } = makeWrapper();
+      const { result } = renderHook(() => useFileUpload('proj1'), { wrapper: Wrapper });
+      await act(async () => { await result.current.replace.mutateAsync({ docId: 'doc-1', file: file(), destination: 'microsoft', oldPath: 'org/p/d/old.pdf' }); });
+      expect(order).toEqual(['attach', 'cleanup']);
+      expect(repo.cleanupObject).toHaveBeenCalledWith('org/p/d/old.pdf');
+    });
+
+    it.each(['folder', 'consent', 'connection', 'access', 'entitlement', 'unavailable'] as const)(
+      'AC-008: a %s failure keeps the previous attachment, states nothing was saved and never falls back to private storage',
+      async (kind) => {
+        msUpload.mockRejectedValue(new UploadFailure(kind));
+        const { Wrapper } = makeWrapper();
+        const { result } = renderHook(() => useFileUpload('proj1'), { wrapper: Wrapper });
+        await expect(act(async () => result.current.replace.mutateAsync({ docId: 'doc-1', file: file(), destination: 'microsoft', oldPath: 'org/p/d/old.pdf' }))).rejects.toBeInstanceOf(UploadFailure);
+        await waitFor(() => expect(result.current.uploadErrors['doc-1']?.message).toMatch(/Nothing was saved/));
+        expect(repo.attachMicrosoftUpload).not.toHaveBeenCalled();
+        expect(repo.cleanupObject).not.toHaveBeenCalled();
+        expect(repo.prepareUpload).not.toHaveBeenCalled();
+        expect(uploadTransport.uploadWithProgress).not.toHaveBeenCalled();
+      },
+    );
+
+    it('AC-007: if the attach is refused the old private file is untouched and the copy says to link the SharePoint file', async () => {
+      msUpload.mockResolvedValue(REF);
+      repo.attachMicrosoftUpload.mockRejectedValue({ code: '42501', message: 'rls' });
+      const { Wrapper } = makeWrapper();
+      const { result } = renderHook(() => useFileUpload('proj1'), { wrapper: Wrapper });
+      await expect(act(async () => result.current.replace.mutateAsync({ docId: 'doc-1', file: file(), destination: 'microsoft', oldPath: 'org/p/d/old.pdf' }))).rejects.toBeInstanceOf(UploadFailure);
+      expect(repo.cleanupObject).not.toHaveBeenCalled();
+      await waitFor(() => expect(result.current.uploadErrors['doc-1']?.message).toMatch(/Link it from the Microsoft picker/));
+    });
+
+    it('AC-007: cancelling aborts the custody request and shows no error', async () => {
+      msUpload.mockImplementation((_t: unknown, _f: unknown, signal: AbortSignal) => new Promise((_res, rej) => {
+        signal.addEventListener('abort', () => rej(new UploadFailure('cancelled')));
+      }));
+      const { Wrapper } = makeWrapper();
+      const { result } = renderHook(() => useFileUpload('proj1'), { wrapper: Wrapper });
+      let pending!: Promise<unknown>;
+      act(() => { pending = result.current.upload.mutateAsync({ docId: 'doc-1', file: file(), destination: 'microsoft' }).catch(() => {}); });
+      await waitFor(() => expect(msUpload).toHaveBeenCalled());
+      act(() => result.current.cancelUpload('doc-1'));
+      await act(async () => { await pending; });
+      expect(result.current.uploadErrors['doc-1']).toBeUndefined();
+      expect(repo.attachMicrosoftUpload).not.toHaveBeenCalled();
+    });
   });
 });

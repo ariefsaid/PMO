@@ -3,15 +3,21 @@ import { useTranslation } from 'react-i18next';
 import { useToast } from '@/src/components/ui';
 import { FileCell } from '@/src/components/FileCell';
 import { useFileUpload } from '@/src/hooks/useFileUpload';
+import { useUploadDestination } from '@/src/hooks/useUploadDestination';
 import { validateFile } from '@/src/lib/validateFile';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { projectReference, validMicrosoftBrowserUrl } from '@/src/lib/m365/reference';
+import { projectOwner, projectReference, validMicrosoftBrowserUrl } from '@/src/lib/m365/reference';
+import { useViewerOnDemand } from '@/src/components/documents/viewerContext';
+import { storageTarget } from '@/src/components/documents/targets/storage';
+import { referenceTarget } from '@/src/components/documents/targets/reference';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 
 export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], canEditDoc: (doc: ProjectDocumentRow) => boolean) {
   const { t } = useTranslation('project');
   const { toast } = useToast();
+  const viewer = useViewerOnDemand();
+  const destination = useUploadDestination();
   const { upload, replace, progress, uploadErrors, cancelUpload, clearUploadError } = useFileUpload(projectId);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeFileDoc, setActiveFileDoc] = useState<{ docId: string; mode: 'upload' | 'replace' } | null>(null);
@@ -53,10 +59,18 @@ export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], c
       return;
     }
 
+    // The destination can turn unknown while the chooser is open: never fall back to private storage on a guess.
+    if (destination.kind === 'unknown') {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setActiveFileDoc(null);
+      return;
+    }
+    const where = destination.kind === 'microsoft' ? 'microsoft' : 'private';
+    const args = { docId: activeFileDoc.docId, file, destination: where, oldPath: target.file_path } as const;
     if (activeFileDoc.mode === 'upload') {
-      upload.mutate({ docId: activeFileDoc.docId, file });
+      upload.mutate(args);
     } else {
-      replace.mutate({ docId: activeFileDoc.docId, file });
+      replace.mutate(args);
     }
 
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -65,7 +79,7 @@ export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], c
 
   const handleUploadClick = (docId: string) => {
     const doc = all.find((item) => item.id === docId);
-    if (!doc || doc.status !== 'Draft' || !canEditDoc(doc)) return;
+    if (!doc || doc.status !== 'Draft' || !canEditDoc(doc) || destination.kind === 'unknown') return;
     clearAnyUploadError(docId);
     setActiveFileDoc({ docId, mode: 'upload' });
     fileInputRef.current?.click();
@@ -73,7 +87,7 @@ export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], c
 
   const handleReplaceClick = (docId: string) => {
     const doc = all.find((item) => item.id === docId);
-    if (!doc || doc.status !== 'Draft' || !canEditDoc(doc)) return;
+    if (!doc || doc.status !== 'Draft' || !canEditDoc(doc) || destination.kind === 'unknown') return;
     clearAnyUploadError(docId);
     setActiveFileDoc({ docId, mode: 'replace' });
     fileInputRef.current?.click();
@@ -93,17 +107,7 @@ export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], c
     }
   };
 
-  const handlePreview = async (doc: ProjectDocumentRow) => {
-    if (!doc.file_path) return;
-    try {
-      const url = await repositories.document.getSignedUrl(doc.file_path);
-      window.open(url, '_blank', 'noopener,noreferrer');
-    } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
-      toast(headline, detail, 'warning');
-    }
-  };
-
+  /** FR-001: one side-panel viewer for a stored file and for a Microsoft reference alike. */
   const openPreview = (doc: ProjectDocumentRow) => {
     const reference = projectReference(doc);
     if (reference?.web_url) {
@@ -111,10 +115,16 @@ export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], c
         toast(t('m365Documents.cell.openRefused', 'This Microsoft link cannot be opened.'), undefined, 'warning');
         return;
       }
-      window.open(reference.web_url, '_blank', 'noopener,noreferrer');
+      viewer.open(referenceTarget({ reference, owner: projectOwner(doc), title: doc.title }));
       return;
     }
-    void handlePreview(doc);
+    if (!doc.file_path) return;
+    viewer.open(storageTarget({
+      key: `project-document:${doc.id}`,
+      name: doc.title,
+      filePath: doc.file_path,
+      getSignedUrl: (path, opts) => repositories.document.getSignedUrl(path, opts),
+    }));
   };
 
   const downloadSelected = async (selectedDocuments: ProjectDocumentRow[]) => {
@@ -137,12 +147,12 @@ export function useDocumentFiles(projectId: string, all: ProjectDocumentRow[], c
         title={doc.title}
         uploadProgress={progress[doc.id] ?? null}
         uploadError={clientUploadErrors[doc.id] ?? uploadErrors[doc.id]?.message ?? null}
-        onUpload={doc.status === 'Draft' && canEditDoc(doc) ? () => handleUploadClick(doc.id) : undefined}
-        onReplace={doc.status === 'Draft' && canEditDoc(doc) ? () => handleReplaceClick(doc.id) : undefined}
+        onUpload={doc.status === 'Draft' && canEditDoc(doc) && destination.kind !== 'unknown' ? () => handleUploadClick(doc.id) : undefined}
+        onReplace={doc.status === 'Draft' && canEditDoc(doc) && destination.kind !== 'unknown' ? () => handleReplaceClick(doc.id) : undefined}
         onCancelUpload={progress[doc.id] != null ? () => cancelUpload(doc.id) : undefined}
         onRemoveError={clientUploadErrors[doc.id] || uploadErrors[doc.id] ? () => clearAnyUploadError(doc.id) : undefined}
         onDownload={doc.file_path ? () => void handleDownload(doc) : undefined}
-        onPreview={doc.file_path ? () => void handlePreview(doc) : undefined}
+        onPreview={doc.file_path ? () => openPreview(doc) : undefined}
       />
     );
   };

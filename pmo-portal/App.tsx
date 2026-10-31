@@ -43,6 +43,7 @@ import { UserRole } from './types';
 import { AccessDenied, ToastProvider } from '@/src/components/ui';
 import { EnvBadge } from '@/src/components/EnvBadge';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
+import { DocumentViewerProvider } from '@/src/components/documents';
 import { FeatureRoute } from '@/src/components/FeatureRoute';
 import { isFeatureEnabled } from '@/src/lib/features';
 import { FEATURE_ENV_DEFAULT } from '@/src/lib/features';
@@ -560,7 +561,11 @@ const Shell: React.FC = () => {
                 instead of white-screening the SPA. Wrapped inside the providers so a
                 recovery keeps auth/runtime/toast context intact. */}
             <ErrorBoundary>
-              <ShellChrome />
+              {/* #1474: one side-panel document viewer for every document entry point; it sits inside the
+                  router (route change closes it) and above the routes so the panel survives list re-renders. */}
+              <DocumentViewerProvider>
+                <ShellChrome />
+              </DocumentViewerProvider>
             </ErrorBoundary>
           </AgentContextProvider>
         </AgentRuntimeProvider>

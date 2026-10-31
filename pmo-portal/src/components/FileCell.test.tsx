@@ -53,11 +53,16 @@ describe('FileCell', () => {
     expect(screen.getByLabelText(/Preview file for Test Doc/)).toBeInTheDocument();
   });
 
-  // ── AC-DOC-042: non-previewable type (.docx) hides preview icon ───────────
-  it('AC-DOC-042: non-previewable type (.docx) hides preview icon', () => {
+  // ── AC-DOC-042: non-viewable type (.dwg) hides preview icon; Office files are viewable (document-preview) ──
+  it('AC-DOC-042: Office files show the preview icon, a CAD drawing (.dwg) does not', () => {
+    const { unmount } = render(
+      <FileCell status="Approved" filePath="org/p/d/report.docx" title="Test Doc" onDownload={noop} onPreview={noop} />,
+    );
+    expect(screen.getByLabelText(/Preview file for Test Doc/)).toBeInTheDocument();
+    unmount();
     render(
       <FileCell
-        status="Approved" filePath="org/p/d/report.docx" title="Test Doc"
+        status="Approved" filePath="org/p/d/plan.dwg" title="Test Doc"
         onDownload={noop} onPreview={noop}
       />,
     );

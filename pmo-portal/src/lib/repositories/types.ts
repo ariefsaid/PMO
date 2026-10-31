@@ -357,6 +357,8 @@ export interface DocumentRepository {
   ): Promise<ProjectDocumentRow>;
   /** Atomically link a Microsoft item; actor/time stamps are server-owned. */
   linkMicrosoftDocument(id: string, reference: MicrosoftReferenceInput): Promise<void>;
+  /** Attach a file the custody upload stored in SharePoint, replacing any private upload (Draft only; one UPDATE). */
+  attachMicrosoftUpload(id: string, reference: MicrosoftReferenceInput): Promise<void>;
   /** Remove only the PMO reference; does not modify or delete the Microsoft item. */
   unlinkMicrosoftDocument(id: string): Promise<void>;
   /** Update a document's metadata (never status / author_id / org_id). */
@@ -372,7 +374,7 @@ export interface DocumentRepository {
   /** Delete a storage object (non-fatal cleanup). */
   cleanupObject(filePath: string): Promise<void>;
   /** Generate a signed download URL for a document file. `opts.download` forces attachment (true download); omit for inline preview. */
-  getSignedUrl(filePath: string, opts?: { download?: boolean }): Promise<string>;
+  getSignedUrl(filePath: string, opts?: { download?: boolean; expiresIn?: number }): Promise<string>;
   /** Create a revision (child) document row. */
   createRevision(
     parentId: string,
@@ -756,10 +758,18 @@ export interface ProcurementFileRepository {
     title: string | null,
     uploadedById: string | null,
   ): Promise<ProcurementFileRow>;
+  /** Record a file the custody upload stored in SharePoint as a phase attachment (no `file_path`). */
+  confirmMicrosoftUpload(
+    phase: ProcPhase,
+    parentId: string,
+    reference: MicrosoftReferenceInput,
+    title: string | null,
+    uploadedById: string | null,
+  ): Promise<ProcurementFileRow>;
   /** Soft-archive a file (stamps archived_at; ADR-0018). */
   archive(phase: ProcPhase, id: string): Promise<void>;
-  /** Generate a signed download URL for a file. `opts.download` forces attachment. */
-  getSignedUrl(filePath: string, opts?: { download?: boolean }): Promise<string>;
+  /** Generate a signed download URL for a file. `opts.download` forces attachment; `opts.expiresIn` shortens the link. */
+  getSignedUrl(filePath: string, opts?: { download?: boolean; expiresIn?: number }): Promise<string>;
   /** Delete a storage object (non-fatal orphan cleanup). */
   cleanupObject(filePath: string): Promise<void>;
 }
