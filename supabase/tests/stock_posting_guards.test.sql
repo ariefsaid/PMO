@@ -75,7 +75,7 @@ select lives_ok($$ select public.post_stock_document(current_setting('stk.draft'
 reset role;  select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
 select lives_ok($$ select public.stk_t_rcv('15120000-0000-0000-0000-000000002002', '15120000-0000-0000-0000-000000001001', 1, 10) $$, 'AC-STK-013 an Admin may post on any warehouse');
 reset role;
-select is((select count(*)::int from audit_events where action = 'stock.admin_post'), 1, 'AC-STK-013 the Admin override is audited');
+select is((select count(*)::int from audit_events where action = 'stock.admin_post' and org_id = '15120000-0000-0000-0000-000000000001'), 1, 'AC-STK-013 the Admin override is audited');
 
 -- AC-STK-016: a whole-number item refuses a fraction; a metre item takes it
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
