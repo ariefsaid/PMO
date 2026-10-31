@@ -61,7 +61,17 @@ _Owned by slice S2 (#1532)._
 
 ## S3 Jobs
 
-_Owned by slice S3 (#1532)._
+Dashboard `[PMO] Jobs` (tiles in `scripts/posthog/spec/jobs.mjs`, source `job_run`): runs by job, runs per hour, failure rate (all runs vs failed), failed runs by job and by error code, items processed, duration p95. Run `node scripts/posthog/provision-dashboards.mjs` to create it (idempotent).
+
+### Alert click-path (owner account; not done by the build)
+
+Alerts and destinations need the owner's PostHog account.
+
+1. Open the `[PMO] Jobs` dashboard, then the tile `Jobs — runs per hour`. Insight menu, **Alerts**, **New alert**.
+2. **Missing run** (one per job): series `job_run`, add a filter `job = <job>`, interval hour (minute jobs: use the tile's finest interval). Condition: value **is less than 1**, check **every hour**. Window per job (3x its cadence): `erpnext-sweep` 5 min, `clickup-webhook-worker` 5 min, `clickup-sweep` 20 min, `agent-dispatch` 3 h, `telegram-notify` 3 h. Use the finest check interval the alert offers; if it cannot go below an hour, the minute jobs' absence is caught within that hour, which is acceptable.
+3. **Failed run**: tile `Jobs — failed runs by job`. Condition: value **is greater than 0**, check hourly.
+4. Destination: the operator channel configured for error alerts (same as S2). Subscribers only; no customer addresses.
+5. Do not create the `erpnext-sweep` missing-run alert on an environment without an ERP-bound org: that job reports `skipped` there, and an alert on absence of `ok` would never be satisfied.
 
 ## S4 Push outcomes
 
