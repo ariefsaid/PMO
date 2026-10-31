@@ -8,6 +8,9 @@ interface PackTotals {
 /** A line needs this many months of history (AC-DTR-001/002). */
 export const MIN_TREND_MONTHS = 3;
 
+/** The window the headline totals: this many completed months (see `trendWindow`). */
+export const TREND_MONTHS = 12;
+
 export type TrendDirection = 'up' | 'down' | 'flat';
 
 export interface InvoicedTrend {
@@ -56,5 +59,5 @@ export function selectInvoicedTrend(
 export function trendWindow(orgDay: string | null): { from?: string; to?: string } {
   if (!orgDay) return {};
   const to = addMonths(`${orgDay.slice(0, 7)}-01`, -1);
-  return { from: addMonths(to, -11), to };
+  return { from: addMonths(to, 1 - TREND_MONTHS), to };
 }

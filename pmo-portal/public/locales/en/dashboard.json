@@ -612,9 +612,9 @@
     "chartTableTotal": "Total"
   },
   "trend": {
-    "label": "Invoiced · {{currency}} · excl. tax",
-    "span": "{{from}} to {{to}}, by month",
-    "firstLast": "{{firstMonth}} {{first}} → {{lastMonth}} {{last}}",
+    "label": "Invoiced, last {{months}} completed months · excl. tax",
+    "latest": "Latest month, {{month}}: {{amount}}",
+    "since": "from {{month}}: {{amount}}",
     "rising": "Rising",
     "falling": "Falling",
     "steady": "Steady",

@@ -612,9 +612,9 @@
     "chartTableTotal": "Total"
   },
   "trend": {
-    "label": "Ditagihkan · {{currency}} · di luar pajak",
-    "span": "{{from}} sampai {{to}}, per bulan",
-    "firstLast": "{{firstMonth}} {{first}} → {{lastMonth}} {{last}}",
+    "label": "Ditagihkan, {{months}} bulan terakhir yang selesai · di luar pajak",
+    "latest": "Bulan terakhir, {{month}}: {{amount}}",
+    "since": "dari {{month}}: {{amount}}",
     "rising": "Naik",
     "falling": "Turun",
     "steady": "Stabil",
