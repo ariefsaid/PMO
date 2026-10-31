@@ -2338,3 +2338,40 @@ begin
                       jsonb_build_object('item_id',c||'000000001008','quantity',500)), true, (c||'0000000f0004')::uuid);
   perform set_config('request.jwt.claims', '', true);
 end $$;
+
+-- #1512 S5 BoQ + allowances. P001 (Innovate Corp HQ Fit-Out, Ongoing) takes the demo: its SITE-A store holds cement, rebar and
+-- cable, and no BoQ / progress test reads P001 (P013 is kept BoQ-free for the delivery-milestone journey). Issues are posted
+-- THROUGH the RPC in two months relative to the org's today, so the consumption report always has last month and this month.
+-- Cement on FO-01 ends over its allowance (67 issued - 3 returned = 64 vs 60); rebar on FO-04 has no allowance (unplanned).
+insert into public.boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate, line_no) values
+  ('15121000-0000-0000-0000-00000000b001','00000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001','FO-01','Floor screed','m2',1200,18,1),
+  ('15121000-0000-0000-0000-00000000b002','00000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001','FO-02','Blockwork partitions','m2',800,32,2),
+  ('15121000-0000-0000-0000-00000000b003','00000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001','FO-03','Electrical first fix','m',2500,6,3),
+  ('15121000-0000-0000-0000-00000000b004','00000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001','FO-04','Structural reinforcement','kg',6000,2.1,4)
+on conflict do nothing;
+insert into public.boq_material_allowances (id, org_id, boq_item_id, item_id, planned_quantity) values
+  ('15121000-0000-0000-0000-00000000a001','00000000-0000-0000-0000-000000000001','15121000-0000-0000-0000-00000000b001','15121000-0000-0000-0000-000000001001',60),
+  ('15121000-0000-0000-0000-00000000a002','00000000-0000-0000-0000-000000000001','15121000-0000-0000-0000-00000000b003','15121000-0000-0000-0000-000000001003',300)
+on conflict do nothing;
+do $$
+declare c text := '15121000-0000-0000-0000-'; w_a uuid := '15121000-0000-0000-0000-000000002002'; p uuid := '40000000-0000-0000-0000-000000000001';
+  m0 date := date_trunc('month', public.stock_org_today('00000000-0000-0000-0000-000000000001'))::date; m1 date; v_doc uuid; v_line uuid;
+begin
+  m1 := (m0 - interval '1 month')::date;
+  -- last month, by the Admin (may date any past day)
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a5","role":"authenticated"}', true);
+  perform public.create_stock_document(jsonb_build_object('kind','issue','warehouse_id',w_a,'project_id',p,'occurred_on',(m1 + 4)::text),
+    jsonb_build_array(jsonb_build_object('item_id',c||'000000001001','quantity',20,'boq_item_id',c||'00000000b001')), true, (c||'0000000f0101')::uuid);
+  perform public.create_stock_document(jsonb_build_object('kind','issue','warehouse_id',w_a,'project_id',p,'occurred_on',(m1 + 19)::text),
+    jsonb_build_array(jsonb_build_object('item_id',c||'000000001001','quantity',25,'boq_item_id',c||'00000000b001'),
+                      jsonb_build_object('item_id',c||'000000001003','quantity',150,'boq_item_id',c||'00000000b003')), true, (c||'0000000f0102')::uuid);
+  -- this month (day 1, never in the future), by the SITE-A keeper
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a4","role":"authenticated"}', true);
+  v_doc := public.create_stock_document(jsonb_build_object('kind','issue','warehouse_id',w_a,'project_id',p,'occurred_on',m0::text),
+    jsonb_build_array(jsonb_build_object('item_id',c||'000000001001','quantity',22,'boq_item_id',c||'00000000b001'),
+                      jsonb_build_object('item_id',c||'000000001002','quantity',120,'boq_item_id',c||'00000000b004')), true, (c||'0000000f0103')::uuid);
+  select id into v_line from public.stock_document_lines where document_id = v_doc and item_id = (c||'000000001001')::uuid;
+  perform public.create_stock_document(jsonb_build_object('kind','return','warehouse_id',w_a,'occurred_on',m0::text),
+    jsonb_build_array(jsonb_build_object('item_id',c||'000000001001','quantity',3,'source_line_id',v_line)), true, (c||'0000000f0104')::uuid);
+  perform set_config('request.jwt.claims', '', true);
+end $$;
