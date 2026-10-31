@@ -131,3 +131,44 @@ The bed leaves `base_automation` installed after this run.
 - Webhook receivers must be idempotent: dedupe on `_model,_id`, re-read the record, rely on the watermark sweep.
 - Deletes show only through webhooks or an id reconcile.
 - The service user needs an `hr.employee` row before it can write timesheets.
+
+## 8. O1 follow-ups (S0, #1504)
+
+Run 2026-10-31 on the same stock bed (`20.0`, `version_info` major 20), cases `S0-T*` in `scripts/odoo-probe.mjs`;
+synthetic shapes in `pmo-portal/src/lib/adapterSeam/odoo/__fixtures__/json2.ts`. "Minimal user" = an internal user made
+for the run with the group set in T13. Bed preconditions the probe sets and records: the bed bot is granted
+`analytic.group_analytic_accounting` (it lacked it: plan reads were 403), and the `l10n_id` chart is loaded on the
+company (the install alone leaves the generic chart; see T10).
+
+| Task | Claim | Verdict | Fact |
+|---|---|---|---|
+| T1 (V1/V2) | wrong `X-Odoo-Database` | **verified** | 404 with a **non-JSON** body (not the `{name,message,...}` shape); handle as "database not found" by status + non-JSON |
+| T1 | 401 / 403 / 404 bodies | **verified** | 401 `werkzeug.exceptions.Unauthorized` "Invalid apikey"; 403 `odoo.exceptions.AccessError` (valid key, model forbidden); 404 `werkzeug.exceptions.NotFound` |
+| T1 | unknown model vs unknown method | **verified** | same `name`; only `message` differs ("the model '…' does not exist" vs "The method '….…' does not exist") |
+| T2 (V3) | `res.company/search_read {id,name,currency_id}` as minimal user | **verified** | 200, `currency_id` is `[id,name]` |
+| T3 (V4) | `ir.module.module` is 403 for a least-privilege user | **wrong** | internal users (`base.group_user`) can read it (200). Capability discovery of modules works without admin |
+| T3 | `res.partner/fields_get {attributes:[type]}` | **verified** | 200, 190 fields |
+| T3 | access-check method in 20 | **verified** | `has_access {operation}` → bare `true`/`false`; `check_access_rights` → 404 (removed) |
+| T4 (V5) | product fields | **verified** | `default_code, purchase_ok, sale_ok, is_storable, type (selection), uom_id, active` |
+| T4 | `product.product/create` with `default_code,name,uom_id,purchase_ok` | **verified** | 200 `[id]`; result `type: "consu"`, `is_storable: false`, `sale_ok: true`. Needs the **Products / Create** group (`product.group_product_manager`): 403 without it |
+| T5 (V6) | partner fields | **verified** | all eight present; a new partner has `supplier_rank = customer_rank = 0` |
+| T6 (V7) | `uom.uom` | **verified** | `name, relative_factor (number), relative_uom_id ([id,name] or false), active`; no category |
+| T7 (V8) | `account.account` | **recorded** | `company_ids` (many2many), **no** `company_id`, **no** `deprecated`; `active` exists. `account_type` values: `asset_receivable, asset_cash, asset_current, asset_non_current, asset_prepayments, asset_fixed, liability_payable, liability_credit_card, liability_current, liability_non_current, equity, equity_unaffected, income, income_other, expense, expense_other, expense_depreciation, expense_direct_cost, off_balance`. The only non-postable-by-type value is `off_balance` |
+| T8 (V9) | analytic plans | **recorded** | readable only with `analytic.group_analytic_accounting` (403 otherwise). One plan on the bed, "Project Plan" (the Project app's). `project.project.account_id` has domain `plan_id child_of <Project Plan id>`, company-scoped |
+| T8 | analytic account fields | **verified** | `plan_id, company_id, code, active` |
+| T8 | `code` unique | **verified not unique** | two accounts with the same `code` in one plan both created |
+| T9 (V10) | `context.active_test:false` | **verified** | archived partner: 0 rows without, 1 with |
+| T10 (V13) | PPN / PPh rows | **recorded** | after loading the `id` chart: 25 taxes, PPN as **`12%`** (rate 12, sale + purchase), `12% (Non-Luxury Good)` (rate 11), `12% NCR`, `12% IM`, `12% … Pemungut PPN`, `12% … WAPU` (negative / 100 rates, type `none`); `11%` rows present but **archived**. **No PPh rows** in the stock chart. Taxes match by name + rate only; use `type_tax_use`. The install alone left only the generic 15 % / 0 % taxes (company country stays US): the chart load is a bed step |
+| T11 (V14) | keyset domain at 200 and 1000 over 2 500 partners | **verified** | seeded in five 500-row creates (same `write_date` per create, so ties cross page edges): 0 repeats, 0 missing at both limits |
+| T12 (V12) | `ref` / `code` as minimal user | **verified** | writable and searchable; two partners share a `ref`, two analytic accounts share a `code` (not unique) |
+| T13 (V16, SD-7) | minimal user | **recorded** | passes S2/S8-level reads and creates with `base.group_user` + `base.group_partner_manager` (partner create) + `product.group_product_manager` (product create) + `analytic.group_analytic_accounting` (plan read, analytic-account create). With only the first three: plan read and analytic create are 403 (T13h). The four-group set is inferred from that and from the full-set pass (T13c); it was not run as one exact set. Leave-one-out hid the analytic group because other groups imply it |
+| T13 | key expiry cap | **recorded** | cap = the largest `api_key_duration` over the user's groups (90 days here). Non-admin: `null` → "The API key must have an expiration date"; past the cap → "You cannot exceed 90.0 days."; within it → key. `res.users.apikeys/generate` over JSON-2 is also refused for a non-admin with "Programmatic API keys are not enabled" until `ir.config_parameter` `base.enable_programmatic_api_keys` is true (admin sets it; `set_bool`). Rotation by API therefore needs that switch |
+| T13 | revoked vs expired key | **verified** | both 401, `werkzeug.exceptions.Unauthorized`, "Invalid apikey": indistinguishable |
+| T14 (V11) | hosted instances end in `.odoo.com` | **not testable** | documented only; the bed is local |
+| T15 | create results | **verified** | `account.analytic.account/create {name,code,plan_id,company_id}` and `res.partner/create` with `ref` → `[id]` |
+| T16 | `search_count` | **verified** | `search_count {domain}` honours `active_test:false`; **`domain` is required** (422 "missing a required argument: 'domain'" without) |
+| T17 (V17, PQ-11) | `POST /web/webclient/version_info` | **verified** | no auth needed; `result.server_version_info[0]` is the number `20`; `result` also has `server_version`, `server_serie`. Fallback `ir.module.module` `latest_version` of `base` also works (four dot-separated numbers) |
+
+Plan impacts: SD-7 gets the four-group set above; T3 means the capability probe can read `ir.module.module` as the
+service user, so a 403 there is "unknown", not "expected"; rotation (S3) must treat "Programmatic API keys are not
+enabled" as a connection-state reason, not a failure of the key; T10 means tax matching cannot rely on PPh names.
