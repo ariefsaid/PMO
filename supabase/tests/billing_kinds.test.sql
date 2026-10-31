@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(8);   -- finalized in T6.3 (pgTAP fails loudly on a mismatch)
+select plan(15);   -- finalized in T6.3 (pgTAP fails loudly on a mismatch)
 
 -- ── fixture ────────────────────────────────────────────────────────────────────────────────────
 insert into public.organizations (id,name) values
@@ -53,5 +53,37 @@ select ok(exists (select 1 from public.record_history_config where entity_type='
 select ok(pg_get_functiondef('public.sales_invoices_native_mirror_guard()'::regprocedure) like '%new.billing_kind is distinct from old.billing_kind%',
           'FR-012 the native mirror guard pins billing_kind while ERP owns revenue');
 
+
+-- ── T2: assignment carries the kind atomically (FR-003) ───────────────────────────────────────
+-- adopted ERP invoice with no project, unlinked: the "link" path
+insert into public.sales_invoices (id,org_id,project_id,si_number,invoice_date,amount,erp_outstanding_amount,tax_treatment,
+                                   tax_amount,currency,status,erp_docstatus) values
+ ('04080000-0000-0000-0000-0000000000e3','04080000-0000-0000-0000-000000000001',null,'SI-BK-3','2026-01-03',50,50,'exclusive',0,'USD','Unpaid',1);
+insert into public.external_domain_ownership (org_id,external_tier,domain) values ('04080000-0000-0000-0000-000000000001','erpnext','revenue');
+insert into public.external_refs (org_id,domain,pmo_record_id,external_tier,external_record_id)
+ values ('04080000-0000-0000-0000-000000000001','revenue','04080000-0000-0000-0000-0000000000e3','erpnext','SI-BK-3');
+delete from public.record_changes where entity_type='sales_invoice' and entity_id='04080000-0000-0000-0000-0000000000e3';
+set local role authenticated;
+set local request.jwt.claims='{"sub":"04080000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$select public.assign_sales_invoice_project('04080000-0000-0000-0000-0000000000e3','04080000-0000-0000-0000-0000000000d1','bogus')$$,
+                 '23514', null, 'AC-001 assignment refuses an invalid kind and saves nothing');
+select is((select project_id from public.sales_invoices where id='04080000-0000-0000-0000-0000000000e3'), null::uuid,
+          'AC-001 the refused assignment left the invoice unlinked');
+select lives_ok($$select public.assign_sales_invoice_project('04080000-0000-0000-0000-0000000000e3','04080000-0000-0000-0000-0000000000d1','other')$$,
+                'FR-003 assignment saves project and kind in one call');
+select is((select billing_kind from public.sales_invoices where id='04080000-0000-0000-0000-0000000000e3'), 'other',
+          'FR-003 the chosen kind persisted with the project');
+reset role;
+select is((select count(*)::int from public.record_changes where entity_type='sales_invoice'
+            and entity_id='04080000-0000-0000-0000-0000000000e3' and changes ? 'project_id' and changes ? 'billing_kind'), 1,
+          'FR-003 project and kind land in ONE history event (atomic)');
+-- omitted kind (older callers): a classified row keeps its kind (Q1)
+set local role authenticated;
+set local request.jwt.claims='{"sub":"04080000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select lives_ok($$select public.assign_sales_invoice_project('04080000-0000-0000-0000-0000000000e3','04080000-0000-0000-0000-0000000000d4')$$,
+                'FR-003 the two-argument form still works for older callers');
+select is((select billing_kind from public.sales_invoices where id='04080000-0000-0000-0000-0000000000e3'), 'other',
+          'FR-003 an omitted kind keeps the stored kind when the project changes');
+reset role;
 select * from finish();
 rollback;
