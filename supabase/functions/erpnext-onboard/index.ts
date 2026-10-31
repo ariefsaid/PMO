@@ -24,11 +24,12 @@ import { ensureErpSellingSettings } from '../../../pmo-portal/src/lib/adapterSea
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { resolveErpAuthPair } from '../_shared/erpAuthPair.ts';
 import { guardedErpFetch } from '../_shared/erpHostGuard.ts';
-import { findPmoRecordId, recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
+import { findPmoRecordId, insertExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
+import { findCompanyCandidates } from '../_shared/companyCandidates.ts';
 import { applyErpContact } from '../_shared/erpnextContacts.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
-import type { PartyCandidate, PartyDoctype } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/partyAdopt.ts';
+import type { PartyDoctype } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/partyAdopt.ts';
 import type { PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
@@ -102,17 +103,7 @@ export async function handleOnboardRequest(req: Request): Promise<Response> {
 
     const result = await onboardParties(sources, {
       findPmoRecordId: (externalRecordId) => findPmoRecordId(serviceClient as never, orgId, 'companies', externalRecordId),
-      findCandidates: async (doctype: PartyDoctype, name: string): Promise<PartyCandidate[]> => {
-        const targetType = doctype === 'Supplier' ? 'Vendor' : 'Client';
-        const { data, error } = await serviceClient
-          .from('companies')
-          .select('id, erp_tax_id')
-          .eq('org_id', orgId)
-          .eq('type', targetType)
-          .eq('name', name);
-        if (error) throw new AppError(error.message, error.code);
-        return ((data ?? []) as Array<{ id: string; erp_tax_id: string | null }>).map((row) => ({ pmoRecordId: row.id, taxId: row.erp_tax_id }));
-      },
+      findCandidates: (doctype: PartyDoctype, name: string) => findCompanyCandidates(serviceClient, orgId, doctype, name),
       insertCompaniesMirror: async (canonical: PmoRecord) => {
         const { error } = await serviceClient.from('companies').insert({
           id: canonical.id,
@@ -143,7 +134,7 @@ export async function handleOnboardRequest(req: Request): Promise<Response> {
           .eq('id', pmoRecordId);
         if (error) throw new AppError(error.message, error.code);
       },
-      recordExternalRef: (mapping) => recordExternalRefWrite(serviceClient as never, { ...mapping, orgId, domain: 'companies', externalTier: ERPNEXT_TIER }),
+      recordExternalRef: (mapping) => insertExternalRef(serviceClient as never, { ...mapping, orgId, domain: 'companies', externalTier: ERPNEXT_TIER }),
     });
 
     const contacts = {adopted: 0, reconciled: 0};

@@ -307,6 +307,30 @@ describe('applyEngine.applyInboundChange — atomic adopt (Luna BLOCK 7)', () =>
     expect(deps.legacyMints).toHaveLength(0);
   });
 
+  it('#1600 a matched existing row is linked (claim for ITS id) and updated; nothing is minted', async () => {
+    const deps = makeAtomicDeps({ mappedPmoId: null });
+    const updates: string[] = [];
+    deps.updateMirror = async (id) => { updates.push(id); };
+    deps.adoptAtomically!.matchExisting = async () => 'pmo-existing-1';
+
+    const outcome = await applyInboundChange(ctx, 'SINV-001', { id: 'ignored', amount: '1' }, 1000, deps);
+
+    expect(outcome).toEqual({ kind: 'upserted', pmoRecordId: 'pmo-existing-1', adopted: false });
+    expect(deps.refs).toEqual([{ pmoRecordId: 'pmo-existing-1', externalRecordId: 'SINV-001' }]);
+    expect(updates).toEqual(['pmo-existing-1']);
+    expect(deps.minted).toHaveLength(0);
+  });
+
+  it('#1600 an unclear match throws before any claim or mint', async () => {
+    const deps = makeAtomicDeps({ mappedPmoId: null });
+    deps.adoptAtomically!.matchExisting = async () => { throw new Error('unclear'); };
+
+    await expect(applyInboundChange(ctx, 'SINV-001', { id: 'ignored' }, 1000, deps)).rejects.toThrow('unclear');
+
+    expect(deps.refs).toHaveLength(0);
+    expect(deps.minted).toHaveLength(0);
+  });
+
   it('a LOSING concurrent adopt (23505 on the ref claim) mints NO mirror row — no orphan duplicate revenue row', async () => {
     const conflict = Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' });
     const deps = makeAtomicDeps({ mappedPmoId: null, refClaimError: conflict });

@@ -5,6 +5,7 @@
  * `external_refs` mapping — never a duplicate. Mirrors `clickup/onboarding.ts`'s pure/Deno-importable
  * shape (the edge fn `supabase/functions/erpnext-onboard/index.ts` is thin wiring around this).
  */
+import { AppError } from '../../appError.ts';
 import { adoptParty, externalIdFor, type ErpPartySource, type PartyCandidate } from './partyAdopt.ts';
 import { erpnextRequest, ERP_RESPONSE_MAX_BYTES, type ErpClientDeps } from './client.ts';
 import { getDoc } from './client.ts';
@@ -84,6 +85,9 @@ export interface OnboardPartiesResult {
   adopted: number;
   /** Already-mapped parties re-applied this run (idempotent retry — no new mirror row). */
   reconciled: number;
+  /** Parties whose PMO match is unclear (several candidates, or a conflicting tax ID): nothing was
+   *  written for them; the rest of the run applied (#1600). */
+  needsDecision: Array<{ doctype: ErpPartySource['doctype']; id: string; name: string; reason: string }>;
 }
 
 /**
@@ -96,6 +100,7 @@ export interface OnboardPartiesResult {
 export async function onboardParties(sources: readonly ErpPartySource[], deps: OnboardPartiesDeps): Promise<OnboardPartiesResult> {
   let adopted = 0;
   let reconciled = 0;
+  const needsDecision: OnboardPartiesResult['needsDecision'] = [];
   for (const source of sources) {
     // Keyed by the ERPNext ID, never the display name, so a ref the sweep minted is found here (#760).
     const externalRecordId = externalIdFor(source.doctype, source.id);
@@ -110,12 +115,22 @@ export async function onboardParties(sources: readonly ErpPartySource[], deps: O
       reconciled += 1;
       continue;
     }
-    const { canonical, externalRecordId: mintedExternalId } = await adoptParty(source, { findCandidates: deps.findCandidates });
-    await deps.insertCompaniesMirror(canonical);
+    let adoptedParty;
+    try {
+      adoptedParty = await adoptParty(source, { findCandidates: deps.findCandidates });
+    } catch (err) {
+      if (!(err instanceof AppError) || err.code !== 'action-required') throw err;
+      needsDecision.push({ doctype: source.doctype, id: source.id, name: source.name, reason: err.details ?? 'unclear-match' });
+      continue;
+    }
+    const { canonical, externalRecordId: mintedExternalId, matched } = adoptedParty;
+    // A matched company already exists under `canonical.id`: link it, never insert it again (#1600).
+    if (matched) await deps.updateCompaniesMirror(canonical.id, canonical);
+    else await deps.insertCompaniesMirror(canonical);
     await deps.recordExternalRef({ pmoRecordId: canonical.id, externalRecordId: mintedExternalId });
     adopted += 1;
   }
-  return { adopted, reconciled };
+  return { adopted, reconciled, needsDecision };
 }
 
 /** Contacts require their Dynamic Link children, so enumerate scalars then hydrate each changed doc. */
