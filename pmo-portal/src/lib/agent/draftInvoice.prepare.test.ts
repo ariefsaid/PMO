@@ -24,11 +24,57 @@ describe('prepareDraftInvoice — gate (#787)', () => {
     expect(await prepareDraftInvoice({ workOrder: 'x' }, ctx('Finance', client), newId))
       .toEqual({ ok: false, error: { error: 'Invoicing is not turned on for this organisation.' } });
   });
-  it('revenue not on ERPNext → refused (#784 not shipped)', async () => {
-    const { client, calls } = fakeSupabase(world({ external_domain_ownership: () => [] }), oneItem);
-    const out = await prepareDraftInvoice({ workOrder: 'x' }, ctx('Admin', client), newId);
-    expect(out).toMatchObject({ ok: false, error: { error: expect.stringMatching(/not connected revenue to ERPNext/) } });
+  it('AC-AIN-NAT-003 the ERPNext ownership check is unchanged and an ERPNext org stays on the ERP path', async () => {
+    const { client, calls } = fakeSupabase(world(), oneItem);
+    const out = await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Admin', client), newId);
+    expect(out.ok && out.value.path).toBeUndefined();
     expect(opsOf(calls, 'external_domain_ownership')[0]).toEqual([['eq', 'domain', 'revenue'], ['eq', 'external_tier', 'erpnext'], ['limit', 1]]);
+    expect(opsOf(calls, 'external_domain_ownership')).toHaveLength(1);
+  });
+  it('another system owns revenue → refused (neither the ERPNext nor the PMO path)', async () => {
+    const other = (c: { ops: Array<[string, ...unknown[]]> }) => (c.ops.some((o) => o[1] === 'external_tier') ? [] : [{ external_tier: 'odoo' }]);
+    const { client, invoke } = fakeSupabase(world({ external_domain_ownership: other }), oneItem);
+    const out = await prepareDraftInvoice({ workOrder: 'x' }, ctx('Admin', client), newId);
+    expect(out).toMatchObject({ ok: false, error: { error: expect.stringMatching(/raised in the connected system/) } });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+});
+
+describe('prepareDraftInvoice — no ERP owns revenue (#1595)', () => {
+  const noErp = () => world({ external_domain_ownership: () => [] });
+  it.each(['Finance', 'Admin'])('AC-AIN-NAT-001 %s gets a native proposal for a work order, with no ERP lookups', async (role) => {
+    const { client, calls, invoke } = fakeSupabase(noErp(), oneItem);
+    const out = await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx(role, client), newId);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.value).toMatchObject({
+      kind: 'prepared-draft-invoice', path: 'native', customerId: C1, projectId: P1, workOrderId: WO.id, reference_number: 'PO-778',
+      items: [{ item_code: '', qty: 1, rate: 1_000_000, description: 'WO-20261001-001 — Phase 2 survey' }],
+    });
+    expect(out.summary).toMatch(/^Save as Draft: invoice PT Client .* excl\. tax for WO-20261001-001\. Not submitted\.$/);
+    expect(invoke).not.toHaveBeenCalled(); // no ERPNext item catalogue
+    expect(calls.some((c) => c.table === 'external_refs')).toBe(false); // no ERPNext customer link needed
+  });
+  it('AC-AIN-NAT-001 Revenue off or a non-Finance/Admin role is still refused', async () => {
+    const off = fakeSupabase(world({ external_domain_ownership: () => [], org_features: () => ({ enabled: false }) }), oneItem);
+    expect(await prepareDraftInvoice({ workOrder: 'x' }, ctx('Finance', off.client), newId))
+      .toEqual({ ok: false, error: { error: 'Invoicing is not turned on for this organisation.' } });
+    const pm = fakeSupabase(noErp(), oneItem);
+    expect(await prepareDraftInvoice({ workOrder: 'x' }, ctx('Project Manager', pm.client), newId))
+      .toEqual({ ok: false, error: { error: 'Only Finance or Admin can raise an invoice.' } });
+  });
+  it('a milestone with a stated amount is proposed natively; without one it still asks', async () => {
+    const { client } = fakeSupabase(noErp(), oneItem);
+    const out = await prepareDraftInvoice({ milestone: '2', project: P1, amount: 5_000_000 }, ctx('Finance', client), newId);
+    expect(out.ok && out.value).toMatchObject({ path: 'native', items: [{ item_code: '', rate: 5_000_000, description: 'Harbor Tower — Foundation' }] });
+    expect(await prepareDraftInvoice({ milestone: '2', project: P1 }, ctx('Finance', client), newId)).toMatchObject({ ok: false, error: { needs: 'amount' } });
+  });
+  it('a client with no ERP link is fine; no client is still refused', async () => {
+    const unlinked = fakeSupabase(world({ external_domain_ownership: () => [], external_refs: () => [] }), oneItem);
+    expect(await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Finance', unlinked.client), newId)).toMatchObject({ ok: true });
+    const noClient = fakeSupabase(world({ external_domain_ownership: () => [], projects: () => ({ ...PROJECT, client_id: null }) }), oneItem);
+    expect(await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Finance', noClient.client), newId))
+      .toEqual({ ok: false, error: { error: 'Harbor Tower has no client, so there is no one to invoice.' } });
   });
 });
 

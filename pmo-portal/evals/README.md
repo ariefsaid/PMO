@@ -95,3 +95,7 @@ Revenue is switched on; revenue is owned by an ERPNext binding whose catalogue h
 there is ≥1 open task past its end date on a project, and ≥1 Unpaid invoice past its due date; work order
 `WO-EVAL-0001` is **Issued**, tax-exclusive, value 1,000,000.00; project `EVAL-P1` has ≥2 milestones.
 The suite only proposes — it never approves — so it never creates an ERP document.
+
+**No-ERP variant (#1595).** Run the same suite a second time as a Finance user in an org with Revenue on and **no**
+revenue ownership row (no ERPNext binding): `WO-EVAL-0001` and project `EVAL-P1` as above, the project's client set.
+Every proposal is then native (`path: 'native'`, empty item code); the suite still only proposes, so it creates no invoice.

@@ -14,7 +14,7 @@ import { salesInvoiceCreateFields } from '../../../pmo-portal/src/lib/adapterSea
 import { DRAFT_INVOICE_SCHEMA } from './schema.ts';
 import { formatMoney, isMoney, resolveNumberLocale } from './agentFormat.ts';
 import {
-  asFunctions, asLoose, readOne, readRows, toLikeTerm, UUID_RE, withTimeout,
+  asFunctions, asLoose, asRpc, readOne, readRows, toLikeTerm, UUID_RE, withTimeout,
   type LooseClient, type LooseQuery,
 } from './looseClient.ts';
 
@@ -65,6 +65,12 @@ export interface DraftInvoicePrepared {
   idempotencyKey: string;
   customerId: string;
   projectId: string;
+  /**
+   * #1595: 'native' = no ERP owns revenue, so the draft is created in PMO (`create_native_sales_invoice`) and its
+   * line carries no ERP item code (''). Absent = the ERPNext path. Client-controlled on replay, so it picks a route
+   * only: each route's own server authority (the RPC / `adapter-dispatch`) refuses a wrong-owner org.
+   */
+  path?: 'native';
   /** OD-BILL-1 (DD-BWO-9): the work order this draft bills; absent for a milestone draft. */
   workOrderId?: string;
   items: [DraftInvoiceLine];
@@ -84,13 +90,16 @@ export function validatePreparedDraft(
   for (const k of ['commandId', 'idempotencyKey', 'customerId', 'projectId']) {
     if (typeof p[k] !== 'string' || !UUID_RE.test(p[k] as string)) return bad(`${k} must be a uuid`);
   }
+  if (p.path !== undefined && p.path !== 'native') return bad('path is invalid');
   if (p.workOrderId !== undefined && (typeof p.workOrderId !== 'string' || !UUID_RE.test(p.workOrderId))) {
     return bad('workOrderId must be a uuid');
   }
   const items = Array.isArray(p.items) ? p.items : [];
   if (items.length !== 1) return bad('exactly one line is required');
   const line = (items[0] ?? {}) as Record<string, unknown>;
-  if (!shortText(line.item_code, 140) || !line.item_code.trim()) return bad('item_code is required');
+  if (!shortText(line.item_code, 140)) return bad('item_code is required');
+  // ERP path: the ERPNext item is required. Native path: there is none (the RPC takes the description alone).
+  if (p.path === 'native' ? line.item_code.trim() !== '' : !line.item_code.trim()) return bad('item_code is required');
   if (line.qty !== 1) return bad('qty must be 1');
   if (!isMoney(line.rate)) return bad('rate must be a positive amount with at most 2 decimals');
   if (!shortText(line.description, 140)) return bad('description must be at most 140 characters');
@@ -108,6 +117,7 @@ export function validatePreparedDraft(
       idempotencyKey: p.idempotencyKey as string,
       customerId: p.customerId as string,
       projectId: p.projectId as string,
+      ...(p.path === 'native' ? { path: 'native' as const } : {}),
       ...(typeof p.workOrderId === 'string' ? { workOrderId: p.workOrderId } : {}),
       items: [{ item_code: (line.item_code as string).trim(), qty: 1, rate: line.rate as number, description: line.description as string }],
       reference_number: ref as string | null,
@@ -151,18 +161,28 @@ export const refuse = (error: string, needs?: PrepareRefusal['needs'], candidate
   error: { error, ...(needs ? { needs } : {}), ...(candidates?.length ? { candidates: candidates.slice(0, 8) } : {}) } as PrepareRefusal,
 });
 
-/** DD-AIN-3: Finance/Admin only; Revenue on; revenue owned by ERPNext (the only create path until #784). */
-async function gate(sb: LooseClient, ctx: DeputyContext): Promise<PrepareRefusal | null> {
-  if (!ctx.role || !AGENT_REVENUE_WRITE_ROLES.includes(ctx.role)) return { error: 'Only Finance or Admin can raise an invoice.' };
+type Gate = { ok: true; path: 'erp' | 'native' } | { ok: false; error: PrepareRefusal };
+
+/**
+ * DD-AIN-3 (amended by #1595): Finance/Admin only; Revenue on. ERPNext owning revenue → the ERP path (adapter-dispatch);
+ * no external system owning it → the native path (create_native_sales_invoice); any other owner → refused.
+ */
+async function gate(sb: LooseClient, ctx: DeputyContext): Promise<Gate> {
+  const no = (error: string): Gate => ({ ok: false, error: { error } });
+  if (!ctx.role || !AGENT_REVENUE_WRITE_ROLES.includes(ctx.role)) return no('Only Finance or Admin can raise an invoice.');
   const [feature, owned] = await Promise.all([
     readOne<{ enabled: boolean }>(sb.from('org_features').select('enabled').eq('feature_key', 'revenue').maybeSingle()),
     readRows<{ external_tier: string }>(
       sb.from('external_domain_ownership').select('external_tier').eq('domain', 'revenue').eq('external_tier', 'erpnext').limit(1),
     ),
   ]);
-  if (feature?.enabled !== true) return { error: 'Invoicing is not turned on for this organisation.' };
-  if (owned.length === 0) return { error: 'Invoices are raised in ERPNext, and this organisation has not connected revenue to ERPNext yet.' };
-  return null;
+  if (feature?.enabled !== true) return no('Invoicing is not turned on for this organisation.');
+  if (owned.length > 0) return { ok: true, path: 'erp' };
+  const other = await readRows<{ external_tier: string }>(
+    sb.from('external_domain_ownership').select('external_tier').eq('domain', 'revenue').limit(1),
+  );
+  if (other.length > 0) return no('Invoices for this organisation are raised in the connected system, not through the assistant.');
+  return { ok: true, path: 'native' };
 }
 
 export interface ProjectRow { id: string; name: string; client_id: string | null; currency: string }
@@ -317,8 +337,9 @@ export async function prepareDraftInvoice(
   newId: () => string = () => crypto.randomUUID(),
 ): Promise<PrepareOutcome> {
   const sb = asLoose(ctx.supabase);
-  const denied = await gate(sb, ctx);
-  if (denied) return { ok: false, error: denied };
+  const gated = await gate(sb, ctx);
+  if (!gated.ok) return gated;
+  const native = gated.path === 'native';
 
   let project: ProjectRow | null = null;
   if (req.project) {
@@ -348,14 +369,16 @@ export async function prepareDraftInvoice(
 
   const [customer, erpLink, org] = await Promise.all([
     readOne<{ name: string }>(sb.from('companies').select('name').eq('id', clientId).maybeSingle()),
-    readRows<{ external_record_id: string }>(
-      sb.from('external_refs').select('external_record_id').eq('domain', 'companies').eq('pmo_record_id', clientId).limit(1),
-    ),
+    native
+      ? Promise.resolve([])
+      : readRows<{ external_record_id: string }>(
+        sb.from('external_refs').select('external_record_id').eq('domain', 'companies').eq('pmo_record_id', clientId).limit(1),
+      ),
     readOne<{ default_locale: string | null; default_number_locale: string | null }>(
       sb.from('organizations').select('default_locale, default_number_locale').eq('id', ctx.orgId).maybeSingle(),
     ),
   ]);
-  if (erpLink.length === 0) {
+  if (!native && erpLink.length === 0) {
     return refuse(`${customer?.name ?? 'This client'} is not linked to ERPNext yet, so an invoice cannot be raised for them.`);
   }
 
@@ -394,8 +417,9 @@ export async function prepareDraftInvoice(
     return refuse(`${source.wo.wo_number ?? source.wo.title} is in ${source.wo.currency}, but ${project.name} invoices in ${project.currency}, so an invoice cannot be raised against it.`);
   }
 
-  const item = await resolveItem(ctx, req.itemCode);
-  if (!item.ok) return item;
+  // Native: no ERP item catalogue; the line is the description alone.
+  const item = native ? null : await resolveItem(ctx, req.itemCode);
+  if (item && !item.ok) return item;
 
   const currency = project.currency;
   const description = (source.kind === 'workOrder' ? woLabel(source.wo) : `${project.name} — ${source.ms.name}`).slice(0, 140);
@@ -406,15 +430,16 @@ export async function prepareDraftInvoice(
     idempotencyKey: newId(),
     customerId: clientId,
     projectId: project.id,
+    ...(native ? { path: 'native' as const } : {}),
     ...(source.kind === 'workOrder' ? { workOrderId: source.wo.id } : {}),
-    items: [{ item_code: item.value.code, qty: 1, rate, description }],
+    items: [{ item_code: item?.ok ? item.value.code : '', qty: 1, rate, description }],
     reference_number: poRef,
     display: {
       customerName: clip(customer?.name ?? 'the client', 200),
       projectName: clip(project.name, 200),
       sourceLabel: clip(sourceLabel, 200),
       amountText: clip(formatMoney(rate, currency, resolveNumberLocale(org)), 200),
-      ...(item.value.only ? {} : { itemLabel: clip(`${item.value.code} — ${item.value.name}`, 200) }),
+      ...(!item?.ok || item.value.only ? {} : { itemLabel: clip(`${item.value.code} — ${item.value.name}`, 200) }),
     },
   };
   return { ok: true, value, summary: summarizeDraft(value) };
@@ -437,13 +462,49 @@ async function readDispatchError(error: unknown): Promise<{ message: string; cod
   return { message: 'The invoice could not be saved.' };
 }
 
+/**
+ * #1595: no ERP owns revenue — ONE `create_native_sales_invoice` as the caller (their JWT). The RPC re-checks role and
+ * ownership, tax comes from the project, and the caller is recorded as author so the approval SoD (approver ≠ author)
+ * holds. Only the create RPC is ever called here: no approve, no transition (NFR-AIN-SEC-003).
+ */
+async function runNativeDraft(p: DraftInvoicePrepared, ctx: DeputyContext): Promise<unknown> {
+  const failed = { error: 'The invoice could not be saved.' };
+  const rpc = asRpc(ctx.supabase);
+  if (!rpc) return failed;
+  const line = p.items[0];
+  let out: Awaited<ReturnType<typeof rpc.rpc>>;
+  try {
+    out = await withTimeout(rpc.rpc('create_native_sales_invoice', {
+      p_project_id: p.projectId,
+      p_customer_id: p.customerId,
+      p_lines: [{ description: line.description, qty: line.qty, rate: line.rate }],
+      ...(p.workOrderId ? { p_work_order_id: p.workOrderId } : {}),
+    }), DRAFT_INVOICE_DISPATCH_TIMEOUT_MS);
+  } catch {
+    return failed;
+  }
+  if (out.error) {
+    return { error: out.error.message?.trim() || failed.error, ...(out.error.code ? { code: out.error.code } : {}) };
+  }
+  if (typeof out.data !== 'string' || !UUID_RE.test(out.data)) return failed;
+  return {
+    ok: true,
+    status: 'Draft',
+    id: out.data,
+    siNumber: null,
+    link: `/sales-invoices/${out.data}`,
+    note: "Saved as a Draft under the user's name. It is NOT approved; every other Finance or Admin user has been notified, and one of them approves it.",
+  };
+}
+
 /** Approval execution: ONE revenue CREATE through the served write path, as the caller (ADR-0079 §4). */
 export async function runDraftInvoice(input: unknown, ctx: DeputyContext): Promise<unknown> {
   const v = validatePreparedDraft(input);
   if (v.ok === false) return { error: v.error };
+  const p = v.value;
+  if (p.path === 'native') return runNativeDraft(p, ctx);
   const fns = asFunctions(ctx.supabase);
   if (!fns) return { error: 'The invoice could not be saved.' };
-  const p = v.value;
   const body = {
     domain: 'revenue',
     operation: 'create', // NFR-AIN-SEC-003: the ONLY operation this tool may ever send.

@@ -363,6 +363,17 @@ describe('NotificationBell', () => {
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/expenses/ec-7'));
   });
 
+  it('AC-AIN-NAT-002 selecting a customer-invoice hand-off opens the invoice', async () => {
+    listUnreadCount.mockResolvedValue(1);
+    listNotifications.mockResolvedValue([
+      row({ id: 'n1', title: 'Customer invoice awaiting your approval', metadata: { entity: { type: 'sales_invoice', id: 'si-9', label: 'PT Client' } } }),
+    ]);
+    renderBell();
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /customer invoice awaiting/i }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/sales-invoices/si-9'));
+  });
+
   it('AC-843-005 requests one page on open; "Load more" shows only with a next cursor and appends the next page', async () => {
     const cursor = { createdAt: '2026-07-02T00:00:00.000Z', id: 'n2' };
     listNotifications

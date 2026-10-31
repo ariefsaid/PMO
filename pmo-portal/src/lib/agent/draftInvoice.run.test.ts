@@ -39,6 +39,52 @@ describe('runDraftInvoice (#787)', () => {
     expect(await runDraftInvoice({ ...PREPARED, kind: 'x' }, ctx(invoke))).toEqual({ error: 'not a prepared draft invoice' });
     expect(invoke).not.toHaveBeenCalled();
   });
+  describe('native path (#1595)', () => {
+    const NATIVE = { ...PREPARED, path: 'native' as const, workOrderId: '33333333-3333-4333-8333-333333333333', items: [{ ...PREPARED.items[0], item_code: '' }] };
+    const NEW_ID = '66666666-6666-4666-8666-666666666666';
+    type Rpc = (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message?: string; code?: string } | null }>;
+    const nativeCtx = (rpc: ReturnType<typeof vi.fn<Rpc>>, invoke = vi.fn<Invoker>()) =>
+      ({ jwt: '', userId: 'u-fin', orgId: 'org-1', role: 'Finance', supabase: { rpc, functions: { invoke } } as never });
+    it('AC-AIN-NAT-001 calls the native create RPC once as the caller, and nothing else', async () => {
+      const rpc = vi.fn<Rpc>(async () => ({ data: NEW_ID, error: null }));
+      const invoke = vi.fn<Invoker>();
+      const out = await runDraftInvoice(NATIVE, nativeCtx(rpc, invoke));
+      expect(rpc).toHaveBeenCalledTimes(1);
+      expect(rpc).toHaveBeenCalledWith('create_native_sales_invoice', {
+        p_project_id: PREPARED.projectId, p_customer_id: PREPARED.customerId, p_work_order_id: NATIVE.workOrderId,
+        p_lines: [{ description: PREPARED.items[0].description, qty: 1, rate: 1_000_000 }],
+      });
+      expect(invoke).not.toHaveBeenCalled();
+      expect(out).toMatchObject({ ok: true, status: 'Draft', id: NEW_ID, siNumber: null, link: `/sales-invoices/${NEW_ID}` });
+    });
+    it('AC-AIN-NAT-001 never approves: the only RPC is the create (SoD stays with a different approver)', async () => {
+      const rpc = vi.fn<Rpc>(async () => ({ data: NEW_ID, error: null }));
+      await runDraftInvoice(NATIVE, nativeCtx(rpc));
+      expect(rpc.mock.calls.map(([name]) => name)).toEqual(['create_native_sales_invoice']);
+      expect(JSON.stringify(rpc.mock.calls)).not.toMatch(/transition|Unpaid|approve|author/i);
+    });
+    it('a milestone draft sends no work order', async () => {
+      const rpc = vi.fn<Rpc>(async () => ({ data: NEW_ID, error: null }));
+      const { workOrderId: _w, ...milestone } = NATIVE;
+      await runDraftInvoice(milestone, nativeCtx(rpc));
+      expect(rpc.mock.calls[0][1]).not.toHaveProperty('p_work_order_id');
+    });
+    it('the RPC refusing (role, ERP owns revenue, VAT rate missing) surfaces its message, never ok', async () => {
+      const rpc = vi.fn<Rpc>(async () => ({ data: null, error: { message: 'customer invoices for this organisation are raised in the connected ERP, not in PMO', code: '42501' } }));
+      expect(await runDraftInvoice(NATIVE, nativeCtx(rpc))).toEqual({ error: 'customer invoices for this organisation are raised in the connected ERP, not in PMO', code: '42501' });
+    });
+    it('an RPC that throws or returns no id is an error, never ok', async () => {
+      expect(await runDraftInvoice(NATIVE, nativeCtx(vi.fn(async () => { throw new Error('boom'); })))).toEqual({ error: 'The invoice could not be saved.' });
+      expect(await runDraftInvoice(NATIVE, nativeCtx(vi.fn(async () => ({ data: null, error: null }))))).toEqual({ error: 'The invoice could not be saved.' });
+    });
+    it('an ERP-path draft still dispatches and never calls the RPC (AC-AIN-NAT-003)', async () => {
+      const rpc = vi.fn();
+      const invoke = vi.fn<Invoker>(async () => ({ data: { canonical: { id: PREPARED.commandId, si_number: 'ACC-SINV-2026-00099' } }, error: null }));
+      await runDraftInvoice(PREPARED, nativeCtx(rpc, invoke));
+      expect(rpc).not.toHaveBeenCalled();
+      expect(invoke).toHaveBeenCalledTimes(1);
+    });
+  });
   it('the action always chips and carries prepare + validatePrepared', () => {
     expect(draftInvoiceAction).toMatchObject({ name: 'draft_invoice', confirm: true });
     expect(draftInvoiceAction.needsApproval?.({}, {} as never)).toBe(true);

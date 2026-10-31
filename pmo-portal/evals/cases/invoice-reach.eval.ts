@@ -34,6 +34,18 @@ export default runEvalSuite(
         ],
       },
       {
+        // #1595: the reel's own wording (no "work order" word). Run it against a no-ERP org too (README fixture): the
+        // proposal is then native (`path: 'native'`, empty item code) and approval creates the Draft in PMO.
+        name: 'AC-AIN-NAT-001 "Invoice WO-EVAL-0001" (the reel prompt) → proposes the Draft at its value before tax',
+        prompt: 'Invoice WO-EVAL-0001',
+        runs: RUNS,
+        minPasses: MIN_PASSES,
+        expect: [
+          proposesAction('draft_invoice', (a) =>
+            a.kind === 'prepared-draft-invoice' && (a.items as Array<{ rate: number }>)[0]?.rate === 1_000_000),
+        ],
+      },
+      {
         name: 'AC-AIN-003 AC-AIN-002 "invoice milestone 2 on EVAL-P1 for 5,000,000" → proposes the Draft',
         prompt: 'Invoice milestone 2 on project EVAL-P1 for 5,000,000 before tax.',
         runs: RUNS,

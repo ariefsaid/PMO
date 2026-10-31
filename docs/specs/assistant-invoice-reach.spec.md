@@ -28,8 +28,7 @@ may run as a factory slice (plan §2).
   invoices (Admin, Executive, Project Manager, Finance — the existing Sales Invoices view rule).
 - **DD-AIN-3 — who can have the assistant draft an invoice.** Finance and Admin only — the same people who may
   press "New invoice" today, and the same set the server enforces. Anyone else gets a plain refusal and no
-  proposal. Drafting needs revenue connected to ERPNext, because that is the only invoice create path that exists
-  until native invoicing (#784) ships.
+  proposal. *(Amended by #1595, DD-AIN-10: drafting also works when no ERP owns revenue.)*
 - **DD-AIN-4 — what can be invoiced, for how much.** An Issued or Closed work order (not Draft, not Cancelled), or
   a project milestone named by its name or its position in the project ("milestone 2" = the second milestone in
   the project's order). Amount: a work order's value **before tax**, taken from its own recorded tax facts; a
@@ -45,6 +44,13 @@ may run as a factory slice (plan §2).
 - **DD-AIN-7 — the overdue answer is written by the server, not the model.** Deterministic list, English, at most
   10 rows per section with the true counts in the heading; each task links to its project's Tasks tab and each
   invoice to Sales Invoices filtered to its number. The model adds at most one sentence.
+- **DD-AIN-10 — native drafting (#1595, ruled with the issue).** When Revenue is on and no external system owns
+  revenue, the same tool proposes the same chip, and approval creates a native Draft through
+  `create_native_sales_invoice` (migration 0275) as the caller; the line carries the description alone (no ERP item,
+  no ERP customer link needed). ERPNext-owned revenue stays on `adapter-dispatch` unchanged; revenue owned by any
+  other system is refused. Every native Draft tells each other active Admin / Finance user, in-app, with a link to it
+  (migration 0411; the author is never told). The assistant never approves: approval stays `transition_native_sales_invoice`
+  by a different user (SoD unchanged).
 - **DD-AIN-8 — out of scope.** Reminders to other people: the assistant can only write to the asking user's own
   inbox, so "drafting reminders" to others is not in this issue. Generic invoice / receipt / meeting reads through
   the assistant's general read tool are deferred: the two journey tools cover the acceptance criteria, and fewer
@@ -141,6 +147,17 @@ to a work order record, a Bahasa rendering of the server-written list (follows t
 - **FR-AIN-028** — The prompt shall describe `draft_invoice` only when it is registered, shall tell the model to pass
   refusal candidates to `ask_user`, and shall forbid saying an invoice is approved or submitted.
 
+### 2.2a Native drafting (#1595)
+
+- **FR-AIN-030** — While Revenue is on and no external system owns revenue, `draft_invoice` shall resolve the same
+  proposal without an ERP item catalogue or an ERP customer link, mark it `path: 'native'`, and show the same chip.
+- **FR-AIN-031** — When the user approves a native proposal, the system shall re-check the caller's role, rebuild the
+  draft from the allow-list, and call `create_native_sales_invoice` once with the caller's JWT. It shall call no other
+  RPC and shall not use `adapter-dispatch`.
+- **FR-AIN-032** — When a native Draft invoice is created, the system shall notify each other active Admin and Finance
+  user of the org, once, with a link to the invoice, and shall not notify the author. An ERP-path Draft notifies no one.
+- **FR-AIN-033** — Where revenue is owned by ERPNext, the system shall behave exactly as FR-AIN-020..028.
+
 ### 2.3 Non-functional
 
 - **NFR-AIN-SEC-001** — Both tools shall act only through the caller-JWT client (`ctx.supabase`), never
@@ -204,6 +221,13 @@ each requirement has a falsifiable test.
   that number and only that invoice is listed.
 - **AC-AIN-016** — *Given* an approved draft, *when* `adapter-dispatch` rejects it or does not answer in 25 s, *then*
   the tool result is an error (on timeout: check Sales Invoices before asking again) and never `ok:true`.
+- **AC-AIN-NAT-001** — *Given* an org where no ERP owns revenue and Revenue is on, *when* Finance or Admin confirms
+  an assistant invoice proposal for a work order, *then* a native Draft invoice is created under their name through
+  `create_native_sales_invoice`, and nothing approves it.
+- **AC-AIN-NAT-002** — *Given* that Draft, *then* every other active Admin / Finance user has an in-app notification
+  linking to it; the author, a Project Manager and a disabled user do not.
+- **AC-AIN-NAT-003** — *Given* an org whose revenue ERPNext owns, *then* the proposal, the dispatch and the (absent)
+  notification are unchanged.
 - **AC-AIN-017** — *Given* the system prompt, *then* "overdue" routes to `whats_overdue` (not a `tasks` read), and
   `draft_invoice` with its "never say approved or submitted" rule appears only when drafting is enabled.
 
@@ -223,8 +247,12 @@ each requirement has a falsifiable test.
 | AC-AIN-015 | `pmo-portal/pages/__tests__/SalesInvoices.deepLink.test.tsx` | Vitest/RTL |
 | AC-AIN-016 | `pmo-portal/src/lib/agent/draftInvoice.run.test.ts` | Vitest |
 | AC-AIN-017 | `pmo-portal/src/lib/agent/prompt.experience.test.ts` | Vitest |
+| AC-AIN-NAT-001 | `draftInvoice.prepare.test.ts`, `draftInvoice.run.test.ts`, `draftInvoice.request.test.ts`, `handlerDraftInvoice.test.ts` (same folder as the AIN tests) | Vitest |
+| AC-AIN-NAT-002 | `supabase/tests/0411_native_invoice_notify.test.sql`; link: `src/components/shell/__tests__/NotificationBell.test.tsx` | pgTAP + Vitest |
+| AC-AIN-NAT-003 | `draftInvoice.prepare.test.ts`, `draftInvoice.run.test.ts`; pgTAP file above (ERP-path Draft) | Vitest + pgTAP |
 
-No pgTAP: no schema, policy or grant changes; the invoice create authority (role, SoD author record, project gate)
+The pgTAP rows are #1595's alone (migration 0411, a notification trigger; no policy or grant change). For the original
+scope, no pgTAP: no schema, policy or grant changes; the invoice create authority (role, SoD author record, project gate)
 is the existing `adapter-dispatch` path with its existing proofs (`supabase/functions/adapter-dispatch/authGuard.test.ts`,
 `sodGuard.test.ts`, `supabase/tests/si_submit_sod*.test.sql`). No new e2e: edge functions do not run in the e2e
 stack, the chip and markdown rendering are already covered (AC-AW-012, `Markdown.test.tsx`), and the real-model

@@ -224,6 +224,6 @@ export const DRAFT_INVOICE_SCHEMA = {
     milestone: { type: 'string' as const, maxLength: 100, description: 'Milestone name, or its number within the project (e.g. "2"). Give this OR workOrder.' },
     project: { type: 'string' as const, maxLength: 200, description: 'Project id, number, code or name. Use the context-hint id when the user is on a project page.' },
     amount: { type: 'number' as const, exclusiveMinimum: 0, description: 'Amount to invoice BEFORE tax — only if the user stated it. Needed for a milestone.' },
-    itemCode: { type: 'string' as const, maxLength: 140, description: 'ERPNext item code — only if the user named or picked one.' },
+    itemCode: { type: 'string' as const, maxLength: 140, description: 'ERPNext item code (organisations connected to ERPNext only) — only if the user named or picked one.' },
   },
 };
