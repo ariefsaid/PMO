@@ -131,9 +131,9 @@ select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4');
 select set_config('stk.adjin', public.stk_t_adj('15120000-0000-0000-0000-000000002002', '15120000-0000-0000-0000-000000001002', 10, 'in', 70)::text, false);
 reset role;
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');
-select is((select public.post_stock_document(current_setting('stk.adjin')::uuid) is not null and public.stk_t_entry(current_setting('stk.adjin')::uuid) = '10.000/700.00'), true,
-  'FR-STK-024 adjust-in with a unit cost enters at that cost (10 x 70)');                             -- 100 / 6,100
+select public.post_stock_document(current_setting('stk.adjin')::uuid);
 reset role;
+select is(public.stk_t_entry(current_setting('stk.adjin')::uuid), '10.000/700.00', 'FR-STK-024 adjust-in with a unit cost enters at that cost (10 x 70)');   -- 100 / 6,100
 -- adjust-in where none is on hand needs a cost
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a5');                                   -- U_K2 keeps SITE-B (no cable)
 select set_config('stk.adjnone', public.stk_t_adj('15120000-0000-0000-0000-000000002003', '15120000-0000-0000-0000-000000001002', 1, 'in')::text, false);
