@@ -1,6 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { ListMasterInput } from '@/src/lib/repositories/odoo';
+import type { ConnectCredential } from '@/src/lib/repositories/types';
 import { useAuth } from '@/src/auth/useAuth';
 
 export function useOdooConnection() {
@@ -33,6 +34,32 @@ export function useOdooSetup(verb: string) {
       void qc.invalidateQueries({ queryKey: ['odoo'] });
       void qc.invalidateQueries({ queryKey: ['integrations', 'health', orgId] });
       void qc.invalidateQueries({ queryKey: ['integrations', 'bindings', orgId] });
+    },
+  });
+}
+
+export function useOdooConnect() {
+  const orgId = useAuth().currentUser?.org_id;
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (credential: ConnectCredential['credential']) => repositories.integrations.connectIntegration(orgId!, { tier: 'odoo', credential }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['odoo'] });
+      void qc.invalidateQueries({ queryKey: ['integrations', 'bindings', orgId] });
+      void qc.invalidateQueries({ queryKey: ['integrations', 'health', orgId] });
+    },
+  });
+}
+
+export function useOdooDisconnect() {
+  const orgId = useAuth().currentUser?.org_id;
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => repositories.integrations.disconnectIntegration(orgId!, 'odoo'),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['odoo'] });
+      void qc.invalidateQueries({ queryKey: ['integrations', 'bindings', orgId] });
+      void qc.invalidateQueries({ queryKey: ['integrations', 'health', orgId] });
     },
   });
 }
