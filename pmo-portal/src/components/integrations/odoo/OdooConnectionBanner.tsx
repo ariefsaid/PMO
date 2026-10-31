@@ -1,6 +1,7 @@
 /** AC-ODC-015: the one place that turns the stored Odoo connection record into words. Healthy and fresh renders nothing. */
 import { useTranslation } from 'react-i18next';
 import { Icon } from '@/src/components/ui';
+import { formatClockTime } from '@/src/lib/format';
 import { displayedConnection, type ConnectionRecord } from '@/src/lib/adapterSeam/odoo/connectionState';
 
 export interface OdooConnectionBannerProps {
@@ -10,11 +11,11 @@ export interface OdooConnectionBannerProps {
 }
 
 export function OdooConnectionBanner({ connection, binding, now = new Date() }: OdooConnectionBannerProps) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const state = displayedConnection(connection, now, binding);
   if (state === 'healthy') return null;
   const asOf = connection?.last_checked_at
-    ? t('administration:odoo.banner.asOf', 'as of {{time}}', { time: new Intl.DateTimeFormat(i18n.language, { hour: '2-digit', minute: '2-digit' }).format(new Date(connection.last_checked_at)) })
+    ? t('administration:odoo.banner.asOf', 'as of {{time}}', { time: formatClockTime(new Date(connection.last_checked_at)) })
     : '';
   const missing = (connection?.missing ?? []).join(', ');
   const copy: Record<string, { title: string; next: string; tone: 'warn' | 'bad' | 'info' }> = {

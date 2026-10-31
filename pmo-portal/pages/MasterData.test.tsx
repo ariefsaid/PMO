@@ -33,7 +33,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.conn.data = CONN;
   h.summary.mockReturnValue({ data: { inactive: 3, tombstoned: 2, asOf: '2026-11-01T08:00:00Z' } });
-  h.records.mockImplementation((input: { kind: string }) => page([row({ external_id: '1', name: 'Semen Tiga Roda', code: 'SM-1', attrs: { uom_id: '5', purchasable: true, sellable: false } })], 2500));
+  h.records.mockImplementation(() => page([row({ external_id: '1', name: 'Semen Tiga Roda', code: 'SM-1', attrs: { uom_id: '5', purchasable: true, sellable: false } })], 2500));
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 

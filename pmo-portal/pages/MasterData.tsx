@@ -7,7 +7,7 @@ import { useMasterRecords, useMasterSummary, useOdooConnection } from '@/src/hoo
 import type { DirectoryKind, MasterRecord } from '@/src/lib/repositories/odoo';
 import { OdooConnectionBanner } from '@/src/components/integrations/odoo/OdooConnectionBanner';
 import { useOdooCan } from '@/src/components/integrations/odoo/useOdooCan';
-import { formatInstantDate } from '@/src/lib/format';
+import { formatInstantDate, formatNumberWhole } from '@/src/lib/format';
 
 const PAGE_SIZE = 50;
 type PageKind = Exclude<DirectoryKind, 'location'>;
@@ -141,7 +141,7 @@ export default function MasterDataPage() {
           )}
 
           <nav aria-label={t('administration:odoo.master.pager', 'Pages')} className="mt-3 flex items-center justify-between gap-3 text-[13px] tabular-nums">
-            <span>{total === 0 ? '' : t('administration:odoo.master.range', '{{from}}–{{to}} of {{total}}', { from: from.toLocaleString(), to: to.toLocaleString(), total: total.toLocaleString() })}</span>
+            <span>{total === 0 ? '' : t('administration:odoo.master.range', '{{from}}–{{to}} of {{total}}', { from: formatNumberWhole(from), to: formatNumberWhole(to), total: formatNumberWhole(total) })}</span>
             <span className="flex gap-2">
               <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} aria-label={t('administration:odoo.master.prev', 'Previous page')}><Icon name="back" aria-hidden="true" /></Button>
               <Button variant="outline" size="sm" disabled={to >= total} onClick={() => setPage((p) => p + 1)} aria-label={t('administration:odoo.master.next', 'Next page')}><Icon name="chev" aria-hidden="true" /></Button>
