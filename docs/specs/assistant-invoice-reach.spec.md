@@ -223,9 +223,10 @@ each requirement has a falsifiable test.
   the tool result is an error (on timeout: check Sales Invoices before asking again) and never `ok:true`.
 - **AC-AIN-NAT-001** — *Given* an org where no ERP owns revenue and Revenue is on, *when* Finance or Admin confirms
   an assistant invoice proposal for a work order, *then* a native Draft invoice is created under their name through
-  `create_native_sales_invoice`, and nothing approves it.
+  `create_native_sales_invoice`, and nothing approves it. On a timeout the result says the outcome is unconfirmed (check
+  Sales Invoices), and a retried milestone draft is refused while a matching Draft exists.
 - **AC-AIN-NAT-002** — *Given* that Draft, *then* every other active Admin / Finance user has an in-app notification
-  linking to it; the author, a Project Manager and a disabled user do not.
+  linking to it; the author, a Project Manager, a disabled user and another org's Finance do not.
 - **AC-AIN-NAT-003** — *Given* an org whose revenue ERPNext owns, *then* the proposal, the dispatch and the (absent)
   notification are unchanged.
 - **AC-AIN-017** — *Given* the system prompt, *then* "overdue" routes to `whats_overdue` (not a `tasks` read), and

@@ -24,19 +24,19 @@ describe('prepareDraftInvoice — gate (#787)', () => {
     expect(await prepareDraftInvoice({ workOrder: 'x' }, ctx('Finance', client), newId))
       .toEqual({ ok: false, error: { error: 'Invoicing is not turned on for this organisation.' } });
   });
-  it('AC-AIN-NAT-003 the ERPNext ownership check is unchanged and an ERPNext org stays on the ERP path', async () => {
+  it('AC-AIN-NAT-003 an ERPNext org stays on the ERP path, and ownership is read once', async () => {
     const { client, calls } = fakeSupabase(world(), oneItem);
     const out = await prepareDraftInvoice({ workOrder: 'WO-20261001-001' }, ctx('Admin', client), newId);
     expect(out.ok && out.value.path).toBeUndefined();
-    expect(opsOf(calls, 'external_domain_ownership')[0]).toEqual([['eq', 'domain', 'revenue'], ['eq', 'external_tier', 'erpnext'], ['limit', 1]]);
+    expect(opsOf(calls, 'external_domain_ownership')[0]).toEqual([['eq', 'domain', 'revenue']]);
     expect(opsOf(calls, 'external_domain_ownership')).toHaveLength(1);
   });
   it('another system owns revenue → refused (neither the ERPNext nor the PMO path)', async () => {
-    const other = (c: { ops: Array<[string, ...unknown[]]> }) => (c.ops.some((o) => o[1] === 'external_tier') ? [] : [{ external_tier: 'odoo' }]);
-    const { client, invoke } = fakeSupabase(world({ external_domain_ownership: other }), oneItem);
+    const { client, calls, invoke } = fakeSupabase(world({ external_domain_ownership: () => [{ external_tier: 'odoo' }] }), oneItem);
     const out = await prepareDraftInvoice({ workOrder: 'x' }, ctx('Admin', client), newId);
     expect(out).toMatchObject({ ok: false, error: { error: expect.stringMatching(/raised in the connected system/) } });
     expect(invoke).not.toHaveBeenCalled();
+    expect(opsOf(calls, 'external_domain_ownership')).toHaveLength(1);
   });
 });
 

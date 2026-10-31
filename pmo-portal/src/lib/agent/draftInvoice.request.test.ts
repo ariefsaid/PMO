@@ -34,10 +34,14 @@ describe('validatePreparedDraft / summarizeDraft (#787)', () => {
   it('AC-AIN-NAT-001 a native draft keeps path "native" and an empty item code; any other path value is refused', () => {
     const native = { ...PREPARED, path: 'native' as const, items: [{ ...PREPARED.items[0], item_code: '' }] };
     expect(validatePreparedDraft(native)).toEqual({ ok: true, value: native });
-    expect(validatePreparedDraft({ ...native, path: 'erp' })).toMatchObject({ ok: false });
-    expect(validatePreparedDraft({ ...native, path: 'submit' })).toMatchObject({ ok: false });
+    expect(validatePreparedDraft({ ...native, path: 'erp' })).toEqual({ ok: false, error: 'path is invalid' });
+    expect(validatePreparedDraft({ ...native, path: 'submit' })).toEqual({ ok: false, error: 'path is invalid' });
+    // with an item code the item rule passes, so only the path check can refuse these
+    expect(validatePreparedDraft({ ...PREPARED, path: 'submit' })).toEqual({ ok: false, error: 'path is invalid' });
+    expect(validatePreparedDraft({ ...PREPARED, path: 'erp' })).toEqual({ ok: false, error: 'path is invalid' });
     // a native draft cannot smuggle an ERP item code, and an ERP draft still needs one
-    expect(validatePreparedDraft({ ...native, items: [{ ...native.items[0], item_code: 'SVC' }] })).toMatchObject({ ok: false });
+    expect(validatePreparedDraft({ ...native, items: [{ ...native.items[0], item_code: 'SVC' }] }))
+      .toEqual({ ok: false, error: 'a native invoice line carries no ERP item code' });
     expect(validatePreparedDraft({ ...PREPARED, items: [{ ...PREPARED.items[0], item_code: '' }] })).toMatchObject({ ok: false });
   });
   it('FR-AIN-024 the summary is ≤120 chars and says Draft / not submitted', () => {

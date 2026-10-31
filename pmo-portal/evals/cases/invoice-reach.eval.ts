@@ -34,9 +34,9 @@ export default runEvalSuite(
         ],
       },
       {
-        // #1595: the reel's own wording (no "work order" word). Run it against a no-ERP org too (README fixture): the
-        // proposal is then native (`path: 'native'`, empty item code) and approval creates the Draft in PMO.
-        name: 'AC-AIN-NAT-001 "Invoice WO-EVAL-0001" (the reel prompt) → proposes the Draft at its value before tax',
+        // #1595: the reel's own wording (no "work order" word) reaches the tool. The route (ERP or native) is decided by the
+        // server, so this proves only the proposal, not `path: 'native'`: that is unit-tested (draftInvoice.prepare/run).
+        name: 'AC-AIN-003 "Invoice WO-EVAL-0001" (the reel prompt) → proposes the Draft at its value before tax',
         prompt: 'Invoice WO-EVAL-0001',
         runs: RUNS,
         minPasses: MIN_PASSES,

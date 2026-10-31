@@ -99,7 +99,9 @@ export function validatePreparedDraft(
   const line = (items[0] ?? {}) as Record<string, unknown>;
   if (!shortText(line.item_code, 140)) return bad('item_code is required');
   // ERP path: the ERPNext item is required. Native path: there is none (the RPC takes the description alone).
-  if (p.path === 'native' ? line.item_code.trim() !== '' : !line.item_code.trim()) return bad('item_code is required');
+  if (p.path === 'native' ? line.item_code.trim() !== '' : !line.item_code.trim()) {
+    return bad(p.path === 'native' ? 'a native invoice line carries no ERP item code' : 'item_code is required');
+  }
   if (line.qty !== 1) return bad('qty must be 1');
   if (!isMoney(line.rate)) return bad('rate must be a positive amount with at most 2 decimals');
   if (!shortText(line.description, 140)) return bad('description must be at most 140 characters');
@@ -172,16 +174,11 @@ async function gate(sb: LooseClient, ctx: DeputyContext): Promise<Gate> {
   if (!ctx.role || !AGENT_REVENUE_WRITE_ROLES.includes(ctx.role)) return no('Only Finance or Admin can raise an invoice.');
   const [feature, owned] = await Promise.all([
     readOne<{ enabled: boolean }>(sb.from('org_features').select('enabled').eq('feature_key', 'revenue').maybeSingle()),
-    readRows<{ external_tier: string }>(
-      sb.from('external_domain_ownership').select('external_tier').eq('domain', 'revenue').eq('external_tier', 'erpnext').limit(1),
-    ),
+    readRows<{ external_tier: string }>(sb.from('external_domain_ownership').select('external_tier').eq('domain', 'revenue')),
   ]);
   if (feature?.enabled !== true) return no('Invoicing is not turned on for this organisation.');
-  if (owned.length > 0) return { ok: true, path: 'erp' };
-  const other = await readRows<{ external_tier: string }>(
-    sb.from('external_domain_ownership').select('external_tier').eq('domain', 'revenue').limit(1),
-  );
-  if (other.length > 0) return no('Invoices for this organisation are raised in the connected system, not through the assistant.');
+  if (owned.some((r) => r.external_tier === 'erpnext')) return { ok: true, path: 'erp' };
+  if (owned.length > 0) return no('Invoices for this organisation are raised in the connected system, not through the assistant.');
   return { ok: true, path: 'native' };
 }
 
@@ -472,6 +469,24 @@ async function runNativeDraft(p: DraftInvoicePrepared, ctx: DeputyContext): Prom
   const rpc = asRpc(ctx.supabase);
   if (!rpc) return failed;
   const line = p.items[0];
+  // A milestone draft has no work-order fence, and a timed-out create may still have committed: refuse a second
+  // Draft for the same project, customer, milestone and amount (a retry after "check Sales Invoices").
+  if (!p.workOrderId) {
+    let drafts: Array<{ id: string; native_lines: unknown }>;
+    try {
+      drafts = await readRows(
+        asLoose(ctx.supabase).from('sales_invoices').select('id, native_lines')
+          .eq('project_id', p.projectId).eq('customer_id', p.customerId).eq('status', 'Draft').eq('pmo_native', true).limit(50),
+      );
+    } catch {
+      return failed;
+    }
+    const dup = drafts.find((d) => Array.isArray(d.native_lines)
+      && d.native_lines.some((l: { description?: unknown; rate?: unknown }) => typeof l?.description === 'string' && l.description.trim() === line.description.trim() && l?.rate === line.rate));
+    if (dup) {
+      return { error: 'A Draft for this milestone and amount already exists. Open it in Sales Invoices instead of creating another.', code: 'duplicate-draft', id: dup.id, link: `/sales-invoices/${dup.id}` };
+    }
+  }
   let out: Awaited<ReturnType<typeof rpc.rpc>>;
   try {
     out = await withTimeout(rpc.rpc('create_native_sales_invoice', {
@@ -480,8 +495,11 @@ async function runNativeDraft(p: DraftInvoicePrepared, ctx: DeputyContext): Prom
       p_lines: [{ description: line.description, qty: line.qty, rate: line.rate }],
       ...(p.workOrderId ? { p_work_order_id: p.workOrderId } : {}),
     }), DRAFT_INVOICE_DISPATCH_TIMEOUT_MS);
-  } catch {
-    return failed;
+  } catch (e) {
+    // withTimeout only races: the RPC may still commit, so an unconfirmed outcome must not read as "not saved".
+    return (e as Error)?.message === 'timeout'
+      ? { error: 'PMO did not answer in time. The draft may still appear — check Sales Invoices before asking again.', code: 'timeout' }
+      : failed;
   }
   if (out.error) {
     return { error: out.error.message?.trim() || failed.error, ...(out.error.code ? { code: out.error.code } : {}) };
@@ -493,7 +511,7 @@ async function runNativeDraft(p: DraftInvoicePrepared, ctx: DeputyContext): Prom
     id: out.data,
     siNumber: null,
     link: `/sales-invoices/${out.data}`,
-    note: "Saved as a Draft under the user's name. It is NOT approved; every other Finance or Admin user has been notified, and one of them approves it.",
+    note: "Saved as a Draft under the user's name. It is NOT approved; anyone else in Finance or Admin is notified and approves it. If the user is the only one, a second Finance or Admin user must approve it.",
   };
 }
 

@@ -3,16 +3,19 @@
 -- AC-AIN-NAT-003: an ERP-path Draft (pmo_native = false) tells nobody.
 begin;
 create extension if not exists pgtap;
-select plan(9);
+select plan(10);
 
-insert into organizations (id, name) values ('04110000-0000-0000-0000-000000000001', 'NIN Org');
+insert into organizations (id, name) values ('04110000-0000-0000-0000-000000000001', 'NIN Org'),
+  ('04110000-0000-0000-0000-000000000002', 'NIN Other Org');
 insert into auth.users (id, email) values
+  ('04110000-0000-0000-0000-0000000000b1', 'nin-other-fin@example.com'),
   ('04110000-0000-0000-0000-0000000000a1', 'nin-fin1@example.com'),
   ('04110000-0000-0000-0000-0000000000a2', 'nin-fin2@example.com'),
   ('04110000-0000-0000-0000-0000000000a3', 'nin-admin@example.com'),
   ('04110000-0000-0000-0000-0000000000a4', 'nin-pm@example.com'),
   ('04110000-0000-0000-0000-0000000000a5', 'nin-off@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
+  ('04110000-0000-0000-0000-0000000000b1', '04110000-0000-0000-0000-000000000002', 'NIN Other Fin', 'nin-other-fin@example.com', 'Finance', 'active'),
   ('04110000-0000-0000-0000-0000000000a1', '04110000-0000-0000-0000-000000000001', 'NIN Fin One', 'nin-fin1@example.com', 'Finance', 'active'),
   ('04110000-0000-0000-0000-0000000000a2', '04110000-0000-0000-0000-000000000001', 'NIN Fin Two', 'nin-fin2@example.com', 'Finance', 'active'),
   ('04110000-0000-0000-0000-0000000000a3', '04110000-0000-0000-0000-000000000001', 'NIN Admin', 'nin-admin@example.com', 'Admin', 'active'),
@@ -47,6 +50,9 @@ select is(
      from sales_invoices si where si.native_lines @> '[{"description":"Notify me"}]'),
   'AC-AIN-NAT-002 it links to the invoice');                                                                                -- 6
 
+select is((select count(*)::int from notifications where owner_id = '04110000-0000-0000-0000-0000000000b1'), 0,
+  'AC-AIN-NAT-002 an active Finance user of ANOTHER org is not told (nor sees the customer name)');                         -- 7
+
 -- Created by the table owner (no acting user), the author is still never told.
 insert into sales_invoices (id, org_id, project_id, customer_id, amount, currency, tax_treatment, tax_rate, tax_amount,
                             status, pmo_native, author_user_id, native_lines) values
@@ -55,10 +61,10 @@ insert into sales_invoices (id, org_id, project_id, customer_id, amount, currenc
    '04110000-0000-0000-0000-0000000000a3', '[{"description":"Admin authored","qty":1,"rate":1000,"amount":1000}]');
 select is((select count(*)::int from notifications where owner_id = '04110000-0000-0000-0000-0000000000a3'
             and metadata->'entity'->>'id' = '04110000-0000-0000-0000-0000000000f1'), 0,
-  'AC-AIN-NAT-002 an Admin author is not told of their own draft');                                                         -- 7
+  'AC-AIN-NAT-002 an Admin author is not told of their own draft');                                                         -- 8
 select is((select count(*)::int from notifications where owner_id = '04110000-0000-0000-0000-0000000000a2'
             and metadata->'entity'->>'id' = '04110000-0000-0000-0000-0000000000f1'), 1,
-  'AC-AIN-NAT-002 the Finance user is');                                                                                    -- 8
+  'AC-AIN-NAT-002 the Finance user is');                                                                                    -- 9
 
 -- AC-AIN-NAT-003: the ERP path writes pmo_native = false and its approvers are told elsewhere (ERP), not here.
 insert into sales_invoices (id, org_id, project_id, customer_id, amount, currency, tax_treatment, tax_rate, tax_amount,
@@ -67,7 +73,7 @@ insert into sales_invoices (id, org_id, project_id, customer_id, amount, currenc
    '04110000-0000-0000-0000-0000000000c1', 1000, 'IDR', 'exclusive', 0, 0, 'Draft', false,
    '04110000-0000-0000-0000-0000000000a1');
 select is((select count(*)::int from notifications where metadata->'entity'->>'id' = '04110000-0000-0000-0000-0000000000f2'), 0,
-  'AC-AIN-NAT-003 an ERP-path Draft tells nobody');                                                                         -- 9
+  'AC-AIN-NAT-003 an ERP-path Draft tells nobody');                                                                         -- 10
 
 select * from finish();
 rollback;

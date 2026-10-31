@@ -96,6 +96,5 @@ there is ≥1 open task past its end date on a project, and ≥1 Unpaid invoice 
 `WO-EVAL-0001` is **Issued**, tax-exclusive, value 1,000,000.00; project `EVAL-P1` has ≥2 milestones.
 The suite only proposes — it never approves — so it never creates an ERP document.
 
-**No-ERP variant (#1595).** Run the same suite a second time as a Finance user in an org with Revenue on and **no**
-revenue ownership row (no ERPNext binding): `WO-EVAL-0001` and project `EVAL-P1` as above, the project's client set.
-Every proposal is then native (`path: 'native'`, empty item code); the suite still only proposes, so it creates no invoice.
+**No-ERP org (#1595).** The suite may also run as Finance in an org with Revenue on and no revenue ownership row; the
+proposal is then native, but no case asserts `path: 'native'` (unit tests own that), so this is not a native-path proof.
