@@ -102,6 +102,7 @@ export function evaluateQuota(payload, threshold = 0.8) {
  */
 export function dumpQuota(payload) {
   const limited = payload?.limited;
+  /** @type {Record<string, { limited: boolean, usage: number | null, limit: number | null }>} */
   const out = {};
   if (limited === null || typeof limited !== 'object' || Array.isArray(limited)) return out;
   for (const [resource, row] of Object.entries(limited)) {
