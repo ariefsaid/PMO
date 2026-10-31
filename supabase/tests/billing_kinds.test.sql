@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap;
-select plan(60);   -- finalized in T6.3 (pgTAP fails loudly on a mismatch)
+select plan(63);   -- finalized in T6.3 (pgTAP fails loudly on a mismatch)
 
 -- ── fixture ────────────────────────────────────────────────────────────────────────────────────
 insert into public.organizations (id,name) values
@@ -274,5 +274,28 @@ select is(public.get_project_finances('04080000-0000-0000-0000-0000000000d7')->'
 select is(public.get_project_finances('04080000-0000-0000-0000-0000000000d7')->'contract_excess'->'contributors'->0->>'invoice_number', 'SI-BK-E1',
           'FR-009 an adopted invoice is identified by its ERP number');
 reset role;
+
+-- ── T6: ERP refresh and backfill keep the saved kind (AC-012) ─────────────────────────────────
+-- regression proof, not red-first: no refresh path names the column, so this fails the day one starts to.
+insert into public.sales_invoices (id,org_id,project_id,erp_project,si_number,invoice_date,amount,erp_outstanding_amount,tax_treatment,
+                                   tax_amount,currency,status,erp_docstatus,billing_kind) values
+ ('04080000-0000-0000-0000-0000000000fe','04080000-0000-0000-0000-000000000001',null,'ERP-BK','SI-BK-R','2026-03-01',70,70,'exclusive',0,'USD','Unpaid',1,'other');
+insert into public.external_refs (org_id,domain,pmo_record_id,external_tier,external_record_id)
+ values ('04080000-0000-0000-0000-000000000001','revenue','04080000-0000-0000-0000-0000000000fe','erpnext','SI-BK-R');
+set local request.jwt.claims = '{}';
+set local role service_role;
+-- what the mirror writer's update branch and the sweep do: refresh money/status, never name the kind
+update public.sales_invoices set amount=75, erp_outstanding_amount=0, status='Paid', erp_modified=now() where id='04080000-0000-0000-0000-0000000000fe';
+select ok(public.fill_sales_invoice_project('04080000-0000-0000-0000-000000000001','04080000-0000-0000-0000-0000000000fe','04080000-0000-0000-0000-0000000000d1','ERP-BK'), 'AC-012 the project backfill links the invoice');
+reset role;
+select is((select billing_kind from public.sales_invoices where id='04080000-0000-0000-0000-0000000000fe'), 'other',
+          'AC-012 an explicitly saved Other billing kind survives ERP refresh and project backfill');
+set local request.jwt.claims = '{}';
+set local role service_role;
+insert into public.sales_invoices (id,org_id,project_id,si_number,invoice_date,amount,erp_outstanding_amount,tax_treatment,tax_amount,currency,status,erp_docstatus)
+ values ('04080000-0000-0000-0000-0000000000ff','04080000-0000-0000-0000-000000000001',null,'SI-BK-NEW','2026-03-02',10,10,'exclusive',0,'USD','Unpaid',1);
+reset role;
+select is((select billing_kind from public.sales_invoices where id='04080000-0000-0000-0000-0000000000ff'), 'contract',
+          'AC-012 an unseen invoice defaults to Contract billing');
 select * from finish();
 rollback;
