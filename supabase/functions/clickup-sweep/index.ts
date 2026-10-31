@@ -39,6 +39,7 @@ import {
   createClickUpMirrorCallbacks,
 } from '../_shared/clickupMirrorDeps.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+import { withJobRun, type JobSummary } from '../_shared/jobRun.ts';
 
 // Shared across invocations of this isolate (NFR-CUA-PERF-003). Bulk lane: the sweep yields to any
 // in-flight interactive write.
@@ -262,7 +263,19 @@ async function resolveOrgClickUpToken(
   return globalToken;
 }
 
-serveWithErrorReporting('clickup-sweep', async (req: Request): Promise<Response> => {
+/** job_run summary (#1532 S3). No ClickUp-bound org is `skipped` (standalone is legitimate, ADR-0094); an org failure fails the run. */
+export function summarizeClickupSweep(body: unknown): JobSummary | null {
+  const b = body as { orgs?: number; applied?: number; failures?: unknown[] } | null;
+  if (!b || typeof b.applied !== 'number') return null;
+  const orgs = b.orgs ?? 0;
+  return {
+    items: b.applied,
+    orgCount: orgs,
+    ...(b.failures?.length ? { failedCode: 'ORG_SWEEP_FAILED' } : orgs === 0 ? { skipped: true } : {}),
+  };
+}
+
+serveWithErrorReporting('clickup-sweep', withJobRun('clickup-sweep', async (req: Request): Promise<Response> => {
   // ── 1. Authorization: the caller (the pg_cron job) must present the DEDICATED sweep secret (NOT the
   //    master service_role key — least-privilege, mirroring 0082's AGENT_DISPATCH_SECRET). The cron
   //    presents this same secret from the Vault `clickup_sweep_secret`; the master key never crosses
@@ -315,4 +328,4 @@ serveWithErrorReporting('clickup-sweep', async (req: Request): Promise<Response>
   }
 
   return json({ ok: true, orgs: orgIds.length, applied: totalApplied, perOrg, failures });
-});
+}, { summarize: summarizeClickupSweep }));
