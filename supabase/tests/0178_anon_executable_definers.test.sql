@@ -117,7 +117,7 @@
 -- re-derived by hand). Active-Admin writer under a member's JWT; supabase/tests/0419_feedback_surveys_switch.test.sql proves it.
 -- Anonymous grants remain subject to the sweep even for retained names.
 --
--- ⚑ AMENDED BY 0412 (#1512): `set_stock_warehouse_keeper` joins the retained set (+1, count 89). A SECURITY
+-- ⚑ AMENDED BY 0412 (#1512): `set_stock_warehouse_keeper` joins the retained set (+1, count 90 once both 0419 and 0412 are on dev). A SECURITY
 -- DEFINER writer (the keeper table has no client write grant); its body gates on active membership, org and
 -- Admin rank; supabase/tests/stock_master_data.test.sql proves the contract.
 --
@@ -265,8 +265,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  89,
-  'AC-ACL-002 all 89 retained client-callable RPC names still have a public function');
+  90,
+  'AC-ACL-002 all 90 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -275,8 +275,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  89,
-  'AC-ACL-003 all 89 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  90,
+  'AC-ACL-003 all 90 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
