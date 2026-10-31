@@ -254,7 +254,7 @@ Implementation plan: `docs/plans/2026-10-31-document-preview.md` (branch `feat/d
 - [x] Specify the reversible purchase-attachment source migration and AC-010 pgTAP proof.
 - [x] Implement the common viewer and wire every scoped entry point, preserving
   parent permissions, legacy uploads and controlled-version semantics.
-- [x] Add AC-tagged tests at the owning layers above and the curated real-file journey;
+- [ ] Add AC-tagged tests at the owning layers above and the curated real-file journey;
   verify provider embedding with non-sensitive fixtures and reliable fallback behavior.
 - [ ] Apply the repository's local targeted gates, rendered proof and CI gates to
   the eventual code changes; no implementation checks are claimed by this spec.
