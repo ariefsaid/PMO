@@ -19,6 +19,7 @@ export const CASES = [
   { id: 'costignore',   fn: 'public.stock_insert_lines(public.stock_documents,jsonb)', from: /(case when )p_doc\.kind in \('receive','count'\) or \(p_doc\.kind = 'adjustment' and t\.e->>'direction' = 'in'\)(\s*then \(t\.e->>'unit_cost'\)::numeric end,\s*-- mut:costignore)/, to: '$1true$2', test: 'supabase/tests/stock_posting_guards.test.sql' },
   { id: 'insufficient', fn: 'public.stock_write_entry(public.stock_documents,uuid,uuid,uuid,numeric,numeric,uuid,uuid,uuid)', from: /if v_out > b\.qty_on_hand then/, to: 'if false then', test: 'supabase/tests/stock_valuation.test.sql' },
   { id: 'immutable',    fn: 'public.guard_stock_ledger_append_only()', from: /raise exception 'STK_IMMUTABLE: the stock ledger is append-only' using errcode = 'P0001';/, to: 'return new;', test: 'supabase/tests/stock_immutability_idempotency.test.sql' },
+  { id: 'xorg_dest',    fn: 'public.stock_validate_payload(uuid,text,jsonb,jsonb)', from: /(w\.id = v_to and )w\.org_id = p_org(\) then\s*-- mut:xorg_dest)/, to: '$1true$2', test: 'supabase/tests/stock_tenant_isolation.test.sql' },
   { id: 'conserve',     fn: 'public.stock_apply_transfer(public.stock_documents,boolean)', from: /-v_out(, null, null, null\);\s*-- mut:conserve)/, to: '-v_out + 1$1', test: 'supabase/tests/stock_valuation.test.sql' },
   // S2b (0414): issue and return.
   { id: 'projactive',  fn: 'public.stock_apply_issue(public.stock_documents,boolean)',  from: /(v_active := )[^;]+(;\s*-- mut:projactive)/, to: '$1true$2', test: 'supabase/tests/stock_out_flows.test.sql' },
