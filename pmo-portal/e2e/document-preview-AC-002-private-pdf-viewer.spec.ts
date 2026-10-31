@@ -48,6 +48,9 @@ test('document-preview AC-002: a private project PDF opens inside PMO and closin
     const served = await page.request.get(src!);
     expect(served.status()).toBe(200);
     expect(served.headers()['content-type']).toContain('application/pdf');
+    // And it can be framed: no frame-blocking header on the Storage response (the viewer is an iframe).
+    expect(served.headers()['x-frame-options']).toBeUndefined();
+    expect(served.headers()['content-security-policy'] ?? '').not.toContain('frame-ancestors');
 
     // Route intact: same URL, no popup, nothing opened.
     expect(page.url()).toBe(projectUrl);
@@ -62,4 +65,17 @@ test('document-preview AC-002: a private project PDF opens inside PMO and closin
     await expect(documentRow(page, title)).toBeVisible();
     expect(page.url()).toBe(projectUrl);
   }
+
+  // A 320 px phone: the open panel fits the screen and the page does not scroll sideways.
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.getByLabel(`Preview file for ${title}`).first().click(); // the list is not a table at this width
+  const narrow = page.getByRole('dialog', { name: title });
+  await expect(narrow).toBeVisible({ timeout: 15_000 });
+  // The drawer slides in: wait for it to settle, then it must sit inside the 320 px screen.
+  await expect.poll(async () => {
+    const box = await narrow.boundingBox();
+    return box ? box.x + box.width : Number.POSITIVE_INFINITY;
+  }, { timeout: 5_000 }).toBeLessThanOrEqual(320);
+  expect((await narrow.boundingBox())!.x).toBeGreaterThanOrEqual(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
