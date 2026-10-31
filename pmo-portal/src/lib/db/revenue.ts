@@ -1,7 +1,7 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
-import { isProjectFinances, parseProjectReceiptCash, type ProjectFinances } from '@/src/lib/projectFinances';
+import { isProjectFinances, parseContractExcess, parseProjectReceiptCash, type ProjectFinances } from '@/src/lib/projectFinances';
 import { revenueRefusalCode } from '@/src/lib/db/revenueNative';
 import type { BillingKind } from '@/src/lib/billingKind';
 import { REVENUE_STATUSES } from '@/src/lib/projectInvoicing';
@@ -339,8 +339,12 @@ export async function getProjectFinances(projectId: string): Promise<ProjectFina
     throw new AppError('Project finance reading unavailable', 'invalid-project-finances');
   }
   // The legacy guard intentionally excludes cash_received; read that additive unknown only after it succeeds.
-  const payload = data as unknown as Omit<ProjectFinances, 'cash_received'> & { cash_received?: unknown };
-  return { ...payload, cash_received: parseProjectReceiptCash(payload.cash_received) };
+  const payload = data as unknown as Omit<ProjectFinances, 'cash_received' | 'contract_excess'> & { cash_received?: unknown; contract_excess?: unknown };
+  return {
+    ...payload,
+    cash_received: parseProjectReceiptCash(payload.cash_received),
+    contract_excess: parseContractExcess(payload.contract_excess, payload.remaining_to_invoice),
+  };
 }
 
 export async function setSalesInvoiceReceivedDate(siId: string, receivedDate: string | null): Promise<void> {

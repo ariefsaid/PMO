@@ -50,8 +50,23 @@ describe('project finance DAL', () => {
     h.rpc.mockResolvedValueOnce({ data: financePayload, error: null });
     await expect(getProjectFinances(projectId)).resolves.toEqual({ ...financePayload,
       cash_received: { state: 'unavailable', buckets: [], reason: 'not-reported' },
+      contract_excess: null,
     });
     expect(h.rpc).toHaveBeenCalledExactlyOnceWith('get_project_finances', { p_project_id: projectId });
+  });
+
+  it('FR-009 returns the parsed contract excess, and null when the payload carries none', async () => {
+    const contributors = [
+      { invoice_id: 'a', invoice_number: 'SI-A', invoice_date: '2026-02-01', contribution: '700.00' },
+      { invoice_id: 'b', invoice_number: 'SI-B', invoice_date: '2026-02-02', contribution: '400.00' },
+    ];
+    h.rpc.mockResolvedValueOnce({ data: { ...financePayload, contract_invoiced: '1100.00', remaining_to_invoice: '-100.00',
+      contract_excess: { amount: '100.00', contract_billing: '1100.00', contributors } }, error: null });
+    await expect(getProjectFinances(projectId)).resolves.toMatchObject({
+      contract_excess: { state: 'known', amount: '100.00', contractBilling: '1100.00', contributors },
+    });
+    h.rpc.mockResolvedValueOnce({ data: financePayload, error: null });
+    await expect(getProjectFinances(projectId)).resolves.toMatchObject({ contract_excess: null });
   });
 
   it('AC-UWC-009 normalizes known and incomplete cash without changing the legacy finance readings', async () => {
