@@ -33,6 +33,7 @@ export type GraphRoute = {
   respond: (call: FetchCall, path: string) => Response | Promise<Response>;
 };
 export const gget = (match: string | RegExp, respond: GraphRoute["respond"]): GraphRoute => ({ method: "GET", match, respond });
+export const gput = (match: string | RegExp, respond: GraphRoute["respond"]): GraphRoute => ({ method: "PUT", match, respond });
 export const gpost = (match: string | RegExp, respond: GraphRoute["respond"]): GraphRoute => ({ method: "POST", match, respond });
 
 export interface World {

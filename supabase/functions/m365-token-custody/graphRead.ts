@@ -27,6 +27,7 @@ import {
 import type { GraphBudget } from "./folderBudget.ts";
 import { buildPreviewRequest, previewAllowed, readPreviewGetUrl } from "./graphPreview.ts";
 import { validPreviewEmbedUrl } from "../_shared/microsoftDocumentPreview.ts";
+import { buildUploadRequest, uploadAllowed } from "./graphFileUpload.ts";
 
 const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 30_000;
@@ -238,6 +239,47 @@ export async function openCallerDocumentPreview(
   };
 }
 
+export type UploadOutcome =
+  | { kind: "ok"; item: Record<string, unknown> }
+  | { kind: "forbidden" }
+  | { kind: "not_found" }
+  | { kind: "unavailable"; result?: HandlerResult; retryAfter?: number };
+
+/** Exactly one mutator, bound to the server-chosen library drive. No read, credential getter or generic request exists on it. */
+export interface RecordFileUploadAccess {
+  uploadFile(parentId: string, fileName: string, bytes: Uint8Array): Promise<UploadOutcome>;
+}
+
+const UPLOAD_TIMEOUT_MS = 25_000;
+
+/**
+ * Open the caller's own connection for `upload_record_file`. The stored `Sites.Selected` consent is
+ * required BEFORE any token refresh or Graph call (refresh never upgrades old consent), exactly as the
+ * folder write requires it; the drive comes from the server-loaded default library, never the request.
+ */
+export async function openCallerRecordFileUpload(
+  deps: HandlerDeps,
+  library: RecordFolderLibrary,
+  budget: GraphBudget,
+): Promise<RecordFileUploadAccess | HandlerResult> {
+  const own = await openOwnConnection(
+    deps,
+    undefined,
+    (scopes) => scopes.some((scope) => SITES_SELECTED_SCOPES.has(scope)),
+    budget,
+    "uploading a file requires additional consent",
+  );
+  if (!("connection" in own)) return own;
+  return {
+    uploadFile: (parentId, fileName, bytes) => {
+      const left = budget.remaining();
+      return left <= 0
+        ? Promise.resolve({ kind: "unavailable" })
+        : own.uploadFile(library.drive_id, parentId, fileName, bytes, Math.min(UPLOAD_TIMEOUT_MS, left));
+    },
+  };
+}
+
 interface OwnConnection {
   connection: ConnectionRow;
   get(
@@ -261,6 +303,13 @@ interface OwnConnection {
     itemId: string,
     timeoutMs: number,
   ): Promise<FolderOutcome>;
+  uploadFile(
+    driveId: string,
+    parentId: string,
+    fileName: string,
+    bytes: Uint8Array,
+    timeoutMs: number,
+  ): Promise<UploadOutcome>;
   previewItem(
     driveId: string,
     itemId: string,
@@ -560,6 +609,36 @@ async function openOwnConnection(
     );
   };
 
+  const uploadFile = async (
+    driveId: string,
+    parentId: string,
+    fileName: string,
+    bytes: Uint8Array,
+    timeoutMs: number,
+  ): Promise<UploadOutcome> => {
+    const context = { driveId, parentId, fileName, bytes: bytes.byteLength };
+    let request: ReturnType<typeof buildUploadRequest>;
+    try {
+      request = buildUploadRequest(context);
+    } catch {
+      return { kind: "unavailable" };
+    }
+    const bearer = await token();
+    if (typeof bearer !== "string") return { kind: "unavailable", result: bearer };
+    if (requireScope && !requireScope(connection.scopes ?? [])) { // mutation-witness:refreshed-upload-grant
+      return { kind: "unavailable", result: {
+        status: 403, body: { error: "SCOPE_INSUFFICIENT", message: scopeMessage }, headers: GRAPH_HEADERS,
+      } };
+    }
+    const url = new URL(`${GRAPH_BASE}${request.path}?${request.query}`);
+    if (url.origin !== "https://graph.microsoft.com" || !url.pathname.startsWith("/v1.0/")) {
+      return { kind: "unavailable" };
+    }
+    // The exact allowlist runs IMMEDIATELY before the only upload call in custody.
+    if (!uploadAllowed(request, context)) return { kind: "unavailable" };
+    return await sendUploadRequest(url, bearer, request.contentType, bytes, deps, connection, resolved, timeoutMs);
+  };
+
   const previewItem = async (
     driveId: string,
     itemId: string,
@@ -587,7 +666,52 @@ async function openOwnConnection(
     return await sendPreviewRequest(url, bearer, deps, connection, resolved, timeoutMs);
   };
 
-  return { connection, get, batch, readFolder, createFolder, readItem, previewItem };
+  return { connection, get, batch, readFolder, createFolder, readItem, uploadFile, previewItem };
+}
+
+/**
+ * Upload transport: one bounded PUT of the raw bytes, never retried, no redirects. Only a 200/201 answer
+ * with a JSON item is `ok`. No upstream text, URL, name or id is logged or returned.
+ */
+async function sendUploadRequest(
+  url: URL,
+  accessToken: string,
+  contentType: string,
+  bytes: Uint8Array,
+  deps: HandlerDeps,
+  connection: ConnectionRow,
+  orgId: string,
+  timeoutMs: number,
+): Promise<UploadOutcome> {
+  let graphRes: Response;
+  let data: unknown;
+  try {
+    ({ response: graphRes, data } = await fetchMicrosoftJson(deps.fetch ?? fetch, url.toString(), {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": contentType },
+      body: bytes as unknown as BodyInit,
+    }, timeoutMs));
+  } catch {
+    await recordM365Error(deps.serviceClient, { errorCode: "GRAPH_ERROR", contextId: connection.id, orgId });
+    return { kind: "unavailable" };
+  }
+  if (!graphRes.ok) {
+    if (graphRes.status === 403) return { kind: "forbidden" };
+    if (graphRes.status === 404) return { kind: "not_found" };
+    const retryAfter = graphRes.status === 429 || graphRes.status === 503
+      ? retryAfterSeconds(graphRes.headers.get("Retry-After"))
+      : undefined;
+    console.error("[m365-token-custody] upload upstream failure", {
+      status: graphRes.status,
+      connectionId: connection.id,
+    });
+    await recordM365Error(deps.serviceClient, { errorCode: "GRAPH_ERROR", contextId: connection.id, orgId });
+    return retryAfter === undefined ? { kind: "unavailable" } : { kind: "unavailable", retryAfter };
+  }
+  if (graphRes.status !== 200 && graphRes.status !== 201) return { kind: "unavailable" };
+  return data && typeof data === "object" && !Array.isArray(data)
+    ? { kind: "ok", item: data as Record<string, unknown> }
+    : { kind: "unavailable" };
 }
 
 /**

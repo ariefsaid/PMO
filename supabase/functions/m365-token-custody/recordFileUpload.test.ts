@@ -10,7 +10,10 @@ import {
   uploadAllowed,
   validateUploadedItem,
 } from "./graphFileUpload.ts";
-import { makeScenarioRunner } from "./recordFolderTestKit.ts";
+import { DRIVE, FULL_SCOPES, graphCalls, graphError, gput, graphSummary, makeScenarioRunner, newWorld, READ_SCOPES, SITE } from "./recordFolderTestKit.ts";
+import { jsonResponse } from "../_shared/testing/edgeTestKit.ts";
+import { openCallerRecordFileUpload, type RecordFileUploadAccess } from "./graphRead.ts";
+import { createGraphBudget } from "./folderBudget.ts";
 import { MAX_FILE_SIZE_BYTES } from "../../../pmo-portal/src/lib/fileConstants.ts";
 
 const { handler, setTestJwks } = await import("./index.ts");
@@ -118,5 +121,98 @@ Deno.test("document-preview AC-007 upload builder emits only the exact content P
       ["no parentReference", item({ parentReference: undefined })],
     ];
     for (const [label, raw] of refused) assertEquals(validateUploadedItem(raw, scope), null, label);
+  });
+});
+
+const PUT_PATH = `/drives/${DRIVE}/items/synthetic-parent-id:/Site plan.pdf:/content`;
+const BYTES = new Uint8Array([37, 80, 68, 70, 45, 49, 46, 55]);
+const driveItem = (over: Record<string, unknown> = {}) => ({
+  id: "synthetic-new-item", name: "Site plan.pdf", webUrl: "https://synthetic.sharepoint.com/sites/x/Site%20plan.pdf",
+  file: { mimeType: "application/pdf" }, parentReference: { driveId: DRIVE, id: "synthetic-parent-id" }, ...over,
+});
+
+async function uploadOutcome(route: Parameters<typeof gput>[1], over: Parameters<typeof newWorld>[0] = {}) {
+  return await run(newWorld({ graph: [gput(PUT_PATH, route)], ...over }), async (sc) => {
+    const access = await openCallerRecordFileUpload(sc.deps, { site_id: SITE, drive_id: DRIVE }, createGraphBudget(30_000));
+    assert("uploadFile" in access);
+    return { outcome: await (access as RecordFileUploadAccess).uploadFile("synthetic-parent-id", "Site plan.pdf", BYTES), calls: sc.calls };
+  });
+}
+
+Deno.test("document-preview AC-007 upload transport", async (t) => {
+  await t.step("sends one bearer PUT of the raw bytes with the server-derived content type", async () => {
+    const { outcome, calls } = await uploadOutcome(() => jsonResponse(driveItem(), { status: 201 }));
+    assertEquals(outcome.kind, "ok");
+    assertEquals(graphSummary(calls), [`PUT ${PUT_PATH}`]);
+    const call = graphCalls(calls)[0]!;
+    assertEquals(call.url.search, "?@microsoft.graph.conflictBehavior=rename");
+    assertEquals(call.headers.get("content-type"), "application/pdf");
+    assertEquals(call.headers.get("authorization"), "Bearer synthetic-access-token");
+    assertEquals(call.bodyText, new TextDecoder().decode(BYTES));
+    assertEquals(call.redirect, "error");
+  });
+
+  await t.step("a 200 answer is also accepted", async () => {
+    assertEquals((await uploadOutcome(() => jsonResponse(driveItem()))).outcome.kind, "ok");
+  });
+
+  await t.step("missing Sites.Selected is refused before any refresh or Graph call", async () => {
+    const { calls, result } = await run(newWorld({ scopes: READ_SCOPES, accessExpired: true }), async (sc) => ({
+      result: await openCallerRecordFileUpload(sc.deps, { site_id: SITE, drive_id: DRIVE }, createGraphBudget(30_000)),
+      calls: sc.calls,
+    }));
+    assertEquals((result as { status: number }).status, 403);
+    assertEquals((result as { body: { error: string } }).body.error, "SCOPE_INSUFFICIENT");
+    assertEquals(graphCalls(calls).length, 0);
+    assertEquals(calls.filter((c) => c.url.host === "login.microsoftonline.com").length, 0);
+  });
+
+  await t.step("a refresh that drops the Sites.Selected grant is re-checked before the write", async () => {
+    const { outcome, calls } = await uploadOutcome(() => jsonResponse(driveItem(), { status: 201 }), {
+      accessExpired: true,
+      refresh: () => jsonResponse({
+        access_token: "synthetic-new-access", refresh_token: "synthetic-new-refresh", expires_in: 3600,
+        scope: "Files.Read Files.Read.All Sites.Read.All offline_access",
+      }),
+    });
+    assertEquals(outcome.kind, "unavailable");
+    assertEquals((outcome as { result?: { status: number } }).result?.status, 403);
+    assertEquals(graphCalls(calls).length, 0);
+  });
+
+  const cases: Array<[string, () => Response, string]> = [
+    ["403", () => graphError(403, "accessDenied"), "forbidden"],
+    ["404 parent gone", () => graphError(404, "itemNotFound"), "not_found"],
+    ["409", () => graphError(409, "nameAlreadyExists"), "unavailable"],
+    ["413", () => graphError(413, "payloadTooLarge"), "unavailable"],
+    ["507", () => graphError(507, "quotaLimitReached"), "unavailable"],
+    ["500", () => graphError(500, "generalException"), "unavailable"],
+    ["200 with a non-object body", () => jsonResponse([]), "unavailable"],
+    ["204", () => new Response(null, { status: 204 }), "unavailable"],
+  ];
+  for (const [label, respond, kind] of cases) {
+    await t.step(`${label} -> ${kind} and is never retried`, async () => {
+      const { outcome, calls } = await uploadOutcome(respond);
+      assertEquals(outcome.kind, kind);
+      assertEquals(graphCalls(calls).length, 1);
+    });
+  }
+
+  await t.step("an invalid context never reaches the network", async () => {
+    const world = newWorld({ graph: [] });
+    await run(world, async (sc) => {
+      const access = await openCallerRecordFileUpload(sc.deps, { site_id: SITE, drive_id: DRIVE }, createGraphBudget(30_000)) as RecordFileUploadAccess;
+      assertEquals((await access.uploadFile("a/b", "x.pdf", BYTES)).kind, "unavailable");
+      assertEquals((await access.uploadFile("p", "x.exe", BYTES)).kind, "unavailable");
+      assertEquals((await access.uploadFile("p", "x.pdf", new Uint8Array())).kind, "unavailable");
+      assertEquals(graphCalls(sc.calls).length, 0);
+    });
+  });
+
+  await t.step("only the single mutator is exposed", async () => {
+    await run(newWorld(), async (sc) => {
+      const access = await openCallerRecordFileUpload(sc.deps, { site_id: SITE, drive_id: DRIVE }, createGraphBudget(30_000));
+      assertEquals(Object.keys(access).sort(), ["uploadFile"]);
+    });
   });
 });
