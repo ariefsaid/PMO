@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, useNavigate, useParams } from 'react-router';
-import { AccessDenied, Button, DataTable, Icon, ListPage, SearchMini, StatusPill, Tabs, type Column } from '@/src/components/ui';
+import { AccessDenied, Button, DataTable, Icon, ListPage, SearchMini, StatusPill, Tabs, tabId, tabPanelId, type Column } from '@/src/components/ui';
 import { useMasterRecords, useMasterSummary, useOdooConnection } from '@/src/hooks/useOdoo';
 import type { DirectoryKind, MasterRecord } from '@/src/lib/repositories/odoo';
 import { OdooConnectionBanner } from '@/src/components/integrations/odoo/OdooConnectionBanner';
@@ -10,8 +10,9 @@ import { useOdooCan } from '@/src/components/integrations/odoo/useOdooCan';
 import { formatInstantDate } from '@/src/lib/format';
 
 const PAGE_SIZE = 50;
-const KINDS: DirectoryKind[] = ['product', 'uom', 'warehouse', 'analytic_account', 'account', 'tax'];
-const FINANCIAL: DirectoryKind[] = ['account', 'tax'];
+type PageKind = Exclude<DirectoryKind, 'location'>;
+const KINDS: PageKind[] = ['product', 'uom', 'warehouse', 'analytic_account', 'account', 'tax'];
+const FINANCIAL: PageKind[] = ['account', 'tax'];
 /** The Odoo model each page reads; a `missing` entry that starts with it (read access or a needed field) disables the page. */
 const MODEL: Record<string, string> = {
   product: 'product.product', uom: 'uom.uom', warehouse: 'stock.warehouse', location: 'stock.location',
@@ -25,7 +26,7 @@ export default function MasterDataPage() {
   const navigate = useNavigate();
   const may = useOdooCan();
   const { kind: param } = useParams();
-  const kind = KINDS.includes(param as DirectoryKind) ? (param as DirectoryKind) : null;
+  const kind = KINDS.includes(param as PageKind) ? (param as PageKind) : null;
   const [typed, setTyped] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -58,31 +59,30 @@ export default function MasterDataPage() {
   if (!kind) return <Navigate to="/master-data/product" replace />;
   if (blocked) return <AccessDenied onBack={() => navigate('/')} />;
 
-  const tabs = KINDS.filter((k) => !FINANCIAL.includes(k) || may.viewFinancialDirectory).map((k) => ({
-    value: k,
-    label: { product: t('odoo.master.items', 'Items'), uom: t('odoo.master.units', 'Units'), warehouse: t('odoo.master.warehouses', 'Warehouses and locations'),
-      analytic_account: t('odoo.master.costAccounts', 'Cost accounts'), account: t('odoo.master.accounts', 'Accounts'), tax: t('odoo.master.taxes', 'Taxes') }[k],
-  }));
+  const tabLabels: Record<PageKind, string> = { product: t('administration:odoo.master.items', 'Items'), uom: t('administration:odoo.master.units', 'Units'), warehouse: t('administration:odoo.master.warehouses', 'Warehouses and locations'),
+      analytic_account: t('administration:odoo.master.costAccounts', 'Cost accounts'), account: t('administration:odoo.master.accounts', 'Accounts'), tax: t('administration:odoo.master.taxes', 'Taxes'),
+  };
+  const tabs = KINDS.filter((k) => !FINANCIAL.includes(k) || may.viewFinancialDirectory).map((k) => ({ value: k, label: tabLabels[k] }));
 
   const status = (r: MasterRecord) => r.tombstoned_at
-    ? <StatusPill variant="lost">{t('odoo.master.deleted', 'Deleted in Odoo')}</StatusPill>
-    : r.active ? <StatusPill variant="won">{t('odoo.master.active', 'Active')}</StatusPill> : <StatusPill variant="neutral">{t('odoo.master.inactive', 'Inactive')}</StatusPill>;
+    ? <StatusPill variant="lost">{t('administration:odoo.master.deleted', 'Deleted in Odoo')}</StatusPill>
+    : r.active ? <StatusPill variant="won">{t('administration:odoo.master.active', 'Active')}</StatusPill> : <StatusPill variant="neutral">{t('administration:odoo.master.inactive', 'Inactive')}</StatusPill>;
   const text = (v: unknown) => (v == null || v === '' ? '—' : String(v));
-  const code: Column<MasterRecord> = { key: 'code', header: t('odoo.master.code', 'Code'), cell: (r) => text(r.code), kind: 'text' };
-  const name: Column<MasterRecord> = { key: 'name', header: t('odoo.master.name', 'Name'), cell: (r) => r.name, rowHeader: true };
-  const st: Column<MasterRecord> = { key: 'status', header: t('odoo.master.status', 'Status'), cell: status };
-  const columns: Record<DirectoryKind, Column<MasterRecord>[]> = {
+  const code: Column<MasterRecord> = { key: 'code', header: t('administration:odoo.master.code', 'Code'), cell: (r) => text(r.code), kind: 'text' };
+  const name: Column<MasterRecord> = { key: 'name', header: t('administration:odoo.master.name', 'Name'), cell: (r) => r.name, rowHeader: true };
+  const st: Column<MasterRecord> = { key: 'status', header: t('administration:odoo.master.status', 'Status'), cell: status };
+  const columns: Record<PageKind, Column<MasterRecord>[]> = {
     product: [code, name,
-      { key: 'unit', header: t('odoo.master.unit', 'Unit'), cell: (r) => unitName.get(String(r.attrs.uom_id)) ?? text(r.attrs.uom_id) },
-      { key: 'use', header: t('odoo.master.use', 'Use'), cell: (r) => [r.attrs.purchasable ? t('odoo.master.purchasable', 'Purchasable') : null, r.attrs.sellable ? t('odoo.master.sellable', 'Sellable') : null].filter(Boolean).join(', ') || '—' }, st],
+      { key: 'unit', header: t('administration:odoo.master.unit', 'Unit'), cell: (r) => unitName.get(String(r.attrs.uom_id)) ?? text(r.attrs.uom_id) },
+      { key: 'use', header: t('administration:odoo.master.use', 'Use'), cell: (r) => [r.attrs.purchasable ? t('administration:odoo.master.purchasable', 'Purchasable') : null, r.attrs.sellable ? t('administration:odoo.master.sellable', 'Sellable') : null].filter(Boolean).join(', ') || '—' }, st],
     uom: [name,
-      { key: 'factor', header: t('odoo.master.factor', 'Factor'), cell: (r) => text(r.attrs.relative_factor), align: 'right' },
-      { key: 'parent', header: t('odoo.master.parentUnit', 'Relative to'), cell: (r) => (r.parent_external_id ? unitName.get(r.parent_external_id) ?? r.parent_external_id : '—') }, st],
+      { key: 'factor', header: t('administration:odoo.master.factor', 'Factor'), cell: (r) => text(r.attrs.relative_factor), align: 'num' },
+      { key: 'parent', header: t('administration:odoo.master.parentUnit', 'Relative to'), cell: (r) => (r.parent_external_id ? unitName.get(r.parent_external_id) ?? r.parent_external_id : '—') }, st],
     warehouse: [code, name, st],
     analytic_account: [code, name, st],
-    account: [code, name, { key: 'type', header: t('odoo.master.accountType', 'Type'), cell: (r) => text(r.attrs.account_type) }, st],
-    tax: [name, { key: 'rate', header: t('odoo.master.rate', 'Rate'), cell: (r) => (typeof r.attrs.amount === 'number' ? `${r.attrs.amount}%` : '—'), align: 'right' },
-      { key: 'use', header: t('odoo.master.taxUse', 'Applies to'), cell: (r) => text(r.attrs.use) }, st],
+    account: [code, name, { key: 'type', header: t('administration:odoo.master.accountType', 'Type'), cell: (r) => text(r.attrs.account_type) }, st],
+    tax: [name, { key: 'rate', header: t('administration:odoo.master.rate', 'Rate'), cell: (r) => (typeof r.attrs.amount === 'number' ? `${r.attrs.amount}%` : '—'), align: 'num' },
+      { key: 'use', header: t('administration:odoo.master.taxUse', 'Applies to'), cell: (r) => text(r.attrs.use) }, st],
   };
 
   const asOf = summary.data?.asOf ?? rows.map((r) => r.as_of).sort().at(-1) ?? null;
@@ -91,30 +91,31 @@ export default function MasterDataPage() {
 
   return (
     <ListPage
-      title={t('odoo.master.title', 'Odoo directories')}
-      description={t('odoo.master.description', 'A read copy of your Odoo lists, kept up to date by PMO.')}
+      title={t('administration:odoo.master.title', 'Odoo directories')}
+      description={t('administration:odoo.master.description', 'A read copy of your Odoo lists, kept up to date by PMO.')}
       count={enabled ? total : undefined}
-      search={<SearchMini aria-label={t('odoo.master.search', 'Search code or name')} placeholder={t('odoo.master.search', 'Search code or name')} value={typed} onChange={(e) => setTyped(e.target.value)} type="search" />}
+      search={<SearchMini aria-label={t('administration:odoo.master.search', 'Search code or name')} placeholder={t('administration:odoo.master.search', 'Search code or name')} value={typed} onChange={(e) => setTyped(e.target.value)} type="search" />}
       banner={conn && <OdooConnectionBanner connection={conn.connection} binding={{ status: conn.status, activated: conn.activated }} />}
     >
-      <Tabs items={tabs} value={kind} onChange={(k) => navigate(`/master-data/${k}`)} ariaLabel={t('odoo.master.tabs', 'Directories')} idBase="odoo-master" />
+      <Tabs items={tabs} value={kind} onChange={(k) => navigate(`/master-data/${k}`)} ariaLabel={t('administration:odoo.master.tabs', 'Directories')} idBase="odoo-master" />
 
+      <div role="tabpanel" id={tabPanelId('odoo-master', kind)} aria-labelledby={tabId('odoo-master', kind)}>
       {reasons.length > 0 ? (
         <div role="status" className="mt-3 flex items-start gap-2.5 rounded-lg border border-warning/40 bg-warning/12 px-3.5 py-3 text-[13px]">
           <Icon name="alert" className="mt-px size-[17px] shrink-0" aria-hidden="true" />
           <div>
-            <div className="font-semibold">{t('odoo.master.unavailable', 'Odoo is missing an app this list needs')}</div>
-            <div className="text-muted-foreground">{t('odoo.master.unavailableWhy', 'Missing: {{missing}}. Install or allow it in Odoo, then Re-check on the Integrations page.', { missing: reasons.join(', ') })}</div>
+            <div className="font-semibold">{t('administration:odoo.master.unavailable', 'Odoo is missing an app this list needs')}</div>
+            <div className="text-muted-foreground">{t('administration:odoo.master.unavailableWhy', 'Missing: {{missing}}. Install or allow it in Odoo, then Re-check on the Integrations page.', { missing: reasons.join(', ') })}</div>
           </div>
         </div>
       ) : (
         <>
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted-foreground">
-            <span>{t('odoo.master.hidden', '{{inactive}} inactive · {{deleted}} deleted in Odoo', { inactive: summary.data?.inactive ?? 0, deleted: summary.data?.tombstoned ?? 0 })}</span>
-            {asOf && <span>{t('odoo.master.asOf', 'As of {{when}}', { when: formatInstantDate(asOf) })}</span>}
+            <span>{t('administration:odoo.master.hidden', '{{inactive}} inactive · {{deleted}} deleted in Odoo', { inactive: summary.data?.inactive ?? 0, deleted: summary.data?.tombstoned ?? 0 })}</span>
+            {asOf && <span>{t('administration:odoo.master.asOf', 'As of {{when}}', { when: formatInstantDate(asOf) })}</span>}
             <label className="inline-flex min-h-9 items-center gap-1.5">
               <input type="checkbox" checked={includeInactive} onChange={(e) => { setIncludeInactive(e.target.checked); setPage(1); }} />
-              {t('odoo.master.showInactive', 'Show inactive and deleted')}
+              {t('administration:odoo.master.showInactive', 'Show inactive and deleted')}
             </label>
           </div>
 
@@ -134,20 +135,21 @@ export default function MasterDataPage() {
           ) : (
             <div className="mt-3">
               <DataTable<MasterRecord> rows={rows} columns={columns[kind]} rowKey={(r) => r.id} state={state} accessibleName={tabs.find((x) => x.value === kind)?.label}
-                emptyTitle={t('odoo.master.empty', 'Nothing here yet')} emptySub={t('odoo.master.emptySub', 'Nothing matches, or the first sync has not finished.')}
-                errorTitle={t('odoo.master.error', 'This list could not be loaded')} onRetry={() => void list.refetch()} />
+                emptyTitle={t('administration:odoo.master.empty', 'Nothing here yet')} emptySub={t('administration:odoo.master.emptySub', 'Nothing matches, or the first sync has not finished.')}
+                errorTitle={t('administration:odoo.master.error', 'This list could not be loaded')} onRetry={() => void list.refetch()} />
             </div>
           )}
 
-          <nav aria-label={t('odoo.master.pager', 'Pages')} className="mt-3 flex items-center justify-between gap-3 text-[13px] tabular-nums">
-            <span>{total === 0 ? '' : t('odoo.master.range', '{{from}}–{{to}} of {{total}}', { from: from.toLocaleString(), to: to.toLocaleString(), total: total.toLocaleString() })}</span>
+          <nav aria-label={t('administration:odoo.master.pager', 'Pages')} className="mt-3 flex items-center justify-between gap-3 text-[13px] tabular-nums">
+            <span>{total === 0 ? '' : t('administration:odoo.master.range', '{{from}}–{{to}} of {{total}}', { from: from.toLocaleString(), to: to.toLocaleString(), total: total.toLocaleString() })}</span>
             <span className="flex gap-2">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} aria-label={t('odoo.master.prev', 'Previous page')}><Icon name="back" aria-hidden="true" /></Button>
-              <Button variant="outline" size="sm" disabled={to >= total} onClick={() => setPage((p) => p + 1)} aria-label={t('odoo.master.next', 'Next page')}><Icon name="chev" aria-hidden="true" /></Button>
+              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} aria-label={t('administration:odoo.master.prev', 'Previous page')}><Icon name="back" aria-hidden="true" /></Button>
+              <Button variant="outline" size="sm" disabled={to >= total} onClick={() => setPage((p) => p + 1)} aria-label={t('administration:odoo.master.next', 'Next page')}><Icon name="chev" aria-hidden="true" /></Button>
             </span>
           </nav>
         </>
       )}
+      </div>
     </ListPage>
   );
 }

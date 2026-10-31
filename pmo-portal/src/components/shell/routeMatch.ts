@@ -428,7 +428,7 @@ export function breadcrumbForPath(
 
   if (/^\/master-data\/[^/]+$/.test(pathname)) {
     return [{ label: 'Odoo directories', // i18n-exempt: translated from i18nKey by Breadcrumb
-      i18nKey: 'odoo.master.title' }];
+      i18nKey: 'administration:odoo.master.title' }];
   }
 
   const childCrumb = CHILD_PAGE_CRUMB[pathname];

@@ -14,17 +14,17 @@ export function OdooConnectionBanner({ connection, binding, now = new Date() }: 
   const state = displayedConnection(connection, now, binding);
   if (state === 'healthy') return null;
   const asOf = connection?.last_checked_at
-    ? t('odoo.banner.asOf', 'as of {{time}}', { time: new Intl.DateTimeFormat(i18n.language, { hour: '2-digit', minute: '2-digit' }).format(new Date(connection.last_checked_at)) })
+    ? t('administration:odoo.banner.asOf', 'as of {{time}}', { time: new Intl.DateTimeFormat(i18n.language, { hour: '2-digit', minute: '2-digit' }).format(new Date(connection.last_checked_at)) })
     : '';
   const missing = (connection?.missing ?? []).join(', ');
   const copy: Record<string, { title: string; next: string; tone: 'warn' | 'bad' | 'info' }> = {
-    unverified: { title: t('odoo.state.unverified', 'Not checked recently'), next: t('odoo.banner.unverifiedNext', 'The last check was a while ago. Use Re-check to confirm the connection.'), tone: 'info' },
-    unreachable: { title: t('odoo.state.unreachable', 'Odoo cannot be reached'), next: t('odoo.banner.unreachableNext', 'Directories show the last synced data. PMO keeps trying; check that your Odoo is online.'), tone: 'bad' },
-    'credential-rejected': { title: t('odoo.state.credentialRejected', 'Odoo rejected the API key'), next: t('odoo.banner.rejectedNext', 'An administrator needs to reconnect with a valid API key.'), tone: 'bad' },
-    degraded: { title: t('odoo.state.degraded', 'Some Odoo apps are missing'), next: t('odoo.banner.degradedNext', 'Missing: {{missing}}. Install them in Odoo, then Re-check.', { missing }), tone: 'warn' },
-    'credential-expiring': { title: t('odoo.state.credentialExpiring', 'The API key expires soon'), next: t('odoo.banner.expiringNext', 'Create a new key in Odoo and reconnect before it expires.'), tone: 'warn' },
-    'not-activated': { title: t('odoo.state.notActivated', 'Choose the Odoo company to finish connecting'), next: t('odoo.banner.notActivatedNext', 'Syncing starts once a company is chosen.'), tone: 'info' },
-    disconnected: { title: t('odoo.state.disconnected', 'Odoo is not connected'), next: t('odoo.banner.disconnectedNext', 'An administrator can connect it under Administration, Integrations.'), tone: 'info' },
+    unverified: { title: t('administration:odoo.state.unverified', 'Not checked recently'), next: t('administration:odoo.banner.unverifiedNext', 'The last check was a while ago. Use Re-check to confirm the connection.'), tone: 'info' },
+    unreachable: { title: t('administration:odoo.state.unreachable', 'Odoo cannot be reached'), next: t('administration:odoo.banner.unreachableNext', 'Directories show the last synced data. PMO keeps trying; check that your Odoo is online.'), tone: 'bad' },
+    'credential-rejected': { title: t('administration:odoo.state.credentialRejected', 'Odoo rejected the API key'), next: t('administration:odoo.banner.rejectedNext', 'An administrator needs to reconnect with a valid API key.'), tone: 'bad' },
+    degraded: { title: t('administration:odoo.state.degraded', 'Some Odoo apps are missing'), next: t('administration:odoo.banner.degradedNext', 'Missing: {{missing}}. Install them in Odoo, then Re-check.', { missing }), tone: 'warn' },
+    'credential-expiring': { title: t('administration:odoo.state.credentialExpiring', 'The API key expires soon'), next: t('administration:odoo.banner.expiringNext', 'Create a new key in Odoo and reconnect before it expires.'), tone: 'warn' },
+    'not-activated': { title: t('administration:odoo.state.notActivated', 'Choose the Odoo company to finish connecting'), next: t('administration:odoo.banner.notActivatedNext', 'Syncing starts once a company is chosen.'), tone: 'info' },
+    disconnected: { title: t('administration:odoo.state.disconnected', 'Odoo is not connected'), next: t('administration:odoo.banner.disconnectedNext', 'An administrator can connect it under Administration, Integrations.'), tone: 'info' },
   };
   const c = copy[state];
   const tone = c.tone === 'bad' ? 'border-destructive/30 bg-destructive/[0.07]' : c.tone === 'warn' ? 'border-warning/40 bg-warning/12' : 'border-border bg-muted/40';
