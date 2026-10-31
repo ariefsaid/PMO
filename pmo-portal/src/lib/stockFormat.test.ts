@@ -16,6 +16,7 @@ describe('stockFormat', () => {
   it('formats money exactly through the shared formatter and never fabricates a figure', () => {
     expect(formatStockValue('1500.00', 'IDR', 'en')).toContain('1,500');
     expect(formatStockValue(undefined, 'IDR', 'en')).toBe('');
+    expect(formatStockValue(null, 'IDR', 'en')).toBe(''); // zero-stock rows carry avg_cost null: no made-up IDR 0
   });
   it('isWholeQuantity is a string test', () => {
     expect(isWholeQuantity('3')).toBe(true);

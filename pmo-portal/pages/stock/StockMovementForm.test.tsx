@@ -22,6 +22,8 @@ let realRole: Role = 'Engineer';
 let effectiveRole: Role = 'Engineer';
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole, effectiveRole }) }));
 
+vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-11-01' }) }));
+
 import StockMovementForm from './StockMovementForm';
 
 const unit = { id: 'u1', code: 'bag', name: 'Bag', whole_only: true, archived_at: null };
@@ -78,6 +80,13 @@ describe('StockMovementForm', () => {
     await userEvent.type(screen.getByRole('searchbox'), 'cement');
     expect(await screen.findByRole('option', { name: /CEM - Cement 50kg/ })).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('AC-STK-030 a create page has its own heading, no section tab bar, and a date that stops at the org today', async () => {
+    renderForm('issue', 'Admin');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Issue to project' })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Stock sections' })).not.toBeInTheDocument();
+    expect(await screen.findByLabelText('Date')).toHaveAttribute('max', '2026-11-01');
   });
 
   it('AC-STK-030 a shortfall error is announced beside the quantity', async () => {

@@ -74,6 +74,8 @@ export interface ComboboxProps {
   /** Stable DOM id for form error-summary focus links. */
   id?: string;
   className?: string;
+  /** Size/fill the trigger like the shared form controls (SelectField/TextField). */
+  formControl?: boolean;
 }
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
@@ -97,6 +99,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
   clearWhileDisabled,
   id,
   className,
+  formControl,
 }) => {
   const { t } = useTranslation();
   const baseId = useId();
@@ -316,7 +319,10 @@ export const Combobox: React.FC<ComboboxProps> = ({
           disabled={disabled}
           onClick={() => !disabled && setOpen((o) => !o)}
           className={cn(
-            'flex h-8 w-full items-center gap-2 rounded-md border bg-background px-[10px] text-[13.5px] text-foreground',
+            'flex w-full items-center gap-2 rounded-md border text-foreground',
+            formControl
+              ? 'h-[var(--control-height)] bg-card px-3 text-control [@media(pointer:coarse)]:h-11'
+              : 'h-8 bg-background px-[10px] text-[13.5px]',
             'hover:border-primary/50 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground',
             error ? 'border-destructive' : 'border-border hover:border-input',
           )}

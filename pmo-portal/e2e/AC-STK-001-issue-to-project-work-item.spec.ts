@@ -32,7 +32,7 @@ test('AC-STK-001: a storekeeper issues 30 of 100 bags to a project work item and
   await page.goto('/stock');
   await page.getByRole('combobox', { name: 'Warehouse', exact: true }).selectOption({ label: `${wh.code} - ${wh.name}` });
   const balance = page.getByRole('row', { name: new RegExp(item.code) });
-  await expect(balance, 'the warehouse shows 70 of that item').toContainText('70');
+  await expect(balance.getByRole('cell', { name: /^70\s+\S+$/ }), 'the warehouse shows exactly 70 of that item').toBeVisible();
 
   // Then 2: the trace names the actor, the project and the work item
   await page.goto(`/stock/ledger?item=${item.id}`);

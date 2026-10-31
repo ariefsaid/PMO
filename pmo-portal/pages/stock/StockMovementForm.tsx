@@ -4,10 +4,10 @@ import { useTranslation } from 'react-i18next';
 import {
   Button, FormActions, FormGrid, FormSection, ListState, MobileActionBar, SelectField, TextArea, TextField, useToast, Icon,
 } from '@/src/components/ui';
-import { StockTabs } from '@/src/components/stock/StockTabs';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
 import { StockError } from '@/src/components/stock/StockError';
 import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
+import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
@@ -54,6 +54,7 @@ const StockMovementForm: React.FC = () => {
   const { realRole, effectiveRole } = useEffectiveRole();
   const me = useAuth().currentUser?.id;
   const errorText = useStockErrorText();
+  const today = useFxOrgDay(true).day; // org-timezone today: the server refuses a later date (stock_assert_dates)
   const { create } = useStockDocumentMutations();
 
   const warehouses = useStockWarehouses(false);
@@ -166,7 +167,6 @@ const StockMovementForm: React.FC = () => {
     <div className="mx-auto w-full max-w-5xl px-4 py-4">
       <h1 className="text-[24px] font-bold tracking-[-0.02em]">{heading}</h1>
       <p className="mb-4 mt-1 text-sm text-muted-foreground">{t(`form.intro.${kind}`)}</p>
-      <StockTabs />
 
       {pending && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
       {!pending && loadError && <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={retry} />}
@@ -275,9 +275,9 @@ const StockMovementForm: React.FC = () => {
           </FormSection>
 
           <FormSection legend={t('form.sections.details')}>
-            <FormGrid>
-              <TextField label={t('form.occurredOn')} type="date" value={occurredOn} onChange={setOccurredOn} helper={t('form.occurredOnHelp')} />
-            </FormGrid>
+            <div className="max-w-[260px]">
+              <TextField label={t('form.occurredOn')} type="date" value={occurredOn} onChange={setOccurredOn} helper={t('form.occurredOnHelp')} max={today ?? undefined} />
+            </div>
             <div className="mt-3">
               <TextArea label={t('form.note')} value={note} onChange={setNote} rows={2} />
             </div>

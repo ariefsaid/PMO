@@ -193,10 +193,8 @@
       "warehouse": "Warehouse",
       "allWarehouses": "All warehouses",
       "search": "Search items",
-      "includeZero": "Show zero balances",
-      "belowReorder": "Below reorder level"
+      "includeZero": "Show zero balances"
     },
-    "reorderSoon": "Reorder levels are not set up yet.",
     "tiles": {
       "items": "Items",
       "warehouses": "Warehouses",
@@ -282,6 +280,7 @@
     "description": "Every posting: who, when, which project and work item, and the balance after it.",
     "columns": {
       "when": "Posted",
+      "occurred": "Date",
       "document": "Document",
       "item": "Item",
       "warehouse": "Warehouse",

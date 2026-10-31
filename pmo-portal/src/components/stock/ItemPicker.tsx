@@ -32,6 +32,7 @@ export const ItemPicker: React.FC<ItemPickerProps> = ({ label, value, onChange, 
       searchPlaceholder={t('form.itemSearch')}
       noun={t('form.itemNoun')}
       error={error}
+      formControl
     />
   );
 };
