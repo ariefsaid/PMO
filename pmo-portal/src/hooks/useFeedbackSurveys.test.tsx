@@ -12,7 +12,7 @@ beforeEach(() => {
   state.features = {};
 });
 
-describe('AC-PHO-091 useFeedbackSurveysEnabled', () => {
+describe('AC-PHO-101 useFeedbackSurveysEnabled', () => {
   it('a real org with no stored row is on (absence = included)', () => {
     expect(renderHook(() => useFeedbackSurveysEnabled()).result.current).toBe(true);
   });

@@ -36,13 +36,13 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-describe('AC-PHO-093 the SDK never pops a survey by itself', () => {
+describe('AC-PHO-103 the SDK never pops a survey by itself', () => {
   it('init options turn automatic display off, so only the app decides when a survey shows', () => {
     expect(buildPosthogInitOptions(config)?.disable_surveys_automatic_display).toBe(true);
   });
 });
 
-describe('AC-PHO-093 survey methods', () => {
+describe('AC-PHO-103 survey methods', () => {
   it('find resolves a survey id by exact name and null when it is not published', () => {
     analyticsClient.init(config);
     posthog.getSurveys.mockImplementation((cb: (s: unknown[]) => void) =>
@@ -105,7 +105,7 @@ describe('AC-PHO-093 survey methods', () => {
   });
 });
 
-describe('AC-PHO-093 survey answers carry no record contents', () => {
+describe('AC-PHO-103 survey answers carry no record contents', () => {
   const run = (event: string, properties: Record<string, unknown>) => {
     const out = buildPosthogInitOptions(config)!.before_send as (r: unknown) => { properties: Record<string, unknown> } | null;
     return out({ uuid: 'u', event, properties })!.properties;

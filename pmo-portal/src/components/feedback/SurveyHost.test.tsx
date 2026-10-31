@@ -55,7 +55,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-describe('AC-PHO-096 NPS for active users', () => {
+describe('AC-PHO-106 NPS for active users', () => {
   it('appears once, after a minute, for an active user past their first week at a calm moment', () => {
     mount();
     wait(30_000);
@@ -83,7 +83,7 @@ describe('AC-PHO-096 NPS for active users', () => {
   });
 });
 
-describe('AC-PHO-096 never interrupts a write or a form', () => {
+describe('AC-PHO-106 never interrupts a write or a form', () => {
   const blocked: Array<[string, () => void, string?]> = [
     ['a dialog is open', () => document.body.insertAdjacentHTML('beforeend', '<div role="dialog"></div>')],
     ['a field has focus', () => {
@@ -121,7 +121,7 @@ describe('AC-PHO-096 never interrupts a write or a form', () => {
   });
 });
 
-describe('AC-PHO-096 first core flow', () => {
+describe('AC-PHO-106 first core flow', () => {
   it('asks the 1-5 question after a business event, ahead of NPS, at the next calm moment', () => {
     mount();
     wait(5_000);

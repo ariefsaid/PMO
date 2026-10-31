@@ -1,5 +1,5 @@
 /**
- * AC-PHO-091 — Administration > Features carries one Admin-owned switch for feedback and surveys.
+ * AC-PHO-101 — Administration > Features carries one Admin-owned switch for feedback and surveys.
  * An Admin sees a real switch and flipping it calls the Admin RPC path; any other role sees a status
  * pill only. The Operator-only toggles above it are untouched (AC-ENT-004 keeps its own file).
  */
@@ -41,7 +41,7 @@ beforeEach(() => {
   state.setMock = vi.fn().mockResolvedValue(undefined);
 });
 
-describe('AC-PHO-091 Admin switch for feedback and surveys', () => {
+describe('AC-PHO-101 Admin switch for feedback and surveys', () => {
   it('an Admin sees it on by default and can switch it off', async () => {
     renderAs('Admin');
     const sw = screen.getByRole('switch', { name: /feedback and surveys/i });

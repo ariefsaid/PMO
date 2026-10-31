@@ -13,7 +13,7 @@ import { FeedbackControl } from './FeedbackControl';
 
 beforeEach(() => ask.mockClear());
 
-describe('AC-PHO-097 thumbs-down asks one optional "what went wrong?"', () => {
+describe('AC-PHO-107 thumbs-down asks one optional "what went wrong?"', () => {
   it('after the reason is picked it asks, anchored beside this answer and tied to its run', () => {
     render(<FeedbackControl eventId="evt-1" runId="run-1" onRate={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Bad response' }));

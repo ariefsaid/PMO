@@ -1,6 +1,5 @@
 import React from 'react';
 import { useLocation } from 'react-router';
-import { useTranslation } from 'react-i18next';
 import { Icon } from '@/src/components/ui/icons';
 import { buildSurveyContext, showSurvey } from '@/src/lib/analytics';
 import { useSurveyId } from '@/src/hooks/useSurveyId';
@@ -14,11 +13,11 @@ export const FEEDBACK_TRIGGER_ID = 'pmo-feedback-trigger';
  * answer, so a demo-org answer links to its replay; the page context is module + route template only.
  */
 export const FeedbackWidget: React.FC = () => {
-  const { t } = useTranslation();
   const { pathname } = useLocation();
   const id = useSurveyId('feedback');
   if (!id) return null;
-  const label = t('shell.contextBar.feedback', 'Feedback');
+  // ponytail: one English word, also the usual Indonesian UI term; a feature namespace + catalogue entry if it ever needs translating.
+  const label = 'Feedback';
   return (
     <button
       id={FEEDBACK_TRIGGER_ID}

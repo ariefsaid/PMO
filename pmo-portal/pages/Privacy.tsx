@@ -77,6 +77,15 @@ const Privacy: React.FC = () => (
         sample data. This never applies to your live account.
       </p>
       <p className="text-muted-foreground">
+        The product has a Feedback button, and occasionally asks a short question (at most one
+        every 30 days, never in your first week and never while you are filling in a form). Your
+        answer is sent to PostHog with the area of the product you were in. Free-text answers are
+        the one place you type something that is sent, so please leave out customer names and
+        amounts; we strip obvious email addresses and access keys automatically. Your
+        organisation&rsquo;s administrator can switch this off, and the opt-out below stops it
+        for you.
+      </p>
+      <p className="text-muted-foreground">
         We honour your browser&rsquo;s Do Not Track setting. You can also opt out here at any time:
       </p>
       <AnalyticsOptOutToggle />

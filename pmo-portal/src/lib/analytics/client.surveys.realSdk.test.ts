@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// AC-PHO-093: a mock cannot say what the real SDK does with the option, so init the real one.
+// AC-PHO-103: a mock cannot say what the real SDK does with the option, so init the real one.
 import { describe, expect, it } from 'vitest';
 import posthog from 'posthog-js';
 import { buildPosthogInitOptions } from './client';
@@ -11,7 +11,7 @@ const config: AnalyticsConfig = {
   isDev: false, isProd: false, demoAudience: 'internal', demoAccount: 'local',
 };
 
-describe('AC-PHO-093 real SDK keeps survey display in the app\'s hands', () => {
+describe('AC-PHO-103 real SDK keeps survey display in the app\'s hands', () => {
   it('the live instance has automatic display off and surveys still enabled for the manual API', () => {
     const original = global.fetch;
     global.fetch = (async () => ({ ok: true, status: 200, json: async () => ({}), text: async () => '' })) as unknown as typeof fetch;

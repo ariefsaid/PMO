@@ -5,6 +5,7 @@ import jobs from './spec/jobs.mjs';
 import pushes from './spec/pushes.mjs';
 import usage from './spec/usage.mjs';
 import demo from './spec/demo.mjs';
+import feedback from './spec/feedback.mjs';
 
 const LEGACY_SPEC = [
   {
@@ -127,4 +128,4 @@ const LEGACY_SPEC = [
   },
 ];
 
-export const SPEC = [...LEGACY_SPEC, ...ai, ...jobs, ...pushes, ...usage, ...demo];
+export const SPEC = [...LEGACY_SPEC, ...ai, ...jobs, ...pushes, ...usage, ...demo, ...feedback];

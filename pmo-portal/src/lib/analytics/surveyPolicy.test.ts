@@ -19,7 +19,7 @@ const calm: Moment = {
   pathname: '/projects',
 };
 
-describe('AC-PHO-092 first week', () => {
+describe('AC-PHO-102 first week', () => {
   it('is false inside the first seven days and true after', () => {
     expect(isPastFirstWeek(new Date(NOW - FIRST_WEEK_MS + 1000).toISOString(), NOW)).toBe(false);
     expect(isPastFirstWeek(new Date(NOW - FIRST_WEEK_MS - 1000).toISOString(), NOW)).toBe(true);
@@ -31,7 +31,7 @@ describe('AC-PHO-092 first week', () => {
   });
 });
 
-describe('AC-PHO-092 safe moment: never interrupt a write or a form', () => {
+describe('AC-PHO-102 safe moment: never interrupt a write or a form', () => {
   it('a calm moment on a list page is safe', () => {
     expect(momentRefusal(calm)).toBeNull();
   });
@@ -51,7 +51,7 @@ describe('AC-PHO-092 safe moment: never interrupt a write or a form', () => {
   });
 });
 
-describe('AC-PHO-092 active user: three distinct days in the last fourteen', () => {
+describe('AC-PHO-102 active user: three distinct days in the last fourteen', () => {
   it('records each day once, keeps fourteen days, and ignores junk storage', () => {
     const store = new Map<string, string>();
     const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };

@@ -23,7 +23,7 @@ beforeEach(() => {
   h.consent = 'active';
 });
 
-describe('AC-PHO-094 survey context carries no record contents', () => {
+describe('AC-PHO-104 survey context carries no record contents', () => {
   it('is the route template and module only, never the raw path or record id', () => {
     const ctx = buildSurveyContext('/projects/8f14e45f-ceea-467a-9575-1f5d6b3d7a10/budget?x=1');
     expect(ctx).toEqual({ module: 'projects', route: '/projects/:projectId/:tab' });
@@ -36,7 +36,7 @@ describe('AC-PHO-094 survey context carries no record contents', () => {
   });
 });
 
-describe('AC-PHO-094 gating and wrappers', () => {
+describe('AC-PHO-104 gating and wrappers', () => {
   it('the four surveys have fixed names the owner publishes', () => {
     expect(Object.values(SURVEY_NAMES)).toEqual([
       '[PMO] Feedback',
@@ -71,7 +71,7 @@ describe('AC-PHO-094 gating and wrappers', () => {
   });
 });
 
-describe('AC-PHO-097 the thumbs-down follow-up', () => {
+describe('AC-PHO-107 the thumbs-down follow-up', () => {
   const RUN = '0b1c2d3e-aaaa-bbbb-cccc-1234567890ab';
   beforeEach(() => setSurveyViewer({ enabled: true, createdAt: '2020-01-01T00:00:00Z' }));
   const published = () => h.surveys.find.mockImplementation((_n: string, done: (id: string | null) => void) => done('sid-assistant'));

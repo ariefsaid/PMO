@@ -1,5 +1,5 @@
 -- 0419_feedback_surveys_switch.sql — the org Admin switch for the feedback widget and surveys (#1532 S9).
--- Proven by supabase/tests/0419_feedback_surveys_switch.test.sql (AC-PHO-090).
+-- Proven by supabase/tests/0419_feedback_surveys_switch.test.sql (AC-PHO-100).
 --
 -- Owner ruling (2026-10-31): the demo deployment has feedback and surveys on; a real org has them on by
 -- default and its Admin can switch them off. Absence of a row = on (FR-ENT-004), so no backfill.

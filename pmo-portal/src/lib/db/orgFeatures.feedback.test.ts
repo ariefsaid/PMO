@@ -7,7 +7,7 @@ import { setFeedbackSurveys } from './orgFeatures';
 
 beforeEach(() => rpc.mockReset());
 
-describe('AC-PHO-091 setFeedbackSurveys', () => {
+describe('AC-PHO-101 setFeedbackSurveys', () => {
   it('calls the Admin RPC with the flag and no org id (the server stamps the caller org)', async () => {
     rpc.mockResolvedValue({ data: null, error: null });
     await setFeedbackSurveys(false);

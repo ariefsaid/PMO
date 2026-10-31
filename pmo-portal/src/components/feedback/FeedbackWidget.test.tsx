@@ -35,7 +35,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-describe('AC-PHO-095 Feedback button', () => {
+describe('AC-PHO-105 Feedback button', () => {
   it('is always there when the org switch is on, analytics is live and the survey is published; it never opens by itself', () => {
     mount();
     expect(screen.getByRole('button', { name: 'Feedback' })).toBeInTheDocument();
