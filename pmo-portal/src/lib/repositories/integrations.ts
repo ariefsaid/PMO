@@ -5,10 +5,10 @@ import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
 import { wrap, throwInvokeError } from './repositoryErrors';
 import type { ClickUpListItem, ConnectCredential, ConnectResponse, DisconnectResponse, ErpProjectLink, ErpProjectOption, ErpSetupReadiness, ExternalTier, IntegrationBinding, IntegrationHealth, IntegrationsRepository, LinkInput, LinkResponse, ProjectBinding, UnlinkInput, UnlinkResponse } from './contracts/integrations';
 
-async function erpSetupRequest<T>(setupAction: string, input: Record<string, unknown> = {}): Promise<T> {
+export async function erpSetupRequest<T>(setupAction: string, input: Record<string, unknown> = {}, tier: 'erpnext' | 'odoo' = 'erpnext'): Promise<T> {
   return wrap(async () => {
     const { data, error } = await invokeWithTimeout(supabase.functions.invoke<T>('external-set-company', {
-      body: { tier: 'erpnext', setupAction, ...input },
+      body: { tier, setupAction, ...input },
     }));
     if (error) await throwInvokeError(error);
     return data as T;
@@ -29,7 +29,7 @@ export const integrationsRepository: IntegrationsRepository = {
     return wrap(async () => {
       const { data, error } = await supabase
         .from('external_org_bindings')
-        .select('org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at, disconnected_at, config')
+        .select('org_id, external_tier, site_url, status, connected_by, connected_at, disconnected_at, config')
         .eq('org_id', orgId)
         .eq('external_tier', tier)
         .maybeSingle();
@@ -41,7 +41,7 @@ export const integrationsRepository: IntegrationsRepository = {
     return wrap(async () => {
       const { data, error } = await supabase
         .from('external_org_bindings')
-        .select('org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at, disconnected_at, config')
+        .select('org_id, external_tier, site_url, status, connected_by, connected_at, disconnected_at, config')
         .eq('org_id', orgId);
       if (error) throw error;
       return (data ?? []) as unknown as IntegrationBinding[];

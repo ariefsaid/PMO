@@ -16,17 +16,18 @@ insert into profiles (id, org_id, full_name, email, role, status) values
 insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, status)
 values ('e6500000-0000-0000-0000-000000000001', 'erpnext', '', 'act-secret-ref', 'active');
 
--- AC-EAC-113 the ONLY client privilege on the binding table is SELECT. A future migration that
--- re-grants a write fails here — this, not a policy, is the live layer (ADR-0073 §6).
--- (Runs as the superuser session role so `information_schema.role_table_grants` is NOT filtered to
--- the caller's own grants — under `service_role` the anon/authenticated rows are invisible.)
+-- AC-EAC-113 clients hold NO table-level privilege on the binding table: since 0420 their SELECT is
+-- column-scoped (the secret references excluded, AC-ODC-009), so any table-level grant — a write, or a
+-- blanket SELECT that would re-expose secret_ref — fails here. This, not a policy, is the live layer
+-- (ADR-0073 §6). (Runs as the superuser session role so `information_schema.role_table_grants` is NOT
+-- filtered to the caller's own grants — under `service_role` the anon/authenticated rows are invisible.)
 select is(
   (select coalesce(string_agg(distinct privilege_type, ',' order by privilege_type), '')
      from information_schema.role_table_grants
     where table_schema = 'public' and table_name = 'external_org_bindings'
       and grantee in ('anon', 'authenticated')),
-  'SELECT',
-  'AC-EAC-113 authenticated/anon hold SELECT only on external_org_bindings'
+  '',
+  'AC-EAC-113 authenticated/anon hold no table-level privilege on external_org_bindings'
 );
 
 -- AC-EAC-113 (review #650) the COLUMN-level superset: table-level grants expand into

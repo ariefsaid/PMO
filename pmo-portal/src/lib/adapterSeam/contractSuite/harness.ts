@@ -3,6 +3,7 @@
  * translates these calls into its own tier's wire format over a mocked transport and translates the outcome
  * back. A suite never imports a tier, so the same assertions run for ERPNext and Odoo.
  */
+import type { ConnectAdapter, MasterKind, NormalisedMaster } from '../connect/types.ts';
 
 export type PartyRole = 'client' | 'vendor';
 
@@ -54,6 +55,15 @@ export interface PushBeforeConnectionResult {
   erpCalls: number;
 }
 
+/** A fresh fake ERP behind a `ConnectAdapter`, for the master-send suites (ECA §6.2). */
+export interface ConnectHarness {
+  adapter: ConnectAdapter;
+  /** What the fake ERP now holds for a kind, normalised to PMO terms, read without going through `adapter`. */
+  documents(kind: MasterKind): NormalisedMaster[];
+  /** The next create or update fails: before it reaches the ERP (`transport`), or after the ERP applied it (`lost-response`). */
+  failNextWrite(fault: 'transport' | 'lost-response'): void;
+}
+
 export interface ErpHarness {
   readonly tier: string;
   /** party.match */
@@ -64,6 +74,8 @@ export interface ErpHarness {
   pushBudget(scenario: BudgetPushScenario): Promise<BudgetPushResult>;
   /** cutover.activation: a purchase push on a connection that is `activated` or not. */
   pushPurchase(connection: 'activated' | 'not-activated' | 'absent'): Promise<PushBeforeConnectionResult>;
+  /** party.send, project.send, item.send: each call starts an empty fake ERP. Absent until the tier sends masters. */
+  connect?: () => ConnectHarness;
 }
 
 export type Suite = (harness: ErpHarness) => void;

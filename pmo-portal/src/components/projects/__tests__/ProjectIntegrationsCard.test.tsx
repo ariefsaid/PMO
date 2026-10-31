@@ -25,7 +25,6 @@ const mockClickUpBinding: IntegrationBinding = {
   org_id: 'org-1',
   external_tier: 'clickup',
   site_url: 'https://api.clickup.com',
-  secret_ref: 'clickup_token_org_1',
   status: 'active',
   connected_by: 'u1',
   connected_at: '2026-01-01T00:00:00Z',
