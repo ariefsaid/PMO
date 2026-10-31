@@ -45,7 +45,7 @@ const { procurement } = vi.hoisted(() => ({
 vi.mock('@/src/lib/repositories', () => ({ repositories: { procurement } }));
 
 import { ProcurementLedger } from './ProcurementLedger';
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 
 function makeDetail(): ProcurementDetail {
@@ -78,7 +78,7 @@ function renderLedger() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+  setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
 });
 afterEach(() => clearOwnershipCache());
 

@@ -21,7 +21,7 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { RecordCaptureForm, type CreatePaymentInput } from '../RecordCaptureForm';
 import type { ProcurementInvoiceRow } from '@/src/lib/db/procurementLifecycle';
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 import { FinanceI18nTestProvider } from '@/pages/__tests__/financeI18nTestProvider';
 import { financeTestI18n, financeTestI18nReady } from '@/pages/__tests__/financeI18nTestInstance';
 import { formatMoneyInputValue } from '@/src/lib/format';
@@ -53,7 +53,7 @@ describe('RecordCaptureForm — payment capture on a FLIPPED org (#910)', () => 
   beforeEach(async () => {
     await financeTestI18nReady;
     await financeTestI18n.changeLanguage('en');
-    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
   });
 
   it('no status select is offered (DD-VPAY-8)', () => {

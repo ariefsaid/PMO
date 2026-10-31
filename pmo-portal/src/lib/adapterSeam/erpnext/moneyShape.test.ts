@@ -5,7 +5,7 @@
  * always the money oracle — never a PMO-side Σ of the lines (ADR-0048).
  */
 import { describe, expect, it } from 'vitest';
-import { mirrorMoney, PROCUREMENT_ITEMS_AMOUNT_ORACLE_COLUMN, toDecimalString } from './moneyShape.ts';
+import { mirrorMoney, toDecimalString } from './moneyShape.ts';
 import { AdapterError } from '../contract.ts';
 
 describe('erpnext/moneyShape', () => {
@@ -94,9 +94,5 @@ describe('erpnext/moneyShape', () => {
     it('an over-scale allocated_amount is commit-rejected', () => {
       expect(() => mirrorMoney('1000000000000.00')).toThrow(AdapterError);
     });
-  });
-
-  it('documents the procurement_items.amount GENERATED-column divergence: the money oracle is erp_line_amount, never the generated `amount`', () => {
-    expect(PROCUREMENT_ITEMS_AMOUNT_ORACLE_COLUMN).toBe('erp_line_amount');
   });
 });

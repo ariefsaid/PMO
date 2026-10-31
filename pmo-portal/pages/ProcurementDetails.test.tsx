@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 const itemEligibility = vi.hoisted(() => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }));
 const recordPush = vi.hoisted(() => ({ status: 'idle' as string, error: null }));
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
@@ -1376,7 +1376,7 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
   });
 
   it('keeps external item values read-only when the case has external evidence', async () => {
-    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
     itemEligibility.data = false;
     renderPage('proc-001', 'items');
     await userEvent.click(screen.getByRole('button', { name: /edit welding wire/i }));
@@ -1387,7 +1387,7 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
   });
 
   it('keeps values read-only while a case command is being submitted', async () => {
-    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
     recordPush.status = 'pushing';
     renderPage('proc-001', 'items');
     await userEvent.click(screen.getByRole('button', { name: /edit welding wire/i }));
