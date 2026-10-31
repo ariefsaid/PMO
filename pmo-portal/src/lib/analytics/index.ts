@@ -16,6 +16,7 @@ export type { AnalyticsConfig, DemoAudience, DemoContext } from './config';
 export { routeAnalyticsForPath, SAFE_TAB_ID } from './route';
 export type { RouteAnalytics } from './route';
 export { safeTrack } from './safeTrack';
+export * from './business';
 
 // ── Event-specific action helpers ────────────────────────────────────────
 // These are the ONLY way components should track events. They encapsulate

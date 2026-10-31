@@ -33,7 +33,11 @@ export type AnalyticsEventName =
   | 'agent_approval_decided'
   | 'agent_thread_resumed'
   | 'agent_feedback_rated'
-  | 'agent_compose_view_saved';
+  | 'agent_compose_view_saved'
+  | 'budget_activated'
+  | 'invoice_issued'
+  | 'payment_recorded'
+  | 'purchase_approved';
 
 // ---------------------------------------------------------------------------
 // Constrained argument types for facade helpers
