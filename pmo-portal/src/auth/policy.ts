@@ -589,6 +589,12 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     // Admin self-serve connect/disconnect (UX gate). Server (edge fn + RPC) re-enforces
     // Admin OR platform Operator. FE is stricter (Admin only).
     manage: allow(ADMIN),
+    // Odoo (#1504 S5, AC-ODC-082). UX ONLY: the edge-function routers + RPCs are the authority. The `viewOnly` fence is
+    // the view-as case (effective role differs from the real one): an impersonating Admin sees no write control.
+    manage_external_bindings: (role, ctx) => has(ADMIN, role) && ctx.record?.viewOnly !== true,
+    setValue: (role, ctx) => has(TAX_SETUP, role) && ctx.record?.viewOnly !== true,
+    // The financial directory (accounts, taxes): Admin, Executive, Finance.
+    view: allow(MONEY_AUTHORITY),
   },
   // OD-TAX-1 (#548): org-wide ACCOUNTING configuration — currently the tax-treatment default that
   // pre-selects every new money form. Admin-only, mirroring migration 0207's RLS policy exactly
