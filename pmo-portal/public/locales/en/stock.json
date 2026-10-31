@@ -1,0 +1,166 @@
+{
+  "nav": "Stock",
+  "setup": {
+    "title": "Stock setup",
+    "description": "Units, items, warehouses and who keeps them. Master data shared by the whole organisation.",
+    "tabsLabel": "Stock master data",
+    "tabs": {
+      "units": "Units",
+      "items": "Items",
+      "warehouses": "Warehouses"
+    },
+    "showArchived": "Show archived",
+    "archivedBadge": "Archived",
+    "columns": {
+      "code": "Code",
+      "name": "Name",
+      "unit": "Unit",
+      "wholeOnly": "Quantities",
+      "leadTime": "Lead time",
+      "kind": "Kind",
+      "project": "Site project",
+      "keepers": "Keepers",
+      "status": "Status",
+      "description": "Description"
+    },
+    "wholeOnly": {
+      "whole": "Whole numbers",
+      "fractional": "Fractions allowed"
+    },
+    "leadTimeDays": "days",
+    "kinds": {
+      "central": "Central",
+      "site": "Site"
+    },
+    "noKeepers": "No keeper",
+    "active": "Active",
+    "actions": {
+      "newUnit": "New unit",
+      "newItem": "New item",
+      "newWarehouse": "New warehouse",
+      "edit": "Edit",
+      "archive": "Archive",
+      "restore": "Restore",
+      "keepers": "Keepers",
+      "retry": "Retry",
+      "close": "Close"
+    },
+    "form": {
+      "unit": {
+        "newTitle": "New unit",
+        "editTitle": "Edit unit",
+        "submitNew": "Create unit",
+        "submitEdit": "Save unit",
+        "code": "Code",
+        "name": "Name",
+        "wholeOnly": "Whole numbers only",
+        "wholeOnlyHelp": "Tick for things counted in whole pieces (bags, pcs). Leave clear for lengths, weights and volumes.",
+        "codeRequired": "Code is required.",
+        "nameRequired": "Name is required."
+      },
+      "item": {
+        "newTitle": "New item",
+        "editTitle": "Edit item",
+        "submitNew": "Create item",
+        "submitEdit": "Save item",
+        "code": "Code",
+        "name": "Name",
+        "description": "Description",
+        "unit": "Unit",
+        "unitPlaceholder": "Choose a unit",
+        "leadTime": "Lead time (days)",
+        "leadTimeHelp": "Optional. Used later to suggest reorder levels.",
+        "codeRequired": "Code is required.",
+        "nameRequired": "Name is required.",
+        "unitRequired": "Choose a unit.",
+        "leadTimeInvalid": "Enter whole days between 0 and 365."
+      },
+      "warehouse": {
+        "newTitle": "New warehouse",
+        "editTitle": "Edit warehouse",
+        "submitNew": "Create warehouse",
+        "submitEdit": "Save warehouse",
+        "code": "Code",
+        "name": "Name",
+        "kind": "Kind",
+        "project": "Site project",
+        "projectHelp": "Optional. Only a default for issues; it does not restrict them.",
+        "noProject": "No default project",
+        "codeRequired": "Code is required.",
+        "nameRequired": "Name is required."
+      }
+    },
+    "states": {
+      "errorTitle": "Couldn't load stock setup",
+      "errorSub": "The request failed. Check your connection and try again.",
+      "emptyUnits": {
+        "title": "No units yet",
+        "sub": "Add the units you count stock in, such as bag, metre or kilogram.",
+        "action": "Add the first unit"
+      },
+      "emptyItems": {
+        "title": "No items yet",
+        "sub": "Add the materials you keep in stock. Each one needs a unit.",
+        "action": "Add the first item"
+      },
+      "emptyWarehouses": {
+        "title": "No warehouses yet",
+        "sub": "Add a central store and your site stores.",
+        "action": "Add the first warehouse"
+      },
+      "readOnlyHint": "You can view stock setup. Project Managers and above can change it."
+    },
+    "confirm": {
+      "archiveTitle": "Archive this record?",
+      "archiveDescription": "It disappears from new documents. Existing history stays. An item with stock on hand cannot be archived.",
+      "archiveConfirm": "Archive"
+    },
+    "toast": {
+      "created": "Created",
+      "updated": "Saved",
+      "archived": "Archived",
+      "restored": "Restored",
+      "keeperAssigned": "Keeper assigned",
+      "keeperRemoved": "Keeper removed",
+      "failed": "Could not save"
+    },
+    "keepersPanel": {
+      "title": "Keepers",
+      "subtitle": "Keepers post receipts, transfers and issues for this warehouse.",
+      "empty": "No active members to assign.",
+      "toggleLabel": "Keeper",
+      "close": "Done"
+    }
+  },
+  "kinds": {
+    "receive": "Receive",
+    "transfer": "Transfer",
+    "issue": "Issue to project",
+    "return": "Return from project",
+    "adjustment": "Adjustment",
+    "count": "Stock count"
+  },
+  "empty": {
+    "noStock": "No stock yet"
+  },
+  "errors": {
+    "STK_INSUFFICIENT": "Not enough stock on hand for this movement.",
+    "STK_NOT_KEEPER": "Only a keeper of this warehouse can do this.",
+    "STK_OWNED_BY_ERP": "Stock is managed in your accounting system, so it cannot be changed here.",
+    "STK_SELF_APPROVE": "You cannot approve your own adjustment.",
+    "STK_RANK": "Your role is not allowed to do this.",
+    "STK_PROJECT_NOT_ACTIVE": "The project is not active, so stock cannot be issued to it.",
+    "STK_BOQ_MISMATCH": "That work item does not belong to the project.",
+    "STK_RETURN_EXCEEDS": "You cannot return more than was issued.",
+    "STK_ARCHIVED": "This record is archived.",
+    "STK_FRACTION": "This unit only allows whole numbers.",
+    "STK_BACKDATE": "That date is too far back or in the future.",
+    "STK_HAS_STOCK": "Stock is still on hand, so this cannot be archived.",
+    "STK_UNIT_LOCKED": "This unit is already used by stock documents, so it cannot be changed.",
+    "STK_INVALID": "Some of the details are not valid.",
+    "STK_NOT_FOUND": "That record was not found in your organisation.",
+    "STK_TOO_MANY": "Too many rows to show. Narrow the filter.",
+    "STK_KIND_UNAVAILABLE": "This kind of document is not available yet.",
+    "STK_IMMUTABLE": "A posted or cancelled document cannot be changed."
+  }
+}

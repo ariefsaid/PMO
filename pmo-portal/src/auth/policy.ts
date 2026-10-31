@@ -93,7 +93,10 @@ export type Entity =
   | 'fxRate'
   | 'financialStatements'
   | 'projectProfitLoss'
-  | 'finance';
+  | 'finance'
+  | 'stockItem'
+  | 'stockUnit'
+  | 'warehouse';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -176,6 +179,17 @@ const ON_HAND_SET = new Set<string>(ON_HAND_STATUSES);
 type Predicate = (role: Role | null, ctx: PolicyContext) => boolean;
 
 const allow = (set: Role[]): Predicate => (role) => has(set, role);
+/** Like `allow`, but a view-as (impersonation) session is view-only. */
+const allowUnlessViewOnly = (set: Role[]): Predicate => (role, ctx) => has(set, role) && ctx.record?.viewOnly !== true;
+
+/** Stock master data (#1512, 0412): mirrors the RLS - rank >= 20 writes, Admin deletes. UX only; RLS is the authority. */
+const stockMaster = () => ({
+  view: allow(ALL),
+  create: allowUnlessViewOnly(MASTER_DATA),
+  edit: allowUnlessViewOnly(MASTER_DATA),
+  archive: allowUnlessViewOnly(MASTER_DATA),
+  delete: allowUnlessViewOnly(ADMIN),
+});
 
 const meetingAuthorOrAdmin: Predicate = (role, ctx) => {
   if (role === 'Admin') return true;
@@ -237,6 +251,10 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     edit: allow(MASTER_DATA),
     delete: allow(MASTER_DATA),
   },
+  stockItem: stockMaster(),
+  stockUnit: stockMaster(),
+  /** `manage` = assign warehouse keepers (set_stock_warehouse_keeper is Admin only). */
+  warehouse: { ...stockMaster(), manage: allowUnlessViewOnly(ADMIN) },
   /**
    * Work-order allocations of contract lines (ADR-0091, migration 0337). Mirrors the allocation table's RLS:
    * the BoQ writer set, and only while the work order is Draft/Issued (the state trigger freezes Closed/Cancelled).

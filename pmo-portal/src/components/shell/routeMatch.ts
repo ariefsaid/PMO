@@ -262,6 +262,8 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   '/sales-invoices': 'Sales Invoices',
   '/incoming-payments': 'Incoming Payments',
   '/revenue-by-project': 'Revenue by Project',
+  // #1512 S1: stock master data. Routable by URL before S3 adds the Stock rail item; the title keeps the topbar off "Not found".
+  '/stock/setup': 'Stock setup',
 };
 
 /**
@@ -456,6 +458,7 @@ export function breadcrumbForPath(
       '/incoming-payments': 'shell.nav.incomingPayments',
       '/revenue-by-project': 'shell.nav.revenueByProject',
       '/my-tasks': 'shell.nav.myTasks',
+      '/stock/setup': 'stock:setup.title',
     };
     const i18nKey = PLACEHOLDER_I18N_KEY[pathname];
     return i18nKey

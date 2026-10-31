@@ -101,6 +101,7 @@ const FinanceHubPage = React.lazy(() => import('./pages/finance/FinanceHub'));
 const ReceivablesPage = React.lazy(() => import('./pages/finance/ReceivablesPage'));
 const PayablesPage = React.lazy(() => import('./pages/finance/PayablesPage'));
 const ProfileSettingsPage = React.lazy(() => import('./pages/ProfileSettings'));
+const StockSetupPage = React.lazy(() => import('./pages/stock/StockSetup'));
 
 /**
  * Model B (ADR-0020, AC-IXD-PROJ-002): the legacy `/sales/:opportunityId` deep link redirects
@@ -242,6 +243,9 @@ export const appRouteConfig: RouteObject[] = [
   // Personal profile language settings (RIS slice): every signed-in user's interface-language
   //   override. Declared before the `*` catch-all so it resolves to a real route.
   { path: '/settings/profile', element: <ProfileSettingsPage /> },
+  // Stock (#1512). S1 ships only the master-data setup page; keep `/stock/setup` a static segment so it outranks a
+  //   later `/stock/:documentId`. The Rail item arrives with S3 (a nav link to nothing would be a dead link).
+  { path: '/stock/setup', element: <StockSetupPage /> },
   { path: '*', element: <NotFoundPage /> },
 ];
 

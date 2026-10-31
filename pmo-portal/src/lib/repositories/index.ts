@@ -46,6 +46,7 @@ import { incidentRepository } from './incidents';
 import { procurementRepository, procurementFilesRepository } from './procurement';
 import { revenueRepository } from './revenue';
 import { timesheetRepository } from './timesheets';
+import { stockRepository } from './stock';
 import { budgetRepository } from './budget';
 import {
   milestoneRepository,
@@ -95,6 +96,7 @@ export const repositories: Repositories = {
   milestone: milestoneRepository,
   workOrder: workOrderRepository,
   progressBilling: progressBillingRepository,
+  stock: stockRepository,
   workOrderAcceptance: workOrderAcceptanceRepository,
   procurementFiles: procurementFilesRepository,
   expenseClaim: expenseClaimRepository,

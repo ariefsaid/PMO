@@ -1,0 +1,166 @@
+{
+  "nav": "Stok",
+  "setup": {
+    "title": "Pengaturan stok",
+    "description": "Satuan, barang, gudang, dan siapa yang mengelolanya. Data induk yang dipakai seluruh organisasi.",
+    "tabsLabel": "Data induk stok",
+    "tabs": {
+      "units": "Satuan",
+      "items": "Barang",
+      "warehouses": "Gudang"
+    },
+    "showArchived": "Tampilkan yang diarsipkan",
+    "archivedBadge": "Diarsipkan",
+    "columns": {
+      "code": "Kode",
+      "name": "Nama",
+      "unit": "Satuan",
+      "wholeOnly": "Jumlah",
+      "leadTime": "Waktu tunggu",
+      "kind": "Jenis",
+      "project": "Proyek lokasi",
+      "keepers": "Penjaga gudang",
+      "status": "Status",
+      "description": "Deskripsi"
+    },
+    "wholeOnly": {
+      "whole": "Bilangan bulat",
+      "fractional": "Boleh pecahan"
+    },
+    "leadTimeDays": "hari",
+    "kinds": {
+      "central": "Pusat",
+      "site": "Lokasi proyek"
+    },
+    "noKeepers": "Belum ada penjaga",
+    "active": "Aktif",
+    "actions": {
+      "newUnit": "Satuan baru",
+      "newItem": "Barang baru",
+      "newWarehouse": "Gudang baru",
+      "edit": "Ubah",
+      "archive": "Arsipkan",
+      "restore": "Pulihkan",
+      "keepers": "Penjaga gudang",
+      "retry": "Coba lagi",
+      "close": "Tutup"
+    },
+    "form": {
+      "unit": {
+        "newTitle": "Satuan baru",
+        "editTitle": "Ubah satuan",
+        "submitNew": "Buat satuan",
+        "submitEdit": "Simpan satuan",
+        "code": "Kode",
+        "name": "Nama",
+        "wholeOnly": "Hanya bilangan bulat",
+        "wholeOnlyHelp": "Centang untuk barang yang dihitung utuh (sak, buah). Kosongkan untuk panjang, berat, dan volume.",
+        "codeRequired": "Kode wajib diisi.",
+        "nameRequired": "Nama wajib diisi."
+      },
+      "item": {
+        "newTitle": "Barang baru",
+        "editTitle": "Ubah barang",
+        "submitNew": "Buat barang",
+        "submitEdit": "Simpan barang",
+        "code": "Kode",
+        "name": "Nama",
+        "description": "Deskripsi",
+        "unit": "Satuan",
+        "unitPlaceholder": "Pilih satuan",
+        "leadTime": "Waktu tunggu (hari)",
+        "leadTimeHelp": "Opsional. Dipakai nanti untuk menyarankan batas pemesanan ulang.",
+        "codeRequired": "Kode wajib diisi.",
+        "nameRequired": "Nama wajib diisi.",
+        "unitRequired": "Pilih satuan.",
+        "leadTimeInvalid": "Isi hari bulat antara 0 dan 365."
+      },
+      "warehouse": {
+        "newTitle": "Gudang baru",
+        "editTitle": "Ubah gudang",
+        "submitNew": "Buat gudang",
+        "submitEdit": "Simpan gudang",
+        "code": "Kode",
+        "name": "Nama",
+        "kind": "Jenis",
+        "project": "Proyek lokasi",
+        "projectHelp": "Opsional. Hanya sebagai usulan awal untuk pengeluaran; tidak membatasi.",
+        "noProject": "Tanpa proyek bawaan",
+        "codeRequired": "Kode wajib diisi.",
+        "nameRequired": "Nama wajib diisi."
+      }
+    },
+    "states": {
+      "errorTitle": "Pengaturan stok gagal dimuat",
+      "errorSub": "Permintaan gagal. Periksa koneksi Anda lalu coba lagi.",
+      "emptyUnits": {
+        "title": "Belum ada satuan",
+        "sub": "Tambahkan satuan untuk menghitung stok, misalnya sak, meter, atau kilogram.",
+        "action": "Tambah satuan pertama"
+      },
+      "emptyItems": {
+        "title": "Belum ada barang",
+        "sub": "Tambahkan material yang Anda simpan. Setiap barang butuh satuan.",
+        "action": "Tambah barang pertama"
+      },
+      "emptyWarehouses": {
+        "title": "Belum ada gudang",
+        "sub": "Tambahkan gudang pusat dan gudang lokasi proyek.",
+        "action": "Tambah gudang pertama"
+      },
+      "readOnlyHint": "Anda dapat melihat pengaturan stok. Manajer Proyek ke atas dapat mengubahnya."
+    },
+    "confirm": {
+      "archiveTitle": "Arsipkan data ini?",
+      "archiveDescription": "Data tidak muncul lagi di dokumen baru. Riwayat tetap ada. Barang yang masih ada stoknya tidak bisa diarsipkan.",
+      "archiveConfirm": "Arsipkan"
+    },
+    "toast": {
+      "created": "Dibuat",
+      "updated": "Tersimpan",
+      "archived": "Diarsipkan",
+      "restored": "Dipulihkan",
+      "keeperAssigned": "Penjaga gudang ditetapkan",
+      "keeperRemoved": "Penjaga gudang dihapus",
+      "failed": "Gagal menyimpan"
+    },
+    "keepersPanel": {
+      "title": "Penjaga gudang",
+      "subtitle": "Penjaga gudang memposting penerimaan, transfer, dan pengeluaran untuk gudang ini.",
+      "empty": "Tidak ada anggota aktif untuk ditetapkan.",
+      "toggleLabel": "Penjaga",
+      "close": "Selesai"
+    }
+  },
+  "kinds": {
+    "receive": "Penerimaan",
+    "transfer": "Transfer",
+    "issue": "Pengeluaran ke proyek",
+    "return": "Pengembalian dari proyek",
+    "adjustment": "Penyesuaian",
+    "count": "Stok opname"
+  },
+  "empty": {
+    "noStock": "Belum ada stok"
+  },
+  "errors": {
+    "STK_INSUFFICIENT": "Stok tidak cukup untuk pergerakan ini.",
+    "STK_NOT_KEEPER": "Hanya penjaga gudang ini yang dapat melakukannya.",
+    "STK_OWNED_BY_ERP": "Stok dikelola di sistem akuntansi Anda, jadi tidak bisa diubah di sini.",
+    "STK_SELF_APPROVE": "Anda tidak dapat menyetujui penyesuaian Anda sendiri.",
+    "STK_RANK": "Peran Anda tidak diizinkan melakukan ini.",
+    "STK_PROJECT_NOT_ACTIVE": "Proyek tidak aktif, sehingga stok tidak bisa dikeluarkan ke proyek ini.",
+    "STK_BOQ_MISMATCH": "Item pekerjaan itu bukan milik proyek ini.",
+    "STK_RETURN_EXCEEDS": "Pengembalian tidak boleh melebihi jumlah yang dikeluarkan.",
+    "STK_ARCHIVED": "Data ini sudah diarsipkan.",
+    "STK_FRACTION": "Satuan ini hanya menerima bilangan bulat.",
+    "STK_BACKDATE": "Tanggal terlalu jauh ke belakang atau di masa depan.",
+    "STK_HAS_STOCK": "Stok masih ada, jadi tidak bisa diarsipkan.",
+    "STK_UNIT_LOCKED": "Satuan ini sudah dipakai dokumen stok, jadi tidak bisa diubah.",
+    "STK_INVALID": "Sebagian isian tidak valid.",
+    "STK_NOT_FOUND": "Data itu tidak ditemukan di organisasi Anda.",
+    "STK_TOO_MANY": "Terlalu banyak baris untuk ditampilkan. Persempit filter.",
+    "STK_KIND_UNAVAILABLE": "Jenis dokumen ini belum tersedia.",
+    "STK_IMMUTABLE": "Dokumen yang sudah diposting atau dibatalkan tidak bisa diubah."
+  }
+}

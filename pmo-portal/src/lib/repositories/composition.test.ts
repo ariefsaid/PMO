@@ -145,7 +145,12 @@ describe('composition — every aggregate member is wired to its domain implemen
       const repo = repositories[member as keyof Repositories] as unknown as Record<string, unknown>;
       expect(Object.keys(repo as Record<string, unknown>).length, member).toBeGreaterThan(0);
       for (const [method, impl] of Object.entries(repo)) {
-        expect(typeof impl, `${member}.${method}`).toBe('function');
+        // `stock` nests its methods one level down (`stock.master.*`); check those leaves.
+        const leaves = typeof impl === 'object' && impl !== null ? Object.entries(impl) : [[method, impl]];
+        expect(leaves.length, `${member}.${method}`).toBeGreaterThan(0);
+        for (const [leaf, fn] of leaves) {
+          expect(typeof fn, `${member}.${method}.${leaf}`).toBe('function');
+        }
       }
     }
   });

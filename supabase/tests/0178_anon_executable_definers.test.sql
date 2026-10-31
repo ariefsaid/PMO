@@ -114,6 +114,10 @@
 -- supabase/tests/procurement_header_requester.test.sql exercises its contract and ACL.
 -- Anonymous grants remain subject to the sweep even for retained names.
 --
+-- ⚑ AMENDED BY 0412 (#1512): `set_stock_warehouse_keeper` joins the retained set (+1, count 89). A SECURITY
+-- DEFINER writer (the keeper table has no client write grant); its body gates on active membership, org and
+-- Admin rank; supabase/tests/stock_master_data.test.sql proves the contract.
+--
 -- The budget import and procurement import-run commands retain authenticated access;
 -- their owning proofs are 0397_budget_import_protocol.test.sql and
 -- 0399_procurement_import_identity_authority.test.sql. Atomic draft creation is
@@ -220,6 +224,7 @@ insert into client_callable_rpc_names (proname) values
   ('set_project_contract_value'),
   ('set_sales_invoice_efaktur'),
   ('set_sales_invoice_received_date'),
+  ('set_stock_warehouse_keeper'),
   ('set_vendor_tax_defaults'),
   ('set_work_order_value'),
   ('start_procurement_import_run'),
@@ -256,8 +261,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  88,
-  'AC-ACL-002 all 88 retained client-callable RPC names still have a public function');
+  89,
+  'AC-ACL-002 all 89 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -266,8 +271,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  88,
-  'AC-ACL-003 all 88 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  89,
+  'AC-ACL-003 all 89 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
