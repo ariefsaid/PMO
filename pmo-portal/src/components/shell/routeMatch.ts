@@ -289,6 +289,8 @@ export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
   '/stock/new/transfer': '/stock',
   '/stock/new/issue': '/stock',
   '/stock/new/return': '/stock',
+  '/stock/new/count': '/stock',
+  '/stock/new/adjustment': '/stock',
 };
 
 /** Finance record routes remain addressable while their list parent is the Receivables area. */
@@ -305,6 +307,8 @@ const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }> = {
   '/stock/new/transfer': { label: 'Transfer', i18nKey: 'stock:kinds.transfer' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/new/issue': { label: 'Issue to project', i18nKey: 'stock:kinds.issue' }, // i18n-exempt: fallback label is replaced from i18nKey at render
   '/stock/new/return': { label: 'Return from project', i18nKey: 'stock:kinds.return' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/new/count': { label: 'Stock count', i18nKey: 'stock:kinds.count' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+  '/stock/new/adjustment': { label: 'Adjustment', i18nKey: 'stock:kinds.adjustment' }, // i18n-exempt: fallback label is replaced from i18nKey at render
 };
 
 /** Canonical Administration child routes and their route-derived breadcrumb labels (English source). */

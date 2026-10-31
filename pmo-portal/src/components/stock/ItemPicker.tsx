@@ -20,8 +20,10 @@ export const ItemPicker: React.FC<ItemPickerProps> = ({ label, value, onChange, 
     if (items.error) throw items.error;
     return (items.data ?? []).filter((i) => !i.archived_at).map((i) => ({ value: i.id, label: `${i.code} - ${i.name}` }));
   }, [items.data, items.error]);
+  const picked = value ? (items.data ?? []).find((i) => i.id === value) : undefined;
   return (
     <Combobox
+      selectedOption={picked ? { value: picked.id, label: `${picked.code} - ${picked.name}` } : null}
       id={id}
       label={label}
       required={required}

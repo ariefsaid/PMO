@@ -140,6 +140,7 @@ describe('StockCount', () => {
     renderAt('/stock/documents/d1/edit');
     const counted = await screen.findByLabelText(/^Counted/);
     expect(counted).toHaveValue('92');
+    expect(await screen.findByRole('combobox', { name: /^Item/ })).toHaveTextContent('CAB - Cable 4mm'); // the reopened line names its item
     await userEvent.clear(counted);
     await userEvent.type(counted, '100');
     await userEvent.click(await screen.findByRole('button', { name: 'Post count' }));
