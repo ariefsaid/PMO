@@ -59,19 +59,7 @@ describe('erpnext/dispatchFactory', () => {
     expect(adapter.tier).toBe(ERPNEXT_TIER);
   });
 
-  it('throws BINDING_NOT_ACTIVATED/config-rejected when activated_at is null (a version mismatch or never-activated binding)', async () => {
-    const row = { ...ACTIVATED_ROW, activated_at: null };
-    await expect(
-      resolveErpDispatchAdapter({
-        serviceClient: serviceClientReturning(row),
-        orgId: 'org-1',
-        command: { domain: 'procurement', operation: 'create', record: { id: 'pmo-1', erp_doc_kind: 'purchase-order' } },
-        fetchImpl: vi.fn() as unknown as typeof fetch,
-        apiKey: 'k',
-        apiSecret: 's',
-      }),
-    ).rejects.toMatchObject({ code: 'config-rejected' });
-  });
+  // A binding with `activated_at === null` is refused `config-rejected` before any ERP call: shared `cutover.activation` suite.
 
   it('throws when no binding row exists for the org', async () => {
     await expect(
