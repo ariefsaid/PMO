@@ -17,8 +17,13 @@ const env = installEdgeEnv();
 const auth = await createJwtAuthority(env.SUPABASE_URL);
 setTestJwks(createTestJwksResolver(auth));
 // Unpaced: discovery's ~60 calls at 5 per second would make every case take seconds.
-Deno.env.set('ODOO_PACE_RPS', '100000');
-afterAll(() => { env.restore(); Deno.env.delete('ODOO_PACE_RPS'); });
+// The pacer can only slow a client down, so tests skip its waits by firing timers at once.
+const realSetTimeout = globalThis.setTimeout;
+globalThis.setTimeout = ((fn: () => void) => { queueMicrotask(fn); return 0; }) as unknown as typeof setTimeout;
+let clockSkewMs = 0;
+const realNow = Date.now;
+Date.now = () => realNow() + clockSkewMs;
+afterAll(() => { env.restore(); globalThis.setTimeout = realSetTimeout; Date.now = realNow; });
 
 const ODOO = 'odoo.example.test';
 const KEY = 'stored-odoo-key';
@@ -26,12 +31,14 @@ const one = (body: unknown) => jsonResponse(body, { headers: { 'content-type': '
 const none = () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } });
 const pgError = (message: string) => jsonResponse({ code: 'P0001', message, details: null, hint: null }, { status: 400 });
 
-interface Opts { role?: string; operator?: boolean; active?: boolean; activate?: () => Response; binding?: Record<string, unknown>; version?: number | null; prepare?: (fake: FakeOdoo) => void }
+interface Opts { role?: string; operator?: boolean; active?: boolean; activate?: () => Response; binding?: Record<string, unknown>; version?: number | null; rateOk?: boolean; skewAfterCalls?: number; prepare?: (fake: FakeOdoo) => void }
 function setup(o: Opts = {}) {
   const fake = createFakeOdoo({ key: KEY });
   fake.seed('res.company', [{ id: 1, name: 'Main Co' }, { id: 2, name: 'Second Co' }]);
   fake.seed('account.tax', [{ id: 1, name: '12%', amount: 12, type_tax_use: 'purchase' }]);
   o.prepare?.(fake);
+  let odooN = 0;
+  clockSkewMs = 0;
   const routes: MockRoute[] = [
     supabaseSelect('profiles', () => one({ org_id: 'org-1', role: o.role ?? 'Admin' })),
     supabaseSelect('platform_operators', () => (o.operator ? one({ user_id: 'user-1' }) : none())),
@@ -40,11 +47,12 @@ function setup(o: Opts = {}) {
       site_url: `https://${ODOO}`, secret_ref: 'odoo_ref', status: 'active', activated_at: null, config: { database: 'db1' } })),
     supabaseRpc('read_vault_secret', () => jsonResponse(KEY)),
     { label: 'odoo-json2', host: ODOO, pathname: /^\/json\/2\//,
-      response: (c: FetchCall) => fake.fetch(c.url.toString(), { method: 'POST', headers: { Authorization: c.headers.get('authorization') ?? '' }, body: c.bodyText }) },
+      response: (c: FetchCall) => (o.skewAfterCalls !== undefined && ++odooN >= o.skewAfterCalls && (clockSkewMs = 200_000), fake.fetch(c.url.toString(), { method: 'POST', headers: { Authorization: c.headers.get('authorization') ?? '' }, body: c.bodyText })) },
     { label: 'odoo-version', host: ODOO, pathname: '/web/webclient/version_info',
       response: () => jsonResponse({ result: { server_version_info: [o.version === undefined ? 20 : o.version, 0, 0, 'final', 0, ''] } }) },
     supabaseRpc('merge_external_org_binding_config', () => jsonResponse(null)),
     supabaseRpc('log_audit', () => jsonResponse(null)),
+    supabaseRpc('rate_limit_hit', () => jsonResponse(o.rateOk ?? true)),
     supabaseRpc('activate_odoo_binding', () => (o.activate ? o.activate() : jsonResponse('2026-11-01T00:00:00+00:00'))),
   ];
   return { fake, routes };
@@ -262,5 +270,41 @@ describe('external-set-company — Odoo recheck (FR-ODC-020, FR-ODC-031)', () =>
   it('FR-ODC-020 a platform operator may recheck', async () => {
     const r = await call({ setupAction: 'recheck' }, { role: 'Engineer', operator: true, binding: ACTIVATED });
     assertEquals(r.res.status, 200);
+  });
+
+  it('FR-ODC-046 a second recheck inside the window → 429, no Odoo call, nothing stored', async () => {
+    const r = await call({ setupAction: 'recheck' }, { binding: ACTIVATED, rateOk: false });
+    assertEquals(r.res.status, 429);
+    assertEquals(odooCalls(r.calls).length, 0);
+    assertEquals(merged(r.calls).length, 0);
+    assertEquals((rpcCall(r.calls, 'rate_limit_hit')[0].bodyJson as { p_key: string }).p_key, 'odoo-recheck:org-1');
+  });
+
+  it('FR-ODC-020 a discovery that outlasts its budget → 200 timeout, one failure counted, no snapshot stored', async () => {
+    const r = await call({ setupAction: 'recheck' }, { binding: ACTIVATED, skewAfterCalls: 4 });
+    assertEquals([r.res.status, r.json.errorClass], [200, 'timeout']);
+    const m = merged(r.calls);
+    assertEquals([m[0].p_patch.connection.failures, 'capabilities' in m[0].p_patch], [1, false]);
+  });
+
+  it('FR-ODC-021 a failed version probe with no earlier snapshot is a failure, never healthy', async () => {
+    const r = await call({ setupAction: 'recheck' }, { binding: { ...ACTIVATED, config: { ...ACTIVATED.config, connection: { ...ACTIVATED.config.connection, state: 'degraded' } } }, version: null });
+    assertEquals(r.json.state, 'degraded');
+    const m = merged(r.calls);
+    assertEquals([m[0].p_patch.connection.failures, 'capabilities' in m[0].p_patch], [1, false]);
+  });
+
+  it('FR-ODC-021 a failed version probe keeps the earlier snapshot version', async () => {
+    const config = { ...ACTIVATED.config, capabilities: { version_major: 20, missing: [] } };
+    const r = await call({ setupAction: 'recheck' }, { binding: { ...ACTIVATED, config }, version: null });
+    assertEquals([r.json.state, merged(r.calls)[0].p_patch.capabilities?.version_major], ['healthy', 20]);
+  });
+});
+
+describe('external-set-company — Odoo activation deadline', () => {
+  it('FR-ODC-021 discovery outlasting its budget at activation → "Odoo is slow", nothing activated', async () => {
+    const r = await call({ companyId: 1 }, { skewAfterCalls: 6 });
+    assertEquals([r.res.status, r.json.error, r.json.message], [502, 'timeout', 'Odoo is slow, try again']);
+    assertEquals(rpcCall(r.calls, 'activate_odoo_binding').length, 0);
   });
 });

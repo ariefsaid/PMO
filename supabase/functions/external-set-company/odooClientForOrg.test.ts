@@ -157,3 +157,20 @@ Deno.test('FR-ODC-030 a failed config write is an error, not a silent probe', as
     });
   } finally { env.restore(); }
 });
+
+Deno.test('FR-ODC-046 ODOO_PACE_RPS can lower the rate but never raise it above the plan cap', async () => {
+  const waits: number[] = [];
+  const realSetTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = ((fn: () => void, ms?: number) => { waits.push(ms ?? 0); queueMicrotask(fn); return 0; }) as unknown as typeof setTimeout;
+  try {
+    for (const [rps, expectedGap] of [['100000', 200], ['-1', 200], ['1', 1000]] as const) {
+      Deno.env.set('ODOO_PACE_RPS', rps);
+      waits.length = 0;
+      const { result } = await resolve(ACTIVE, 'k');
+      if (!('client' in result)) fail('resolver refused');
+      await result.client.pace!();
+      await result.client.pace!();
+      assert(waits.length === 1 && waits[0] > expectedGap - 50 && waits[0] <= expectedGap, `rps ${rps}: waited ${waits}`);
+    }
+  } finally { Deno.env.delete('ODOO_PACE_RPS'); globalThis.setTimeout = realSetTimeout; }
+});

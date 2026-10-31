@@ -5,17 +5,25 @@
 import { bindCall, OdooError } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import { fetchOdooVersionMajor } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/connect.ts';
 import type { ProbeOutcome } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/connectionState.ts';
-import { discoverCapabilities, type CapabilitySnapshot } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/discovery.ts';
+import { discoverCapabilities, DISCOVERY_BUDGET_MS, type CapabilitySnapshot } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/discovery.ts';
+import { checkRequestRate } from '../../_shared/requestRateGuard.ts';
 import { odooClientForOrg, recordOdooProbe } from '../../_shared/odooClientForOrg.ts';
 import { odooError, type OdooCtx } from './router.ts';
 
 export async function recheck(c: OdooCtx): Promise<Response> {
+  // One probe per org per minute: concurrent rechecks would multiply the request rate against Odoo.
+  const rate = await checkRequestRate(c.sc as never, { key: `odoo-recheck:${c.orgId}`, limit: 1, windowSecs: 60 });
+  if (rate.exceeded) return odooError(c, 'A check just ran. Try again in a minute.', 'RATE_LIMITED', 429);
   const r = await odooClientForOrg(c.sc, c.orgId);
   if ('refusal' in r) return odooError(c, 'The Odoo connection is not usable', r.refusal, 422);
   let outcome: ProbeOutcome;
   let snapshot: CapabilitySnapshot | undefined;
   try {
-    snapshot = await discoverCapabilities(bindCall(r.client), { versionMajor: await fetchOdooVersionMajor(r.client), now: new Date() });
+    // A failed version probe falls back to the version stored at activation; with none, it is a failure, not a healthy answer.
+    const stored = (r.config.capabilities as CapabilitySnapshot | undefined)?.version_major ?? null;
+    const versionMajor = (await fetchOdooVersionMajor(r.client)) ?? stored;
+    if (versionMajor === null) throw new OdooError('unreachable');
+    snapshot = await discoverCapabilities(bindCall(r.client), { versionMajor, now: new Date(), deadlineAt: Date.now() + DISCOVERY_BUDGET_MS });
     outcome = { ok: true, missing: snapshot.missing };
   } catch (err) {
     outcome = { ok: false, errorClass: err instanceof OdooError ? err.errorClass : 'unreachable' };

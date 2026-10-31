@@ -5,7 +5,7 @@
 import { bindCall, odooCall, OdooError, type OdooClientDeps } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/client.ts';
 import { fetchOdooVersionMajor, type OdooCompany } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/connect.ts';
 import { INITIAL_CONNECTION, nextConnection } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/connectionState.ts';
-import { discoverCapabilities, versionPolicy } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/discovery.ts';
+import { discoverCapabilities, DISCOVERY_BUDGET_MS, versionPolicy } from '../../../../pmo-portal/src/lib/adapterSeam/odoo/discovery.ts';
 import { odooClientForOrg } from '../../_shared/odooClientForOrg.ts';
 import { odooError, type OdooCtx } from './router.ts';
 
@@ -40,9 +40,10 @@ export async function activate(c: OdooCtx): Promise<Response> {
   // FR-ODC-020/021: activation stores the first capability snapshot and the state it implies, in the same write.
   let capabilities;
   try {
-    capabilities = await discoverCapabilities(bindCall(read.client), { versionMajor, now: new Date() });
+    capabilities = await discoverCapabilities(bindCall(read.client), { versionMajor, now: new Date(), deadlineAt: Date.now() + DISCOVERY_BUDGET_MS });
   } catch (err) {
-    return odooError(c, 'Odoo did not answer', err instanceof OdooError ? err.errorClass : 'unreachable', 502);
+    const errorClass = err instanceof OdooError ? err.errorClass : 'unreachable';
+    return odooError(c, errorClass === 'timeout' ? 'Odoo is slow, try again' : 'Odoo did not answer', errorClass, 502);
   }
   const keyExpiresOn = typeof read.config.key_expires_on === 'string' ? read.config.key_expires_on : null;
   const connection = nextConnection(INITIAL_CONNECTION, { ok: true, missing: capabilities.missing }, { now: new Date(), keyExpiresOn, activated: true, disconnected: false });

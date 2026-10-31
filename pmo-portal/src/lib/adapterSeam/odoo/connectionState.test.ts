@@ -58,16 +58,22 @@ describe('odoo/connectionState — AC-ODC-013', () => {
   });
 });
 
-describe('odoo/connectionState — AC-ODC-015 displayed state (FR-ODC-034)', () => {
+describe('odoo/connectionState — FR-ODC-034 displayed state', () => {
   const at = (minutesAgo: number) => new Date(NOW.getTime() - minutesAgo * 60_000).toISOString();
   const rec = (state: ConnectionRecord['state'], minutesAgo: number | null): ConnectionRecord =>
     ({ ...INITIAL_CONNECTION, state, last_checked_at: minutesAgo === null ? null : at(minutesAgo) });
 
-  it.each(['healthy', 'credential-expiring', 'degraded'] as const)('AC-ODC-015 an 11-minute-old %s shows unverified', (s) =>
-    expect(displayedConnection(rec(s, 11), NOW)).toBe('unverified'));
+  const LIVE = { status: 'active', activated: true };
+  it.each(['disconnected', 'pending'])('FR-ODC-034 a %s binding never shows a stored healthy state', (status) =>
+    expect(displayedConnection(rec('healthy', 1), NOW, { status, activated: true })).toBe('disconnected'));
+  it('FR-ODC-034 an active binding that is not activated shows not-activated, not a stored healthy', () =>
+    expect(displayedConnection(rec('healthy', 1), NOW, { status: 'active', activated: false })).toBe('not-activated'));
 
-  it('AC-ODC-015 a 9-minute-old healthy still shows healthy', () => expect(displayedConnection(rec('healthy', 9), NOW)).toBe('healthy'));
-  it('AC-ODC-015 a healthy never checked shows unverified', () => expect(displayedConnection(rec('healthy', null), NOW)).toBe('unverified'));
-  it('AC-ODC-015 a stale problem state is still shown as that problem', () => expect(displayedConnection(rec('unreachable', 60), NOW)).toBe('unreachable'));
-  it('AC-ODC-015 no record shows not-activated', () => expect(displayedConnection(null, NOW)).toBe('not-activated'));
+  it.each(['healthy', 'credential-expiring', 'degraded'] as const)('FR-ODC-034 an 11-minute-old %s shows unverified', (s) =>
+    expect(displayedConnection(rec(s, 11), NOW, LIVE)).toBe('unverified'));
+
+  it('FR-ODC-034 a 9-minute-old healthy still shows healthy', () => expect(displayedConnection(rec('healthy', 9), NOW, LIVE)).toBe('healthy'));
+  it('FR-ODC-034 a healthy never checked shows unverified', () => expect(displayedConnection(rec('healthy', null), NOW, LIVE)).toBe('unverified'));
+  it('FR-ODC-034 a stale problem state is still shown as that problem', () => expect(displayedConnection(rec('unreachable', 60), NOW, LIVE)).toBe('unreachable'));
+  it('FR-ODC-034 no record shows not-activated', () => expect(displayedConnection(null, NOW, LIVE)).toBe('not-activated'));
 });

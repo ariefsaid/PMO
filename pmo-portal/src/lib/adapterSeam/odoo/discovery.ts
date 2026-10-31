@@ -65,7 +65,17 @@ async function probeModel(call: OdooCall, model: string, fields: readonly string
   return { exists: true, ...access, fields_missing: fields.filter((f) => !(f in got)) };
 }
 
-export async function discoverCapabilities(call: OdooCall, ctx: { versionMajor: number | null; now: Date }): Promise<CapabilitySnapshot> {
+/** Discovery's whole-run budget: well inside the edge function's 150 s limit, so a slow Odoo is a `timeout`, not a 504. */
+export const DISCOVERY_BUDGET_MS = 110_000;
+
+export async function discoverCapabilities(
+  rawCall: OdooCall,
+  ctx: { versionMajor: number | null; now: Date; deadlineAt?: number },
+): Promise<CapabilitySnapshot> {
+  const call: OdooCall = (model, method, body) => {
+    if (ctx.deadlineAt !== undefined && Date.now() > ctx.deadlineAt) throw new OdooError('timeout');
+    return rawCall(model, method, body);
+  };
   const models: Record<string, ModelProbe> = {};
   for (const [model, fields] of Object.entries(O1_MODELS)) models[model] = await probeModel(call, model, fields, true);
   const later: Record<string, boolean> = {};
