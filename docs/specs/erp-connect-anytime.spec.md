@@ -2,7 +2,7 @@
 
 - **Status:** Draft for owner sign-off (2026-10-31). Owner requirements of 2026-10-31 (connect anytime, parity, no
   friction) are binding inputs; the defaults in §0 apply until the owner answers.
-- **Map:** #1442. Gap slices are filed there (§9). Odoo builds O1–O8 (#1504–#1511) must satisfy §6 and the rows
+- **Map:** #1442. Gap slices #1600–#1607 are filed there (§9). Odoo builds O1–O8 (#1504–#1511) must satisfy §6 and the rows
   marked *Odoo* in §9.
 - **Grounds (read, not re-derived):** ADR-0055 (adapters, SoT, §5A crossing and epoch), ADR-0059 (Posture A/B,
   never-adopt, derived keys), ADR-0058 (outbox), ADR-0094 (PMO as the only interface; ERP owns ledger, tax, bills,
@@ -353,14 +353,14 @@ Layers: **U** Vitest · **D** Deno edge-function test (shipped handler, `fetch` 
 
 | Slice | Contents | ACs | Applies to | Executor | Issue |
 |---|---|---|---|---|---|
-| **ECA-1** Fix party bring-in at connect | onboarding match branch updates instead of inserting; per-party outcomes (one review row does not abort the run); sweep bring-in runs the match before inserting | 005, 006 | ERPNext now | Orca worker; `security-auditor` (service-role writers) | filed |
-| **ECA-2** Shared matcher, census and one-pass setup | `connect/match.ts`, `census.ts`; one setup screen per kind with accept-all; parties, projects, items, employees, category→account move onto it; project "link" stops creating on no-match (send is explicit) | 001–004, 007 | ERPNext now; Odoo O1 reuses | Orca UI worker (impeccable, taste, ui-ux-pro-max) after a 30-second owner sketch glance | filed |
-| **ECA-3** Send PMO masters to the ERP | `ConnectAdapter.sendMaster` for ERPNext; outbox with `seed:` keys; lookup-before-create; account setup task | 010–012 | ERPNext now; Odoo O1 (partners, cost accounts), O7 (employees) | Director-dispatched (outbox) | filed |
-| **ECA-4** Cut-over for records in flight | later steps of pre-cut-over purchases, payments and claims not sent and labelled; employ guards for procurement and expenses | 020, 021 | ERPNext now; Odoo O2, O6; inventory #1508 | Director-dispatched (money) | filed |
-| **ECA-5** Pair PMO and ERP invoices | pair proposal, bulk accept, count-once in revenue figures | 030 | ERPNext now; Odoo O3 | Director-dispatched (money) | filed |
-| **ECA-6** Existing ERP budget | *use as draft* / *replace* actions on the refused push | 031 | ERPNext now; Odoo O4 decides | Director-dispatched (money) | filed |
-| **ECA-7** Workflow registry and shared contract suite | `workflows.ts`, `contractSuite/*`, ERPNext harness; move existing behaviour tests for party, project, budget-occupant and cut-over into suites; parity and tier-branch guards | 040–043 | ERPNext now; **every Odoo slice from O1 registers and runs it** | Orca worker | filed |
-| **ECA-8** Scenario acceptance on the bed | S-C and S-D served journeys | 050, 051 | ERPNext now; Odoo S9 of #1504 adds its bed run | Orca worker (qa-acceptance) | filed |
+| **ECA-1** Fix party bring-in at connect | onboarding match branch updates instead of inserting; per-party outcomes (one review row does not abort the run); sweep bring-in runs the match before inserting | 005, 006 | ERPNext now | Orca worker; `security-auditor` (service-role writers) | #1600 |
+| **ECA-2** Shared matcher, census and one-pass setup | `connect/match.ts`, `census.ts`; one setup screen per kind with accept-all; parties, projects, items, employees, category→account move onto it; project "link" stops creating on no-match (send is explicit) | 001–004, 007 | ERPNext now; Odoo O1 reuses | Orca UI worker (impeccable, taste, ui-ux-pro-max) after a 30-second owner sketch glance | #1605 |
+| **ECA-3** Send PMO masters to the ERP | `ConnectAdapter.sendMaster` for ERPNext; outbox with `seed:` keys; lookup-before-create; account setup task | 010–012 | ERPNext now; Odoo O1 (partners, cost accounts), O7 (employees) | Director-dispatched (outbox) | #1606 |
+| **ECA-4** Cut-over for records in flight | later steps of pre-cut-over purchases, payments and claims not sent and labelled; employ guards for procurement and expenses | 020, 021 | ERPNext now; Odoo O2, O6; inventory #1508 | Director-dispatched (money) | #1601 |
+| **ECA-5** Pair PMO and ERP invoices | pair proposal, bulk accept, count-once in revenue figures | 030 | ERPNext now; Odoo O3 | Director-dispatched (money) | #1602 |
+| **ECA-6** Existing ERP budget | *use as draft* / *replace* actions on the refused push | 031 | ERPNext now; Odoo O4 decides | Director-dispatched (money) | #1603 |
+| **ECA-7** Workflow registry and shared contract suite | `workflows.ts`, `contractSuite/*`, ERPNext harness; move existing behaviour tests for party, project, budget-occupant and cut-over into suites; parity and tier-branch guards | 040–043 | ERPNext now; **every Odoo slice from O1 registers and runs it** | Orca worker | #1604 |
+| **ECA-8** Scenario acceptance on the bed | S-C and S-D served journeys | 050, 051 | ERPNext now; Odoo S9 of #1504 adds its bed run | Orca worker (qa-acceptance) | #1607 |
 
 Order: ECA-1 and ECA-7 first (independent); ECA-2 after ECA-1; ECA-3 after ECA-2; ECA-4..6 independent of each
 other after ECA-7; ECA-8 last.
