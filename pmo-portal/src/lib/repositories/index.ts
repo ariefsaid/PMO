@@ -294,6 +294,7 @@ import {
 import {
   listOwnOrgFeatures,
   toggleOrgFeature,
+  setFeedbackSurveys,
   getOrgCreditBalance,
   grantOrgCredits,
 } from '@/src/lib/db/orgFeatures';
@@ -1074,6 +1075,7 @@ const userView: UserViewRepository = {
 const orgFeature: OrgFeatureRepository = {
   listOwn: () => wrap(() => listOwnOrgFeatures()),
   toggle: (args) => wrap(() => toggleOrgFeature(args)),
+  setFeedbackSurveys: (enabled) => wrap(() => setFeedbackSurveys(enabled)),
 };
 
 /**
