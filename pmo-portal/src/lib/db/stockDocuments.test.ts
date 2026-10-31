@@ -51,6 +51,35 @@ describe('stockDocuments DAL', () => {
     expect(h.rpc.mock.calls.map((c) => (c as unknown as [string])[0])).toEqual(['save_stock_draft', 'post_stock_document', 'cancel_stock_document']);
   });
 
+  it('FR-STK-025 a count payload maps countedQuantity to counted_quantity and keeps an optional unit cost', async () => {
+    h.queue.push({ data: 'doc-c', error: null });
+    await createStockDocument({ kind: 'count', warehouseId: 'w1', lines: [{ itemId: 'i1', countedQuantity: '0' }, { itemId: 'i2', countedQuantity: '5', unitCost: '40' }] },
+      { post: false, clientRequestId: 'r' });
+    expect(h.rpc).toHaveBeenCalledWith('create_stock_document', {
+      p_header: { kind: 'count', warehouse_id: 'w1' },
+      p_lines: [{ item_id: 'i1', counted_quantity: '0' }, { item_id: 'i2', counted_quantity: '5', unit_cost: '40' }], p_post: false, p_client_request_id: 'r',
+    });
+  });
+
+  it('FR-STK-024 an adjustment maps the reason to the header and the direction to each line', async () => {
+    h.queue.push({ data: 'doc-a', error: null });
+    await createStockDocument({ kind: 'adjustment', warehouseId: 'w1', reason: 'damaged', lines: [{ itemId: 'i1', quantity: '2', direction: 'out' }] },
+      { post: false, clientRequestId: 'r' });
+    expect(h.rpc).toHaveBeenCalledWith('create_stock_document', {
+      p_header: { kind: 'adjustment', warehouse_id: 'w1', reason: 'damaged' },
+      p_lines: [{ item_id: 'i1', quantity: '2', direction: 'out' }], p_post: false, p_client_request_id: 'r',
+    });
+  });
+
+  it('FR-STK-011 saveStockDraft sends the same count and adjustment shapes as create', async () => {
+    await saveStockDraft('d1', { kind: 'count', warehouseId: 'w1', lines: [{ itemId: 'i1', countedQuantity: '92' }] });
+    await saveStockDraft('d2', { kind: 'adjustment', warehouseId: 'w1', reason: 'found', lines: [{ itemId: 'i1', quantity: '3', direction: 'in', unitCost: '60' }] });
+    expect(h.rpc).toHaveBeenNthCalledWith(1, 'save_stock_draft', { p_document_id: 'd1', p_header: { kind: 'count', warehouse_id: 'w1' }, p_lines: [{ item_id: 'i1', counted_quantity: '92' }] });
+    expect(h.rpc).toHaveBeenNthCalledWith(2, 'save_stock_draft', {
+      p_document_id: 'd2', p_header: { kind: 'adjustment', warehouse_id: 'w1', reason: 'found' }, p_lines: [{ item_id: 'i1', quantity: '3', unit_cost: '60', direction: 'in' }],
+    });
+  });
+
   it('a failed create throws an AppError carrying the stable code message', async () => {
     h.queue.push({ data: null, error: { message: 'STK_INSUFFICIENT: item CEM: available 5, requested 6', code: 'P0001', details: '{"available":"5","requested":"6"}' } });
     await expect(createStockDocument({ kind: 'issue', warehouseId: 'w', lines: [] }, { post: true, clientRequestId: 'r' })).rejects.toMatchObject({ code: 'P0001', details: '{"available":"5","requested":"6"}' });
