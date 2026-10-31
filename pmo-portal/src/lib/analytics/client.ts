@@ -350,17 +350,27 @@ export const analyticsClient = {
       if (!initialized || !activeConfig?.enabled || readOptOut()) return false;
       return posthog.canRenderSurvey(id)?.visible === true;
     },
-    /** Render survey `id` into the element matching `selector`; `properties` ride on the answer event. */
-    render(id: string, selector: string, properties: SafeProperties) {
+    /**
+     * Show survey `id` as PostHog's own popover (its chrome records shown / sent / dismissed and the
+     * 30-day wait). `properties` ride on the answer event; `nextTo` anchors it beside an element.
+     * Eligibility (wait period, targeting) is checked by the caller via `canRender` for prompted surveys.
+     */
+    show(id: string, properties: SafeProperties, nextTo?: string) {
       if (!initialized || !activeConfig?.enabled || readOptOut()) return;
-      // The shipped SDK takes the properties as a third argument; the published typings omit it.
-      (posthog.renderSurvey as (id: string, selector: string, properties?: SafeProperties) => void)(id, selector, properties);
+      // The shipped SDK has `displaySurvey`; the published typings omit it.
+      (posthog as unknown as { displaySurvey: (id: string, o: object) => void }).displaySurvey(id, {
+        displayType: 'popover',
+        ignoreConditions: true,
+        ignoreDelay: true,
+        properties,
+        ...(nextTo ? { position: 'next_to_trigger', selector: nextTo } : {}),
+      });
     },
-    /** Calls `cb(event)` for every event the SDK captures; returns the unsubscribe. No-op when analytics is off. */
-    onCaptured(cb: (event: string) => void): () => void {
+    /** Calls `cb(event, properties)` for every event the SDK captures; returns the unsubscribe. No-op when analytics is off. */
+    onCaptured(cb: (event: string, properties: Record<string, unknown>) => void): () => void {
       if (!initialized || !activeConfig?.enabled || readOptOut()) return () => {};
-      return posthog.on('eventCaptured', (e: { event?: string }) => {
-        if (typeof e?.event === 'string') cb(e.event);
+      return posthog.on('eventCaptured', (e: { event?: string; properties?: Record<string, unknown> }) => {
+        if (typeof e?.event === 'string') cb(e.event, e.properties ?? {});
       });
     },
   },

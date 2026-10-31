@@ -9,7 +9,7 @@ const posthog = vi.hoisted(() => ({
   opt_in_capturing: vi.fn(),
   getSurveys: vi.fn(),
   canRenderSurvey: vi.fn(),
-  renderSurvey: vi.fn(),
+  displaySurvey: vi.fn(),
   on: vi.fn(),
 }));
 vi.mock('posthog-js', () => ({ default: posthog }));
@@ -61,10 +61,14 @@ describe('AC-PHO-093 survey methods', () => {
     expect(analyticsClient.surveys.canRender('s1')).toBe(false);
   });
 
-  it('render passes the container selector and the context properties through', () => {
+  it('show opens PostHog\'s own popover with the context properties; nextTo anchors it', () => {
     analyticsClient.init(config);
-    analyticsClient.surveys.render('s1', '#slot', { module: 'projects' });
-    expect(posthog.renderSurvey).toHaveBeenCalledWith('s1', '#slot', { module: 'projects' });
+    analyticsClient.surveys.show('s1', { module: 'projects' });
+    expect(posthog.displaySurvey).toHaveBeenLastCalledWith('s1', {
+      displayType: 'popover', ignoreConditions: true, ignoreDelay: true, properties: { module: 'projects' },
+    });
+    analyticsClient.surveys.show('s1', {}, '#fb');
+    expect(posthog.displaySurvey).toHaveBeenLastCalledWith('s1', expect.objectContaining({ position: 'next_to_trigger', selector: '#fb' }));
   });
 
   it('onCaptured relays captured event names and stops after unsubscribe', () => {
@@ -75,7 +79,7 @@ describe('AC-PHO-093 survey methods', () => {
     const unsubscribe = analyticsClient.surveys.onCaptured((e) => seen.push(e));
     expect(posthog.on).toHaveBeenCalledWith('eventCaptured', expect.any(Function));
     const handler = posthog.on.mock.calls[0][1] as (e: unknown) => void;
-    handler({ event: 'budget_activated' });
+    handler({ event: 'budget_activated', properties: { a: 1 } });
     handler({ nonsense: true });
     expect(seen).toEqual(['budget_activated']);
     unsubscribe();
@@ -95,9 +99,9 @@ describe('AC-PHO-093 survey methods', () => {
     analyticsClient.surveys.find('[PMO] NPS', cb2);
     expect(cb2).toHaveBeenCalledWith(null);
     expect(analyticsClient.surveys.canRender('s1')).toBe(false);
-    analyticsClient.surveys.render('s1', '#slot', {});
+    analyticsClient.surveys.show('s1', {});
     expect(posthog.getSurveys).not.toHaveBeenCalled();
-    expect(posthog.renderSurvey).not.toHaveBeenCalled();
+    expect(posthog.displaySurvey).not.toHaveBeenCalled();
   });
 });
 
