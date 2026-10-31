@@ -152,7 +152,7 @@ select set_config('stk.ci', public.create_stock_document(jsonb_build_object('kin
   jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001002','quantity',2,'unit_cost',999,'boq_item_id','15120000-0000-0000-0000-0000000000e1')), true)::text, false);
 select set_config('stk.cr', public.create_stock_document(jsonb_build_object('kind','return','warehouse_id','15120000-0000-0000-0000-000000002001'),
   jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001002','quantity',1,'unit_cost',999,
-    'source_line_id',(select id from public.stock_document_lines where document_id = current_setting('stk.ci')::uuid)))), true)::text, false);
+    'source_line_id',(select id from public.stock_document_lines where document_id = current_setting('stk.ci')::uuid))), true)::text, false);
 reset role;
 select is((select count(*)::int from public.stock_document_lines where document_id in (current_setting('stk.ci')::uuid, current_setting('stk.cr')::uuid) and unit_cost is not null), 0,
   'AC-STK-010 a client cost on an issue or return line is not stored');

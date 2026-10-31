@@ -60,7 +60,7 @@ insert into projects (id, org_id, name, status, contract_value, tax_treatment, t
 insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate) values
   ('15120000-0000-0000-0000-0000000000e9', '15120000-0000-0000-0000-000000000002', '15120000-0000-0000-0000-0000000000c9', 'X-1', 'x', 'm3', 1, 1);
 
-select plan(15);
+select plan(18);
 create function public.stk_t_rcv(p_wh uuid, p_item uuid, p_qty numeric, p_cost numeric) returns uuid language sql as $$
   select public.create_stock_document(jsonb_build_object('kind','receive','warehouse_id',p_wh),
     jsonb_build_array(jsonb_build_object('item_id',p_item,'quantity',p_qty,'unit_cost',p_cost)), true) $$;
@@ -110,9 +110,11 @@ select lives_ok($$ select public.stk_t_return('15120000-0000-0000-0000-000000002
 select throws_like($$ select public.stk_t_return('15120000-0000-0000-0000-000000002002', current_setting('stk.iss')::uuid, '15120000-0000-0000-0000-000000001002', 4) $$, 'STK_RETURN_EXCEEDS%', 'AC-STK-009 returning 4 more (cumulative 11 of 10) is refused');
 select lives_ok($$ select public.stk_t_return('15120000-0000-0000-0000-000000002002', current_setting('stk.iss')::uuid, '15120000-0000-0000-0000-000000001002', 3) $$, 'AC-STK-009 returning the last 3 posts');
 reset role;
+select is((select value_delta::text from public.stock_ledger where kind = 'return' and source_line_id = current_setting('stk.iss')::uuid and qty_delta = 7), '420.00',
+  'AC-STK-009 a partial return re-enters at the cost the issue left at (7 x 60)');
 select is((select sum(value_delta)::text from public.stock_ledger where kind = 'return' and source_line_id = current_setting('stk.iss')::uuid), '600.00',
   'AC-STK-009 the returns restore exactly the issued value (420 + 180)');
-select is((select sum(case when kind = 'issue' then -qty_delta else qty_delta end)::text from public.stock_ledger
+select is((select (-sum(qty_delta))::text from public.stock_ledger
             where project_id = '15120000-0000-0000-0000-0000000000c1' and boq_item_id = '15120000-0000-0000-0000-0000000000e1'
               and (line_id = current_setting('stk.iss')::uuid or source_line_id = current_setting('stk.iss')::uuid)), '0.000',
   'AC-STK-009 net consumption of that issue is 10 - 7 - 3 = 0');
@@ -129,5 +131,15 @@ select is((select qty_on_hand::text || '/' || value_on_hand::text from public.st
   'AC-STK-009 stock re-enters at the cost the issue left at');
 select is((select count(*)::int from public.stock_documents d where d.kind = 'return' and d.project_id is distinct from '15120000-0000-0000-0000-0000000000c1'), 0,
   'AC-STK-009 every return took its project from the cited issue, not from the client');
+-- the clamp: 1 m worth 0.05 issued, returned as ten lines of 0.1 that each round up to 0.01; cumulative value stops at 0.05, never a negative remainder
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
+select public.stk_t_rcv('15120000-0000-0000-0000-000000002003', '15120000-0000-0000-0000-000000001002', 1, 0.05);
+select set_config('stk.iss3', public.stk_t_line(public.stk_t_issue('15120000-0000-0000-0000-000000002003', '15120000-0000-0000-0000-0000000000c1', '15120000-0000-0000-0000-000000001002', 1, '15120000-0000-0000-0000-0000000000e1'))::text, false);
+select lives_ok($$ select public.create_stock_document(jsonb_build_object('kind','return','warehouse_id','15120000-0000-0000-0000-000000002003'),
+    (select jsonb_agg(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001002','quantity',0.1,'source_line_id',current_setting('stk.iss3'))) from generate_series(1, 10)), true) $$,
+  'AC-STK-009 ten partial returns that each round up still post');
+reset role;
+select is((select sum(value_delta)::text from public.stock_ledger where kind = 'return' and source_line_id = current_setting('stk.iss3')::uuid), '0.05',
+  'AC-STK-009 cumulative returned value never exceeds the issued value');
 select * from finish();
 rollback;

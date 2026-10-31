@@ -112,7 +112,7 @@ select throws_like($$ select create_stock_document(jsonb_build_object('kind','is
   jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001009','quantity',1,'boq_item_id','15120000-0000-0000-0000-0000000000e1')), true) $$,
   'STK_BOQ_MISMATCH%', 'AC-STK-019 an issue citing org A''s work item is refused');
 select throws_like($$ select create_stock_document(jsonb_build_object('kind','return','warehouse_id','15120000-0000-0000-0000-000000002009'),
-  jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001009','quantity',1,'source_line_id',current_setting('stk.aiss')))), true) $$,
+  jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001009','quantity',1,'source_line_id',current_setting('stk.aiss'))), true) $$,
   'STK_BOQ_MISMATCH%', 'AC-STK-019 a return citing org A''s issue line is refused');
 reset role;
 select is((select count(*)::int from stock_ledger where org_id = '15120000-0000-0000-0000-000000000002' and kind in ('issue','return')), 0, 'AC-STK-019 org B wrote no issue or return entry');
