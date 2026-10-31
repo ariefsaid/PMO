@@ -12,4 +12,5 @@ export const SERVER_EVENT_PRODUCERS: Record<ServerEventName, { producer: string;
   $ai_generation:   { producer: 'emitAiGeneration',       kind: 'server' },
   $ai_span:         { producer: 'emitAiSpan',             kind: 'server' },
   $ai_trace:        { producer: 'emitAiTrace',            kind: 'server' },
+  ai_eval:          { producer: 'emitAiEval',             kind: 'server' },
 };

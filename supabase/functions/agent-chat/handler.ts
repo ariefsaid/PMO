@@ -49,6 +49,7 @@ import {
 } from './persistence.ts';
 import type { PersistenceDeps, JournaledWrite, ToolJournal } from './persistence.ts';
 import { recordUsage } from '../_shared/usage.ts';
+import { createAiRunTelemetry, type AiRunTelemetry } from './aiTelemetry.ts';
 import { recordErrorEvent } from '../_shared/errorEvent.ts';
 import { compactTranscript, DEFAULT_COMPACTION } from '../_shared/transcriptCompaction.ts';
 import type { CompactionOptions } from '../_shared/transcriptCompaction.ts';
@@ -276,6 +277,21 @@ export interface HandlerDeps {
    * omitted/undefined defaults to 0 (a genuinely fresh run, no prior persisted events).
    */
   persistence?: PersistenceDeps & { journaledWrites?: JournaledWrite[]; startSeq?: number };
+  /** @internal set only by agentChatHandler (#1532 S1): per-run AI telemetry; absent => no-op. */
+  ai?: AiRunTelemetry;
+}
+
+/** Times one tool dispatch and reports it as an `$ai_span` (never throws on its own account). */
+async function timedSpan<T>(deps: HandlerDeps, name: string, input: unknown, run: () => Promise<T>): Promise<T> {
+  const t = Date.now();
+  try {
+    const out = await run();
+    deps.ai?.span(name, Date.now() - t, !!out && typeof out === 'object' && 'error' in (out as object), { input, output: out });
+    return out;
+  } catch (e) {
+    deps.ai?.span(name, Date.now() - t, true, { input, output: undefined });
+    throw e;
+  }
 }
 
 // ── ADR-0045 §3: live-context grounding hint ──────────────────────────────────
@@ -668,8 +684,10 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
   // compose_view dispatch (divergence 1) needs orgId — deputyCtx already carries it
   // (every call site builds deputyCtx with orgId set), so no separate param is needed.
   const orgId = deputyCtx.orgId;
+  deps.ai?.setOrg(orgId, deps.supabase);
   const turnStartedAt = Date.now();
-  const recordModelUsage = async (response: Awaited<ReturnType<ModelClient['create']>>, durationMs: number) => {
+  const recordModelUsage = async (response: Awaited<ReturnType<ModelClient['create']>>, durationMs: number, input?: ModelMessage[]) => {
+    deps.ai?.generation(response, durationMs, undefined, input);
     if (!deps.usage) return;
     const runIdForUsage = persist ? runId : null;
     if (deps.usage.serviceClient) {
@@ -705,13 +723,14 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       if (checkResp) {
         const checked = checkResp.finish_reason === 'stop' ? checkResp.message.content : null;
         if (typeof checked === 'string' && checked.trim()) finalText = checked;
-        await recordModelUsage(checkResp, Date.now() - checkStartedAt);
+        await recordModelUsage(checkResp, Date.now() - checkStartedAt, transcript);
       }
     }
     yield emit('assistant', { text: finalText });
   };
 
   const tools = buildTools(allowCompose ? deps.composeEnabled : false);
+  deps.ai?.setTools(tools.map((t) => `${t.function.name}: ${t.function.description.split('.')[0].slice(0, 120)}`));
   const actionByName = new Map<string, AgentAction>(BASE_ACTIONS.map((a) => [a.name, a]));
 
   /** Safe JSON parse for tool args — undefined signals a parse failure (JSON.parse never yields undefined). */
@@ -772,7 +791,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       console.log(`[agent-chat] round=${round} model_ms=${modelMs} finish=${resp.finish_reason} out_tokens=${resp.usage?.completion_tokens ?? '?'}`);
 
       // One usage ledger entry per resolved model invocation, independent of persistence.
-      await recordModelUsage(resp, modelMs);
+      await recordModelUsage(resp, modelMs, modelMessages);
 
       // A final stop draft is checked before it reaches the user. Tool commentary and truncated
       // responses retain their existing path; the check is a single tools-disabled call.
@@ -844,7 +863,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
           toolCalls.map(async (tc) => {
             const input = parseArgs(tc.function.arguments);
             const action = actionByName.get(tc.function.name)!; // guaranteed non-null by isParallelizableRead
-            const result = await dispatchAction(action, input, deputyCtx);
+            const result = await timedSpan(deps, tc.function.name, input, () => dispatchAction(action, input, deputyCtx));
             return { tc, input, result };
           }),
         );
@@ -1131,7 +1150,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
           toolResult = journaled.payload;
         } else {
           try {
-            toolResult = await dispatchActionForced(action, validation.value, deputyCtx);
+            toolResult = await timedSpan(deps, toolName, validation.value, () => dispatchActionForced(action, validation.value, deputyCtx));
           } catch {
             messages.push({
               role: 'tool',
@@ -1160,7 +1179,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       }
 
       // ── Read action (confirm:false) — dispatch immediately ─────────────────
-      const toolResult = await dispatchAction(action, toolInput, deputyCtx);
+      const toolResult = await timedSpan(deps, toolName, toolInput, () => dispatchAction(action, toolInput, deputyCtx));
 
       // ADR-0045 §1/DEC-2: query_entity's `as:'table'` hint → an inline
       // data_table widget artifact, ALONGSIDE the normal tool event (never
@@ -1210,7 +1229,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
         ],
         tools: [], // disable tools — the model MUST answer with text
       });
-      await recordModelUsage(synthResp, Date.now() - _s0);
+      await recordModelUsage(synthResp, Date.now() - _s0, messages);
       // Read ONLY the text content — never dispatch synthResp.message.tool_calls. Tools were disabled
       // (tools:[]), so a compliant model returns none; but even a non-compliant one cannot mutate state
       // here — the tool-dispatch machinery lives inside the loop we have already exited (SoD-safe).
@@ -1233,6 +1252,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       errorCode: 'UPSTREAM_ERROR',
       round: 'unknown',
     });
+    deps.ai?.generation({ model: deps.model }, 0, { code: 'UPSTREAM_ERROR', status: 502 });
     yield statusEvent('errored', { error: 'UPSTREAM_ERROR' });
   }
 }
@@ -1298,7 +1318,24 @@ export async function* agentChatHandler(
     });
   }
 
-  yield* withPersistence(agentChatHandlerInner(req, deps, runId, persist), persist, runId);
+  const ai = createAiRunTelemetry({
+    runId, threadId: req.threadId, action: deps.usageAction ?? 'chat', userId: deps.userId,
+    analytics: req.analytics, modelClient: deps.modelClient, model: deps.model,
+  });
+  const aiDeps = { ...deps, ai };
+  yield* withAiTrace(withPersistence(agentChatHandlerInner(req, aiDeps, runId, persist), persist, runId), ai);
+}
+
+/** Feeds the per-run AI telemetry from the event stream; emits the `$ai_trace` at terminal status. */
+async function* withAiTrace(inner: AsyncGenerator<AgentEvent>, ai: AiRunTelemetry): AsyncGenerator<AgentEvent> {
+  for await (const ev of inner) {
+    ai.observe(ev);
+    if (ev.type === 'status') {
+      const p = ev.payload as { status?: AgentRunStatus; error?: string } | undefined;
+      if (p?.status === 'completed' || p?.status === 'errored') ai.trace(p.status, p.status === 'errored' ? p.error : undefined);
+    }
+    yield ev;
+  }
 }
 
 async function* agentChatHandlerInner(
@@ -1576,6 +1613,7 @@ async function* handleDecision(
 ): AsyncGenerator<AgentEvent> {
   const decision = req.decision!;
   const { pendingId, verdict } = decision;
+  deps.ai?.setOrg(deputyCtx.orgId, deps.supabase);
 
   // Yield the last user message (may be a tool_result content in the replayed messages)
   const lastUserMsg = req.messages.filter((m) => m.role === 'user').at(-1);
@@ -1751,7 +1789,7 @@ async function* handleDecision(
     writeResult = journaled.payload;
   } else {
     try {
-      writeResult = await dispatchActionForced(action, validation.value, deputyCtx);
+      writeResult = await timedSpan(deps, action.name, validation.value, () => dispatchActionForced(action, validation.value, deputyCtx));
     } catch {
       // DB error during write
       messages.push({

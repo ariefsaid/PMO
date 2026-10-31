@@ -17,6 +17,43 @@ This repo is public. Evidence lives in `docs/private/` or the Director's memory;
 
 _Owned by slice S1._
 
+### Verified against live docs (2026-10-31)
+
+Source: PostHog "manual capture" reference for LLM analytics.
+
+| Event | Property | Type |
+|---|---|---|
+| `$ai_generation` | `$ai_trace_id` (required), `$ai_session_id`, `$ai_span_id`, `$ai_parent_id`, `$ai_model`, `$ai_provider` | string |
+| `$ai_generation` | `$ai_input_tokens`, `$ai_output_tokens`, `$ai_http_status` | number |
+| `$ai_generation` | `$ai_latency` (seconds), `$ai_total_cost_usd` (USD) | number |
+| `$ai_generation` | `$ai_is_error` | boolean |
+| `$ai_generation` | `$ai_input`, `$ai_output_choices` | array of `{role, content}` (demo org only here) |
+| `$ai_span` | `$ai_trace_id`, `$ai_span_id`, `$ai_parent_id`, `$ai_span_name` | string |
+| `$ai_span` | `$ai_latency`, `$ai_is_error`; `$ai_input_state` / `$ai_output_state` (demo org only here) | number, boolean, JSON |
+| `$ai_trace` | `$ai_trace_id`, `$ai_session_id`, `$ai_latency`, `$ai_is_error`; `$ai_input_state` / `$ai_output_state` | as above |
+
+Not documented by PostHog, so defined by us: the eval-result event (`ai_eval`, our own name; the docs name no external-capture event for evaluation results) and the extra keys `action`, `cached_tokens`, `reasoning_tokens`, `error_code`, `org_id`, `user_id`. Thumbs feedback in PostHog's own shape is a `survey sent` event carrying `$ai_trace_id`; that belongs to the surveys slice (S9). Until then `agent_feedback_rated` carries `run_id` and `$ai_trace_id`.
+
+### AC-PHO-007: operator check of one live run
+
+1. In a non-production session send one Assistant message that makes it call a tool.
+2. Open [PMO] AI · Cost & Quality (and LLM analytics > Traces). Expect one trace with 1 or more generations and the tool span; model, tokens, cost, latency present; **no prompt or reply text** for a non-demo org.
+3. Record date, org kind and result in the Evidence table above. Put any screenshot under `docs/private/`, never in the repo.
+
+### AC-PHO-090 and 092: demo-org text and consent checks
+
+1. Demo session, analytics on: the generation shows prompt and reply; the session replay link works; `user_id` set.
+2. Same demo session after opting out on `/privacy`: new Assistant turns carry no text, no `user_id`, no `$session_id`.
+3. A non-demo org with analytics on: `user_id` and `$session_id` set, still no text.
+
+### Alerts
+
+Cost per day and errored runs per day: see `docs/posthog-dashboards.md` S1 click-path 1. Thresholds are set after 7 days of data. Before relying on either alert, fire it once (lower the threshold temporarily) and confirm the destination receives it (an alert never proven to fire is a silent false signal).
+
+### Online-eval notes
+
+The judge runs inside `agent-chat` after the run completes, using the deployed (non-Claude) model, and costs one small model call per judged run (demo org: every run; other orgs: 1 in 4). It is not metered into `agent_usage` or credits. If the cost tile shows it matters, change `REAL_ORG_SAMPLE_MOD` in `agent-chat/aiJudge.ts`.
+
 ## S2 Alerts and source maps
 
 _Owned by slice S2._

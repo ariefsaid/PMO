@@ -180,4 +180,14 @@ describe('Privacy page', () => {
     b.unmount();
     expect(htmlA).toBe(htmlB);
   });
+
+  it('AC-PHO-094: discloses operational telemetry, the consent-gated user tag, and demo-only prompt capture', () => {
+    renderPrivacy();
+    const text = document.body.textContent ?? '';
+    expect(text).toContain('operational telemetry');
+    expect(text).toContain('not linked to your account');
+    expect(text).toContain('turning analytics off removes that tag');
+    expect(text).toContain('public product-demonstration site only');
+    expect(text).toContain('never applies to your live account');
+  });
 });
