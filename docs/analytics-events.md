@@ -287,3 +287,37 @@ provisioned tile depends on an event with no real call site (see `src/lib/analyt
 — the CI gate that generalises the two friction-event fixes above (ADR-0067).
 
 Do not add PostHog management API tokens or paid Group Analytics beyond what's already provisioned.
+
+---
+
+# Operational (server) events and business events (#1532)
+
+Server-emitted operational events follow [ADR-0096](adr/0096-server-operational-telemetry-vs-consent-gated-analytics.md): `emitServerEvent`, per-event key allowlist (`supabase/functions/_shared/posthogServer.ts`), synthetic `edge:<fn>` distinct id, no user id. Business events are browser facade events (`src/lib/analytics/business.ts`). Each slice fills its own section below and edits no other.
+
+## S1 AI
+
+_Owned by slice S1 (#1532)._
+
+## S2 Alerts and source maps
+
+_Owned by slice S2 (#1532)._
+
+## S3 Jobs
+
+_Owned by slice S3 (#1532)._
+
+## S4 Push outcomes
+
+_Owned by slice S4 (#1532)._
+
+## S5 Business events
+
+_Owned by slice S5 (#1532)._
+
+## S6 Demo funnels
+
+_Owned by slice S6 (#1532)._
+
+## S7 Logs (conditional)
+
+_Owned by slice S7 (#1532)._
