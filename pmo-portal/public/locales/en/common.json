@@ -3318,7 +3318,8 @@
       "themeDark": "Dark",
       "themeHeading": "Theme",
       "themeLight": "Light",
-      "viewAsRoleHeading": "View as role"
+      "viewAsRoleHeading": "View as role",
+      "feedback": "Feedback"
     },
     "drawer": {
       "close": "Close navigation menu",

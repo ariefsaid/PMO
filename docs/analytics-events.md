@@ -372,3 +372,26 @@ registered on every event in demo mode, see `AnalyticsProvider.tsx`). Defined in
 ## S7 Logs (conditional)
 
 _Owned by slice S7 (#1532)._
+
+## S9 Feedback and surveys
+
+_Owned by slice S9 (#1532)._ Four PostHog surveys, all type API (PostHog never opens one by itself; the SDK is initialised with `disable_surveys_automatic_display: true`). The app opens each as PostHog's own popover, so the events below are the **SDK's**, not `track*` helpers, and carry spaces in their names:
+
+| Event | When | Properties we rely on |
+|---|---|---|
+| `survey shown` | the popover opened | `$survey_name`, `$survey_id`, `module`, `route`; `run_id` / `$ai_trace_id` in the assistant |
+| `survey sent` | an answer was submitted | the same, plus `$survey_response` (rating, NPS, or text) |
+| `survey dismissed` | closed without answering | the same |
+
+| Survey (exact name) | Opened by | Gate |
+|---|---|---|
+| `[PMO] Feedback` | the header Feedback button (user-initiated) | org switch on, analytics live, published |
+| `[PMO] Assistant: what went wrong?` | picking a thumbs-down reason | the above, and past the user's first week |
+| `[PMO] First core flow` (1-5) | first budget / invoice / payment / purchase success | prompted: the above + safe moment + PostHog eligibility |
+| `[PMO] NPS` (0-10, quarterly) | a minute into a session of an active user | prompted: the same |
+
+- **Prompted** means: past the first week (`profiles.created_at`), org switch on, analytics live (not opted out, no Do Not Track), a safe moment (no open dialog, no focused field, no save in flight, not on a create / edit / import route, three quiet seconds), PostHog says eligible (`canRenderSurvey`: running, targeting, wait period, not already seen), and at most one per session. **Active** = seen on three distinct days of the last fourteen (this browser).
+- **Context keys** attached to the answer: `module`, `route` (template, never a raw path) and in the assistant `run_id` and `$ai_trace_id`. Free-text answers are scrubbed by `before_send` (emails, tokens, long ids, query strings) and are the only user-typed text we send; the survey copy says not to include customer or financial detail.
+- **Who sees it.** Demo deployment: always. Real org: on unless its Admin switched **Feedback and surveys** off (Administration > Organization integrations, `org_features.feedback_surveys`, migration 0419; absence of a row means on). The switch hides the button and stops every prompt.
+- **Ceiling.** The SDK's "any survey in the last N days" wait period is stored in this browser, so across devices one person can see one prompted survey per device per 30 days. A survey that is not repeatable is once per person (PostHog person property). A cross-device cap would need a per-user row (not built).
+- **Gate.** The tile gate (`scripts/check-dashboard-tiles.mjs`) reads names made of `[a-z0-9_$]`; the survey events have spaces, so `src/lib/analytics/feedbackSpec.test.ts` owns the dashboard tiles instead.

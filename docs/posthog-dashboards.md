@@ -122,3 +122,20 @@ exists, add the sentence by hand: Dashboards, open the Demo dashboard, Edit, Des
 ## S7 Logs (conditional)
 
 _Owned by slice S7 (#1532)._
+
+## S9 Feedback and surveys
+
+_Owned by slice S9 (#1532)._ Dashboard **[PMO] Feedback & Surveys** (`scripts/posthog/spec/feedback.mjs`): shown / answered / dismissed per survey, NPS and first-core-flow answer distributions, feedback by module, answers by org, "what went wrong" per day. It sits beside "[PMO] Usage per org" and "[PMO] AI · Cost & Quality".
+
+**Owner click-path: create and publish the four surveys (needs the owner's PostHog login; not done from code).** Surveys > New survey. For every one: **Type: API** (the app decides when to open it), **Targeting: all users**, leave "Display conditions" empty except where stated, appearance: PostHog's default light theme, thank-you message on.
+
+| Name (exact, including the prefix) | Questions | Specific settings |
+|---|---|---|
+| `[PMO] Feedback` | 1. Open text, required: "What's on your mind? Please don't include customer names or amounts." | repeatable: yes; wait period: none (the user asked) |
+| `[PMO] Assistant: what went wrong?` | 1. Open text, **optional**: "What went wrong? (optional)" | repeatable: yes; wait period: none |
+| `[PMO] First core flow` | 1. Rating 1-5 (number scale), required: "How easy was that?" 2. Open text, optional: "Anything we should change?" | repeatable: no; **Wait period: 30 days** ("Don't show to users who have seen any survey in the last 30 days") |
+| `[PMO] NPS` | 1. Rating 0-10 (NPS), required: "How likely are you to recommend this product to a colleague?" 2. Open text, optional: "What is the main reason?" | repeatable: yes, **every 90 days** (survey schedule); **Wait period: 30 days** |
+
+Then press **Launch** on each. Until a survey is launched the app simply shows nothing for it (the Feedback button stays hidden). The names are matched exactly; renaming one hides it.
+
+Checks after launching: in a normal session the Feedback button appears in the header; clicking it opens the survey beside the button; submitting adds a `survey sent` event with `module` and `route`. Opt out on /privacy and reload: the button disappears and no survey loads. Administration > Organization integrations > Feedback and surveys off: the same.

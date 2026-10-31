@@ -8396,6 +8396,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      admin_set_feedback_surveys: { Args: { p_enabled: boolean }; Returns: undefined }
       admin_set_user_status: {
         Args: {
           p_org_id: string
