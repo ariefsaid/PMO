@@ -18,6 +18,7 @@ test('AC-STK-031: an Engineer keeping only the site is refused at central; the c
   // The Engineer is refused at central: the form never lists it, and the server refuses a forced call.
   await signIn(page, 'engineer@acme.test');
   await page.goto('/stock/new/receive');
+  await page.getByLabel(/^Warehouse/).locator('option', { hasText: site.code }).waitFor({ state: 'attached' });
   const options = await page.getByLabel(/^Warehouse/).locator('option').allTextContents();
   expect(options, 'central is not offered to a site storekeeper').not.toContain(label(central));
   expect(options).toContain(label(site));
