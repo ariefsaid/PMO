@@ -335,8 +335,8 @@ async function commitTransition(command: AdapterCommand, deps: ErpAdapterDeps): 
 
   if (verb === 'cancel') {
     // OQ-8 (R9 §5): cancel is `{docstatus:2}` — stock REST enforces cancel-only, never delete, on a
-    // once-submitted doc. Chain-reverse ordering (PR-then-PO, PE-then-PI) is a caller/chain concern
-    // (transitionPolicy.ts `cancelChain`); this is the single-doc cancel primitive.
+    // once-submitted doc. Chain-reverse ordering (PR-then-PO, PE-then-PI) is a caller/chain concern;
+    // this is the single-doc cancel primitive.
     await cancelDoc(deps.client, entry.doctype, externalRecordId);
     const refetched = await getDoc(deps.client, entry.doctype, externalRecordId);
     const canonical: PmoRecord = { ...bodyFns.fromDoc(refetched), id: command.record.id };

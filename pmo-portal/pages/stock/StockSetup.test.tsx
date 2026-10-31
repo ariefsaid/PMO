@@ -167,7 +167,7 @@ describe('StockSetup view-as and failed loads', () => {
 });
 
 describe('StockSetup writes', () => {
-  it('FR-STK-007 creating a unit sends trimmed text and the whole-number flag, never an org id', async () => {
+  it('FR-STK-007 creating a unit passes the typed text and the whole-number flag, never an org id', async () => {
     renderPage('Project Manager');
     await userEvent.click(await screen.findByRole('button', { name: 'New unit' }));
     const dialog = await screen.findByRole('dialog');

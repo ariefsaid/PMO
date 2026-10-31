@@ -53,10 +53,6 @@ export function setProjectBinding(projectId: string, isBound: boolean): void {
   notifyOwnershipCacheListeners();
 }
 
-/** Alias naming the generalized intent (P2, FR-ENA-005) — P1 callers keep `setTaskOwnership`;
- * identical body (the cache is domain-keyed, so one seed already covers every domain). */
-export const setDomainOwnership = setTaskOwnership;
-
 /** Reset to the fail-closed cold-start state (sign-out) — `routeTaskWrite()` returns `'pmo'` until re-seeded. */
 export function clearOwnershipCache(): void {
   cache = null;

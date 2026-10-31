@@ -11175,6 +11175,9 @@ export type Database = {
         }
         Returns: string
       }
+      stock_admin: { Args: never; Returns: boolean }
+      stock_can_see_cost: { Args: never; Returns: boolean }
+      stock_master_writer: { Args: never; Returns: boolean }
       submit_sales_invoice: {
         Args: { p_si_id: string }
         Returns: {

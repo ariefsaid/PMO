@@ -36,7 +36,7 @@ begin
 end $$;
 -- usage: select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4'); ... reset role;
 
-select plan(32);
+select plan(35);
 -- 1-3: master-data writers (rank >= 20) can create; Engineer cannot (AC-STK-034)
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');          -- U_PM
 select lives_ok($$ insert into stock_units (code, name, whole_only) values ('kg','Kilogram',false) $$, 'FR-STK-007 a Project Manager creates a unit');
@@ -151,5 +151,18 @@ reset role;
 select ok(not has_table_privilege('anon', 'public.stock_units', 'select') and not has_table_privilege('anon', 'public.stock_warehouse_keepers', 'select')
           and not has_function_privilege('anon', 'public.set_stock_warehouse_keeper(uuid,uuid,boolean)', 'execute'),
   'FR-STK-060 the anon role has no table access and cannot call the keeper RPC');
+-- 33-35: an unfiltered DELETE reads no row, so only the delete policy's org term decides (one assertion per table)
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000b1');          -- U_XORG
+delete from stock_items;
+reset role;
+select ok((select count(*) from stock_items where org_id = '15120000-0000-0000-0000-000000000001') > 0, 'AC-STK-019 an unfiltered DELETE by another org''s Admin removes none of this org''s items');
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000b1');
+delete from stock_warehouses;
+reset role;
+select ok((select count(*) from stock_warehouses where org_id = '15120000-0000-0000-0000-000000000001') > 0, 'AC-STK-019 an unfiltered DELETE by another org''s Admin removes none of this org''s warehouses');
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000b1');
+delete from stock_units;
+reset role;
+select ok((select count(*) from stock_units where org_id = '15120000-0000-0000-0000-000000000001') > 0, 'AC-STK-019 an unfiltered DELETE by another org''s Admin removes none of this org''s units');
 select * from finish();
 rollback;

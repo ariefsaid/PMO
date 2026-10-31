@@ -44,7 +44,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 
 import Companies from './Companies';
 import { ownershipMock } from '@/test/domainOwnershipMock';
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 const seed = [
   { id: 'c1', name: 'Cascade Port Authority', type: 'Client', org_id: 'org-1', client_number_segment: 'RIS', archived_at: null, created_at: '2026-01-01T00:00:00Z' },
@@ -468,7 +468,7 @@ describe('company short names', () => {
   });
 
   it('externally-owned legal name stays disabled while the short name can be saved', async () => {
-    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
     renderPage();
     await userEvent.click(within(screen.getByText(seed[0].name).closest('tr')!).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Edit/i }));
@@ -479,7 +479,7 @@ describe('company short names', () => {
     await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalledWith({ id: seed[0].id, input: { name: seed[0].name, type: 'Client', short_name: 'Example' } }));
   });
   it('preserves the stored legal name when saving an external company nickname', async () => {
-    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
     const original = { ...seed[0], name: `  ${seed[0].name}  ` };
     listState.data = [original];
     renderPage();
@@ -503,7 +503,7 @@ it('standalone company creation persists a trimmed optional nickname', async () 
 
 describe('company ownership actions', () => {
   it('keeps an Internal company editable without offering a type conversion under external ownership', async () => {
-    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
     renderPage();
     await userEvent.click(within(screen.getByText('Internal Holdings').closest('tr')!).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Edit/i }));
@@ -515,7 +515,7 @@ describe('company ownership actions', () => {
     await userEvent.click(within(screen.getByText('Internal Holdings').closest('tr')!).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Edit/i }));
     await userEvent.selectOptions(screen.getByLabelText(/^Type/i, { selector: 'input, select, textarea' }), 'Vendor');
-    act(() => setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
+    act(() => setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
     expect(screen.getByRole('button', { name: /^save company$/i })).toBeDisabled();
   });
   it('holds a pending legal-name edit if ownership changes while editing', async () => {
@@ -523,7 +523,7 @@ describe('company ownership actions', () => {
     await userEvent.click(within(screen.getByText(seed[0].name).closest('tr')!).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Edit/i }));
     await userEvent.type(screen.getByLabelText(/Company name/i), ' Revised');
-    act(() => setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
+    act(() => setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
     expect(screen.getByRole('button', { name: /^save company$/i })).toBeDisabled();
   });
   it('holds company actions while ownership is unresolved', () => {
@@ -549,17 +549,17 @@ describe('company ownership actions', () => {
   });
 
   it('updates create choices when company ownership changes', async () => {
-    setDomainOwnership([]);
+    setTaskOwnership([]);
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /New company/i }));
     const type = within(screen.getByRole('dialog')).getByLabelText(/^Type/);
     expect(within(type).getByRole('option', { name: 'Internal' })).toBeInTheDocument();
-    act(() => setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
+    act(() => setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
     expect(within(type).queryByRole('option', { name: 'Internal' })).not.toBeInTheDocument();
   });
 
   it('offers only supported party types when creating under external ownership', async () => {
-    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /New company/i }));
     const type = within(screen.getByRole('dialog')).getByLabelText(/^Type/);
@@ -570,7 +570,7 @@ describe('company ownership actions', () => {
 });
 
 it('keeps external companies from offering deletion', async () => {
-  setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+  setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
   renderPage();
   const row = screen.getByText('Cascade Port Authority').closest('tr')!;
   await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
