@@ -6,6 +6,10 @@ import type { RecordHistoryRepository } from './recordHistory';
 import type {
   StockItemInput, StockItemRow, StockKeeperRow, StockUnitInput, StockUnitRow, StockWarehouseInput, StockWarehouseRow,
 } from '@/src/lib/db/stockMaster';
+import type {
+  IssuableWorkItem, StockDocumentDetail, StockDocumentFilters, StockDocumentInput, StockDocumentListRow,
+} from '@/src/lib/db/stockDocuments';
+import type { StockLedgerFilters, StockLedgerPage, StockLedgerRow, StockOnHandRow } from '@/src/lib/db/stockReports';
 import type { OrgVendorTaxAccounts, ProjectClassificationOptions } from '@/src/lib/db/orgs';
 import type { VendorTaxDefaultsInput } from '@/src/lib/vendorWithholding';
 import type {
@@ -923,8 +927,28 @@ export interface StockMasterRepository {
   setKeeper(a: { warehouseId: string; userId: string; assigned: boolean }): Promise<void>;
 }
 
+/** Stock documents (#1512 S3): the posting RPCs and the document reads. No client write grant exists; every write is an RPC. */
+export interface StockDocumentsRepository {
+  list(f?: StockDocumentFilters): Promise<StockDocumentListRow[]>;
+  get(id: string): Promise<StockDocumentDetail | null>;
+  create(input: StockDocumentInput, opts: { post: boolean; clientRequestId: string }): Promise<string>;
+  saveDraft(id: string, input: StockDocumentInput): Promise<void>;
+  post(id: string): Promise<void>;
+  cancel(id: string): Promise<void>;
+  issuableWorkItems(projectId: string): Promise<IssuableWorkItem[]>;
+}
+
+/** Stock reads (#1512 S3): cost keys are absent from the data below Project Manager rank. */
+export interface StockReportsRepository {
+  onHand(f: { warehouseId?: string; itemId?: string; includeZero?: boolean }): Promise<StockOnHandRow[]>;
+  ledgerPage(f: StockLedgerFilters & { beforeSeq?: number; limit?: number }): Promise<StockLedgerPage>;
+  ledgerAll(f: StockLedgerFilters): Promise<StockLedgerRow[]>;
+}
+
 export interface StockRepository {
   master: StockMasterRepository;
+  documents: StockDocumentsRepository;
+  reports: StockReportsRepository;
 }
 
 export interface Repositories {

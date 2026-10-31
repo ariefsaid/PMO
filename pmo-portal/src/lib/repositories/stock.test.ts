@@ -39,3 +39,31 @@ describe('stock repository (master data)', () => {
     await expect(repositories.stock.master.createWarehouse({ code: 'W', name: 'W', kind: 'site', projectId: null })).rejects.toBeInstanceOf(AppError);
   });
 });
+
+vi.mock('@/src/lib/db/stockDocuments', () => ({
+  listStockDocuments: vi.fn(), getStockDocument: vi.fn(), createStockDocument: vi.fn(), saveStockDraft: vi.fn(),
+  postStockDocument: vi.fn(), cancelStockDocument: vi.fn(), listIssuableWorkItems: vi.fn(),
+}));
+vi.mock('@/src/lib/db/stockReports', () => ({ getStockOnHand: vi.fn(), getStockLedgerPage: vi.fn(), getStockLedgerAll: vi.fn() }));
+import * as docs from '@/src/lib/db/stockDocuments';
+import * as reports from '@/src/lib/db/stockReports';
+
+describe('stock repository (documents and reports)', () => {
+  it('FR-STK-015 create delegates the input and the request id', async () => {
+    vi.mocked(docs.createStockDocument).mockResolvedValue('d1');
+    const input = { kind: 'receive' as const, warehouseId: 'w', lines: [] };
+    expect(await repositories.stock.documents.create(input, { post: true, clientRequestId: 'r' })).toBe('d1');
+    expect(docs.createStockDocument).toHaveBeenCalledWith(input, { post: true, clientRequestId: 'r' });
+  });
+
+  it('FR-STK-044 a failing report read surfaces as an AppError, never an empty list', async () => {
+    vi.mocked(reports.getStockOnHand).mockRejectedValue({ message: 'boom', code: '500' });
+    await expect(repositories.stock.reports.onHand({})).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('FR-STK-041 ledgerAll delegates the filters', async () => {
+    vi.mocked(reports.getStockLedgerAll).mockResolvedValue([]);
+    await repositories.stock.reports.ledgerAll({ documentId: 'd1' });
+    expect(reports.getStockLedgerAll).toHaveBeenCalledWith({ documentId: 'd1' });
+  });
+});

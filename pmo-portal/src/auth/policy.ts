@@ -42,6 +42,7 @@ export type Action =
   | 'confirm_employee_link'
   | 'upload'
   | 'withdraw'
+  | 'post'
   | 'confirm';
 
 export type Entity =
@@ -96,7 +97,8 @@ export type Entity =
   | 'finance'
   | 'stockItem'
   | 'stockUnit'
-  | 'warehouse';
+  | 'warehouse'
+  | 'stockDocument';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -255,6 +257,18 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   stockUnit: stockMaster(),
   /** `manage` = assign warehouse keepers (set_stock_warehouse_keeper is Admin only). */
   warehouse: { ...stockMaster(), manage: allowUnlessViewOnly(ADMIN) },
+  /** Stock documents (#1512 S3): mirrors FR-STK-061/062. `isKeeper` is supplied by the screen from the keeper list. UX only; RLS/RPC is the authority. */
+  stockDocument: {
+    view: allow(ALL),
+    create: (role, ctx) => ctx.record?.viewOnly !== true && (ctx.record?.isKeeper === true || role === 'Admin'),
+    post: (role, ctx) =>
+      ctx.record?.viewOnly !== true &&
+      (ctx.record?.kind === 'adjustment' || ctx.record?.kind === 'count'
+        ? has(MASTER_DATA, role) && !!ctx.currentUserId && ctx.record?.created_by !== ctx.currentUserId // FR-STK-062
+        : ctx.record?.isKeeper === true || role === 'Admin'),
+    withdraw: (role, ctx) =>
+      ctx.record?.viewOnly !== true && ctx.record?.status === 'Draft' && (role === 'Admin' || (!!ctx.currentUserId && ctx.record?.created_by === ctx.currentUserId)),
+  },
   /**
    * Work-order allocations of contract lines (ADR-0091, migration 0337). Mirrors the allocation table's RLS:
    * the BoQ writer set, and only while the work order is Draft/Issued (the state trigger freezes Closed/Cancelled).

@@ -1,7 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import type { StockItemInput, StockUnitInput, StockWarehouseInput } from '@/src/lib/db/stockMaster';
+import type { StockDocumentFilters, StockDocumentInput } from '@/src/lib/db/stockDocuments';
+import type { StockLedgerFilters } from '@/src/lib/db/stockReports';
 
 /** Stock master data reads (#1512 S1). Every key carries the org id so the cache is tenant-scoped. */
 export function useStockUnits(includeArchived = false) {
@@ -53,4 +55,48 @@ export function useStockKeeperCandidates() {
     queryFn: async () => (await repositories.profile.listOrgProfiles()).filter((p) => p.status === 'active'),
     enabled: Boolean(orgId),
   });
+}
+
+/** Stock reads and document writes (#1512 S3). Quantities and money are decimal strings. */
+export function useStockOnHand(f: { warehouseId?: string; itemId?: string; includeZero?: boolean }) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({ queryKey: ['stock-on-hand', orgId, f], queryFn: () => repositories.stock.reports.onHand(f), enabled: Boolean(orgId) });
+}
+export function useStockLedger(f: StockLedgerFilters) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useInfiniteQuery({
+    queryKey: ['stock-ledger', orgId, f],
+    queryFn: ({ pageParam }) => repositories.stock.reports.ledgerPage({ ...f, beforeSeq: pageParam, limit: 100 }),
+    initialPageParam: undefined as number | undefined,
+    getNextPageParam: (last) => last.nextBeforeSeq ?? undefined,
+    enabled: Boolean(orgId),
+  });
+}
+export function useStockDocuments(f: StockDocumentFilters) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({ queryKey: ['stock-documents', orgId, f], queryFn: () => repositories.stock.documents.list(f), enabled: Boolean(orgId) });
+}
+export function useStockDocument(id: string | undefined) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({ queryKey: ['stock-document', orgId, id], queryFn: () => repositories.stock.documents.get(id as string), enabled: Boolean(orgId && id) });
+}
+export function useIssuableWorkItems(projectId: string | undefined) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({ queryKey: ['stock-work-items', orgId, projectId], queryFn: () => repositories.stock.documents.issuableWorkItems(projectId as string), enabled: Boolean(orgId && projectId) });
+}
+
+/** Every mutation refreshes what a posting moves: balances, the trace, the lists, and the project's consumption (S5 key). */
+export function useStockDocumentMutations() {
+  const qc = useQueryClient();
+  const orgId = useAuth().currentUser?.org_id;
+  const d = repositories.stock.documents;
+  const refresh = () => {
+    for (const k of ['stock-on-hand', 'stock-ledger', 'stock-documents', 'stock-document', 'stock-consumption']) void qc.invalidateQueries({ queryKey: [k, orgId] });
+  };
+  return {
+    create: useMutation({ mutationFn: (a: { input: StockDocumentInput; post: boolean; clientRequestId: string }) => d.create(a.input, a), onSuccess: refresh }),
+    saveDraft: useMutation({ mutationFn: (a: { id: string; input: StockDocumentInput }) => d.saveDraft(a.id, a.input), onSuccess: refresh }),
+    post: useMutation({ mutationFn: (id: string) => d.post(id), onSuccess: refresh }),
+    cancel: useMutation({ mutationFn: (id: string) => d.cancel(id), onSuccess: refresh }),
+  };
 }

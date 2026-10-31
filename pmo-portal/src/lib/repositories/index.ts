@@ -15,6 +15,10 @@ import {
   createStockItem, updateStockItem, createStockWarehouse, updateStockWarehouse, setArchived as setStockArchived,
   setWarehouseKeeper,
 } from '@/src/lib/db/stockMaster';
+import {
+  cancelStockDocument, createStockDocument, getStockDocument, listIssuableWorkItems, listStockDocuments, postStockDocument, saveStockDraft,
+} from '@/src/lib/db/stockDocuments';
+import { getStockLedgerAll, getStockLedgerPage, getStockOnHand } from '@/src/lib/db/stockReports';
 import { salesInvoiceCreateFields } from '@/src/lib/adapterSeam/erpnext/salesInvoiceCommand';
 import { toAppError, AppError } from '@/src/lib/appError';
 import { recordHistoryRepository } from './recordHistory';
@@ -1351,6 +1355,20 @@ const stock: StockRepository = {
     updateWarehouse: (id, i) => wrap(() => updateStockWarehouse(id, i)),
     archive: (table, id, archived) => wrap(() => setStockArchived(table, id, archived)),
     setKeeper: (a) => wrap(() => setWarehouseKeeper(a)),
+  },
+  documents: {
+    list: (f) => wrap(() => listStockDocuments(f)),
+    get: (id) => wrap(() => getStockDocument(id)),
+    create: (i, o) => wrap(() => createStockDocument(i, o)),
+    saveDraft: (id, i) => wrap(() => saveStockDraft(id, i)),
+    post: (id) => wrap(() => postStockDocument(id)),
+    cancel: (id) => wrap(() => cancelStockDocument(id)),
+    issuableWorkItems: (p) => wrap(() => listIssuableWorkItems(p)),
+  },
+  reports: {
+    onHand: (f) => wrap(() => getStockOnHand(f)),
+    ledgerPage: (f) => wrap(() => getStockLedgerPage(f)),
+    ledgerAll: (f) => wrap(() => getStockLedgerAll(f)),
   },
 };
 
