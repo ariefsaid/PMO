@@ -458,6 +458,7 @@ export function breadcrumbForPath(
       '/incoming-payments': 'shell.nav.incomingPayments',
       '/revenue-by-project': 'shell.nav.revenueByProject',
       '/my-tasks': 'shell.nav.myTasks',
+      '/stock/setup': 'stock:setup.title',
     };
     const i18nKey = PLACEHOLDER_I18N_KEY[pathname];
     return i18nKey

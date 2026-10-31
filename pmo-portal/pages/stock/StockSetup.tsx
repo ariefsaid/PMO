@@ -151,24 +151,25 @@ const StockSetup: React.FC = () => {
           {newLabel}
         </Button>
       )}
-      filters={
-        <label className="flex items-center gap-2 text-sm">
+    >
+      <div className="mb-4 flex items-center border-b border-border">
+        <Tabs<Tab>
+          className="mb-0 min-w-0 flex-1 border-b-0"
+          idBase="stock-setup"
+          ariaLabel={t('setup.tabsLabel')}
+          value={tab}
+          onChange={setTab}
+          items={[
+            { value: 'units', label: t('setup.tabs.units') },
+            { value: 'items', label: t('setup.tabs.items') },
+            { value: 'warehouses', label: t('setup.tabs.warehouses') },
+          ]}
+        />
+        <label className="flex shrink-0 items-center gap-2 pl-3 text-sm">
           <Checkbox checked={showArchived} onChange={setShowArchived} label={t('setup.showArchived')} />
           <span aria-hidden onClick={() => setShowArchived(!showArchived)}>{t('setup.showArchived')}</span>
         </label>
-      }
-    >
-      <Tabs<Tab>
-        idBase="stock-setup"
-        ariaLabel={t('setup.tabsLabel')}
-        value={tab}
-        onChange={setTab}
-        items={[
-          { value: 'units', label: t('setup.tabs.units') },
-          { value: 'items', label: t('setup.tabs.items') },
-          { value: 'warehouses', label: t('setup.tabs.warehouses') },
-        ]}
-      />
+      </div>
       {!canCreate && state === undefined && (
         <p className="mt-3 text-sm text-muted-foreground">{t('setup.states.readOnlyHint')}</p>
       )}
