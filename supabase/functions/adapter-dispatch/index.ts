@@ -1610,8 +1610,8 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       // Companies-domain STORAGE-layer encoding (task 6.4 fix-round, live-bench-discovered
       // 2026-07-12): `external_refs.external_record_id` for a party (Supplier/Customer) is ALWAYS
       // "<Doctype>:<name>" (task 3.2's collision rule, partyAdopt.ts's `externalIdFor` — the SAME
-      // encoding `dispatchFactory.ts`'s `stripDoctypePrefix`/`stripPartyDoctypePrefix` already strip
-      // back off on every READ path). The adapter's own return value (`mapping.externalRecordId`,
+      // encoding the dispatch factory's shared `stripDoctypePrefix` (erpnext/dispatchRefs.ts) already
+      // strips back off on every READ path). The adapter's own return value (`mapping.externalRecordId`,
       // also the served-fn HTTP response body) stays the BARE ERP name (AC-ENA-040: Supplier autonames
       // by `field:supplier_name`) — only THIS write applies the prefix, never the wire contract.
       recordExternalRef: (mapping) => {

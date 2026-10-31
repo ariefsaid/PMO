@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
-import { clearOwnershipCache, setDomainOwnership, setProjectBindings } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership, setProjectBindings } from '@/src/lib/adapterSeam/ownershipCache';
 
 const state = vi.hoisted(() => ({ data: undefined as { domain: string }[] | undefined, isError: false, refetch: vi.fn() }));
 const listBindings = vi.hoisted(() => vi.fn().mockResolvedValue([]));
@@ -21,18 +21,18 @@ describe('domain ownership mode', () => {
     const { result, rerender } = renderHook(() => useDomainOwnershipMode('companies'), { wrapper: Wrapper });
     expect(result.current.mode).toBe('unknown');
     state.data = [];
-    act(() => { setDomainOwnership([]); setProjectBindings([]); });
+    act(() => { setTaskOwnership([]); setProjectBindings([]); });
     rerender();
     await waitFor(() => expect(result.current.mode).toBe('pmo'));
     state.data = [{ domain: 'companies' }];
-    act(() => setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
+    act(() => setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
     rerender();
     expect(result.current.mode).toBe('external');
   });
   it('reports a failed binding read instead of advertising native writes', async () => {
     state.data = [];
     listBindings.mockRejectedValueOnce(new Error('unavailable'));
-    act(() => { setDomainOwnership([]); setProjectBindings([]); });
+    act(() => { setTaskOwnership([]); setProjectBindings([]); });
     const { result } = renderHook(() => useDomainOwnershipMode('companies'), { wrapper: Wrapper });
     await waitFor(() => expect(result.current.mode).toBe('error'));
   });
