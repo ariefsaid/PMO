@@ -18,14 +18,14 @@ export function versionPolicy(major: number | null, hasJson2: boolean): VersionV
 
 /** Every field O1 reads, per model (bed §4 and T3..T10). */
 export const O1_MODELS: Record<string, readonly string[]> = {
-  'res.company': ['name', 'currency_id'],
-  'res.partner': ['name', 'vat', 'ref', 'is_company', 'parent_id', 'active', 'supplier_rank', 'customer_rank', 'write_date'],
-  'product.product': ['default_code', 'name', 'uom_id', 'purchase_ok', 'sale_ok', 'active', 'write_date'],
+  'res.company': ['name', 'currency_id', 'write_date'],
+  'res.partner': ['name', 'vat', 'ref', 'is_company', 'parent_id', 'active', 'supplier_rank', 'customer_rank', 'company_id', 'write_date'],
+  'product.product': ['default_code', 'name', 'uom_id', 'purchase_ok', 'sale_ok', 'is_storable', 'company_id', 'active', 'write_date'],
   'uom.uom': ['name', 'relative_factor', 'relative_uom_id', 'active', 'write_date'],
-  'stock.warehouse': ['name', 'code', 'lot_stock_id', 'view_location_id', 'active', 'write_date'],
-  'stock.location': ['complete_name', 'usage', 'location_id', 'warehouse_id', 'active', 'write_date'],
-  'account.account': ['code', 'name', 'account_type', 'active', 'write_date'],
-  'account.tax': ['name', 'amount', 'type_tax_use', 'active', 'write_date'],
+  'stock.warehouse': ['name', 'code', 'lot_stock_id', 'view_location_id', 'company_id', 'active', 'write_date'],
+  'stock.location': ['complete_name', 'usage', 'location_id', 'warehouse_id', 'company_id', 'active', 'write_date'],
+  'account.account': ['code', 'name', 'account_type', 'company_ids', 'active', 'write_date'],
+  'account.tax': ['name', 'amount', 'type_tax_use', 'company_id', 'active', 'write_date'],
   'account.analytic.plan': ['name', 'write_date'],
   'account.analytic.account': ['name', 'code', 'plan_id', 'company_id', 'active', 'write_date'],
 };
