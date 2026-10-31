@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { DirectoryKind, ListMasterInput } from '@/src/lib/repositories/odoo';
 import type { ConnectCredential } from '@/src/lib/repositories/types';
@@ -21,6 +21,18 @@ export function useMasterRecords(input: ListMasterInput, enabled = true) {
     queryFn: () => repositories.odoo.listMasterRecords(input),
     enabled: Boolean(orgId) && enabled,
     placeholderData: keepPreviousData,
+  });
+}
+
+/** Pages of the mirror appended as the user asks for more (the item picker); each page is a fresh bounded read. */
+export function useMasterRecordsInfinite(input: Omit<ListMasterInput, 'page'>, enabled = true) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useInfiniteQuery({
+    queryKey: ['odoo', 'master-infinite', orgId, input],
+    queryFn: ({ pageParam }) => repositories.odoo.listMasterRecords({ ...input, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (last, all) => (last.rows.length > 0 && all.reduce((n, p) => n + p.rows.length, 0) < last.total ? all.length + 1 : undefined),
+    enabled: Boolean(orgId) && enabled,
   });
 }
 

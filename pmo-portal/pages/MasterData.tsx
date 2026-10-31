@@ -11,6 +11,7 @@ import { missingForKind } from '@/src/lib/adapterSeam/odoo/kinds';
 import { formatInstantDate, formatNumberWhole } from '@/src/lib/format';
 
 const PAGE_SIZE = 50;
+const LOCATION_CAP = 1000;   // the platform's max rows per read; more than this for one page of warehouses shows a notice
 type PageKind = Exclude<DirectoryKind, 'location'>;
 const KINDS: PageKind[] = ['product', 'uom', 'warehouse', 'analytic_account', 'account', 'tax'];
 const FINANCIAL: PageKind[] = ['account', 'tax'];
@@ -39,13 +40,15 @@ export default function MasterDataPage() {
   const enabled = Boolean(kind) && !blocked && reasons.length === 0;
   const isWarehouses = kind === 'warehouse';
   const list = useMasterRecords({ kind: kind ?? 'product', search: search || undefined, page, pageSize: PAGE_SIZE, includeInactive }, enabled);
-  // Units name the unit column of items and the parent of units; locations nest under warehouses.
-  const units = useMasterRecords({ kind: 'uom', page: 1, pageSize: 200, includeInactive: true }, enabled && (kind === 'product' || kind === 'uom'));
-  const locations = useMasterRecords({ kind: 'location', page: 1, pageSize: 500 }, enabled && isWarehouses && missingForKind('location', conn?.capabilities?.missing ?? []).length === 0);
+  const rows = useMemo(() => list.data?.rows ?? [], [list.data]);
+  // Units name the unit column of items and the parent of units; locations nest under warehouses. Both are read for the visible page only, so nothing is cut off by a row cap.
+  const unitIds = useMemo(() => [...new Set(rows.map((r) => (kind === 'uom' ? r.parent_external_id : r.attrs.uom_id)).filter((v): v is string => typeof v === 'string' && v !== ''))], [rows, kind]);
+  const units = useMasterRecords({ kind: 'uom', page: 1, pageSize: Math.max(unitIds.length, 1), includeInactive: true, externalIds: unitIds }, enabled && (kind === 'product' || kind === 'uom') && unitIds.length > 0);
+  const warehouseIds = useMemo(() => (isWarehouses ? rows.map((r) => r.external_id) : []), [rows, isWarehouses]);
+  const locations = useMasterRecords({ kind: 'location', page: 1, pageSize: LOCATION_CAP, warehouseIds }, enabled && isWarehouses && warehouseIds.length > 0 && missingForKind('location', conn?.capabilities?.missing ?? []).length === 0);
   const summary = useMasterSummary(kind ?? 'product', enabled);
 
   const unitName = useMemo(() => new Map((units.data?.rows ?? []).map((u) => [u.external_id, u.name])), [units.data]);
-  const rows = list.data?.rows ?? [];
   const total = list.data?.total ?? 0;
   const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const to = Math.min(page * PAGE_SIZE, total);
@@ -82,16 +85,21 @@ export default function MasterDataPage() {
   const asOf = summary.data?.asOf ?? rows.map((r) => r.as_of).sort().at(-1) ?? null;
   const state = list.isPending ? 'loading' : list.isError ? 'error' : rows.length === 0 ? 'empty' : undefined;
   const locs = locations.data?.rows ?? [];
+  const locationsCut = (locations.data?.total ?? 0) > locs.length;
 
   return (
     <ListPage
       title={t('administration:odoo.master.title', 'Odoo directories')}
       description={t('administration:odoo.master.description', 'A read copy of your Odoo lists, kept up to date by PMO.')}
       count={enabled ? total : undefined}
-      search={<SearchMini aria-label={t('administration:odoo.master.search', 'Search code or name')} placeholder={t('administration:odoo.master.search', 'Search code or name')} value={typed} onChange={(e) => setTyped(e.target.value)} type="search" />}
       banner={conn && <OdooConnectionBanner connection={conn.connection} binding={{ status: conn.status, activated: conn.activated }} />}
     >
-      <Tabs items={tabs} value={kind} onChange={(k) => navigate(`/master-data/${k}`)} ariaLabel={t('administration:odoo.master.tabs', 'Directories')} idBase="odoo-master" />
+      <div className="flex flex-wrap items-center gap-x-3 border-b border-border">
+        <Tabs items={tabs} value={kind} onChange={(k) => navigate(`/master-data/${k}`)} ariaLabel={t('administration:odoo.master.tabs', 'Directories')} idBase="odoo-master" className="mb-0 min-w-0 flex-1 border-b-0" />
+        <div className="w-full shrink-0 py-1.5 sm:w-56">
+          <SearchMini aria-label={t('administration:odoo.master.search', 'Search code or name')} placeholder={t('administration:odoo.master.search', 'Search code or name')} value={typed} onChange={(e) => setTyped(e.target.value)} type="search" />
+        </div>
+      </div>
 
       <div role="tabpanel" id={tabPanelId('odoo-master', kind)} aria-labelledby={tabId('odoo-master', kind)}>
       {reasons.length > 0 ? (
@@ -115,6 +123,7 @@ export default function MasterDataPage() {
 
           {isWarehouses && state === undefined ? (
             <div className="mt-3 space-y-3">
+              {locationsCut && <p role="status" className="text-sm text-muted-foreground">{t('administration:odoo.master.locationsCut', 'Some locations are not shown. Odoo has more than this page can list.')}</p>}
               {rows.map((w) => (
                 <section key={w.id} role="group" aria-label={`${w.name}${w.code ? ` (${w.code})` : ''}`} className="rounded-lg border border-border bg-card p-3">
                   <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">{w.name}{w.code && <span className="font-mono text-xs text-muted-foreground">{w.code}</span>}{status(w)}</h2>

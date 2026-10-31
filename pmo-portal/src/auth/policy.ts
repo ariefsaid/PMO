@@ -37,6 +37,7 @@ export type Action =
   | 'record_efaktur'
   | 'assign_project'
   | 'manage_external_bindings'
+  | 'view_financial_directory'
   | 'manage'
   | 'push_timesheet'
   | 'confirm_employee_link'
@@ -607,13 +608,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   integration: {
     // Admin self-serve connect/disconnect (UX gate). Server (edge fn + RPC) re-enforces
     // Admin OR platform Operator. FE is stricter (Admin only).
-    manage: allow(ADMIN),
+    manage: allow(ADMIN),   // no view-as fence: it predates the fence, and the ERPNext/ClickUp cards share it
     // Odoo (#1504 S5, AC-ODC-082). UX ONLY: the edge-function routers + RPCs are the authority. The `viewOnly` fence is
     // the view-as case (effective role differs from the real one): an impersonating Admin sees no write control.
     manage_external_bindings: (role, ctx) => has(ADMIN, role) && ctx.record?.viewOnly !== true,
     setValue: (role, ctx) => has(TAX_SETUP, role) && ctx.record?.viewOnly !== true,
-    // The financial directory (accounts, taxes): Admin, Executive, Finance.
-    view: allow(MONEY_AUTHORITY),
+    // The Odoo financial directory (accounts, taxes): Admin, Executive, Finance. Named for what it gates; `view` on integration is not defined.
+    view_financial_directory: allow(MONEY_AUTHORITY),
   },
   // OD-TAX-1 (#548): org-wide ACCOUNTING configuration — currently the tax-treatment default that
   // pre-selects every new money form. Admin-only, mirroring migration 0207's RLS policy exactly

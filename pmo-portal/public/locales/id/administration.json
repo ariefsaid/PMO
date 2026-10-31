@@ -45,6 +45,8 @@
       "companyPlaceholder": "Pilih perusahaan",
       "activate": "Aktifkan",
       "askAdmin": "Administrator perlu memilih perusahaan Odoo.",
+      "reconnect": "Sambungkan ulang",
+      "noCompanies": "Kunci ini tidak melihat perusahaan Odoo mana pun. Periksa aksesnya di Odoo, lalu sambungkan ulang.",
       "connect": "Sambungkan Odoo",
       "rechecked": "Baru saja dicek.",
       "recheck": "Cek ulang",
@@ -93,11 +95,8 @@
     },
     "picker": {
       "placeholder": "Pilih barang",
+      "noun": "barang",
       "search": "Cari kode atau nama",
-      "loading": "Memuat barang…",
-      "error": "Barang tidak dapat dimuat",
-      "retry": "Coba lagi",
-      "empty": "Tidak ada barang yang cocok",
       "more": "Tampilkan lebih banyak"
     },
     "error": {
@@ -150,6 +149,7 @@
       "unavailable": "Odoo belum memiliki aplikasi yang dibutuhkan daftar ini",
       "unavailableWhy": "Belum tersedia: {{missing}}. Pasang atau izinkan di Odoo, lalu Cek ulang di halaman Integrasi.",
       "hidden": "{{inactive}} nonaktif · {{deleted}} dihapus di Odoo",
+      "locationsCut": "Sebagian lokasi tidak ditampilkan. Odoo memiliki lebih banyak daripada yang dapat ditampilkan halaman ini.",
       "asOf": "Per {{when}}",
       "showInactive": "Tampilkan nonaktif dan terhapus",
       "empty": "Belum ada isinya",

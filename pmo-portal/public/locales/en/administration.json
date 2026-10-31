@@ -45,6 +45,8 @@
       "companyPlaceholder": "Select a company",
       "activate": "Activate",
       "askAdmin": "An administrator needs to choose the Odoo company.",
+      "reconnect": "Reconnect",
+      "noCompanies": "This key can see no Odoo companies. Check its access in Odoo, then reconnect.",
       "connect": "Connect Odoo",
       "rechecked": "Checked just now.",
       "recheck": "Re-check",
@@ -93,11 +95,8 @@
     },
     "picker": {
       "placeholder": "Select an item",
+      "noun": "item",
       "search": "Search code or name",
-      "loading": "Loading items…",
-      "error": "Items could not be loaded",
-      "retry": "Retry",
-      "empty": "No items match",
       "more": "Show more"
     },
     "error": {
@@ -150,6 +149,7 @@
       "unavailable": "Odoo is missing an app this list needs",
       "unavailableWhy": "Missing: {{missing}}. Install or allow it in Odoo, then Re-check on the Integrations page.",
       "hidden": "{{inactive}} inactive · {{deleted}} deleted in Odoo",
+      "locationsCut": "Some locations are not shown. Odoo has more than this page can list.",
       "asOf": "As of {{when}}",
       "showInactive": "Show inactive and deleted",
       "empty": "Nothing here yet",

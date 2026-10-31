@@ -12,7 +12,7 @@ it('AC-ODC-082 Admin and Finance set values and refresh', () => {
   expect([...roles('setValue')].sort()).toEqual(['Admin', 'Finance']);
 });
 it('AC-ODC-082 Admin, Executive and Finance see the financial directory', () => {
-  expect([...roles('view')].sort()).toEqual(['Admin', 'Executive', 'Finance']);
+  expect([...roles('view_financial_directory')].sort()).toEqual(['Admin', 'Executive', 'Finance']);
 });
 it('AC-ODC-082 view-as is a write fence: no write control while an Admin views as another role', () => {
   const ctx = { record: { viewOnly: true } };

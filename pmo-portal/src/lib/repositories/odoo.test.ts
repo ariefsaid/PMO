@@ -4,7 +4,7 @@ const h = vi.hoisted(() => {
   const calls: Array<[string, ...unknown[]]> = [];
   let result: { data: unknown; error: unknown; count?: number } = { data: [], error: null, count: 0 };
   const chain: Record<string, unknown> = {};
-  for (const m of ['select', 'eq', 'or', 'is', 'not', 'order', 'range', 'limit']) {
+  for (const m of ['select', 'eq', 'in', 'or', 'is', 'not', 'order', 'range', 'limit']) {
     chain[m] = (...a: unknown[]) => { calls.push([m, ...a]); return chain; };
   }
   chain.maybeSingle = async () => result;
@@ -28,7 +28,7 @@ it('AC-ODC-081 listMasterRecords filters server-side, pages by range and returns
   expect(h.calls).toContainEqual(['select', 'id,external_id,code,name,parent_external_id,active,tombstoned_at,attrs,as_of', { count: 'exact' }]);
   expect(h.calls).toContainEqual(['eq', 'external_tier', 'odoo']);
   expect(h.calls).toContainEqual(['eq', 'kind', 'product']);
-  expect(h.calls).toContainEqual(['or', 'name.ilike.%semen%,code.ilike.%semen%']);
+  expect(h.calls).toContainEqual(['or', 'name.ilike."%semen%",code.ilike."%semen%"']);
   expect(h.calls).toContainEqual(['eq', 'attrs->>purchasable', 'true']);
   expect(h.calls).toContainEqual(['range', 100, 149]);
   expect(out.total).toBe(2500);
@@ -47,11 +47,12 @@ it('AC-ODC-081 a sales picker filters sellable; inactive and tombstoned rows are
   expect(h.calls.some((c) => c[0] === 'or')).toBe(false);
 });
 
-it('AC-ODC-081 a search term cannot inject PostgREST filter syntax', async () => {
+it('AC-ODC-081 a search with a comma, parens, quote or wildcard stays one quoted value PostgREST can parse', async () => {
   h.setResult({ data: [], error: null, count: 0 });
-  await odooRepository.listMasterRecords({ kind: 'product', search: 'a,b)(%', page: 1, pageSize: 10 });
+  await odooRepository.listMasterRecords({ kind: 'product', search: 'Semen, 50kg)(%_"\\', page: 1, pageSize: 10 });
   const or = h.calls.find((c) => c[0] === 'or')?.[1] as string;
-  expect(or).toBe('name.ilike.%a\\,b\\)\\(\\%%,code.ilike.%a\\,b\\)\\(\\%%');
+  const v = '"%Semen, 50kg)(\\\\%\\\\_\\"\\\\\\\\%"';
+  expect(or).toBe(`name.ilike.${v},code.ilike.${v}`);
 });
 
 it('getConnection returns the status, activation and stored connection record for tier odoo', async () => {
@@ -59,6 +60,19 @@ it('getConnection returns the status, activation and stored connection record fo
   const out = await odooRepository.getConnection();
   expect(h.calls).toContainEqual(['eq', 'external_tier', 'odoo']);
   expect(out).toEqual({ status: 'active', activated: true, connection: { state: 'healthy' }, capabilities: { missing: [] }, config: expect.any(Object) });
+});
+
+it('AC-ODC-081 externalIds and warehouseIds scope the read to the rows the page shows', async () => {
+  h.setResult({ data: [], error: null, count: 0 });
+  await odooRepository.listMasterRecords({ kind: 'uom', page: 1, pageSize: 50, externalIds: ['5', '6'] });
+  await odooRepository.listMasterRecords({ kind: 'location', page: 1, pageSize: 1000, warehouseIds: ['10'] });
+  expect(h.calls).toContainEqual(['in', 'external_id', ['5', '6']]);
+  expect(h.calls).toContainEqual(['in', 'attrs->>warehouse_id', ['10']]);
+});
+
+it('getConnection hands the client only the config keys the UI reads', async () => {
+  h.setResult({ data: { status: 'active', activated_at: null, config: { database: 'db', odoo_company_name: 'Co', prev_binding: { secret_ref: 'vault-name' }, secret_ref: 'x' } }, error: null });
+  expect((await odooRepository.getConnection()).config).toEqual({ database: 'db', odoo_company_name: 'Co' });
 });
 
 it('getConnection reports disconnected when there is no binding row', async () => {

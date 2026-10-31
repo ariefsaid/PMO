@@ -113,3 +113,27 @@ it('FR-ODC-111 an unknown kind in the URL falls back to items', () => {
   mount('Admin', '/master-data/nonsense');
   expect(screen.getByTestId('where')).toHaveTextContent('/master-data/product');
 });
+
+it('FR-ODC-111 units and locations are read for the visible rows only, never a fixed cap', () => {
+  mount('Admin');
+  expect(h.records).toHaveBeenCalledWith(expect.objectContaining({ kind: 'uom', externalIds: ['5'] }), true);
+  cleanup();
+  h.records.mockImplementation((input: { kind: string }) => input.kind === 'warehouse' ? page([row({ external_id: '10', name: 'Gudang Utama' })]) : page([]));
+  mount('Admin', '/master-data/warehouse');
+  expect(h.records).toHaveBeenCalledWith(expect.objectContaining({ kind: 'location', warehouseIds: ['10'] }), true);
+});
+
+it('FR-ODC-111 when Odoo has more locations than one read returns, the page says so', () => {
+  h.records.mockImplementation((input: { kind: string }) => input.kind === 'warehouse'
+    ? page([row({ external_id: '10', name: 'Gudang Utama' })])
+    : page([row({ external_id: '100', name: 'GU/Stock', attrs: { usage: 'internal', warehouse_id: '10' } })], 1500));
+  mount('Admin', '/master-data/warehouse');
+  expect(screen.getByText(/Some locations are not shown/)).toBeInTheDocument();
+});
+
+it('FR-ODC-111 search sits in the tab row, and the page has no separate filter box', () => {
+  mount('Admin');
+  const search = screen.getByRole('searchbox');
+  expect(search.closest('[role="tabpanel"]')).toBeNull();
+  expect(screen.queryByTestId('list-page-toolbar')).not.toBeInTheDocument();
+});

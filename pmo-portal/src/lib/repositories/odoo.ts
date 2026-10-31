@@ -2,11 +2,13 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { wrap } from './repositoryErrors';
 import { erpSetupRequest } from './integrations';
-import type { ConnectionRecord } from '@/src/lib/adapterSeam/odoo/connectionState';
+import { SENDS_FINISHED_KEY, type ConnectionRecord } from '@/src/lib/adapterSeam/odoo/connectionState';
 
 export interface MasterRecord { id: string; external_id: string; code: string | null; name: string; parent_external_id: string | null; active: boolean; tombstoned_at: string | null; attrs: Record<string, unknown>; as_of: string }
 export type DirectoryKind = 'product' | 'uom' | 'warehouse' | 'location' | 'account' | 'tax' | 'analytic_account';
-export interface ListMasterInput { kind: DirectoryKind; search?: string; page: number; pageSize: number; purpose?: 'purchase' | 'sale'; includeInactive?: boolean }
+export interface ListMasterInput { kind: DirectoryKind; search?: string; page: number; pageSize: number; purpose?: 'purchase' | 'sale'; includeInactive?: boolean;
+  /** Only these records (units for the visible rows). */ externalIds?: string[];
+  /** Only locations of these warehouses. */ warehouseIds?: string[] }
 export interface OdooConnectionRead {
   status: string;
   activated: boolean;
@@ -15,13 +17,18 @@ export interface OdooConnectionRead {
   config: Record<string, unknown>;
 }
 
-const escapeFilter = (s: string) => s.replace(/[%_,()\\]/g, (ch) => `\\${ch}`);
+// ilike pattern inside a double-quoted PostgREST value: commas and parens are then literal. LIKE wildcards get a `\` escape, then `\` and `"` are escaped for the quoting.
+const likeAny = (s: string) => `"%${s.replace(/[\\%_]/g, '\\$&').replace(/[\\"]/g, '\\$&')}%"`;
+
+const CONFIG_KEYS = ['database', 'odoo_company_name', 'key_expires_on', 'account_defaults', 'unit_map', 'default_warehouse_id', SENDS_FINISHED_KEY];
 
 export const odooRepository = {
   listMasterRecords: (input: ListMasterInput) => wrap(async () => {
     let q = supabase.from('external_master_records').select('id,external_id,code,name,parent_external_id,active,tombstoned_at,attrs,as_of', { count: 'exact' })
       .eq('external_tier', 'odoo').eq('kind', input.kind);
-    if (input.search) q = q.or(`name.ilike.%${escapeFilter(input.search)}%,code.ilike.%${escapeFilter(input.search)}%`);
+    if (input.search) q = q.or(`name.ilike.${likeAny(input.search)},code.ilike.${likeAny(input.search)}`);
+    if (input.externalIds) q = q.in('external_id', input.externalIds);
+    if (input.warehouseIds) q = q.in('attrs->>warehouse_id', input.warehouseIds);
     if (input.purpose) q = q.eq(input.purpose === 'purchase' ? 'attrs->>purchasable' : 'attrs->>sellable', 'true');
     if (!input.includeInactive) q = q.eq('active', true).is('tombstoned_at', null);
     const from = (input.page - 1) * input.pageSize;
@@ -43,12 +50,14 @@ export const odooRepository = {
   getConnection: () => wrap(async (): Promise<OdooConnectionRead> => {
     const { data, error } = await supabase.from('external_org_bindings').select('status,activated_at,config').eq('external_tier', 'odoo').maybeSingle();
     if (error) throw error;
-    const config = (data?.config ?? {}) as Record<string, unknown>;
+    const raw = (data?.config ?? {}) as Record<string, unknown>;
+    // Only what the UI reads; the rest of `config` (e.g. a previous key's vault name during rotation) stays out of the client cache.
+    const config = Object.fromEntries(CONFIG_KEYS.filter((k) => k in raw).map((k) => [k, raw[k]]));
     return {
       status: data?.status ?? 'disconnected',
       activated: !!data?.activated_at,
-      connection: (config.connection ?? null) as ConnectionRecord | null,
-      capabilities: (config.capabilities ?? null) as OdooConnectionRead['capabilities'],
+      connection: (raw.connection ?? null) as ConnectionRecord | null,
+      capabilities: (raw.capabilities ?? null) as OdooConnectionRead['capabilities'],
       config,
     };
   }),

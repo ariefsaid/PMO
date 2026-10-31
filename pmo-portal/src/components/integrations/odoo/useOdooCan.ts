@@ -8,6 +8,6 @@ export function useOdooCan() {
   return {
     manage: can('manage_external_bindings', 'integration', write),
     setValue: can('setValue', 'integration', write),
-    viewFinancialDirectory: can('view', 'integration', { realRole: effectiveRole }),
+    viewFinancialDirectory: can('view_financial_directory', 'integration', { realRole: effectiveRole }),
   };
 }

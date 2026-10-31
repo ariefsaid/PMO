@@ -177,3 +177,41 @@ it('FR-ODC-110 an Admin viewing as Engineer (view-as) gets no write control', as
   expect(await screen.findByText('Connected')).toBeInTheDocument();
   for (const name of ['Re-check', 'Refresh now', 'Disconnect Odoo']) expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
 });
+
+it('FR-ODC-110 an Admin can reconnect while connected (rotate the key in place) without disconnecting first', async () => {
+  const user = userEvent.setup();
+  h.connectIntegration.mockResolvedValue({ ok: true, binding: { status: 'active' } });
+  mount('Admin', connected());
+  await user.click(await screen.findByRole('button', { name: 'Reconnect' }));
+  const dialog = screen.getByRole('dialog');
+  await user.type(within(dialog).getByLabelText(/Site URL/), 'https://odoo.example.test');
+  await user.type(within(dialog).getByLabelText(/Database/), 'prod_db');
+  await user.type(within(dialog).getByLabelText(/API key/), 'k-new');
+  await user.click(within(dialog).getByRole('button', { name: 'Reconnect' }));
+  await waitFor(() => expect(h.connectIntegration).toHaveBeenCalledTimes(1));
+  expect(h.connectIntegration.mock.calls[0][1]).toMatchObject({ tier: 'odoo', credential: { apiKey: 'k-new' } });
+});
+
+it('FR-ODC-110 Reconnect is Admin only', async () => {
+  mount('Finance', connected());
+  expect(await screen.findByText('Connected')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Reconnect' })).not.toBeInTheDocument();
+});
+
+it('FR-ODC-110 a failed discard-confirmed resubmit closes the confirm dialog and shows the error in the form', async () => {
+  const user = userEvent.setup();
+  h.connectIntegration.mockRejectedValueOnce(new AppError('x', 'confirm-discard')).mockRejectedValueOnce(new AppError('x', 'key-rejected'));
+  mount('Admin', NONE);
+  await fillConnect(user);
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Connect Odoo' }));
+  await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Discard and connect' }));
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+  expect(screen.getAllByText('Odoo rejected the API key. Check the key and try again.').length).toBeGreaterThan(0);
+});
+
+it('FR-ODC-110 a key that sees no companies says so instead of leaving a dead end', async () => {
+  h.setup.mockImplementation(async (verb: string) => (verb === 'list-companies' ? { companies: [] } : { ok: true }));
+  mount('Admin', { ...NONE, status: 'active' });
+  expect(await screen.findByText(/can see no Odoo companies/)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Activate' })).not.toBeInTheDocument();
+});

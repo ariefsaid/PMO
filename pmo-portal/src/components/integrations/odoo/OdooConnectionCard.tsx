@@ -64,6 +64,7 @@ export function OdooConnectionCard() {
         setConfirmDiscard(true);
       } else {
         held.current = null;
+        setConfirmDiscard(false);
         setError(odooErrorMessage(t, err));
       }
     } finally {
@@ -92,6 +93,7 @@ export function OdooConnectionCard() {
     'not-activated': { v: 'warn', label: t('administration:odoo.pill.notActivated', 'Choose a company') },
     disconnected: { v: 'neutral', label: t('administration:odoo.pill.disconnected', 'Not connected') },
   };
+  const connectLabel = active ? t('administration:odoo.card.reconnect', 'Reconnect') : t('administration:odoo.card.connect', 'Connect Odoo');
   const list = companies.data?.companies ?? [];
   const chosen = companyId || (list.length === 1 ? String(list[0].id) : '');
   const cfg = read?.config ?? {};
@@ -134,6 +136,7 @@ export function OdooConnectionCard() {
               <p className="text-sm text-muted-foreground">{t('administration:odoo.card.pickCompany', 'Choose the Odoo company PMO works with. It cannot be changed later.')}</p>
               {companies.isPending && <ListState variant="loading" rows={1} />}
               {companies.isError && <ListState variant="error" title={t('administration:odoo.card.companiesFailed', 'Companies could not be listed')} onRetry={() => void companies.refetch()} retryLabel={t('administration:odoo.card.retry', 'Retry')} />}
+              {companies.isSuccess && list.length === 0 && <p role="status" className="text-sm text-muted-foreground">{t('administration:odoo.card.noCompanies', 'This key can see no Odoo companies. Check its access in Odoo, then reconnect.')}</p>}
               {list.length === 1 && <p className="text-sm font-medium text-foreground">{list[0].name}</p>}
               {list.length > 1 && (
                 <SelectField label={t('administration:odoo.card.companyLabel', 'Company')} value={chosen} onChange={setCompanyId} placeholder={t('administration:odoo.card.companyPlaceholder', 'Select a company')}
@@ -169,6 +172,11 @@ export function OdooConnectionCard() {
               <Link className="inline-flex min-h-9 items-center rounded-md px-2 text-sm text-primary underline underline-offset-4" to="/master-data/product">{t('administration:odoo.card.browse', 'Browse Odoo directories')}</Link>
             )}
             {active && may.manage && (
+              <Button variant="outline" size="sm" onClick={() => { setError(null); form.reset(BLANK); setFormOpen(true); }}>
+                <Icon name="refresh" className="size-3.55" aria-hidden="true" />{t('administration:odoo.card.reconnect', 'Reconnect')}
+              </Button>
+            )}
+            {active && may.manage && (
               <Button variant="ghost" size="sm" onClick={() => setConfirmDisconnect(true)}>
                 <Icon name="plug" className="size-3.55" aria-hidden="true" />{t('administration:odoo.card.disconnect', 'Disconnect Odoo')}
               </Button>
@@ -182,8 +190,8 @@ export function OdooConnectionCard() {
       )}
 
       {formOpen && (
-        <EntityFormModal open title={t('administration:odoo.card.connect', 'Connect Odoo')} subtitle={t('administration:odoo.connect.subtitle', 'Use an API key made for PMO in Odoo. PMO stores it encrypted and never shows it again.')}
-          submitLabel={t('administration:odoo.card.connect', 'Connect Odoo')} onSubmit={onSubmit} onClose={() => { setFormOpen(false); held.current = null; }}
+        <EntityFormModal open title={connectLabel} subtitle={t('administration:odoo.connect.subtitle', 'Use an API key made for PMO in Odoo. PMO stores it encrypted and never shows it again.')}
+          submitLabel={connectLabel} onSubmit={onSubmit} onClose={() => { setFormOpen(false); held.current = null; }}
           loading={connect.isPending} dirty={form.isDirty} submitDisabled={!form.isComplete}
           errorSummary={error ? [{ fieldId: form.fieldProps('siteUrl').id, message: error }] : undefined}>
           <FormSection legend={t('administration:odoo.connect.legend', 'Odoo connection')}>
