@@ -629,7 +629,7 @@ describe('ProjectFinancesSection billing kinds (#1471)', () => {
     missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive' as const, work_revenue: invoiced, missing_work: 0 });
   const renderSection = (p: ProjectWithRefs = onHandProject) => render(<MemoryRouter><ProjectFinancesSection project={p} /></MemoryRouter>);
 
-  it('AC-004 says "Invoiced above contract by 100" with both contract invoices, never a bare negative', () => {
+  it('AC-004 says "Invoiced above contract by 100" with both contract invoices, never a bare negative', async () => {
     h.query.data = payload({
       contract_invoiced: '1100.00', remaining_to_invoice: '-100.00', invoices: [usdBucket('1350.00')],
       contract_excess: { state: 'known', amount: '100.00', contractBilling: '1100.00', contributors: [
@@ -637,7 +637,7 @@ describe('ProjectFinancesSection billing kinds (#1471)', () => {
         { invoice_id: 'inv-b', invoice_number: 'SI-B', invoice_date: '2026-03-01', contribution: '400.00' },
       ] },
     });
-    renderSection();
+    const { container } = renderSection();
     const excess = screen.getByTestId('contract-excess');
     expect(within(excess).getByText('Invoiced above contract by 100')).toBeInTheDocument();
     expect(screen.queryByText('Remaining to invoice')).not.toBeInTheDocument();
@@ -649,6 +649,8 @@ describe('ProjectFinancesSection billing kinds (#1471)', () => {
     expect(rows[0]).toHaveTextContent('700');
     expect(rows[1]).toHaveTextContent('400');
     expect(rows).toHaveLength(2);
+    // Graduated from the rendered pass: the excess block once sat inside the <dl> (axe definition-list).
+    expect(await axe(container)).toHaveNoViolations();
   });
 
   it('AC-004 derives the excess and explains missing detail when the contributor list cannot be verified', async () => {
