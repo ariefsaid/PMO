@@ -48,6 +48,7 @@ export const EDGE_FUNCTION_NAMES = [
   'external-unlink',
   'health',
   'm365-token-custody',
+  'odoo-sweep',
   'telegram-notify',
 ] as const;
 
