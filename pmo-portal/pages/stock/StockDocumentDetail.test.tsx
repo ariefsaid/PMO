@@ -10,12 +10,13 @@ import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
 import stockEn from '@/public/locales/en/stock.json';
 
-const { documents, reports, master } = vi.hoisted(() => ({
+const { documents, reports, master, consumption } = vi.hoisted(() => ({
   documents: { get: vi.fn(), cancel: vi.fn(), post: vi.fn(), costs: vi.fn() },
   reports: { ledgerAll: vi.fn(), onHand: vi.fn() },
   master: { listKeepers: vi.fn() },
+  consumption: { report: vi.fn() },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { documents, reports, master } } }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { documents, reports, master, consumption } } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 let role: Role = 'Engineer';
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: role, effectiveRole: role }) }));
@@ -57,6 +58,7 @@ beforeEach(() => {
   reports.onHand.mockResolvedValue([]);
   documents.costs.mockResolvedValue([]);
   master.listKeepers.mockResolvedValue([]);
+  consumption.report.mockResolvedValue({ from: 'a', to: 'b', months: [], allowances: [], unplanned: [] });
 });
 
 describe('StockDocumentDetail (AC-STK-032)', () => {
@@ -180,5 +182,28 @@ describe('StockDocumentDetail (AC-STK-032)', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Post' }));
     expect((await screen.findAllByText(/changed since you opened it/)).length).toBeGreaterThan(0);
     await waitFor(() => expect(documents.get.mock.calls.length).toBeGreaterThanOrEqual(2));
+  });
+
+  it('OQ-STK-7 a posted issue that takes its work item over the allowance says so on the confirmation, as a flag, not a block', async () => {
+    const row = { boqItemId: 'b1', boqItemCode: 'W-1', boqDescription: 'Slab', itemId: 'i1', itemCode: 'CEM', itemName: 'Cement 50kg', unitCode: 'bag', id: 'a1', plannedQuantity: '60', netToDate: '64', variance: '4' };
+    consumption.report.mockResolvedValue({ from: '2026-10-30', to: '2026-10-30', months: [], unplanned: [], allowances: [{ ...row, overAllowance: true }] });
+    renderPage();
+    expect(await screen.findByText(/Over allowance: W-1 has now used 64 of 60 bag planned/)).toBeInTheDocument();
+    expect(consumption.report).toHaveBeenCalledWith('p1', '2026-10-30', '2026-10-30');
+  });
+
+  it('OQ-STK-7 no notice when the work item is within its allowance, or the document is not a posted issue', async () => {
+    const row = { boqItemId: 'b1', boqItemCode: 'W-1', boqDescription: 'Slab', itemId: 'i1', itemCode: 'CEM', itemName: 'Cement 50kg', unitCode: 'bag', id: 'a1', plannedQuantity: '60', netToDate: '30', variance: '-30' };
+    consumption.report.mockResolvedValue({ from: 'a', to: 'b', months: [], unplanned: [], allowances: [{ ...row, overAllowance: false }] });
+    const a = renderPage();
+    await screen.findAllByText('ISS-1');
+    await waitFor(() => expect(consumption.report).toHaveBeenCalled());
+    expect(screen.queryByText(/Over allowance/)).not.toBeInTheDocument();
+    a.unmount();
+    consumption.report.mockClear();
+    documents.get.mockResolvedValue(detail({ status: 'Draft', posted_by: null, posted_at: null }));
+    renderPage();
+    await screen.findAllByText('ISS-1');
+    expect(consumption.report).not.toHaveBeenCalled();
   });
 });
