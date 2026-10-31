@@ -34,7 +34,7 @@ import {
 import { handleEnsureRecordFolder } from "./recordFolders.ts";
 import { handleLinkExistingRecordFolders } from "./recordFolderBackfill.ts";
 import { handlePreviewDocument } from "./documentPreview.ts";
-import { handleUploadRecordFile } from "./recordFileUpload.ts";
+import { authorizeUploadCaller, handleUploadRecordFile, readUploadForm, UPLOAD_BODY_LIMIT } from "./recordFileUpload.ts";
 import { corsHeaders } from "./auth.ts";
 import type {
   GraphProxyRequest,
@@ -166,16 +166,22 @@ async function routeRequest(req: Request, scope?: RequestDeadline): Promise<Resp
   // Multipart POST: the one file-upload action (ADR-0095). Authenticated above, BEFORE the body is read.
   if ((req.headers.get("content-type") ?? "").startsWith("multipart/form-data")) {
     scope?.limit(30_000); // mutation-witness:upload-request-deadline
-    const form = await req.formData().catch(() => null);
-    if (!form) {
-      return toResponse(
-        { status: 400, body: { error: "BAD_REQUEST", message: "invalid form body" } satisfies M365ErrorResponse },
-        env.allowedOrigin,
-      );
-    }
     let uploaded: HandlerResult;
     try {
-      uploaded = await handleUploadRecordFile(form, authed);
+      // Cheap refusals first: an oversize declared length, then membership and role, all before any body byte is read.
+      const tooLarge = (): HandlerResult => ({ status: 413, body: { error: "BAD_REQUEST", message: "file too large" } satisfies M365ErrorResponse });
+      if (Number(req.headers.get("content-length")) > UPLOAD_BODY_LIMIT) return toResponse(tooLarge(), env.allowedOrigin); // mutation-witness:upload-body-cap-declared
+      const caller = await authorizeUploadCaller(authed); // mutation-witness:upload-auth-before-body
+      if ("status" in caller) return toResponse(caller, env.allowedOrigin);
+      const form = await readUploadForm(req);
+      if (form === "too_large") return toResponse(tooLarge(), env.allowedOrigin);
+      if (!form) {
+        return toResponse(
+          { status: 400, body: { error: "BAD_REQUEST", message: "invalid form body" } satisfies M365ErrorResponse },
+          env.allowedOrigin,
+        );
+      }
+      uploaded = await handleUploadRecordFile(form, authed, caller);
     } catch (err) {
       console.error("[m365-token-custody] unexpected error", {
         errorCode: "INTERNAL_ERROR",

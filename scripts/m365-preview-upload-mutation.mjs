@@ -95,6 +95,16 @@ export const MUTATIONS = [
     killedBy: 'a refresh that drops the Sites.Selected grant is re-checked before the write' },
   { id: 'upload-request-deadline', file: INDEX, tag: 'mutation-witness:upload-request-deadline',
     apply: (line) => line.replace('scope?.limit(30_000)', 'scope?.limit(120_000)'), killedBy: 'served upload bounds a pending record read' },
+  // ── upload body is bounded and authorised before it is buffered ──
+  { id: 'upload-body-cap-declared', file: INDEX, tag: 'mutation-witness:upload-body-cap-declared',
+    apply: (line) => line.replace('> UPLOAD_BODY_LIMIT', '> Number.POSITIVE_INFINITY'),
+    killedBy: 'a declared oversize length is a 413 with no body read, no membership read and no Graph call' },
+  { id: 'upload-body-cap-stream', file: HANDLE_UPLOAD, tag: 'mutation-witness:upload-body-cap-stream',
+    apply: (line) => line.replace('seen > UPLOAD_BODY_LIMIT', 'false'),
+    killedBy: 'a missing or understated length cannot stream past the cap' },
+  { id: 'upload-auth-before-body', file: INDEX, tag: 'mutation-witness:upload-auth-before-body',
+    apply: (line) => line.replace('await authorizeUploadCaller(authed)', '{ orgId: "mutant", role: "Admin" } as never'),
+    killedBy: 'a disabled member is refused before any body byte is read' },
 ];
 
 const sha = (text) => createHash('sha256').update(text).digest('hex');

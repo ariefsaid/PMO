@@ -172,13 +172,18 @@ export function mapUploadOutcome(
   }
 }
 
-export async function handleUploadRecordFile(form: FormData, deps: HandlerDeps): Promise<HandlerResult> {
-  const budget = createGraphBudget(30_000);
-  const parsed = await parseUploadRequest(form);
-  if (!parsed) return failure(400, "BAD_REQUEST", "Cannot upload this file.");
+/** Largest request body read: the file cap plus room for the multipart framing and the few small fields. */
+export const UPLOAD_BODY_LIMIT = MAX_FILE_SIZE_BYTES + 64 * 1024;
 
+export type UploadCaller = { orgId: string; role: string };
+
+/**
+ * Membership, entitlement and writer role: everything that needs no body. The wrapper runs it BEFORE the
+ * multipart body is read, so an unauthorised caller costs no buffering.
+ */
+export async function authorizeUploadCaller(deps: HandlerDeps): Promise<UploadCaller | HandlerResult> {
   if (!deps.callerClient) return failure(500, "INTERNAL_ERROR", "caller client missing");
-  let caller: { orgId: string; role: string };
+  let caller: UploadCaller;
   try {
     caller = await authorizeMemberEntitled({
       callerClient: deps.callerClient,
@@ -190,6 +195,38 @@ export async function handleUploadRecordFile(form: FormData, deps: HandlerDeps):
     throw err;
   }
   if (!WRITER_ROLES.has(caller.role)) return DENIED(); // mutation-witness:upload-writer-role
+  return caller;
+}
+
+/**
+ * The multipart body, read with a hard byte cap that holds with a missing or understated `Content-Length`
+ * (the wrapper refuses an oversize declared length earlier, before any authorization read):
+ * the stream is cut the moment it passes the limit, so memory use is bounded by the limit, not by the sender.
+ */
+export async function readUploadForm(req: Request): Promise<FormData | "too_large" | null> {
+  if (!req.body) return null;
+  let seen = 0;
+  let over = false;
+  const capped = req.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      seen += chunk.byteLength;
+      if (seen > UPLOAD_BODY_LIMIT) { // mutation-witness:upload-body-cap-stream
+        over = true;
+        controller.error(new Error("too large"));
+      } else controller.enqueue(chunk);
+    },
+  }));
+  try {
+    return await new Response(capped, { headers: { "content-type": req.headers.get("content-type") ?? "" } }).formData();
+  } catch {
+    return over ? "too_large" : null;
+  }
+}
+
+export async function handleUploadRecordFile(form: FormData, deps: HandlerDeps, caller: UploadCaller): Promise<HandlerResult> {
+  const budget = createGraphBudget(30_000);
+  const parsed = await parseUploadRequest(form);
+  if (!parsed) return failure(400, "BAD_REQUEST", "Cannot upload this file.");
 
   const scope = await loadTarget(deps, caller, parsed.target);
   if ("status" in scope) return scope;

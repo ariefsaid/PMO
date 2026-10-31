@@ -484,3 +484,64 @@ Deno.test("document-preview AC-007 served upload bounds a pending record read", 
     time.restore();
   }
 });
+
+/** A multipart request whose body is a counting stream: `pulled()` is how many bytes the server actually read. */
+function streamedUpload(token: string, total: number, header: string | null) {
+  let sent = 0;
+  const chunk = new Uint8Array(64 * 1024);
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (sent >= total) return controller.close();
+      const next = chunk.subarray(0, Math.min(chunk.byteLength, total - sent));
+      sent += next.byteLength;
+      controller.enqueue(next);
+    },
+  }, { highWaterMark: 0 }); // no eager pull: `sent` counts only what the server asked for
+  const headers: Record<string, string> = { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data; boundary=x" };
+  if (header !== null) headers["Content-Length"] = header;
+  const req = new Request("http://edge.test/m365-token-custody", { method: "POST", headers, body, duplex: "half" } as RequestInit);
+  return { req, pulled: () => sent };
+}
+const BODY_CAP = MAX_FILE_SIZE_BYTES + 64 * 1024;
+
+Deno.test("document-preview AC-008 upload refuses an oversize or unauthorised request before the body is buffered", async (t) => {
+  await t.step("a declared oversize length is a 413 with no body read, no membership read and no Graph call", async () => {
+    await run(newWorld({ documents: registers(), graph: [okPut()] }), async (sc) => {
+      const { req, pulled } = streamedUpload(sc.token, 40 * 1024 * 1024, String(40 * 1024 * 1024));
+      const res = await handler(req);
+      assertEquals(res.status, 413);
+      assertEquals(pulled(), 0);
+      assertEquals(graphCalls(sc.calls).length, 0);
+      assertEquals(dbCalls(sc.calls, "project_documents").length, 0);
+    });
+  });
+
+  await t.step("a missing or understated length cannot stream past the cap", async () => {
+    for (const header of [null, "100"]) {
+      await run(newWorld({ documents: registers(), graph: [okPut()] }), async (sc) => {
+        const { req, pulled } = streamedUpload(sc.token, 40 * 1024 * 1024, header);
+        const res = await handler(req);
+        assertEquals(res.status, 413, String(header));
+        assert(pulled() <= BODY_CAP + 128 * 1024, `read ${pulled()} bytes`);
+        assertEquals(graphCalls(sc.calls).length, 0);
+      });
+    }
+  });
+
+  const unauthorised: Array<[string, Partial<World>, number]> = [
+    ["a disabled member", { memberState: "disabled" }, 403],
+    ["an organisation that is not entitled", { entitled: false }, 403],
+    ["a read-only role", { role: "Engineer" }, 403],
+  ];
+  for (const [label, over, status] of unauthorised) {
+    await t.step(`${label} is refused before any body byte is read`, async () => {
+      await run(newWorld({ documents: registers(), graph: [okPut()], ...over }), async (sc) => {
+        const { req, pulled } = streamedUpload(sc.token, 1024 * 1024, String(1024 * 1024));
+        const res = await handler(req);
+        assertEquals(res.status, status);
+        assertEquals(pulled(), 0);
+        assertEquals(dbCalls(sc.calls, "project_documents").length, 0);
+      });
+    });
+  }
+});
