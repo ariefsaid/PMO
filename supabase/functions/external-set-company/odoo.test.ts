@@ -135,7 +135,7 @@ describe('external-set-company — Odoo activate', () => {
   });
 
   it('FR-ODC-020 discovery failing on the network → 502 with the class, no RPC', async () => {
-    const r = await call({ companyId: 1 }, { prepare: (f) => { const orig = f.fetch; let n = 0; f.fetch = (async (...a: Parameters<typeof fetch>) => (++n === 2 ? Promise.reject(new TypeError('connection reset')) : orig(...a))) as typeof fetch; } });
+    const r = await call({ companyId: 1 }, { prepare: (f) => { const orig = f.fetch; let n = 0; f.fetch = ((...a: Parameters<typeof fetch>) => (++n === 2 ? Promise.reject(new TypeError('connection reset')) : orig(...a))) as typeof fetch; } });
     assertEquals([r.res.status, r.json.error], [502, 'unreachable']);
     assertEquals(rpcCall(r.calls, 'activate_odoo_binding').length, 0);
   });
