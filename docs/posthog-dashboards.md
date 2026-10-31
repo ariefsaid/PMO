@@ -44,3 +44,37 @@ PostHog UI and re-run.
 Upsert-by-name skips existing insights — it does **not** re-push an edited query onto an insight that
 already exists. That's the right trade for provisioning; edit-in-place would fight manual UI tweaks.
 Add a `--force` re-push flag only if the spec starts changing often.
+
+---
+
+# Operations dashboards, alerts and click-paths (#1532)
+
+Dashboard fragments live in `scripts/posthog/spec/{ai,jobs,pushes,usage,demo}.mjs`, one owner each. Settings that need the owner's PostHog login (alert destinations, survey publishing) are written here as click-paths, not done from code. Each slice edits only its own section below.
+
+## S1 AI
+
+_Owned by slice S1 (#1532)._
+
+## S2 Alerts and source maps
+
+_Owned by slice S2 (#1532)._
+
+## S3 Jobs
+
+_Owned by slice S3 (#1532)._
+
+## S4 Push outcomes
+
+_Owned by slice S4 (#1532)._
+
+## S5 Business events
+
+_Owned by slice S5 (#1532)._
+
+## S6 Demo funnels
+
+_Owned by slice S6 (#1532)._
+
+## S7 Logs (conditional)
+
+_Owned by slice S7 (#1532)._
