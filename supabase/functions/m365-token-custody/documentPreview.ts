@@ -136,12 +136,12 @@ export async function handlePreviewDocument(body: unknown, deps: HandlerDeps): P
   const req = parsePreviewRequest(body);
   if (!req) return failure(400, "BAD_REQUEST", "Cannot preview this document.");
 
-  const caller = await authorizeFolderCaller(deps, () => true);
+  const caller = await authorizeFolderCaller(deps, () => true); // mutation-witness:preview-membership
   if ("status" in caller) return caller;
 
   const source = await loadSource(deps, caller.orgId, req);
   if (source === "error") return UNREADABLE();
-  if (!source) return NOT_AVAILABLE();
+  if (!source) return NOT_AVAILABLE(); // mutation-witness:preview-source-required
   const childId = "child_item_id" in req ? req.child_item_id : undefined;
   if (childId && !source.isFolder) return NOT_AVAILABLE();
   if (!childId && source.isFolder) return UNSUPPORTED();

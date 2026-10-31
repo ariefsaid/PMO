@@ -654,7 +654,7 @@ async function openOwnConnection(
     const bearer = await token();
     if (typeof bearer !== "string") return { kind: "unavailable", result: bearer };
     // A refresh can change the stored scopes; the read grant is re-checked on the refreshed set.
-    if (requireScope && !requireScope(connection.scopes ?? [])) {
+    if (requireScope && !requireScope(connection.scopes ?? [])) { // mutation-witness:refreshed-preview-grant
       return { kind: "unavailable", result: {
         status: 403, body: { error: "SCOPE_INSUFFICIENT", message: scopeMessage }, headers: GRAPH_HEADERS,
       } };

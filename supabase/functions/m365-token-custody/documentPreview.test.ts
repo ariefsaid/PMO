@@ -200,7 +200,7 @@ Deno.test("document-preview AC-014 an unreadable record returns a sanitized refu
     ["RLS hides the row", { documents: [] }, previewBody()],
     ["row in another org", { documents: [msRow({ org_id: "other-org" })] }, previewBody()],
     ["row is a different id", { documents: [msRow({ id: "10200000-0000-0000-0000-0000000000ee" })] }, previewBody()],
-    ["private upload row", { documents: [msRow({ source: "upload", ms_drive_id: null, ms_item_id: null })] }, previewBody()],
+    ["private upload row", { documents: [msRow({ source: "upload" })] }, previewBody()],
     ["no source", { documents: [msRow({ source: null })] }, previewBody()],
     ["file reference with a child id", { documents: [msRow()] }, previewBody({ child_item_id: "synthetic-child" })],
     ["missing drive", { documents: [msRow({ ms_drive_id: null })] }, previewBody()],
@@ -435,4 +435,32 @@ Deno.test("document-preview AC-003 preview is throttled per user and a pending r
       time.restore();
     }
   });
+});
+
+Deno.test("document-preview AC-014 preview refuses a non-member or non-entitled caller before reading any record", async (t) => {
+  const cases: Array<[string, Partial<World>, number, string]> = [
+    ["organisation not entitled", { entitled: false }, 403, "NOT_ENTITLED"],
+    ["disabled member", { memberState: "disabled" }, 403, "DISABLED_MEMBER"],
+    ["banned member", { memberState: "banned" }, 403, "BANNED_MEMBER"],
+    ["unresolvable caller", { memberState: "missing" }, 400, "BAD_REQUEST"],
+  ];
+  for (const [label, over, status, code] of cases) {
+    await t.step(label, async () => {
+      const { res, json, calls } = await serve(newWorld({ documents: [msRow()], graph: [okPreview()], ...over }), previewBody());
+      assertEquals([res.status, json?.error], [status, code]);
+      assertEquals(graphCalls(calls).length, 0);
+      assertEquals(dbCalls(calls, "project_documents").length, 0);
+      assertEquals(dbCalls(calls, "ms_graph_connections").length, 0);
+    });
+  }
+});
+
+Deno.test("document-preview AC-003 a refresh that drops the Files read grant is re-checked before the preview", async () => {
+  const { outcome, calls } = await previewOutcome(() => jsonResponse({ getUrl: EMBED }), {
+    accessExpired: true,
+    refresh: () => jsonResponse({ access_token: "synthetic-new-access", refresh_token: "synthetic-new-refresh", expires_in: 3600, scope: "offline_access" }),
+  });
+  assertEquals(outcome.kind, "unavailable");
+  assertEquals((outcome as { result?: { status: number } }).result?.status, 403);
+  assertEquals(graphCalls(calls).length, 0);
 });

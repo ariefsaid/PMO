@@ -3,6 +3,8 @@
 // globalThis.fetch. A target of scripts/m365-preview-upload-mutation.mjs: break an allowlist predicate or an
 // authorization step and it MUST go red.
 import { assert, assertEquals, assertFalse } from "@std/assert";
+import { FakeTime } from "@std/testing/time";
+import { ALLOWED_FILE_TYPES, FILE_MIME_BY_EXT } from "../../../pmo-portal/src/lib/fileConstants.ts";
 import {
   buildUploadRequest,
   sanitizeUploadFileName,
@@ -443,4 +445,42 @@ Deno.test("document-preview AC-014 upload refuses an unreadable or unwritable ta
     assertEquals(dbCalls(calls, "project_documents").length, 0);
     assertEquals(dbCalls(calls, "org_m365_document_settings").length, 0);
   });
+});
+
+Deno.test("document-preview AC-007 every allowed upload type has a server-derived content type", () => {
+  assertEquals([...ALLOWED_FILE_TYPES].sort(), Object.keys(FILE_MIME_BY_EXT).sort());
+});
+
+Deno.test("document-preview AC-014 upload refuses a non-member or non-entitled caller before reading any record", async (t) => {
+  const cases: Array<[string, Partial<World>, number, string]> = [
+    ["organisation not entitled", { entitled: false }, 403, "NOT_ENTITLED"],
+    ["disabled member", { memberState: "disabled" }, 403, "DISABLED_MEMBER"],
+    ["banned member", { memberState: "banned" }, 403, "BANNED_MEMBER"],
+  ];
+  for (const [label, over, status, code] of cases) {
+    await t.step(label, async () => {
+      const { res, json, calls } = await serveUpload(newWorld({ documents: registers(), graph: [okPut()], ...over }), projectForm());
+      assertEquals([res.status, json?.error], [status, code]);
+      assertEquals(graphCalls(calls).length, 0);
+      assertEquals(dbCalls(calls, "project_documents").length, 0);
+      assertEquals(dbCalls(calls, "ms_graph_connections").length, 0);
+    });
+  }
+});
+
+Deno.test("document-preview AC-007 served upload bounds a pending record read", async () => {
+  const time = new FakeTime();
+  try {
+    await run(newWorld({ hangDocuments: true, graph: [okPut()] }), async (sc) => {
+      let settled = false;
+      const pending = handler(new Request("http://edge.test/m365-token-custody", {
+        method: "POST", headers: { Authorization: `Bearer ${sc.token}` }, body: projectForm(),
+      })).finally(() => (settled = true));
+      for (let i = 0; i < 160 && !settled; i += 1) await time.tickAsync(250);
+      assert(settled, "the upload request deadline must release a hung record read");
+      assertEquals((await pending).status, 502);
+    });
+  } finally {
+    time.restore();
+  }
 });

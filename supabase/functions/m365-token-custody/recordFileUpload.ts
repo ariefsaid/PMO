@@ -60,11 +60,11 @@ export async function parseUploadRequest(form: FormData): Promise<ParsedUpload |
 
   const file = form.get("file");
   if (typeof file === "string" || file === null) return null;
-  if (file.size <= 0 || file.size > MAX_FILE_SIZE_BYTES) return null; // mutation-witness:upload-size-cap
   const fileName = sanitizeUploadFileName(file.name);
   if (!validUploadFileName(fileName)) return null; // mutation-witness:upload-extension-allowlist
+  // The size is the bytes actually read, never a declared header or `file.size`.
   const bytes = new Uint8Array(await file.arrayBuffer());
-  if (bytes.byteLength <= 0 || bytes.byteLength > MAX_FILE_SIZE_BYTES) return null;
+  if (bytes.byteLength <= 0 || bytes.byteLength > MAX_FILE_SIZE_BYTES) return null; // mutation-witness:upload-size-cap
   return { target, fileName, bytes };
 }
 
@@ -112,10 +112,8 @@ async function loadTarget(
       ? { kind: "procurement", recordId: row.procurement_id }
       : NOT_AVAILABLE();
   }
-  if (
-    row.status !== "Draft" || row.source === "onedrive" ||
-    (row.author_id !== deps.userId && caller.role !== "Admin")
-  ) return DENIED();
+  const writable = row.status === "Draft" && row.source !== "onedrive" && (row.author_id === deps.userId || caller.role === "Admin"); // mutation-witness:upload-draft-only mutation-witness:upload-author-or-admin
+  if (!writable) return DENIED();
   return typeof row.project_id === "string" ? { kind: "project", recordId: row.project_id } : NOT_AVAILABLE();
 }
 
@@ -198,7 +196,7 @@ export async function handleUploadRecordFile(form: FormData, deps: HandlerDeps):
 
   const folder = await findRecordFolderRef(deps, scope);
   if (folder === "error") return UNREADABLE();
-  if (!folder) return NO_FOLDER("This record has no SharePoint folder yet. Create the folder first.");
+  if (!folder) return NO_FOLDER("This record has no SharePoint folder yet. Create the folder first."); // mutation-witness:upload-folder-required
   const snapshot = await readDefaultSnapshot(deps, caller.orgId);
   if (snapshot === "error") return UNREADABLE();
   if (snapshot === "unset") return NO_FOLDER("Choose the organisation's SharePoint library first.");

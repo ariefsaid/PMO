@@ -61,7 +61,8 @@ export function sanitizeUploadFileName(raw: string): string {
 export function validUploadFileName(name: unknown): name is string {
   if (typeof name !== "string" || name === "" || sanitizeUploadFileName(name) !== name) return false;
   const ext = extensionOf(name);
-  return ALLOWED_FILE_TYPES.includes(ext) && !DENIED_EXTENSIONS.includes(ext) && ext in FILE_MIME_BY_EXT;
+  // ALLOWED_FILE_TYPES and FILE_MIME_BY_EXT list the same extensions (pinned by a test), so an allowed name always has a type.
+  return ALLOWED_FILE_TYPES.includes(ext) && !DENIED_EXTENSIONS.includes(ext); // mutation-witness:upload-extension-allowlist
 }
 
 function valid(c: UploadContext): boolean {
@@ -95,7 +96,6 @@ export function uploadAllowed(request: unknown, c: UploadContext): boolean { // 
   const m = /^\/drives\/([^/?#]+)\/items\/([^/?#]+):\/([^/?#:]+):\/content$/u.exec(String(request.path));
   if (!m || m[1] !== encodeURIComponent(c.driveId) || m[2] !== encodeURIComponent(c.parentId)) return false;
   if (m[3] !== encodeURIComponent(c.fileName)) return false;
-  if (!ALLOWED_FILE_TYPES.includes(extensionOf(c.fileName))) return false; // mutation-witness:upload-extension-allowlist
   if (request.contentType !== FILE_MIME_BY_EXT[extensionOf(c.fileName)]) return false;
   return request.size === c.bytes && c.bytes <= MAX_FILE_SIZE_BYTES;
 }
