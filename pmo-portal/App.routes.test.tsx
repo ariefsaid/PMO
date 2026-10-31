@@ -32,6 +32,12 @@ describe('Application route table', () => {
     }
   });
 
+  it('FR-STK-007: /stock/setup resolves to its own page, not the not-found catch-all', () => {
+    const route = matchRoutes(appRouteConfig, '/stock/setup')?.at(-1)?.route;
+    expect(route?.path).toBe('/stock/setup');
+    expect(React.isValidElement(route?.element)).toBe(true);
+  });
+
   it('AC-1405-ROUTE-002: legacy Finance list URLs redirect to their canonical area', () => {
     const redirects = [
       ['/sales-invoices', '/finance/receivables'],
