@@ -173,7 +173,7 @@ export function OdooConnectionCard() {
             )}
             {active && may.manage && (
               <Button variant="outline" size="sm" onClick={() => { setError(null); form.reset(BLANK); setFormOpen(true); }}>
-                <Icon name="refresh" className="size-3.55" aria-hidden="true" />{t('administration:odoo.card.reconnect', 'Reconnect')}
+                {t('administration:odoo.card.reconnect', 'Reconnect')}
               </Button>
             )}
             {active && may.manage && (
