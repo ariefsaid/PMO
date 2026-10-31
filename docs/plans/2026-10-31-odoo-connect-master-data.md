@@ -25,6 +25,8 @@
 
 ## 0. Open questions for the Director (each with the default this plan builds on)
 
+**Director, 2026-10-31:** PQ-1: #1604 (ECA-7 contract suite) lands first; if it is not on dev when S1 starts, S1 builds `connect/types.ts`, `workflows.ts` and `contractSuite/harness.ts` exactly to ECA §6.2 and #1604 adopts them. PQ-2: follow ECA (`item.send`), conditional on the owner's answer to OQ-ECA-2. PQ-3..12: defaults taken. Migration numbers assigned at build. S0 bases on `infra/odoo-dev-bed`.
+
 | # | Question | Default taken |
 |---|---|---|
 | **PQ-1** | O1-S1 (contract first) needs ECA-7's `workflows.ts`, `contractSuite/*`, `ErpHarness` and ECA-2's `connect/types.ts` + `connect/match.ts`. Neither is on `dev` yet. | **Sequence ECA-7, then ECA-2's matcher part, before O1-S1.** If the Director wants O1 to start first, O1-S1's worker builds `connect/types.ts`, `workflows.ts` and `contractSuite/harness.ts` exactly to ECA §6.2 and ECA-7 adopts them; never two copies. |
