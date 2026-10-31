@@ -349,6 +349,15 @@ describe('Administration route-backed shell', () => {
 
     expect(screen.getByText(/only an Admin can add, edit, or disable users/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /invite user/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /row actions/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-AU-002b: an Engineer reaching /administration sees the Administration gate, not the directory', async () => {
+    renderShell('/administration', 'Engineer');
+
+    expect(await screen.findByText(/Administration is an Admin, Executive, or platform Operator area/i)).toBeVisible();
+    expect(screen.queryByTestId('administration-panel-users')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /invite user/i })).not.toBeInTheDocument();
   });
 
   it('AC-ADMIA-006: the shell labels the organization integrations section, distinct from the personal route', async () => {

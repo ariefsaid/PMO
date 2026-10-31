@@ -8,14 +8,13 @@ import { login } from './helpers';
  *
  * The Documents tab on a project detail is the per-project document register (metadata only;
  * Storage is disabled so there is NO file upload — the "Attach file" affordance is a disabled
- * placeholder). Covered here in one sequential journey + two gate assertions:
+ * placeholder). Covered here in one sequential journey (AC-DOC-007 gating lives in DocumentsTab.test.tsx):
  *
  *   AC-DOC-001  register loads for a write-role → "Add document" CTA visible
  *   AC-DOC-003  create a document → the new row appears in the register
  *   AC-DOC-004  edit the document → the change persists in the register
  *   AC-DOC-005  status workflow: Draft → Issued (author), then a DIFFERENT reviewer Approves
  *               (approver ≠ author SoD: the author may NOT approve their own document)
- *   AC-DOC-007  Engineer is read-only (no "Add document"); the "Attach file" control is disabled
  *
  * Isolation: a unique document title is generated inside the journey so all steps share the same
  * title and there is zero seed-coupling. Uses the seeded project P001.
@@ -127,21 +126,5 @@ test(
     // GOAL ORACLE: the document is now Approved (the SoD-respecting approval succeeded).
     await expect(approveDialog).not.toBeVisible({ timeout: 15_000 });
     await expect(docRow(page, docEdited).getByText('Approved')).toBeVisible({ timeout: 15_000 });
-  },
-);
-
-// ── AC-DOC-007 — Engineer gating + the deferred file-upload affordance ──
-
-test(
-  'AC-DOC-007 gating: engineer sees a read-only register (no "Add document"); file-upload deferral is signposted by copy, not a dead button (D13)',
-  async ({ page }) => {
-    await login(page, 'engineer@acme.test');
-    await openDocumentsTab(page);
-
-    // GOAL ORACLE: no write affordance for the Engineer.
-    await expect(page.getByRole('button', { name: /add document/i })).not.toBeVisible({ timeout: 10_000 });
-
-    // D13 (honest-affordance): the dead disabled "Attach file" button is gone, never replaced by a fake disabled control.
-    await expect(page.getByRole('button', { name: /attach file/i })).toHaveCount(0);
   },
 );

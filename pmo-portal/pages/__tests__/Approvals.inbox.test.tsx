@@ -77,14 +77,16 @@ vi.mock('@/src/auth/useAuth', () => ({
 // IF-A: the procurement section now renders <ProcurementApprovalRow>, which expands
 // in place (react-query detail) instead of routing away. Mock its hooks like the row's
 // own unit test, so the page test stays hermetic (no real QueryClientProvider needed).
+// A request's own line items, keyed by id, so a test can prove the preview follows the selection.
+const detailItems: Record<string, Array<{ id: string; name: string; quantity: number; rate: number; amount: number; description: null }>> = {};
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
-  useProcurementDetail: () => ({
+  useProcurementDetail: (id?: string) => ({
     data: {
-      id: 'pr1',
+      id: id ?? 'pr1',
       title: 'Steel beams',
       project: { name: 'Apollo', code: 'PRJ-014' },
       vendor: null,
-      items: [{ id: 'li1', name: 'Beam', quantity: 1, rate: 48000, amount: 48000, description: null }],
+      items: (id && detailItems[id]) || [{ id: 'li1', name: 'Beam', quantity: 1, rate: 48000, amount: 48000, description: null }],
     },
     isPending: false,
     isError: false,
@@ -154,6 +156,36 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     await userEvent.click(button);
     expect(within(screen.getByRole('region', { name: /Approval preview/i })).getByRole('button', { name: /Approve/i })).toBeVisible();
     expect(navigateMock).not.toHaveBeenCalled();
+  });
+  it.each([[1440, true], [390, false]])('UIP-008 previews the South request by keyboard at %ipx wide', async (width, wide) => {
+    const north = { ...procRows[0], id: 'north', title: 'UIP-008 Switchgear — North hall commissioning', total_value: 9800 };
+    const south = { ...procRows[0], id: 'south', title: 'UIP-008 Switchgear — South hall commissioning', total_value: 48000 };
+    procState.data = [north, south];
+    detailItems.north = [{ id: 'n1', name: 'North hall switchgear evidence', quantity: 1, rate: 9800, amount: 9800, description: null }];
+    detailItems.south = [{ id: 's1', name: 'South hall switchgear evidence', quantity: 1, rate: 48000, amount: 48000, description: null }];
+    const realMatchMedia = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: wide && query.includes('1024'), media: query, onchange: null,
+      addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+    try {
+      renderAs('Finance', '/approvals?scope=procurement');
+      const control = within(screen.getByRole('region', { name: 'Approvals queue' })).getByRole('button', { name: /South hall commissioning/ });
+      control.focus();
+      await userEvent.keyboard('{Enter}');
+      const preview = screen.getByRole('region', { name: 'Approval preview' });
+      expect(within(preview).getByText('South hall switchgear evidence')).toBeVisible();
+      expect(within(preview).getAllByText('$48,000').length).toBeGreaterThan(0);
+      expect(within(preview).queryByText('North hall switchgear evidence')).toBeNull();
+      expect(within(preview).getByRole('button', { name: 'Approve' })).toBeVisible();
+      expect(within(preview).getByRole('button', { name: 'Reject' })).toBeVisible();
+      expect(control).toHaveTextContent('Requested');
+      expect(navigateMock).not.toHaveBeenCalled();
+    } finally {
+      window.matchMedia = realMatchMedia;
+      delete detailItems.north;
+      delete detailItems.south;
+    }
   });
   it('CW-6: the page title is "Approvals" (matches the rail label), with the "Needs my approval" subtitle', () => {
     renderAs('Project Manager');

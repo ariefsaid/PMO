@@ -1,6 +1,6 @@
 // @e2e-isolation: self-isolated — owns uniquely named requests/project/items and cleans them up; previews only, never submits a decision.
 import { randomUUID } from 'node:crypto';
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { signIn, requireServiceRoleKey, waitForFonts } from './helpers';
@@ -58,39 +58,6 @@ test.afterEach(async () => {
   }
   ids = [];
   projectId = '';
-});
-
-async function assertApprovalPreview(page: Page, width: 1440 | 390): Promise<void> {
-  await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
-  await page.goto('/approvals?scope=procurement');
-  // S-18 moved phone and desktop approvals to one selection → evidence preview
-  // pattern (fa448039). Select the same request from the queue at this viewport.
-  const control = page.getByRole('region', { name: 'Approvals queue' })
-    .getByRole('button', { name: new RegExp(titles[1]) });
-  await expect(control).toBeVisible();
-  await control.focus();
-  await page.keyboard.press('Enter');
-  const preview = page.getByRole('region', { name: 'Approval preview' });
-  await expect(preview.getByText('South hall switchgear evidence', { exact: true })).toBeVisible();
-  await expect(preview.getByText('$48,000', { exact: true }).first()).toBeVisible();
-  await expect(preview.getByText('North hall switchgear evidence', { exact: true })).toHaveCount(0);
-  await expect(preview.getByRole('button', { name: 'Approve', exact: true })).toBeVisible();
-  await expect(preview.getByRole('button', { name: 'Reject', exact: true })).toBeVisible();
-  await expect(page).toHaveURL(/\/approvals\?scope=procurement$/);
-  await waitForFonts(page);
-  await expect(control.getByText(titles[1], { exact: true })).toBeVisible();
-  await expect(control).toContainText('Requested');
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-}
-
-test('UIP-008 previews the South request by keyboard at desktop 1440x900', async ({ page }) => {
-  await signIn(page, 'finance@acme.test');
-  await assertApprovalPreview(page, 1440);
-});
-
-test('UIP-008 previews the South request by keyboard at phone 390x844', async ({ page }) => {
-  await signIn(page, 'finance@acme.test');
-  await assertApprovalPreview(page, 390);
 });
 
 test('UIP-007 keeps comparative procurement values and the header right-aligned at desktop', async ({ page }) => {

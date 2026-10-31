@@ -323,6 +323,26 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.getByText(/Plus 2,350,000 committed in purchase orders/)).toBeInTheDocument();
   });
 
+  it.each(['Project Manager', 'Finance'])('UIP-006: %s contract and committed values remain visible', async (role) => {
+    roleBox.value = role;
+    projectsState.data = [{ ...seed[0], tax_treatment: 'exclusive' } as unknown as ProjectWithRefs];
+    committedSpendState.data = 2_360_000;
+    projectProcurementsState.data = [
+      { status: 'Paid', budget_category: 'Labor', approved_total_value: 1_680_000, total_value: 1_680_000, currency: 'USD' },
+      { status: 'Ordered', budget_category: 'Labor', approved_total_value: 680_000, total_value: 680_000, currency: 'USD' },
+    ];
+    budgetVersionsBox.value = [{ id: 'bv1', status: 'Active', total: 4_700_000,
+      line_items: [{ id: 'li1', category: 'Labor', budgeted_amount: 4_700_000 }] }];
+    await renderAt('/projects/p1');
+
+    const contractAmount = within(screen.getByRole('region', { name: 'Money position' })).getByTestId('contract-value-amount');
+    expect(contractAmount).toBeVisible();
+    const budgetActual = screen.getByRole('region', { name: 'Budget vs actual' });
+    expect(budgetActual).toHaveTextContent('USD · excl. PPN');
+    expect(within(budgetActual).getByText('Plus 2,360,000 committed in purchase orders')).toBeVisible();
+    projectsState.data = seed;
+  });
+
   it('AC-SEC-229: an Engineer sees no project-wide purchase-order or spend figure — their purchasing read covers only their own requests', async () => {
     roleBox.value = 'Engineer';
     committedSpendState.data = 2_350_000;
