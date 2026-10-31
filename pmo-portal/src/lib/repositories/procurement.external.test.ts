@@ -40,7 +40,7 @@ vi.mock('@/src/lib/db/companies', () => ({
 }));
 
 import * as dispatchClient from '@/src/lib/adapterSeam/dispatchClient';
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 import { repositories } from '@/src/lib/repositories';
 import {
   createPurchaseRequest,
@@ -201,7 +201,7 @@ describe('AC-ENA-001 cold ownership map — company writes stay on the direct DA
  */
 describe('task 4.8 — flipped ownership map — procurement/company record creates route to dispatchDomainCommand', () => {
   beforeEach(() => {
-    setDomainOwnership([
+    setTaskOwnership([
       { domain: 'procurement', externalTier: 'erpnext' },
       { domain: 'companies', externalTier: 'erpnext' },
     ]);
@@ -278,7 +278,7 @@ describe('task 4.8 — flipped ownership map — procurement/company record crea
 
   it('AC-VPAY-005 the NATIVE createPayment route keeps today\'s DAL argument list byte-for-byte', async () => {
     // Cold map again for THIS case: the non-flipped org must be untouched by the #910 remap.
-    setDomainOwnership([]);
+    setTaskOwnership([]);
     clearOwnershipCache();
     vi.mocked(createPayment).mockResolvedValue({ id: 'pay-1' } as never);
     await repositories.procurement.createPayment('proc-1', 'inv-1', 'PAY-0001', 'Draft', '2026-07-11', 100);
@@ -393,7 +393,7 @@ describe('task 4.8 — flipped ownership map — procurement/company record crea
  */
 describe('task 4.9 — transition_procurement stays on the PMO DAL path even when procurement is flipped', () => {
   it('procurement.transition calls the existing RPC and never dispatches, even under a flipped ownership map', async () => {
-    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
     vi.mocked(transitionProcurement).mockResolvedValue(undefined);
     await repositories.procurement.transition('proc-1', 'Approved', 'looks good');
     expect(transitionProcurement).toHaveBeenCalledWith('proc-1', 'Approved', 'looks good');
@@ -407,7 +407,7 @@ describe('task 4.9 — transition_procurement stays on the PMO DAL path even whe
 // stay byte-for-byte and untouched.
 describe('AC-ENA-052 loaded cache asserting procurement→erpnext — PO/GR creates route externally', () => {
   beforeEach(() => {
-    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
   });
   afterEach(() => {
     clearOwnershipCache();
@@ -445,7 +445,7 @@ describe('AC-ENA-052 loaded cache asserting procurement→erpnext — PO/GR crea
 
 describe('task 3.8 (finding-3 path fix) — a flipped org routes company writes to dispatchDomainCommand with the type-derived erp_doc_kind', () => {
   beforeEach(() => {
-    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
   });
 
   it('a Vendor create dispatches with erp_doc_kind="supplier" and never calls the direct DAL', async () => {

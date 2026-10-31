@@ -135,6 +135,8 @@ describe('erpnext/onboarding — onboardParties (keyed by ERPNext ID)', () => {
       insertCompaniesMirror: async (c) => { calls.inserted.push(c); },
       updateCompaniesMirror: async (id) => { calls.updated.push(id); },
       recordExternalRef: async (m) => { calls.refs.push(m); },
+      mirrorExists: async () => true,
+      notifyUnclearMatch: async () => {},
     };
     return { deps, calls };
   }
@@ -143,7 +145,7 @@ describe('erpnext/onboarding — onboardParties (keyed by ERPNext ID)', () => {
   it('AC-ONB-001 a first-time adopt records the ref by the ERPNext ID and names the company by its display name', async () => {
     const { deps, calls } = fakeDeps({});
     const res = await onboardParties([source], deps);
-    expect(res).toEqual({ adopted: 1, reconciled: 0 });
+    expect(res).toEqual({ adopted: 1, reconciled: 0, needsDecision: [], skippedInternal: 0 });
     expect(calls.lookups).toEqual(['Customer:C-000001']);
     expect(calls.refs[0].externalRecordId).toBe('Customer:C-000001');
     expect(calls.inserted[0].name).toBe('PT Example');
@@ -152,7 +154,7 @@ describe('erpnext/onboarding — onboardParties (keyed by ERPNext ID)', () => {
   it('AC-ONB-003 a re-run over a party already mapped by its ID updates it and mints nothing', async () => {
     const { deps, calls } = fakeDeps({ 'Customer:C-000001': 'pmo-1' });
     const res = await onboardParties([source], deps);
-    expect(res).toEqual({ adopted: 0, reconciled: 1 });
+    expect(res).toEqual({ adopted: 0, reconciled: 1, needsDecision: [], skippedInternal: 0 });
     expect(calls.updated).toEqual(['pmo-1']);
     expect(calls.inserted).toHaveLength(0);
     expect(calls.refs).toHaveLength(0);

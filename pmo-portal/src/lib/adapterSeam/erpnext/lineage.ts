@@ -3,9 +3,8 @@
  * soft-tombstone (OQ-8 — stock REST enforces cancel-only, never delete, on a once-submitted doc):
  * `external_refs` is RETAINED, never repointed. Amend mints a new ERP `name`, so `external_refs`
  * repoints to it for the SAME `pmo_record_id` (no duplicate mirror row) and a lineage row records the
- * supersession. `guardStaleModified` is the per-row `erp_modified >=` no-rewind guard (mirrors
- * `applyEngine.ts`'s ms-based guard, but for ERPNext's raw sortable `modified` datetime STRING) —
- * wired into the actual inbound apply path in slice 8; this module ships the pure logic + unit ACs now.
+ * supersession. The per-row no-rewind guard on inbound applies is enforced by the database
+ * (`erp_modified >=` check in the mirror RPCs) and by `applyEngine.ts`'s ms-based guard.
  */
 import { AdapterError } from '../contract.ts';
 
@@ -84,17 +83,6 @@ export async function applyAmend(
     reason: 'amended',
     erpDocstatus: null,
   });
-}
-
-/**
- * The per-row `erp_modified >=` no-rewind guard (AC-ENA-022): `true` when `candidate` is STRICTLY
- * older than `stored` (a stale re-delivery — never applied). `stored === null` (fresh/unmapped) is
- * never stale. Frappe's `modified` is a sortable `"YYYY-MM-DD HH:MM:SS.ffffff"` string, so a plain
- * lexicographic compare is exact — no datetime parsing needed.
- */
-export function guardStaleModified(stored: string | null, candidate: string): boolean {
-  if (stored === null) return false;
-  return candidate < stored;
 }
 
 export interface SupersededNameLookupDeps {

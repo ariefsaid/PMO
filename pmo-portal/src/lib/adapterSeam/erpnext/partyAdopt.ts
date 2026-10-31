@@ -49,6 +49,8 @@ export interface PartyAdoptDeps {
 export interface AdoptedCompany {
   externalRecordId: string;
   canonical: PmoRecord;
+  /** The source matched an existing PMO company (`canonical.id` is its id): link it, never insert. */
+  matched: boolean;
 }
 
 const DISCRIMINATOR: Record<PartyDoctype, 'Vendor' | 'Client'> = { Supplier: 'Vendor', Customer: 'Client' };
@@ -65,9 +67,16 @@ export function deriveErpPaymentTermsDays(templateCreditDays: number | null | un
   return templateCreditDays ?? 30;
 }
 
+/** The ONE party-name comparison key (FR-ECA-011): case-folded, legal-form punctuation dropped
+ *  ("PT. Acme, Tbk." = "pt acme tbk"), whitespace collapsed. The shared matcher extends THIS, so setup and the
+ *  feed can never disagree on what "the same name" means. */
+export function normalizePartyName(name: string): string {
+  return name.toLowerCase().replace(/[.,]/g, '').replace(/\s+/g, ' ').trim();
+}
+
 // The caller supplies same-name, same-type, same-org candidates. A present source tax ID narrows
 // that set to matching or unset IDs. Conflicting-only and multiple eligible matches require action.
-function pickCandidate(source: ErpPartySource, candidates: PartyCandidate[]): PartyCandidate | undefined {
+export function pickCandidate(source: ErpPartySource, candidates: PartyCandidate[]): PartyCandidate | undefined {
   if (candidates.length === 0) return undefined;
   const matches = source.taxId
     ? candidates.filter((candidate) => !candidate.taxId || candidate.taxId === source.taxId)
@@ -76,12 +85,14 @@ function pickCandidate(source: ErpPartySource, candidates: PartyCandidate[]): Pa
     throw new AppError(
       `conflicting ${source.doctype} tax ID match for "${source.name}" — resolve manually (FR-ENA-093)`,
       'action-required',
+      'conflicting-tax-id',
     );
   }
   if (matches.length === 1) return matches[0];
   throw new AppError(
     `ambiguous ${source.doctype} match for "${source.name}" across ${matches.length} existing PMO companies — resolve manually (FR-ENA-093)`,
     'action-required',
+    'ambiguous-match',
   );
 }
 
@@ -113,5 +124,5 @@ export async function adoptParty(source: ErpPartySource, deps: PartyAdoptDeps): 
       : { erp_customer_name: source.name, erp_payment_terms_days: deriveErpPaymentTermsDays(source.paymentTermsDays) }),
   };
 
-  return { externalRecordId: externalIdFor(source.doctype, source.id), canonical };
+  return { externalRecordId: externalIdFor(source.doctype, source.id), canonical, matched: !!matched };
 }

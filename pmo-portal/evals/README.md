@@ -95,3 +95,6 @@ Revenue is switched on; revenue is owned by an ERPNext binding whose catalogue h
 there is ≥1 open task past its end date on a project, and ≥1 Unpaid invoice past its due date; work order
 `WO-EVAL-0001` is **Issued**, tax-exclusive, value 1,000,000.00; project `EVAL-P1` has ≥2 milestones.
 The suite only proposes — it never approves — so it never creates an ERP document.
+
+**No-ERP org (#1595).** The suite may also run as Finance in an org with Revenue on and no revenue ownership row; the
+proposal is then native, but no case asserts `path: 'native'` (unit tests own that), so this is not a native-path proof.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { budgetBodiesForYear, budgetFromDoc, budgetFromDocFields, budgetToBody } from './budget.ts';
+import { budgetFromDoc, budgetFromDocFields, budgetToBody } from './budget.ts';
 import { AdapterError } from '../../contract.ts';
 import type { PmoRecord } from '../../contract.ts';
 import type { ErpCtx } from '../doctypeRegistry.ts';
@@ -30,8 +30,10 @@ function ctx(versionMajor: 15 | 16): ErpCtx {
 }
 
 describe('ERP Budget v16 body contract', () => {
-  it('AC-BV16-001 builds two v16 account bodies', () => {
-    const bodies = budgetBodiesForYear(record, ctx(16));
+  it('AC-BV16-001 builds one v16 account body per account-selected record (the live dispatch shape)', () => {
+    const salary = budgetToBody({ ...record, erp_account: 'Salary' }, ctx(16)) as Record<string, unknown>;
+    const cogs = budgetToBody({ ...record, erp_account: 'COGS' }, ctx(16)) as Record<string, unknown>;
+    const bodies = [salary, cogs];
     expect(bodies).toEqual([
       {
         company: 'Test Co', budget_against: 'Project', project: 'PROJ-1', account: 'Salary',
@@ -69,7 +71,7 @@ describe('ERP Budget v16 body contract', () => {
   });
 
   it('AC-BV16-002 preserves the frozen v15 JSON bytes', () => {
-    expect(JSON.stringify(budgetBodiesForYear(record, ctx(15))[0])).toBe(V15_JSON);
+    expect(JSON.stringify(budgetToBody(record, ctx(15)))).toBe(V15_JSON);
   });
 
   it('AC-BV16-003 refuses a shared non-zero account before building', () => {
@@ -91,7 +93,7 @@ describe('ERP Budget v16 body contract', () => {
       },
     };
     try {
-      budgetBodiesForYear(sharedRecord, sharedCtx);
+      budgetToBody({ ...sharedRecord, erp_account: 'Salary' }, sharedCtx);
       throw new Error('expected shared-account refusal');
     } catch (error) {
       expect(error).toBeInstanceOf(AdapterError);
