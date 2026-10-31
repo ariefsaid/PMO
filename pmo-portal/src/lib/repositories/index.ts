@@ -10,6 +10,11 @@
  * A future ERP/REST backend = a new module exporting the same `Repositories` shape; the FE
  * imports `repositories` and never changes.
  */
+import {
+  listStockUnits, listStockItems, listStockWarehouses, listWarehouseKeepers, createStockUnit, updateStockUnit,
+  createStockItem, updateStockItem, createStockWarehouse, updateStockWarehouse, setArchived as setStockArchived,
+  setWarehouseKeeper,
+} from '@/src/lib/db/stockMaster';
 import { salesInvoiceCreateFields } from '@/src/lib/adapterSeam/erpnext/salesInvoiceCommand';
 import { toAppError, AppError } from '@/src/lib/appError';
 import { recordHistoryRepository } from './recordHistory';
@@ -373,6 +378,7 @@ import type {
   ExternalDomainOwnershipRepository,
   ErpSnapshotsRepository,
   ReportsRepository,
+  StockRepository,
 } from './types';
 
 /** Runs a DAL call and rethrows any failure as a normalized `AppError` (code preserved). */
@@ -1331,6 +1337,23 @@ const reports: ReportsRepository = {
   recordProgress: (input) => wrap(() => recordProjectProgress(input)),
 };
 
+const stock: StockRepository = {
+  master: {
+    listUnits: (i) => wrap(() => listStockUnits(i)),
+    listItems: (i) => wrap(() => listStockItems(i)),
+    listWarehouses: (i) => wrap(() => listStockWarehouses(i)),
+    listKeepers: () => wrap(() => listWarehouseKeepers()),
+    createUnit: (i) => wrap(() => createStockUnit(i)),
+    updateUnit: (id, i) => wrap(() => updateStockUnit(id, i)),
+    createItem: (i) => wrap(() => createStockItem(i)),
+    updateItem: (id, i) => wrap(() => updateStockItem(id, i)),
+    createWarehouse: (i) => wrap(() => createStockWarehouse(i)),
+    updateWarehouse: (id, i) => wrap(() => updateStockWarehouse(id, i)),
+    archive: (table, id, archived) => wrap(() => setStockArchived(table, id, archived)),
+    setKeeper: (a) => wrap(() => setWarehouseKeeper(a)),
+  },
+};
+
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
   fxRates: fxRatesRepository,
@@ -1352,6 +1375,7 @@ export const repositories: Repositories = {
   milestone,
   workOrder,
   progressBilling,
+  stock,
   workOrderAcceptance,
   procurementFiles,
   expenseClaim,
