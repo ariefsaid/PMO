@@ -73,7 +73,7 @@ public-Office-viewer preview result. It does not mutate the business record.
 
 | Source | Preview path | Recovery / secondary actions |
 | --- | --- | --- |
-| SharePoint / work-or-school OneDrive reference | Server-mediated Graph `driveItem: preview` under the viewer's own connection | Open in SharePoint (or source-appropriate OneDrive label); authorized Download |
+| SharePoint / work-or-school OneDrive reference | Server-mediated Graph `driveItem: preview` under the viewer's own connection | Open in SharePoint (or source-appropriate OneDrive label); no Download (a SharePoint file is fetched from SharePoint, and NFR-003 allows no extra custody operation) |
 | New upload, org connected to M365 | Store in the owning record's SharePoint folder; persist a Microsoft reference; same Graph path | Explicit folder/connection/upload recovery; no silent change of destination |
 | Existing private upload, or new upload without M365 | Browser-native PDF/image; public Microsoft online viewer for Office using a short-lived signed link where supported | Download; clear preview-unavailable state |
 | Folder reference | Existing folder browse; selecting a child file opens the common viewer | Open folder in source; folders themselves are not files to render |

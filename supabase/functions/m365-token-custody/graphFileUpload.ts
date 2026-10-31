@@ -62,6 +62,7 @@ export function validUploadFileName(name: unknown): name is string {
   if (typeof name !== "string" || name === "" || sanitizeUploadFileName(name) !== name) return false;
   const ext = extensionOf(name);
   // ALLOWED_FILE_TYPES and FILE_MIME_BY_EXT list the same extensions (pinned by a test), so an allowed name always has a type.
+  // The deny check is belt and braces: the two lists are pinned disjoint, so it only matters if someone edits one without the other.
   return ALLOWED_FILE_TYPES.includes(ext) && !DENIED_EXTENSIONS.includes(ext); // mutation-witness:upload-extension-allowlist
 }
 

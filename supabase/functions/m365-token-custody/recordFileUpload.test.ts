@@ -4,7 +4,7 @@
 // authorization step and it MUST go red.
 import { assert, assertEquals, assertFalse } from "@std/assert";
 import { FakeTime } from "@std/testing/time";
-import { ALLOWED_FILE_TYPES, FILE_MIME_BY_EXT } from "../../../pmo-portal/src/lib/fileConstants.ts";
+import { ALLOWED_FILE_TYPES, DENIED_EXTENSIONS, FILE_MIME_BY_EXT } from "../../../pmo-portal/src/lib/fileConstants.ts";
 import {
   buildUploadRequest,
   sanitizeUploadFileName,
@@ -449,6 +449,10 @@ Deno.test("document-preview AC-014 upload refuses an unreadable or unwritable ta
 
 Deno.test("document-preview AC-007 every allowed upload type has a server-derived content type", () => {
   assertEquals([...ALLOWED_FILE_TYPES].sort(), Object.keys(FILE_MIME_BY_EXT).sort());
+});
+
+Deno.test("document-preview AC-007 the allowed and denied upload extensions never overlap", () => {
+  assertEquals(ALLOWED_FILE_TYPES.filter((ext) => DENIED_EXTENSIONS.includes(ext)), []);
 });
 
 Deno.test("document-preview AC-014 upload refuses a non-member or non-entitled caller before reading any record", async (t) => {

@@ -25,7 +25,7 @@ One PR to dev for phases A-F is **too wide to review safely**. Split as in "Bran
 
 ## 0. Open questions (answer before dispatch; each has a default the builder may take)
 
-**Director, 2026-10-31:** Q2, Q4, Q5, Q6 defaults accepted. Q1 and Q3 are with the owner; build with the defaults (mocks; replacement goes to SharePoint). Migration 0409 (billing kinds takes 0408).
+**Director, 2026-10-31:** Q2, Q4, Q5, Q6 defaults accepted. Q1 and Q3 are with the owner; build with the defaults (mocks; replacement goes to SharePoint). Migration 0409 (billing kinds takes 0409).
 
 | # | Question | Default taken in this plan | Who |
 |---|---|---|---|
@@ -76,7 +76,7 @@ Workers push branches only; the Director batches. Suggested branches off `origin
 4. `feat/doc-preview-upload` : phase E (connected-org upload FE), after 1, 2 and 3 are on dev.
 5. G (gates, e2e, provider proof) runs per branch and once on the batch.
 
-Migration number **0408** and ADR number **0095** were free on `origin/dev` and in every local worktree on 2026-10-31; the Director reserves them before dispatch. A later collision uses `scripts/renumber-migration.sh <old> <new>` and `npm run check:adrs`, not hand edits.
+Migration number **0409** (first reserved as 0408, renumbered at build) and ADR number **0095** were free on `origin/dev` and in every local worktree on 2026-10-31; the Director reserves them before dispatch. A later collision uses `scripts/renumber-migration.sh <old> <new>` and `npm run check:adrs`, not hand edits.
 
 ## 4. Files
 
@@ -88,7 +88,7 @@ Migration number **0408** and ADR number **0095** were free on `origin/dev` and 
 - `supabase/functions/m365-token-custody/recordFileUpload.ts` : `handleUploadRecordFile`.
 - `supabase/functions/m365-token-custody/documentPreview.test.ts`, `recordFileUpload.test.ts`.
 - `scripts/m365-preview-upload-mutation.mjs` (+ `.test.mjs`).
-- `supabase/migrations/0408_document_preview_sources.sql`, `supabase/migrations/rollback/0408_document_preview_sources_down.sql`, `supabase/tests/0408_document_preview_sources.test.sql`.
+- `supabase/migrations/0409_document_preview_sources.sql`, `supabase/migrations/rollback/0409_document_preview_sources_down.sql`, `supabase/tests/0409_document_preview_sources.test.sql`.
 - `pmo-portal/src/lib/m365/previewClient.ts` (+ test).
 - `pmo-portal/src/components/documents/` : `types.ts`, `renderers.ts`, `DocumentViewer.tsx`, `DocumentViewerProvider.tsx`, `targets/{storage,microsoft,project,procurement,budget,folderChild,receipt}.ts(x)`, `useUploadDestination.ts`, and `*.test.ts(x)` beside each.
 - `pmo-portal/public/locales/{en,id}/documentViewer.json`.
@@ -115,7 +115,7 @@ Test titles start `document-preview AC-###` (spec namespace). Deno steps use `De
 | AC-007 | Unit (shipped upload handler + repository contract) | `supabase/functions/m365-token-custody/recordFileUpload.test.ts` : `document-preview AC-007` and `pmo-portal/src/lib/db/documents.upload.test.ts` : `document-preview AC-007` (repository half) | A14-A19, E02 |
 | AC-008 | Unit | `pmo-portal/src/components/documents/useUploadDestination.test.tsx` : `document-preview AC-008` (the edge half sits in the AC-007 file under the same tag) | A19, E03 |
 | AC-009 | Unit | `pmo-portal/src/hooks/useFileUpload.test.ts` : `document-preview AC-009` | E04 |
-| AC-010 | pgTAP | `supabase/tests/0408_document_preview_sources.test.sql` : `document-preview AC-010` | B01-B08 |
+| AC-010 | pgTAP | `supabase/tests/0409_document_preview_sources.test.sql` : `document-preview AC-010` | B01-B08 |
 | AC-011 | Unit | `pmo-portal/src/components/documents/DocumentViewer.permissions.test.tsx` : `document-preview AC-011` | C08 |
 | AC-012 | Unit | `pmo-portal/src/components/documents/targets/project.test.tsx` : `document-preview AC-012` | D02 |
 | AC-013 | Unit (RTL, axe, responsive fixtures) | `pmo-portal/src/components/documents/DocumentViewer.a11y.test.tsx` : `document-preview AC-013` | C09 |
@@ -131,7 +131,7 @@ NFR proof map (not ACs): NFR-001 → AC-014 + B pgTAP; NFR-002 → A12 (no URL i
 - Verify commands (run from the worktree root unless a `cd` is shown):
   - Edge: `cd supabase/functions/m365-token-custody && deno test <file> --config deno.json --allow-env --allow-net --allow-read`
   - FE unit: `cd pmo-portal && npx vitest run <files>`
-  - pgTAP: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0408_document_preview_sources.test.sql'` (reset + test in **one** lock hold)
+  - pgTAP: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0409_document_preview_sources.test.sql'` (reset + test in **one** lock hold)
   - Gate before every PR: `cd pmo-portal && npm run check:guards && npm run typecheck && npx eslint --max-warnings=0 <touched files>` plus the touched test files only. Never `vitest --changed` or the full suite locally.
 - Edge tests import the shipped `handler` from `./index.ts` and mock `globalThis.fetch` (`recordFolderTestKit.ts`); no dependency injection in production code (`scripts/check-edge-fn-test-binding.mjs`).
 - Strings are English + Indonesian in `documentViewer.json`; DESIGN.md tokens only; no raw hex. Em dash is allowed as an empty-cell marker, never in prose.
@@ -365,7 +365,7 @@ const FILE_TABLE = { purchase_request: "purchase_request_files", rfq: "rfq_files
 
 ### A20 : AC-014 on the upload boundary
 **Files:** test only.
-**RED/GREEN:** `document-preview AC-014 upload refuses an unreadable or unwritable target before any Microsoft operation`: parameterized over {other-org project doc, non-Draft doc, someone else's Draft as non-Admin, read-only role, unknown phase parent, archived parent}; each yields the sanitized refusal; assert zero Graph calls, no `ms_graph_connections` read, no response body leaking ids.
+**RED/GREEN:** `document-preview AC-014 upload refuses an unreadable or unwritable target before any Microsoft operation`: parameterized over {other-org project doc, non-Draft doc, someone else's Draft as non-Admin, read-only role, unknown phase parent}; each yields the sanitized refusal; assert zero Graph calls, no `ms_graph_connections` read, no response body leaking ids. (A phase parent has no `archived_at` column, so an archived-parent refusal does not exist; only the `*_files` rows archive.)
 **Verify:** `deno test recordFileUpload.test.ts …`. Commit.
 
 ### A21 : mutation witness (AC-014, NFR-003)
@@ -383,7 +383,7 @@ Run `scripts/deno-test-edge-fns.sh` scoped to `m365-token-custody` and `_shared`
 Branch `feat/doc-preview-db`. Test command is the one-lock-hold pgTAP command in section 6. Fixture style: copy `supabase/tests/0349_procurement_evidence_files.test.sql` (synthetic org/users/procurements with fixed UUID prefixes).
 
 ### B01 : write the failing pgTAP file (AC-010)
-**Files:** create `supabase/tests/0408_document_preview_sources.test.sql` with the full plan below (all RED before B02).
+**Files:** create `supabase/tests/0409_document_preview_sources.test.sql` with the full plan below (all RED before B02).
 Assertions (descriptions start `document-preview AC-010 …`):
 1. each of the seven tables has `source`, `ms_drive_id`, `ms_item_id`, `ms_web_url`, `ms_item_name`, `ms_linked_by`, `ms_linked_at` (`has_column`, via a loop over the table names).
 2. PM inserts a Microsoft-backed row (`source='onedrive', file_path=null`, complete ref) into each table → succeeds; `ms_linked_by = auth.uid()` and `ms_linked_at` are stamped by the trigger even when the client sends other values.
@@ -397,10 +397,10 @@ Assertions (descriptions start `document-preview AC-010 …`):
 **RED check:** `supabase test db` reports the planned count with failures on 1-8.
 
 ### B02 : purchase attachment source columns (AC-010, NFR-007)
-**Files:** create `supabase/migrations/0408_document_preview_sources.sql`.
+**Files:** create `supabase/migrations/0409_document_preview_sources.sql`.
 ```sql
--- 0408 — document preview: one durable source per purchase attachment (additive, reversible).
--- Rollback: supabase/migrations/rollback/0408_document_preview_sources_down.sql
+-- 0409 — document preview: one durable source per purchase attachment (additive, reversible).
+-- Rollback: supabase/migrations/rollback/0409_document_preview_sources_down.sql
 do $$
 declare t text;
 begin
@@ -445,15 +445,15 @@ All later checks in the function (Draft only; author or Admin; writer roles; org
 **Verify:** pgTAP assertion 8. Commit.
 
 ### B05 : rollback file (NFR-007)
-**Files:** create `supabase/migrations/rollback/0408_document_preview_sources_down.sql`: drop the seven triggers and the function, drop the seven constraints then the seven column sets (`drop column if exists`), and `create or replace` the 0292 body of `guard_project_m365_source` back. Header comment: "rows whose only source is a Microsoft item lose that link; existing uploaded bytes and Microsoft files are never touched; rehearse before first use".
-**Verify:** `scripts/with-db-lock.sh bash -c 'supabase db reset && psql … -f supabase/migrations/rollback/0408_document_preview_sources_down.sql'` runs clean (use the repo's rollback harness pattern from `scripts/test-m365-batch-sweep-rollback.sh`); then re-apply 0408. Commit.
+**Files:** create `supabase/migrations/rollback/0409_document_preview_sources_down.sql`: drop the seven triggers and the function, drop the seven constraints then the seven column sets (`drop column if exists`), and `create or replace` the 0292 body of `guard_project_m365_source` back. Header comment: "rows whose only source is a Microsoft item lose that link; existing uploaded bytes and Microsoft files are never touched; rehearse before first use".
+**Verify:** `scripts/with-db-lock.sh bash -c 'supabase db reset && psql … -f supabase/migrations/rollback/0409_document_preview_sources_down.sql'` runs clean (use the repo's rollback harness pattern from `scripts/test-m365-batch-sweep-rollback.sh`); then re-apply 0409. Commit.
 
 ### B06 : types by hand, minimal (AC-010)
 **Files:** modify `pmo-portal/src/lib/supabase/database.types.ts`: add the seven columns (`source: Database['public']['Enums']['doc_source'] | null`, the four text columns, `ms_linked_by`, `ms_linked_at`) to `Row`/`Insert`/`Update` of the seven tables only. Do **not** regenerate the whole file (it is already behind `dev` by unrelated lines; `docs/decisions.md` records the same note), so a regeneration would drag unrelated churn into this PR.
 **Verify:** `cd pmo-portal && npm run typecheck` and `npm run check:shadow-types`. Commit.
 
 ### B07 : isolation probe denominator
-`scripts/isolation-probe-denominator.json` lists tenant tables, not columns. All seven purchase file tables are already listed (checked: one entry each) and 0408 adds no table, so nothing changes. **Verify:** `grep -c '"table":"payment_files"' scripts/isolation-probe-denominator.json` prints 1 for each of the seven names; no commit.
+`scripts/isolation-probe-denominator.json` lists tenant tables, not columns. All seven purchase file tables are already listed (checked: one entry each) and 0409 adds no table, so nothing changes. **Verify:** `grep -c '"table":"payment_files"' scripts/isolation-probe-denominator.json` prints 1 for each of the seven names; no commit.
 
 ### B08 : DB gate
 Full touched-file pgTAP in one lock hold (section 6), `npm run check:migrations`, hand to the security review (G01). No `db push` anywhere; production deploy is out of scope and needs the owner's per-instance yes.
@@ -736,10 +736,10 @@ Manual, non-sensitive, run by the Director/owner on the staging sample org after
 Results are written to the PR description (no tenant ids, hostnames, user names).
 
 ### G04 : the whole-batch gate
-CI decides: PR to `dev` merges on green `verify`, `pgtap` and both unit shards; browser e2e runs on the release PR to `main` (owner rule 2026-10-30). Locally the final gate is section 6's list plus F06/F08. Production is not touched; any later promotion needs the owner's per-instance production yes, and the deploy order is DB (0408) → edge function (`m365-token-custody`) → FE.
+CI decides: PR to `dev` merges on green `verify`, `pgtap` and both unit shards; browser e2e runs on the release PR to `main` (owner rule 2026-10-30). Locally the final gate is section 6's list plus F06/F08. Production is not touched; any later promotion needs the owner's per-instance production yes, and the deploy order is DB (0409) → edge function (`m365-token-custody`) → FE.
 
 ### G05 : rollout order and flag
-Deploy back to front: migration 0408, then the edge function, then the FE. The FE upload branch (phase E) is inert for an organisation with no default library, and preview of Microsoft files is inert without a personal connection (it shows the connect state), so no feature flag is needed. If the Director wants a kill switch for a staged rollout, the existing `m365_integration` entitlement already gates both custody actions server-side.
+Deploy back to front: migration 0409, then the edge function, then the FE. The FE upload branch (phase E) is inert for an organisation with no default library, and preview of Microsoft files is inert without a personal connection (it shows the connect state), so no feature flag is needed. If the Director wants a kill switch for a staged rollout, the existing `m365_integration` entitlement already gates both custody actions server-side.
 
 ### G06 : follow-ups to file as issues (same day, not dismissed)
 Sub-folder browsing/preview (Q6); `postUrl` form-post renderer (Q2 if the proof shows need); SharePoint routing for expense receipts and budget evidence uploads (needs an owning-folder decision); an upload-session path for files over 5 MiB (needs an ADR); preview of CAD/text types.
