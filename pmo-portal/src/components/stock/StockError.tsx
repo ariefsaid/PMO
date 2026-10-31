@@ -1,5 +1,4 @@
 import React from 'react';
-import { useTranslation } from 'react-i18next';
 import { useStockErrorText } from './useStockErrorText';
 
 /** Banner for a failed submit (`role="alert"`). A shortfall is also placed beside the quantity by the form. */
