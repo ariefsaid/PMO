@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ListState, StatusPill } from '@/src/components/ui';
 import { useProjectConsumption } from '@/src/hooks/useStock';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
+import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { formatQuantity, formatStockValue } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ConsumptionMonthRow } from '@/src/lib/db/stockReports';
@@ -10,10 +11,12 @@ import type { ConsumptionMonthRow } from '@/src/lib/db/stockReports';
 const pad = (n: number) => String(n).padStart(2, '0');
 const ym = (y: number, m0: number) => `${y}-${pad(m0 + 1)}`;
 
-/** The current month and the three before it, as `YYYY-MM` (the native month input's value). */
-export function defaultRange(today = new Date()): { fromMonth: string; toMonth: string } {
-  const from = new Date(today.getFullYear(), today.getMonth() - 3, 1);
-  return { fromMonth: ym(from.getFullYear(), from.getMonth()), toMonth: ym(today.getFullYear(), today.getMonth()) };
+/** The org's current month and the three before it, as `YYYY-MM` (the native month input's value). `orgDay` is the
+ *  org-timezone today: stock dates are org dates (D9), so the browser's own date could pick the wrong month. */
+export function defaultRange(orgDay: string): { fromMonth: string; toMonth: string } {
+  const [y, m] = orgDay.split('-').map(Number);
+  const from = new Date(Date.UTC(y, m - 1 - 3, 1));
+  return { fromMonth: ym(from.getUTCFullYear(), from.getUTCMonth()), toMonth: ym(y, m - 1) };
 }
 /** Whole months: first day of `fromMonth` .. last day of `toMonth`. */
 function toDates(fromMonth: string, toMonth: string): { from: string; to: string } {
@@ -49,9 +52,11 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
   const { t } = useTranslation('stock');
   const loc = getNumberLocale();
   const currency = useOrgCurrency();
-  const [range, setRange] = useState(defaultRange);
-  const { from, to } = toDates(range.fromMonth, range.toMonth);
-  const q = useProjectConsumption(projectId, from, to);
+  const orgDay = useFxOrgDay(true).day;
+  const [picked, setRange] = useState<{ fromMonth: string; toMonth: string } | null>(null);
+  const range = picked ?? (orgDay ? defaultRange(orgDay) : null);
+  const { from, to } = range ? toDates(range.fromMonth, range.toMonth) : { from: '', to: '' };
+  const q = useProjectConsumption(range ? projectId : undefined, from, to);
   const qty = (v: string, unit: string) => <>{formatQuantity(v, loc)} <span className="text-muted-foreground">{unit}</span></>;
   const monthLabel = (iso: string) => new Intl.DateTimeFormat(loc, { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${iso}T00:00:00Z`));
   const signed = (v: string) => (v.startsWith('-') || /^0(\.0+)?$/.test(v) ? formatQuantity(v, loc) : `+${formatQuantity(v, loc)}`);
@@ -62,20 +67,20 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <div className="flex flex-wrap items-end gap-3">
+      {range && <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
           {t('consumption.from')}
           <input type="month" className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground" value={range.fromMonth} max={range.toMonth}
-            onChange={(e) => e.target.value && setRange((x) => ({ ...x, fromMonth: e.target.value }))} />
+            onChange={(e) => e.target.value && setRange({ ...range, fromMonth: e.target.value })} />
         </label>
         <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
           {t('consumption.to')}
           <input type="month" className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground" value={range.toMonth} min={range.fromMonth}
-            onChange={(e) => e.target.value && setRange((x) => ({ ...x, toMonth: e.target.value }))} />
+            onChange={(e) => e.target.value && setRange({ ...range, toMonth: e.target.value })} />
         </label>
-      </div>
+      </div>}
 
-      {q.isPending && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
+      {(!range || q.isPending) && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
       {q.isError && (
         <ListState variant="error" title={t('consumption.errorTitle')} sub={t('consumption.errorSub')} retryLabel={t('actions.retry')} onRetry={() => void q.refetch()} />
       )}

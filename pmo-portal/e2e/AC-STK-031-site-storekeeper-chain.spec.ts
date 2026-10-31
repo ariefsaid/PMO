@@ -70,7 +70,7 @@ test('AC-STK-031: an Engineer keeping only the site is refused at central; the c
     await expect(page.getByRole('row').filter({ hasText: kind }).first(), `the PM sees the ${kind} on the trace`).toBeVisible();
   }
   await page.goto(`/projects/${SEED_PROJECT_ID}/materials`);
-  await expect(page.getByRole('row').filter({ hasText: item.code }).filter({ hasText: work.item_code }), 'the project Materials tab lists the issue').toBeVisible();
+  await expect(page.getByRole('region', { name: 'Movements' }).getByRole('row').filter({ hasText: item.code }).filter({ hasText: work.item_code }), 'the project Materials tab lists the issue').toBeVisible();
 
   // An Engineer who keeps no warehouse is offered no movement.
   await signIn(page, 'ts-colocated-eng@acme.test');

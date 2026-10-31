@@ -11,6 +11,7 @@ const { consumption } = vi.hoisted(() => ({ consumption: { report: vi.fn() } }))
 vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { consumption } } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-11-01' }) }));
 
 import ConsumptionReport, { defaultRange } from './ConsumptionReport';
 
@@ -36,18 +37,16 @@ beforeAll(() => { i18next.addResourceBundle('en', 'stock', stockEn, true, true);
 beforeEach(() => vi.clearAllMocks());
 
 describe('Project consumption report', () => {
-  it('defaults to the current month and the three before it', () => {
-    expect(defaultRange(new Date(2026, 10, 15))).toEqual({ fromMonth: '2026-08', toMonth: '2026-11' });
-    expect(defaultRange(new Date(2026, 1, 3))).toEqual({ fromMonth: '2025-11', toMonth: '2026-02' });
+  it('defaults to the org\'s current month and the three before it', () => {
+    expect(defaultRange('2026-11-15')).toEqual({ fromMonth: '2026-08', toMonth: '2026-11' });
+    expect(defaultRange('2026-02-03')).toEqual({ fromMonth: '2025-11', toMonth: '2026-02' });
   });
 
-  it('FR-STK-042 asks the server for whole months: first day of the from-month to the last day of the to-month', async () => {
+  it('FR-STK-042 asks for whole months ending in the ORG\'s current month (D9: stock dates are org dates, not browser dates)', async () => {
     consumption.report.mockResolvedValue(report());
     renderIt();
     await screen.findByRole('table', { name: 'By month' });
-    const [, from, to] = consumption.report.mock.calls[0];
-    expect(from).toMatch(/^\d{4}-\d{2}-01$/);
-    expect(to).toMatch(/^\d{4}-\d{2}-(28|29|30|31)$/);
+    expect(consumption.report).toHaveBeenCalledWith('p1', '2026-08-01', '2026-11-30');
   });
 
   it('AC-STK-022 the report renders one row per month x work item x item with issued, returned, net and who issued it', async () => {
