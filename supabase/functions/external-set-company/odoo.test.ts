@@ -372,6 +372,21 @@ describe('external-set-company — Odoo refresh and reset-kind (FR-ODC-047, FR-O
     assertEquals(rpcCall(r.calls, 'reset_odoo_sync_kind')[0].bodyJson, { p_org_id: 'org-1', p_kind: 'product', p_actor_id: 'user-1' });
   });
 
+  it('FR-ODC-048 a reset while the sync runs → 409, nothing reset, the running sync\'s lock untouched', async () => {
+    const routes = sweepRoutes().filter((r) => !String(r.label ?? '').includes('claim_erp_sweep_lock'));
+    const r = await run([{ setupAction: 'reset-kind', kind: 'product' }], { role: 'Admin', extra: [supabaseRpc('claim_erp_sweep_lock', () => jsonResponse(false)), ...routes] });
+    assertEquals(r.out[0].status, 409);
+    assertEquals(rpcCall(r.calls, 'reset_odoo_sync_kind').length, 0);
+    assertEquals(rpcCall(r.calls, 'release_erp_sweep_lock').length, 0);
+  });
+
+  it('FR-ODC-048 a reset holds the sync lock around the delete and releases it after', async () => {
+    const r = await run([{ setupAction: 'reset-kind', kind: 'product' }], { role: 'Admin' });
+    assertEquals(r.out[0].status, 200);
+    const order = r.calls.map((c) => c.url.pathname.split('/').at(-1)).filter((n) => /erp_sweep_lock|reset_odoo_sync_kind/.test(n ?? ''));
+    assertEquals(order, ['claim_erp_sweep_lock', 'reset_odoo_sync_kind', 'release_erp_sweep_lock']);
+  });
+
   it('FR-ODC-048 an unknown kind → 400, nothing reset', async () => {
     for (const kind of ['bogus', undefined, 7]) {
       const r = await run([{ setupAction: 'reset-kind', kind }], { role: 'Admin' });
@@ -383,7 +398,7 @@ describe('external-set-company — Odoo refresh and reset-kind (FR-ODC-047, FR-O
   it('FR-ODC-048 a platform operator may reset; the database refusing → 403', async () => {
     const ok = await run([{ setupAction: 'reset-kind', kind: 'uom' }], { role: 'Engineer', operator: true });
     assertEquals(ok.out[0].status, 200);
-    const refused = await run([{ setupAction: 'reset-kind', kind: 'uom' }], { role: 'Admin', extra: [supabaseRpc('reset_odoo_sync_kind', () => jsonResponse({ code: '42501', message: 'x' }, { status: 403 }))] });
+    const refused = await run([{ setupAction: 'reset-kind', kind: 'uom' }], { role: 'Admin', extra: [supabaseRpc('reset_odoo_sync_kind', () => jsonResponse({ code: '42501', message: 'x' }, { status: 403 })), ...sweepRoutes()] });
     assertEquals(refused.out[0].status, 403);
   });
 

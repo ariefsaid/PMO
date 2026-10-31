@@ -15,6 +15,8 @@ export const ODOO_KIND_ORDER: DirectoryKind[] = ['company', 'analytic_plan', 'an
 export const ODOO_SWEEP_TICK_MAX_CALLS = 60;
 export const ODOO_SWEEP_TICK_TIME_BUDGET_MS = 100_000;
 const LOCK_TTL = '15 minutes';
+/** Calls held back for each kind still to run (its feed page and census), so one kind's backlog never starves the rest. */
+const RESERVE_PER_KIND = 2;
 const DAY_MS = 86_400_000;
 
 type Resolved = Extract<Awaited<ReturnType<typeof odooClientForOrg>>, { client: unknown }>;
@@ -78,9 +80,11 @@ export async function sweepOdooOrg(
     const capabilities = r.config.capabilities as CapabilitySnapshot | undefined;
     let skippedRows = 0;
     try {
-      for (const kind of ODOO_KIND_ORDER) {
-        if (!readable(capabilities, KIND_SPECS[kind].model)) continue;
-        const deps = kindDeps(sc, orgId, kind, call, r.companyId!, budget);
+      const kinds = ODOO_KIND_ORDER.filter((kind) => readable(capabilities, KIND_SPECS[kind].model));
+      for (const [i, kind] of kinds.entries()) {
+        const cap = maxCalls - RESERVE_PER_KIND * (kinds.length - 1 - i);
+        const kindBudget: Budget = { left: () => calls < cap && left(), spend: () => calls < cap && budget.spend() };
+        const deps = kindDeps(sc, orgId, kind, call, r.companyId!, kindBudget);
         const run = await runKind(KIND_SPECS[kind], await readCursor(sc, orgId, kind), deps);
         skippedRows += run.skipped;
         await AFTER_APPLY[kind]?.(sc, orgId, run.applied);

@@ -15,6 +15,8 @@ export interface Cursor {
   w: string | null;
   id: number;
   scan: { after_id: number; started_at: string } | null;
+  /** Where an unfinished feed stopped (possibly inside the overlap); the next tick resumes here, not at the overlap start. */
+  from?: Key;
   census_done_at?: string;
 }
 type Key = { w: string; id: number };
@@ -22,7 +24,7 @@ type Key = { w: string; id: number };
 export function parseCursor(raw: string): Cursor {
   try {
     const c = JSON.parse(raw) as Partial<Cursor>;
-    return { w: c.w ?? null, id: c.id ?? 0, scan: c.scan ?? null, ...(c.census_done_at ? { census_done_at: c.census_done_at } : {}) };
+    return { w: c.w ?? null, id: c.id ?? 0, scan: c.scan ?? null, ...(c.from ? { from: c.from } : {}), ...(c.census_done_at ? { census_done_at: c.census_done_at } : {}) };
   } catch {
     return { w: null, id: 0, scan: null };
   }
@@ -97,16 +99,21 @@ export async function runKind(spec: KindSpec, raw: string, d: KindRunDeps): Prom
     if (c.w === null) return { applied, skipped, done: false };
   }
 
-  let key = overlapStart({ w: c.w, id: c.id });
+  let key = c.from ?? overlapStart({ w: c.w, id: c.id });
   while (d.budget.spend()) {
     const page = (await d.read(keysetDomain(key), 'write_date asc, id asc', size)) as { id: number; write_date: string }[];
     const last = page.at(-1);
+    const resuming = !!c.from;
     if (last) {
       key = { w: last.write_date, id: last.id };
       // The overlap re-reads older rows; the stored cursor never moves backwards.
       if (after(key, { w: c.w!, id: c.id })) c = { ...c, ...key };
-      await apply(page);
     }
+    // A full page records where it stopped, so a backlog larger than one tick (even inside the overlap) resumes there
+    // instead of re-reading from the overlap start forever; a short page means caught up, so the next tick overlaps.
+    const { from: _from, ...rest } = c;
+    c = page.length < size ? rest : { ...rest, from: key };
+    if (last || resuming) await apply(page);
     if (page.length < size) return { applied, skipped, done: true };
   }
   return { applied, skipped, done: false };
@@ -129,6 +136,8 @@ export async function runCensus(raw: string, d: KindRunDeps): Promise<boolean> {
     afterId = ids.at(-1)!;
   }
   // ponytail: census progress lives in memory; an interrupted census restarts next tick. Safe: nothing is tombstoned
-  // until finish_odoo_census runs after an exhausted id list.
+  // until finish_odoo_census runs after an exhausted id list. Ceiling: a kind with more ids than one tick's leftover
+  // budget reads (~100k) is never censused, so its hard deletes are never tombstoned; persist `census: {run, after_id}`
+  // in the cursor (plan PD-6) when a client gets that large.
   return false;
 }

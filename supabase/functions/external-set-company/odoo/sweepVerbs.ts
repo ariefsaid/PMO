@@ -22,7 +22,17 @@ export async function refresh(c: OdooCtx): Promise<Response> {
 export async function resetKind(c: OdooCtx): Promise<Response> {
   const kind = c.body.kind;
   if (typeof kind !== 'string' || !DIRECTORY_KINDS.includes(kind as DirectoryKind)) return odooError(c, 'Unknown kind', 'BAD_REQUEST', 400);
-  const { error } = await c.sc.rpc('reset_odoo_sync_kind', { p_org_id: c.orgId, p_kind: kind, p_actor_id: c.userId });
+  // Held around the delete: a sweep mid-kind would otherwise write the old cursor straight back with its next page.
+  const holder = crypto.randomUUID();
+  const { data: claimed, error: claimError } = await c.sc.rpc('claim_erp_sweep_lock', { p_org_id: c.orgId, p_holder: holder, p_ttl: '1 minute' });
+  if (claimError || claimed !== true) return odooError(c, 'A sync is running; retry in a minute', 'SYNC_RUNNING', 409);
+  let error;
+  try {
+    ({ error } = await c.sc.rpc('reset_odoo_sync_kind', { p_org_id: c.orgId, p_kind: kind, p_actor_id: c.userId }));
+  } finally {
+    const { error: releaseError } = await c.sc.rpc('release_erp_sweep_lock', { p_org_id: c.orgId, p_holder: holder });
+    if (releaseError) console.error('release_erp_sweep_lock failed');
+  }
   if (error) return error.code === '42501' ? odooError(c, 'Not allowed for your role', 'FORBIDDEN', 403) : odooError(c, 'The reset could not be saved', 'STORE_FAILED', 500);
   return c.respond({ reset: kind });
 }

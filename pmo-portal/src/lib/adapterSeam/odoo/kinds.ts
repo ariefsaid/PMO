@@ -22,6 +22,9 @@ const WRITE_DATE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
 /** A many2one is `false` or `[id, name]`; anything else is malformed (`undefined`). */
 const m2o = (v: unknown): string | null | undefined =>
   v === false || v == null ? null : Array.isArray(v) && typeof v[0] === 'number' ? String(v[0]) : undefined;
+/** A many2many is a list of ids; anything else is malformed (`undefined`). */
+const m2m = (v: unknown): string[] | undefined =>
+  Array.isArray(v) && v.every((x) => typeof x === 'number') ? v.map(String) : undefined;
 const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
 
 function base(r: Raw, name: unknown, code: unknown, parent: unknown): DirectoryRow | null {
@@ -56,8 +59,8 @@ export const KIND_SPECS: Record<DirectoryKind, KindSpec> = {
     parse: (r) => withAttrs(base(r, r.name, r.code, false), { stock_location_id: m2o(r.lot_stock_id), view_location_id: m2o(r.view_location_id) }) },
   location: { model: 'stock.location', fields: ['complete_name', 'usage', 'location_id', 'warehouse_id', 'active', 'write_date'], company: 'company_id',
     parse: (r) => withAttrs(base(r, r.complete_name, null, r.location_id), { usage: str(r.usage), warehouse_id: m2o(r.warehouse_id) }) },
-  account: { model: 'account.account', fields: ['code', 'name', 'account_type', 'active', 'write_date'], company: 'company_ids',
-    parse: (r) => withAttrs(base(r, r.name, r.code, false), { account_type: str(r.account_type) }) },
+  account: { model: 'account.account', fields: ['code', 'name', 'account_type', 'company_ids', 'active', 'write_date'], company: 'company_ids',
+    parse: (r) => withAttrs(base(r, r.name, r.code, false), { account_type: str(r.account_type), company_ids: m2m(r.company_ids) }) },
   tax: { model: 'account.tax', fields: ['name', 'amount', 'type_tax_use', 'active', 'write_date'], company: 'company_id',
     parse: (r) => (typeof r.amount !== 'number' ? null : withAttrs(base(r, r.name, null, false), { amount: r.amount, use: str(r.type_tax_use) })) },
   analytic_plan: { model: 'account.analytic.plan', fields: ['name', 'write_date'], company: null, parse: (r) => base(r, r.name, null, false) },

@@ -20,12 +20,15 @@ export async function handleOdooSweepRequest(req: Request): Promise<Response> {
   }
   const sc = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, testSupabaseOptions);
   const { data: orgs, error } = await sc.from('external_org_bindings').select('org_id')
-    .eq('external_tier', 'odoo').eq('status', 'active').not('activated_at', 'is', null);
+    .eq('external_tier', 'odoo').eq('status', 'active').not('activated_at', 'is', null).order('org_id');
   if (error) return json({ error: 'BINDINGS_UNREADABLE' }, 500);
   // ponytail: orgs run in turn and share one tick's time budget; fan out one request per org if orgs ever starve.
+  // Each 5-minute tick starts one org further along, so a slow org never spends the budget of the same orgs every tick.
+  const list = orgs ?? [];
+  const start = list.length ? Math.floor(Date.now() / 300_000) % list.length : 0;
   const deadline = Date.now() + ODOO_SWEEP_TICK_TIME_BUDGET_MS;
   const results = [];
-  for (const { org_id } of orgs ?? []) {
+  for (const { org_id } of [...list.slice(start), ...list.slice(0, start)]) {
     const timeBudgetMs = deadline - Date.now();
     if (timeBudgetMs <= 0) { results.push({ org_id, skipped: 'tick-budget' }); continue; }
     try {

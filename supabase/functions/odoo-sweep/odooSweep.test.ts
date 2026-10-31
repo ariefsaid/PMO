@@ -119,6 +119,11 @@ describe('odooSweep — AC-ODC-025 budget and outcomes', () => {
     assert(JSON.parse(r.cursors.get('master:product')!).scan.after_id > 0);
   });
 
+  it('AC-ODC-025 a kind with a backlog larger than the tick leaves budget for every kind after it', async () => {
+    const r = await sweep({ prepare: (f) => f.seed('product.product', Array.from({ length: 15_000 }, (_, i) => ({ id: i + 10, name: `P${i}`, company_id: false }))) });
+    for (const kind of ['warehouse', 'location', 'partner']) assert(r.cursors.get(`master:${kind}`), `${kind} got no budget`);
+  });
+
   it('AC-ODC-025 a spent time budget makes no Odoo call', async () => {
     const r = await sweep({}, { timeBudgetMs: 0 });
     assertEquals(odoo(r.calls).length, 0);

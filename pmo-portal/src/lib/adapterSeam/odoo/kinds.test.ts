@@ -16,8 +16,8 @@ const FIXTURES: Record<DirectoryKind, { raw: Record<string, unknown>; row: Recor
     row: { external_id: '2', code: 'WH', name: 'Gudang Utama', parent_external_id: null, active: true, attrs: { stock_location_id: '8', view_location_id: '7' } } },
   location: { raw: { id: 8, complete_name: 'WH/Stock', usage: 'internal', location_id: [7, 'WH'], warehouse_id: [2, 'Gudang Utama'], active: true, write_date: W },
     row: { external_id: '8', code: null, name: 'WH/Stock', parent_external_id: '7', active: true, attrs: { usage: 'internal', warehouse_id: '2' } } },
-  account: { raw: { id: 40, code: '211000', name: 'Hutang Usaha', account_type: 'liability_payable', active: true, write_date: W },
-    row: { external_id: '40', code: '211000', name: 'Hutang Usaha', parent_external_id: null, active: true, attrs: { account_type: 'liability_payable' } } },
+  account: { raw: { id: 40, code: '211000', name: 'Hutang Usaha', account_type: 'liability_payable', company_ids: [1, 3], active: true, write_date: W },
+    row: { external_id: '40', code: '211000', name: 'Hutang Usaha', parent_external_id: null, active: true, attrs: { account_type: 'liability_payable', company_ids: ['1', '3'] } } },
   tax: { raw: { id: 9, name: 'PPN 12%', amount: 12, type_tax_use: 'purchase', active: true, write_date: W },
     row: { external_id: '9', code: null, name: 'PPN 12%', parent_external_id: null, active: true, attrs: { amount: 12, use: 'purchase' } } },
   analytic_plan: { raw: { id: 4, name: 'Projects', write_date: W },
@@ -51,6 +51,11 @@ describe('odoo/kinds — AC-ODC-024', () => {
   it('AC-ODC-024 a unit without a numeric factor and a tax without a numeric rate are rejected', () => {
     expect(KIND_SPECS.uom.parse({ ...FIXTURES.uom.raw, relative_factor: '1' })).toBeNull();
     expect(KIND_SPECS.tax.parse({ ...FIXTURES.tax.raw, amount: null })).toBeNull();
+  });
+
+  it('AC-ODC-024 an account row carries its companies; a malformed company set rejects the row', () => {
+    expect(KIND_SPECS.account.parse({ ...FIXTURES.account.raw, company_ids: 'x' })).toBeNull();
+    expect(KIND_SPECS.account.parse({ ...FIXTURES.account.raw, company_ids: [[1, 'Main']] })).toBeNull();
   });
 
   it('a many2one of false is no parent, never a malformed row', () => {

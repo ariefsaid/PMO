@@ -59,7 +59,23 @@ describe('odoo-sweep — FR-ODC-047', () => {
   it('two orgs → two lock claims, one per org', async () => {
     const r = await tick([{ org_id: 'org-a' }, { org_id: 'org-b' }]);
     assertEquals(r.res.status, 200);
-    assertEquals(rpcCall(r.calls, 'claim_erp_sweep_lock').map((c) => (c.bodyJson as { p_org_id: string }).p_org_id), ['org-a', 'org-b']);
-    assertEquals(r.json.results, [{ org_id: 'org-a', skipped: 'lock-held' }, { org_id: 'org-b', skipped: 'lock-held' }]);
+    assertEquals(rpcCall(r.calls, 'claim_erp_sweep_lock').map((c) => (c.bodyJson as { p_org_id: string }).p_org_id).sort(), ['org-a', 'org-b']);
+    assertEquals([...r.json.results].sort((x: { org_id: string }, y: { org_id: string }) => x.org_id.localeCompare(y.org_id)), [{ org_id: 'org-a', skipped: 'lock-held' }, { org_id: 'org-b', skipped: 'lock-held' }]);
+  });
+
+  it('consecutive ticks start at a different org, so a slow org never starves the same orgs every tick', async () => {
+    const orgs = [{ org_id: 'org-a' }, { org_id: 'org-b' }, { org_id: 'org-c' }];
+    const firsts = new Set<string>();
+    const realNow = Date.now;
+    let now = Date.UTC(2026, 10, 1);
+    Date.now = () => now;
+    try {
+      for (let i = 0; i < 3; i++) {
+        const r = await tick(orgs);
+        firsts.add((rpcCall(r.calls, 'claim_erp_sweep_lock')[0].bodyJson as { p_org_id: string }).p_org_id);
+        now += 5 * 60_000;
+      }
+    } finally { Date.now = realNow; }
+    assertEquals(firsts.size, 3);
   });
 });

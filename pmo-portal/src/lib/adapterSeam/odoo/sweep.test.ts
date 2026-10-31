@@ -97,6 +97,18 @@ describe('odoo/sweep cursor — AC-ODC-021', () => {
     expect(parseCursor(s.store.cursor)).toMatchObject({ w: W, id: 1 });
   });
 
+  it('AC-ODC-021 a backlog larger than one tick inside the overlap still advances and reaches rows after it', async () => {
+    const s = setup();
+    s.store.cursor = formatCursor({ w: '2026-10-31 09:59:00', id: 0, scan: null });
+    s.fake.seed('product.product', [...Array.from({ length: 3_000 }, (_, i) => product(i + 1)), product(3_001, '2026-10-31 10:05:00')]);
+    let r = { done: false } as Awaited<ReturnType<typeof s.run>>;
+    let ticks = 0;
+    while (!r.done && ticks < 5) { r = await s.run(5); ticks++; } // 16 pages at 5 calls a tick: 4 ticks, +1 slack
+    expect(r.done).toBe(true);
+    expect(s.store.rows.size).toBe(3_001);
+    expect(parseCursor(s.store.cursor)).toMatchObject({ w: '2026-10-31 10:05:00', id: 3_001 });
+  });
+
   it('AC-ODC-021 an apply that throws leaves the stored cursor unchanged, and the re-run produces identical rows', async () => {
     const s = setup({ pageSize: 2 });
     s.fake.seed('product.product', [1, 2, 3, 4, 5].map((id) => product(id)));
