@@ -607,6 +607,8 @@ export interface RecordLists {
   expenses?: { id: string; claim_number?: string | null; title?: string | null }[];
   /** I3: user views — the record "name" is view.name, resolved from the useUserViews() cache. */
   userViews?: { id: string; name: string }[];
+  /** #1512: stock documents resolve from the detail query cache; the label is the document number. */
+  stockDocuments?: { id: string; number: string }[];
 }
 
 /** Cached lists carrying a status (for stage-aware breadcrumb ancestry, Model B). */
@@ -728,6 +730,9 @@ export function recordLabelForPath(
   // I3: user views — resolve view name from the useUserViews() cache (FR-VR-082).
   const viewId = idFrom('/views');
   if (viewId) return lists.userViews?.find((v) => v.id === viewId)?.name;
+
+  const stockDocumentId = idFrom('/stock/documents');
+  if (stockDocumentId) return lists.stockDocuments?.find((d) => d.id === stockDocumentId)?.number;
 
   return undefined;
 }

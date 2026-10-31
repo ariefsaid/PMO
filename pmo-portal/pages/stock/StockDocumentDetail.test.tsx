@@ -11,8 +11,8 @@ import { AppError } from '@/src/lib/appError';
 import stockEn from '@/public/locales/en/stock.json';
 
 const { documents, reports, master } = vi.hoisted(() => ({
-  documents: { get: vi.fn(), cancel: vi.fn(), post: vi.fn() },
-  reports: { ledgerAll: vi.fn() },
+  documents: { get: vi.fn(), cancel: vi.fn(), post: vi.fn(), costs: vi.fn() },
+  reports: { ledgerAll: vi.fn(), onHand: vi.fn() },
   master: { listKeepers: vi.fn() },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { documents, reports, master } } }));
@@ -24,7 +24,7 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
 import StockDocumentDetail from './StockDocumentDetail';
 
 const detail = (over: Record<string, unknown> = {}) => ({
-  id: 'd1', number: 'ISS-1', kind: 'issue', status: 'Posted', warehouse_id: 'w1', to_warehouse_id: null, project_id: 'p1', procurement_id: null, reason: null, note: 'for slab', occurred_on: '2026-10-30',
+  id: 'd1', number: 'ISS-1', kind: 'issue', status: 'Posted', revision: 4, warehouse_id: 'w1', to_warehouse_id: null, project_id: 'p1', procurement_id: null, reason: null, note: 'for slab', occurred_on: '2026-10-30',
   created_by: 'me', created_at: '2026-10-30T03:00:00Z', posted_by: 'me', posted_at: '2026-10-30T03:00:00Z', cancelled_at: null,
   warehouse: { code: 'SITE-A', name: 'Site A' }, to_warehouse: null, project: { name: 'Tower A' }, author: { full_name: 'Eka Engineer' },
   lines: [{ id: 'l1', line_no: 1, item_id: 'i1', quantity: '30', counted_quantity: null, expected_quantity: null, direction: null, boq_item_id: 'b1', source_line_id: null, item: { code: 'CEM', name: 'Cement 50kg', unit: { code: 'bag', whole_only: true } } }],
@@ -54,6 +54,8 @@ beforeEach(() => {
   documents.cancel.mockResolvedValue(undefined);
   documents.post.mockResolvedValue(undefined);
   reports.ledgerAll.mockResolvedValue([entry]);
+  reports.onHand.mockResolvedValue([]);
+  documents.costs.mockResolvedValue([]);
   master.listKeepers.mockResolvedValue([]);
 });
 
@@ -121,7 +123,7 @@ describe('StockDocumentDetail (AC-STK-032)', () => {
     documents.get.mockResolvedValue(countDraft({ created_by: 'someone-else' }));
     renderPage('Project Manager');
     await userEvent.click(await screen.findByRole('button', { name: 'Post' }));
-    await waitFor(() => expect(documents.post).toHaveBeenCalledWith('d1'));
+    await waitFor(() => expect(documents.post).toHaveBeenCalledWith('d1', 4));   // the revision on screen
     expect(screen.queryByRole('button', { name: 'Edit draft' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Another person must post this/)).not.toBeInTheDocument();
   });
@@ -133,5 +135,50 @@ describe('StockDocumentDetail (AC-STK-032)', () => {
     expect(within(table).getByText('System at posting')).toBeInTheDocument();
     expect(within(table).getByText('100')).toBeInTheDocument();
     expect(within(table).getByText('-8')).toBeInTheDocument();
+  });
+
+  const onHandRow = (over: Record<string, unknown> = {}) => ({ itemId: 'i2', itemCode: 'CAB', itemName: 'Cable 4mm', unitCode: 'm', wholeOnly: false, warehouseId: 'w1', warehouseCode: 'SITE-A', warehouseName: 'Site A', warehouseKind: 'site', qtyOnHand: '100', ...over });
+
+  it('FR-STK-062 the approver of a Draft count sees the live system quantity and the difference they approve', async () => {
+    documents.get.mockResolvedValue(countDraft({ created_by: 'someone-else' }));
+    reports.onHand.mockResolvedValue([onHandRow({ valueOnHand: '6000.00', avgCost: '60.0000' })]);
+    renderPage('Project Manager');
+    const table = await screen.findByRole('table', { name: 'Lines' });
+    expect(reports.onHand).toHaveBeenCalledWith({ warehouseId: 'w1', includeZero: true });
+    expect(within(table).getByText('System now')).toBeInTheDocument();
+    expect(await within(table).findByText('100')).toBeInTheDocument();
+    expect(within(table).getByText('-8')).toBeInTheDocument();
+    expect(within(table).getByText(/^−\D*480\.00$/)).toBeInTheDocument();     // 8 out at the moving average (rank >= 20)
+  });
+
+  it('FR-STK-063 below rank 20 the count approver view shows quantities, never a value', async () => {
+    documents.get.mockResolvedValue(countDraft({ created_by: 'someone-else' }));
+    reports.onHand.mockResolvedValue([onHandRow()]);                       // the server omitted the cost keys
+    renderPage('Engineer');
+    const table = await screen.findByRole('table', { name: 'Lines' });
+    expect(await within(table).findByText('-8')).toBeInTheDocument();
+    expect(within(table).queryByText('Value')).not.toBeInTheDocument();
+  });
+
+  const adjDraft = () => detail({
+    number: 'ADJ-1', kind: 'adjustment', status: 'Draft', created_by: 'someone-else', reason: 'found in the yard', project_id: null, project: null, posted_by: null, posted_at: null,
+    lines: [{ id: 'l1', line_no: 1, item_id: 'i2', quantity: '10', counted_quantity: null, expected_quantity: null, direction: 'in', boq_item_id: null, source_line_id: null, item: { code: 'CAB', name: 'Cable 4mm', unit: { code: 'm', whole_only: false } } }],
+  });
+  it('FR-STK-063 the approver (rank >= 20) sees an adjust-in line\'s unit cost and the value it adds', async () => {
+    documents.get.mockResolvedValue(adjDraft());
+    documents.costs.mockResolvedValue([{ lineId: 'l1', hasCost: true, unitCost: '1000000.0000' }]);
+    renderPage('Project Manager');
+    const table = await screen.findByRole('table', { name: 'Lines' });
+    expect(await within(table).findByText(/^\D*1,000,000\.00$/)).toBeInTheDocument();
+    expect(within(table).getByText(/^\D*10,000,000\.00$/)).toBeInTheDocument();
+  });
+
+  it('FR-STK-062 a draft changed since it was opened is refused, and the page reloads the new version', async () => {
+    documents.get.mockResolvedValue(countDraft({ created_by: 'someone-else' }));
+    documents.post.mockRejectedValueOnce(new AppError('STK_STALE: this draft changed since you opened it; review it again', 'P0001'));
+    renderPage('Project Manager');
+    await userEvent.click(await screen.findByRole('button', { name: 'Post' }));
+    expect((await screen.findAllByText(/changed since you opened it/)).length).toBeGreaterThan(0);
+    await waitFor(() => expect(documents.get.mock.calls.length).toBeGreaterThanOrEqual(2));
   });
 });

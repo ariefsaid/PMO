@@ -15,7 +15,7 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
-import { listProjectIssueLines, cancelStockDocument, createStockDocument, getStockDocument, listIssuableWorkItems, listStockDocuments, postStockDocument, saveStockDraft } from './stockDocuments';
+import { listProjectIssueLines, cancelStockDocument, createStockDocument, getStockDocument, getStockDocumentCosts, listIssuableWorkItems, listStockDocuments, postStockDocument, saveStockDraft } from './stockDocuments';
 
 beforeEach(() => {
   h.queue.length = 0; h.from.mockClear(); h.rpc.mockClear();
@@ -49,6 +49,18 @@ describe('stockDocuments DAL', () => {
     await postStockDocument('d1');
     await cancelStockDocument('d1');
     expect(h.rpc.mock.calls.map((c) => (c as unknown as [string])[0])).toEqual(['save_stock_draft', 'post_stock_document', 'cancel_stock_document']);
+  });
+
+  it('FR-STK-062 a post carries the revision the approver reviewed', async () => {
+    await postStockDocument('d1', 3);
+    expect(h.rpc).toHaveBeenCalledWith('post_stock_document', { p_document_id: 'd1', p_expected_revision: 3 });
+  });
+
+  it('FR-STK-063 line costs come from the rank-gated read; a cost is absent when the server omits it', async () => {
+    h.queue.push({ data: [{ line_id: 'l1', has_cost: true, unit_cost: '70.0000' }, { line_id: 'l2', has_cost: true }], error: null });
+    const costs = await getStockDocumentCosts('d1');
+    expect(h.rpc).toHaveBeenCalledWith('get_stock_document_costs', { p_document_id: 'd1' });
+    expect(costs).toEqual([{ lineId: 'l1', hasCost: true, unitCost: '70.0000' }, { lineId: 'l2', hasCost: true, unitCost: undefined }]);
   });
 
   it('FR-STK-025 a count payload maps countedQuantity to counted_quantity and keeps an optional unit cost', async () => {

@@ -8,12 +8,13 @@ import { StockError } from '@/src/components/stock/StockError';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
-import { useStockDocument, useStockDocumentMutations, useStockItems, useStockKeepers, useStockOnHand, useStockUnits, useStockWarehouses } from '@/src/hooks/useStock';
+import { useStockDocument, useStockDocumentCosts, useStockDocumentMutations, useStockItems, useStockKeepers, useStockOnHand, useStockUnits, useStockWarehouses } from '@/src/hooks/useStock';
 import { isPositiveDecimal, isWholeQuantity, normalizeDecimal, subtractDecimal } from '@/src/lib/stockFormat';
-import type { StockDocumentDetail, StockDocumentInput, StockLineInput } from '@/src/lib/db/stockDocuments';
+import type { StockDocumentDetail, StockDocumentInput, StockLineCost, StockLineInput } from '@/src/lib/db/stockDocuments';
 
 type WriteOffKind = 'adjustment' | 'count';
-interface Line { key: number; itemId: string | null; counted: string; quantity: string; direction: 'in' | 'out'; unitCost: string }
+// costOnFile: a reopened line whose stored cost this user may not read (rank < 20); left empty, the server keeps it (0416).
+interface Line { key: number; itemId: string | null; counted: string; quantity: string; direction: 'in' | 'out'; unitCost: string; costOnFile?: boolean }
 const blank = (key: number, itemId: string | null = null): Line => ({ key, itemId, counted: '', quantity: '', direction: 'out', unitCost: '' });
 const COUNTED = /^\d+(\.\d{1,3})?$/;
 const COST = /^\d+(\.\d{1,4})?$/;
@@ -27,14 +28,15 @@ const StockCount: React.FC = () => {
   const { t } = useTranslation('stock');
   const { kind: kindParam, documentId } = useParams<{ kind: string; documentId: string }>();
   const existing = useStockDocument(documentId);
+  const costs = useStockDocumentCosts(documentId);
   if (documentId) {
-    if (existing.isPending) return <Shell title={t('kinds.count')}><div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div></Shell>;
-    if (existing.isError) return <Shell title={t('kinds.count')}><ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={() => void existing.refetch()} /></Shell>;
+    if (existing.isPending || costs.isPending) return <Shell title={t('kinds.count')}><div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div></Shell>;
+    if (existing.isError || costs.isError) return <Shell title={t('kinds.count')}><ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={() => { void existing.refetch(); void costs.refetch(); }} /></Shell>;
     const d = existing.data;
     if (!d || d.status !== 'Draft' || (d.kind !== 'adjustment' && d.kind !== 'count')) {
       return <Shell title={t('kinds.count')}><ListState variant="empty" icon="folder" title={t('count.notEditable.title')} sub={t('count.notEditable.sub')} /></Shell>;
     }
-    return <WriteOffForm kind={d.kind} draft={d} />;
+    return <WriteOffForm kind={d.kind} draft={d} costs={costs.data} />;
   }
   return kindParam === 'adjustment' || kindParam === 'count' ? <WriteOffForm kind={kindParam} /> : null;
 };
@@ -47,7 +49,7 @@ const Shell: React.FC<{ title: string; children: React.ReactNode }> = ({ title, 
   </div>
 );
 
-const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail }> = ({ kind, draft }) => {
+const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; costs?: StockLineCost[] }> = ({ kind, draft, costs }) => {
   const { t } = useTranslation('stock');
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -67,7 +69,10 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail }
   const [reason, setReason] = useState(draft?.reason ?? '');
   const [note, setNote] = useState(draft?.note ?? '');
   const [lines, setLines] = useState<Line[]>(() => draft?.lines.length
-    ? draft.lines.map((l, i) => ({ key: i + 1, itemId: l.item_id, counted: l.counted_quantity ?? '', quantity: l.quantity ?? '', direction: l.direction ?? 'out', unitCost: '' }))
+    ? draft.lines.map((l, i) => {
+      const c = costs?.find((x) => x.lineId === l.id);
+      return { key: i + 1, itemId: l.item_id, counted: l.counted_quantity ?? '', quantity: l.quantity ?? '', direction: l.direction ?? 'out', unitCost: c?.unitCost ?? '', costOnFile: Boolean(c?.hasCost && !c.unitCost) };
+    })
     : [blank(1)]);
   const [submitError, setSubmitError] = useState<unknown>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -120,13 +125,13 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail }
         const c = normalizeDecimal(l.counted);
         if (!COUNTED.test(c)) e[`qty${l.key}`] = t('count.errors.counted');
         else if (whole(l) && !isWholeQuantity(c)) e[`qty${l.key}`] = t('errors.STK_FRACTION');
-        else if (sys === '0' && c !== '0' && /[1-9]/.test(c) && !cost) e[`cost${l.key}`] = t('count.errors.costNeeded');
+        else if (sys === '0' && c !== '0' && /[1-9]/.test(c) && !cost && !l.costOnFile) e[`cost${l.key}`] = t('count.errors.costNeeded');
         return { itemId: l.itemId ?? '', countedQuantity: c, ...(cost ? { unitCost: cost } : {}) };
       }
       const q = normalizeDecimal(l.quantity);
       if (!isPositiveDecimal(q)) e[`qty${l.key}`] = t('form.errors.quantity');
       else if (whole(l) && !isWholeQuantity(q)) e[`qty${l.key}`] = t('errors.STK_FRACTION');
-      if (l.direction === 'in' && sys === '0' && !cost) e[`cost${l.key}`] = t('count.errors.costNeeded');
+      if (l.direction === 'in' && sys === '0' && !cost && !l.costOnFile) e[`cost${l.key}`] = t('count.errors.costNeeded');
       return { itemId: l.itemId ?? '', quantity: q, direction: l.direction, ...(l.direction === 'in' && cost ? { unitCost: cost } : {}) };
     });
     setErrors(e);
@@ -147,7 +152,7 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail }
       let id = draft?.id;
       if (id) {
         await m.saveDraft.mutateAsync({ id, input });
-        if (post) await m.post.mutateAsync(id);
+        if (post) await m.post.mutateAsync({ id, revision: draft ? draft.revision + 1 : undefined });   // the revision this save made
       } else {
         id = await m.create.mutateAsync({ input, post, clientRequestId: requestId.current });
         requestId.current = crypto.randomUUID();
@@ -214,8 +219,8 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail }
                       <TextField label={`${t(kind === 'count' ? 'count.counted' : 'form.quantity')}${n}`} required inputMode="decimal" autoComplete="off"
                         value={kind === 'count' ? l.counted : l.quantity} onChange={(x) => setLine(l.key, kind === 'count' ? { counted: x } : { quantity: x })} error={errors[`qty${l.key}`]} />
                       {needsCost && (
-                        <TextField label={costLabel} required={sys === '0'} inputMode="decimal" autoComplete="off" value={l.unitCost} onChange={(x) => setLine(l.key, { unitCost: x })}
-                          helper={sys === '0' ? undefined : t('count.costDefault')} error={errors[`cost${l.key}`]} />
+                        <TextField label={costLabel} required={sys === '0' && !l.costOnFile} inputMode="decimal" autoComplete="off" value={l.unitCost} onChange={(x) => setLine(l.key, { unitCost: x })}
+                          helper={l.costOnFile ? t('count.costOnFile') : sys === '0' ? undefined : t('count.costDefault')} error={errors[`cost${l.key}`]} />
                       )}
                     </FormGrid>
                     {sys !== undefined && (

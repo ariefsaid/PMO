@@ -162,6 +162,7 @@
     "STK_TOO_MANY": "Terlalu banyak baris untuk ditampilkan. Persempit filter.",
     "STK_KIND_UNAVAILABLE": "Jenis dokumen ini belum tersedia.",
     "STK_IMMUTABLE": "Dokumen yang sudah diposting atau dibatalkan tidak bisa diubah.",
+    "STK_STALE": "Draf ini berubah sejak Anda membukanya. Periksa versi terbarunya, lalu posting.",
     "STK_INSUFFICIENT_DETAIL": "Hanya tersedia {{available}}; Anda meminta {{requested}}."
   },
   "actions": {
@@ -410,13 +411,16 @@
     "detail": {
       "counted": "Terhitung",
       "expected": "Sistem saat posting",
-      "direction": "Arah"
+      "direction": "Arah",
+      "unitCost": "Biaya satuan",
+      "atAverage": "Pada biaya rata-rata"
     },
     "errors": {
       "reason": "Sebutkan alasan stok berubah.",
       "duplicate": "Barang ini sudah ada di lembar.",
       "counted": "Isi jumlah terhitung (0 atau lebih, maksimal 3 desimal).",
       "costNeeded": "Isi biaya satuan: sistem tidak menyimpan barang ini."
-    }
+    },
+    "costOnFile": "Biaya satuan sudah tersimpan. Kosongkan untuk mempertahankannya."
   }
 }

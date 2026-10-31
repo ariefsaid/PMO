@@ -13,7 +13,7 @@ import stockEn from '@/public/locales/en/stock.json';
 
 const { master, documents, reports } = vi.hoisted(() => ({
   master: { listUnits: vi.fn(), listItems: vi.fn(), listWarehouses: vi.fn(), listKeepers: vi.fn() },
-  documents: { create: vi.fn(), saveDraft: vi.fn(), post: vi.fn(), get: vi.fn() },
+  documents: { create: vi.fn(), saveDraft: vi.fn(), post: vi.fn(), get: vi.fn(), costs: vi.fn() },
   reports: { onHand: vi.fn() },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master, documents, reports } } }));
@@ -33,7 +33,7 @@ const onHand = (itemId: string, code: string, qty: string) => ({
   itemId, itemCode: code, itemName: code, unitCode: 'm', wholeOnly: false, warehouseId: 'w1', warehouseCode: 'SITE-A', warehouseName: 'Site A', warehouseKind: 'site', qtyOnHand: qty,
 });
 const draft = (over: Record<string, unknown> = {}) => ({
-  id: 'd1', number: 'CNT-1', kind: 'count', status: 'Draft', warehouse_id: 'w1', to_warehouse_id: null, project_id: null, procurement_id: null, reason: null, note: null,
+  id: 'd1', number: 'CNT-1', kind: 'count', status: 'Draft', revision: 1, warehouse_id: 'w1', to_warehouse_id: null, project_id: null, procurement_id: null, reason: null, note: null,
   occurred_on: '2026-10-30', created_by: 'me', created_at: 't', posted_by: null, posted_at: null, cancelled_at: null,
   warehouse: { code: 'SITE-A', name: 'Site A' }, to_warehouse: null, project: null, author: { full_name: 'Me' },
   lines: [{ id: 'l1', line_no: 1, item_id: 'i2', quantity: null, counted_quantity: '92', expected_quantity: null, direction: null, boq_item_id: null, source_line_id: null, item: { code: 'CAB', name: 'Cable 4mm', unit: { code: 'm', whole_only: false } } }],
@@ -76,6 +76,7 @@ beforeEach(() => {
   documents.saveDraft.mockResolvedValue(undefined);
   documents.post.mockResolvedValue(undefined);
   documents.get.mockResolvedValue(draft());
+  documents.costs.mockResolvedValue([]);
 });
 
 describe('StockCount', () => {
@@ -144,10 +145,29 @@ describe('StockCount', () => {
     await userEvent.clear(counted);
     await userEvent.type(counted, '100');
     await userEvent.click(await screen.findByRole('button', { name: 'Post count' }));
-    await waitFor(() => expect(documents.post).toHaveBeenCalledWith('d1'));
+    await waitFor(() => expect(documents.post).toHaveBeenCalledWith('d1', 2));   // the revision the save just made
     expect(documents.saveDraft).toHaveBeenCalledWith('d1', { kind: 'count', warehouseId: 'w1', lines: [{ itemId: 'i2', countedQuantity: '100' }] });
     expect(documents.saveDraft.mock.invocationCallOrder[0]).toBeLessThan(documents.post.mock.invocationCallOrder[0]);
     expect(await screen.findByText('document page')).toBeInTheDocument();
+  });
+
+  const adjInDraft = () => draft({ number: 'ADJ-1', kind: 'adjustment', reason: 'found',
+    lines: [{ ...draft().lines[0], quantity: '10', counted_quantity: null, direction: 'in' }] });
+  it('FR-STK-024 a reopened adjust-in with a cost on file says so and keeps it (the save sends no cost, the server keeps the stored one)', async () => {
+    documents.get.mockResolvedValue(adjInDraft());
+    documents.costs.mockResolvedValue([{ lineId: 'l1', hasCost: true }]);             // below rank 20: the cost itself is not sent
+    renderAt('/stock/documents/d1/edit');
+    expect(await screen.findByText('A unit cost is on file. Leave empty to keep it.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    await waitFor(() => expect(documents.saveDraft).toHaveBeenCalled());
+    expect(documents.saveDraft.mock.calls[0][1].lines).toEqual([{ itemId: 'i2', quantity: '10', direction: 'in' }]);
+  });
+
+  it('FR-STK-063 at rank >= 20 a reopened adjust-in shows the stored unit cost in the field', async () => {
+    documents.get.mockResolvedValue(adjInDraft());
+    documents.costs.mockResolvedValue([{ lineId: 'l1', hasCost: true, unitCost: '70.0000' }]);
+    renderAt('/stock/documents/d1/edit', 'Project Manager');
+    expect(await screen.findByDisplayValue('70.0000')).toBeInTheDocument();
   });
 
   it('FR-STK-024 an adjustment needs a reason and sends the direction; its author can only save it', async () => {

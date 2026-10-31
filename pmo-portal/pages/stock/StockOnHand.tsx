@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, DataTable, Icon, ListPage, ListState, SelectField, StatTiles, StatusPill, TextField, type Column } from '@/src/components/ui';
+import { Button, DataTable, Icon, ListPage, ListState, SelectField, StatTiles, TextField, type Column } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -56,12 +56,12 @@ const StockOnHand: React.FC = () => {
       {
         key: 'warehouse', header: t('onHand.columns.warehouse'),
         cell: (r) => (
-          <div className="flex items-center gap-2">
-            <span className="text-sm">{r.warehouseCode}</span>
-            <StatusPill variant={r.warehouseKind === 'central' ? 'open' : 'neutral'}>{t(`setup.kinds.${r.warehouseKind}`)}</StatusPill>
+          <div className="min-w-0">
+            <span className="block truncate text-sm">{r.warehouseName}</span>
+            <span className="block truncate text-xs text-muted-foreground"><span className="font-mono">{r.warehouseCode}</span> · {t(`setup.kinds.${r.warehouseKind}`)}</span>
           </div>
         ),
-        exportValue: (r) => r.warehouseCode,
+        exportValue: (r) => r.warehouseName,
       },
       {
         key: 'qty', header: t('onHand.columns.quantity'), align: 'num',
