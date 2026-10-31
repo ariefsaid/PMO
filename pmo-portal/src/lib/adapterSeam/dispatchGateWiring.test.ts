@@ -141,7 +141,7 @@ describe('WIRE P3B: the Approved-only timesheet gate is wired into the dispatch 
     for (const later of [
       'createClient(supabaseUrl, serviceRoleKey,', // no machine-write client exists before the refusal
       'ADAPTER_REGISTRY[command.domain]', // no adapter is selected for an unapproved sheet
-      'await resolveErpMoneyOutboxDeps(', // no outbox row, therefore no ERP POST (the CALL, not the decl)
+      'await resolveMoneyOutbox(', // no outbox row, therefore no ERP POST (the per-tier registry CALL, not the resolvers)
       'dispatchExternallyOwnedWrite(',
     ]) {
       expect(at(later), `${later} must come AFTER the Approved gate`).toBeGreaterThan(gate);

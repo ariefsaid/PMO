@@ -6,24 +6,34 @@
  * The allowlist is today's connect/setup/UI plumbing and one dispatch rule. Each leaves via the ECA slices that put
  * the behaviour behind the contract (#1600, #1605, #1606); none is a registered sync workflow's decision.
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const PORTAL = new URL('../../../../', import.meta.url).pathname;
 const REPO = join(PORTAL, '..');
-const TIERS = ['erpnext', 'odoo'];
-const BRANCH = new RegExp(
-  `(?:(?:===|!==|==|!=)\\s*|\\bcase\\s+)['"](?:${TIERS.join('|')})['"]|['"](?:${TIERS.join('|')})['"]\\s*(?:===|!==|==|!=)`,
-  'g',
-);
+// Odoo is named before it exists; any other ERP tier is found on disk (a directory with declarations).
+const SEAM = join(PORTAL, 'src/lib/adapterSeam');
+const TIERS = [...new Set([
+  'erpnext', 'odoo',
+  ...readdirSync(SEAM).filter((name) => existsSync(join(SEAM, name, 'workflowDeclarations.ts'))),
+])];
+const NAME = `(?:${TIERS.join('|')})`;
+const LITERAL = `['"]${NAME}['"]`;
+const CONSTANT = '\\b\\w*_TIER\\b'; // ERPNEXT_TIER, ODOO_TIER, …
+const OP = '(?:===|!==|==|!=)';
+const BRANCH = new RegExp([
+  `${OP}\\s*${LITERAL}`, `\\bcase\\s+${LITERAL}`, `${LITERAL}\\s*${OP}`, // tier === 'erpnext'
+  `${OP}\\s*${CONSTANT}`, `\\bcase\\s+${CONSTANT}`, `${CONSTANT}\\s*${OP}`, // tier === ERPNEXT_TIER
+  `\\.includes\\(\\s*${LITERAL}`, `\\[[^\\]]*${LITERAL}[^\\]]*\\]\\.includes\\(`, // ['erpnext'].includes(tier)
+].join('|'), 'g');
 
 /** repo-relative file -> number of tier-name comparisons it holds today. */
 const ALLOWED: Record<string, number> = {
-  'pmo-portal/src/components/integrations/IntegrationsView.tsx': 13,
+  'pmo-portal/src/components/integrations/IntegrationsView.tsx': 14,
   'pmo-portal/src/hooks/useErpItemOptions.ts': 1,
   'pmo-portal/src/hooks/useExpensePostingReadiness.ts': 1,
-  'pmo-portal/src/lib/repositories/index.ts': 2,
+  'pmo-portal/src/lib/repositories/integrations.ts': 2,
   'pmo-portal/src/lib/adapterSeam/dispatch.ts': 1,
   'supabase/functions/external-unlink/index.ts': 2,
   'supabase/functions/external-invoice-evidence/index.ts': 1,
@@ -34,6 +44,8 @@ const ALLOWED: Record<string, number> = {
   'supabase/functions/external-invoice-pdf/index.ts': 1,
   'supabase/functions/external-disconnect/index.ts': 2,
   'supabase/functions/external-set-company/index.ts': 2,
+  // #1595: the assistant picks ERP vs native invoice drafting by the revenue owner; moves behind the contract with #1609.
+  'supabase/functions/agent-chat/draftInvoice.ts': 1,
 };
 
 function sourceFiles(dir: string): string[] {
@@ -67,8 +79,13 @@ describe('AC-ECA-043 tier-name branches outside the tier', () => {
   });
 
   it('the pattern recognises each comparison shape it exists to catch', () => {
-    const shapes = [`x === 'erpnext'`, `x !== "odoo"`, `'erpnext' === x`, `case 'odoo':`];
+    const shapes = [
+      `x === 'erpnext'`, `x !== "odoo"`, `'erpnext' === x`, `case 'odoo':`,
+      `adapter.tier === ERPNEXT_TIER`, `ODOO_TIER !== tier`, `case ERPNEXT_TIER:`,
+      `list.includes('erpnext')`, `['erpnext', 'odoo'].includes(tier)`,
+    ];
     for (const s of shapes) expect(s.match(BRANCH), s).toHaveLength(1);
     expect(`tier: 'erpnext'`.match(BRANCH)).toBeNull();
+    expect(`{ [ERPNEXT_TIER]: resolve }`.match(BRANCH)).toBeNull(); // a registry key is the allowed seam
   });
 });

@@ -11,9 +11,8 @@ const PARTY_DEDUPE = 1600;
 const SEND_TO_EMPTY_ERP = 1606;
 const CUTOVER_PROCESS_DOMAINS = 1601;
 const INVOICE_PAIRING = 1602;
-// ponytail: shipped behaviour whose tests are still tier-local; this issue (the registry build) stands in until
-// a follow-up issue is filed to move each into a shared suite. Swap the number then.
-const SHIPPED_TESTS_NOT_YET_SHARED = 1604;
+// Shipped behaviour whose tests are still tier-local; the follow-up issue moves each into a shared suite.
+const SHIPPED_TESTS_NOT_YET_SHARED = 1609;
 
 export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   'census': { status: 'pending', version: 1, issue: SETUP_CENSUS_AND_PROPOSALS },

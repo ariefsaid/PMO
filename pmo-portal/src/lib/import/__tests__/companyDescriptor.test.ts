@@ -1,4 +1,4 @@
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const { create } = vi.hoisted(() => ({ create: vi.fn().mockResolvedValue({ id: 'new-id' }) }));
@@ -34,7 +34,7 @@ describe('companyImportDescriptor', () => {
 });
 
 it('accepts only external party types when the company domain is externally owned', () => {
-  setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+  setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
   const validate = companyImportDescriptor.fields.find((field) => field.key === 'type')!.validate;
   expect(validate('Internal')).not.toBeNull();
   expect(validate('Client')).toBeNull();

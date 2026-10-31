@@ -9,7 +9,8 @@ const h = vi.hoisted(() => {
   };
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, functions: { invoke: h.invoke } } }));
-import { erpSetupRequest, repositories } from './index';
+import { repositories } from './index';
+import { erpSetupRequest } from './integrations';
 
 beforeEach(() => { vi.clearAllMocks(); h.selects.length = 0; });
 

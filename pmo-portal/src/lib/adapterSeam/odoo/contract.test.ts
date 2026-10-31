@@ -1,13 +1,14 @@
 /**
- * AC-ODC-095 — runs every shared suite Odoo declares supported, through Odoo's own harness. Odoo-only wire-format
- * tests stay in their own files (FR-ECA-051).
+ * AC-ODC-095 — Odoo's identity and declarations. The shared suites it declares supported are run for it by
+ * `contractSuite/tiers.contract.test.ts` (one runner for every tier, so none can leave suites out).
+ * Odoo-only wire-format tests stay in their own files (FR-ECA-051).
  */
 import { describe, expect, it } from 'vitest';
 import { SUITES } from '../contractSuite/index.ts';
-import { createOdooHarness } from './contract.harness.ts';
+import { TIER_HARNESSES } from '../contractSuite/tiers.ts';
 import { ODOO_WORKFLOWS } from './workflowDeclarations.ts';
 
-const harness = createOdooHarness();
+const harness = TIER_HARNESSES.odoo;
 
 describe('odoo contract', () => {
   it('declares itself as the odoo tier', () => {
@@ -26,8 +27,3 @@ describe('odoo contract', () => {
     await expect(harness.pushPurchase('activated')).rejects.toThrow(/pending/);
   });
 });
-
-for (const [id, declaration] of Object.entries(ODOO_WORKFLOWS)) {
-  const suite = SUITES[id as keyof typeof SUITES];
-  if (declaration.status === 'supported' && suite) suite(harness);
-}

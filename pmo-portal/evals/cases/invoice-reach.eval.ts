@@ -34,6 +34,18 @@ export default runEvalSuite(
         ],
       },
       {
+        // #1595: the reel's own wording (no "work order" word) reaches the tool. The route (ERP or native) is decided by the
+        // server, so this proves only the proposal, not `path: 'native'`: that is unit-tested (draftInvoice.prepare/run).
+        name: 'AC-AIN-003 "Invoice WO-EVAL-0001" (the reel prompt) → proposes the Draft at its value before tax',
+        prompt: 'Invoice WO-EVAL-0001',
+        runs: RUNS,
+        minPasses: MIN_PASSES,
+        expect: [
+          proposesAction('draft_invoice', (a) =>
+            a.kind === 'prepared-draft-invoice' && (a.items as Array<{ rate: number }>)[0]?.rate === 1_000_000),
+        ],
+      },
+      {
         name: 'AC-AIN-003 AC-AIN-002 "invoice milestone 2 on EVAL-P1 for 5,000,000" → proposes the Draft',
         prompt: 'Invoice milestone 2 on project EVAL-P1 for 5,000,000 before tax.',
         runs: RUNS,

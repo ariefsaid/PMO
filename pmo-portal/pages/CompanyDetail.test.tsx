@@ -63,7 +63,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 
 import CompanyDetail from './CompanyDetail';
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 import { ownershipMock } from '@/test/domainOwnershipMock';
 
 // list-working-set-return (#683): reads the URL a Companies-index Route landed on, so a return
@@ -147,14 +147,14 @@ describe('CompanyDetail', () => {
   });
 
   it('requires an ERP party mapping before offering contact creation', () => {
-    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
     renderPage();
     expect(screen.queryAllByRole('button', { name: /add contact/i })).toHaveLength(0);
     expect(screen.getByText(/map this company/i)).toBeInTheDocument();
   });
 
   it('offers contact creation for an ERP-mapped company', () => {
-    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
     partyMappings.ids = ['co1'];
     renderPage();
     expect(screen.getAllByRole('button', { name: /add contact/i }).length).toBeGreaterThan(0);
@@ -324,7 +324,7 @@ describe('CompanyDetail — list-return context (AC-LRC-006)', () => {
 
 
 it('company detail edits the local short name while legal identity stays read-only on an external company', async () => {
-  setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+  setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
   renderPage();
   await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
   const dialog = await screen.findByRole('dialog', { name: /edit company/i });
@@ -337,7 +337,7 @@ it('company detail edits the local short name while legal identity stays read-on
 it('preserves the stored legal name when saving an external company nickname', async () => {
   const original = { ...company, name: `  ${company.name}  ` };
   detailState.data = original;
-  setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+  setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
   renderPage();
   await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
   const dialog = await screen.findByRole('dialog', { name: /edit company/i });
@@ -349,7 +349,7 @@ it('preserves the stored legal name when saving an external company nickname', a
 
 it('keeps an Internal company editable without offering a type conversion under external ownership', async () => {
   detailState.data = { ...company, type: 'Internal' };
-  setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+  setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
   renderPage();
   await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
   const dialog = await screen.findByRole('dialog', { name: /edit company/i });
@@ -363,7 +363,7 @@ it('holds a pending type conversion if ownership changes while editing', async (
   await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
   const dialog = await screen.findByRole('dialog', { name: /edit company/i });
   await userEvent.selectOptions(within(dialog).getByLabelText(/^type/i, { selector: 'input, select, textarea' }), 'Vendor');
-  act(() => setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
+  act(() => setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
   expect(within(dialog).getByRole('button', { name: /save company/i })).toBeDisabled();
 });
 
@@ -372,6 +372,6 @@ it('holds a pending legal-name edit if ownership changes while editing', async (
   await userEvent.click(screen.getByRole('button', { name: /^edit$/i }));
   const dialog = await screen.findByRole('dialog', { name: /edit company/i });
   await userEvent.type(within(dialog).getByLabelText(/company name/i), ' Revised');
-  act(() => setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
+  act(() => setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
   expect(within(dialog).getByRole('button', { name: /save company/i })).toBeDisabled();
 });
