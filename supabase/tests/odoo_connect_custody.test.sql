@@ -1,7 +1,7 @@
 -- Odoo connect custody (#1504 S2, migration 0420): the atomic stage → finalize commit, set-once activation,
 -- reconnect/discard, disconnect, and the reference column hidden from every signed-in reader.
 begin;
-select plan(61);
+select plan(72);
 
 insert into organizations (id, name) values
  ('a4200000-0000-0000-0000-000000000001','Odoo Org A'),
@@ -101,7 +101,30 @@ select is(public.activate_odoo_binding('a4200000-0000-0000-0000-000000000001',20
 select throws_ok($$select public.activate_odoo_binding('a4200000-0000-0000-0000-000000000001',20,2,'Second Co','{}','a4200000-0000-0000-0000-0000000000a1')$$,
   'P0001', 'company already chosen', 'AC-ODC-005 activation with another company is refused');
 select lives_ok($$select public.assert_odoo_activated('a4200000-0000-0000-0000-000000000001')$$, 'AC-ODC-005 assert_odoo_activated passes after activation');
+
+-- FR-ODC-005 the activation patch never overwrites the keys finalize and activation own.
+select public.activate_odoo_binding('a4200000-0000-0000-0000-000000000001',20,1,'Main Co','{"database":"other","prev_binding":{"secret_ref":"x"},"odoo_company_name":"Spoof","note":"kept"}','a4200000-0000-0000-0000-0000000000a1');
+select throws_ok($$select public.activate_odoo_binding('a4200000-0000-0000-0000-000000000001',20,1,'Main Co','[1]','a4200000-0000-0000-0000-0000000000a1')$$,
+  '22023', 'config patch must be a JSON object', 'FR-ODC-005 activation refuses a patch that is not an object');
+
+-- FR-ODC-008 in the database: the old connect RPC cannot connect Odoo, nor a second ERP while Odoo is active.
+select throws_ok($$select public.create_vault_secret_for_org('a4200000-0000-0000-0000-000000000001','odoo','k-old','a420_old1','a4200000-0000-0000-0000-0000000000a1')$$,
+  'P0001', 'odoo connects through stage and finalize', 'FR-ODC-008 create_vault_secret_for_org refuses tier odoo (service role)');
+select throws_ok($$select public.create_vault_secret_for_org('a4200000-0000-0000-0000-000000000001','erpnext','k-erp','a420_old2','a4200000-0000-0000-0000-0000000000a1')$$,
+  'P0001', 'another ERP tier is active', 'FR-ODC-008 create_vault_secret_for_org refuses ERPNext while Odoo is active');
+select throws_ok($$select public.activate_external_binding('a4200000-0000-0000-0000-000000000001','erpnext',15,'ERP Co','{}','a4200000-0000-0000-0000-0000000000a1')$$,
+  'P0001', 'another ERP tier is active', 'FR-ODC-008 activate_external_binding refuses ERPNext while Odoo is active');
 reset role;
+select ok((select config->>'database' = 'db1' and not (config ? 'prev_binding') and config->>'odoo_company_name' = 'Main Co' and config->>'note' = 'kept'
+             from external_org_bindings where org_id='a4200000-0000-0000-0000-000000000001' and external_tier='odoo'),
+  'FR-ODC-005 a patch cannot replace the database, the rotation marker or the company name; other keys merge');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a4200000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$select public.create_vault_secret_for_org('a4200000-0000-0000-0000-000000000001','odoo','k-jwt','a420_old3')$$,
+  'P0001', 'odoo connects through stage and finalize', 'FR-ODC-008 an Admin JWT calling the old connect RPC cannot connect Odoo');
+reset role;
+select is((select count(*)::int from vault.secrets where name in ('a420_old1','a420_old2','a420_old3')), 0, 'FR-ODC-008 the refused old-RPC calls stored no key');
+select is((select status from external_org_bindings where org_id='a4200000-0000-0000-0000-000000000001' and external_tier='erpnext'), 'disconnected', 'FR-ODC-008 the ERPNext row stays disconnected');
 
 -- AC-ODC-006 reconnect with a new key keeps the mirror; the old secret goes only at the commit.
 insert into projects (id, org_id, name, status) values ('a4200000-0000-0000-0000-000000000098','a4200000-0000-0000-0000-000000000001','Odoo P','Ongoing Project');
@@ -158,6 +181,8 @@ select public.activate_odoo_binding('a4200000-0000-0000-0000-000000000001',20,1,
 reset role;
 insert into external_domain_ownership (org_id, external_tier, domain) values ('a4200000-0000-0000-0000-000000000001','odoo','companies');
 set local role service_role;
+-- An attempt stranded after stage (finalize never ran): the prior key a420_s7 is named only by the marker.
+select public.stage_vault_secret_for_org('a4200000-0000-0000-0000-000000000001','odoo','k8','a420_s8','a4200000-0000-0000-0000-0000000000a1');
 select throws_ok($$select public.disconnect_external_integration('a4200000-0000-0000-0000-000000000001','odoo','a4200000-0000-0000-0000-0000000000f1')$$,
   '42501', null, 'AC-ODC-009 a Finance actor cannot disconnect');
 select is(public.disconnect_external_integration('a4200000-0000-0000-0000-000000000001','odoo','a4200000-0000-0000-0000-0000000000a1'), 1, 'AC-ODC-007 the first disconnect touches the binding');
@@ -167,6 +192,10 @@ select ok((select status = 'disconnected' and config->>'odoo_company_id' = '1' f
   'AC-ODC-007 the binding is disconnected and keeps its company for a resume');
 select is((select count(*)::int from external_domain_ownership where org_id='a4200000-0000-0000-0000-000000000001' and external_tier='odoo'), 0, 'AC-ODC-007 Odoo ownership is released');
 select is((select count(*)::int from vault.secrets where name='a420_s7'), 0, 'AC-ODC-007 the secret is deleted');
+select is((select count(*)::int from vault.secrets where name='a420_s8'), 0, 'AC-ODC-007 a stranded attempt''s new key is deleted');
+select ok((select not (config ? 'prev_binding') from external_org_bindings where org_id='a4200000-0000-0000-0000-000000000001' and external_tier='odoo'), 'AC-ODC-007 disconnect drops the rotation marker');
+select is((select count(*)::int from audit_events where org_id='a4200000-0000-0000-0000-000000000001' and action='integration.domain_ownership.release' and detail->>'tier'='odoo'), 1,
+  'AC-ODC-007 the second disconnect writes no second ownership-release audit');
 
 -- AC-ODC-009 the reference columns are unreadable by every signed-in role; the rest stays readable.
 select is((select array_agg(column_name::text order by column_name) from information_schema.columns c
