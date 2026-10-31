@@ -36,7 +36,7 @@ begin
 end $$;
 -- usage: select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4'); ... reset role;
 
-select plan(14);
+select plan(16);
 -- 1-3: master-data writers (rank >= 20) can create; Engineer cannot (AC-STK-034)
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');          -- U_PM
 select lives_ok($$ insert into stock_units (code, name, whole_only) values ('kg','Kilogram',false) $$, 'FR-STK-007 a Project Manager creates a unit');
@@ -80,5 +80,15 @@ select throws_ok($$ insert into stock_units (org_id, code, name) values ('151200
 -- 14: master changes are audited (FR-STK-066)
 reset role;
 select ok(exists (select 1 from audit_events where action = 'stock.unit.create' and org_id = '15120000-0000-0000-0000-000000000001' and actor_id = '15120000-0000-0000-0000-0000000000a3'), 'FR-STK-066 master-data creation writes an audit event with the actor');
+-- 15-16: delete is Admin only (policy stock_*_delete, rank >= 50); a hidden row is a silent no-op
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');
+insert into stock_units (code, name) values ('tmp', 'Temporary');
+delete from stock_units where code = 'tmp';
+reset role;
+select ok(exists (select 1 from stock_units where code = 'tmp' and org_id = '15120000-0000-0000-0000-000000000001'), 'FR-STK-007 a Project Manager cannot delete a unit');
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
+delete from stock_units where code = 'tmp';
+reset role;
+select ok(not exists (select 1 from stock_units where code = 'tmp' and org_id = '15120000-0000-0000-0000-000000000001'), 'FR-STK-007 an Admin deletes an unreferenced unit');
 select * from finish();
 rollback;
