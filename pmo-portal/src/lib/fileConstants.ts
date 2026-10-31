@@ -45,6 +45,15 @@ export const DENIED_EXTENSIONS: readonly string[] = [
 /** Signed URL expiry in seconds (60 minutes). NFR-DOC-003 / FR-DOC-013. */
 export const SIGNED_URL_EXPIRY_SECONDS = 3600;
 
+/**
+ * Extensions the in-app document viewer can show (preview only; upload acceptance is `ALLOWED_FILE_TYPES`).
+ * Legacy Word/Excel/PowerPoint are best effort through Microsoft's public viewer.
+ */
+export const VIEWABLE_EXTENSIONS: readonly string[] = [
+  '.pdf', '.png', '.jpg', '.jpeg', '.webp',
+  '.docx', '.xlsx', '.pptx', '.doc', '.xls', '.ppt',
+] as const;
+
 /** Extensions that can be previewed in a new browser tab. FR-DOC-042. */
 export const PREVIEWABLE_EXTENSIONS: readonly string[] = [
   '.pdf', '.png', '.jpg', '.jpeg', '.webp',
