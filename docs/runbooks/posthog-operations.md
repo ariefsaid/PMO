@@ -60,7 +60,19 @@ _Owned by slice S2._
 
 ## S3 Jobs
 
-_Owned by slice S3._
+What exists: every scheduled job emits one `job_run` per run (see `docs/analytics-events.md` S3); the `[PMO] Jobs` dashboard shows them; a CI check fails a registered job that lacks the wrapper (`scripts/check-edge-fn-error-reporting.mjs`, `JOB_FUNCTIONS`).
+
+**Cadences** (from the cron migrations at build time; confirm against the live schedule before setting alert windows): `erpnext-sweep` every minute, `clickup-webhook-worker` every minute, `clickup-sweep` every 5 minutes, `agent-dispatch` hourly, `telegram-notify` hourly.
+
+**Alerts** (click-path in `docs/posthog-dashboards.md` S3): a missing-run trend alert per job on `job_run` count by `job` "less than 1" over 3x its cadence (minute jobs 5 min, `clickup-sweep` 20 min, hourly jobs 3 h), plus one `status = failed` alert. The absence alert is the point: it fires when the tick never reaches the function.
+
+**Statuses.** `failed` carries a stable `error_code`; a job that returns 200 but skipped its work (missing Telegram secrets) is `failed`. A job with nothing to do by design (zero ERP-bound orgs, i.e. standalone, ADR-0094) is `skipped`, never `failed`. Do not create the `erpnext-sweep` absence alert on an environment without an ERP binding.
+
+**Positive control (AC-PHO-023, owner or Director, non-production):** an alert never proven to fire is a silent false signal. Disable one job's cron (a database write, run by the owner or Director, not a builder), wait past that job's window, confirm the alert arrives, re-enable the cron. Record the date and the evidence location in the Evidence table row AC-PHO-023.
+
+**Quota check:** after one day of live emission, read the `job_run` count in PostHog and compare it with the sizing in the spec (~97k/month with `erpnext-sweep` and `clickup-webhook-worker` every minute). If it is on course to exceed that, apply the first lever (emit `ok` with zero items once per N runs on the two minute jobs, never thin failures) as a follow-up issue.
+
+**Overhead.** Each run adds one bounded `fetch` (awaited up to 3 s) and one `res.clone().json()` of the already-small response body; PostHog down changes neither the response nor the rethrow (Deno test `jobRun.test.ts`).
 
 ## S4 Push outcomes
 

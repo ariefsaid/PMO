@@ -18,6 +18,7 @@ import type { ErrorEventRow, SendLogEntry } from './logic.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
 import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+import { withJobRun, type JobSummary } from '../_shared/jobRun.ts';
 import { fetchBounded } from '../_shared/fetchWithDeadline.ts';
 
 // M4 (perf, 2026-07-28 review): caps the unnotified-rows query so one error storm cannot load the
@@ -171,6 +172,18 @@ export async function handleTelegramNotifyRequest(req: Request): Promise<Respons
   }
 }
 
+/** job_run summary (#1532 S3): notifications sent; unset secrets or a failed send/stamp fail the run. */
+export function summarizeTelegramNotify(body: unknown): JobSummary | null {
+  const b = body as { sent?: number; skipped?: string; sendFailures?: number; stampFailures?: number } | null;
+  if (!b || typeof b.sent !== 'number') return null;
+  const failedCode = b.skipped === 'secrets-unset'
+    ? 'SECRETS_UNSET'
+    : (b.sendFailures ?? 0) > 0 || (b.stampFailures ?? 0) > 0 ? 'SEND_FAILED' : undefined;
+  return { items: b.sent, ...(failedCode ? { failedCode } : {}) };
+}
+
+export const jobHandler = withJobRun('telegram-notify', handleTelegramNotifyRequest, { summarize: summarizeTelegramNotify });
+
 if (import.meta.main) {
-  serveWithErrorReporting('telegram-notify', handleTelegramNotifyRequest);
+  serveWithErrorReporting('telegram-notify', jobHandler);
 }

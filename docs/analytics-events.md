@@ -322,7 +322,19 @@ _Owned by slice S2 (#1532)._
 
 ## S3 Jobs
 
-_Owned by slice S3 (#1532)._
+`job_run`, server event, one per scheduled run, emitted by `withJobRun` (`supabase/functions/_shared/jobRun.ts`) around the handler of the five jobs. No user id; distinct id `edge:<job>`. A wrong-secret request (401) and `OPTIONS` are not runs; a manual maintenance request to `erpnext-sweep` is not a run.
+
+| Property | Meaning |
+|---|---|
+| `job` | `erpnext-sweep`, `clickup-sweep`, `clickup-webhook-worker`, `agent-dispatch`, `telegram-notify` |
+| `status` | `ok`, `failed`, or `skipped` (nothing to do by design: no ERP or ClickUp bound org, e.g. standalone) |
+| `items_processed` | work done this run (rows, orgs' applied changes, notifications) |
+| `duration_ms` | handler time |
+| `error_code` | when `failed`: a stable upper-case code (`MISCONFIGURED`, `UNHANDLED_EXCEPTION`, `HTTP_<status>`, `ROWS_FAILED`, `ORG_SWEEP_FAILED`, `SEND_FAILED`, `SECRETS_UNSET`) |
+| `org_count` | orgs looped (`erpnext-sweep`, `clickup-sweep`) |
+| `recovered`, `reconcile_errors`, `org_error_count` | `erpnext-sweep` only: outbox commands recovered, reconcile errors, orgs with an error |
+
+Held and quarantined counts are not here; they come from the `erp_push_outcome` stream (S4). `agent-dispatch` reports `items_processed: 0` (the tick returns no counts).
 
 ## S4 Push outcomes
 

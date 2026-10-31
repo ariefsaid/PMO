@@ -213,6 +213,7 @@ import {
 // hours. (This is why the key was moved out of `repositories/index.ts`, which no edge fn can load.)
 import { timesheetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/timesheetPushKey.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+import { withJobRun, type JobSummary } from '../_shared/jobRun.ts';
 
 export { createInFlightAnchorProbe, type InFlightAnchorProbe };
 
@@ -3228,7 +3229,35 @@ async function reconcileOrgExpensePostingsLive(
   }
 }
 
-serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response> => {
+/**
+ * job_run summary for the tick response (#1532 S3). `null` = not a tick (a maintenance request has no
+ * `perOrg`). Zero bound orgs is `skipped`: a standalone deployment legitimately has none (ADR-0094).
+ * Held / quarantined counts come from the erp_push_outcome stream (S4), not from here.
+ */
+export function summarizeErpSweep(body: unknown): JobSummary | null {
+  const b = body as { orgs?: unknown; perOrg?: unknown } | null;
+  if (!b || !Array.isArray(b.perOrg)) return null;
+  const perOrg = b.perOrg as ErpSweepCycleResult['perOrg'];
+  let recovered = 0;
+  let applied = 0;
+  let reconcileErrors = 0;
+  let orgErrors = 0;
+  for (const o of perOrg) {
+    recovered += o.reconcile?.reconciled ?? 0;
+    reconcileErrors += o.reconcile?.errors.length ?? 0;
+    applied += o.sweep?.applied ?? 0;
+    if (o.errors.length > 0) orgErrors += 1;
+  }
+  const orgs = typeof b.orgs === 'number' ? b.orgs : perOrg.length;
+  return {
+    items: recovered + applied,
+    orgCount: orgs,
+    ...(orgs === 0 ? { skipped: true } : {}),
+    extra: { recovered, reconcile_errors: reconcileErrors, org_error_count: orgErrors },
+  };
+}
+
+serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req: Request): Promise<Response> => {
   const handlerEntryMs = Date.now();
   // ── 1. Authorization: the caller (the pg_cron job) must present the DEDICATED sweep secret (NOT the
   //    master service_role key — least-privilege, mirroring clickup-sweep). The cron presents this same
@@ -3375,7 +3404,7 @@ serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response>
     },
   }, erpAuth, cadence);
   return json({ ok: true, cadence: tickCadenceSummary(cadence, cycle), ...cycle });
-});
+}, { summarize: summarizeErpSweep }));
 
 /**
  * The full per-candidate `DispatchMoneyWriteDeps` wiring (SPEC-REVIEW RULING — the `not-implemented`
