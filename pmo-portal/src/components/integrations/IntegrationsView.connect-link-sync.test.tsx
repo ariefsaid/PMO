@@ -31,7 +31,7 @@ vi.mock('@/src/lib/repositories', () => ({
         db.connect(credential);
         db.bindings = [
           {
-            org_id: 'org-1', external_tier: 'clickup', site_url: 'https://api.clickup.com', secret_ref: 'vault-ref',
+            org_id: 'org-1', external_tier: 'clickup', site_url: 'https://api.clickup.com',
             status: 'active', connected_by: 'admin-1', connected_at: '2026-01-01T00:00:00Z', disconnected_at: null, config: {},
           } satisfies IntegrationBinding,
         ];
