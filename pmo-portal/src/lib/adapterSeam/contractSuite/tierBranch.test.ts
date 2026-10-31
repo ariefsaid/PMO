@@ -43,6 +43,8 @@ const ALLOWED: Record<string, number> = {
   'supabase/functions/external-invoice-pdf/index.ts': 1,
   'supabase/functions/external-disconnect/index.ts': 1,
   'supabase/functions/external-set-company/index.ts': 1,
+  // #1595: the assistant picks ERP vs native invoice drafting by the revenue owner; moves behind the contract with #1609.
+  'supabase/functions/agent-chat/draftInvoice.ts': 1,
 };
 
 function sourceFiles(dir: string): string[] {
