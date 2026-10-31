@@ -1,6 +1,7 @@
 # Feature: Site imprest plan and replenishment (#1515)
 
-> **Status:** Draft for owner sign-off (2026-11-01). No build before sign-off.
+> **Status:** Signed (owner, 2026-11-01). §3 answered: OQ-IMP-1 and 3..8 as written, OQ-IMP-2 changed (custodian = the
+> project's PM or a project admin; consequence DD-IMP-7). Plan: `docs/plans/2026-11-01-site-imprest.md`.
 > **Route:** EPC prospect build route (#1481), item T4 of `docs/plans/2026-10-30-epc-odoo-build-route.md` (owner-signed
 > 2026-10-30). Extends `docs/specs/expense-claims.spec.md` (#775); it does not replace or duplicate it.
 > **Grounds (read, not re-derived):** owner ruling on #1490 (2026-10-30: standard imprest petty cash per site; fixed float
@@ -59,12 +60,14 @@ the right approval, and head office can see at any moment that cash on hand plus
 - Mobile or offline capture of site receipts (ADR-0094: offline capture never bypasses online approval).
 - Anything in the ERP beyond the cash movements: PMO never posts the plan, the float or the position.
 
-## 3. Open questions for the owner (each has the default this spec takes)
+## 3. Owner questions (owner-signed 2026-11-01)
 
-| # | Question | Default taken |
+Owner ruling 2026-11-01: yes to OQ-IMP-1, 3, 4, 5, 6, 7 and 8 as written; OQ-IMP-2 changed as below.
+
+| # | Question | Ruling |
 |---|---|---|
 | **OQ-IMP-1** | What is a "site"? | **A float belongs to one project** (one float per project and custodian). A multi-project site, or two floats on one project, is two floats. |
-| **OQ-IMP-2** | Who is a custodian? | **An active member holding the Finance role.** Site finance staff who are not Finance-role members need the Finance role or user-defined roles (R1, #902). This keeps the existing rule that only Finance or Admin pays (FR-EXP-024) unchanged. |
+| **OQ-IMP-2** | Who is a custodian? | **Changed by the owner: the project's PM or a project admin.** In the five-role model the project admin / secretary seat is the Finance role (`docs/decisions.md` OD-RIS-1), so a custodian is an active member who either holds the Finance role or is the manager of the float's project (`projects.project_manager_id`), and in both cases holds approval rank. A PM is a custodian only for a project they manage. Because a PM custodian must hand out the float's cash, the custodian, and only the custodian, pays a record charged to their float, whatever their role (DD-IMP-7); FR-EXP-024 is unchanged for records with no float. |
 | **OQ-IMP-3** | What is the procurement limit and what does it apply to? | **One org-level amount, per advance or per claim, in the org currency, entered by an Admin.** It is a required field when the first float is created; there is no invented default number (the prospect's figure is not known). Splitting purchases under the limit is not detected in this spec. |
 | **OQ-IMP-4** | Must every float claim carry a receipt? | **Yes: a claim charged to a float needs at least one receipt attachment to submit.** A "settled receipt" that nobody can check is not a receipt. |
 | **OQ-IMP-5** | Does head office top up a float more than once a month? | **Yes, as often as there are settled receipts.** Any number of replenishments per month; each takes the receipts that are waiting. |
@@ -94,6 +97,24 @@ the right approval, and head office can see at any moment that cash on hand plus
   a missing plan, but it is always visible and always approved by someone more senior than the plan's own approver.
 - **DD-IMP-5: the procurement limit refuses, it does not convert.** An advance or claim above the org limit is refused on
   a float with a message that names the procurement path. A claim is never converted into a procurement (OD-PROC-5).
+- **DD-IMP-7: the custodian pays from their own float, and only from it (owner ruling on OQ-IMP-2, 2026-11-01).** The
+  cash is physically in the custodian's hands, so paying a record charged to a float is the custodian's act, whoever
+  they are: the Finance-or-Admin rule of FR-EXP-024 is replaced, **for float records only**, by "the caller is the
+  float's custodian and still qualifies as one". Records with no float keep FR-EXP-024 exactly. The separations that
+  follow, all server-enforced for every caller including an Admin (ADR-0019):
+  1. **A custodian never approves a record charged to their float.** Payer ≠ approver (DD-EXP-3) and only the custodian
+     can pay, so a custodian-approved float record could never be paid; the approval is refused up front instead.
+  2. **A custodian never charges their own advance or claim to their own float.** Payer ≠ claimant (DD-EXP-3) and only
+     the custodian can pay, so the link is refused when it is made (their own spend goes to head office as today).
+  3. **A custodian never approves their own float's plan, replenishment or funding**, and never pays a replenishment or
+     funding (§5, unchanged).
+  4. **The float stays non-negative** (DD-IMP-3): the custodian's payment is refused when it would overdraw.
+  5. **Eligibility is re-checked at every act, fail closed.** A custodian who loses the Finance role, stops managing
+     the project, or leaves the org can no longer pay, request or record on the float; the float waits for a handover
+     (out of scope, §2). The ERP posting gate re-checks the same rule for the recorded payer (§9).
+  *Why:* the owner's site finance seat is the PM or the project admin, not always a Finance member; the five-role model
+  has no narrower "may pay" capability, and widening FR-EXP-024 to every PM would let a PM pay any record from head
+  office. Binding the right to one float keeps the widening as small as the cash in that person's hands.
 - **DD-IMP-6: posting is a side-mirror.** PMO owns the float, plan and replenishment workflow; the ERP receives only the
   cash movements as documents on a per-float cash account (ADR-0059 Posture B, ADR-0094). Nothing in the ERP is read to
   decide a float, plan or routing outcome.
@@ -105,21 +126,22 @@ All SoD below is enforced in the database for every caller including an Admin, w
 
 | Action | Who may | Server-enforced separation |
 |---|---|---|
-| Establish a float, set its fixed amount, bind its cash account | Admin, Finance | A change to an existing float's amount is approved by someone other than its proposer (OQ-IMP-7). |
+| Establish a float, set its fixed amount, bind its cash account | Admin, Finance | A change to an existing float's amount is approved by someone other than its proposer (OQ-IMP-7). The custodian is an eligible member (OQ-IMP-2). |
 | Draft and submit a plan | Project Manager and above, or the float's custodian | Author recorded. |
 | Approve or reject a plan | The route `spend_approval_route` returns for the plan's amount | Approver is not the plan's author. Custodian approving a plan for their own float is refused. |
-| File an advance or claim charged to a float | Any member (claimant is the signed-in person, DD-EXP-5) | As DD-EXP-3. |
-| Approve an in-plan float claim or advance | The ordinary route | Approver is not the claimant. |
-| Approve an out-of-plan (exception) item | The senior approver set only, else Admin | Approver is not the claimant, and not the approver of the month's plan. |
-| Pay a float claim or advance (cash leaves the float) | Finance or Admin who is the float's custodian | Payer is not the approver and not the claimant (DD-EXP-3). |
+| File an advance or claim charged to a float | Any member (claimant is the signed-in person, DD-EXP-5) except the float's own custodian | As DD-EXP-3; a custodian cannot charge their own record to their own float (DD-IMP-7.2). |
+| Approve an in-plan float claim or advance | The ordinary route | Approver is not the claimant and not the float's custodian (DD-IMP-7.1). |
+| Approve an out-of-plan (exception) item | The senior approver set only, else Admin | Approver is not the claimant, not the float's custodian, and not the approver of the month's plan. |
+| Pay a float claim or advance (cash leaves the float) | The float's custodian only (PM or Finance, DD-IMP-7), still eligible | Payer is not the approver and not the claimant (DD-EXP-3); the float cannot go negative (DD-IMP-3). |
+| Record a cash return on a float advance (cash comes back) | The float's custodian, or Finance or Admin as today (FR-EXP-041) | Recorder is not the claimant (DD-EXP-3). |
 | Request a replenishment or funding | The float's custodian | None beyond recorded requester. |
 | Approve a replenishment or funding | Finance or Admin who is **not** the custodian | Approver is not the requester. |
 | Pay a replenishment or funding | Finance or Admin who is **not** the custodian | Payer is not the approver and not the custodian, so site finance can never top up its own float. |
 | Record a cash count | The float's custodian; Finance and Admin may also record | Recorded by and at; counts are append-only. |
 
-**Visibility:** a float, its plans, its replenishments and its counts are visible to its custodian and to the same
-population that sees all claims (DD-EXP-4, plus Finance and Admin). An Engineer sees only the floats they are custodian
-of (none, by OQ-IMP-2) and, as today, their own claims.
+**Visibility:** a float, its plans, its replenishments and its counts are visible to the same population that sees all
+claims (approval rank, DD-EXP-4), which includes every possible custodian (OQ-IMP-2 requires approval rank). An Engineer
+sees no float and, as today, their own claims.
 
 ## 6. Data model sketch (one migration, written with its reverse, pattern of 0247 and 0270)
 
@@ -127,7 +149,7 @@ All tables FORCE RLS, stamp `org_id` from the caller, conjoin `is_active_member(
 number, currency or any stamp from the client (NFR-IMP-001). Money columns are `numeric(14,2)` with a range check that
 rejects NaN and Infinity.
 
-- **`imprest_floats`**: `id`, `org_id`, `project_id` (not null), `custodian_id` (member, Finance role), `float_amount`,
+- **`imprest_floats`**: `id`, `org_id`, `project_id` (not null), `custodian_id` (eligible member, OQ-IMP-2), `float_amount`,
   `currency` (stamped), `erp_cash_account_ref` (nullable, set only by the validating server action of §9),
   `archived_at`. Unique `(org_id, project_id, custodian_id)` where not archived.
 - **`imprest_float_changes`**: proposed new `float_amount`, proposer, approver, status (`Proposed`, `Approved`,
@@ -148,13 +170,15 @@ rejects NaN and Infinity.
   (server-set at approval, with the route reason). The expense `kind` machine, numbers and SoDs are untouched.
 
 Cross-checks the database holds: a claim naming a float must be on that float's project; a float claim's budget category
-is required; a claim sits in at most one non-cancelled replenishment.
+is required; a claim sits in at most one non-cancelled replenishment; the float's custodian cannot be the claimant of a
+record charged to that float (DD-IMP-7.2).
 
 ## 7. Functional requirements (EARS)
 
 ### Floats and funding
 - **FR-IMP-001** The system shall let an Admin or Finance member establish a float for a project with a custodian who is
-  an active Finance-role member of the org, and shall refuse otherwise (OQ-IMP-1, OQ-IMP-2).
+  an active member of the org holding approval rank and who either holds the Finance role or is the project's manager,
+  and shall refuse otherwise (OQ-IMP-1, OQ-IMP-2).
 - **FR-IMP-002** When a float is established or its amount proposed, the system shall route the amount through
   `spend_approval_route` to the senior approver set (Admin when none is configured, DD-APR-4) and shall set the float's
   amount only when that change is approved by a caller who is not its proposer (OQ-IMP-7).
@@ -197,12 +221,19 @@ is required; a claim sits in at most one non-cancelled replenishment.
   fits, the ordinary route applies. If it does not, the record is an **exception**: the route is forced to the senior
   approver set (Admin when none is configured), `is_plan_exception` is stamped, the approver must not be the approver of
   that month's plan, and the audit row `expense_claim.approval_route` carries `plan_exception = true` and the shortfall.
+  In both cases the system shall refuse the float's custodian as the approver or rejecter (DD-IMP-7.1).
 - **FR-IMP-025** While a record is an exception, the record page shall say so and show the approvers who can decide it.
 - **FR-IMP-026** When a record naming a float is paid, the system shall require the caller to be the float's custodian
-  (Finance or Admin, FR-EXP-024), lock the float, and refuse if `cash_book` would fall below zero (DD-IMP-3). The cash
-  part of a claim (amount minus advance applied) and the whole of an advance leave `cash_book`.
-- **FR-IMP-027** An advance return recorded by Finance on a float's advance shall add to `cash_book` (FR-EXP-041 is
-  unchanged).
+  and to still qualify as one (OQ-IMP-2), whatever their role, in place of FR-EXP-024's Finance-or-Admin rule; lock the
+  float; and refuse if `cash_book` would fall below zero (DD-IMP-3, DD-IMP-7). The cash part of a claim (amount minus
+  advance applied) and the whole of an advance leave `cash_book`. A record with no float keeps FR-EXP-024 unchanged.
+- **FR-IMP-027** When a cash return is recorded on a float's advance, the system shall accept the float's custodian (still
+  eligible) in addition to the Finance or Admin caller FR-EXP-041 allows, refuse the claimant, and add the return to
+  `cash_book`.
+- **FR-IMP-028** When a record names a float whose custodian is the record's claimant, the system shall refuse the link
+  (23514, DD-IMP-7.2).
+- **FR-IMP-029** When a custodian pays, requests a funding or replenishment, records a return or records a count, the
+  system shall re-check that they still qualify as the float's custodian and refuse otherwise (DD-IMP-7.5).
 
 ### Replenishment
 - **FR-IMP-050** When the custodian requests a replenishment, the system shall select every Paid claim of the float not
@@ -310,8 +341,9 @@ pgTAP files in `supabase/tests/`; unit tests in `pmo-portal/`. *mutation-worthy*
 
 **Floats and funding: `imprest_floats.test.sql`**
 - **AC-IMP-001** *Given* an org with no procurement limit, *when* an Admin establishes a float, *then* P0001 naming the
-  limit; *given* a limit and a Finance custodian, *then* the float exists with `org_id` stamped; *given* an Engineer
-  custodian, *then* 23514. (FR-IMP-001/003)
+  limit; *given* a limit and a Finance custodian, *then* the float exists with `org_id` stamped; *given* the project's
+  own PM as custodian, *then* the float exists; *given* a PM who does not manage the project, or an Engineer, as
+  custodian, *then* 23514. (FR-IMP-001/003, OQ-IMP-2)
 - **AC-IMP-002** *Given* a proposed float amount of 10,000,000 by Admin A, *when* A approves it, *then* 42501
   "separation of duties"; *when* a different senior approver does, *then* the amount is set. (FR-IMP-002)
   *mutation-worthy*
@@ -360,8 +392,17 @@ pgTAP files in `supabase/tests/`; unit tests in `pmo-portal/`. *mutation-worthy*
 - **AC-IMP-031** *Given* a Paid 1,000,000 advance with a 300,000 return recorded and a Paid 500,000 claim that settled
   200,000 of it, *then* `cash_book` is funding − 1,000,000 + 300,000 − 300,000 (the claim's cash part), advances_out is
   500,000 and receipts_waiting 500,000. (FR-IMP-026/027, DD-IMP-2)
-- **AC-IMP-032** *Given* a float claim, *when* a Finance user who is not the float's custodian pays it, *then* 42501;
-  *when* the custodian who approved it pays, *then* 42501 (DD-EXP-3 holds). (FR-IMP-026)
+- **AC-IMP-032** *Given* a float claim, *when* a Finance user or an Admin who is not the float's custodian pays it, *then*
+  42501; *when* the custodian tries to approve it, *then* 42501 "separation of duties" (DD-IMP-7.1). (FR-IMP-024/026)
+  *mutation-worthy*
+- **AC-IMP-033** *Given* a funded float whose custodian is the project's PM and an Approved float advance approved by
+  someone else, *when* the PM custodian pays it, *then* Paid and `cash_book` falls by the advance; *when* that PM pays an
+  Approved record on another project's float, *then* 42501; *given* the project's manager is reassigned, *when* the
+  former PM pays, records a return or requests a replenishment, *then* 42501; *when* the PM custodian records a return
+  on a Paid float advance, *then* `cash_book` rises by it. (FR-IMP-026/027/029, DD-IMP-7) *mutation-worthy*
+- **AC-IMP-034** *Given* a float whose custodian is PM-A, *when* PM-A creates a claim charged to it, *then* 23514; *given* a
+  non-float claim by a PM, *when* that PM pays any record, *then* 42501 (FR-EXP-024 unchanged off-float).
+  (FR-IMP-028, DD-IMP-7.2)
 
 **Replenishment: `imprest_replenishment.test.sql`**
 - **AC-IMP-040** *Given* three Paid float claims of 400,000, 250,000 and 150,000 and one unpaid claim, *when* the
@@ -407,8 +448,9 @@ pgTAP files in `supabase/tests/`; unit tests in `pmo-portal/`. *mutation-worthy*
   paid, *then* exactly one `replenishment` intent is written in the same transaction, keyed
   `rep:<replenishment id>:<paid_at ms>`; *given* no binding or no cash account, *then* none. (§9, FR-EXP-100 pattern)
 - **AC-IMP-071** *Given* a float advance, claim payment and return, *then* each intent's frozen payload has the float's
-  cash account on the correct side; a float with a cash account that no longer fits is refused and raised, not posted.
-  (§9)
+  cash account on the correct side; a float with a cash account that no longer fits is refused and raised, not posted;
+  the posting gate accepts a payment whose recorded payer is the float's still-eligible custodian (a PM included) and
+  refuses one whose custodian no longer qualifies. (§9, DD-IMP-7.5)
 - **AC-IMP-072** `adapter-dispatch` and the sweep: a replenishment posts once; a retried or recovered attempt reuses the
   key and adopts only its own document; an uncertain attempt is shown as such in the position (NFR-IMP-008). The ERPNext
   driver and the Odoo driver both pass the one `imprest.transfer` contract suite. (§9, ADR-0058)
@@ -444,7 +486,7 @@ pgTAP files in `supabase/tests/`; unit tests in `pmo-portal/`. *mutation-worthy*
 | AC-IMP-010–014 | pgTAP | `supabase/tests/imprest_plans.test.sql` |
 | AC-IMP-020–025 | pgTAP | `supabase/tests/imprest_routing.test.sql` |
 | AC-IMP-026 | pgTAP | `supabase/tests/imprest_line_lock.test.sql` |
-| AC-IMP-030–032 | pgTAP | `supabase/tests/imprest_cash.test.sql` |
+| AC-IMP-030–034 | pgTAP | `supabase/tests/imprest_cash.test.sql` |
 | AC-IMP-040–046 | pgTAP | `supabase/tests/imprest_replenishment.test.sql` |
 | AC-IMP-050–052 | pgTAP | `supabase/tests/imprest_position.test.sql` |
 | AC-IMP-060 | pgTAP | `supabase/tests/imprest_acl.test.sql` |
@@ -457,6 +499,7 @@ pgTAP files in `supabase/tests/`; unit tests in `pmo-portal/`. *mutation-worthy*
 
 ## 12. Build slices and executor routing
 
+Superseded in detail by the plan (`docs/plans/2026-11-01-site-imprest.md`), which splits S1 into three migration slices.
 Money, SoD and authority work, so the DB and posting slices are **Director-dispatched per issue**; the screens are
 bounded Orca-worker slices (`docs/orca-dispatch.md`). Each slice branch pushes alone; money and SoD changes do not batch
 with others.
@@ -468,4 +511,4 @@ with others.
 4. **S4 (Director):** float cash account binding, `replenishment` intent and float posting variants, ERPNext driver,
    contract suite. AC-IMP-070..072. Then #1509 for Odoo.
 
-S4 waits for owner approval of proposed ADR-0094 and of this spec; S1..S3 run fully standalone and may ship first.
+ADR-0094 was accepted 2026-10-31 and this spec signed 2026-11-01; S1..S3 run fully standalone and may ship first.
