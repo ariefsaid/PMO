@@ -2,7 +2,7 @@
  * erpnext/webhookSignature.ts (task 8.2, AC-ENA-070) — the Frappe `X-Frappe-Webhook-Signature`
  * verifier: the SOLE trust boundary on the public erpnext-webhook surface (STRIDE spoofing/tampering).
  * The signature is `base64(HMAC-SHA256(secret, raw_body))` (R9/intake §2.13). Pure + portable (Web
- * Crypto `crypto.subtle`, the same idiom as `clickup/signature.ts` + `_shared/constantTimeBearerEquals`):
+ * Crypto `crypto.subtle`; the comparison is the one shared `../constantTimeEquals.ts` helper):
  * a request is untrusted until the recomputed base64 HMAC matches the header, constant-time. No
  * signature ⇒ no side effect (the edge fn returns 401 before any apply, FR-ENA-082).
  *
@@ -11,21 +11,7 @@
  * (`X-Frappe-Webhook-Signature`, base64) is confined here + the erpnext-webhook fn (FR-ENA-013).
  */
 
-/** Constant-time equality of two strings of possibly-different length: SHA-256 both to fixed 32-byte
- *  digests and XOR-accumulate — no length-based early exit, no first-differing-char short-circuit
- *  (mirrors `_shared/constantTimeBearerEquals.ts`). */
-async function constantTimeEquals(a: string, b: string): Promise<boolean> {
-  const enc = new TextEncoder();
-  const [ha, hb] = await Promise.all([
-    crypto.subtle.digest('SHA-256', enc.encode(a)),
-    crypto.subtle.digest('SHA-256', enc.encode(b)),
-  ]);
-  const ua = new Uint8Array(ha);
-  const ub = new Uint8Array(hb);
-  let diff = 0;
-  for (let i = 0; i < ua.length; i += 1) diff |= ua[i] ^ ub[i];
-  return diff === 0;
-}
+import { constantTimeEquals } from '../constantTimeEquals.ts';
 
 function bytesToBase64(bytes: Uint8Array): string {
   // `btoa` is available in both Deno and the browser; binary-string round-trip via chunked decode

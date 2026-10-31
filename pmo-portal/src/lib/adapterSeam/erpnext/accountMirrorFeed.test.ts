@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { feedAccountMirror } from './accountMirrorFeed.ts';
+import { feedAccountMirror, type AccountMirrorServiceClient } from './accountMirrorFeed.ts';
 
 const row = (name: string, parent: string | null, lft: number, rgt: number) => ({
   name, company: 'Synthetic Co', account_name: name, root_type: 'Asset', report_type: 'Balance Sheet',
@@ -7,27 +7,26 @@ const row = (name: string, parent: string | null, lft: number, rgt: number) => (
   lft, rgt, account_type: null, include_in_gross: false, disabled: false, modified: '2026-01-01',
 });
 function fakeClient() {
-  const calls: Array<{ method: string; values?: unknown; filters: unknown[] }> = [];
-  const query = (_table: string) => {
-    const state = { filters: [] as unknown[] };
-    const builder = {
-      eq: (column: string, value: unknown) => { state.filters.push([column, value]); return builder; },
-      not: (column: string, operator: string, value: string) => { state.filters.push([column, operator, value]); return builder; },
-      delete: () => { calls.push({ method: 'delete', filters: [...state.filters] }); return builder; },
-      upsert: async (values: unknown) => { calls.push({ method: 'upsert', values, filters: [...state.filters] }); return { error: null }; },
-      then: (resolve: (x: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve),
-    };
-    return builder;
-  };
-  return { calls, from: vi.fn(query), rpc: vi.fn(async (_name: string, _args: unknown) => ({ data: { upserted: 2, deleted: 1 }, error: null })) };
+  return { rpc: vi.fn(async (_name: string, _args: unknown) => ({ data: { upserted: 2, deleted: 2 }, error: null })) };
 }
 
 describe('account mirror reconciliation', () => {
-  it('AC-005: validates complete chart before upsert and removes obsolete company identities', async () => {
+  it('AC-005: publishes the chart through the atomic replace RPC with an RPC-only service client', async () => {
+    const service: AccountMirrorServiceClient = fakeClient();
+    const result = await feedAccountMirror(service, { orgId: 'org-synthetic', company: 'Synthetic Co', refreshId: 'refresh-1', asOf: '2026-01-02T00:00:00Z', accounts: [row('Assets', null, 1, 4), row('Cash', 'Assets', 2, 3)] });
+    expect(result).toEqual({ upserted: 2, removed: true });
+    expect(service.rpc).toHaveBeenCalledTimes(1);
+    expect(service.rpc).toHaveBeenCalledWith('replace_erp_account_chart', expect.objectContaining({
+      p_org_id: 'org-synthetic', p_company: 'Synthetic Co',
+      p_rows: expect.arrayContaining([expect.objectContaining({ erp_name: 'Assets', org_id: 'org-synthetic', refresh_id: 'refresh-1' })]),
+    }));
+  });
+
+  it('AC-005: validates complete chart before the atomic chart replace and reports the mirrored count', async () => {
     const service = fakeClient();
     const result = await feedAccountMirror(service as never, { orgId: 'org-synthetic', company: 'Synthetic Co', refreshId: 'refresh-1', asOf: '2026-01-02T00:00:00Z', accounts: [row('Assets', null, 1, 4), row('Cash', 'Assets', 2, 3)] });
     expect(result).toMatchObject({ upserted: 2, removed: true });
-    expect(service.calls).toEqual([]);
+    expect(service.rpc).toHaveBeenCalledTimes(1);
     expect(service.rpc).toHaveBeenCalledWith('replace_erp_account_chart', expect.objectContaining({
       p_org_id: 'org-synthetic', p_company: 'Synthetic Co',
       p_rows: expect.arrayContaining([expect.objectContaining({ erp_name: 'Cash', org_id: 'org-synthetic', refresh_id: 'refresh-1' })]),
@@ -44,6 +43,6 @@ describe('account mirror reconciliation', () => {
   it('AC-005: rejects missing parent and duplicate identity before any mirror write', async () => {
     const service = fakeClient();
     await expect(feedAccountMirror(service as never, { orgId: 'org-synthetic', company: 'Synthetic Co', refreshId: 'r', asOf: '2026-01-02T00:00:00Z', accounts: [row('Child', 'Missing', 2, 3)] })).rejects.toThrow(/parent/i);
-    expect(service.calls).toHaveLength(0);
+    expect(service.rpc).not.toHaveBeenCalled();
   });
 });

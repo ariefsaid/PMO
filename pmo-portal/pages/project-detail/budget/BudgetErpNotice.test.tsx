@@ -11,7 +11,7 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
-import { RAW_ADAPTER_TOKEN } from '@/src/lib/adapterSeam/pushErrorCopy';
+import { RAW_ADAPTER_TOKEN } from '@/src/lib/testing/rawAdapterToken';
 import type { BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
 import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
 

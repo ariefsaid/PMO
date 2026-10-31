@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   setTaskOwnership,
-  setDomainOwnership,
   clearOwnershipCache,
   routeTaskWrite,
   routeDomainWrite,
@@ -73,22 +72,22 @@ describe('ADR-0056/FR-ENA-005 routeDomainWrite — generalized per-domain routin
   });
 
   it('a loaded cache that does NOT assert procurement routes it to pmo (loaded-but-absent)', () => {
-    setDomainOwnership([{ domain: 'tasks', externalTier: 'clickup' }]);
+    setTaskOwnership([{ domain: 'tasks', externalTier: 'clickup' }]);
     expect(routeDomainWrite('procurement')).toBe('pmo');
   });
 
   it('a loaded cache asserting procurement→erpnext routes it to external', () => {
-    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
     expect(routeDomainWrite('procurement')).toBe('external');
   });
 
   it('a loaded cache asserting companies→erpnext routes it to external', () => {
-    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
     expect(routeDomainWrite('companies')).toBe('external');
   });
 
   it('one seed covers every domain it asserts — no extra load needed (the map is domain-keyed)', () => {
-    setDomainOwnership([
+    setTaskOwnership([
       { domain: 'tasks', externalTier: 'clickup' },
       { domain: 'procurement', externalTier: 'erpnext' },
     ]);
@@ -100,10 +99,6 @@ describe('ADR-0056/FR-ENA-005 routeDomainWrite — generalized per-domain routin
     expect(routeTaskWrite()).toBe('pmo');
   });
 
-  it('setTaskOwnership (the P1 name) is the same seed as setDomainOwnership (alias, identical body)', () => {
-    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
-    expect(routeDomainWrite('procurement')).toBe('external');
-  });
 });
 
 

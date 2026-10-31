@@ -21,7 +21,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 import { useCompanies, useCompany, useCompanyMutations, useProjectsByClient } from './useCompanies';
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 const wrap = (client: QueryClient) =>
   function Wrapper({ children }: { children: React.ReactNode }) {
@@ -158,7 +158,7 @@ describe('useCompanyMutations', () => {
 // an Internal-type write NEVER shows a push badge (FR-ENA-090/091), even flipped.
 // ---------------------------------------------------------------------------
 describe('task FIX-1 — flipped ownership map drives pendingPush on a Vendor/Client write', () => {
-  beforeEach(() => setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
+  beforeEach(() => setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
   afterEach(() => clearOwnershipCache());
 
   it('create cycles pendingPush idle -> pushing -> pushed for a Vendor', async () => {
@@ -208,7 +208,7 @@ describe('task FIX-1 — flipped ownership map drives pendingPush on a Vendor/Cl
 
 
 it('local short-name save shows no external push badge and refreshes dependent project displays', async () => {
-  setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+  setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
   const client = freshClient();
   const invalidate = vi.spyOn(client, 'invalidateQueries');
   client.setQueryData(['won-deals', 'org-1'], 'old');

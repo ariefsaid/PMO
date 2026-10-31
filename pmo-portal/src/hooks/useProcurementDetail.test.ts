@@ -48,7 +48,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 import { useProcurementDetail, useProcurementMutations } from './useProcurementDetail';
 import { getProcurementDetail, captureVendorInvoice } from '@/src/lib/db/procurementLifecycle';
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 // ---------------------------------------------------------------------------
 // Wrapper factory — each test gets a fresh QueryClient (mirrors useBudget.test.ts)
@@ -123,7 +123,7 @@ describe('useProcurementMutations', () => {
   });
 
   it('holds and refreshes line eligibility around an external receipt', async () => {
-    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
     let resolveReceipt!: (value: unknown) => void;
     procurement.createReceipt.mockReturnValueOnce(new Promise((resolve) => { resolveReceipt = resolve; }));
     const { qc, Wrapper } = makeWrapper();
@@ -306,7 +306,7 @@ describe('useProcurementMutations', () => {
 describe('task FIX-1 — flipped ownership map routes createReceipt externally + drives pendingPush', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
   });
   afterEach(() => clearOwnershipCache());
 

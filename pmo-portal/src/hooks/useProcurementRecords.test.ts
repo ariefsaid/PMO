@@ -23,7 +23,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 import { useProcurementRecordMutations } from './useProcurementRecords';
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 function wrapper({ children }: { children: React.ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -90,7 +90,7 @@ describe('task FIX-1 — cold ownership map (PMO-owned) — createPurchaseOrder 
 // idle -> pushing -> pushed / push-failed (the P1 idiom).
 // ---------------------------------------------------------------------------
 describe('task FIX-1 — flipped ownership map routes createPurchaseOrder externally + drives pendingPush', () => {
-  beforeEach(() => setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]));
+  beforeEach(() => setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]));
   afterEach(() => clearOwnershipCache());
 
   it('holds and refreshes line eligibility around an external case command', async () => {

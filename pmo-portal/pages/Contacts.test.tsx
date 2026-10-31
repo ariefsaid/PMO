@@ -44,7 +44,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 
 import Contacts from './Contacts';
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 import { ownershipMock } from '@/test/domainOwnershipMock';
 
 const companies = [
@@ -201,7 +201,7 @@ it('holds contact creation while ownership is unresolved', () => {
 
 describe('Contacts create form (AC-CRM-030)', () => {
   it('offers mapped companies for external contact creation', async () => {
-    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
     renderPage('Admin');
     await userEvent.click(screen.getByRole('button', { name: /New contact/i }));
     const company = screen.getByLabelText(/^Company/i, { selector: 'select' });
@@ -210,7 +210,7 @@ describe('Contacts create form (AC-CRM-030)', () => {
   });
 
   it('explains the mapping prerequisite before contact entry or import', () => {
-    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
     partyMappings.ids = [];
     renderPage('Admin');
     expect(screen.queryByRole('button', { name: /New contact/i })).not.toBeInTheDocument();
@@ -360,7 +360,7 @@ describe('Contacts row actions (AC-CRM-030)', () => {
   };
 
   it('keeps mirrored fields read-only while allowing local contact details', async () => {
-    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
     renderPage('Admin');
     await openRowMenu('Jane Doe');
     expect(screen.queryByRole('menuitem', { name: /Delete/i })).not.toBeInTheDocument();
@@ -383,7 +383,7 @@ describe('Contacts row actions (AC-CRM-030)', () => {
     const name = screen.getByLabelText(/Full name/i);
     await userEvent.clear(name);
     await userEvent.type(name, 'Jane Reyes');
-    act(() => setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
+    act(() => setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
     expect(screen.getByRole('button', { name: /^Save contact$/i })).toBeDisabled();
   });
 

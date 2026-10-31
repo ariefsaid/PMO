@@ -170,6 +170,7 @@ it('AC-AIN-017 draft_invoice is advertised only when enabled, and never claims a
   expect(on).toMatch(/### draft-invoice — Use when the user asks to invoice or bill/);
   expect(on).toMatch(/call `ask_user` with those candidates/);
   expect(on).toMatch(/NEVER say an invoice is approved or submitted/);
+  expect(on).toMatch(/work order number alone is enough/); // #1595: "Invoice WO-…" must call the tool, not ask first
   const off = buildAgentSystemPrompt(ENTITIES as unknown as never, ROW_CAP, 'Finance', { invoiceDraftsEnabled: false });
   expect(off).not.toContain('draft_invoice');
 });
