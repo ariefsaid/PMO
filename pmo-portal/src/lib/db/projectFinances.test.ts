@@ -4,7 +4,7 @@ const h = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: vi.fn() } }));
 
 import { AppError } from '@/src/lib/appError';
-import { getProjectFinances, setSalesInvoiceProject } from './revenue';
+import { getProjectFinances, setSalesInvoiceBillingKind, setSalesInvoiceProject } from './revenue';
 
 const projectId = '02900000-0000-0000-0000-000000000001';
 const financePayload = {
@@ -25,6 +25,25 @@ describe('project finance DAL', () => {
     expect(h.rpc).toHaveBeenCalledExactlyOnceWith('assign_sales_invoice_project', {
       p_si_id: 'invoice-1', p_project_id: 'project-1',
     });
+  });
+
+  it('FR-003 assigns project and kind with the kind as a third RPC argument', async () => {
+    h.rpc.mockResolvedValueOnce({ error: null });
+    await setSalesInvoiceProject('invoice-1', 'project-1', 'other');
+    expect(h.rpc).toHaveBeenCalledExactlyOnceWith('assign_sales_invoice_project',
+      { p_si_id: 'invoice-1', p_project_id: 'project-1', p_billing_kind: 'other' });
+  });
+
+  it('FR-004 corrects only the kind through the narrow RPC', async () => {
+    h.rpc.mockResolvedValueOnce({ error: null });
+    await setSalesInvoiceBillingKind('invoice-1', 'contract');
+    expect(h.rpc).toHaveBeenCalledExactlyOnceWith('set_sales_invoice_billing_kind',
+      { p_si_id: 'invoice-1', p_billing_kind: 'contract' });
+  });
+
+  it('FR-004 surfaces a refusal with its SQLSTATE', async () => {
+    h.rpc.mockResolvedValueOnce({ error: { message: 'not authorized', code: '42501' } });
+    await expect(setSalesInvoiceBillingKind('invoice-1', 'other')).rejects.toMatchObject({ code: '42501' });
   });
 
   it('AC-PFIN-014 reads one project through the checked RPC payload and reports legacy cash as not-reported', async () => {

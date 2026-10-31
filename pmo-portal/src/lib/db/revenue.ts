@@ -3,6 +3,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import { isProjectFinances, parseProjectReceiptCash, type ProjectFinances } from '@/src/lib/projectFinances';
 import { revenueRefusalCode } from '@/src/lib/db/revenueNative';
+import type { BillingKind } from '@/src/lib/billingKind';
 import { REVENUE_STATUSES } from '@/src/lib/projectInvoicing';
 import { resolveRange, type PageParams } from '@/src/lib/pagination';
 import type { ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
@@ -44,6 +45,8 @@ export interface SalesInvoiceRow {
   erp_cancelled_at: string | null;
   created_at: string;
   author_user_id: string | null;
+  /** #1471: how this invoice's project attribution counts (`contract` draws down the contract value; NOT NULL, default `contract`). */
+  billing_kind: BillingKind;
   /**
    * EVERY user who has built this invoice's ERP body — migration 0113's append-only
    * `sales_invoice_authors` set, which is the SoD oracle `submit_sales_invoice` actually enforces.
@@ -305,11 +308,18 @@ export async function submitSalesInvoiceSod(siId: string): Promise<void> {
  * #767 (AC-DUE-001): record (or clear, with null) the date the client received the invoice.
  * Admin/Finance, draft or submitted — enforced by the SECURITY DEFINER RPC, not the UI.
  */
-export async function setSalesInvoiceProject(siId: string, projectId: string): Promise<void> {
+export async function setSalesInvoiceProject(siId: string, projectId: string, billingKind?: BillingKind): Promise<void> {
   const { error } = await supabase.rpc('assign_sales_invoice_project', {
     p_si_id: siId,
     p_project_id: projectId,
+    ...(billingKind ? { p_billing_kind: billingKind } : {}),
   });
+  if (error) throwWrite(error);
+}
+
+/** #1471 FR-004: PMO-only billing-kind correction of an already-linked invoice (Admin/Finance, RPC-enforced). */
+export async function setSalesInvoiceBillingKind(siId: string, billingKind: BillingKind): Promise<void> {
+  const { error } = await supabase.rpc('set_sales_invoice_billing_kind', { p_si_id: siId, p_billing_kind: billingKind });
   if (error) throwWrite(error);
 }
 

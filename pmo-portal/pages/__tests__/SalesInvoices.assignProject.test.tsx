@@ -38,7 +38,7 @@ vi.mock('@/src/lib/analytics', () => ({ trackFilterApplied: vi.fn(), trackSaveFa
 import SalesInvoices from '../SalesInvoices';
 
 const invoice = (id: string, projectId: string | null, overrides: Partial<SalesInvoiceRow> = {}): SalesInvoiceRow => ({
-  id, org_id: 'org-test', project_id: projectId, erp_project: null, customer_id: null, customer_name: 'Customer',
+  id, org_id: 'org-test', project_id: projectId, erp_project: null, billing_kind: 'contract', customer_id: null, customer_name: 'Customer',
   si_number: `SI-${id}`, reference_number: null, invoice_date: '2026-10-01', amount: 100,
   currency: 'USD', tax_treatment: 'inclusive', tax_amount: 0, erp_outstanding_amount: 100,
   status: 'Unpaid', erp_docstatus: 1, erp_modified: null, erp_amended_from: null, erp_cancelled_at: null,
