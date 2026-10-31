@@ -292,8 +292,8 @@ export const Combobox: React.FC<ComboboxProps> = ({
     ) : null;
 
   return (
-    <div className={cn('flex flex-col gap-1.5', className)}>
-      <span id={labelId} className="text-[12px] font-semibold leading-[1.3] text-foreground">
+    <div className={cn('flex flex-col', formControl ? 'gap-2' : 'gap-1.5', className)}>
+      <span id={labelId} className={cn('font-semibold text-foreground', formControl ? 'text-control' : 'text-[12px] leading-[1.3]')}>
         {label}
         {required && (
           <span aria-hidden className="ml-0.5 text-destructive">

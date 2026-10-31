@@ -35,8 +35,8 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
 
   const columns: Column<StockLedgerRow>[] = useMemo(() => {
     const cols: Column<StockLedgerRow>[] = [
-      { key: 'when', header: t('ledger.columns.when'), cell: (r) => <span className="tabular-nums">{formatDateTime(new Date(r.postedAt))}</span>, exportValue: (r) => r.postedAt },
-      { key: 'occurred', header: t('ledger.columns.occurred'), colClassName: 'hidden lg:table-cell', cell: (r) => <span className="tabular-nums">{formatDate(r.occurredOn)}</span>, exportValue: (r) => r.occurredOn },
+      { key: 'when', header: t('ledger.columns.when'), cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatDateTime(new Date(r.postedAt))}</span>, exportValue: (r) => r.postedAt },
+      ...(embedded ? [] : [{ key: 'occurred', header: t('ledger.columns.occurred'), colClassName: 'hidden 2xl:table-cell', cell: (r) => <span className="whitespace-nowrap tabular-nums">{formatDate(r.occurredOn)}</span>, exportValue: (r) => r.occurredOn} as Column<StockLedgerRow>]),
       {
         key: 'doc', header: t('ledger.columns.document'), rowHeader: true,
         cell: (r) => (
@@ -73,7 +73,7 @@ const StockLedger: React.FC<{ projectId?: string; embedded?: boolean }> = ({ pro
     }
     cols.push({ key: 'actor', header: t('ledger.columns.by'), colClassName: 'hidden md:table-cell', cell: (r) => <span className="text-sm">{r.actorName ?? ''}</span>, exportValue: (r) => r.actorName ?? '' });
     return cols;
-  }, [t, loc, currency, showCost]);
+  }, [t, loc, currency, showCost, embedded]);
 
   const state: 'loading' | 'empty' | 'error' | undefined =
     ledger.isError || items.isError || warehouses.isError ? 'error' : ledger.isPending ? 'loading' : rows.length === 0 ? 'empty' : undefined;
