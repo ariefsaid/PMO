@@ -49,6 +49,13 @@ describe('UXS-007 shell label consistency', () => {
   });
 });
 
+describe('stock setup breadcrumb (#1512)', () => {
+  it('FR-STK-007 /stock/setup resolves its own title instead of falling through to Not found', () => {
+    const crumbs = breadcrumbForPath('/stock/setup');
+    expect(crumbs.map((c) => c.label)).toEqual(['Stock setup']);
+  });
+});
+
 describe('UXS-006 shared route vocabulary', () => {
   it('every navigable module owns the translation key used across shell surfaces', () => {
     expect(MODULES.every((module) => typeof module.labelKey === 'string')).toBe(true);
