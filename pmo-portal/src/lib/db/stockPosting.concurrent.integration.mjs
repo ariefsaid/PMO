@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 
 const psql = process.env.PSQL ?? '/opt/homebrew/opt/libpq/bin/psql';
 const dbUrl = process.env.DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
-const ids = Object.fromEntries(['org', 'keeper', 'client', 'project', 'boq', 'unit', 'itemSell', 'itemLock', 'itemSwap', 'itemIdem', 'crid'].map((k) => [k, randomUUID()]));
+const ids = Object.fromEntries(['org', 'keeper', 'client', 'project', 'boq', 'unit', 'itemSell', 'itemLock', 'itemSwap', 'itemIdem', 'itemArch', 'whArch', 'crid'].map((k) => [k, randomUUID()]));
 const [whA, whB] = [randomUUID(), randomUUID()].sort();          // A < B, so "ascending" is observable
 const app = (tag) => `stk-race-${tag}-${randomUUID()}`;
 
@@ -62,9 +62,12 @@ insert into public.boq_items(id,org_id,project_id,item_code,description,unit,qua
 insert into public.stock_units(id,org_id,code,name,whole_only) values ('${ids.unit}','${ids.org}','pc','Piece',true);
 insert into public.stock_items(id,org_id,code,name,unit_id) values
   ('${ids.itemSell}','${ids.org}','SELL','Oversell','${ids.unit}'), ('${ids.itemLock}','${ids.org}','LOCK','Lock order','${ids.unit}'),
-  ('${ids.itemSwap}','${ids.org}','SWAP','Opposing','${ids.unit}'),  ('${ids.itemIdem}','${ids.org}','IDEM','Idempotent','${ids.unit}');
-insert into public.stock_warehouses(id,org_id,code,name,kind) values ('${whA}','${ids.org}','RA','Race A','site'), ('${whB}','${ids.org}','RB','Race B','site');
-insert into public.stock_warehouse_keepers(org_id,warehouse_id,user_id) values ('${ids.org}','${whA}','${ids.keeper}'), ('${ids.org}','${whB}','${ids.keeper}');
+  ('${ids.itemSwap}','${ids.org}','SWAP','Opposing','${ids.unit}'),  ('${ids.itemIdem}','${ids.org}','IDEM','Idempotent','${ids.unit}'),
+  ('${ids.itemArch}','${ids.org}','ARCH','Archive race','${ids.unit}');
+insert into public.stock_warehouses(id,org_id,code,name,kind) values ('${whA}','${ids.org}','RA','Race A','site'), ('${whB}','${ids.org}','RB','Race B','site'),
+  ('${ids.whArch}','${ids.org}','RX','Race archive','site');
+insert into public.stock_warehouse_keepers(org_id,warehouse_id,user_id) values ('${ids.org}','${whA}','${ids.keeper}'), ('${ids.org}','${whB}','${ids.keeper}'),
+  ('${ids.org}','${ids.whArch}','${ids.keeper}');
 `);
 await run(`begin; ${asKeeper} ${receive(whA, ids.itemSell, 10)} ${receive(whA, ids.itemLock, 10)} ${receive(whB, ids.itemLock, 10)}
   ${receive(whA, ids.itemSwap, 1000)} ${receive(whB, ids.itemSwap, 1000)} commit;`);
@@ -137,6 +140,34 @@ await run(`begin; ${asKeeper} ${receive(whA, ids.itemSell, 10)} ${receive(whA, i
   assert(await run(`select count(*) from public.stock_ledger where org_id='${ids.org}' and item_id='${ids.itemIdem}';`) === '1', 'idempotent: exactly one ledger row');
   assert(await balance(ids.itemIdem, whA) === '5.000', 'idempotent: balance moved once');
   console.log('PASS idempotent race: same id, one document, one ledger row, balance moved once.');
+}
+
+// 6. Archive vs post, post first: an item with no stock is archived while its first receipt is in flight.
+//    The archive must wait for the post, then be refused STK_HAS_STOCK (never an archived item holding stock).
+{
+  const p = session(`begin; ${asKeeper} ${receive(whA, ids.itemArch, 5)} select pg_sleep(1.5); commit;`);
+  await sleep(300);
+  const r = session(`update public.stock_items set archived_at = now() where id = '${ids.itemArch}';`, app('arch-item'));
+  await waitForLock(r.appName);
+  const [rp, rr] = [await p.done, await r.done];
+  assert(rp.code === 0, `archive vs post (item): the post must commit (${rp.err})`);
+  assert(rr.code !== 0 && rr.err.includes('STK_HAS_STOCK'), `archive vs post (item): the archive must be refused STK_HAS_STOCK (${rr.err || 'it committed'})`);
+  assert(await run(`select (archived_at is null)::text from public.stock_items where id='${ids.itemArch}';`) === 'true', 'archive vs post (item): the item stays active');
+  console.log('PASS archive vs post (item): the archive waited for the receipt, then was refused STK_HAS_STOCK.');
+}
+
+// 7. Archive vs post, archive first: a warehouse with no stock is being archived when a receipt into it posts.
+//    The post must wait for the archive, then be refused STK_ARCHIVED (never stock in an archived warehouse).
+{
+  const r = session(`begin; update public.stock_warehouses set archived_at = now() where id = '${ids.whArch}'; select pg_sleep(1.5); commit;`);
+  await sleep(300);
+  const p = session(`begin; ${asKeeper} ${receive(ids.whArch, ids.itemSell, 5)} commit;`, app('arch-wh'));
+  await waitForLock(p.appName);
+  const [rr, rp] = [await r.done, await p.done];
+  assert(rr.code === 0, `archive vs post (warehouse): the archive must commit (${rr.err})`);
+  assert(rp.code !== 0 && rp.err.includes('STK_ARCHIVED'), `archive vs post (warehouse): the post must be refused STK_ARCHIVED (${rp.err || 'it committed'})`);
+  assert(await run(`select count(*) from public.stock_balances where warehouse_id='${ids.whArch}' and qty_on_hand > 0;`) === '0', 'archive vs post (warehouse): no stock in the archived warehouse');
+  console.log('PASS archive vs post (warehouse): the receipt waited for the archive, then was refused STK_ARCHIVED.');
 }
 
 const outsideAfter = await run(`select count(*) from public.stock_ledger where org_id <> '${ids.org}';`);

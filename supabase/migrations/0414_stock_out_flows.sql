@@ -83,4 +83,4 @@ begin
 end $$;
 
 revoke all on function public.stock_apply_issue(public.stock_documents, boolean), public.stock_apply_return(public.stock_documents, boolean)
-  from public, anon, authenticated;
+  from public, anon, authenticated, service_role;

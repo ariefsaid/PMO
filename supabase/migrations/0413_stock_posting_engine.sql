@@ -425,6 +425,10 @@ begin
   if d.kind in ('receive','transfer','issue','return') then
     v_override := public.stock_assert_keeper(d.org_id, d.warehouse_id, v_uid);
   end if;
+  -- Archive vs post (#1512 S2b): share-lock the document's warehouses and items before the check, so an archive in flight
+  -- finishes first (the check then sees it) and an archive started now waits for this post (its stock guard then sees the stock).
+  perform 1 from public.stock_warehouses w where w.id in (d.warehouse_id, coalesce(d.to_warehouse_id, d.warehouse_id)) order by w.id for share;   -- mut:archivelock_wh
+  perform 1 from public.stock_items i where i.id in (select l.item_id from public.stock_document_lines l where l.document_id = d.id) order by i.id for share;   -- mut:archivelock_item
   if exists (select 1 from public.stock_warehouses w where w.id in (d.warehouse_id, coalesce(d.to_warehouse_id, d.warehouse_id)) and w.archived_at is not null)
      or exists (select 1 from public.stock_document_lines l join public.stock_items i on i.id = l.item_id where l.document_id = d.id and i.archived_at is not null) then
     raise exception 'STK_ARCHIVED: a warehouse or item on this document was archived' using errcode = 'P0001'; end if;
