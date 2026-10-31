@@ -324,6 +324,7 @@ import {
   setSalesInvoiceReceivedDate,
   setSalesInvoiceEfaktur,
   setSalesInvoiceProject,
+  setSalesInvoiceBillingKind,
   getProjectFinances,
   getOrgReadsErpLedger,
 } from '@/src/lib/db/revenue';
@@ -717,7 +718,9 @@ const revenue: RevenueRepository = {
   listPayments: (params) => wrap(() => listIncomingPayments(params)),
   getPayment: (id) => wrap(() => getIncomingPayment(id)),
   getRevenueByProject: () => wrap(() => getRevenueByProject()),
-  setProject: (siId, projectId) => wrap(() => setSalesInvoiceProject(siId, projectId)),
+  setProject: (siId, projectId, billingKind) =>
+    wrap(() => (billingKind === undefined ? setSalesInvoiceProject(siId, projectId) : setSalesInvoiceProject(siId, projectId, billingKind))),
+  setBillingKind: (siId, billingKind) => wrap(() => setSalesInvoiceBillingKind(siId, billingKind)),
   getProjectFinances: (projectId) => wrap(() => getProjectFinances(projectId)),
   getOrgReadsErpLedger: () => wrap(() => getOrgReadsErpLedger()),
   // Write methods — route through dispatch when externally-owned
