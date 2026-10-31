@@ -56,7 +56,36 @@ The judge runs inside `agent-chat` after the run completes, using the deployed (
 
 ## S2 Alerts and source maps
 
-_Owned by slice S2._
+**Verified 2026-11-01** against PostHog's Error tracking docs (alerts; source-map upload CLI).
+
+- **Issue alerts** (error tracking > Configuration > **Alerting** > **New notification**): "issue created or reopened" and spike. Destinations: Slack, Discord, Teams, **HTTP webhook**. Email exists only for trend alerts. So the webhook route to the Telegram send call (OQ-1) is supported; if the Telegram call rejects the webhook body shape, fall back to email via a trend alert on `$exception` count.
+- **CLI**: `@posthog/cli`, pinned `0.19.0` in `scripts/upload-sourcemaps.mjs`. Steps: `sourcemap inject --directory <dist>`, then `sourcemap upload --directory <dist> --release-name <name> --release-version <sha7>`. It reads `POSTHOG_CLI_API_KEY` (personal key, scopes: error tracking write + organization read), `POSTHOG_CLI_PROJECT_ID`, optional `POSTHOG_CLI_HOST`. No other variables.
+- **How it joins up**: PostHog symbolicates by the chunk ids that `inject` writes into the JS, so the injected files must be what is served. The `release` property on browser exceptions (the 7-char commit id, `src/lib/analytics/client.ts`) only filters issues by release.
+
+### How the build behaves
+
+`npm run build` runs `postbuild` (`scripts/upload-sourcemaps.mjs`). Only a Cloudflare Pages **production** build is a deploy build: it writes hidden maps, injects, uploads, then deletes every `.map` from `dist`. Any other build (CI `verify`, forks, local) prints `sourcemaps skipped: not a deploy build` and exits 0. A deploy build never fails on this step: a missing credential, no maps, or a failed inject or upload logs `sourcemaps WARNING: <reason>`, exits 0, and every `.map` is still deleted, so no map is served.
+
+### Owner steps (PostHog / Cloudflare accounts; nothing is stored in the repo)
+
+1. Cloudflare Pages > project settings > **Production** environment variables: add `POSTHOG_CLI_API_KEY` (secret) and `POSTHOG_CLI_PROJECT_ID`. Not Preview.
+2. PostHog > error tracking > Configuration > **Alerting**: create "issue created or reopened" and a spike notification; destination per OQ-1 (webhook to the operator bot, or email); **Test function**; **Create & enable**.
+3. Confirm exception rate limits and suppression rules (FR-PHG-032) exist; keep the screenshot under `docs/private/`.
+4. Exception sources the alerts must cover: browser (`AnalyticsProvider` > `captureException`) and edge functions (`capturePosthogException`).
+
+### Deploy rehearsal (Director, needs the credential)
+
+In a scratch checkout: `CF_PAGES=1 CF_PAGES_BRANCH=production CF_PAGES_COMMIT_SHA=<sha> POSTHOG_CLI_API_KEY=… POSTHOG_CLI_PROJECT_ID=… npm run build` (from `pmo-portal`). Confirm `dist` has no `.map` and the maps appear under the release in PostHog. Record in the Evidence table.
+
+### Fire-drill (AC-PHO-010)
+
+No non-production deploy has source maps (Cloudflare previews are off). In a scratch checkout:
+
+1. Add an uncommitted `throw new Error('fire-drill')` in a real route component's render path (a console-thrown error has no app frames and proves nothing).
+2. Build with the rehearsal environment above and `CF_PAGES_COMMIT_SHA=fire-drill-<date>` style sha (any 7+ chars). Check the build log: no `sourcemaps WARNING` line, and `uploaded N maps`.
+3. `npx vite preview`, load the route.
+4. Confirm in PostHog: (a) the issue shows original file names and lines, (b) the alert arrived on the chosen channel.
+5. Discard the checkout, resolve the drill issue, fill the AC-PHO-010 row of the Evidence table (evidence path in `docs/private/`).
 
 ## S3 Jobs
 
