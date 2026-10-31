@@ -9,7 +9,7 @@ import ProjectClassificationFilters from '../../components/ProjectClassification
 import type { ProjectClassificationFilters as FilterValues } from '@/src/lib/projectClassification';
 
 const { state } = vi.hoisted(() => ({ state: { data: [
-  { id: 'p1', name: 'Harbor Renewal Programme — Eastern Terminal Delivery', status: 'Ongoing Project', pmo_project_number: 'PMO-001', code: 'CLIENT-001', currency: 'USD', contract_value: 500000, service_line: 'Engineering', sector: 'Energy', award_type: 'tender', bidding_entity: 'alone', location: 'West Java', client: null, end_client: null, pm: null },
+  { id: 'p1', name: 'Harbor Renewal Programme — Eastern Terminal Delivery', status: 'Ongoing Project', pmo_project_number: 'PMO-001', code: 'CLIENT-001', currency: 'USD', contract_value: 500000, service_line: 'Engineering', sector: 'Energy', award_type: 'tender', bidding_entity: 'alone', location: 'West Java', client: null, end_client: null, project_manager_id: 'manager-1', pm: { full_name: 'Sample Manager' } },
   { id: 'p2', name: 'Harbor Renewal Programme — Western Terminal Delivery', status: 'Ongoing Project', pmo_project_number: 'PMO-002', currency: 'USD', contract_value: 250000, service_line: 'Advisory', client: null, end_client: null, pm: null },
 ], isPending: false, isError: false, refetch: vi.fn() } }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
@@ -30,6 +30,18 @@ function page(path = '/projects?view=table') {
 beforeEach(() => { sessionStorage.clear(); viewport(); state.isPending = false; state.isError = false; });
 
 describe('UIP-003 project recognition', () => {
+  it('AC-TBL-OVERFLOW-001 AC-TBL-001: the default columns and accessible manager avatar are available', () => {
+    page();
+    for (const name of ['Project', 'PM', 'Status', 'Contract', 'Actual']) {
+      expect(screen.getByRole('columnheader', { name })).toBeVisible();
+    }
+    const avatar = screen.getByRole('img', { name: 'Sample Manager' });
+    expect(avatar).toBeVisible();
+    expect(avatar).toHaveAttribute('title', 'Sample Manager');
+    expect(screen.queryByRole('button', { name: /optional columns/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Action' })).not.toBeInTheDocument();
+  });
+
   it('UIP-003 reserves desktop identity space and two-line titles while keeping numeric alignment', async () => {
     page();
     const title = screen.getByRole('button', { name: state.data[0].name });

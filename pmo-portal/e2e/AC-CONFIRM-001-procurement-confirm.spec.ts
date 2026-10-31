@@ -26,8 +26,8 @@ import { login } from './helpers';
 const PROC_ID = '60000000-0000-0000-0000-000000000006';
 const PROC_URL = `/procurement/${PROC_ID}`;
 
-// Two ordered cases (one serial journey) so each actor's login + page load has its own time budget;
-// every original assertion is unchanged.
+// The Reject confirm-before-write half moved to pages/ProcurementDetails.test.tsx (AC-CONFIRM-001);
+// this keeps the real routine Draft → Requested submit.
 test.describe.serial('AC-CONFIRM-001 ordered journey', () => {
 test('Supporting proof: pm@ submits the Draft as a routine single-click step (no dialog)', async ({ page }) => {
   // ── Arrange: pm@ submits the Draft (routine forward step → single click, no dialog) ──
@@ -41,38 +41,5 @@ test('Supporting proof: pm@ submits the Draft as a routine single-click step (no
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested', {
     timeout: 15_000,
   });
-});
-
-test('AC-CONFIRM-001: a consequential procurement transition (Reject) requires a confirm before status changes — dismiss preserves state', async ({ page }) => {
-  // ── Arrange: finance@ (a non-requester approver) opens the Requested PR ──
-  await login(page, 'finance@acme.test');
-  await page.goto(PROC_URL);
-  await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
-  await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested', {
-    timeout: 10_000,
-  });
-
-  // ── Act: click "Reject" — a consequential write must NOT fire on a single click ──
-  const rejectBtn = page.getByRole('button', { name: 'Reject', exact: true });
-  await expect(rejectBtn).toBeVisible({ timeout: 5_000 });
-  await rejectBtn.click();
-
-  // ── Assert 1: a destructive confirm appears (the confirm-before-mutate gate) ──
-  const dialog = page.getByRole('alertdialog');
-  await expect(dialog).toBeVisible({ timeout: 5_000 });
-  const confirmBtn = dialog.getByRole('button', { name: 'Reject', exact: true });
-  await expect(confirmBtn).toBeVisible();
-
-  // ── Assert 2: status badge has NOT changed — no write fired on the single click ──
-  await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested');
-
-  // ── Act: dismiss the confirm — the PR must remain Requested ──
-  const cancelBtn = dialog.getByRole('button', { name: /cancel/i });
-  await expect(cancelBtn).toBeVisible();
-  await cancelBtn.click();
-
-  // ── Assert 3: dialog is gone and status is still Requested (no-write confirmed) ──
-  await expect(dialog).not.toBeVisible({ timeout: 5_000 });
-  await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested');
 });
 });

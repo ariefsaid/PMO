@@ -782,6 +782,8 @@ describe('#1020 Discover fixes', () => {
     renderPicker();
     expect(await screen.findByRole('dialog', { name: 'Pilih dokumen Microsoft' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Pilih lokasi' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'OneDrive saya' })).toBeInTheDocument();
+    expect(screen.queryByText('Choose a location')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Situs SharePoint' }));
     await user.click(await screen.findByRole('button', { name: 'Synthetic site' }));
     await user.click(await screen.findByRole('button', { name: 'Documents' }));

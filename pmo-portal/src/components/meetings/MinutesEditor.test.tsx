@@ -96,10 +96,10 @@ describe('MinutesEditor — real BlockNote in the DOM', () => {
   });
 
   it.each(['light', 'dark'] as const)(
-    'AC-MRT-002 stable parent retains the full heading input and baseline through %s theme',
+    'AC-MTG-022 AC-MRT-001 AC-MRT-002 retains all original blocks and heading input through %s theme',
     async (theme) => {
       let readyCount = 0;
-      const initialBlocks: NoteBlock[] = [para('Agenda')];
+      const initialBlocks: NoteBlock[] = [para('Agenda'), para('Next steps')];
       function StatefulMinutes() {
         const [blocks, setBlocks] = React.useState<NoteBlock[] | null>(null);
         const [baseline, setBaseline] = React.useState<string | null>(null);
@@ -185,6 +185,8 @@ describe('MinutesEditor — real BlockNote in the DOM', () => {
         const expectEditedState = () => {
           const doc = JSON.parse(screen.getByTestId('runtime-document').textContent ?? 'null') as NoteBlock[];
           const text = notesToText(doc).join('\n');
+          expect(notesToText(doc)).toEqual(['Agenda', 'Next steps', 'Page title', 'Section heading', 'Subheading', `https://example.test/${'x'.repeat(140)}`]);
+          expect(doc.filter((block) => block.type === 'heading')).toHaveLength(3);
           expect(text).toContain('Agenda');
           expect(text).toContain('Page title');
           expect(text).toContain('Section heading');

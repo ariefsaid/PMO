@@ -1,7 +1,7 @@
 // @e2e-isolation: self-isolated — owns its project/invoice/ref and cleans them up.
 import { test, expect, type Locator } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import { signIn, requireServiceRoleKey, waitForFonts } from './helpers';
+import { signIn, requireServiceRoleKey } from './helpers';
 
 // AC-PFIN-016 — Finance attributes an adopted ERP invoice's revenue to a project, end to end.
 //
@@ -163,37 +163,6 @@ test('AC-PFIN-016: Finance assigns an adopted invoice to a project — attributi
   expect(adapterCommands).toEqual([]);
 });
 
-// Support oracle (NOT a business journey — AC-PFIN-015 ownership stays with the RTL suite):
-// the section fits a 390px viewport, settlement copy is visible, and the modal is keyboard-operable.
-test('AC-PFIN-015 support: project finance mobile layout', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  const { error } = await admin.from('sales_invoices').update({ project_id: PROJECT_ID }).eq('id', INVOICE_ID);
-  expect(error?.message ?? '').toBe('');
-
-  await signIn(page, 'finance@acme.test');
-  await page.goto(`/projects/${PROJECT_ID}`);
-  await page.getByRole('region', { name: 'Money position' }).getByRole('button', { name: 'Details', exact: true }).click();
-  const usd = page.getByTestId('project-finances-USD');
-  await expect(usd).toBeVisible({ timeout: 20_000 });
-  await waitForFonts(page);
-  await expect(usd.getByRole('heading', { name: 'USD', exact: true })).toBeVisible();
-  const outstanding = usd.locator('dl > div').filter({ hasText: 'Outstanding' }).locator('dd').first();
-  await expect(outstanding).toHaveText('25');
-  const margin = usd.locator('dl > div').filter({ hasText: 'Margin' }).locator('dd').first();
-  // #1402 copy: keep the exact no-fabricated-margin reason for the owning margin oracle.
-  await expect(margin).toHaveText('Gross margin is left out until spending is linked for every budget category.');
-  const fits = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
-  expect(fits).toBe(true);
-
-  await page.goto(`/sales-invoices?q=${SI_NUMBER}`);
-  const row = page.locator('tbody tr, [role="row"], li', { hasText: SI_NUMBER }).first();
-  await expect(row).toBeVisible({ timeout: 20_000 });
-  await row.getByRole('button', { name: 'Row actions' }).first().click();
-  await page.getByRole('menuitem', { name: /Assign project|Change project/ }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog).toBeVisible({ timeout: 15_000 });
-  await page.keyboard.press('Tab');
-  await expect(dialog.locator(':focus')).toHaveCount(1);
-  await page.keyboard.press('Escape');
-  await expect(dialog).not.toBeVisible();
-});
+// Support oracle moved (phase 2, #1529): AC-PFIN-015's project-finance mobile-layout geometry now
+// lives in the /projects/:id layout sweep (e2e/layout/project-detail.layout.spec.ts), and its
+// assign-dialog keyboard assertions in pages/__tests__/SalesInvoices.assignProject.test.tsx.

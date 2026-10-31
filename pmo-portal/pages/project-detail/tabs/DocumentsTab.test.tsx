@@ -449,6 +449,8 @@ describe('DocumentsTab — RBAC affordance gating (AC-DOC-007)', () => {
   it('AC-DOC-007: Engineer is read-only — no Add, edit, delete, or money columns', async () => {
     renderTab('Engineer', 'eng-1');
     expect(screen.queryByRole('button', { name: /Add document/i })).not.toBeInTheDocument();
+    // D13: the deferred upload is signposted by copy, never by a dead disabled "Attach file" button.
+    expect(screen.queryByRole('button', { name: /attach file/i })).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Row actions/i }).length).toBeGreaterThan(0);
     expect(screen.queryByRole('columnheader', { name: /Budget|Cost|Value/i })).not.toBeInTheDocument();
     await userEvent.click(within(screen.getByText('Site Plan').closest('tr')!).getByRole('button', { name: /Row actions/i }));
@@ -760,6 +762,21 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     expect(within(preview).getByText('File exceeds 5 MB limit')).toHaveTextContent('File exceeds 5 MB limit');
     await userEvent.click(within(preview).getByRole('button', { name: /Remove failed upload for Site Plan/i }));
     expect(screen.queryByText('File exceeds 5 MB limit')).not.toBeInTheDocument();
+    expect(within(preview).getByRole('button', { name: /Upload file for Site Plan/i })).toBeInTheDocument();
+  });
+
+  it('AC-DOC-090 AC-DOC-091: a disallowed file type shows the type error, starts no upload, and Remove restores the no-file state', async () => {
+    const user = userEvent.setup({ applyAccept: false });
+    renderTab('Project Manager', 'pm-1');
+    const fileInput = screen.getByTestId('file-input') as HTMLInputElement;
+    await user.click(screen.getByRole('button', { name: 'View Site Plan' }));
+    const preview = screen.getByRole('complementary');
+    await user.click(within(preview).getByRole('button', { name: /Upload file for Site Plan/i }));
+    await user.upload(fileInput, new File(['PK'], 'not-allowed.zip', { type: 'application/zip' }));
+    expect(within(preview).getByRole('alert')).toHaveTextContent('File type not allowed (.zip)');
+    expect(fileUploadState.upload.mutate).not.toHaveBeenCalled();
+    await user.click(within(preview).getByRole('button', { name: /Remove failed upload for Site Plan/i }));
+    expect(within(preview).queryByRole('alert')).not.toBeInTheDocument();
     expect(within(preview).getByRole('button', { name: /Upload file for Site Plan/i })).toBeInTheDocument();
   });
 
