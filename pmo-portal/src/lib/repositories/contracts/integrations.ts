@@ -9,14 +9,13 @@ import type { ExpenseAccountKey } from '@/src/lib/adapterSeam/erpnext/expenseAcc
 export type IntegrationStatus = 'active' | 'disconnected';
 
 /** The tier of external system. */
-export type ExternalTier = 'clickup' | 'erpnext';
+export type ExternalTier = 'clickup' | 'erpnext' | 'odoo';
 
 /** Integration binding row (mirrors external_org_bindings). */
 export interface IntegrationBinding {
   org_id: string;
   external_tier: ExternalTier;
   site_url: string;
-  secret_ref: string;
   status: IntegrationStatus;
   connected_by: string | null;
   connected_at: string | null;

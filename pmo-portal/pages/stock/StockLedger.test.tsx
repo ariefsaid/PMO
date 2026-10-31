@@ -1,3 +1,4 @@
+import { formatDate } from '@/src/lib/format';
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -21,7 +22,7 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
 import StockLedger from './StockLedger';
 
 const entry = (seq: number, over: Record<string, unknown> = {}) => ({
-  seq, id: `e${seq}`, documentId: 'd1', documentNumber: `ISS-${seq}`, documentStatus: 'Posted', kind: 'issue', postedAt: '2026-10-30T03:00:00Z', occurredOn: '2026-10-30', postedBy: 'u1', actorName: 'Eka Engineer',
+  seq, id: `e${seq}`, documentId: 'd1', documentNumber: `ISS-${seq}`, documentStatus: 'Posted', kind: 'issue', postedAt: '2026-10-30T03:00:00Z', occurredOn: '2026-10-28', postedBy: 'u1', actorName: 'Eka Engineer',
   itemId: 'i1', itemCode: 'CEM', itemName: 'Cement 50kg', unitCode: 'bag', warehouseId: 'w1', warehouseCode: 'SITE-A', projectId: 'p1', projectName: 'Tower A', boqItemId: 'b1', boqItemCode: 'W-1',
   qtyDelta: '-30', qtyAfter: '70', ...over,
 });
@@ -46,6 +47,13 @@ describe('StockLedger (FR-STK-041, AC-STK-032)', () => {
     expect(screen.getByText('Tower A')).toBeInTheDocument();
     expect(screen.getByText('W-1')).toBeInTheDocument();
     expect(screen.getByText('70')).toBeInTheDocument();
+  });
+
+  it('FR-STK-041 a back-dated movement shows its occurred date apart from the post time', async () => {
+    renderPage();
+    await screen.findByText('Eka Engineer');
+    expect(screen.getByRole('columnheader', { name: 'Date' })).toBeInTheDocument();
+    expect(screen.getByText(formatDate('2026-10-28'))).toBeInTheDocument();
   });
 
   it('AC-STK-032 loading, empty, error with retry', async () => {

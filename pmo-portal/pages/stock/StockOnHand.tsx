@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, DataTable, Icon, ListPage, ListState, SelectField, StatTiles, StatusPill, TextField, type Column } from '@/src/components/ui';
 import { StockTabs } from '@/src/components/stock/StockTabs';
 import { usePermission } from '@/src/auth/usePermission';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { useStockKeepers, useStockOnHand, useStockWarehouses } from '@/src/hooks/useStock';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -17,6 +18,7 @@ const NEW_KINDS = ['receive', 'transfer', 'issue', 'return', 'count', 'adjustmen
 const StockOnHand: React.FC = () => {
   const { t } = useTranslation('stock');
   const may = usePermission();
+  const { realRole, effectiveRole } = useEffectiveRole();
   const me = useAuth().currentUser?.id;
   const currency = useOrgCurrency();
   const loc = getNumberLocale();
@@ -29,7 +31,7 @@ const StockOnHand: React.FC = () => {
   const onHand = useStockOnHand({ ...(warehouseId ? { warehouseId } : {}), ...(includeZero ? { includeZero } : {}) });
 
   const isKeeper = (keepers.data ?? []).some((k) => k.user_id === me);
-  const canMove = may('create', 'stockDocument', { record: { isKeeper } });
+  const canMove = may('create', 'stockDocument', { record: { isKeeper, viewOnly: realRole !== effectiveRole } });
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -115,11 +117,6 @@ const StockOnHand: React.FC = () => {
             <input type="checkbox" checked={includeZero} onChange={(e) => setIncludeZero(e.target.checked)} />
             {t('onHand.filters.includeZero')}
           </label>
-          <label className="flex items-center gap-2 text-sm text-muted-foreground" title={t('onHand.reorderSoon')}>
-            <input type="checkbox" disabled aria-describedby="reorder-hint" />
-            {t('onHand.filters.belowReorder')}
-          </label>
-          <span id="reorder-hint" className="sr-only">{t('onHand.reorderSoon')}</span>
         </div>
       }
     >

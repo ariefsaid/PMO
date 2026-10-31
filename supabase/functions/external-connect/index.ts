@@ -42,10 +42,11 @@ import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { isAdminOrOperator, type AdminOrOperatorClient } from '../_shared/adminOrOperator.ts';
 import { fetchBounded, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
 import { isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
+import { connectOdoo, type OdooCredential } from './odoo.ts';
 
 interface ConnectBody {
-  tier: 'clickup' | 'erpnext';
-  credential: {
+  tier: 'clickup' | 'erpnext' | 'odoo';
+  credential: OdooCredential & {
     token?: string;           // ClickUp personal access token
     apiKey?: string;          // ERPNext API key
     apiSecret?: string;       // ERPNext API secret
@@ -295,8 +296,8 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
   }
 
   const { tier, credential } = body;
-  if (tier !== 'clickup' && tier !== 'erpnext') {
-    return errorResponse('Unknown tier (must be clickup or erpnext)', 'BAD_REQUEST', 400);
+  if (tier !== 'clickup' && tier !== 'erpnext' && tier !== 'odoo') {
+    return errorResponse('Unknown tier (must be clickup, erpnext or odoo)', 'BAD_REQUEST', 400);
   }
 
   // 6. The deployment kill-switch is checked before external validation and all writes.
@@ -305,6 +306,8 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
   if (!killSwitchEnabled) {
     return errorResponse('Integration disabled by operator; try again later', 'INTEGRATION_DISABLED', 503);
   }
+  if (!credential || typeof credential !== 'object') return errorResponse('credential is required', 'BAD_REQUEST', 400);
+  if (tier === 'odoo') return await connectOdoo(serviceClient, profile.org_id, userId, credential, killSwitchEnabled, json);
 
   // Validate credential against external system BEFORE any Vault write.
   const validatorDeps = { fetchImpl: fetch };
@@ -333,6 +336,14 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
       return errorResponse(err.message, err.code, 502);
     }
     return errorResponse('Credential validation failed', 'config-rejected', 422);
+  }
+
+  // FR-ODC-008: one ERP tier per org. Checked before any write; a failed check refuses (fail closed).
+  if (tier === 'erpnext') {
+    const { data: odoo, error: odooError } = await serviceClient.from('external_org_bindings').select('external_tier')
+      .eq('org_id', profile.org_id).eq('external_tier', 'odoo').eq('status', 'active').maybeSingle();
+    if (odooError) return errorResponse('Connection check failed; nothing was connected', 'CONNECT_NOT_COMMITTED', 500);
+    if (odoo) return errorResponse('Another accounting system is already connected; disconnect it first.', 'another-erp-active', 409);
   }
 
   // 7. Credential is valid → create Vault secret + upsert binding via RPC

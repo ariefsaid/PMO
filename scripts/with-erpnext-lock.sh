@@ -17,8 +17,8 @@
 # flock(1), hence python3 (stdlib fcntl). The flock core lives in
 # scripts/lib/flock-run.sh.
 #
-# ── ACQUISITION ORDER (machine-global, outermost first): erpnext -> db -> test ──
-# This is the OUTERMOST lock — acquire it before DB, then test when also needed
+# ── ACQUISITION ORDER (machine-global, outermost first): odoo -> erpnext -> db -> test ──
+# Second from outermost (after odoo) — acquire it before DB, then test when also needed
 # (see scripts/lib/flock-run.sh).
 #
 #   PMO_ERPNEXT_LOCK          override the lock path (default ~/.pmo-erpnext.lock)

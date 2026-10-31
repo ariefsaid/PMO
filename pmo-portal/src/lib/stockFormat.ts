@@ -6,8 +6,8 @@ export function formatQuantity(value: string, locale: string): string {
 }
 
 /** Money for a stock value or average cost (up to 4 decimals for a cost); '' when the server omitted it (rank < 20). */
-export function formatStockValue(value: string | undefined, currency: string, locale: string): string {
-  if (value === undefined) return '';
+export function formatStockValue(value: string | null | undefined, currency: string, locale: string): string {
+  if (value == null) return '';
   const exact = formatExactMoney(value, currency, locale);
   if (exact !== null) return exact;
   return `${currency} ${formatDecimalString(value, locale, 4)}`;

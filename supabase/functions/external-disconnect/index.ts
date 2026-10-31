@@ -32,7 +32,7 @@ import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 interface DisconnectBody {
-  tier: 'clickup' | 'erpnext';
+  tier: 'clickup' | 'erpnext' | 'odoo';
 }
 
 interface DisconnectResponse {
@@ -158,8 +158,8 @@ export async function handleDisconnectRequest(req: Request): Promise<Response> {
   }
 
   const { tier } = body;
-  if (tier !== 'clickup' && tier !== 'erpnext') {
-    return errorResponse('Unknown tier (must be clickup or erpnext)', 'BAD_REQUEST', 400);
+  if (tier !== 'clickup' && tier !== 'erpnext' && tier !== 'odoo') {
+    return errorResponse('Unknown tier (must be clickup, erpnext or odoo)', 'BAD_REQUEST', 400);
   }
 
   // 6. The definer transaction re-checks actor standing and role before touching either credential or binding.

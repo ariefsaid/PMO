@@ -18,14 +18,16 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master, repo
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
 let realRole: Role = 'Project Manager';
-vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole, effectiveRole: realRole }) }));
+let effectiveRole: Role | null = null;
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole, effectiveRole: effectiveRole ?? realRole }) }));
 
 import StockOnHand from './StockOnHand';
 
 const row = { itemId: 'i1', itemCode: 'CEM', itemName: 'Cement 50kg', unitCode: 'bag', wholeOnly: true, warehouseId: 'w1', warehouseCode: 'SITE-A', warehouseName: 'Site A', warehouseKind: 'site', qtyOnHand: '70' };
 
-const renderPage = (role: Role = 'Project Manager') => {
+const renderPage = (role: Role = 'Project Manager', viewAs: Role | null = null) => {
   realRole = role;
+  effectiveRole = viewAs;
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(<QueryClientProvider client={qc}><ToastProvider><MemoryRouter><StockOnHand /></MemoryRouter></ToastProvider></QueryClientProvider>);
 };
@@ -75,12 +77,16 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
     expect(screen.getByText(/3,500/)).toBeInTheDocument();
   });
 
-  it('the Below reorder level filter is shown disabled with a hint, not as a dead control', async () => {
+  it('the reorder filter is not offered until reorder levels exist (S6)', async () => {
     renderPage();
     await screen.findByText('CEM');
-    const box = screen.getByLabelText('Below reorder level');
-    expect(box).toBeDisabled();
-    expect(box).toHaveAccessibleDescription('Reorder levels are not set up yet.');
+    expect(screen.queryByLabelText('Below reorder level')).not.toBeInTheDocument();
+  });
+
+  it('FR-STK-064 view-as is view-only: an Admin viewing as an Engineer sees no movement buttons', async () => {
+    renderPage('Admin', 'Engineer');
+    await screen.findByText('CEM');
+    expect(screen.queryByRole('button', { name: 'Issue to project' })).not.toBeInTheDocument();
   });
 
   it('FR-STK-064 movement actions appear only for a keeper (Admin always); a non-keeper sees none', async () => {

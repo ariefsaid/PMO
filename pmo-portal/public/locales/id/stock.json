@@ -193,10 +193,8 @@
       "warehouse": "Gudang",
       "allWarehouses": "Semua gudang",
       "search": "Cari barang",
-      "includeZero": "Tampilkan saldo nol",
-      "belowReorder": "Di bawah batas pesan ulang"
+      "includeZero": "Tampilkan saldo nol"
     },
-    "reorderSoon": "Batas pesan ulang belum diatur.",
     "tiles": {
       "items": "Barang",
       "warehouses": "Gudang",
@@ -282,6 +280,7 @@
     "description": "Setiap posting: siapa, kapan, proyek dan item pekerjaan mana, serta saldo sesudahnya.",
     "columns": {
       "when": "Diposting",
+      "occurred": "Tanggal",
       "document": "Dokumen",
       "item": "Barang",
       "warehouse": "Gudang",
