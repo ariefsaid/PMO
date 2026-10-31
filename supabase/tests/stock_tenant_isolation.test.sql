@@ -52,7 +52,7 @@ begin
 end $$;
 -- usage: select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4'); ... reset role;
 
-select plan(22);  -- S1: the four `is` counts, the foreign-warehouse refusal, the unchanged-row proof (6); S2a: 12; S2b: 4
+select plan(26);  -- S1: the four `is` counts, the foreign-warehouse refusal, the unchanged-row proof (6); S2a: 12; S2b: 4; S3: 4
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000b1');   -- U_XORG sees none of org A
 select is((select count(*)::int from stock_units),      0, 'AC-STK-019 stock_units: org B reads none of org A');
 select is((select count(*)::int from stock_items),      0, 'AC-STK-019 stock_items: org B reads none of org A');
@@ -126,5 +126,12 @@ select throws_like($$ select create_stock_document(jsonb_build_object('kind','re
   'STK_BOQ_MISMATCH%', 'AC-STK-019 a return citing org A''s issue line is refused');
 reset role;
 select is((select count(*)::int from stock_ledger where org_id = '15120000-0000-0000-0000-000000000002' and kind in ('issue','return')), 0, 'AC-STK-019 org B wrote no issue or return entry');
+-- S3: the read RPCs (0415) return only the caller's org.
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000b1');
+select is(jsonb_array_length(public.get_stock_on_hand()), 1, 'AC-STK-019 org B''s on-hand holds only its own single item');
+select is(jsonb_path_exists(public.get_stock_on_hand(), '$[*] ? (@.item_code != "XCEM")'), false, 'AC-STK-019 org B''s on-hand carries no org A item');
+select is(jsonb_path_exists(public.get_stock_ledger() -> 'rows', '$[*] ? (@.item_code != "XCEM")'), false, 'AC-STK-019 org B''s trace carries no org A entry');
+select is(jsonb_array_length(public.get_stock_ledger(p_document_id => current_setting('stk.aissdoc')::uuid) -> 'rows'), 0, 'AC-STK-019 org B cannot trace org A''s document');
+reset role;
 select * from finish();
 rollback;

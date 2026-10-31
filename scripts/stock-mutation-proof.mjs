@@ -32,6 +32,11 @@ export const CASES = [
   { id: 'archivelock_wh',   fn: 'public.stock_post_core(uuid)', from: / for share;(\s*-- mut:archivelock_wh)/,   to: ';$1', cmd: ['node', 'pmo-portal/src/lib/db/stockPosting.concurrent.integration.mjs'] },
   { id: 'archivelock_item', fn: 'public.stock_post_core(uuid)', from: / for share;(\s*-- mut:archivelock_item)/, to: ';$1', cmd: ['node', 'pmo-portal/src/lib/db/stockPosting.concurrent.integration.mjs'] },
   { id: 'lockorder',   fn: 'public.stock_lock_for_document(public.stock_documents)',    from: /(order by l\.item_id, w\.wid)(\s*-- mut:lockorder)/, to: '$1 desc$2', cmd: ['node', 'pmo-portal/src/lib/db/stockPosting.concurrent.integration.mjs'] },
+  // S3 (0415): read RPCs hide cost below rank 20.
+  { id: 'cost',        fn: 'public.get_stock_on_hand(uuid,uuid,boolean)', from: /(v_cost := )[^;]+(;\s*-- mut:cost\b)/, to: '$1true$2', test: 'supabase/tests/stock_read_rpcs.test.sql' },
+  { id: 'cost_ledger', fn: 'public.get_stock_ledger(uuid,uuid,uuid,uuid,uuid,date,date,bigint,integer)', from: /(v_cost := )[^;]+(;\s*-- mut:cost_ledger)/, to: '$1true$2', test: 'supabase/tests/stock_read_rpcs.test.sql' },
+  { id: 'readorg',     fn: 'public.get_stock_on_hand(uuid,uuid,boolean)', from: /(from public\.stock_balances b\s+join[^;]*?where )b\.org_id = v_org/, to: '$1true', test: 'supabase/tests/stock_tenant_isolation.test.sql' },
+  { id: 'readorg_ledger', fn: 'public.get_stock_ledger(uuid,uuid,uuid,uuid,uuid,date,date,bigint,integer)', from: /where l\.org_id = v_org/, to: 'where true', test: 'supabase/tests/stock_tenant_isolation.test.sql' },
 ];
 // S2b / S4 / S5 / S6 append their cases to this table in their own slice (ids named in each slice's mutation task).
 const run = (cmd, args, opts = {}) => spawnSync(cmd, args, { encoding: 'utf8', ...opts });
