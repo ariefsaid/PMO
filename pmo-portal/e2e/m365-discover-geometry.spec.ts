@@ -5,13 +5,11 @@ import { PROJECT_ID } from './document-file-upload.helpers';
 import { formatDateOnly } from '../src/lib/format';
 
 /**
- * #1020 Discover findings F1-F6/F10 (rendered geometry + wiring) — goal oracles, not snapshots:
+ * #1020 Discover findings F1/F2/F4/F10 (rendered geometry + wiring) — goal oracles, not snapshots:
  *   F1  a linked file row stays compact, its Date does not wrap, the access sentence is not repeated per row;
  *   F2/F4/F10 at a phone width nothing overflows the viewport, the primary header action stays reachable
  *       with no folder linked, and a very long Microsoft name stays inside the picker;
- *   F5  a "needs a choice" folder outcome offers a working "Choose existing folder";
- *   F6  the not-connected setup link goes to the page every role can open (/integrations);
- *   F3  in Bahasa the Microsoft strings are Indonesian.
+ * (F3 Bahasa, F5 "Choose existing folder" and F6 setup link moved to DocumentsTab.discover.test.tsx.)
  * Microsoft is mocked at the edge-function boundary; linked rows are synthetic rows prepended to the real
  * project-documents read (stored OneDrive FOLDER rows are filtered so the folder action stays visible).
  */
@@ -164,11 +162,6 @@ async function forceLocale(page: Page, locale: 'en' | 'id') {
   });
 }
 
-/** Bahasa without a persisted write: the profile row the AuthProvider reads carries locale 'id' (as UXS-006). */
-async function forceBahasa(page: Page) {
-  await forceLocale(page, 'id');
-}
-
 async function openDocuments(page: Page, tabName: string) {
   await page.goto(`/projects/${PROJECT_ID}`);
   await page.getByRole('tab', { name: tabName }).click();
@@ -274,63 +267,5 @@ test.describe('#1020 Discover geometry (mocked Microsoft)', () => {
       return offenders;
     });
     expect(overflowing).toEqual([]);
-  });
-
-  test('F5: a folder step that needs a choice offers "Choose existing folder", which opens the picker', async ({ page }) => {
-    await mockCustody(page, { connected: true, ensure: { state: 'needs_choice' } });
-    await seedLinkedRows(page);
-    await enableM365Feature(page);
-    await login(page, 'pm@acme.test');
-    await openDocuments(page, 'Documents');
-
-    await page.getByRole('button', { name: 'Create folder in SharePoint' }).click();
-    const choose = page.getByRole('button', { name: 'Choose existing folder' });
-    await expect(choose).toBeVisible();
-    await choose.click();
-    await expect(page.getByRole('dialog', { name: /Choose a Microsoft document/ })).toBeVisible();
-  });
-
-  test('F6: the not-connected notice links to the page every role can open (/integrations)', async ({ page }) => {
-    await mockCustody(page, { connected: false });
-    await seedLinkedRows(page);
-    await enableM365Feature(page);
-    await login(page, 'pm@acme.test');
-    await openDocuments(page, 'Documents');
-
-    await page.getByRole('button', { name: 'Link from Microsoft 365', exact: true }).click();
-    const gate = page.getByTestId('m365-connection-gate');
-    await expect(gate).toBeVisible();
-    await expect(gate.getByRole('link')).toHaveAttribute('href', '/integrations');
-  });
-
-  test('F3: in Bahasa the Microsoft cell, picker and unlink confirmation are Indonesian', async ({ page }) => {
-    await mockCustody(page, { connected: true });
-    await seedLinkedRows(page);
-    await enableM365Feature(page);
-    await forceBahasa(page);
-    await login(page, 'admin@acme.test');
-    await openDocuments(page, 'Dokumen');
-
-    const row = registerRow(page, DRAFT_TITLE);
-    await expect(row).toBeVisible();
-    await expect(row.getByText('File SharePoint')).toBeVisible();
-    await expect(row.getByText('SharePoint file')).toHaveCount(0);
-
-    // Unlink confirmation (opened, then dismissed: nothing is written).
-    await row.hover();
-    await row.getByRole('button', { name: 'Tindakan baris' }).click();
-    await page.getByRole('menuitem', { name: 'Lepas tautan item Microsoft' }).click();
-    await expect(page.getByText(`Lepas tautan ${DRAFT_TITLE}?`)).toBeVisible();
-    await expect(page.getByText('Hanya referensi PMO yang dihapus. Item Microsoft tidak berubah.')).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(page.getByText(`Lepas tautan ${DRAFT_TITLE}?`)).toHaveCount(0);
-
-    // Picker.
-    await page.getByRole('button', { name: 'Tautkan dari Microsoft 365', exact: true }).click();
-    const picker = page.getByRole('dialog', { name: 'Pilih dokumen Microsoft' });
-    await expect(picker).toBeVisible();
-    await expect(picker.getByText('Pilih lokasi')).toBeVisible();
-    await expect(picker.getByRole('button', { name: 'OneDrive saya' })).toBeVisible();
-    await expect(picker.getByText('Choose a location')).toHaveCount(0);
   });
 });

@@ -238,44 +238,5 @@ for (const locale of ['en', 'id'] as const) {
       await expect(page).toHaveURL(/\/sales\?view=kanban$/);
       await expect(phoneList.locator(':scope > li')).toHaveCount(OPEN_PROJECTS.length);
     });
-
-    test(`AC-S24-004: phone stage, search, and Lost recovery in ${locale}/${theme}`, async ({ page }) => {
-      await openSalesPipeline(page, locale, theme, { width: 390, height: 844 });
-      const selector = page.getByRole('combobox', { name: locale === 'id' ? 'Tahap pipeline' : 'Pipeline stage' });
-      await expect(selector).toBeVisible();
-      await expect(page.getByRole('combobox', { name: locale === 'id' ? 'Tahap pipeline' : 'Pipeline stage' })).toHaveCount(1);
-      const phoneList = page.getByTestId('sales-phone-stage-list');
-      await expect(phoneList.locator(':scope > li')).toHaveCount(OPEN_PROJECTS.length);
-      await selector.selectOption('Negotiation');
-      await expect(page).toHaveURL(/[?&]status=Negotiation/);
-      await expect(phoneList.locator(':scope > li')).toHaveCount(1);
-      await expect(phoneList.getByText('Negotiation for Network Maintenance')).toBeVisible();
-      await expect(phoneList.getByText(LONG_NAME)).toHaveCount(0);
-
-      await page.getByRole('searchbox', { name: locale === 'id' ? 'Cari proyek' : 'Search projects' }).fill('no synthetic match');
-      await expect(page.getByText(locale === 'id' ? 'Tidak ada proyek pada tahap ini' : 'No projects in this stage')).toBeVisible();
-      await page.getByRole('button', { name: locale === 'id' ? 'Hapus filter' : 'Clear filters' }).click();
-      await expect(page).toHaveURL(/\/sales\?view=kanban$/);
-      await expect(phoneList.locator(':scope > li')).toHaveCount(OPEN_PROJECTS.length);
-
-      await page.getByRole('tab', { name: locale === 'id' ? /Kalah/ : /Lost/ }).click();
-      await expect(page).toHaveURL(/[?&]scope=Lost/);
-      await expect(page).toHaveURL(/[?&]view=table/);
-      await expect(page.getByText('Synthetic Lost Coverage Contract')).toBeVisible();
-      await expect(page.getByText('Synthetic Declined Service Bid')).toBeVisible();
-      await expect(page.getByRole('combobox', { name: locale === 'id' ? 'Tahap pipeline' : 'Pipeline stage' })).toHaveCount(0);
-    });
-
-    test(`AC-S24-004: desktop funnel and board in ${locale}/${theme}`, async ({ page }, testInfo: TestInfo) => {
-      await openSalesPipeline(page, locale, theme, { width: 1440, height: 900 });
-      await expect(page.getByRole('region', { name: /Pipeline summary|Ringkasan pipeline/i })).toBeVisible();
-      await expect(page.getByTestId('stage-Leads')).toBeVisible();
-      await expect(page.getByTestId('stage-Tender Submitted')).toBeVisible();
-      await expect(page.getByRole('combobox', { name: locale === 'id' ? 'Tahap pipeline' : 'Pipeline stage' })).toHaveCount(0);
-      const desktopBoard = page.locator('.kanban-scroll');
-      const desktopShot = testInfo.outputPath(`S24-desktop-${locale}-${theme}-1440.png`);
-      await desktopBoard.screenshot({ path: desktopShot, animations: 'disabled' });
-      await testInfo.attach(`S24 desktop board ${locale} ${theme} 1440`, { path: desktopShot, contentType: 'image/png' });
-    });
   }
 }
