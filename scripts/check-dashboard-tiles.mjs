@@ -52,6 +52,34 @@ export function extractRegistry(registrySrc) {
   return registry;
 }
 
+/** event -> { producer, kind: 'server' } from supabase/functions/_shared/serverEventProducers.ts.
+ *  Event names may start with `$` (the PostHog `$ai_*` family). */
+export function extractServerRegistry(src) {
+  const m = new Map();
+  for (const x of src.matchAll(/^\s{2}(\$?[a-z0-9_]+):\s*\{\s*producer:\s*'([A-Za-z0-9_]+)',\s*kind:\s*'server'/gm)) {
+    m.set(x[1], { producer: x[2], kind: 'server' });
+  }
+  return m;
+}
+
+/** Tile events the browser registry does not own must be server events with a producer CALL in a
+ *  function dir (never in `_shared/`, so the producer's own definition cannot satisfy the check). */
+export function checkServerEvents(tileEvents, serverRegistry, serverSources, browserEvents = new Set()) {
+  const failures = [];
+  for (const ev of [...tileEvents].sort()) {
+    if (browserEvents.has(ev)) continue;
+    const entry = serverRegistry.get(ev);
+    if (!entry) {
+      failures.push(`tile event '${ev}' is in neither the browser nor the server producer registry`);
+      continue;
+    }
+    if (!hasCallSite(serverSources, entry.producer)) {
+      failures.push(`tile event '${ev}' has NO server call site: '${entry.producer}(' is never called under supabase/functions/<fn>/`);
+    }
+  }
+  return failures;
+}
+
 /**
  * SECURITY (#7): requires a real CALL shape (`producer(`), not a bare identifier mention. The
  * original check (`\bproducer\b`) was satisfied by a COMMENT referencing the producer's name —
@@ -87,6 +115,18 @@ function readTilesSource() {
     ...readdirSync(join(SPEC_DIR, 'spec')).filter((n) => n.endsWith('.mjs')).sort().map((n) => join(SPEC_DIR, 'spec', n)),
   ];
   return files.map((p) => readFileSync(p, 'utf8')).join('\n');
+}
+
+// Non-test .ts under supabase/functions/<fn>/, excluding _shared/.
+function walkServer(dir, out = []) {
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name);
+    if (name === 'node_modules' || name === '_shared') continue;
+    if (statSync(p).isDirectory()) { walkServer(p, out); continue; }
+    if (!/\.ts$/.test(name) || /\.(test|spec)\.ts$/.test(name)) continue;
+    out.push(p);
+  }
+  return out;
 }
 
 function main() {
@@ -131,14 +171,30 @@ function main() {
 
   const sources = sourceFiles.map((p) => readFileSync(p, 'utf8')).join('\n');
 
+  const serverRegistrySrc = readFileSync(resolve(REPO, 'supabase/functions/_shared/serverEventProducers.ts'), 'utf8');
+  const serverRegistry = extractServerRegistry(serverRegistrySrc);
+  if (serverRegistry.size === 0) {
+    console.error(
+      `ERROR: 0 entries parsed from ${resolve(REPO, 'supabase/functions/_shared/serverEventProducers.ts')}.\n` +
+      '  An unreadable/empty/reshaped server registry must not silently pass every server tile.',
+    );
+    process.exit(1);
+  }
+  const serverFiles = walkServer(resolve(REPO, 'supabase/functions'));
+  if (serverFiles.length === 0) {
+    console.error(
+      `ERROR: 0 source files scanned under ${resolve(REPO, 'supabase/functions')}.\n` +
+      '  A gate that scanned nothing must not report success.',
+    );
+    process.exit(1);
+  }
+  const serverSources = serverFiles.map((p) => readFileSync(p, 'utf8')).join('\n');
+
   let failed = false;
+  const browserEvents = new Set(registry.keys());
   for (const event of [...tileEvents].sort()) {
     const entry = registry.get(event);
-    if (!entry) {
-      console.error(`✗ tile event '${event}' is not in pmo-portal/src/lib/analytics/eventCallSites.ts`);
-      failed = true;
-      continue;
-    }
+    if (!entry) continue; // not a browser event: checked against the server registry below
     if (entry.kind === 'provider') continue; // captured by the provider; no external caller expected
     if (!hasCallSite(sources, entry.producer)) {
       console.error(
@@ -147,6 +203,10 @@ function main() {
       );
       failed = true;
     }
+  }
+  for (const f of checkServerEvents(tileEvents, serverRegistry, serverSources, browserEvents)) {
+    console.error(`✗ ${f}`);
+    failed = true;
   }
 
   if (failed) {
