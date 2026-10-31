@@ -610,5 +610,14 @@
     "chartTableStatus": "Status",
     "chartTableCount": "Count",
     "chartTableTotal": "Total"
+  },
+  "trend": {
+    "label": "Invoiced per month · {{currency}} · excl. tax",
+    "span": "{{from}} to {{to}}",
+    "firstLast": "{{firstMonth}} {{first}} → {{lastMonth}} {{last}}",
+    "rising": "Rising",
+    "falling": "Falling",
+    "steady": "Steady",
+    "error": "Couldn't load the invoiced trend"
   }
 }

@@ -610,5 +610,14 @@
     "chartTableStatus": "Status",
     "chartTableCount": "Jumlah",
     "chartTableTotal": "Total"
+  },
+  "trend": {
+    "label": "Ditagihkan per bulan · {{currency}} · di luar pajak",
+    "span": "{{from}} sampai {{to}}",
+    "firstLast": "{{firstMonth}} {{first}} → {{lastMonth}} {{last}}",
+    "rising": "Naik",
+    "falling": "Turun",
+    "steady": "Stabil",
+    "error": "Tren penagihan tidak dapat dimuat"
   }
 }
