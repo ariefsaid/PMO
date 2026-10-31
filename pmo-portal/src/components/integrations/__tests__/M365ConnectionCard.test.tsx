@@ -46,7 +46,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
-import { MemoryRouter, useLocation } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation, useRoutes } from 'react-router';
 import i18next from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { readFileSync } from 'node:fs';
@@ -61,11 +61,15 @@ const { featureState, invoke } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: () => featureState.value }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ session: { user: { user_metadata: {} } }, role: 'Project Manager', loading: false, profileError: null }) }));
 vi.mock('@/src/lib/supabase/client', () => ({
   supabase: { functions: { invoke } },
 }));
 
 import { M365ConnectionCard } from '../M365ConnectionCard';
+import { appRouteConfig } from '@/App';
+import { RequireAuth } from '@/src/auth/RequireAuth';
+import { RequireInviteAccepted } from '@/src/auth/RequireInviteAccepted';
 import { describeM365Error } from '@/src/lib/m365/connectClient';
 
 /** A not-connected connection_status response (the honest default for a fresh load). */
@@ -306,6 +310,43 @@ describe('AC-M365-016 — repeat-clicks do not fire a second initiate (in-flight
     // Let the in-flight promise settle so the test doesn't leave a dangling microtask.
     resolveInvoke({ data: { authorizeUrl: 'https://login.microsoftonline.com/x', state: 's' }, error: null });
     await Promise.resolve();
+  });
+});
+
+describe('AC-M365SEP-018 — callback destinations use the real route table', () => {
+  it('AC-M365SEP-018: an authenticated Project Manager reaches the personal integrations route', async () => {
+    featureState.value = true;
+    const i18n = await makeI18n('en');
+    const MatchedRoute = () => useRoutes(appRouteConfig);
+    render(<I18nextProvider i18n={i18n}><MemoryRouter initialEntries={['/integrations']}><React.Suspense fallback={null}><Routes><Route element={<RequireAuth />}><Route element={<RequireInviteAccepted />}><Route path="*" element={<MatchedRoute />} /></Route></Route></Routes></React.Suspense></MemoryRouter></I18nextProvider>);
+    expect(await screen.findByRole('heading', { name: 'My integrations' })).toBeVisible();
+    expect(screen.queryByText('Page not found')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['m365_connected=true', 'connected'],
+    ['m365_error=connection_failed', 'error'],
+    ['m365_org_approved=true', 'approval'],
+    ['m365_error=some_random_backend_string', 'error'],
+  ])('AC-M365SEP-018: %s reaches the personal page and shows reviewed feedback', async (param, kind) => {
+    featureState.value = true;
+    const i18n = await makeI18n('en');
+    let search = '';
+    const Probe = () => { search = useLocation().search; return useRoutes(appRouteConfig); };
+    render(<I18nextProvider i18n={i18n}><MemoryRouter initialEntries={[`/integrations?${param}`]}><React.Suspense fallback={null}><Probe /></React.Suspense></MemoryRouter></I18nextProvider>);
+    expect(await screen.findByRole('heading', { name: 'My integrations' })).toBeVisible();
+    expect(screen.queryByText('Page not found')).not.toBeInTheDocument();
+    if (kind === 'connected') expect(await screen.findByTestId('m365-connected-msg')).toHaveTextContent(/connected.*disconnect any time/i);
+    else if (kind === 'approval') {
+      const message = await screen.findByTestId('m365-org-approved-msg');
+      expect(message).toHaveTextContent(/organization has approved/i);
+      expect(message).toHaveTextContent(/connect your (own|individual) microsoft 365 account/i);
+      expect(message).not.toHaveTextContent(/your account is connected/i);
+    } else expect(await screen.findByRole('alert')).toHaveTextContent(/could not be connected.*try again/i);
+    await waitFor(() => expect(search).toBe(''));
+    expect(document.body).not.toHaveTextContent('some_random_backend_string');
+    expect(document.body.textContent?.toLowerCase()).not.toContain('eyj');
+    expect(document.body.textContent).not.toMatch(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i);
   });
 });
 
