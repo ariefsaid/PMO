@@ -317,7 +317,7 @@
   },
   "form": {
     "unknownKind": "Jenis dokumen tidak dikenal",
-    "unknownKindSub": "Gunakan Terima, Transfer, Keluarkan, atau Kembalikan dari halaman Stok.",
+    "unknownKindSub": "Gunakan Terima, Transfer, Keluarkan, Kembalikan, Hitung stok, atau Penyesuaian dari halaman Stok.",
     "intro": {
       "receive": "Catat barang masuk ke gudang yang Anda kelola.",
       "transfer": "Pindahkan stok antar dua gudang sekaligus.",
@@ -378,6 +378,46 @@
       "source": "Pilih baris pengeluaran yang dikembalikan.",
       "quantity": "Masukkan jumlah di atas nol (maksimal 3 desimal).",
       "unitCost": "Masukkan biaya satuan (nol atau lebih)."
+    }
+  },
+  "count": {
+    "intro": {
+      "count": "Hitung yang ada di rak. Jumlah sistem tampil di samping tiap baris.",
+      "adjustment": "Koreksi stok karena rusak, hilang, atau ditemukan, dengan alasan."
+    },
+    "sections": {
+      "sheet": "Lembar hitung"
+    },
+    "counted": "Terhitung",
+    "systemNow": "Sistem saat ini",
+    "variance": "Selisih",
+    "fill": "Isi dari stok yang ada",
+    "reason": "Alasan",
+    "reasonHelp": "Misalnya: rusak, hilang, ditemukan di halaman.",
+    "direction": "Arah",
+    "out": "Kurangi stok",
+    "in": "Tambah stok",
+    "costDefault": "Kosongkan untuk memakai biaya rata-rata.",
+    "anotherPerson": "Orang lain harus mem-posting ini: Manajer Proyek atau di atasnya yang bukan pembuatnya.",
+    "saveDraft": "Simpan draf",
+    "post": "Posting hitungan",
+    "saved": "Draf disimpan",
+    "editDraft": "Ubah draf",
+    "onHandFailed": "Gagal memuat jumlah stok yang ada",
+    "notEditable": {
+      "title": "Dokumen ini tidak bisa diubah",
+      "sub": "Hanya draf penyesuaian atau hitungan yang bisa dibuka lagi."
+    },
+    "detail": {
+      "counted": "Terhitung",
+      "expected": "Sistem saat posting",
+      "direction": "Arah"
+    },
+    "errors": {
+      "reason": "Sebutkan alasan stok berubah.",
+      "duplicate": "Barang ini sudah ada di lembar.",
+      "counted": "Isi jumlah terhitung (0 atau lebih, maksimal 3 desimal).",
+      "costNeeded": "Isi biaya satuan: sistem tidak menyimpan barang ini."
     }
   }
 }

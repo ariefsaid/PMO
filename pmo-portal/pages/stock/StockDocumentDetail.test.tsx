@@ -32,12 +32,17 @@ const detail = (over: Record<string, unknown> = {}) => ({
 });
 const entry = { seq: 5, id: 'e5', documentId: 'd1', documentNumber: 'ISS-1', documentStatus: 'Posted', kind: 'issue', postedAt: 't', occurredOn: '2026-10-30', postedBy: 'me', actorName: 'Eka', itemId: 'i1', itemCode: 'CEM', itemName: 'Cement', unitCode: 'bag', warehouseId: 'w1', warehouseCode: 'SITE-A', projectId: 'p1', projectName: 'Tower A', boqItemId: null, boqItemCode: null, qtyDelta: '-30', qtyAfter: '70' };
 
+const countDraft = (over: Record<string, unknown> = {}) => detail({
+  number: 'CNT-1', kind: 'count', status: 'Draft', project_id: null, project: null, posted_by: null, posted_at: null,
+  lines: [{ id: 'l1', line_no: 1, item_id: 'i2', quantity: null, counted_quantity: '92', expected_quantity: null, direction: null, boq_item_id: null, source_line_id: null, item: { code: 'CAB', name: 'Cable 4mm', unit: { code: 'm', whole_only: false } } }],
+  ...over,
+});
 const renderPage = (r: Role = 'Engineer') => {
   role = r;
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}><ToastProvider><MemoryRouter initialEntries={['/stock/documents/d1']}>
-      <Routes><Route path="/stock/documents/:documentId" element={<StockDocumentDetail />} /><Route path="/stock/documents" element={<p>list page</p>} /></Routes>
+      <Routes><Route path="/stock/documents/:documentId" element={<StockDocumentDetail />} /><Route path="/stock/documents" element={<p>list page</p>} /><Route path="/stock/documents/:documentId/edit" element={<p>edit page</p>} /></Routes>
     </MemoryRouter></ToastProvider></QueryClientProvider>,
   );
 };
@@ -100,5 +105,33 @@ describe('StockDocumentDetail (AC-STK-032)', () => {
     expect(documents.cancel).not.toHaveBeenCalled();
     await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Cancel draft' }));
     await waitFor(() => expect(documents.cancel).toHaveBeenCalledWith('d1'));
+  });
+
+  it('FR-STK-062 the author of a draft count sees "Another person must post this", can reopen it, and has no Post', async () => {
+    master.listKeepers.mockResolvedValue([{ warehouse_id: 'w1', user_id: 'me', org_id: 'org-1' }]);
+    documents.get.mockResolvedValue(countDraft());
+    renderPage('Project Manager');
+    expect(await screen.findByText(/Another person must post this/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Post' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Edit draft' }));
+    expect(await screen.findByText('edit page')).toBeInTheDocument();
+  });
+
+  it('FR-STK-062 a Project Manager who did not author it sees Post and no Edit', async () => {
+    documents.get.mockResolvedValue(countDraft({ created_by: 'someone-else' }));
+    renderPage('Project Manager');
+    await userEvent.click(await screen.findByRole('button', { name: 'Post' }));
+    await waitFor(() => expect(documents.post).toHaveBeenCalledWith('d1'));
+    expect(screen.queryByRole('button', { name: 'Edit draft' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Another person must post this/)).not.toBeInTheDocument();
+  });
+
+  it('FR-STK-025 a posted count shows the counted quantity, the system quantity it stamped and the difference', async () => {
+    documents.get.mockResolvedValue(countDraft({ status: 'Posted', lines: [{ ...countDraft().lines[0], expected_quantity: '100' }] }));
+    renderPage();
+    const table = await screen.findByRole('table', { name: 'Lines' });
+    expect(within(table).getByText('System at posting')).toBeInTheDocument();
+    expect(within(table).getByText('100')).toBeInTheDocument();
+    expect(within(table).getByText('-8')).toBeInTheDocument();
   });
 });

@@ -17,6 +17,7 @@ import {
 import { parseStockError } from '@/src/lib/stockErrors';
 import { isPositiveDecimal, isWholeQuantity, normalizeDecimal } from '@/src/lib/stockFormat';
 import type { StockDocumentInput, StockDocumentKind, StockLineInput } from '@/src/lib/db/stockDocuments';
+import StockCount from './StockCount';
 
 const KINDS = ['receive', 'transfer', 'issue', 'return'] as const;
 type MovementKind = (typeof KINDS)[number];
@@ -298,4 +299,10 @@ const StockMovementForm: React.FC = () => {
   );
 };
 
-export default StockMovementForm;
+/** /stock/new/:kind - adjustment and count have their own Draft-first form (#1512 S4). */
+const StockNewDocument: React.FC = () => {
+  const { kind } = useParams<{ kind: string }>();
+  return kind === 'adjustment' || kind === 'count' ? <StockCount /> : <StockMovementForm />;
+};
+
+export default StockNewDocument;

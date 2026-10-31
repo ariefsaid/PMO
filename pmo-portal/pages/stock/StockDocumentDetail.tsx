@@ -9,7 +9,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { useStockDocument, useStockDocumentEntries, useStockDocumentMutations, useStockKeepers } from '@/src/hooks/useStock';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { formatQuantity, formatStockValue } from '@/src/lib/stockFormat';
+import { formatQuantity, formatStockValue, subtractDecimal } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { formatInstantDate } from '@/src/lib/format';
 import { statusVariant } from '@/src/components/stock/stockStatus';
@@ -39,6 +39,10 @@ const StockDocumentDetail: React.FC = () => {
   const ctx = { currentUserId: me, record };
   const canCancel = may('withdraw', 'stockDocument', ctx);
   const canPost = d?.status === 'Draft' && may('post', 'stockDocument', ctx);
+  const writeOff = d?.kind === 'adjustment' || d?.kind === 'count';
+  const isAuthor = !!me && d?.created_by === me;
+  // FR-STK-062: the author of a write-off Draft reopens it; another person (rank >= 20) posts it.
+  const canEdit = writeOff && d?.status === 'Draft' && isAuthor && may('create', 'stockDocument', ctx);
 
   const lineCols: Column<StockDocumentLine>[] = useMemo(() => [
     { key: 'no', header: '#', cell: (l) => <span className="tabular-nums">{l.line_no}</span>, exportValue: (l) => l.line_no },
@@ -48,11 +52,28 @@ const StockDocumentDetail: React.FC = () => {
       exportValue: (l) => l.item?.code ?? '',
     },
     {
-      key: 'qty', header: t('detail.columns.quantity'), align: 'num',
+      key: 'qty', header: d?.kind === 'count' ? t('count.detail.counted') : t('detail.columns.quantity'), align: 'num',
       cell: (l) => <span className="tabular-nums">{formatQuantity(l.quantity ?? l.counted_quantity ?? '0', loc)} <span className="text-muted-foreground">{l.item?.unit.code}</span></span>,
       exportValue: (l) => l.quantity ?? l.counted_quantity ?? '',
     },
-  ], [t, loc]);
+    ...(d?.kind === 'adjustment' ? [{
+      key: 'dir', header: t('count.detail.direction'), cell: (l: StockDocumentLine) => <span className="text-sm">{l.direction === 'in' ? t('count.in') : t('count.out')}</span>,
+      exportValue: (l: StockDocumentLine) => l.direction ?? '',
+    }] : []),
+    ...(d?.kind === 'count' ? [{
+      key: 'expected', header: t('count.detail.expected'), align: 'num' as const,
+      cell: (l: StockDocumentLine) => <span className="tabular-nums">{l.expected_quantity === null ? '—' : formatQuantity(l.expected_quantity, loc)}</span>,
+      exportValue: (l: StockDocumentLine) => l.expected_quantity ?? '',
+    }, {
+      key: 'variance', header: t('count.variance'), align: 'num' as const,
+      cell: (l: StockDocumentLine) => {
+        if (l.expected_quantity === null || l.counted_quantity === null) return <span className="text-muted-foreground">—</span>;
+        const v = subtractDecimal(l.counted_quantity, l.expected_quantity);
+        return <span className="font-semibold tabular-nums">{v === '0' || v.startsWith('-') ? '' : '+'}{formatQuantity(v, loc)}</span>;
+      },
+      exportValue: (l: StockDocumentLine) => (l.expected_quantity !== null && l.counted_quantity !== null ? subtractDecimal(l.counted_quantity, l.expected_quantity) : ''),
+    }] : []),
+  ], [t, loc, d?.kind]);
 
   const entryRows = entries.data ?? [];
   const showCost = entryRows.some((r) => r.valueDelta !== undefined);
@@ -86,13 +107,15 @@ const StockDocumentDetail: React.FC = () => {
             meta={`${t(`kinds.${d.kind}`)} · ${d.occurred_on}`}
             status={<StatusPill variant={statusVariant(d.status)}>{t(`documents.status.${d.status}`)}</StatusPill>}
             statusInline
-            actions={(canPost || canCancel) && (
+            actions={(canPost || canCancel || canEdit) && (
               <div className="flex gap-2">
+                {canEdit && <Button variant="outline" size="sm" onClick={() => navigate(`/stock/documents/${d.id}/edit`)}>{t('count.editDraft')}</Button>}
                 {canPost && <Button variant="primary" size="sm" loading={m.post.isPending} onClick={() => void run(() => m.post.mutateAsync(d.id), 'detail.posted')}>{t('detail.post')}</Button>}
                 {canCancel && <Button variant="outline" size="sm" onClick={() => setConfirmCancel(true)}>{t('detail.cancelDraft')}</Button>}
               </div>
             )}
           />
+          {writeOff && d.status === 'Draft' && isAuthor && <p className="text-sm text-muted-foreground">{t('count.anotherPerson')}</p>}
           <dl className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-card p-4 text-sm md:grid-cols-4">
             <div><dt className="text-xs text-muted-foreground">{t('detail.fields.warehouse')}</dt><dd>{d.warehouse?.code}{d.to_warehouse ? ` → ${d.to_warehouse.code}` : ''}</dd></div>
             <div><dt className="text-xs text-muted-foreground">{t('detail.fields.project')}</dt><dd>{d.project ? <Link className="hover:underline" to={`/projects/${d.project_id}`}>{d.project.name}</Link> : '–'}</dd></div>

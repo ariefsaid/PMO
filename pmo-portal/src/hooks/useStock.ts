@@ -60,9 +60,9 @@ export function useStockKeeperCandidates() {
 const DOC_PAGE = 50;
 
 /** Stock reads and document writes (#1512 S3). Quantities and money are decimal strings. */
-export function useStockOnHand(f: { warehouseId?: string; itemId?: string; includeZero?: boolean }) {
+export function useStockOnHand(f: { warehouseId?: string; itemId?: string; includeZero?: boolean }, enabled = true) {
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-on-hand', orgId, f], queryFn: () => repositories.stock.reports.onHand(f), enabled: Boolean(orgId) });
+  return useQuery({ queryKey: ['stock-on-hand', orgId, f], queryFn: () => repositories.stock.reports.onHand(f), enabled: Boolean(orgId) && enabled });
 }
 export function useStockLedger(f: StockLedgerFilters) {
   const orgId = useAuth().currentUser?.org_id;

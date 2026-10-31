@@ -12,7 +12,7 @@ import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { parseStockError } from '@/src/lib/stockErrors';
 import type { StockOnHandRow } from '@/src/lib/db/stockReports';
 
-const NEW_KINDS = ['receive', 'transfer', 'issue', 'return'] as const;
+const NEW_KINDS = ['receive', 'transfer', 'issue', 'return', 'count', 'adjustment'] as const;
 
 const StockOnHand: React.FC = () => {
   const { t } = useTranslation('stock');
