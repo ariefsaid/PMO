@@ -1,4 +1,8 @@
-import { parseISO, formatDistanceToNow } from 'date-fns';
+// Deep date-fns imports (see src/lib/locale/activeLocale.ts): format.ts is in
+// nearly every test file's module graph, and the `date-fns` root barrel costs
+// ~770 ms/file under Vitest per-file isolation (measured 2026-10-31, #1584).
+import { parseISO } from 'date-fns/parseISO';
+import { formatDistanceToNow } from 'date-fns/formatDistanceToNow';
 import { getActiveLocale, getDateFnsLocale, getDateLocale, getNumberLocale } from '@/src/lib/locale/activeLocale';
 
 /**

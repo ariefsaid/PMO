@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { format } from 'date-fns';
+import { format } from 'date-fns/format';
 import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useToast, type TimesheetGridRow } from '@/src/components/ui';

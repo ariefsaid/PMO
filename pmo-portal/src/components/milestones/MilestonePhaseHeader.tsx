@@ -1,5 +1,6 @@
 import React from 'react';
-import { getYear, parseISO } from 'date-fns';
+import { getYear } from 'date-fns/getYear';
+import { parseISO } from 'date-fns/parseISO';
 import { useTranslation } from 'react-i18next';
 import { pct, formatDayMonth } from '@/src/lib/format';
 import { StatusPill } from '@/src/components/ui';

@@ -11,6 +11,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import { axe } from 'jest-axe';
+import 'jest-axe/extend-expect'; // global registration moved out of test/setup.ts (unit-speed #1584)
 import type { UserViewRow } from '@/src/lib/db/userViews';
 
 // ── Hoisted mocks ─────────────────────────────────────────────────────────────
