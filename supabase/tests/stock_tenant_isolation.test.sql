@@ -52,7 +52,7 @@ begin
 end $$;
 -- usage: select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4'); ... reset role;
 
-select plan(28);  -- S1: the four `is` counts, the foreign-warehouse refusal, the unchanged-row proof (6); S2a: 12; S2b: 4; S3: 4; S4: 2
+select plan(32);  -- S1: the four `is` counts, the foreign-warehouse refusal, the unchanged-row proof (6); S2a: 12; S2b: 4; S3: 4; S4: 2; S5: 4
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000b1');   -- U_XORG sees none of org A
 select is((select count(*)::int from stock_units),      0, 'AC-STK-019 stock_units: org B reads none of org A');
 select is((select count(*)::int from stock_items),      0, 'AC-STK-019 stock_items: org B reads none of org A');
@@ -143,5 +143,20 @@ select throws_like($$ select public.post_stock_document(current_setting('stk.acn
 reset role;
 select is((select status || '/' || count(e.id)::text from public.stock_documents d left join public.stock_ledger e on e.document_id = d.id
             where d.id = current_setting('stk.acnt')::uuid group by d.status), 'Draft/0', 'AC-STK-019 org A''s count stays a Draft with no entry');
+-- S5: org B cannot read org A's consumption report or allowances, nor change an allowance (0417).
+insert into public.boq_material_allowances (org_id, boq_item_id, item_id, planned_quantity) values
+  ('15120000-0000-0000-0000-000000000001', '15120000-0000-0000-0000-0000000000e1', '15120000-0000-0000-0000-000000001002', 100);
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000b1');
+select throws_like($$ select public.get_project_consumption('15120000-0000-0000-0000-0000000000c1', current_date - 60, current_date) $$,
+  'STK_NOT_FOUND%', 'AC-STK-019 org B reading org A''s consumption report is refused');
+select is((select count(*)::int from public.boq_material_allowances), 0, 'AC-STK-019 org B reads no org A allowance');
+update public.boq_material_allowances set planned_quantity = 1;
+delete from public.boq_material_allowances;
+reset role;
+select is((select planned_quantity::text from public.boq_material_allowances where boq_item_id = '15120000-0000-0000-0000-0000000000e1'), '100.000',
+  'AC-STK-019 org B''s update and delete left org A''s allowance untouched');
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
+select lives_ok($$ select public.get_project_consumption('15120000-0000-0000-0000-0000000000c1', current_date - 60, current_date) $$, 'AC-STK-019 org A reads its own report');
+reset role;
 select * from finish();
 rollback;

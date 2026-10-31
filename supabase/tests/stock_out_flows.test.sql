@@ -129,7 +129,7 @@ select is((select sum(value_delta)::text from public.stock_ledger where kind = '
   'AC-STK-009 returns of 1 + 1 + 1 restore exactly 100.01 (the last takes the remainder)');
 select is((select qty_on_hand::text || '/' || value_on_hand::text from public.stock_balances where warehouse_id = '15120000-0000-0000-0000-000000002002' and item_id = '15120000-0000-0000-0000-000000001001'), '3.000/100.01',
   'AC-STK-009 stock re-enters at the cost the issue left at');
-select is((select count(*)::int from public.stock_documents d where d.kind = 'return' and d.project_id is distinct from '15120000-0000-0000-0000-0000000000c1'), 0,
+select is((select count(*)::int from public.stock_documents d where d.org_id = '15120000-0000-0000-0000-000000000001' and d.kind = 'return' and d.project_id is distinct from '15120000-0000-0000-0000-0000000000c1'), 0,
   'AC-STK-009 every return took its project from the cited issue, not from the client');
 -- the cap is checked on a draft (unlocked) and again at post (under the lock): two drafts that each fit cannot both post
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4');

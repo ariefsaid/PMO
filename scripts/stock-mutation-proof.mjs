@@ -52,6 +52,11 @@ export const CASES = [
   { id: 'revision',      fn: 'public.save_stock_draft(uuid,jsonb,jsonb)', from: /(revision = )d\.revision \+ 1(\s*-- mut:revision)/, to: '$1d.revision$2', test: 'supabase/tests/stock_adjust_count.test.sql' },
   { id: 'keepcost',      fn: 'public.save_stock_draft(uuid,jsonb,jsonb)', from: /(if d\.kind in \('adjustment','count'\) then)(\s*update public\.stock_document_lines n set unit_cost)/, to: 'if false then$2', test: 'supabase/tests/stock_adjust_count.test.sql' },
   { id: 'doc_cost',      fn: 'public.get_stock_document_costs(uuid)', from: /(v_cost := )[^;]+(;\s*-- mut:doc_cost)/, to: '$1true$2', test: 'supabase/tests/stock_adjust_count.test.sql' },
+  // S5 (0417): allowance scope, the over-allowance flag, the report's cost and org checks.
+  { id: 'allowance_scope',  fn: 'public.boq_allowance_ok(uuid,uuid)', from: /and public\.may_record_project_progress\(b\.project_id\)\)(\s*-- mut:allowance_scope)/, to: ')$1', test: 'supabase/tests/stock_allowance.test.sql' },
+  { id: 'overflag',         fn: 'public.get_project_consumption(uuid,date,date)', from: /('over_allowance', )coalesce\(c\.net, 0\) > al\.planned_quantity\)( as j\s*-- mut:overflag)/, to: '$1false)$2', test: 'supabase/tests/stock_consumption.test.sql' },
+  { id: 'cost_consumption', fn: 'public.get_project_consumption(uuid,date,date)', from: /(v_cost := )[^;]+(;\s*-- mut:cost_consumption)/, to: '$1true$2', test: 'supabase/tests/stock_consumption.test.sql' },
+  { id: 'consumption_org',  fn: 'public.get_project_consumption(uuid,date,date)', from: /(p\.id = p_project_id and )p\.org_id = v_org(\) then\s*-- mut:consumption_org)/, to: '$1true$2', test: 'supabase/tests/stock_tenant_isolation.test.sql' },
 ];
 // S2b / S4 / S5 / S6 append their cases to this table in their own slice (ids named in each slice's mutation task).
 const run = (cmd, args, opts = {}) => spawnSync(cmd, args, { encoding: 'utf8', ...opts });
