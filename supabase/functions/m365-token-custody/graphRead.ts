@@ -207,8 +207,8 @@ export type PreviewOutcome =
 
 /** Read capability plus exactly one preview call. No write method, credential getter or generic request exists on it. */
 export interface DocumentPreviewAccess {
-  /** Scope-checked GET of ONE item's metadata (used only to prove a folder child's parent). */
-  readItem(driveId: string, itemId: string): Promise<HandlerResult>;
+  /** Scope-checked metadata read of ONE item (used only to prove a folder child's parent); never returned to the browser. */
+  readItem(driveId: string, itemId: string): Promise<FolderOutcome>;
   previewItem(driveId: string, itemId: string): Promise<PreviewOutcome>;
 }
 
@@ -233,19 +233,7 @@ export async function openCallerDocumentPreview(
   const limited = await microsoftReadQuota(deps);
   if (limited) return limited;
   return {
-    readItem: (driveId, itemId) => {
-      if (!safeGraphId(driveId) || !safeGraphId(itemId)) {
-        return Promise.resolve({
-          status: 400,
-          body: { error: "BAD_REQUEST", message: "method and path must be valid Graph requests" },
-          headers: GRAPH_HEADERS,
-        });
-      }
-      return own.get({
-        path: `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(itemId)}`,
-        query: { "$select": FOLDER_ITEM_SELECT },
-      }, { timeoutMs: PREVIEW_TIMEOUT_MS, redact: true });
-    },
+    readItem: (driveId, itemId) => own.readItem(driveId, itemId, PREVIEW_TIMEOUT_MS),
     previewItem: (driveId, itemId) => own.previewItem(driveId, itemId, PREVIEW_TIMEOUT_MS),
   };
 }
@@ -266,6 +254,11 @@ interface OwnConnection {
     driveId: string,
     parentId: string,
     name: string,
+    timeoutMs: number,
+  ): Promise<FolderOutcome>;
+  readItem(
+    driveId: string,
+    itemId: string,
     timeoutMs: number,
   ): Promise<FolderOutcome>;
   previewItem(
@@ -510,6 +503,25 @@ async function openOwnConnection(
     );
   };
 
+  const readItem = async (
+    driveId: string,
+    itemId: string,
+    timeoutMs: number,
+  ): Promise<FolderOutcome> => {
+    if (!safeGraphId(driveId) || !safeGraphId(itemId)) return { kind: "unavailable" };
+    const path = `/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(itemId)}`;
+    const normalizedPath = normalizeGraphRequestPath(path);
+    if (!normalizedPath || !scopeCoversPath(connection.scopes, "GET", normalizedPath)) {
+      return { kind: "unavailable" };
+    }
+    const bearer = await token();
+    if (typeof bearer !== "string") return { kind: "unavailable", result: bearer };
+    if (!scopeCoversPath(connection.scopes, "GET", normalizedPath)) return { kind: "unavailable" };
+    const url = graphUrl(normalizedPath, { "$select": FOLDER_ITEM_SELECT });
+    if (!url) return { kind: "unavailable" };
+    return await sendFolderRequest(url, "GET", bearer, deps, connection, resolved, undefined, timeoutMs);
+  };
+
   const createFolder = async (
     driveId: string,
     parentId: string,
@@ -575,7 +587,7 @@ async function openOwnConnection(
     return await sendPreviewRequest(url, bearer, deps, connection, resolved, timeoutMs);
   };
 
-  return { connection, get, batch, readFolder, createFolder, previewItem };
+  return { connection, get, batch, readFolder, createFolder, readItem, previewItem };
 }
 
 /**

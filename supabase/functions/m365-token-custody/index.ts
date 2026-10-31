@@ -33,6 +33,7 @@ import {
 } from "./documentVerification.ts";
 import { handleEnsureRecordFolder } from "./recordFolders.ts";
 import { handleLinkExistingRecordFolders } from "./recordFolderBackfill.ts";
+import { handlePreviewDocument } from "./documentPreview.ts";
 import { corsHeaders } from "./auth.ts";
 import type {
   GraphProxyRequest,
@@ -181,6 +182,7 @@ async function routeRequest(req: Request, scope?: RequestDeadline): Promise<Resp
   }
 
   if (body?.action === "ensure_record_folder") scope?.limit(12_000); // mutation-witness:folder-request-deadline
+  if (body?.action === "preview_document") scope?.limit(12_000); // mutation-witness:preview-request-deadline
   let result: HandlerResult;
   try {
     switch (body.action) {
@@ -224,6 +226,10 @@ async function routeRequest(req: Request, scope?: RequestDeadline): Promise<Resp
       case "ensure_record_folder":
         // ADR-0089: ensure + link the record's one reference-only folder. Typed kind + UUID only.
         result = await handleEnsureRecordFolder(body, authed);
+        break;
+      case "preview_document":
+        // ADR-0095: typed document identity only; the server derives drive/item and previews with the caller's own connection.
+        result = await handlePreviewDocument(body, authed);
         break;
       case "link_existing_record_folders":
         // ADR-0089 / FR-M365DOC-072: Admin, match-only, keyset-paged sweep. Never creates.
