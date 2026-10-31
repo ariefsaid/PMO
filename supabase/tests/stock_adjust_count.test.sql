@@ -53,7 +53,7 @@ begin
 end $$;
 -- usage: select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4'); ... reset role;
 
-select plan(23);
+select plan(32);
 create function public.stk_t_rcv(p_wh uuid, p_item uuid, p_qty numeric, p_cost numeric) returns uuid language sql as $$
   select public.create_stock_document(jsonb_build_object('kind','receive','warehouse_id',p_wh),
     jsonb_build_array(jsonb_build_object('item_id',p_item,'quantity',p_qty,'unit_cost',p_cost)), true) $$;
@@ -63,6 +63,9 @@ create function public.stk_t_count(p_wh uuid, p_item uuid, p_counted numeric, p_
 create function public.stk_t_adj(p_wh uuid, p_item uuid, p_qty numeric, p_dir text, p_cost numeric default null) returns uuid language sql as $$
   select public.create_stock_document(jsonb_build_object('kind','adjustment','warehouse_id',p_wh,'reason','damaged'),
     jsonb_build_array(jsonb_build_object('item_id',p_item,'quantity',p_qty,'direction',p_dir,'unit_cost',p_cost))) $$;
+-- the approver posts the revision they read (FR-STK-062 fix round)
+create function public.stk_t_post(p_doc uuid) returns uuid language sql as $$
+  select public.post_stock_document(p_doc, (select revision from public.stock_documents where id = p_doc)) $$;
 create function public.stk_t_entry(p_doc uuid) returns text language sql as $$
   select qty_delta::text || '/' || value_delta::text from public.stock_ledger where document_id = p_doc $$;
 
@@ -70,16 +73,16 @@ select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');            
 select public.stk_t_rcv('15120000-0000-0000-0000-000000002002', '15120000-0000-0000-0000-000000001002', 100, 60);   -- SITE-A: 100 cable, 6,000
 -- a Draft count of 92 against 100 on hand (variance -8), authored by the Admin
 select set_config('stk.cnt', public.stk_t_count('15120000-0000-0000-0000-000000002002', '15120000-0000-0000-0000-000000001002', 92)::text, false);
-select throws_like($$ select public.post_stock_document(current_setting('stk.cnt')::uuid) $$, 'STK_SELF_APPROVE%',
+select throws_like($$ select public.stk_t_post(current_setting('stk.cnt')::uuid) $$, 'STK_SELF_APPROVE%',
   'AC-STK-014 the author - even an Admin - cannot post a count with a variance');
 reset role;
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4');                                   -- U_K1: Engineer, rank 10, keeps SITE-A, not the author
-select throws_like($$ select public.post_stock_document(current_setting('stk.cnt')::uuid) $$, 'STK_RANK%',
+select throws_like($$ select public.stk_t_post(current_setting('stk.cnt')::uuid) $$, 'STK_RANK%',
   'AC-STK-014 a different user below Project Manager is refused');
 reset role;
 select is((select count(*)::int from public.stock_ledger where kind = 'count'), 0, 'AC-STK-014 the two refusals wrote nothing');
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');                                   -- U_PM, not the author, keeps nothing
-select lives_ok($$ select public.post_stock_document(current_setting('stk.cnt')::uuid) $$, 'AC-STK-014 a different Project Manager posts it');
+select lives_ok($$ select public.stk_t_post(current_setting('stk.cnt')::uuid) $$, 'AC-STK-014 a different Project Manager posts it');
 reset role;
 select is(public.stk_t_entry(current_setting('stk.cnt')::uuid), '-8.000/-480.00',
   'AC-STK-014 one adjustment entry equals the variance, out at the moving average (8 x 60)');
@@ -98,7 +101,7 @@ select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
 select set_config('stk.cnt2', public.stk_t_count('15120000-0000-0000-0000-000000002003', '15120000-0000-0000-0000-000000001002', 5)::text, false);
 reset role;
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');
-select throws_like($$ select public.post_stock_document(current_setting('stk.cnt2')::uuid) $$, 'STK_INVALID%unit cost%',
+select throws_like($$ select public.stk_t_post(current_setting('stk.cnt2')::uuid) $$, 'STK_INVALID%unit cost%',
   'FR-STK-025 finding stock where the system has none needs a unit cost');
 reset role;
 -- FR-STK-024: an adjustment needs a reason; adjust-in defaults to the moving average; its author cannot post it
@@ -108,10 +111,10 @@ select throws_like($$ select public.create_stock_document(jsonb_build_object('ki
   'FR-STK-024 an adjustment without a reason is refused');
 select set_config('stk.adj', public.create_stock_document(jsonb_build_object('kind','adjustment','warehouse_id','15120000-0000-0000-0000-000000002002','reason','found in the yard'),
     jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001002','quantity',3,'direction','in')))::text, false);
-select throws_like($$ select public.post_stock_document(current_setting('stk.adj')::uuid) $$, 'STK_SELF_APPROVE%', 'FR-STK-062 the author cannot post their own adjustment either');
+select throws_like($$ select public.stk_t_post(current_setting('stk.adj')::uuid) $$, 'STK_SELF_APPROVE%', 'FR-STK-062 the author cannot post their own adjustment either');
 reset role;
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');
-select lives_ok($$ select public.post_stock_document(current_setting('stk.adj')::uuid) $$, 'FR-STK-024 a Project Manager posts it');
+select lives_ok($$ select public.stk_t_post(current_setting('stk.adj')::uuid) $$, 'FR-STK-024 a Project Manager posts it');
 reset role;
 select is(public.stk_t_entry(current_setting('stk.adj')::uuid), '3.000/180.00',
   'FR-STK-024 adjust-in without a cost enters at the moving average (3 x 60)');                       -- SITE-A now 95 / 5,700
@@ -120,10 +123,10 @@ select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4');            
 select set_config('stk.adjout', public.stk_t_adj('15120000-0000-0000-0000-000000002002', '15120000-0000-0000-0000-000000001002', 5, 'out')::text, false);
 reset role;
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a5');                                   -- U_K2: Engineer, not the author
-select throws_like($$ select public.post_stock_document(current_setting('stk.adjout')::uuid) $$, 'STK_RANK%', 'FR-STK-062 an adjustment posted below Project Manager is refused');
+select throws_like($$ select public.stk_t_post(current_setting('stk.adjout')::uuid) $$, 'STK_RANK%', 'FR-STK-062 an adjustment posted below Project Manager is refused');
 reset role;
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
-select lives_ok($$ select public.post_stock_document(current_setting('stk.adjout')::uuid) $$, 'FR-STK-062 an Admin who did not author it posts it');
+select lives_ok($$ select public.stk_t_post(current_setting('stk.adjout')::uuid) $$, 'FR-STK-062 an Admin who did not author it posts it');
 reset role;
 select is(public.stk_t_entry(current_setting('stk.adjout')::uuid), '-5.000/-300.00', 'FR-STK-024 adjust-out leaves at the moving average (5 x 5,700 / 95)');   -- 90 / 5,400
 -- adjust-in with a stated cost uses that cost
@@ -131,7 +134,7 @@ select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4');
 select set_config('stk.adjin', public.stk_t_adj('15120000-0000-0000-0000-000000002002', '15120000-0000-0000-0000-000000001002', 10, 'in', 70)::text, false);
 reset role;
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');
-select public.post_stock_document(current_setting('stk.adjin')::uuid);
+select public.stk_t_post(current_setting('stk.adjin')::uuid);
 reset role;
 select is(public.stk_t_entry(current_setting('stk.adjin')::uuid), '10.000/700.00', 'FR-STK-024 adjust-in with a unit cost enters at that cost (10 x 70)');   -- 100 / 6,100
 -- adjust-in where none is on hand needs a cost
@@ -139,7 +142,7 @@ select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a5');            
 select set_config('stk.adjnone', public.stk_t_adj('15120000-0000-0000-0000-000000002003', '15120000-0000-0000-0000-000000001002', 1, 'in')::text, false);
 reset role;
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');
-select throws_like($$ select public.post_stock_document(current_setting('stk.adjnone')::uuid) $$, 'STK_INVALID%unit cost%', 'FR-STK-024 adjust-in where none is on hand needs a unit cost');
+select throws_like($$ select public.stk_t_post(current_setting('stk.adjnone')::uuid) $$, 'STK_INVALID%unit cost%', 'FR-STK-024 adjust-in where none is on hand needs a unit cost');
 reset role;
 -- count surplus: at the moving average when stock is on hand; at the line's cost when none is
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4');
@@ -149,8 +152,8 @@ select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a5');
 select set_config('stk.cntb', public.stk_t_count('15120000-0000-0000-0000-000000002003', '15120000-0000-0000-0000-000000001002', 5, 40)::text, false);
 reset role;
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');
-select public.post_stock_document(current_setting('stk.cntup')::uuid);
-select public.post_stock_document(current_setting('stk.cntb')::uuid);
+select public.stk_t_post(current_setting('stk.cntup')::uuid);
+select public.stk_t_post(current_setting('stk.cntb')::uuid);
 reset role;
 select is(public.stk_t_entry(current_setting('stk.cntup')::uuid), '10.000/610.00', 'FR-STK-025 a count surplus enters at the moving average (10 x 6,100 / 100)');
 select is(public.stk_t_entry(current_setting('stk.cntb')::uuid), '5.000/200.00', 'FR-STK-025 a surplus where none was on hand enters at the line''s unit cost (5 x 40)');
@@ -162,6 +165,36 @@ select throws_like($$ select public.create_stock_document(jsonb_build_object('ki
   'FR-STK-025 an item appears once per count');
 select throws_like($$ select public.stk_t_count('15120000-0000-0000-0000-000000002002', '15120000-0000-0000-0000-000000001002', 50, null, true) $$, 'STK_SELF_APPROVE%',
   'FR-STK-062 create-and-post of a count with a variance is refused for its author');
+reset role;
+-- Approve what you saw: the approver pins the revision they reviewed; a re-save by the author since is refused.
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4');                                   -- U_K1 authors 2 cable in at 70 (SITE-A holds stock)
+select set_config('stk.pin', public.stk_t_adj('15120000-0000-0000-0000-000000002002', '15120000-0000-0000-0000-000000001002', 2, 'in', 70)::text, false);
+reset role;
+select is((select revision from public.stock_documents where id = current_setting('stk.pin')::uuid), 1, 'FR-STK-062 a new draft is at revision 1');
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4');                                   -- the author re-saves: 2000 in, no cost sent
+select public.save_stock_draft(current_setting('stk.pin')::uuid, jsonb_build_object('kind','adjustment','warehouse_id','15120000-0000-0000-0000-000000002002','reason','damaged'),
+    jsonb_build_array(jsonb_build_object('item_id','15120000-0000-0000-0000-000000001002','quantity',2000,'direction','in')));
+reset role;
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');
+select throws_like($$ select public.post_stock_document(current_setting('stk.pin')::uuid, 1) $$, 'STK_STALE%',
+  'FR-STK-062 the approver who reviewed revision 1 cannot post the re-saved draft');
+select throws_like($$ select public.post_stock_document(current_setting('stk.pin')::uuid) $$, 'STK_STALE%',
+  'FR-STK-062 a write-off post that names no revision is refused');
+reset role;
+select is((select status from public.stock_documents where id = current_setting('stk.pin')::uuid), 'Draft', 'FR-STK-062 the stale posts wrote nothing');
+-- the line cost: hidden below rank 20, shown to the approver; kept when the re-save omitted it
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a4');
+select is(public.get_stock_document_costs(current_setting('stk.pin')::uuid)->0, jsonb_build_object('line_id', (select id from public.stock_document_lines where document_id = current_setting('stk.pin')::uuid), 'has_cost', true),
+  'FR-STK-063 below rank 20 a line shows that a cost is on file, not the cost');
+reset role;
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');
+select is(public.get_stock_document_costs(current_setting('stk.pin')::uuid)->0->>'unit_cost', '70.0000', 'FR-STK-063 the approver (rank >= 20) reads the stored unit cost');
+select lives_ok($$ select public.post_stock_document(current_setting('stk.pin')::uuid, 2) $$, 'FR-STK-062 the approver posts the revision now on screen');
+reset role;
+select is(public.stk_t_entry(current_setting('stk.pin')::uuid), '2000.000/140000.00',
+  'FR-STK-024 a re-saved line that omits the cost keeps the stored cost (2000 x 70), not the moving average');
+select public.stk_t_as_user('15120000-0000-0000-0000-0000000000b1');
+select is(public.get_stock_document_costs(current_setting('stk.pin')::uuid), '[]'::jsonb, 'AC-STK-019 another org reads no line cost');
 reset role;
 select * from finish();
 rollback;

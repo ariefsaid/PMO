@@ -7305,6 +7305,7 @@ export type Database = {
           procurement_id: string | null
           project_id: string | null
           reason: string | null
+          revision: number
           status: string
           to_warehouse_id: string | null
           warehouse_id: string
@@ -7326,6 +7327,7 @@ export type Database = {
           procurement_id?: string | null
           project_id?: string | null
           reason?: string | null
+          revision?: number
           status?: string
           to_warehouse_id?: string | null
           warehouse_id: string
@@ -7347,6 +7349,7 @@ export type Database = {
           procurement_id?: string | null
           project_id?: string | null
           reason?: string | null
+          revision?: number
           status?: string
           to_warehouse_id?: string | null
           warehouse_id?: string
@@ -9792,6 +9795,7 @@ export type Database = {
         }[]
       }
       get_sales_pipeline: { Args: never; Returns: Json }
+      get_stock_document_costs: { Args: { p_document_id: string }; Returns: Json }
       get_stock_ledger: {
         Args: {
           p_before_seq?: number
@@ -10629,7 +10633,10 @@ export type Database = {
       }
       pipeline_project_statuses: { Args: never; Returns: string[] }
       confirm_work_order_acceptance: { Args: { p_id: string }; Returns: Json }
-      post_stock_document: { Args: { p_document_id: string }; Returns: string }
+      post_stock_document: {
+        Args: { p_document_id: string; p_expected_revision?: number }
+        Returns: string
+      }
       prepare_work_order_acceptance: {
         Args: {
           p_acceptance_date: string

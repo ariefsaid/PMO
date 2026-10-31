@@ -47,6 +47,11 @@ export const CASES = [
   { id: 'adj_nocost',    fn: 'public.stock_apply_adjustment(public.stock_documents,boolean)', from: /(if )v_in is null( then raise exception 'STK_INVALID: adjusting)/, to: '$1false$2', test: 'supabase/tests/stock_adjust_count.test.sql' },
   { id: 'count_avg',     fn: 'public.stock_apply_count(public.stock_documents,boolean)', from: /(round\(v_var \* b\.value_on_hand \/ b\.qty_on_hand, 2\))(\s*-- mut:count_avg)/, to: '$1 + 1$2', test: 'supabase/tests/stock_adjust_count.test.sql' },
   { id: 'count_nocost',  fn: 'public.stock_apply_count(public.stock_documents,boolean)', from: /(if )v_in is null( then raise exception 'STK_INVALID: finding)/, to: '$1false$2', test: 'supabase/tests/stock_adjust_count.test.sql' },
+  // S4 fix round: approve what you saw, the kept cost, the approver's cost read.
+  { id: 'stale',         fn: 'public.post_stock_document(uuid,integer)', from: /(v_fresh := )[^;]+(;\s*-- mut:stale)/, to: '$1true$2', test: 'supabase/tests/stock_adjust_count.test.sql' },
+  { id: 'revision',      fn: 'public.save_stock_draft(uuid,jsonb,jsonb)', from: /(revision = )d\.revision \+ 1(\s*-- mut:revision)/, to: '$1d.revision$2', test: 'supabase/tests/stock_adjust_count.test.sql' },
+  { id: 'keepcost',      fn: 'public.save_stock_draft(uuid,jsonb,jsonb)', from: /(if d\.kind in \('adjustment','count'\) then)(\s*update public\.stock_document_lines n set unit_cost)/, to: 'if false then$2', test: 'supabase/tests/stock_adjust_count.test.sql' },
+  { id: 'doc_cost',      fn: 'public.get_stock_document_costs(uuid)', from: /(v_cost := )[^;]+(;\s*-- mut:doc_cost)/, to: '$1true$2', test: 'supabase/tests/stock_adjust_count.test.sql' },
 ];
 // S2b / S4 / S5 / S6 append their cases to this table in their own slice (ids named in each slice's mutation task).
 const run = (cmd, args, opts = {}) => spawnSync(cmd, args, { encoding: 'utf8', ...opts });

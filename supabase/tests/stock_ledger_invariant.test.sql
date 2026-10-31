@@ -98,20 +98,20 @@ select set_config('stk.s4a', public.stk_t_draft('adjustment', '{"quantity":3,"di
 select set_config('stk.s4b', public.stk_t_draft('adjustment', '{"quantity":2,"direction":"in"}')::text, false);
 reset role;
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');
-select public.post_stock_document(current_setting('stk.s4a')::uuid);                                  -- 107
-select public.post_stock_document(current_setting('stk.s4b')::uuid);                                  -- 109, at the moving average
+select public.post_stock_document(current_setting('stk.s4a')::uuid, 1);                                  -- 107
+select public.post_stock_document(current_setting('stk.s4b')::uuid, 1);                                  -- 109, at the moving average
 reset role;
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
 select set_config('stk.s4c', public.stk_t_draft('count', '{"counted_quantity":100}')::text, false);   -- deficit 9
 reset role;
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');
-select public.post_stock_document(current_setting('stk.s4c')::uuid);
+select public.post_stock_document(current_setting('stk.s4c')::uuid, 1);
 reset role;
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');
 select set_config('stk.s4d', public.stk_t_draft('count', '{"counted_quantity":104}')::text, false);   -- surplus 4
 reset role;
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');
-select public.post_stock_document(current_setting('stk.s4d')::uuid);
+select public.post_stock_document(current_setting('stk.s4d')::uuid, 1);
 reset role;
 
 select is((select count(*)::int from (
