@@ -3523,6 +3523,357 @@ export type Database = {
           },
         ]
       }
+      imprest_float_changes: {
+        Row: {
+          decided_at: string | null
+          decided_by: string | null
+          float_id: string
+          id: string
+          notes: string | null
+          org_id: string
+          proposed_amount: number
+          proposed_at: string
+          proposed_by: string
+          status: string
+        }
+        Insert: {
+          decided_at?: string | null
+          decided_by?: string | null
+          float_id: string
+          id?: string
+          notes?: string | null
+          org_id: string
+          proposed_amount: number
+          proposed_at?: string
+          proposed_by: string
+          status?: string
+        }
+        Update: {
+          decided_at?: string | null
+          decided_by?: string | null
+          float_id?: string
+          id?: string
+          notes?: string | null
+          org_id?: string
+          proposed_amount?: number
+          proposed_at?: string
+          proposed_by?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "imprest_float_changes_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imprest_float_changes_float_id_fkey"
+            columns: ["float_id"]
+            isOneToOne: false
+            referencedRelation: "imprest_floats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imprest_float_changes_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imprest_float_changes_proposed_by_fkey"
+            columns: ["proposed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      imprest_floats: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          custodian_id: string
+          erp_cash_account_ref: string | null
+          float_amount: number
+          id: string
+          org_id: string
+          project_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          created_by: string
+          currency: string
+          custodian_id: string
+          erp_cash_account_ref?: string | null
+          float_amount?: number
+          id?: string
+          org_id: string
+          project_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          created_by?: string
+          currency?: string
+          custodian_id?: string
+          erp_cash_account_ref?: string | null
+          float_amount?: number
+          id?: string
+          org_id?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "imprest_floats_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imprest_floats_custodian_id_fkey"
+            columns: ["custodian_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imprest_floats_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imprest_floats_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      imprest_plan_lines: {
+        Row: {
+          budget_category: Database["public"]["Enums"]["budget_category"]
+          id: string
+          org_id: string
+          plan_id: string
+          planned_amount: number
+        }
+        Insert: {
+          budget_category: Database["public"]["Enums"]["budget_category"]
+          id?: string
+          org_id: string
+          plan_id: string
+          planned_amount: number
+        }
+        Update: {
+          budget_category?: Database["public"]["Enums"]["budget_category"]
+          id?: string
+          org_id?: string
+          plan_id?: string
+          planned_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "imprest_plan_lines_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imprest_plan_lines_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "imprest_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      imprest_plans: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          author_id: string
+          created_at: string
+          decision_notes: string | null
+          float_id: string
+          id: string
+          is_late: boolean
+          month: string
+          number: string | null
+          org_id: string
+          status: string
+          submitted_at: string | null
+          total: number
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          author_id?: string
+          created_at?: string
+          decision_notes?: string | null
+          float_id: string
+          id?: string
+          is_late?: boolean
+          month: string
+          number?: string | null
+          org_id: string
+          status?: string
+          submitted_at?: string | null
+          total?: number
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          author_id?: string
+          created_at?: string
+          decision_notes?: string | null
+          float_id?: string
+          id?: string
+          is_late?: boolean
+          month?: string
+          number?: string | null
+          org_id?: string
+          status?: string
+          submitted_at?: string | null
+          total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "imprest_plans_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imprest_plans_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imprest_plans_float_id_fkey"
+            columns: ["float_id"]
+            isOneToOne: false
+            referencedRelation: "imprest_floats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imprest_plans_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      imprest_replenishments: {
+        Row: {
+          amount: number
+          approved_at: string | null
+          approved_by: string | null
+          cancelled_at: string | null
+          decided_notes: string | null
+          float_id: string
+          id: string
+          kind: string
+          number: string
+          org_id: string
+          paid_at: string | null
+          paid_by: string | null
+          paid_on: string | null
+          payment_reference: string | null
+          requested_at: string
+          requested_by: string
+          status: string
+        }
+        Insert: {
+          amount: number
+          approved_at?: string | null
+          approved_by?: string | null
+          cancelled_at?: string | null
+          decided_notes?: string | null
+          float_id: string
+          id?: string
+          kind: string
+          number: string
+          org_id: string
+          paid_at?: string | null
+          paid_by?: string | null
+          paid_on?: string | null
+          payment_reference?: string | null
+          requested_at?: string
+          requested_by: string
+          status?: string
+        }
+        Update: {
+          amount?: number
+          approved_at?: string | null
+          approved_by?: string | null
+          cancelled_at?: string | null
+          decided_notes?: string | null
+          float_id?: string
+          id?: string
+          kind?: string
+          number?: string
+          org_id?: string
+          paid_at?: string | null
+          paid_by?: string | null
+          paid_on?: string | null
+          payment_reference?: string | null
+          requested_at?: string
+          requested_by?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "imprest_replenishments_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imprest_replenishments_float_id_fkey"
+            columns: ["float_id"]
+            isOneToOne: false
+            referencedRelation: "imprest_floats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imprest_replenishments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imprest_replenishments_paid_by_fkey"
+            columns: ["paid_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imprest_replenishments_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incident_reports: {
         Row: {
           created_at: string
@@ -4099,6 +4450,42 @@ export type Database = {
           },
           {
             foreignKeyName: "org_features_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      org_imprest_settings: {
+        Row: {
+          org_id: string
+          procurement_limit: number
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          org_id: string
+          procurement_limit: number
+          updated_at?: string
+          updated_by: string
+        }
+        Update: {
+          org_id?: string
+          procurement_limit?: number
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_imprest_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_imprest_settings_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -9565,6 +9952,10 @@ export type Database = {
         Args: { p_actor_id: string; p_external_tier: string; p_org_id: string }
         Returns: number
       }
+      decide_imprest_float_change: {
+        Args: { p_approve: boolean; p_change: string; p_notes?: string }
+        Returns: undefined
+      }
       delete_vault_secret: {
         Args: { p_secret_name: string }
         Returns: undefined
@@ -9597,6 +9988,10 @@ export type Database = {
         Returns: undefined
       }
       erpnext_sweep_tick: { Args: never; Returns: undefined }
+      establish_imprest_float: {
+        Args: { p_amount: number; p_custodian: string; p_project: string }
+        Returns: string
+      }
       expense_advance_outstanding: { Args: { p_id: string }; Returns: number }
       expense_posting_actor_check: {
         Args: { p_mirror_id: string; p_org_id: string }
@@ -9902,6 +10297,19 @@ export type Database = {
         Returns: {
           line_id: string
           outcome: string
+        }[]
+      }
+      imprest_custodian_eligible: {
+        Args: { p_org: string; p_profile: string; p_project: string }
+        Returns: boolean
+      }
+      imprest_funded: { Args: { p_float: string }; Returns: number }
+      imprest_lock_float: { Args: { p_float: string }; Returns: undefined }
+      imprest_senior_route: {
+        Args: { p_org: string; p_requester: string }
+        Returns: {
+          approver_ids: string[]
+          route: string
         }[]
       }
       insert_timesheet_outbox_pending: {
@@ -10710,6 +11118,10 @@ export type Database = {
         }[]
       }
       project_number_null_insert_default: { Args: never; Returns: string }
+      propose_imprest_float_amount: {
+        Args: { p_amount: number; p_float: string }
+        Returns: string
+      }
       propose_project_number: { Args: { p_client_id: string }; Returns: string }
       purge_error_events: {
         Args: { p_retention_days?: number }
@@ -10931,6 +11343,10 @@ export type Database = {
           p_site_url: string
         }
         Returns: string
+      }
+      set_imprest_procurement_limit: {
+        Args: { p_amount: number }
+        Returns: undefined
       }
       set_procurement_gates: { Args: { p_gates: Json }; Returns: Json }
       set_procurement_invoice_efaktur: {
@@ -11251,6 +11667,10 @@ export type Database = {
           p_payment_reference?: string
           p_to: Database["public"]["Enums"]["expense_claim_status"]
         }
+        Returns: undefined
+      }
+      transition_imprest_plan: {
+        Args: { p_id: string; p_notes?: string; p_to: string }
         Returns: undefined
       }
       transition_native_sales_invoice: {
