@@ -30,6 +30,7 @@ const REQUIRED = {
   'supabase/functions/external-items/items.test.ts': 'handleItemsRequest',
   'supabase/functions/external-invoice-pdf/invoice-pdf.test.ts': 'handleInvoicePdfRequest',
   'supabase/functions/external-set-company/set-company.test.ts': 'handleSetCompanyRequest',
+  'supabase/functions/external-set-company/odoo.test.ts': 'handleSetCompanyRequest',
   'supabase/functions/external-link/link.test.ts': 'handleLinkRequest',
   'supabase/functions/external-lists/lists.test.ts': 'handleListsRequest',
   'supabase/functions/external-unlink/unlink.test.ts': 'handleUnlinkRequest',
