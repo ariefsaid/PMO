@@ -33,6 +33,7 @@ const REQUIRED = {
   'supabase/functions/external-set-company/set-company.test.ts': 'handleSetCompanyRequest',
   'supabase/functions/external-set-company/odoo.test.ts': 'handleSetCompanyRequest',
   'supabase/functions/external-set-company/discovery.bed.test.ts': 'handleSetCompanyRequest',
+  'supabase/functions/external-set-company/costAccount.bed.test.ts': 'handleSetCompanyRequest',
   'supabase/functions/external-set-company/connect.test.ts': 'handleSetCompanyRequest',
   'supabase/functions/external-set-company/connect.odoo.test.ts': 'handleSetCompanyRequest',
   'supabase/functions/external-set-company/odoo.projects.test.ts': 'handleSetCompanyRequest',
