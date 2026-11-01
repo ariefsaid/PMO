@@ -1788,6 +1788,13 @@ describe('AC-1404: procurement detail composition and role-safe actions', () => 
     expect(screen.getAllByText(/Waiting for approval/i).length).toBeGreaterThan(0);
   });
 
+  it('#1591: the waiting note wraps instead of forcing the header wider than a 320px viewport', () => {
+    detailState.data = { ...baseProcurement, requested_by_id: 'u-alice' };
+    renderPage();
+    const note = screen.getAllByText(/Waiting for approval/i)[0];
+    expect(note.className).not.toContain('whitespace-nowrap');
+  });
+
   it('AC-1404: Engineer sees no supplier-invoice or payment amounts', () => {
     mockEffectiveRole = 'Engineer';
     detailState.data = {
