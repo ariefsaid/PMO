@@ -1395,6 +1395,25 @@ Self-assertion block, rollback file with the restored 0376 bodies, denominator (
 `equipment_costing.test.sql equipment_actual_cost.test.sql equipment_actual_cost_perf.test.sql cost_attribution.test.sql bfy_attribution_known.test.sql bfy_attribution_partial.test.sql`
 (the last two exercise `budget_attributed_year_sums` through the wrapper).
 
+**As built (S3, migration `0471_equipment_actual_cost.sql`; the coordinator allocated 0471 in place of 0449).** Deviations from
+the text above, each kept to the spec's behaviour:
+- The engine's `winners` is the 0376 join split on the cost centre (`candidates` = an equi-join on `(account, cost_center)` plus
+  a wildcard-cost-centre half) over a once-read, materialized `ledger`, and `eq_usage`/`eq_all` are materialized. Nested as in
+  the 0376 text, 200 settings on one account made the read 3 s (NFR-EQU-003); as built it is about 0.6 s. Winner order, ties
+  and results are unchanged (`cost_attribution.test.sql` runs unchanged, green).
+- `eq_usage` never adds hours to days (`u.unit = v.rate_unit` for the `units` driver): FR-EQU-032 refuses the mix, this holds
+  if one slipped in.
+- The `usage_only` arm of `list_equipment_allocations` already excludes `actual_cost` (S2 wrote `none` or a unit-mismatched
+  `hire_rate`), so S3 leaves it unchanged. An unallocated pool's `amount` is null in the list (the pool is in `pool`).
+- Carry-forward from S1 (decided here): an Admin could hard-delete an Approved entry while archive refuses it. A
+  `before delete` guard (`equipment_usage_guard_delete`, definer trigger, no client grant) now refuses to delete an Approved,
+  non-archived entry whose work date lies inside an effective `hire_rate` or `actual_cost` version (actual_cost: its whole
+  months, PQ-5); the Admin path is reopen, then archive or delete. Drafts, archived rows and usage on assets with no costing
+  stay deletable, and an org cascade stands the guard down.
+- Tests: `equipment_actual_cost.test.sql` (31 rows incl. an actual_cost v1/v2 split, the delete guard and a cross-org ledger
+  line) and `equipment_actual_cost_perf.test.sql` (3 rows). No new client RPC, table or mirror: the 0178 count, the isolation
+  denominator and the 0136/0137 inventories are unchanged.
+
 ---
 
 ## S4 - Project actuals, finances, API tiers (`<S4-NNNN>_equipment_project_actuals.sql`) — money, ships alone
