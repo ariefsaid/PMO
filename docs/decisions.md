@@ -3612,6 +3612,9 @@ Other invoice exists, so no classification silently changes meaning.
 ### OD-ERP-ANYTIME-1 — PMO syncs with the ERP whenever the connection is made (owner, 2026-10-31)
 PMO must sync with the ERP in all four cases: a new org whose ERP already holds data; a new org with no ERP (connected later); an operational org connecting to a new, empty ERP (PMO's data is pushed out); an operational org connecting to an ERP that already holds data (match both sides, no duplicates, no double count). Setup maps once with bulk-accepted auto-proposals. ERPNext and Odoo follow the same sync workflow through one adapter contract with one contract test suite; an ERPNext sync-workflow change is made in the shared seam or replicated to Odoo where the ERP allows. Spec: `docs/specs/erp-connect-anytime.spec.md`.
 
+### DD-ODC-052 — who decides Odoo party review rows (Director, 2026-11-02; for owner review)
+- The connect-anytime setup gate wins over FR-ODC-052's "Admin or Finance": party review rows are decided by an Admin, account rows by Finance, the same for every ERP. Reason: one setup screen and one gate for all tiers; the connect-anytime spec is the later owner-signed one.
+
 ### OD-GRILL-20261101 — owner rulings, grill of 2026-11-01
 - **Specs signed:** connect-an-ERP-anytime (OQ-ECA-1..4 defaults, "for now"), subcontract acceptance #1513 (OQ-1..10 defaults), equipment usage #1519 (OQ-1..9 defaults).
 - **Work orders are the project's billing milestones (#1592).** The project plan shows each work order as a milestone: dates, value, billing status (Planned / In progress / Invoiced / Paid), "Invoice this"; each work order shows days since its acceptance with no invoice yet. OD-BILL-1 stands (bill by the client's PO); this is the same record shown on the plan, no second entry. The showreel is a teaser and is **not re-cut**.

@@ -48,4 +48,5 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   'budget.unowned-occupant': { status: 'pending', version: 1, issue: ODOO_ACTUALS_AND_BUDGET },
   'timesheet.push': { status: 'pending', version: 1, issue: ODOO_LABOUR },
   'imprest.transfer': { status: 'pending', version: 1, issue: ODOO_SITE_CASH },
+  'purchase-order.revise': { status: 'pending', version: 1, issue: 1505 }, // #1505 carries the revise transport
 };
