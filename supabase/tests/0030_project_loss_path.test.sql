@@ -25,7 +25,7 @@ set local request.jwt.claims = '{"sub":"00300000-0000-0000-0000-0000000000a2","r
 
 -- ── Lose the project ──────────────────────────────────────────────────────────
 select lives_ok(
-  $$ select transition_project('00300000-0000-0000-0000-000000000010','Loss Tender') $$,
+  $$ select transition_project('00300000-0000-0000-0000-000000000010','Loss Tender',null,null,'price',null) $$,
   'AC-1008: loss transition succeeds');
 
 select is(

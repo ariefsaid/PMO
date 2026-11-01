@@ -74,6 +74,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useFinanceBudgetReview: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useSalesPipeline: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
   useWinRate: () => ({ data: null, isPending: false, isError: false }),
+  useLossBreakdown: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: procurements, isPending: false, isError: false, refetch: vi.fn() }),
