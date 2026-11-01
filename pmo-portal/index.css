@@ -558,6 +558,8 @@
 .kanban > * {
   scroll-snap-align: start;
 }
+/* DND (#1637): mandatory snap fights dnd-kit auto-scroll while a card is held */
+[data-dragging='true'] .kanban-scroll { scroll-snap-type: none; }
 .kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(258px, 1fr); gap: 13px; min-width: 0; }
 .kcol-head-sticky {
   position: sticky; top: 0;

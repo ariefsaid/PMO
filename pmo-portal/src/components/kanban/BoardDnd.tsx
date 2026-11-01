@@ -47,17 +47,35 @@ export const BoardDnd: React.FC<BoardDndProps> = ({ onMove, renderOverlay, child
   );
 };
 
-/** Column drop target. Children is a render prop receiving the column's drop state while a card is dragged. */
-export const DroppableColumn: React.FC<{ id: string; className?: string; children: (dropState: 'allowed' | 'blocked' | undefined) => React.ReactNode }> = ({ id, className, children }) => {
+/**
+ * Column drop target. Children is a render prop receiving the column's drop state while a card is dragged.
+ * The div it renders IS the board's column element, so it takes the column's `className`, `data-testid`
+ * and an optional `nodeRef` (e.g. the mobile-scroll column registry) rather than adding a wrapper.
+ */
+export const DroppableColumn: React.FC<{
+  id: string;
+  className?: string;
+  testId?: string;
+  nodeRef?: (el: HTMLDivElement | null) => void;
+  children: (dropState: 'allowed' | 'blocked' | undefined) => React.ReactNode;
+}> = ({ id, className, testId, nodeRef, children }) => {
   const { setNodeRef } = useDroppable({ id });
   const { activeId, canDrop } = useContext(ActiveCard);
   const dropState = activeId ? (canDrop(activeId, id) ? 'allowed' : 'blocked') : undefined;
-  return <div ref={setNodeRef} className={className}>{children(dropState)}</div>;
+  return (
+    <div
+      ref={(el) => { setNodeRef(el); nodeRef?.(el); }}
+      className={className}
+      data-testid={testId}
+    >
+      {children(dropState)}
+    </div>
+  );
 };
 
 /** Pointer/touch drag wrapper. Spreads listeners only: no role/tabIndex, the menu stays the keyboard path. */
 export const DraggableCard: React.FC<{ id: string; disabled?: boolean; moveState?: MoveState | null; children: React.ReactNode }> = ({ id, disabled = false, moveState = null, children }) => {
-  const { setNodeRef, listeners, isDragging } = useDraggable({ id, disabled: disabled || moveState === 'saving' });
+  const { setNodeRef, listeners, isDragging } = useDraggable({ id, disabled: disabled || moveState !== null });
   return (
     <div
       ref={setNodeRef}
