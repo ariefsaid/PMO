@@ -10381,6 +10381,7 @@ export type Database = {
         Returns: {
           approvers: Json
           claim_id: string
+          is_exception: boolean
           line_budget: number
           line_used: number
           reason: string
@@ -10406,6 +10407,7 @@ export type Database = {
           cash_book: number
           float_amount: number
           float_id: string
+          funded_total: number
           gap: number
           last_count_at: string
           last_count_variance: number

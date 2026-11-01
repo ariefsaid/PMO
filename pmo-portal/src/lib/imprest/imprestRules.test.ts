@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  availableFloatActions, availableReplenishmentActions, availablePlanActions, availableFloatChangeActions, planExceptionRoute, sumCents, toCents, gapCents, isPlanException,
+  availableFloatActions, availableReplenishmentActions, availablePlanActions, availableFloatChangeActions, booksState, sumCents, toCents, gapCents, isPlanException,
 } from './imprestRules';
 
 const float = (o: Partial<Parameters<typeof availableFloatActions>[0]> = {}) => ({
@@ -109,22 +109,24 @@ describe('AC-IMP-081 float amount changes follow decide_imprest_float_change', (
   });
 });
 
-describe('AC-IMP-081 the out-of-plan route is derived for a Submitted float record', () => {
-  const seniors = [{ id: 's1', fullName: 'Sam Senior' }, { id: 'claimant', fullName: 'Cleo Claimant' }];
-  it('AC-IMP-081 an item above the month\'s remaining routes to the senior set, minus the claimant', () => {
-    expect(planExceptionRoute({ amount: 700000, remaining: 500000, seniors, claimantId: 'claimant' }))
-      .toEqual({ route: 'org', approvers: [{ id: 's1', fullName: 'Sam Senior' }] });
+describe('AC-IMP-081 the books state is measured against funded cash', () => {
+  const base = { float_amount: '3000000', funded_total: '0', cash_book: '0', advances_out: '0', receipts_waiting: '0' };
+  it('AC-IMP-003 a float never funded is Not yet funded, not a defect', () => {
+    expect(booksState(base)).toEqual({ kind: 'unfunded', due: 3000000 });
   });
-  it('AC-IMP-081 no eligible senior approver routes to an Admin', () => {
-    expect(planExceptionRoute({ amount: 700000, remaining: 500000, seniors: [], claimantId: 'claimant' })).toEqual({ route: 'admin', approvers: [] });
-    expect(planExceptionRoute({ amount: 700000, remaining: 0, seniors: [seniors[1]], claimantId: 'claimant' })).toEqual({ route: 'admin', approvers: [] });
+  it('AC-IMP-081 a funded float whose holdings equal the funding balances', () => {
+    expect(booksState({ ...base, float_amount: '3000000', funded_total: '3000000', cash_book: '2000000', advances_out: '500000', receipts_waiting: '500000' }))
+      .toEqual({ kind: 'balanced' });
   });
-  it('AC-IMP-081 an item within the remaining is not an exception; no plan line (null) always is', () => {
-    expect(planExceptionRoute({ amount: 500000, remaining: 500000, seniors, claimantId: 'claimant' })).toBeNull();
-    expect(planExceptionRoute({ amount: 1, remaining: null, seniors: [], claimantId: 'claimant' })).toEqual({ route: 'admin', approvers: [] });
+  it('AC-IMP-081 an enlarged float awaiting a top-up is a neutral top-up, not a defect', () => {
+    expect(booksState({ ...base, float_amount: '4000000', funded_total: '3000000', cash_book: '3000000' })).toEqual({ kind: 'topUp', due: 1000000 });
   });
-  it('AC-IMP-081 an unknown remaining derives nothing (the RPC decides)', () => {
-    expect(planExceptionRoute({ amount: 700000, remaining: undefined, seniors, claimantId: 'claimant' })).toBeNull();
+  it('AC-IMP-081 funded cash that holdings do not explain is a defect, either way', () => {
+    expect(booksState({ ...base, float_amount: '3000000', funded_total: '3000000', cash_book: '2500000' })).toEqual({ kind: 'broken', short: 500000 });
+    expect(booksState({ ...base, float_amount: '3000000', funded_total: '3000000', cash_book: '3100000' })).toEqual({ kind: 'broken', short: -100000 });
+  });
+  it('AC-IMP-081 a zero-amount unfunded float balances', () => {
+    expect(booksState({ ...base, float_amount: '0' })).toEqual({ kind: 'balanced' });
   });
 });
 

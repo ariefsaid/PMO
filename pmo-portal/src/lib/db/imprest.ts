@@ -31,6 +31,13 @@ export async function listFloats(): Promise<Bounded<ImprestFloatRow & { project:
   fail(error);
   return bounded(data);
 }
+export async function getFloat(floatId: string): Promise<(ImprestFloatRow & { project: { name: string } | null; custodian: { full_name: string } | null }) | null> {
+  const { data, error } = await supabase.from('imprest_floats')
+    .select('*, project:projects(name), custodian:profiles!imprest_floats_custodian_id_fkey(full_name)')
+    .eq('id', floatId).maybeSingle();
+  fail(error);
+  return data;
+}
 export async function getPosition(floatId: string): Promise<ImprestPosition | null> {
   const { data, error } = await supabase.rpc('get_imprest_position', { p_float: floatId });
   fail(error);
@@ -63,8 +70,11 @@ export async function listReplenishments(floatId: string): Promise<Bounded<Impre
   fail(error);
   return bounded(data);
 }
-export async function listFloatChanges(floatId: string): Promise<Bounded<ImprestFloatChangeRow>> {
-  const { data, error } = await supabase.from('imprest_float_changes').select('*').eq('float_id', floatId)
+export type ImprestFloatChangeListRow = ImprestFloatChangeRow & { proposer: { full_name: string } | null; decider: { full_name: string } | null };
+export async function listFloatChanges(floatId: string): Promise<Bounded<ImprestFloatChangeListRow>> {
+  const { data, error } = await supabase.from('imprest_float_changes')
+    .select('*, proposer:profiles!imprest_float_changes_proposed_by_fkey(full_name), decider:profiles!imprest_float_changes_decided_by_fkey(full_name)')
+    .eq('float_id', floatId)
     .order('proposed_at', { ascending: false }).limit(LIST_LIMIT + 1);
   fail(error);
   return bounded(data);

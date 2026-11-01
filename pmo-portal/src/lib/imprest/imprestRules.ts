@@ -22,6 +22,22 @@ export function gapCents(p: { float_amount: string | number; cash_book: string |
                               receipts_waiting: string | number }): number {
   return toCents(p.float_amount) - sumCents([p.cash_book, p.advances_out, p.receipts_waiting]);
 }
+/** DD-IMP-2 against what head office has actually put in: the books balance when funded cash equals cash + advances out + receipts
+ *  waiting. `gap` (float amount minus holdings) is what funding would top up, so it is NOT a defect before the first funding or
+ *  after a float is enlarged. Only a break in the funded identity is `broken`. `short` is cents the books are missing (negative = extra). */
+export type BooksState =
+  | { kind: 'balanced' }
+  | { kind: 'unfunded'; due: number }
+  | { kind: 'topUp'; due: number }
+  | { kind: 'broken'; short: number };
+export function booksState(p: { float_amount: string | number; funded_total: string | number; cash_book: string | number;
+                                advances_out: string | number; receipts_waiting: string | number }): BooksState {
+  const short = toCents(p.funded_total) - sumCents([p.cash_book, p.advances_out, p.receipts_waiting]);
+  if (short !== 0) return { kind: 'broken', short: short / 100 };
+  const due = gapCents(p);
+  if (toCents(p.funded_total) === 0) return due > 0 ? { kind: 'unfunded', due: due / 100 } : { kind: 'balanced' };
+  return due > 0 ? { kind: 'topUp', due: due / 100 } : { kind: 'balanced' };
+}
 /** FR-IMP-024 hint: no approved plan line (remaining null) means everything is out of plan. */
 export function isPlanException(amount: number | string, remaining: number | string | null | undefined): boolean {
   return remaining == null || toCents(amount) > toCents(remaining);
@@ -95,17 +111,4 @@ export function availableFloatChangeActions(c: FloatChangeCtx): ImprestAction[] 
   if (!c.userId || !c.realRole) return [];
   if (c.change.status !== 'Proposed' || c.userId === c.change.proposed_by || c.userId === c.custodianId) return [];
   return APPROVAL_RANK.includes(c.realRole) ? ['approveFloatChange', 'rejectFloatChange'] : [];
-}
-
-/** FR-IMP-024/025 for a SUBMITTED float record. The server evaluates the exception at decision time and stamps the flag only on
- *  Approved, so the record page derives it the same way: above the month's remaining (no plan line = zero) the record goes to the
- *  senior set (minus the claimant), or to an Admin when none is eligible. `remaining` undefined = unknown: derive nothing, the RPC decides.
- *  UX only (ADR-0016). The client cannot see a senior member's status or rank, so a stale entry may be listed; the RPC still refuses. */
-export function planExceptionRoute(c: {
-  amount: number | string; remaining: number | string | null | undefined;
-  seniors: Array<{ id: string; fullName: string }>; claimantId: string;
-}): { route: 'org' | 'admin'; approvers: Array<{ id: string; fullName: string }> } | null {
-  if (c.remaining === undefined || !isPlanException(c.amount, c.remaining)) return null;
-  const approvers = c.seniors.filter((s) => s.id !== c.claimantId);
-  return approvers.length > 0 ? { route: 'org', approvers } : { route: 'admin', approvers: [] };
 }

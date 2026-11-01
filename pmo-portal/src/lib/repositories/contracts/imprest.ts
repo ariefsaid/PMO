@@ -3,6 +3,7 @@ import type * as dal from '@/src/lib/db/imprest';
 
 export interface ImprestRepository {
   listFloats: typeof dal.listFloats;
+  getFloat: typeof dal.getFloat;
   getPosition: typeof dal.getPosition;
   getPlanUsage: typeof dal.getPlanUsage;
   floatChoices: typeof dal.floatChoices;

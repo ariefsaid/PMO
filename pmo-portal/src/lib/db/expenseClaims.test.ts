@@ -63,12 +63,14 @@ describe('AC-EXP-050 create', () => {
     await createExpenseClaim({ kind: 'claim', title: 'T', purpose: null, projectId: null, budgetCategory: null, advanceId: 'adv-1' });
     expect(h.calls.insert[0]).toMatchObject({ advance_id: 'adv-1' });
   });
-  it('AC-IMP-084 a claim charged to a float sends imprest_float_id; an advance never does', async () => {
+  it('AC-IMP-084 a claim or an advance charged to a float sends imprest_float_id; none chosen sends none', async () => {
     h.result.value = { data: { id: 'c3' }, error: null };
     await createExpenseClaim({ kind: 'claim', title: 'T', purpose: null, projectId: 'p1', budgetCategory: 'Vehicle', imprestFloatId: 'f1' });
     expect(h.calls.insert[0]).toMatchObject({ imprest_float_id: 'f1' });
     await createExpenseClaim({ kind: 'advance', title: 'T', purpose: null, projectId: 'p1', budgetCategory: null, amount: 1, imprestFloatId: 'f1' });
-    expect(h.calls.insert[1]).not.toHaveProperty('imprest_float_id');
+    expect(h.calls.insert[1]).toMatchObject({ kind: 'advance', imprest_float_id: 'f1' });
+    await createExpenseClaim({ kind: 'advance', title: 'T', purpose: null, projectId: 'p1', budgetCategory: null, amount: 1 });
+    expect(h.calls.insert[2]).not.toHaveProperty('imprest_float_id');
   });
 });
 
@@ -128,10 +130,14 @@ describe('AC-EXP-050 reads through RPCs', () => {
     expect(h.rpc).not.toHaveBeenCalled();
   });
   it('AC-EXP-050 routes map to the shared ApprovalRoute shape', async () => {
-    h.rpcResult.value = { data: [{ claim_id: 'c1', route: 'project', reason: 'within_budget', approvers: [{ id: 'u2', full_name: 'Ayu' }], request_amount: '400.00', line_budget: '1000.00', line_used: '0' }], error: null };
+    h.rpcResult.value = { data: [{ claim_id: 'c1', route: 'project', reason: 'within_budget', approvers: [{ id: 'u2', full_name: 'Ayu' }], request_amount: '400.00', line_budget: '1000.00', line_used: '0', is_exception: false }], error: null };
     await expect(getExpenseClaimRoutes(['c1'])).resolves.toEqual([
-      { claimId: 'c1', route: 'project', reason: 'within_budget', approvers: [{ id: 'u2', fullName: 'Ayu' }], requestAmount: 400, lineBudget: 1000, lineUsed: 0 },
+      { claimId: 'c1', route: 'project', reason: 'within_budget', approvers: [{ id: 'u2', fullName: 'Ayu' }], requestAmount: 400, lineBudget: 1000, lineUsed: 0, isException: false },
     ]);
+  });
+  it('AC-IMP-023 is_exception from the route read maps to isException', async () => {
+    h.rpcResult.value = { data: [{ claim_id: 'c1', route: 'org', reason: 'within_budget', approvers: [], request_amount: '700', line_budget: null, line_used: null, is_exception: true }], error: null };
+    await expect(getExpenseClaimRoutes(['c1'])).resolves.toMatchObject([{ claimId: 'c1', route: 'org', isException: true }]);
   });
   it('AC-EXP-050 aging numerics become numbers and the read is bounded', async () => {
     h.rpcResult.value = { data: [{ advance_id: 'a1', claim_number: 'ADV-1', claimant_id: 'u1', claimant_name: 'Eng', project_id: null, project_name: null, currency: 'IDR', amount: '500.00', settled: '0', returned: '100.00', outstanding: '400.00', paid_on: '2026-08-22', age_days: 45, bucket: '31-60' }], error: null };

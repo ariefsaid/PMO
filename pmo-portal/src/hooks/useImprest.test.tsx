@@ -6,7 +6,7 @@ import React from 'react';
 const { imprest, orgSettings } = vi.hoisted(() => ({
   orgSettings: { listSpendApprovers: vi.fn() },
   imprest: {
-    listFloats: vi.fn(), getPosition: vi.fn(), getPlanUsage: vi.fn(), floatChoices: vi.fn(), listPlans: vi.fn(),
+    listFloats: vi.fn(), getFloat: vi.fn(), getPosition: vi.fn(), getPlanUsage: vi.fn(), floatChoices: vi.fn(), listPlans: vi.fn(),
     listPlanLines: vi.fn(), listReplenishments: vi.fn(), listCounts: vi.fn(), createPlan: vi.fn(), savePlanLine: vi.fn(),
     deletePlanLine: vi.fn(), setProcurementLimit: vi.fn(), establishFloat: vi.fn(), proposeFloatAmount: vi.fn(),
     decideFloatChange: vi.fn(), transitionPlan: vi.fn(), requestReplenishment: vi.fn(), transitionReplenishment: vi.fn(),
@@ -19,7 +19,7 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1'
 
 import {
   IMPREST_QUERY_ROOTS, useImprestFloats, useImprestPosition, useImprestPlanUsage, useImprestPlans, useImprestReplenishments,
-  useImprestCounts, useImprestFloatChoices, useSeniorApprovers, useRequestReplenishment, useTransitionPlan, useRecordCount, useEstablishFloat,
+  useImprestCounts, useImprestFloatChoices, useImprestFloat, useRequestReplenishment, useTransitionPlan, useRecordCount, useEstablishFloat,
 } from './useImprest';
 import { EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
 import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
@@ -42,12 +42,12 @@ describe('AC-IMP-083 imprest hooks', () => {
     const client = fresh();
     renderHook(() => {
       useImprestFloats(); useImprestPosition('f1'); useImprestPlanUsage('f1', '2026-11-01'); useImprestPlans('f1');
-      useImprestReplenishments('f1'); useImprestCounts('f1'); useImprestFloatChoices('p1', 'Vehicle');
+      useImprestReplenishments('f1'); useImprestCounts('f1'); useImprestFloatChoices('p1', 'Vehicle'); useImprestFloat('f1');
     }, { wrapper: wrap(client) });
     await waitFor(() => expect(client.isFetching()).toBe(0));
     const keys = client.getQueryCache().getAll().map((q) => JSON.stringify(q.queryKey)).sort();
     expect(keys).toEqual([
-      ['imprest-counts', 'org-1', 'f1'], ['imprest-float-choices', 'org-1', 'p1', 'Vehicle'], ['imprest-floats', 'org-1'],
+      ['imprest-counts', 'org-1', 'f1'], ['imprest-float-choices', 'org-1', 'p1', 'Vehicle'], ['imprest-floats', 'org-1'], ['imprest-floats', 'org-1', 'one', 'f1'],
       ['imprest-plan-usage', 'org-1', 'f1', '2026-11-01'], ['imprest-plans', 'org-1', 'f1'],
       ['imprest-position', 'org-1', 'f1'], ['imprest-replenishments', 'org-1', 'f1'],
     ].map((k) => JSON.stringify(k)).sort());
@@ -89,16 +89,5 @@ describe('AC-IMP-083 imprest hooks', () => {
       const keys = spy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
       for (const root of roots) expect(keys).toContain(JSON.stringify([root]));
     }
-  });
-
-  it('FR-IMP-025 the senior set is the org-level spend approvers only, read under the shared spend-approvers key', async () => {
-    orgSettings.listSpendApprovers.mockResolvedValue([
-      { id: 'a', projectId: null, projectName: null, profileId: 'p1', fullName: 'Sam Senior' },
-      { id: 'b', projectId: 'proj', projectName: 'X', profileId: 'p2', fullName: 'Pia Project' },
-    ]);
-    const client = fresh();
-    const { result } = renderHook(() => useSeniorApprovers(), { wrapper: wrap(client) });
-    await waitFor(() => expect(result.current.data).toEqual([{ id: 'p1', fullName: 'Sam Senior' }]));
-    expect(client.getQueryCache().getAll().map((q) => q.queryKey)).toEqual([['spend-approvers', 'org-1']]);
   });
 });

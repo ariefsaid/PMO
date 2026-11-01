@@ -15,6 +15,15 @@ export function useImprestFloats() {
   const orgId = useOrgId();
   return useQuery({ queryKey: ['imprest-floats', orgId], queryFn: () => repositories.imprest.listFloats(), enabled: Boolean(orgId) });
 }
+/** One float by id (a record page must not search the capped list). Shares the `imprest-floats` root, so every write refreshes it. */
+export function useImprestFloat(floatId: string | null | undefined) {
+  const orgId = useOrgId();
+  return useQuery({
+    queryKey: ['imprest-floats', orgId, 'one', floatId],
+    queryFn: () => repositories.imprest.getFloat(floatId as string),
+    enabled: Boolean(orgId) && Boolean(floatId),
+  });
+}
 export function useImprestPosition(floatId: string | undefined) {
   const orgId = useOrgId();
   return useQuery({
@@ -86,16 +95,6 @@ export function useImprestAwaiting() {
 export function useImprestProcurementLimit() {
   const orgId = useOrgId();
   return useQuery({ queryKey: ['imprest-limit', orgId], queryFn: () => repositories.imprest.getProcurementLimit(), enabled: Boolean(orgId) });
-}
-/** The org-level senior set (FR-IMP-025); shares the admin page's `spend-approvers` cache entry. Every active member reads (RLS). */
-export function useSeniorApprovers() {
-  const orgId = useOrgId();
-  return useQuery({
-    queryKey: ['spend-approvers', orgId],
-    queryFn: () => repositories.orgSettings.listSpendApprovers(),
-    select: (rows) => rows.filter((r) => r.projectId === null).map((r) => ({ id: r.profileId, fullName: r.fullName })),
-    enabled: Boolean(orgId),
-  });
 }
 export function useImprestFloatChoices(projectId: string | undefined, category: BudgetCategory | null) {
   const orgId = useOrgId();

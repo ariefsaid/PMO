@@ -45,7 +45,7 @@ export interface ExpenseClaimInput {
   amount?: number;
   /** Claims only — one of the claimant's own paid advances (DD-EXP-6). */
   advanceId?: string | null;
-  /** Claims only — charge the claim to a site float (#1515). Omitted on a patch = leave the link unchanged. */
+  /** Charge the claim or advance to a site float (#1515). Omitted on a patch = leave the link unchanged; null = release it. */
   imprestFloatId?: string | null;
 }
 export type ExpenseClaimPatch = Omit<ExpenseClaimInput, 'kind'>;
@@ -57,7 +57,8 @@ export interface ExpenseLineInput {
   amount: number;
 }
 
-export type ExpenseClaimRoute = Omit<ApprovalRoute, 'procurementId'> & { claimId: string };
+/** `isException` (0426): a Submitted float record above the month's plan; its route is already the senior one. */
+export type ExpenseClaimRoute = Omit<ApprovalRoute, 'procurementId'> & { claimId: string; isException: boolean };
 
 export type AgingBucket = '0-30' | '31-60' | '61-90' | '90+';
 export interface ExpenseAdvanceAgingRow {
@@ -132,7 +133,7 @@ export async function createExpenseClaim(input: ExpenseClaimInput): Promise<Expe
   };
   if (input.kind === 'advance') body.amount = input.amount ?? 0;
   if (input.kind === 'claim' && input.advanceId) body.advance_id = input.advanceId;
-  if (input.kind === 'claim' && input.imprestFloatId) body.imprest_float_id = input.imprestFloatId;
+  if (input.imprestFloatId) body.imprest_float_id = input.imprestFloatId;
   const { data, error } = await supabase.from('expense_claims').insert(body as never).select(SELECT).single();
   if (error) throwWrite(error);
   return data as unknown as ExpenseClaimWithRefs;
@@ -146,10 +147,8 @@ export async function updateExpenseClaim(id: string, kind: ExpenseKind, patch: E
     budget_category: patch.budgetCategory,
   };
   if (kind === 'advance') body.amount = patch.amount ?? 0;
-  else {
-    body.advance_id = patch.advanceId ?? null;
-    if (patch.imprestFloatId !== undefined) body.imprest_float_id = patch.imprestFloatId;
-  }
+  else body.advance_id = patch.advanceId ?? null;
+  if (patch.imprestFloatId !== undefined) body.imprest_float_id = patch.imprestFloatId;
   const { data, error } = await supabase.from('expense_claims').update(body as never).eq('id', id).select('id');
   if (error) throwWrite(error);
   assertWriteLanded(data, 'Expense claim not found, or it can no longer be edited.');
@@ -213,6 +212,7 @@ export async function getExpenseAdvanceOutstanding(advanceId: string): Promise<n
 interface RouteRpcRow {
   claim_id: string; route: string; reason: string; approvers: { id: string; full_name: string }[] | null;
   request_amount: number | string; line_budget: number | string | null; line_used: number | string | null;
+  is_exception: boolean | null;
 }
 
 export async function getExpenseClaimRoutes(ids: string[]): Promise<ExpenseClaimRoute[]> {
@@ -227,6 +227,7 @@ export async function getExpenseClaimRoutes(ids: string[]): Promise<ExpenseClaim
     requestAmount: Number(r.request_amount),
     lineBudget: r.line_budget == null ? null : Number(r.line_budget),
     lineUsed: r.line_used == null ? null : Number(r.line_used),
+    isException: r.is_exception === true,
   }));
 }
 

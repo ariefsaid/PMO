@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 
-const h = vi.hoisted(() => ({ data: [] as unknown[], receipts: [] as unknown[], isPending: false, download: vi.fn() }));
+const h = vi.hoisted(() => ({ data: [] as unknown[], receipts: [] as unknown[], isPending: false, download: vi.fn(), userId: 'pm', role: 'Project Manager' }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({
   useExpenseClaimsAwaitingDecision: () => ({ data: h.data, isPending: h.isPending, isError: false, refetch: vi.fn() }),
 }));
@@ -14,8 +14,8 @@ vi.mock('@/src/hooks/useExpenseReceipts', () => ({
     download: h.download,
   }),
 }));
-vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'pm', org_id: 'org-1' } }) }));
-vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Project Manager', effectiveRole: 'Project Manager' }) }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org-1' } }) }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.role }) }));
 
 import { ExpenseClaimApprovalSection } from './ExpenseClaimApprovalSection';
 import { DocumentViewerProvider } from '@/src/components/documents';
@@ -26,15 +26,31 @@ const item = (id: string, claimant: string, route: unknown) => ({
 });
 
 describe('ExpenseClaimApprovalSection', () => {
-  it('FR-IMP-073 an out-of-plan site cash claim carries an Out of plan tag; an ordinary claim does not', () => {
+  it('FR-IMP-073 a claim the server routes as an exception carries an Out of plan tag; an ordinary claim does not', () => {
     h.data = [
-      { ...item('exc', 'eng', { route: 'flat', approvers: [] }), claim: { ...item('exc', 'eng', null).claim, is_plan_exception: true } },
-      item('ord', 'eng', { route: 'flat', approvers: [] }),
+      item('exc', 'eng', { route: 'flat', approvers: [], isException: true }),
+      item('ord', 'eng', { route: 'flat', approvers: [], isException: false }),
     ];
     render(<MemoryRouter><ExpenseClaimApprovalSection /></MemoryRouter>);
     expect(screen.getAllByText('Out of plan')).toHaveLength(1);
     expect(screen.getByText('Claim exc').closest('li')).toHaveTextContent('Out of plan');
     h.data = [];
+  });
+
+  it('FR-IMP-024 an out-of-plan claim waits for the senior approver, not the project approver', () => {
+    h.data = [item('exc', 'eng', { route: 'org', approvers: [{ id: 'sen', fullName: 'Sam Senior' }], isException: true })];
+    h.userId = 'pm';
+    h.role = 'Project Manager';
+    const { unmount } = render(<MemoryRouter><ExpenseClaimApprovalSection /></MemoryRouter>);
+    expect(screen.queryByText('Claim exc')).toBeNull();
+    unmount();
+    h.userId = 'sen';
+    h.role = 'Executive';
+    render(<MemoryRouter><ExpenseClaimApprovalSection /></MemoryRouter>);
+    expect(screen.getByText('Claim exc')).toBeInTheDocument();
+    h.data = [];
+    h.userId = 'pm';
+    h.role = 'Project Manager';
   });
 
   it('shows loading instead of hiding the section while claims are pending', () => {

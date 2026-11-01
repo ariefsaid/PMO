@@ -29,6 +29,16 @@ beforeEach(() => {
   h.result.value = { data: null, error: null };
 });
 
+describe('AC-IMP-080 one float by id', () => {
+  it('AC-IMP-080 getFloat reads exactly that float, not the capped list', async () => {
+    h.result.value = { data: { id: 'f1', custodian_id: 'c1' }, error: null };
+    await expect(dal.getFloat('f1')).resolves.toMatchObject({ id: 'f1' });
+    expect(h.calls.from).toEqual(['imprest_floats']);
+    expect(h.calls.eq).toContainEqual(['id', 'f1']);
+    expect(h.calls.limit).toEqual([]);
+  });
+});
+
 describe('AC-IMP-080 table writes', () => {
   it('AC-IMP-080 createPlan sends only float_id and month', async () => {
     h.result.value = { data: { id: 'p1' }, error: null };
