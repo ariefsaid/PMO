@@ -128,6 +128,19 @@ describe('AC-IMP-080 reads', () => {
     h.result.value = { data: [], error: null };
     expect(await dal.getPosition('f1')).toBeNull();
   });
+  it('#1635 floatChoices carries each float\'s currency, amount and project name from the float record', async () => {
+    h.calls.in.length = 0;
+    const rows = [{ float_id: 'f1', custodian_name: 'Cass', remaining: 5, id: 'f1', currency: 'USD', float_amount: 70, project: { name: 'Harbour' } }];
+    h.result.value = { data: rows, error: null };
+    const out = await dal.floatChoices('p1', null);
+    expect(out[0]).toMatchObject({ float_id: 'f1', currency: 'USD', float_amount: 70, project_name: 'Harbour' });
+    expect(h.calls.from).toContain('imprest_floats');
+  });
+  it('#1635 floatChoices with no floats makes no second read', async () => {
+    h.result.value = { data: [], error: null };
+    expect(await dal.floatChoices('p1', null)).toEqual([]);
+    expect(h.calls.from).not.toContain('imprest_floats');
+  });
 });
 
 describe('AC-IMP-084 form reads and the claim-to-float link', () => {

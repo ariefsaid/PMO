@@ -26,6 +26,8 @@ export type BudgetCategory = Database['public']['Enums']['budget_category'];
 export type ExpenseClaimWithRefs = ExpenseClaimRow & {
   claimant: { full_name: string } | null;
   project: { name: string; short_name?: string | null } | null;
+  /** The site float it is charged to (#1635); its currency governs how the amount is shown. */
+  float?: { currency: string } | null;
 };
 
 export interface ExpenseClaimFilters {
@@ -81,7 +83,7 @@ export interface ExpenseAdvanceAgingRow {
 export const EXPENSE_LIST_LIMIT = 200;
 export const AGING_LIMIT = 500;
 
-const SELECT = '*, claimant:profiles!expense_claims_claimant_id_fkey(full_name), project:projects(name,short_name)';
+const SELECT = '*, claimant:profiles!expense_claims_claimant_id_fkey(full_name), project:projects(name,short_name), float:imprest_floats(currency)';
 
 interface PostgrestErrorLike { message: string; code?: string }
 function throwWrite(error: PostgrestErrorLike): never {

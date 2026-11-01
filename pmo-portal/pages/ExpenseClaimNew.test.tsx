@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '@/src/components/ui';
+import { formatCurrencyAuto } from '@/src/lib/format';
 const h = vi.hoisted(() => ({ create: vi.fn(), addLine: vi.fn(), capture: vi.fn(), cleanup: vi.fn(), may: vi.fn(() => true), navigate: vi.fn(), claims: [] as unknown[], readiness: 'ready' as string, choices: [] as unknown[], choicesArgs: [] as unknown[][], limit: null as number | null, setFloat: vi.fn() }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => h.may }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-1' } }) }));
@@ -144,6 +145,27 @@ describe('Charge to site float (AC-IMP-084, FR-IMP-072)', () => {
     expect(screen.getByText(/above this month's plan/i)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/^Amount/), { target: { value: '400000' } });
     expect(screen.queryByText(/above this month's plan/i)).toBeNull();
+  });
+
+  it('#1635 the remaining-this-month hint is in the float currency, not the organisation currency', () => {
+    h.choices = [{ ...FLOATS[0], currency: 'USD', project_name: 'North Terminal' }];
+    renderPage();
+    fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } });
+    fireEvent.change(screen.getByLabelText('Budget category'), { target: { value: 'Vehicle' } });
+    fireEvent.change(screen.getByLabelText('Charge to site float'), { target: { value: 'f1' } });
+    fill('100');
+    const note = screen.getByRole('note');
+    expect(note).toHaveTextContent(formatCurrencyAuto(500000, 'USD'));
+    expect(note).not.toHaveTextContent(formatCurrencyAuto(500000, 'IDR'));
+  });
+
+  it('#1635 two floats of one custodian are told apart by project and custodian', () => {
+    h.choices = [{ ...FLOATS[0], project_name: 'North Terminal' }, { ...FLOATS[0], float_id: 'f2', project_name: 'Depot', remaining: 1 }];
+    renderPage();
+    fireEvent.change(screen.getByLabelText('Project'), { target: { value: 'p1' } });
+    const field = screen.getByLabelText('Charge to site float');
+    expect(within(field).getByRole('option', { name: 'North Terminal · Cass Custodian' })).toHaveValue('f1');
+    expect(within(field).getByRole('option', { name: 'Depot · Cass Custodian' })).toHaveValue('f2');
   });
 
   it('AC-IMP-084 an amount above the org limit shows the limit hint', () => {
