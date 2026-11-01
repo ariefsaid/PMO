@@ -10,6 +10,7 @@ const SETUP_CENSUS_AND_PROPOSALS = 1605;
 const SEND_TO_EMPTY_ERP = 1606;
 const CUTOVER_PROCESS_DOMAINS = 1601;
 const INVOICE_PAIRING = 1602;
+const BUDGET_EXISTING_OCCUPANT = 1603;
 // Shipped behaviour whose tests are still tier-local; the follow-up issue moves each into a shared suite.
 const SHIPPED_TESTS_NOT_YET_SHARED = 1609;
 
@@ -39,6 +40,7 @@ export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   'actuals.read': { status: 'pending', version: 1, issue: SHIPPED_TESTS_NOT_YET_SHARED },
   'budget.push': { status: 'pending', version: 1, issue: SHIPPED_TESTS_NOT_YET_SHARED },
   'budget.unowned-occupant': { status: 'supported', version: 1 },
+  'budget.resolve-occupant': { status: 'pending', version: 1, issue: BUDGET_EXISTING_OCCUPANT },
   'timesheet.push': { status: 'pending', version: 1, issue: SHIPPED_TESTS_NOT_YET_SHARED },
   'imprest.transfer': { status: 'supported', version: 1 },
 };

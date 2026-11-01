@@ -46,6 +46,7 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   'budget.push': { status: 'pending', version: 1, issue: ODOO_ACTUALS_AND_BUDGET },
   // O4 decides: Odoo Community has no budget object (DD-ODC-5), so this likely becomes unavailable.
   'budget.unowned-occupant': { status: 'pending', version: 1, issue: ODOO_ACTUALS_AND_BUDGET },
+  'budget.resolve-occupant': { status: 'pending', version: 1, issue: ODOO_ACTUALS_AND_BUDGET },
   'timesheet.push': { status: 'pending', version: 1, issue: ODOO_LABOUR },
   'imprest.transfer': { status: 'pending', version: 1, issue: ODOO_SITE_CASH },
 };

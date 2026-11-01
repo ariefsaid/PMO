@@ -37,6 +37,7 @@ export const WORKFLOWS = {
   'actuals.read': { version: 1, summary: 'read ledger actuals from the ERP' },
   'budget.push': { version: 1, summary: 'send an active budget version to the ERP' },
   'budget.unowned-occupant': { version: 1, summary: 'refuse to amend an ERP budget PMO did not create, writing nothing' },
+  'budget.resolve-occupant': { version: 1, summary: 'use an ERP budget PMO did not create as a PMO draft, or replace it after an explicit confirm' },
   'timesheet.push': { version: 1, summary: 'send an approved timesheet to the ERP' },
   'imprest.transfer': { version: 1, summary: 'move cash between two of the company\'s own accounts once, by key' },
 } as const satisfies Record<string, { version: number; summary: string }>;
