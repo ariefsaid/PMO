@@ -33,7 +33,7 @@ export const CONNECT_SEND_REJECTION_TEXT = {
   refused: (kind: string, reason: string | null) => `The ERP refused this ${NOUN[kind] ?? 'record'}${reason ? `: ${reason}` : '. Check it in the ERP, then try again.'}`,
 };
 
-interface Claimed { id: string; kind: string; pmo_ids: string[]; decided_by: string | null }
+interface Claimed { id: string; kind: string; pmo_ids: string[]; decided_by: string | null; snapshot: { auto?: boolean } | null }
 export interface DrainResult { sent: number; rejected: number; held: number; pending: number; error?: string }
 
 async function check<T>(q: PromiseLike<{ data: T; error: { code?: string } | null }>, what: string): Promise<T> {
@@ -72,7 +72,13 @@ export async function drainConnectSends(sc: SupabaseClient, org: { orgId: string
   clock: { nowMs: () => number; budgetMs: number } = { nowMs: Date.now, budgetMs: CONNECT_SENDS_BUDGET_MS }): Promise<DrainResult> {
   const out: DrainResult = { sent: 0, rejected: 0, held: 0, pending: 0 };
   if (!org.bindingId) return out;
+  // ECA3-T12 (FR-ECA-016): after setup a new item on an open purchase is queued here, then claimed below like any accepted send. A failure here
+  // is reported and must not hold back the sends already waiting.
+  let queueError: string | undefined;
+  try { await check(sc.rpc('enqueue_new_item_sends', { p_org_id: org.orgId, p_tier: TIER }), 'send queue'); }
+  catch (err) { queueError = `enqueue:${err instanceof Error ? err.message : String(err)}`; }
   const claimed = await check(sc.rpc('claim_connect_sends', { p_org_id: org.orgId, p_tier: TIER, p_limit: budget }), 'send claim') as Claimed[];
+  if (queueError) out.error = queueError;
   if (claimed.length === 0) return out;
 
   const conn = await erpClientForOrg(sc, org.orgId, { requireCompany: true });
@@ -98,7 +104,9 @@ export async function drainConnectSends(sc: SupabaseClient, org: { orgId: string
       if (linked) { await record(c, linked, null); continue; }
       const master = await pmoMasterOf(sc, org.orgId, kind, c.pmo_ids[0]);
       if (!master) { await reject(c, CONNECT_SEND_REJECTION_TEXT.gone); continue; }
-      if (!(await actorIsAdmin(sc, org.orgId, c.decided_by))) { await reject(c, CONNECT_SEND_REJECTION_TEXT.actor); continue; }
+      // a send the sweep queued itself (T12) has no accepting Admin; every other send still needs the Admin to hold the role
+      const queuedBySweep = c.decided_by === null && c.snapshot?.auto === true;
+      if (!queuedBySweep && !(await actorIsAdmin(sc, org.orgId, c.decided_by))) { await reject(c, CONNECT_SEND_REJECTION_TEXT.actor); continue; }
       let ambiguous = false;
       const money = createDbMoneyOutboxDeps({
         serviceClient: sc as never, orgId: org.orgId, externalTier: TIER, operation: 'create',

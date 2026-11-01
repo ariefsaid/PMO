@@ -2,7 +2,7 @@
 -- AC-ECA-010 (DB half: one external reference per sent company, nothing written to accounts or taxes) and AC-ECA-012 (DB half:
 -- a rejected send becomes a review row with a plain reason and leaves the others alone), NFR-ECA-004 (a held send says so).
 begin;
-select plan(62);
+select plan(78);
 
 insert into organizations (id, name) values
  ('a4520000-0000-0000-0000-000000000001','Sends A'),
@@ -265,6 +265,91 @@ select is((select array_agg(replace(pmo_record_id, 'rec-', '') order by pmo_reco
 select is((select array_agg(replace(pmo_record_id, 'rec-', '') order by pmo_record_id) from external_command_outbox where org_id='a4520000-0000-0000-0000-000000000003' and state = 'held'), array['committed','committing','quarantined'], 'I6 a row that may have reached the ERP is held, never deleted');
 select is((select state from external_command_outbox where idempotency_key = 'plain-key'), 'pending', 'I6 an outbox row that is not a connect send is untouched');
 select is((select count(*)::int from external_command_outbox where org_id='a4520000-0000-0000-0000-000000000001' and idempotency_key like 'seed:%'), 5, 'I6 another organisation''s outbox rows are untouched');
+
+-- 11. T12 (FR-ECA-016, PD-ECA-15): after an item bulk accept, a new item name on an open purchase is queued as an automatic send, once.
+insert into organizations (id, name) values ('a4520000-0000-0000-0000-000000000004','Sends D');
+insert into external_org_bindings (id, org_id, external_tier, site_url, secret_ref, status, config, activated_at) values
+ ('a4520000-0000-0000-0000-0000000000bd','a4520000-0000-0000-0000-000000000004','erpnext','https://erp-d.example.test','a452_d','active',
+  '{"company":"Example D","item_map":{"Semen":"ITM-SEMEN"}}', now());
+insert into erp_connect_census (org_id, binding_id, external_tier, kind, pmo_count, erp_count, scenario) values
+ ('a4520000-0000-0000-0000-000000000004','a4520000-0000-0000-0000-0000000000bd','erpnext','item',4,0,'S-C');
+insert into procurements (id, org_id, title, status) values
+ ('a4520000-0000-0000-0000-0000000000e1','a4520000-0000-0000-0000-000000000004','Open case','Draft'),
+ ('a4520000-0000-0000-0000-0000000000e2','a4520000-0000-0000-0000-000000000004','Second open case','Draft'),
+ ('a4520000-0000-0000-0000-0000000000e3','a4520000-0000-0000-0000-000000000004','Paid case','Paid'),
+ ('a4520000-0000-0000-0000-0000000000e4','a4520000-0000-0000-0000-000000000004','Cancelled case','Cancelled');
+insert into procurement_items (org_id, procurement_id, name, quantity, rate) values
+ ('a4520000-0000-0000-0000-000000000004','a4520000-0000-0000-0000-0000000000e1','Kabel 10 mm',1,1),
+ ('a4520000-0000-0000-0000-000000000004','a4520000-0000-0000-0000-0000000000e2','Kabel 10 mm',2,1),
+ ('a4520000-0000-0000-0000-000000000004','a4520000-0000-0000-0000-0000000000e1','Semen',1,1),
+ ('a4520000-0000-0000-0000-000000000004','a4520000-0000-0000-0000-0000000000e1','Besi',1,1),
+ ('a4520000-0000-0000-0000-000000000004','a4520000-0000-0000-0000-0000000000e3','Cat',1,1),
+ ('a4520000-0000-0000-0000-000000000004','a4520000-0000-0000-0000-0000000000e4','Pipa',1,1);
+-- "Besi" already has a decision waiting (two ERP items match it): the sweep never decides it
+insert into erp_connect_proposals (org_id, binding_id, external_tier, kind, outcome, state, identity, pmo_ids)
+  values ('a4520000-0000-0000-0000-000000000004','a4520000-0000-0000-0000-0000000000bd','erpnext','item','review','open','review|["Besi"]|["ITM-B1","ITM-B2"]','{Besi}');
+-- another organisation's open item under an accepted census: never reached by D's call
+insert into procurements (id, org_id, title, status) values ('a4520000-0000-0000-0000-0000000000e9','a4520000-0000-0000-0000-000000000002','B case','Draft');
+insert into procurement_items (org_id, procurement_id, name, quantity, rate) values ('a4520000-0000-0000-0000-000000000002','a4520000-0000-0000-0000-0000000000e9','B item',1,1);
+insert into erp_connect_census (org_id, binding_id, external_tier, kind, pmo_count, erp_count, scenario, accepted_at)
+  select org_id, id, 'erpnext', 'item', 1, 0, 'S-C', now() from external_org_bindings where org_id = 'a4520000-0000-0000-0000-000000000002';
+
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is(public.enqueue_new_item_sends('a4520000-0000-0000-0000-000000000004','erpnext'), 0, 'FR-ECA-016 before the first item accept nothing is queued');
+reset role;
+update erp_connect_census set accepted_at = now() where org_id = 'a4520000-0000-0000-0000-000000000004' and kind = 'item';
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is(public.enqueue_new_item_sends('a4520000-0000-0000-0000-000000000004','erpnext'), 1, 'FR-ECA-016 after the accept one new open-purchase item is queued');
+reset role;
+select results_eq($$select kind, outcome, state, pmo_ids, decided_by is null, snapshot->>'auto', binding_id, run_id is null from erp_connect_proposals
+                     where org_id = 'a4520000-0000-0000-0000-000000000004' and state = 'sending'$$,
+  $$values ('item'::text, 'send'::text, 'sending'::text, array['Kabel 10 mm']::text[], true, 'true'::text, 'a4520000-0000-0000-0000-0000000000bd'::uuid, true)$$,
+  'FR-ECA-016 the queued send is an automatic one for the distinct name, on this connection, with no deciding person');
+select is((select count(*)::int from erp_connect_proposals where org_id = 'a4520000-0000-0000-0000-000000000004'), 2, 'only the new name was queued: the linked, the decided, the Paid and the Cancelled items were skipped');
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is(public.enqueue_new_item_sends('a4520000-0000-0000-0000-000000000004','erpnext'), 0, 'FR-ECA-016 a second call queues nothing');
+reset role;
+select is((select count(*)::int from erp_connect_proposals where org_id = 'a4520000-0000-0000-0000-000000000004' and state = 'sending'), 1, 'exactly one send per item name');
+-- once sent (or dismissed or rejected) the name is never queued again
+update erp_connect_proposals set state = 'applied' where org_id = 'a4520000-0000-0000-0000-000000000004' and state = 'sending';
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is(public.enqueue_new_item_sends('a4520000-0000-0000-0000-000000000004','erpnext'), 0, 'a sent item is not queued again');
+-- a name that arrives later is picked up
+reset role;
+insert into procurement_items (org_id, procurement_id, name, quantity, rate) values ('a4520000-0000-0000-0000-000000000004','a4520000-0000-0000-0000-0000000000e2','Kawat',1,1);
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is(public.enqueue_new_item_sends('a4520000-0000-0000-0000-000000000004','erpnext'), 1, 'a later new item is queued by a later call');
+reset role;
+update external_org_bindings set activated_at = now() where org_id = 'a4520000-0000-0000-0000-000000000002';
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is(public.enqueue_new_item_sends('a4520000-0000-0000-0000-000000000002','erpnext'), 1, 'organisation B is served by its own call');
+select is(public.enqueue_new_item_sends('a4520000-0000-0000-0000-000000000004','erpnext'), 0, 'and D''s call did not queue B''s item (nor the reverse)');
+reset role;
+select is((select count(*)::int from erp_connect_proposals where org_id = 'a4520000-0000-0000-0000-000000000004' and pmo_ids = '{B item}'), 0, 'tenancy: B''s item name never lands in D');
+-- a connection that is not activated, or was disconnected, queues nothing
+insert into procurement_items (org_id, procurement_id, name, quantity, rate) values ('a4520000-0000-0000-0000-000000000004','a4520000-0000-0000-0000-0000000000e2','Baut',1,1);
+update external_org_bindings set activated_at = null where id = 'a4520000-0000-0000-0000-0000000000bd';
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is(public.enqueue_new_item_sends('a4520000-0000-0000-0000-000000000004','erpnext'), 0, 'a connection that is not activated queues nothing');
+reset role;
+update external_org_bindings set activated_at = now(), status = 'disconnected' where id = 'a4520000-0000-0000-0000-0000000000bd';
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is(public.enqueue_new_item_sends('a4520000-0000-0000-0000-000000000004','erpnext'), 0, 'a disconnected connection queues nothing');
+reset role;
+select is((has_function_privilege('authenticated', 'public.enqueue_new_item_sends(uuid,text)', 'execute') or has_function_privilege('anon', 'public.enqueue_new_item_sends(uuid,text)', 'execute')), false, 'enqueue_new_item_sends is not callable by a client role');
+select is(has_function_privilege('service_role', 'public.enqueue_new_item_sends(uuid,text)', 'execute'), true, 'enqueue_new_item_sends is service-role callable');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a4520000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$select public.enqueue_new_item_sends('a4520000-0000-0000-0000-000000000004','erpnext')$$, '42501', null, 'an Admin on a user JWT cannot queue sends');
+reset role;
 
 select * from finish();
 rollback;

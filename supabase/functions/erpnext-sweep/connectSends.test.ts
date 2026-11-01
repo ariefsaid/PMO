@@ -25,12 +25,14 @@ const one = (body: unknown) => jsonResponse(body, { headers: { 'content-type': '
 const none = () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } });
 const org = { orgId: ORG, bindingId: 'binding-a' };
 
-interface Proposal { id: string; kind: string; pmo_ids: string[]; decided_by?: string }
+interface Proposal { id: string; kind: string; pmo_ids: string[]; decided_by?: string | null; snapshot?: Record<string, unknown> }
 const P = {
   party: { id: 'prop-party', kind: 'party', pmo_ids: ['c-1'], decided_by: 'admin-1' },
   project: { id: 'prop-project', kind: 'project', pmo_ids: ['p-1'], decided_by: 'admin-1' },
   item: { id: 'prop-item', kind: 'item', pmo_ids: ['Semen 50 kg'], decided_by: 'admin-1' },
   employee: { id: 'prop-emp', kind: 'employee', pmo_ids: ['u-1'], decided_by: 'admin-1' },
+  /** ECA3-T12: queued by the sweep itself after setup, so no person decided it. */
+  newItem: { id: 'prop-new', kind: 'item', pmo_ids: ['Kabel 10 mm'], decided_by: null, snapshot: { auto: true } },
 } satisfies Record<string, Proposal>;
 
 interface Opts {
@@ -54,6 +56,8 @@ interface Opts {
   actorGone?: boolean;
   /** I3: every ERP read answers with a server error. */
   erpDown?: boolean;
+  /** ECA3-T12: the tick's queueing call fails with this database error code. */
+  enqueueError?: string;
 }
 
 function routes(o: Opts) {
@@ -64,7 +68,8 @@ function routes(o: Opts) {
   const r: MockRoute[] = [
     supabaseSelect('external_org_bindings', () => one({ site_url: `https://${ERP}`, secret_ref: 'ref', status: 'active', activated_at: '2026-11-01T00:00:00Z', config: o.noCompany ? {} : { company: 'Test Co' } })),
     supabaseRpc('read_vault_secret', () => jsonResponse('key:secret')),
-    supabaseRpc('claim_connect_sends', () => jsonResponse((o.claimed ?? []).map((p) => ({ ...p, org_id: ORG, external_tier: 'erpnext', state: 'sending', outcome: 'send' })))),
+    supabaseRpc('enqueue_new_item_sends', () => (o.enqueueError ? jsonResponse({ code: o.enqueueError, message: 'boom', details: '' }, { status: 500 }) : jsonResponse(1))),
+    supabaseRpc('claim_connect_sends', () => jsonResponse((o.claimed ?? []).map((p) => ({ snapshot: {}, ...p, org_id: ORG, external_tier: 'erpnext', state: 'sending', outcome: 'send' })))),
     supabaseSelect('companies', () => one({ id: 'c-1', name: 'PT Baja', type: 'Vendor', erp_tax_id: '01.234' })),
     supabaseSelect('projects', () => (o.archivedProject ? none() : one({ id: 'p-1', name: 'Jembatan', code: 'PRJ-1' }))),
     supabaseSelect('procurement_items', () => jsonResponse(o.itemOnOpenPurchase === false ? [] : [{ id: 'i-1' }])),
@@ -96,6 +101,12 @@ function routes(o: Opts) {
     supabaseRpc('claim_outbox_for_commit', (c) => {
       const row = outbox.find((x) => x.id === (c.bodyJson as { p_id: string }).p_id)!;
       Object.assign(row, { state: 'committing', claim_generation: Number(row.claim_generation) + 1 });
+      return jsonResponse(row);
+    }),
+    // a row left committing by an earlier tick is past its lease by the time the next tick looks (the database decides; the mock says it is)
+    supabaseRpc('quarantine_committing', (c) => {
+      const row = outbox.find((x) => x.id === (c.bodyJson as { p_id: string }).p_id)!;
+      if (row.state === 'committing') row.state = 'quarantined';
       return jsonResponse(row);
     }),
     supabaseRpc('record_outbox_ref', () => jsonResponse(1)),
@@ -305,6 +316,77 @@ describe('ECA3-T7 drainConnectSends', () => {
     for (const t of ['companies', 'projects', 'procurement_items']) {
       for (const c of calls.filter((x) => x.url.pathname === `/rest/v1/${t}`)) assertEquals(c.url.searchParams.get('org_id'), `eq.${ORG}`);
     }
+  });
+});
+
+describe('ECA3-T12 new items on open purchases are sent by the sweep, without a person', () => {
+  const newItem = (o: Opts = {}) => tick({ claimed: [P.newItem], ...o });
+  const kabelInErp = (extra: Record<string, unknown> = {}) => ({ name: 'ITM-77', item_code: 'ITM-77', item_name: 'Kabel 10 mm', ...extra });
+
+  it('FR-ECA-016 a new line after setup is sent once and the admin sees nothing', async () => {
+    const first = await newItem({ fault: { Item: 'lost-response' } });   // the create landed, the answer was lost
+    assertEquals(first.result.pending, 1);
+    const second = await newItem({ tables: first.tables, outbox: first.outbox });   // the lease ran out: the next tick looks again
+    assertEquals(second.tables.Item.length, 1);   // one ERP item, not two
+    assertEquals(erpPosts(second.calls).length, 0);
+    assertEquals(results(second.calls).map((r) => [r.p_id, r.p_rejection ?? null]), [['prop-new', null]]);
+    assertEquals(second.result, { sent: 1, rejected: 0, held: 0, pending: 0 });
+    assertEquals(rpcCall(second.calls, 'record_connect_send_held').length, 0);
+    assertEquals(second.outbox.map((r) => [r.domain, r.idempotency_key]), [['items', 'seed:item:Kabel 10 mm']]);
+  });
+
+  it('FR-ECA-016 the sweep queues new items once a tick, before it claims', async () => {
+    const { calls } = await newItem();
+    const names = calls.filter((c) => c.url.pathname.startsWith('/rest/v1/rpc/')).map((c) => c.url.pathname.split('/').pop());
+    assertEquals(names.filter((n) => n === 'enqueue_new_item_sends').length, 1);
+    assert(names.indexOf('enqueue_new_item_sends') < names.indexOf('claim_connect_sends'), String(names));
+    assertEquals(body(rpcCall(calls, 'enqueue_new_item_sends')[0]), { p_org_id: ORG, p_tier: 'erpnext' });
+  });
+
+  it('FR-ECA-016 no connection id: nothing is queued', async () => {
+    const { calls } = await tick({ claimed: [] }, { orgId: ORG });
+    assertEquals(rpcCall(calls, 'enqueue_new_item_sends').length, 0);
+  });
+
+  it('FR-ECA-016 a queueing failure is reported and the waiting sends still go', async () => {
+    const { result } = await newItem({ enqueueError: '57014' });
+    assertEquals(result.sent, 1);
+    assert(String(result.error).startsWith('enqueue:'), String(result.error));
+  });
+
+  it('FR-ECA-016 a send the sweep queued needs no accepting Admin; a send with no decider that is not automatic still does', async () => {
+    const auto = await newItem();
+    assertEquals(auto.calls.filter((c) => c.url.pathname === '/rest/v1/profiles').length, 0);
+    assertEquals(auto.result.sent, 1);
+    const inserts = auto.calls.filter((c) => c.method === 'POST' && c.url.pathname === '/rest/v1/external_command_outbox').map(body);
+    for (const i of inserts) assertEquals(i.actor_user_id ?? null, null);
+    const orphan = await tick({ claimed: [{ ...P.newItem, snapshot: {} }] });
+    assertEquals(erpPosts(orphan.calls).length, 0);
+    assert(/no longer an Admin/.test(String(results(orphan.calls)[0].p_rejection)));
+  });
+
+  it('FR-ECA-016 an item that already has its link is not sent again', async () => {
+    const { result, calls, outbox } = await newItem({ linked: { 'Kabel 10 mm': 'ITM-77' } });
+    assertEquals(calls.filter((c) => c.url.host === ERP).length, 0);
+    assertEquals(outbox.length, 0);
+    assertEquals(results(calls).map((r) => [r.p_external_id, r.p_rejection ?? null]), [['ITM-77', null]]);
+    assertEquals(result.sent, 1);
+  });
+
+  it('FR-ECA-020 an ERP item that carries the line name under another code is linked, not duplicated', async () => {
+    const { result, calls, tables } = await newItem({ tables: { Item: [kabelInErp()] } });
+    assertEquals(tables.Item.length, 1);
+    assertEquals(erpPosts(calls).length, 0);
+    assertEquals(results(calls).map((r) => [r.p_external_id, r.p_rejection ?? null]), [['ITM-77', null]]);
+    assertEquals(result.sent, 1);
+  });
+
+  it('FR-ECA-020 a line name that two ERP items carry becomes a review row, never a guess', async () => {
+    const { result, calls, tables } = await newItem({ tables: { Item: [kabelInErp(), kabelInErp({ name: 'ITM-78', item_code: 'ITM-78' })] } });
+    assertEquals(tables.Item.length, 2);
+    assertEquals(erpPosts(calls).length, 0);
+    assertEquals(results(calls).map((r) => [r.p_external_id, r.p_rejection]), [[null, 'Two ERP records match this item. Link the right one by hand.']]);
+    assertEquals(result.rejected, 1);
   });
 });
 
