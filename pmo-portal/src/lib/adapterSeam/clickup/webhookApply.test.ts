@@ -349,3 +349,28 @@ describe('OD-INT-10 (round 3): an inbound ClickUp status change never moves a PM
     expect(deps.updates[0].canonical.status).toBe('In Progress');
   });
 });
+
+describe('webhook apply resolves parent through the shared inbound routine', () => {
+  it('a parent living in another project than the bound child project is refused (parent_task_id null)', async () => {
+    const deps = makeDeps({ mappedPmoId: 'pmo-1' });
+    const event = workerEvent('taskUpdated', { taskId: 'cu-1', task: { ...clickUpTask({ id: 'cu-1' }), parent: 'cu-p' } });
+
+    await applyWebhookEvent(event, {
+      ...deps,
+      resolveParentPmoId: async () => 'pmo-parent',
+      readMirrorProjectId: async () => 'proj-other',
+      childProjectId: 'proj-a',
+    });
+
+    expect(deps.updates[0].canonical.parent_task_id).toBeNull();
+  });
+
+  it('a task without a ClickUp parent keeps parent_task_id omitted from the mirror update', async () => {
+    const deps = makeDeps({ mappedPmoId: 'pmo-1' });
+    const event = workerEvent('taskUpdated', { taskId: 'cu-1', task: clickUpTask({ id: 'cu-1' }) });
+
+    await applyWebhookEvent(event, { ...deps, resolveParentPmoId: async () => 'pmo-parent' });
+
+    expect('parent_task_id' in deps.updates[0].canonical).toBe(false);
+  });
+});

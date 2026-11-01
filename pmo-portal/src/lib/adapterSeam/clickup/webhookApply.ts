@@ -19,11 +19,13 @@
  * so every path is unit-testable with mocked callbacks (no live token). ClickUp vocabulary
  * (ClickUpWebhookPayload, date_updated) is confined to clickup/** + the clickup-webhook fn (FR-CUA-012).
  *
- * `applyInboundChange` is the shared upsert/adopt core — the sweep (sweep.ts) reuses it per change so
- * the webhook and the sweep apply through the SAME source-mod-guarded path (FR-CUA-049 "any apply").
+ * `applyInboundChange` is the shared upsert/adopt core — the multi-List sweep (multiListSweep.ts) reuses
+ * it per change so the webhook and the sweep apply through the SAME source-mod-guarded path
+ * (FR-CUA-049 "any apply").
  */
 import type { PmoRecord } from '../contract.ts';
-import { clickUpTaskToPmoRecord, type ClickUpMaps } from './mapping.ts';
+import type { ClickUpMaps } from './mapping.ts';
+import { resolveInboundRecord } from './inboundRecord.ts';
 import type { ClickUpStatusMap } from './statusMap.ts';
 import type { ClickUpMemberMap } from './memberMap.ts';
 import type { ClickUpHistoryItem, ClickUpTask, ClickUpWebhookEvent } from './types.ts';
@@ -42,7 +44,7 @@ const CLICKUP_TASKS_CTX = { tier: CLICKUP_TIER, domain: TASKS_DOMAIN };
 
 // Re-exported for byte-for-byte back-compat (task 1.12 hoists the implementation to
 // `../applyEngine.ts`; this module's exported names/shapes are unchanged for every existing
-// consumer — `sweep.ts`, and any future direct import of these types).
+// consumer).
 export type { ApplyOutcome, ApplyChangeDeps, WatermarkDeps, ExternalRefSeed };
 export { advanceWatermarkMonotonic };
 
@@ -63,6 +65,13 @@ export interface WebhookApplyDeps extends ApplyChangeDeps, WatermarkDeps, ClickU
    *  default) preserves byte-for-byte pre-round-3 behavior — status resolves off the plain inbound
    *  map with no "current status" awareness. */
   readMirrorStatus?: (pmoRecordId: string) => Promise<string | null>;
+  /** Resolve a ClickUp parent task id to a PMO task id via `external_refs`. Optional — when absent
+   *  or unresolvable, the child flows through as a flat task (reconciled later by sweep). */
+  resolveParentPmoId?: (clickUpParentId: string) => Promise<string | null>;
+  /** Read the project_id of an existing mirror (for the cross-project parent guard). */
+  readMirrorProjectId?: (pmoRecordId: string) => Promise<string | null>;
+  /** The project the bound child lands in (the binding's project) — the guard's reference. */
+  childProjectId?: string;
 }
 
 /**
@@ -130,15 +139,7 @@ export async function applyInboundChange(
  */
 export async function applyWebhookEvent(
   event: WebhookWorkerEvent,
-  deps: WebhookApplyDeps & {
-    /** Resolve a ClickUp parent task id to a PMO task id via `external_refs`. Optional — when
-     *  absent or unresolvable, the child flows through as a flat task (reconciled later by sweep). */
-    resolveParentPmoId?: (clickUpParentId: string) => Promise<string | null>;
-    /** Read the project_id of an existing mirror (for cross-project parent guard). */
-    readMirrorProjectId?: (pmoRecordId: string) => Promise<string | null>;
-    /** Map from ClickUp list id to binding (for cross-project parent guard). */
-    bindingByListId?: Map<string, { projectId: string }>;
-  },
+  deps: WebhookApplyDeps,
 ): Promise<ApplyOutcome> {
   const maps: ClickUpMaps = { statusMap: deps.statusMap, memberMap: deps.memberMap };
 
@@ -154,40 +155,12 @@ export async function applyWebhookEvent(
 
   const sourceUpdatedAtMs = Number(event.task.date_updated);
 
-  // OD-INT-10 round 3: resolve the mirror's CURRENT PMO status (when the caller supplies
-  // `readMirrorStatus`) so `fromClickUpStatus`'s stickiness applies — an inbound sync never moves a
-  // row OUT of a `pmo-only` status, and an explicitly recorded collapse never downgrades the more
-  // specific PMO status. Absent (the P1 default) preserves pre-round-3 behavior byte-for-byte.
-  let currentPmoStatus: string | undefined;
-  if (deps.readMirrorStatus) {
-    const mappedId = await deps.resolvePmoRecordId(event.taskId);
-    if (mappedId !== null) {
-      currentPmoStatus = (await deps.readMirrorStatus(mappedId)) ?? undefined;
-    }
-  }
-
-  // OD-INT-9 parent sync (inbound): resolve ClickUp `parent` to a PMO task id via `external_refs`.
-  // The pure mapper has no DB access, so the lookup happens here and the resolved PMO id is
-  // threaded in — exactly like `currentPmoStatus`. When the parent is unresolvable (not yet
-  // mirrored), the child flows through as a flat task; the next sweep re-applies and resolves it.
-  let resolvedParentPmoId: string | null | undefined;
-  if (event.task.parent && deps.resolveParentPmoId) {
-    resolvedParentPmoId = await deps.resolveParentPmoId(event.task.parent);
-    // If the resolved parent is in a different project than the child's binding, refuse the link.
-    // The caller (webhook/sweep) knows the child's project; we log and null it here.
-    if (resolvedParentPmoId && deps.readMirrorProjectId) {
-      const parentProjectId = await deps.readMirrorProjectId(resolvedParentPmoId);
-      const childProjectId = (event.task.list?.id && deps.bindingByListId
-        ? deps.bindingByListId.get(event.task.list.id)?.projectId
-        : undefined);
-      if (parentProjectId && childProjectId && parentProjectId !== childProjectId) {
-        console.warn(`[clickup-webhook] cross-project parent refused: parent ${resolvedParentPmoId} in project ${parentProjectId}, child in ${childProjectId}`);
-        resolvedParentPmoId = null;
-      }
-    }
-  }
-
-  const canonical = clickUpTaskToPmoRecord(event.task, maps, currentPmoStatus, resolvedParentPmoId);
+  // Status stickiness (OD-INT-10), parent link (OD-INT-9) and the cross-project guard resolve through
+  // the SAME routine the sweep uses, keyed off the existing mapping (null = a new task to adopt).
+  const canonical = await resolveInboundRecord(event.task, maps, deps, {
+    mappedPmoId: await deps.resolvePmoRecordId(event.taskId),
+    childProjectId: deps.childProjectId,
+  });
   const outcome = await applyInboundChange(event.taskId, canonical, sourceUpdatedAtMs, deps);
 
   const archived = findArchivedTransition(event.historyItems);

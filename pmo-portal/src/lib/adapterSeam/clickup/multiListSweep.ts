@@ -33,7 +33,7 @@
  */
 import type { PmoRecord } from '../contract.ts';
 import { CLICKUP_TIER, CLICKUP_TASKS_DOMAIN } from './adapter.ts';
-import { clickUpTaskToPmoRecord } from './mapping.ts';
+import { resolveInboundRecord } from './inboundRecord.ts';
 import { applyInboundChange, type AtomicAdoptStrategy, type ExternalRefSeed } from '../applyEngine.ts';
 import { clickUpListRawChangesAcrossLists, type ClickUpListBindingRef } from './reads.ts';
 import type { ClickUpClientDeps } from './client.ts';
@@ -79,6 +79,9 @@ export interface MultiListSweepDeps {
    *  (same table the dispatch factory uses). Optional — when absent or unresolvable, the child
    *  flows through as a flat task; the next sweep re-applies and resolves it once the parent exists. */
   resolveParentPmoId?: (clickUpParentId: string) => Promise<string | null>;
+  /** The mapped mirror's CURRENT PMO status — feeds the status stickiness (a `pmo-only` status is
+   *  never moved out of by an inbound change). */
+  readMirrorStatus?: (pmoRecordId: string) => Promise<string | null>;
 }
 
 export interface MultiListSweepPerListResult {
@@ -166,31 +169,14 @@ export async function runMultiListSweep(deps: MultiListSweepDeps): Promise<Multi
     const effectiveBinding = resolvedBinding ?? bindingByListId.get(listId);
     if (!effectiveBinding) continue; // defensive: no binding resolvable at all (shouldn't happen)
 
-    // OD-INT-9 parent sync (inbound): resolve ClickUp `parent` to a PMO task id via `external_refs`.
-    // The pure mapper has no DB access, so the lookup happens here and the resolved PMO id is
-    // threaded in — exactly like `currentPmoStatus` in the webhook path. When the parent is
-    // unresolvable (not yet mirrored), the child flows through as a flat task; the next sweep
-    // re-applies and resolves it.
-    let resolvedParentPmoId: string | null | undefined;
-    if (task.parent && deps.resolveParentPmoId) {
-      resolvedParentPmoId = await deps.resolveParentPmoId(task.parent);
-      // Cross-project parent guard: if the resolved parent is in a different project than the
-      // child's binding, refuse the link (log and null it). The child's project is the binding's
-      // project (effectiveBinding.projectId for this task).
-      if (resolvedParentPmoId) {
-        const parentProjectId = await deps.readMirrorProjectId(resolvedParentPmoId);
-        const childProjectId = effectiveBinding.projectId;
-        if (parentProjectId && childProjectId && parentProjectId !== childProjectId) {
-          console.warn(`[clickup-sweep] cross-project parent refused: parent ${resolvedParentPmoId} in project ${parentProjectId}, child in ${childProjectId}`);
-          resolvedParentPmoId = null;
-        }
-      }
-    }
-
-    const canonical = clickUpTaskToPmoRecord(task, {
-      statusMap: effectiveBinding.statusMap,
-      memberMap: effectiveBinding.memberMap,
-    }, undefined, resolvedParentPmoId);
+    // Status stickiness + parent link + cross-project guard resolve through the SAME routine the
+    // webhook worker uses (`resolveInboundRecord`), so the two live paths cannot drift.
+    const canonical = await resolveInboundRecord(
+      task,
+      { statusMap: effectiveBinding.statusMap, memberMap: effectiveBinding.memberMap },
+      deps,
+      { mappedPmoId: existingPmoId, childProjectId: effectiveBinding.projectId },
+    );
     // Claim-first adopt: the strategy's mint must land in THIS change's deterministically-resolved
     // project (SEC-HIGH-2) — the sweep overrides `mintWithId` to carry the project on the canonical
     // record (the shared factory's mint reads it when no ctx project is bound).

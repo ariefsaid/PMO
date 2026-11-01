@@ -352,3 +352,94 @@ describe('claim-first adoption: the sweep forwards the atomic-adopt strategy and
     expect(harness.watermarks.get('list-a')).toBe('1000');
   });
 });
+
+describe('mapped tasks resolve current status, parent and project through the shared inbound routine', () => {
+  const stickyStatusMap: ClickUpStatusMap = { ...statusMap, pmoOnlyStatuses: ['Blocked'] };
+  const stickyBinding = (listId: string, projectId: string): MultiListSweepBinding => ({
+    listId,
+    projectId,
+    statusMap: stickyStatusMap,
+    memberMap,
+  });
+  const listOf = (...tasks: Array<ReturnType<typeof task>>) =>
+    (async () => new Response(JSON.stringify({ tasks, last_page: true }), { status: 200 })) as unknown as typeof fetch;
+
+  function recordCanonicals() {
+    const canonicals: Array<Record<string, unknown>> = [];
+    return {
+      canonicals,
+      updateMirror: async (_id: string, canonical: Record<string, unknown>) => {
+        canonicals.push(canonical);
+      },
+    };
+  }
+
+  it('a pmo-only mirror status survives an unrelated inbound change (readMirrorStatus is consulted)', async () => {
+    const rec = recordCanonicals();
+    const harness = makeFakeDeps({
+      clientDeps: { fetchImpl: listOf(task('cu-1', '3000')), token: 't' },
+      updateMirror: rec.updateMirror,
+      readMirrorStatus: async () => 'Blocked',
+    });
+    harness.mirrorByExternalId.set('cu-1', 'pmo-1');
+    harness.mirrorProjectByPmoId.set('pmo-1', 'proj-a');
+
+    await runMultiListSweep({ ...harness.deps, bindings: [stickyBinding('list-a', 'proj-a')] });
+
+    expect(rec.canonicals[0].status).toBe('Blocked');
+  });
+
+  it('a task with no ClickUp parent leaves parent_task_id omitted so a linked PMO subtask is not flattened', async () => {
+    const rec = recordCanonicals();
+    const harness = makeFakeDeps({
+      clientDeps: { fetchImpl: listOf(task('cu-1', '3000')), token: 't' },
+      updateMirror: rec.updateMirror,
+      resolveParentPmoId: async () => 'pmo-parent',
+    });
+    harness.mirrorByExternalId.set('cu-1', 'pmo-1');
+    harness.mirrorProjectByPmoId.set('pmo-1', 'proj-a');
+
+    await runMultiListSweep({ ...harness.deps, bindings: [binding('list-a', 'proj-a')] });
+
+    expect('parent_task_id' in rec.canonicals[0]).toBe(false);
+  });
+
+  it('a ClickUp parent resolves to its PMO id on an update; a parent in another project is refused', async () => {
+    const rec = recordCanonicals();
+    const harness = makeFakeDeps({
+      clientDeps: {
+        fetchImpl: listOf(task('cu-1', '3000', { parent: 'cu-p1' }), task('cu-2', '3000', { parent: 'cu-p2' })),
+        token: 't',
+      },
+      updateMirror: rec.updateMirror,
+      resolveParentPmoId: async (id) => (id === 'cu-p1' ? 'pmo-p1' : 'pmo-p2'),
+    });
+    harness.mirrorByExternalId.set('cu-1', 'pmo-1');
+    harness.mirrorByExternalId.set('cu-2', 'pmo-2');
+    harness.mirrorProjectByPmoId.set('pmo-1', 'proj-a');
+    harness.mirrorProjectByPmoId.set('pmo-2', 'proj-a');
+    harness.mirrorProjectByPmoId.set('pmo-p1', 'proj-a');
+    harness.mirrorProjectByPmoId.set('pmo-p2', 'proj-other');
+
+    await runMultiListSweep({ ...harness.deps, bindings: [binding('list-a', 'proj-a')] });
+
+    expect(rec.canonicals.map((c) => c.parent_task_id)).toEqual(['pmo-p1', null]);
+  });
+
+  it('an adopted subtask reaches the mint with its resolved parent', async () => {
+    const mintedParents: unknown[] = [];
+    const harness = makeFakeDeps({
+      clientDeps: { fetchImpl: listOf(task('cu-new', '3000', { parent: 'cu-p1' })), token: 't' },
+      resolveParentPmoId: async () => 'pmo-p1',
+      mintMirror: async (canonical) => {
+        mintedParents.push(canonical.parent_task_id);
+        return 'pmo-new';
+      },
+    });
+    harness.mirrorProjectByPmoId.set('pmo-p1', 'proj-a');
+
+    await runMultiListSweep({ ...harness.deps, bindings: [binding('list-a', 'proj-a')] });
+
+    expect(mintedParents).toEqual(['pmo-p1']);
+  });
+});
