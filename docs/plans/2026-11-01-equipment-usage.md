@@ -28,9 +28,20 @@ workers, one fresh worker per slice, each slice its own branch and PR** (CLAUDE.
 [`docs/money-path-primer.md`](../money-path-primer.md) before S2-S4: buckets 1 (duplicate money: here, a ledger line counted
 twice), 3 (SoD), 4 (tenancy) and 5 (wrong number on screen) all apply; the outbox buckets do not (OQ-1: nothing is posted).
 
-Everything cited below was read on `origin/dev` at `6440a961`. Migration head on that commit is `0426_imprest_approval_route.sql`.
-New migrations are named `supabase/migrations/<NNNN>_<slug>.sql`; **the coordinator assigns each `<NNNN>`** in slice order
-(S1 < S2 < S3 < S4). A path marked **(new)** does not exist yet.
+Everything cited below was read on `origin/dev` at `6440a961` (re-verified at `b52aa48a` in review). Migration head on that
+commit is `0426_imprest_approval_route.sql`. A path marked **(new)** does not exist yet.
+
+**Migration numbers (Lane B range 0447–0449; 0440–0446 belong to sibling slices):** S1 = **0447**, S2 = **0448**,
+S3 = **0449**. S4 needs a **fourth** number, `<S4-NNNN>`, which the coordinator assigns above 0449 (Lane B has only three).
+If no fourth number is granted, S4's SQL is appended to 0449 and S3+S4 ship as one money PR (S3's and S4's gates both run).
+Never take a number outside the assigned range; on a collision use `scripts/renumber-migration.sh <old> <new>`.
+
+**Rebuilt bodies come from the latest migration at build time, not from the line numbers cited here.** S3/S4 re-create
+`cost_attribution_allocations`, `cost_attribution_assert_no_conflict`, `project_mapped_actuals`, `project_mapped_actuals_all`,
+`get_project_finances` and `api_client_request_guard`. Sibling lanes (0440–0446) may redefine any of them first. Before
+writing each body, find its newest definition and copy THAT; the rollback restores the body the slice replaced:
+`grep -liE "function +(public\.)?<name> *\(" supabase/migrations/*.sql | sort | tail -1` (case-insensitive: 0410 writes
+`CREATE OR REPLACE FUNCTION`). If it is newer than the file cited below, re-read it and carry its changes.
 
 ---
 
@@ -157,10 +168,10 @@ submit (author) / approve|reject (PM own project · Exec · Finance · Admin, �
 
 | Slice | Migration | Tasks | Blocked by | Worker tier (cheapest that does it well) | Ships |
 |---|---|---|---|---|---|
-| **S1 Assets, usage entries, approval** | `<NNNN>_equipment_usage.sql` | S1.1-S1.9 | none | Terra or Sol (SoD) | **alone** |
-| **S2 Costing settings, hire charges, reads** | `<NNNN>_equipment_costing.sql` | S2.1-S2.10 | S1 | **Sol** (money) | **alone** |
-| **S3 `actual_cost` in the attribution engine** | `<NNNN>_equipment_actual_cost.sql` | S3.1-S3.7 | S2 | **Sol** (money) | **alone** |
-| **S4 Project actuals, finances, API tiers** | `<NNNN>_equipment_project_actuals.sql` | S4.1-S4.9 | S3 | **Sol** (money) | **alone** |
+| **S1 Assets, usage entries, approval** | `0447_equipment_usage.sql` | S1.1-S1.9 | none | Terra or Sol (SoD) | **alone** |
+| **S2 Costing settings, hire charges, reads** | `0448_equipment_costing.sql` | S2.1-S2.10 | S1 | **Sol** (money) | **alone** |
+| **S3 `actual_cost` in the attribution engine** | `0449_equipment_actual_cost.sql` | S3.1-S3.7 | S2 | **Sol** (money) | **alone** |
+| **S4 Project actuals, finances, API tiers** | `<S4-NNNN>_equipment_project_actuals.sql` (4th number; else appended to 0449) | S4.1-S4.9 | S3 | **Sol** (money) | **alone** (or with S3) |
 | **S5 Data layer** (DAL, repo, hooks, policy) | none | S5.1-S5.6 | S2 (S4 for the finances fields) | Luna | batchable |
 | **S6 Screens, panel, e2e** | none | S6.1-S6.9 | S5, S4 | Flash or Luna (UI lane) | batchable |
 | **S7 CLI** | none | S7.1-S7.4 | S4 | Luna | batchable |
@@ -168,6 +179,11 @@ submit (author) / approve|reject (PM own project · Exec · Finance · Admin, �
 Order: S1 → S2 → S3 → S4, then S5 → S6 and S7 in parallel. Branches `feat/equipment-s<n>` off `origin/dev`, own worktree,
 `.env.local` copied in; workers push the branch, the Director opens PRs. A slice may stack on the previous slice's branch
 before it merges; a money slice still merges as its own PR.
+
+Size: the whole feature is roughly five to six builder-days, so it is split. Each slice is about one builder-day and
+ships on its own: S1 is usable data with no costing (dark until S6); S2 adds hire-rate charges visible in
+`list_equipment_allocations` only; S3 makes `actual_cost` reach `attributed_to_date` (the issue's acceptance); S4 puts
+the hire charge into project actuals and opens the API tiers; S5–S7 are FE/CLI and change no money.
 
 ## Conventions every task follows
 
@@ -180,19 +196,27 @@ before it merges; a money slice still merges as its own PR.
   2. `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/<this slice's files> supabase/tests/cost_attribution.test.sql supabase/tests/0178_anon_executable_definers.test.sql'`
      (`cost_attribution.test.sql` from S3 on is the regression proof that #1271 is unchanged.)
   3. `node scripts/check-isolation-denominator.mjs && node scripts/check-isolation-denominator.mjs --self-test` after adding every
-     new table to the `tables` list and every new client RPC to the RPC list of `scripts/isolation-probe-denominator.json`
-     (entries shaped like `:29-30` and `:203-204`).
+     new table to the `tables` list and **every new SECURITY DEFINER function that is not a trigger** (the guard's
+     `DEFINERS_SQL` lists all of them, granted or not; a missing one is UNLISTED, an invoker one listed is STALE) to the
+     function list of `scripts/isolation-probe-denominator.json`, as its `regprocedure` text (`int` is written `integer`).
+     Internal helpers stay plain (invoker) functions, revoked from clients and called only from definers, so they stay off
+     the list (the 0376 `cost_attribution_normalize` pattern). The exact strings per slice are in each slice's gate task.
   4. 0178 retained-RPC set (`supabase/tests/0178_anon_executable_definers.test.sql`): add each new client-callable writer
-     to `client_callable_rpc_names` and an `⚑ AMENDED BY <NNNN> (#1519)` header note (format `:105-107`); **re-derive the
-     count by hand from the VALUES list after rebase** (the last header note on `6440a961` reads 103). S1 adds 4
-     (`save_equipment_usage`, `transition_equipment_usage`, `approve_equipment_usage_week`, `archive_equipment_usage`);
-     S2 adds 2 (`save_equipment_costing`, `end_equipment_costing`). Reads and previews are not retained (0376 precedent).
+     to `client_callable_rpc_names` and an `⚑ AMENDED BY <number> (#1519)` header note (format `:105-107`); **re-derive the
+     count by hand from the VALUES list after rebase** (the assertions on `b52aa48a` read **104**, last noted by 0410; a sibling
+     slice merging first raises it). S1 adds 4 (`save_equipment_usage`, `transition_equipment_usage`,
+     `approve_equipment_usage_week`, `archive_equipment_usage`) → 108 on 104; S2 adds 2 (`save_equipment_costing`,
+     `end_equipment_costing`) → 110. Reads and previews must be `stable` and contain no `insert into`/`update <name>`/
+     `delete from` text, so the sweep (`:322-334`) does not see them as writers; they are not retained (0376 precedent).
   5. From `pmo-portal/`: `npm run check:guards`, `npm run typecheck`, touched vitest files, `npx eslint --max-warnings=0 <touched>`.
 - **Types after a migration:** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase gen types typescript --local > pmo-portal/src/lib/supabase/database.types.ts'`.
 - **Grants:** every function ends with `revoke all … from public, anon, authenticated;`; client RPCs then
   `grant execute … to authenticated;`; definers `alter function … owner to postgres;` (0376 `:445-455` pattern). Each
   migration ends with a self-assertion `do $$ … $$` that raises if any new internal helper is executable by `authenticated`
-  or any new function by `anon`.
+  or any new function by `anon` or `public`. Every new table gets `grant all … to service_role` (0137 precedent).
+- **No side-mirror table** (0136 / ADR-0059 inventory): OQ-1 posts nothing, so no ERP-side state exists. A later posting
+  slice adds its own side table and inventory entry.
+- **SoD comparisons are null-safe** (`is not distinct from`, the 0180 HIGH-TS-1 lesson), even where a value cannot be null today.
 - **Rollback files** `supabase/migrations/rollback/<NNNN>_<slug>_down.sql`, reverse dependency order; the migration header
   repeats the reverse. S3's and S4's down files restore the 0376 / 0410 / 0397 bodies verbatim.
 - **Public repo:** fixtures use the synthetic UUID prefix `15190000-…` and `@example.com` emails; no tenant data.
@@ -232,13 +256,13 @@ insert into projects (id, org_id, name, status, project_manager_id) values
   ('15190000-0000-0000-0000-0000000000c2', '15190000-0000-0000-0000-00000000000a', 'EQU P2', 'Ongoing Project', '15190000-0000-0000-0000-0000000000a4'),
   ('15190000-0000-0000-0000-0000000000c3', '15190000-0000-0000-0000-00000000000a', 'EQU P3', 'Ongoing Project', '15190000-0000-0000-0000-0000000000a3'),
   ('15190000-0000-0000-0000-0000000000cb', '15190000-0000-0000-0000-00000000000b', 'EQU PX', 'Ongoing Project', null);
--- A1 loader (hours), A2 truck (days), A3/A4 hire-rate machines (hours), AX foreign
+-- A1 loader (hours), A2 truck (days), A3/A4 hire-rate machines (hours), A9 foreign (ids are hex: d1..d4, d9)
 insert into equipment_assets (id, org_id, code, name, default_unit) values
   ('15190000-0000-0000-0000-0000000000d1', '15190000-0000-0000-0000-00000000000a', 'LDR-1', 'Loader 1', 'hours'),
   ('15190000-0000-0000-0000-0000000000d2', '15190000-0000-0000-0000-00000000000a', 'TRK-1', 'Truck 1',  'days'),
   ('15190000-0000-0000-0000-0000000000d3', '15190000-0000-0000-0000-00000000000a', 'GEN-1', 'Generator 1', 'hours'),
   ('15190000-0000-0000-0000-0000000000d4', '15190000-0000-0000-0000-00000000000a', 'EXC-1', 'Excavator 1', 'hours'),
-  ('15190000-0000-0000-0000-0000000000dx', '15190000-0000-0000-0000-00000000000b', 'LDR-X', 'Foreign loader', 'hours');
+  ('15190000-0000-0000-0000-0000000000d9', '15190000-0000-0000-0000-00000000000b', 'LDR-X', 'Foreign loader', 'hours');
 
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
@@ -289,17 +313,17 @@ All dates are before the planning date (2026-11-01), so the S1 future-date refus
 
 ---
 
-## S1 - Assets, usage entries, approval (`<NNNN>_equipment_usage.sql`) — SoD tier, ships alone
+## S1 - Assets, usage entries, approval (`0447_equipment_usage.sql`) — SoD tier, ships alone
 
 Covers AC-EQU-007 and the entry half of AC-EQU-012; FR-EQU-001..004, 010..013, 020, 022, 060..064. Header:
 
 ```sql
--- <NNNN>_equipment_usage.sql — #1519 S1: thin equipment asset reference, usage entries, the draft → submitted →
+-- 0447_equipment_usage.sql — #1519 S1: thin equipment asset reference, usage entries, the draft → submitted →
 -- approved|rejected transition with approver ≠ author, bulk asset-week approve, archive. Spec:
 -- docs/specs/equipment-usage.spec.md (signed 2026-11-01; OQ-1..9 defaults are rulings, OD-GRILL-20261101).
 -- Plan: docs/plans/2026-11-01-equipment-usage.md S1. Proven by supabase/tests/equipment_usage.test.sql and
 -- supabase/tests/equipment_rls.test.sql. Nothing here writes to the ERP.
--- ── REVERSE (also supabase/migrations/rollback/<NNNN>_equipment_usage_down.sql) ──────────────────────────
+-- ── REVERSE (also supabase/migrations/rollback/0447_equipment_usage_down.sql) ──────────────────────────
 --   drop function if exists public.archive_equipment_usage(uuid);
 --   drop function if exists public.approve_equipment_usage_week(uuid, date);
 --   drop function if exists public.transition_equipment_usage(uuid, text, text);
@@ -357,7 +381,7 @@ select ok((select detail ? 'from' and detail ? 'to' from audit_events where enti
 
 Plus the FR-EQU-002/003/004/OQ-7/OQ-8 rows in the same file (titles prefixed `AC-EQU-007` because they are the entry contract):
 negative quantity, 25 h, 1.5 days, a future work date (`(now() at time zone 'Asia/Jakarta')::date + 1`), a foreign project
-(`…cb`) and a foreign asset (`…dx`) are refused (`22023`, `22023`, `22023`, `22023`, `P0002`, `P0002`); a second entry on the same
+(`…cb`) and a foreign asset (`…d9`) are refused (`22023`, `22023`, `22023`, `22023`, `P0002`, `P0002`); a second entry on the same
 (asset, project, date, kind) is `23505`; the same asset on P2 the same day for 20 h returns `over_24h = true` and is saved;
 no rate or setting is needed to save (FR-EQU-004); bulk approve as PM1 of an asset-week holding one PM1-authored entry, one
 Eng1 entry on P1 and one Eng1 entry on P2 returns `{"approved":1,"skipped_own":1,"skipped_not_permitted":1}`.
@@ -464,8 +488,10 @@ create trigger equipment_usage_entries_audit_delete after delete on public.equip
 ### S1.4 Internal helpers
 
 ```sql
+-- Internal helpers are plain (invoker) functions: called only from the definers below, which run as owner, so they
+-- need no definer bit and stay off the isolation denominator (0376 cost_attribution_normalize pattern).
 create function public.equipment_org_today(p_org uuid) returns date
-  language sql stable security definer set search_path = public, pg_temp as $$
+  language sql stable set search_path = public, pg_temp as $$
   select (now() at time zone coalesce(o.default_timezone, 'UTC'))::date from public.organizations o where o.id = p_org
 $$;  -- NFR-EQU-004, same cut as 0247:724
 
@@ -476,7 +502,7 @@ create function public.equipment_entry_locked_unit(p_org uuid, p_asset uuid, p_d
 
 -- FR-EQU-061: PM for projects they manage, Executive, Finance, Admin. Author exclusion is checked by the caller FIRST.
 create function public.equipment_can_approve(p_uid uuid, p_role public.user_role, p_org uuid, p_project uuid) returns boolean
-  language sql stable security definer set search_path = public, pg_temp as $$
+  language sql stable set search_path = public, pg_temp as $$
   select coalesce(p_role in ('Admin','Executive','Finance')
                   or (p_role = 'Project Manager' and exists (
                         select 1 from public.projects p where p.id = p_project and p.org_id = p_org and p.project_manager_id = p_uid)),
@@ -547,7 +573,7 @@ begin
   else
     select * into v_cur from public.equipment_usage_entries e where e.id = v_id for update;
     if not found or v_cur.org_id is distinct from v_org then raise exception 'entry not found' using errcode = 'P0002'; end if;
-    if v_cur.author_id is distinct from v_uid then raise exception 'only the author edits an entry' using errcode = '42501'; end if;
+    if v_cur.author_id is distinct from v_uid then raise exception 'only the author edits an entry' using errcode = '42501'; end if;  -- null-safe
     if v_cur.status not in ('Draft','Rejected') or v_cur.archived_at is not null then
       raise exception 'only a draft or rejected entry can be edited' using errcode = '22023';
     end if;
@@ -588,13 +614,13 @@ begin
     v_action := case when p_to = 'Submitted' then 'submitted' else 'redraft' end;
   elsif p_to in ('Approved','Rejected') then
     -- SoD FIRST, ALWAYS (FR-EQU-011, the 0180 transition_timesheet order). Do not reorder.
-    if v_uid = v_e.author_id then raise exception 'separation of duties: cannot decide own equipment usage' using errcode = '42501'; end if;
+    if v_uid is not distinct from v_e.author_id then raise exception 'separation of duties: cannot decide own equipment usage' using errcode = '42501'; end if;
     if not public.equipment_can_approve(v_uid, v_role, v_e.org_id, v_e.project_id) then
       raise exception 'not authorized' using errcode = '42501';
     end if;
     v_action := lower(p_to);
   else  -- Approved -> Draft: Admin reopen (FR-EQU-012), never by the author
-    if v_uid = v_e.author_id then raise exception 'separation of duties: cannot reopen own equipment usage' using errcode = '42501'; end if;
+    if v_uid is not distinct from v_e.author_id then raise exception 'separation of duties: cannot reopen own equipment usage' using errcode = '42501'; end if;
     if v_role is distinct from 'Admin' then raise exception 'only an Admin reopens approved usage' using errcode = '42501'; end if;
     v_action := 'reopen';
   end if;
@@ -634,7 +660,7 @@ begin
               where e.org_id = public.auth_org_id() and e.asset_id = p_asset_id and e.status = 'Submitted' and e.archived_at is null
                 and e.work_date between p_week_start and p_week_start + 6
               order by e.work_date, e.id for update loop
-    if v_e.author_id = v_uid then v_own := v_own + 1;
+    if v_e.author_id is not distinct from v_uid then v_own := v_own + 1;
     elsif not public.equipment_can_approve(v_uid, v_role, public.auth_org_id(), v_e.project_id) then v_denied := v_denied + 1;
     else perform public.equipment_usage_transition_core(v_e.id, 'Approved', null); v_ok := v_ok + 1;
     end if;
@@ -651,7 +677,7 @@ begin
   select * into v_e from public.equipment_usage_entries e where e.id = p_id for update;
   if not found or v_e.org_id is distinct from public.auth_org_id() then raise exception 'entry not found' using errcode = 'P0002'; end if;
   if v_e.status = 'Approved' then raise exception 'reopen approved usage before archiving it' using errcode = '22023'; end if;
-  if not (v_e.author_id = auth.uid() and v_e.status in ('Draft','Rejected')) and public.auth_role() is distinct from 'Admin' then
+  if not (v_e.author_id is not distinct from auth.uid() and v_e.status in ('Draft','Rejected')) and public.auth_role() is distinct from 'Admin' then
     raise exception 'not authorized' using errcode = '42501';
   end if;
   update public.equipment_usage_entries set archived_at = now(), updated_at = now() where id = p_id and archived_at is null;
@@ -699,20 +725,28 @@ select is((select count(*)::int from equipment_assets where org_id = '15190000-0
   'AC-EQU-012 another org reads no asset');
 select throws_ok($$ select transition_equipment_usage((select v from _e where k = 'p1'), 'Approved') $$,
   '42501', null, 'AC-EQU-012 another org cannot move an entry (the definer re-asserts the org)');
-select throws_ok($$ select save_equipment_usage('{"asset_id":"15190000-0000-0000-0000-0000000000dx","project_id":"15190000-0000-0000-0000-0000000000c1","work_date":"2026-09-01","quantity":1,"unit":"hours"}') $$,
+select throws_ok($$ select save_equipment_usage('{"asset_id":"15190000-0000-0000-0000-0000000000d9","project_id":"15190000-0000-0000-0000-0000000000c1","work_date":"2026-09-01","quantity":1,"unit":"hours"}') $$,
   'P0002', null, 'AC-EQU-012 a foreign project cannot be targeted');
 ```
 
 `_e` (as in S1.1) holds the id of the Eng1 entry on P1 under key `p1`, captured as superuser before `set local role`. Also: as Eng1, `delete from equipment_usage_entries` deletes 0 rows; as Admin it deletes 1 and writes an
 `equipment_usage.delete` audit row; superuser `update … set approver_id = author_id` raises `23514`.
 
+Archive rows (FR-EQU-064, titles `AC-EQU-012 …`): Eng1 saves a Draft through `save_equipment_usage` and
+`archive_equipment_usage` lives, the row keeps existing with `archived_at` set and an `equipment_usage.archive` audit row;
+Eng2 archiving Eng1's Draft → `42501`; archiving the Approved `p1` entry, even as Admin → `22023` ("reopen approved usage
+before archiving it"); a new entry on the archived row's (asset, project, date, kind) saves (the partial unique index frees it).
+
 ### S1.8 Self-assertion block, rollback file, denominators
 
 Append the `do $$` ACL assertion (internals `equipment_org_today`, `equipment_entry_locked_unit`, `equipment_can_approve`,
-`equipment_usage_transition_core` not executable by `authenticated`; nothing new executable by `anon`). Write
-`supabase/migrations/rollback/<NNNN>_equipment_usage_down.sql` = the header's REVERSE list. Add both tables to
-`scripts/isolation-probe-denominator.json` (`{"table":"equipment_assets","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}`
-and the same for `equipment_usage_entries`) and the four RPCs; amend 0178 (+4).
+`equipment_usage_transition_core` not executable by `authenticated`, and none of them `prosecdef`; nothing new executable by
+`anon` or `public`). Write `supabase/migrations/rollback/0447_equipment_usage_down.sql` = the header's REVERSE list. Add both
+tables to `scripts/isolation-probe-denominator.json` (`{"table":"equipment_assets","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}`
+and the same for `equipment_usage_entries`) and exactly these four definers to its function list:
+`"approve_equipment_usage_week(uuid,date)"`, `"archive_equipment_usage(uuid)"`, `"save_equipment_usage(jsonb)"`,
+`"transition_equipment_usage(uuid,text,text)"` (the trigger function `audit_equipment_usage_delete` is excluded by the
+guard); amend 0178 (+4).
 
 ### S1.9 Gate
 
@@ -720,7 +754,7 @@ Run the migration-slice gate (Conventions) with files `equipment_usage.test.sql 
 
 ---
 
-## S2 - Costing settings, hire-rate charges, reads (`<NNNN>_equipment_costing.sql`) — money, ships alone
+## S2 - Costing settings, hire-rate charges, reads (`0448_equipment_costing.sql`) — money, ships alone
 
 Covers AC-EQU-002, 003, 008, 015, the settings half of AC-EQU-012, and the hire-rate half of AC-EQU-006.
 Header REVERSE list (in order): drop `list_equipment_usage_totals(uuid,uuid,date,date)`,
@@ -771,9 +805,13 @@ select is((select count(*)::int from audit_events where action like 'equipment_c
 
 Same file, more rows: AC-EQU-002, owning title `AC-EQU-002 basis none shows usage per project and no amount` (basis `none` on TRK-1 with approved usage on P1 and P2: `list_equipment_allocations` returns
 two `status = 'usage_only'` rows with `amount is null`, `list_equipment_usage_totals` shows both projects' units, and
-`preview_equipment_costing` of a `none` draft returns zero rows); AC-EQU-015, owning title `AC-EQU-015 a units setting after a day entry in the window is refused (mixed units)` (LDR-1 has a `days` entry in October; saving a
-`hire_rate` with `rate_unit = 'hours'` from 2026-10-01 → `22023` "mixed units"; after that save is refused, saving the same
-setting from 2026-11-01 lives and a later `save_equipment_usage` of a `days` row dated within the window → `22023`);
+`preview_equipment_costing` of a `none` draft returns zero rows); AC-EQU-015, owning title `AC-EQU-015 a units setting after a day entry in the window is refused (mixed units)` (LDR-1 has a
+`days` entry on 2026-09-15; saving a `hire_rate` with `rate_unit = 'hours'` from 2026-09-01 → `throws_like '%mixed units%'`;
+saving the same setting from 2026-10-01 lives; then, as Eng1, `save_equipment_usage` of a `days` row on 2026-10-15 →
+`throws_like '%costed per hours%'`. **Match the message, not only `22023`:** a future-dated row is also `22023`, so a
+code-only assertion could pass for the wrong reason. All dates stay before the planning date; never use "today" or later);
+an `actual_cost` `units` setting from 2026-09-16 is refused the same way because its driver shares the whole month
+(PQ-5): the check starts at the first day of the `effective_from` month;
 AC-EQU-006 (hire-rate half: a Submitted and a Rejected EXC-1 row added in October leave the 580.00 unchanged).
 Mutation check: in `equipment_hire_charges` drop `e.status = 'Approved'` → the AC-EQU-006 row goes red.
 
@@ -870,14 +908,18 @@ $$;
 ```
 
 `equipment_costing_assert_no_conflict(p_org uuid, p_norm jsonb) returns void` raises `23505` when, over an overlapping window
-(window overlap exactly as 0376 `:188-190`, using each version's effective window from `equipment_settings_effective`):
-(a) another **current** setting of the **same asset** (other `setting_key`) exists, any basis (FR-EQU-034, second clause);
+(window overlap exactly as 0376 `:188-190`). **The equipment side is every effective version, not only the current one:** read
+`equipment_settings_effective(p_org, p_norm)` (the draft overlaid, so the saved key's own older windows are clamped exactly as
+the save will clamp them), because older versions keep applying to their dates (PQ-4) and a tie with one is as real as a tie
+with the current version:
+(a) an effective version of another `setting_key` on the **same asset** whose window overlaps, any basis (FR-EQU-034, second clause);
 (b) for `actual_cost`: a current #1271 rule with `specificity >= p_norm.specificity` and
 `cost_attribution_matches_overlap(…)` (FR-EQU-034, first clause; message names the rule);
-(c) for `actual_cost`: a current `actual_cost` setting of **another asset** with equal specificity and an overlapping match
+(c) for `actual_cost`: an effective `actual_cost` version of **another asset** with equal specificity and an overlapping match
 (a tie the engine could only break by key; message names the other asset's code). It also raises `22023` "mixed units" when
-`rate_unit` is set (hire_rate, or actual_cost with `driver = 'units'`) and a non-archived entry for the asset in the window
-has another unit (FR-EQU-032, AC-EQU-015).
+`rate_unit` is set (hire_rate, or actual_cost with `driver = 'units'`) and a non-archived, non-rejected entry for the asset
+has another unit, dated from the window start (for `actual_cost`, from `date_trunc('month', effective_from)`, because PQ-5
+shares a version's pool over the whole month's usage) to the window end (FR-EQU-032, AC-EQU-015).
 
 ### S2.4 Effective windows and approved usage (internal, the single source for every reader)
 
@@ -983,8 +1025,11 @@ begin
 end $$;
 -- end_equipment_costing(p_setting_key uuid, p_effective_to date, p_expected_version int): 0376 :402-420 with
 --   equipment_costing_content / equipment_costing_write; accounts not re-checked.
--- list_equipment_costing(p_include_history boolean default false): invoker, 0376 :422-443 audience
---   (Admin/Finance/Executive/PM), returns the row columns + asset code/name + window_to from equipment_settings_effective.
+-- list_equipment_costing(p_include_history boolean default false): STABLE SECURITY DEFINER (not invoker as 0376 :422:
+--   it reads window_to from equipment_settings_effective, an internal helper with no client EXECUTE, so an invoker body
+--   would fail with 42501 for every caller). Body: assert_is_active_member(); 0376 :422-443 role gate
+--   (Admin/Finance/Executive/PM → else 42501); `where s.org_id = public.auth_org_id()` (the definer bypasses RLS, so the org
+--   filter MUST stay); returns the row columns + asset code/name + window_to.
 ```
 
 `preview_equipment_costing(p_setting jsonb) returns table(project_id uuid, month date, category public.budget_category,
@@ -1048,7 +1093,9 @@ the DAL still applies the `LIMIT + 1` sentinel (bucket 5).
 create or replace function public.equipment_entry_locked_unit(p_org uuid, p_asset uuid, p_date date) returns text
   language sql stable set search_path = public, pg_temp as $$
   select v.rate_unit from public.equipment_settings_effective(p_org, null) v
-   where v.asset_id = p_asset and p_date between v.window_from and v.window_to
+   where v.asset_id = p_asset
+     and p_date between case when v.basis = 'actual_cost' then date_trunc('month', v.window_from)::date else v.window_from end
+                    and v.window_to                       -- actual_cost: the whole first month feeds the driver (PQ-5)
      and (v.basis = 'hire_rate' or (v.basis = 'actual_cost' and v.driver = 'units'))
    order by v.window_from desc limit 1
 $$;
@@ -1060,22 +1107,30 @@ Append to `supabase/tests/equipment_rls.test.sql`: PM1 `save_equipment_costing(.
 change what an hour is worth"); Executive → `42501`; Engineer `list_equipment_allocations` → `42501`, but
 `list_equipment_usage_totals` lives and has no amount column (`select count(*) from information_schema.routines …` is not
 needed: assert `has_column`-style via `pg_get_function_result('list_equipment_usage_totals(uuid,uuid,date,date)'::regprocedure)
-not like '%amount%'`); Finance and Admin save; direct `insert into equipment_costing_settings` as Admin → `42501`; another
-org's `list_equipment_costing()` returns 0 rows; saving a setting for the foreign asset `…dx` → `P0002`.
+not like '%amount%'`); Engineer `list_equipment_costing()` → `42501`; Finance and Admin save; direct `insert into equipment_costing_settings` as Admin → `42501`; another
+org's `list_equipment_costing()` returns 0 rows; saving a setting for the foreign asset `…d9` → `P0002`.
 
 ### S2.10 Gate
 
-Self-assertion block, rollback file, denominator (`equipment_costing_settings` table + the six client RPCs), 0178 (+2), types,
-the migration-slice gate with `equipment_usage.test.sql equipment_rls.test.sql equipment_costing.test.sql`.
+Self-assertion block, rollback file, denominator: the `equipment_costing_settings` table and exactly these six definers:
+`"end_equipment_costing(uuid,date,integer)"`, `"list_equipment_allocations(uuid,date,date,uuid)"`, `"list_equipment_costing(boolean)"`,
+`"list_equipment_usage_totals(uuid,uuid,date,date)"`, `"preview_equipment_costing(jsonb)"`, `"save_equipment_costing(jsonb)"`
+(the internals `equipment_costing_write`, `equipment_costing_normalize`, `equipment_costing_content`,
+`equipment_costing_assert_no_conflict`, `cost_attribution_matches_overlap`, `equipment_settings_effective`,
+`equipment_usage_by_project`, `equipment_hire_charges` are invoker, revoked from `public, anon, authenticated`, and asserted so
+in the `do $$` block); 0178 (+2); types; the migration-slice gate with `equipment_usage.test.sql equipment_rls.test.sql equipment_costing.test.sql`.
 
 ---
 
-## S3 - `actual_cost` inside the attribution engine (`<NNNN>_equipment_actual_cost.sql`) — money, ships alone
+## S3 - `actual_cost` inside the attribution engine (`0449_equipment_actual_cost.sql`) — money, ships alone
 
-Covers AC-EQU-001, 004, 005, 006 (owning row), 009, 014. Header REVERSE: restore `cost_attribution_allocations(uuid, jsonb,
-uuid, uuid)` and `cost_attribution_assert_no_conflict(uuid, jsonb)` **verbatim from 0376 `:216-282` / `:176-214`**, restore S2's
-`preview_equipment_costing` and `list_equipment_allocations` bodies, then drop `cost_attribution_engine(uuid,jsonb,uuid,uuid,jsonb)`
-and `cost_attribution_allocations(uuid,jsonb,uuid,uuid,jsonb)`. The rollback file carries those bodies in full.
+Covers AC-EQU-001, 004, 005, 006 (owning row), 009, 014. Header REVERSE, in this order: drop
+`cost_attribution_allocations(uuid,jsonb,uuid,uuid,jsonb)` **first** (while it exists, a re-created 4-argument overload makes
+every 3- and 4-argument call ambiguous), drop `cost_attribution_engine(uuid,jsonb,uuid,uuid,jsonb)`, re-create
+`cost_attribution_allocations(uuid, jsonb, uuid, uuid)` and `cost_attribution_assert_no_conflict(uuid, jsonb)` **verbatim from the
+bodies this slice replaced** (0376 `:216-282` / `:176-214` unless a sibling redefined them first) with their 0376 `revoke`
+lines, then restore S2's `preview_equipment_costing` and `list_equipment_allocations` bodies. The rollback file carries those
+bodies in full.
 
 ### S3.1 Failing test: the issue acceptance and the pool rules
 
@@ -1098,7 +1153,7 @@ select pg_temp.act_as('15190000-0000-0000-0000-0000000000a2');
 -- AC-EQU-014: preview first
 insert into _pv select project_id, month, amount from preview_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d1",
   "basis":"actual_cost","driver":"units","rate_unit":"hours","account_group":"Plant - EQ","cost_center":"Loader-1 - EQ",
-  "effective_from":"2026-01-01"}') where amount is not null;
+  "effective_from":"2026-01-01"}') where project_id is not null;   -- the July unallocated row (project null) is compared below
 select lives_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d1","basis":"actual_cost",
   "driver":"units","rate_unit":"hours","account_group":"Plant - EQ","cost_center":"Loader-1 - EQ","effective_from":"2026-01-01"}') $$,
   'AC-EQU-001 an actual-cost setting with no rate is saved');
@@ -1116,6 +1171,7 @@ select is((select sum(amount) from list_equipment_allocations('15190000-0000-000
 select set_eq($$ select project_id, month, amount from _pv $$,
   $$ select project_id, month, sum(amount) from list_equipment_allocations('15190000-0000-0000-0000-0000000000d1','2026-01-01','2026-12-31')
        where status = 'allocated' group by 1, 2 $$, 'AC-EQU-014 preview rows equal the saved allocations per project per month');
+-- (the preview's unallocated July row is asserted by its own AC-EQU-005 row below, from the saved setting)
 select is((select row(status, pool, reason)::text from list_equipment_allocations('15190000-0000-0000-0000-0000000000d1','2026-07-01','2026-07-31')),
   '(unallocated,500.00,no_approved_usage)', 'AC-EQU-005 a pool with zero approved driver allocates nothing and shows as unallocated');
 select lives_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d2","basis":"actual_cost",
@@ -1130,9 +1186,10 @@ select is((select sum(amount) from list_equipment_allocations('15190000-0000-000
 
 Then AC-EQU-009 rows (owning title `AC-EQU-009 a ledger line goes to one winner only`): as Finance save a #1271 rule `{"name":"Depreciation to P3","account":"Depreciation - EQ",
 "effective_from":"2026-01-01","targets":[{"project_id":"…c3","percent":100}]}` (specificity 2 < the LDR-1 setting's 11): assert
-`cost_attribution_allocations(org, null, null, null)` places G1 **once** (`count(*) filter (where account = 'Depreciation - EQ'
-and posting_date between '2026-09-01' and '2026-09-30')` grouped by source equals 3 rows: two equipment shares and the G6
-rule share, never G1 under P3); `sum(amount)` over everything equals the matched untagged ledger lines (G1 + G2-pool excluded
+G1 is placed **once**: as superuser, `select source, project_id from cost_attribution_engine(org, null, null, null, null) where
+status = 'allocated' and account = 'Depreciation - EQ' and posting_date between '2026-09-01' and '2026-09-30'` equals exactly
+`{(equipment, P1), (equipment, P2), (rule, P3)}` (the two equipment shares of G1 and the rule share of G6; the wrapper has
+no `source` column, so read the engine), and `cost_attribution_allocations` holds no G1 row under P3; `sum(amount)` over everything equals the matched untagged ledger lines (G1 + G2-pool excluded
 because unallocated + G5 + G6 = 800 + 100 + 200); saving an equipment setting on EXC-1 with `account = 'Depreciation - EQ'`, no
 cost centre (specificity 2, equal to the rule) → `23505`; saving a #1271 rule `account_group = 'Plant - EQ'`,
 `cost_center = 'Loader-1 - EQ'` (specificity 11, tie with the LDR-1 setting) → `23505` (spec delta 4).
@@ -1143,7 +1200,7 @@ Run: `scripts/with-db-lock.sh supabase test db supabase/tests/equipment_actual_c
 
 ### S3.2 The engine
 
-`cost_attribution_engine` is the 0376 `cost_attribution_allocations` body **verbatim**, every new line marked `-- <NNNN>`:
+`cost_attribution_engine` is the 0376 `cost_attribution_allocations` body **verbatim**, every new line marked `-- 0449`:
 
 ```sql
 create function public.cost_attribution_engine(p_org_id uuid, p_draft jsonb default null, p_exclude_rule_key uuid default null,
@@ -1155,11 +1212,11 @@ language sql stable set search_path = public, pg_temp as $$
   with draft as (                                          -- 0376 verbatim
     select coalesce((p_draft->>'rule_key')::uuid, '00000000-0000-0000-0000-000000000000'::uuid) as rule_key
     where p_draft is not null
-  ), eq_versions as (                                                                                 -- <NNNN>
-    select v.* from public.equipment_settings_effective(p_org_id, p_equipment_draft) v where v.basis = 'actual_cost'  -- <NNNN>
+  ), eq_versions as (                                                                                 -- 0449
+    select v.* from public.equipment_settings_effective(p_org_id, p_equipment_draft) v where v.basis = 'actual_cost'  -- 0449
   ), rules as (
     select r.id, r.rule_key, r.specificity, r.match_account, r.match_account_group, r.match_cost_center,
-           r.match_party_type, r.match_party, r.effective_from, r.effective_to, 'rule'::text as source          -- <NNNN> source
+           r.match_party_type, r.match_party, r.effective_from, r.effective_to, 'rule'::text as source          -- 0449 source
       from public.cost_attribution_rules r
      where r.org_id = p_org_id and r.is_current
        and r.rule_key is distinct from p_exclude_rule_key
@@ -1167,12 +1224,12 @@ language sql stable set search_path = public, pg_temp as $$
     union all
     select null::uuid, d.rule_key, (p_draft->>'specificity')::int, p_draft->>'account', p_draft->>'account_group',
            p_draft->>'cost_center', p_draft->>'party_type', p_draft->>'party',
-           (p_draft->>'effective_from')::date, (p_draft->>'effective_to')::date, 'rule'                         -- <NNNN> source
+           (p_draft->>'effective_from')::date, (p_draft->>'effective_to')::date, 'rule'                         -- 0449 source
       from draft d
-    union all                                                                                         -- <NNNN>
-    select v.id, v.setting_key, v.specificity, v.match_account, v.match_account_group, v.match_cost_center, -- <NNNN>
-           v.match_party_type, v.match_party, v.window_from, nullif(v.window_to, 'infinity'::date), 'equipment' -- <NNNN>
-      from eq_versions v                                                                              -- <NNNN>
+    union all                                                                                         -- 0449
+    select v.id, v.setting_key, v.specificity, v.match_account, v.match_account_group, v.match_cost_center, -- 0449
+           v.match_party_type, v.match_party, v.window_from, nullif(v.window_to, 'infinity'::date), 'equipment' -- 0449
+      from eq_versions v                                                                              -- 0449
   ), targets as (                                          -- 0376 verbatim
     select r.rule_key, t.position::int as position, t.project_id, t.percent
       from rules r join public.cost_attribution_rule_targets t on t.rule_id = r.id
@@ -1181,11 +1238,11 @@ language sql stable set search_path = public, pg_temp as $$
       from draft d cross join lateral jsonb_array_elements(p_draft->'targets') with ordinality e(v, ord)
   ), project_rules as (
     select distinct t.rule_key from targets t where p_project_id is null or t.project_id = p_project_id
-    union                                                                                             -- <NNNN>
-    select v.setting_key from eq_versions v                                                           -- <NNNN>
-     where p_project_id is null or exists (select 1 from public.equipment_usage_entries e             -- <NNNN>
-             where e.org_id = p_org_id and e.asset_id = v.asset_id and e.project_id = p_project_id   -- <NNNN>
-               and e.status = 'Approved' and e.archived_at is null)                                   -- <NNNN>
+    union                                                                                             -- 0449
+    select v.setting_key from eq_versions v                                                           -- 0449
+     where p_project_id is null or exists (select 1 from public.equipment_usage_entries e             -- 0449
+             where e.org_id = p_org_id and e.asset_id = v.asset_id and e.project_id = p_project_id   -- 0449
+               and e.status = 'Approved' and e.archived_at is null)                                   -- 0449
   ), rule_accounts as (                                    -- 0376 verbatim (r.* now carries source)
     select r.*, r.match_account as acct from rules r where r.match_account is not null
     union all
@@ -1216,37 +1273,37 @@ language sql stable set search_path = public, pg_temp as $$
     select w.*, t.project_id, t.position, round(w.net * t.percent / 100, 2) as share,
            row_number() over (partition by w.gl_id order by t.position desc) = 1 as is_last
       from winners w join targets t on t.rule_key = w.rule_key
-     where w.source = 'rule' and w.rule_key in (select pr.rule_key from project_rules pr)                -- <NNNN> source
+     where w.source = 'rule' and w.rule_key in (select pr.rule_key from project_rules pr)                -- 0449 source
   ), placed as (                                           -- 0376 verbatim
     select s.gl_id, s.rule_id, s.rule_key, s.project_id, s.account, s.fiscal_year, s.posting_date, s.party_type,
            case when s.is_last then s.net - (sum(s.share) over (partition by s.gl_id) - s.share) else s.share end as amount,
            s.as_of
       from shares s
-  ), eq_pools as (                                                                                    -- <NNNN> FR-EQU-041/042
+  ), eq_pools as (                                                                                    -- 0449 FR-EQU-041/042
     select w.rule_id, w.rule_key, date_trunc('month', w.posting_date)::date as month, w.account, w.fiscal_year, w.party_type,
            sum(w.net) as pool, count(*)::int as line_count, max(w.as_of) as as_of
       from winners w where w.source = 'equipment'
      group by 1, 2, 3, 4, 5, 6
-  ), eq_usage as (                                                                                    -- <NNNN> OQ-2, OQ-6
+  ), eq_usage as (                                                                                    -- 0449 OQ-2, OQ-6
     select v.setting_key, v.id as version_id, u.month, u.project_id,
            sum(case v.driver when 'units' then u.quantity when 'fuel' then u.fuel_litres else u.trips end) as driver_value,
            sum(u.entry_count)::int as entry_count
       from eq_versions v join public.equipment_usage_by_project(p_org_id) u on u.asset_id = v.asset_id
      where u.kind = 'work' or v.count_standby
      group by 1, 2, 3, 4
-  ), eq_split as (                                                                                    -- <NNNN>
+  ), eq_split as (                                                                                    -- 0449
     select p.*, v.version, v.asset_id, v.driver, x.project_id, x.driver_value, x.entry_count,
            sum(x.driver_value) over (partition by p.rule_key, p.rule_id, p.month, p.account, p.fiscal_year, p.party_type) as driver_total
       from eq_pools p
       join eq_versions v on v.setting_key = p.rule_key and v.id is not distinct from p.rule_id
       left join eq_usage x on x.setting_key = p.rule_key and x.version_id is not distinct from p.rule_id
                           and x.month = p.month and x.driver_value > 0
-  ), eq_shares as (                                                                                   -- <NNNN> PQ-6
+  ), eq_shares as (                                                                                   -- 0449 PQ-6
     select s.*, round(s.pool * s.driver_value / s.driver_total, 2) as share,
            row_number() over (partition by s.rule_key, s.rule_id, s.month, s.account, s.fiscal_year, s.party_type
                               order by s.project_id desc) = 1 as is_last
       from eq_split s where s.driver_total > 0
-  ), eq_placed as (                                                                                   -- <NNNN> FR-CAT-022
+  ), eq_placed as (                                                                                   -- 0449 FR-CAT-022
     select s.*, case when s.is_last
                      then s.pool - (sum(s.share) over (partition by s.rule_key, s.rule_id, s.month, s.account, s.fiscal_year, s.party_type) - s.share)
                      else s.share end as amount
@@ -1256,11 +1313,11 @@ language sql stable set search_path = public, pg_temp as $$
          p.posting_date, p.party_type, p.amount, p.as_of, null::numeric, null::text, null::numeric, null::numeric, 1,
          null::int, 'allocated'::text
     from placed p where p_project_id is null or p.project_id = p_project_id
-  union all                                                                                           -- <NNNN>
+  union all                                                                                           -- 0449
   select 'equipment', null, e.rule_id, e.rule_key, e.version, e.asset_id, e.project_id, e.account, e.fiscal_year, e.month,
          e.party_type, e.amount, e.as_of, e.pool, e.driver, e.driver_value, e.driver_total, e.line_count, e.entry_count, 'allocated'
     from eq_placed e where p_project_id is null or e.project_id = p_project_id
-  union all                                                                                           -- <NNNN> never dropped
+  union all                                                                                           -- 0449 never dropped
   select distinct on (s.rule_key, s.rule_id, s.month, s.account, s.fiscal_year, s.party_type)
          'equipment', null, s.rule_id, s.rule_key, s.version, s.asset_id, null::uuid, s.account, s.fiscal_year, s.month,
          s.party_type, s.pool, s.as_of, s.pool, s.driver, null::numeric, 0::numeric, s.line_count, 0, 'unallocated'
@@ -1296,7 +1353,8 @@ passed there. Run `supabase/tests/cost_attribution.test.sql` unchanged: all 97 r
 ### S3.4 Symmetric tie refusal (spec delta 4)
 
 Re-create `cost_attribution_assert_no_conflict` = 0376 `:176-214` verbatim, then before the final `raise`, a second lookup
-(marked `-- <NNNN>`): the first current `actual_cost` equipment setting whose effective window overlaps, whose `specificity`
+(marked `-- 0449`): the first `actual_cost` version from `equipment_settings_effective(p_org_id, null)` (every effective
+version, not only the current one: older versions keep applying to their dates) whose window overlaps, whose `specificity`
 equals `(p_norm->>'specificity')::int`, and for which `cost_attribution_matches_overlap(p_org_id, p_norm->>'account',
 p_norm->>'account_group', p_norm->>'cost_center', p_norm->>'party_type', p_norm->>'party', v.match_account, …)` holds; raise
 `23505` "conflicts with the equipment costing of asset %: same specificity, overlapping dates and matches".
@@ -1307,7 +1365,16 @@ p_norm->>'account_group', p_norm->>'cost_center', p_norm->>'party_type', p_norm-
 `select project_id, posting_date, m.category, 'actual_cost', sum(amount), max(driver_total), sum(entry_count)::int from
 cost_attribution_engine(v_org, null, null, null, v_norm) e left join budget_category_account_map m on m.org_id = v_org and
 m.erp_account = e.account where e.source = 'equipment' and e.rule_id is null group by …`, **plus** the draft's unallocated rows
-(`project_id null`, `amount` = pool) so the preview warns before saving. `list_equipment_allocations` gains a third arm from
+(`project_id null`, `amount` = pool) so the preview warns before saving.
+
+**Employee-party narrowing (both reads, parity).** A pool's grain includes `party_type`, and an `actual_cost` match can reach
+payroll lines (an operator's pay on the asset's cost centre). Both `preview_equipment_costing` and the new
+`list_equipment_allocations` arm carry the condition every #1271 read carries (0376 `:300`, 0403 `:11`):
+`and (e.party_type is distinct from 'Employee' or coalesce(public.holds_spend_approval_authority(public.auth_role()), false))`.
+Today every caller of these two reads already ranks at or above Project Manager, so the condition removes nothing; it keeps
+the rule in step if a lower role ever joins the audience. No extra test row (it cannot go red with today's roles).
+
+`list_equipment_allocations` gains a third arm from
 `cost_attribution_engine(v_org, null, null, p_project_id, null)` where `source = 'equipment'`, mapping `status`,
 `reason = case when status = 'unallocated' then 'no_approved_usage' end`, `share = amount / pool` for allocated rows (exposed
 to 6 decimals), and `category` via the account map; the `usage_only` arm's basis filter becomes `basis = 'none'` only.
@@ -1330,11 +1397,11 @@ Self-assertion block, rollback file with the restored 0376 bodies, denominator (
 
 ---
 
-## S4 - Project actuals, finances, API tiers (`<NNNN>_equipment_project_actuals.sql`) — money, ships alone
+## S4 - Project actuals, finances, API tiers (`<S4-NNNN>_equipment_project_actuals.sql`) — money, ships alone
 
-Covers AC-EQU-010, 011, 013, 016. Header REVERSE: restore `project_mapped_actuals` and `project_mapped_actuals_all` verbatim from
-0376 `:458-511` / `:536-593` (drop then create, the old 8 / 9 columns), `get_project_finances` verbatim from 0410 `:283-636`,
-`api_client_request_guard` verbatim from 0397 `:86-228`; drop `equipment_charge_org_actuals(text)`,
+Covers AC-EQU-010, 011, 013, 016. Header REVERSE: restore `project_mapped_actuals` and `project_mapped_actuals_all` (drop then
+create, the old 8 / 9 columns), `get_project_finances` and `api_client_request_guard`, each verbatim from the body this slice
+replaced (0376 `:458-511` / `:536-593`, 0410 `:283-636`, 0397 `:86-228` unless a sibling redefined it first); drop `equipment_charge_org_actuals(text)`,
 `equipment_charge_project_actuals(uuid,text)`.
 
 ### S4.1 Failing test: attributed path and the separate charge (AC-EQU-010)
@@ -1398,10 +1465,21 @@ select is(get_pm_dashboard_projects()::jsonb, (select v from _dash where k = 'pm
 `_dash` is captured in the same transaction **before the migration's functions are exercised with any equipment row**: the file
 inserts the usage rows only after capturing `get_executive_dashboard()` / `get_pm_dashboard_projects()`, so the comparison is
 "no usage" vs "usage with no setting". `pg_temp.finances_0410_actuals(p)` rebuilds the `actuals` object from `pg_temp.pma_0376`
-exactly as 0410 `:614-630` does (the 0410 expressions copied verbatim). Mutation check: add `+ 0.01` to the charge term → the
-AC-EQU-011 rows go red.
+exactly as 0410 `:614-630` does (the 0410 expressions copied verbatim).
 
-### S4.3 Charge helpers (definer; the ledger-audience rule of 0376 `:289-308`)
+File order, top to bottom: F1 + F2 → one extra snapshot row on P2 (`Fuel - EQ`, `net` null, same `snapshot_id`; the
+null-`source_sum` case) → capture `_dash` (as Executive, then as PM1) → insert the usage rows → this AC-EQU-011 block →
+the costing saves → the S4.1 AC-EQU-010 block → S4.7 → S4.8. Mutation check: change the charge term's
+`coalesce(…, 0)` to `coalesce(…, 0.01)` → the AC-EQU-011 rows go red; rewrite `source_sum` as the coalesced sum → the P2
+null-net row goes red.
+
+### S4.3 Charge helpers (definer; amounts audience only, FR-EQU-062)
+
+`project_mapped_actuals` is granted to every active member (invoker over `erp_actuals_snapshot`, readable by all members).
+A hire charge is a rate × units figure the spec keeps from Engineers ("no amounts"), so the charge helpers return rows only
+for Admin, Finance, Executive and Project Manager; for an Engineer they return nothing and the charge term is absent (their
+`equipment_charge_to_date` is 0 and their `actuals_to_date` excludes it). Every amounts reader (get_project_finances, both
+dashboards, the project panel) is already that audience, so no screen changes.
 
 ```sql
 create function public.equipment_charge_project_actuals(p_project_id uuid, p_fiscal_year text default null)
@@ -1410,11 +1488,13 @@ language sql stable security definer set search_path = public, pg_temp as $$
   select c.category, count(*), sum(c.amount), max(c.as_of)
     from public.equipment_hire_charges(public.auth_org_id(), null, p_project_id) c
    where public.is_active_member()
+     and coalesce(public.auth_role()::text in ('Admin','Finance','Executive','Project Manager'), false)  -- FR-EQU-062
      and (p_fiscal_year is null or c.fiscal_year = p_fiscal_year)
      and exists (select 1 from public.projects p where p.id = p_project_id and p.org_id = public.auth_org_id())
    group by c.category
 $$;
--- equipment_charge_org_actuals(p_fiscal_year text default null): the same grouped additionally by project_id, no project filter.
+-- equipment_charge_org_actuals(p_fiscal_year text default null): the same (incl. the role condition) grouped additionally
+--   by project_id, no project filter.
 alter function public.equipment_charge_project_actuals(uuid, text) owner to postgres;
 revoke all on function public.equipment_charge_project_actuals(uuid, text) from public, anon, authenticated;
 grant execute on function public.equipment_charge_project_actuals(uuid, text) to authenticated;
@@ -1427,34 +1507,39 @@ grant execute on function public.equipment_charge_project_actuals(uuid, text) to
 0410 `:339` and 0396 `:108,294` keep working) and these marked changes:
 
 ```sql
-  ), charged as (                                                                   -- <NNNN> OQ-3 / FR-EQU-051
+  ), charged as (                                                                   -- <S4-NNNN> OQ-3 / FR-EQU-051
     select x.* from public.equipment_charge_project_actuals(p_project_id, p_fiscal_year) x
     where exists (select 1 from public.projects p where p.id = p_project_id)
   ), reading_as_of as (
     select greatest((select max(as_of) from reading), (select max(as_of) from attributed),
-                    (select max(as_of) from charged)) as v                           -- <NNNN>
+                    (select max(as_of) from charged)) as v                           -- <S4-NNNN>
   )
-  select c.category, mc.category is not null, coalesce(a.n,0) + coalesce(t.n,0) + coalesce(q.n,0) > 0,     -- <NNNN> q
+  select c.category, mc.category is not null, coalesce(a.n,0) + coalesce(t.n,0) + coalesce(q.n,0) > 0,     -- <S4-NNNN> q
     case when mc.category is null or (select v from reading_as_of) is null then null
-         when coalesce(a.n,0) + coalesce(t.n,0) + coalesce(q.n,0) = 0 then 0::numeric                       -- <NNNN> q
+         when coalesce(a.n,0) + coalesce(t.n,0) + coalesce(q.n,0) = 0 then 0::numeric                       -- <S4-NNNN> q
          when (a.n > 0 and a.amount is null) or (t.n > 0 and t.amount is null) then null
-         else coalesce(a.amount,0) + coalesce(t.amount,0) + coalesce(q.amount,0) end,                       -- <NNNN> q
+         else coalesce(a.amount,0) + coalesce(t.amount,0) + coalesce(q.amount,0) end,                       -- <S4-NNNN> q
     (select v from reading_as_of),
-    case when coalesce(a.n,0) + coalesce(t.n,0) + coalesce(q.n,0) = 0 then null                             -- <NNNN>
-         else coalesce(case when a.n > 0 then a.source_sum end,0) + coalesce(case when t.n > 0 then t.source_sum end,0)
-              + coalesce(q.amount,0) end,                                                                   -- <NNNN> budget-vs-actual
+    case when coalesce(a.n,0) + coalesce(t.n,0) = 0                                 -- <S4-NNNN> budget-vs-actual
+         then case when q.n > 0 then q.amount end                                    -- <S4-NNNN> charge-only (null when none)
+         else (case when a.n > 0 and t.n > 0 then a.source_sum + t.source_sum      -- 0376 verbatim
+                    when a.n > 0 then a.source_sum
+                    when t.n > 0 then t.source_sum end)
+              + coalesce(case when q.n > 0 then q.amount end, 0) end,               -- <S4-NNNN>
     … tagged_to_date and attributed_to_date expressions verbatim …,
     case when mc.category is null or (select v from reading_as_of) is null then null
-         when q.n > 0 then q.amount else 0::numeric end                                                    -- <NNNN> equipment_charge_to_date
+         when q.n > 0 then q.amount else 0::numeric end                                                    -- <S4-NNNN> equipment_charge_to_date
   from unnest(enum_range(null::public.budget_category)) c(category)
   left join mapped_categories mc on mc.category = c.category
   left join actuals a on a.category = c.category
   left join attributed t on t.category = c.category
-  left join charged q on q.category = c.category                                   -- <NNNN>
+  left join charged q on q.category = c.category                                   -- <S4-NNNN>
 ```
 
-Byte-identity: with no charge row `q.n` is null, so every expression reduces to its 0376 form (the `source_sum` rewrite returns
-the same value in all four 0376 branches; S4.2 proves it). `project_mapped_actuals_all` gets the same changes over
+Byte-identity: with no charge row `q.n` is null, so every expression reduces to its 0376 form. **`source_sum` keeps the 0376
+case verbatim** inside the new outer branch. Do not rewrite it as `coalesce(…,0) + coalesce(…,0)`: when a category's
+`source_sum` is null (rows exist but every net is null), 0376 returns null and a coalesced form returns 0, so an org with no
+equipment settings would change. S4.2 carries a null-net snapshot row to prove it. `project_mapped_actuals_all` gets the same changes over
 `equipment_charge_org_actuals` (materialised CTE, joined on `project_id` and `category`).
 
 ### S4.5 `get_project_finances`
@@ -1462,7 +1547,7 @@ the same value in all four 0376 branches; S4.2 proves it). `project_mapped_actua
 `create or replace` = 0410 `:283-636` verbatim plus, inside `'actuals', jsonb_build_object(` after `'attributed_total'` (`:624-626`):
 
 ```sql
-      -- <NNNN> (#1519, FR-EQU-051): the hire-rate internal charge inside `total`, stated on its own.
+      -- <S4-NNNN> (#1519, FR-EQU-051): the hire-rate internal charge inside `total`, stated on its own.
       'equipment_charge_total',(select case when count(*) filter(where mapped) = 0
                                   or count(*) filter(where mapped and equipment_charge_to_date is null) > 0 then null
                           else sum(equipment_charge_to_date) filter(where mapped) end::text from gl),
@@ -1473,24 +1558,24 @@ and `'equipment_charge_amount',equipment_charge_to_date::text` appended to each 
 ### S4.6 API-client tiers (AC-EQU-013)
 
 `create or replace function public.api_client_request_guard()` = 0397 `:86-228` verbatim plus three arrays and three branches
-marked `-- <NNNN>`, placed after the cost-attribution branches (`:174-…`), same shape:
+marked `-- <S4-NNNN>`, placed after the cost-attribution branches (`:174-…`), same shape:
 
 ```sql
   -- EQUIPMENT TIER (`pmo equipment`, #1519): costing preview/save/end/list for active Admin/Finance; allocations for the
-  -- project-actuals audience; usage totals for any active member. Same role sets as the RPCs' own checks.  -- <NNNN>
-  equipment_write_rpcs constant text[] := array['preview_equipment_costing', 'save_equipment_costing', 'end_equipment_costing'];  -- <NNNN>
-  equipment_read_rpcs constant text[] := array['list_equipment_costing', 'list_equipment_allocations'];  -- <NNNN>
-  equipment_usage_rpcs constant text[] := array['list_equipment_usage_totals'];  -- <NNNN>
+  -- project-actuals audience; usage totals for any active member. Same role sets as the RPCs' own checks.  -- <S4-NNNN>
+  equipment_write_rpcs constant text[] := array['preview_equipment_costing', 'save_equipment_costing', 'end_equipment_costing'];  -- <S4-NNNN>
+  equipment_read_rpcs constant text[] := array['list_equipment_costing', 'list_equipment_allocations'];  -- <S4-NNNN>
+  equipment_usage_rpcs constant text[] := array['list_equipment_usage_totals'];  -- <S4-NNNN>
 …
-    if method = 'POST' and target = any (equipment_write_rpcs) then  -- <NNNN>
-      if coalesce(public.auth_role()::text in ('Admin', 'Finance') and public.is_active_member(), false) then return; end if;  -- <NNNN>
-    end if;  -- <NNNN>
-    if method = 'POST' and target = any (equipment_read_rpcs) then  -- <NNNN>
-      if coalesce(public.auth_role()::text in ('Admin', 'Finance', 'Executive', 'Project Manager') and public.is_active_member(), false) then return; end if;  -- <NNNN>
-    end if;  -- <NNNN>
-    if method = 'POST' and target = any (equipment_usage_rpcs) then  -- <NNNN>
-      if coalesce(public.is_active_member(), false) then return; end if;  -- <NNNN>
-    end if;  -- <NNNN>
+    if method = 'POST' and target = any (equipment_write_rpcs) then  -- <S4-NNNN>
+      if coalesce(public.auth_role()::text in ('Admin', 'Finance') and public.is_active_member(), false) then return; end if;  -- <S4-NNNN>
+    end if;  -- <S4-NNNN>
+    if method = 'POST' and target = any (equipment_read_rpcs) then  -- <S4-NNNN>
+      if coalesce(public.auth_role()::text in ('Admin', 'Finance', 'Executive', 'Project Manager') and public.is_active_member(), false) then return; end if;  -- <S4-NNNN>
+    end if;  -- <S4-NNNN>
+    if method = 'POST' and target = any (equipment_usage_rpcs) then  -- <S4-NNNN>
+      if coalesce(public.is_active_member(), false) then return; end if;  -- <S4-NNNN>
+    end if;  -- <S4-NNNN>
 ```
 
 Failing test first: `supabase/tests/equipment_api_client.test.sql` (new) = F1, copying the request-setting helper of
@@ -1501,10 +1586,10 @@ Failing test first: `supabase/tests/equipment_api_client.test.sql` (new) = F1, c
 
 ### S4.7 Same-org visibility of the new columns
 
-Append to `equipment_project_actuals.test.sql`: as Engineer Eng1, `project_mapped_actuals(P1)` returns the same
-`equipment_charge_to_date` the PM sees (the project-actuals audience is unchanged by this slice; amounts in the equipment
-drill-down remain hidden by `list_equipment_allocations`' audience); as the other-org Admin, `project_mapped_actuals(P1)` is
-all-zero/null rows and `equipment_charge_project_actuals(P1)` returns 0 rows.
+Append to `equipment_project_actuals.test.sql` (titles `AC-EQU-012 …`): as Engineer Eng1, `project_mapped_actuals(P1)` has
+`equipment_charge_to_date = 0` in `Equipment` and `equipment_charge_project_actuals(P1)` returns 0 rows (FR-EQU-062: no amounts),
+while the PM sees 580.00; as the other-org Admin, `project_mapped_actuals(P1)` is all-zero/null rows and
+`equipment_charge_project_actuals(P1)` returns 0 rows. Mutation check: delete the role condition → the Engineer row goes red.
 
 ### S4.8 No ERP write (AC-EQU-016)
 
@@ -1528,7 +1613,8 @@ select is((select coalesce(sum(debit - credit), 0) from erp_gl_entry_mirror), (s
 
 ### S4.9 Gate
 
-Self-assertion block, rollback file (full restored bodies), denominator (`equipment_charge_*` reads), types, then the gate with
+Self-assertion block, rollback file (full restored bodies), denominator: exactly `"equipment_charge_org_actuals(text)"` and
+`"equipment_charge_project_actuals(uuid,text)"`, types, then the gate with
 `equipment_project_actuals.test.sql equipment_api_client.test.sql equipment_actual_cost.test.sql cost_attribution.test.sql`
 and every existing pgTAP file that reads `get_project_finances` or the dashboards (find them with
 `grep -l "get_project_finances\|get_executive_dashboard\|get_pm_dashboard_projects\|project_mapped_actuals" supabase/tests/*.sql`
@@ -1595,8 +1681,8 @@ register `equipment: equipmentRepository` in `src/lib/repositories/index.ts` (be
 every key `[root, orgId, …args]`; `useEquipmentAssets`, `useEquipmentUsage(range)`, `useEquipmentUsageTotals(q)`,
 `useEquipmentCosting(includeHistory)`, `useEquipmentAllocations(q)`; mutations `useSaveUsage`, `useTransitionUsage`,
 `useApproveWeek`, `useArchiveUsage`, `useSaveCosting`, `useEndCosting`, `usePreviewCosting` (mutation, no cache), each
-invalidating every root **and** `['project-finances']` (the key `useProjectFinances` uses; read it from
-`src/hooks/useProjectFinances.ts` and reuse its exported root). Test `src/hooks/useEquipment.test.tsx` (new): keys carry the org
+invalidating every root **and** `['project-finances']` (the literal first key segment of `useProjectFinances`,
+`src/hooks/useProjectFinances.ts:11`; it exports no root constant, so invalidate by that prefix). Test `src/hooks/useEquipment.test.tsx` (new): keys carry the org
 id; `useTransitionUsage` invalidates usage, totals, allocations and project finances.
 
 ### S5.4 Policy (UX only; mirrors the RPC gates)
@@ -1759,7 +1845,7 @@ on the touched routes (UI-lane gate).
 Owns AC-EQU-018. `scripts/lib/pmo-equipment.mjs` (new) mirrors `scripts/lib/pmo-attribution.mjs`:
 
 ```js
-/** The API-client guard tiers (migration <NNNN> S4) — keep in step with equipment_*_rpcs. */
+/** The API-client guard tiers (migration <S4-NNNN> S4) — keep in step with equipment_*_rpcs. */
 export const EQUIPMENT_WRITE_RPCS = Object.freeze(['preview_equipment_costing', 'save_equipment_costing', 'end_equipment_costing']);
 export const EQUIPMENT_READ_RPCS = Object.freeze(['list_equipment_costing', 'list_equipment_allocations']);
 export const EQUIPMENT_USAGE_RPCS = Object.freeze(['list_equipment_usage_totals']);
@@ -1784,7 +1870,8 @@ Wire `case 'equipment':` in `scripts/pmo.mjs` (`:917` pattern), add `'equipment'
 `AC-EQU-018 costing set --dry-run calls preview and never save`, `AC-EQU-018 costing set saves each setting in order and stops at
 the first refusal with the database reason`, `AC-EQU-018 costing list --history passes p_include_history`,
 `AC-EQU-018 the tiers match the guard arrays` (asserts the three exported arrays equal the literal arrays in the S4 migration,
-read from `supabase/migrations/*_equipment_project_actuals.sql` with a regex), `AC-EQU-018 a 42501 explains who may manage costing`.
+read with a regex from the one migration that declares `equipment_write_rpcs`, found by content, not by file name, so it
+still works if S4 is appended to 0449), `AC-EQU-018 a 42501 explains who may manage costing`.
 Mutation check: make `setSettings` ignore `dryRun` → the dry-run test goes red.
 Run: `node --test scripts/pmo-equipment.test.mjs` → fails.
 
@@ -1808,7 +1895,7 @@ Run: `node --test scripts/pmo-equipment.test.mjs` → fails.
 | AC-EQU-009 | pgTAP | `supabase/tests/equipment_actual_cost.test.sql` | `AC-EQU-009 a ledger line goes to one winner only` | S3 | |
 | AC-EQU-010 | pgTAP | `supabase/tests/equipment_project_actuals.test.sql` | `AC-EQU-010 the actual-cost share reaches attributed_to_date in the mapped category` | S4 | |
 | AC-EQU-011 | pgTAP | `supabase/tests/equipment_project_actuals.test.sql` | `AC-EQU-011 with usage logged but no equipment setting, project_mapped_actuals is identical to 0376` | S4 | |
-| AC-EQU-012 | pgTAP | `supabase/tests/equipment_rls.test.sql` | `AC-EQU-012 an Engineer reads only their own entries` | S1 (+S2 rows) | Vitest `src/auth/policy.test.ts` (UX mirror) |
+| AC-EQU-012 | pgTAP | `supabase/tests/equipment_rls.test.sql` | `AC-EQU-012 an Engineer reads only their own entries` | S1 (+S2, S4 rows) | Vitest `src/auth/policy.test.ts` (UX mirror) |
 | AC-EQU-013 | pgTAP | `supabase/tests/equipment_api_client.test.sql` | `AC-EQU-013 an Engineer API client may not save` | S4 | |
 | AC-EQU-014 | pgTAP | `supabase/tests/equipment_actual_cost.test.sql` | `AC-EQU-014 preview rows equal the saved allocations per project per month` | S3 | |
 | AC-EQU-015 | pgTAP | `supabase/tests/equipment_costing.test.sql` | `AC-EQU-015 a units setting after a day entry in the window is refused (mixed units)` | S2 | |
@@ -1864,3 +1951,36 @@ The spec is not edited. These are defects or gaps found while planning; none blo
    needs it per project, so the plan adds an optional `p_project_id` (PQ-11).
 10. **FR-EQU-021 (read from an ERP asset mirror)** cannot be built yet: no asset mirror exists (#1511/#899). The columns are
     reserved (S1.2); the adoption rule of OQ-9 belongs to those issues.
+
+## Review fixes (2026-11-01, spec + security lens)
+
+Every item below is already applied in the sections above; this list is the audit trail.
+
+1. **Migration numbers** set to Lane B's range: S1 0447, S2 0448, S3 0449. S4 needs a fourth number (`<S4-NNNN>`), or
+   is appended to 0449 and ships with S3.
+2. **Fixture ids**: the foreign asset id ended in `dx`, which is not hex and fails the `uuid` cast; now `d9`.
+3. **Isolation denominator** lists every non-trigger SECURITY DEFINER function, not only client RPCs. S1's two definer
+   helpers are now plain functions; each slice's gate names the exact `regprocedure` strings.
+4. **`list_equipment_costing`** was an invoker calling a helper with no client EXECUTE, so every call would fail; now a
+   stable definer with its role gate and org filter.
+5. **AC-EQU-014 test** captured the preview's unallocated row (project null) and compared it with allocated rows only, so
+   it could never pass; the capture now takes project rows only.
+6. **`source_sum` rewrite** returned 0 where 0376 returns null (rows with null nets), breaking AC-EQU-011 for orgs with
+   no settings; the 0376 case is kept verbatim and a null-net row proves it.
+7. **Hire charges and Engineers** (FR-EQU-062 "no amounts"): the charge helpers now return rows only to Admin, Finance,
+   Executive and PM; S4.7 asserted the opposite and is corrected.
+8. **Mixed units across a month edge**: PQ-5 shares a version's pool over the whole month, so the mixed-unit refusal and
+   the entry unit lock start at the first of the `effective_from` month for `actual_cost`.
+9. **AC-EQU-015 test** could pass for the wrong reason (a future-dated row is also `22023`); it now uses past dates and
+   matches the message.
+10. **Conflict checks** compared only current equipment settings, but older versions keep applying to their dates; all
+    three checks and the #1271-side check now read every effective version.
+11. **0178 count** base is 104 on dev, not 103 (S1 → 108, S2 → 110; re-derive after rebase).
+12. **Rebuilt bodies** come from the newest migration at build time (sibling lanes may redefine them); rollbacks restore
+    the body actually replaced. S3's rollback drops the 5-argument wrapper before re-creating the 4-argument one.
+13. **AC-EQU-009 test** read a `source` column the wrapper does not have; it now reads the engine.
+14. **Archive (FR-EQU-064)** had no test rows; added to S1.7.
+15. **Null-safe SoD comparisons** (`is not distinct from`) in the transition, bulk approve and archive.
+16. **Employee-party condition** added to the two equipment ledger reads for parity with every #1271 read.
+17. **Small path fixes**: `useProjectFinances` exports no root constant; the CLI tier test finds the guard migration by
+    content; S4.2 states its file order; service-role grants and "no side-mirror table" are stated.
