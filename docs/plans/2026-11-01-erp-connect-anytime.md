@@ -13,7 +13,7 @@
 - **Role contract:** `.claude/agents/eng-planner.md`. Builders: `implementer` / `ui-implementer` role contracts handed to
   Orca workers (`docs/orca-dispatch.md`); money-path slices are Director-dispatched per issue.
 - **Migrations (Director, 2026-11-01):** each with `supabase/migrations/rollback/<number>_<slug>_down.sql`. Five migrations:
-  ECA-2 `0480_erp_connect_setup`, ECA-3 `0452_erp_connect_sends`, ECA-4 `0453_process_domain_cutover`, ECA-5
+  ECA-2 `0480_erp_connect_setup`, ECA-3 `0482_erp_connect_sends`, ECA-4 `0453_process_domain_cutover`, ECA-5
   `0454_invoice_pairs`, ECA-6 `0455_budget_occupant_resolution` (0450 is #1614's). A collision at build is fixed with
   `scripts/renumber-migration.sh`, never by hand.
 - **IDs:** plan decisions `PD-ECA-#`; questions for the Director `PQ-ECA-#`; tasks `<slice>-T<n>`.
@@ -1223,7 +1223,7 @@ New `supabase/tests/erp_connect_sends.test.sql`: proposals in `sending` for part
 6. `authenticated` cannot execute either function.
 Verify: `PGT supabase/tests/erp_connect_sends.test.sql` → red.
 
-### ECA3-T6 — migration `0452_erp_connect_sends.sql` (green)
+### ECA3-T6 — migration `0482_erp_connect_sends.sql` (green)
 - `claim_connect_sends(p_org_id uuid, p_tier text, p_limit int) returns setof erp_connect_proposals` — `update … set
   decided_at = now() where id in (select id from erp_connect_proposals where org_id = p_org_id and external_tier = p_tier and
   state = 'sending' and (decided_at is null or decided_at < now() - interval '5 minutes') order by decided_at nulls first, id
@@ -1300,7 +1300,7 @@ ERP has no such item — the S-C failure again, one item at a time.
 pgTAP (append to `erp_connect_sends.test.sql`): `enqueue_new_item_sends(A, 'erpnext')` (service-only) inserts one `send`
 proposal in state `sending` (`decided_by` null, `snapshot {auto:true}`) for each distinct `procurement_items.name` on a case not
 `Paid`/`Cancelled` that has no `config.item_map` key and no proposal of kind `item` naming it — **only** when the `item` census
-row's `accepted_at` is set; a second call inserts nothing; before the first accept it inserts nothing. Add it to `0452`.
+row's `accepted_at` is set; a second call inserts nothing; before the first accept it inserts nothing. Add it to `0482`.
 Sweep: `drainConnectSends` calls it once per tick before claiming. The send's lookup (`sendMaster` item branch) also tries
 `item_name = <line name>` when `item_code` misses, so an ERP item keyed differently links instead of duplicating (two hits →
 rejected → review).
