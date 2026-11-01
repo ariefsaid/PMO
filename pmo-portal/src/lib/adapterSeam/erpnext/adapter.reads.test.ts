@@ -81,7 +81,9 @@ describe('erpnext adapter listChangesSinceWatermark', () => {
     const adapter = createErpAdapter(revenueDeps(feed({ 'Sales Invoice': [siRow('SI-1', '2026-01-01 10:00:00'), siRow('SI-2', '2026-01-02 10:00:00')] })));
     const page = await adapter.listChangesSinceWatermark('revenue', null);
     expect(page.changes.map((c) => c.id)).toEqual(['SI-1', 'SI-2']);
-    expect(JSON.parse(page.nextCursor!)).toEqual({ 'sales-invoice': '2026-01-02 10:00:00' });
+    // The per-kind watermark is the composite keyset cursor of the last row read (padded to 6 fractional
+    // digits so text order is time order) — feeding it back resumes strictly after (modified, name).
+    expect(JSON.parse(page.nextCursor!)).toEqual({ 'sales-invoice': '2026-01-02 10:00:00.000000|SI-2' });
   });
 
   it('resumes each kind from its own cursor and reports caught-up (null) when only the boundary row returns', async () => {
@@ -91,6 +93,12 @@ describe('erpnext adapter listChangesSinceWatermark', () => {
     const page = await adapter.listChangesSinceWatermark('revenue', JSON.stringify({ 'sales-invoice': '2026-01-02 10:00:00' }));
     expect(urls.some((u) => u.includes('["modified",">=","2026-01-02 10:00:00"]'))).toBe(true);
     expect(page.nextCursor).toBeNull();
+  });
+
+  it('a legacy bare watermark still advances when a strictly later row returns (not falsely caught-up)', async () => {
+    const adapter = createErpAdapter(revenueDeps(feed({ 'Sales Invoice': [siRow('SI-3', '2026-01-03 10:00:00')] })));
+    const page = await adapter.listChangesSinceWatermark('revenue', JSON.stringify({ 'sales-invoice': '2026-01-02 10:00:00' }));
+    expect(JSON.parse(page.nextCursor!)).toEqual({ 'sales-invoice': '2026-01-03 10:00:00.000000|SI-3' });
   });
 
   it('scopes company-owned doctypes to the binding company', async () => {

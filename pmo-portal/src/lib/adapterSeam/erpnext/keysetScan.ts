@@ -31,6 +31,17 @@ export function parseKeysetCursor(since: string): { modified: string; name: stri
   return i < 0 ? { modified: since, name: null } : { modified: since.slice(0, i), name: since.slice(i + 1) };
 }
 
+/** True when `next` is strictly after `prior` in composite cursor order. A composite prior compares as
+ *  text — string order of `modified|name` IS the composite order, so draining a tie group by `name` is
+ *  progress. A legacy bare-timestamp prior (pre-composite watermark) compares at instant granularity:
+ *  its poll already covered the whole instant, so the inclusive boundary re-list (same padded `modified`)
+ *  is not progress — only a strictly later `modified` is; a raw text compare would read the padded
+ *  composite of the SAME instant as "later" and break the caught-up (null) report. */
+export function isAfterKeysetCursor(prior: string, next: string): boolean {
+  if (prior.includes(CURSOR_SEP)) return next > prior;
+  return padMicros(parseKeysetCursor(next).modified) > padMicros(prior);
+}
+
 export interface KeysetRow { name: string; modified: string }
 
 export interface KeysetScanOpts<R extends KeysetRow> {
