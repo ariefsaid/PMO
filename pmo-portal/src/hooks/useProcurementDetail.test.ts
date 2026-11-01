@@ -39,7 +39,19 @@ const { procurement } = vi.hoisted(() => ({
     approveAmount: vi.fn().mockResolvedValue(undefined),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { procurement } }));
+// `get` and `captureVendorInvoice` delegate to the mocked DAL so the read/capture assertions below stay on the DAL calls.
+vi.mock('@/src/lib/repositories', async () => {
+  const dal = await import('@/src/lib/db/procurementLifecycle');
+  return {
+    repositories: {
+      procurement: {
+        ...procurement,
+        get: (id: string) => dal.getProcurementDetail(id),
+        captureVendorInvoice: (input: Parameters<typeof dal.captureVendorInvoice>[0]) => dal.captureVendorInvoice(input),
+      },
+    },
+  };
+});
 
 const actor = vi.hoisted(() => ({ id: 'u1', role: 'Finance' }));
 vi.mock('@/src/auth/useAuth', () => ({
@@ -246,7 +258,7 @@ describe('useProcurementMutations', () => {
     ).toBe(true);
   });
 
-  it('harden #2 (hook): captureVendorInvoice mutation calls the atomic DAL RPC directly (case-aggregate write, PMO-only — never the repository seam) + invalidates the detail key', async () => {
+  it('harden #2 (hook): captureVendorInvoice mutation calls the atomic RPC through the PMO-only repository method (case-aggregate write, never dispatched external) + invalidates the detail key', async () => {
     const { qc, Wrapper } = makeWrapper();
     const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
 
@@ -265,8 +277,8 @@ describe('useProcurementMutations', () => {
     });
 
     // The whole VI capture goes through the ONE atomic RPC (transition + invoice + event),
-    // never the two separate transition + createInvoice writes, and never the repository seam
-    // (task FIX-1's import comment — the case aggregate stays PMO-derived, FR-ENA-101/073).
+    // never the two separate transition + createInvoice writes, and it never routes external
+    // (the case aggregate stays PMO-derived, FR-ENA-101/073).
     expect(captureVendorInvoice).toHaveBeenCalledWith({
       procurementId: 'proc-1',
       status: 'Received',

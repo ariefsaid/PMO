@@ -1,13 +1,14 @@
 /** Procurement case and phase-file repository contracts. */
 import type { CommandIntent } from './commandIntent';
 import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
-import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
+import type { ProcurementWithRefs, ProjectCommittedSpend, ProjectReservedSpend } from '@/src/lib/db/procurements';
 import type {
   ProcurementDetail,
   ProcurementStatus,
   ProcurementReceiptRow,
   ProcurementInvoiceRow,
   CreateInvoiceInput,
+  CaptureVendorInvoiceInput,
 } from '@/src/lib/db/procurementLifecycle';
 import type { PurchaseRequestRow, RfqRow, PurchaseOrderRow, PaymentRow } from '@/src/lib/db/procurementRecords';
 import type {
@@ -24,9 +25,36 @@ import type {
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { ProcPhase, ProcurementFileRow } from '@/src/lib/db/procurementFiles';
 
+/**
+ * The lean `list()` row: exactly the columns the default select returns (the row, the project / vendor /
+ * requester name embeds, the SQL open commitment and the attached approval route). The wider embeds
+ * (`pr_refs`, `status_events`, …) exist only when `list` is called with options.
+ */
+export type ProcurementListRow = Omit<ProcurementWithRefs, 'project' | 'pr_refs' | 'po_refs' | 'vi_refs' | 'status_events'
+  | 'purchase_requests' | 'purchase_orders' | 'receipts' | 'procurement_invoices' | 'payments'> & {
+  project: { name: string; short_name?: string | null; code: string | null } | null;
+};
+
+export interface ProcurementListOptions {
+  withRefs?: boolean;
+  withSharedDetails?: boolean;
+}
+
 export interface ProcurementRepository {
   itemValuesEditable(id: string): Promise<boolean>;
-  list(): Promise<ProcurementWithRefs[]>;
+  list(): Promise<ProcurementListRow[]>;
+  list(opts?: ProcurementListOptions): Promise<ProcurementWithRefs[]>;
+  /** One project's procurements (refs + approval routes), filtered server-side. */
+  listByProject(projectId: string): Promise<ProcurementWithRefs[]>;
+  /** The SQL open-commitment position for one project (ADR-0093). */
+  getProjectCommittedSpend(projectId: string): Promise<ProjectCommittedSpend>;
+  /** Approved-but-not-yet-ordered demand for one project (ADR-0034). */
+  getProjectReservedSpend(projectId: string): Promise<ProjectReservedSpend>;
+  /**
+   * Atomic vendor-invoice capture (transition + invoice + status event in one RPC). It is a case-aggregate
+   * write — PMO-derived even on an externally-owned org (FR-ENA-101/073) — so it never routes external.
+   */
+  captureVendorInvoice(input: CaptureVendorInvoiceInput): Promise<ProcurementInvoiceRow>;
   listByVendor(vendorId: string): Promise<ProcurementWithRefs[]>;
   get(id: string): Promise<ProcurementDetail>;
   transition(id: string, to: ProcurementStatus, notes?: string): Promise<void>;

@@ -7,8 +7,8 @@ Director-dispatched Orca workers (`docs/orca-dispatch.md`), one worker per slice
 **S1 (the RPC) ships alone**, and S2 waits for S1 on `dev` (S2's handler calls the S1 RPC).
 Everything cited was checked against `origin/dev` at `6440a961` (migration head `0426_imprest_approval_route.sql`; the
 0178 retained-RPC count is **104**, `supabase/tests/0178_anon_executable_definers.test.sql:306`). A path marked
-**(new)** does not exist yet. The migration is **0434** (Lane A gives #1639 the range 0434-0436; #1638 holds 0430-0433). If a sibling takes 0434
-first, renumber with `scripts/renumber-migration.sh 0434 0435` (never by hand).
+**(new)** does not exist yet. The migration is **0442** (renumbered above dev head 0441). If a sibling takes 0442
+first, renumber with `scripts/renumber-migration.sh 0442 0443` (never by hand).
 
 ## Open questions (each has the default this plan takes)
 
@@ -93,7 +93,7 @@ user approves
 
 ---
 
-## S1 - Ledger and RPCs (`supabase/migrations/0434_task_reminders.sql`) - ships alone
+## S1 - Ledger and RPCs (`supabase/migrations/0442_task_reminders.sql`) - ships alone
 
 ### S1.1 Failing test first: the shared fixture and AC-RMD-001 (3 min)
 
@@ -175,13 +175,13 @@ Close the file with `select * from finish(); rollback;` for now. Run (expect RED
 
 ### S1.2 The ledger table (3 min)
 
-Create `supabase/migrations/0434_task_reminders.sql` **(new)**:
+Create `supabase/migrations/0442_task_reminders.sql` **(new)**:
 
 ```sql
--- 0434_task_reminders.sql — assistant "Remind this person" (#1639, OD-GRILL-20261101; spec assistant-remind-person).
+-- 0442_task_reminders.sql — assistant "Remind this person" (#1639, OD-GRILL-20261101; spec assistant-remind-person).
 -- A sender-readable ledger + one internal rule function + two client RPCs. The recipient's in-app notification is
 -- written by the shipped helper notify_workflow_user (0237), which is reused, not re-derived.
--- Reverse (also supabase/migrations/rollback/0434_task_reminders_down.sql):
+-- Reverse (also supabase/migrations/rollback/0442_task_reminders_down.sql):
 --   drop function if exists public.send_task_reminders(uuid[]);
 --   drop function if exists public.preview_task_reminders(uuid[]);
 --   drop function if exists public.task_reminder_check(uuid, uuid, uuid);
@@ -361,23 +361,23 @@ declare v text;
 begin
   foreach v in array array['public.preview_task_reminders(uuid[])', 'public.send_task_reminders(uuid[])'] loop
     if has_function_privilege('anon', v, 'EXECUTE') or not has_function_privilege('authenticated', v, 'EXECUTE') then
-      raise exception '0434: % ACL is not the intended shape', v;
+      raise exception '0442: % ACL is not the intended shape', v;
     end if;
   end loop;
   foreach v in array array['public.task_reminder_check(uuid, uuid, uuid)', 'public.task_reminder_daily_cap()'] loop
     if has_function_privilege('anon', v, 'EXECUTE') or has_function_privilege('authenticated', v, 'EXECUTE') then
-      raise exception '0434: internal % is client-executable', v;
+      raise exception '0442: internal % is client-executable', v;
     end if;
   end loop;
   if has_table_privilege('anon', 'public.task_reminders', 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE')
      or has_table_privilege('authenticated', 'public.task_reminders', 'INSERT,UPDATE,DELETE,TRUNCATE')
      or not has_table_privilege('service_role', 'public.task_reminders', 'SELECT,INSERT,DELETE') then
-    raise exception '0434: task_reminders ACL is not the intended shape (0137: service_role keeps DML)';
+    raise exception '0442: task_reminders ACL is not the intended shape (0137: service_role keeps DML)';
   end if;
 end $$;
 ```
 
-Create `supabase/migrations/rollback/0434_task_reminders_down.sql` **(new)** = the header's five `drop` lines,
+Create `supabase/migrations/rollback/0442_task_reminders_down.sql` **(new)** = the header's five `drop` lines,
 uncommented, in that order. Re-run the S1.1 command: the three AC-RMD-001 cases go GREEN.
 
 ### S1.7 Rule cases AC-RMD-002..008 (4 min)
@@ -505,7 +505,7 @@ allowance (sender a1) nor any de-duplication case (d6 is never overdue). Run the
 
 - `supabase/tests/0178_anon_executable_definers.test.sql`: add `('preview_task_reminders')` and `('send_task_reminders')`
   to `client_callable_rpc_names` (sorted); add the header note
-  `-- ⚑ AMENDED BY 0434 (#1639): preview_task_reminders and send_task_reminders join the retained set (+2, count 106). Each
+  `-- ⚑ AMENDED BY 0442 (#1639): preview_task_reminders and send_task_reminders join the retained set (+2, count 106). Each
   -- asserts active membership and the caller's org in its body; proven by supabase/tests/task_reminders.test.sql.`;
   change both hard-coded counts `104` to `106` (lines 306 and 316 at `6440a961`). Re-derive by hand after any rebase.
 - `scripts/isolation-probe-denominator.json`: add to `tables`

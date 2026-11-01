@@ -1429,6 +1429,7 @@
       "helpLabel": "Help: {{label}}"
     },
     "stillToInvoice": {
+      "daysSinceAcceptance": "Days since acceptance, not invoiced: {{days}}",
       "count": "Work orders: {{n}}",
       "daysSinceClosed": "Days since closed: {{days}}",
       "empty": "Nothing left to invoice on issued work orders",

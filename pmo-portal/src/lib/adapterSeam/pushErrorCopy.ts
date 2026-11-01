@@ -169,12 +169,13 @@ const CODES: Record<string, Entry> = {
     retryable: true,
   },
   'external-unreachable': {
-    message: 'ERPNext could not be reached, so the push never arrived.',
+    message: 'ERPNext could not be reached, so the outcome is unconfirmed.',
     retryable: true,
     transport: true,
+    remedy: 'The system rechecks ERPNext on its own; confirm there before assuming the push did not land.',
   },
   DISPATCH_FAILED: {
-    message: 'The push failed before ERPNext answered.',
+    message: 'The push stopped before ERPNext answered, so the outcome is unconfirmed.',
     retryable: true,
     transport: true,
   },

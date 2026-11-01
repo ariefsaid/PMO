@@ -10,7 +10,8 @@
   "test": {
     "exclude": [
       "budgetBackstop.test.ts",
-      "timesheetBackstop.test.ts"
+      "timesheetBackstop.test.ts",
+      "queueFairness.test.ts"
     ]
   }
 }

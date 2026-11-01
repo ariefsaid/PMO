@@ -21,6 +21,9 @@ import {
 import { listOwnOrgFeatures, toggleOrgFeature, setFeedbackSurveys, getOrgCreditBalance, grantOrgCredits } from '@/src/lib/db/orgFeatures';
 import {
   getOrgTaxDefault,
+  getOrgDefaultCurrency,
+  getOrgLocaleDefaults,
+  getOrgLifecycleState,
   setOrgTaxDefault,
   getOrgProjectNumberPattern,
   getOrgProjectNumberTimezone,
@@ -83,6 +86,9 @@ export const orgFeatureRepository: OrgFeatureRepository = {
  * `can('manage', 'orgAccounting')` on the affordance.
  */
 export const orgSettingsRepository: OrgSettingsRepository = {
+  getDefaultCurrency: () => wrap(() => getOrgDefaultCurrency()),
+  getLocaleDefaults: () => wrap(() => getOrgLocaleDefaults()),
+  getLifecycleState: () => wrap(() => getOrgLifecycleState()),
   getWithholdingAccount: () => wrap(() => getOrgWithholdingAccount()),
   setWithholdingAccount: (account) => wrap(() => setOrgWithholdingAccount(account)),
   getVendorTaxAccounts: () => wrap(() => getOrgVendorTaxAccounts()),

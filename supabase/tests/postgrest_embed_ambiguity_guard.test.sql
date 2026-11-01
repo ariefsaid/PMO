@@ -77,6 +77,9 @@ select set_eq(
             -- 0337: work_order_acceptances carries prepared_by and confirmed_by -> profiles. No DAL code embeds
             -- profiles from it; whatever ships first MUST qualify it with !constraint_name.
             ('work_order_acceptances -> profiles'),
+            -- 0447 (#1519): equipment_usage_entries carries author_id and approver_id -> profiles. No DAL code embeds
+            -- profiles from it yet; whatever ships first MUST qualify it with !constraint_name.
+            ('equipment_usage_entries -> profiles'),
             -- 0243 (#803): spend_approvers carries profile_id AND created_by, both -> profiles. The one
             -- embed (src/lib/db/spendApprovers.ts) is qualified: profiles!spend_approvers_profile_id_fkey.
             ('spend_approvers -> profiles'),
@@ -129,7 +132,11 @@ select set_eq(
             ('imprest_floats -> profiles'),
             ('imprest_replenishments -> profiles'),
             ('imprest_plans -> profiles'),
-            ('imprest_float_changes -> profiles') $$,
+            ('imprest_float_changes -> profiles'),
+            -- 0442 (#1639 S1): task_reminders carries sender_id AND recipient_id -> profiles. CHECKED BEFORE ADDING:
+            -- no DAL, repository or edge-function code embeds profiles from it; whatever ships first MUST qualify
+            -- it with !constraint_name.
+            ('task_reminders -> profiles') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '

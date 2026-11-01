@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -17,8 +17,8 @@ const DATA = {
   totals: [{ currency: 'USD', remaining: 1300, count: 2 }],
   incompleteCount: 1,
   rows: [
-    { workOrderId: 'wo-1', woNumber: 'WO-1', title: 'Survey', projectId: 'p1', projectName: 'Harbor Tower', status: 'Issued', currency: 'USD', remaining: 1000, daysSinceClosed: null, clientPoNumber: 'PO-77' },
-    { workOrderId: 'wo-2', woNumber: null, title: 'Fit-out', projectId: 'p2', projectName: 'Annex', status: 'Closed', currency: 'USD', remaining: 300, daysSinceClosed: 3, clientPoNumber: null },
+    { workOrderId: 'wo-1', woNumber: 'WO-1', title: 'Survey', projectId: 'p1', projectName: 'Harbor Tower', status: 'Issued', currency: 'USD', remaining: 1000, daysSinceClosed: null, daysSinceAcceptance: null, clientPoNumber: 'PO-77' },
+    { workOrderId: 'wo-2', woNumber: null, title: 'Fit-out', projectId: 'p2', projectName: 'Annex', status: 'Closed', currency: 'USD', remaining: 300, daysSinceClosed: 3, daysSinceAcceptance: null, clientPoNumber: null },
   ],
   incomplete: [{ workOrderId: 'wo-8', woNumber: 'WO-8', title: 'Cabling', projectId: 'p2', projectName: 'Annex' }],
 };
@@ -47,6 +47,16 @@ describe('StillToInvoiceCard (OD-BILL-1 / #786)', () => {
     expect(screen.getByRole('link', { name: /Fit-out/ })).toHaveAttribute('href', '/projects/p2/work-orders?wo=wo-2');
     expect(screen.getByRole('link', { name: /Fit-out/ })).toHaveTextContent('Days since closed: 3');
     expect(screen.getByRole('link', { name: /WO-1/ })).not.toHaveTextContent('Days since closed');
+  });
+  it('AC-WOMS-010 a row shows days since acceptance, not invoiced, in place of days since closed; a row without one keeps days since closed', () => {
+    h.state = { ...h.state, data: { ...DATA, rows: [
+      { ...DATA.rows[1], workOrderId: 'wo-2', daysSinceClosed: 3, daysSinceAcceptance: 12 },
+      { ...DATA.rows[1], workOrderId: 'wo-3', woNumber: 'WO-3', daysSinceClosed: 3, daysSinceAcceptance: null },
+    ] } };
+    renderCard();
+    const rows = screen.getByTestId('still-to-invoice-rows');
+    expect(within(rows).getByText(/Days since acceptance, not invoiced: 12/)).toBeInTheDocument();
+    expect(within(rows).getAllByText(/Days since closed: 3/)).toHaveLength(1);
   });
   it('AC-UNB-005 a row names the work order by number and scope, and its client PO when it has one', () => {
     renderCard();

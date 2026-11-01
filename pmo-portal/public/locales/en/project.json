@@ -481,6 +481,23 @@
       "taskCount": "{{done}} of {{total}} tasks",
       "noCurrentPhase": "No active phase"
     },
+    "billingMilestones": {
+      "title": "Billing milestones",
+      "subline": "The client's work orders. Billing follows each work order.",
+      "error": "Couldn't load the billing milestones",
+      "empty": "No work orders yet.",
+      "openContract": "Open contract & billing",
+      "notIssued": "Not issued yet",
+      "dates": "{{start}} – {{end}}",
+      "startOnly": "From {{date}}",
+      "endOnly": "Due {{date}}",
+      "ordered": "Ordered {{date}}",
+      "noDates": "No dates",
+      "status": { "planned": "Planned", "inProgress": "In progress", "invoiced": "Invoiced", "paid": "Paid" },
+      "statusSource": "Source: this work order's invoices and drafts (Contract & billing).",
+      "invoiceThis": "Invoice this",
+      "invoiceThisLabel": "Invoice {{order}}"
+    },
     "delivery": {
       "timelineTitle": "Phase timeline",
       "emptyPipeline": "Phases are planned once the deal is won.",
@@ -801,6 +818,9 @@
       "drawerMoreActions": "More task actions"
     },
     "workOrders": {
+      "acceptanceAge": "Days since acceptance, not invoiced: {{days}}",
+      "acceptanceAgeSource": "Counted from the earliest confirmed BAST not yet followed by a submitted invoice.",
+      "cannotInvoiceHere": "This work order can't be invoiced from here right now.",
       "export": {
         "number": "Work order",
         "title": "Title",

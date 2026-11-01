@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getOrgLifecycleState } from '@/src/lib/db/orgs';
+import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import type { DemoEligibility } from '@/src/auth/impersonation';
 
@@ -30,7 +30,7 @@ export function useDemoEligibility(): DemoEligibility {
   }
   const { data, isPending, isError, isFetching } = useQuery({
     queryKey: ['org-lifecycle-state', orgId],
-    queryFn: () => getOrgLifecycleState(),
+    queryFn: () => repositories.orgSettings.getLifecycleState(),
     enabled,
     staleTime: 0,
     refetchOnMount: 'always',

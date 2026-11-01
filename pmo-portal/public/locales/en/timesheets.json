@@ -34,5 +34,13 @@
     "loading": "Loading projects…",
     "error": "Could not load projects.",
     "retry": "Retry projects"
+  },
+  "copyLastWeek": {
+    "button": "Copy last week",
+    "reasonNotDraft": "This week is no longer a draft",
+    "reasonEmpty": "Nothing to copy — no time was logged last week",
+    "reasonNothingNew": "Last week's projects are already in this week",
+    "toastHeadline": "Rows copied from last week",
+    "toastDetail": "Review the copied hours, then save the week."
   }
 }

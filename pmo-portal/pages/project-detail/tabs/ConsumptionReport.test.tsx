@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
@@ -114,5 +114,19 @@ describe('Project consumption report', () => {
     expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
     resolve(report({ months: [], allowances: [], unplanned: [] }));
     expect(await screen.findByText('No material issued to this project in these months')).toBeInTheDocument();
+  });
+
+  it('#1626 a reversed month range says so and asks nothing of the server', async () => {
+    consumption.report.mockResolvedValue(report());
+    renderIt();
+    await screen.findByRole('table', { name: 'By month' });
+    consumption.report.mockClear();
+    fireEvent.change(screen.getByLabelText('From month'), { target: { value: '2026-12' } });
+    expect(await screen.findByRole('alert')).toHaveTextContent('The first month is after the last month. Choose a start month on or before the end month.');
+    expect(screen.queryByText('Consumption could not be loaded')).toBeNull();
+    expect(consumption.report).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('From month'), { target: { value: '2026-09' } });
+    await screen.findByRole('table', { name: 'By month' });
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

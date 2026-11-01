@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
-import type {
-  ProjectDocumentRow,
-  ProjectDocumentInput,
-  DocStatus,
-} from '@/src/lib/db/documents';
+import {
+  repositories,
+  type ProjectDocumentRow,
+  type ProjectDocumentInput,
+  type DocStatus,
+} from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 

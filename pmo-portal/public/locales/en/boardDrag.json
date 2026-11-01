@@ -1,0 +1,19 @@
+{
+  "announce": {
+    "cancelled": "Move cancelled. {{name}} stays where it was.",
+    "dropped": "Dropped {{name}} on {{column}}.",
+    "overAllowed": "{{name}} is over {{column}}. Drop allowed.",
+    "overBlocked": "{{name}} is over {{column}}. This move is not allowed.",
+    "overNone": "{{name}} is not over a column.",
+    "start": "Picked up {{name}}."
+  },
+  "cantMoveHere": "Can't move here",
+  "dropHere": "Drop to move here",
+  "instructions": "To change status with the keyboard, use the card's status control.",
+  "lostChoice": {
+    "legend": "Which outcome?"
+  },
+  "refused": "{{name}} can't move from {{from}} to {{to}}.",
+  "refusedTitle": "Move not allowed",
+  "saving": "Saving…"
+}
