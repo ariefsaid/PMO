@@ -74,8 +74,8 @@ select is((select string_agg(gap, '; ' order by gap) from chg_gate_gaps), null,
   'AC-CHG-011 registry, triggers, classification and column privileges agree (offenders named)');
 select is(pg_temp.chg_arm_gaps(), null,
   'AC-CHG-011 every registry entity has a record_history_visible arm');
-select is((select count(*)::int from public.record_history_config), 16,
-  'AC-CHG-011 16 registered record types including PMO and ERP invoice mirrors and the two vendor-withholding-slip tables');
+select is((select count(*)::int from public.record_history_config), 17,
+  'AC-CHG-011 17 registered record types including PMO and ERP invoice mirrors, the two vendor-withholding-slip tables and pipeline stage entries');
 
 -- ── planted defects: each check turns red and names the defect ──────────────────────────────────
 savepoint plant;
