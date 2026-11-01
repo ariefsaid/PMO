@@ -97,7 +97,7 @@ const StockReorder: React.FC = () => {
     ];
     if (canEdit) {
       cols.push({
-        key: 'actions', header: t('reorder.worklist.columns.actions'), align: 'right',
+        key: 'actions', header: t('reorder.worklist.columns.actions'), align: 'num',
         cell: (r) => (
           <div className="flex justify-end gap-1">
             <Button variant="ghost" size="sm" aria-label={t('reorder.worklist.rowEdit', { item: r.itemCode })}
