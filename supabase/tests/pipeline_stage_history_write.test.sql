@@ -1,7 +1,7 @@
 -- pipeline_stage_history_write.test.sql — #1638 stage entries: append, key dates, win pull-back, re-date,
 -- add-skipped, authority, audit. Spec docs/specs/pipeline-stage-history.spec.md.
 begin;
-select plan(30);
+select plan(38);
 
 insert into organizations (id, name) values
   ('16380000-0000-0000-0000-000000000001','PSH Org A'),
@@ -48,7 +48,8 @@ insert into projects (id, org_id, code, name, status, project_manager_id) values
   ('16380000-0000-0000-0000-000000000012','16380000-0000-0000-0000-000000000001','PSH-3','PSH win','Leads','16380000-0000-0000-0000-0000000000a2'),
   ('16380000-0000-0000-0000-000000000013','16380000-0000-0000-0000-000000000001','PSH-4','PSH lose','Leads','16380000-0000-0000-0000-0000000000a2'),
   ('16380000-0000-0000-0000-000000000015','16380000-0000-0000-0000-000000000001','PSH-6','PSH late win','Leads','16380000-0000-0000-0000-0000000000a2'),
-  ('16380000-0000-0000-0000-000000000016','16380000-0000-0000-0000-000000000001','PSH-7','PSH person-dated','Leads','16380000-0000-0000-0000-0000000000a2');
+  ('16380000-0000-0000-0000-000000000016','16380000-0000-0000-0000-000000000001','PSH-7','PSH person-dated','Leads','16380000-0000-0000-0000-0000000000a2'),
+  ('16380000-0000-0000-0000-000000000017','16380000-0000-0000-0000-000000000001','PSH-8','PSH future win','Leads','16380000-0000-0000-0000-0000000000a2');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"16380000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select transition_project('16380000-0000-0000-0000-000000000012','PQ Submitted');
@@ -62,6 +63,9 @@ select transition_project('16380000-0000-0000-0000-000000000015','Quotation Subm
 select transition_project('16380000-0000-0000-0000-000000000015','Won, Pending KoM','PO-PSH-2', current_date - 10);
 select transition_project('16380000-0000-0000-0000-000000000016','PQ Submitted');
 select transition_project('16380000-0000-0000-0000-000000000016','Quotation Submitted');
+select transition_project('16380000-0000-0000-0000-000000000017','PQ Submitted');
+select transition_project('16380000-0000-0000-0000-000000000017','Quotation Submitted');
+select transition_project('16380000-0000-0000-0000-000000000017','Won, Pending KoM','PO-PSH-4', current_date + 30);
 reset role;
 select is(
   (select entered_on from project_stage_entries where project_id = '16380000-0000-0000-0000-000000000012'
@@ -90,6 +94,17 @@ select throws_ok(
   $$ select transition_project('16380000-0000-0000-0000-000000000016','Won, Pending KoM','PO-PSH-3', current_date - 5) $$,
   '23514', null, 'AC-PSH-002: a win dated before a stage date a person set is refused');
 reset role;
+-- A win dated in the future: the next move (dated today) must neither drag Signed off contract_date nor land.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"16380000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+select throws_ok(
+  $$ select transition_project('16380000-0000-0000-0000-000000000017','Ongoing Project') $$,
+  '23514', null, 'AC-PSH-004: a move after a win dated in the future is refused, not allowed to re-date Signed');
+reset role;
+select is(
+  (select entered_on from project_stage_entries where project_id = '16380000-0000-0000-0000-000000000017'
+     and stage = 'Won, Pending KoM'), current_date + 30,
+  'AC-PSH-004: Signed still equals contract_date after the refused move');
 update projects set contract_date = current_date - 1 where id = '16380000-0000-0000-0000-000000000012';
 select is(
   (select entered_on from project_stage_entries where project_id = '16380000-0000-0000-0000-000000000012'
@@ -183,12 +198,24 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"16380000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select throws_ok($$ select redate_stage_entry((select id from psh_target), current_date) $$,
   '42501', null, 'AC-PSH-006: an Engineer cannot re-date a stage');
+select throws_ok($$ select add_skipped_stage_entry((select id from psh_target), 'PQ Submitted', current_date) $$,
+  '42501', null, 'AC-PSH-006: an Engineer cannot add a skipped stage');
+select throws_ok($$ select import_project_stage_history('16380000-0000-0000-0000-000000000010', '[]') $$,
+  '42501', null, 'AC-PSH-006: an Engineer cannot import stage history');
 set local request.jwt.claims = '{"sub":"16380000-0000-0000-0000-0000000000a5","role":"authenticated"}';
 select throws_ok($$ select redate_stage_entry((select id from psh_target), current_date) $$,
   '42501', null, 'AC-PSH-006: a disabled PM cannot re-date a stage');
+select throws_ok($$ select add_skipped_stage_entry((select id from psh_target), 'PQ Submitted', current_date) $$,
+  '42501', null, 'AC-PSH-006: a disabled PM cannot add a skipped stage');
+select throws_ok($$ select import_project_stage_history('16380000-0000-0000-0000-000000000010', '[]') $$,
+  '42501', null, 'AC-PSH-006: a disabled PM cannot import stage history');
 set local request.jwt.claims = '{"sub":"16380000-0000-0000-0000-0000000000b2","role":"authenticated"}';
 select throws_ok($$ select redate_stage_entry((select id from psh_target), current_date) $$,
   '42501', null, 'AC-PSH-006: an org-B PM cannot re-date an org-A entry (the definer finds it; the gate refuses)');
+select throws_ok($$ select add_skipped_stage_entry((select id from psh_target), 'PQ Submitted', current_date) $$,
+  '42501', null, 'AC-PSH-006: an org-B PM cannot add a stage to an org-A journey');
+select throws_ok($$ select import_project_stage_history('16380000-0000-0000-0000-000000000010', '[]') $$,
+  '42501', null, 'AC-PSH-006: an org-B PM cannot import into an org-A project');
 select is((select count(*)::int from project_stage_entries
   where project_id = '16380000-0000-0000-0000-000000000010'), 0, 'AC-PSH-006: org-B reads zero org-A entries');
 select throws_ok($$ insert into project_stage_entries (org_id, project_id, stage, entered_on, position, source)

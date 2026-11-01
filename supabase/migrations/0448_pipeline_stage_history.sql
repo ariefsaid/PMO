@@ -19,7 +19,6 @@ create table public.project_stage_entries (
   redated_at  timestamptz,
   unique (project_id, position)
 );
-create index project_stage_entries_project_idx on public.project_stage_entries (project_id, position desc);
 comment on table public.project_stage_entries is
   '#1638: one row per stage a deal entered; entered_on is the stage key date. Written only by the projects '
   'trigger and the stage RPCs; ordering rule enforced by project_stage_entries_order.';
@@ -71,6 +70,12 @@ create constraint trigger project_stage_entries_order
 create or replace function public.stage_entries_pull_back(p_project_id uuid, p_before numeric, p_on date)
   returns void language plpgsql security definer set search_path = public as $$
 begin
+  -- Signed always equals the contract date (FR-PSH-004), so a win is never moved by a later, earlier-dated entry.
+  if exists (select 1 from public.project_stage_entries e
+              where e.project_id = p_project_id and e.position < p_before and e.entered_on > p_on
+                and e.stage = 'Won, Pending KoM') then                                      -- mut:pullback_signed
+    raise exception 'the contract date is after %; correct it first', p_on using errcode = '23514';
+  end if;
   if exists (select 1 from public.project_stage_entries e
               where e.project_id = p_project_id and e.position < p_before and e.entered_on > p_on
                 and (e.redated_at is not null or e.source in ('added','import'))) then   -- mut:pullback_person
@@ -259,6 +264,7 @@ declare
   v_on     date;
   v_lead   uuid;
   v_last   project_status;
+  v_norm   jsonb := '[]'::jsonb;
   x        jsonb;
 begin
   select org_id, status into v_org, v_status from public.projects where id = p_project_id for update;
@@ -286,9 +292,13 @@ begin
     if v_i = 1 then
       -- The lead: its own date when given, else no later than the first imported date (spec FR-PSH-020).
       update public.project_stage_entries
-         set entered_on = case when v_stage = 'Leads' then v_on else least(entered_on, v_on) end
+         set entered_on = case when v_stage = 'Leads' then v_on else least(entered_on, v_on) end,
+             redated_at = case when entered_on is distinct from
+                   case when v_stage = 'Leads' then v_on else least(entered_on, v_on) end
+                 then now() else redated_at end
        where id = v_lead;
     end if;
+    v_norm := v_norm || jsonb_build_object('stage', v_stage::text, 'entered_on', v_on);
     continue when v_stage = 'Leads';
     if v_i < v_n then
       insert into public.project_stage_entries (org_id, project_id, stage, entered_on, position, source, recorded_by)
@@ -306,7 +316,10 @@ begin
   end loop;
   if v_last is not null then
     perform public.log_audit('project.transition', v_org, auth.uid(), p_project_id,
-      jsonb_build_object('from', 'Leads', 'to', v_last::text, 'source', 'import', 'entries', p_entries));
+      jsonb_build_object('from', 'Leads', 'to', v_last::text, 'source', 'import', 'entries', v_norm));
+  elsif v_n > 0 then                                   -- lead-only: dates the lead, no move
+    perform public.log_audit('project.stage_entry.import', v_org, auth.uid(), p_project_id,
+      jsonb_build_object('entries', v_norm));
   end if;
 end; $$;
 
@@ -573,7 +586,7 @@ begin
     insert into public.project_stage_entries (org_id, project_id, stage, entered_on, position, source, recorded_by, recorded_at)
     select r.org_id, r.id, (rc.changes -> 'status' ->> 'new')::project_status,
            public.stage_org_date(r.org_id, rc.created_at), 1 + row_number() over (order by rc.seq),
-           'backfill', rc.actor_id, rc.created_at
+           'backfill', (select p.id from public.profiles p where p.id = rc.actor_id), rc.created_at
       from public.record_changes rc
      where rc.org_id = r.org_id and rc.entity_type = 'project' and rc.entity_id = r.id
        and rc.op = 'update' and rc.changes ? 'status';
@@ -598,6 +611,12 @@ begin
              max(e.position) + 1, 'backfill'
         from public.project_stage_entries e where e.project_id = r.id;
     end if;
+    -- A move recorded after a win dated later than it stays behind Signed (Signed = contract date, FR-PSH-004).
+    update public.project_stage_entries e set entered_on = w.d
+      from (select position as p, entered_on as d from public.project_stage_entries
+             where project_id = r.id and stage = 'Won, Pending KoM' and r.contract_date is not null
+             order by position desc limit 1) w
+     where e.project_id = r.id and e.position > w.p and e.entered_on < w.d;
     -- Clamp backwards so dates never decrease along the journey (suffix minimum).
     update public.project_stage_entries e set entered_on = s.clamped
       from (select id, min(entered_on) over (order by position desc
