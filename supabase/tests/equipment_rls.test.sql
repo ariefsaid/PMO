@@ -3,7 +3,7 @@
 -- hard delete (FR-EQU-064). Fixture F1 is docs/plans/2026-11-01-equipment-usage.md "Fixture F1".
 begin;
 create extension if not exists pgtap;
-select plan(38);
+select plan(67);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15190000-0000-0000-0000-00000000000a', 'EQU Org',   'IDR', 'Asia/Jakarta'),
@@ -168,6 +168,80 @@ select throws_ok($$ select archive_equipment_usage((select v from _e where k = '
 reset role;
 select throws_ok($$ update equipment_usage_entries set approver_id = author_id where id = (select v from _e where k = 'p1') $$,
   '23514', null, 'AC-EQU-012 the table refuses approver = author even for a direct superuser write');
+
+
+-- ── S2 (0460): costing settings audience, AC-EQU-012 settings half ───────────────────────────────────
+-- Money setting is separated from usage approval: a PM approves hours but never sets what an hour is worth.
+insert into budget_category_account_map (org_id, category, erp_account, is_push_target) values
+  ('15190000-0000-0000-0000-00000000000a','Equipment','Depreciation - EQ',true);
+create temp table _k (k text primary key, v jsonb) on commit drop;
+grant all on _k to authenticated;
+set local role authenticated;
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a3');   -- PM1
+select throws_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d4","basis":"hire_rate","work_rate":50,"rate_unit":"hours","effective_from":"2026-01-01"}') $$,
+  '42501', 'not authorized', 'AC-EQU-012 a PM approves hours but cannot save a costing setting');
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a5');   -- Executive
+select throws_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d4","basis":"hire_rate","work_rate":50,"rate_unit":"hours","effective_from":"2026-01-01"}') $$,
+  '42501', 'not authorized', 'AC-EQU-012 an Executive cannot save a costing setting');
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a6');   -- Eng1
+select throws_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d4","basis":"hire_rate","work_rate":50,"rate_unit":"hours","effective_from":"2026-01-01"}') $$,
+  '42501', 'not authorized', 'AC-EQU-012 an Engineer cannot save a costing setting');
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a8');   -- disabled Engineer
+select throws_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d4","basis":"none","effective_from":"2026-01-01"}') $$,
+  '42501', null, 'AC-EQU-012 a disabled member cannot save a costing setting');
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a2');   -- Finance
+select lives_ok($$ insert into _k select 'f', save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d4","basis":"hire_rate","work_rate":50,"rate_unit":"hours","effective_from":"2026-01-01"}') $$,
+  'AC-EQU-012 Finance saves a costing setting');
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a1');   -- Admin
+select lives_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d3","basis":"hire_rate","work_rate":50,"rate_unit":"hours","effective_from":"2026-01-01"}') $$,
+  'AC-EQU-012 an Admin saves a costing setting');
+select throws_ok($$ insert into equipment_costing_settings (org_id, asset_id, setting_key, version, basis, effective_from)
+  values ('15190000-0000-0000-0000-00000000000a','15190000-0000-0000-0000-0000000000d1',gen_random_uuid(),1,'none','2026-01-01') $$,
+  '42501', null, 'AC-EQU-012 no direct INSERT on settings, even for an Admin');
+select throws_ok($$ update equipment_costing_settings set work_rate = 1 $$, '42501', null, 'AC-EQU-012 no direct UPDATE on settings');
+select throws_ok($$ delete from equipment_costing_settings $$, '42501', null, 'AC-EQU-012 no direct DELETE on settings');
+
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a3');   -- PM1
+select throws_ok($$ select end_equipment_costing((select (v->>'setting_key')::uuid from _k where k='f'),'2026-12-31',1) $$,
+  '42501', 'not authorized', 'AC-EQU-012 a PM cannot end a costing setting');
+select throws_ok($$ select * from preview_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d4","basis":"none","effective_from":"2026-01-01"}') $$,
+  '42501', 'not authorized', 'AC-EQU-012 a PM cannot preview a costing setting');
+select is((select count(*)::int from list_equipment_costing()), 2, 'AC-EQU-012 a PM reads the costing settings');
+select is((select count(*)::int from equipment_costing_settings), 2, 'AC-EQU-012 a PM reads the settings table');
+select lives_ok($$ select * from list_equipment_allocations('15190000-0000-0000-0000-0000000000d1','2026-09-01','2026-09-30') $$,
+  'AC-EQU-012 a PM reads amounts');
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a5');
+select is((select count(*)::int from list_equipment_costing()), 2, 'AC-EQU-012 an Executive reads the costing settings');
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a6');   -- Eng1
+select throws_ok($$ select * from list_equipment_costing() $$, '42501', 'not authorized', 'AC-EQU-012 an Engineer cannot list costing settings');
+select throws_ok($$ select * from list_equipment_allocations('15190000-0000-0000-0000-0000000000d1','2026-09-01','2026-09-30') $$,
+  '42501', 'not authorized', 'AC-EQU-012 an Engineer cannot read allocation amounts');
+select throws_ok($$ select * from preview_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d4","basis":"none","effective_from":"2026-01-01"}') $$,
+  '42501', 'not authorized', 'AC-EQU-012 an Engineer cannot preview a costing setting');
+select is((select count(*)::int from equipment_costing_settings), 0, 'AC-EQU-012 an Engineer reads no settings row');
+select lives_ok($$ select * from list_equipment_usage_totals('15190000-0000-0000-0000-0000000000c1', null, '2026-09-01', '2026-09-30') $$,
+  'AC-EQU-012 an Engineer reads usage totals');
+select ok(pg_get_function_result('list_equipment_usage_totals(uuid,uuid,date,date)'::regprocedure) not like '%amount%',
+  'AC-EQU-012 the usage totals an Engineer reads carry no amount column');
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a8');   -- disabled
+select throws_ok($$ select * from list_equipment_usage_totals('15190000-0000-0000-0000-0000000000c1', null, '2026-09-01', '2026-09-30') $$,
+  '42501', null, 'AC-EQU-012 a disabled member reads no usage totals');
+
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000b1');   -- another org's Admin
+select is((select count(*)::int from list_equipment_costing(true)), 0, 'AC-EQU-012 another org lists no settings');
+select is((select count(*)::int from equipment_costing_settings), 0, 'AC-EQU-012 another org reads no settings row');
+select is((select count(*)::int from list_equipment_allocations('15190000-0000-0000-0000-0000000000d4','2026-01-01','2026-12-31')), 0,
+  'AC-EQU-012 another org reads no allocation');
+select is((select count(*)::int from list_equipment_usage_totals(null,'15190000-0000-0000-0000-0000000000d4','2026-01-01','2026-12-31')), 0,
+  'AC-EQU-012 another org reads no usage totals');
+select throws_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d4","basis":"none","effective_from":"2026-01-01"}') $$,
+  'P0002', null, 'AC-EQU-012 another org cannot cost this org''s asset');
+select throws_ok($$ select end_equipment_costing((select (v->>'setting_key')::uuid from _k where k='f'),'2026-12-31',1) $$,
+  'P0002', null, 'AC-EQU-012 another org cannot end this org''s setting');
+select throws_ok($$ select save_equipment_costing(jsonb_build_object('setting_key',(select v->>'setting_key' from _k where k='f'),'expected_version',1,
+  'asset_id','15190000-0000-0000-0000-0000000000d9','basis','none','effective_from','2026-01-01')) $$,
+  'P0002', null, 'AC-EQU-012 another org cannot version this org''s setting');
+reset role;
 
 select * from finish();
 rollback;
