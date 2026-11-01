@@ -143,6 +143,12 @@ import { admitsDocForBindingCompany, companyDocFilters, isCompanyScopedKind } fr
 // IDENTICAL guard (round-9 FIX 1). Re-exported below so this module's existing test imports still resolve.
 import { createInFlightAnchorProbe, type InFlightAnchorProbe } from '../_shared/inFlightAnchorProbe.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { findOutboxRowByKey, outboxRowOf } from './outboxRows.ts';
+import {
+  type ErpSweepCadence, fullSweepDue, HOURLY_INVOCATION_DEADLINE_MS, SWEEP_BACKFILL_EVERY_MINUTES, SWEEP_FULL_INTERVAL_MS,
+  SWEEP_RETRY_DELAY_SECONDS, sweepCadenceAt,
+} from './sweepCadence.ts';
+export { type ErpSweepCadence, fullSweepDue, SWEEP_BACKFILL_EVERY_MINUTES, SWEEP_FULL_INTERVAL_MS, SWEEP_RETRY_DELAY_SECONDS, sweepCadenceAt };
 // P3c slice 5 (FR-BUD-141, AC-BUD-023) — the budget push's sweep backstop, pure orchestration.
 import {
   reconcileOrgBudgetPushes,
@@ -647,10 +653,7 @@ export interface ErpSweepCycleDeps {
   hourlyDeadlineAtMs?: number;
 }
 
-/** Delay before a failed hourly run is retried; a merely truncated run continues on the next tick. */
-export const SWEEP_RETRY_DELAY_SECONDS = 300;
-/** No hourly pass starts this long after the invocation began (the function's wall-clock cap is 150 s). */
-const HOURLY_INVOCATION_DEADLINE_MS = 120_000;
+
 
 /**
  * Supabase Edge Functions document a 150-second wall-clock limit:
@@ -670,13 +673,6 @@ export interface OrgLedgerFeedResult {
   statementReady?: boolean;
   statementError?: string;
 }
-
-/**
- * Owner ruling 2026-10-23: money postings reach ERPNext near-instantly. `full` runs every pass;
- * `money-only` (between the hourly statement windows) runs just the outbound money passes —
- * (1) outbox recovery, (5) budget, (6) timesheets, (7) expenses — still under the per-org lock.
- */
-export type ErpSweepCadence = 'full' | 'money-only';
 
 export interface ErpSweepCycleResult {
   orgs: number;
@@ -1058,17 +1054,6 @@ function statementReportBatchMatchesBinding(
     sameTimestampInstant(batchBinding.activatedAt, context.activatedAt);
 }
 
-/** 0358: an org's hourly work is due once its last completed full run is at least this old. */
-export const SWEEP_FULL_INTERVAL_MS = 55 * 60_000;
-/** A binding still building its first statement publication keeps the full sweep every five minutes. */
-export const SWEEP_BACKFILL_EVERY_MINUTES = 5;
-
-/** Whether an org's hourly work is due: never run, unreadable, or completed at least 55 minutes ago. */
-export function fullSweepDue(lastFullSweepAt: string | null | undefined, nowMs: number): boolean {
-  const last = lastFullSweepAt ? Date.parse(lastFullSweepAt) : Number.NaN;
-  return !Number.isFinite(last) || nowMs - last >= SWEEP_FULL_INTERVAL_MS;
-}
-
 /**
  * The tick-wide decision. Every tick runs the outbound money passes (owner ruling 2026-10-23). The tick
  * forces the full sweep for every org only while some binding lacks its first statement publication,
@@ -1083,11 +1068,6 @@ export function tickCadenceSummary(cadence: ErpSweepCadence, cycle: ErpSweepCycl
   return ran.size === 1 ? [...ran][0] : 'mixed';
 }
 
-export async function sweepCadenceAt(entryMs: number, allPublished: () => Promise<boolean>): Promise<ErpSweepCadence> {
-  const minute = new Date(entryMs).getUTCMinutes();
-  if (minute % SWEEP_BACKFILL_EVERY_MINUTES !== 0) return 'money-only';
-  return (await allPublished()) ? 'money-only' : 'full';
-}
 
 /**
  * Between an org's hourly runs, the full sweep is forced only while some active binding accepted by
@@ -1247,17 +1227,7 @@ function listCandidatesLive(serviceClient: SupabaseClient): ListOutboxCandidates
     const { data, error } = await serviceClient.rpc('outbox_reconcile_candidates', { p_org_id: orgId });
     if (error) throw new AppError(error.message, error.code);
     const rows = (data as Array<Record<string, unknown>> | null) ?? [];
-    return rows.map((r) => ({
-      id: String(r.id),
-      domain: String(r.domain),
-      pmoRecordId: String(r.pmo_record_id),
-      idempotencyKey: String(r.idempotency_key),
-      state: r.state as OutboxRow['state'],
-      externalRecordId: (r.external_record_id as string | null) ?? null,
-      canonical: (r.canonical as OutboxRow['canonical']) ?? null,
-      claimGeneration: (r.claim_generation as number | undefined) ?? 0,
-      payloadDigest: (r.payload_digest as string | null | undefined) ?? null,
-    }));
+    return rows.map(outboxRowOf);
   };
 }
 
@@ -2066,31 +2036,7 @@ async function findBudgetOutboxRow(
   versionId: string,
   idempotencyKey: string,
 ): Promise<OutboxRow | null> {
-  const { data, error } = await serviceClient
-    .from('external_command_outbox')
-    .select('id, domain, pmo_record_id, idempotency_key, state, external_record_id, canonical, claim_generation, payload_digest')
-    .eq('org_id', orgId)
-    .eq('domain', ERPNEXT_BUDGET_DOMAIN)
-    .eq('pmo_record_id', versionId)
-    .eq('idempotency_key', idempotencyKey)
-    .maybeSingle();
-  if (error) throw new AppError(error.message, error.code);
-  if (!data) return null;
-  const r = data as {
-    id: string; domain: string; pmo_record_id: string; idempotency_key: string; state: OutboxRow['state'];
-    external_record_id: string | null; canonical: PmoRecord | null; claim_generation: number; payload_digest: string | null;
-  };
-  return {
-    id: r.id,
-    domain: r.domain,
-    pmoRecordId: r.pmo_record_id,
-    idempotencyKey: r.idempotency_key,
-    state: r.state,
-    externalRecordId: r.external_record_id,
-    canonical: r.canonical,
-    claimGeneration: r.claim_generation,
-    payloadDigest: r.payload_digest ?? null,
-  };
+  return findOutboxRowByKey(serviceClient, orgId, ERPNEXT_BUDGET_DOMAIN, versionId, idempotencyKey);
 }
 
 /**
@@ -2605,42 +2551,6 @@ async function findTimesheetOutboxRow(
   idempotencyKey: string,
 ): Promise<OutboxRow | null> {
   return findOutboxRowByKey(serviceClient, orgId, ERPNEXT_TIMESHEETS_DOMAIN, timesheetId, idempotencyKey);
-}
-
-/** The EXISTING `external_command_outbox` row for a (domain, record, deterministic key), if any — shared by the
- *  timesheet backstop and the expense pass (#775 phase B), whose keys are re-derived identically every tick. */
-async function findOutboxRowByKey(
-  serviceClient: SupabaseClient,
-  orgId: string,
-  domain: string,
-  pmoRecordId: string,
-  idempotencyKey: string,
-): Promise<OutboxRow | null> {
-  const { data, error } = await serviceClient
-    .from('external_command_outbox')
-    .select('id, domain, pmo_record_id, idempotency_key, state, external_record_id, canonical, claim_generation, payload_digest')
-    .eq('org_id', orgId)
-    .eq('domain', domain)
-    .eq('pmo_record_id', pmoRecordId)
-    .eq('idempotency_key', idempotencyKey)
-    .maybeSingle();
-  if (error) throw new AppError(error.message, error.code);
-  if (!data) return null;
-  const r = data as {
-    id: string; domain: string; pmo_record_id: string; idempotency_key: string; state: OutboxRow['state'];
-    external_record_id: string | null; canonical: PmoRecord | null; claim_generation: number; payload_digest: string | null;
-  };
-  return {
-    id: r.id,
-    domain: r.domain,
-    pmoRecordId: r.pmo_record_id,
-    idempotencyKey: r.idempotency_key,
-    state: r.state,
-    externalRecordId: r.external_record_id,
-    canonical: r.canonical,
-    claimGeneration: r.claim_generation,
-    payloadDigest: r.payload_digest ?? null,
-  };
 }
 
 /**
