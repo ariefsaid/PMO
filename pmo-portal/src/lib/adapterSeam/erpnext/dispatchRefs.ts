@@ -13,7 +13,7 @@ import type { DispatchServiceClient } from './dispatchTypes.ts';
  *
  * ⚑ ONE definition for every read path (ADP-022: the factory used to carry two identical local
  * copies, so a parsing correction had to be made twice). Both call sites — the case-vendor
- * resolution (`resolveCaseSupplierName`, via `procurements.vendor_id`) and the command's own
+ * resolution (the case-vendor read in `dispatchProcurement.ts`, via `procurements.vendor_id`) and the command's own
  * `vendorId` fallback (`resolveSupplierRef`) — go through this helper, and the external-reference
  * format (prefixed AND bare) is covered at the factory seam by `dispatchFactory.test.ts`. */
 export function stripDoctypePrefix(externalId: string): string {

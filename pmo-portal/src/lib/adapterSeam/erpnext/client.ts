@@ -668,6 +668,16 @@ export function callMethod(deps: ErpClientDeps, methodPath: string): Promise<unk
   return erpnextRequest(deps, { method: 'GET', path: `/api/method/${methodPath}` });
 }
 
+/** A successful list response must carry `data` as an array. A missing/non-array envelope (a gateway
+ *  page, malformed JSON, a changed shape) is an UNCONFIRMED read, never an empty one: recovery treats
+ *  `[]` as a confirmed miss and would mint a second money document (THEME-DATA-07). Only a validated
+ *  empty array means "ERP holds nothing". `external-unreachable` keeps the row in-flight for retry. */
+function requireListData<T>(res: unknown): T[] {
+  const data = (res as { data?: unknown } | null)?.data;
+  if (!Array.isArray(data)) throw new AdapterError('external-unreachable', 'ERPNext returned an unreadable list response; the outcome is unconfirmed');
+  return data as T[];
+}
+
 /**
  * The ADR-0058 §3 recovery-probe query: list the `name`s of `<DocType>` docs whose stock anchor
  * field (`anchorField`) carries the idempotency key
@@ -692,8 +702,7 @@ export async function listDocNamesByAnchor(
   const filters = encodeURIComponent(JSON.stringify([[anchorField, 'like', `%${escapeLikePattern(idempotencyKey)}%`]]));
   const path = `${doctypePath(doctype)}?filters=${filters}&limit_page_length=${limit}`;
   const res = await erpnextRequest(deps, { method: 'GET', path });
-  const data = (res as { data?: Array<{ name?: unknown }> } | null)?.data;
-  if (!Array.isArray(data)) return [];
+  const data = requireListData<{ name?: unknown }>(res);
   return data.map((d) => String(d.name)).filter((n) => n !== 'undefined');
 }
 
@@ -738,7 +747,5 @@ export async function listDocsByFilters(
   const encodedFields = encodeURIComponent(JSON.stringify(fields));
   const path = `${doctypePath(doctype)}?filters=${encoded}&fields=${encodedFields}&limit_page_length=${limit}${orderBy ? `&order_by=${encodeURIComponent(orderBy)}` : ''}`;
   const res = await erpnextRequest(deps, { method: 'GET', path });
-  const data = (res as { data?: Array<Record<string, unknown>> } | null)?.data;
-  if (orderBy && !Array.isArray(data)) throw new Error('Invalid ERP candidate page');
-  return Array.isArray(data) ? data : [];
+  return requireListData<Record<string, unknown>>(res);
 }

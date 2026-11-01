@@ -100,9 +100,11 @@ const StillToInvoiceBody: React.FC = () => {
                       {row.clientPoNumber
                         ? ` · ${t('dashboard.stillToInvoice.clientPo', { defaultValue: 'Client PO {{po}}', po: row.clientPoNumber, interpolation: { escapeValue: false } })}`
                         : ''}
-                      {row.daysSinceClosed !== null
-                        ? ` · ${t('dashboard.stillToInvoice.daysSinceClosed', { defaultValue: 'Days since closed: {{days}}', days: row.daysSinceClosed })}`
-                        : ''}
+                      {row.daysSinceAcceptance !== null
+                        ? ` · ${t('dashboard.stillToInvoice.daysSinceAcceptance', { defaultValue: 'Days since acceptance, not invoiced: {{days}}', days: row.daysSinceAcceptance })}`
+                        : row.daysSinceClosed !== null
+                          ? ` · ${t('dashboard.stillToInvoice.daysSinceClosed', { defaultValue: 'Days since closed: {{days}}', days: row.daysSinceClosed })}`
+                          : ''}
                     </span>
                   </Link>
                   <span className="flex shrink-0 flex-col items-end">

@@ -30,6 +30,10 @@ export interface BudgetArchiveBackstopDeps {
   markSuperseded(job: BudgetArchiveCancelIntent): Promise<void>;
   markHeld(job: BudgetArchiveCancelIntent, reason: string): Promise<void>;
   noteRetry(job: BudgetArchiveCancelIntent, reason: string): Promise<void>;
+  /** Stamp the listed jobs' last attempt BEFORE any is driven (THEME-BACK-06): `listPending` serves
+   *  never-attempted jobs first, then the longest-waiting, so jobs waiting out an outbox retry rotate
+   *  behind the rest instead of hiding every later cancellation. */
+  markAttempted?(orgId: string, jobs: BudgetArchiveCancelIntent[]): Promise<void>;
 }
 
 export interface ReconcileBudgetArchiveCancellationsResult {
@@ -51,6 +55,7 @@ export async function reconcileOrgBudgetArchiveCancellations(
   orgId: string,
 ): Promise<ReconcileBudgetArchiveCancellationsResult> {
   const jobs = await deps.listPending(orgId, BUDGET_ARCHIVE_BACKSTOP_LIMIT);
+  if (jobs.length > 0) await deps.markAttempted?.(orgId, jobs);
   let driven = 0;
   let superseded = 0;
   let held = 0;

@@ -65,7 +65,8 @@ create function public.stk_t_bal(p_wh uuid, p_item uuid) returns text language s
 create function public.stk_t_out(p_wh uuid, p_item uuid) returns text language sql security definer as $$
   select coalesce(sum(value_delta), 0)::text from public.stock_ledger where warehouse_id = p_wh and item_id = p_item and kind = 'transfer' and qty_delta < 0 $$;
 create function public.stk_t_rows(p_where text) returns integer language plpgsql security definer as $$
-declare n integer; begin execute 'select count(*) from public.stock_ledger where ' || p_where into n; return n; end $$;
+-- scoped to the fixture org: committed rows of other orgs (the S2b concurrency script leaves throwaway ones, #1622) must not count
+declare n integer; begin execute 'select count(*) from public.stock_ledger where org_id = ''15120000-0000-0000-0000-000000000001'' and ' || p_where into n; return n; end $$;
 
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a1');                                                                     -- Admin posts anywhere
 -- AC-STK-002: 100 @ 50 then 100 @ 70 -> average 60; moving 50 out takes 3,000

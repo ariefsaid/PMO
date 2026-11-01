@@ -10,6 +10,7 @@ import { formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format'
 import type { BudgetCategory, ExpenseClaimInput, ExpenseKind, ExpenseLineInput, ExpenseType } from '@/src/lib/db/expenseClaims';
 import { RECEIPT_INPUT_ACCEPT } from '@/src/lib/db/expenseReceipts';
 import { useExpensePostingReadiness } from '@/src/hooks/useExpensePostingReadiness';
+import { floatChoiceOptions } from '@/src/lib/imprest/floatDisplay';
 import { useImprestFloatChoices } from '@/src/hooks/useImprest';
 import { expenseTypeLabel } from './expenseLabels';
 
@@ -139,7 +140,7 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
     kind === 'advance' || initial ? form.values.projectId || undefined : undefined, (form.values.budgetCategory || null) as BudgetCategory | null,
   ).data;
   const floatOptions = useMemo(() => {
-    const options = (floatChoices ?? []).map((choice) => ({ value: choice.float_id, label: choice.custodian_name }));
+    const options = floatChoiceOptions(floatChoices ?? []);
     if (initial?.imprestFloatId && !options.some((o) => o.value === initial.imprestFloatId)) {
       options.unshift({ value: initial.imprestFloatId, label: t('imprest:form.currentFloat', 'The float it is charged to') });
     }

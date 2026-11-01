@@ -11,6 +11,8 @@ export interface ImprestRepository {
   listPlanLines: typeof dal.listPlanLines;
   listReplenishments: typeof dal.listReplenishments;
   listCounts: typeof dal.listCounts;
+  listPostingStates: typeof dal.listPostingStates;
+  setCashAccount: (floatId: string, account: string) => Promise<void>;
   listFloatChanges: typeof dal.listFloatChanges;
   listFloatClaims: typeof dal.listFloatClaims;
   listAwaitingImprest: typeof dal.listAwaitingImprest;

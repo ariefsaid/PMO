@@ -144,7 +144,7 @@ Deno.test({
   },
 });
 
-Deno.test('#1600 a matched existing company is LINKED (update + ref), never re-inserted', async () => {
+Deno.test('AC-ECA-006 a matched existing company is LINKED (update + ref), never re-inserted', async () => {
   const { deps, companies, externalRefs, counts } = makeFakeState();
   companies.set('pmo-existing', { id: 'pmo-existing', name: 'Test party', type: 'Vendor' });
   deps.findCandidates = async () => [{ pmoRecordId: 'pmo-existing', taxId: null }];
@@ -187,7 +187,7 @@ Deno.test('#1600 a conflicting tax ID becomes a needs-a-decision row with no wri
   assertEquals(companies.size, 1);
 });
 
-Deno.test('#1600 an ambiguous match becomes a needs-a-decision row and the rest apply', async () => {
+Deno.test('AC-ECA-006 an ambiguous match becomes a needs-a-decision row and the rest apply', async () => {
   const { deps, externalRefs } = makeFakeState();
   deps.findCandidates = async (_doctype, name) =>
     name === 'Test party' ? [{ pmoRecordId: 'pmo-a', taxId: null }, { pmoRecordId: 'pmo-b', taxId: null }] : [];

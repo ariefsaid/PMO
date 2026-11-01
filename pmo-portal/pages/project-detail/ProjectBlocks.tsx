@@ -37,7 +37,7 @@ export const BlockAction: React.FC<{ onClick?: () => void; to?: string; children
 };
 
 /** Block chrome: heading, its unit/basis once, an optional action on the same baseline. */
-const Block: React.FC<{ id: string; title: string; unit?: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }> = ({ id, title, unit, action, children }) => (
+export const Block: React.FC<{ id: string; title: string; unit?: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }> = ({ id, title, unit, action, children }) => (
   <section aria-labelledby={id} className="min-w-0">
     <Card>
       <CardHead id={id} subline={unit} actions={action} className="pb-2">{title}</CardHead>

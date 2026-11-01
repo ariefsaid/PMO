@@ -38,6 +38,7 @@ import "../_shared/testing/publicErpDns.ts";
  */
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
 const { sweepOrgDoctypesLive, SWEEP_LIST_MAX_PAGES, SWEEP_TICK_MAX_DOCS, SWEEP_TICK_TIME_BUDGET_MS } = await import('./index.ts');
+import { frappeCursor, frappeListPage } from '../_shared/testing/frappeList.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 function assert(cond: boolean, msg: string): void {
@@ -75,10 +76,10 @@ function frappeModified(secondsFromBase: number): string {
   return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())}`;
 }
 
-interface ListRequest { doctype: string; limitStart: number; pageLength: number }
+interface ListRequest { doctype: string; limitStart: number; pageLength: number; tieProbe: boolean }
 
-/** A Frappe-shaped fake ERP: filters each doctype's master list (`modified >=` / scalar `=`), then
- *  slices it by `limit_start`/`limit_page_length` — paging works ONLY if the caller pages honestly.
+/** A Frappe-shaped fake ERP: evaluates the keyset filters over each doctype's master list and serves
+ *  `limit_page_length` rows in `modified asc, name asc` order — paging works ONLY if the caller pages honestly.
  *  `onPage` fires after each served page (the injected-clock hook for the time-budget test). */
 function stubErpPages(
   docsByDoctype: Record<string, Array<Record<string, unknown>>>,
@@ -97,18 +98,13 @@ function stubErpPages(
     }
     const params = new URLSearchParams(query);
     const pageLength = Number(params.get('limit_page_length') ?? 500);
-    const limitStart = Number(params.get('limit_start') ?? 0);
-    let rows = docsByDoctype[doctype] ?? [];
+    const limitStart = Number(params.get('limit_start') ?? 0); // the keyset walk never sends one
+    const rows = frappeListPage(docsByDoctype[doctype] ?? [], params);
     const filters = JSON.parse(params.get('filters') ?? '[]') as Array<[string, string, string]>;
-    for (const [field, op, value] of filters) {
-      if (op === '>=' && field === 'modified') rows = rows.filter((r) => String(r.modified) >= String(value));
-      else if (op === '=') rows = rows.filter((r) => String(r[field]) === String(value));
-      else rows = [];
-    }
-    requests.push({ doctype, limitStart, pageLength });
+    requests.push({ doctype, limitStart, pageLength, tieProbe: filters.some(([f, op]) => f === 'name' && op === '>') });
     onPage?.(doctype);
     return Promise.resolve(
-      new Response(JSON.stringify({ data: rows.slice(limitStart, limitStart + pageLength) }), {
+      new Response(JSON.stringify({ data: rows }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       }),
@@ -116,7 +112,8 @@ function stubErpPages(
   }) as typeof fetch;
   return {
     requests,
-    of: (doctype: string) => requests.filter((r) => r.doctype === doctype),
+    // Walk pages only: the keyset walk's same-instant tie probe (`name >`) is a continuation read, not a page of its own.
+    of: (doctype: string) => requests.filter((r) => r.doctype === doctype && !r.tieProbe),
     restore: () => { globalThis.fetch = original; },
   };
 }
@@ -277,30 +274,32 @@ Deno.test('#916: tick 1 stops at the doc budget and persists a cursor; tick 2 re
       erp.of('Employee').length === 2,
       `tick 1 must stop at the per-doctype listing quantum (2 pages of 500), fetched ${erp.of('Employee').length} pages`,
     );
+    assert(tick1.complete === false, 'a quantum stop is reported incomplete so the full run is not stamped complete');
     assert(tick1.applied === 1000, `tick 1 applied ${tick1.applied}, expected exactly the 1000-doc budget`);
     assert(
-      db.watermarks.get('timesheets::Employee') === docs[999].modified,
-      `the persisted cursor must be the max modified SEEN (doc #1000), not the tail — got ${JSON.stringify(db.watermarks.get('timesheets::Employee'))}`,
+      db.watermarks.get('timesheets::Employee') === frappeCursor(docs[999].modified, docs[999].name),
+      `the persisted cursor must be the last row READ (doc #1000: modified + name), not the tail — got ${JSON.stringify(db.watermarks.get('timesheets::Employee'))}`,
     );
 
-    // Tick 2 — resumes EXACTLY at the inclusive boundary: the boundary doc re-lists (idempotent), the
-    // remaining 100 apply, and the doctype DRAINS on a short page.
+    // Tick 2 — resumes strictly AFTER the persisted (modified, name) row: the boundary doc is not re-read,
+    // the remaining 100 apply, and the doctype DRAINS on a short page.
     const employeePagesBefore = erp.of('Employee').length;
     const tick2 = await sweepOrgDoctypesLive(db.client, orgBinding(['timesheets']));
     assert(tick2.error === undefined, `tick 2 must be clean: ${tick2.error}`);
-    assert(tick2.applied === 101, `tick 2 applied ${tick2.applied}, expected 101 (boundary re-apply + 100 remaining)`);
+    assert(tick2.complete === true, 'the drained walk reports complete');
+    assert(tick2.applied === 100, `tick 2 applied ${tick2.applied}, expected the 100 remaining`);
     assert(
       erp.of('Employee').length - employeePagesBefore === 1,
       'tick 2 drains the remainder on ONE short page (the cursor really was persisted — a lost cursor would re-list from doc #1)',
     );
     assert(
-      db.watermarks.get('timesheets::Employee') === docs[TOTAL - 1].modified,
+      db.watermarks.get('timesheets::Employee') === frappeCursor(docs[TOTAL - 1].modified, docs[TOTAL - 1].name),
       'the cursor must now sit at the true tail of the doctype',
     );
 
-    // Tick 3 — steady state: only the inclusive boundary doc re-lists; nothing new, nothing duplicated.
+    // Tick 3 — steady state: nothing after the cursor, so nothing re-lists and nothing duplicates.
     const tick3 = await sweepOrgDoctypesLive(db.client, orgBinding(['timesheets']));
-    assert(tick3.applied === 1, `tick 3 must re-apply ONLY the inclusive boundary doc, applied ${tick3.applied}`);
+    assert(tick3.applied === 0, `tick 3 must apply nothing, applied ${tick3.applied}`);
 
     // THE INVARIANT: every document adopted exactly once — the union is the full set, no duplicates.
     assert(db.refUpserts.length === TOTAL, `expected exactly ${TOTAL} external_refs claims, got ${db.refUpserts.length}`);
@@ -391,7 +390,7 @@ Deno.test('#916: an exhausted whole-tick time budget stops the walk; the skipped
     assert(tick2.error === undefined, `tick 2 must be clean: ${tick2.error}`);
     assert(tick2.applied === 1, `tick 2 adopts the skipped doctype's pending document, got ${tick2.applied}`);
     assert(
-      db.watermarks.get('timesheets::Employee') === empModified,
+      db.watermarks.get('timesheets::Employee') === frappeCursor(empModified, 'EMP-000001'),
       'the skipped doctype resumed and persisted its own cursor — nothing is skipped permanently',
     );
   } finally {
@@ -529,7 +528,7 @@ Deno.test('#916: a doctype the budget keeps skipping is walked FIRST once its si
       `STARVATION: the always-busy first doctype must not starve Budget — by tick 2 the never-run Budget walk must run (walked ${erp.of('Budget').length} pages)`,
     );
     assert(
-      db.watermarks.get('budget::Budget') === budgetModified,
+      db.watermarks.get('budget::Budget') === frappeCursor(budgetModified, 'BUDGET-DESK-001'),
       `tick 2: Budget completed its walk and persisted its own cursor, got ${JSON.stringify(db.watermarks.get('budget::Budget'))}`,
     );
   } finally {

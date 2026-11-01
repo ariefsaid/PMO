@@ -5,7 +5,7 @@ const invoke = vi.hoisted(() => vi.fn());
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { functions: { invoke } } }));
 
 const REF = { drive_id: 'd', item_id: 'i', web_url: 'https://tenant.sharepoint.com/sites/x/Plan.pdf', name: 'Plan.pdf', item_kind: 'file' };
-const pdf = () => new File(['%PDF'], 'Plan.pdf', { type: 'application/pdf' });
+const pdf = () => new File(['%PDF-1.7'], 'Plan.pdf', { type: 'application/pdf' });
 const failure = (body: unknown, status: number) => ({
   data: null,
   error: { context: new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }) },
@@ -41,6 +41,12 @@ describe('uploadRecordFile', () => {
   it('document-preview AC-007 refuses a disallowed file before any request', async () => {
     const exe = new File(['x'], 'run.exe');
     await expect(uploadRecordFile({ kind: 'project_document', id: UUID }, exe)).rejects.toMatchObject({ kind: 'invalid' });
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('refuses a renamed file whose bytes do not match its extension before any request', async () => {
+    const fake = new File(['MZ-not-a-pdf'], 'Plan.pdf', { type: 'application/pdf' });
+    await expect(uploadRecordFile({ kind: 'project_document', id: UUID }, fake)).rejects.toMatchObject({ kind: 'invalid' });
     expect(invoke).not.toHaveBeenCalled();
   });
 

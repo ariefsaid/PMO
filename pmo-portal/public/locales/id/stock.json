@@ -455,7 +455,8 @@
       "net": "Pemakaian bersih",
       "value": "Nilai",
       "issuedBy": "Dikeluarkan oleh"
-    }
+    },
+    "rangeReversed": "Bulan awal setelah bulan akhir. Pilih bulan awal pada atau sebelum bulan akhir."
   },
   "allowance": {
     "action": "Jatah material",
@@ -472,7 +473,10 @@
     "quantityInvalid": "Isi kuantitas di atas 0, paling banyak 3 desimal.",
     "itemRequired": "Pilih barang.",
     "duplicate": "Barang ini sudah punya jatah pada item pekerjaan ini; ubah di daftar.",
-    "loadError": "Jatah tidak dapat dimuat."
+    "loadError": "Jatah tidak dapat dimuat.",
+    "clearConfirmTitle": "Hapus jatah",
+    "clearConfirmDescription": "Hapus jatah {{item}} untuk {{workItem}}? Jumlah yang sudah dikeluarkan tetap tercatat.",
+    "clearConfirm": "Hapus jatah"
   },
   "issueOverAllowance": "Melebihi jatah: {{workItem}} kini memakai {{used}} dari {{planned}} {{unit}} yang direncanakan. Pengeluaran tetap tercatat; ini penanda, bukan penghalang.",
   "reorder": {

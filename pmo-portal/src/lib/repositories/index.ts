@@ -23,6 +23,9 @@ import { financialStatementsRepository } from './financialStatements';
 import { expensePostingsRepository } from './expensePostings';
 import { erpPurchasesRepository } from './erpPurchases';
 import { projectRepository } from './projects';
+import { projectMoneyRepository } from './projectMoney';
+import { dashboardRepository } from './dashboard';
+import { agentRunRepository } from './agentRuns';
 import { companyRepository, contactRepository } from './companies';
 import {
   documentRepository,
@@ -86,6 +89,9 @@ export const repositories: Repositories = {
   recordHistory: recordHistoryRepository,
   vendorWithholdingSlips: vendorWithholdingSlipsRepository,
   project: projectRepository,
+  projectMoney: projectMoneyRepository,
+  dashboard: dashboardRepository,
+  agentRun: agentRunRepository,
   company: companyRepository,
   document: documentRepository,
   agentAttachment: agentAttachmentRepository,
@@ -170,3 +176,4 @@ export type {
   FxRatePage,
   FxCommitCounts,
 } from './types';
+export type * from './dataTypes';
