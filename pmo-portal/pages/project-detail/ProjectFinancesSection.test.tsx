@@ -654,6 +654,36 @@ describe('ProjectFinancesSection billing kinds (#1471)', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
+  it('#1631 shows the contract-invoiced figure next to the excess for multiple contributing invoices (known and incomplete)', () => {
+    h.query.data = payload({
+      contract_invoiced: '1100.00', remaining_to_invoice: '-100.00', invoices: [usdBucket('1350.00')],
+      contract_excess: { state: 'known', amount: '100.00', contractBilling: '1100.00', contributors: [
+        { invoice_id: 'inv-a', invoice_number: 'SI-A', invoice_date: '2026-03-03', contribution: '700.00' },
+        { invoice_id: 'inv-b', invoice_number: 'SI-B', invoice_date: '2026-03-01', contribution: '400.00' },
+      ] },
+    });
+    const { unmount } = renderSection();
+    const known = screen.getByTestId('contract-excess');
+    expect(within(known).getByText('Invoiced above contract by 100')).toBeInTheDocument();
+    expect(within(known).getByText('Invoiced against contract')).toBeInTheDocument();
+    expect(within(known).getByTestId('contract-excess-invoiced')).toHaveTextContent('1,100');
+    unmount();
+    h.query.data = payload({
+      contract_invoiced: '1100.00', remaining_to_invoice: '-100.00', invoices: [usdBucket('1100.00')],
+      contract_excess: { state: 'incomplete', amount: '100.00' },
+    });
+    renderSection();
+    expect(within(screen.getByTestId('contract-excess')).getByTestId('contract-excess-invoiced')).toHaveTextContent('1,100');
+  });
+
+  it('#1631 shows no excess or invoiced figure when there are no invoices', () => {
+    h.query.data = payload({ contract_invoiced: null, remaining_to_invoice: null, invoices: [], contract_excess: null });
+    renderSection();
+    expect(screen.queryByTestId('contract-excess')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('contract-excess-invoiced')).not.toBeInTheDocument();
+    expect(screen.getByTestId('project-no-invoices')).toBeInTheDocument();
+  });
+
   it('AC-004 derives the excess and explains missing detail when the contributor list cannot be verified', async () => {
     h.query.data = payload({
       contract_invoiced: '1100.00', remaining_to_invoice: '-100.00', invoices: [usdBucket('1100.00')],

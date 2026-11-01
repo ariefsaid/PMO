@@ -8,6 +8,9 @@ import { renderHook, act } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
+vi.mock('../lib/repositories', () => ({
+  repositories: { agentRun: { listEvents: async () => [], getHeartbeat: async () => null } },
+}));
 vi.mock('../lib/features', () => ({
   isFeatureEnabled: (key: string) => key === 'agentAssistant',
   FEATURES: { agentAssistant: true },

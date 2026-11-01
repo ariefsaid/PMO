@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
+import {
+  repositories,
+  type ExpenseClaimFilters, type ExpenseClaimInput, type ExpenseClaimPatch, type ExpenseClaimRoute,
+  type ExpenseClaimStatus, type ExpenseClaimWithRefs, type ExpenseKind, type ExpenseLineInput,
+} from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
-import type {
-  ExpenseClaimFilters, ExpenseClaimInput, ExpenseClaimPatch, ExpenseClaimRoute, ExpenseClaimStatus,
-  ExpenseClaimWithRefs, ExpenseKind, ExpenseLineInput,
-} from '@/src/lib/db/expenseClaims';
 import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
 export { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
 

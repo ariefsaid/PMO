@@ -35,7 +35,7 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: state.drawdown, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectWorkOrders: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }), useWorkOrderAcceptanceAge: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('../useProjectPosition', () => ({
   useOverdueReceivables: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectAttention: () => ({ items: [], isPending: false, error: null, myVisibleTaskKeys: new Set() }),

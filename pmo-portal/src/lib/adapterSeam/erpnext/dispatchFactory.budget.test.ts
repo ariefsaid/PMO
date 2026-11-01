@@ -80,6 +80,7 @@ function erpFetch() {
   return vi.fn(async (_url: string, init?: RequestInit) => {
     if (init?.method === 'POST') return new Response(JSON.stringify({ name: 'BUDGET-2026-00001' }), { status: 200 });
     if (init?.method === 'PUT') return new Response(JSON.stringify({ name: 'BUDGET-2026-00001', docstatus: 1 }), { status: 200 });
+    if (String(_url).includes('limit_page_length')) return new Response(JSON.stringify({ data: [] }), { status: 200 }); // grain probe: no rival
     return new Response(
       JSON.stringify({ name: 'BUDGET-2026-00001', docstatus: 1, modified: '2026-07-20 10:00:00', fiscal_year: '2026' }),
       { status: 200 },

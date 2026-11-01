@@ -3,7 +3,16 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { safeTrack, trackPurchaseApproved } from '@/src/lib/analytics';
-import { repositories } from '@/src/lib/repositories';
+import {
+  repositories,
+  type ProcurementError,
+  type ProcurementDetail,
+  type ProcurementStatus,
+  type ProcurementReceiptRow,
+  type ProcurementInvoiceRow,
+  type CreateInvoiceInput,
+  type CaptureVendorInvoiceInput,
+} from '@/src/lib/repositories';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import {
   IDLE_PENDING_PUSH,
@@ -11,22 +20,6 @@ import {
   pendingPushAfterWrite,
   type PendingPushState,
 } from '@/src/lib/adapterSeam/pendingPush';
-import {
-  getProcurementDetail,
-  // task FIX-1 (Discover CRITICAL 1): captureVendorInvoice is the atomic case-transition + invoice
-  // RPC (`capture_vendor_invoice`) — it REUSES transition_procurement's SoD guard (harden #2 above),
-  // so it is a case-aggregate write, not a per-doctype ERP command. Per FR-ENA-101/073 the case
-  // aggregate stays PMO-derived even on a flipped org (same rule as `transition`, task 4.9), so this
-  // stays on the direct DAL — it has no repository seam entry and none is added here.
-  captureVendorInvoice as dalCaptureVendorInvoice,
-  ProcurementError,
-  type ProcurementDetail,
-  type ProcurementStatus,
-  type ProcurementReceiptRow,
-  type ProcurementInvoiceRow,
-  type CreateInvoiceInput,
-  type CaptureVendorInvoiceInput,
-} from '@/src/lib/db/procurementLifecycle';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { efakturRefusal } from '@/src/lib/efaktur';
@@ -54,7 +47,7 @@ export function useProcurementDetail(id: string | undefined) {
 
   return useQuery<ProcurementDetail>({
     queryKey: [...procurementDetailKey(orgId, id), currentUser?.id, currentUser?.role],
-    queryFn: () => getProcurementDetail(id!),
+    queryFn: () => repositories.procurement.get(id!),
     enabled: Boolean(orgId && id),
   });
 }
@@ -197,7 +190,7 @@ export function useProcurementMutations(id: string) {
     ProcurementError,
     Omit<CaptureVendorInvoiceInput, 'procurementId'>
   >({
-    mutationFn: (input) => dalCaptureVendorInvoice({ ...input, procurementId: id }),
+    mutationFn: (input) => repositories.procurement.captureVendorInvoice({ ...input, procurementId: id }),
     onSuccess: invalidateDetail,
   });
 

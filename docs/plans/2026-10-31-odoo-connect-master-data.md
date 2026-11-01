@@ -1715,8 +1715,8 @@ matcher exists (SD-8).
 `supabase/tests/odoo_party_adoption.test.sql` (new): two `adopt_odoo_partner(org, 'Vendor:5', '{"name":"PT Sinar Baja","type":"Vendor",…}')` calls
 (the second plays the race loser) → one `companies` row, one `external_refs` row, the second returns the first's id; linking to an existing
 PMO company (`p_existing_company`) inserts no company; linking a PMO company that already has a `companies` ref → `P0001`
-(the caller turns it into a review row). If ECA-2 ships a tier-agnostic bring-in/link RPC, this test runs it with tier `odoo`
-and S6-T3 is skipped.
+(the caller turns it into a review row). ECA-2 ships the tier-agnostic service-role entry `apply_connect_outcome` (ECA plan
+ECA2-T6, migration `0451`): this test runs it with tier `odoo` and S6-T3 is skipped.
 
 ### S6-T3 — `NNNN-D_odoo_party_adoption.sql` (green, only if ECA-2 has no tier-agnostic RPC)
 
@@ -1770,7 +1770,8 @@ succeeds. No migration: the shipped guard is tier-agnostic (`domain_externally_o
 `supabase/functions/_shared/odooPartyFeed.ts` (new) + `odooPartyFeed.test.ts`: registered as `AFTER_APPLY.partner` in `odooSweep.ts`.
 For partner rows applied in a page that have no `external_refs`: normalise (`normaliseParty`), load candidate PMO companies (same
 normalised name or same `erp_tax_id`, ≤ 20, paged per ECA's rule), run the shared `proposeMatches`; *link* / *bring in* apply through the
-RPC when the org's party kind has been accepted once (ECA-2's "auto-apply after setup" state); otherwise the outcome is stored as a proposal
+RPC (`apply_connect_outcome`) when the org's party kind has been accepted once (`erp_connect_census.accepted_at` set for tier `odoo`,
+kind `party`, ECA plan PD-ECA-15); otherwise the outcome is stored as a proposal
 row; *review* is stored and notified. Test: the four outcomes call the right writer; nothing is written for a partner that already has a
 ref; a thrown writer error does not roll back the page (the hook runs after `apply_odoo_master_page` returned; the next overlap read repeats
 the decision, which is idempotent).
@@ -1827,7 +1828,8 @@ end $$;
 ```
 
 Both granted to `service_role` only; `pmo_project_number` confirmed at head (migration 0231). ECA-2's bulk *link* outcome for kind
-`project` calls `link_odoo_cost_account` per row inside its accept (one audit row per accept per FR-ECA-015 — the per-row audit above is
+`project` reaches `link_odoo_cost_account` through the `odoo` arm this slice adds to ECA-2's `connect_link_project` (the one
+project-link writer the accept calls) per row inside its accept (one audit row per accept per FR-ECA-015 — the per-row audit above is
 kept as the link's own trail). Verbs in the Odoo router: `list-projects` (cost accounts of the plan), `link-project`, `unlink-project`, gate
 `() => true` (the SQL actor check decides). Run
 `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/odoo_project_links_config.test.sql'`.

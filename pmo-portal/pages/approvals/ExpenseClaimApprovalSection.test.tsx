@@ -19,6 +19,7 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole
 
 import { ExpenseClaimApprovalSection } from './ExpenseClaimApprovalSection';
 import { DocumentViewerProvider } from '@/src/components/documents';
+import { formatCurrencyAuto } from '@/src/lib/format';
 
 const item = (id: string, claimant: string, route: unknown) => ({
   claim: { id, claim_number: `EXP-${id}`, title: `Claim ${id}`, claimant_id: claimant, claimant: { full_name: 'X' }, amount: 100, currency: 'IDR', status: 'Submitted' },
@@ -101,5 +102,21 @@ describe('ExpenseClaimApprovalSection', () => {
     h.data = [item('1', 'pm', null)];
     const { container } = render(<MemoryRouter><ExpenseClaimApprovalSection /></MemoryRouter>);
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe('#1635 float claim amounts use the float currency', () => {
+  it('a claim charged to a float shows its amount in the float currency, an ordinary claim in the claim currency', () => {
+    const floatClaim = item('fl', 'eng', null);
+    Object.assign(floatClaim.claim, { imprest_float_id: 'f1', float: { currency: 'USD' }, amount: 100, currency: 'IDR' });
+    h.data = [floatClaim, item('ord', 'eng', null)];
+    h.userId = 'sen'; h.role = 'Executive';
+    render(<MemoryRouter><ExpenseClaimApprovalSection /></MemoryRouter>);
+    const text = (title: string) => (screen.getByText(title).closest('li')?.textContent ?? '').replace(/\s/g, ' ');
+    const money = (n: number, c: string) => formatCurrencyAuto(n, c).replace(/\s/g, ' ');
+    expect(text('Claim fl')).toContain(money(100, 'USD'));
+    expect(text('Claim fl')).not.toContain(money(100, 'IDR'));
+    expect(text('Claim ord')).toContain(money(100, 'IDR'));
+    h.data = [];
   });
 });

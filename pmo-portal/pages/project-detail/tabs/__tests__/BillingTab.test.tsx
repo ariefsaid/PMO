@@ -14,6 +14,7 @@ import { parseMissingKeyHandler } from '@/src/lib/i18n';
 
 const h = vi.hoisted(() => ({
   role: 'Finance' as string,
+  effectiveRole: null as string | null,
   userId: 'u-fin',
   connected: true,
   routeReady: true,
@@ -25,6 +26,7 @@ const h = vi.hoisted(() => ({
   ordersState: { isPending: false, isError: false, refetch: vi.fn() },
   m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.effectiveRole ?? h.role }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/usePermission', async () => {
   const { can } = await vi.importActual<typeof import('@/src/auth/policy')>('@/src/auth/policy');
@@ -73,7 +75,7 @@ const money = (value: number) => formatNumberMax2(value);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  h.role = 'Finance'; h.userId = 'u-fin'; h.connected = true; h.routeReady = true;
+  h.role = 'Finance'; h.effectiveRole = null; h.userId = 'u-fin'; h.connected = true; h.routeReady = true;
   h.billing = { data: FACTS, isPending: false, isError: false, refetch: vi.fn() };
   h.boq = BOQ; h.claims = CLAIMS; h.docs = DOCS;
   h.docsState = { isPending: false, isError: false, refetch: vi.fn() };
@@ -204,6 +206,13 @@ describe('BillingTab', () => {
     h.role = 'Engineer'; h.userId = 'u-eng';
     render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
     expect(offered()).toBe(false);
+  });
+
+  it('FR-STK-050 the material allowance editor is not offered while an Admin views as another role (view-only)', () => {
+    i18next.addResourceBundle('en', 'stock', { allowance: { action: 'Material allowance' } }, true, true);
+    h.role = 'Admin'; h.userId = 'u-admin'; h.effectiveRole = 'Engineer';
+    render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+    expect(screen.queryAllByRole('button', { name: 'Material allowance' })).toHaveLength(0);
   });
 
   it('AC-PB-008 the BoQ shows assessed, claimed and left-to-claim quantities and flags over-claiming', () => {

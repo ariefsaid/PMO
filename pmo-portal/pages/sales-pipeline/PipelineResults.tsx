@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { DataTable, ListState, type Column } from '@/src/components/ui';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import SalesKanbanBoard from '../../components/SalesKanbanBoard';
+import DraggableSalesBoard from './DraggableSalesBoard';
 import type { PipelineView } from '@/src/hooks/usePipelineView';
 import { ATTENTION_THRESHOLD_DAYS, type OpenFunnelStage } from '../../components/salesPipeline';
 import type { DealScope } from './pipelineListModel';
@@ -124,7 +125,7 @@ export const PipelineResults: React.FC<PipelineResultsProps> = ({
             onRetry={refetchLost}
           />
         )}
-        <SalesKanbanBoard projects={kanbanFiltered} onOpen={onOpen} selectedStageIndex={stageIndex} />
+        <DraggableSalesBoard projects={kanbanFiltered} onOpen={onOpen} selectedStageIndex={stageIndex} />
       </>
     );
   }

@@ -15,6 +15,7 @@ import { expenseJournalFromDoc } from './bodies/expenseJournal.ts';
 import { budgetAccountIdentity } from './budgetAccountIdentity.ts';
 import { DOCTYPE_BODIES } from './doctypeBodies.ts';
 import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatchFactory.ts';
+import { onboardParties } from './onboarding.ts';
 import { adoptParty } from './partyAdopt.ts';
 import { invertProjectMap } from './projectMap.ts';
 import { createPushAndReadHarness } from './contract.pushAndRead.harness.ts';
@@ -150,6 +151,35 @@ export function createErpnextHarness(): ErpHarness {
         if (error instanceof AppError && error.code === 'config-rejected') return { outcome: 'refused' };
         throw error;
       }
+    },
+
+    async bringIn(parties, existing, runs = 1) {
+      // Every candidate the suite passes is named "Acme Co". The store refuses duplicates like the database does.
+      const companies = new Map<string, { name: string }>(existing.map((c) => [c.pmoId, { name: 'Acme Co' }]));
+      const refs = new Map<string, string>(); // external id -> pmo id, unique like external_refs
+      const linked: string[] = [];
+      let review = 0;
+      for (let i = 0; i < runs; i += 1) {
+        await onboardParties(parties.map((p) => ({ doctype: p.role === 'vendor' ? 'Supplier' : 'Customer', id: p.externalId, name: p.name, taxId: p.taxId ?? null })), {
+          findPmoRecordId: async (ext) => refs.get(ext) ?? null,
+          findCandidates: async () => existing.filter((c) => ![...refs.values()].includes(c.pmoId)).map((c) => ({ pmoRecordId: c.pmoId, taxId: c.taxId })),
+          insertCompaniesMirror: async (c) => {
+            if (companies.has(c.id)) throw Object.assign(new Error('duplicate'), { code: '23505' });
+            companies.set(c.id, { name: String(c.name) });
+          },
+          updateCompaniesMirror: async (id) => {
+            if (!companies.has(id)) throw new Error('update of a missing company');
+            if (!linked.includes(id) && existing.some((c) => c.pmoId === id)) linked.push(id);
+          },
+          recordExternalRef: async ({ pmoRecordId, externalRecordId }) => {
+            if (refs.has(externalRecordId) || [...refs.values()].includes(pmoRecordId)) throw Object.assign(new Error('dup'), { code: '23505' });
+            refs.set(externalRecordId, pmoRecordId);
+          },
+          mirrorExists: async (id) => companies.has(id),
+          notifyUnclearMatch: async () => { review += 1; },
+        });
+      }
+      return { companies: companies.size, refs: refs.size, linked, review: review / runs };
     },
 
     resolveProjectLink(links, erpProjectName): ProjectLinkResult {

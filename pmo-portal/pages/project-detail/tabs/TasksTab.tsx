@@ -35,6 +35,9 @@ import { ProjectIntegrationsCard } from '@/src/components/projects/ProjectIntegr
 import { Link, useLocation, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
+import { useQueryClient } from '@tanstack/react-query';
+import { BoardDnd, DraggableCard, DroppableColumn } from '@/src/components/kanban/BoardDnd';
+import { useOptimisticMoves } from '@/src/components/kanban/useOptimisticMoves';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
@@ -455,8 +458,9 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         : undefined;
 
   // ── Mutations ───────────────────────────────────────────────────────────
-  const onStatusChange = async (task: TaskWithRefs, status: TaskStatus) => {
-    if (status === task.status || !canSetStatus(task)) return;
+  // Resolves true when the write landed, false when it was skipped or failed (the board drop rolls back on false).
+  const onStatusChange = async (task: TaskWithRefs, status: TaskStatus): Promise<boolean> => {
+    if (status === task.status || !canSetStatus(task)) return false;
     try {
       await updateStatus.mutateAsync({ id: task.id, status });
       toast(
@@ -467,9 +471,11 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         }),
         'success',
       );
+      return true;
     } catch (err) {
       const { headline, detail } = classifyWriteError(err);
       toast(headline, detail, 'warning');
+      return false;
     }
   };
 
@@ -824,6 +830,8 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
           statusBusy={updateStatus.isPending}
           externallyOwned={externallyOwned}
           pendingPushByTask={pendingPushByTask}
+          orgId={currentUser?.org_id}
+          projectId={projectId}
         />
       )}
 
@@ -927,19 +935,22 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
 interface TaskBoardProps {
   tasks: TaskWithRefs[];
   canSetStatus: (t: TaskWithRefs) => boolean;
-  onStatusChange: (t: TaskWithRefs, status: TaskStatus) => void;
+  onStatusChange: (t: TaskWithRefs, status: TaskStatus) => Promise<boolean>;
   onActivate: (t: TaskWithRefs) => void;
   rowMenu: (task: TaskWithRefs) => RowMenuItem[];
   today: string;
   statusBusy: boolean;
   externallyOwned: boolean;
   pendingPushByTask: Record<string, import('@/src/lib/adapterSeam/pendingPush').PendingPushState>;
+  orgId: string | undefined;
+  projectId: string;
 }
 
 /**
- * Status-column board. A keyboard-first alternative to drag (ui-ux-pro-max
- * gesture-alternative): each card carries a status `<select>` for those who may
- * move it (managers: any; Engineer: own task only), or a static pill otherwise.
+ * Status-column board. Each card carries a status `<select>` for those who may
+ * move it (managers: any; Engineer: own task only), or a static pill otherwise. That select
+ * stays the keyboard and screen-reader path; dragging a card to another column (pointer and
+ * touch, DND #1637) is a shortcut to the same write, gated by the same `canSetStatus`.
  */
 const TaskBoard: React.FC<TaskBoardProps> = ({
   tasks,
@@ -951,24 +962,61 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
   statusBusy,
   externallyOwned,
   pendingPushByTask,
+  orgId,
+  projectId,
 }) => {
   const { t } = useTranslation('project');
-  const byStatus = (s: TaskStatus) => tasks.filter((task) => task.status === s);
+  const qc = useQueryClient();
+  const moves = useOptimisticMoves();
+  const byId = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
+  const byStatus = (s: TaskStatus) => tasks.filter((task) => moves.columnOf(task.id, task.status) === s);
+  // Same write, toasts and external routing as the select. The card is held in the target column
+  // while it saves and released once the tasks query has refetched, or at once on a failed write.
+  const dropTask = async (id: string, to: TaskStatus) => {
+    const task = byId.get(id);
+    if (!task || !canSetStatus(task) || to === task.status) return;
+    moves.hold(id, to);
+    moves.save(id);
+    let ok = false;
+    try {
+      ok = await onStatusChange(task, to);
+      if (ok) await qc.invalidateQueries({ queryKey: ['tasks', orgId, projectId] }, { cancelRefetch: false });
+    } finally {
+      if (ok) await moves.releaseAfterRender(id);
+      else moves.release(id);
+    }
+  };
   return (
+    <BoardDnd
+      canDrop={(id, col) => { const task = byId.get(id); return !!task && canSetStatus(task) && col !== task.status; }}
+      isHome={(id, col) => byId.get(id)?.status === col}
+      onMove={(id, col) => void dropTask(id, col as TaskStatus)}
+      cardLabel={(id) => byId.get(id)?.name ?? ''}
+      columnLabel={(id) => id}
+      renderOverlay={(id) => (
+        // The card being held, at its own width (dnd-kit sizes the overlay to the source card).
+        <div className="w-full min-w-0 rounded-md border border-border bg-card px-3 py-2.5 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
+          <span className="block whitespace-normal break-words text-[13px] font-semibold leading-snug">{byId.get(id)?.name}</span>
+        </div>
+      )}
+    >
     <Kanban className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {BOARD_STATUSES.map((s) => {
         const col = byStatus(s);
         return (
+          <DroppableColumn key={s} id={s} testId={`task-col-${s}`} className="flex min-w-0 flex-col">
+            {(dropState) => (
           <KanbanColumn
-            key={s}
             title={s}
+            dropState={dropState}
             count={col.length}
             emptyMessage={t('projectDetail.tasks.board.noTasks', 'No tasks')}
             totals={<Tooltip content={t('projectDetail.tasks.board.countTooltip', 'Count of current filtered project tasks in this status. Source: the current task list and filters.')}>
               <button type="button" aria-label={t('projectDetail.tasks.board.countHelp', 'Explain status count')} className="inline-flex rounded-sm text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="info" className="size-3.5" /></button>
             </Tooltip>}
           >
-            {col.map((task) => <div key={task.id} onClick={() => onActivate(task)} className="min-w-0 cursor-pointer rounded-md border border-border bg-card px-3 py-2.5 hover:border-muted-foreground/35 hover:bg-accent/40">
+            {col.map((task) => <DraggableCard key={task.id} id={task.id} disabled={!canSetStatus(task)} moveState={moves.stateOf(task.id)}>
+            <div onClick={() => onActivate(task)} className="min-w-0 cursor-pointer rounded-md border border-border bg-card px-3 py-2.5 hover:border-muted-foreground/35 hover:bg-accent/40">
               <div className="flex items-start justify-between gap-2">
                 <button type="button" aria-label={t('projectDetail.tasks.openTask', 'Open task {{name}}', { name: task.name })} onClick={(event) => { event.stopPropagation(); onActivate(task); }} className="min-w-0 text-left text-[13px] font-semibold leading-snug hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                   <span className="block whitespace-normal break-words">{task.name}</span>
@@ -1000,11 +1048,18 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                   fullWidth
                 /> : <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>}
               </div>
-            </div>)}
+              {moves.stateOf(task.id) === 'saving' && (
+                <p className="mt-1 text-[11.5px] text-muted-foreground">{t('boardDrag:saving', 'Saving…')}</p>
+              )}
+            </div>
+            </DraggableCard>)}
           </KanbanColumn>
+            )}
+          </DroppableColumn>
         );
       })}
     </Kanban>
+    </BoardDnd>
   );
 };
 

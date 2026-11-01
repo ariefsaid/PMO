@@ -12,6 +12,7 @@ import { type EditRow, computeTotals, diffEntries, gridIsValid, parseHourCell, s
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatFullDate, formatMonthDay } from '@/src/lib/format';
 import { timesheetActions } from '@/src/lib/db/timesheetTransition';
+import { planCopyLastWeekRows } from './timesheetWeekModel';
 import { TimesheetStatus } from '../../types';
 
 type Props = {
@@ -25,11 +26,13 @@ type Props = {
   signedInUserId: string | undefined;
   currentDate: Date;
   setCurrentDate: React.Dispatch<React.SetStateAction<Date>>;
+  /** LAST week's entries (already resolved by the page from the same repository list) — the copy source. */
+  lastWeekEntries: TimesheetEntryWithProject[];
   entryMutations: ReturnType<typeof useTimesheetEntryMutations>;
   submit: ReturnType<typeof useTimesheetMutations>['submit'];
 };
 
-export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, gridRows, weekDates, weekStartDate, weekStartString, allProjects, signedInUserId, currentDate, setCurrentDate, entryMutations, submit }: Props) {
+export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, gridRows, weekDates, weekStartDate, weekStartString, allProjects, signedInUserId, currentDate, setCurrentDate, lastWeekEntries, entryMutations, submit }: Props) {
   const { t } = useTranslation(['common', 'timesheets']);
   const { toast } = useToast();
   const { saveWeek, deleteRow, isReconciling, reconciledDelete } = entryMutations;
@@ -304,6 +307,44 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
     [currentWeekEntries]
   );
 
+  // ── Copy last week (draft weeks; pure plan + buffer seed, committed via the explicit Save) ──
+  const lastWeekDateStrings = useMemo(
+    () =>
+      weekDates.map((d) => {
+        const shifted = new Date(d);
+        shifted.setDate(shifted.getDate() - 7);
+        return format(shifted, 'yyyy-MM-dd');
+      }),
+    [weekDates]
+  );
+  // The picker refuses non-Ongoing projects — a copy must not resurrect an archived one. While
+  // allProjects is still loading the source is empty (the page disables the control meanwhile).
+  const copySource = useMemo(() => {
+    const ongoing = new Set(
+      (allProjects ?? []).filter((p) => p.status === 'Ongoing Project').map((p) => p.id)
+    );
+    return lastWeekEntries.filter((e) => ongoing.has(e.project_id));
+  }, [lastWeekEntries, allProjects]);
+  const copyPlan = useMemo(
+    () =>
+      planCopyLastWeekRows(
+        copySource,
+        lastWeekDateStrings,
+        editRows,
+        t('timesheets.unknownProject', 'Unknown Project')
+      ),
+    [copySource, lastWeekDateStrings, editRows, t]
+  );
+  const copyLastWeek = () => {
+    if (copyPlan.addedCount === 0) return; // dead-click guard: nothing new to bring over
+    setEditRows(copyPlan.rows);
+    toast(
+      t('timesheets:copyLastWeek.toastHeadline', 'Rows copied from last week'),
+      t('timesheets:copyLastWeek.toastDetail', 'Review the copied hours, then save the week.'),
+      'success'
+    );
+  };
+
   const [pendingWeekDelta, setPendingWeekDelta] = useState<number | null>(null);
   const moveWeek = (delta: number) => {
     const next = new Date(currentDate);
@@ -420,8 +461,9 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
   return {
     view: { pickerOptions, invalidCells, editValid, editTotals, editGridRows, editNotes,
       editRawHours, rowToDelete, dirty, weeklyTotal, pendingWeekDelta, weekRangeLabel,
-      isOwner, editBufferHasHours, canSubmit, confirmSubmit },
-    actions: { setCell, setNote, addProject, requestDelete: setConfirmDeleteRowId,
+      isOwner, editBufferHasHours, canSubmit, confirmSubmit,
+      copyPlan: { addedCount: copyPlan.addedCount, lastWeekHasRows: copySource.length > 0 } },
+    actions: { setCell, setNote, addProject, copyLastWeek, requestDelete: setConfirmDeleteRowId,
       cancelDelete: () => setConfirmDeleteRowId(null), confirmDeleteRow, commitSave,
       stepWeek, cancelWeekChange: () => setPendingWeekDelta(null),
       confirmWeekChange: () => { if (pendingWeekDelta !== null) moveWeek(pendingWeekDelta); setPendingWeekDelta(null); },

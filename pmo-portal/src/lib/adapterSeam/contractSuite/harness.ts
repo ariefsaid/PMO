@@ -153,6 +153,10 @@ export interface ErpHarness {
   readonly tier: string;
   /** party.match */
   matchParty(party: ErpPartyInput, existing: readonly PmoPartyCandidate[]): Promise<PartyMatchResult>;
+  /** party.bring-in: apply ERP parties to a PMO store that enforces uniqueness like the database (one ref per
+   *  external id, one company id). Each call starts an empty store seeded with `existing`. */
+  bringIn?: (parties: readonly ErpPartyInput[], existing: readonly PmoPartyCandidate[], runs?: number) =>
+    Promise<{ companies: number; refs: number; linked: string[]; review: number }>;
   /** project.match: `links` maps PMO project id to the ERP project name it is linked to. */
   resolveProjectLink(links: Readonly<Record<string, unknown>> | undefined, erpProjectName: string): ProjectLinkResult;
   /** budget.unowned-occupant */

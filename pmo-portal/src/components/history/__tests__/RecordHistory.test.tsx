@@ -9,6 +9,7 @@ import { formatCurrency, formatDateOnly, formatDateTime } from '@/src/lib/format
 
 const { repo, listProcurementsByProject, listBudgetVersions, procDetail, authState } = vi.hoisted(() => {
   const listBudgetVersions = vi.fn();
+  const listProcurementsByProject = vi.fn();
   return {
     repo: {
       recordHistory: { list: vi.fn(), lookupNames: vi.fn() },
@@ -20,8 +21,9 @@ const { repo, listProcurementsByProject, listBudgetVersions, procDetail, authSta
       // PR-2 (7b63bc389 "Refresh budget and timesheet query consumers") moved useBudgetVersions onto
       // the repository seam, so the versions read arrives here; the journey is unchanged.
       budget: { listVersions: listBudgetVersions },
+      procurement: { listByProject: listProcurementsByProject },
     },
-    listProcurementsByProject: vi.fn(),
+    listProcurementsByProject,
     listBudgetVersions,
     procDetail: { data: undefined as Record<string, unknown> | undefined },
     authState: { orgId: 'org-1' },

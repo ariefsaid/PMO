@@ -1,18 +1,18 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useStartRecordFolder } from '@/src/hooks/useStartRecordFolder';
-import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import type { AppError } from '@/src/lib/appError';
-import type {
-  NewProcurementInput,
-  AtomicProcurementInput,
-  ProcurementHeaderPatch,
-  ProcurementItemInput,
-  ProcurementItemPatch,
-  ProcurementItemRow,
-  ProcurementDocumentInput,
-  ProcurementDocumentRow,
-} from '@/src/lib/db/procurementCrud';
+import {
+  repositories,
+  type NewProcurementInput,
+  type AtomicProcurementInput,
+  type ProcurementHeaderPatch,
+  type ProcurementItemInput,
+  type ProcurementItemPatch,
+  type ProcurementItemRow,
+  type ProcurementDocumentInput,
+  type ProcurementDocumentRow,
+} from '@/src/lib/repositories';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
 // ---------------------------------------------------------------------------

@@ -16,6 +16,7 @@ import { ErpError, getDoc } from './client.ts';
 import { DOCTYPE_REGISTRY, type ErpDocKind } from './doctypeRegistry.ts';
 import { externalIdForKind, KIND_DOMAIN, kindFromDoctype, sweepKindsForOrg } from './feedKinds.ts';
 import { KINDS_NEEDING_FULL_DOC, pollFiltersForKind, sweepFieldsForKind } from './pollSpec.ts';
+import { isAfterKeysetCursor } from './keysetScan.ts';
 import { listErpChangesSinceWatermark } from './sweepCursor.ts';
 
 export interface ErpExternalIdTarget {
@@ -120,8 +121,10 @@ export async function erpListChangesSinceWatermark(
     changes.push(...listed.changes.map((change) => change.record));
     if (listed.nextCursor !== null) {
       next[kind] = listed.nextCursor;
-      // The poll is inclusive, so the boundary row always returns: only a strictly later `modified` is progress.
-      if (prior[kind] === undefined || listed.nextCursor > prior[kind]) advanced = true;
+      // The poll is inclusive, so the boundary row always returns: only a strictly later `modified` is
+      // progress — compared in cursor order (keysetScan) so a padded composite is not "later" than a
+      // bare (pre-keyset) watermark naming the same instant.
+      if (prior[kind] === undefined || isAfterKeysetCursor(prior[kind], listed.nextCursor)) advanced = true;
     }
   }
   return { changes, nextCursor: advanced ? JSON.stringify(next) : null };

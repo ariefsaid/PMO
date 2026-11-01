@@ -95,6 +95,7 @@ vi.mock('../ProjectDrawdown', () => ({ default: () => null }));
 vi.mock('../ProjectSCurve', () => ({ default: () => null }));
 vi.mock('../ProjectAttention', () => ({ ProjectAttention: () => null }));
 vi.mock('../ProjectBlocks', () => ({ CostBlock: () => null, DeliveryBlock: () => null, MoneyBlock: () => null }));
+vi.mock('../BillingMilestonesBlock', () => ({ BillingMilestonesBlock: () => null }));
 vi.mock('../ProjectActivity', () => ({ ActivityFooter: () => null, MyOpenTasks: () => null, ProjectActivity: () => null }));
 vi.mock('../useProjectPosition', () => ({
   useProjectAttention: () => ({ items: [], isPending: false }),

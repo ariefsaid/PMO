@@ -1,6 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
-import { validateFile } from '@/src/lib/validateFile';
+import { validateFile, validateFileSignature } from '@/src/lib/validateFile';
 import { parseInvokeFailure } from './previewClient';
 import { assertMicrosoftReference, type MicrosoftReferenceInput } from './reference';
 import type { UploadRecordFileTarget } from '../../../../supabase/functions/_shared/microsoftDocumentPreview';
@@ -66,7 +66,7 @@ export async function uploadRecordFile(
   file: File,
   signal?: AbortSignal,
 ): Promise<MicrosoftReferenceInput> {
-  if (!validateFile(file).ok) throw new UploadFailure('invalid');
+  if (!validateFile(file).ok || !(await validateFileSignature(file)).ok) throw new UploadFailure('invalid');
   const { data, error } = await invokeWithTimeout(
     supabase.functions.invoke<{ reference: unknown }>(FUNCTION_NAME, { body: formFor(target, file), signal }),
     UPLOAD_TIMEOUT_MS,

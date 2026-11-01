@@ -9,6 +9,7 @@ import { useProjects } from '@/src/hooks/useProjects';
 import { useExpenseClaims } from '@/src/hooks/useExpenseClaims';
 import { useExpenseCapture } from '@/src/hooks/useExpenseCapture';
 import { useImprestFloatChoices, useImprestProcurementLimit, useSetClaimFloat } from '@/src/hooks/useImprest';
+import { floatChoiceOptions } from '@/src/lib/imprest/floatDisplay';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { isPlanException, toCents } from '@/src/lib/imprest/imprestRules';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
@@ -82,7 +83,7 @@ const ExpenseClaimNew: React.FC = () => {
   const advanceOptions = ownAdvanceOptions.filter((option) => (advanceFloat.get(option.value) ?? '') === chargedFloatId);
   const totalCents = toCents(lineInputs.reduce((sum, line) => sum + line.amount, 0));
   const floatHint = chosenFloat && totalCents > 0 ? {
-    remaining: category && chosenFloat.remaining != null ? formatCurrencyAuto(Number(chosenFloat.remaining), currency) : null,
+    remaining: category && chosenFloat.remaining != null ? formatCurrencyAuto(Number(chosenFloat.remaining), chosenFloat.currency ?? currency) : null,
     exception: Boolean(category) && isPlanException(totalCents / 100, chosenFloat.remaining),
     overLimit: procurementLimit !== null && totalCents > toCents(procurementLimit),
   } : null;
@@ -152,7 +153,7 @@ const ExpenseClaimNew: React.FC = () => {
           {floatChoices.length > 0 && <>
             <SelectField label={t('imprest:form.chargeToFloat', 'Charge to site float')} value={floatId} onChange={(value) => { setFloatId(value); setAdvanceId(''); }}
               options={[{ value: '', label: t('imprest:form.noFloat', 'Not charged to a float') },
-                ...floatChoices.map((choice) => ({ value: choice.float_id, label: choice.custodian_name }))]}
+                ...floatChoiceOptions(floatChoices)]}
               helper={t('imprest:form.helper', 'Cash paid out of site cash held by the custodian.')} />
             {floatHint && <div className="col-span-full space-y-1 text-xs text-muted-foreground" role="note">
               {floatHint.remaining && <p>{t('imprest:form.remainingHint', 'Remaining this month for this category: {{amount}}.', { amount: floatHint.remaining })}</p>}

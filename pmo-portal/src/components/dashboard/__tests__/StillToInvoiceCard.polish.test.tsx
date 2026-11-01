@@ -17,7 +17,7 @@ const POPULATED = {
   totals: [{ currency: 'USD', remaining: 1300, count: 2 }],
   incompleteCount: 1,
   rows: [
-    { workOrderId: 'wo-1', woNumber: 'WO-1', title: 'Survey', projectId: 'p1', projectName: 'Harbor Tower', status: 'Issued', currency: 'USD', remaining: 1000, daysSinceClosed: null, clientPoNumber: 'PO-77' },
+    { workOrderId: 'wo-1', woNumber: 'WO-1', title: 'Survey', projectId: 'p1', projectName: 'Harbor Tower', status: 'Issued', currency: 'USD', remaining: 1000, daysSinceClosed: null, daysSinceAcceptance: null, clientPoNumber: 'PO-77' },
   ],
   incomplete: [{ workOrderId: 'wo-8', woNumber: 'WO-8', title: 'Cabling', projectId: 'p2', projectName: 'Annex' }],
 };

@@ -21,9 +21,17 @@ describe('AC-BV16-006 account-aware push error copy', () => {
   });
 
   it('keeps the original classification object when there is no structured account suffix', () => {
-    expect(describePushError('external-unreachable')).toEqual({
-      code: 'external-unreachable', message: 'ERPNext could not be reached, so the push never arrived.',
-      retryable: true, transport: true, remedy: null,
+    // THEME-DATA-49: a transport failure may follow a write ERPNext already accepted, so the copy
+    // reports the outcome as unconfirmed and points at recovery rather than asserting non-arrival.
+    const copy = describePushError('external-unreachable');
+    expect(copy).toEqual({
+      code: 'external-unreachable', message: 'ERPNext could not be reached, so the outcome is unconfirmed.',
+      retryable: true, transport: true,
+      remedy: 'The system rechecks ERPNext on its own; confirm there before assuming the push did not land.',
     });
+    expect(copy.message).not.toMatch(/never arrived|did not arrive/i);
+    const dispatchFailed = describePushError('DISPATCH_FAILED');
+    expect(dispatchFailed.message).toMatch(/unconfirmed/i);
+    expect(dispatchFailed.message).not.toMatch(/never arrived|did not arrive/i);
   });
 });

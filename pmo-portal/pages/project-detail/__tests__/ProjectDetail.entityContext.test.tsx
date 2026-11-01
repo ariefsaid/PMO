@@ -16,6 +16,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvider';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
+vi.mock('../BillingMilestonesBlock', () => ({ BillingMilestonesBlock: () => null }));
 vi.mock('@/pages/project-detail/ProjectFinancesSection', () => ({ ProjectFinancesSection: () => null }));
 
 const projData = [

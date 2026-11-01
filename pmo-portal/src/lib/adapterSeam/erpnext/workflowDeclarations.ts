@@ -7,7 +7,6 @@ import type { TierWorkflows } from '../connect/workflows.ts';
 
 // ECA slices that will build the missing behaviour (the ERP-connect-anytime map).
 const SETUP_CENSUS_AND_PROPOSALS = 1605;
-const PARTY_DEDUPE = 1600;
 const SEND_TO_EMPTY_ERP = 1606;
 const CUTOVER_PROCESS_DOMAINS = 1601;
 const INVOICE_PAIRING = 1602;
@@ -20,7 +19,7 @@ const DENO_SIDE_PROOF_ONLY = 1609;
 export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   'census': { status: 'pending', version: 1, issue: SETUP_CENSUS_AND_PROPOSALS },
   'party.match': { status: 'supported', version: 1 },
-  'party.bring-in': { status: 'pending', version: 1, issue: PARTY_DEDUPE },
+  'party.bring-in': { status: 'supported', version: 1 },
   'party.send': { status: 'pending', version: 1, issue: SEND_TO_EMPTY_ERP },
   'project.match': { status: 'supported', version: 1 },
   'project.send': { status: 'pending', version: 1, issue: SEND_TO_EMPTY_ERP },

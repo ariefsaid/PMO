@@ -346,7 +346,7 @@ async function claimAndCommit(
     const heldCount = await money.markOutboxHeld(claimed.id, `recovery-probe-failed: ${redactErrorForOutbox(error)}`, token);
     if (heldCount === 0) {
       // Fencing loss: a reclaimer superseded this token — the row's CURRENT state is the truth.
-      const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);
+      const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
       return reconcileOutbox(fresh!, deps);
     }
     console.error(

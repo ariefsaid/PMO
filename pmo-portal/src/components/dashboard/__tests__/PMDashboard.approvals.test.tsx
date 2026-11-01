@@ -59,13 +59,22 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProject: () => ({ data: { pmo_project_number: 'PRJ-26-0001' }, isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
-vi.mock('@/src/lib/repositories', () => ({
+vi.mock('@/src/lib/repositories', async () => {
+  const dash = await import('@/src/lib/db/dashboard');
+  return {
   repositories: {
+    // The dashboard repository delegates to the mocked DAL above.
+    dashboard: {
+      executive: () => dash.getExecutiveDashboard(),
+      financeBudgetReview: () => dash.getFinanceBudgetReview(),
+      pmProjects: () => dash.getPMDashboardProjects(),
+    },
     revenue: { listInvoices: () => Promise.resolve([]) },
     expenseClaim: { list: () => Promise.resolve({ rows: [] }), routes: () => Promise.resolve([]) },
     task: { list: () => Promise.resolve([]) },
   },
-}));
+};
+});
 
 import { PMDashboard } from '../PMDashboard';
 
