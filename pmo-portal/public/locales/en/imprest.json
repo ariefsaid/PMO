@@ -41,6 +41,20 @@
     "toApprove": "Replenishment to approve",
     "toPay": "Replenishment to pay"
   },
+  "cash": {
+    "title": "ERP cash account",
+    "fixed": "· set once, cannot be changed",
+    "unset": "No cash account set. This float's cash movements are not posted to the ERP.",
+    "label": "ERP cash account name",
+    "set": "Set account",
+    "confirmTitle": "Set the cash account to {{account}}?",
+    "confirmBody": "The ERP checks it. Once set it cannot be changed, so set it before the float first moves cash.",
+    "done": "Cash account set",
+    "locked": "This float's cash account can't be changed",
+    "taken": "That account belongs to another float",
+    "unfit": "That isn't a usable cash account",
+    "unsupported": "The ERP connection can't take a cash account yet"
+  },
   "confirm": {
     "countBook": "Cash in hand by the books: {{amount}}",
     "countTitle": "Record a cash count",
@@ -176,6 +190,12 @@
     "receiptsWaiting": "Receipts waiting",
     "topUp": "Top-up due {{amount}}",
     "varianceFlag": "Count variance"
+  },
+  "posting": {
+    "pending": "Posting to ERP",
+    "failed": "ERP posting failed",
+    "uncertain": "ERP posting unconfirmed",
+    "error": "Couldn't load the ERP posting status"
   },
   "receipts": {
     "error": "Couldn't load the float's records",

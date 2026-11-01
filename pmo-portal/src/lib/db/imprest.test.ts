@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 /** AC-IMP-080 — the imprest DAL sends only granted columns, never org/status/amount/number, and never a silently trimmed list. */
 const h = vi.hoisted(() => {
   const result = { value: { data: null as unknown, error: null as unknown } };
+  const byTable: Record<string, { data: unknown; error: unknown }> = {};
+  let current = '';
   const calls = { from: [] as string[], rpc: [] as Array<[string, unknown]>, insert: [] as unknown[], upsert: [] as unknown[], update: [] as unknown[], in: [] as unknown[], limit: [] as unknown[], select: [] as unknown[], eq: [] as unknown[], deleted: 0 };
   const builder: Record<string, unknown> = {};
   const chain = (name?: 'insert' | 'upsert' | 'update' | 'in' | 'limit' | 'select' | 'eq') => (...a: unknown[]) => { if (name) calls[name].push(a.length === 1 ? a[0] : a); return builder; };
@@ -11,12 +13,13 @@ const h = vi.hoisted(() => {
   builder.is = chain(); builder.order = chain(); builder.single = chain(); builder.maybeSingle = chain(); builder.in = chain('in' as never);
   builder.update = chain('update' as never);
   builder.delete = () => { calls.deleted++; return builder; };
-  builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
-  const from = vi.fn((t: string) => { calls.from.push(t); return builder; });
+  builder.or = chain(); builder.then = (resolve: (v: unknown) => unknown) => resolve(byTable[current] ?? result.value);
+  const from = vi.fn((t: string) => { calls.from.push(t); current = t; return builder; });
   const rpc = vi.fn((n: string, a?: unknown) => { calls.rpc.push([n, a]); return Promise.resolve(result.value); });
-  return { from, rpc, calls, result };
+  const invoke = vi.fn();
+  return { from, rpc, calls, result, byTable, invoke };
 });
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc, functions: { invoke: h.invoke } } }));
 
 import * as dal from './imprest';
 const { LIST_LIMIT } = dal;
@@ -27,6 +30,7 @@ beforeEach(() => {
     if (typeof h.calls[k] === 'number') (h.calls[k] as unknown) = 0; else (h.calls[k] as unknown[]).length = 0;
   }
   h.result.value = { data: null, error: null };
+  for (const k of Object.keys(h.byTable)) delete h.byTable[k];
 });
 
 describe('AC-IMP-080 one float by id', () => {
@@ -181,5 +185,45 @@ describe('FR-IMP-002 float amount changes', () => {
     expect(r.truncated).toBe(true);
     expect(h.calls.from).toEqual(['imprest_float_changes']);
     expect(h.calls.eq).toContainEqual(['float_id', 'f1']);
+  });
+});
+
+describe('NFR-IMP-008 posting states', () => {
+  it('AC-IMP-072 listPostingStates reads both mirrors for the float and keeps only movements not yet posted', async () => {
+    h.byTable.imprest_posting_erp_mirror = { data: [
+      { replenishment_id: 'r1', push_state: 'failed', erp_cancelled_at: null },
+      { replenishment_id: 'r2', push_state: 'held', erp_cancelled_at: null },
+      { replenishment_id: 'r3', push_state: 'pushed', erp_cancelled_at: '2026-11-02T00:00:00Z' },
+      { replenishment_id: 'r4', push_state: 'pushed', erp_cancelled_at: null }], error: null };
+    h.byTable.expense_posting_erp_mirror = { data: [
+      { claim_id: 'c1', return_id: null, push_state: 'pending', erp_cancelled_at: null }], error: null };
+    const out = await dal.listPostingStates('f1');
+    expect(h.calls.from).toEqual(['imprest_posting_erp_mirror', 'expense_posting_erp_mirror']);
+    expect(h.calls.eq).toContainEqual(['imprest_replenishments.float_id', 'f1']);
+    expect(h.calls.eq).toContainEqual(['expense_claims.imprest_float_id', 'f1']);
+    expect(h.calls.limit).toEqual([LIST_LIMIT + 1, LIST_LIMIT + 1]);
+    expect(out.rows).toEqual([
+      { movementId: 'r1', kind: 'replenishment', state: 'failed' },
+      { movementId: 'r2', kind: 'replenishment', state: 'uncertain' },
+      { movementId: 'r3', kind: 'replenishment', state: 'uncertain' },
+      { movementId: 'c1', kind: 'record', state: 'pending' }]);
+    expect(out.truncated).toBe(false);
+  });
+  it('AC-IMP-072 a failed posting read throws rather than showing nothing', async () => {
+    h.byTable.imprest_posting_erp_mirror = { data: null, error: { message: 'denied', code: '42501' } };
+    await expect(dal.listPostingStates('f1')).rejects.toMatchObject({ code: '42501' });
+  });
+});
+
+describe('S6 cash account bind', () => {
+  it('imprest-cash-account setCashAccount calls the edge function with the float and account', async () => {
+    h.invoke.mockResolvedValue({ data: { ok: true }, error: null });
+    await dal.setCashAccount('f1', 'Site Cash - X');
+    expect(h.invoke).toHaveBeenCalledWith('imprest-cash-account', { body: { floatId: 'f1', account: 'Site Cash - X' } });
+  });
+  it('imprest-cash-account a refusal keeps the server code and message', async () => {
+    const body = JSON.stringify({ error: 'imprest-cash-account-taken', message: 'That account is already used by another float of this organization' });
+    h.invoke.mockResolvedValue({ data: null, error: { context: new Response(body, { status: 409 }) } });
+    await expect(dal.setCashAccount('f1', 'A')).rejects.toMatchObject({ code: 'imprest-cash-account-taken', message: expect.stringContaining('already used') });
   });
 });

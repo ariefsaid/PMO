@@ -41,6 +41,20 @@
     "toApprove": "Penggantian untuk disetujui",
     "toPay": "Penggantian untuk dibayar"
   },
+  "cash": {
+    "title": "Akun kas ERP",
+    "fixed": "· ditetapkan sekali, tidak dapat diubah",
+    "unset": "Belum ada akun kas. Pergerakan kas float ini tidak diposting ke ERP.",
+    "label": "Nama akun kas ERP",
+    "set": "Tetapkan akun",
+    "confirmTitle": "Tetapkan akun kas ke {{account}}?",
+    "confirmBody": "ERP akan memeriksanya. Setelah ditetapkan tidak dapat diubah, jadi tetapkan sebelum float pertama kali menggerakkan kas.",
+    "done": "Akun kas ditetapkan",
+    "locked": "Akun kas float ini tidak dapat diubah",
+    "taken": "Akun itu milik float lain",
+    "unfit": "Itu bukan akun kas yang dapat dipakai",
+    "unsupported": "Koneksi ERP belum dapat menerima akun kas"
+  },
   "confirm": {
     "countBook": "Kas di tangan menurut pembukuan: {{amount}}",
     "countTitle": "Catat hitung kas",
@@ -176,6 +190,12 @@
     "receiptsWaiting": "Kuitansi menunggu",
     "topUp": "Tambahan dana {{amount}}",
     "varianceFlag": "Selisih hitung kas"
+  },
+  "posting": {
+    "pending": "Sedang diposting ke ERP",
+    "failed": "Posting ERP gagal",
+    "uncertain": "Posting ERP belum terkonfirmasi",
+    "error": "Status posting ERP tidak dapat dimuat"
   },
   "receipts": {
     "error": "Gagal memuat catatan kas lapangan",

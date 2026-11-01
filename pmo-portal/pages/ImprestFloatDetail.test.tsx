@@ -10,10 +10,11 @@ const mut = () => ({ mutateAsync: vi.fn().mockResolvedValue('x'), isPending: fal
 const h = vi.hoisted(() => ({
   userId: 'u-fin', realRole: 'Finance' as string,
   floats: null as unknown, position: null as unknown, plans: null as unknown, planLines: null as unknown,
-  reps: null as unknown, counts: null as unknown, claims: null as unknown,
+  reps: null as unknown, counts: null as unknown, claims: null as unknown, postings: null as unknown,
   m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
 vi.mock('./imprest/FloatAmountSection', () => ({ FloatAmountSection: () => null })); // proven by its own test
+vi.mock('./imprest/CashAccountSection', () => ({ CashAccountSection: ({ account }: { account: string | null }) => <div data-testid="cash-account">{account ?? 'unset'}</div> }));
 vi.mock('@/src/hooks/useImprest', () => ({
   useImprestFloat: () => h.floats,
   useImprestPosition: () => h.position,
@@ -22,6 +23,7 @@ vi.mock('@/src/hooks/useImprest', () => ({
   useImprestReplenishments: () => h.reps,
   useImprestCounts: () => h.counts,
   useImprestFloatClaims: () => h.claims,
+  useImprestPostingStates: () => h.postings,
   useCreatePlan: () => h.m.createPlan,
   useSavePlanLine: () => h.m.savePlanLine,
   useDeletePlanLine: () => h.m.deletePlanLine,
@@ -60,6 +62,7 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     h.reps = ok({ rows: [REP], truncated: false });
     h.counts = ok({ rows: [], truncated: false });
     h.claims = ok({ rows: [], truncated: false });
+    h.postings = ok({ rows: [], truncated: false });
     h.m = { createPlan: mut(), savePlanLine: mut(), deletePlanLine: mut(), transitionPlan: mut(), requestReplenishment: mut(), transitionReplenishment: mut(), recordCount: mut() };
   });
 
@@ -209,5 +212,39 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     h.floats = ok(null);
     renderPage();
     expect(screen.getByText('Float not found')).toBeInTheDocument();
+  });
+
+  it('AC-IMP-072 a failed posting is shown beside its replenishment', () => {
+    h.postings = ok({ rows: [{ movementId: 'r1', kind: 'replenishment', state: 'failed' }], truncated: false });
+    renderPage();
+    expect(within(screen.getByRole('row', { name: /REP-1/ })).getByText('ERP posting failed')).toBeInTheDocument();
+  });
+
+  it('AC-IMP-072 pending and unconfirmed postings read as such; a posted one shows nothing', () => {
+    h.reps = ok({ rows: [REP, { ...REP, id: 'r2', number: 'REP-2' }, { ...REP, id: 'r3', number: 'REP-3' }], truncated: false });
+    h.postings = ok({ rows: [{ movementId: 'r1', kind: 'replenishment', state: 'pending' }, { movementId: 'r2', kind: 'replenishment', state: 'uncertain' }], truncated: false });
+    renderPage();
+    expect(within(screen.getByRole('row', { name: /REP-1/ })).getByText('Posting to ERP')).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /REP-2/ })).getByText('ERP posting unconfirmed')).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /REP-3/ })).queryByText(/ERP/)).toBeNull();
+  });
+
+  it('AC-IMP-072 a failed posting is shown beside the float record it belongs to', () => {
+    h.claims = ok({ rows: [{ id: 'c1', claim_number: 'EXP-1', title: 'Fuel', amount: 100000, status: 'Paid', kind: 'claim', is_plan_exception: false, imprest_replenishment_id: null }], truncated: false });
+    h.postings = ok({ rows: [{ movementId: 'c1', kind: 'record', state: 'failed' }], truncated: false });
+    renderPage();
+    expect(within(screen.getByText('EXP-1').closest('li') as HTMLElement).getByText('ERP posting failed')).toBeInTheDocument();
+  });
+
+  it('AC-IMP-072 an unreadable posting status says so rather than implying everything posted', () => {
+    h.postings = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
+    renderPage();
+    expect(screen.getByText("Couldn't load the ERP posting status")).toHaveAttribute('role', 'alert');
+  });
+
+  it('the float page shows the bound cash account', () => {
+    h.floats = ok({ ...FLOAT, erp_cash_account_ref: 'Site Cash - X' });
+    renderPage();
+    expect(screen.getByTestId('cash-account')).toHaveTextContent('Site Cash - X');
   });
 });

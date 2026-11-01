@@ -8,7 +8,7 @@ import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import {
-  useImprestCounts, useImprestFloat, useImprestFloatClaims, useImprestPosition, useImprestReplenishments, useRecordCount,
+  useImprestCounts, useImprestFloat, useImprestFloatClaims, useImprestPosition, useImprestPostingStates, useImprestReplenishments, useRecordCount,
   useRequestReplenishment, useTransitionReplenishment,
 } from '@/src/hooks/useImprest';
 import { availableFloatActions, availableReplenishmentActions, booksState, toCents, type ImprestAction } from '@/src/lib/imprest/imprestRules';
@@ -19,6 +19,7 @@ import { formatCurrencyAuto, parseMoneyInputAtScale } from '@/src/lib/format';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { PlansSection } from './imprest/PlansSection';
 import { FloatAmountSection } from './imprest/FloatAmountSection';
+import { CashAccountSection } from './imprest/CashAccountSection';
 import { imprestStatusLabel } from './imprest/imprestLabels';
 import { expenseStatusLabel } from './expenses/expenseLabels';
 
@@ -48,6 +49,7 @@ const ImprestFloatDetail: React.FC = () => {
   const reps = useImprestReplenishments(floatId);
   const counts = useImprestCounts(floatId);
   const claims = useImprestFloatClaims(floatId);
+  const postings = useImprestPostingStates(floatId);
   const requestRep = useRequestReplenishment();
   const transitionRep = useTransitionReplenishment();
   const recordCount = useRecordCount();
@@ -70,6 +72,13 @@ const ImprestFloatDetail: React.FC = () => {
       <ListState variant="empty" icon="doc" title={t('imprest:detail.notFound', 'Float not found')}
         sub={t('imprest:detail.notFoundSub', "It doesn't exist, or you don't have access to it.")} /></>;
   }
+  const postingOf = new Map((postings.data?.rows ?? []).map((p) => [p.movementId, p.state]));
+  const posting = (id: string) => {
+    const state = postingOf.get(id);
+    if (!state) return null;
+    const text = { pending: t('imprest:posting.pending', 'Posting to ERP'), failed: t('imprest:posting.failed', 'ERP posting failed'), uncertain: t('imprest:posting.uncertain', 'ERP posting unconfirmed') }[state];
+    return <span className={state === 'failed' ? 'text-destructive-text' : 'text-muted-foreground'}>{text}</span>;
+  };
   const cur = flt.currency;
   const money = (v: number | string) => formatCurrencyAuto(Number(v), cur);
   const pos = position.data ?? null;
@@ -115,7 +124,8 @@ const ImprestFloatDetail: React.FC = () => {
     { key: 'number', header: t('imprest:rep.number', 'Number'), rowHeader: true, cell: (r) => <span className="whitespace-nowrap font-medium">{r.number}</span> },
     { key: 'kind', header: t('imprest:rep.kind', 'Type'), cell: (r) => r.kind === 'funding' ? t('imprest:rep.funding', 'Funding') : t('imprest:rep.replenishment', 'Replenishment') },
     { key: 'amount', header: t('imprest:rep.amount', 'Amount'), align: 'num', cell: (r) => <span className="tabular-nums">{money(r.amount)}</span> },
-    { key: 'status', header: t('imprest:rep.status', 'Status'), cell: (r) => <StatusPill variant={workflowVariant(r.status)}>{imprestStatusLabel(r.status, t)}</StatusPill> },
+    { key: 'status', header: t('imprest:rep.status', 'Status'), cell: (r) => <span className="flex flex-wrap items-center gap-x-2">
+      <StatusPill variant={workflowVariant(r.status)}>{imprestStatusLabel(r.status, t)}</StatusPill>{posting(r.id)}</span> },
     { key: 'actions', header: <span className="sr-only">{t('imprest:rep.actions', 'Actions')}</span>, cell: (r) => {
       const acts = availableReplenishmentActions({ userId, realRole, custodianId: flt.custodian_id, rep: r });
       const btn = (a: ImprestAction, label: string, variant: 'primary' | 'outline' | 'ghost') => acts.includes(a) &&
@@ -196,6 +206,8 @@ const ImprestFloatDetail: React.FC = () => {
 
       <FloatAmountSection floatId={flt.id} custodianId={flt.custodian_id} currency={cur} floatAmount={flt.float_amount} />
 
+      <CashAccountSection floatId={flt.id} account={flt.erp_cash_account_ref} />
+
       <PlansSection floatId={flt.id} custodianId={flt.custodian_id} currency={cur} currentMonth={pos?.month ?? new Date().toISOString().slice(0, 7) + '-01'} />
 
       <Card className="mb-4">
@@ -212,6 +224,7 @@ const ImprestFloatDetail: React.FC = () => {
                   {c.is_plan_exception && <StatusPill variant="warn">{t('imprest:plan.exception', 'Out of plan')}</StatusPill>}
                   <span className="tabular-nums">{money(c.amount)}</span>
                   <StatusPill variant={workflowVariant(c.status)}>{expenseStatusLabel(c.status, t)}</StatusPill>
+                  {posting(c.id)}
                   {c.kind === 'claim' && c.status === 'Paid' && (settlement(c.imprest_replenishment_id) === 'paid'
                     ? <span className="text-muted-foreground">{t('imprest:receipts.replenished', 'Replenished')}</span>
                     : settlement(c.imprest_replenishment_id) === 'requested'
@@ -226,6 +239,7 @@ const ImprestFloatDetail: React.FC = () => {
       <Card className="mb-4">
         <CardHead>{t('imprest:rep.title', 'Replenishments')}</CardHead>
         <CardPad className="pt-0">
+          {postings.isError && <p role="alert" className="mb-2 text-sm text-destructive-text">{t('imprest:posting.error', "Couldn't load the ERP posting status")}</p>}
           {reps.isError ? <ListState variant="error" title={t('imprest:rep.error', "Couldn't load replenishments")} onRetry={() => void reps.refetch()} />
             : <DataTable<ImprestReplenishmentRow> embedded rows={repRows} columns={repColumns} rowKey={(r) => r.id}
               state={reps.isPending ? 'loading' : repRows.length === 0 ? 'empty' : undefined}
