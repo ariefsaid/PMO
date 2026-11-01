@@ -11837,6 +11837,10 @@ export type Database = {
         Args: { p_org_id: string; p_holder: string; p_binding: Json }
         Returns: undefined
       }
+      pre_cutover_procurement: {
+        Args: { p_procurement_id: string }
+        Returns: boolean
+      }
       preview_cost_attribution: {
         Args: { p_rule: Json }
         Returns: {

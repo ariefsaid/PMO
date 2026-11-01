@@ -20,6 +20,7 @@ import {
 } from '@/src/lib/db/procurementRecords';
 import {
   getProcurementDetail,
+  isPreCutoverProcurement,
   transitionProcurement,
   createQuotation,
   createReceipt,
@@ -61,6 +62,21 @@ import { wrap } from './repositoryErrors';
 import { dispatchCreate } from './repositoryDispatch';
 import type { ProcurementFileRepository, ProcurementListOptions, ProcurementRepository } from './contracts/procurement';
 
+/**
+ * ECA-4 (FR-ECA-030, OQ-ECA-1 "finish in PMO only"): once procurement is employed, a receipt, bill or payment goes to
+ * dispatch, except for a purchase ordered before the connection, which has no ERP order to attach it to and is recorded
+ * through PMO. A check that cannot answer stays on dispatch, whose own gate refuses (the server is the authority).
+ */
+async function preCutover(procurementId: string): Promise<boolean> {
+  try {
+    return (await isPreCutoverProcurement(procurementId)) === true;
+  } catch {
+    return false;
+  }
+}
+const routesToErp = async (procurementId: string) =>
+  routeDomainWrite('procurement') === 'external' && !(await preCutover(procurementId));
+
 export const procurementRepository: ProcurementRepository = {
   itemValuesEditable: (id) => wrap(() => procurementItemValuesEditable(id)),
   // Options are forwarded only when supplied, so a bare call keeps its exact zero-arg DAL shape.
@@ -70,7 +86,13 @@ export const procurementRepository: ProcurementRepository = {
   getProjectReservedSpend: (projectId) => wrap(() => getProjectReservedSpend(projectId)),
   captureVendorInvoice: (input) => wrap(() => captureVendorInvoice(input)),
   listByVendor: (vendorId) => wrap(() => listProcurementsByVendor(vendorId)),
-  get: (id) => wrap(() => getProcurementDetail(id)),
+  get: (id) =>
+    wrap(async () => {
+      const detail = await getProcurementDetail(id);
+      // Only an employing org needs the flag (it labels the pre-connection purchase's records, FR-ECA-030).
+      if (routeDomainWrite('procurement') !== 'external') return detail;
+      return { ...detail, pre_cutover: await preCutover(id) };
+    }),
   // Task 4.9 (finding-3 path fix): the case-AGGREGATE status transition is PMO-derived, never an ERP
   // command (`to` is a PMO `ProcurementStatus` like 'Approved' — the erpnext adapter has no concept of
   // it, FR-ENA-101/073). This ALWAYS stays on the direct DAL path, even when `procurement` is
@@ -88,8 +110,8 @@ export const procurementRepository: ProcurementRepository = {
   // call ONLY when the caller actually supplied one, so a bare 3-arg call keeps its exact pre-existing
   // shape (index.test.ts's byte-for-byte assertion). Never forwarded on the external-dispatch payload
   // (FR-ENA-114 — it is mirrored back from the ERP doc, not client-supplied at creation).
-  createReceipt: (procurementId, status, receiptDate, referenceNumber, intent) =>
-    routeDomainWrite('procurement') === 'external'
+  createReceipt: async (procurementId, status, receiptDate, referenceNumber, intent) =>
+    (await routesToErp(procurementId))
       ? dispatchCreate(
           'procurement',
           { procurementId, status, receiptDate, erp_doc_kind: 'goods-receipt' },
@@ -103,8 +125,8 @@ export const procurementRepository: ProcurementRepository = {
   // #505: ONE object param (see ProcurementRepository.createInvoice). The old `referenceNumber !==
   // undefined || amount !== undefined` arity dance is gone with the positional signature — the DAL
   // now receives the caller's input verbatim, so an absent optional stays absent by construction.
-  createInvoice: (input, intent) =>
-    routeDomainWrite('procurement') === 'external'
+  createInvoice: async (input, intent) =>
+    (await routesToErp(input.procurementId))
       ? dispatchCreate(
           'procurement',
           {
@@ -202,8 +224,8 @@ export const procurementRepository: ProcurementRepository = {
   // `referenceNumber`/`status` are dropped — the PE's docstatus is the only status truth (DD-VPAY-8)
   // and PMO's "External ref" never reaches ERPNext (OQ-VPAY-4, the reference_no anchor carries the
   // idempotency key). The native route below stays byte-for-byte.
-  createPayment: (procurementId, invoiceId, referenceNumber, status, date, amount, intent) =>
-    routeDomainWrite('procurement') === 'external'
+  createPayment: async (procurementId, invoiceId, referenceNumber, status, date, amount, intent) =>
+    (await routesToErp(procurementId))
       ? dispatchCreate(
           'procurement',
           { procurementId, invoiceId, paid_amount: amount, date, erp_doc_kind: 'payment' },
