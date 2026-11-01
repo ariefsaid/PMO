@@ -43,6 +43,7 @@ function detailKeyFor(pathname: string, orgId: string | undefined, actorId: stri
     ['/expenses/', 'expense-claim'],
     ['/views/', 'user_view'],
     ['/stock/documents/', 'stock-document'],
+    ['/imprest/', 'imprest-float'],
   ];
   for (const [prefix, key] of routes) {
     if (!pathname.startsWith(prefix)) continue;
@@ -107,7 +108,11 @@ export function useCachedRecordLists(pathname: string): CachedRecordLists {
       contacts: one(contacts.data, at('/contacts/')),
       meetings: one(meetings.data, at('/meetings/')),
       expenses: one(undefined, at('/expenses/')) as RecordLists['expenses'],
-      imprestFloats: imprestFloats.data?.rows.map((f) => ({ id: f.id, name: f.project?.name ?? '' })),
+      imprestFloats: (() => {
+        const list = imprestFloats.data?.rows.map((f) => ({ id: f.id, name: f.project?.name ?? '' }));
+        const rec = at('/imprest/') ? (detail.data as { id: string; project: { name: string } | null } | null | undefined) : undefined;
+        return rec ? [...(list ?? []), { id: rec.id, name: rec.project?.name ?? '' }] : list;
+      })(),
       userViews: one(userViews.data?.map((v) => ({ id: v.id, name: v.name })), at('/views/')),
       stockDocuments: one(undefined, at('/stock/documents/')) as RecordLists['stockDocuments'],
     };

@@ -47,7 +47,7 @@ describe('AC-IMP-083 imprest hooks', () => {
     await waitFor(() => expect(client.isFetching()).toBe(0));
     const keys = client.getQueryCache().getAll().map((q) => JSON.stringify(q.queryKey)).sort();
     expect(keys).toEqual([
-      ['imprest-counts', 'org-1', 'f1'], ['imprest-float-choices', 'org-1', 'p1', 'Vehicle'], ['imprest-floats', 'org-1'], ['imprest-floats', 'org-1', 'one', 'f1'],
+      ['imprest-counts', 'org-1', 'f1'], ['imprest-float-choices', 'org-1', 'p1', 'Vehicle'], ['imprest-floats', 'org-1'], ['imprest-float', 'org-1', 'f1'],
       ['imprest-plan-usage', 'org-1', 'f1', '2026-11-01'], ['imprest-plans', 'org-1', 'f1'],
       ['imprest-position', 'org-1', 'f1'], ['imprest-replenishments', 'org-1', 'f1'],
     ].map((k) => JSON.stringify(k)).sort());

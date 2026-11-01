@@ -6,7 +6,7 @@ import { EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
 import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
 
 /** Site imprest (#1515) over the repository seam (ADR-0017). Keys carry org_id (tenant scope). */
-export const IMPREST_QUERY_ROOTS = ['imprest-floats', 'imprest-position', 'imprest-plan-usage', 'imprest-plans',
+export const IMPREST_QUERY_ROOTS = ['imprest-floats', 'imprest-float', 'imprest-position', 'imprest-plan-usage', 'imprest-plans',
   'imprest-replenishments', 'imprest-counts', 'imprest-float-choices', 'imprest-float-claims', 'imprest-limit', 'imprest-awaiting', 'imprest-float-changes'] as const;
 
 const useOrgId = (): string | undefined => useAuth().currentUser?.org_id;
@@ -15,11 +15,11 @@ export function useImprestFloats() {
   const orgId = useOrgId();
   return useQuery({ queryKey: ['imprest-floats', orgId], queryFn: () => repositories.imprest.listFloats(), enabled: Boolean(orgId) });
 }
-/** One float by id (a record page must not search the capped list). Shares the `imprest-floats` root, so every write refreshes it. */
+/** One float by id (a record page must not search the capped list). Its own root (`imprest-float`, listed in IMPREST_QUERY_ROOTS) so every write refreshes it; the shell crumb reads the same key. */
 export function useImprestFloat(floatId: string | null | undefined) {
   const orgId = useOrgId();
   return useQuery({
-    queryKey: ['imprest-floats', orgId, 'one', floatId],
+    queryKey: ['imprest-float', orgId, floatId],
     queryFn: () => repositories.imprest.getFloat(floatId as string),
     enabled: Boolean(orgId) && Boolean(floatId),
   });

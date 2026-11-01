@@ -98,6 +98,15 @@ describe('AC-OVERFETCH-001 shell breadcrumb reads the cache and never triggers a
     expect(qc.isFetching()).toBe(0);
   });
 
+  it('FR-IMP-074 a cold deep link to a site float names its crumb from the page\'s own by-id read', async () => {
+    const { qc, result } = setup('/imprest/f1');
+    expect(result.current.resolved).toBe(false);
+    act(() => { qc.setQueryData(['imprest-float', 'org-1', 'f1'], { id: 'f1', project: { name: 'Site Alpha' } }); });
+    await waitFor(() => expect(result.current.resolved).toBe(true));
+    expect(recordLabelForPath('/imprest/f1', result.current.lists)).toBe('Site Alpha');
+    expect(qc.isFetching()).toBe(0);
+  });
+
   it('resolves a not-found detail (settled with no record) so the crumb stops saying Loading', async () => {
     const { qc, result } = setup('/projects/p2');
     act(() => {
