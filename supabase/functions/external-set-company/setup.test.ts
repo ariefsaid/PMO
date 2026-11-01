@@ -640,8 +640,12 @@ Deno.test("project link in another org refuses before any ERP or configuration w
     assertEquals(calls.filter((call) => call.method === "PATCH").length, 0);
   });
 });
-Deno.test("AC-SETUP-001 AC-003 #1325: project creation uses the contractual title, never its short name, stores the ERP returned identity and retry resolves the existing project without another POST", async () => {
-  let created = false, posts = 0;
+Deno.test("AC-SETUP-001 AC-003 #1325 ECA3-T10: project creation goes through the outbox send, never a direct POST, with the contractual title; the ERP identity is stored and a retry reuses the project", async () => {
+  let created = false, posts = 0, blind = false;
+  const outbox: Array<Record<string, unknown>> = [];
+  const wanted = { project_name: "Contractual Delivery Title", company: "Example Company" };
+  const found = { name: "PROJ-00042", ...wanted, is_active: "Yes" };
+  const row = (call: { url: URL }) => outbox.find((r) => r.id === call.url.searchParams.get("id")?.replace("eq.", ""));
   await withFetchMock([
     ...base(),
     supabaseSelect("projects", (call) => {
@@ -660,70 +664,70 @@ Deno.test("AC-SETUP-001 AC-003 #1325: project creation uses the contractual titl
       if (call.method === "POST") {
         posts++;
         created = true;
-        assertEquals(call.bodyJson, {
-          project_name: "Contractual Delivery Title",
-          company: "Example Company",
-        });
-        return jsonResponse({
-          data: {
-            name: "PROJ-00042",
-            project_name: "Contractual Delivery Title",
-            company: "Example Company",
-            is_active: "Yes",
-          },
-        });
+        assertEquals(call.bodyJson, wanted);
+        return jsonResponse({ data: found });
       }
       const filters = JSON.parse(call.url.searchParams.get("filters")!);
       if (filters[1][0] === "name") {
-        assertEquals(filters, [["company", "=", "Example Company"], [
-          "name",
-          "=",
-          "SYNTH-2",
-        ]]);
+        assertEquals(filters, [["company", "=", "Example Company"], ["name", "=", "SYNTH-2"]]);
         return jsonResponse({ data: [] });
       }
-      assertEquals(filters, [["company", "=", "Example Company"], [
-        "project_name",
-        "=",
-        "Contractual Delivery Title",
-      ]]);
-      return jsonResponse({
-        data: created
-          ? [{
-            name: "PROJ-00042",
-            project_name: "Contractual Delivery Title",
-            company: "Example Company",
-            is_active: "Yes",
-          }]
-          : [],
-      });
+      assertEquals(filters, [["company", "=", "Example Company"], ["project_name", "=", "Contractual Delivery Title"]]);
+      return jsonResponse({ data: created && !blind ? [found] : [] });
     }),
+    // the money outbox, stateful: one row per (domain, record, key)
+    supabaseSelect("external_command_outbox", (call) => {
+      const q = call.url.searchParams;
+      const r = outbox.find((x) => x.domain === q.get("domain")?.replace("eq.", "") && x.pmo_record_id === q.get("pmo_record_id")?.replace("eq.", "") &&
+        x.idempotency_key === q.get("idempotency_key")?.replace("eq.", ""));
+      return r ? jsonResponse(r, { headers: { "content-type": "application/vnd.pgrst.object+json" } }) : new Response("null", { status: 200, headers: { "content-type": "application/json" } });
+    }),
+    { label: "outbox-insert", method: "POST", pathname: "/rest/v1/external_command_outbox", response: (call) => {
+      const b = call.bodyJson as Record<string, unknown>;
+      assertEquals([b.org_id, b.domain, b.pmo_record_id, b.idempotency_key, b.external_tier, b.operation], ["org-1", "projects", "project-2", "seed:project:project-2", "erpnext", "create"]);
+      const r = { id: "ob-1", domain: b.domain, pmo_record_id: b.pmo_record_id, idempotency_key: b.idempotency_key, state: "pending", external_record_id: null, canonical: null, claim_generation: 0, payload_digest: null };
+      outbox.push(r);
+      return jsonResponse(r, { headers: { "content-type": "application/vnd.pgrst.object+json" } });
+    } },
+    { label: "outbox-update", method: "PATCH", pathname: "/rest/v1/external_command_outbox", response: (call) => {
+      Object.assign(row(call)!, call.bodyJson);
+      return jsonResponse([{ id: "ob-1" }]);
+    } },
+    supabaseRpc("claim_outbox_for_commit", () => {
+      Object.assign(outbox[0], { state: "committing", claim_generation: 1 });
+      return jsonResponse(outbox[0]);
+    }),
+    supabaseRpc("record_outbox_ref", () => jsonResponse(1)),
+    supabaseRpc("confirm_outbox", () => { outbox[0].state = "confirmed"; return jsonResponse(1); }),
     {
       label: "project-config-patch",
       method: "PATCH",
       pathname: "/rest/v1/external_org_bindings",
       response: (call) => {
         assertEquals(
-          (call.bodyJson as { config: { project_map: unknown } }).config
-            .project_map,
+          (call.bodyJson as { config: { project_map: unknown } }).config.project_map,
           { "project-1": "ERP-PROJECT-1", "project-2": "PROJ-00042" },
         );
         return jsonResponse([{ org_id: "org-1" }]);
       },
     },
-  ], async () => {
-    for (let retry = 0; retry < 2; retry++) {
+  ], async ({ calls }) => {
+    const ensure = async () => {
       const response = await handleSetCompanyRequest(
-        await request({
-          tier: "erpnext",
-          setupAction: "ensure-project",
-          projectId: "project-2",
-        }),
+        await request({ tier: "erpnext", setupAction: "ensure-project", projectId: "project-2" }),
       );
       assertEquals(response.status, 200);
       assertEquals((await response.json()).erpProject, "PROJ-00042");
-    }
+    };
+    await ensure();
     assertEquals(posts, 1);
+    assertEquals(outbox.map((r) => [r.idempotency_key, r.state]), [["seed:project:project-2", "confirmed"]]);
+    assertEquals(rpcCall(calls, "record_outbox_ref").length, 0, "a project link is not an external_refs row");
+    await ensure();                          // the ERP lookup finds the project: no outbox row, no POST
+    blind = true;                            // the lookup misses (index lag): the confirmed outbox row is reused, still no POST
+    await ensure();
+    assertEquals(posts, 1);
+    assertEquals(outbox.length, 1);
   });
 });
 Deno.test("Project Manager may ensure a project but cannot edit Admin defaults or relink it", async () => {
