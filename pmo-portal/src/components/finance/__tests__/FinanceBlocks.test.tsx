@@ -57,7 +57,7 @@ describe('Finance blocks', () => {
 
   it('opens an overdue invoice from the finance receivables list with its amount, due date and project', () => {
     const overdue = {
-      id: 'invoice-1', org_id: 'org-1', project_id: 'project-1', erp_project: null,
+      id: 'invoice-1', org_id: 'org-1', project_id: 'project-1', erp_project: null, billing_kind: 'contract',
       customer_id: null, customer_name: 'Northstar Client', si_number: 'INV-104', reference_number: null,
       invoice_date: '2026-06-15', amount: 1_110_000, currency: 'IDR', tax_treatment: 'inclusive',
       tax_amount: 110_000, erp_outstanding_amount: 625_000, status: 'Unpaid', erp_docstatus: 1,

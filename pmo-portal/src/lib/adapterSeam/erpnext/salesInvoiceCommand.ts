@@ -13,6 +13,8 @@ export interface SalesInvoiceCreateInput {
   /** OD-BILL-1 (DD-BWO-8): the work order this invoice bills. The outbox fence (0262) refuses one that is not Issued or
    *  Closed, is on another project, or has too little left. */
   workOrderId?: string | null;
+  /** #1471: how this invoice's project attribution counts; omitted = contract. PMO metadata, never an ERP field. */
+  billingKind?: 'contract' | 'other';
 }
 export function salesInvoiceCreateFields(input: SalesInvoiceCreateInput): Record<string, unknown> {
   return { ...input, erp_doc_kind: 'sales-invoice' };

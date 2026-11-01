@@ -41,6 +41,7 @@ export function createNativeInvoice(
     customerId: input.customerId,
     lines: input.items,
     workOrderId: input.workOrderId ?? null,
+    ...(input.billingKind ? { billingKind: input.billingKind } : {}),
   })).then((id) => ({ id, si_number: null }));
 }
 

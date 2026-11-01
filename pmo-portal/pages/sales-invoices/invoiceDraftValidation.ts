@@ -1,4 +1,5 @@
 import type { InvoiceProjectOption } from '@/src/hooks/useFkOptions';
+import type { BillingKind } from '@/src/lib/billingKind';
 import { parseMoneyInputAtScale } from '@/src/lib/format';
 import { decimalUnits } from '@/src/lib/taxNormalize';
 
@@ -24,6 +25,8 @@ export interface LineItemDraft {
 export interface FormValues {
   customerId: string;
   projectId: string | null;
+  /** #1471: chosen beside the project; the control only offers valid values, so there is no validation rule. */
+  billingKind: BillingKind;
   lineItems: LineItemDraft[];
 }
 

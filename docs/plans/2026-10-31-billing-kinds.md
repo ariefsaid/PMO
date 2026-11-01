@@ -85,18 +85,18 @@ Everything below was checked against `origin/dev` at `e1576dcc5` (migration head
 
 ## Migration number
 
-**0408** (`0408_billing_kinds.sql` + `rollback/0408_billing_kinds_down.sql`). No remote branch carries ≥0408 (checked all `origin/*` trees). The builder re-checks right before the PR: `scripts/check-migration-collisions.sh`; on collision `scripts/renumber-migration.sh 0408 <new>` (never hand-rename). Test file names that embed the number (`0408_billing_kinds_*`) are renumbered by that script.
+**0408** (`0410_billing_kinds.sql` + `rollback/0410_billing_kinds_down.sql`). No remote branch carries ≥0408 (checked all `origin/*` trees). The builder re-checks right before the PR: `scripts/check-migration-collisions.sh`; on collision `scripts/renumber-migration.sh 0408 <new>` (never hand-rename). Test file names that embed the number (`0410_billing_kinds_*`) are renumbered by that script.
 
 ## File map
 
 | Action | Path |
 |---|---|
-| Create | `supabase/migrations/0408_billing_kinds.sql` |
-| Create | `supabase/migrations/rollback/0408_billing_kinds_down.sql` |
+| Create | `supabase/migrations/0410_billing_kinds.sql` |
+| Create | `supabase/migrations/rollback/0410_billing_kinds_down.sql` |
 | Create | `supabase/tests/billing_kinds.test.sql` |
 | Create | `supabase/tests/billing_kinds_roles.test.sql` |
-| Create | `supabase/tests/0408_billing_kinds_down_runner.sql` (generated from the down file) |
-| Create | `supabase/tests/0408_billing_kinds_rollback.test.sql` |
+| Create | `supabase/tests/0410_billing_kinds_down_runner.sql` (generated from the down file) |
+| Create | `supabase/tests/0410_billing_kinds_rollback.test.sql` |
 | Modify | `supabase/tests/0178_anon_executable_definers.test.sql` (+1 name, count 88 → 89, amendment note) |
 | Modify | `supabase/tests/0275_native_revenue_acl.test.sql` (5-arg signature, 3 places) |
 | Modify | `scripts/isolation-probe-denominator.json` (new fn; changed signatures) |
@@ -133,7 +133,7 @@ Everything below was checked against `origin/dev` at `e1576dcc5` (migration head
 
 ### T1 - Column, check, history classification, guard (AC-001)
 
-**Files:** create `supabase/tests/billing_kinds.test.sql` (first block), create `supabase/migrations/0408_billing_kinds.sql` (§1).
+**Files:** create `supabase/tests/billing_kinds.test.sql` (first block), create `supabase/migrations/0410_billing_kinds.sql` (§1).
 
 - [ ] **T1.1 Write the failing test (AC-001, part 1).** Create `supabase/tests/billing_kinds.test.sql` with the shared fixture (reused by T2–T6) and the first assertions. Ids use the `0408…` prefix so they never collide with sibling tests. The fixture file is one transaction (`begin … rollback`), like the siblings.
 
@@ -190,11 +190,11 @@ select throws_ok($$insert into public.sales_invoices (id,org_id,project_id,si_nu
 
 Verify it fails: `scripts/with-db-lock.sh supabase test db supabase/tests/billing_kinds.test.sql` → red, first failure "AC-001 sales_invoices carries billing_kind" (column missing).
 
-- [ ] **T1.2 Implement migration §1.** Create `supabase/migrations/0408_billing_kinds.sql` starting with:
+- [ ] **T1.2 Implement migration §1.** Create `supabase/migrations/0410_billing_kinds.sql` starting with:
 
 ```sql
--- 0408_billing_kinds.sql - #1471: contract billing vs other billing on a project invoice (spec billing-kinds.spec.md).
--- Rollback: migrations/rollback/0408_billing_kinds_down.sql.
+-- 0410_billing_kinds.sql - #1471: contract billing vs other billing on a project invoice (spec billing-kinds.spec.md).
+-- Rollback: migrations/rollback/0410_billing_kinds_down.sql.
 
 -- §1 storage. A text CHECK, not an enum type: an enum value cannot be dropped on rollback.
 alter table public.sales_invoices
@@ -394,11 +394,11 @@ comment on function public.set_sales_invoice_billing_kind(uuid,text) is
 - [ ] **T3.4 Client roles cannot write the column directly** (supports AC-007; title leads `AC-007` but lives in the roles file, T7). Nothing to implement: the absence of a grant is the control. Written in T7.
 
 - [ ] **T3.5 Mutation check for T3 (mandatory, money gate).** Scratch copy only; never commit. With the DB up and the migration applied:
-  1. `sed -i.bak "s/v_role not in ('Admin','Finance')/false/" supabase/migrations/0408_billing_kinds.sql` - makes every role check in the new/replaced functions a no-op. Then `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/billing_kinds_roles.test.sql'` must go **red** on the Executive/PM/Engineer rows (needs T7; run this check after T7 and again here for the correction RPC alone).
+  1. `sed -i.bak "s/v_role not in ('Admin','Finance')/false/" supabase/migrations/0410_billing_kinds.sql` - makes every role check in the new/replaced functions a no-op. Then `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/billing_kinds_roles.test.sql'` must go **red** on the Executive/PM/Engineer rows (needs T7; run this check after T7 and again here for the correction RPC alone).
   2. Delete the line `if v_si.billing_kind = p_billing_kind then return; end if;` → the "no duplicate event" assertion is **expected to stay green**, because `record_change_capture` already swallows an update that changes nothing. Record that result in the PR as "belt and braces, confirmed by mutation"; the early return only saves a needless write.
   3. Change `update public.sales_invoices set billing_kind = p_billing_kind where id = p_si_id` to also set `status='Paid'` → the "untouched fields" assertion must go **red**.
   4. Remove `and org_id = public.auth_org_id()` from the SELECT → the foreign-org assertion in T7 must go **red**.
-  After each: `git checkout -- supabase/migrations/0408_billing_kinds.sql && rm -f supabase/migrations/0408_billing_kinds.sql.bak`. Paste the four red/green results into the PR body.
+  After each: `git checkout -- supabase/migrations/0410_billing_kinds.sql && rm -f supabase/migrations/0410_billing_kinds.sql.bak`. Paste the four red/green results into the PR body.
 
 ### T4 - Native creation carries the kind (AC-011)
 
@@ -703,20 +703,20 @@ Count the `select` assertions and set `plan(N)` to match (the `35` above is a st
 **Files:** modify `supabase/tests/0178_anon_executable_definers.test.sql`, `scripts/isolation-probe-denominator.json`, (verify) `scripts/isolation-probe.sh`.
 
 - [ ] **T8.1 Retained client-callable definers.** In `0178_anon_executable_definers.test.sql`: add `('set_sales_invoice_billing_kind'),` to the `client_callable_rpc_names` list in alphabetical position (after `set_sales_invoice_...` neighbours; keep the list's order convention), change both `88` literals (L~258 and L~268) and the two description strings to `89`, and append an amendment paragraph to the header comment in the file's existing style: *"⚑ AMENDED BY 0408 (#1471): `set_sales_invoice_billing_kind` joins the retained set (+1, count 89). SECURITY DEFINER writer under a member's JWT; re-asserts active membership, Admin/Finance and the caller's org; paired with supabase/tests/billing_kinds_roles.test.sql (AC-007). `assign_sales_invoice_project` and `create_native_sales_invoice` changed signature only (proname unchanged)."* The count is derived by hand from the list (the file's own rule): `grep -c "^  ('" ` on the list must equal 89.
-- [ ] **T8.2 Isolation denominator.** In `scripts/isolation-probe-denominator.json`: (a) in the signature list change `"assign_sales_invoice_project(uuid,uuid)"` → `"assign_sales_invoice_project(uuid,uuid,text)"` and `"create_native_sales_invoice(uuid,uuid,jsonb,uuid)"` → `"create_native_sales_invoice(uuid,uuid,jsonb,uuid,text)"`; add `"set_sales_invoice_billing_kind(uuid,text)"` next to `set_sales_invoice_efaktur`; (b) in the class entries add `{"name":"set_sales_invoice_billing_kind","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"},{"http":500,"sqlstate":"P0002"}],"source":["supabase/migrations/0408_billing_kinds.sql:<line of the three raise statements>"]}` and refresh the `source` line numbers of the two replaced functions to their new line numbers in 0408 (the guard compares them). Keep the list sorted the way the file is.
+- [ ] **T8.2 Isolation denominator.** In `scripts/isolation-probe-denominator.json`: (a) in the signature list change `"assign_sales_invoice_project(uuid,uuid)"` → `"assign_sales_invoice_project(uuid,uuid,text)"` and `"create_native_sales_invoice(uuid,uuid,jsonb,uuid)"` → `"create_native_sales_invoice(uuid,uuid,jsonb,uuid,text)"`; add `"set_sales_invoice_billing_kind(uuid,text)"` next to `set_sales_invoice_efaktur`; (b) in the class entries add `{"name":"set_sales_invoice_billing_kind","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"},{"http":500,"sqlstate":"P0002"}],"source":["supabase/migrations/0410_billing_kinds.sql:<line of the three raise statements>"]}` and refresh the `source` line numbers of the two replaced functions to their new line numbers in 0408 (the guard compares them). Keep the list sorted the way the file is.
 - [ ] **T8.3 Probe script.** `scripts/isolation-probe.sh` L193 calls `assign_sales_invoice_project` with `p_si_id/p_project_id` only: still valid through the default; no change. Add a probe call for the new RPC only if the script's pattern at L190–195 is one line per class-`write` function with a fixture the script already holds (`$A_SI`, `$A_PROJECT`); if so add the analogous `set_sales_invoice_billing_kind` call with `{"p_si_id":"$A_SI","p_billing_kind":"other"}` expecting the same denial; otherwise `skip` with the same reason string the neighbours use.
 - [ ] **T8.4 Verify.** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0178_anon_executable_definers.test.sql' && node scripts/check-isolation-denominator.mjs --self-test && node scripts/check-isolation-denominator.mjs` (the second needs the local DB; it must report no UNLISTED and no STALE entries). Commit.
 
 ### T9 - Rollback and DD entry
 
-**Files:** create `supabase/migrations/rollback/0408_billing_kinds_down.sql`, `supabase/tests/0408_billing_kinds_down_runner.sql`, `supabase/tests/0408_billing_kinds_rollback.test.sql`; modify `docs/decisions.md`.
+**Files:** create `supabase/migrations/rollback/0410_billing_kinds_down.sql`, `supabase/tests/0410_billing_kinds_down_runner.sql`, `supabase/tests/0410_billing_kinds_rollback.test.sql`; modify `docs/decisions.md`.
 
 - [ ] **T9.1 Down migration (NFR-005).** Reversible and meaning-preserving: it **refuses** while any Other classification exists, with an explicit preservation instruction. Build the file mechanically so the restored bodies are exact copies, not retyped:
 
 ```bash
-D=supabase/migrations/rollback/0408_billing_kinds_down.sql
+D=supabase/migrations/rollback/0410_billing_kinds_down.sql
 cat > "$D" <<'SQL'
--- 0408_billing_kinds_down.sql - reverses 0408. Refuses while Other billing classifications exist: dropping the column
+-- 0410_billing_kinds_down.sql - reverses 0408. Refuses while Other billing classifications exist: dropping the column
 -- would silently turn them into contract drawdown. Export or reclassify them first.
 do $$ begin
   if exists (select 1 from public.sales_invoices where billing_kind = 'other') then
@@ -744,18 +744,18 @@ Order matters and is fixed above: functions that name `billing_kind` are replace
 { printf '%s\n' '\if :{?bk_embedded}' '\else' 'create extension if not exists pgtap;' 'select plan(1);' \
     "select pass('NFR-005 rollback runner loads without executing the rollback');" 'select * from finish();' '\endif' \
     'create function pg_temp.run_bk_down() returns void language plpgsql as $runner$' 'begin execute $down$';
-  cat supabase/migrations/rollback/0408_billing_kinds_down.sql;
-  printf '%s\n' '$down$; end $runner$;'; } > supabase/tests/0408_billing_kinds_down_runner.sql
+  cat supabase/migrations/rollback/0410_billing_kinds_down.sql;
+  printf '%s\n' '$down$; end $runner$;'; } > supabase/tests/0410_billing_kinds_down_runner.sql
 ```
 (Same shape as `0290_project_finances_down_runner.sql`; the down file must not contain the token `$down$` or `$runner$`.)
-- [ ] **T9.1c Rollback test (titles lead `NFR-005`).** Copy the structure of `supabase/tests/0290_project_finances_rollback.test.sql`: minimal org/project/invoice fixture; insert an `other` invoice; `\set bk_embedded 1` + `\ir 0408_billing_kinds_down_runner.sql`; `throws_ok('select pg_temp.run_bk_down()','P0001',null,'NFR-005 rollback refuses while Other billing exists')`; `has_column(...billing_kind)` still true; then `update … set billing_kind='contract'`, run `select pg_temp.run_bk_down()` (`lives_ok`), and assert: column gone, the 2-arg `assign_sales_invoice_project`, 4-arg `create_native_sales_invoice` exist and the 3-/5-arg ones and `set_sales_invoice_billing_kind` do not (`to_regprocedure(...) is null`), `record_history_config` no longer has the key, and `get_project_finances` still callable.
-- [ ] **T9.1d Verify:** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0408_billing_kinds_rollback.test.sql supabase/tests/0408_billing_kinds_down_runner.sql'`.
+- [ ] **T9.1c Rollback test (titles lead `NFR-005`).** Copy the structure of `supabase/tests/0290_project_finances_rollback.test.sql`: minimal org/project/invoice fixture; insert an `other` invoice; `\set bk_embedded 1` + `\ir 0410_billing_kinds_down_runner.sql`; `throws_ok('select pg_temp.run_bk_down()','P0001',null,'NFR-005 rollback refuses while Other billing exists')`; `has_column(...billing_kind)` still true; then `update … set billing_kind='contract'`, run `select pg_temp.run_bk_down()` (`lives_ok`), and assert: column gone, the 2-arg `assign_sales_invoice_project`, 4-arg `create_native_sales_invoice` exist and the 3-/5-arg ones and `set_sales_invoice_billing_kind` do not (`to_regprocedure(...) is null`), `record_history_config` no longer has the key, and `get_project_finances` still callable.
+- [ ] **T9.1d Verify:** `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0410_billing_kinds_rollback.test.sql supabase/tests/0410_billing_kinds_down_runner.sql'`.
 - [ ] **T9.2 Decision entry.** Append to `docs/decisions.md` a short `### DD-BKIND-1` entry (Director date 2026-10-31): the column + two RPC decision, contract aggregate reads only Contract billing, excess contributors ride the finance payload, omitted-kind-keeps-stored rule (Q1), rollback refuses while Other rows exist. Docs-only push rules apply to this file only if shipped alone; here it rides the build PR.
 - [ ] **T9.3 Commit** `feat(db): billing kinds migration 0408 + rollback + tests (#1471)`.
 
 ### T10 - DB gate (one lock hold)
 
-- [ ] `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/billing_kinds.test.sql supabase/tests/billing_kinds_roles.test.sql supabase/tests/0408_billing_kinds_rollback.test.sql supabase/tests/0408_billing_kinds_down_runner.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0275_native_revenue_acl.test.sql supabase/tests/0275_native_revenue_create.test.sql supabase/tests/0290_assign_invoice_project.test.sql supabase/tests/0290_project_finances_reads.test.sql supabase/tests/0290_project_invoice_backfill.test.sql supabase/tests/record_changes_catalog_gate.test.sql supabase/tests/0278_invoice_change_history.test.sql'` → all green. CI's `pgtap` job is the full proof; do not run the whole directory locally.
+- [ ] `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/billing_kinds.test.sql supabase/tests/billing_kinds_roles.test.sql supabase/tests/0410_billing_kinds_rollback.test.sql supabase/tests/0410_billing_kinds_down_runner.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0275_native_revenue_acl.test.sql supabase/tests/0275_native_revenue_create.test.sql supabase/tests/0290_assign_invoice_project.test.sql supabase/tests/0290_project_finances_reads.test.sql supabase/tests/0290_project_invoice_backfill.test.sql supabase/tests/record_changes_catalog_gate.test.sql supabase/tests/0278_invoice_change_history.test.sql'` → all green. CI's `pgtap` job is the full proof; do not run the whole directory locally.
 
 ---
 

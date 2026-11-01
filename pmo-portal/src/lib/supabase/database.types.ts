@@ -7540,6 +7540,7 @@ export type Database = {
           approved_at: string | null
           approved_by_id: string | null
           author_user_id: string | null
+          billing_kind: string
           created_at: string
           currency: string
           customer_id: string | null
@@ -7579,6 +7580,7 @@ export type Database = {
           approved_at?: string | null
           approved_by_id?: string | null
           author_user_id?: string | null
+          billing_kind?: string
           created_at?: string
           currency?: string
           customer_id?: string | null
@@ -7618,6 +7620,7 @@ export type Database = {
           approved_at?: string | null
           approved_by_id?: string | null
           author_user_id?: string | null
+          billing_kind?: string
           created_at?: string
           currency?: string
           customer_id?: string | null
@@ -9679,7 +9682,7 @@ export type Database = {
         Returns: undefined
       }
       assign_sales_invoice_project: {
-        Args: { p_project_id: string; p_si_id: string }
+        Args: { p_billing_kind?: string; p_project_id: string; p_si_id: string }
         Returns: undefined
       }
       attach_claim_evidence: {
@@ -9883,6 +9886,7 @@ export type Database = {
       }
       create_native_sales_invoice: {
         Args: {
+          p_billing_kind?: string
           p_customer_id: string
           p_lines: Json
           p_project_id: string
@@ -10529,6 +10533,7 @@ export type Database = {
           approved_at: string | null
           approved_by_id: string | null
           author_user_id: string | null
+          billing_kind: string
           created_at: string
           currency: string
           customer_id: string | null
@@ -11060,6 +11065,7 @@ export type Database = {
           approved_at: string | null
           approved_by_id: string | null
           author_user_id: string | null
+          billing_kind: string
           created_at: string
           currency: string
           customer_id: string | null
@@ -11766,6 +11772,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_sales_invoice_billing_kind: {
+        Args: { p_billing_kind: string; p_si_id: string }
+        Returns: undefined
+      }
       set_sales_invoice_efaktur: {
         Args: {
           p_efaktur_date: string
@@ -11777,6 +11787,7 @@ export type Database = {
           approved_at: string | null
           approved_by_id: string | null
           author_user_id: string | null
+          billing_kind: string
           created_at: string
           currency: string
           customer_id: string | null
@@ -11825,6 +11836,7 @@ export type Database = {
           approved_at: string | null
           approved_by_id: string | null
           author_user_id: string | null
+          billing_kind: string
           created_at: string
           currency: string
           customer_id: string | null
@@ -11958,6 +11970,7 @@ export type Database = {
           approved_at: string | null
           approved_by_id: string | null
           author_user_id: string | null
+          billing_kind: string
           created_at: string
           currency: string
           customer_id: string | null
