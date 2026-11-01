@@ -77,17 +77,32 @@ function extractErrorMessage(body: unknown, status: number): string {
   return `ClickUp request failed with status ${status}`;
 }
 
+/** Auto-retry is for IDEMPOTENT methods only (reads/updates/deletes). A POST create whose outcome is
+ *  ambiguous — a 5xx after the server received the request, or a timeout after it was sent — may have
+ *  been RECORDED, and ClickUp offers no idempotency key on task creation, so re-sending it would mint
+ *  a duplicate external task. A create is therefore attempted EXACTLY ONCE and any failure surfaces as
+ *  `external-unreachable` with an UNCONFIRMED outcome (the classified push copy already says so);
+ *  resolving the ambiguity is a lookup (check what ClickUp holds), never a blind resend. */
+function isIdempotentMethod(method: ClickUpRequestOptions['method']): boolean {
+  return method !== 'POST';
+}
+
+const CREATE_UNCONFIRMED_SUFFIX =
+  '; the create was attempted once and not retried — whether ClickUp recorded it is unconfirmed';
+
 /**
  * Issues one rate-limited, retried ClickUp REST v2 request. Maps a `4xx` response to
  * `AdapterError('commit-rejected', <ClickUp message>)`; an exhausted-retry `429`/`5xx`/network
- * failure to `AdapterError('external-unreachable', ...)`.
+ * failure to `AdapterError('external-unreachable', ...)`. A `POST` create never auto-retries (see
+ * `isIdempotentMethod`) — an ambiguous create failure reports the outcome as unconfirmed.
  */
 export async function clickUpRequest(deps: ClickUpClientDeps, opts: ClickUpRequestOptions): Promise<unknown> {
   if (deps.rateLimiter) await deps.rateLimiter.acquire(opts.priority ?? 'bulk');
 
+  const idempotent = isIdempotentMethod(opts.method);
   let res: Response;
   try {
-    res = await withBackoff(() =>
+    const attempt = () =>
       fetchOnce(
         deps.fetchImpl,
         `${deps.baseUrl ?? DEFAULT_BASE_URL}${opts.path}`,
@@ -97,16 +112,21 @@ export async function clickUpRequest(deps: ClickUpClientDeps, opts: ClickUpReque
           body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
         },
         CLICKUP_REQUEST_TIMEOUT_MS,
-      ),
-    );
+      );
+    res = idempotent ? await withBackoff(attempt) : await attempt();
   } catch (err) {
-    throw new ClickUpHttpError(0, 'external-unreachable', err instanceof Error ? err.message : 'ClickUp request failed');
+    const detail = err instanceof Error ? err.message : 'ClickUp request failed';
+    throw new ClickUpHttpError(0, 'external-unreachable', idempotent ? detail : `${detail}${CREATE_UNCONFIRMED_SUFFIX}`);
   }
 
   deps.onRateLimitInfo?.(readClickUpRateLimitHeaders(res));
 
   if (res.status === 429 || res.status >= 500) {
-    throw new ClickUpHttpError(res.status, 'external-unreachable', `ClickUp request failed with status ${res.status}`);
+    throw new ClickUpHttpError(
+      res.status,
+      'external-unreachable',
+      idempotent ? `ClickUp request failed with status ${res.status}` : `ClickUp request failed with status ${res.status}${CREATE_UNCONFIRMED_SUFFIX}`,
+    );
   }
 
   const bodyText = res.status === 204 ? '' : await res.text();
