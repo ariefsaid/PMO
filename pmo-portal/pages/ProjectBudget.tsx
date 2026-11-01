@@ -577,6 +577,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             projectId={projectId}
             activeVersion={activeVersion}
             hasDraft={Boolean(draftVersion)}
+            onOpenDraft={canWrite ? (draftVersionId) => { setBudgetView('actual'); setSelectedVersionId(draftVersionId); setDraftEditorOpen(true); } : undefined}
             onRecover={!canWrite ? undefined : () => {
               setBudgetView('actual');
               if (draftVersion) {

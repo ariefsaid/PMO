@@ -10961,6 +10961,10 @@ export type Database = {
         Args: { p_generation: number; p_id: string }
         Returns: number
       }
+      consent_budget_occupant_replace: {
+        Args: { p_erp_account: string; p_erp_budget_name: string; p_fiscal_year: string; p_project_id: string }
+        Returns: string
+      }
       correct_vendor_withholding_slip: {
         Args: {
           p_expected_revision: number

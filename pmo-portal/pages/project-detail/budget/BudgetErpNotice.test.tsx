@@ -20,12 +20,19 @@ const h = vi.hoisted(() => ({
   pushStatus: vi.fn(),
   retry: vi.fn(),
   release: vi.fn(),
+  occupantAccounts: vi.fn(),
 }));
 
 vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   fetchBudgetPushStatus: h.pushStatus,
   retryActiveBudgetPush: h.retry,
   releaseActiveBudgetPushHold: h.release,
+}));
+vi.mock('@/src/lib/repositories/budgetOccupant', () => ({
+  listRefusedOccupantAccounts: h.occupantAccounts,
+  inspectBudgetOccupant: vi.fn(),
+  createDraftFromErpBudget: vi.fn(),
+  replaceErpBudget: vi.fn(),
 }));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: h.role, realRole: h.role }),
@@ -59,6 +66,7 @@ beforeEach(() => {
   h.pushStatus.mockReset();
   h.retry.mockReset();
   h.release.mockReset();
+  h.occupantAccounts.mockReset().mockResolvedValue(['5100 - Labour']);
   h.retry.mockResolvedValue({ pushState: 'pushed' });
   h.release.mockResolvedValue(undefined);
 });
@@ -323,5 +331,25 @@ describe('per-year push status and per-year actions (AC-BFY-026)', () => {
     await waitFor(() => expect(screen.getAllByRole('button', { name: 'Retry the push' })).toHaveLength(2));
     await user.click(screen.getAllByRole('button', { name: 'Retry the push' })[1]);
     await waitFor(() => expect(h.retry).toHaveBeenCalledWith('proj-1', '2027'));
+  });
+});
+
+describe('AC-ECA-031 an ERP budget PMO did not create', () => {
+  const refused = () => push({ pushState: 'failed', pushError: 'budget-unowned-live-occupant', fiscalYear: FY });
+
+  it('offers the two ways forward beside the refusal, to Finance', async () => {
+    h.pushStatus.mockResolvedValue([refused()]);
+    renderNotice('Finance');
+    expect(await screen.findByRole('button', { name: 'Use the ERP figures as a draft' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Replace the ERP budget with this version' })).toBeInTheDocument();
+    expect(h.occupantAccounts).toHaveBeenCalledWith('v1', FY);
+  });
+
+  it('offers nothing for any other refusal', async () => {
+    h.pushStatus.mockResolvedValue([push({ pushState: 'failed', pushError: 'commit-rejected', fiscalYear: FY })]);
+    renderNotice('Finance');
+    await notice();
+    expect(screen.queryByRole('button', { name: 'Use the ERP figures as a draft' })).not.toBeInTheDocument();
+    expect(h.occupantAccounts).not.toHaveBeenCalled();
   });
 });

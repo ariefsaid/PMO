@@ -501,7 +501,12 @@
       "endOnly": "Jatuh tempo {{date}}",
       "ordered": "Dipesan {{date}}",
       "noDates": "Tanpa tanggal",
-      "status": { "planned": "Direncanakan", "inProgress": "Berjalan", "invoiced": "Ditagih", "paid": "Lunas" },
+      "status": {
+        "planned": "Direncanakan",
+        "inProgress": "Berjalan",
+        "invoiced": "Ditagih",
+        "paid": "Lunas"
+      },
       "statusSource": "Sumber: faktur dan draf work order ini (Kontrak & penagihan).",
       "invoiceThis": "Tagih ini",
       "invoiceThisLabel": "Tagih {{order}}"
@@ -929,5 +934,19 @@
       "failed": "Tidak dapat memeriksa Microsoft. Status ini mungkin sudah tidak terbaru.",
       "retry": "Coba periksa lagi"
     }
+  },
+  "budgetOccupant": {
+    "useAsDraft": "Pakai angka ERP sebagai draf",
+    "replace": "Ganti anggaran di ERP dengan versi ini",
+    "draftCreated": "Draf dibuat",
+    "draftCreatedDetail": "Angka dari ERP kini menjadi versi draf. Periksa dulu, lalu aktifkan bila sudah siap.",
+    "replaced": "Anggaran di ERP diganti",
+    "replacedDetail": "ERPNext sekarang memakai anggaran aktif PMO.",
+    "notReplaced": "Anggaran di ERP belum diganti",
+    "notReplacedDetail": "Pengiriman belum selesai. Alasannya tampil di anggaran.",
+    "confirmTitle": "Ganti anggaran ERP {{name}}?",
+    "confirmDescription": "Ganti anggaran ERP {{name}} untuk {{account}}, {{year}}, dengan versi aktif PMO? Salinan di ERP akan diubah.",
+    "confirmDescriptionYear": "Ganti anggaran ERP {{name}} untuk {{year}} dengan versi aktif PMO? Salinan di ERP akan diubah.",
+    "confirmLabel": "Ganti anggaran ERP"
   }
 }
