@@ -29,4 +29,18 @@ describe('StageDateDialog (#1638)', () => {
     expect(screen.getByRole('dialog', { name: 'Change date · Quoted' })).toBeInTheDocument();
     expect(screen.getByText('Currently 12 Oct')).toBeInTheDocument();
   });
+
+  it('AC-ERR-001: a rejected save shows the in-dialog error and keeps the dialog open', async () => {
+    const onConfirm = vi.fn().mockRejectedValue(new Error('Stage date out of order'));
+    const onClose = vi.fn();
+    render(<StageDateDialog title="Change date" initialDate="2026-10-12" min="2026-10-01" max="2026-10-20"
+      onConfirm={onConfirm} onClose={onClose} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Save date' }));
+    expect(onConfirm).toHaveBeenCalled();
+    const alert = await screen.findByTestId('entity-modal-save-error');
+    expect(alert).toBeInTheDocument();
+    expect(alert).toHaveTextContent('Stage date out of order');
+    expect(screen.getByRole('dialog', { name: 'Change date' })).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });
