@@ -126,4 +126,3 @@ end $$;
 drop function if exists public.attribute_subcontract_bill_lines(uuid, jsonb);
 drop function if exists public.po_revision_push_refusal(uuid, uuid, integer, boolean);
 drop function if exists public.subcontract_cap_exceptions(uuid);
-revoke execute on function public.subcontract_bill_is_live(smallint, timestamptz) from service_role;

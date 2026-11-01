@@ -9,7 +9,7 @@
 -- ── REVERSE (also rollback/0475_subcontract_erp_guards_down.sql) ──
 --   restore procurement_payment_allowed from 0368 §1, procurement_create_refusal and guard_procurement_approved_total
 --   from 0474; drop attribute_subcontract_bill_lines(uuid,jsonb), subcontract_cap_exceptions(uuid),
---   po_revision_push_refusal(uuid,uuid,integer,boolean); revoke subcontract_bill_is_live from service_role. Attributed bill lines already written stay (rollback 0472 refuses).
+--   po_revision_push_refusal(uuid,uuid,integer,boolean); Attributed bill lines already written stay (rollback 0472 refuses).
 
 -- §1 OQ-10 reconciliation exceptions: ONE invoker read serving both callers. The UI sees what the caller's RLS allows
 -- (an Engineer sees no bill rows, D6); procurement_payment_allowed (a definer) sees every row. A mirrored bill carries no
@@ -34,11 +34,7 @@ create or replace function public.subcontract_cap_exceptions(p_procurement_id uu
      and d.erp_doctype = 'Purchase Invoice' and d.erp_docstatus = 1 and not d.pmo_owned
 $$;
 revoke all on function public.subcontract_cap_exceptions(uuid) from public, anon;
-grant execute on function public.subcontract_cap_exceptions(uuid) to authenticated, service_role;
-
--- The exceptions read is granted to service_role, so the bill-is-live predicate it calls must be too (0472 granted it to
--- authenticated only).
-grant execute on function public.subcontract_bill_is_live(smallint, timestamptz) to service_role;
+grant execute on function public.subcontract_cap_exceptions(uuid) to authenticated;
 
 -- §2 0368 §1 verbatim plus the OQ-10 refusal before the final return (line marked 0475). The Paid update guard, the ERP
 -- payment dispatch and the outbox claim all ask this one function, so all three refuse together.
@@ -115,7 +111,10 @@ begin
       raise exception '%', case v_reason                                                                 -- 0368
           when 'awaiting_approval' then public.procurement_gate_message('awaiting_approval')            -- 0368
           when 'purchase_closed' then 'This purchase is closed.'                                         -- 0368
-          when 'subcontract_cap_exception' then 'A subcontract bill is not attributed to BoQ lines; attribute it or have it cancelled before payment.'  -- 0475
+          when 'subcontract_cap_exception' then case                                                      -- 0475 one remedy per cause
+            when exists (select 1 from public.subcontract_cap_exceptions(old.id) x where x.reason = 'no_lines')
+              then 'A subcontract bill is not attributed to BoQ lines; attribute its lines or have it cancelled in the ERP before payment.'
+            else 'A linked ERP Purchase Invoice cannot be attributed to BoQ lines; cancel or unlink it in the ERP before payment.' end
           else 'Cannot pay without a recorded approved amount.' end                                      -- 0368
         using errcode = '23514', detail = v_reason;                                                      -- 0368
     elsif old.approved_total_value is not null                                                          -- 0368

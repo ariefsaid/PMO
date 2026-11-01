@@ -3,7 +3,7 @@
 -- Fixture F1 + F2 + F3 of docs/plans/2026-11-01-subcontract-acceptance.md, plus S4 extras for the PQ-5 payer check.
 begin;
 create extension if not exists pgtap;
-select plan(58);
+select plan(63);
 
 -- F1: org A (multi-member), org B (other tenant), org S (sole member). Inserted as superuser, before `set local role`.
 insert into organizations (id, name, default_currency) values
@@ -214,8 +214,9 @@ select is(procurement_create_refusal('15130000-0000-0000-0000-00000000000a', '15
   'OQ-10 the queued payment (outbox claim) is refused too');
 set local role authenticated;
 select pg_temp.act_as('15130000-0000-0000-0000-0000000000a2');
-select throws_like($$ select transition_procurement('15130000-0000-0000-0000-0000000000f1', 'Paid') $$,
-  '%not attributed to BoQ lines%', 'OQ-10 the Paid transition is refused with the exception named');
+select throws_ok($$ select transition_procurement('15130000-0000-0000-0000-0000000000f1', 'Paid') $$,
+  '23514', 'A subcontract bill is not attributed to BoQ lines; attribute its lines or have it cancelled in the ERP before payment.',
+  'OQ-10 the Paid transition names the unattributed bill and the remedy');
 select is((select count(*)::int from subcontract_cap_exceptions('15130000-0000-0000-0000-0000000000f1')), 1,
   'OQ-10 Finance sees the exception');
 select pg_temp.act_as('15130000-0000-0000-0000-0000000000a4');
@@ -256,11 +257,27 @@ select pg_temp.act_as('15130000-0000-0000-0000-0000000000b1');
 select throws_ok($$ select attribute_subcontract_bill_lines('15130000-0000-0000-0000-0000000e0b01',
   '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e1","quantity":60,"rate":100000}]') $$,
   'P0002', null, 'AC-SCA-013 another org''s admin cannot attribute (the bill is not found)');
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a6');
+select throws_ok($$ select attribute_subcontract_bill_lines('15130000-0000-0000-0000-0000000e0b01',
+  '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e1","quantity":60,"rate":100000}]') $$,
+  '42501', null, 'OQ-10 an Executive cannot attribute');
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a8');
+select throws_ok($$ select attribute_subcontract_bill_lines('15130000-0000-0000-0000-0000000e0b01',
+  '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e1","quantity":60,"rate":100000}]') $$,
+  '42501', null, 'OQ-10 an inactive Finance member cannot attribute');
 reset role;
 
 -- a second ERP-origin bill for exactly 60 is attributed and then counts as billed
 select pg_temp.erp_bill('15130000-0000-0000-0000-0000000e0b02', '15130000-0000-0000-0000-0000000000f1', 6000000);
 set local role authenticated;
+savepoint sadmin;
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a1');
+select lives_ok($$ select attribute_subcontract_bill_lines('15130000-0000-0000-0000-0000000e0b02',
+  '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e1","quantity":60,"rate":100000}]') $$,
+  'OQ-10 an Admin attributes 60 against verified 60');
+select is((select count(*)::int from procurement_invoice_lines where invoice_id = '15130000-0000-0000-0000-0000000e0b02'), 1,
+  'OQ-10 the Admin attribution wrote the bill line');
+rollback to savepoint sadmin;
 select pg_temp.act_as('15130000-0000-0000-0000-0000000000a2');
 select throws_ok($$ select attribute_subcontract_bill_lines('15130000-0000-0000-0000-0000000e0b02',
   '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e1","quantity":60,"rate":100001}]') $$,
@@ -340,6 +357,12 @@ select is((select reason from subcontract_cap_exceptions('15130000-0000-0000-000
   'OQ-10 a linked ERP Purchase Invoice is an exception (it cannot carry lines)');
 select is(procurement_payment_allowed('15130000-0000-0000-0000-0000000000f1'), 'subcontract_cap_exception',
   'OQ-10 a linked ERP Purchase Invoice blocks PMO payment');
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a2');
+set local role authenticated;
+select throws_ok($$ select transition_procurement('15130000-0000-0000-0000-0000000000f1', 'Paid') $$,
+  '23514', 'A linked ERP Purchase Invoice cannot be attributed to BoQ lines; cancel or unlink it in the ERP before payment.',
+  'OQ-10 the Paid transition names the linked ERP Purchase Invoice and its remedy');
+reset role;
 select is(po_revision_push_refusal('15130000-0000-0000-0000-00000000000a', '15130000-0000-0000-0000-000000000101', 2, true),
   'po_has_submitted_bill', 'AC-SCA-012 a linked submitted ERP Purchase Invoice also refuses a cancel-style revise');
 select is(po_revision_push_refusal('15130000-0000-0000-0000-00000000000a', '15130000-0000-0000-0000-000000000101', 2, null),
