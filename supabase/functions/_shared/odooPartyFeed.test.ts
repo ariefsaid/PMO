@@ -37,10 +37,10 @@ function routes(o: Opts): MockRoute[] {
     supabaseRpc('record_connect_review', o.review ?? (() => jsonResponse(null))),
   ];
 }
-async function feed(rows: DirectoryRow[], o: Opts = {}) {
+async function feed(rows: DirectoryRow[], o: Opts = {}, deadlineAt?: number) {
   const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   return await withFetchMock(routes(o), async ({ calls }) => {
-    await matchNewPartners(sc, ORG, rows);
+    await matchNewPartners(sc, ORG, rows, deadlineAt);
     return { calls, applied: rpcCall(calls, 'apply_connect_outcome').map((c) => c.bodyJson as Record<string, unknown>), reviews: rpcCall(calls, 'record_connect_review').map((c) => c.bodyJson as Record<string, unknown>) };
   });
 }
@@ -90,6 +90,22 @@ describe('AC-ECA-005 Odoo partner feed', () => {
       companies: [company('c1', 'Acme Co', '01234')], apply: () => jsonResponse('This record is already linked to another ERP record'),
     });
     assertEquals(r.reviews.map((x) => [x.p_pmo_ids, x.p_external_ids]), [[['c1'], ['Vendor:5']]]);
+  });
+
+  it('a link refused for any other reason than "already linked" is not dressed up as an ambiguous pair', async () => {
+    const r = await feed([partner(5, { attrs: { vat: '01.234' } })], {
+      companies: [company('c1', 'Acme Co', '01234')], apply: () => jsonResponse('The ERP record changed since this was proposed'),
+    });
+    assertEquals(r.reviews.length, 0);
+  });
+
+  it('a spent tick deadline stops the matching between chunks: later partners are left for the next setup run', async () => {
+    const rows = Array.from({ length: 250 }, (_, i) => partner(i + 1));
+    const all = await feed(rows);
+    assertEquals(all.applied.length, 250);
+    const none = await feed(rows, {}, Date.now() - 1);
+    assertEquals(none.applied.length, 0);
+    assertEquals(none.calls.some((c) => c.url.pathname === '/rest/v1/companies'), false);
   });
 
   it('contacts of a partner, partners with no role, archived partners and the database\'s own company are not touched', async () => {

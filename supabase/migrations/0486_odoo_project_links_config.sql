@@ -16,8 +16,9 @@ begin
   perform public.assert_odoo_activated(p_org_id);
   perform 1 from public.projects where id = p_project_id and org_id = p_org_id for share;
   if not found then raise exception 'This project is no longer in PMO' using errcode = 'P0001'; end if;
+  -- shared lock on the connection row: a plan change (set_odoo_analytic_plan, for update) waits for this link and then sees it
   select config ->> 'analytic_plan_id' into v_plan from public.external_org_bindings
-   where org_id = p_org_id and external_tier = 'odoo' and status = 'active';
+   where org_id = p_org_id and external_tier = 'odoo' and status = 'active' for share;
   if v_plan is null then raise exception 'choose the analytic plan first' using errcode = 'P0001'; end if;
   if not exists (select 1 from public.external_master_records
                   where org_id = p_org_id and external_tier = 'odoo' and kind = 'analytic_account' and external_id = p_account_id
@@ -58,7 +59,7 @@ end $$;
 create or replace function public.connect_link_project(p_org uuid, p_tier text, p_pmo text, p_ext text) returns text
 language plpgsql security definer set search_path = public, pg_temp as $$
 begin
-  if p_tier = 'odoo' then return public.connect_link_odoo_project(p_org, p_pmo, p_ext, null); end if;
+  if p_tier = 'odoo' then return public.connect_link_odoo_project(p_org, p_pmo, p_ext, auth.uid()); end if;   -- odoo-arm (a decided link keeps its deciding Admin; the feed has none)
   if p_tier <> 'erpnext' then return 'Project links for this ERP are not available yet'; end if;
   if public.connect_config_map_link(p_org, p_tier, 'project_map', p_pmo, p_ext, true) then return null; end if;
   if exists (select 1 from public.external_org_bindings where org_id = p_org and external_tier = p_tier and status = 'active'
@@ -83,6 +84,9 @@ begin
   delete from public.external_project_bindings where org_id = p_org_id and project_id = p_project_id and external_tier = 'odoo';
   if found then
     perform public.log_audit('integration.odoo.unlink', p_org_id, p_actor_id, p_project_id, '{}'::jsonb);
+    -- the setup row that made this link is closed with it, so a later accept or un-link does not meet a stale 'applied' row
+    update public.erp_connect_proposals set state = 'dismissed', decided_by = p_actor_id, decided_at = now()
+     where org_id = p_org_id and external_tier = 'odoo' and kind = 'project' and outcome = 'link' and state = 'applied' and pmo_ids[1] = p_project_id::text;
   end if;
 end $$;
 
@@ -92,6 +96,7 @@ returns void language plpgsql security definer set search_path = public, pg_temp
 begin
   perform public.assert_integration_link_actor(p_org_id, p_actor_id, null);
   perform public.assert_odoo_activated(p_org_id);
+  perform 1 from public.external_org_bindings where org_id = p_org_id and external_tier = 'odoo' and status = 'active' for update;   -- serialises with a link
   if p_plan_id !~ '^[0-9]{1,9}$' or not exists (select 1 from public.external_master_records
        where org_id = p_org_id and external_tier = 'odoo' and kind = 'analytic_plan' and external_id = p_plan_id and active and tombstoned_at is null) then
     raise exception 'not an analytic plan of this connection' using errcode = 'P0001';
@@ -138,9 +143,9 @@ begin
     v_reason := null;
     if r.outcome <> 'send' then
       begin   -- one bad row is left open with a reason and never aborts the batch; its partial writes roll back with it
-        if r.outcome = 'link' and r.kind = 'project' and p_tier = 'odoo' then
-          -- an Odoo project link is a cost-account binding, written by the one Odoo writer, never a config map entry
-          v_reason := public.connect_link_odoo_project(v_org, r.pmo_ids[1], r.external_ids[1], v_actor);
+        if r.outcome = 'link' and r.kind = 'project' and p_tier = 'odoo' then   -- odoo-arm
+          -- an Odoo project link is a cost-account binding, written by the one Odoo writer, never a config map entry   -- odoo-arm
+          v_reason := public.connect_link_odoo_project(v_org, r.pmo_ids[1], r.external_ids[1], v_actor);   -- odoo-arm
         elsif r.outcome = 'link' and r.kind in ('item', 'project') then
           v_mapkey := r.kind || '_map';
           v_reason := public.connect_map_link_check(v_org, p_tier, r.kind, r.pmo_ids[1], r.external_ids[1], v_cfg->v_mapkey, v_batch->v_mapkey);
@@ -221,9 +226,9 @@ begin
   if public.connect_link_in_use(v_org, v_domain, v_pmo) then raise exception 'link in use' using errcode = 'P0001'; end if;
   if r.kind = 'party' then
     delete from public.external_refs where org_id = v_org and domain = 'companies' and pmo_record_id = v_pmo and external_record_id = v_ext;
-  elsif r.kind = 'project' and r.external_tier = 'odoo' then
-    delete from public.external_project_bindings
-     where org_id = v_org and project_id = v_pmo::uuid and external_tier = 'odoo' and external_container_id = v_ext;
+  elsif r.kind = 'project' and r.external_tier = 'odoo' then   -- odoo-arm
+    delete from public.external_project_bindings   -- odoo-arm
+     where org_id = v_org and project_id = v_pmo::uuid and external_tier = 'odoo' and external_container_id = v_ext;   -- odoo-arm
   elsif r.kind in ('project', 'item') then
     update public.external_org_bindings
        set config = jsonb_set(config, array[case r.kind when 'project' then 'project_map' else 'item_map' end],

@@ -258,6 +258,19 @@ describe('odooSweep — #1504 S6 the setup run and the partner feed', () => {
     assert(odoo(running.calls).length > odoo(quiet.calls).length);
   });
 
+  it('FR-ECA-002 an Odoo key revoked mid-sweep still counts one failed tick against the open setup run (three end it)', async () => {
+    const r = await sweep({ run: RUN, rejectAfter: 0 });
+    assertEquals('ok' in r.result && r.result.failed, 'key-rejected');
+    const fails = rpcCall(r.calls, 'fail_connect_run').map((c) => c.bodyJson as { p_org_id: string; p_run_id: string; p_fatal: boolean });
+    assertEquals(fails.map((f) => [f.p_org_id, f.p_run_id, f.p_fatal]), [[ORG, 'run-1', false]]);
+    assertEquals(rpcCall(r.calls, 'release_erp_sweep_lock').length, 1);
+  });
+
+  it('a failed tick with no open setup run counts nothing', async () => {
+    const r = await sweep({ rejectAfter: 0 });
+    assertEquals(rpcCall(r.calls, 'fail_connect_run').length, 0);
+  });
+
   it('a setup run that cannot be read does not fail the tick: the connection state is still stored', async () => {
     const r = await sweep({ runError: true });
     assertEquals('ok' in r.result && r.result.failed, undefined);

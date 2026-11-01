@@ -73,28 +73,37 @@ async function review(sc: SupabaseClient, orgId: string, pmoIds: string[], exter
   if (error) console.error('record_connect_review failed', error.code ?? 'unknown');
 }
 
-export async function matchNewPartners(sc: SupabaseClient, orgId: string, rows: DirectoryRow[]): Promise<void> {
+export async function matchNewPartners(sc: SupabaseClient, orgId: string, rows: DirectoryRow[], deadlineAt = Infinity): Promise<void> {
   try {
     const mine = rows.flatMap((r) => normaliseParty(rawPartner(r))).filter((p) => p.role !== undefined && p.active);
     if (mine.length === 0 || !(await accepted(sc, orgId))) return;
     const own = await ownNames(sc, orgId);
     const fresh = await withoutRef(sc, orgId, mine.filter((p) => !own.has(p.name.toLowerCase())));
-    if (fresh.length === 0) return;
     const byId = new Map(fresh.map((p) => [p.externalId, p]));
     const snapshot = (id: string) => { const p = byId.get(id)!; return { name: p.name, taxId: p.taxId ?? null, code: p.code ?? null, role: p.role }; };
-    for (const o of proposeMatches('party', await candidatesFor(sc, orgId, fresh), fresh)) {
-      try {
-        if (o.outcome === 'review') { await review(sc, orgId, o.pmoIds, o.externalIds, o.reason === 'tax-conflict' ? 'tax-conflict' : 'ambiguous'); continue; }
-        if (o.outcome === 'send') continue;   // a PMO-only company is the setup run's to send, not the feed's
-        const { data, error } = await sc.rpc('apply_connect_outcome', {
-          p_org_id: orgId, p_tier: TIER, p_kind: 'party', p_outcome: o.outcome, p_pmo_id: o.outcome === 'link' ? o.pmoId : null, p_external_id: o.externalId,
-          p_snapshot: o.outcome === 'link' ? { ...snapshot(o.externalId), matchKey: o.key } : snapshot(o.externalId),
-        });
-        if (error) throw new Error(error.code ?? 'unknown');
-        // A link the database refuses (the company already has another partner) needs a person; an incomplete bring-in is left for the next setup run.
-        if (typeof data === 'string' && o.outcome === 'link') await review(sc, orgId, [o.pmoId], [o.externalId], 'ambiguous');
-      } catch (err) {
-        console.error('odoo party feed: one partner failed', err instanceof Error ? err.message.slice(0, 40) : 'unknown');
+    // The database work is bounded by the tick's deadline, checked between chunks of CHUNK partners. A partner left over keeps no
+    // reference, so the next setup run proposes it.
+    for (let i = 0; i < fresh.length; i += CHUNK) {
+      if (Date.now() > deadlineAt) { console.error('odoo party feed: tick deadline, partners left for the next setup run:', fresh.length - i); break; }
+      const chunk = fresh.slice(i, i + CHUNK);
+      for (const o of proposeMatches('party', await candidatesFor(sc, orgId, chunk), chunk)) {
+        try {
+          if (o.outcome === 'review') { await review(sc, orgId, o.pmoIds, o.externalIds, o.reason === 'tax-conflict' ? 'tax-conflict' : 'ambiguous'); continue; }
+          if (o.outcome === 'send') continue;   // a PMO-only company is the setup run's to send, not the feed's
+          const { data, error } = await sc.rpc('apply_connect_outcome', {
+            p_org_id: orgId, p_tier: TIER, p_kind: 'party', p_outcome: o.outcome, p_pmo_id: o.outcome === 'link' ? o.pmoId : null, p_external_id: o.externalId,
+            p_snapshot: o.outcome === 'link' ? { ...snapshot(o.externalId), matchKey: o.key } : snapshot(o.externalId),
+          });
+          if (error) throw new Error(error.code ?? 'unknown');
+          // Only a company that already has another partner needs a person. Any other refusal (the record changed, no live connection)
+          // is not an ambiguous pair: it is logged, and the next overlap read or setup run decides again.
+          if (typeof data === 'string' && o.outcome === 'link') {
+            if (/already linked/i.test(data)) await review(sc, orgId, [o.pmoId], [o.externalId], 'ambiguous');
+            else console.error('odoo party feed: a link was refused:', data.slice(0, 60));
+          }
+        } catch (err) {
+          console.error('odoo party feed: one partner failed', err instanceof Error ? err.message.slice(0, 40) : 'unknown');
+        }
       }
     }
   } catch (err) {

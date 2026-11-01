@@ -21,7 +21,7 @@ const one = (body: unknown) => jsonResponse(body, { headers: { 'content-type': '
 const none = () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } });
 const pgError = (code: string, message: string) => jsonResponse({ code, message, details: null, hint: null }, { status: 400 });
 
-interface Opts { role?: string; active?: boolean; plan?: number | null; rpc?: Record<string, (c: FetchCall) => Response> }
+interface Opts { accounts?: number; role?: string; active?: boolean; plan?: number | null; rpc?: Record<string, (c: FetchCall) => Response> }
 function routes(o: Opts): MockRoute[] {
   const rpc = (fn: string) => supabaseRpc(fn, o.rpc?.[fn] ?? (() => jsonResponse(null)));
   return [
@@ -33,7 +33,9 @@ function routes(o: Opts): MockRoute[] {
       const kind = (c.url.searchParams.get('kind') ?? '').replace('eq.', '');
       return jsonResponse(kind === 'analytic_plan'
         ? [{ external_id: '7', name: 'Projects' }, { external_id: '8', name: 'Other' }]
-        : [{ external_id: '101', code: 'PRJ-1', name: 'Bridge One' }, { external_id: '102', code: 'PRJ-2', name: 'Bridge Two' }]);
+        : o.accounts !== undefined
+          ? Array.from({ length: o.accounts }, (_, i) => ({ external_id: String(i + 1), code: `A${i}`, name: `Account ${i}` }))
+          : [{ external_id: '101', code: 'PRJ-1', name: 'Bridge One' }, { external_id: '102', code: 'PRJ-2', name: 'Bridge Two' }]);
     }),
     supabaseSelect('external_project_bindings', () => jsonResponse([{ project_id: PROJECT, external_container_id: '101' }])),
     rpc('link_odoo_cost_account'), rpc('unlink_odoo_cost_account'), rpc('set_odoo_analytic_plan'),
@@ -52,11 +54,17 @@ describe('Odoo router — list-projects', () => {
   it('FR-ODC-071 lists only the chosen plan\'s live accounts of this org, with who holds each, and never calls Odoo', async () => {
     const r = await call({ setupAction: 'list-projects' });
     assertEquals(r.res.status, 200);
-    assertEquals(r.json, { planId: 7, accounts: [{ id: '101', code: 'PRJ-1', name: 'Bridge One' }, { id: '102', code: 'PRJ-2', name: 'Bridge Two' }], linked: [{ projectId: PROJECT, accountId: '101' }] });
+    assertEquals(r.json, { planId: 7, accounts: [{ id: '101', code: 'PRJ-1', name: 'Bridge One' }, { id: '102', code: 'PRJ-2', name: 'Bridge Two' }], truncated: false, linked: [{ projectId: PROJECT, accountId: '101' }] });
     const read = mirrorRead(r.calls, 'analytic_account');
     assertEquals([read.url.searchParams.get('org_id'), read.url.searchParams.get('external_tier'), read.url.searchParams.get('parent_external_id'), read.url.searchParams.get('active'), read.url.searchParams.get('tombstoned_at')],
       ['eq.org-1', 'eq.odoo', 'eq.7', 'eq.true', 'is.null']);
     assertEquals(r.calls.filter((c) => c.url.host.startsWith('odoo')).length, 0);
+  });
+
+  it('a plan with more accounts than one page says so, and returns exactly one page', async () => {
+    const r = await call({ setupAction: 'list-projects' }, { accounts: 1001 });
+    assertEquals([r.json.truncated, (r.json.accounts as unknown[]).length], [true, 1000]);
+    assertEquals(mirrorRead(r.calls, 'analytic_account').url.searchParams.get('limit'), '1001');
   });
 
   it('with no plan chosen it offers the plans to choose from and no accounts', async () => {

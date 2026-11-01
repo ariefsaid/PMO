@@ -2,7 +2,7 @@
 -- No Odoo-specific writer exists: tier 'odoo' runs ECA-2's shared appliers (migration 0480). AC-ODC-031 (exactly-once adoption),
 -- AC-ODC-033 (while Odoo owns companies only enhancement fields are editable), AC-ECA-004 for the second tier.
 begin;
-select plan(28);
+select plan(29);
 
 insert into organizations (id, name) values
  ('a6040000-0000-0000-0000-000000000001','Odoo Parties A'),
@@ -93,6 +93,7 @@ select throws_ok($$update companies set type = 'Client' where id = 'a6040000-000
   'AC-ODC-033 the role (type) is locked too (PQ-5)');
 select lives_ok($$update companies set archived_at = now() where id = 'a6040000-0000-0000-0000-0000000000d1'$$,
   'AC-ODC-033 an enhancement field (archived_at) stays editable');
+select is((select archived_at is not null from companies where id = 'a6040000-0000-0000-0000-0000000000d1'), true, 'AC-ODC-033 and the row really was archived (not filtered out)');
 reset role;
 delete from external_domain_ownership where org_id='a6040000-0000-0000-0000-000000000001' and external_tier='odoo' and domain='companies';
 set local role authenticated;

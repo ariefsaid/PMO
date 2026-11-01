@@ -40,8 +40,12 @@ export async function advanceConnectRun(d: ConnectRunDeps): Promise<'more' | 're
   if (kind === undefined) return 'ready';
   const erp = await d.stagedErp(kind);
   const byId = new Map(erp.map((e) => [e.externalId, e]));
-  const outcomes = proposeMatches(kind, await d.pmoMasters(kind), erp)
-    .filter((o) => o.outcome !== 'send' || (d.adapter.canSend?.(kind) ?? true));
+  // A party the ERP gives no role cannot be linked or brought in (a company needs one): it is a review row, so a person can decide (FR-ODC-052).
+  const noRole = (e: NormalisedMaster) => kind === 'party' && e.role === undefined;
+  const outcomes = [
+    ...proposeMatches(kind, await d.pmoMasters(kind), erp.filter((e) => !noRole(e))).filter((o) => o.outcome !== 'send' || (d.adapter.canSend?.(kind) ?? true)),
+    ...erp.filter((e) => noRole(e) && e.active && !e.internal).map((e): MatchOutcome => ({ outcome: 'review', pmoIds: [], externalIds: [e.externalId], reason: 'ambiguous' })),
+  ];
   await d.writeProposals(kind, outcomes, (id) => byId.get(id));
   d.run.proposedKinds.push(kind);
   return d.run.proposedKinds.length === RUN_KINDS.length ? 'ready' : 'more';

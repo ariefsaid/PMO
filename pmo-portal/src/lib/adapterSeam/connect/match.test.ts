@@ -105,3 +105,9 @@ describe('reviewReasonText says why a row needs a person, in plain words', () =>
     }
   });
 });
+
+describe('FR-ODC-052 reviewReasonText for a party with no role', () => {
+  it('says what is missing, in PMO words', () => {
+    expect(reviewReasonText('party', { reason: 'ambiguous', pmoIds: [], externalIds: ['7'] })).toBe('The ERP does not say whether this is a supplier or a customer');
+  });
+});

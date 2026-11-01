@@ -3,7 +3,7 @@
 -- (un-link is audited and refused through the one shared in-use check), the analytic-plan choice, and the setup accept /
 -- unlink paths for tier odoo (ECA-2's accept, decide and unlink reach the same writer).
 begin;
-select plan(60);
+select plan(69);
 
 insert into organizations (id, name) values
  ('a6050000-0000-0000-0000-000000000001','Odoo Links A'),
@@ -183,7 +183,10 @@ set local request.jwt.claims = '{"sub":"a6050000-0000-0000-0000-0000000000a1","r
 select lives_ok($$select public.decide_connect_review((select id from erp_connect_proposals where external_tier='odoo' and outcome='review'), '{"action":"link","pmoId":"a6050000-0000-0000-0000-0000000000c2","externalId":"102"}'::jsonb)$$,
   'an Admin decides a review row: link the project to the account they chose');
 reset role;
-select is((select external_container_id from external_project_bindings where project_id='a6050000-0000-0000-0000-0000000000c2' and external_tier='odoo'), '102', 'the decided link is the Odoo binding');
+select is((select external_container_id || '|' || linked_by::text from external_project_bindings where project_id='a6050000-0000-0000-0000-0000000000c2' and external_tier='odoo'),
+  '102|a6050000-0000-0000-0000-0000000000a1', 'the decided link is the Odoo binding, stamped with the deciding Admin');
+select is((select count(*)::int from audit_events where action='integration.odoo.link' and actor_id='a6050000-0000-0000-0000-0000000000a1' and entity_id='a6050000-0000-0000-0000-0000000000c2'), 1,
+  'and its audit row names the deciding Admin');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"a6050000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok($$select public.unlink_connect_match((select id from erp_connect_proposals where external_tier='odoo' and outcome='link' and state='applied' and pmo_ids='{a6050000-0000-0000-0000-0000000000c3}'))$$,
@@ -191,6 +194,57 @@ select lives_ok($$select public.unlink_connect_match((select id from erp_connect
 reset role;
 select is((select count(*)::int from external_project_bindings where project_id='a6050000-0000-0000-0000-0000000000c3'), 0, 'AC-ECA-007 the Odoo binding is gone');
 select is((select count(*)::int from external_project_bindings where project_id='a6050000-0000-0000-0000-0000000000c1'), 1, 'and the project in use keeps its link');
+
+
+-- NFR-ODC-002: a proposal that names ANOTHER organisation's project binds nothing, whichever path applies it
+insert into external_master_records (org_id, external_tier, kind, external_id, name, code, parent_external_id, active, tombstoned_at, source_write_date) values
+ ('a6050000-0000-0000-0000-000000000001','odoo','analytic_account','106','Spare two','PRJ-6','7',true,null,'2026-11-01 00:00:00');
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select public.replace_connect_proposals('a6050000-0000-0000-0000-000000000001','odoo',current_setting('a605.run')::uuid,'project','[
+  {"outcome":"link","pmoIds":["a6050000-0000-0000-0000-0000000000cb"],"externalIds":["106"],"key":"code","snapshot":{}}]'::jsonb, false);
+select is(public.apply_connect_outcome('a6050000-0000-0000-0000-000000000001','odoo','project','link','a6050000-0000-0000-0000-0000000000cb','106','{}'::jsonb), 'This project is no longer in PMO',
+  'NFR-ODC-002 the outcome applier refuses another organisation''s project');
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a6050000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select public.accept_connect_proposals('odoo','project');
+reset role;
+select is((select reason_text from erp_connect_proposals where external_tier='odoo' and kind='project' and pmo_ids='{a6050000-0000-0000-0000-0000000000cb}'), 'This project is no longer in PMO',
+  'NFR-ODC-002 an accept of a proposal naming another organisation''s project leaves it open, with the reason');
+select is((select count(*)::int from external_project_bindings where project_id='a6050000-0000-0000-0000-0000000000cb'), 0, 'NFR-ODC-002 and no binding exists for that project');
+select is((select count(*)::int from external_project_bindings where external_container_id='106'), 0, 'NFR-ODC-002 nor for the account it named');
+
+-- FR-ODC-052: a partner with no role is a review row with nobody to link, which an Admin can dismiss
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select lives_ok($$select public.replace_connect_proposals('a6050000-0000-0000-0000-000000000001','odoo',current_setting('a605.run')::uuid,'party','[
+  {"outcome":"review","pmoIds":[],"externalIds":["7"],"reason":"ambiguous","reasonText":"The ERP does not say whether this is a supplier or a customer","snapshot":{}}]'::jsonb, false)$$,
+  'FR-ODC-052 a role-less partner is stored as a review row with no PMO side');
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a6050000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select lives_ok($$select public.decide_connect_review((select id from erp_connect_proposals where external_tier='odoo' and kind='party' and outcome='review'), '{"action":"dismiss"}'::jsonb)$$,
+  'FR-ODC-052 the Admin dismisses it');
+reset role;
+
+-- un-linking through the verb also closes the setup row that made the link, so a later accept cannot meet a stale one
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select public.replace_connect_proposals('a6050000-0000-0000-0000-000000000001','odoo',current_setting('a605.run')::uuid,'project','[
+  {"outcome":"link","pmoIds":["a6050000-0000-0000-0000-0000000000c3"],"externalIds":["106"],"key":"code","snapshot":{}}]'::jsonb, false);
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a6050000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select public.accept_connect_proposals('odoo','project');
+reset role;
+select is((select state from erp_connect_proposals where external_tier='odoo' and kind='project' and outcome='link' and pmo_ids='{a6050000-0000-0000-0000-0000000000c3}' and external_ids='{106}'), 'applied', 'the accepted link is applied');
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select public.unlink_odoo_cost_account('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','a6050000-0000-0000-0000-0000000000c3');
+reset role;
+select is((select state from erp_connect_proposals where external_tier='odoo' and kind='project' and outcome='link' and pmo_ids='{a6050000-0000-0000-0000-0000000000c3}' and external_ids='{106}'), 'dismissed',
+  'un-linking by the verb dismisses the setup row that made the link');
 
 select * from finish();
 rollback;

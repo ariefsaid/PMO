@@ -60,6 +60,19 @@ describe('ECA2-T11 advanceConnectRun', () => {
     expect(outcomes.filter((o) => o.outcome === 'bring-in').length).toBe(450);
   });
 
+  it('FR-ODC-052 a party with no role is a review row (nothing to link, nothing to bring in); an inactive one has no outcome', async () => {
+    const h = harness();
+    h.d.budget.calls = 20;
+    h.d.stagedErp = async (kind) => (kind === 'party'
+      ? [{ kind: 'party', externalId: '7', name: 'No Role Co', active: true }, { kind: 'party', externalId: '8', name: 'Old No Role', active: false },
+         { kind: 'party', externalId: '9', name: 'Own Co', active: true, internal: true }, ...parties(1)]
+      : []);
+    await advanceConnectRun(h.d);   // proposes party
+    const [, outcomes] = h.writeProposals.mock.calls[0] as unknown as [MasterKind, Array<Record<string, unknown>>];
+    expect(outcomes.filter((o) => o.outcome === 'review')).toEqual([{ outcome: 'review', pmoIds: [], externalIds: ['7'], reason: 'ambiguous' }]);
+    expect(outcomes.filter((o) => o.outcome === 'bring-in')).toEqual([{ outcome: 'bring-in', externalId: 'Supplier:S0000' }]);
+  });
+
   it('a thrown listMasters propagates and leaves the cursor at the last good page', async () => {
     const h = harness();
     h.listMasters.mockImplementationOnce(async () => ({ rows: parties(200), nextCursor: '200' }))

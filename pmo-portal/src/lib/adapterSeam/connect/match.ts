@@ -93,6 +93,7 @@ export function reviewReasonText(kind: MasterKind, o: { reason: ReviewReason | '
   if (o.reason === 'held') return 'We could not confirm whether the ERP created this record';
   if (o.reason === 'rejected') return 'An administrator declined this pairing';
   if (o.reason === 'tax-conflict') return kind === 'employee' ? 'Work emails do not match' : 'Tax numbers do not match';
+  if (kind === 'party' && o.pmoIds.length === 0) return 'The ERP does not say whether this is a supplier or a customer';
   return o.pmoIds.length === 1 && o.externalIds.length === 1
     ? 'The names match, but nothing else confirms it is the same record' : 'Two or more records could be this one';
 }
