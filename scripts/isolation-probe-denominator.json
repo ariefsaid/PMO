@@ -419,7 +419,7 @@
     "transition_imprest_replenishment(uuid,text,text,text)",
     "transition_native_sales_invoice(uuid,text)",
     "transition_procurement(uuid,procurement_status,text)",
-    "transition_project(uuid,project_status,text,date)",
+    "transition_project(uuid,project_status,text,date,text,text)",
     "transition_timesheet(uuid,timesheet_status,text)",
     "transition_work_order(uuid,work_order_status,boolean)",
     "unlink_erp_purchase_document(uuid)",

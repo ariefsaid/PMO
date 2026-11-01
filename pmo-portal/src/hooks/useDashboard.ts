@@ -2,7 +2,7 @@ import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { useQuery } from '@tanstack/react-query';
 import {
   repositories,
-  type ExecutiveDashboard, type PMDashboardProject, type WinRate, type SalesPipeline,
+  type ExecutiveDashboard, type PMDashboardProject, type WinRate, type LossBreakdown, type SalesPipeline,
   type PipelineProject, type BudgetReviewRow, type ProjectWithRefs, type ProjectStatus,
 } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
@@ -52,6 +52,17 @@ export function useWinRate(range: WinRateRange) {
   return useQuery<WinRate>({
     queryKey: ['win-rate', orgId, range.key],
     queryFn: () => repositories.dashboard.winRate(range.from, range.to),
+    enabled: Boolean(orgId),
+  });
+}
+
+/** Loss breakdown for the tile's period (#1577); same cache-key shape as useWinRate, own query. */
+export function useLossBreakdown(range: WinRateRange) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<LossBreakdown>({
+    queryKey: ['loss-breakdown', orgId, range.key],
+    queryFn: () => repositories.dashboard.lossBreakdown(range.from, range.to),
     enabled: Boolean(orgId),
   });
 }

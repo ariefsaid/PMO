@@ -4,7 +4,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
 // vi.hoisted — values are available inside the vi.mock factory (which is hoisted to top of file).
-const { mockWinRate, mockSalesPipeline } = vi.hoisted(() => ({
+const { mockWinRate, mockSalesPipeline, mockLossBreakdown } = vi.hoisted(() => ({
+  mockLossBreakdown: {
+    by_reason: [{ reason: 'price', losses_count: 1, declined_count: 0 }],
+    by_client: [],
+  },
   mockWinRate: {
     wins_count: 2, losses_count: 1, wins_value: 8000000, losses_value: 650000,
     win_rate_count: 0.666667, win_rate_value: 0.924855,
@@ -28,6 +32,7 @@ vi.mock('@/src/lib/db/dashboard', () => ({
     projects_at_risk: 1, projects_by_status: [], procurements_by_status: [], top_projects: [],
   }),
   getWinRate: vi.fn().mockResolvedValue(mockWinRate),
+  getLossBreakdown: vi.fn().mockResolvedValue(mockLossBreakdown),
   getSalesPipeline: vi.fn().mockResolvedValue(mockSalesPipeline),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
@@ -45,6 +50,7 @@ vi.mock('@/src/lib/repositories', async () => {
       executive: () => dash.getExecutiveDashboard(),
       pmProjects: () => dash.getPMDashboardProjects(),
       winRate: (from?: Date, to?: Date) => dash.getWinRate(from, to),
+      lossBreakdown: (from?: Date, to?: Date) => dash.getLossBreakdown(from, to),
       salesPipeline: () => dash.getSalesPipeline(),
     },
     project: {
@@ -67,8 +73,8 @@ vi.mock('@/src/lib/repositories', async () => {
 };
 });
 
-import { useDashboard, useWinRate, useSalesPipeline, useLostDeals, useWonDeals, usePMDashboardProjects } from './useDashboard';
-import { getExecutiveDashboard, getWinRate, getSalesPipeline, getPMDashboardProjects } from '@/src/lib/db/dashboard';
+import { useDashboard, useWinRate, useLossBreakdown, useSalesPipeline, useLostDeals, useWonDeals, usePMDashboardProjects } from './useDashboard';
+import { getExecutiveDashboard, getWinRate, getLossBreakdown, getSalesPipeline, getPMDashboardProjects } from '@/src/lib/db/dashboard';
 import { repositories } from '@/src/lib/repositories';
 
 // Fresh QueryClient per test to avoid cross-test cache bleed.
@@ -95,6 +101,16 @@ describe('useDashboard', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.active_projects).toBe(2);
     expect(getExecutiveDashboard).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('useLossBreakdown', () => {
+  it('AC-LR-008: passes the range to getLossBreakdown and is keyed by org + range.key', async () => {
+    const range = { key: 'ytd:2026-01-01:', from: new Date('2026-01-01'), to: undefined };
+    const { result } = renderHook(() => useLossBreakdown(range), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(getLossBreakdown).toHaveBeenCalledWith(range.from, undefined);
+    expect(result.current.data).toEqual(mockLossBreakdown);
   });
 });
 

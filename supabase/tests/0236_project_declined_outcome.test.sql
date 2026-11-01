@@ -30,15 +30,15 @@ insert into projects (id, org_id, code, name, status, project_manager_id, contra
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"02360000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
-select lives_ok($$ select transition_project('02360000-0000-0000-0000-000000000101','Declined') $$,
+select lives_ok($$ select transition_project('02360000-0000-0000-0000-000000000101','Declined',null,null,'scope_fit',null) $$,
   'AC-DEC-001: Leads -> Declined');
-select lives_ok($$ select transition_project('02360000-0000-0000-0000-000000000102','Declined') $$,
+select lives_ok($$ select transition_project('02360000-0000-0000-0000-000000000102','Declined',null,null,'scope_fit',null) $$,
   'AC-DEC-001: PQ Submitted -> Declined');
-select lives_ok($$ select transition_project('02360000-0000-0000-0000-000000000103','Declined') $$,
+select lives_ok($$ select transition_project('02360000-0000-0000-0000-000000000103','Declined',null,null,'scope_fit',null) $$,
   'AC-DEC-001: Quotation Submitted -> Declined');
-select lives_ok($$ select transition_project('02360000-0000-0000-0000-000000000104','Declined') $$,
+select lives_ok($$ select transition_project('02360000-0000-0000-0000-000000000104','Declined',null,null,'scope_fit',null) $$,
   'AC-DEC-001: Tender Submitted -> Declined');
-select lives_ok($$ select transition_project('02360000-0000-0000-0000-000000000105','Declined') $$,
+select lives_ok($$ select transition_project('02360000-0000-0000-0000-000000000105','Declined',null,null,'scope_fit',null) $$,
   'AC-DEC-001: Negotiation -> Declined');
 
 select is(
