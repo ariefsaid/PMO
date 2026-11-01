@@ -11445,6 +11445,7 @@ export type Database = {
           project_id: string
         }[]
       }
+      preview_task_reminders: { Args: { p_task_ids: string[] }; Returns: Json }
       procurement_evidenced_step: {
         Args: { p_procurement_id: string }
         Returns: Database["public"]["Enums"]["procurement_status"]
@@ -11868,6 +11869,7 @@ export type Database = {
           to_status: string
         }[]
       }
+      send_task_reminders: { Args: { p_task_ids: string[] }; Returns: Json }
       set_budget_push_account: {
         Args: { p_map_id: string }
         Returns: undefined
@@ -12195,6 +12197,17 @@ export type Database = {
         Args: { p_project_id: string }
         Returns: boolean
       }
+      task_reminder_check: {
+        Args: { p_org: string; p_sender: string; p_task: string }
+        Returns: {
+          due_date: string
+          outcome: string
+          recipient_id: string
+          task_name: string
+        }[]
+      }
+      task_reminder_daily_cap: { Args: never; Returns: number }
+      task_reminder_window: { Args: never; Returns: unknown }
       telegram_notify_tick: { Args: never; Returns: undefined }
       timesheet_push_key_witness: { Args: { p_key: string }; Returns: string }
       transition_document_status: {
@@ -12284,18 +12297,6 @@ export type Database = {
         }[]
       }
       withdraw_progress_claim: { Args: { p_id: string }; Returns: undefined }
-      preview_task_reminders: { Args: { p_task_ids: string[] }; Returns: Json }
-      send_task_reminders: { Args: { p_task_ids: string[] }; Returns: Json }
-      task_reminder_check: {
-        Args: { p_org: string; p_sender: string; p_task: string }
-        Returns: {
-          due_date: string
-          outcome: string
-          recipient_id: string
-          task_name: string
-        }[]
-      }
-      task_reminder_daily_cap: { Args: never; Returns: number }
     }
     Enums: {
       budget_category:

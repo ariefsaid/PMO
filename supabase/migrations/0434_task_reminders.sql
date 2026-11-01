@@ -6,6 +6,7 @@
 --   drop function if exists public.preview_task_reminders(uuid[]);
 --   drop function if exists public.task_reminder_check(uuid, uuid, uuid);
 --   drop function if exists public.task_reminder_daily_cap();
+--   drop function if exists public.task_reminder_window();
 --   drop table if exists public.task_reminders;
 
 create table public.task_reminders (
@@ -29,16 +30,19 @@ create policy task_reminders_select on public.task_reminders for select
 revoke all on public.task_reminders from public, anon, authenticated;
 grant select on public.task_reminders to authenticated;
 
--- FR-RMD-014 / OQ-1: the per-sender cap over a rolling 24 hours (OQ-2). One place, read by both RPCs.
+-- FR-RMD-014 / OQ-1: the per-sender cap over a rolling window (OQ-2). One place each, read by the check and both RPCs.
 create or replace function public.task_reminder_daily_cap() returns integer
   language sql immutable set search_path = public as $$ select 20 $$;
+create or replace function public.task_reminder_window() returns interval
+  language sql immutable set search_path = public as $$ select interval '24 hours' $$;
 
--- FR-RMD-012: every send rule, in one place. SECURITY DEFINER because it reads profiles/auth.users rows RLS hides.
+-- FR-RMD-012: every send rule, in one place. SECURITY INVOKER on purpose: only the two definer RPCs below call it (execute is
+-- revoked from every client role), so it runs as their owner and reads the rows RLS hides without being a definer itself.
 -- ⚑ MIRRORS tasks_select (0002_rls.sql:91: org-scoped, active members): a task is reachable here only in the caller's
 -- org, and both callers assert the caller is an active member first. If tasks_select narrows, narrow this too.
 create or replace function public.task_reminder_check(p_sender uuid, p_org uuid, p_task uuid)
   returns table (outcome text, recipient_id uuid, task_name text, due_date date)
-  language plpgsql stable security definer set search_path = public, pg_temp as $$
+  language plpgsql stable set search_path = public, pg_temp as $$
 declare
   t record;
   v_today date;
@@ -66,13 +70,14 @@ begin
   end if;
   -- OQ-6: one reminder per task and recipient per window, from anyone.
   if exists (select 1 from public.task_reminders x
-              where x.task_id = p_task and x.recipient_id = t.assignee_id and x.created_at > now() - interval '24 hours') then
+              where x.task_id = p_task and x.recipient_id = t.assignee_id and x.created_at > now() - public.task_reminder_window()) then
     return query select 'already_reminded'::text, t.assignee_id, t.name::text, t.end_date; return;
   end if;
   return query select 'eligible'::text, t.assignee_id, t.name::text, t.end_date;
 end $$;
 
 revoke all on function public.task_reminder_daily_cap() from public, anon, authenticated;
+revoke all on function public.task_reminder_window() from public, anon, authenticated;
 revoke all on function public.task_reminder_check(uuid, uuid, uuid) from public, anon, authenticated;
 
 -- FR-RMD-018: the same checks, no writes. Returns {remaining, items:[{task_id, outcome, task_name, due_date, recipient_name}]}.
@@ -92,7 +97,7 @@ begin
     raise exception 'between 1 and 50 tasks may be checked at once' using errcode = '22023';
   end if;
   select count(*) into v_used from public.task_reminders
-   where sender_id = v_me and created_at > now() - interval '24 hours';
+   where sender_id = v_me and created_at > now() - public.task_reminder_window();
   foreach v_id in array (select array_agg(distinct x order by x) from unnest(p_task_ids) x) loop
     select * into c from public.task_reminder_check(v_me, v_org, v_id);
     v_items := v_items || jsonb_build_object(
@@ -125,7 +130,7 @@ begin
   -- FR-RMD-014: serialise this sender's sends so the cap count cannot be raced.
   perform pg_advisory_xact_lock(hashtextextended('task_reminders:sender:' || v_me::text, 0));
   select count(*) into v_used from public.task_reminders
-   where sender_id = v_me and created_at > now() - interval '24 hours';
+   where sender_id = v_me and created_at > now() - public.task_reminder_window();
   select coalesce(nullif(btrim(p.full_name), ''), 'A colleague') into v_sender from public.profiles p where p.id = v_me;
 
   foreach v_id in array (select array_agg(distinct x order by x) from unnest(p_task_ids) x) loop
@@ -164,7 +169,7 @@ begin
       raise exception '0434: % ACL is not the intended shape', v;
     end if;
   end loop;
-  foreach v in array array['public.task_reminder_check(uuid, uuid, uuid)', 'public.task_reminder_daily_cap()'] loop
+  foreach v in array array['public.task_reminder_check(uuid, uuid, uuid)', 'public.task_reminder_daily_cap()', 'public.task_reminder_window()'] loop
     if has_function_privilege('anon', v, 'EXECUTE') or has_function_privilege('authenticated', v, 'EXECUTE') then
       raise exception '0434: internal % is client-executable', v;
     end if;

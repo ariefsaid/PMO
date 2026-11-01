@@ -2,7 +2,7 @@
 -- removed (mutation-check: comment out a rule in task_reminder_check and its case goes red).
 begin;
 create extension if not exists pgtap;
-select plan(35);
+select plan(42);
 
 insert into organizations (id, name) values
   ('16390000-0000-0000-0000-00000000000a', 'RMD Org A'),
@@ -13,6 +13,8 @@ insert into auth.users (id, email) values
   ('16390000-0000-0000-0000-0000000000a3', 'rmd-disabled@example.com'),
   ('16390000-0000-0000-0000-0000000000a4', 'rmd-banned@example.com'),
   ('16390000-0000-0000-0000-0000000000a5', 'rmd-pm2@example.com'),
+  ('16390000-0000-0000-0000-0000000000a6', 'rmd-east@example.com'),
+  ('16390000-0000-0000-0000-0000000000a7', 'rmd-west@example.com'),
   ('16390000-0000-0000-0000-0000000000b1', 'rmd-b@example.com');
 insert into profiles (id, org_id, full_name, email, role, status, timezone) values
   ('16390000-0000-0000-0000-0000000000a1', '16390000-0000-0000-0000-00000000000a', 'Project manager', 'rmd-pm@example.com', 'Project Manager', 'active', 'UTC'),
@@ -20,6 +22,8 @@ insert into profiles (id, org_id, full_name, email, role, status, timezone) valu
   ('16390000-0000-0000-0000-0000000000a3', '16390000-0000-0000-0000-00000000000a', 'Disabled member', 'rmd-disabled@example.com', 'Engineer', 'disabled', 'UTC'),
   ('16390000-0000-0000-0000-0000000000a4', '16390000-0000-0000-0000-00000000000a', 'Banned member', 'rmd-banned@example.com', 'Engineer', 'active', 'UTC'),
   ('16390000-0000-0000-0000-0000000000a5', '16390000-0000-0000-0000-00000000000a', 'Second manager', 'rmd-pm2@example.com', 'Project Manager', 'active', 'UTC'),
+  ('16390000-0000-0000-0000-0000000000a6', '16390000-0000-0000-0000-00000000000a', 'East manager', 'rmd-east@example.com', 'Project Manager', 'active', 'Pacific/Kiritimati'),
+  ('16390000-0000-0000-0000-0000000000a7', '16390000-0000-0000-0000-00000000000a', 'West manager', 'rmd-west@example.com', 'Project Manager', 'active', 'Etc/GMT+12'),
   ('16390000-0000-0000-0000-0000000000b1', '16390000-0000-0000-0000-00000000000b', 'Org B member', 'rmd-b@example.com', 'Engineer', 'active', 'UTC');
 update auth.users set banned_until = now() + interval '1 day' where id = '16390000-0000-0000-0000-0000000000a4';
 
@@ -29,19 +33,24 @@ insert into projects (id, org_id, name, status, start_date, end_date) values
 
 -- Inserted as the table owner (auth.uid() is null), so the 0237 assignment trigger writes no notification.
 -- t1/t10/t11 overdue -> site engineer; t2 overdue -> PM (self); t3 org B; t4 disabled; t5 banned; t6 Done;
--- t7 due today; t9 unassigned; t12 org-A task assigned to the org-B member (no constraint ties assignee to org).
-insert into tasks (id, org_id, project_id, name, status, end_date, assignee_id) values
-  ('16390000-0000-0000-0000-0000000000d1', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD late pour', 'In Progress', (now() at time zone 'UTC')::date - 3, '16390000-0000-0000-0000-0000000000a2'),
-  ('16390000-0000-0000-0000-0000000000d2', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD own task', 'To Do', (now() at time zone 'UTC')::date - 3, '16390000-0000-0000-0000-0000000000a1'),
-  ('16390000-0000-0000-0000-0000000000d3', '16390000-0000-0000-0000-00000000000b', '16390000-0000-0000-0000-0000000000c2', 'RMD org B task', 'To Do', (now() at time zone 'UTC')::date - 3, '16390000-0000-0000-0000-0000000000b1'),
-  ('16390000-0000-0000-0000-0000000000d4', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD disabled task', 'To Do', (now() at time zone 'UTC')::date - 3, '16390000-0000-0000-0000-0000000000a3'),
-  ('16390000-0000-0000-0000-0000000000d5', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD banned task', 'To Do', (now() at time zone 'UTC')::date - 3, '16390000-0000-0000-0000-0000000000a4'),
-  ('16390000-0000-0000-0000-0000000000d6', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD done task', 'Done', (now() at time zone 'UTC')::date - 3, '16390000-0000-0000-0000-0000000000a2'),
-  ('16390000-0000-0000-0000-0000000000d7', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD due today', 'To Do', (now() at time zone 'UTC')::date, '16390000-0000-0000-0000-0000000000a2'),
-  ('16390000-0000-0000-0000-0000000000d9', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD unassigned', 'Blocked', (now() at time zone 'UTC')::date - 3, null),
-  ('16390000-0000-0000-0000-000000000d10', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD cap task', 'To Do', (now() at time zone 'UTC')::date - 3, '16390000-0000-0000-0000-0000000000a2'),
-  ('16390000-0000-0000-0000-000000000d11', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD preview task', 'To Do', (now() at time zone 'UTC')::date - 3, '16390000-0000-0000-0000-0000000000a2'),
-  ('16390000-0000-0000-0000-000000000d12', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD cross-org assignee', 'To Do', (now() at time zone 'UTC')::date - 3, '16390000-0000-0000-0000-0000000000b1');
+-- t7 due today; t9 unassigned; t12 org-A task assigned to the org-B member (no constraint ties assignee to org);
+-- t13 archived, t14 tombstoned, t15 no end date; t16 due the day before the +14h sender's today (still today for the -12h sender).
+insert into tasks (id, org_id, project_id, name, status, end_date, assignee_id, archived_at, tombstoned_at) values
+  ('16390000-0000-0000-0000-0000000000d1', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD late pour', 'In Progress', (now() at time zone 'UTC')::date - 3, '16390000-0000-0000-0000-0000000000a2', null, null),
+  ('16390000-0000-0000-0000-0000000000d2', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD own task', 'To Do', (now() at time zone 'UTC')::date - 3, '16390000-0000-0000-0000-0000000000a1', null, null),
+  ('16390000-0000-0000-0000-0000000000d3', '16390000-0000-0000-0000-00000000000b', '16390000-0000-0000-0000-0000000000c2', 'RMD org B task', 'To Do', (now() at time zone 'UTC')::date - 3, '16390000-0000-0000-0000-0000000000b1', null, null),
+  ('16390000-0000-0000-0000-0000000000d4', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD disabled task', 'To Do', (now() at time zone 'UTC')::date - 3, '16390000-0000-0000-0000-0000000000a3', null, null),
+  ('16390000-0000-0000-0000-0000000000d5', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD banned task', 'To Do', (now() at time zone 'UTC')::date - 3, '16390000-0000-0000-0000-0000000000a4', null, null),
+  ('16390000-0000-0000-0000-0000000000d6', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD done task', 'Done', (now() at time zone 'UTC')::date - 3, '16390000-0000-0000-0000-0000000000a2', null, null),
+  ('16390000-0000-0000-0000-0000000000d7', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD due today', 'To Do', (now() at time zone 'UTC')::date, '16390000-0000-0000-0000-0000000000a2', null, null),
+  ('16390000-0000-0000-0000-0000000000d9', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD unassigned', 'Blocked', (now() at time zone 'UTC')::date - 3, null, null, null),
+  ('16390000-0000-0000-0000-000000000d10', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD cap task', 'To Do', (now() at time zone 'UTC')::date - 3, '16390000-0000-0000-0000-0000000000a2', null, null),
+  ('16390000-0000-0000-0000-000000000d11', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD preview task', 'To Do', (now() at time zone 'UTC')::date - 3, '16390000-0000-0000-0000-0000000000a2', null, null),
+  ('16390000-0000-0000-0000-000000000d12', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD cross-org assignee', 'To Do', (now() at time zone 'UTC')::date - 3, '16390000-0000-0000-0000-0000000000b1', null, null),
+  ('16390000-0000-0000-0000-000000000d13', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD archived', 'To Do', (now() at time zone 'UTC')::date - 3, '16390000-0000-0000-0000-0000000000a2', now(), null),
+  ('16390000-0000-0000-0000-000000000d14', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD tombstoned', 'To Do', (now() at time zone 'UTC')::date - 3, '16390000-0000-0000-0000-0000000000a2', null, now()),
+  ('16390000-0000-0000-0000-000000000d15', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD no end date', 'To Do', null, '16390000-0000-0000-0000-0000000000a2', null, null),
+  ('16390000-0000-0000-0000-000000000d16', '16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000c1', 'RMD zone edge', 'To Do', (now() at time zone 'Pacific/Kiritimati')::date - 1, '16390000-0000-0000-0000-0000000000a2', null, null);
 
 create function pg_temp.act_as(p uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p, 'role', 'authenticated')::text, true) $$;
@@ -79,6 +88,12 @@ select is(pg_temp.outcomes(send_task_reminders(array['16390000-0000-0000-0000-00
   array['recipient_inactive', 'recipient_inactive'], 'AC-RMD-004 disabled and banned assignees are not reminded');
 select is(pg_temp.outcomes(send_task_reminders(array['16390000-0000-0000-0000-000000000d12'::uuid])), array['recipient_inactive'],
   'AC-RMD-004 an assignee outside the sender''s org is not reminded');
+select is(pg_temp.outcomes(send_task_reminders(array['16390000-0000-0000-0000-000000000d13'::uuid])), array['not_found'],
+  'AC-RMD-003 an archived task is not found');
+select is(pg_temp.outcomes(send_task_reminders(array['16390000-0000-0000-0000-000000000d14'::uuid])), array['not_found'],
+  'AC-RMD-003 a tombstoned task is not found');
+select is(pg_temp.outcomes(send_task_reminders(array['16390000-0000-0000-0000-000000000d15'::uuid])), array['not_overdue'],
+  'AC-RMD-008 a task with no end date is not overdue');
 select is(pg_temp.outcomes(send_task_reminders(array['16390000-0000-0000-0000-0000000000d6'::uuid,
                                                      '16390000-0000-0000-0000-0000000000d7'::uuid,
                                                      '16390000-0000-0000-0000-0000000000d9'::uuid])),
@@ -121,10 +136,12 @@ select throws_ok($$ select preview_task_reminders((select array_agg(gen_random_u
   'AC-RMD-011 a preview of more than 50 tasks is refused');
 
 reset role;
--- a ledger row the disabled member sent before being disabled (as the table owner)
-insert into task_reminders (org_id, sender_id, recipient_id, task_id) values
+-- a ledger row the disabled member sent before being disabled, and a cross-org row stamped with the PM as sender (as the table owner)
+insert into task_reminders (org_id, sender_id, recipient_id, task_id, created_at) values
+  ('16390000-0000-0000-0000-00000000000b', '16390000-0000-0000-0000-0000000000a1', '16390000-0000-0000-0000-0000000000b1',
+   '16390000-0000-0000-0000-0000000000d3', now() - interval '2 days'),
   ('16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000a3', '16390000-0000-0000-0000-0000000000a2',
-   '16390000-0000-0000-0000-0000000000d6');
+   '16390000-0000-0000-0000-0000000000d6', now());
 set local role authenticated;
 select pg_temp.act_as('16390000-0000-0000-0000-0000000000a3');
 select is((select count(*)::int from task_reminders), 0, 'AC-RMD-009 a disabled sender reads none of their own ledger rows');
@@ -133,6 +150,8 @@ select is((select count(*)::int from task_reminders), 0, 'AC-RMD-009 the recipie
 select pg_temp.act_as('16390000-0000-0000-0000-0000000000b1');
 select is((select count(*)::int from task_reminders), 0, 'AC-RMD-009 another org reads no ledger rows');
 select pg_temp.act_as('16390000-0000-0000-0000-0000000000a1');
+select is((select count(*)::int from task_reminders where org_id = '16390000-0000-0000-0000-00000000000b'), 0,
+  'AC-RMD-009 a ledger row in another org is unreadable even when the caller is its sender');
 select throws_ok($$ insert into task_reminders (org_id, sender_id, recipient_id, task_id) values
   ('16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000a1', '16390000-0000-0000-0000-0000000000a2',
    '16390000-0000-0000-0000-0000000000d1') $$, '42501', null, 'AC-RMD-009 no client inserts a ledger row');
@@ -145,7 +164,7 @@ select ok(not has_function_privilege('anon', p, 'EXECUTE'), 'AC-RMD-010 anon can
 select ok(has_function_privilege('authenticated', p, 'EXECUTE'), 'AC-RMD-010 authenticated may execute ' || p)
   from unnest(array['public.send_task_reminders(uuid[])', 'public.preview_task_reminders(uuid[])']) p;
 select ok(not has_function_privilege('authenticated', p, 'EXECUTE'), 'AC-RMD-010 authenticated cannot execute internal ' || p)
-  from unnest(array['public.task_reminder_check(uuid, uuid, uuid)', 'public.task_reminder_daily_cap()']) p;
+  from unnest(array['public.task_reminder_check(uuid, uuid, uuid)', 'public.task_reminder_daily_cap()', 'public.task_reminder_window()']) p;
 
 set local role authenticated;
 select pg_temp.act_as('16390000-0000-0000-0000-0000000000a1');
@@ -158,6 +177,13 @@ select is((preview_task_reminders(array['16390000-0000-0000-0000-000000000d11'::
   'AC-RMD-012 preview reports the remaining allowance');
 select is((select count(*)::int from task_reminders where task_id = '16390000-0000-0000-0000-000000000d11'), 0,
   'AC-RMD-012 preview writes no ledger row');
+-- AC-RMD-008: "today" is the sender's zone. d16 is due the day before the +14h sender's today, i.e. still today at -12h.
+select pg_temp.act_as('16390000-0000-0000-0000-0000000000a6');
+select is(pg_temp.outcomes(preview_task_reminders(array['16390000-0000-0000-0000-000000000d16'::uuid])), array['eligible'],
+  'AC-RMD-008 a task due yesterday in the sender''s zone is overdue');
+select pg_temp.act_as('16390000-0000-0000-0000-0000000000a7');
+select is(pg_temp.outcomes(preview_task_reminders(array['16390000-0000-0000-0000-000000000d16'::uuid])), array['not_overdue'],
+  'AC-RMD-008 the same task is still due today for a sender further west');
 reset role;
 select is(pg_temp.reminders_for('16390000-0000-0000-0000-0000000000a2'), 2,
   'AC-RMD-012 preview writes no notification (only the two real sends exist)');
