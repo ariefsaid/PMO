@@ -22,15 +22,19 @@ const trigger = (condition = 'sits >30 days in Ordered') =>
     trigger_on: { source: 'procurement_status_events', event: 'Ordered' },
   });
 
-function setup(auto: AutomationRow) {
+function setup(auto: AutomationRow, events: Array<typeof EVENT> = [EVENT], opts: { archiveError?: boolean } = {}) {
   const usageInserts: Array<Record<string, unknown>> = [];
+  const errorEvents: Array<Record<string, unknown>> = [];
+  const threadUpdates: Array<{ patch: Record<string, unknown>; id: string }> = [];
+  const runUpdates: Array<{ patch: Record<string, unknown>; id: string }> = [];
+  let threadSeq = 0;
   const claimed = Object.assign(Promise.resolve({ error: null }), {
     or: () => ({ select: () => Promise.resolve({ data: [{ id: 'claimed' }], error: null }) }),
   });
   const isTrigger = auto.kind === 'trigger';
   let automationSelects = 0;
   const service = {
-    rpc: vi.fn().mockResolvedValue({ data: [EVENT], error: null }),
+    rpc: vi.fn().mockResolvedValue({ data: events, error: null }),
     from: vi.fn((table: string) => {
       if (table === 'agent_automations') {
         return {
@@ -55,6 +59,16 @@ function setup(auto: AutomationRow) {
       if (table === 'agent_usage') {
         return { insert: (row: Record<string, unknown>) => { usageInserts.push(row); return { select: () => ({ single: () => Promise.resolve({ error: null }) }) }; } };
       }
+      // usage attributed to the audit run: the trusted-usage path verifies run + thread ownership first
+      if (table === 'agent_runs') {
+        return { select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: { id: 'run-1', owner_id: 'user-A', org_id: 'org-A', thread_id: 'thread-1' }, error: null }) }) }) };
+      }
+      if (table === 'agent_threads') {
+        return { select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: { id: 'thread-1', owner_id: 'user-A', org_id: 'org-A' }, error: null }) }) }) };
+      }
+      if (table === 'error_events') {
+        return { insert: (row: Record<string, unknown>) => { errorEvents.push(row); return Promise.resolve({ error: null }); } };
+      }
       throw new Error(`unexpected service table ${table}`);
     }),
   };
@@ -66,7 +80,19 @@ function setup(auto: AutomationRow) {
       if (table === 'agent_runs') {
         return {
           insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'run-1' }, error: null }) }) }),
-          update: () => ({ eq: () => Promise.resolve({ error: null }) }),
+          update: (patch: Record<string, unknown>) => ({ eq: (_c: string, id: string) => {
+            runUpdates.push({ patch, id });
+            return Promise.resolve({ error: opts.archiveError ? { code: 'X' } : null });
+          } }),
+        };
+      }
+      if (table === 'agent_threads') {
+        return {
+          insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: `thread-${++threadSeq}` }, error: null }) }) }),
+          update: (patch: Record<string, unknown>) => ({ eq: (_c: string, id: string) => {
+            threadUpdates.push({ patch, id });
+            return Promise.resolve({ error: opts.archiveError ? { code: 'X' } : null });
+          } }),
         };
       }
       return { insert: () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'x' }, error: null }) }) }) };
@@ -103,7 +129,7 @@ function setup(auto: AutomationRow) {
       now: () => new Date('2026-07-06T08:00:00Z'), newRunId: () => 'run-1',
       newMintedAt: () => '2026-07-06T08:00:00.000Z',
     });
-  return { run, guard, handler, notifInsert, usageInserts, minted, order, conditionModel };
+  return { run, guard, handler, notifInsert, usageInserts, minted, order, conditionModel, mint, threadUpdates, runUpdates, errorEvents };
 }
 
 describe('dispatcher — credit reservation lifecycle', () => {
@@ -152,7 +178,7 @@ describe('dispatcher — natural-language trigger conditions are credit-checked 
     expect(t.usageInserts).toHaveLength(0);
   });
 
-  it.each([['true', true], ['false', false]])('an evaluated condition (%s) records trusted usage', async (verdict, fires) => {
+  it.each([['true', true], ['false', false], ['maybe?', false]])('an evaluated condition (%s) records trusted usage', async (verdict, fires) => {
     const t = setup(trigger());
     const g = t.guard();
     const cond = t.conditionModel(verdict);
@@ -168,5 +194,76 @@ describe('dispatcher — natural-language trigger conditions are credit-checked 
     expect(g.check).toHaveBeenCalledTimes(1);
     expect(g.release).toHaveBeenCalledTimes(1);
     expect(g.check.mock.calls[0][2]).toBe(g.release.mock.calls[0][1]);
+  });
+});
+
+const burst = (n: number) =>
+  Array.from({ length: n }, (_, i) => ({ ...EVENT, id: `evt-${i + 1}`, created_at: `2026-07-06T08:00:0${i}Z` }));
+
+describe('dispatcher — conditional triggers leave no visible trace when the condition is false', () => {
+  it('a false verdict archives the audit thread and completes its run, attributing the usage to that run', async () => {
+    const t = setup(trigger());
+    await t.run(t.guard(), t.conditionModel('false'));
+    expect(t.threadUpdates).toHaveLength(1);
+    expect(t.threadUpdates[0].id).toBe('thread-1');
+    expect(t.threadUpdates[0].patch).toHaveProperty('archived_at');
+    expect(t.threadUpdates[0].patch.archived_at).toBeTruthy();
+    expect(t.runUpdates).toEqual([{ patch: { status: 'completed' }, id: 'run-1' }]);
+    expect(t.usageInserts[0]).toMatchObject({ run_id: 'run-1' });
+    expect(t.notifInsert).not.toHaveBeenCalled();
+  });
+
+  it('an unevaluable verdict is NOT archived (the owner is warned and the thread is the audit trail)', async () => {
+    const t = setup(trigger());
+    await t.run(t.guard(), t.conditionModel('maybe?'));
+    expect(t.threadUpdates).toHaveLength(0);
+    expect(t.notifInsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failed archive/close is reported, not swallowed', async () => {
+    const t = setup(trigger(), [EVENT], { archiveError: true });
+    await t.run(t.guard(), t.conditionModel('false'));
+    expect(t.errorEvents.map((e) => e.error_code)).toContain('AUTOMATION_AUDIT_CLOSE_FAILED');
+  });
+
+  it('a burst of events with a false condition mints once: later events hit the memo before any mint', async () => {
+    const t = setup(trigger(), burst(3));
+    const cond = t.conditionModel('false');
+    const g = t.guard();
+    await t.run(g, cond);
+    expect(cond.create).toHaveBeenCalledTimes(1);
+    expect(t.mint.verifyOtp).toHaveBeenCalledTimes(1);
+    expect(g.check).toHaveBeenCalledTimes(1);
+    expect(t.threadUpdates).toHaveLength(1);
+    expect(t.handler).not.toHaveBeenCalled();
+  });
+
+  it('a burst with a true condition fires every claimed event (one evaluation, one hold per fire)', async () => {
+    const t = setup(trigger(), burst(3));
+    const cond = t.conditionModel('true');
+    const g = t.guard();
+    await t.run(g, cond);
+    expect(cond.create).toHaveBeenCalledTimes(1);
+    expect(t.handler).toHaveBeenCalledTimes(3);
+    expect(g.check).toHaveBeenCalledTimes(3);
+    expect(g.release).toHaveBeenCalledTimes(3);
+  });
+
+  it('a mint failure on one event does not lose the events behind it', async () => {
+    const t = setup(trigger(), burst(3));
+    t.mint.verifyOtp.mockResolvedValueOnce({ data: { session: null }, error: { message: 'rate limited' } } as never);
+    await t.run(t.guard(), t.conditionModel('true'));
+    expect(t.handler).toHaveBeenCalledTimes(2);
+    expect(t.errorEvents.map((e) => e.error_code)).toContain('AUTOMATION_MINT_FAILED');
+  });
+
+  it('an out-of-credits burst sends ONE notice per automation and stops minting for the rest of the tick', async () => {
+    const t = setup(trigger(), burst(3));
+    const g = t.guard({ exceeded: true, retryAfterSeconds: 0, reason: 'out_of_credits' });
+    await t.run(g, t.conditionModel('true'));
+    expect(t.notifInsert).toHaveBeenCalledTimes(1);
+    expect(t.mint.verifyOtp).toHaveBeenCalledTimes(1);
+    expect(g.check).toHaveBeenCalledTimes(1);
+    expect(t.handler).not.toHaveBeenCalled();
   });
 });

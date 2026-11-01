@@ -9,7 +9,7 @@ import { readWatermark, advanceWatermark } from './watermark.ts';
 import { isAllowedTriggerSource } from './triggerSources.ts';
 import { mintOwnerJwt, auditMint, type AuthAdminLike, type MintedSession } from './mint.ts';
 import { fireAutomation, type FireHandler } from './fire.ts';
-import { evaluateCondition, makeConditionMemo, type ConditionMemo } from './condition.ts';
+import { evaluateCondition, makeConditionMemo, peekConditionVerdict, type ConditionMemo } from './condition.ts';
 import type { ModelClient } from '../_shared/modelClient.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
 import { recordErrorEvent } from '../_shared/errorEvent.ts';
@@ -389,6 +389,34 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
   const scheduleUnits = dueSchedules.map((automation) => ({ automation, event: undefined as StatusEventRow | undefined }));
   const triggerUnits = triggerMatches.map(({ automation, event }) => ({ automation, event: event as StatusEventRow | undefined }));
 
+  // A silent condition-false skip opened an audit thread/run (the mint must be audited before the
+  // hold). Archive the thread so the owner's history stays clean and close the run; a failed close is
+  // reported, never swallowed.
+  const closeSilentAudit = async (audited: { minted: MintedSession; runId: string; threadId: string }, automation: AutomationRow): Promise<void> => {
+    type Writer = { from(t: string): { update(p: object): { eq(c: string, v: string): PromiseLike<{ error: unknown }> } } };
+    const sb = audited.minted.client as Writer;
+    let failed = false;
+    try {
+      const thread = await sb.from('agent_threads').update({ archived_at: now.toISOString() }).eq('id', audited.threadId);
+      const run = await sb.from('agent_runs').update({ status: 'completed' }).eq('id', audited.runId);
+      failed = Boolean(thread.error || run.error);
+    } catch {
+      failed = true;
+    }
+    if (failed) {
+      void recordErrorEvent(deps.serviceClient as never, {
+        fn: 'agent-dispatch',
+        errorCode: 'AUTOMATION_AUDIT_CLOSE_FAILED',
+        contextId: automation.id,
+        orgId: automation.org_id,
+      });
+    }
+  };
+
+  // Automations whose credit hold was refused this tick: the owner is told ONCE, and the rest of that
+  // automation's events are skipped before they mint a session or take a hold.
+  const creditBlocked = new Set<string>();
+
   // Item 2 (reliability): each unit runs in its own try/catch — one automation's throw must
   // neither kill the batch (the loop continues to the next unit) nor rewind/block the watermark
   // for events already attempted (markAttempted runs unconditionally once selection has committed
@@ -405,7 +433,7 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
     let stage = 'claim' as 'claim' | 'condition' | 'mint' | 'audit' | 'fire';
     // The unit's mint (shared by audit, notify, credit hold and fire) and its credit hold id; the
     // finally below releases the hold whichever way the unit ends.
-    let session: { minted: MintedSession; runId: string } | undefined;
+    let session: { minted: MintedSession; runId: string; threadId: string } | undefined;
     let holdId: string | undefined;
 
     try {
@@ -431,11 +459,14 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
         const claimed = await claimTriggerFire(deps.serviceClient, automation.id, event.id);
         if (!claimed) continue;
       }
+      if (creditBlocked.has(automation.id)) continue;
       // Mint ONCE per candidate — shared by audit, notify, credit reservation, and fire (one mint per
-      // candidate, never a fresh mint per branch). A conditional trigger mints BEFORE its condition is
-      // evaluated: the condition is a metered model call, so the org's credit must be held first and
-      // that hold needs the owner's identity. Everything else mints only when it will fire or notify.
-      const ensureMinted = async (): Promise<{ minted: MintedSession; runId: string }> => {
+      // candidate, never a fresh mint per branch). A conditional trigger whose verdict is not memoized
+      // mints BEFORE its condition is evaluated: the condition is a metered model call, so the org's
+      // credit must be held first and that hold needs the owner's identity. A memoized verdict costs
+      // no model call, so it mints only when it will fire or warn. Everything else mints only when it
+      // will fire or notify.
+      const ensureMinted = async (): Promise<{ minted: MintedSession; runId: string; threadId: string }> => {
         if (session) return session;
         stage = 'mint';
         const minted = await mintOwnerJwt(deps, automation);
@@ -444,8 +475,8 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
         // be written never notifies, credits, or fires. ──
         const runId = newRunId();
         stage = 'audit';
-        await auditMint(minted.client, automation, runId, newMintedAt());
-        session = { minted, runId };
+        const threadId = await auditMint(minted.client, automation, runId, newMintedAt());
+        session = { minted, runId, threadId };
         return session;
       };
 
@@ -453,16 +484,17 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       // CLIENT against a fresh id and released in the finally below, whichever way the unit ends.
       // Over ⇒ warning notification, no fire, no agent_runs row reaches 'running'. A meter that
       // itself fails is reported as such (still fail-closed), never as an exhausted balance. ──
-      const reserveCredit = async (): Promise<boolean> => {
+      const reserveCredit = async (mintedClient: unknown): Promise<boolean> => {
         const id = genId();
-        const credit = await rateGuard.check(automation.org_id, session!.minted.client, id);
+        const credit = await rateGuard.check(automation.org_id, mintedClient, id);
         if (!credit.exceeded) {
           holdId = id;
           return true;
         }
+        creditBlocked.add(automation.id);
         const meterDown = credit.reason === 'meter_error';
         const notified = await notifyOwner(
-          session!.minted.client,
+          mintedClient,
           'warning',
           meterDown ? 'Automation skipped — credit metering unavailable' : `Automation skipped — out of credits`,
           meterDown
@@ -483,41 +515,41 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       };
 
       // ── Trigger + NL condition FIRST — a silent condition-false skip (the common case) fires and
-      // notifies nothing. Its cheap-model call is credit-checked before it is made and recorded as
-      // trusted usage afterwards, whatever the verdict. ──
+      // notifies nothing and leaves nothing in the owner's history. A memoized verdict is read before
+      // anything is minted; otherwise the cheap-model call is credit-held before it is made and
+      // recorded as trusted usage afterwards, whatever the verdict. ──
       let conditionWarning: string | null = null;
       if (automation.kind === 'trigger' && automation.condition && event) {
-        const { minted: owner, runId: auditRunId } = await ensureMinted();
-        stage = 'condition';
-        if (!(await reserveCredit())) continue;
-        const verdict = await evaluateCondition(
-          {
-            model: deps.conditionModel,
-            modelId: deps.conditionModelId,
-            now: () => now.getTime(),
-            memo,
-            onResponse: (response) =>
-              recordTrustedUsage(
-                { serviceClient: deps.serviceClient, userId: automation.owner_id, orgId: automation.org_id, runId: null },
-                response,
-                'automation',
-              ),
-          },
-          automation,
-          event,
-        );
-        if (!verdict.fire) {
-          // Condition false ⇒ silent no-fire: close the audit run opened above so it is not left running.
-          if (!verdict.warning) {
-            try {
-              await (owner.client as { from(t: string): { update(p: object): { eq(c: string, v: string): PromiseLike<unknown> } } })
-                .from('agent_runs').update({ status: 'completed' }).eq('id', auditRunId);
-            } catch { /* best effort: the run is only bookkeeping for a silent skip */ }
+        let verdict = peekConditionVerdict(memo, now.getTime(), automation);
+        if (!verdict) {
+          const audited = await ensureMinted();
+          stage = 'condition';
+          if (!(await reserveCredit(audited.minted.client))) continue;
+          verdict = await evaluateCondition(
+            {
+              model: deps.conditionModel,
+              modelId: deps.conditionModelId,
+              now: () => now.getTime(),
+              memo,
+              onResponse: (response) =>
+                recordTrustedUsage(
+                  { serviceClient: deps.serviceClient, userId: automation.owner_id, orgId: automation.org_id, runId: audited.runId },
+                  response,
+                  'automation',
+                ),
+            },
+            automation,
+            event,
+          );
+          if (!verdict.fire && !verdict.warning) {
+            await closeSilentAudit(audited, automation);
             continue;
           }
-          // Unevaluable ⇒ we must warn the owner; recorded here so the block below emits it.
-          conditionWarning = verdict.warning;
+        } else if (!verdict.fire && !verdict.warning) {
+          continue; // memo hit, condition false: nothing was minted, held or written.
         }
+        // Unevaluable ⇒ we must warn the owner; recorded here so the block below emits it.
+        if (!verdict.fire) conditionWarning = verdict.warning ?? null;
       }
 
       const { minted, runId } = await ensureMinted();
@@ -548,7 +580,7 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
 
       // A conditional trigger already holds credit (taken before its condition ran); the rest hold it
       // here, strictly BEFORE any fire.
-      if (holdId === undefined && !(await reserveCredit())) continue;
+      if (holdId === undefined && !(await reserveCredit(minted.client))) continue;
 
       // ── Fire (the SAME loop) → stamp last_fired_at. The run was already audited above. ──
 

@@ -9,7 +9,7 @@ import { agentChatHandler } from '../../../../supabase/functions/agent-chat/hand
 import type { HandlerDeps as ChatDeps } from '../../../../supabase/functions/agent-chat/handler';
 import { composeViewHandler } from '../../../../supabase/functions/compose-view/handler';
 import type { HandlerDeps as ComposeDeps } from '../../../../supabase/functions/compose-view/handler';
-import { createCreditRateGuard } from '../../../../supabase/functions/_shared/creditRateGuard';
+import { createCreditRateGuard, createDispatchRateGuard } from '../../../../supabase/functions/_shared/creditRateGuard';
 import type { AgentEvent } from './runtime/port';
 import type { AgentChatRequest } from './runtime/transport';
 import { makeCreditLedger } from './creditLedger.fake';
@@ -176,5 +176,26 @@ describe('creditRateGuard.release', () => {
     expect(ledger.openHolds()).toEqual([]);
     const failing = createCreditRateGuard({ supabase: { rpc: vi.fn().mockRejectedValue(new Error('x')) } as never });
     await expect(failing.release('run-1')).resolves.toBeUndefined();
+  });
+});
+
+describe('agent-dispatch rate-guard adapter', () => {
+  it('forwards the reservation id to reserve_credits and releases it by that id, on the minted client', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: 'hold', error: null });
+    const minted = { rpc };
+    const guard = createDispatchRateGuard(true);
+    const result = await guard.check('org-1', minted, 'hold-1');
+    expect(result.exceeded).toBe(false);
+    expect(rpc).toHaveBeenCalledWith('reserve_credits', expect.objectContaining({ p_org_id: 'org-1', p_run_id: 'hold-1' }));
+    await guard.release(minted, 'hold-1');
+    expect(rpc).toHaveBeenCalledWith('release_credits', { p_run_id: 'hold-1' });
+  });
+
+  it('with enforcement off it neither checks nor releases', async () => {
+    const rpc = vi.fn();
+    const guard = createDispatchRateGuard(false);
+    expect((await guard.check('org-1', { rpc }, 'hold-1')).exceeded).toBe(false);
+    await guard.release({ rpc }, 'hold-1');
+    expect(rpc).not.toHaveBeenCalled();
   });
 });

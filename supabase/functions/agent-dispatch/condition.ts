@@ -49,6 +49,21 @@ function parseVerdict(content: string | null | undefined): boolean | null {
   return null;
 }
 
+const memoKey = (automation: AutomationRow) => `${automation.id}::${automation.condition ?? ''}`;
+
+/**
+ * The still-fresh memoized verdict for this automation's condition, if any. The dispatcher asks
+ * BEFORE minting or holding credit: a memo hit costs no model call, so it needs neither.
+ */
+export function peekConditionVerdict(
+  memo: ConditionMemo,
+  nowMs: number,
+  automation: AutomationRow,
+): ConditionVerdict | undefined {
+  const cached = memo.get(memoKey(automation));
+  return cached && nowMs - cached.at < CONDITION_MEMO_TTL_MS ? cached.verdict : undefined;
+}
+
 /**
  * evaluateCondition — resolves a trigger automation's optional NL `condition` against the
  * triggering event's context via the cheap-tier model. True → fire; false → silent no-fire
@@ -60,11 +75,8 @@ export async function evaluateCondition(
   automation: AutomationRow,
   event: StatusEventRow,
 ): Promise<ConditionVerdict> {
-  const key = `${automation.id}::${automation.condition ?? ''}`;
-  const cached = deps.memo.get(key);
-  if (cached && deps.now() - cached.at < CONDITION_MEMO_TTL_MS) {
-    return cached.verdict;
-  }
+  const cachedVerdict = peekConditionVerdict(deps.memo, deps.now(), automation);
+  if (cachedVerdict) return cachedVerdict;
 
   let verdict: ConditionVerdict;
   try {
@@ -97,6 +109,6 @@ export async function evaluateCondition(
     verdict = { fire: false, warning: `couldn't evaluate the condition for automation ${automation.id}` };
   }
 
-  deps.memo.set(key, { verdict, at: deps.now() });
+  deps.memo.set(memoKey(automation), { verdict, at: deps.now() });
   return verdict;
 }

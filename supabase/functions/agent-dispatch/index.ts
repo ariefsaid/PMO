@@ -29,7 +29,7 @@ import { runDispatchTick } from './dispatcher.ts';
 import { answerVerificationEnabled } from '../agent-chat/handler.ts';
 import { OpenRouterModelClient } from '../_shared/openRouterModelClient.ts';
 import { resolveDefaultModel } from '../_shared/modelResolution.ts';
-import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
+import { createDispatchRateGuard } from '../_shared/creditRateGuard.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
 import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts';
 import { recordErrorEvent } from '../_shared/errorEvent.ts';
@@ -147,17 +147,7 @@ serveWithErrorReporting('agent-dispatch', withJobRun('agent-dispatch', async (re
   // OWNER client (dispatcher.ts) and builds the credit-backed guard against it per-automation, so the
   // balance read runs under owner RLS — never service_role (NFR-AAN-SEC-002/SEC-006).
   const creditsEnforced = Deno.env.get('AGENT_CREDITS_ENFORCED') === 'true';
-  const rateGuard = {
-    check: async (orgId: string, mintedClient?: unknown, reservationId?: string) => {
-      if (!creditsEnforced || !mintedClient) return { exceeded: false, retryAfterSeconds: 0 };
-      const guard = createCreditRateGuard({ supabase: mintedClient as never });
-      return guard.check(orgId, reservationId);
-    },
-    release: async (mintedClient: unknown, reservationId: string) => {
-      if (!creditsEnforced || !mintedClient) return;
-      await createCreditRateGuard({ supabase: mintedClient as never }).release(reservationId);
-    },
-  };
+  const rateGuard = createDispatchRateGuard(creditsEnforced);
 
   try {
     await runDispatchTick({
