@@ -81,6 +81,8 @@ describe('AC-ECA-020 pre-cut-over purchase through the served handler', () => {
     const r = await dispatch('goods-receipt', () => jsonResponse(null));
     assertEquals(r.response.status, 422, JSON.stringify(r.body));
     assertEquals(r.body.error, 'commit-rejected');
+    assertEquals(r.body.message, 'could not check the connection date');
+    assertEquals(r.checks, [{ p_procurement_id: CASE_ID }]);
     assert(nothingWritten(r.calls), 'no outbox write, ref write or ERP request');
   });
 
