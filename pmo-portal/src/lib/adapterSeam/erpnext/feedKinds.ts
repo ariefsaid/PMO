@@ -87,6 +87,8 @@ export const KIND_MIRROR_TABLE: Record<ErpDocKind, string> = {
 /** Kinds that share a doctype with an earlier kind and are reached only through a discriminator
  *  (`kindFromDoctypeAndPaymentType`'s party type). Kept out of the plain reverse map so `kindFromDoctype` answers
  *  exactly as it did before they existed. */
+// ⚑ A Journal Entry webhook routes to `expense-journal` (the plain map), whose discriminator rejects `impt:` keys, so a desk
+// cancel of a site float transfer is seen by the hourly poll only (own discriminator + cursor), not by the webhook. Accepted.
 const DISCRIMINATED_KINDS: ReadonlySet<ErpDocKind> = new Set<ErpDocKind>(['expense-payment', 'expense-receipt', 'imprest-transfer']);
 
 /** Reverse doctype→kind lookup (built from the registry — one source of doctype names). */

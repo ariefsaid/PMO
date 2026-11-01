@@ -302,7 +302,10 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
       }
       // #775 phase B (FR-EXP-113) — a posted expense document cancelled in ERPNext. PMO's own approval-cancel is
       // expected and silent; anything else is a human acting in a headless ERP and must be surfaced.
-      if (domain === 'expenses') {
+      // A site float transfer (#1515) is also in the `expenses` domain but is never PMO-cancelled: always surface it, in its own words.
+      if (kind === 'imprest-transfer') {
+        await surfaceActionRequired(serviceClient, orgId, 'imprest-posting-desk-cancelled', { postingIdentity: pmoRecordId });
+      } else if (domain === 'expenses') {
         await surfaceExpenseDeskCancelUnlessOurs(serviceClient, orgId, pmoRecordId);
       }
       // Luna BLOCK A4 (feed side): ERPNext auto-unlinks a Receive Payment Entry's `references` when the
@@ -1004,6 +1007,8 @@ function describeActionRequired(actionRequired: string, detail: Record<string, u
       return `An expense claim could not be posted to ERPNext (${detail.reason ?? 'unknown reason'}) — fix the cause; the next sweep retries it.`;
     case 'expense-posting-held':
       return `An expense posting to ERPNext needs an operator (${detail.reason ?? 'unknown reason'}) — it is not retried automatically.`;
+    case 'imprest-posting-desk-cancelled':
+      return `A site float top-up PMO posted in ERPNext was cancelled directly in ERPNext — the replenishment in PMO is unchanged; review the ledger.`;
     case 'imprest-posting-failed':
       return `A site float top-up could not be posted to ERPNext (${detail.reason ?? 'unknown reason'}) — fix the cause; the next sweep retries it.`;
     case 'imprest-posting-held':
