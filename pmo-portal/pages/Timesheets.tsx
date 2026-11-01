@@ -1,5 +1,6 @@
 import { projectCodedPickerLabel } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
+import { format } from 'date-fns/format';
 import {
   Button,
   Card,
@@ -84,6 +85,19 @@ const TimesheetsPage: React.FC = () => {
     [currentTimesheet]
   );
 
+  // "Copy last week" source: LAST week's sheet (same repository list, already fetched) — the
+  // entries the copy merges into the current week's edit buffer.
+  const lastWeekStartDate = useMemo(() => {
+    const shifted = new Date(weekStartDate);
+    shifted.setDate(shifted.getDate() - 7);
+    return shifted;
+  }, [weekStartDate]);
+  const lastWeekStartString = useMemo(() => format(lastWeekStartDate, 'yyyy-MM-dd'), [lastWeekStartDate]);
+  const lastWeekEntries = useMemo(
+    () => (sheets ?? []).find((t) => t.week_start_date === lastWeekStartString)?.entries ?? [],
+    [sheets, lastWeekStartString]
+  );
+
   // ⚑ I-16/I-17 — the owner's own ERP push state (rendered by `PushStateBadge` beside the status pill
   // below). Declared here, with the other top-level reads, so it stays above every early return.
   const { data: ownPushState } = useOwnTimesheetPushState(currentTimesheet?.id);
@@ -103,14 +117,30 @@ const TimesheetsPage: React.FC = () => {
 
   const editor = useTimesheetWeekEditor({
     currentTimesheet, currentWeekEntries, gridRows, weekDates, weekStartDate, weekStartString,
-    allProjects, signedInUserId, currentDate, setCurrentDate, entryMutations, submit,
+    allProjects, signedInUserId, currentDate, setCurrentDate, lastWeekEntries, entryMutations, submit,
   });
   const { pickerOptions, invalidCells, editValid, editTotals, editGridRows, editNotes,
     editRawHours, rowToDelete, dirty, weeklyTotal, pendingWeekDelta, weekRangeLabel,
-    isOwner, editBufferHasHours, canSubmit, confirmSubmit } = editor.view;
-  const { setCell, setNote, addProject, requestDelete, cancelDelete, confirmDeleteRow,
+    isOwner, editBufferHasHours, canSubmit, confirmSubmit, copyPlan } = editor.view;
+  const { setCell, setNote, addProject, copyLastWeek, requestDelete, cancelDelete, confirmDeleteRow,
     commitSave, stepWeek, cancelWeekChange, confirmWeekChange, requestSubmit,
     cancelSubmit, commitSubmit } = editor.actions;
+
+  // ── Copy last week enablement (plain visible reason for every stable disabled state) ──
+  // While projects are still loading the reason is deliberately BLANK (transient — the picker's
+  // own "Loading projects…" status already reports it; a second copy would break the unique-status
+  // oracle). The stable causes — not-a-draft, empty last week, nothing new — render their reason.
+  const copyBusy = deleteRow.isPending || isReconciling || saveWeek.isPending || submit.isPending;
+  const copyDisabledReason = projectsPending
+    ? null
+    : !editable
+      ? t('timesheets:copyLastWeek.reasonNotDraft', 'This week is no longer a draft')
+      : copyPlan.addedCount === 0
+        ? copyPlan.lastWeekHasRows
+          ? t('timesheets:copyLastWeek.reasonNothingNew', "Last week's projects are already in this week")
+          : t('timesheets:copyLastWeek.reasonEmpty', 'Nothing to copy — no time was logged last week')
+        : null;
+  const copyDisabled = projectsPending || copyDisabledReason !== null || copyBusy;
 
   const actionProps = {
     total: editTotals.weekly, dirty, editValid, canSubmit, hasHours: editBufferHasHours,
@@ -297,6 +327,24 @@ const TimesheetsPage: React.FC = () => {
                   />
                 )}
               </div>
+            </div>
+          )}
+          {canEnterTimesheet && (
+            <div data-testid="timesheets-copy-last-week" className="inline-flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={copyLastWeek}
+                disabled={copyDisabled}
+                title={copyDisabledReason ?? undefined}
+              >
+                <Icon name="clipboard-check" aria-hidden />
+                {t('timesheets:copyLastWeek.button', 'Copy last week')}
+              </Button>
+              {copyDisabledReason && (
+                <span data-testid="timesheets-copy-reason" className="text-[13px] text-muted-foreground">
+                  {copyDisabledReason}
+                </span>
+              )}
             </div>
           )}
           {editable && (
