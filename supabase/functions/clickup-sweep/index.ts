@@ -183,6 +183,9 @@ async function sweepOrg(
       readMirrorSourceMod: mirrorCallbacks.readMirrorSourceMod,
       readMirrorProjectId: (pmoRecordId) => readMirrorProjectId(serviceClient, orgId, pmoRecordId),
       updateMirror: mirrorCallbacks.updateMirror,
+      // Claim-first adopt: an unmapped task's external_refs claim precedes its mirror mint, so a
+      // concurrent webhook/sweep adoption of one task leaves exactly ONE mirror row (the losing
+      // claim refuses before any row exists; the aborted cycle's cursor never advances).
       mintMirror: async (canonical, sourceModMs, projectId) => {
         const pmoRecordId = crypto.randomUUID();
         const { error } = await serviceClient.from('tasks').insert({
@@ -204,6 +207,7 @@ async function sweepOrg(
         return pmoRecordId;
       },
       recordExternalRef: mirrorCallbacks.recordExternalRef,
+      adoptAtomically: mirrorCallbacks.adoptAtomically,
       archiveMirror: (pmoRecordId) => archiveMirror(serviceClient, orgId, pmoRecordId),
     });
   } catch (err) {
