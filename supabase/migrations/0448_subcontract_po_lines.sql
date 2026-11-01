@@ -1,7 +1,7 @@
--- 0442_subcontract_po_lines.sql — #1513 S1: subcontract purchases carry BoQ lines on their PO; revision 1 freezes them.
+-- 0448_subcontract_po_lines.sql — #1513 S1: subcontract purchases carry BoQ lines on their PO; revision 1 freezes them.
 -- Spec docs/specs/subcontract-acceptance.spec.md (signed 2026-11-01) · Plan docs/plans/2026-11-01-subcontract-acceptance.md S1.
 -- Proven by supabase/tests/subcontract_po_lines.test.sql and the 0178 allow-list.
--- ── REVERSE (also rollback/0442_subcontract_po_lines_down.sql; refused while rows exist, NFR-SCA-007) ──
+-- ── REVERSE (also rollback/0448_subcontract_po_lines_down.sql; refused while rows exist, NFR-SCA-007) ──
 --   do $$ begin if exists (select 1 from public.purchase_order_lines) or exists (select 1 from public.purchase_order_revisions)
 --     then raise exception 'rollback refused: subcontract PO lines exist — export and remove them first'; end if; end $$;
 --   drop trigger if exists purchase_orders_zz_subcontract_amount on public.purchase_orders;
@@ -32,7 +32,7 @@ revoke all on function public.guard_procurement_subcontract_flag() from public, 
 create trigger procurements_zz_subcontract_flag before update of is_subcontract on public.procurements
   for each row execute function public.guard_procurement_subcontract_flag();
 
--- §2 Creation key: 0406 body verbatim; each changed line is marked `-- 0442`.
+-- §2 Creation key: 0406 body verbatim; each changed line is marked `-- 0448`.
 create or replace function public.create_procurement_with_items(p_id uuid, p_header jsonb, p_items jsonb)
 returns public.procurements language plpgsql security definer set search_path = pg_catalog, public as $$
 declare
@@ -40,7 +40,7 @@ declare
   v_parent public.procurements%rowtype; v_item record; v_existing public.procurement_items%rowtype;
   v_project uuid; v_vendor uuid; v_category public.budget_category;
   v_intent public.procurement_create_intents%rowtype;
-  v_subcontract boolean;                                                                          -- 0442
+  v_subcontract boolean;                                                                          -- 0448
 begin
   if v_uid is null or v_org is null or not coalesce(public.is_active_member(), false)
      or not coalesce(public.org_feature_enabled(v_org, 'procurement'), false) then
@@ -49,8 +49,8 @@ begin
   if p_id is null or jsonb_typeof(p_header) is distinct from 'object'
      or jsonb_typeof(p_items) is distinct from 'array'
      or jsonb_typeof(p_header->'title') is distinct from 'string'
-     or exists (select 1 from jsonb_object_keys(p_header) k where k not in ('title','project_id','vendor_id','budget_category','is_subcontract'))   -- 0442
-     or (p_header ? 'is_subcontract' and jsonb_typeof(p_header->'is_subcontract') is distinct from 'boolean')                                      -- 0442
+     or exists (select 1 from jsonb_object_keys(p_header) k where k not in ('title','project_id','vendor_id','budget_category','is_subcontract'))   -- 0448
+     or (p_header ? 'is_subcontract' and jsonb_typeof(p_header->'is_subcontract') is distinct from 'boolean')                                      -- 0448
      or exists (select 1 from jsonb_array_elements(p_items) x where jsonb_typeof(x) <> 'object'
           or exists (select 1 from jsonb_object_keys(x) k where k not in ('id','name','description','quantity','rate'))
           or jsonb_typeof(x->'id') is distinct from 'string' or jsonb_typeof(x->'name') is distinct from 'string'
@@ -60,7 +60,7 @@ begin
   end if;
   v_project := (p_header->>'project_id')::uuid; v_vendor := (p_header->>'vendor_id')::uuid;
   v_category := (p_header->>'budget_category')::public.budget_category;
-  v_subcontract := coalesce((p_header->>'is_subcontract')::boolean, false);                       -- 0442
+  v_subcontract := coalesce((p_header->>'is_subcontract')::boolean, false);                       -- 0448
   if (v_project is not null and not exists (select 1 from public.projects where id=v_project and org_id=v_org))
      or (v_vendor is not null and not exists (select 1 from public.companies where id=v_vendor and org_id=v_org)) then
     raise exception 'Reference is not available' using errcode = '23503';
@@ -74,8 +74,8 @@ begin
       or v_intent.header is distinct from p_header or v_intent.items is distinct from p_items) then
     raise exception 'Saved procurement differs from request' using errcode = '23505';
   end if;
-  insert into public.procurements (id,org_id,requested_by_id,title,project_id,vendor_id,budget_category,is_subcontract)   -- 0442
-  values (p_id,v_org,v_uid,p_header->>'title',v_project,v_vendor,v_category,v_subcontract)                              -- 0442
+  insert into public.procurements (id,org_id,requested_by_id,title,project_id,vendor_id,budget_category,is_subcontract)   -- 0448
+  values (p_id,v_org,v_uid,p_header->>'title',v_project,v_vendor,v_category,v_subcontract)                              -- 0448
   on conflict (id) do nothing;
   select * into v_parent from public.procurements where id=p_id for update;
   if v_parent.org_id is distinct from v_org or v_parent.requested_by_id is distinct from v_uid
@@ -84,7 +84,7 @@ begin
   end if;
   if v_parent.title is distinct from p_header->>'title' or v_parent.project_id is distinct from v_project
      or v_parent.vendor_id is distinct from v_vendor or v_parent.budget_category is distinct from v_category
-     or v_parent.is_subcontract is distinct from v_subcontract then                                                     -- 0442
+     or v_parent.is_subcontract is distinct from v_subcontract then                                                     -- 0448
     raise exception 'Saved procurement differs from request' using errcode = '23505';
   end if;
   for v_item in select * from jsonb_to_recordset(p_items) as x(id uuid,name text,description text,quantity numeric,rate numeric) loop
@@ -323,11 +323,11 @@ declare t text;
 begin
   foreach t in array array['purchase_order_lines','purchase_order_revisions'] loop
     if not (select c.relforcerowsecurity from pg_class c where c.oid = ('public.' || t)::regclass) then
-      raise exception '0442: % lacks FORCE RLS', t;
+      raise exception '0448: % lacks FORCE RLS', t;
     end if;
     if has_table_privilege('authenticated', 'public.' || t, 'INSERT') or has_table_privilege('authenticated', 'public.' || t, 'UPDATE')
        or has_table_privilege('authenticated', 'public.' || t, 'DELETE') then
-      raise exception '0442: % holds a client DML grant', t;
+      raise exception '0448: % holds a client DML grant', t;
     end if;
   end loop;
   if has_function_privilege('authenticated', 'public.subcontract_po_lock(uuid)', 'EXECUTE')
@@ -335,6 +335,6 @@ begin
      or has_function_privilege('authenticated', 'public.guard_purchase_order_revision()', 'EXECUTE')
      or has_function_privilege('authenticated', 'public.guard_purchase_order_subcontract_amount()', 'EXECUTE')
      or has_function_privilege('authenticated', 'public.guard_procurement_subcontract_flag()', 'EXECUTE') then
-    raise exception '0442: an internal function is client-executable';
+    raise exception '0448: an internal function is client-executable';
   end if;
 end $$;
