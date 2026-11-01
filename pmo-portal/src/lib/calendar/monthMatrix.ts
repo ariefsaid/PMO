@@ -26,8 +26,6 @@ export interface DayCell {
   iso: string;
   day: number;
   inMonth: boolean;
-  /** 0 = Sunday … 6 = Saturday. */
-  weekdayIndex: number;
   isToday: boolean;
 }
 
@@ -87,7 +85,6 @@ export function buildMonthMatrix(year: number, month: number): DayCell[][] {
         iso,
         day: cur.getDate(),
         inMonth: cur.getMonth() === month,
-        weekdayIndex: cur.getDay(),
         isToday: iso === todayIso,
       });
     }

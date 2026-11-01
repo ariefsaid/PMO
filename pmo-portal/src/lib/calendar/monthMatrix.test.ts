@@ -9,7 +9,7 @@ describe('monthMatrix', () => {
     const flat = weeks.flat();
     const june1 = flat.find((d) => d.iso === '2026-06-01')!;
     expect(june1.inMonth).toBe(true);
-    expect(june1.weekdayIndex).toBe(1); // 2026-06-01 is a Monday (0=Sun)
+    expect(weeks[0].indexOf(june1)).toBe(1); // 2026-06-01 is a Monday (Sunday-first column 1)
     expect(flat.filter((d) => d.inMonth)).toHaveLength(30);
     expect(flat.some((d) => !d.inMonth)).toBe(true);
   });
