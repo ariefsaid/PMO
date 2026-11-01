@@ -529,6 +529,90 @@ describe('external-connect — ERPNext branch', () => {
   });
 });
 
+// FR-ODC-011 parity (#1614): an ERPNext connect refusal leaves the same audit row as an Odoo one — the outcome
+// class only, never the credential or an upstream body.
+describe('external-connect — ERPNext refusal audit', () => {
+  const KEY = 'erp-key-sentinel-1614';
+  const SECRET = 'erp-secret-sentinel-1614';
+  const prelude = () => [
+    supabaseSelect('profiles', () => jsonResponse({ org_id: 'org-1', role: 'Admin' },
+      { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+    supabaseSelect('platform_operators', () => new Response('null',
+      { status: 200, headers: { 'content-type': 'application/json' } })),
+    supabaseRpc('log_audit', () => jsonResponse(null)),
+  ];
+  const request = () => authed({ tier: 'erpnext', credential: { siteUrl: 'https://erp.example.com', apiKey: KEY, apiSecret: SECRET } });
+  const assertOneRefusalAudit = (calls: Parameters<typeof rpcCall>[0], outcomeClass: string) => {
+    const audits = rpcCall(calls, 'log_audit');
+    assertEquals(audits.length, 1);
+    assertEquals((audits[0].bodyJson as Record<string, unknown>).p_action, 'integration.connect.refused');
+    assertEquals((audits[0].bodyJson as { p_detail: unknown }).p_detail, { tier: 'erpnext', actor: 'user-1', outcome_class: outcomeClass });
+    assertEquals(audits[0].bodyText!.includes(KEY) || audits[0].bodyText!.includes(SECRET), false);
+  };
+
+  it('FR-ODC-011 a rejected ERPNext credential writes one audit row with its outcome class, never the key', async () => {
+    await withFetchMock(
+      [...prelude(), erp('erp.example.com', '/api/method/frappe.auth.get_logged_user', () => jsonResponse({ exc: 'auth' }, { status: 401 }))],
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await request());
+        assertEquals(res.status, 422);
+        assertOneRefusalAudit(calls, 'config-rejected');
+      },
+    );
+  });
+
+  it('FR-ODC-011 an ERPNext connect refused beside an active Odoo writes one audit row', async () => {
+    await withFetchMock(
+      [
+        ...prelude(),
+        erp('erp.example.com', '/api/method/frappe.auth.get_logged_user', () => jsonResponse({ message: 'erp-user@example.com' })),
+        supabaseSelect('external_org_bindings', () => jsonResponse({ external_tier: 'odoo' },
+          { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+      ],
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await request());
+        assertEquals(res.status, 409);
+        assertOneRefusalAudit(calls, 'another-erp-active');
+        assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
+      },
+    );
+  });
+
+  it('FR-ODC-011 a failed ERPNext site-URL save writes one audit row', async () => {
+    await withFetchMock(
+      [
+        ...prelude(),
+        erp('erp.example.com', '/api/method/frappe.auth.get_logged_user', () => jsonResponse({ message: 'erp-user@example.com' })),
+        supabaseSelect('external_org_bindings', () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })),
+        supabaseRpc('create_vault_secret_for_org', () => jsonResponse('erpnext_token_org-1_1')),
+        supabaseRpc('set_external_binding_site_url', () => jsonResponse({ message: 'refused', code: 'P0001' }, { status: 400 })),
+      ],
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await request());
+        assertEquals(res.status, 500);
+        assertOneRefusalAudit(calls, 'SITE_URL_NOT_PERSISTED');
+      },
+    );
+  });
+
+  it('FR-ODC-011 a successful ERPNext connect writes no refusal audit', async () => {
+    await withFetchMock(
+      [
+        ...prelude(),
+        erp('erp.example.com', '/api/method/frappe.auth.get_logged_user', () => jsonResponse({ message: 'erp-user@example.com' })),
+        supabaseSelect('external_org_bindings', () => new Response('null', { status: 200, headers: { 'content-type': 'application/json' } })),
+        supabaseRpc('create_vault_secret_for_org', () => jsonResponse('erpnext_token_org-1_1')),
+        supabaseRpc('set_external_binding_site_url', () => jsonResponse('set')),
+      ],
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await request());
+        assertEquals(res.status, 200);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+      },
+    );
+  });
+});
+
 describe('external-connect — JWT validation', () => {
   it('invalid JWT → 401', async () => {
     await withFetchMock(

@@ -3324,6 +3324,7 @@ export type Database = {
           external_tier: string
           id: string
           org_id: string
+          prev_binding: Json | null
           secret_ref: string
           site_url: string
           statement_calendar: Json | null
@@ -3345,6 +3346,7 @@ export type Database = {
           external_tier: string
           id?: string
           org_id?: string
+          prev_binding?: Json | null
           secret_ref: string
           site_url: string
           statement_calendar?: Json | null
@@ -3366,6 +3368,7 @@ export type Database = {
           external_tier?: string
           id?: string
           org_id?: string
+          prev_binding?: Json | null
           secret_ref?: string
           site_url?: string
           statement_calendar?: Json | null
