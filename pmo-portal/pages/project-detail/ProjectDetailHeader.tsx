@@ -523,7 +523,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
                   <ProjectStatusControl project={project} triggerVariant="outline" triggerSize="sm" />
                 </div>}
                 <div className="border-b border-border px-3 py-3">
-                  <ProjectErpLink projectId={project.id} />
+                  <ProjectErpLink projectId={project.id} managerId={project.project_manager_id ?? null} />
                 </div>
               </>
             )}

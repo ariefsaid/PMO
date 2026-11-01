@@ -118,7 +118,8 @@
       "forbidden": "Your role cannot do this.",
       "rateLimited": "This was just run. Try again in a minute.",
       "syncRunning": "A sync is running. Try again in a minute.",
-      "generic": "Something went wrong. Nothing was changed. Try again."
+      "generic": "Something went wrong. Nothing was changed. Try again.",
+      "refused": "That choice is no longer available in Odoo, or is already linked to another project. Reload and choose again."
     },
     "master": {
       "items": "Items",
@@ -159,6 +160,58 @@
       "range": "{{from}}–{{to}} of {{total}}",
       "prev": "Previous page",
       "next": "Next page"
+    },
+    "mapOnce": {
+      "title": "Map once",
+      "intro": "PMO matched what it could from Odoo. Check the choices, pick where it could not decide, then accept everything at once.",
+      "accounts": "Accounts",
+      "units": "Units",
+      "warehouse": "Warehouse",
+      "warehouseLabel": "Default receiving warehouse",
+      "account": {
+        "payable": "Payable account",
+        "receivable": "Receivable account",
+        "bank": "Bank account",
+        "cash": "Cash account",
+        "expense": "Expense account",
+        "stockValuation": "Stock valuation account",
+        "stockConsumption": "Stock consumption account"
+      },
+      "unit": "Unit \"{{unit}}\"",
+      "unitsHint": "Match each unit PMO uses to an Odoo unit. A unit left unmatched blocks nothing for now.",
+      "noUnits": "No units are used in PMO yet.",
+      "unitNotMatched": "Unit \"{{unit}}\" is not matched yet",
+      "choose": "Choose…",
+      "chooseOne": "Choose one",
+      "attention": "Needs attention",
+      "attentionHint": "No longer active in Odoo. Choose another.",
+      "acceptAll": "Accept all",
+      "saved": "Saved.",
+      "loadFailed": "The suggested settings could not be loaded",
+      "retry": "Retry"
+    },
+    "warehouse": {
+      "current": "Default receiving warehouse",
+      "save": "Save",
+      "archived": "Needs attention: the default warehouse was archived in Odoo. Choose another.",
+      "deleted": "Needs attention: the default warehouse was deleted in Odoo. Choose another."
+    },
+    "projectLink": {
+      "title": "Odoo cost account",
+      "loadFailed": "The Odoo link could not be loaded",
+      "retry": "Retry",
+      "archived": "The cost account was archived in Odoo.",
+      "tombstoned": "The cost account was deleted in Odoo.",
+      "moved": "The cost account moved to another Odoo company.",
+      "attention": "The cost account needs a look in Odoo.",
+      "unlink": "Unlink",
+      "link": "Link",
+      "account": "Cost account",
+      "choosePlan": "Choose the Odoo analytic plan whose accounts are your projects. This is done once.",
+      "plan": "Analytic plan",
+      "usePlan": "Use this plan",
+      "askAdmin": "Not linked yet. Ask an administrator to choose the Odoo analytic plan first.",
+      "notLinked": "Not linked to an Odoo cost account."
     }
   },
   "feedbackSurveys": {

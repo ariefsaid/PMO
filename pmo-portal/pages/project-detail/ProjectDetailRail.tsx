@@ -124,7 +124,7 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
         )}
 
         {detailSection}
-        <ProjectErpLink projectId={project.id} />
+        <ProjectErpLink projectId={project.id} managerId={project.project_manager_id ?? null} />
         </div>
       </details>
     </aside>

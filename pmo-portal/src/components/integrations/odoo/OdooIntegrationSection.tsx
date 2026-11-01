@@ -1,4 +1,5 @@
 import { OdooConnectionCard } from './OdooConnectionCard';
+import { OdooMapOnce } from './OdooMapOnce';
 import { OdooSetupChecklist } from './OdooSetupChecklist';
 import { useOdooCan } from './useOdooCan';
 
@@ -9,6 +10,7 @@ export function OdooIntegrationSection() {
     <div data-testid="odoo-section">
       <OdooConnectionCard />
       {(may.manage || may.setValue) && <OdooSetupChecklist />}
+      {may.setValue && <OdooMapOnce />}
     </div>
   );
 }

@@ -13,6 +13,7 @@ vi.mock('@/src/hooks/useOdoo', () => ({
   useMasterRecords: (input: unknown, enabled?: boolean) => h.records(input, enabled),
   useMasterSummary: (kind: string, enabled?: boolean) => h.summary(kind, enabled),
   useOdooConnection: () => h.conn,
+  useOdooSetup: () => ({ mutateAsync: vi.fn(), isPending: false }),   // the default-warehouse control on the warehouses tab
 }));
 
 import MasterDataPage from './MasterData';

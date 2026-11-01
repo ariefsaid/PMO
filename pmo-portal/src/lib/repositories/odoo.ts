@@ -3,6 +3,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { wrap } from './repositoryErrors';
 import { erpSetupRequest } from './integrations';
 import { SENDS_FINISHED_KEY, type ConnectionRecord } from '@/src/lib/adapterSeam/odoo/connectionState';
+import type { ConfigProposal } from '@/src/lib/adapterSeam/odoo/configProposal';
 
 export interface MasterRecord { id: string; external_id: string; code: string | null; name: string; parent_external_id: string | null; active: boolean; tombstoned_at: string | null; attrs: Record<string, unknown>; as_of: string }
 export type DirectoryKind = 'product' | 'uom' | 'warehouse' | 'location' | 'account' | 'tax' | 'analytic_account';
@@ -16,6 +17,27 @@ export interface OdooConnectionRead {
   capabilities: { missing?: string[]; version_major?: number } | null;
   config: Record<string, unknown>;
 }
+
+/** What `propose-config` returns (FR-ODC-061/090): proposals over this org's mirror, the records to choose from, and what is saved now. */
+export interface OdooConfigProposalRead {
+  proposals: ConfigProposal[];
+  accounts: Array<{ id: string; code: string | null; name: string; type: string | null }>;
+  uoms: Array<{ id: string; name: string }>;
+  warehouses: Array<{ id: string; code: string | null; name: string }>;
+  units: Array<{ unit: string; mapped: boolean }>;
+  current: { account_defaults: Record<string, string>; unit_map: Record<string, string>; default_warehouse_id: string | null };
+  /** Saved settings (`account_defaults.bank`, `unit_map.m`, `default_warehouse_id`) whose Odoo record is no longer active. */
+  attention: string[];
+}
+/** What `list-projects` returns for tier odoo. With no plan chosen it offers the plans and no accounts. */
+export interface OdooProjectLinksRead {
+  planId: number | null;
+  plans?: Array<{ id: string; name: string }>;
+  accounts: Array<{ id: string; code: string | null; name: string }>;
+  truncated?: boolean;
+  linked: Array<{ projectId: string; accountId: string; attention: string | null }>;
+}
+export interface SaveDefaultsInput { account_defaults?: Record<string, string>; unit_map?: Record<string, string>; default_warehouse_id?: string }
 
 // ilike pattern inside a double-quoted PostgREST value: commas and parens are then literal. LIKE wildcards get a `\` escape, then `\` and `"` are escaped for the quoting.
 const likeAny = (s: string) => `"%${s.replace(/[\\%_]/g, '\\$&').replace(/[\\"]/g, '\\$&')}%"`;

@@ -6,6 +6,7 @@ import { AccessDenied, Button, DataTable, Icon, ListPage, SearchMini, StatusPill
 import { useMasterRecords, useMasterSummary, useOdooConnection } from '@/src/hooks/useOdoo';
 import type { DirectoryKind, MasterRecord } from '@/src/lib/repositories/odoo';
 import { OdooConnectionBanner } from '@/src/components/integrations/odoo/OdooConnectionBanner';
+import { OdooWarehouseDefault } from '@/src/components/integrations/odoo/OdooWarehouseDefault';
 import { useOdooCan } from '@/src/components/integrations/odoo/useOdooCan';
 import { missingForKind } from '@/src/lib/adapterSeam/odoo/kinds';
 import { formatInstantDate, formatNumberWhole } from '@/src/lib/format';
@@ -120,6 +121,8 @@ export default function MasterDataPage() {
               {t('administration:odoo.master.showInactive', 'Show inactive and deleted')}
             </label>
           </div>
+
+          {isWarehouses && <div className="mt-3"><OdooWarehouseDefault /></div>}
 
           {isWarehouses && state === undefined ? (
             <div className="mt-3 space-y-3">

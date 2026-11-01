@@ -37,7 +37,7 @@ function routes(o: Opts): MockRoute[] {
           ? Array.from({ length: o.accounts }, (_, i) => ({ external_id: String(i + 1), code: `A${i}`, name: `Account ${i}` }))
           : [{ external_id: '101', code: 'PRJ-1', name: 'Bridge One' }, { external_id: '102', code: 'PRJ-2', name: 'Bridge Two' }]);
     }),
-    supabaseSelect('external_project_bindings', () => jsonResponse([{ project_id: PROJECT, external_container_id: '101' }])),
+    supabaseSelect('external_project_bindings', () => jsonResponse([{ project_id: PROJECT, external_container_id: '101', config: { plan_id: '7' } }, { project_id: '0b000000-0000-4000-8000-0000000000c2', external_container_id: '102', config: { plan_id: '7', attention: 'archived' } }])),
     rpc('link_odoo_cost_account'), rpc('unlink_odoo_cost_account'), rpc('set_odoo_analytic_plan'),
   ];
 }
@@ -51,10 +51,10 @@ async function call(body: Record<string, unknown>, o: Opts = {}) {
 const mirrorRead = (calls: FetchCall[], kind: string) => calls.find((c) => c.url.pathname === '/rest/v1/external_master_records' && c.url.searchParams.get('kind') === `eq.${kind}`)!;
 
 describe('Odoo router — list-projects', () => {
-  it('FR-ODC-071 lists only the chosen plan\'s live accounts of this org, with who holds each, and never calls Odoo', async () => {
+  it('FR-ODC-071 lists only the chosen plan\'s live accounts of this org, with who holds each (and why a link needs attention), and never calls Odoo', async () => {
     const r = await call({ setupAction: 'list-projects' });
     assertEquals(r.res.status, 200);
-    assertEquals(r.json, { planId: 7, accounts: [{ id: '101', code: 'PRJ-1', name: 'Bridge One' }, { id: '102', code: 'PRJ-2', name: 'Bridge Two' }], truncated: false, linked: [{ projectId: PROJECT, accountId: '101' }] });
+    assertEquals(r.json, { planId: 7, accounts: [{ id: '101', code: 'PRJ-1', name: 'Bridge One' }, { id: '102', code: 'PRJ-2', name: 'Bridge Two' }], truncated: false, linked: [{ projectId: PROJECT, accountId: '101', attention: null }, { projectId: '0b000000-0000-4000-8000-0000000000c2', accountId: '102', attention: 'archived' }] });
     const read = mirrorRead(r.calls, 'analytic_account');
     assertEquals([read.url.searchParams.get('org_id'), read.url.searchParams.get('external_tier'), read.url.searchParams.get('parent_external_id'), read.url.searchParams.get('active'), read.url.searchParams.get('tombstoned_at')],
       ['eq.org-1', 'eq.odoo', 'eq.7', 'eq.true', 'is.null']);

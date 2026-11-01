@@ -118,7 +118,8 @@
       "forbidden": "Peran Anda tidak dapat melakukan ini.",
       "rateLimited": "Baru saja dijalankan. Coba lagi dalam semenit.",
       "syncRunning": "Sinkronisasi sedang berjalan. Coba lagi dalam semenit.",
-      "generic": "Terjadi kesalahan. Tidak ada yang berubah. Coba lagi."
+      "generic": "Terjadi kesalahan. Tidak ada yang berubah. Coba lagi.",
+      "refused": "Pilihan itu sudah tidak tersedia di Odoo, atau sudah terhubung ke proyek lain. Muat ulang lalu pilih lagi."
     },
     "master": {
       "items": "Barang",
@@ -159,6 +160,58 @@
       "range": "{{from}}–{{to}} dari {{total}}",
       "prev": "Halaman sebelumnya",
       "next": "Halaman berikutnya"
+    },
+    "mapOnce": {
+      "title": "Petakan sekali",
+      "intro": "PMO sudah mencocokkan yang bisa dari Odoo. Periksa pilihannya, pilih di bagian yang belum bisa diputuskan, lalu terima semuanya sekaligus.",
+      "accounts": "Akun",
+      "units": "Satuan",
+      "warehouse": "Gudang",
+      "warehouseLabel": "Gudang penerimaan utama",
+      "account": {
+        "payable": "Akun hutang",
+        "receivable": "Akun piutang",
+        "bank": "Akun bank",
+        "cash": "Akun kas",
+        "expense": "Akun biaya",
+        "stockValuation": "Akun nilai persediaan",
+        "stockConsumption": "Akun pemakaian persediaan"
+      },
+      "unit": "Satuan \"{{unit}}\"",
+      "unitsHint": "Cocokkan tiap satuan di PMO dengan satuan Odoo. Satuan yang belum dicocokkan tidak menghalangi apa pun untuk saat ini.",
+      "noUnits": "Belum ada satuan yang dipakai di PMO.",
+      "unitNotMatched": "Satuan \"{{unit}}\" belum dicocokkan",
+      "choose": "Pilih…",
+      "chooseOne": "Pilih salah satu",
+      "attention": "Perlu perhatian",
+      "attentionHint": "Tidak aktif lagi di Odoo. Pilih yang lain.",
+      "acceptAll": "Terima semua",
+      "saved": "Tersimpan.",
+      "loadFailed": "Usulan pengaturan tidak dapat dimuat",
+      "retry": "Coba lagi"
+    },
+    "warehouse": {
+      "current": "Gudang penerimaan utama",
+      "save": "Simpan",
+      "archived": "Perlu perhatian: gudang utama diarsipkan di Odoo. Pilih yang lain.",
+      "deleted": "Perlu perhatian: gudang utama dihapus di Odoo. Pilih yang lain."
+    },
+    "projectLink": {
+      "title": "Akun biaya Odoo",
+      "loadFailed": "Tautan Odoo tidak dapat dimuat",
+      "retry": "Coba lagi",
+      "archived": "Akun biaya diarsipkan di Odoo.",
+      "tombstoned": "Akun biaya dihapus di Odoo.",
+      "moved": "Akun biaya pindah ke perusahaan Odoo lain.",
+      "attention": "Akun biaya perlu dilihat di Odoo.",
+      "unlink": "Putuskan tautan",
+      "link": "Tautkan",
+      "account": "Akun biaya",
+      "choosePlan": "Pilih rencana analitik Odoo yang akunnya adalah proyek Anda. Ini cukup dilakukan sekali.",
+      "plan": "Rencana analitik",
+      "usePlan": "Pakai rencana ini",
+      "askAdmin": "Belum tertaut. Minta administrator memilih rencana analitik Odoo lebih dahulu.",
+      "notLinked": "Belum tertaut ke akun biaya Odoo."
     }
   },
   "feedbackSurveys": {
