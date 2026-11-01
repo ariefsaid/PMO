@@ -131,6 +131,9 @@
 --
 -- ⚑ AMENDED BY 0423 (#1515): two replenishment writers join (+2, count 101). transition_expense_claim and
 -- record_expense_advance_return were already retained. Proven by imprest_replenishment pgTAP.
+-- ⚑ AMENDED BY 0418 (#1512 S6): `set_stock_reorder_level` joins the retained set (+1, count 102, re-derived by hand from the list). A SECURITY
+-- DEFINER writer (reorder levels have no client write grant); it gates on active membership, rank >= 20 and the JWT org;
+-- stock_reorder.test.sql proves the contract.
 --
 -- ⚑ AMENDED BY 0424 (#1515): record_imprest_count joins (+1, count 102); it re-asserts org, active membership and
 -- custodian-eligible-or-Finance/Admin in its body. The position/usage reads are invoker; imprest_float_choices is a
@@ -252,6 +255,7 @@ insert into client_callable_rpc_names (proname) values
   ('set_project_contract_value'),
   ('set_sales_invoice_efaktur'),
   ('set_sales_invoice_received_date'),
+  ('set_stock_reorder_level'),
   ('set_stock_warehouse_keeper'),
   ('set_imprest_procurement_limit'),
   ('set_vendor_tax_defaults'),

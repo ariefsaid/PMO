@@ -10,11 +10,12 @@ import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
 import stockEn from '@/public/locales/en/stock.json';
 
-const { master, reports } = vi.hoisted(() => ({
+const { master, reports, reorder } = vi.hoisted(() => ({
   master: { listWarehouses: vi.fn(), listKeepers: vi.fn() },
   reports: { onHand: vi.fn() },
+  reorder: { worklist: vi.fn() },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master, reports } } }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master, reports, reorder } } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
 let realRole: Role = 'Project Manager';
@@ -38,6 +39,7 @@ beforeEach(() => {
   master.listWarehouses.mockResolvedValue([{ id: 'w1', code: 'SITE-A', name: 'Site A', kind: 'site', archived_at: null }]);
   master.listKeepers.mockResolvedValue([]);
   reports.onHand.mockResolvedValue([row]);
+  reorder.worklist.mockResolvedValue([]);
 });
 
 describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
@@ -84,10 +86,39 @@ describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
     expect(screen.getByText(/3,500/)).toBeInTheDocument();
   });
 
-  it('the reorder filter is not offered until reorder levels exist (S6)', async () => {
+  it('FR-STK-040 the "Below reorder level" filter keeps only balances on the reorder worklist', async () => {
+    const other = { ...row, itemId: 'i2', itemCode: 'CAB', itemName: 'Cable 4mm' };
+    reports.onHand.mockResolvedValue([row, other]);
+    reorder.worklist.mockResolvedValue([{ itemId: 'i2', warehouseId: 'w1', itemCode: 'CAB' }]);
     renderPage();
     await screen.findByText('CEM');
-    expect(screen.queryByLabelText('Below reorder level')).not.toBeInTheDocument();
+    expect(screen.getByText('CAB')).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText('Below reorder level'));
+    expect(screen.getByText('CAB')).toBeInTheDocument();
+    expect(screen.queryByText('CEM')).not.toBeInTheDocument();
+  });
+
+  it('FR-STK-040 the filter also lists a never-stocked pair on the worklist, at 0, so both screens agree', async () => {
+    reorder.worklist.mockResolvedValue([{ itemId: 'i9', itemCode: 'NEW', itemName: 'Never stocked', unitCode: 'm', warehouseId: 'w1', warehouseCode: 'SITE-A', qtyOnHand: '0', reorderLevel: '10', reorderQuantity: null }]);
+    renderPage();
+    await screen.findByText('CEM');
+    await userEvent.click(screen.getByLabelText('Below reorder level'));
+    expect(await screen.findByText('NEW')).toBeInTheDocument();
+    expect(screen.queryByText('CEM')).not.toBeInTheDocument();
+  });
+
+  it('the worklist is not fetched while the filter is off', async () => {
+    renderPage();
+    await screen.findByText('CEM');
+    expect(reorder.worklist).not.toHaveBeenCalled();
+  });
+
+  it('FR-STK-040 with nothing below its level the filter says so instead of showing every balance', async () => {
+    renderPage();
+    await screen.findByText('CEM');
+    await userEvent.click(screen.getByLabelText('Below reorder level'));
+    expect(screen.queryByText('CEM')).not.toBeInTheDocument();
+    expect(screen.getByText('Nothing matches')).toBeInTheDocument();
   });
 
   it('FR-STK-064 view-as is view-only: an Admin viewing as an Engineer sees no movement buttons', async () => {

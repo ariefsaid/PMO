@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { cn } from '@/src/components/ui';
 
-/** Section strip shared by every /stock page: On hand | Documents | Ledger | Setup (Setup only for master-data writers). */
+/** Section strip shared by every /stock page: On hand | Documents | Ledger | Reorder | Setup (Setup only for master-data writers). */
 export const StockTabs: React.FC = () => {
   const { t } = useTranslation('stock');
   const may = usePermission();
@@ -12,6 +12,7 @@ export const StockTabs: React.FC = () => {
     { to: '/stock', label: t('tabs.onHand'), end: true },
     { to: '/stock/documents', label: t('tabs.documents'), end: false },
     { to: '/stock/ledger', label: t('tabs.ledger'), end: true },
+    { to: '/stock/reorder', label: t('tabs.reorder'), end: true },
     ...(may('create', 'stockItem') ? [{ to: '/stock/setup', label: t('tabs.setup'), end: true }] : []),
   ];
   return (

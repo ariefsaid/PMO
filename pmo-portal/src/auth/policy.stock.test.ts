@@ -86,3 +86,14 @@ describe('material allowance policy (S5)', () => {
     expect(can('edit', 'materialAllowance', { realRole: 'Admin', currentUserId: 'u1', record: { viewOnly: true, project_manager_id: 'u1' } })).toBe(false);
   });
 });
+
+describe('reorder level policy (S6)', () => {
+  it.each(roles)('AC-STK-033 %s: everyone views a reorder level; rank 20 and above set it (PQ-6)', (role) => {
+    expect(can('view', 'reorderLevel', { realRole: role })).toBe(true);
+    expect(can('edit', 'reorderLevel', { realRole: role })).toBe(['Admin', 'Executive', 'Finance', 'Project Manager'].includes(role));
+  });
+  it('AC-STK-033 a view-as session sets no reorder level, and a signed-out caller nothing', () => {
+    expect(can('edit', 'reorderLevel', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
+    expect(can('view', 'reorderLevel', { realRole: null })).toBe(false);
+  });
+});
