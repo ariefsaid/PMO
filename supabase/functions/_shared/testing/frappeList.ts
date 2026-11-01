@@ -20,4 +20,4 @@ export function frappeListPage<R extends Record<string, unknown>>(rows: R[], par
 }
 
 /** The 'modified' + name composite cursor the shipped walk persists. */
-export const frappeCursor = (modified: string, name: string): string => `${modified}|${name}`;
+export const frappeCursor = (modified: string, name: string): string => `${/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/.test(modified) ? `${modified}.000000` : modified}|${name}`;

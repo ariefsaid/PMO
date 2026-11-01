@@ -123,7 +123,7 @@ Deno.test('HIGH-A: a Desk-created Budget is ACKED and SKIPPED — the watermark 
     assert(
       // The ERP cursor is the `modified|name` keyset position the next tick sends back as
       // `["modified",">=",cursor]` — never an epoch-ms coercion (which persisted the literal 'NaN').
-      (advance!.payload as { watermark_cursor?: string }).watermark_cursor === '2026-07-20 10:00:00|BUDGET-DESK-001',
+      (advance!.payload as { watermark_cursor?: string }).watermark_cursor === '2026-07-20 10:00:00.000000|BUDGET-DESK-001',
       `expected the cursor to move to the page max, got ${JSON.stringify(advance!.payload)}`,
     );
   } finally {

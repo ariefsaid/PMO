@@ -205,7 +205,7 @@ Deno.test('AC-998-002 completed list clears prior error fields while advancing t
   try {
     const result = await sweepOrgDoctypesLive(db.client, orgBinding(), undefined, { tickMaxDocs: 1 });
     assert(!result.error, `successful walk must not report an error: ${result.error}`);
-    const advance = db.watermarkUpserts.find((row) => row.domain === SUPPLIER_DOMAIN && row.watermark_cursor === '2026-10-08 09:00:00|SUP-RECOVERY');
+    const advance = db.watermarkUpserts.find((row) => row.domain === SUPPLIER_DOMAIN && row.watermark_cursor === '2026-10-08 09:00:00.000000|SUP-RECOVERY');
     assert(advance, 'successful walk must advance the Supplier cursor');
     assert(advance.last_error === null && advance.last_error_at === null, 'cursor advancement must clear both prior error fields');
   } finally {
