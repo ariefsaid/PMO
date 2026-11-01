@@ -5,6 +5,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { activate, listCompanies } from './activate.ts';
+import { proposeConfig, saveDefaults } from './config.ts';
 import { linkProject, listProjects, setAnalyticPlan, unlinkProject } from './projectLinks.ts';
 import { recheck } from './recheck.ts';
 import { refresh, resetKind } from './sweepVerbs.ts';
@@ -25,10 +26,13 @@ const GATES: Record<string, (c: OdooCtx) => boolean> = {
   'list-companies': adminOrOperator, activate: adminOrOperator, recheck: adminOrOperator, refresh: adminOrFinance, 'reset-kind': adminOrOperator,
   // The actor-checked RPCs decide who may link or un-link (the Admin, an Operator, the project's own PM); the plan is an Admin's choice.
   'list-projects': () => true, 'link-project': () => true, 'unlink-project': () => true, 'set-analytic-plan': adminOrOperator,
+  // The one-time map (FR-ODC-090): Admin and Finance propose and save; the RPC re-checks the role against the live profile.
+  'propose-config': adminOrFinance, 'save-defaults': adminOrFinance,
 };
 const VERBS: Record<string, (c: OdooCtx) => Promise<Response>> = {
   'list-companies': listCompanies, activate, recheck, refresh, 'reset-kind': resetKind,
   'list-projects': listProjects, 'link-project': linkProject, 'unlink-project': unlinkProject, 'set-analytic-plan': setAnalyticPlan,
+  'propose-config': proposeConfig, 'save-defaults': saveDefaults,
 };
 
 export function odooError(c: OdooCtx, message: string, code: string, status: number): Response {

@@ -3,7 +3,7 @@
 -- (un-link is audited and refused through the one shared in-use check), the analytic-plan choice, and the setup accept /
 -- unlink paths for tier odoo (ECA-2's accept, decide and unlink reach the same writer).
 begin;
-select plan(118);
+select plan(125);
 
 insert into organizations (id, name) values
  ('a6050000-0000-0000-0000-000000000001','Odoo Links A'),
@@ -360,6 +360,19 @@ select is((select config->>'attention' from external_project_bindings where org_
 -- grants: service role only
 select is(has_function_privilege(r, f, 'execute'), r = 'service_role', f || ' for ' || r)
   from unnest(array['public.set_odoo_org_config(uuid,uuid,text,jsonb)', 'public.reconcile_odoo_links(uuid)']) f, unnest(array['anon','authenticated','service_role']) r;
+
+-- FR-ODC-061 the distinct PMO unit texts the map is built from: this org's work-item and subcontract-line units only
+insert into boq_items (org_id, project_id, item_code, description, unit, quantity, rate) values
+ ('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000c1','A1','Item 1','m',1,1),
+ ('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000c1','A2','Item 2','m',1,1),
+ ('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000c1','A3','Item 3','m2',1,1),
+ ('a6050000-0000-0000-0000-000000000002','a6050000-0000-0000-0000-0000000000cb','B1','Item B','kg',1,1);
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is((select array_agg(u order by u) from public.odoo_pmo_units('a6050000-0000-0000-0000-000000000001') u), array['m','m2'], 'FR-ODC-061 the units are distinct and only this organisation''s');
+select is((select array_agg(u) from public.odoo_pmo_units('a6050000-0000-0000-0000-000000000002') u), array['kg'], 'FR-ODC-061 the other organisation sees its own');
+reset role;
+select is(has_function_privilege(r, 'public.odoo_pmo_units(uuid)', 'execute'), r = 'service_role', 'odoo_pmo_units for ' || r) from unnest(array['anon','authenticated','service_role']) r;
 
 select * from finish();
 rollback;

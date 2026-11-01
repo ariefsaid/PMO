@@ -298,6 +298,14 @@ begin
   perform public.log_audit('integration.odoo.config', p_org_id, p_actor_id, null, jsonb_build_object('key', p_key));   -- who set the value
 end $$;
 
+-- FR-ODC-061: the distinct unit texts PMO uses (work items and subcontract order lines), for the unit map. Bounded.
+create or replace function public.odoo_pmo_units(p_org_id uuid) returns setof text
+language sql stable security definer set search_path = public, pg_temp as $$
+  select u from (select btrim(unit) as u from public.boq_items where org_id = p_org_id
+                 union select btrim(unit) from public.purchase_order_lines where org_id = p_org_id) x
+   where u <> '' order by u limit 500
+$$;
+
 -- ===== Part 3 (#1504 S7): link reconciliation. Marks, never deletes: a link whose account was archived or deleted in Odoo, or
 -- moved to another company, says why (`config.attention`); the mark clears itself once Odoo is right again. =====
 create or replace function public.reconcile_odoo_links(p_org_id uuid) returns integer
@@ -322,5 +330,5 @@ begin
   return v_n;
 end $$;
 
-revoke all on function public.set_odoo_org_config(uuid,uuid,text,jsonb), public.reconcile_odoo_links(uuid) from public, anon, authenticated;
-grant execute on function public.set_odoo_org_config(uuid,uuid,text,jsonb), public.reconcile_odoo_links(uuid) to service_role;
+revoke all on function public.set_odoo_org_config(uuid,uuid,text,jsonb), public.reconcile_odoo_links(uuid), public.odoo_pmo_units(uuid) from public, anon, authenticated;
+grant execute on function public.set_odoo_org_config(uuid,uuid,text,jsonb), public.reconcile_odoo_links(uuid), public.odoo_pmo_units(uuid) to service_role;
