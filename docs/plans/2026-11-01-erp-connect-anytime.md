@@ -1020,8 +1020,8 @@ New `supabase/functions/_shared/connectAdapterForOrg.ts`: `const FACTORIES: Reco
 unknown tier or a refusal → `AppError('config-rejected')`. A record lookup is not a tier branch (`tierBranch.test.ts:22-28`).
 `external-set-company/index.ts`: before the Odoo split at `:239`, insert
 `if (typeof body.setupAction === 'string' && CONNECT_ACTIONS.has(body.setupAction)) { …active-member check as at :253-259…; return json(await handleConnectAction({ … callerClient: createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } }) … })); }`.
-Add `'supabase/functions/external-set-company/connect.ts': 'supabase/functions/external-set-company/connect.test.ts'` to
-`REQUIRED` in `scripts/check-edge-fn-test-binding.mjs`.
+Add `'supabase/functions/external-set-company/connect.test.ts': 'handleSetCompanyRequest'` to `REQUIRED` in
+`scripts/check-edge-fn-test-binding.mjs` (the map is test file → handler imported from `./index.ts`; the verbs are tested through the shipped handler).
 Verify: `DENO external-set-company connect.test.ts` red → green; `npm --prefix pmo-portal run check:edge-test-binding`.
 
 ### ECA2-T13 — sweep pass: advance open runs

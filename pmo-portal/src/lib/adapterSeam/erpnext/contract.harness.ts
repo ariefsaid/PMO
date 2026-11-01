@@ -179,6 +179,7 @@ export function createErpnextHarness(): ErpHarness {
           },
           mirrorExists: async (id) => companies.has(id),
           notifyUnclearMatch: async () => { review += 1; },
+          recordReview: async () => {},   // the persisted row is the database's; the suite counts the decision
         });
       }
       return { companies: companies.size, refs: refs.size, linked, review: review / runs };

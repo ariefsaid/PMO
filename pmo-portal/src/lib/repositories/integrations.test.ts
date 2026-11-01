@@ -61,6 +61,36 @@ describe('ERP setup edge actions', () => {
   });
 });
 
+describe('ECA setup verbs (ECA2-T16)', () => {
+  const cases: Array<[string, () => Promise<unknown>, string, Record<string, unknown>]> = [
+    ['startConnectCensus', () => repo.startConnectCensus('odoo'), 'census', {}],
+    ['getConnectStatus', () => repo.getConnectStatus('odoo'), 'connect-status', {}],
+    ['listConnectProposals', () => repo.listConnectProposals('odoo', 'party', 'link', 'p9'), 'list-proposals', { kind: 'party', outcome: 'link', afterId: 'p9' }],
+    ['acceptConnectProposals (a kind)', () => repo.acceptConnectProposals('odoo', 'party', ['a', 'b']), 'accept-proposals', { kind: 'party', ids: ['a', 'b'] }],
+    ['acceptConnectProposals (all)', () => repo.acceptConnectProposals('odoo', null, null), 'accept-proposals', { kind: null, ids: null }],
+    ['decideConnectReview', () => repo.decideConnectReview('odoo', 'r1', { action: 'dismiss' }), 'decide-review', { id: 'r1', choice: { action: 'dismiss' } }],
+    ['unlinkConnectMatch', () => repo.unlinkConnectMatch('odoo', 'l1'), 'unlink-match', { id: 'l1' }],
+  ];
+  it.each(cases)('%s posts the %s verb with the tier', async (_n, run, action, extra) => {
+    ok({ result: action, counts: {}, remaining: 0 });
+    await run();
+    expect(lastInvoke()).toEqual(['external-set-company', { body: { tier: 'odoo', setupAction: action, ...extra } }]);
+  });
+
+  it('acceptConnectProposals keeps going until nothing is left, adding the counts of each request', async () => {
+    h.invoke.mockResolvedValueOnce({ data: { counts: { party: { link: 500, bring_in: 0, send: 0, left_open: 0 } }, remaining: 20 }, error: null })
+      .mockResolvedValueOnce({ data: { counts: { party: { link: 20, bring_in: 1, send: 0, left_open: 0 } }, remaining: 0 }, error: null });
+    await expect(repo.acceptConnectProposals('erpnext', 'party', null)).resolves.toEqual({ counts: { party: { link: 520, bring_in: 1, send: 0, left_open: 0 } }, remaining: 0 });
+    expect(h.invoke).toHaveBeenCalledTimes(2);
+  });
+
+  it('acceptConnectProposals stops when a request applies nothing, and reports what is left', async () => {
+    ok({ counts: {}, remaining: 3 });
+    await expect(repo.acceptConnectProposals('erpnext', null, null)).resolves.toEqual({ counts: {}, remaining: 3 });
+    expect(h.invoke).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('bindings and health', () => {
   const binding = { org_id: 'o1', external_tier: 'erpnext', status: 'connected', connected_by: 'u1', connected_at: 't1' };
 
