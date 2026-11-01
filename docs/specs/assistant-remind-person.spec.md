@@ -12,9 +12,9 @@ prompt), ADR-0052 (eval harness), ADR-0051 (approval predicate), ADR-0039 (deput
 ADR-0016 (`can()` is UX only), ADR-0019 (server-enforced rules via security-definer RPC + pgTAP), ADR-0010 (test pyramid),
 ADR-0001 (`org_id` seam).
 **Plan:** `docs/plans/2026-11-01-assistant-remind-person.md`
-**Status:** Draft, 2026-11-01. Author: spec worker for the Director.
+**Status:** Draft, 2026-11-01, reviewed 2026-11-01 (spec + security lens; fixes applied). Author: spec worker for the Director.
 **Lane:** auth-adjacent (a new cross-user write path through a SECURITY DEFINER RPC) → Director-dispatched, ships alone.
-Not a money path.
+Not a money path. Migration **0434** (Lane A range for #1639: 0434-0436).
 
 ---
 
@@ -98,7 +98,8 @@ inbox about an overdue task.
   someone other than the sender.
 - **FR-RMD-003** (ubiquitous) The proposal shall be resolved on the server under the sender's JWT before the chip
   (ADR-0079 §2): the chip shall list, for each reminder, the recipient's name, the task name and its due date, and the
-  approved value shall carry task ids only as the instruction to send.
+  approved value shall carry task ids only as the instruction to send (any names it also carries are display copies the
+  send never trusts, FR-RMD-013).
 - **FR-RMD-004** (conditional) If `task` matches more than one remindable overdue task, then the action shall return the
   candidates (as `draft_invoice` does) so the assistant asks the user to pick; if it matches none, the action shall say
   so and show no chip.
@@ -123,11 +124,15 @@ inbox about an overdue task.
   task and recipient was sent by anyone in the window; and the sender has allowance left.
 - **FR-RMD-013** (ubiquitous) The send RPC shall report a per-task outcome, one of `sent`, `not_found`, `not_overdue`,
   `no_assignee`, `self`, `recipient_inactive`, `already_reminded`, `daily_limit`, and shall not raise for an item-level
-  refusal, so one stale item never blocks the rest.
+  refusal, so one stale item never blocks the rest. Each outcome shall carry the task name and, when sent, the
+  recipient's name, read on the server; the assistant's report of what was sent shall use these, never the replayed
+  approved value (the client replays it, `handler.ts:1695-1700`).
 - **FR-RMD-014** (ubiquitous) The per-sender cap shall be counted on the server from the ledger over the window, under a
   per-sender transaction lock so concurrent sends cannot exceed it. The default cap is 20 reminders per sender per window
   (OQ-1).
-- **FR-RMD-015** (ubiquitous) The send RPC shall accept 1 to 10 distinct task ids and refuse any other count (22023).
+- **FR-RMD-015** (ubiquitous) The send RPC shall accept 1 to 10 task ids and the preview RPC 1 to 50 (the overdue list's
+  fetch cap, so a proposal can skip tasks already reminded); either shall refuse any other count (22023). Duplicate
+  ids are collapsed.
 - **FR-RMD-016** (event) When a reminder is sent, the system shall insert one ledger row (org, sender, recipient, task,
   time) and one notification for the recipient, through `notify_workflow_user`, in the same transaction.
 - **FR-RMD-017** (ubiquitous) The notification shall be severity `info`, titled "Reminder: a task is overdue", with a
@@ -139,14 +144,17 @@ inbox about an overdue task.
 
 ### Ledger visibility
 
-- **FR-RMD-020** (ubiquitous) A sender shall be able to read their own ledger rows in their own org; no other user shall
-  read them, and no client role shall insert, update or delete them.
+- **FR-RMD-020** (ubiquitous) A sender who is an active member shall be able to read their own ledger rows in their own
+  org; no other user, and no disabled or banned sender, shall read them, and no client role shall insert, update or
+  delete them.
 
 ### Prompt and answer
 
 - **FR-RMD-030** (where) Where `remind_overdue` is registered, the tool index shall carry one line for it and the prompt
   shall carry a "remind" skill whose trigger is the user asking to remind, chase, nudge or follow up people; where it is
-  not registered, neither shall appear (ADR-0050 §1(b)).
+  not registered, neither shall appear (ADR-0050 §1(b)). The prompt's question-mapping list shall place the remind line
+  before the shipped "overdue, late … → `whats_overdue`" line and say it wins, because "remind whoever is late" also
+  contains "late" (`prompt.ts:185`).
 - **FR-RMD-031** (state) While the overdue answer lists at least one overdue task assigned to someone other than the
   caller, the server-written answer shall end with one line offering reminders (e.g. "Say *remind them* and I'll
   prepare reminders for the 2 people with late tasks."); the assistant shall not open a reminder chip unasked (OQ-3).
@@ -170,6 +178,12 @@ inbox about an overdue task.
 - **NFR-RMD-QUAL-001** Tool selection on the deployed model is proven by the eval suite at 9 of 10 runs per case
   (DD-AIN-9, OD-GRILL-20261101 "Evals"); prompt-text unit tests do not count as that proof (ADR-0052).
 - **NFR-RMD-REV-001** The migration is reversible: a rollback file drops the RPCs, the internal check and the ledger.
+- **NFR-RMD-I18N-001** No new UI string, so no locale keys (en/id). The notification title and body are stored
+  server-written English, as every shipped workflow notification is (`0237`, shown raw by the bell). Localizing stored
+  notification text is a follow-up for all notifications (§9).
+- **NFR-RMD-CI-001** The ledger keeps service_role's default DML (pgTAP 0137); it is not an `*_erp_mirror` table (0136
+  does not apply); both client RPCs join the 0178 retained set (+2) with anon and PUBLIC revoked, and the internal
+  check is executable by no client role.
 
 ## 6. Acceptance criteria (Given / When / Then)
 
@@ -194,10 +208,12 @@ Roles below are placeholders ("the project manager", "the site engineer"); fixtu
 - **AC-RMD-008** Given a task that is Done, another whose end date is today, and an overdue task with no assignee, When
   the project manager sends reminders for all three, Then the first two are `not_overdue` and the third is `no_assignee`.
 - **AC-RMD-009** Given ledger rows sent by the project manager, When the project manager, the recipient and a member of
-  org B each read the ledger, Then only the project manager sees them; and any client insert, update or delete raises 42501.
+  org B each read the ledger, Then only the project manager sees them; Given a ledger row sent by a member who is now
+  disabled, When that member reads the ledger, Then they see none; and any client insert, update or delete raises 42501.
 - **AC-RMD-010** Given the anon role, Then it cannot execute either RPC; Given the authenticated role, Then it can execute
   both and cannot execute the internal check function.
-- **AC-RMD-011** Given 11 task ids, or none, When the send RPC is called, Then it raises 22023.
+- **AC-RMD-011** Given 11 task ids, or none, When the send RPC is called, Then it raises 22023; Given 51 task ids, When
+  the preview RPC is called, Then it raises 22023.
 - **AC-RMD-012** Given the same fixture as AC-RMD-001..006, When the preview RPC is called, Then it returns the same
   outcomes, the eligible recipient's name and the remaining allowance, and writes no ledger row and no notification.
 
@@ -211,12 +227,13 @@ Roles below are placeholders ("the project manager", "the site engineer"); fixtu
   and the summary says 2 were left out; given 0 remaining, Then no chip and the reply says the daily limit is reached.
 - **AC-RMD-016** Given a replayed approved value with an extra field, a non-uuid id, a duplicate or 11 items, When it is
   re-validated, Then it is rejected.
-- **AC-RMD-017** Given an approved proposal, When the action runs, Then it calls the send RPC with the task ids only (no
-  recipient field) and reports each outcome to the model.
+- **AC-RMD-017** Given an approved proposal whose replayed names were edited, When the action runs, Then it calls the
+  send RPC with the task ids only (no recipient field) and reports each outcome with the names the RPC returned.
 - **AC-RMD-018** Given the model calls `remind_overdue`, Then the handler emits `needs-approval` and the send RPC is not
   called until an approve decision arrives.
-- **AC-RMD-019** Given the kill switch is on, Then the tool index and the remind skill are present; given it is off, Then
-  neither is present and the tool is not registered.
+- **AC-RMD-019** Given the kill switch is on, Then the tool index line, the remind skill and the remind mapping line
+  (before the overdue line) are present; given it is off, Then none is present. (Registration itself is the same
+  module-level ternary as the invoice-drafts switch, `handler.ts:123-129`, read at import, so no unit test toggles it.)
 - **AC-RMD-023** Given an overdue answer with two tasks assigned to two other people, Then the server-written answer ends
   with the offer line naming 2 people; given every task is the caller's own, Then there is no offer line.
 
@@ -272,3 +289,4 @@ Roles below are placeholders ("the project manager", "the site engineer"); fixtu
 - A "Remind" button on the task row and My tasks, reusing the same RPC.
 - Invoice reminders, once a recipient rule exists (OQ in §2 Out of scope).
 - Recipient-side mute or daily digest.
+- Localized notification text (stored English today for every notification, NFR-RMD-I18N-001).
