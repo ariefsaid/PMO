@@ -333,6 +333,7 @@ const MONEY_ONLY_READS = [
   '/rest/v1/timesheet_erp_mirror',
   '/rest/v1/timesheets?',
   '/rest/v1/expense_posting_erp_mirror',
+  '/rest/v1/imprest_posting_erp_mirror', // #1515 S6 pass (7b)
   '/rest/v1/budget_archive_cancel_intents?',
 ];
 const MONEY_ONLY_RPCS = [
@@ -613,7 +614,7 @@ Deno.test('AC-CAD: the real handler gates all work by first native publication a
     assert(result.status === 200 && result.body.ok === true && result.body.cadence === 'money-only' && !('skipped' in result.body),
       `a money-only tick must say so and never claim a skip: ${result.status} ${JSON.stringify(result.body)}`);
     for (const pass of ['/rest/v1/rpc/outbox_reconcile_candidates', '/rest/v1/budget_version_erp_mirror',
-      '/rest/v1/timesheet_erp_mirror', '/rest/v1/rpc/expense_posting_queue']) {
+      '/rest/v1/timesheet_erp_mirror', '/rest/v1/rpc/expense_posting_queue', '/rest/v1/imprest_posting_erp_mirror']) {
       assert(result.requests.some(({ path }) => path.startsWith(pass)), `money-only tick did not reach ${pass}`);
     }
     assertMoneyOnlyWork(result.requests, 'minute 7 money-only tick');

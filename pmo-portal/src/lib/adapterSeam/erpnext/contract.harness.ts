@@ -5,8 +5,13 @@
 import { AppError } from '../../appError.ts';
 import type {
   BudgetPushResult, BudgetPushScenario, ErpHarness, ErpPartyInput, PartyMatchResult, PmoPartyCandidate,
-  ProjectLinkResult, PushBeforeConnectionResult,
+  ProjectLinkResult, PushBeforeConnectionResult, TransferHarness,
 } from '../contractSuite/harness.ts';
+import type { ImprestTransfer } from '../imprestTransfer.ts';
+import { createErpAdapter } from './adapter.ts';
+import { imprestTransferToBody } from './bodies/imprestTransfer.ts';
+import { probeErpByAnchorKey } from './recoveryProbe.ts';
+import { expenseJournalFromDoc } from './bodies/expenseJournal.ts';
 import { budgetAccountIdentity } from './budgetAccountIdentity.ts';
 import { DOCTYPE_BODIES } from './doctypeBodies.ts';
 import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatchFactory.ts';
@@ -58,9 +63,75 @@ const GRAINS: Record<BudgetPushScenario['occupant'], Array<Record<string, unknow
   'draft': [{ name: 'BUD-DRAFT', docstatus: 0 }],
 };
 
+/** A fake ERPNext holding Journal Entries: create, submit, list-by-`user_remark like`, read. */
+function fakeJournalErp() {
+  const docs: Array<Record<string, unknown>> = [];
+  let armed: 'transport' | 'lost-response' | null = null;
+  const respond = (data: unknown, status = 200) => new Response(JSON.stringify({ data }), { status });
+  const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
+    const u = new URL(String(url), 'https://erp.test');
+    const method = init?.method ?? 'GET';
+    const name = decodeURIComponent(u.pathname.split('/').pop() ?? '');
+    if (method === 'POST') {
+      const fault = armed; armed = null;
+      if (fault === 'transport') return respond({}, 503);
+      const doc = { ...JSON.parse(String(init?.body)), name: `ACC-JV-${docs.length + 1}`, docstatus: 0 };
+      docs.push(doc);
+      return fault === 'lost-response' ? respond({}, 503) : respond(doc);
+    }
+    if (method === 'PUT') {
+      const doc = docs.find((d) => d.name === name);
+      if (!doc) return respond({}, 404);
+      Object.assign(doc, JSON.parse(String(init?.body)));
+      return respond(doc);
+    }
+    if (u.searchParams.has('filters')) {
+      const [[field, , pattern]] = JSON.parse(u.searchParams.get('filters') as string) as Array<[string, string, string]>;
+      const needle = pattern.replace(/^%|%$/g, '').replace(/\\(.)/g, '$1');
+      return respond(docs.filter((d) => String(d[field] ?? '').includes(needle)).map((d) => ({ name: d.name })));
+    }
+    const doc = docs.find((d) => d.name === name);
+    return doc ? respond(doc) : respond({}, 404);
+  }) as typeof fetch;
+  return { docs, fetchImpl, arm: (fault: 'transport' | 'lost-response') => { armed = fault; } };
+}
+
+function createTransferHarness(): TransferHarness {
+  const erp = fakeJournalErp();
+  const client = { fetchImpl: erp.fetchImpl, apiKey: 'key', apiSecret: 'secret', baseUrl: 'https://erp.test', maxRetries: 0 };
+  const adapter = createErpAdapter({ client, doctypeBodies: DOCTYPE_BODIES, ctx: { refs: {}, config: {} } });
+  const record = (t: ImprestTransfer) => ({
+    id: t.key.split(':')[1], erp_doc_kind: 'imprest-transfer', company: 'Test Co', idempotency_key: t.key, from_account: t.fromAccount,
+    to_account: t.toAccount, amount: t.amount, posting_date: t.date, reference: t.reference,
+  });
+  const probe = (id: string) => ({ client, doctype: 'Journal Entry', anchorField: 'user_remark', fromDoc: expenseJournalFromDoc, pmoRecordId: id });
+  return {
+    // The ADR-0058 sequence the dispatch runs: probe the anchor first, create only when ERP holds nothing under the key.
+    async post(t) {
+      const adopted = await probeErpByAnchorKey(probe(t.key), t.key);
+      if (adopted) return { externalId: adopted.externalRecordId };
+      const rec = record(t);
+      const result = await adapter.commit({ domain: 'expenses', operation: 'create', record: rec, idempotencyKey: t.key });
+      return { externalId: result.externalRecordId };
+    },
+    seed(t) {
+      const body = imprestTransferToBody(record(t), { refs: {}, config: {} }) as Record<string, unknown>;
+      erp.docs.push({ ...body, user_remark: t.key, name: `ACC-JV-${erp.docs.length + 1}`, docstatus: 1 });
+    },
+    lines(key) {
+      const doc = erp.docs.find((d) => d.user_remark === key);
+      const rows = (doc?.accounts ?? []) as Array<{ account: string; debit_in_account_currency?: number; credit_in_account_currency?: number }>;
+      return rows.map((row) => ({ account: row.account, debit: (row.debit_in_account_currency ?? 0).toFixed(2), credit: (row.credit_in_account_currency ?? 0).toFixed(2) }));
+    },
+    documents: () => erp.docs.map((d) => ({ externalId: String(d.name), key: String(d.user_remark) })),
+    failNextWrite: (fault) => erp.arm(fault),
+  };
+}
+
 export function createErpnextHarness(): ErpHarness {
   return {
     tier: 'erpnext',
+    transfer: createTransferHarness,
 
     async matchParty(party: ErpPartyInput, existing: readonly PmoPartyCandidate[]): Promise<PartyMatchResult> {
       try {

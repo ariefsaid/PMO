@@ -144,22 +144,19 @@ select lives_ok($$ select expense_posting_actor_check('15150000-0000-0000-0000-0
     (select id from expense_posting_erp_mirror where posting_identity = '15150000-0000-0000-0000-000000000411:advance-payment')) $$,
   'AC-IMP-071 the gate accepts a PM custodian as the recorded payer');
 reset role;
--- a PM who is not the custodian is refused as the recorded payer of a float posting
-update expense_posting_erp_mirror set actor_id = '15150000-0000-0000-0000-0000000000a4'
- where posting_identity = '15150000-0000-0000-0000-000000000411:advance-payment';
-set local role service_role;
-select throws_ok($$ select expense_posting_actor_check('15150000-0000-0000-0000-00000000000a',
-    (select id from expense_posting_erp_mirror where posting_identity = '15150000-0000-0000-0000-000000000411:advance-payment')) $$,
-  '42501', 'expense-posting-actor-not-authorized', 'AC-IMP-071 a PM who is not the float''s custodian is refused as the payer');
-reset role;
-update expense_posting_erp_mirror set actor_id = '15150000-0000-0000-0000-0000000000a5'
- where posting_identity = '15150000-0000-0000-0000-000000000411:advance-payment';
--- the custodian stops qualifying (no longer manages the project): refused
+-- the project gets a new PM (PM1): PM2 stops qualifying as custodian, and PM1 qualifies on the project but is not the custodian
 update projects set project_manager_id = '15150000-0000-0000-0000-0000000000a4' where id = '15150000-0000-0000-0000-0000000000c2';
 set local role service_role;
 select throws_ok($$ select expense_posting_actor_check('15150000-0000-0000-0000-00000000000a',
     (select id from expense_posting_erp_mirror where posting_identity = '15150000-0000-0000-0000-000000000411:advance-payment')) $$,
   '42501', 'expense-posting-actor-not-authorized', 'AC-IMP-071 a custodian who no longer qualifies is refused');
+reset role;
+update expense_posting_erp_mirror set actor_id = '15150000-0000-0000-0000-0000000000a4'
+ where posting_identity = '15150000-0000-0000-0000-000000000411:advance-payment';
+set local role service_role;
+select throws_ok($$ select expense_posting_actor_check('15150000-0000-0000-0000-00000000000a',
+    (select id from expense_posting_erp_mirror where posting_identity = '15150000-0000-0000-0000-000000000411:advance-payment')) $$,
+  '42501', 'expense-posting-actor-not-authorized', 'AC-IMP-071 a qualifying PM who is not the float''s custodian is refused as the payer');
 reset role;
 
 -- imprest_posting_for_push (the replenishment gate)

@@ -46,7 +46,7 @@ describe('expense kinds (AC-EXP-114)', () => {
 
   it('AC-EXP-114 an org employing only expenses also polls the Employee master', () => {
     const kinds = sweepKindsForOrg(['expenses']).map((k) => k.kind).sort();
-    expect(kinds).toEqual(['employee', 'expense-journal', 'expense-payment', 'expense-receipt']);
+    expect(kinds).toEqual(['employee', 'expense-journal', 'expense-payment', 'expense-receipt', 'imprest-transfer']);
     expect(sweepKindsForOrg(['revenue']).map((k) => k.kind)).not.toContain('employee');
   });
 

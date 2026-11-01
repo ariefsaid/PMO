@@ -1244,12 +1244,14 @@ const expensesWriter: ReadModelWriter = {
     if (!erpName) throw new AppError(`expense posting ${identity}: the ERP result carries no ERP document name`, 'commit-rejected');
     const erpModified = (canonical.erp_modified as string | null | undefined) ?? null;
     const now = new Date().toISOString();
+    // #1515 §9: a site float transfer lands on its own side mirror (keyed the same way, by posting identity).
+    const table = (command.record as { erp_doc_kind?: unknown }).erp_doc_kind === 'imprest-transfer' ? 'imprest_posting_erp_mirror' : 'expense_posting_erp_mirror';
     const write = async (postingIdentity: string, patch: Record<string, unknown>): Promise<void> => {
-      const { error } = await (ctx.serviceClient.from('expense_posting_erp_mirror').update(patch)
+      const { error } = await (ctx.serviceClient.from(table).update(patch)
         .eq('org_id', ctx.orgId).eq('posting_identity', postingIdentity) as unknown as Promise<{
         error: { message: string; code?: string } | null;
       }>);
-      if (error) throw new AppError(`expense_posting_erp_mirror write failed: ${error.message}`, 'DISPATCH_FAILED');
+      if (error) throw new AppError(`${table} write failed: ${error.message}`, 'DISPATCH_FAILED');
     };
     await write(identity, {
       push_state: 'pushed', push_error: null, erp_name: erpName, pushed_at: now,

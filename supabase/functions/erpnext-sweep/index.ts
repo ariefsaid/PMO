@@ -91,6 +91,11 @@ import { SQ_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpn
 import { SUPPLIER_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/supplier.ts';
 import { CONTACT_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/contact.ts';
 import { CUSTOMER_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/customer.ts';
+import { buildImprestPostingCommand, parseImprestGateTruth } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestPostingCommand.ts';
+import { resolveImprestPosting, type ImprestResolveDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestPostingResolve.ts';
+import { imprestTransferKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/imprestTransferKey.ts';
+import { IMPREST_TRANSFER_KEY_RE } from '../../../pmo-portal/src/lib/adapterSeam/imprestTransfer.ts';
+import { reconcileOrgImprestPostings, type ImprestBackstopDeps, type ImprestIntentRow } from './imprestPostingBackstop.ts';
 import { EXPENSE_JOURNAL_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/expenseJournal.ts';
 import { EXPENSE_PAYMENT_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/expensePayment.ts';
 import { KIND_DOMAIN, pollDiscriminatorForKind, sweepKindsForOrg } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
@@ -279,6 +284,8 @@ const FROM_DOC_FIELDS_BY_KIND: Record<ErpDocKind, readonly string[]> = {
   'expense-journal': EXPENSE_JOURNAL_FROM_DOC_FIELDS,
   'expense-payment': EXPENSE_PAYMENT_FROM_DOC_FIELDS,
   'expense-receipt': EXPENSE_PAYMENT_FROM_DOC_FIELDS,
+  // #1515 §9 — site float transfers: the same lifecycle-only read as the expense journal.
+  'imprest-transfer': EXPENSE_JOURNAL_FROM_DOC_FIELDS,
 };
 
 /** The fields the poll requests for one kind: the mapper's own fields plus the `payment_type`
@@ -391,7 +398,9 @@ export function pollFiltersForKind(
 export function sweepWatermarkDomain(kind: ErpDocKind): string {
   const doctype = DOCTYPE_REGISTRY[kind].doctype;
   const domain = KIND_DOMAIN[kind];
-  const shared = (Object.keys(DOCTYPE_REGISTRY) as ErpDocKind[])
+  // `expense-journal` shipped alone on its (domain, doctype); a kind added later (`imprest-transfer`) is the one that gets
+  // qualified, so the shipped cursor is not reset.
+  const shared = kind !== 'expense-journal' && (Object.keys(DOCTYPE_REGISTRY) as ErpDocKind[])
     .some((other) => other !== kind && KIND_DOMAIN[other] === domain && DOCTYPE_REGISTRY[other].doctype === doctype);
   return shared ? `${domain}::${doctype}::${kind}` : `${domain}::${doctype}`;
 }
@@ -635,6 +644,8 @@ export interface ErpSweepCycleDeps {
   /** #775 phase B (ADR-0081) — pass (7), the only originator of expense postings. Optional so the existing cycle
    *  tests stay byte-for-byte; the live wiring always supplies it. */
   reconcileOrgExpensePostings?: (org: OrgBinding) => Promise<{ driven: number; error?: string }>;
+  /** #1515 S6 — pass (7b), the originator of site float transfers (same ownership as pass (7)). Optional like its siblings. */
+  reconcileOrgImprestPostings?: (org: OrgBinding) => Promise<{ driven: number; error?: string }>;
   /** 0358: on a money-only tick, whether this org's hourly work is due (its last full run is stale). */
   isFullSweepDue?: (org: OrgBinding) => boolean;
   /** 0358: stamp a completed full run — only after the hourly passes ran, and only by the lock holder. */
@@ -750,6 +761,16 @@ export async function runErpSweepCycle(
         if (r.error) errors.push(`expenses:${r.error}`);
       } catch (err) {
         errors.push(`expenses:${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    // (7b) #1515 S6 — site float transfers (replenishments paid into a float with an ERP cash account), same domain and
+    // ownership as (7). Same try/catch shape as its siblings.
+    if (deps.reconcileOrgImprestPostings) {
+      try {
+        const r = await deps.reconcileOrgImprestPostings(org);
+        if (r.error) errors.push(`imprest:${r.error}`);
+      } catch (err) {
+        errors.push(`imprest:${err instanceof Error ? err.message : String(err)}`);
       }
     }
     // (2) doctype modified-poll sweep. (2)–(4) are the hourly inbound/statement work: a money-only
@@ -3229,6 +3250,183 @@ async function reconcileOrgExpensePostingsLive(
   }
 }
 
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// (7b) #1515 S6 — site float transfers: head office bank → a float's ERP cash account, once per paid replenishment.
+// The expense pass's orchestration (imprestPostingBackstop.ts) over `imprest_posting_erp_mirror`; same outbox domain
+// (`expenses`), so 0270 §5b's read scope covers its rows.
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+
+const IMPREST_INTENT_COLUMNS = 'id, posting_identity, replenishment_id, state_stamp, push_state, push_error, attempt_count';
+/** A failed transfer is retried after 2^attempts minutes, capped at an hour (the 0358 expense queue's delay). */
+const imprestRetryDelayMs = (attempts: number): number => Math.min(60, 2 ** Math.min(attempts, 10)) * 60_000;
+
+/** The live reads the resolver needs. ERP reads reuse the expense pass's probe-budget client. Exported for its unit test. */
+export function imprestResolveDepsLive(serviceClient: SupabaseClient, org: OrgBinding, cache?: ErpAuthPairCache): ImprestResolveDeps {
+  const text = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value.trim() : null);
+  const erp = expenseResolveDepsLive(serviceClient, org, cache);
+  return {
+    // The head office end is the binding's BANK account first (it funds site cash), the company cash account as the fallback.
+    readBinding: () => Promise.resolve({
+      company: text(org.company),
+      headOfficeAccount: text(org.config.default_bank_account) ?? text(org.config.default_cash_account),
+    }),
+    readErpAccounts: erp.readErpAccounts,
+    readErpCompany: async (company) => {
+      const c = await erp.readErpCompany(company);
+      return c ? { currency: c.currency } : null;
+    },
+  };
+}
+
+/** The live deps of pass (7b). `eligibleOutbox` is 0131's expenses candidate set, read once per pass. */
+export function imprestPostingBackstopDepsLive(
+  serviceClient: SupabaseClient,
+  org: OrgBinding,
+  eligibleOutbox: readonly OutboxRow[],
+  cache?: ErpAuthPairCache,
+  retryPendingIds: ReadonlySet<string> = new Set(),
+): ImprestBackstopDeps {
+  const eligibleOutboxIds = new Set(eligibleOutbox.map((row) => row.id));
+  const recordOutcome: ImprestBackstopDeps['recordOutcome'] = async (row, outcome) => {
+    const patch: Record<string, unknown> = { push_state: outcome.state, push_error: outcome.reason };
+    if (outcome.state === 'failed') patch.attempt_count = (row.attempt_count ?? 0) + 1;
+    if (outcome.state === 'pushed') {
+      patch.erp_name = outcome.erpName ?? null;
+      patch.pushed_at = new Date().toISOString();
+    }
+    // Compare-and-set: only a pending/failed, not-cancelled intent moves (a concurrent landing stays `pushed`).
+    const { error } = await serviceClient.from('imprest_posting_erp_mirror').update(patch)
+      .eq('org_id', org.orgId).eq('id', row.id).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null);
+    if (error) throw new AppError(error.message, error.code);
+    if (outcome.state !== 'pushed') {
+      await surfaceActionRequired(serviceClient, org.orgId, outcome.state === 'held' ? 'imprest-posting-held' : 'imprest-posting-failed',
+        { postingIdentity: row.posting_identity, reason: outcome.reason });
+    }
+  };
+  const classify = (err: unknown) => {
+    const code = (err as { code?: unknown } | null)?.code;
+    return {
+      state: (code === 'command-held' ? 'held' : 'failed') as 'held' | 'failed',
+      reason: typeof code === 'string' ? code : err instanceof Error ? err.message : String(err),
+    };
+  };
+  return {
+    // Round robin: never-attempted first, then least recently attempted; a failed intent waits out its retry delay.
+    listPending: async (orgId, limit) => {
+      const { data, error } = await serviceClient.from('imprest_posting_erp_mirror').select(`${IMPREST_INTENT_COLUMNS}, last_attempt_at`)
+        .eq('org_id', orgId).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null)
+        .order('last_attempt_at', { ascending: true, nullsFirst: true }).order('created_at', { ascending: true }).limit(limit);
+      if (error) throw new AppError(error.message, error.code);
+      const now = Date.now();
+      return ((data as Array<ImprestIntentRow & { last_attempt_at: string | null }> | null) ?? []).filter((r) =>
+        r.push_state !== 'failed' || !r.last_attempt_at || now - Date.parse(r.last_attempt_at) >= imprestRetryDelayMs(r.attempt_count ?? 0));
+    },
+    markAttempted: async (orgId, intentIds) => {
+      const { error } = await serviceClient.from('imprest_posting_erp_mirror')
+        .update({ last_attempt_at: new Date().toISOString() }).eq('org_id', orgId).in('id', intentIds);
+      if (error) throw new AppError(error.message, error.code);
+    },
+    // A command left `committed` whose intent the read-model writer already marked `pushed`: finish it (no ERP write).
+    listStranded: async (orgId) => {
+      const byIdentity = new Map<string, OutboxRow>();
+      for (const outbox of eligibleOutbox) {
+        if (outbox.state !== 'committed' || !IMPREST_TRANSFER_KEY_RE.test(outbox.idempotencyKey)) continue;
+        byIdentity.set(outbox.pmoRecordId, outbox);
+      }
+      if (byIdentity.size === 0) return [];
+      const { data, error } = await serviceClient.from('imprest_posting_erp_mirror').select(IMPREST_INTENT_COLUMNS)
+        .eq('org_id', orgId).eq('push_state', 'pushed').in('posting_identity', [...byIdentity.keys()]);
+      if (error) throw new AppError(error.message, error.code);
+      return ((data as ImprestIntentRow[] | null) ?? []).flatMap((row) => {
+        const outbox = byIdentity.get(row.posting_identity);
+        return outbox ? [{ row, outbox }] : [];
+      });
+    },
+    findOutbox: (row) => findOutboxRowByKey(serviceClient, org.orgId, ERPNEXT_EXPENSES_DOMAIN, row.posting_identity,
+      imprestTransferKey({ subject_id: row.replenishment_id, state_stamp: row.state_stamp })),
+    replay: async (row, ref) => {
+      const outbox = ref as OutboxRow;
+      if (!eligibleOutboxIds.has(outbox.id)) {
+        if (outbox.state === 'committing' || outbox.state === 'quarantined' || retryPendingIds.has(outbox.id)) return;
+        await recordOutcome(row, { state: 'held', reason: expenseOutboxHoldReason(outbox.state) });
+        return;
+      }
+      // A replay that may issue a NEW ERP write re-asserts the gate (status, stamp, recorded actor's CURRENT standing).
+      if (replayMayIssueErpWrite(outbox.state)) {
+        const { error } = await serviceClient.rpc('imprest_posting_for_push', { p_org_id: org.orgId, p_mirror_id: row.id });
+        if (error) {
+          if (error.code === '42501' || error.code === 'P0001' || error.code === 'P0002') {
+            await recordOutcome(row, { state: 'failed', reason: error.message });
+            return;
+          }
+          throw new AppError(error.message, error.code);
+        }
+      }
+      try {
+        await dispatchMoneyWrite(await buildReconcileDepsLive(serviceClient, org, outbox, cache));
+      } catch (err) {
+        if (row.push_state === 'pushed') throw err;
+        await recordOutcome(row, classify(err));
+      }
+    },
+    assertGate: async (row) => {
+      const { data, error } = await serviceClient.rpc('imprest_posting_for_push', { p_org_id: org.orgId, p_mirror_id: row.id });
+      if (error) {
+        if (error.code === 'P0001' || error.code === 'P0002' || error.code === '42501') return { ok: false, reason: error.message };
+        throw new AppError(error.message, error.code);
+      }
+      return { ok: true, truth: parseImprestGateTruth(data) };
+    },
+    resolve: (truth) => resolveImprestPosting(truth, imprestResolveDepsLive(serviceClient, org, cache)),
+    recordOutcome,
+    driveFresh: async (row, truth, refs) => {
+      const built = buildImprestPostingCommand(truth, refs);
+      const auth = await checkErpnextCommandAuthorization(serviceClient as never, org.orgId, truth.actor_id, {
+        domain: ERPNEXT_EXPENSES_DOMAIN, record: { erp_doc_kind: built.record.erp_doc_kind },
+      });
+      if (!auth.ok) {
+        await recordOutcome(row, { state: 'failed', reason: auth.message });
+        return;
+      }
+      const command: AdapterCommand = {
+        domain: ERPNEXT_EXPENSES_DOMAIN, operation: built.operation,
+        record: built.record as AdapterCommand['record'], idempotencyKey: built.idempotencyKey,
+      };
+      try {
+        await dispatchMoneyWrite(await buildMoneyWriteDepsLive(serviceClient, org,
+          { command, actorUserId: truth.actor_id, outboxRecordId: built.outboxIdentity, persistPayload: true }, cache));
+      } catch (err) {
+        await recordOutcome(row, classify(err));
+      }
+    },
+  };
+}
+
+/** Pass (7b), domain-gated like (7): an org that has not employed `expenses` has nothing to post. */
+async function reconcileOrgImprestPostingsLive(
+  serviceClient: SupabaseClient,
+  org: OrgBinding,
+  cache?: ErpAuthPairCache,
+): Promise<{ driven: number; error?: string }> {
+  if (!org.ownedDomains.includes(ERPNEXT_EXPENSES_DOMAIN)) return { driven: 0 };
+  try {
+    const eligibleOutbox = (await listCandidatesLive(serviceClient)(org.orgId)).filter((c) => c.domain === ERPNEXT_EXPENSES_DOMAIN);
+    const result = await reconcileOrgImprestPostings(
+      imprestPostingBackstopDepsLive(serviceClient, org, eligibleOutbox, cache, await listRetryPendingLive(serviceClient, org.orgId)),
+      { orgId: org.orgId },
+    );
+    for (const e of result.errors) {
+      console.warn(`[erpnext-sweep] org ${org.orgId} imprest intent ${e.intentId}: ${e.error}`);
+    }
+    return {
+      driven: result.driven + result.replayed + result.finished,
+      error: result.errors.length ? `${result.errors.length} imprest intent(s) failed` : undefined,
+    };
+  } catch (err) {
+    return { driven: 0, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 /**
  * job_run summary for the tick response (#1532 S3). `null` = not a tick (a maintenance request has no
  * `perOrg`). Zero bound orgs is `skipped`: a standalone deployment legitimately has none (ADR-0094).
@@ -3399,6 +3597,7 @@ serveWithErrorReporting('erpnext-sweep', withJobRun('erpnext-sweep', async (req:
     reconcileOrgBudgetPushes: (org) => reconcileOrgBudgetPushesLive(serviceClient, org, erpAuth),
     reconcileOrgTimesheetPushes: (org) => reconcileOrgTimesheetPushesLive(serviceClient, org),
     reconcileOrgExpensePostings: (org) => reconcileOrgExpensePostingsLive(serviceClient, org, erpAuth),
+    reconcileOrgImprestPostings: (org) => reconcileOrgImprestPostingsLive(serviceClient, org, erpAuth),
     isFullSweepDue: (org) => fullSweepDue(org.lastFullSweepAt, handlerEntryMs),
     markFullSweepDone: async (org) => {
       if (!org.statementLockHolder) throw new Error('no sweep lock held');

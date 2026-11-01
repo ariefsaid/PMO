@@ -1004,6 +1004,10 @@ function describeActionRequired(actionRequired: string, detail: Record<string, u
       return `An expense claim could not be posted to ERPNext (${detail.reason ?? 'unknown reason'}) — fix the cause; the next sweep retries it.`;
     case 'expense-posting-held':
       return `An expense posting to ERPNext needs an operator (${detail.reason ?? 'unknown reason'}) — it is not retried automatically.`;
+    case 'imprest-posting-failed':
+      return `A site float top-up could not be posted to ERPNext (${detail.reason ?? 'unknown reason'}) — fix the cause; the next sweep retries it.`;
+    case 'imprest-posting-held':
+      return `A site float top-up posting to ERPNext needs an operator (${detail.reason ?? 'unknown reason'}) — it is not retried automatically.`;
     default:
       return `Action required: ${actionRequired}`;
   }

@@ -12,6 +12,7 @@
  */
 import { DOCTYPE_REGISTRY, type ErpDocKind } from './doctypeRegistry.ts';
 import { EXPENSE_JOURNAL_KEY_RE } from './expensePostingKey.ts';
+import { IMPREST_TRANSFER_KEY_RE } from '../imprestTransfer.ts';
 
 export type { ErpDocKind } from './doctypeRegistry.ts';
 
@@ -44,6 +45,8 @@ export const KIND_DOMAIN: Record<ErpDocKind, 'companies' | 'procurement' | 'reve
   'expense-journal': 'expenses',
   'expense-payment': 'expenses',
   'expense-receipt': 'expenses',
+  // #1515 §9 — site float transfers: the same domain, their own side mirror.
+  'imprest-transfer': 'expenses',
 };
 
 /** kind → the PMO mirror table the feed upserts/reads (the table carrying `erp_modified`/`erp_docstatus`).
@@ -77,12 +80,14 @@ export const KIND_MIRROR_TABLE: Record<ErpDocKind, string> = {
   'expense-journal': 'expense_posting_erp_mirror',
   'expense-payment': 'expense_posting_erp_mirror',
   'expense-receipt': 'expense_posting_erp_mirror',
+  // #1515 §9 — the replenishment side mirror (0425). ⛔ NEVER `imprest_replenishments`: PMO is the SoT.
+  'imprest-transfer': 'imprest_posting_erp_mirror',
 };
 
 /** Kinds that share a doctype with an earlier kind and are reached only through a discriminator
  *  (`kindFromDoctypeAndPaymentType`'s party type). Kept out of the plain reverse map so `kindFromDoctype` answers
  *  exactly as it did before they existed. */
-const DISCRIMINATED_KINDS: ReadonlySet<ErpDocKind> = new Set<ErpDocKind>(['expense-payment', 'expense-receipt']);
+const DISCRIMINATED_KINDS: ReadonlySet<ErpDocKind> = new Set<ErpDocKind>(['expense-payment', 'expense-receipt', 'imprest-transfer']);
 
 /** Reverse doctype→kind lookup (built from the registry — one source of doctype names). */
 const DOCTYPE_TO_KIND: Record<string, ErpDocKind> = Object.fromEntries(
@@ -219,6 +224,13 @@ export function pollDiscriminatorForKind(kind: ErpDocKind): KindPollDiscriminato
       filters: [['user_remark', 'like', 'exp%']],
       fields: ['user_remark'],
       admits: (row) => typeof row.user_remark === 'string' && EXPENSE_JOURNAL_KEY_RE.test(row.user_remark),
+    };
+  }
+  if (kind === 'imprest-transfer') {
+    return {
+      filters: [['user_remark', 'like', 'impt:%']],
+      fields: ['user_remark'],
+      admits: (row) => typeof row.user_remark === 'string' && IMPREST_TRANSFER_KEY_RE.test(row.user_remark),
     };
   }
   return null;

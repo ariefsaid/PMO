@@ -19,7 +19,7 @@ const ACCOUNTS: Record<string, ErpAccountFacts> = {
 function truth(posting: ExpensePosting, over: Partial<ExpenseGateTruth> = {}): ExpenseGateTruth {
   return {
     mirror_id: 'm1', posting, posting_identity: `${CLAIM}:${posting}`, subject_id: CLAIM, claim_id: CLAIM,
-    claim_number: 'EXP-2610070001', claimant_id: 'user-e1', project_id: 'proj-1', project_is_internal: true, currency: 'IDR', amount: '175.00',
+    claim_number: 'EXP-2610070001', claimant_id: 'user-e1', project_id: 'proj-1', project_is_internal: true, float_cash_account: null, currency: 'IDR', amount: '175.00',
     lines: [{ expense_type: 'Meals', amount: '25.00' }, { expense_type: 'Travel', amount: '150.00' }],
     state_stamp: '2026-10-07T10:00:00+00:00', posting_date: '2026-10-07', approval_posting_exists: true, actor_id: 'user-pm',
     ...over,
@@ -40,6 +40,31 @@ function deps(over: Partial<ExpenseResolveDeps> = {}): ExpenseResolveDeps & { ca
   };
   return { ...base, ...over, calls };
 }
+
+describe('resolveExpensePosting on a float (AC-IMP-071)', () => {
+  const FLOAT = 'Site Cash F - PSC';
+  const floatCash: ErpAccountFacts = { name: FLOAT, account_type: 'Cash', is_group: 0, disabled: 0, company: 'PMO Smoke Co' };
+  const readAccounts = (facts: ErpAccountFacts | null) => async (names: string[]) =>
+    names.flatMap((n) => (n === FLOAT ? (facts ? [facts] : []) : ACCOUNTS[n] ? [ACCOUNTS[n]] : []));
+
+  it('AC-IMP-071 a float advance needs no company cash account when the float\'s account fits', async () => {
+    const noCompanyCash = async () => ({ company: 'PMO Smoke Co', cashAccount: null, costCenter: null, projectMap: {} });
+    expect(await resolveExpensePosting(truth('advance-payment', { float_cash_account: FLOAT }),
+      deps({ readBinding: noCompanyCash, readErpAccounts: readAccounts(floatCash) }))).toMatchObject({ outcome: 'ready' });
+  });
+
+  it('AC-IMP-071 an account that no longer fits is refused, not posted', async () => {
+    for (const facts of [null, { ...floatCash, account_type: 'Bank' }, { ...floatCash, company: 'Other Co' }, { ...floatCash, disabled: 1 }, { ...floatCash, is_group: 1 }]) {
+      expect(await resolveExpensePosting(truth('advance-payment', { float_cash_account: FLOAT }), deps({ readErpAccounts: readAccounts(facts) })))
+        .toMatchObject({ outcome: 'refuse', code: 'imprest-cash-account-unfit' });
+    }
+  });
+
+  it('AC-IMP-071 a journal posting on a float record does not read the float\'s account', async () => {
+    const d = deps({ readErpAccounts: readAccounts(null) });
+    expect(await resolveExpensePosting(truth('approval', { float_cash_account: FLOAT }), d)).toMatchObject({ outcome: 'ready' });
+  });
+});
 
 describe('resolveExpensePosting (AC-EXP-115)', () => {
   it('AC-EXP-115 approval: ready with exactly the accounts it needs', async () => {

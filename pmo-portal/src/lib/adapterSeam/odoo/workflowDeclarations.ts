@@ -16,6 +16,7 @@ const ODOO_PROCUREMENT = 1505;
 const ODOO_REVENUE = 1506;
 const ODOO_ACTUALS_AND_BUDGET = 1507;
 const ODOO_LABOUR = 1510;
+const ODOO_SITE_CASH = 1509; // site imprest postings (#1515 §9)
 
 export const ODOO_WORKFLOWS: TierWorkflows = {
   'census': { status: 'pending', version: 1, issue: SETUP_CENSUS_AND_PROPOSALS },
@@ -46,4 +47,5 @@ export const ODOO_WORKFLOWS: TierWorkflows = {
   // O4 decides: Odoo Community has no budget object (DD-ODC-5), so this likely becomes unavailable.
   'budget.unowned-occupant': { status: 'pending', version: 1, issue: ODOO_ACTUALS_AND_BUDGET },
   'timesheet.push': { status: 'pending', version: 1, issue: ODOO_LABOUR },
+  'imprest.transfer': { status: 'pending', version: 1, issue: ODOO_SITE_CASH },
 };

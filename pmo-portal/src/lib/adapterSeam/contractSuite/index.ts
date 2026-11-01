@@ -2,6 +2,7 @@ import type { WorkflowId } from '../connect/workflows.ts';
 import { budgetSuite } from './budget.suite.ts';
 import { cutoverSuite } from './cutover.suite.ts';
 import type { Suite } from './harness.ts';
+import { imprestTransferSuite } from './imprestTransfer.suite.ts';
 import { partySuite } from './party.suite.ts';
 import { projectSuite } from './project.suite.ts';
 import { itemSendSuite, partySendSuite, projectSendSuite } from './send.suite.ts';
@@ -15,4 +16,5 @@ export const SUITES: Readonly<Partial<Record<WorkflowId, Suite>>> = {
   'item.send': itemSendSuite,
   'budget.unowned-occupant': budgetSuite,
   'cutover.activation': cutoverSuite,
+  'imprest.transfer': imprestTransferSuite,
 };
