@@ -93,4 +93,5 @@ revoke all on function public.create_procurement_with_items(uuid,jsonb,jsonb) fr
 grant execute on function public.create_procurement_with_items(uuid,jsonb,jsonb) to authenticated;
 drop trigger if exists procurements_zz_subcontract_flag on public.procurements;
 drop function if exists public.guard_procurement_subcontract_flag();
+update public.record_history_config set captured = captured - 'is_subcontract' where table_name = 'procurements';
 alter table public.procurements drop column if exists is_subcontract;
