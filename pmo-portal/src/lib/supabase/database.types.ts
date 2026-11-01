@@ -655,6 +655,164 @@ export type Database = {
           },
         ]
       }
+      budget_archive_cancel_intents: {
+        Row: {
+          activated_at_witness: string
+          actor_user_id: string
+          budget_version_id: string
+          created_at: string
+          erp_account: string
+          erp_budget_name: string
+          fiscal_year: string
+          id: string
+          last_error: string | null
+          org_id: string
+          project_id: string
+          pushed_project_end_date: string | null
+          pushed_project_start_date: string | null
+          request_id: string
+          source_mirror_id: string
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          activated_at_witness: string
+          actor_user_id: string
+          budget_version_id: string
+          created_at?: string
+          erp_account: string
+          erp_budget_name: string
+          fiscal_year: string
+          id?: string
+          last_error?: string | null
+          org_id: string
+          project_id: string
+          pushed_project_end_date?: string | null
+          pushed_project_start_date?: string | null
+          request_id: string
+          source_mirror_id: string
+          state?: string
+          updated_at?: string
+        }
+        Update: {
+          activated_at_witness?: string
+          actor_user_id?: string
+          budget_version_id?: string
+          created_at?: string
+          erp_account?: string
+          erp_budget_name?: string
+          fiscal_year?: string
+          id?: string
+          last_error?: string | null
+          org_id?: string
+          project_id?: string
+          pushed_project_end_date?: string | null
+          pushed_project_start_date?: string | null
+          request_id?: string
+          source_mirror_id?: string
+          state?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_archive_cancel_intents_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_archive_cancel_intents_budget_version_id_fkey"
+            columns: ["budget_version_id"]
+            isOneToOne: false
+            referencedRelation: "budget_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_archive_cancel_intents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_archive_cancel_intents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_archive_cancel_intents_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "budget_archive_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_archive_requests: {
+        Row: {
+          budget_version_id: string
+          cancel_erp: boolean
+          created_at: string
+          id: string
+          live_target_count: number
+          org_id: string
+          project_id: string
+          requested_by: string
+        }
+        Insert: {
+          budget_version_id: string
+          cancel_erp: boolean
+          created_at?: string
+          id?: string
+          live_target_count?: number
+          org_id: string
+          project_id: string
+          requested_by: string
+        }
+        Update: {
+          budget_version_id?: string
+          cancel_erp?: boolean
+          created_at?: string
+          id?: string
+          live_target_count?: number
+          org_id?: string
+          project_id?: string
+          requested_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_archive_requests_budget_version_id_fkey"
+            columns: ["budget_version_id"]
+            isOneToOne: false
+            referencedRelation: "budget_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_archive_requests_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_archive_requests_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_archive_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_category_account_map: {
         Row: {
           category: Database["public"]["Enums"]["budget_category"]
@@ -823,99 +981,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      budget_archive_cancel_intents: {
-        Row: {
-          activated_at_witness: string
-          actor_user_id: string
-          budget_version_id: string
-          created_at: string
-          erp_account: string
-          erp_budget_name: string
-          fiscal_year: string
-          id: string
-          last_error: string | null
-          org_id: string
-          project_id: string
-          pushed_project_end_date: string | null
-          pushed_project_start_date: string | null
-          request_id: string
-          source_mirror_id: string
-          state: string
-          updated_at: string
-        }
-        Insert: {
-          activated_at_witness: string
-          actor_user_id: string
-          budget_version_id: string
-          created_at?: string
-          erp_account: string
-          erp_budget_name: string
-          fiscal_year: string
-          id?: string
-          last_error?: string | null
-          org_id: string
-          project_id: string
-          pushed_project_end_date?: string | null
-          pushed_project_start_date?: string | null
-          request_id: string
-          source_mirror_id: string
-          state?: string
-          updated_at?: string
-        }
-        Update: {
-          activated_at_witness?: string
-          actor_user_id?: string
-          budget_version_id?: string
-          created_at?: string
-          erp_account?: string
-          erp_budget_name?: string
-          fiscal_year?: string
-          id?: string
-          last_error?: string | null
-          org_id?: string
-          project_id?: string
-          pushed_project_end_date?: string | null
-          pushed_project_start_date?: string | null
-          request_id?: string
-          source_mirror_id?: string
-          state?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      budget_archive_requests: {
-        Row: {
-          budget_version_id: string
-          cancel_erp: boolean
-          created_at: string
-          id: string
-          live_target_count: number
-          org_id: string
-          project_id: string
-          requested_by: string
-        }
-        Insert: {
-          budget_version_id: string
-          cancel_erp: boolean
-          created_at?: string
-          id?: string
-          live_target_count?: number
-          org_id: string
-          project_id: string
-          requested_by: string
-        }
-        Update: {
-          budget_version_id?: string
-          cancel_erp?: boolean
-          created_at?: string
-          id?: string
-          live_target_count?: number
-          org_id?: string
-          project_id?: string
-          requested_by?: string
-        }
-        Relationships: []
       }
       budget_version_account_erp_mirror: {
         Row: {
@@ -2111,224 +2176,6 @@ export type Database = {
           },
         ]
       }
-      erp_financial_statement_report_batch: {
-        Row: {
-          batch_id: string
-          context: Json
-          dirty_revision_cutoff: number
-          effective_date: string | null
-          org_id: string
-          planning_timezone: string | null
-          started_at: string
-        }
-        Insert: {
-          batch_id: string
-          context: Json
-          dirty_revision_cutoff: number
-          effective_date?: string | null
-          org_id: string
-          planning_timezone?: string | null
-          started_at: string
-        }
-        Update: {
-          batch_id?: string
-          context?: Json
-          dirty_revision_cutoff?: number
-          effective_date?: string | null
-          org_id?: string
-          planning_timezone?: string | null
-          started_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "erp_financial_statement_report_batch_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: true
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      erp_financial_statement_report_pending: {
-        Row: {
-          acquired_at: string | null
-          batch_id: string
-          current_end: string
-          current_start: string
-          normalized_report: Json | null
-          ordinal: number
-          org_id: string
-          period_kind: string
-          prior_end: string
-          prior_start: string
-          project_id: string | null
-          raw_response_text: string | null
-          raw_sha256: string | null
-          retained_source_snapshot_id: string | null
-          side: string
-          statement: string
-        }
-        Insert: {
-          acquired_at?: string | null
-          batch_id: string
-          current_end: string
-          current_start: string
-          normalized_report?: Json | null
-          ordinal: number
-          org_id: string
-          period_kind: string
-          prior_end: string
-          prior_start: string
-          project_id?: string | null
-          raw_response_text?: string | null
-          raw_sha256?: string | null
-          retained_source_snapshot_id?: string | null
-          side: string
-          statement: string
-        }
-        Update: {
-          acquired_at?: string | null
-          batch_id?: string
-          current_end?: string
-          current_start?: string
-          normalized_report?: Json | null
-          ordinal?: number
-          org_id?: string
-          period_kind?: string
-          prior_end?: string
-          prior_start?: string
-          project_id?: string | null
-          raw_response_text?: string | null
-          raw_sha256?: string | null
-          retained_source_snapshot_id?: string | null
-          side?: string
-          statement?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "erp_financial_statement_report_pending_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "erp_financial_statement_report_pending_batch_fk"
-            columns: ["org_id", "batch_id"]
-            isOneToOne: false
-            referencedRelation: "erp_financial_statement_report_batch"
-            referencedColumns: ["org_id", "batch_id"]
-          },
-        ]
-      }
-      erp_financial_statement_snapshot: {
-        Row: {
-          as_of: string
-          capture_completed_at: string | null
-          capture_started_at: string | null
-          company: string
-          currency: string
-          current_end: string
-          current_start: string
-          display_precision: number
-          display_rounding_method: string
-          filters: Json | null
-          has_activity: boolean
-          id: string
-          org_id: string
-          payload: Json
-          published_at: string | null
-          raw_reports: Json | null
-          period_kind: string
-          prior_end: string
-          prior_start: string
-          project_id: string | null
-          report_version: string | null
-          scope_kind: string
-          settings: Json | null
-          snapshot_id: string
-          source_generation: string
-          source_report: string | null
-          statement: string
-          view_kind: string
-        }
-        Insert: {
-          as_of: string
-          capture_completed_at?: string | null
-          capture_started_at?: string | null
-          company: string
-          currency: string
-          current_end: string
-          current_start: string
-          display_precision: number
-          display_rounding_method: string
-          filters?: Json | null
-          has_activity: boolean
-          id?: string
-          org_id?: string
-          payload: Json
-          published_at?: string | null
-          raw_reports?: Json | null
-          period_kind: string
-          prior_end: string
-          prior_start: string
-          project_id?: string | null
-          report_version?: string | null
-          scope_kind: string
-          settings?: Json | null
-          snapshot_id: string
-          source_generation: string
-          source_report?: string | null
-          statement: string
-          view_kind: string
-        }
-        Update: {
-          as_of?: string
-          capture_completed_at?: string | null
-          capture_started_at?: string | null
-          company?: string
-          currency?: string
-          current_end?: string
-          current_start?: string
-          display_precision?: number
-          display_rounding_method?: string
-          filters?: Json | null
-          has_activity?: boolean
-          id?: string
-          org_id?: string
-          payload?: Json
-          published_at?: string | null
-          raw_reports?: Json | null
-          period_kind?: string
-          prior_end?: string
-          prior_start?: string
-          project_id?: string | null
-          report_version?: string | null
-          scope_kind?: string
-          settings?: Json | null
-          snapshot_id?: string
-          source_generation?: string
-          source_report?: string | null
-          statement?: string
-          view_kind?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "erp_financial_statement_snapshot_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "erp_financial_statement_snapshot_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       erp_financial_statement_dirty_date: {
         Row: {
           company: string
@@ -2386,6 +2233,230 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_financial_statement_report_batch: {
+        Row: {
+          batch_id: string
+          context: Json
+          dirty_revision_cutoff: number
+          effective_date: string | null
+          org_id: string
+          planning_timezone: string | null
+          started_at: string
+        }
+        Insert: {
+          batch_id: string
+          context: Json
+          dirty_revision_cutoff: number
+          effective_date?: string | null
+          org_id: string
+          planning_timezone?: string | null
+          started_at: string
+        }
+        Update: {
+          batch_id?: string
+          context?: Json
+          dirty_revision_cutoff?: number
+          effective_date?: string | null
+          org_id?: string
+          planning_timezone?: string | null
+          started_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_financial_statement_report_batch_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_financial_statement_report_pending: {
+        Row: {
+          acquired_at: string | null
+          attempts: number
+          batch_id: string
+          current_end: string
+          current_start: string
+          last_attempt_at: string | null
+          normalized_report: Json | null
+          ordinal: number
+          org_id: string
+          period_kind: string
+          prior_end: string
+          prior_start: string
+          project_id: string | null
+          raw_response_text: string | null
+          raw_sha256: string | null
+          retained_source_snapshot_id: string | null
+          side: string
+          statement: string
+        }
+        Insert: {
+          acquired_at?: string | null
+          attempts?: number
+          batch_id: string
+          current_end: string
+          current_start: string
+          last_attempt_at?: string | null
+          normalized_report?: Json | null
+          ordinal: number
+          org_id: string
+          period_kind: string
+          prior_end: string
+          prior_start: string
+          project_id?: string | null
+          raw_response_text?: string | null
+          raw_sha256?: string | null
+          retained_source_snapshot_id?: string | null
+          side: string
+          statement: string
+        }
+        Update: {
+          acquired_at?: string | null
+          attempts?: number
+          batch_id?: string
+          current_end?: string
+          current_start?: string
+          last_attempt_at?: string | null
+          normalized_report?: Json | null
+          ordinal?: number
+          org_id?: string
+          period_kind?: string
+          prior_end?: string
+          prior_start?: string
+          project_id?: string | null
+          raw_response_text?: string | null
+          raw_sha256?: string | null
+          retained_source_snapshot_id?: string | null
+          side?: string
+          statement?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_financial_statement_report_pending_batch_fk"
+            columns: ["org_id", "batch_id"]
+            isOneToOne: false
+            referencedRelation: "erp_financial_statement_report_batch"
+            referencedColumns: ["org_id", "batch_id"]
+          },
+          {
+            foreignKeyName: "erp_financial_statement_report_pending_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_financial_statement_snapshot: {
+        Row: {
+          as_of: string
+          capture_completed_at: string | null
+          capture_started_at: string | null
+          company: string
+          currency: string
+          current_end: string
+          current_start: string
+          display_precision: number
+          display_rounding_method: string
+          filters: Json | null
+          has_activity: boolean
+          id: string
+          org_id: string
+          payload: Json
+          period_kind: string
+          prior_end: string
+          prior_start: string
+          project_id: string | null
+          published_at: string | null
+          raw_reports: Json | null
+          report_version: string | null
+          scope_kind: string
+          settings: Json | null
+          snapshot_id: string
+          source_generation: string
+          source_report: string | null
+          statement: string
+          view_kind: string
+        }
+        Insert: {
+          as_of: string
+          capture_completed_at?: string | null
+          capture_started_at?: string | null
+          company: string
+          currency: string
+          current_end: string
+          current_start: string
+          display_precision: number
+          display_rounding_method: string
+          filters?: Json | null
+          has_activity: boolean
+          id?: string
+          org_id?: string
+          payload: Json
+          period_kind: string
+          prior_end: string
+          prior_start: string
+          project_id?: string | null
+          published_at?: string | null
+          raw_reports?: Json | null
+          report_version?: string | null
+          scope_kind: string
+          settings?: Json | null
+          snapshot_id: string
+          source_generation: string
+          source_report?: string | null
+          statement: string
+          view_kind: string
+        }
+        Update: {
+          as_of?: string
+          capture_completed_at?: string | null
+          capture_started_at?: string | null
+          company?: string
+          currency?: string
+          current_end?: string
+          current_start?: string
+          display_precision?: number
+          display_rounding_method?: string
+          filters?: Json | null
+          has_activity?: boolean
+          id?: string
+          org_id?: string
+          payload?: Json
+          period_kind?: string
+          prior_end?: string
+          prior_start?: string
+          project_id?: string | null
+          published_at?: string | null
+          raw_reports?: Json | null
+          report_version?: string | null
+          scope_kind?: string
+          settings?: Json | null
+          snapshot_id?: string
+          source_generation?: string
+          source_report?: string | null
+          statement?: string
+          view_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_financial_statement_snapshot_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_financial_statement_snapshot_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -2541,6 +2612,86 @@ export type Database = {
           },
         ]
       }
+      erp_purchase_document_marks: {
+        Row: {
+          erp_purchase_document_id: string
+          note: string | null
+          org_id: string
+          set_aside_at: string | null
+          set_aside_by: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          erp_purchase_document_id: string
+          note?: string | null
+          org_id: string
+          set_aside_at?: string | null
+          set_aside_by?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          erp_purchase_document_id?: string
+          note?: string | null
+          org_id?: string
+          set_aside_at?: string | null
+          set_aside_by?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_purchase_document_marks_erp_purchase_document_id_fkey"
+            columns: ["erp_purchase_document_id"]
+            isOneToOne: true
+            referencedRelation: "erp_purchase_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_purchase_document_marks_erp_purchase_document_id_fkey"
+            columns: ["erp_purchase_document_id"]
+            isOneToOne: true
+            referencedRelation: "erp_purchase_documents_linked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_purchase_document_marks_erp_purchase_document_id_fkey"
+            columns: ["erp_purchase_document_id"]
+            isOneToOne: true
+            referencedRelation: "erp_purchase_orphans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_purchase_document_marks_erp_purchase_document_id_fkey"
+            columns: ["erp_purchase_document_id"]
+            isOneToOne: true
+            referencedRelation: "erp_purchase_orphans_all"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_purchase_document_marks_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_purchase_document_marks_set_aside_by_fkey"
+            columns: ["set_aside_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_purchase_document_marks_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_purchase_documents: {
         Row: {
           bill_no: string | null
@@ -2561,6 +2712,7 @@ export type Database = {
           outstanding_amount: number | null
           pmo_owned: boolean
           project_ids: string[]
+          purchase_orders: string[]
           supplier: string | null
           supplier_name: string | null
           updated_at: string
@@ -2584,6 +2736,7 @@ export type Database = {
           outstanding_amount?: number | null
           pmo_owned?: boolean
           project_ids?: string[]
+          purchase_orders?: string[]
           supplier?: string | null
           supplier_name?: string | null
           updated_at?: string
@@ -2607,6 +2760,7 @@ export type Database = {
           outstanding_amount?: number | null
           pmo_owned?: boolean
           project_ids?: string[]
+          purchase_orders?: string[]
           supplier?: string | null
           supplier_name?: string | null
           updated_at?: string
@@ -2616,6 +2770,29 @@ export type Database = {
             foreignKeyName: "erp_purchase_documents_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_sweep_full_run: {
+        Row: {
+          completed_at: string
+          org_id: string
+        }
+        Insert: {
+          completed_at: string
+          org_id: string
+        }
+        Update: {
+          completed_at?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_sweep_full_run_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
@@ -3017,6 +3194,7 @@ export type Database = {
       expense_posting_erp_mirror: {
         Row: {
           actor_id: string | null
+          attempt_count: number
           claim_id: string
           created_at: string
           erp_amended_from: string | null
@@ -3037,6 +3215,7 @@ export type Database = {
         }
         Insert: {
           actor_id?: string | null
+          attempt_count?: number
           claim_id: string
           created_at?: string
           erp_amended_from?: string | null
@@ -3057,6 +3236,7 @@ export type Database = {
         }
         Update: {
           actor_id?: string | null
+          attempt_count?: number
           claim_id?: string
           created_at?: string
           erp_amended_from?: string | null
@@ -3846,6 +4026,60 @@ export type Database = {
           },
         ]
       }
+      m365_record_folder_sweeps: {
+        Row: {
+          actor_id: string
+          counts: Json
+          last_cursor: Json | null
+          next_cursor: Json | null
+          org_id: string
+          run_id: string | null
+          state: string
+          unmatched: Json
+          unmatched_truncated: boolean
+          updated_at: string
+        }
+        Insert: {
+          actor_id: string
+          counts: Json
+          last_cursor?: Json | null
+          next_cursor?: Json | null
+          org_id: string
+          run_id?: string | null
+          state: string
+          unmatched?: Json
+          unmatched_truncated?: boolean
+          updated_at?: string
+        }
+        Update: {
+          actor_id?: string
+          counts?: Json
+          last_cursor?: Json | null
+          next_cursor?: Json | null
+          org_id?: string
+          run_id?: string | null
+          state?: string
+          unmatched?: Json
+          unmatched_truncated?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "m365_record_folder_sweeps_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "m365_record_folder_sweeps_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meeting_access_grants: {
         Row: {
           granted_at: string
@@ -4575,6 +4809,52 @@ export type Database = {
           },
         ]
       }
+      procurement_create_intents: {
+        Row: {
+          actor_id: string
+          header: Json
+          items: Json
+          org_id: string
+          procurement_id: string
+        }
+        Insert: {
+          actor_id: string
+          header: Json
+          items: Json
+          org_id: string
+          procurement_id: string
+        }
+        Update: {
+          actor_id?: string
+          header?: Json
+          items?: Json
+          org_id?: string
+          procurement_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procurement_create_intents_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_create_intents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_create_intents_procurement_id_fkey"
+            columns: ["procurement_id"]
+            isOneToOne: true
+            referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       procurement_doc_counters: {
         Row: {
           doc_date: string
@@ -4737,6 +5017,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "procurement_erp_links_erp_purchase_document_id_fkey"
+            columns: ["erp_purchase_document_id"]
+            isOneToOne: true
+            referencedRelation: "erp_purchase_orphans_all"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "procurement_erp_links_linked_by_fkey"
             columns: ["linked_by"]
             isOneToOne: false
@@ -4755,96 +5042,6 @@ export type Database = {
             columns: ["procurement_id"]
             isOneToOne: false
             referencedRelation: "procurements"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      procurement_invoice_files: {
-        Row: {
-          archived_at: string | null
-          created_at: string
-          file_path: string | null
-          id: string
-          ms_drive_id: string | null
-          ms_item_id: string | null
-          ms_item_name: string | null
-          ms_linked_at: string | null
-          ms_linked_by: string | null
-          ms_web_url: string | null
-          invoice_id: string
-          org_id: string
-          source: Database["public"]["Enums"]["doc_source"] | null
-          title: string | null
-          uploaded_by_id: string | null
-        }
-        Insert: {
-          archived_at?: string | null
-          created_at?: string
-          file_path?: string | null
-          id?: string
-          ms_drive_id?: string | null
-          ms_item_id?: string | null
-          ms_item_name?: string | null
-          ms_linked_at?: string | null
-          ms_linked_by?: string | null
-          ms_web_url?: string | null
-          invoice_id: string
-          org_id?: string
-          source?: Database["public"]["Enums"]["doc_source"] | null
-          title?: string | null
-          uploaded_by_id?: string | null
-        }
-        Update: {
-          archived_at?: string | null
-          created_at?: string
-          file_path?: string | null
-          id?: string
-          ms_drive_id?: string | null
-          ms_item_id?: string | null
-          ms_item_name?: string | null
-          ms_linked_at?: string | null
-          ms_linked_by?: string | null
-          ms_web_url?: string | null
-          invoice_id?: string
-          org_id?: string
-          source?: Database["public"]["Enums"]["doc_source"] | null
-          title?: string | null
-          uploaded_by_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "procurement_invoice_files_ms_linked_by_fkey"
-            columns: ["ms_linked_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "procurement_invoice_files_invoice_id_fkey"
-            columns: ["invoice_id"]
-            isOneToOne: false
-            referencedRelation: "procurement_invoices"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "procurement_invoice_files_invoice_id_fkey"
-            columns: ["invoice_id"]
-            isOneToOne: false
-            referencedRelation: "vendor_withholding_bill_register"
-            referencedColumns: ["invoice_id"]
-          },
-          {
-            foreignKeyName: "procurement_invoice_files_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "procurement_invoice_files_uploaded_by_id_fkey"
-            columns: ["uploaded_by_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -4874,6 +5071,96 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      procurement_invoice_files: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          file_path: string | null
+          id: string
+          invoice_id: string
+          ms_drive_id: string | null
+          ms_item_id: string | null
+          ms_item_name: string | null
+          ms_linked_at: string | null
+          ms_linked_by: string | null
+          ms_web_url: string | null
+          org_id: string
+          source: Database["public"]["Enums"]["doc_source"] | null
+          title: string | null
+          uploaded_by_id: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          invoice_id: string
+          ms_drive_id?: string | null
+          ms_item_id?: string | null
+          ms_item_name?: string | null
+          ms_linked_at?: string | null
+          ms_linked_by?: string | null
+          ms_web_url?: string | null
+          org_id?: string
+          source?: Database["public"]["Enums"]["doc_source"] | null
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          invoice_id?: string
+          ms_drive_id?: string | null
+          ms_item_id?: string | null
+          ms_item_name?: string | null
+          ms_linked_at?: string | null
+          ms_linked_by?: string | null
+          ms_web_url?: string | null
+          org_id?: string
+          source?: Database["public"]["Enums"]["doc_source"] | null
+          title?: string | null
+          uploaded_by_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procurement_invoice_files_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "procurement_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_invoice_files_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_withholding_bill_register"
+            referencedColumns: ["invoice_id"]
+          },
+          {
+            foreignKeyName: "procurement_invoice_files_ms_linked_by_fkey"
+            columns: ["ms_linked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_invoice_files_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_invoice_files_uploaded_by_id_fkey"
+            columns: ["uploaded_by_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -6075,6 +6362,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "project_documents_parent_org_project_fkey"
+            columns: ["parent_document_id", "org_id", "project_id"]
+            isOneToOne: false
+            referencedRelation: "project_documents"
+            referencedColumns: ["id", "org_id", "project_id"]
+          },
+          {
             foreignKeyName: "project_documents_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
@@ -6243,12 +6537,12 @@ export type Database = {
           last_update: string
           location: string | null
           name: string
-          short_name: string | null
           org_id: string
           pmo_project_number: string
           project_manager_id: string | null
           sector: string | null
           service_line: string | null
+          short_name: string | null
           spent: number
           start_date: string | null
           status: Database["public"]["Enums"]["project_status"]
@@ -6284,12 +6578,12 @@ export type Database = {
           last_update?: string
           location?: string | null
           name: string
-          short_name?: string | null
           org_id?: string
           pmo_project_number?: string
           project_manager_id?: string | null
           sector?: string | null
           service_line?: string | null
+          short_name?: string | null
           spent?: number
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
@@ -6325,12 +6619,12 @@ export type Database = {
           last_update?: string
           location?: string | null
           name?: string
-          short_name?: string | null
           org_id?: string
           pmo_project_number?: string
           project_manager_id?: string | null
           sector?: string | null
           service_line?: string | null
+          short_name?: string | null
           spent?: number
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
@@ -7702,6 +7996,65 @@ export type Database = {
           },
         ]
       }
+      stock_reorder_levels: {
+        Row: {
+          item_id: string
+          org_id: string
+          reorder_level: number
+          reorder_quantity: number | null
+          set_at: string
+          set_by: string
+          warehouse_id: string
+        }
+        Insert: {
+          item_id: string
+          org_id: string
+          reorder_level: number
+          reorder_quantity?: number | null
+          set_at?: string
+          set_by: string
+          warehouse_id: string
+        }
+        Update: {
+          item_id?: string
+          org_id?: string
+          reorder_level?: number
+          reorder_quantity?: number | null
+          set_at?: string
+          set_by?: string
+          warehouse_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_reorder_levels_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_reorder_levels_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_reorder_levels_set_by_fkey"
+            columns: ["set_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_reorder_levels_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "stock_warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_units: {
         Row: {
           archived_at: string | null
@@ -8535,7 +8888,7 @@ export type Database = {
           boq_item_id: string
           created_at?: string
           id?: string
-          org_id?: string
+          org_id: string
           quantity: number
           work_order_id: string
         }
@@ -8722,19 +9075,6 @@ export type Database = {
       }
     }
     Views: {
-      erp_financial_statement_availability: {
-        Row: {
-          calendar: Json | null
-          company_label: string | null
-          capture_completed_at: string | null
-          capture_started_at: string | null
-          delayed: boolean | null
-          last_success_at: string | null
-          snapshot_id: string | null
-          source_generation: string | null
-        }
-        Relationships: []
-      }
       budget_push_mirror_rows: {
         Row: {
           activated_at_witness: string | null
@@ -8755,6 +9095,19 @@ export type Database = {
           pushed_project_end_date: string | null
           pushed_project_start_date: string | null
           unmapped_categories: string[] | null
+        }
+        Relationships: []
+      }
+      erp_financial_statement_availability: {
+        Row: {
+          calendar: Json | null
+          capture_completed_at: string | null
+          capture_started_at: string | null
+          company_label: string | null
+          delayed: boolean | null
+          last_success_at: string | null
+          snapshot_id: string | null
+          source_generation: string | null
         }
         Relationships: []
       }
@@ -8814,9 +9167,43 @@ export type Database = {
           id: string | null
           is_return: boolean | null
           net_total: number | null
+          note: string | null
           org_id: string | null
           outstanding_amount: number | null
           project_ids: string[] | null
+          supplier: string | null
+          supplier_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_purchase_documents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_purchase_orphans_all: {
+        Row: {
+          bill_no: string | null
+          currency: string | null
+          doc_date: string | null
+          due_date: string | null
+          erp_doctype: string | null
+          erp_name: string | null
+          erp_project: string | null
+          erp_status: string | null
+          grand_total: number | null
+          id: string | null
+          is_return: boolean | null
+          net_total: number | null
+          note: string | null
+          org_id: string | null
+          outstanding_amount: number | null
+          project_ids: string[] | null
+          set_aside: boolean | null
+          set_aside_at: string | null
           supplier: string | null
           supplier_name: string | null
         }
@@ -9010,28 +9397,74 @@ export type Database = {
       }
     }
     Functions: {
-      boq_allowance_ok: {
-        Args: { p_boq_item_id: string; p_item_id: string }
+      _erp_ack_statement_dirty_dates: {
+        Args: { p_company: string; p_cutoff: number; p_org_id: string }
+        Returns: undefined
+      }
+      _erp_statement_native_has_amount_rows: {
+        Args: { p_report: Json }
         Returns: boolean
       }
-      normalize_procurement_import_refs: {
-        Args: { p_refs: string[] }
-        Returns: { input_ref: string; normalized_ref: string }[]
+      _erp_statement_period_matches: {
+        Args: {
+          p_context: Json
+          p_end: string
+          p_kind: string
+          p_period: Json
+          p_start: string
+        }
+        Returns: boolean
       }
-      lookup_procurement_import_cases: {
-        Args: { p_refs: string[]; p_after_key?: string | null; p_after_id?: string | null; p_limit?: number; p_org_id?: string | null }
-        Returns: { id: string; import_key: string; import_batch_id: string | null; normalized_ref: string }[]
+      _erp_statement_report_context_validate: {
+        Args: { p_context: Json; p_org_id: string }
+        Returns: undefined
       }
-      start_procurement_import_run: {
-        Args: { p_org_id?: string | null }
+      _erp_statement_report_filters: {
+        Args: { p_context: Json; p_selection: Json }
+        Returns: Json
+      }
+      _erp_statement_report_plan: {
+        Args: { p_context: Json }
+        Returns: {
+          current_end: string
+          current_start: string
+          ordinal: number
+          period_kind: string
+          prior_end: string
+          prior_start: string
+          project_id: string
+          side: string
+          statement: string
+        }[]
+      }
+      _erp_statement_report_refresh_plan: {
+        Args: {
+          p_context: Json
+          p_cutoff: number
+          p_effective_date: string
+          p_org_id: string
+        }
+        Returns: {
+          current_end: string
+          current_start: string
+          ordinal: number
+          period_kind: string
+          prior_end: string
+          prior_start: string
+          project_id: string
+          side: string
+          statement: string
+        }[]
+      }
+      _erp_statement_report_validate: {
+        Args: {
+          p_context: Json
+          p_raw_text: string
+          p_report: Json
+          p_selection: Json
+          p_started_at: string
+        }
         Returns: string
-      }
-      create_procurement_with_items: { Args: { p_id: string; p_header: Json; p_items: Json }; Returns: Database['public']['Tables']['procurements']['Row'] }
-      update_procurement_header: { Args: { p_id: string; p_patch: Json }; Returns: boolean }
-      procurement_item_values_editable: { Args: { p_case: string }; Returns: boolean }
-      budget_version_read_totals: {
-        Args: { p_project_id: string }
-        Returns: { version_id: string; total: number }[]
       }
       _m365_disconnect_cascade_core: {
         Args: {
@@ -9046,10 +9479,6 @@ export type Database = {
         Args: { version_id: string }
         Returns: undefined
       }
-      archive_budget_version_with_cancel_intent: {
-        Args: { p_archive_request_id?: string; p_cancel_erp?: boolean; p_version_id: string }
-        Returns: Json
-      }
       activate_external_binding: {
         Args: {
           p_actor_id: string
@@ -9061,12 +9490,25 @@ export type Database = {
         }
         Returns: string
       }
+      activate_odoo_binding: {
+        Args: {
+          p_actor_id: string
+          p_company_id: number
+          p_company_name: string
+          p_config_patch: Json
+          p_org_id: string
+          p_version_major: number
+        }
+        Returns: string
+      }
       active_delivery_project_statuses: { Args: never; Returns: string[] }
       actor_authorization_state: {
         Args: { p_org_id: string; p_user_id: string }
         Returns: Json
       }
-      actor_bypasses_rls: { Args: never; Returns: boolean }
+      actor_bypasses_rls:
+        | { Args: never; Returns: boolean }
+        | { Args: { p_role: unknown }; Returns: boolean }
       admin_change_domain_ownership: {
         Args: {
           p_action: string
@@ -9077,7 +9519,10 @@ export type Database = {
         }
         Returns: undefined
       }
-      admin_set_feedback_surveys: { Args: { p_enabled: boolean }; Returns: undefined }
+      admin_set_feedback_surveys: {
+        Args: { p_enabled: boolean }
+        Returns: undefined
+      }
       admin_set_user_status: {
         Args: {
           p_org_id: string
@@ -9092,6 +9537,15 @@ export type Database = {
       }
       agent_dispatch_tick: { Args: never; Returns: undefined }
       api_client_request_guard: { Args: never; Returns: undefined }
+      apply_odoo_master_page: {
+        Args: {
+          p_cursor: string
+          p_kind: string
+          p_org_id: string
+          p_rows: Json
+        }
+        Returns: number
+      }
       approve_procurement_amount: {
         Args: { p_amount: number; p_procurement_id: string }
         Returns: undefined
@@ -9104,6 +9558,18 @@ export type Database = {
           timesheet_id: string
           user_id: string
         }[]
+      }
+      archive_budget_version_with_cancel_intent: {
+        Args: {
+          p_archive_request_id?: string
+          p_cancel_erp?: boolean
+          p_version_id: string
+        }
+        Returns: Json
+      }
+      assert_integration_link_actor: {
+        Args: { p_actor_id: string; p_org_id: string; p_project_id: string }
+        Returns: undefined
       }
       assert_invoice_command_within_work_order: {
         Args: {
@@ -9118,6 +9584,8 @@ export type Database = {
         Args: { p_actor?: string }
         Returns: undefined
       }
+      assert_odoo_activated: { Args: { p_org_id: string }; Returns: undefined }
+      assert_odoo_master_kind: { Args: { p_kind: string }; Returns: undefined }
       assert_org_destroyable: { Args: { p_org_id: string }; Returns: undefined }
       assert_sales_invoice_approver: {
         Args: { p_actor: string; p_author_user_id: string; p_si_id: string }
@@ -9165,19 +9633,37 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      backfill_procurement_approved_total: { Args: never; Returns: undefined }
       bfy_migration_0154_rekey: { Args: never; Returns: undefined }
       bfy_migration_0154_revert: { Args: never; Returns: undefined }
+      boq_allowance_ok: {
+        Args: { p_boq_item_id: string; p_item_id: string }
+        Returns: boolean
+      }
       budget_account_identity: {
         Args: { p_account: string; p_fy: string; p_version: string }
         Returns: string
       }
       budget_activation_mode: { Args: { version_id: string }; Returns: string }
-      project_win_eligibility: { Args: { p_id: string }; Returns: string }
-      work_order_issue_eligibility: { Args: { p_ids: string[] }; Returns: { work_order_id: string; reason: string }[] }
-      procurement_amount_eligibility: { Args: { p_procurement_id: string; p_amount: number }; Returns: string }
+      budget_attributed_year_sums: {
+        Args: { p_fiscal_years: string[]; p_project_id: string }
+        Returns: {
+          as_of: string
+          category: Database["public"]["Enums"]["budget_category"]
+          fiscal_year: string
+          source_sum: number
+        }[]
+      }
       budget_fiscal_year_token: {
         Args: { p_fiscal_year: string }
         Returns: string
+      }
+      budget_version_read_totals: {
+        Args: { p_project_id: string }
+        Returns: {
+          total: number
+          version_id: string
+        }[]
       }
       bv16_migration_0293_revert: { Args: never; Returns: undefined }
       calculate_standalone_tax_amount: {
@@ -9319,10 +9805,23 @@ export type Database = {
         Args: { p_erp_employee_id: string; p_profile_id: string }
         Returns: undefined
       }
+      confirm_erp_project_link: {
+        Args: {
+          p_actor_id: string
+          p_erp_project: string
+          p_expected_config: Json
+          p_expected_erp_project: string
+          p_org_id: string
+          p_project_id: string
+          p_site_url: string
+        }
+        Returns: boolean
+      }
       confirm_outbox: {
         Args: { p_generation: number; p_id: string }
         Returns: number
       }
+      confirm_work_order_acceptance: { Args: { p_id: string }; Returns: Json }
       correct_vendor_withholding_slip: {
         Args: {
           p_expected_revision: number
@@ -9336,6 +9835,72 @@ export type Database = {
           revision: number
           slip_id: string
         }[]
+      }
+      cost_attribution_allocations: {
+        Args: {
+          p_draft?: Json
+          p_exclude_rule_key?: string
+          p_org_id: string
+          p_project_id?: string
+        }
+        Returns: {
+          account: string
+          amount: number
+          as_of: string
+          fiscal_year: string
+          gl_id: string
+          party_type: string
+          posting_date: string
+          project_id: string
+          rule_id: string
+          rule_key: string
+        }[]
+      }
+      cost_attribution_assert_no_conflict: {
+        Args: { p_norm: Json; p_org_id: string }
+        Returns: undefined
+      }
+      cost_attribution_normalize: {
+        Args: { p_check_accounts?: boolean; p_org_id: string; p_rule: Json }
+        Returns: Json
+      }
+      cost_attribution_org_actuals: {
+        Args: { p_fiscal_year?: string }
+        Returns: {
+          amount: number
+          as_of: string
+          category: Database["public"]["Enums"]["budget_category"]
+          n: number
+          project_id: string
+          source_sum: number
+        }[]
+      }
+      cost_attribution_project_actuals: {
+        Args: { p_fiscal_year?: string; p_project_id: string }
+        Returns: {
+          amount: number
+          as_of: string
+          category: Database["public"]["Enums"]["budget_category"]
+          n: number
+          source_sum: number
+        }[]
+      }
+      cost_attribution_rule_content: {
+        Args: { p_rule_id: string }
+        Returns: Json
+      }
+      cost_attribution_write: {
+        Args: { p_action: string; p_check_accounts: boolean; p_rule: Json }
+        Returns: Json
+      }
+      create_expense_capture: {
+        Args: {
+          p_claim_id: string
+          p_first_line?: Json
+          p_header: Json
+          p_line_id: string
+        }
+        Returns: string
       }
       create_native_sales_invoice: {
         Args: {
@@ -9527,6 +10092,43 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_procurement_with_items: {
+        Args: { p_header: Json; p_id: string; p_items: Json }
+        Returns: {
+          amount_approved_by_id: string | null
+          approval_notes: string | null
+          approved_by_id: string | null
+          approved_total_value: number | null
+          budget_category: Database["public"]["Enums"]["budget_category"] | null
+          code: string | null
+          created_at: string
+          currency: string
+          id: string
+          import_batch_id: string | null
+          import_key: string | null
+          import_normalized_ref: string | null
+          imported_at: string | null
+          org_id: string
+          origin: string | null
+          po_number: string | null
+          pr_number: string | null
+          project_id: string | null
+          rejection_notes: string | null
+          requested_by_id: string | null
+          status: Database["public"]["Enums"]["procurement_status"]
+          title: string
+          total_value: number
+          updated_at: string
+          vendor_id: string | null
+          vendor_invoiced_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "procurements"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_progress_claim: {
         Args: {
           p_down_payment_amount?: number
@@ -9687,6 +10289,14 @@ export type Database = {
         Args: { p_secret_name: string }
         Returns: undefined
       }
+      discard_odoo_mirror: {
+        Args: { p_actor_id: string; p_org_id: string }
+        Returns: undefined
+      }
+      disconnect_external_integration: {
+        Args: { p_actor_id: string; p_external_tier: string; p_org_id: string }
+        Returns: number
+      }
       domain_externally_owned: {
         Args: { p_domain: string; p_org_id: string }
         Returns: boolean
@@ -9714,6 +10324,33 @@ export type Database = {
         }
         Returns: undefined
       }
+      erp_document_recorded_by_pmo: {
+        Args: { p_doctype: string; p_erp_name: string; p_org: string }
+        Returns: boolean
+      }
+      erp_ledger_voucher_replace_check: {
+        Args: {
+          p_company: string
+          p_current_names: string[]
+          p_org_id: string
+          p_rows: Json
+          p_voucher_no: string
+          p_voucher_type: string
+        }
+        Returns: boolean
+      }
+      erp_linked_documents_total: {
+        Args: { p_procurement_id: string }
+        Returns: number
+      }
+      erp_order_family: {
+        Args: { p_doctype: string; p_name: string; p_orders: string[] }
+        Returns: string[]
+      }
+      erp_supplier_company: {
+        Args: { p_org: string; p_supplier: string; p_supplier_name: string }
+        Returns: string
+      }
       erpnext_sweep_tick: { Args: never; Returns: undefined }
       expense_advance_outstanding: { Args: { p_id: string }; Returns: number }
       expense_posting_actor_check: {
@@ -9723,6 +10360,20 @@ export type Database = {
       expense_posting_for_push: {
         Args: { p_mirror_id: string; p_org_id: string }
         Returns: Json
+      }
+      expense_posting_queue: {
+        Args: { p_limit: number; p_org_id: string }
+        Returns: {
+          attempt_count: number
+          claim_id: string
+          id: string
+          posting: string
+          posting_identity: string
+          push_error: string
+          push_state: string
+          return_id: string
+          state_stamp: string
+        }[]
       }
       fill_sales_invoice_project: {
         Args: {
@@ -9744,6 +10395,19 @@ export type Database = {
         }
         Returns: string
       }
+      finalize_odoo_connect: {
+        Args: {
+          p_actor_id: string
+          p_database: string
+          p_discard: boolean
+          p_key_expires_on: string
+          p_kill_switch_enabled: boolean
+          p_org_id: string
+          p_secret_ref: string
+          p_site_url: string
+        }
+        Returns: string
+      }
       finish_erp_gl_replay: {
         Args: {
           p_company: string
@@ -9753,25 +10417,29 @@ export type Database = {
         }
         Returns: Json
       }
+      finish_erp_ple_voucher_backfill: {
+        Args: { p_company: string; p_org_id: string }
+        Returns: Json
+      }
+      finish_odoo_census: {
+        Args: {
+          p_cursor: string
+          p_kind: string
+          p_org_id: string
+          p_run: string
+        }
+        Returns: number
+      }
+      first_budget_spending_year: {
+        Args: { p_fiscal_years: string[]; p_project_id: string }
+        Returns: string
+      }
       fx_rate_on: {
         Args: { base: string; on_date: string; quote: string }
         Returns: {
           rate: number
           rate_date: string
         }[]
-      }
-      budget_attributed_year_sums: {
-        Args: { p_fiscal_years: string[]; p_project_id: string }
-        Returns: {
-          as_of: string
-          category: Database["public"]["Enums"]["budget_category"]
-          fiscal_year: string
-          source_sum: number
-        }[]
-      }
-      first_budget_spending_year: {
-        Args: { p_fiscal_years: string[]; p_project_id: string }
-        Returns: string
       }
       get_budget_projection: {
         Args: { p_fiscal_year: string; p_project_id: string }
@@ -9833,6 +10501,21 @@ export type Database = {
         }[]
       }
       get_finance_budget_review: { Args: never; Returns: Json }
+      get_financial_statement: {
+        Args: {
+          p_period_kind: string
+          p_period_start: string
+          p_project_id?: string
+          p_statement: string
+          p_unassigned?: boolean
+          p_view_kind?: string
+        }
+        Returns: Json
+      }
+      get_financial_statement_catalogue: {
+        Args: { p_project_id?: string }
+        Returns: Json
+      }
       get_management_pack: {
         Args: { p_from?: string; p_to?: string }
         Returns: Json
@@ -9869,17 +10552,6 @@ export type Database = {
         }[]
       }
       get_project_finances: { Args: { p_project_id: string }; Returns: Json }
-      get_projects_money_collection: {
-        Args: { p_project_ids: string[] }
-        Returns: {
-          actuals: Json
-          active_budget_amount: string | null
-          active_budget_currency: string | null
-          has_active_budget: boolean
-          ledger_basis: string
-          project_id: string
-        }[]
-      }
       get_project_milestones: {
         Args: { p_project_id: string }
         Returns: {
@@ -9914,8 +10586,27 @@ export type Database = {
           target_date: string
         }[]
       }
+      get_projects_money_collection: {
+        Args: { p_project_ids: string[] }
+        Returns: {
+          active_budget_amount: string
+          active_budget_currency: string
+          actuals: Json
+          has_active_budget: boolean
+          ledger_basis: string
+          project_id: string
+        }[]
+      }
+      get_reorder_suggestions: {
+        Args: { p_item_id: string; p_warehouse_id: string }
+        Returns: Json
+      }
       get_sales_pipeline: { Args: never; Returns: Json }
-      get_stock_document_costs: { Args: { p_document_id: string }; Returns: Json }
+      get_stock_below_reorder: { Args: never; Returns: Json }
+      get_stock_document_costs: {
+        Args: { p_document_id: string }
+        Returns: Json
+      }
       get_stock_ledger: {
         Args: {
           p_before_seq?: number
@@ -10027,6 +10718,49 @@ export type Database = {
           outcome: string
         }[]
       }
+      insert_procurement_outbox_pending: {
+        Args: {
+          p_actor: string
+          p_case: string
+          p_digest: string
+          p_key: string
+          p_operation: string
+          p_org: string
+          p_payload: Json
+          p_record_id: string
+          p_snapshot: Json
+          p_tier: string
+        }
+        Returns: {
+          actor_user_id: string | null
+          attempt_count: number
+          canonical: Json | null
+          claim_generation: number
+          claimed_at: string | null
+          created_at: string
+          domain: string
+          external_record_id: string | null
+          external_tier: string
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          operation: string
+          org_id: string
+          payload: Json | null
+          payload_digest: string | null
+          pmo_record_id: string
+          procurement_input_digest: string | null
+          reconcile_after: string | null
+          state: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "external_command_outbox"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       insert_timesheet_outbox_pending: {
         Args: {
           p_actor: string
@@ -10081,6 +10815,29 @@ export type Database = {
         Returns: boolean
       }
       link_erp_purchase_documents: {
+        Args: { p_dry_run?: boolean; p_rows: Json }
+        Returns: Json
+      }
+      link_external_company: {
+        Args: {
+          p_actor_id: string
+          p_company: string
+          p_org_id: string
+          p_site_url: string
+        }
+        Returns: boolean
+      }
+      link_external_project: {
+        Args: {
+          p_actor_id: string
+          p_config: Json
+          p_container_id: string
+          p_org_id: string
+          p_project_id: string
+        }
+        Returns: string
+      }
+      link_m365_documents_batch: {
         Args: { p_dry_run?: boolean; p_rows: Json }
         Returns: Json
       }
@@ -10221,6 +10978,10 @@ export type Database = {
           withheld_amount: string
         }[]
       }
+      lock_erp_order_family: {
+        Args: { p_orders: string[]; p_org: string }
+        Returns: undefined
+      }
       lock_work_order_billing: {
         Args: { p_work_order_id: string }
         Returns: undefined
@@ -10234,6 +10995,21 @@ export type Database = {
           p_org_id: string
         }
         Returns: undefined
+      }
+      lookup_procurement_import_cases: {
+        Args: {
+          p_after_id?: string
+          p_after_key?: string
+          p_limit?: number
+          p_org_id?: string
+          p_refs: string[]
+        }
+        Returns: {
+          id: string
+          import_batch_id: string
+          import_key: string
+          normalized_ref: string
+        }[]
       }
       m365_browser_url_valid: { Args: { value: string }; Returns: boolean }
       m365_claim_document_checks: {
@@ -10297,27 +11073,28 @@ export type Database = {
         Args: { p_org_id: string; p_reason: string; p_user_id: string }
         Returns: undefined
       }
-      m365_link_record_folder: {
+      m365_finish_refresh: {
         Args: {
-          p_default_drive_id: string
-          p_default_site_id: string
+          p_access_token_ciphertext?: string
+          p_access_token_expires_at?: string
+          p_connection_id: string
+          p_expected_refresh_token_ciphertext: string
+          p_org_id: string
+          p_refresh_token_ciphertext?: string
+          p_scopes?: string[]
+          p_status: string
+          p_updated_at: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      m365_folder_linked_elsewhere: {
+        Args: {
+          p_drive_id: string
+          p_item_id: string
           p_kind: string
           p_record_id: string
-          p_reference: Json
-          p_settings_updated_at: string
         }
-        Returns: Json
-      }
-      m365_record_folder_candidates: {
-        Args: { p_after?: string; p_kind: string }
-        Returns: { id: string }[]
-      }
-      m365_record_folder_created: {
-        Args: { p_actor_id: string; p_drive_id: string; p_item_id: string; p_kind: string; p_record_id: string }
-        Returns: undefined
-      }
-      m365_record_folder_default_matches: {
-        Args: { p_drive: string; p_site: string; p_updated_at: string }
         Returns: boolean
       }
       m365_issue_document: {
@@ -10333,8 +11110,52 @@ export type Database = {
         }
         Returns: undefined
       }
+      m365_link_record_folder: {
+        Args: {
+          p_default_drive_id: string
+          p_default_site_id: string
+          p_kind: string
+          p_record_id: string
+          p_reference: Json
+          p_settings_updated_at: string
+        }
+        Returns: Json
+      }
       m365_membership_state: { Args: { p_user_id: string }; Returns: Json }
       m365_pkce_sweep_tick: { Args: never; Returns: undefined }
+      m365_record_folder_candidates: {
+        Args: { p_after?: string; p_kind: string }
+        Returns: {
+          id: string
+        }[]
+      }
+      m365_record_folder_created: {
+        Args: {
+          p_actor_id: string
+          p_drive_id: string
+          p_item_id: string
+          p_kind: string
+          p_record_id: string
+        }
+        Returns: undefined
+      }
+      m365_record_folder_default_matches: {
+        Args: { p_drive: string; p_site: string; p_updated_at: string }
+        Returns: boolean
+      }
+      m365_record_folder_sweep_save: {
+        Args: {
+          p_actor_id: string
+          p_counts: Json
+          p_from: Json
+          p_next: Json
+          p_org_id: string
+          p_run_id: string
+          p_start: boolean
+          p_unmatched: Json
+        }
+        Returns: string
+      }
       m365_ref_complete: {
         Args: {
           actor: string
@@ -10398,9 +11219,39 @@ export type Database = {
         }
         Returns: string
       }
+      mark_erp_full_sweep_done: {
+        Args: { p_holder: string; p_org_id: string }
+        Returns: boolean
+      }
+      mark_erp_purchase_documents: {
+        Args: { p_action?: string; p_dry_run?: boolean; p_rows: Json }
+        Returns: Json
+      }
       mark_erp_statement_replay_for_missing_accounts: {
         Args: { p_company: string; p_org_id: string }
         Returns: boolean
+      }
+      mark_erp_statement_report_attempt: {
+        Args: {
+          p_batch_id: string
+          p_holder: string
+          p_org_id: string
+          p_selection: Json
+        }
+        Returns: undefined
+      }
+      mark_erp_statement_report_refresh_attempt: {
+        Args: { p_binding: Json; p_holder: string; p_org_id: string }
+        Returns: undefined
+      }
+      mark_odoo_census_seen: {
+        Args: {
+          p_ids: string[]
+          p_kind: string
+          p_org_id: string
+          p_run: string
+        }
+        Returns: undefined
       }
       mark_outbox_held: {
         Args: { p_generation: number; p_id: string; p_reason: string }
@@ -10507,6 +11358,13 @@ export type Database = {
         Args: { p_at?: string; p_client_id: string; p_org: string }
         Returns: string
       }
+      normalize_procurement_import_refs: {
+        Args: { p_refs: string[] }
+        Returns: {
+          input_ref: string
+          normalized_ref: string
+        }[]
+      }
       notify_workflow_user: {
         Args: {
           p_body: string
@@ -10520,7 +11378,12 @@ export type Database = {
         }
         Returns: undefined
       }
+      odoo_sweep_tick: { Args: never; Returns: undefined }
       on_hand_project_statuses: { Args: never; Returns: string[] }
+      open_erp_statement_report_batch: {
+        Args: { p_context: Json; p_holder: string; p_org_id: string }
+        Returns: Json
+      }
       operator_agent_run_stats: {
         Args: { p_org_id?: string }
         Returns: {
@@ -10635,72 +11498,6 @@ export type Database = {
         Args: { p_email: string; p_org_id: string }
         Returns: boolean
       }
-      open_erp_statement_report_batch: {
-        Args: { p_org_id: string; p_holder: string; p_context: Json }
-        Returns: Json
-      }
-      mark_erp_statement_report_refresh_attempt: {
-        Args: { p_org_id: string; p_holder: string; p_binding: Json }
-        Returns: undefined
-      }
-      preview_cost_attribution: {
-        Args: { p_rule: Json }
-        Returns: {
-          amount: number
-          category: Database["public"]["Enums"]["budget_category"]
-          line_count: number
-          month: string
-          project_id: string
-        }[]
-      }
-      procurement_evidenced_step: {
-        Args: { p_procurement_id: string }
-        Returns: Database["public"]["Enums"]["procurement_status"]
-      }
-      procurement_gate: {
-        Args: { p_key: string; p_org: string }
-        Returns: boolean
-      }
-      procurement_gate_message: { Args: { p_code: string }; Returns: string }
-      procurement_gate_violation: {
-        Args: {
-          p_procurement_id: string
-          p_step: Database["public"]["Enums"]["procurement_status"]
-        }
-        Returns: string
-      }
-      procurement_ledger_held: {
-        Args: { p_procurement_id: string }
-        Returns: number
-      }
-      procurement_open_commitment: {
-        Args: { p: Database["public"]["Tables"]["procurements"]["Row"] }
-        Returns: number
-      }
-      save_cost_attribution_rule: { Args: { p_rule: Json }; Returns: Json }
-      stage_erp_statement_report: {
-        Args: { p_org_id: string; p_holder: string; p_batch_id: string; p_report: Json }
-        Returns: undefined
-      }
-      publish_erp_financial_statements: {
-        Args: { p_org_id: string; p_holder: string; p_batch_id: string }
-        Returns: string
-      }
-      get_financial_statement: {
-        Args: {
-          p_period_kind: string
-          p_period_start: string
-          p_statement: string
-          p_project_id?: string | null
-          p_view_kind?: string
-          p_unassigned?: boolean
-        }
-        Returns: Json
-      }
-      get_financial_statement_catalogue: {
-        Args: { p_project_id?: string | null }
-        Returns: Json
-      }
       org_reads_erp_ledger: { Args: never; Returns: boolean }
       org_usage_summary: {
         Args: never
@@ -10716,6 +11513,10 @@ export type Database = {
           reasoning_tokens: number
           run_count: number
         }[]
+      }
+      outbox_failed_retry_due: {
+        Args: { p_attempt_count: number; p_updated_at: string }
+        Returns: boolean
       }
       outbox_max_auto_age: { Args: never; Returns: string }
       outbox_max_auto_attempts: { Args: never; Returns: number }
@@ -10751,8 +11552,8 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      outbox_retry_pending: { Args: { p_org_id: string }; Returns: string[] }
       pipeline_project_statuses: { Args: never; Returns: string[] }
-      confirm_work_order_acceptance: { Args: { p_id: string }; Returns: Json }
       post_stock_document: {
         Args: { p_document_id: string; p_expected_revision?: number }
         Returns: string
@@ -10769,13 +11570,69 @@ export type Database = {
         }
         Returns: string
       }
-      unlink_erp_purchase_document: {
-        Args: { p_link_id: string }
-        Returns: undefined
+      preview_cost_attribution: {
+        Args: { p_rule: Json }
+        Returns: {
+          amount: number
+          category: Database["public"]["Enums"]["budget_category"]
+          line_count: number
+          month: string
+          project_id: string
+        }[]
       }
-      withdraw_work_order_acceptance: {
-        Args: { p_id: string }
-        Returns: undefined
+      procurement_amount_eligibility: {
+        Args: { p_amount: number; p_procurement_id: string }
+        Returns: string
+      }
+      procurement_case_has_external_evidence: {
+        Args: { p_case: string; p_org: string }
+        Returns: boolean
+      }
+      procurement_case_uuid: { Args: { p_value: string }; Returns: string }
+      procurement_create_refusal: {
+        Args: {
+          p_actor_user_id: string
+          p_erp_doc_kind: string
+          p_org_id: string
+          p_procurement_id: string
+        }
+        Returns: string
+      }
+      procurement_document_total: {
+        Args: { p_override_documents?: Json; p_procurement_id: string }
+        Returns: number
+      }
+      procurement_evidenced_step: {
+        Args: { p_procurement_id: string }
+        Returns: Database["public"]["Enums"]["procurement_status"]
+      }
+      procurement_gate: {
+        Args: { p_key: string; p_org: string }
+        Returns: boolean
+      }
+      procurement_gate_message: { Args: { p_code: string }; Returns: string }
+      procurement_gate_violation: {
+        Args: {
+          p_procurement_id: string
+          p_step: Database["public"]["Enums"]["procurement_status"]
+        }
+        Returns: string
+      }
+      procurement_item_values_editable: {
+        Args: { p_case: string }
+        Returns: boolean
+      }
+      procurement_ledger_held: {
+        Args: { p_procurement_id: string }
+        Returns: number
+      }
+      procurement_open_commitment: {
+        Args: { p: Database["public"]["Tables"]["procurements"]["Row"] }
+        Returns: number
+      }
+      procurement_payment_allowed: {
+        Args: { p_procurement_id: string }
+        Returns: string
       }
       procurement_payment_within_ceiling: {
         Args: { p_procurement_id: string }
@@ -10790,6 +11647,10 @@ export type Database = {
         Args: { p_procurement_id: string }
         Returns: number
       }
+      procurement_step_rank: {
+        Args: { p_status: Database["public"]["Enums"]["procurement_status"] }
+        Returns: number
+      }
       procurement_submitted_at: {
         Args: { p_procurement_id: string }
         Returns: string
@@ -10797,14 +11658,6 @@ export type Database = {
       progress_assessment_line_ok: {
         Args: { p_boq_item_id: string; p_entry_id: string }
         Returns: boolean
-      }
-      project_reserved_position: {
-        Args: { p_project_id: string }
-        Returns: {
-          project_currency: string | null
-          budget_currency: string | null
-          positions: Json
-        }[]
       }
       project_committed_spend: {
         Args: { p_project_id: string }
@@ -10835,8 +11688,42 @@ export type Database = {
           tagged_to_date: number
         }[]
       }
+      project_mapped_actuals_all: {
+        Args: { p_fiscal_year?: string }
+        Returns: {
+          actuals_as_of: string
+          actuals_to_date: number
+          attributed_to_date: number
+          category: Database["public"]["Enums"]["budget_category"]
+          has_rows: boolean
+          mapped: boolean
+          project_id: string
+          source_sum: number
+          tagged_to_date: number
+        }[]
+      }
       project_number_null_insert_default: { Args: never; Returns: string }
+      project_pmo_commitment_position: {
+        Args: { p_project_id: string }
+        Returns: {
+          amount: number
+          complete: boolean
+        }[]
+      }
+      project_reserved_position: {
+        Args: { p_project_id: string }
+        Returns: {
+          budget_currency: string
+          positions: Json
+          project_currency: string
+        }[]
+      }
+      project_win_eligibility: { Args: { p_id: string }; Returns: string }
       propose_project_number: { Args: { p_client_id: string }; Returns: string }
+      publish_erp_financial_statements: {
+        Args: { p_batch_id: string; p_holder: string; p_org_id: string }
+        Returns: string
+      }
       purge_error_events: {
         Args: { p_retention_days?: number }
         Returns: number
@@ -10878,7 +11765,6 @@ export type Database = {
         Returns: boolean
       }
       read_vault_secret: { Args: { p_secret_ref: string }; Returns: string }
-      reconcile_procurement_line_totals: { Args: never; Returns: undefined }
       recategorise_budget_lines: {
         Args: {
           p_category: Database["public"]["Enums"]["budget_category"]
@@ -10886,6 +11772,7 @@ export type Database = {
         }
         Returns: number
       }
+      reconcile_procurement_line_totals: { Args: never; Returns: undefined }
       record_expense_advance_return: {
         Args: { p_amount: number; p_id: string; p_reference?: string }
         Returns: undefined
@@ -10973,6 +11860,18 @@ export type Database = {
         }
         Returns: string
       }
+      refresh_erp_linked_purchase_total: {
+        Args: { p_procurement_id: string }
+        Returns: undefined
+      }
+      refresh_native_purchase_total_from_links: {
+        Args: { p_before: number; p_procurement_id: string }
+        Returns: undefined
+      }
+      refresh_procurement_recorded_total: {
+        Args: { p_had_document?: boolean; p_procurement_id: string }
+        Returns: undefined
+      }
       release_credits: { Args: { p_run_id: string }; Returns: undefined }
       release_erp_sweep_lock: {
         Args: { p_holder: string; p_org_id: string }
@@ -10994,6 +11893,28 @@ export type Database = {
         Args: { p_company: string; p_org_id: string; p_rows: Json }
         Returns: Json
       }
+      replace_erp_gl_voucher_rows: {
+        Args: {
+          p_company: string
+          p_current_names: string[]
+          p_org_id: string
+          p_rows: Json
+          p_voucher_no: string
+          p_voucher_type: string
+        }
+        Returns: Json
+      }
+      replace_erp_ple_voucher_rows: {
+        Args: {
+          p_company: string
+          p_current_names: string[]
+          p_org_id: string
+          p_rows: Json
+          p_voucher_no: string
+          p_voucher_type: string
+        }
+        Returns: Json
+      }
       replace_erp_snapshot: {
         Args: { p_org_id: string; p_rows: Json; p_table: string }
         Returns: number
@@ -11001,6 +11922,10 @@ export type Database = {
       reserve_credits: {
         Args: { p_amount: number; p_org_id: string; p_run_id: string }
         Returns: string
+      }
+      reset_odoo_sync_kind: {
+        Args: { p_actor_id: string; p_kind: string; p_org_id: string }
+        Returns: undefined
       }
       role_outranks: {
         Args: {
@@ -11013,6 +11938,7 @@ export type Database = {
         Args: { p_role: Database["public"]["Enums"]["user_role"] }
         Returns: number
       }
+      save_cost_attribution_rule: { Args: { p_rule: Json }; Returns: Json }
       save_stock_draft: {
         Args: { p_document_id: string; p_header: Json; p_lines: Json }
         Returns: undefined
@@ -11025,6 +11951,10 @@ export type Database = {
           p_week_start_date: string
         }
         Returns: string
+      }
+      search_record_references: {
+        Args: { p_limit?: number; p_query: string }
+        Returns: Json
       }
       seed_org_defaults: { Args: { p_org_id: string }; Returns: undefined }
       select_procurement_quote: {
@@ -11220,6 +12150,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      set_stock_reorder_level: {
+        Args: {
+          p_item_id: string
+          p_level: number
+          p_quantity?: number
+          p_warehouse_id: string
+        }
+        Returns: undefined
+      }
       set_stock_warehouse_keeper: {
         Args: { p_assigned: boolean; p_user_id: string; p_warehouse_id: string }
         Returns: undefined
@@ -11272,6 +12211,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      sharepoint_url_on_org_host: {
+        Args: { p_org: string; p_url: string }
+        Returns: boolean
+      }
       si_submit_clearance_ttl: { Args: never; Returns: string }
       spend_approval_route: {
         Args: {
@@ -11292,6 +12235,15 @@ export type Database = {
           route: string
         }[]
       }
+      stage_erp_statement_report: {
+        Args: {
+          p_batch_id: string
+          p_holder: string
+          p_org_id: string
+          p_report: Json
+        }
+        Returns: undefined
+      }
       stage_vault_secret_for_org: {
         Args: {
           p_actor_id?: string
@@ -11302,9 +12254,121 @@ export type Database = {
         }
         Returns: string
       }
+      start_procurement_import_run: {
+        Args: { p_org_id?: string }
+        Returns: string
+      }
       stock_admin: { Args: never; Returns: boolean }
+      stock_apply: {
+        Args: {
+          p_doc: Database["public"]["Tables"]["stock_documents"]["Row"]
+          p_post: boolean
+        }
+        Returns: undefined
+      }
+      stock_apply_adjustment: {
+        Args: {
+          p_doc: Database["public"]["Tables"]["stock_documents"]["Row"]
+          p_post: boolean
+        }
+        Returns: undefined
+      }
+      stock_apply_count: {
+        Args: {
+          p_doc: Database["public"]["Tables"]["stock_documents"]["Row"]
+          p_post: boolean
+        }
+        Returns: undefined
+      }
+      stock_apply_issue: {
+        Args: {
+          p_doc: Database["public"]["Tables"]["stock_documents"]["Row"]
+          p_post: boolean
+        }
+        Returns: undefined
+      }
+      stock_apply_receive: {
+        Args: {
+          p_doc: Database["public"]["Tables"]["stock_documents"]["Row"]
+          p_post: boolean
+        }
+        Returns: undefined
+      }
+      stock_apply_return: {
+        Args: {
+          p_doc: Database["public"]["Tables"]["stock_documents"]["Row"]
+          p_post: boolean
+        }
+        Returns: undefined
+      }
+      stock_apply_transfer: {
+        Args: {
+          p_doc: Database["public"]["Tables"]["stock_documents"]["Row"]
+          p_post: boolean
+        }
+        Returns: undefined
+      }
+      stock_assert_dates: {
+        Args: { p_occurred: string; p_org: string }
+        Returns: undefined
+      }
+      stock_assert_keeper: {
+        Args: { p_org: string; p_uid: string; p_warehouse: string }
+        Returns: boolean
+      }
+      stock_assert_standalone: { Args: { p_org: string }; Returns: undefined }
+      stock_assert_writeoff_approver: {
+        Args: {
+          p_doc: Database["public"]["Tables"]["stock_documents"]["Row"]
+          p_uid: string
+        }
+        Returns: undefined
+      }
       stock_can_see_cost: { Args: never; Returns: boolean }
+      stock_doc_prefix: { Args: { p_kind: string }; Returns: string }
+      stock_insert_lines: {
+        Args: {
+          p_doc: Database["public"]["Tables"]["stock_documents"]["Row"]
+          p_lines: Json
+        }
+        Returns: undefined
+      }
+      stock_lock_for_document: {
+        Args: { p_doc: Database["public"]["Tables"]["stock_documents"]["Row"] }
+        Returns: undefined
+      }
       stock_master_writer: { Args: never; Returns: boolean }
+      stock_org_today: { Args: { p_org: string }; Returns: string }
+      stock_post_core: { Args: { p_document_id: string }; Returns: undefined }
+      stock_reorder_params: {
+        Args: never
+        Returns: {
+          default_lead_days: number
+          min_history_days: number
+          min_movements: number
+          order_cycle_days: number
+          safety_days: number
+          window_days: number
+        }[]
+      }
+      stock_validate_payload: {
+        Args: { p_header: Json; p_kind: string; p_lines: Json; p_org: string }
+        Returns: undefined
+      }
+      stock_write_entry: {
+        Args: {
+          p_boq: string
+          p_doc: Database["public"]["Tables"]["stock_documents"]["Row"]
+          p_in_value: number
+          p_item: string
+          p_line_id: string
+          p_project: string
+          p_qty_delta: number
+          p_source_line: string
+          p_wh: string
+        }
+        Returns: number
+      }
       submit_sales_invoice: {
         Args: { p_si_id: string }
         Returns: {
@@ -11363,6 +12427,15 @@ export type Database = {
       }
       telegram_notify_tick: { Args: never; Returns: undefined }
       timesheet_push_key_witness: { Args: { p_key: string }; Returns: string }
+      transition_budget_archive_cancel_intent: {
+        Args: {
+          p_action: string
+          p_intent_id: string
+          p_org_id: string
+          p_reason: string
+        }
+        Returns: string
+      }
       transition_document_status: {
         Args: {
           p_doc_id: string
@@ -11416,6 +12489,23 @@ export type Database = {
         }
         Returns: undefined
       }
+      unlink_erp_purchase_document: {
+        Args: { p_link_id: string }
+        Returns: undefined
+      }
+      unlink_external_integration: {
+        Args: {
+          p_actor_id: string
+          p_external_tier: string
+          p_org_id: string
+          p_project_id: string
+        }
+        Returns: number
+      }
+      update_procurement_header: {
+        Args: { p_id: string; p_patch: Json }
+        Returns: boolean
+      }
       upsert_erp_purchase_documents: {
         Args: { p_org_id: string; p_rows: Json }
         Returns: number
@@ -11437,6 +12527,17 @@ export type Database = {
         }[]
       }
       withdraw_progress_claim: { Args: { p_id: string }; Returns: undefined }
+      withdraw_work_order_acceptance: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
+      work_order_issue_eligibility: {
+        Args: { p_ids: string[] }
+        Returns: {
+          reason: string
+          work_order_id: string
+        }[]
+      }
     }
     Enums: {
       budget_category:
