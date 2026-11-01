@@ -119,7 +119,7 @@ describe('ECA2-T13 advanceConnectRuns', () => {
     const writes = rpcCall(calls, 'replace_connect_proposals');
     assertEquals(writes.map((w) => (rpcBody(w).p_rows as unknown[]).length), [1000, 1000, 500]);
     assertEquals(writes.map((w) => rpcBody(w).p_last), [false, false, true]);
-    assertEquals((rpcBody(writes[0]).p_rows as Array<Record<string, unknown>>)[0], { outcome: 'send', pmoIds: ['c00000'], externalIds: [], snapshot: {} });
+    assertEquals((rpcBody(writes[0]).p_rows as Array<Record<string, unknown>>)[0], { outcome: 'send', pmoIds: ['c00000'], externalIds: [], snapshot: { name: 'Company 0' } });
   });
 
   it('a kind with nothing to propose still marks itself proposed', async () => {

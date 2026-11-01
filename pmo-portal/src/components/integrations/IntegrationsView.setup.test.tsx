@@ -29,6 +29,8 @@ const erpSetup = vi.hoisted(() => ({
   })),
   employErpDomain: vi.fn(async () => ({ ok: true })),
   onboardErpParties: vi.fn(async () => ({ ok: true })),
+  getConnectStatus: vi.fn(async () => ({ run: null, census: [], waitingForSend: 0 })),
+  listConnectProposals: vi.fn(async () => ({ proposals: [], nextAfterId: null })),
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: erpSetup } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
@@ -116,6 +118,22 @@ describe('ERP setup checklist', () => {
     expect(await screen.findByRole('heading',{name:'Review existing ERP project matches'})).toBeInTheDocument();
     expect(screen.queryByRole('link',{name:'Review proposed link for Example Delivery'})).not.toBeInTheDocument();
   });
+  it('FR-ECA-020 the budget step tells the Admin which categories the accountant must add an account for', async () => {
+    erpSetup.getErpSetup.mockResolvedValueOnce({
+      defaults:{company:'Example Company'}, domains:['companies'], unmappedProjects:[], unlinkedEmployeeCount:0,
+      budgetMappedCategories:Constants.public.Enums.budget_category.filter((c) => c !== 'Labor' && c !== 'Equipment'),
+    } as ErpSetupReadiness);
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(await screen.findByText('Ask your accountant to add a direct-cost account for: Labor, Equipment')).toBeInTheDocument();
+  });
+
+  it('NFR-ECA-004 records waiting for the ERP show as sending in the checklist, never as done', async () => {
+    erpSetup.getConnectStatus.mockResolvedValueOnce({ run: null, census: [], waitingForSend: 2 });
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(await screen.findByText('Sending to the ERP')).toBeInTheDocument();
+    expect(screen.getByText(/2 waiting for the ERP to confirm/)).toBeInTheDocument();
+  });
+
   it('AC-SETUP-003 Admin saves defaults and a failed save keeps the entered values for retry', async () => {
     erpSetup.saveErpDefaults.mockRejectedValueOnce(new Error('private upstream detail'));
     wrapWithRole('Admin', <IntegrationsView />);

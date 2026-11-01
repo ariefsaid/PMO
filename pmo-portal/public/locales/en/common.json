@@ -3699,6 +3699,15 @@
       "reviewParties": "Review companies",
       "refresh": "Refresh checklist",
       "saveDefaults": "Save defaults",
+      "accountantTask": "Ask your accountant to add a direct-cost account for: {{categories}}",
+      "sends": {
+        "title": "Records going to the ERP",
+        "sending": "Sending to the ERP",
+        "waiting": "{{count}} waiting for the ERP to confirm.",
+        "needsDecision": "Needs a decision",
+        "unnamed": "A record",
+        "addPeople": "Add these people in the ERP. It asks for a birth date and gender, which PMO does not hold."
+      },
       "domainNames": {
         "companies": "Companies",
         "procurement": "Procurement",

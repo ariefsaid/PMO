@@ -6,7 +6,6 @@
 import type { TierWorkflows } from '../connect/workflows.ts';
 
 // ECA slices that will build the missing behaviour (the ERP-connect-anytime map).
-const SEND_TO_EMPTY_ERP = 1606;
 const CUTOVER_PROCESS_DOMAINS = 1601;
 const INVOICE_PAIRING = 1602;
 // Shipped behaviour whose tests are still tier-local; the follow-up issue moves each into a shared suite.
@@ -23,7 +22,8 @@ export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   'item.send': { status: 'supported', version: 1 },
   'account.match': { status: 'supported', version: 1 },
   'employee.match': { status: 'supported', version: 1 },
-  'employee.send': { status: 'pending', version: 1, issue: SEND_TO_EMPTY_ERP },
+  // PQ-ECA-1, verified on the bed (ECA3-T1): the ERP requires gender, date of birth and date of joining for an employee; PMO holds none of them and never invents them.
+  'employee.send': { status: 'unavailable', version: 1, reason: 'ERPNext requires birth date and gender for an employee; PMO does not hold them' },
   'purchase.push': { status: 'pending', version: 1, issue: SHIPPED_TESTS_NOT_YET_SHARED },
   'bill.push': { status: 'pending', version: 1, issue: SHIPPED_TESTS_NOT_YET_SHARED },
   'vendor-payment.push': { status: 'pending', version: 1, issue: SHIPPED_TESTS_NOT_YET_SHARED },
