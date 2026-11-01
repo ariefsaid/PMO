@@ -30,7 +30,7 @@ function sendSuite(kind: 'party' | 'project' | 'item'): Suite {
       expect(docs).toHaveLength(1);
       expect(docs[0].externalId).toBe(externalId);
       expect(docs[0].name).toContain(record.name);
-      if (record.code) expect(docs[0].code).toBe(record.code);
+      if (record.code && !c.ownKeys?.includes(kind as MasterKind)) expect(docs[0].code).toBe(record.code);
     });
 
     it('FR-ECA-021 sending again finds the first document: no second create, same external id', async () => {

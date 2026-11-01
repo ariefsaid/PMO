@@ -8,7 +8,8 @@ import { imprestTransferSuite } from './imprestTransfer.suite.ts';
 import { matchSuite } from './match.suite.ts';
 import { partySuite } from './party.suite.ts';
 import { projectSuite } from './project.suite.ts';
-import { itemSendSuite, partySendSuite, projectSendSuite } from './send.suite.ts';
+import { partySendAllSuite } from './sendAll.suite.ts';
+import { itemSendSuite, projectSendSuite } from './send.suite.ts';
 
 /** The shared suite that owns each workflow's behaviour. A workflow with no entry cannot be declared supported. */
 export const SUITES: Readonly<Partial<Record<WorkflowId, Suite>>> = {
@@ -18,7 +19,7 @@ export const SUITES: Readonly<Partial<Record<WorkflowId, Suite>>> = {
   'employee.match': matchSuite('employee'),
   'party.match': partySuite,
   'party.bring-in': bringInSuite,
-  'party.send': partySendSuite,
+  'party.send': partySendAllSuite,
   'project.match': projectSuite,
   'project.send': projectSendSuite,
   'item.send': itemSendSuite,
