@@ -129,7 +129,9 @@
 -- ⚑ AMENDED BY 0422 (#1515): five imprest writers join the retained set (+5, count 99). Each re-asserts org, active
 -- membership and role (or the plan author / route) in its body; proven by imprest_floats/imprest_plans pgTAP.
 --
--- ⚑ AMENDED BY 0418 (#1512 S6): `set_stock_reorder_level` joins the retained set (+1, count 100 on dev's 99, re-derived by hand from the list). A SECURITY
+-- ⚑ AMENDED BY 0423 (#1515): two replenishment writers join (+2, count 101). transition_expense_claim and
+-- record_expense_advance_return were already retained. Proven by imprest_replenishment pgTAP.
+-- ⚑ AMENDED BY 0418 (#1512 S6): `set_stock_reorder_level` joins the retained set (+1, count 102, re-derived by hand from the list). A SECURITY
 -- DEFINER writer (reorder levels have no client write grant); it gates on active membership, rank >= 20 and the JWT org;
 -- stock_reorder.test.sql proves the contract.
 --
@@ -239,6 +241,7 @@ insert into client_callable_rpc_names (proname) values
   ('recategorise_budget_lines'),
   ('release_credits'),
   ('release_outbox_hold'),
+  ('request_imprest_replenishment'),
   ('reserve_credits'),
   ('save_timesheet_week'),
   ('select_procurement_quote'),
@@ -257,6 +260,7 @@ insert into client_callable_rpc_names (proname) values
   ('transition_document_status'),
   ('transition_expense_claim'),
   ('transition_imprest_plan'),
+  ('transition_imprest_replenishment'),
   ('transition_native_sales_invoice'),
   ('transition_procurement'),
   ('transition_project'),
@@ -287,8 +291,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  100,
-  'AC-ACL-002 all 100 retained client-callable RPC names still have a public function');
+  102,
+  'AC-ACL-002 all 102 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -297,8 +301,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  100,
-  'AC-ACL-003 all 100 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  102,
+  'AC-ACL-003 all 102 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
