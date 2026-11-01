@@ -2,7 +2,7 @@
 -- plan S1.10). F1 + F2, then plans by PM1; P2 carries an active budget so plan 104 routes `flat` (AC-IMP-014).
 begin;
 create extension if not exists pgtap;
-select plan(26);
+select plan(29);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15150000-0000-0000-0000-00000000000a', 'IMP Org',       'IDR', 'Asia/Jakarta'),
@@ -151,6 +151,22 @@ select ok((select number is not null and status = 'Draft' and approved_by is nul
 select pg_temp.act_as('15150000-0000-0000-0000-0000000000a3');
 select lives_ok($$ select transition_imprest_plan('15150000-0000-0000-0000-000000000102', 'Cancelled') $$,
   'AC-IMP-011 Finance cancels a draft plan');
+
+-- a non-author's line write learns nothing of the plan's status (the definer check runs before RLS WITH CHECK)
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000b1');
+select throws_ok($$ insert into imprest_plan_lines (plan_id, budget_category, planned_amount)
+  values ('15150000-0000-0000-0000-000000000101', 'Labor', 1) $$,
+  '42501', 'this plan is missing and its lines can no longer be changed (FR-IMP-012)',
+  'AC-IMP-061 another org cannot read a plan''s status through a line write');
+-- an archived float's plans move only to Cancelled
+reset role;
+update imprest_floats set archived_at = now() where id = '15150000-0000-0000-0000-0000000000d1';
+set local role authenticated;
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a4');
+select throws_ok($$ select transition_imprest_plan('15150000-0000-0000-0000-000000000103', 'Submitted') $$,
+  'P0002', null, 'AC-IMP-011 a plan on an archived float cannot be submitted');
+select lives_ok($$ select transition_imprest_plan('15150000-0000-0000-0000-000000000103', 'Cancelled') $$,
+  'AC-IMP-011 a plan on an archived float can still be cancelled');
 
 select * from finish();
 rollback;

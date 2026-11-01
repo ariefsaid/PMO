@@ -2,7 +2,7 @@
 -- limit and float-amount changes. AC-IMP-001, AC-IMP-002 (spec docs/specs/site-imprest.spec.md; plan S1.1/S1.7).
 begin;
 create extension if not exists pgtap;
-select plan(27);
+select plan(33);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15150000-0000-0000-0000-00000000000a', 'IMP Org',       'IDR', 'Asia/Jakarta'),
@@ -162,6 +162,43 @@ select pg_temp.act_as('15150000-0000-0000-0000-0000000000a7');
 select throws_like($$ select decide_imprest_float_change(
     (select c.id from imprest_float_changes c where c.float_id = '15150000-0000-0000-0000-0000000000d2' and c.status = 'Proposed'), true) $$,
   '%wind-down%', 'AC-IMP-002 PQ-2: approving a change below the funded total is refused');
+
+-- a second proposal while one is open is refused by name, not by the unique index (d2 still has its 6,000,000 open)
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a3');
+select throws_ok($$ select propose_imprest_float_amount('15150000-0000-0000-0000-0000000000d2', 8000000) $$,
+  'P0001', 'a float change is already awaiting a decision', 'AC-IMP-002 a second open proposal is refused by name');
+-- DD-IMP-7.3: a custodian never decides their own float amount — not via the senior set, not via Admin break-glass.
+-- Fin1 (custodian of F) joins the senior set; float H on a project the Admin manages has the Admin as custodian.
+reset role;
+insert into spend_approvers (org_id, project_id, profile_id) values ('15150000-0000-0000-0000-00000000000a', null, '15150000-0000-0000-0000-0000000000a2');
+insert into projects (id, org_id, name, status, project_manager_id) values
+  ('15150000-0000-0000-0000-0000000000c5', '15150000-0000-0000-0000-00000000000a', 'IMP Site Five', 'Ongoing Project', '15150000-0000-0000-0000-0000000000a1');
+insert into imprest_floats (id, org_id, project_id, custodian_id, float_amount, currency, created_by) values
+  ('15150000-0000-0000-0000-0000000000d3', '15150000-0000-0000-0000-00000000000a', '15150000-0000-0000-0000-0000000000c5', '15150000-0000-0000-0000-0000000000a1', 0, 'IDR', '15150000-0000-0000-0000-0000000000a3');
+insert into imprest_float_changes (id, org_id, float_id, proposed_amount, proposed_by) values
+  ('15150000-0000-0000-0000-0000000000f3', '15150000-0000-0000-0000-00000000000a', '15150000-0000-0000-0000-0000000000d3', 4000000, '15150000-0000-0000-0000-0000000000a3');
+set local role authenticated;
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a3');
+select set_config('imp.change_f2', (select propose_imprest_float_amount('15150000-0000-0000-0000-0000000000d1', 13000000))::text, true);
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a2');
+select throws_like($$ select decide_imprest_float_change(current_setting('imp.change_f2')::uuid, true) $$,
+  '%custodian cannot decide%', 'AC-IMP-002 a custodian in the senior set cannot approve their own float amount');
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a1');
+select throws_like($$ select decide_imprest_float_change('15150000-0000-0000-0000-0000000000f3', true) $$,
+  '%custodian cannot decide%', 'AC-IMP-002 an Admin custodian cannot approve their own float amount by break-glass');
+-- an archived float takes no further amount acts; an archived project takes no new float
+reset role;
+update imprest_floats set archived_at = now() where id = '15150000-0000-0000-0000-0000000000d1';
+update projects set archived_at = now() where id = '15150000-0000-0000-0000-0000000000c4';
+set local role authenticated;
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a7');
+select throws_ok($$ select decide_imprest_float_change(current_setting('imp.change_f2')::uuid, true) $$,
+  'P0002', null, 'AC-IMP-002 a change on an archived float cannot be decided');
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a3');
+select throws_ok($$ select propose_imprest_float_amount('15150000-0000-0000-0000-0000000000d1', 14000000) $$,
+  'P0002', null, 'AC-IMP-002 an archived float takes no new proposal');
+select throws_ok($$ select establish_imprest_float('15150000-0000-0000-0000-0000000000c4', '15150000-0000-0000-0000-0000000000a3', 5000000) $$,
+  'P0002', null, 'AC-IMP-001 an archived project takes no new float');
 
 select * from finish();
 rollback;
