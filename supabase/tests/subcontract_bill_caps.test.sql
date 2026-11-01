@@ -3,7 +3,7 @@
 -- Fixture F1 + F2 + F3 of docs/plans/2026-11-01-subcontract-acceptance.md, plus S3 extras.
 begin;
 create extension if not exists pgtap;
-select plan(53);
+select plan(59);
 
 -- F1: org A (multi-member), org B (other tenant), org S (sole member). Inserted as superuser, before `set local role`.
 insert into organizations (id, name, default_currency) values
@@ -40,6 +40,7 @@ insert into projects (id, org_id, name, status, project_manager_id) values
 insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate) values
   ('15130000-0000-0000-0000-0000000000e1', '15130000-0000-0000-0000-00000000000a', '15130000-0000-0000-0000-0000000000d1', 'L1', 'Excavation', 'm3', 100, 150000),
   ('15130000-0000-0000-0000-0000000000e2', '15130000-0000-0000-0000-00000000000a', '15130000-0000-0000-0000-0000000000d1', 'L2', 'Piping',     'm',  50,  90000),
+  ('15130000-0000-0000-0000-0000000000e3', '15130000-0000-0000-0000-00000000000a', '15130000-0000-0000-0000-0000000000d1', 'L3', 'Not on PO', 'ls', 5,   10000),
   ('15130000-0000-0000-0000-0000000000e9', '15130000-0000-0000-0000-00000000000c', '15130000-0000-0000-0000-0000000000d9', 'L9', 'Solo work',  'ls', 10,  10000);
 -- Subcontract purchase SP (Ordered, approved 12,000,000, Subcontractors line) and its PO.
 insert into procurements (id, org_id, title, project_id, requested_by_id, status, total_value, approved_total_value,
@@ -158,6 +159,11 @@ select is((select verified_not_on_po from subcontract_po_position('15130000-0000
   20::numeric, 'AC-SCA-001 verified, not on PO = 20 remains visible');
 select is((select billed from subcontract_po_position('15130000-0000-0000-0000-000000000101') where item_code = 'L1'),
   100::numeric, 'AC-SCA-001 billed shows the 100 captured');
+reset role;
+select is((select billed from subcontract_po_position('15130000-0000-0000-0000-000000000101') where item_code = 'L1'),
+  (select quantity from subcontract_billed('15130000-0000-0000-0000-000000000101', null) where boq_item_id = '15130000-0000-0000-0000-0000000000e1'),
+  'AC-SCA-008 the position''s billed is the cap''s billed figure (one shared definition)');
+set local role authenticated; select pg_temp.act_as('15130000-0000-0000-0000-0000000000a2');
 select is((select count(*)::int from procurement_invoice_lines), 1, 'FR-SCA-020 the bill''s line is recorded and readable by Finance');
 select is((select po_id from procurement_invoices where procurement_id = '15130000-0000-0000-0000-0000000000f1'),
   '15130000-0000-0000-0000-000000000101'::uuid, 'FR-SCA-020 the bill is tied to the PO');
@@ -174,6 +180,11 @@ update procurement_invoices set erp_docstatus = 2, erp_cancelled_at = now()   --
 set local role authenticated; select pg_temp.act_as('15130000-0000-0000-0000-0000000000a2');
 select is((select payable from subcontract_po_position('15130000-0000-0000-0000-000000000101') where item_code = 'L1'),
   60::numeric, 'AC-SCA-008 a cancelled bill''s quantity returns to payable');
+reset role;
+select is((select billed from subcontract_po_position('15130000-0000-0000-0000-000000000101') where item_code = 'L1'),
+  (select coalesce(sum(quantity), 0) from subcontract_billed('15130000-0000-0000-0000-000000000101', null) where boq_item_id = '15130000-0000-0000-0000-0000000000e1'),
+  'AC-SCA-008 after a cancel the position and the cap agree on billed (0)');
+set local role authenticated; select pg_temp.act_as('15130000-0000-0000-0000-0000000000a2');
 select lives_ok($$ select pg_temp.bill(60) $$, 'AC-SCA-008 and can be billed again');
 reset role; rollback to savepoint s8;
 
@@ -207,6 +218,7 @@ select throws_ok($$ select pg_temp.bill(10) $$, '42501', null, 'FR-SCA-020 an En
 select throws_ok($$ select pg_temp.bill(60) $$, '42501', null, 'NFR-SCA-005 an over-cap request from an Engineer is refused on role (42501), never answered with the PO''s verified and billed numbers');
 select pg_temp.act_as('15130000-0000-0000-0000-0000000000a8');
 select throws_ok($$ select pg_temp.bill(10) $$, '42501', null, 'FR-SCA-020 a disabled Finance user cannot capture a subcontract bill');
+select throws_ok($$ select pg_temp.bill(60) $$, '42501', null, 'NFR-SCA-005 an over-cap request from a disabled member is refused on the wrapper''s own active-member gate (42501), never answered with the PO''s numbers');
 select pg_temp.act_as('15130000-0000-0000-0000-0000000000b1');
 select throws_ok($$ select pg_temp.bill(10) $$, 'P0002', null, 'NFR-SCA-003 another organisation cannot capture against this purchase');
 reset role; rollback to savepoint sr;
@@ -256,8 +268,28 @@ select throws_ok($$ select capture_subcontract_vendor_invoice('15130000-0000-000
   'FR-SCA-021 a bill naming the same BoQ line twice is refused (23514)');
 select throws_ok($$ select capture_subcontract_vendor_invoice('15130000-0000-0000-0000-0000000000f1', 'Received', current_date,
   '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e9","quantity":1,"rate":10000}]'::jsonb, p_amount => 10000,
-  p_tax_treatment => 'exclusive', p_tax_amount => 0) $$, 'SC001', null, 'FR-SCA-020 a line that is not on this PO is refused (SC001, fail closed)');
+  p_tax_treatment => 'exclusive', p_tax_amount => 0) $$, 'SC001', 'line 15130000-0000-0000-0000-0000000000e9 is not on this purchase order; the bill is refused',
+  'FR-SCA-020 another organisation''s line is refused (SC001) naming only the id the caller sent, never that line''s code');
+select throws_ok($$ select capture_subcontract_vendor_invoice('15130000-0000-0000-0000-0000000000f1', 'Received', current_date,
+  '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e3","quantity":1,"rate":10000}]'::jsonb, p_amount => 10000,
+  p_tax_treatment => 'exclusive', p_tax_amount => 0) $$, 'SC001', 'line L3 is not on this purchase order; the bill is refused',
+  'FR-SCA-020 a BoQ line of this project that is not on the PO is refused (SC001) naming the line');
 reset role; rollback to savepoint s23;
+
+-- ── The audit records the normalised lines, not the raw client JSON ─────────────────────────────────────────
+savepoint saud;
+select pg_temp.confirmed_acceptance('15130000-0000-0000-0000-000000000101', 100, null);
+set local role authenticated; select pg_temp.act_as('15130000-0000-0000-0000-0000000000a2');
+select capture_subcontract_vendor_invoice('15130000-0000-0000-0000-0000000000f1', 'Received', current_date,
+  '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e1","quantity":2,"rate":100000,"note":"client-extra"}]'::jsonb,
+  p_amount => 200000, p_tax_treatment => 'exclusive', p_tax_amount => 0);
+reset role;
+select is((select detail->'lines' from audit_events where action = 'procurement_invoice.subcontract_lines'),
+  '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e1","quantity":2,"rate":100000}]'::jsonb,
+  'NFR-SCA-005 the audit logs the normalised (boq_item_id, quantity, rate) lines');
+select is((select detail::text like '%client-extra%' from audit_events where action = 'procurement_invoice.subcontract_lines'), false,
+  'NFR-SCA-005 and nothing else the client sent');
+rollback to savepoint saud;
 
 -- ── FR-SCA-021 D3: the cap sums and validates its own input ─────────────────────────────────────────────────
 savepoint sd3;

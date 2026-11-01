@@ -11,6 +11,7 @@
 --   drop function if exists public.subcontract_po_position(uuid);
 --   drop function if exists public.subcontract_bill_cap_violation(uuid, jsonb, uuid);
 --   drop function if exists public.subcontract_billed(uuid, uuid);
+--   drop function if exists public.subcontract_bill_is_live(smallint, timestamptz);
 --   drop function if exists public.guard_subcontract_invoice_capture();
 --   drop table if exists public.procurement_invoice_lines;   (drops its trigger)
 --   drop function if exists public.guard_procurement_invoice_line();
@@ -56,7 +57,16 @@ create policy procurement_invoice_lines_read on public.procurement_invoice_lines
 revoke all on public.procurement_invoice_lines from public, anon, authenticated;
 grant select on public.procurement_invoice_lines to authenticated;
 
--- §2 The billed quantity per line (internal). "Not cancelled" is the shipped predicate (0373 create_payment).
+-- §2 What counts as a live (billable) bill: the shipped "not cancelled" predicate (0373 create_payment), defined ONCE.
+-- The cap's billed read and the position read both call it, so the PO screen can never show a payable the cap refuses.
+create or replace function public.subcontract_bill_is_live(p_erp_docstatus smallint, p_erp_cancelled_at timestamptz)
+  returns boolean language sql immutable security invoker set search_path = public as $$
+  select coalesce(p_erp_docstatus, 1) <> 2 and p_erp_cancelled_at is null
+$$;
+revoke all on function public.subcontract_bill_is_live(smallint, timestamptz) from public, anon;
+grant execute on function public.subcontract_bill_is_live(smallint, timestamptz) to authenticated;
+
+-- The billed quantity per line (internal).
 create or replace function public.subcontract_billed(p_po_id uuid, p_exclude_invoice uuid)
   returns table (boq_item_id uuid, quantity numeric)
   language sql stable security definer set search_path = public as $$
@@ -64,7 +74,7 @@ create or replace function public.subcontract_billed(p_po_id uuid, p_exclude_inv
     from public.procurement_invoice_lines l
     join public.procurement_invoices i on i.id = l.invoice_id
    where i.po_id = p_po_id
-     and coalesce(i.erp_docstatus, 1) <> 2 and i.erp_cancelled_at is null
+     and public.subcontract_bill_is_live(i.erp_docstatus, i.erp_cancelled_at)
      and (p_exclude_invoice is null or i.id <> p_exclude_invoice)
    group by l.boq_item_id
 $$;
@@ -94,6 +104,7 @@ begin
             from jsonb_to_recordset(p_lines) r(boq_item_id uuid, quantity numeric) group by r.boq_item_id) x
     left join public.purchase_order_lines pl on pl.po_id = p_po_id and pl.revision = v_rev and pl.boq_item_id = x.boq_item_id
     left join public.boq_items b on b.id = x.boq_item_id
+      and b.org_id = (select o.org_id from public.purchase_orders o where o.id = p_po_id)   -- never name another org's line
     left join (select * from public.subcontract_verified(p_po_id)) v on v.boq_item_id = x.boq_item_id
     left join (select * from public.subcontract_billed(p_po_id, p_exclude_invoice)) bl on bl.boq_item_id = x.boq_item_id
    where pl.boq_item_id is null
@@ -102,7 +113,7 @@ begin
    limit 1;
   if not found then return null; end if;
   if v_bad.po_qty is null then
-    return jsonb_build_object('reason', 'line_not_on_po', 'boq_item_id', v_bad.boq_item_id);
+    return jsonb_build_object('reason', 'line_not_on_po', 'boq_item_id', v_bad.boq_item_id, 'item_code', v_bad.item_code);
   end if;
   return jsonb_build_object('reason', 'over_cap', 'boq_item_id', v_bad.boq_item_id, 'item_code', v_bad.item_code,
     'verified', v_bad.verified, 'po_qty', v_bad.po_qty, 'billed', v_bad.billed, 'requested', v_bad.requested);
@@ -145,6 +156,10 @@ begin
       raise exception 'line % cannot be billed: verified %, PO %, billed %, this bill %',
         v_v->>'item_code', v_v->>'verified', v_v->>'po_qty', v_v->>'billed', v_v->>'requested' using errcode = 'SC001';
     end if;
+    if v_v->>'reason' = 'line_not_on_po' then
+      raise exception 'line % is not on this purchase order; the bill is refused', coalesce(v_v->>'item_code', v_v->>'boq_item_id')
+        using errcode = 'SC001';
+    end if;
     raise exception 'the bill cap could not be evaluated (%); the bill is refused', v_v->>'reason' using errcode = 'SC001';
   end if;
   if exists (select 1 from jsonb_to_recordset(p_lines) x(boq_item_id uuid, quantity numeric, rate numeric)
@@ -169,7 +184,10 @@ begin
   select v_inv.id, x.boq_item_id, x.quantity, x.rate from jsonb_to_recordset(p_lines) x(boq_item_id uuid, quantity numeric, rate numeric);
   perform set_config('pmo.subcontract_capture', '', true);
   perform public.log_audit('procurement_invoice.subcontract_lines', v_proc.org_id, auth.uid(), v_inv.id,
-    jsonb_build_object('po_id', v_po, 'revision', v_rev, 'lines', p_lines));
+    jsonb_build_object('po_id', v_po, 'revision', v_rev, 'lines', (
+      select coalesce(jsonb_agg(jsonb_build_object('boq_item_id', x.boq_item_id, 'quantity', x.quantity, 'rate', x.rate)
+                                order by x.boq_item_id), '[]'::jsonb)
+        from jsonb_to_recordset(p_lines) x(boq_item_id uuid, quantity numeric, rate numeric))));   -- normalised, never the raw client JSON
   select * into v_inv from public.procurement_invoices where id = v_inv.id;
   return v_inv;
 end $$;
@@ -205,7 +223,7 @@ create or replace function public.subcontract_po_position(p_po_id uuid)
   with rev as (select public.po_effective_revision(p_po_id) as r),
   bl as (select l.boq_item_id, sum(l.quantity) q from public.procurement_invoice_lines l
            join public.procurement_invoices i on i.id = l.invoice_id
-          where i.po_id = p_po_id and coalesce(i.erp_docstatus, 1) <> 2 and i.erp_cancelled_at is null
+          where i.po_id = p_po_id and public.subcontract_bill_is_live(i.erp_docstatus, i.erp_cancelled_at)
           group by l.boq_item_id),
   money as (select public.auth_role() in ('Admin','Executive','Project Manager','Finance') as ok)  -- D6 / 0350 ruling
   select pl.boq_item_id, b.item_code, b.description, pl.unit, pl.rate, pl.revision, pl.quantity,
@@ -239,6 +257,9 @@ begin
      or has_function_privilege('authenticated', 'public.guard_subcontract_invoice_capture()', 'EXECUTE')
      or has_function_privilege('authenticated', 'public.guard_procurement_invoice_line()', 'EXECUTE') then
     raise exception '0472: an internal function is client-executable';
+  end if;
+  if has_function_privilege('anon', 'public.subcontract_bill_is_live(smallint,timestamptz)', 'EXECUTE') then
+    raise exception '0472: the bill-is-live predicate is anon-executable';
   end if;
   if has_function_privilege('anon', 'public.capture_subcontract_vendor_invoice(uuid,procurement_invoice_status,date,jsonb,text,numeric,text,text,numeric,numeric,text,integer,integer,text,numeric,text)', 'EXECUTE')
      or has_function_privilege('anon', 'public.subcontract_po_position(uuid)', 'EXECUTE') then

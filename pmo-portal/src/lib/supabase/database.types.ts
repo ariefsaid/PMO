@@ -10250,17 +10250,17 @@ export type Database = {
       subcontract_po_position: {
         Args: { p_po_id: string }
         Returns: {
-          billed: number
+          billed: number | null
           boq_item_id: string
           description: string
           item_code: string
-          payable: number
+          payable: number | null
           po_qty: number
           rate: number
           revision: number
           unit: string
           verified: number
-          verified_at: string
+          verified_at: string | null
           verified_not_on_po: number
         }[]
       }
@@ -10436,6 +10436,23 @@ export type Database = {
           p_denominator: number
           p_numerator: number
           p_rate: number
+          p_treatment: string
+        }
+        Returns: number
+      }
+      can_read_comment_parent: {
+        Args: { p_id: string; p_type: string }
+        Returns: boolean
+      }
+      can_read_meeting: { Args: { p_meeting_id: string }; Returns: boolean }
+      cancel_native_receipt: {
+        Args: { p_receipt_id: string }
+        Returns: undefined
+      }
+      cancel_stock_document: {
+        Args: { p_document_id: string }
+        Returns: undefined
+      }
       capture_subcontract_vendor_invoice: {
         Args: {
           p_amount?: number
@@ -10495,23 +10512,6 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
-      }
-          p_treatment: string
-        }
-        Returns: number
-      }
-      can_read_comment_parent: {
-        Args: { p_id: string; p_type: string }
-        Returns: boolean
-      }
-      can_read_meeting: { Args: { p_meeting_id: string }; Returns: boolean }
-      cancel_native_receipt: {
-        Args: { p_receipt_id: string }
-        Returns: undefined
-      }
-      cancel_stock_document: {
-        Args: { p_document_id: string }
-        Returns: undefined
       }
       capture_vendor_invoice: {
         Args: {
@@ -12922,6 +12922,10 @@ export type Database = {
       set_subcontract_po_lines: {
         Args: { p_lines: Json; p_po_id: string }
         Returns: number
+      }
+      subcontract_bill_is_live: {
+        Args: { p_erp_cancelled_at: string; p_erp_docstatus: number }
+        Returns: boolean
       }
       subcontract_po_lock: { Args: { p_po_id: string }; Returns: undefined }
     }
