@@ -157,11 +157,9 @@ export async function runWorkerBatch(deps: WorkerBatchDeps, batchSize = 25): Pro
 
 // ── The real wiring the Deno.serve wrapper uses (DB + ClickUp HTTP + mirror callbacks). ────────────
 
-export function getTaskWithToken(taskId: string, token: string): Promise<ClickUpTask | null> {
-  return clickUpGetTaskRaw(taskId, { fetchImpl: fetch, token });
-}
-
-async function resolveOrgForTeam(
+/** The org + token for a ClickUp team. `null` only for a confirmed absence (no binding row, or the
+ *  bound org's vault secret is empty); a failed binding or vault read throws so the row is retried. */
+export async function resolveOrgForTeam(
   serviceClient: SupabaseClient,
   teamId: string | null,
 ): Promise<{ orgId: string; token: string } | null> {
@@ -172,7 +170,8 @@ async function resolveOrgForTeam(
     .eq('external_tier', CLICKUP_TIER)
     .eq('config->>clickup_team_id', teamId)
     .maybeSingle();
-  if (error || !binding) return null;
+  if (error) throw new AppError(error.message, error.code);
+  if (!binding) return null;
   const orgId = (binding as { org_id?: string }).org_id;
   if (!orgId) return null;
   const connectEnabled = externalConnectEnabled();
@@ -184,10 +183,13 @@ async function resolveOrgForTeam(
     lookupBinding: async () => binding as { secret_ref?: string | null },
     readVaultSecret: async (ref) => {
       const { data, error: vaultError } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
-      if (vaultError) return null;
+      if (vaultError) throw new AppError(vaultError.message, vaultError.code);
       return (data as string | null) ?? null;
     },
   });
+  if (result.kind === 'read-failed') {
+    throw new AppError('ClickUp credentials could not be read for this org', 'external-unreachable');
+  }
   return result.kind === 'resolved' ? { orgId, token: result.secret } : null;
 }
 
@@ -205,23 +207,25 @@ export async function resolveBindingLive(
 ): Promise<ResolvedBinding | null> {
   // 1. Mapped path: external_refs(task_id) -> org + pmo_record_id -> the task row's project. Works
   //    with NO listId (also serves the taskDeleted / re-GET-404 branch).
-  const { data: ref } = await serviceClient
+  const { data: ref, error: refError } = await serviceClient
     .from('external_refs')
     .select('org_id, pmo_record_id')
     .eq('domain', CLICKUP_TASKS_DOMAIN)
     .eq('external_record_id', taskId)
     .maybeSingle();
+  if (refError) throw new AppError(refError.message, refError.code);
   const mappedRef = ref as { org_id: string; pmo_record_id: string } | null;
   if (mappedRef) {
-    const { data: taskRow } = await serviceClient
+    const { data: taskRow, error: taskError } = await serviceClient
       .from('tasks')
       .select('project_id')
       .eq('org_id', mappedRef.org_id)
       .eq('id', mappedRef.pmo_record_id)
       .maybeSingle();
+    if (taskError) throw new AppError(taskError.message, taskError.code);
     const projectId = (taskRow as { project_id: string } | null)?.project_id;
     if (projectId) {
-      const { data } = await serviceClient
+      const { data, error: bindingError } = await serviceClient
         .from('external_project_bindings')
         .select('org_id, project_id, config')
         .eq('org_id', mappedRef.org_id)
@@ -229,6 +233,7 @@ export async function resolveBindingLive(
         .eq('external_tier', CLICKUP_TIER)
         .is('disconnected_at', null)
         .maybeSingle();
+      if (bindingError) throw new AppError(bindingError.message, bindingError.code);
       const row = data as { org_id: string; project_id: string; config: unknown } | null;
       if (row) return bindingFromRow(row);
     }
@@ -238,13 +243,14 @@ export async function resolveBindingLive(
   //    2026-07-20 fix: `listId` is the worker's re-GET (`task.list.id`), NEVER the payload — the
   //    payload never carries a list_id on a real delivery, which made this path unreachable before.
   if (listId) {
-    const { data: byList } = await serviceClient
+    const { data: byList, error: byListError } = await serviceClient
       .from('external_project_bindings')
       .select('org_id, project_id, config')
       .eq('external_tier', CLICKUP_TIER)
       .eq('external_container_id', listId)
       .is('disconnected_at', null)
       .maybeSingle();
+    if (byListError) throw new AppError(byListError.message, byListError.code);
     const row = byList as { org_id: string; project_id: string; config: unknown } | null;
     if (row) return bindingFromRow(row);
   }
@@ -297,15 +303,33 @@ export function buildApplyDepsLive(serviceClient: SupabaseClient, binding: Resol
   };
 }
 
-async function claimPendingLive(serviceClient: SupabaseClient, batchSize: number): Promise<InboxRow[]> {
-  const { data, error } = await serviceClient
+/** A failed row is reclaimed until it has failed this many times, then it stays `failed` for an operator.
+ *  ponytail: no per-row backoff (reclaimed every tick) — add `processed_at` spacing if a long outage burns the cap. */
+export const MAX_INBOX_ATTEMPTS = 5;
+
+export async function claimPendingLive(serviceClient: SupabaseClient, batchSize: number): Promise<InboxRow[]> {
+  // Pending rows plus failed rows still under the attempt cap, oldest first. Two reads (not one `or`) so
+  // each stays a plain filter; the oldest `batchSize` of the union are claimed.
+  const cols = 'id, event, task_id, team_id, history_items, received_at';
+  const pendingRead = await serviceClient
     .from('clickup_webhook_inbox')
-    .select('id, event, task_id, team_id, history_items')
+    .select(cols)
     .eq('status', 'pending')
     .order('received_at', { ascending: true })
     .limit(batchSize);
-  if (error) throw new AppError(error.message, error.code);
-  const rows = (data as InboxRow[] | null) ?? [];
+  if (pendingRead.error) throw new AppError(pendingRead.error.message, pendingRead.error.code);
+  const failedRead = await serviceClient
+    .from('clickup_webhook_inbox')
+    .select(cols)
+    .eq('status', 'failed')
+    .lt('attempts', MAX_INBOX_ATTEMPTS)
+    .order('received_at', { ascending: true })
+    .limit(batchSize);
+  if (failedRead.error) throw new AppError(failedRead.error.message, failedRead.error.code);
+  const rows = [...((pendingRead.data as Array<InboxRow & { received_at: string }> | null) ?? []), ...((failedRead.data as Array<InboxRow & { received_at: string }> | null) ?? [])]
+    .sort((a, b) => a.received_at.localeCompare(b.received_at))
+    .slice(0, batchSize)
+    .map(({ received_at: _receivedAt, ...row }) => row);
   // Best-effort claim: mark processing before working the batch (not a fenced/SKIP LOCKED claim — the
   // apply path is idempotent under a rare double-dequeue by a second concurrent tick, so at-least-once
   // is acceptable here; see the plan's "simplest thing that survives a >7s budget" stance).
@@ -336,10 +360,11 @@ async function markUnresolvableLive(serviceClient: SupabaseClient, id: string, r
   if (error) throw new AppError(error.message, error.code);
 }
 
-async function markFailedLive(serviceClient: SupabaseClient, id: string, message: string): Promise<void> {
-  // Best-effort read-then-increment (matches the best-effort claim above — no fencing needed, this is
-  // an operator-visible retry counter, not a correctness guard).
-  const { data } = await serviceClient.from('clickup_webhook_inbox').select('attempts').eq('id', id).maybeSingle();
+export async function markFailedLive(serviceClient: SupabaseClient, id: string, message: string): Promise<void> {
+  // Best-effort read-then-increment (matches the best-effort claim above). It now bounds reclaim, so a
+  // failed read throws rather than silently resetting the count to 0.
+  const { data, error: readError } = await serviceClient.from('clickup_webhook_inbox').select('attempts').eq('id', id).maybeSingle();
+  if (readError) throw new AppError(readError.message, readError.code);
   const currentAttempts = (data as { attempts: number } | null)?.attempts ?? 0;
   const { error } = await serviceClient
     .from('clickup_webhook_inbox')
@@ -385,7 +410,7 @@ export const jobHandler = withJobRun('clickup-webhook-worker', async (req: Reque
     processRow: (row) =>
       processInboxRow(row, {
         resolveOrg: (teamId) => resolveOrgForTeam(serviceClient, teamId),
-        getTask: (taskId, token) => getTaskWithToken(taskId, token),
+        getTask: (taskId, token) => clickUpGetTaskRaw(taskId, { fetchImpl: fetch, token }),
         resolveBinding: (taskId, listId) => resolveBindingLive(serviceClient, taskId, listId),
         buildApplyDeps: (binding) => buildApplyDepsLive(serviceClient, binding),
       }),
