@@ -266,6 +266,36 @@ describe('erpnext/agingSnapshot — refreshAging edge', () => {
     expect(svc.inserted[0]).toEqual([]);
   });
 
+  describe('THEME-DATA-09 a malformed report is not published as a fresh ERP result', () => {
+    const okRow = { party: 'Supplier A', party_type: 'Supplier', currency: 'IDR', outstanding: 100, range1: 100 };
+    const cases: Array<[string, unknown]> = [
+      ['an empty object', {}],
+      ['a message with no result', { message: { columns: [] } }],
+      ['a non-array result', { message: { result: 'oops' } }],
+      ['a null body', null],
+      ['a row with no outstanding amount', reportResponse([{ ...okRow, outstanding: undefined }])],
+      ['a row with a non-numeric outstanding', reportResponse([{ ...okRow, outstanding: 'n/a' }])],
+      ['a row with a non-numeric bucket', reportResponse([{ ...okRow, range1: 'x' }])],
+    ];
+    it.each(cases)('%s routes to the labelled mirrored-ledger fallback, never a zero-filled primary snapshot', async (_label, body) => {
+      const fetchImpl = async () => new Response(JSON.stringify(body), { status: 200 });
+      const svc = makeServiceClient([
+        { party: 'Supplier M', party_type: 'Supplier', account: 'Creditors - PSC', amount: 70, due_date: '2026-07-30', posting_date: '2026-07-01' },
+      ]);
+      await refreshAging(svc.client as never, erpClient(fetchImpl) as never, 'org-1', { ...AP_SCOPE, today: '2026-07-12' });
+      expect(svc.tables).toContain('erp_payment_ledger_mirror');
+      expect(svc.inserted[0]).toHaveLength(1);
+      expect(svc.inserted[0]![0]).toMatchObject({ party: 'Supplier M', source_report: 'Accounts Payable (mirrored-ledger fallback)' });
+    });
+    it('a validated empty result array is still published as the primary (empty) snapshot', async () => {
+      const fetchImpl = async () => new Response(JSON.stringify(reportResponse([])), { status: 200 });
+      const svc = makeServiceClient([{ party: 'Supplier M', party_type: 'Supplier', amount: 70, due_date: '2026-07-30' }]);
+      await refreshAging(svc.client as never, erpClient(fetchImpl) as never, 'org-1', AP_SCOPE);
+      expect(svc.tables).not.toContain('erp_payment_ledger_mirror');
+      expect(svc.inserted[0]).toEqual([]);
+    });
+  });
+
   it('propagates when the mirrored-ledger read itself fails (fallback read error surfaces, never swallowed)', async () => {
     const fetchImpl = async () => new Response('{"exc_type":"X"}', { status: 404 });
     // A PostgREST-shaped read failure on the fallback source. It must PROPAGATE — a swallowed error
