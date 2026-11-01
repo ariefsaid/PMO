@@ -47,6 +47,7 @@ export const EDGE_FUNCTION_NAMES = [
   'external-set-company',
   'external-unlink',
   'health',
+  'imprest-cash-account',
   'm365-token-custody',
   'odoo-sweep',
   'telegram-notify',
