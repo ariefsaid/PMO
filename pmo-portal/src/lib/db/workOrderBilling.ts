@@ -45,6 +45,8 @@ export interface UnbilledWorkOrderRow {
   currency: string;
   remaining: number;
   daysSinceClosed: number | null;
+  /** #1640: days since a confirmed acceptance with no invoice submitted after it; null when none. */
+  daysSinceAcceptance: number | null;
   /** The client's PO on the work order, when it has one (read beside the document, for the row's label). */
   clientPoNumber: string | null;
 }
@@ -239,7 +241,29 @@ export function parseUnbilledWorkOrders(data: unknown): UnbilledDocument {
         currency: text(r.currency, 'currency'),
         remaining: num(r.remaining, 'remaining'),
         daysSinceClosed: r.days_since_closed == null ? null : num(r.days_since_closed, 'days_since_closed'),
+        daysSinceAcceptance: r.days_since_acceptance == null ? null : num(r.days_since_acceptance, 'days_since_acceptance'),
       };
     }),
   };
+}
+
+/** #1640 FR-WOMS-020: days since a work order's acceptance with no invoice yet (view work_order_uninvoiced_acceptance). */
+export interface WorkOrderAcceptanceAge { workOrderId: string; anchorDate: string; days: number }
+
+export async function listWorkOrderAcceptanceAge(projectId: string): Promise<WorkOrderAcceptanceAge[]> {
+  const { data, error } = await supabase
+    .from('work_order_uninvoiced_acceptance')
+    .select('work_order_id, anchor_date, days')
+    .eq('project_id', projectId)
+    .limit(WORK_ORDER_BILLING_ROW_LIMIT + 1);
+  if (error) throw new AppError(error.message, error.code);
+  const rows: ReadonlyArray<Record<string, unknown>> = data ?? [];
+  if (rows.length > WORK_ORDER_BILLING_ROW_LIMIT) {
+    throw new AppError(`This project has more than ${WORK_ORDER_BILLING_ROW_LIMIT} work orders; billing cannot be shown in one view.`, 'too-many-work-orders');
+  }
+  return rows.map((r) => ({
+    workOrderId: text(r.work_order_id, 'work_order_id'),
+    anchorDate: text(r.anchor_date, 'anchor_date'),
+    days: num(r.days, 'days'),
+  }));
 }
