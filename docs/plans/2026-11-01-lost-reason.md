@@ -9,7 +9,7 @@
 - **Executor:** Orca workers per `docs/orca-dispatch.md`. **S1 changes `transition_project`** (the money/SoD transition RPC,
   win branch untouched): per CLAUDE.md it is Director-dispatched per issue, and **S1 ships alone** (own PR, not batched);
   `security-auditor` at full depth on S1 + S2. S3-S6 are a normal FE lane.
-- **Migration numbers:** S1 is `0461` (columns + `transition_project`; renumbered from 0437 because dev passed it), S2 `0438` (`get_loss_breakdown`) is renumbered above the highest number on `origin/dev` when it is built. Never hand-roll a renumber: `scripts/renumber-migration.sh`.
+- **Migration numbers:** S1 is `0461` (columns + `transition_project`; renumbered from 0437 because dev passed it), S2 `0462` (`get_loss_breakdown`) was assigned by the Director (above 0461). Never hand-roll a renumber: `scripts/renumber-migration.sh`.
 - **Order:** S1 -> S2 -> S3 are independent of #1637. S4 needs #1637's S2 on the base branch
   (`components/project-status/ProjectTransitionConfirm.tsx`). If it is absent: **stop and ask the Director**, never create a second confirm.
 - **#1638 builds first (pipeline stage history, migrations 0430-0433).** Before writing any SQL: `git fetch origin && git rebase origin/dev`,
@@ -41,8 +41,8 @@
 | `supabase/tests/0461_lost_reason.test.sql` | new | S1 |
 | `supabase/tests/0030_project_loss_path.test.sql`, `0236_project_declined_outcome.test.sql` | pass a reason | S1 |
 | `scripts/isolation-probe-denominator.json` | definer entry `transition_project(uuid,project_status,text,date)` -> `transition_project(uuid,project_status,text,date,text,text)` | S1 |
-| `supabase/migrations/0438_loss_breakdown.sql`, `rollback/0438_loss_breakdown_down.sql` | new | S2 |
-| `supabase/tests/0438_loss_breakdown.test.sql` | new | S2 |
+| `supabase/migrations/0462_loss_breakdown.sql`, `rollback/0462_loss_breakdown_down.sql` | new | S2 |
+| `supabase/tests/0462_loss_breakdown.test.sql` | new | S2 |
 | `src/lib/supabase/database.types.ts` | regenerated | S3 |
 | `src/lib/lostReasons.ts` (+ `.test.ts`) | new: keys, validity, i18n key map | S3 |
 | `src/lib/db/projectTransitions.ts` (+ test) | `TransitionProjectOpts` gains `lostReason`, `lostNote`; RPC wrapper sends them | S3 |
@@ -294,8 +294,8 @@ Commit: `feat(db): lost reason required on lost/declined transitions (#1577)`.
 
 ## S2: `get_loss_breakdown`
 
-### S2-T1 Failing pgTAP `supabase/tests/0438_loss_breakdown.test.sql` (5 min)
-Oracle fixtures (org A, prefix `04380000-…`; client names fixed so tie order is deterministic): clients C1 "Acme Client", C2 "Zeta Client".
+### S2-T1 Failing pgTAP `supabase/tests/0462_loss_breakdown.test.sql` (5 min)
+Oracle fixtures (org A, prefix `04620000-…`; client names fixed so tie order is deterministic): clients C1 "Acme Client", C2 "Zeta Client".
 Projects (status / client / reason / decided_at): W1 Ongoing C1 - 2026-01-10; W2 Ongoing C1 - 2026-02-05; L1 Loss Tender C1 price 2026-01-15;
 L2 Loss Tender C2 price 2026-02-10; L3 Loss Tender C2 competitor 2026-02-12; D1 Declined C2 capacity 2026-02-14;
 D2 Declined C1 price 2026-03-01; L4 Loss Tender C2 null (historic) decided_at null. Org B: one Loss Tender `price` 2026-01-20.
@@ -306,7 +306,7 @@ Org B: one org, one PM profile, one `Client` company, one project. Run as org A'
 Assertions (`plan(8)`):
 1. `AC-LR-008` all-time `by_reason` equals, in order: `price` losses 2 declined 1; `capacity` 0/1; `competitor` 1/0; `null` 1/0. Compare `jsonb`:
    `select is(get_loss_breakdown() -> 'by_reason', '[{"reason":"price","losses_count":2,"declined_count":1}, … ]'::json)` (use `::jsonb` on both sides).
-2. `AC-LR-008` org B's deal is absent (total of all counts = 7, not 8).
+2. `AC-LR-008` org B's deal is absent (total of all counts = 6, not 7).
 3. `AC-LR-008` all-time `by_client` equals `[Acme Client wins 2 losses 1, Zeta Client wins 0 losses 3]` (D1/D2 excluded).
 4. `AC-LR-009` window `('2026-02-01','2026-02-28')` `by_reason` = `capacity 0/1, competitor 1/0, price 1/0` (L4 undated and L1/D2 outside excluded).
 5. `AC-LR-009` same window `by_client` = `[Zeta Client 0/2, Acme Client 1/0]`.
@@ -315,9 +315,9 @@ Assertions (`plan(8)`):
 8. `NFR-LR-002` as an org-B user the result contains only org B's row.
 RED first (function absent).
 
-### S2-T2 Migration `supabase/migrations/0438_loss_breakdown.sql` (5 min)
+### S2-T2 Migration `supabase/migrations/0462_loss_breakdown.sql` (5 min)
 ```sql
--- 0438_loss_breakdown.sql — #1577: loss counts by reason and by client for the win-rate tile.
+-- 0462_loss_breakdown.sql — #1577: loss counts by reason and by client for the win-rate tile.
 -- security invoker (RLS scopes the org, like get_win_rate). Cohort and window = get_win_rate's decided cohort (0385;
 -- #1638 re-creates get_win_rate with the same decided CTE: copy the three where-lines from the latest body).
 create or replace function public.get_loss_breakdown(p_from date default null, p_to date default null)
@@ -362,10 +362,10 @@ revoke all     on function public.get_loss_breakdown(date, date) from public;
 revoke execute on function public.get_loss_breakdown(date, date) from anon;
 grant  execute on function public.get_loss_breakdown(date, date) to authenticated;
 ```
-Rollback `rollback/0438_loss_breakdown_down.sql`: `drop function if exists public.get_loss_breakdown(date, date);`.
+Rollback `rollback/0462_loss_breakdown_down.sql`: `drop function if exists public.get_loss_breakdown(date, date);`.
 
 ### S2-T3 Green (3 min)
-`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0438_loss_breakdown.test.sql supabase/tests/0461_lost_reason.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0040_win_rate_all_time.test.sql supabase/tests/0041_win_rate_timeframe.test.sql'`.
+`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0462_loss_breakdown.test.sql supabase/tests/0461_lost_reason.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0040_win_rate_all_time.test.sql supabase/tests/0041_win_rate_timeframe.test.sql'`.
 Commit: `feat(db): get_loss_breakdown (#1577)`.
 
 ---
@@ -727,7 +727,7 @@ Report: branch, head SHA, commands + pass counts, deviations.
 
 ## 3. Deploy note (NFR-LR-009)
 
-Back to front: `0461`+`0438` (DB), then the FE. Until the FE lands, a user on the old bundle who marks a deal lost sees the
+Back to front: `0461`+`0462` (DB), then the FE. Until the FE lands, a user on the old bundle who marks a deal lost sees the
 server message "a reason is required when a deal is lost or declined" and the deal stays open; a reload picks up the picker.
 No shim, no data loss. S1 can merge to `dev` before S4 only if the Director accepts that window on `dev` (it is the same window prod sees
 between the DB push and the FE push); otherwise hold S1 and merge S1-S4 back to back.
@@ -744,7 +744,7 @@ No other plan or spec is edited. #1637's plan/spec stay as written; this plan ex
 |---|---|
 | AC-LR-001..005, 007 | `supabase/tests/0461_lost_reason.test.sql` |
 | AC-LR-006 | `0027 0028 0029 0030 0031 0032 0033 0236` re-run (S1-T5) |
-| AC-LR-008, 009 | `supabase/tests/0438_loss_breakdown.test.sql` |
+| AC-LR-008, 009 | `supabase/tests/0462_loss_breakdown.test.sql` |
 | AC-LR-010, 013 (menu) | `components/ProjectStatusControl.lostReason.test.tsx` |
 | AC-LR-011, 013 (deal page), 014 | `pages/project-detail/__tests__/PipelineLens.lostReason.test.tsx` |
 | AC-LR-012 | `pages/sales-pipeline/__tests__/DraggableSalesBoard.lostReason.test.tsx` |

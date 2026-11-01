@@ -261,7 +261,7 @@ changing `get_win_rate`, `decided_at`, the transition map, or win eligibility; t
 |---|---|---|
 | 001, 002, 003, 004, 005, 007 | pgTAP | `supabase/tests/0437_lost_reason.test.sql` |
 | 006 | pgTAP | 0030 and 0236 updated to pass a reason; 0027, 0028, 0029, 0031, 0032, 0033 re-run unchanged |
-| 008, 009 | pgTAP | `supabase/tests/0438_loss_breakdown.test.sql` |
+| 008, 009 | pgTAP | `supabase/tests/0462_loss_breakdown.test.sql` |
 | 010 | Vitest/RTL | `components/ProjectStatusControl.lostReason.test.tsx` |
 | 011, 013 | Vitest/RTL | `pages/project-detail/__tests__/PipelineLens.lostReason.test.tsx` |
 | 012 | Vitest/RTL | `pages/sales-pipeline/__tests__/DraggableSalesBoard.lostReason.test.tsx` |
