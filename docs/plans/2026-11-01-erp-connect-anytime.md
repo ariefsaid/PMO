@@ -14,7 +14,7 @@
   Orca workers (`docs/orca-dispatch.md`); money-path slices are Director-dispatched per issue.
 - **Migrations (Director, 2026-11-01):** each with `supabase/migrations/rollback/<number>_<slug>_down.sql`. Five migrations:
   ECA-2 `0451_erp_connect_setup`, ECA-3 `0452_erp_connect_sends`, ECA-4 `0453_process_domain_cutover`, ECA-5
-  `0454_invoice_pairs`, ECA-6 `0455_budget_occupant_resolution` (0450 is #1614's). A collision at build is fixed with
+  `0484_invoice_pairs` (Director re-allocated from 0454), ECA-6 `0455_budget_occupant_resolution` (0450 is #1614's). A collision at build is fixed with
   `scripts/renumber-migration.sh`, never by hand.
 - **IDs:** plan decisions `PD-ECA-#`; questions for the Director `PQ-ECA-#`; tasks `<slice>-T<n>`.
 
@@ -1497,8 +1497,11 @@ create unique index sales_invoices_one_pair on public.sales_invoices (paired_erp
 Admin/Finance: native rows (`pmo_native`, status `Unpaid`, `paired_erp_invoice_id is null`, **no** `incoming_payments` row
 with `sales_invoice_id` = the native id — PD-ECA-11, so no receipt is counted twice) joined to non-native
 rows (`erp_docstatus = 1`, `erp_cancelled_at is null`, not already a pair target) on same `customer_id`, and
-(`reference_number` equal and not null, or `si_number` equal and not null), equal `amount`, equal `tax_treatment`,
-`date_trunc('month', invoice_date)` equal (FR-ECA-040); `ambiguous` when either side has more than one candidate (those are listed, never proposed for accept).
+(`reference_number` equal and not null, or `si_number` equal and not null), equal currency, equal **tax-inclusive total**
+(`amount` when `inclusive`, else `amount + tax_amount`), `date_trunc('month', invoice_date)` equal (FR-ECA-040). *Built
+2026-11-02:* the draft's "equal `amount` and equal `tax_treatment`" could never hold for a real pair - PMO raises invoices
+`exclusive`, the ERP mirror stores its grand total `inclusive` (`readModelWriters.ts`, `erpnextFeedDeps.ts`) - so the totals are
+compared on one basis; `ambiguous` when either side has more than one candidate (those are listed, never proposed for accept).
 `accept_invoice_pairs(p_pairs jsonb) returns int` — SECURITY DEFINER, Admin/Finance + active member re-asserted in the body;
 locks both rows `for update`; re-checks every predicate above (never trusts the pair list); sets `paired_*` on the native row
 inside `set_config('pmo.invoice_pairing','on',true)`; copies `project_id`/`work_order_id` to the ERP row when null via the
@@ -1528,6 +1531,11 @@ EOF
 grep -rlE "sales_invoices|sales_invoice_work_billed|work_order_billing_lines" pmo-portal/src pmo-portal/pages supabase/functions | grep -v '\.test\.'
 ```
 Of what it prints, the ones that **sum or list billed / receivable amounts** take the filter; writers, guards and triggers do not.
+*Built 2026-11-02:* `sales_invoice_work_billed` and `get_project_finances` carry the filter; `work_order_billing_lines`, `work_order_billing`,
+the management pack, both dashboards, project billing, work-order capacity and uninvoiced acceptance read through the view and
+inherit it (each has its own count-once test in `invoice_pairs.test.sql`). `get_projects_money_collection` reads
+`get_project_finances`. The list reader `listSalesInvoices` excludes paired rows by default (it feeds the receivables, finance-position,
+company-figures and project-position sums); the "Counted as ERP invoice" chip is replaced by the review screen's "already counts once" list.
 At `b52aa48a` that is:
 - Views (re-created verbatim from `0262_billing_by_work_order.sql` with `and si.paired_erp_invoice_id is null`):
   `sales_invoice_work_billed` (every management-pack, dashboard and finance reader that goes through it inherits the filter)
