@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Badge, Button, ListState } from '@/src/components/ui';
+import { Button, ListState, StatusPill } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useProjectStageEntries, useStageEntryMutations } from '@/src/hooks/useProjectStageEntries';
@@ -32,24 +32,30 @@ export default function StageHistory({ projectId }: { projectId: string }) {
   return (
     <section aria-labelledby="stage-history-heading" className="space-y-2">
       <h2 id="stage-history-heading" className="text-sm font-semibold">{t('projectDetail.stageHistory.heading', 'Stage history')}</h2>
-      <ol aria-label={t('projectDetail.stageHistory.listLabel', 'Stage history')} className="space-y-1">
+      <ol aria-label={t('projectDetail.stageHistory.listLabel', 'Stage history')} className="divide-y divide-border">
         {entries.map((e, i) => (
-          <li key={e.id} className="flex flex-wrap items-baseline gap-x-2 text-sm">
-            <span className="font-medium tabular">{stageLabel(e.stage)} {formatIsoDayMonth(e.entered_on)}</span>
-            <span className="text-muted-foreground">
-              {e.recorder?.full_name ?? t('projectDetail.stageHistory.system', 'System')} · {formatInstantDate(e.recorded_at)}
-            </span>
-            {e.redated_at && <Badge>{t('projectDetail.stageHistory.redated', 'Date changed')}</Badge>}
-            {e.source === 'added' && <Badge>{t('projectDetail.stageHistory.added', 'Added later')}</Badge>}
+          <li key={e.id} className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 py-2 first:pt-0 last:pb-0">
+            <div className="min-w-0 space-y-0.5">
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium">
+                <span className="tabular">{stageLabel(e.stage)} {formatIsoDayMonth(e.entered_on)}</span>
+                {e.redated_at && <StatusPill variant="neutral">{t('projectDetail.stageHistory.redated', 'Date changed')}</StatusPill>}
+                {e.source === 'added' && <StatusPill variant="neutral">{t('projectDetail.stageHistory.added', 'Added later')}</StatusPill>}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {e.recorder?.full_name ?? t('projectDetail.stageHistory.system', 'System')} · {formatInstantDate(e.recorded_at)}
+              </p>
+            </div>
             {canEdit && (
-              <Button variant="ghost" size="sm" onClick={() => setEditing({ kind: 'redate', index: i })}>
-                {t('projectDetail.stageHistory.changeDate', 'Change date')}
-              </Button>
-            )}
-            {canEdit && i < entries.length - 1 && (
-              <Button variant="ghost" size="sm" onClick={() => setEditing({ kind: 'add', index: i })}>
-                {t('projectDetail.stageHistory.addSkipped', 'Add skipped stage')}
-              </Button>
+              <div className="flex shrink-0 flex-wrap items-center gap-1">
+                <Button variant="ghost" size="sm" onClick={() => setEditing({ kind: 'redate', index: i })}>
+                  {t('projectDetail.stageHistory.changeDate', 'Change date')}
+                </Button>
+                {i < entries.length - 1 && (
+                  <Button variant="ghost" size="sm" onClick={() => setEditing({ kind: 'add', index: i })}>
+                    {t('projectDetail.stageHistory.addSkipped', 'Add skipped stage')}
+                  </Button>
+                )}
+              </div>
             )}
           </li>
         ))}

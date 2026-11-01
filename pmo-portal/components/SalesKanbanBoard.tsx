@@ -71,9 +71,9 @@ const SignedPill: React.FC<{ project: PipelineProject }> = ({ project }) => {
   const label = t('sales:stageDate.signed', 'Signed');
   const date = project.contract_date ? formatIsoDayMonth(project.contract_date) : null;
   return (
-    <Badge data-testid={`signed-pill-${project.id}`} className="w-fit px-1.5">
+    <StatusPill variant="won" data-testid={`signed-pill-${project.id}`} className="w-fit">
       {date ? `${label} ${date}` : label}
-    </Badge>
+    </StatusPill>
   );
 };
 
