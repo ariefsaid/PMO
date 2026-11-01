@@ -106,6 +106,7 @@ vi.mock('@/pages/procurement/DecisionSupportPanel', () => ({
 
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => expenseState }));
 vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceApprovalSection: () => null }));
+vi.mock('@/pages/approvals/ImprestApprovalSection', () => ({ ImprestApprovalSection: () => null }));
 vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingViewer: () => invoiceState }));
 import ApprovalsPage from '../Approvals';
 import { listTimesheetsAwaitingApproval } from '@/src/lib/db/timesheetTransition';
