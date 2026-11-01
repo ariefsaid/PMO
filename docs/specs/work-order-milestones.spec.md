@@ -1,9 +1,12 @@
 # Work orders as billing milestones on the project plan (WOMS)
 
 Issue #1640 (map #791; settles #1592). Status: **Draft, 2026-11-01** — awaiting owner sign-off of the open
-questions below. Executor on sign-off: Orca worker per `docs/orca-dispatch.md`; slice S3 touches the entry
-point of a money write and is Director-dispatched and **ships alone** (plan
-`docs/plans/2026-11-01-work-order-milestones.md`).
+questions below. Executor on sign-off: Orca worker per `docs/orca-dispatch.md` (plan
+`docs/plans/2026-11-01-work-order-milestones.md`). Migration: `0441` (Lane B range).
+
+**Money path: no posting, no SoD change, no new write path.** S1-S2 are read-only. S3 changes the client-side gate in
+front of the shipped draft-invoice / claim modals, so it gets an Opus builder, the three reviewers, and **ships
+alone**.
 
 **Owner rulings this encodes**
 
@@ -26,7 +29,7 @@ billed.
 
 ## 1. AS-IS (shipped behaviour, cited)
 
-All citations are against `origin/dev` at `6440a961`.
+All citations are against `origin/dev` at `b52aa48a` (re-read in review, 2026-11-01).
 
 ### 1.1 The work order record
 - `public.work_orders` (`supabase/migrations/0193_work_orders.sql:130-182`): `wo_number`, `client_po_number`,
@@ -132,6 +135,10 @@ All citations are against `origin/dev` at `6440a961`.
 - **Acceptance anchor** — the earliest `acceptance_date` among the WO's Confirmed acceptances that is **later
   than** the latest `invoice_date` of any submitted invoice on the WO (all Confirmed acceptances if there is none).
   A submitted invoice with no `invoice_date` counts as dated after every acceptance (it stops every clock).
+- **Plan status vs the shipped card state** (`deriveWorkOrderBillingState`, same figures, owner's four words on the
+  plan): `not-invoiced`/`not-billable` (Draft) → Planned; `partly-invoiced`, `awaiting-submission` → In progress;
+  `fully-invoiced` → Invoiced; `paid` → Paid; `incomplete` → Can't total; `over-invoiced` → the flag (FR-WOMS-011).
+  A draft never reads Invoiced (DD-BWO-13).
 - **Acceptance age** — org-local today − anchor, in whole days, floored at 0. Exists only while the WO is Issued
   or Closed, its figures total, and something is not yet submitted-invoiced (`remaining + pending > 0`).
 
@@ -144,12 +151,14 @@ All citations are against `origin/dev` at `6440a961`.
   per work order id, read from the same sources as Contract & billing (`useProjectWorkOrders`,
   `useWorkOrderBilling`); it shall never read or write any other record to represent a milestone.
 - **FR-WOMS-003** Each row shall show: the WO number (or "Not issued yet") and title; the dates as
-  `start_date – end_date` when either is set, else `Ordered <order_date>` when set, else "No dates"; the value =
-  `order_net` excl. tax in the WO's currency with the shared excl.-tax basis label; the billing status
-  (FR-WOMS-010); and the acceptance age (FR-WOMS-020) when one exists.
+  `start – end` when both are set, `From <start>` or `Due <end>` when one is, else `Ordered <order_date>` when set,
+  else "No dates"; the value = `order_net` excl. tax in the WO's currency with the shared excl.-tax basis label, on
+  every row (it is the order's own value, so a Can't total row shows it too); the billing status (FR-WOMS-010); and
+  the acceptance age (FR-WOMS-020) when one exists.
 - **FR-WOMS-004** The block shall order rows by the milestone date `coalesce(end_date, start_date, order_date)`
   ascending, then `wo_number`, then `id`; rows with no date at all shall come last.
-- **FR-WOMS-005** While either read is pending the block shall show its loading state; if either read fails it
+- **FR-WOMS-005** While any of its reads (work orders, billing, acceptance age) is pending the block shall show its
+  loading state; if any fails it
   shall show an error state with retry, and shall never show a status, value or age it could not read
   (NFR-BWO-005 posture).
 - **FR-WOMS-006** When the project has no non-cancelled work order, the block shall say so and link to Contract &
@@ -191,9 +200,11 @@ All citations are against `origin/dev` at `6440a961`.
   shall offer **Invoice this**.
 - **FR-WOMS-031** When the viewer chooses Invoice this, the system shall navigate to
   `/projects/:id/contract?wo=<id>&invoice=1`; Contract & billing shall focus that WO (shipped behaviour) and, once
-  its figures are read, run the **same** `raiseOrderInvoice` the card's Raise invoice button runs, opening
+  every input of the shipped gate has settled (work orders, billing, contract lines, project billing, revenue mode and
+  the revenue route sync), run the **same** `raiseOrderInvoice` the card's Raise invoice button runs, opening
   `ProgressClaimModal` or `InvoiceWorkOrderModal` exactly as that button would.
-- **FR-WOMS-032** If on arrival the full shipped gate (`canRaiseOrderInvoice`) does not hold for that WO, Contract &
+- **FR-WOMS-032** If, once settled, the full shipped gate (`canRaiseOrderInvoice`) does not hold for that WO (or the
+  WO is not on the project), Contract &
   billing shall open nothing, focus the WO, and announce "This work order can't be invoiced from here right now."
   in a polite status region.
 - **FR-WOMS-033** The system shall remove `invoice=1` from the URL once it has been acted on, so reload or Back does
@@ -227,16 +238,19 @@ All citations are against `origin/dev` at `6440a961`.
   Planned; invoiced 0 + pending 0 → Planned; remaining 100 → In progress; remaining 0 + pending 50 → In progress;
   remaining 0 + pending 0 + unpaid 1 → Invoiced; remaining 0 + pending 0 + unpaid 0 → Paid; remaining −10 +
   unpaid 1 → Invoiced + Over-invoiced; remaining 0.004 (rounds to 0 cents) + pending 0 + unpaid 0 → Paid.
-- **AC-WOMS-004** *Given* a fully invoiced WO with one Unpaid invoice, *when* the remaining balance is recorded as
-  received so the invoice becomes Paid, *then* `work_order_billing` for that WO has `unpaid_count = 0`,
-  `remaining = 0`, `pending = 0` and the plan row reads Paid.
+- **AC-WOMS-004** *Given* two fully invoiced WOs whose one invoice is Unpaid on the first and Paid on the second
+  (the state a recorded payment leaves; the receipt → Paid flip is shipped and owned by `AC-NAR-003`), *when* Finance
+  reads `work_order_billing`, *then* the first has `unpaid_count = 1` and the second `unpaid_count = 0`, both with
+  `remaining = 0` and `pending = 0` — the inputs AC-WOMS-003 maps to Invoiced and Paid.
 - **AC-WOMS-005** *Given* an Issued WO with a Confirmed acceptance dated 10 org-local days ago and no submitted
-  invoice, *then* `work_order_uninvoiced_acceptance` returns days = 10 computed in the org's time zone (not UTC);
+  invoice, *then* `work_order_uninvoiced_acceptance` returns days = 10 computed in the org's time zone (not UTC:
+  proven with one org at UTC−11 and one at UTC+14, so a UTC count fails at every hour);
   *and given* a Draft invoice and a Paid down-payment invoice on it, *then* the days are still 10.
 - **AC-WOMS-006** *Given* that WO, *when* a submitted invoice dated 5 org-local days ago is linked (remaining still
   > 0), *then* no row is returned; *when* a further Confirmed acceptance dated 2 days ago exists, *then* a row
   returns with days = 2 anchored on it; *and* a submitted invoice with no invoice date stops every clock.
-- **AC-WOMS-007** *Given* a WO with acceptances but `figures_complete = false`, or status Draft/Cancelled, or
+- **AC-WOMS-007** *Given* a WO with a Confirmed acceptance but `figures_complete = false`, or status Draft (Cancelled
+  is excluded by the same status predicate), or
   `remaining + pending ≤ 0`, *then* no acceptance age is returned.
 - **AC-WOMS-008** *Given* org A and org B each with an aged WO, *when* a user of org B reads the view or calls
   `get_unbilled_work_orders`, *then* only org B's rows appear; anon cannot select the view.
@@ -258,8 +272,9 @@ All citations are against `origin/dev` at `6440a961`.
   status message is announced; in every case `invoice` is removed from the URL.
 - **AC-WOMS-014** *Given* a PM (can view, cannot create invoices), *then* the plan rows show status and value but
   no Invoice this.
-- **AC-WOMS-015** *Given* any billing read pending or failed, *then* the block shows loading or error with retry and
-  no status, value or age.
+- **AC-WOMS-015** *Given* any of the block's reads pending or failed, *then* the block shows loading or error with
+  retry and no status, value or age; *given* a project with no non-cancelled WO, *then* it says so and links to
+  Contract & billing.
 
 ## 7. Traceability (owning layer, ADR-0010)
 
@@ -267,10 +282,9 @@ All citations are against `origin/dev` at `6440a961`.
 |---|---|---|
 | 003 | Vitest (pure) | `pmo-portal/src/lib/billingMilestones.test.ts` |
 | 001, 002, 014, 015 | Vitest/RTL | `pmo-portal/pages/project-detail/__tests__/BillingMilestonesBlock.test.tsx` |
-| 004 | pgTAP | `supabase/tests/<NNNN>_work_order_milestones.test.sql` |
-| 005, 006, 007, 008, 009 | pgTAP | `supabase/tests/<NNNN>_work_order_milestones.test.sql` |
+| 004, 005, 006, 007, 008, 009 | pgTAP | `supabase/tests/0441_work_order_milestones.test.sql` |
 | 010 | Vitest/RTL | `pmo-portal/src/components/dashboard/__tests__/StillToInvoiceCard.test.tsx` |
-| 011 | Vitest/RTL | `pmo-portal/pages/project-detail/__tests__/WorkOrdersTab.billing.test.tsx` (card) + BillingMilestonesBlock test (plan) |
+| 011 | Vitest/RTL | `pmo-portal/pages/project-detail/__tests__/WorkOrdersTab.billing.test.tsx` (owner; the plan-row case in the BillingMilestonesBlock test references it) |
 | 013 | Vitest/RTL | `pmo-portal/pages/project-detail/__tests__/WorkOrdersTab.billing.test.tsx` |
 | 012 | Playwright | `pmo-portal/e2e/AC-WOMS-012-invoice-from-plan.spec.ts` |
 
