@@ -41,8 +41,8 @@ export interface ComposeViewResponse {
  * Reconciliation #1: validationError is singular — the compiler is fail-fast (throws one error).
  */
 export interface ComposeViewError {
-  status: 400 | 401 | 422 | 429 | 502;
-  error: 'BAD_REQUEST' | 'UNAUTHORIZED' | 'REPAIR_EXHAUSTED' | 'RATE_LIMITED' | 'UPSTREAM_ERROR';
+  status: 400 | 401 | 422 | 429 | 502 | 503;
+  error: 'BAD_REQUEST' | 'UNAUTHORIZED' | 'REPAIR_EXHAUSTED' | 'RATE_LIMITED' | 'UPSTREAM_ERROR' | 'METER_UNAVAILABLE';
   detail?: string;
   /**
    * Present on 422 REPAIR_EXHAUSTED: the last ValidationError thrown by compileCompositionSpec.
