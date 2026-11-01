@@ -1429,6 +1429,7 @@
       "helpLabel": "Bantuan: {{label}}"
     },
     "stillToInvoice": {
+      "daysSinceAcceptance": "Hari sejak BAST, belum ditagih: {{days}}",
       "count": "Work Order: {{n}}",
       "daysSinceClosed": "Hari sejak ditutup: {{days}}",
       "empty": "Tidak ada lagi yang perlu ditagih pada Work Order yang diterbitkan",

@@ -12,6 +12,7 @@ import type { WorkOrderBillingRow } from '@/src/lib/db/workOrderBilling';
 const h = vi.hoisted(() => ({
   list: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   billing: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
+  age: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   invoices: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   boq: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   projectBilling: { data: null as unknown, isPending: false, isError: false, refetch: vi.fn() },
@@ -42,7 +43,7 @@ vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderAcceptanceMutations: () => ({}),
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: [], isPending: false, isError: false }) }));
-vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing }));
+vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing, useWorkOrderAcceptanceAge: () => h.age }));
 vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => h.invoices }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: true }) }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => h.mode }));
@@ -91,6 +92,7 @@ const RouteSearch = () => {
 beforeEach(() => {
   h.list = { data: [wo()], isPending: false, isError: false, refetch: vi.fn() };
   h.billing = { data: [bill()], isPending: false, isError: false, refetch: vi.fn() };
+  h.age = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.invoices = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.boq = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.projectBilling = { data: null, isPending: false, isError: false, refetch: vi.fn() };
@@ -790,5 +792,22 @@ describe('WorkOrdersTab — billing summary disclosure (M19)', () => {
     renderTab();
     expect(screen.queryByTestId('claims-gap')).toBeNull();
     expect(screen.getByText('Down payment held')).toBeInTheDocument();
+  });
+});
+
+describe('WorkOrdersTab — days since acceptance (#1640)', () => {
+  it('AC-WOMS-011 an aged work order card shows days since acceptance with its source; others show none', () => {
+    h.list.data = [wo(), wo({ id: 'wo-2', wo_number: 'WO-2' })];
+    h.billing.data = [bill(), bill({ workOrderId: 'wo-2' })];
+    h.age = { data: [{ workOrderId: 'wo-1', anchorDate: '2026-10-22', days: 10 }], isPending: false, isError: false, refetch: vi.fn() };
+    renderTab();
+    expect(within(screen.getByTestId('customer-order-wo-1')).getByText('Days since acceptance, not invoiced: 10')).toBeInTheDocument();
+    expect(within(screen.getByTestId('customer-order-wo-2')).queryByText(/Days since acceptance/)).toBeNull();
+  });
+
+  it('AC-WOMS-011 a role without billing visibility sees no age', () => {
+    h.age = { data: [{ workOrderId: 'wo-1', anchorDate: '2026-10-22', days: 10 }], isPending: false, isError: false, refetch: vi.fn() };
+    renderTab('Engineer');
+    expect(screen.queryByText(/Days since acceptance/)).toBeNull();
   });
 });
