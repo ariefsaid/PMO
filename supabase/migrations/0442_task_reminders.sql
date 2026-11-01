@@ -1,7 +1,7 @@
--- 0434_task_reminders.sql — assistant "Remind this person" (#1639, OD-GRILL-20261101; spec assistant-remind-person).
+-- 0442_task_reminders.sql — assistant "Remind this person" (#1639, OD-GRILL-20261101; spec assistant-remind-person).
 -- A sender-readable ledger + one internal rule function + two client RPCs. The recipient's in-app notification is
 -- written by the shipped helper notify_workflow_user (0237), which is reused, not re-derived.
--- Reverse (also supabase/migrations/rollback/0434_task_reminders_down.sql):
+-- Reverse (also supabase/migrations/rollback/0442_task_reminders_down.sql):
 --   drop function if exists public.send_task_reminders(uuid[]);
 --   drop function if exists public.preview_task_reminders(uuid[]);
 --   drop function if exists public.task_reminder_check(uuid, uuid, uuid);
@@ -166,17 +166,17 @@ declare v text;
 begin
   foreach v in array array['public.preview_task_reminders(uuid[])', 'public.send_task_reminders(uuid[])'] loop
     if has_function_privilege('anon', v, 'EXECUTE') or not has_function_privilege('authenticated', v, 'EXECUTE') then
-      raise exception '0434: % ACL is not the intended shape', v;
+      raise exception '0442: % ACL is not the intended shape', v;
     end if;
   end loop;
   foreach v in array array['public.task_reminder_check(uuid, uuid, uuid)', 'public.task_reminder_daily_cap()', 'public.task_reminder_window()'] loop
     if has_function_privilege('anon', v, 'EXECUTE') or has_function_privilege('authenticated', v, 'EXECUTE') then
-      raise exception '0434: internal % is client-executable', v;
+      raise exception '0442: internal % is client-executable', v;
     end if;
   end loop;
   if has_table_privilege('anon', 'public.task_reminders', 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE')
      or has_table_privilege('authenticated', 'public.task_reminders', 'INSERT,UPDATE,DELETE,TRUNCATE')
      or not has_table_privilege('service_role', 'public.task_reminders', 'SELECT,INSERT,DELETE') then
-    raise exception '0434: task_reminders ACL is not the intended shape (0137: service_role keeps DML)';
+    raise exception '0442: task_reminders ACL is not the intended shape (0137: service_role keeps DML)';
   end if;
 end $$;
