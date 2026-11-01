@@ -6,7 +6,9 @@ import {
   PIPELINE_STATUSES,
   LOST_STATUSES,
   ON_HAND_STATUSES,
+  LEGAL_PROJECT_TRANSITIONS,
   projectStatusGroup,
+  type ProjectStatus,
 } from '@/src/lib/db/projectTransitions';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { formatPercent as formatLocalizedPercent } from '@/src/lib/format';
@@ -86,6 +88,21 @@ export const SALES_COLUMNS: readonly SalesColumn[] = [
     terminal: true,
   },
 ] as const;
+
+/** What dropping a deal on a board column means (DND, #1637). Derived from the status menu's rule source only. */
+export type ProjectDropResolution =
+  | { kind: 'noop' }
+  | { kind: 'refused' }
+  | { kind: 'target'; to: ProjectStatus }
+  | { kind: 'choice'; options: ProjectStatus[] };
+
+export function resolveProjectDrop(status: ProjectStatus, column: SalesColumn): ProjectDropResolution {
+  if (column.statuses.includes(status as string)) return { kind: 'noop' };
+  const legal = (LEGAL_PROJECT_TRANSITIONS[status as string] ?? []).filter((s) => column.statuses.includes(s)) as ProjectStatus[];
+  if (legal.length === 0) return { kind: 'refused' };
+  if (legal.length === 1) return { kind: 'target', to: legal[0] };
+  return { kind: 'choice', options: legal };
+}
 
 /**
  * Aging threshold in days. A pipeline deal untouched for >= 30 days is flagged as

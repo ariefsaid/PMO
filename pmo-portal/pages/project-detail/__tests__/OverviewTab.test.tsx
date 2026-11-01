@@ -28,6 +28,7 @@ vi.mock('../ProjectBlocks', () => ({
   DeliveryBlock: () => <section aria-label="Project delivery">Delivery content</section>,
   MoneyBlock: () => <section aria-label="Project finances">Money content</section>,
 }));
+vi.mock('../BillingMilestonesBlock', () => ({ BillingMilestonesBlock: () => <section aria-label="Billing milestones" /> }));
 vi.mock('../ProjectActivity', () => ({
   ActivityFooter: () => <section aria-label="Project activity" />,
   MyOpenTasks: () => <section aria-label="My open tasks" />,
@@ -73,5 +74,14 @@ describe('active project Overview role composition', () => {
     expect(within(panel).getByRole('region', { name: 'My open tasks' })).toBeInTheDocument();
     expect(within(panel).getByRole('region', { name: 'Project delivery' })).toBeInTheDocument();
     expect(within(panel).queryByRole('region', { name: 'Project finances' })).not.toBeInTheDocument();
+  });
+
+  it('AC-WOMS-001 the Billing milestones block follows the Phase timeline on an active project', () => {
+    renderOverview();
+
+    const panel = screen.getByRole('tabpanel', { name: 'Overview' });
+    const delivery = within(panel).getByRole('region', { name: 'Project delivery' });
+    const milestones = within(panel).getByRole('region', { name: 'Billing milestones' });
+    expect(delivery.compareDocumentPosition(milestones) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

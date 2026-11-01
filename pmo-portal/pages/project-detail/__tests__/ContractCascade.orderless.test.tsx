@@ -23,7 +23,7 @@ vi.mock('@/src/hooks/useProgressBilling', () => ({
   useProgressBillingMutations: () => ({}),
 }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => h.orders, useProjectDrawdown: () => h.drawdown, useWorkOrderMutations: () => ({}) }));
-vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.orderBilling }));
+vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.orderBilling, useWorkOrderAcceptanceAge: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => h.invoices }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canViewMoney }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: null }) }));
@@ -31,7 +31,7 @@ vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: [] }) 
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useProjectWorkOrderLines: h.childLines, useWorkOrderAcceptances: () => ({ data: [] }), useWorkOrderAcceptanceMutations: () => ({}) }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
-vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: () => true }));
+vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: () => true, useOwnershipCacheSynced: () => true }));
 
 import { ContractCascade, summarizeInvoiceSettlement } from '../ContractCascade';
 import WorkOrdersTab from '../tabs/WorkOrdersTab';

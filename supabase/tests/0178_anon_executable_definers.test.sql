@@ -140,12 +140,16 @@
 -- read. Proven by imprest_position pgTAP.
 -- ⚑ 0426 (#1515 fix round) adds no definer: get_expense_claim_approval_routes and get_imprest_position stay invoker, re-created under
 -- their own names, so the retained count stays 104 (recounted by hand from the list below: 104 rows).
--- ⚑ AMENDED BY 0442 (#1639): preview_task_reminders and send_task_reminders join the retained set (+2, count 106). Each
+-- ⚑ AMENDED BY 0442 (#1639): preview_task_reminders and send_task_reminders join the retained set (+2; merged with 0447 the count is 110). Each
 -- asserts active membership and the caller's org in its body; proven by supabase/tests/task_reminders.test.sql.
 -- ⚑ AMENDED BY 0410 (#1471): `set_sales_invoice_billing_kind` joins the retained set (+1, count 104 on dev's 103, re-derived by hand from the list). SECURITY
 -- DEFINER writer under a member's JWT; re-asserts active membership, Admin/Finance and the caller's org; paired with
 -- supabase/tests/billing_kinds_roles.test.sql (AC-007). `assign_sales_invoice_project` and
 -- `create_native_sales_invoice` changed signature only (proname unchanged).
+-- ⚑ AMENDED BY 0447 (#1519 S1): `save_equipment_usage`, `transition_equipment_usage`, `approve_equipment_usage_week` and
+-- `archive_equipment_usage` join the retained set (+4, count 108 on dev's 104, re-derived by hand from the list). SECURITY
+-- DEFINER writers (entries have no client INSERT/UPDATE grant); each re-asserts active membership and the JWT org, the
+-- transition checks approver ≠ author before the approver role; proved by equipment_usage / equipment_rls pgTAP.
 --
 -- The budget import and procurement import-run commands retain authenticated access;
 -- their owning proofs are 0397_budget_import_protocol.test.sql and
@@ -186,6 +190,8 @@ insert into client_callable_rpc_names (proname) values
   ('approve_procurement_amount'),
   ('archive_budget_version_with_cancel_intent'),
   ('approved_timesheet_for_push'),
+  ('approve_equipment_usage_week'),
+  ('archive_equipment_usage'),
   ('attach_claim_evidence'),
   ('attest_timesheet_no_erp_document'),
   ('cancel_native_receipt'),
@@ -231,6 +237,7 @@ insert into client_callable_rpc_names (proname) values
   ('mark_erp_purchase_documents'),
   ('link_m365_documents_batch'),
   ('save_cost_attribution_rule'),
+  ('save_equipment_usage'),
   ('save_stock_draft'),
   ('end_cost_attribution_rule'),
   ('admin_change_domain_ownership'),
@@ -274,6 +281,7 @@ insert into client_callable_rpc_names (proname) values
   ('start_procurement_import_run'),
   ('submit_sales_invoice'),
   ('transition_document_status'),
+  ('transition_equipment_usage'),
   ('transition_expense_claim'),
   ('transition_imprest_plan'),
   ('transition_imprest_replenishment'),
@@ -307,8 +315,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  106,
-  'AC-ACL-002 all 106 retained client-callable RPC names still have a public function');
+  110,
+  'AC-ACL-002 all 110 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -317,8 +325,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  106,
-  'AC-ACL-003 all 106 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  110,
+  'AC-ACL-003 all 110 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
