@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { floatChoiceOptions } from './floatDisplay';
 
-const base = { float_id: 'f1', custodian_name: 'Cass Custodian', remaining: 10 };
+const base = { float_id: 'f1', custodian_name: 'Cass Custodian', remaining: 10, currency: 'IDR', float_amount: 1000, project_name: '' };
 
 describe('#1635 float picker labels', () => {
   it('labels a float by project with the custodian as secondary text', () => {

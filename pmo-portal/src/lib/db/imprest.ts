@@ -16,9 +16,7 @@ export type ImprestCountRow = Tables<'imprest_cash_counts'>;
 export type BudgetCategory = Database['public']['Enums']['budget_category'];
 export type ImprestPosition = Database['public']['Functions']['get_imprest_position']['Returns'][number];
 export type ImprestPlanUsageRow = Database['public']['Functions']['get_imprest_plan_usage']['Returns'][number];
-/** A float the viewer may charge: the RPC row plus what the float record carries (#1635), so the picker can name the project and amounts show in the float's own currency. */
-export type ImprestFloatChoice = Database['public']['Functions']['imprest_float_choices']['Returns'][number]
-  & { currency?: string; float_amount?: number; project_name?: string | null };
+export type ImprestFloatChoice = Database['public']['Functions']['imprest_float_choices']['Returns'][number];
 
 export const LIST_LIMIT = 200;
 export interface Bounded<T> { rows: T[]; truncated: boolean }
@@ -53,15 +51,7 @@ export async function getPlanUsage(floatId: string, month: string): Promise<Impr
 export async function floatChoices(projectId: string, category: BudgetCategory | null): Promise<ImprestFloatChoice[]> {
   const { data, error } = await supabase.rpc('imprest_float_choices', { p_project: projectId, p_category: category ?? undefined });
   fail(error);
-  const choices = data ?? [];
-  if (choices.length === 0) return choices;
-  const floats = await supabase.from('imprest_floats').select('id, currency, float_amount, project:projects(name)').in('id', choices.map((c) => c.float_id));
-  fail(floats.error);
-  const byId = new Map(((floats.data ?? []) as unknown as Array<{ id: string; currency: string; float_amount: number; project: { name: string } | null }>).map((f) => [f.id, f]));
-  return choices.map((c) => {
-    const f = byId.get(c.float_id);
-    return f ? { ...c, currency: f.currency, float_amount: Number(f.float_amount), project_name: f.project?.name ?? null } : c;
-  });
+  return data ?? [];
 }
 export async function listPlans(floatId: string): Promise<Bounded<ImprestPlanRow>> {
   const { data, error } = await supabase.from('imprest_plans').select('*').eq('float_id', floatId)

@@ -10724,8 +10724,11 @@ export type Database = {
           p_project: string
         }
         Returns: {
+          currency: string
           custodian_name: string
+          float_amount: number
           float_id: string
+          project_name: string
           remaining: number
         }[]
       }
