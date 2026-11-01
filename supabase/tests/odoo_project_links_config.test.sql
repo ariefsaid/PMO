@@ -3,7 +3,7 @@
 -- (un-link is audited and refused through the one shared in-use check), the analytic-plan choice, and the setup accept /
 -- unlink paths for tier odoo (ECA-2's accept, decide and unlink reach the same writer).
 begin;
-select plan(125);
+select plan(123);
 
 insert into organizations (id, name) values
  ('a6050000-0000-0000-0000-000000000001','Odoo Links A'),
