@@ -135,7 +135,7 @@ async function fetchSpaces(deps: ClickUpHierarchyDeps, teamId: string): Promise<
   const res = await fetchBounded(deps.fetchImpl, `${baseUrl}/team/${teamId}/space`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
-  if (!res.ok) return [];
+  if (!res.ok) throw new AppError('Failed to fetch ClickUp spaces', 'external-unreachable');
   const data = (await res.json()) as { spaces: ClickUpSpace[] };
   return data.spaces;
 }
@@ -145,7 +145,7 @@ async function fetchFolders(deps: ClickUpHierarchyDeps, spaceId: string): Promis
   const res = await fetchBounded(deps.fetchImpl, `${baseUrl}/space/${spaceId}/folder`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
-  if (!res.ok) return [];
+  if (!res.ok) throw new AppError('Failed to fetch ClickUp folders', 'external-unreachable');
   const data = (await res.json()) as { folders: ClickUpFolder[] };
   return data.folders;
 }
@@ -160,46 +160,69 @@ async function fetchLists(
   const res = await fetchBounded(deps.fetchImpl, `${baseUrl}${path}`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
-  if (!res.ok) return [];
+  if (!res.ok) throw new AppError('Failed to fetch ClickUp lists', 'external-unreachable');
   const data = (await res.json()) as { lists: ClickUpList[] };
   return data.lists;
 }
 
+/** Small fixed cap on parallel ClickUp reads across the WHOLE traversal (rate-limit friendly). */
+const HIERARCHY_CONCURRENCY = 4;
+
+/**
+ * One request-wide gate: at most `limit` calls in flight across every level of the tree.
+ * Once any call fails, queued and new calls reject without touching the network
+ * (calls already in flight still settle).
+ */
+function createGate(limit: number) {
+  let active = 0;
+  let failure: unknown;
+  let failed = false;
+  const waiting: Array<() => void> = [];
+  return async <R>(fn: () => Promise<R>): Promise<R> => {
+    while (active >= limit && !failed) await new Promise<void>((r) => waiting.push(r));
+    if (failed) throw failure;
+    active++;
+    try {
+      return await fn();
+    } catch (e) {
+      if (!failed) { failed = true; failure = e; }
+      throw e;
+    } finally {
+      active--;
+      // Wake everyone on failure so they reject; otherwise hand the slot to one waiter.
+      if (failed) waiting.splice(0).forEach((r) => r());
+      else waiting.shift()?.();
+    }
+  };
+}
+
 /** Build flattened list hierarchy from ClickUp workspace. */
 async function buildFlattenedLists(deps: ClickUpHierarchyDeps): Promise<ListItem[]> {
-  const teams = await fetchTeams(deps);
-  const allLists: ListItem[] = [];
-
-  for (const team of teams) {
-    const spaces = await fetchSpaces(deps, team.id);
-    for (const space of spaces) {
-      const folders = await fetchFolders(deps, space.id);
+  const gate = createGate(HIERARCHY_CONCURRENCY);
+  const teams = await gate(() => fetchTeams(deps));
+  const perTeam = await Promise.all(teams.map(async (team) => {
+    const spaces = await gate(() => fetchSpaces(deps, team.id));
+    const perSpace = await Promise.all(spaces.map(async (space) => {
+      const items: ListItem[] = [];
+      const folders = await gate(() => fetchFolders(deps, space.id));
       // Lists in folders
-      for (const folder of folders) {
-        const lists = await fetchLists(deps, space.id, folder.id);
-        for (const list of lists) {
-          allLists.push({
-            id: list.id,
-            name: list.name,
-            space_name: space.name,
-            folder_name: folder.name,
-          });
-        }
-      }
-      // Lists directly in space (no folder)
-      const spaceLists = await fetchLists(deps, space.id, null);
-      for (const list of spaceLists) {
-        allLists.push({
+      const perFolder = await Promise.all(folders.map(async (folder) =>
+        (await gate(() => fetchLists(deps, space.id, folder.id))).map((list) => ({
           id: list.id,
           name: list.name,
           space_name: space.name,
-          folder_name: null,
-        });
+          folder_name: folder.name as string | null,
+        }))));
+      for (const group of perFolder) items.push(...group);
+      // Lists directly in space (no folder)
+      for (const list of await gate(() => fetchLists(deps, space.id, null))) {
+        items.push({ id: list.id, name: list.name, space_name: space.name, folder_name: null });
       }
-    }
-  }
-
-  return allLists;
+      return items;
+    }));
+    return perSpace.flat();
+  }));
+  return perTeam.flat();
 }
 
 // ============================================================================
