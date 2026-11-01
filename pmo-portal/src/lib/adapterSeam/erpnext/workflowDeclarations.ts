@@ -29,7 +29,7 @@ export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   'bill.push': { status: 'pending', version: 1, issue: SHIPPED_TESTS_NOT_YET_SHARED },
   'vendor-payment.push': { status: 'pending', version: 1, issue: SHIPPED_TESTS_NOT_YET_SHARED },
   'purchase.link-existing': { status: 'pending', version: 1, issue: SHIPPED_TESTS_NOT_YET_SHARED },
-  'cutover.purchase': { status: 'pending', version: 1, issue: CUTOVER_PROCESS_DOMAINS },
+  'cutover.purchase': { status: 'supported', version: 1 },
   'cutover.timesheet': { status: 'pending', version: 1, issue: SHIPPED_TESTS_NOT_YET_SHARED },
   'cutover.activation': { status: 'supported', version: 1 },
   'invoice.push': { status: 'pending', version: 1, issue: SHIPPED_TESTS_NOT_YET_SHARED },

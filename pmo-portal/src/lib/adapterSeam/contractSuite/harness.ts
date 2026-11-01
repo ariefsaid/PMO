@@ -48,6 +48,8 @@ export interface BudgetPushResult {
   erpWrites: number;
 }
 
+export type PurchaseStep = 'goods-receipt' | 'purchase-invoice' | 'payment';
+
 export interface PushBeforeConnectionResult {
   outcome: 'pushed' | 'refused';
   code?: string;
@@ -78,6 +80,9 @@ export interface ErpHarness {
   pushBudget(scenario: BudgetPushScenario): Promise<BudgetPushResult>;
   /** cutover.activation: a purchase push on a connection that is `activated` or not. */
   pushPurchase(connection: 'activated' | 'not-activated' | 'absent'): Promise<PushBeforeConnectionResult>;
+  /** cutover.purchase: a later purchase step, on a purchase ordered before the connection or after it. `unknown` = the
+   *  PMO check cannot answer (the step must then be refused, never pushed). Absent until the tier pushes purchases. */
+  pushPurchaseStep?: (step: PurchaseStep, orderedBeforeConnect: boolean | 'unknown') => Promise<PushBeforeConnectionResult>;
   /** party.send, project.send, item.send: each call starts an empty fake ERP. Absent until the tier sends masters. */
   connect?: () => ConnectHarness;
   /** imprest.transfer: each call starts an empty fake ERP. Absent until the tier posts site cash. */

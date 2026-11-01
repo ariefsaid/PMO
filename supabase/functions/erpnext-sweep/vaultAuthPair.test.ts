@@ -159,7 +159,7 @@ Deno.test('AC-ENA-084: a VAULT-ONLY org can build its outbox reconcile deps (the
   const { buildReconcileDepsLive } = await import('./index.ts');
   const outboxRow = {
     operation: 'create',
-    payload: { id: 'pmo-1', erp_doc_kind: 'purchase-invoice' },
+    payload: { id: 'pmo-1', procurementId: '00000000-0000-4000-8000-0000000000c1', erp_doc_kind: 'purchase-invoice' },
     actor_user_id: '00000000-0000-4000-8000-0000000000a1',
   };
   let rpcCalls = 0;
@@ -174,6 +174,7 @@ Deno.test('AC-ENA-084: a VAULT-ONLY org can build its outbox reconcile deps (the
         limit: () => Promise.resolve({ data: [], error: null }),
         maybeSingle: () => Promise.resolve(
           table === 'external_command_outbox' ? { data: outboxRow, error: null }
+          : table === 'procurements' ? { data: { org_id: '00000000-0000-4000-8000-0000000000aa' }, error: null }
           : table === 'external_org_bindings'
             ? { data: { secret_ref: 'org-a-erpnext', site_url: 'https://erp.example.test', version_major: 15, activated_at: '2026-01-01T00:00:00.000Z', config: { company: 'PMO Smoke Co' } }, error: null }
           : { data: null, error: null },
@@ -189,6 +190,7 @@ Deno.test('AC-ENA-084: a VAULT-ONLY org can build its outbox reconcile deps (the
       if (fn === 'domain_owned_by_tier') return Promise.resolve({ data: true, error: null });
       if (fn === 'org_has_active_erpnext_binding') return Promise.resolve({ data: true, error: null });
       if (fn === 'actor_authorization_state') return Promise.resolve({ data: { role: 'Finance', active: true }, error: null });
+      if (fn === 'pre_cutover_procurement') return Promise.resolve({ data: false, error: null }); // ECA-4: ordered after the connection
       rpcCalls += 1; // read_vault_secret
       return Promise.resolve({ data: 'vault-key:vault-secret', error: null });
     },
