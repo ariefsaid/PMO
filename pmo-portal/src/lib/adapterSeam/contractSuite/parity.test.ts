@@ -85,8 +85,8 @@ describe('declaration hygiene', () => {
     }
   });
   it('flags a supported workflow that has no shared suite', () => {
-    const tier = { ...ERPNEXT_WORKFLOWS, 'census': { status: 'supported', version: WORKFLOWS['census'].version } } as TierWorkflows;
-    expect(parityProblems({ synthetic: tier }, WORKFLOWS, SUITES).join('\n')).toMatch(/census.*no shared suite/);
+    const tier = { ...ERPNEXT_WORKFLOWS, 'employee.send': { status: 'supported', version: WORKFLOWS['employee.send'].version } } as TierWorkflows;
+    expect(parityProblems({ synthetic: tier }, WORKFLOWS, SUITES).join('\n')).toMatch(/employee\.send.*no shared suite/);
   });
   it('flags an unavailable declaration without a reason and a pending one without an issue', () => {
     const tier = {

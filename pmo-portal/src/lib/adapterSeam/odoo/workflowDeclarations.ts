@@ -20,7 +20,7 @@ const ODOO_SITE_CASH = 1509; // site imprest postings (#1515 §9)
 
 export const ODOO_WORKFLOWS: TierWorkflows = {
   'census': { status: 'pending', version: 1, issue: SETUP_CENSUS_AND_PROPOSALS },
-  'party.match': { status: 'supported', version: 1 },
+  'party.match': { status: 'supported', version: 2 },
   'party.bring-in': { status: 'pending', version: 1, issue: PARTY_DEDUPE },
   'party.send': { status: 'supported', version: 1 },
   'project.match': { status: 'pending', version: 1, issue: ODOO_CONNECT },

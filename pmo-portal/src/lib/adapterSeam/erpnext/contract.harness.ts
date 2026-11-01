@@ -4,6 +4,7 @@
  */
 import { AppError } from '../../appError.ts';
 import type {
+  ConnectHarness,
   BudgetPushResult, BudgetPushScenario, ErpHarness, ErpPartyInput, PartyMatchResult, PmoPartyCandidate,
   ProjectLinkResult, PushBeforeConnectionResult, TransferHarness,
 } from '../contractSuite/harness.ts';
@@ -15,6 +16,8 @@ import { expenseJournalFromDoc } from './bodies/expenseJournal.ts';
 import { budgetAccountIdentity } from './budgetAccountIdentity.ts';
 import { DOCTYPE_BODIES } from './doctypeBodies.ts';
 import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatchFactory.ts';
+import { createErpnextConnectAdapter, ERP_CONNECT_PAGE } from './connectAdapter.ts';
+import { fakeErp } from './fakeErp.ts';
 import { onboardParties } from './onboarding.ts';
 import { adoptParty } from './partyAdopt.ts';
 import { invertProjectMap } from './projectMap.ts';
@@ -134,6 +137,7 @@ export function createErpnextHarness(): ErpHarness {
   return {
     tier: 'erpnext',
     transfer: createTransferHarness,
+    connect: createConnectHarness,
     ...createPushAndReadHarness(),
 
     async matchParty(party: ErpPartyInput, existing: readonly PmoPartyCandidate[]): Promise<PartyMatchResult> {
@@ -177,6 +181,7 @@ export function createErpnextHarness(): ErpHarness {
           },
           mirrorExists: async (id) => companies.has(id),
           notifyUnclearMatch: async () => { review += 1; },
+          recordReview: async () => {},   // the persisted row is the database's; the suite counts the decision
         });
       }
       return { companies: companies.size, refs: refs.size, linked, review: review / runs };
@@ -222,6 +227,38 @@ export function createErpnextHarness(): ErpHarness {
         return { outcome: 'pushed', erpCalls: stats.calls };
       } catch (error) {
         return { outcome: 'refused', code: (error as { code?: string }).code, erpCalls: stats.calls };
+      }
+    },
+  };
+}
+
+/** A fake ERPNext behind the connect adapter, loaded in PMO terms. Reads only until ECA-3 teaches it to send. */
+function createConnectHarness(): ConnectHarness {
+  const tables: Record<string, Array<Record<string, unknown>>> = {};
+  const { client, seen } = fakeErp(tables);
+  const put = (doctype: string, row: Record<string, unknown>) => { (tables[doctype] ??= []).push({ company: 'Test Co', ...row }); };
+  const notYet = () => { throw new Error('erpnext sends arrive with ECA-3'); };
+  return {
+    adapter: createErpnextConnectAdapter(client, 'Test Co'),
+    pageSize: ERP_CONNECT_PAGE,
+    documents: notYet,
+    failNextWrite: notYet,
+    calls: () => ({ reads: seen.filter((r) => r.method === 'GET').length, writes: seen.filter((r) => r.method !== 'GET').length }),
+    load(kind, rows) {
+      for (const r of rows) {
+        const disabled = r.active ? 0 : 1;
+        if (kind === 'party') {
+          const vendor = r.role !== 'client';
+          put(vendor ? 'Supplier' : 'Customer', vendor
+            ? { name: r.externalId, supplier_name: r.name, tax_id: r.taxId ?? null, disabled, is_internal_supplier: r.internal ? 1 : 0 }
+            : { name: r.externalId, customer_name: r.name, tax_id: r.taxId ?? null, disabled, is_internal_customer: r.internal ? 1 : 0 });
+        } else if (kind === 'project') put('Project', { name: r.externalId, project_name: r.name, status: r.active ? 'Open' : 'Cancelled' });
+        else if (kind === 'item') put('Item', { name: r.externalId, item_name: r.name, disabled });
+        else if (kind === 'employee') put('Employee', { name: r.externalId, employee_name: r.name, company_email: r.code ?? null, user_id: null, status: r.active ? 'Active' : 'Left' });
+        else if (kind === 'account') {
+          // The adapter derives the category from the account itself, so the account is named for the category it carries.
+          put('Account', { name: r.externalId, account_name: r.name, account_number: '5100', parent_account: 'Cost of Sales - TC', root_type: 'Expense', is_group: 0, disabled });
+        }
       }
     },
   };

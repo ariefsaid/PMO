@@ -13,7 +13,7 @@
 - **Role contract:** `.claude/agents/eng-planner.md`. Builders: `implementer` / `ui-implementer` role contracts handed to
   Orca workers (`docs/orca-dispatch.md`); money-path slices are Director-dispatched per issue.
 - **Migrations (Director, 2026-11-01):** each with `supabase/migrations/rollback/<number>_<slug>_down.sql`. Five migrations:
-  ECA-2 `0451_erp_connect_setup`, ECA-3 `0452_erp_connect_sends`, ECA-4 `0453_process_domain_cutover`, ECA-5
+  ECA-2 `0480_erp_connect_setup`, ECA-3 `0452_erp_connect_sends`, ECA-4 `0453_process_domain_cutover`, ECA-5
   `0454_invoice_pairs`, ECA-6 `0455_budget_occupant_resolution` (0450 is #1614's). A collision at build is fixed with
   `scripts/renumber-migration.sh`, never by hand.
 - **IDs:** plan decisions `PD-ECA-#`; questions for the Director `PQ-ECA-#`; tasks `<slice>-T<n>`.
@@ -585,10 +585,10 @@ Also update `supabase/tests/0178_anon_executable_definers.test.sql`: add `accept
 Verify: `PGT supabase/tests/erp_connect_setup.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0137_service_role_grants.test.sql`
 → red (relations missing); grep the output for `Parse errors` (an aborted file reports 0 tests).
 
-### ECA2-T6 — migration `0451_erp_connect_setup.sql` (green)
+### ECA2-T6 — migration `0480_erp_connect_setup.sql` (green)
 ```sql
 -- ECA-2 (#1605): census, match proposals and one-pass accept (FR-ECA-001..016). Tier-keyed, shared by ERPNext and Odoo.
--- Reversal: rollback/0451_erp_connect_setup_down.sql.
+-- Reversal: rollback/0480_erp_connect_setup_down.sql.
 create table public.erp_connect_runs (
   id uuid primary key default gen_random_uuid(),
   org_id uuid not null references public.organizations(id) on delete cascade,
@@ -803,7 +803,7 @@ link from the row's own candidates through `apply_connect_link` (a non-null reas
 `employee→employees`, `account→accounts`, `item→items`), refuses with 'link in use' when `connect_link_in_use(org, domain,
 pmo)`; otherwise removes the link (the `external_refs` row, the config key, the `budget_category_account_map` row, or the
 `erp_employees` link back to `unlinked`), sets the proposal back to `open`, audit `integration.connect_unlink`.
-Rollback `supabase/migrations/rollback/0451_erp_connect_setup_down.sql`: drop the twelve functions and four tables.
+Rollback `supabase/migrations/rollback/0480_erp_connect_setup_down.sql`: drop the twelve functions and four tables.
 Verify: `PGT supabase/tests/erp_connect_setup.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0137_service_role_grants.test.sql`
 → green, no `Parse errors`; mutation check: replace the role re-assertion with `if false then` → the Engineer case goes red; restore.
 
@@ -1020,8 +1020,8 @@ New `supabase/functions/_shared/connectAdapterForOrg.ts`: `const FACTORIES: Reco
 unknown tier or a refusal → `AppError('config-rejected')`. A record lookup is not a tier branch (`tierBranch.test.ts:22-28`).
 `external-set-company/index.ts`: before the Odoo split at `:239`, insert
 `if (typeof body.setupAction === 'string' && CONNECT_ACTIONS.has(body.setupAction)) { …active-member check as at :253-259…; return json(await handleConnectAction({ … callerClient: createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: authHeader } } }) … })); }`.
-Add `'supabase/functions/external-set-company/connect.ts': 'supabase/functions/external-set-company/connect.test.ts'` to
-`REQUIRED` in `scripts/check-edge-fn-test-binding.mjs`.
+Add `'supabase/functions/external-set-company/connect.test.ts': 'handleSetCompanyRequest'` to `REQUIRED` in
+`scripts/check-edge-fn-test-binding.mjs` (the map is test file → handler imported from `./index.ts`; the verbs are tested through the shipped handler).
 Verify: `DENO external-set-company connect.test.ts` red → green; `npm --prefix pmo-portal run check:edge-test-binding`.
 
 ### ECA2-T13 — sweep pass: advance open runs
@@ -1230,7 +1230,7 @@ Verify: `PGT supabase/tests/erp_connect_sends.test.sql` → red.
   limit p_limit for update skip locked) returning *` (the 5-minute lease equals the outbox quarantine window, primer
   "Numeric relationships").
 - `record_connect_send_result(p_org_id uuid, p_id uuid, p_external_id text, p_rejection text)` — success: the same
-  `apply_connect_link` (0451) with the proposal's `decided_by` as actor (party → `external_refs`, already present from the
+  `apply_connect_link` (0480) with the proposal's `decided_by` as actor (party → `external_refs`, already present from the
   outbox finalize → reconciled; project → `project_map`; item → `item_map` only when the code differs from the line name;
   employee → `erp_employees` link), then `state='applied'`; a non-null reason from it → `outcome='review', reason='rejected'`;
   rejection: `outcome='review', reason='rejected', reason_text=p_rejection, state='open'`.

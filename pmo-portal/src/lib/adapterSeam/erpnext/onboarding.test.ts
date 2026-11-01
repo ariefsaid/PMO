@@ -137,6 +137,7 @@ describe('erpnext/onboarding — onboardParties (keyed by ERPNext ID)', () => {
       recordExternalRef: async (m) => { calls.refs.push(m); },
       mirrorExists: async () => true,
       notifyUnclearMatch: async () => {},
+      recordReview: async () => {},
     };
     return { deps, calls };
   }

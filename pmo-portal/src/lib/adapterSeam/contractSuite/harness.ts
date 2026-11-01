@@ -147,6 +147,12 @@ export interface ConnectHarness {
   documents(kind: MasterKind): NormalisedMaster[];
   /** The next create or update fails: before it reaches the ERP (`transport`), or after the ERP applied it (`lost-response`). */
   failNextWrite(fault: 'transport' | 'lost-response'): void;
+  /** census / item.match / account.match / employee.match: place ERP masters in the fake ERP (PMO terms). Absent until the tier runs those suites. */
+  load?(kind: MasterKind, rows: readonly Omit<NormalisedMaster, 'kind'>[]): void;
+  /** Requests that reached the fake ERP, split by read and write. */
+  calls?(): { reads: number; writes: number };
+  /** Rows the tier's `listMasters` returns per page; the match suites load more than this to prove paging. */
+  pageSize?: number;
 }
 
 export interface ErpHarness {
