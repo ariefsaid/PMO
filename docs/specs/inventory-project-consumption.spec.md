@@ -393,7 +393,7 @@ or consumption table. "Nothing exists" is scoped to those sources. Odoo claims (
 come from `docs/research/2026-10-30-odoo20-native-coverage.md` §2.1 and are **not** verified on a running instance; that
 is #1504 / #1508's check.
 
-NFR-STK-003, measured 2026-11-01 on the local stack (`supabase/tests/perf/stock_consumption_explain.sql`): the consumption report over 201,600 ledger rows (20 projects x 10 work items x 12 items x 24 months) ran p50 216 ms, **p95 306 ms**, max 443 ms over 20 runs; target ≤ 1 s met with the shipped `(org_id, project_id, boq_item_id, occurred_on)` index, no extra index.
+NFR-STK-003, measured 2026-11-01 on the local stack (`scripts/perf/stock_consumption_explain.sql`): the consumption report over 201,600 ledger rows (20 projects x 10 work items x 12 items x 24 months) ran p50 216 ms, **p95 306 ms**, max 443 ms over 20 runs; target ≤ 1 s met with the shipped `(org_id, project_id, boq_item_id, occurred_on)` index, no extra index.
 
 ## 12. Slice split (one builder each; Director-dispatched Orca workers; each slice ships schema, RLS, repository, UI where listed, and its proofs)
 
