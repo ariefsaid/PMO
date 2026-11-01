@@ -139,10 +139,16 @@ describe('DraggableSalesBoard', () => {
     expect(screen.getByRole('radio', { name: 'Loss Tender' })).not.toBeChecked();
     expect(screen.getByRole('radio', { name: 'Declined' })).not.toBeChecked();
     await user.click(screen.getByRole('radio', { name: 'Declined' }));
+    expect(confirm).toBeDisabled();
+    await user.selectOptions(screen.getByRole('combobox', { name: /Reason/i }), 'capacity');
     expect(confirm).toBeEnabled();
     await user.click(confirm);
     await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
-    expect(mutateAsync).toHaveBeenCalledWith({ id: 'tender', to: 'Declined', opts: undefined });
+    expect(mutateAsync).toHaveBeenCalledWith({
+      id: 'tender',
+      to: 'Declined',
+      opts: { lostReason: 'capacity', lostNote: undefined },
+    });
   });
 
   it('AC-DND-007: a server refusal rolls the card back and shows "Status change failed" with the server message', async () => {

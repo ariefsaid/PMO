@@ -8,6 +8,10 @@ import {
   dealJourneySteps,
   formatPercent,
   isStaleBid,
+  stageLine,
+  daysBetweenDates,
+  formatIsoDayMonth,
+  STAGE_KEY_DATE_LABEL,
 } from './salesPipeline';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 
@@ -153,5 +157,25 @@ describe('salesPipeline presentation helpers (AC-SP-204)', () => {
     expect(isStaleBid({ status: 'Tender Submitted', stage_started_at: atDaysAgo(89) })).toBe(false);
     expect(isStaleBid({ status: 'Tender Submitted' })).toBe(false);
     expect(isStaleBid({ status: 'Ongoing Project', stage_started_at: atDaysAgo(120) })).toBe(false);
+  });
+});
+
+describe('stageLine (#1638)', () => {
+  it('AC-PSH-011: renders "<label> <dd Mon> · <n> d" for the latest entry', () => {
+    expect(stageLine('Quotation Submitted', '2026-10-12', '2026-11-01', (_k, d) => d)).toBe('Quoted 12 Oct · 20 d');
+  });
+  it('AC-PSH-011: a calendar date prints as that day in any browser timezone', () => {
+    expect(formatIsoDayMonth('2026-10-12')).toBe('12 Oct');
+  });
+  it('AC-PSH-011: day count is calendar days, never negative', () => {
+    expect(daysBetweenDates('2026-10-31', '2026-11-01')).toBe(1);
+    expect(daysBetweenDates('2026-11-01', '2026-11-01')).toBe(0);
+    expect(daysBetweenDates('2026-11-02', '2026-11-01')).toBe(0);
+  });
+  it('AC-PSH-011: every project status has a key-date label', () => {
+    for (const s of ['Leads', 'PQ Submitted', 'Quotation Submitted', 'Tender Submitted', 'Negotiation', 'Won, Pending KoM',
+      'Loss Tender', 'Declined', 'Ongoing Project', 'On Hold', 'Close Out', 'Internal Project']) {
+      expect(STAGE_KEY_DATE_LABEL[s]).toBeDefined();
+    }
   });
 });

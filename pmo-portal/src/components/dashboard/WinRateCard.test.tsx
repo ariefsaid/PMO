@@ -39,6 +39,7 @@ vi.mock('@/src/hooks/useDashboard', async (orig) => {
       lastRange = range;
       return { data: oracle, isPending: false, isError: false, refetch: vi.fn() };
     },
+    useLossBreakdown: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
   };
 });
 
