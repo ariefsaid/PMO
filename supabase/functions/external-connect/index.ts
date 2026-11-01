@@ -7,22 +7,24 @@
  *
  * Flow:
  * 1. Verify caller JWT locally (ES256, JWKS) → get `sub` (user id)
- * 2. Load profile (role, org_id) via service-role client
- * 3. Activation gate: Admin of the org OR platform Operator
- * 4. Validate credential against external system (injected fetch for testability)
+ * 2. Load profile (role, org_id, status) via service-role client
+ * 3. Standing gate: the caller must be an active org member right now (actor_authorization_state;
+ *    fail closed if it cannot be resolved)
+ * 4. Activation gate: Admin of the org OR platform Operator
+ * 5. Validate credential against external system (injected fetch for testability)
  *    - ClickUp: GET /api/v2/user with Bearer token
  *    - ERPNext: GET /api/method/frappe.auth.get_logged_user with token apiKey:apiSecret
  *    - SSRF hardening: reject private/loopback/link-local/metadata addresses for ERPNext
- * 5. On success: call create_vault_secret_for_org RPC (passes p_actor_id=sub for service-role path)
+ * 6. On success: call create_vault_secret_for_org RPC (passes p_actor_id=sub for service-role path)
  * 7. ERPNext: call set_external_binding_site_url(org, 'erpnext', siteUrl, userId) — persists the site
  *    URL the admin submitted (create_vault_secret_for_org writes site_url = ''); a failure is a 500
  *    SITE_URL_NOT_PERSISTED and the binding is left inert (site_url='')
  * 8. For ClickUp: call admin_change_domain_ownership(org, 'clickup', 'tasks', 'employ', userId)
- * 7. Return { ok: true, binding: { secret_ref, status: 'active' } }
+ * 9. Return { ok: true, binding: { secret_ref, status: 'active' } }
  *
  * Errors:
  * - 401: missing/invalid JWT
- * - 403: not Admin of org and not Operator
+ * - 403: caller lacks active membership standing, or is not Admin of org and not Operator
  * - 422: invalid credential (validation failed) — NO Vault write, NO binding row
  * - 400: unknown tier or malformed body
  * - 500: internal error
@@ -39,7 +41,12 @@ import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
-import { isAdminOrOperator, type AdminOrOperatorClient } from '../_shared/adminOrOperator.ts';
+import {
+  hasActiveStanding,
+  isAdminOrOperator,
+  type AdminOrOperatorClient,
+  type AuthorizationStateClient,
+} from '../_shared/adminOrOperator.ts';
 import { fetchBounded, FetchDeadlineError } from '../_shared/fetchWithDeadline.ts';
 import { isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
 import { connectOdoo, type OdooCredential } from './odoo.ts';
@@ -266,10 +273,10 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
   // 2. Service-role client for admin lookups (profile, operator check)
   const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
 
-  // 3. Load caller profile (role + org_id)
+  // 3. Load caller profile (role + org_id + status)
   const { data: profile, error: profileError } = await serviceClient
     .from('profiles')
-    .select('org_id, role')
+    .select('org_id, role, status')
     .eq('id', userId)
     .single();
 
@@ -277,7 +284,18 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     return errorResponse('Profile not found', 'FORBIDDEN', 403);
   }
 
-  // 4. Activation gate: Admin of this org OR platform Operator. The shared predicate is only
+  // 4. Standing gate: the roles below authorize only while the membership is active NOW. A
+  // deactivated or banned caller with an unexpired JWT stops here, before any Vault write.
+  if (!(await hasActiveStanding({
+    stateClient: serviceClient as unknown as AuthorizationStateClient,
+    orgId: profile.org_id,
+    userId,
+    profileStatus: profile.status,
+  }))) {
+    return errorResponse('Active organization member required', 'FORBIDDEN', 403);
+  }
+
+  // 5. Activation gate: Admin of this org OR platform Operator. The shared predicate is only
   // this activation decision; it is not the M365 member data-access gate.
   if (!(await isAdminOrOperator({
     profile,
@@ -287,7 +305,7 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     return errorResponse('Admin or Operator role required', 'FORBIDDEN', 403);
   }
 
-  // 5. Parse body
+  // 6. Parse body
   let body: ConnectBody;
   try {
     body = (await req.json()) as ConnectBody;
@@ -300,7 +318,7 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     return errorResponse('Unknown tier (must be clickup, erpnext or odoo)', 'BAD_REQUEST', 400);
   }
 
-  // 6. The deployment kill-switch is checked before external validation and all writes.
+  // 7. The deployment kill-switch is checked before external validation and all writes.
   // It is an operator break-glass, never a client-side status signal.
   const killSwitchEnabled = externalConnectEnabled();
   if (!killSwitchEnabled) {
@@ -356,7 +374,7 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     if (odoo) return await refuse('Another accounting system is already connected; disconnect it first.', 'another-erp-active', 409);
   }
 
-  // 7. Credential is valid → create Vault secret + upsert binding via RPC
+  // 8. Credential is valid → create Vault secret + upsert binding via RPC
   //    The RPC handles: Vault write, binding upsert, audit log, secret rotation on reconnect
   const secretName = `${tier}_token_${profile.org_id}_${Date.now()}`;
   const secretValue = tier === 'clickup'
@@ -384,7 +402,7 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     return await refuse(rpcError.message, pgCode, pgCode === '42501' ? 403 : 500);
   }
 
-  // 7b. FR-EAC-101 — persist the site URL the admin submitted. `create_vault_secret_for_org` writes
+  // 8b. FR-EAC-101 — persist the site URL the admin submitted. `create_vault_secret_for_org` writes
   // `site_url = ''` (mig 0180) and its signature is on production, so this is a second, additive RPC
   // rather than a parameter change (ADR-0073 §1: a dropped 5-arg overload would PGRST202 the deployed
   // connect path during the deploy window).
@@ -406,7 +424,7 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     }
   }
 
-  // 8. Readiness is exactly the valid token plus the real per-org Vault resolver. No extra
+  // 9. Readiness is exactly the valid token plus the real per-org Vault resolver. No extra
   // ClickUp API call is made. The final RPC is the only path that can employ ownership.
   if (tier === 'clickup') {
     const readiness = await resolvePerOrgSecret({
@@ -466,7 +484,7 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     }
   }
 
-  // 9. Return success
+  // 10. Return success
   return json({
     ok: true,
     binding: {

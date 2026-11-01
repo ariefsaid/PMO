@@ -6,17 +6,19 @@
  *
  * Flow:
  * 1. Verify caller JWT locally (ES256, JWKS) → get `sub` (user id)
- * 2. Load profile (role, org_id) via service-role client
- * 3. Role gate: Admin of the org OR platform Operator (direct platform_operators check)
- * 4. Load ERPNext binding for this org
- * 5. Resolve credentials from Vault via read_vault_secret RPC
- * 6. Fetch Company list from ERPNext (SSRF-guarded exactly like external-connect)
- * 7. Return { companies: [{ name }] }
- * 8. Audit log via log_audit
+ * 2. Load profile (role, org_id, status) via service-role client
+ * 3. Standing gate: the caller must be an active org member right now (actor_authorization_state;
+ *    fail closed if it cannot be resolved)
+ * 4. Role gate: Admin of the org OR platform Operator (direct platform_operators check)
+ * 5. Load ERPNext binding for this org
+ * 6. Resolve credentials from Vault via read_vault_secret RPC
+ * 7. Fetch Company list from ERPNext (SSRF-guarded exactly like external-connect)
+ * 8. Return { companies: [{ name }] } (audit follows)
+ * 9. Audit log via log_audit
  *
  * Errors:
  * - 401: missing/invalid JWT
- * - 403: not Admin of org and not Operator
+ * - 403: caller lacks active membership standing, or is not Admin of org and not Operator
  * - 404: no ERPNext binding found for this org
  * - 422: binding not active / Vault secret missing
  * - 500: internal/upstream error
@@ -32,6 +34,7 @@ import {
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { guardedErpFetch, isPrivateOrReservedHost } from '../_shared/erpHostGuard.ts';
+import { hasActiveStanding, type AuthorizationStateClient } from '../_shared/adminOrOperator.ts';
 
 interface CompaniesBody {
   tier: 'erpnext';
@@ -176,15 +179,26 @@ export async function handleCompaniesRequest(req: Request): Promise<Response> {
   // 2. Service-role client for admin lookups
   const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
 
-  // 3. Load caller profile (role + org_id)
+  // 3. Load caller profile (role + org_id + status)
   const { data: profile, error: profileError } = await serviceClient
     .from('profiles')
-    .select('org_id, role')
+    .select('org_id, role, status')
     .eq('id', userId)
     .single();
 
   if (profileError || !profile) {
     return errorResponse('Profile not found', 'FORBIDDEN', 403);
+  }
+
+  // 3b. Standing gate: the role gate below authorizes only while the membership is active NOW. A
+  // deactivated or banned caller with an unexpired JWT stops here, before any Vault read.
+  if (!(await hasActiveStanding({
+    stateClient: serviceClient as unknown as AuthorizationStateClient,
+    orgId: profile.org_id,
+    userId,
+    profileStatus: profile.status,
+  }))) {
+    return errorResponse('Active organization member required', 'FORBIDDEN', 403);
   }
 
   // 4. Role gate: Admin of this org OR platform Operator

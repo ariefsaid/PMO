@@ -5,17 +5,19 @@
  * using the org's per-org Vault token (resolved from external_org_bindings.secret_ref).
  *
  * Auth: runs under the CALLER JWT (verified locally via verifyCallerJwt, ADR-0057),
- * then re-enforces Admin/Operator/PM gate on the verified `sub`.
+ * then requires active membership standing (actor_authorization_state, fail closed) and
+ * re-enforces the Admin/Operator/PM gate on the verified `sub`.
  * - Admin of the org: allowed
  * - Platform Operator: allowed
  * - Project Manager of the org: allowed (per ADR-0016 project matrix — server re-enforces)
+ * All of the above only while the caller's membership is currently active.
  *
  * Request: POST { tier: 'clickup' }
  * Response: { lists: [{ id, name, space_name, folder_name }] }
  *
  * Errors:
  * - 401: missing/invalid JWT
- * - 403: not Admin/Operator/PM of the org
+ * - 403: caller lacks active membership standing, or is not Admin/Operator/PM of the org
  * - 404: no active ClickUp binding for this org
  * - 422: credential resolution failed (Vault secret missing)
  * - 500: internal/upstream error
@@ -30,6 +32,7 @@ import {
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+import { hasActiveStanding, type AuthorizationStateClient } from '../_shared/adminOrOperator.ts';
 import { fetchBounded } from '../_shared/fetchWithDeadline.ts';
 
 interface ListsBody {
@@ -268,15 +271,27 @@ export async function handleListsRequest(req: Request): Promise<Response> {
   // 2. Service-role client for admin lookups
   const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
 
-  // 3. Load caller profile (role + org_id)
+  // 3. Load caller profile (role + org_id + status)
   const { data: profile, error: profileError } = await serviceClient
     .from('profiles')
-    .select('org_id, role')
+    .select('org_id, role, status')
     .eq('id', userId)
     .single();
 
   if (profileError || !profile) {
     return errorResponse('Profile not found', 'FORBIDDEN', 403);
+  }
+
+  // 3b. Standing gate: the role gate below authorizes only while the membership is active NOW —
+  // the PM allowance included. A deactivated or banned caller with an unexpired JWT stops here,
+  // before any Vault read or ClickUp request.
+  if (!(await hasActiveStanding({
+    stateClient: serviceClient as unknown as AuthorizationStateClient,
+    orgId: profile.org_id,
+    userId,
+    profileStatus: profile.status,
+  }))) {
+    return errorResponse('Active organization member required', 'FORBIDDEN', 403);
   }
 
   // 4. Role gate: Admin OR Operator OR Project Manager
