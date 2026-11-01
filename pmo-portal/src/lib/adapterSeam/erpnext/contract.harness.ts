@@ -37,18 +37,25 @@ function erpTransport(grain: Array<Record<string, unknown>> = [], budget?: { acc
     if (String(url).includes('filters=')) return new Response(JSON.stringify({ data: grain }), { status: 200 });
     return new Response(JSON.stringify({ data: {
       name: 'BUD-1', docstatus: 1, modified: '2026-01-01', from_fiscal_year: budget?.fiscalYear, to_fiscal_year: budget?.fiscalYear,
-      account: budget?.account, company: 'Test Co', project: 'ERP-PROJ', budget_amount: '50000.00',
+      account: budget?.account, company: 'Test Co', project: 'ERP-PROJ', budget_amount: '40000.00',
     } }), { status: 200 });
   }) as typeof fetch;
   return { stats, fetchImpl };
 }
 
 /** A fake service client answering only what dispatch resolution reads. */
-function serviceClient(binding: unknown, categoryAccount = 'Salary'): DispatchServiceClient {
+function serviceClient(binding: unknown, categoryAccount = 'Salary', consentRow: Record<string, string> | null = null): DispatchServiceClient {
   return { from(table: string) { return { select() {
+    const filters: Record<string, string | boolean> = {};
     const chain = {
-      eq() { return chain; }, order() { return chain; }, limit() { return chain; }, gt() { return chain; },
-      maybeSingle: async () => ({ data: table === 'external_org_bindings' ? binding : table === 'projects' ? { org_id: ORG } : null, error: null }),
+      eq(column: string, value: string | boolean) { filters[column] = value; return chain; },
+      is() { return chain; }, gte() { return chain; }, order() { return chain; }, limit() { return chain; }, gt() { return chain; },
+      // A consent is found only when every equality filter the code sent matches the recorded row.
+      maybeSingle: async () => ({
+        data: table === 'external_org_bindings' ? binding : table === 'projects' ? { org_id: ORG }
+          : table === 'budget_occupant_consents' && consentRow && Object.entries(filters).every(([k, v]) => consentRow[k] === v) ? { id: 'consent-1' } : null,
+        error: null,
+      }),
       then(resolve: (value: unknown) => unknown) {
         resolve({ data: table === 'budget_category_account_map' ? [{ category: 'Labor', erp_account: categoryAccount }] : [], error: null });
       },
@@ -187,7 +194,7 @@ export function createErpnextHarness(): ErpHarness {
       return pmoProjectId === null || pmoProjectId === undefined ? { status: 'ambiguous' } : { status: 'linked', pmoProjectId };
     },
 
-    async pushBudget({ account, fiscalYear, occupant }: BudgetPushScenario): Promise<BudgetPushResult> {
+    async pushBudget({ account, fiscalYear, occupant, consent }: BudgetPushScenario): Promise<BudgetPushResult> {
       const { stats, fetchImpl } = erpTransport(GRAINS[occupant], { account, fiscalYear });
       const record = {
         id: VERSION_ID, erp_doc_kind: 'budget', projectId: 'project', fiscal_year: fiscalYear,
@@ -195,9 +202,12 @@ export function createErpnextHarness(): ErpHarness {
         erp_account: account, budget_intent: 'ensure', budget_predecessor: null, outbox_identity: budgetAccountIdentity(VERSION_ID, fiscalYear, account),
       };
       const command = { domain: 'budget', operation: 'create', record, idempotencyKey: 'bud16:contract' } as never;
+      const consentRow = consent === 'matching' || consent === 'other'
+        ? { org_id: ORG, project_id: 'project', fiscal_year: fiscalYear, erp_account: account, erp_budget_name: consent === 'matching' ? 'DESK-BUDGET' : 'OTHER-BUDGET' }
+        : null;
       try {
         const adapter = await resolveErpDispatchAdapter({
-          serviceClient: serviceClient(ACTIVATED_BINDING, account), orgId: ORG, command,
+          serviceClient: serviceClient(ACTIVATED_BINDING, account, consentRow), orgId: ORG, command,
           fetchImpl, apiKey: 'key', apiSecret: 'secret', doctypeBodies: DOCTYPE_BODIES,
         });
         await adapter.commit(command);

@@ -24,6 +24,8 @@ export interface DispatchServiceClient {
 }
 export interface DispatchFilterBuilder extends PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }> {
   eq(column: string, value: string | boolean): DispatchFilterBuilder;
+  is(column: string, value: null): DispatchFilterBuilder;
+  gte(column: string, value: string): DispatchFilterBuilder;
   order(column: string, opts?: { ascending?: boolean }): DispatchFilterBuilder;
   limit(n: number): DispatchFilterBuilder;
   /** The KEYSET cursor: resume strictly AFTER the last row of the previous page. */
@@ -71,6 +73,9 @@ export interface ErpDispatchFactoryDeps {
   trustedReceiptSnapshot?: boolean;
   /** Server-owned observation of the source rows used to build an ERP case command. */
   captureProcurementSourceLines?: (lines: ProcurementSourceLine[]) => void;
+  /** ECA-6: told the id of the recorded consent that let a budget push amend an ERP budget PMO did not create, so the
+   *  edge function can spend it once the push has landed. Never read from the payload. */
+  onOccupantConsent?: (consentId: string) => void;
 }
 
 /**

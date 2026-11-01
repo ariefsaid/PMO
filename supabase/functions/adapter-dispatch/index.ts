@@ -78,6 +78,7 @@ import { dispatchErrorStatus } from './dispatchErrorStatus.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { isRevenueSiSubmitTransition, grantSiSubmitClearance, requiresSiAuthorClaim, claimSiAuthor, releaseSiSubmitClearance } from './sodGuard.ts';
 import { checkErpnextCommandAuthorization } from './authGuard.ts';
+import { authorizeBudgetOccupant, isBudgetOccupantCommand, runBudgetOccupant } from './budgetOccupant.ts';
 import { authorizeClickUpTaskCommand } from './taskAuthorization.ts';
 import { enforcePaymentGate, isProcurementPaymentCreate } from './paymentGate.ts';
 import { checkSiProjectGate } from './projectGateGuard.ts';
@@ -135,6 +136,8 @@ interface AdapterSelectContext {
   replay?: boolean;
   trustedReceiptSnapshot?: boolean;
   captureProcurementSourceLines?: (lines: ProcurementSourceLine[]) => void;
+  /** ECA-6: told the recorded consent a budget push used to amend an ERP budget PMO did not create (spent after the push). */
+  captureOccupantConsent?: (consentId: string) => void;
   procurementSnapshot?: { caseId: string; lines: ProcurementSourceLine[] };
   procurementInputDigest?: string;
 }
@@ -264,6 +267,7 @@ async function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
     replay: ctx.replay,
     trustedReceiptSnapshot: ctx.trustedReceiptSnapshot,
     captureProcurementSourceLines: ctx.captureProcurementSourceLines,
+    onOccupantConsent: ctx.captureOccupantConsent,
     rateLimiter: erpRateLimiter,
     // The (kind)->{toBody,fromDoc} side table (task 4.3): additive across slices 3-6, never a
     // per-slice edit to another kind's entry (confinement, FR-ENA-014).
@@ -837,7 +841,8 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       );
     }
   }
-  if (isErpDomain) {
+  // `budget-occupant` (ECA-6) is a request, not an ERP document kind: it has its own Admin/Finance gate below.
+  if (isErpDomain && !isBudgetOccupantCommand(command)) {
     // The guard reads only the authorization inputs (domain + the named ERP document kind).
     const auth = await checkErpnextCommandAuthorization(callerClient as never, orgId, userId, {
       domain: command.domain,
@@ -938,6 +943,29 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
         error: gateError?.code ?? 'commit-rejected',
         message: gateError?.message ?? 'budget activation precheck could not read current budget data',
       }), { status: gateError ? 422 : 500, headers });
+    }
+  }
+  // ── ECA-6 (#1603): the read-only ways forward when the ERP already holds a budget PMO did not create. It reads
+  // the ERP and may create a PMO Draft under the CALLER's RLS; it never writes the ERP and uses no outbox row.
+  if (isBudgetOccupantCommand(command)) {
+    const allowed = await authorizeBudgetOccupant(callerClient as never, orgId, userId);
+    if (!allowed.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: allowed.message }), { status: allowed.status, headers });
+    }
+    try {
+      if (!externalConnectEnabled()) throw new AppError('external integrations are disabled by the operator', 'config-rejected');
+      const binding = await resolveErpBindingRow(serviceClient, orgId);
+      const { apiKey, apiSecret } = await resolveErpAuthPair(serviceClient, { orgId, secretRef: binding.secret_ref }, createErpAuthPairCache());
+      const reply = await runBudgetOccupant({
+        command, orgId, callerClient: callerClient as never, serviceClient: serviceClient as never, binding,
+        erp: { fetchImpl: guardedErpFetch(binding.site_url), apiKey, apiSecret, baseUrl: binding.site_url, rateLimiter: erpRateLimiter },
+      });
+      return new Response(JSON.stringify(reply.body), { status: reply.status, headers });
+    } catch (err) {
+      const code = (err as { code?: unknown }).code;
+      return new Response(JSON.stringify({ error: typeof code === 'string' ? code : 'DISPATCH_FAILED', message: err instanceof Error ? err.message : 'failed' }), {
+        status: dispatchErrorStatus(code, 500), headers,
+      });
     }
   }
   if (command.domain === CLICKUP_TASKS_DOMAIN) {
@@ -1494,8 +1522,10 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   ): Promise<{ ok: true; result: unknown } | { ok: false; response: Response }> => {
   let adapter: Adapter;
   let money: DispatchMoneyOutboxDeps | undefined;
+  let occupantConsentId: string | undefined;
   try {
     const context: AdapterSelectContext = { orgId, command, serviceClient, faultGate, userId, erpAuth };
+    context.captureOccupantConsent = (id) => { occupantConsentId = id; };
     const record = command.record as Record<string, unknown>;
     const isReceiptCreate = command.domain === ERPNEXT_PROCUREMENT_DOMAIN && command.operation === 'create'
       && record.erp_doc_kind === 'goods-receipt';
@@ -1646,6 +1676,14 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       // for every other domain ⇒ `command.record.id`, byte-for-byte).
       outboxRecordId,
     });
+    // ECA-6: the push has landed, so the consent that allowed it is spent. A failure here is logged, not surfaced: the ERP
+    // write already happened, and the consent names a document that no longer exists, so it cannot unlock another.
+    if (occupantConsentId) {
+      const { error: spendError } = await serviceClient.rpc('consume_budget_occupant_consent', {
+        p_org_id: orgId, p_id: occupantConsentId, p_actor_id: userId,
+      });
+      if (spendError) console.error('[adapter-dispatch] could not spend the budget replace consent:', spendError.message);
+    }
     return { ok: true, result };
   } catch (err) {
     // Server-side diagnostics only — the client body stays generic/typed. Without this, an

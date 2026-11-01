@@ -1,4 +1,5 @@
-/** budget.unowned-occupant (v1) — PMO never amends an ERP budget it did not create, and writes nothing. */
+/** budget.unowned-occupant (v1) — PMO never amends an ERP budget it did not create, and writes nothing.
+ *  budget.resolve-occupant (v1) — it amends one only while a recorded consent names that exact document. */
 import { describe, expect, it } from 'vitest';
 import type { ErpHarness } from './harness.ts';
 
@@ -27,6 +28,26 @@ export function budgetSuite(h: ErpHarness): void {
     it('AC-BFY-027 a draft rival is refused with its own code and no write', async () => {
       const r = await h.pushBudget({ ...GRAIN, occupant: 'draft' });
       expect(r).toMatchObject({ outcome: 'refused', code: 'budget-draft-rival-on-grain', erpWrites: 0 });
+    });
+  });
+}
+
+export function budgetResolveSuite(h: ErpHarness): void {
+  describe(`budget.resolve-occupant (${h.tier})`, () => {
+    it('AC-ECA-031 a consent naming the live ERP budget lets the push amend it', async () => {
+      const r = await h.pushBudget({ ...GRAIN, occupant: 'one-live', consent: 'matching' });
+      expect(r).toMatchObject({ outcome: 'pushed' });
+      expect(r.erpWrites).toBeGreaterThan(0);
+    });
+
+    it('AC-ECA-031 a consent naming a different ERP budget does not, and nothing is written', async () => {
+      const r = await h.pushBudget({ ...GRAIN, occupant: 'one-live', consent: 'other' });
+      expect(r).toMatchObject({ outcome: 'refused', code: 'budget-unowned-live-occupant', erpWrites: 0 });
+    });
+
+    it('AC-ECA-031 with no consent the push is refused and nothing is written', async () => {
+      const r = await h.pushBudget({ ...GRAIN, occupant: 'one-live', consent: 'none' });
+      expect(r).toMatchObject({ outcome: 'refused', code: 'budget-unowned-live-occupant', erpWrites: 0 });
     });
   });
 }

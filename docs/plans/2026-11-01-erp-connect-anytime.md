@@ -14,7 +14,7 @@
   Orca workers (`docs/orca-dispatch.md`); money-path slices are Director-dispatched per issue.
 - **Migrations (Director, 2026-11-01):** each with `supabase/migrations/rollback/<number>_<slug>_down.sql`. Five migrations:
   ECA-2 `0451_erp_connect_setup`, ECA-3 `0452_erp_connect_sends`, ECA-4 `0453_process_domain_cutover`, ECA-5
-  `0454_invoice_pairs`, ECA-6 `0455_budget_occupant_resolution` (0450 is #1614's). A collision at build is fixed with
+  `0454_invoice_pairs`, ECA-6 `0483_budget_occupant_resolution` (rollback file `0481_budget_occupant_resolution_down.sql`; Director-allocated, replaces the draft's 0455; 0450 is #1614's). A collision at build is fixed with
   `scripts/renumber-migration.sh`, never by hand.
 - **IDs:** plan decisions `PD-ECA-#`; questions for the Director `PQ-ECA-#`; tasks `<slice>-T<n>`.
 
@@ -1598,7 +1598,7 @@ Verify: `TC` (red without both declarations — that is AC-ECA-040 doing its job
 5. Engineer → 403 for both actions.
 Verify: `DENO adapter-dispatch budgetOccupant.served.test.ts` → red.
 
-### ECA6-T3 — migration `0455_budget_occupant_resolution.sql`
+### ECA6-T3 — migration `0483_budget_occupant_resolution.sql`
 ```sql
 create table public.budget_occupant_consents (
   id uuid primary key default gen_random_uuid(),
@@ -1632,6 +1632,14 @@ and role checks stay the import protocol's, not a second copy.
 pgTAP `supabase/tests/budget_occupant_resolution.test.sql`: Engineer refused; Finance consent ok and audited; draft created with
 two lines and `Draft` status; another org's project refused.
 Verify: `PGT supabase/tests/budget_occupant_resolution.test.sql`.
+
+**As built (ECA-6, deviations from the text below):** `consume_budget_occupant_consent(p_org_id, p_id, p_actor_id)` takes the
+verified caller so the audit row names who pushed; a consent also expires after 24 h (`OCCUPANT_CONSENT_TTL_MS`); the dispatch
+adds a read-only `inspect` action so the confirm names the exact ERP budget from ERP truth; `budget-occupant` is NOT added to
+`KIND_DOMAIN` (it is a request, not an ERP document kind, and the sweep polls every kind in the doctype registry) so
+`budgetOccupant.ts` has its own Admin/Finance gate; the command's `record.id` is the project id; the edge function is not
+listed in `REQUIRED` of `check-edge-fn-test-binding.mjs` (that list is for handler-exporting functions; adapter-dispatch is
+driven through the served handler like its siblings).
 
 ### ECA6-T4 — dispatch: the two actions (green for T2)
 `pmo-portal/src/lib/adapterSeam/erpnext/dispatchBudget.ts:333-341`: before throwing `budget-unowned-live-occupant`, read

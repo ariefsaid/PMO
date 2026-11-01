@@ -37,6 +37,9 @@ export interface BudgetPushScenario {
   fiscalYear: string;
   /** Documents already live on that grain, none created by PMO. */
   occupant: 'none' | 'one-live' | 'two-live' | 'draft';
+  /** budget.resolve-occupant: the recorded "replace the ERP budget" consent the push can find. `matching` names the
+   *  live document; `other` names a different one; absent or `none` records nothing. */
+  consent?: 'matching' | 'other' | 'none';
 }
 
 export interface BudgetPushResult {
@@ -74,7 +77,7 @@ export interface ErpHarness {
     Promise<{ companies: number; refs: number; linked: string[]; review: number }>;
   /** project.match: `links` maps PMO project id to the ERP project name it is linked to. */
   resolveProjectLink(links: Readonly<Record<string, unknown>> | undefined, erpProjectName: string): ProjectLinkResult;
-  /** budget.unowned-occupant */
+  /** budget.unowned-occupant, budget.resolve-occupant */
   pushBudget(scenario: BudgetPushScenario): Promise<BudgetPushResult>;
   /** cutover.activation: a purchase push on a connection that is `activated` or not. */
   pushPurchase(connection: 'activated' | 'not-activated' | 'absent'): Promise<PushBeforeConnectionResult>;
