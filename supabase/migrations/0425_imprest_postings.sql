@@ -62,6 +62,30 @@ grant select, insert, update, delete on public.imprest_posting_erp_mirror to ser
 grant select on public.imprest_floats, public.imprest_replenishments to service_role;
 grant update (erp_cash_account_ref) on public.imprest_floats to service_role;
 
+-- The cash account is bound ONCE, before the float first moves cash, and one ERP account serves one float (review #1, #5).
+-- Postings are decided at enqueue time (PQ-11), so a late or changed account leaves the ERP float account wrong for good.
+-- Enforced here so no caller path (edge function, service role, SQL) bypasses it. INVOKER: the function reads
+-- expense_claims as its caller (service_role), hence the select grant; it adds no definer.
+grant select on public.expense_claims to service_role;
+create unique index imprest_floats_cash_account_one on public.imprest_floats (org_id, erp_cash_account_ref)
+  where erp_cash_account_ref is not null;
+create or replace function public.guard_imprest_cash_account() returns trigger
+  language plpgsql security invoker set search_path = public, pg_temp as $$
+begin
+  if new.erp_cash_account_ref is distinct from old.erp_cash_account_ref
+     and (old.erp_cash_account_ref is not null
+          or exists (select 1 from public.imprest_replenishments r
+                      where r.float_id = old.id and r.org_id = old.org_id and r.status = 'Paid')
+          or exists (select 1 from public.expense_claims c
+                      where c.imprest_float_id = old.id and c.org_id = old.org_id and c.status = 'Paid')) then
+    raise exception 'imprest-cash-account-locked' using errcode = 'P0001';
+  end if;
+  return new;
+end; $$;
+revoke all on function public.guard_imprest_cash_account() from public, anon, authenticated;
+create trigger imprest_floats_guard_cash_account_trg before update of erp_cash_account_ref on public.imprest_floats
+  for each row execute function public.guard_imprest_cash_account();
+
 -- DEFINER: the payer's session cannot read the binding/ownership tables or write the mirror. `on conflict do nothing`
 -- keeps it from ever failing the transition (ADR-0059 §3.2).
 create or replace function public.enqueue_imprest_replenishment_posting() returns trigger
@@ -142,7 +166,7 @@ begin
           or (m.posting in ('claim-payment','advance-payment','advance-return','settlement')                        -- 0425 DD-IMP-7.5
               and exists (select 1 from public.expense_claims c join public.imprest_floats f on f.id = c.imprest_float_id  -- 0425
                            where c.id = m.claim_id and f.custodian_id = m.actor_id                                   -- 0425
-                             -- (org: the eligibility check below reads the project and the profile inside p_org_id)    -- 0425
+                             and c.org_id = p_org_id and f.org_id = p_org_id                                          -- 0425
                              and public.imprest_custodian_eligible(p_org_id, f.project_id, m.actor_id)))) then      -- 0425
     raise exception 'expense-posting-actor-not-authorized' using errcode = '42501';
   end if;

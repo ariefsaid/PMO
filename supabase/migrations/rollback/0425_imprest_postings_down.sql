@@ -1,4 +1,8 @@
 -- 0425_imprest_postings_down.sql — reverse of 0425 (#1515 S6), reverse dependency order. Stop the sweep pass first.
+-- 0. the cash-account lock (review #1, #5). The service_role select on expense_claims stays: other readers may rely on it.
+drop trigger if exists imprest_floats_guard_cash_account_trg on public.imprest_floats;
+drop function if exists public.guard_imprest_cash_account();
+drop index if exists public.imprest_floats_cash_account_one;
 -- 1. expense_posting_for_push back to its 0354 §2 text (verbatim).
 create or replace function public.expense_posting_for_push(p_org_id uuid, p_mirror_id uuid)
 returns jsonb

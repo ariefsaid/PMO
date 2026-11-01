@@ -6,7 +6,7 @@
  *
  * POST { floatId, account } by an active Admin or Finance member of the float's org.
  * 400 bad body · 401 no/invalid JWT · 403 role · 404 float/binding not found · 409 unsupported tier ·
- * 422 account does not fit · 502 ERP unreachable.
+ * 409 float already bound/moved cash or account used by another float · 422 account does not fit · 502 ERP unreachable.
  */
 import { createClient } from '@supabase/supabase-js';
 import { verifyCallerJwt, JwtVerifyError, jwksFromUrl, type JwksResolver } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
@@ -36,6 +36,7 @@ function json(body: unknown, status = 200): Response {
     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' },
   });
 }
+const LOCKED_MESSAGE = 'This float\'s cash account is already set or the float has moved cash; it cannot be changed';
 const fail = (message: string, code: string, status: number): Response => json({ error: code, message }, status);
 
 export async function handleImprestCashAccountRequest(req: Request): Promise<Response> {
@@ -77,9 +78,12 @@ export async function handleImprestCashAccountRequest(req: Request): Promise<Res
   }
 
   // The float must be this org's own, and live.
-  const { data: float } = await sc.from('imprest_floats').select('id').eq('id', body.floatId).eq('org_id', profile.org_id)
+  const { data: float } = await sc.from('imprest_floats').select('id, erp_cash_account_ref').eq('id', body.floatId).eq('org_id', profile.org_id)
     .is('archived_at', null).maybeSingle();
   if (!float) return fail('Site float not found', 'NOT_FOUND', 404);
+  // Bind once, before the float first moves cash (postings are decided at enqueue time). The database guard also refuses
+  // a float with Paid cash movements; this check just answers early, before the ERP is asked.
+  if (float.erp_cash_account_ref != null) return fail(LOCKED_MESSAGE, 'imprest-cash-account-locked', 409);
 
   const { data: binding } = await sc.from('external_org_bindings').select('external_tier, secret_ref, site_url, config')
     .eq('org_id', profile.org_id).not('activated_at', 'is', null).limit(1).maybeSingle();
@@ -104,7 +108,11 @@ export async function handleImprestCashAccountRequest(req: Request): Promise<Res
 
   const { error: writeError } = await sc.from('imprest_floats').update({ erp_cash_account_ref: account })
     .eq('id', body.floatId).eq('org_id', profile.org_id);
-  if (writeError) return fail('Failed to save the cash account', 'INTERNAL', 500);
+  if (writeError) {
+    if (writeError.message?.includes('imprest-cash-account-locked')) return fail(LOCKED_MESSAGE, 'imprest-cash-account-locked', 409);
+    if (writeError.code === '23505') return fail('That account is already used by another float of this organization', 'imprest-cash-account-taken', 409);
+    return fail('Failed to save the cash account', 'INTERNAL', 500);
+  }
   const { error: auditError } = await sc.rpc('log_audit', {
     p_action: 'imprest_float.cash_account', p_org_id: profile.org_id, p_actor_id: userId, p_entity_id: body.floatId,
     p_detail: { account, tier: binding.external_tier },

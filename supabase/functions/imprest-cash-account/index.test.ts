@@ -120,6 +120,37 @@ describe('imprest-cash-account', () => {
     });
   });
 
+  it('AC-IMP-071 a float that already has an account refuses a re-bind with 409 before the ERP is asked', async () => {
+    const routes = through().map((r) => (r.label === 'supabase-select-imprest_floats'
+      ? supabaseSelect('imprest_floats', () => jsonResponse([{ id: FLOAT, erp_cash_account_ref: 'Site Cash Old - ACME' }])) : r));
+    await withFetchMock([...routes, patchFloat(() => { throw new Error('must not write'); })], async ({ calls }) => {
+      const res = await post({ floatId: FLOAT, account: ACCOUNT });
+      assertEquals(res.status, 409);
+      assertEquals((await res.json()).error, 'imprest-cash-account-locked');
+      assertEquals(rpcCall(calls, 'read_vault_secret').length + restCall(calls, 'imprest_floats', 'PATCH').length, 0);
+    });
+  });
+
+  it('AC-IMP-071 the database lock (a float that already moved cash) surfaces as 409, not 500', async () => {
+    const lock: MockRoute = { label: 'supabase-update-imprest_floats', method: 'PATCH', pathname: '/rest/v1/imprest_floats',
+      response: () => jsonResponse({ code: 'P0001', message: 'imprest-cash-account-locked' }, { status: 400 }) };
+    await withFetchMock([...through(), account({ account_type: 'Cash', company: 'ACME', is_group: 0, disabled: 0 }), lock], async () => {
+      const res = await post({ floatId: FLOAT, account: ACCOUNT });
+      assertEquals(res.status, 409);
+      assertEquals((await res.json()).error, 'imprest-cash-account-locked');
+    });
+  });
+
+  it('AC-IMP-071 an account already bound to another float of the org is refused 409', async () => {
+    const taken: MockRoute = { label: 'supabase-update-imprest_floats', method: 'PATCH', pathname: '/rest/v1/imprest_floats',
+      response: () => jsonResponse({ code: '23505', message: 'duplicate key value violates unique constraint "imprest_floats_cash_account_one"' }, { status: 409 }) };
+    await withFetchMock([...through(), account({ account_type: 'Cash', company: 'ACME', is_group: 0, disabled: 0 }), taken], async () => {
+      const res = await post({ floatId: FLOAT, account: ACCOUNT });
+      assertEquals(res.status, 409);
+      assertEquals((await res.json()).error, 'imprest-cash-account-taken');
+    });
+  });
+
   it('AC-IMP-071 a malformed body is 400 and an unauthenticated call is 401', async () => {
     await withFetchMock([], async () => {
       assertEquals((await post({ floatId: 'nope', account: ACCOUNT })).status, 400);

@@ -61,6 +61,9 @@ insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, 
   ('15150000-0000-0000-0000-00000000000a', 'erpnext', 'https://erp.example.test', 'test-ref-imp', '{"company":"Example Co"}'::jsonb, now());
 insert into external_domain_ownership (org_id, external_tier, domain) values
   ('15150000-0000-0000-0000-00000000000a', 'erpnext', 'expenses');
+-- The cash-account lock (0425, imprest_cash_account_lock.test.sql) is OFF for this file: the gate must still behave on
+-- floats that bound late or re-bound (legacy rows, direct SQL), so the fixture walks those states.
+alter table imprest_floats disable trigger imprest_floats_guard_cash_account_trg;
 -- Float F carries a cash account; float G has none yet.
 update imprest_floats set erp_cash_account_ref = 'Site Cash F - IMP' where id = '15150000-0000-0000-0000-0000000000d1';
 
