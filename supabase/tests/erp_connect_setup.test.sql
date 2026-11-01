@@ -1,4 +1,4 @@
--- ECA-2 (#1605, migration 0451): census, match proposals and one-pass accept. Tier-keyed, shared by every ERP.
+-- ECA-2 (#1605, migration 0480): census, match proposals and one-pass accept. Tier-keyed, shared by every ERP.
 -- AC-ECA-004 (exactly-once apply), AC-ECA-007 (audited, undoable while unused), plus the role / tenancy / grant contract.
 begin;
 select plan(60);

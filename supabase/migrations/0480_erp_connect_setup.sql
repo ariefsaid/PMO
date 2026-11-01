@@ -1,5 +1,5 @@
 -- ECA-2 (#1605): census, match proposals and one-pass accept (FR-ECA-001..016). Tier-keyed, shared by ERPNext and Odoo.
--- Four tables (run, staged ERP pages, census, proposals) and thirteen functions. Reversal: rollback/0451_erp_connect_setup_down.sql.
+-- Four tables (run, staged ERP pages, census, proposals) and thirteen functions. Reversal: rollback/0480_erp_connect_setup_down.sql.
 --
 -- Who may do what:
 --   * service role (the edge function, from the org's own binding): start a run, write the census, stage pages,

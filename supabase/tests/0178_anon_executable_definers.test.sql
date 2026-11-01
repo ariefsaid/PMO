@@ -145,10 +145,10 @@
 -- supabase/tests/billing_kinds_roles.test.sql (AC-007). `assign_sales_invoice_project` and
 -- `create_native_sales_invoice` changed signature only (proname unchanged).
 --
--- ⚑ AMENDED BY 0451 (#1605): `accept_connect_proposals`, `decide_connect_review` and `unlink_connect_match` join the retained
+-- ⚑ AMENDED BY 0480 (#1605): `accept_connect_proposals`, `decide_connect_review` and `unlink_connect_match` join the retained
 -- set (+3, count 107, re-derived by hand from the list). SECURITY DEFINER writers under a member's JWT; each re-asserts the
 -- org, active membership and the Admin (Finance for account rows) role in its body; proved by
--- supabase/tests/erp_connect_setup.test.sql (AC-ECA-004/007). The seven other 0451 functions are service-role-only or internal.
+-- supabase/tests/erp_connect_setup.test.sql (AC-ECA-004/007). The seven other 0480 functions are service-role-only or internal.
 --
 -- The budget import and procurement import-run commands retain authenticated access;
 -- their owning proofs are 0397_budget_import_protocol.test.sql and

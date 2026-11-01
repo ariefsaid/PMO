@@ -1,4 +1,4 @@
--- Reverses 0451_erp_connect_setup.sql: the thirteen functions, then the four tables (staged and proposals reference runs).
+-- Reverses 0480_erp_connect_setup.sql: the thirteen functions, then the four tables (staged and proposals reference runs).
 -- Data loss is limited to setup state (runs, census, proposals); no PMO record is changed. Links already applied
 -- (external_refs, project_map / item_map, the account map, confirmed employees) stay.
 drop function if exists public.unlink_connect_match(uuid);
