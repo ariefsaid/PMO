@@ -28,7 +28,7 @@ begin
   v_org := public.auth_org_id();
   v_ok := coalesce(public.role_rank(public.auth_role()) >= 20, false);                                    -- mut:reorder_rank (PQ-6)
   if not v_ok then raise exception 'only a Project Manager or above sets a reorder level' using errcode = '42501'; end if;
-  if not exists (select 1 from public.stock_items i where i.id = p_item_id and i.org_id = v_org)
+  if not exists (select 1 from public.stock_items i where i.id = p_item_id and i.org_id = v_org)   -- mut:set_item_org
      or not exists (select 1 from public.stock_warehouses w where w.id = p_warehouse_id and w.org_id = v_org) then   -- mut:set_org
     raise exception 'STK_NOT_FOUND: item or warehouse is not in your organisation' using errcode = 'P0001'; end if;
   select * into v_before from public.stock_reorder_levels where item_id = p_item_id and warehouse_id = p_warehouse_id;
