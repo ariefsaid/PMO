@@ -66,13 +66,22 @@ export function useProjectTransition(): UseMutationResult<void, Error, Transitio
   return { ...mutation, erpSetupPending };
 }
 
+/** Query options for the read-only win preflight, shared by the status menu and the board drop. */
+export const winEligibilityQueryOptions = (
+  user: { org_id?: string; id?: string; role?: string | null; manager_id?: string | null } | null | undefined,
+  projectId: string,
+  revision?: string | null,
+) => ({
+  queryKey: ['project-win-eligibility', user?.org_id, user?.id, user?.role, user?.manager_id, projectId, revision] as const,
+  queryFn: () => repositories.project.winEligibility(projectId),
+  staleTime: 0,
+});
+
 /** Read-only preflight; the transition RPC remains authoritative. */
 export function useProjectWinEligibility(projectId: string, enabled: boolean, revision?: string | null) {
   const { currentUser } = useAuth();
   return useQuery({
-    queryKey: ['project-win-eligibility', currentUser?.org_id, currentUser?.id, currentUser?.role, currentUser?.manager_id, projectId, revision],
-    queryFn: () => repositories.project.winEligibility(projectId),
+    ...winEligibilityQueryOptions(currentUser, projectId, revision),
     enabled: Boolean(enabled && currentUser?.id),
-    staleTime: 0,
   });
 }

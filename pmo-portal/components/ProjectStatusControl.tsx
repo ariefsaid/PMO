@@ -2,12 +2,14 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectTransition, useProjectWinEligibility } from '@/src/hooks/useProjectTransitions';
-import { Button, ConfirmDialog, useToast } from '@/src/components/ui';
+import { Button, useToast } from '@/src/components/ui';
 import {
   LEGAL_PROJECT_TRANSITIONS,
-  projectStatusGroup,
   type ProjectStatus,
 } from '@/src/lib/db/projectTransitions';
+import { ProjectTransitionConfirm } from './project-status/ProjectTransitionConfirm';
+import { WinDetailsFields } from './project-status/WinDetailsFields';
+import { winDetailsComplete, winEligibilityMessage } from './project-status/projectTransitionCopy';
 
 interface ProjectStatusControlProps {
   project: {
@@ -29,13 +31,7 @@ const WinTarget: React.FC<{ eligibility: ReturnType<typeof useProjectWinEligibil
   if (eligibility.isPending || eligibility.isFetching) return <p role="status" className="px-2.5 py-1 text-xs text-muted-foreground">{t('project:winEligibility.checking', 'Checking win eligibility…')}</p>;
   if (eligibility.isError || !eligibility.data) return <p role="status" className="px-2.5 py-1 text-xs text-muted-foreground">{t('project:winEligibility.unavailable', 'Win eligibility is unavailable. Refresh this page and try again.')}</p>;
   if (eligibility.data === 'allowed') return null;
-  return <p role="status" className="px-2.5 py-1 text-xs text-muted-foreground">
-    {eligibility.data === 'unavailable'
-      ? t('project:winEligibility.unavailable', 'Win eligibility is unavailable. Refresh this page and try again.')
-      : eligibility.data === 'inactive_reviewer'
-      ? t('project:winEligibility.inactive', 'Ask an active supervisor or a more senior reviewer to confirm the value.')
-      : t('project:winEligibility.reviewer', 'Ask your supervisor or a more senior reviewer to confirm the value before winning this project.')}
-  </p>;
+  return <p role="status" className="px-2.5 py-1 text-xs text-muted-foreground">{winEligibilityMessage(t, eligibility.data)}</p>;
 };
 
 /**
@@ -124,9 +120,6 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
   // No transitions available (e.g. Internal Project terminal)
   if (legalTargets.length === 0) return null;
 
-  const isDestructiveTarget = (target: ProjectStatus) =>
-    projectStatusGroup(target as never) === 'lost';
-
   const handleTargetSelect = (target: ProjectStatus) => {
     if (target === 'Won, Pending KoM') {
       if (!canWin) return;
@@ -159,7 +152,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
 
   const handleWinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canWin || !contractRef.trim() || !contractDate) return;
+    if (!canWin || !winDetailsComplete(contractRef, contractDate)) return;
     setOpen(false);
     setPendingTarget(null);
     mutation.mutate({
@@ -249,39 +242,7 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
           className="absolute right-0 z-20 mt-1 min-w-[240px] rounded-lg border border-border bg-popover p-3 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)] space-y-2"
         >
           <p className="text-xs font-semibold">Win — enter contract details</p>
-          <div>
-            <label
-              htmlFor={`contract-ref-${project.id}`}
-              className="mb-0.5 block text-xs text-muted-foreground"
-            >
-              Customer contract ref
-            </label>
-            <input
-              id={`contract-ref-${project.id}`}
-              type="text"
-              required
-              value={contractRef}
-              onChange={e => setContractRef(e.target.value)}
-              placeholder="e.g. CPO-2026-001"
-              className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor={`contract-date-${project.id}`}
-              className="mb-0.5 block text-xs text-muted-foreground"
-            >
-              Contract date
-            </label>
-            <input
-              id={`contract-date-${project.id}`}
-              type="date"
-              required
-              value={contractDate}
-              onChange={e => setContractDate(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            />
-          </div>
+          <WinDetailsFields idPrefix={project.id} contractRef={contractRef} contractDate={contractDate} onRef={setContractRef} onDate={setContractDate} />
           <div className="flex gap-2 pt-1">
             <button
               type="submit"
@@ -303,20 +264,8 @@ const ProjectStatusControl: React.FC<ProjectStatusControlProps> = ({
       {/* PR1 (forward) / PR3 (loss) confirm-before-write. The win path (PR2)
           keeps its inline form above and never reaches here. */}
       {confirmTarget && (
-        <ConfirmDialog
-          open
-          tone={isDestructiveTarget(confirmTarget) ? 'destructive' : 'default'}
-          title={
-            isDestructiveTarget(confirmTarget)
-              ? 'Mark project as lost'
-              : `Move project to ${confirmTarget}?`
-          }
-          description={
-            isDestructiveTarget(confirmTarget)
-              ? 'This moves the project to a terminal lost stage. You can still review it, but it leaves the active pipeline.'
-              : `This moves the project forward to the ${confirmTarget} stage.`
-          }
-          confirmLabel={isDestructiveTarget(confirmTarget) ? 'Mark lost' : `Move to ${confirmTarget}`}
+        <ProjectTransitionConfirm
+          target={confirmTarget}
           loading={mutation.isPending}
           onCancel={() => setConfirmTarget(null)}
           onConfirm={() => void commitConfirm()}
