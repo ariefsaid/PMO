@@ -86,7 +86,7 @@ function pushTimesheet(s: TimesheetPushScenario): Promise<PreflightResult> {
   };
   const { default_activity_type: _kept, ...withoutActivity } = TIMESHEET_BINDING.config;
   const binding = { ...TIMESHEET_BINDING, config: s.activityType === 'configured' ? TIMESHEET_BINDING.config : withoutActivity };
-  const refs = s.employeeLink === 'confirmed-without-erp-id' ? {} : { 'emp-row-1': 'Employee:HR-EMP-00001' };
+  const refs: Record<string, string> = s.employeeLink === 'confirmed-without-erp-id' ? {} : { 'emp-row-1': 'Employee:HR-EMP-00001' };
   return preflight(timesheetClient({ binding, employee, refs }), 'org-1', {
     domain: 'timesheets', operation: 'create',
     record: {
