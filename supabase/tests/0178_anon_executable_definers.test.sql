@@ -132,6 +132,10 @@
 -- ⚑ AMENDED BY 0423 (#1515): two replenishment writers join (+2, count 101). transition_expense_claim and
 -- record_expense_advance_return were already retained. Proven by imprest_replenishment pgTAP.
 --
+-- ⚑ AMENDED BY 0424 (#1515): record_imprest_count joins (+1, count 102); it re-asserts org, active membership and
+-- custodian-eligible-or-Finance/Admin in its body. The position/usage reads are invoker; imprest_float_choices is a
+-- read. Proven by imprest_position pgTAP.
+--
 -- The budget import and procurement import-run commands retain authenticated access;
 -- their owning proofs are 0397_budget_import_protocol.test.sql and
 -- 0399_procurement_import_identity_authority.test.sql. Atomic draft creation is
@@ -234,6 +238,7 @@ insert into client_callable_rpc_names (proname) values
   ('org_credit_balance'),
   ('org_usage_summary'),
   ('record_expense_advance_return'),
+  ('record_imprest_count'),
   ('record_native_receipt'),
   ('recategorise_budget_lines'),
   ('release_credits'),
@@ -287,8 +292,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  101,
-  'AC-ACL-002 all 101 retained client-callable RPC names still have a public function');
+  102,
+  'AC-ACL-002 all 102 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -297,8 +302,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  101,
-  'AC-ACL-003 all 101 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  102,
+  'AC-ACL-003 all 102 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
