@@ -148,10 +148,14 @@ serveWithErrorReporting('agent-dispatch', withJobRun('agent-dispatch', async (re
   // balance read runs under owner RLS — never service_role (NFR-AAN-SEC-002/SEC-006).
   const creditsEnforced = Deno.env.get('AGENT_CREDITS_ENFORCED') === 'true';
   const rateGuard = {
-    check: async (orgId: string, mintedClient?: unknown) => {
+    check: async (orgId: string, mintedClient?: unknown, reservationId?: string) => {
       if (!creditsEnforced || !mintedClient) return { exceeded: false, retryAfterSeconds: 0 };
       const guard = createCreditRateGuard({ supabase: mintedClient as never });
-      return guard.check(orgId);
+      return guard.check(orgId, reservationId);
+    },
+    release: async (mintedClient: unknown, reservationId: string) => {
+      if (!creditsEnforced || !mintedClient) return;
+      await createCreditRateGuard({ supabase: mintedClient as never }).release(reservationId);
     },
   };
 

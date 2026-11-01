@@ -306,8 +306,10 @@ describe('runDispatchTick — AC-AAN-019 minted-JWT cross-tenant denial identica
       'select_trigger_events',
       expect.objectContaining({ p_source: 'procurement_status_events' }),
     );
+    // The condition call's trusted usage row (recordTrustedUsage: verified-identity profile read + the
+    // agent_usage insert) is the one sanctioned service_role metering write; no other business table.
     for (const t of new Set(tablesTouched)) {
-      expect(['agent_automations', 'agent_dispatch_watermarks', 'agent_automation_fires']).toContain(t);
+      expect(['agent_automations', 'agent_dispatch_watermarks', 'agent_automation_fires', 'profiles', 'agent_usage']).toContain(t);
     }
   });
 

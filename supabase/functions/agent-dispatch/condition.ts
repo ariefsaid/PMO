@@ -9,7 +9,7 @@
  *
  * NFR-AAN-SEC-007: never log the condition/prompt text — on error, log only the automation id.
  */
-import type { ModelClient } from '../_shared/modelClient.ts';
+import type { ModelClient, ModelResponse } from '../_shared/modelClient.ts';
 import type { AutomationRow, StatusEventRow } from './dispatcher.ts';
 
 /** 60s = one tick window (ADR-0044 §2 ≤1min dispatcher latency) — caps re-billing to once per
@@ -38,6 +38,8 @@ export interface EvaluateConditionDeps {
   modelId: string;
   now: () => number;
   memo: ConditionMemo;
+  /** Called with every model response (true, false or unparseable) so its spend can be metered. */
+  onResponse?: (response: ModelResponse) => Promise<void>;
 }
 
 function parseVerdict(content: string | null | undefined): boolean | null {
@@ -83,6 +85,7 @@ export async function evaluateCondition(
         },
       ],
     });
+    await deps.onResponse?.(response);
     const parsed = parseVerdict(response.message.content);
     if (parsed === null) {
       verdict = { fire: false, warning: `couldn't evaluate the condition for automation ${automation.id}` };
