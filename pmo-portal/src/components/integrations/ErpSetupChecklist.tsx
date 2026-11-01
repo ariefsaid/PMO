@@ -15,7 +15,9 @@ import {
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { domainLabel } from './integrationLabels';
 import { EXPENSES_EMPLOYABLE } from '@/src/lib/adapterSeam/erpnext/expenseEnablement';
-import { COMPANY_DEFAULTS, getErpSetupIncompleteness, requiredBudgetCategories } from './erpSetupIncompleteness';
+import { COMPANY_DEFAULTS, getErpSetupIncompleteness, missingAccountCategories, requiredBudgetCategories } from './erpSetupIncompleteness';
+import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
+import { ErpSendStates } from './ErpSendStates';
 import { ProjectMatchReview } from './ProjectMatchReview';
 
 // #775 phase B — `expenses` is offered only once its release guard (#901) is open (FR-EXP-118, DD-EXP-22).
@@ -290,6 +292,13 @@ export function ErpSetupChecklist(
                       },
                     )}
                   </p>
+                  {((missing) => missing.length > 0 && (
+                    <p className='mt-1 break-words text-muted-foreground'>
+                      {t('administration:integrations.send.accountantTask', 'Ask your accountant to add a direct-cost account for: {{categories}}', {
+                        categories: missing.map((category) => budgetCategoryLabel(category, t)).join(', '),
+                      })}
+                    </p>
+                  ))(missingAccountCategories(setup.data))}
                 </div>
                 <a
                   className={actionLink}
@@ -316,6 +325,7 @@ export function ErpSetupChecklist(
                   )}
                 </a>
               </li>
+              <ErpSendStates enabled={Boolean(orgId)} />
               <li id='erp-setup-project-links' hidden={!incomplete?.projects} className='py-3'>
                 <p className='font-medium'>
                   {t('uxs08.projectLabel', 'Project connections')}

@@ -50,6 +50,7 @@ export const integrationsRepository: IntegrationsRepository = {
   },
   decideConnectReview: async (tier, id, choice) => { await erpSetupRequest('decide-review', { id, choice }, tier); },
   unlinkConnectMatch: async (tier, id) => { await erpSetupRequest('unlink-match', { id }, tier); },
+  retryConnectSend: async (tier, id) => { await erpSetupRequest('retry-send', { id }, tier); },
   getBinding: async (orgId: string, tier: ExternalTier): Promise<IntegrationBinding | null> => {
     return wrap(async () => {
       const { data, error } = await supabase

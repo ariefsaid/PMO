@@ -166,5 +166,18 @@
     "on": "On",
     "off": "Off",
     "description": "A Feedback button in the header and, at most once every 30 days, a short question after a first task or a quarterly check-in. Never shown while someone is filling in a form. Answers carry no record contents."
+  },
+  "integrations": {
+    "send": {
+      "title": "Records going to the ERP",
+      "sending": "Sending to the ERP",
+      "waiting": "{{count}} waiting for the ERP to confirm.",
+      "needsDecision": "Needs a decision",
+      "retry": "It is not there: send it again",
+      "retryFailed": "We could not send it again. Try again in a moment.",
+      "unnamed": "A record",
+      "addPeople": "Add these people in the ERP. It asks for a birth date and gender, which PMO does not hold.",
+      "accountantTask": "Ask your accountant to add a direct-cost account for: {{categories}}"
+    }
   }
 }

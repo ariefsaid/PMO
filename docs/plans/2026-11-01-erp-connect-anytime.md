@@ -13,7 +13,7 @@
 - **Role contract:** `.claude/agents/eng-planner.md`. Builders: `implementer` / `ui-implementer` role contracts handed to
   Orca workers (`docs/orca-dispatch.md`); money-path slices are Director-dispatched per issue.
 - **Migrations (Director, 2026-11-01):** each with `supabase/migrations/rollback/<number>_<slug>_down.sql`. Five migrations:
-  ECA-2 `0480_erp_connect_setup`, ECA-3 `0452_erp_connect_sends`, ECA-4 `0453_process_domain_cutover`, ECA-5
+  ECA-2 `0480_erp_connect_setup`, ECA-3 `0482_erp_connect_sends`, ECA-4 `0453_process_domain_cutover`, ECA-5
   `0454_invoice_pairs`, ECA-6 `0455_budget_occupant_resolution` (0450 is #1614's). A collision at build is fixed with
   `scripts/renumber-migration.sh`, never by hand.
 - **IDs:** plan decisions `PD-ECA-#`; questions for the Director `PQ-ECA-#`; tasks `<slice>-T<n>`.
@@ -1223,7 +1223,7 @@ New `supabase/tests/erp_connect_sends.test.sql`: proposals in `sending` for part
 6. `authenticated` cannot execute either function.
 Verify: `PGT supabase/tests/erp_connect_sends.test.sql` → red.
 
-### ECA3-T6 — migration `0452_erp_connect_sends.sql` (green)
+### ECA3-T6 — migration `0482_erp_connect_sends.sql` (green)
 - `claim_connect_sends(p_org_id uuid, p_tier text, p_limit int) returns setof erp_connect_proposals` — `update … set
   decided_at = now() where id in (select id from erp_connect_proposals where org_id = p_org_id and external_tier = p_tier and
   state = 'sending' and (decided_at is null or decided_at < now() - interval '5 minutes') order by decided_at nulls first, id
@@ -1300,12 +1300,21 @@ ERP has no such item — the S-C failure again, one item at a time.
 pgTAP (append to `erp_connect_sends.test.sql`): `enqueue_new_item_sends(A, 'erpnext')` (service-only) inserts one `send`
 proposal in state `sending` (`decided_by` null, `snapshot {auto:true}`) for each distinct `procurement_items.name` on a case not
 `Paid`/`Cancelled` that has no `config.item_map` key and no proposal of kind `item` naming it — **only** when the `item` census
-row's `accepted_at` is set; a second call inserts nothing; before the first accept it inserts nothing. Add it to `0452`.
+row's `accepted_at` is set; a second call inserts nothing; before the first accept it inserts nothing. Add it to `0482`.
 Sweep: `drainConnectSends` calls it once per tick before claiming. The send's lookup (`sendMaster` item branch) also tries
 `item_name = <line name>` when `item_code` misses, so an ERP item keyed differently links instead of duplicating (two hits →
 rejected → review).
 Verify: `PGT supabase/tests/erp_connect_sends.test.sql`; `DENO erpnext-sweep connectSends.test.ts` with a case
 `'FR-ECA-016 a new line after setup is sent once and the admin sees nothing'`.
+
+**As built, T1–T11 (2026-11-02), where the code departs from the text above:**
+- *Bed (T1):* the ERPNext bed's Employee requires first name, gender, date of birth, date of joining, status and company, so `employee.send` is declared `unavailable` and the checklist lists people to add by hand. `employeeFields.bed.test.ts` re-checks it when the bench key pair is in the environment.
+- *Outbox finalize (T4):* the money path finalizes through `money.recordOutboxRef`, not the `recordExternalRef` dep, so `sendMasterOnce` swaps `recordOutboxRef` for a no-op on project, item and employee sends (the confirm after it stays fenced). `sendMaster` takes an optional `{ commitDeadlineAtMs }` so the create obeys the claim deadline like every other money POST.
+- *Lease (T6):* `claim_connect_sends` leases on a new `send_claimed_at` column (0482), not `decided_at`: accept stamps `decided_at`, so using it would have delayed every first send by five minutes. A refused or held send becomes a review row with `run_id` null and an identity of its own, so a later matcher run neither overwrites nor deletes it. Both result functions end by calling `settle_connect_run`.
+- *Contract suite (T2/T8):* `ConnectHarness` gains `rejectNextWrite`, `touchedAccounting` and `ownKeys` (ERPNext names a project itself, so the PMO code is not on the ERP document). The employee case of AC-ECA-010 is omitted: no tier supports `employee.send`.
+- *Setup screen (T9/T11):* the ECA2-T17 review screen is not built yet, so the states live in the existing checklist (`ErpSendStates`), and `missingAccountCategories(setup)` reads the readiness the checklist already has (categories required and not linked).
+- *Review fix round (2026-11-02):* the outbox no longer writes any link: `sendMasterOnce` makes `recordOutboxRef` a no-op for every kind and `record_connect_send_result` (through `apply_connect_link`) is the one link writer, so an existing link is never re-pointed and a clash ends as a plain-words decision. The drain asks `connect_send_existing_link` before any ERP call and treats a linked record as done. A held send has a way out: `retry_connect_send` (Admin, audited) releases the outbox hold and queues the proposal again; a project sent from its own page leaves the same decision row (`record_connect_record_held`). Unclassified trouble ends the send on the fifth tick (`send_failures`). The drain stops at a dead ERP or after `CONNECT_SENDS_BUDGET_MS`, and the lookup before a create is one bounded attempt. The disconnect trigger in 0482 removes waiting sends and the seed outbox rows that never reached an ERP and holds the rest. `ensure-project` answers in-flight, held and refused sends as 409/409/422 in plain words. The real-ERPNext proof of the create bodies is `sendBodies.bed.test.ts`, gated on the bed (not yet run).
+- *Not done here:* ECA3-T12 (new items sent after setup) was outside the T1–T11 brief.
 
 ---
 

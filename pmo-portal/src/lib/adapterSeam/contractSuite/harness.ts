@@ -147,6 +147,12 @@ export interface ConnectHarness {
   documents(kind: MasterKind): NormalisedMaster[];
   /** The next create or update fails: before it reaches the ERP (`transport`), or after the ERP applied it (`lost-response`). */
   failNextWrite(fault: 'transport' | 'lost-response'): void;
+  /** The next create is refused by the ERP (a validation error): it throws `commit-rejected`, nothing is created. */
+  rejectNextWrite(): void;
+  /** Kinds whose ERP key the ERP assigns itself, so the PMO code is not carried on the document. */
+  ownKeys?: readonly MasterKind[];
+  /** True when any request reached the ERP's accounts, taxes or fiscal years (read or write): a send must never. */
+  touchedAccounting(): boolean;
   /** census / item.match / account.match / employee.match: place ERP masters in the fake ERP (PMO terms). Absent until the tier runs those suites. */
   load?(kind: MasterKind, rows: readonly Omit<NormalisedMaster, 'kind'>[]): void;
   /** Requests that reached the fake ERP, split by read and write. */

@@ -164,6 +164,7 @@ export interface ConnectProposal {
   outcome: 'link' | 'bring-in' | 'send' | 'review';
   pmo_ids: string[];
   external_ids: string[];
+  reason: 'ambiguous' | 'tax-conflict' | 'rejected' | 'held' | null;
   reason_text: string | null;
   snapshot: { name?: string; code?: string };
   state: 'open' | 'sending' | 'applied' | 'dismissed';
@@ -225,6 +226,8 @@ export interface IntegrationsRepository {
   acceptConnectProposals(tier: ConnectTier, kind: ConnectKind | null, ids: string[] | null): Promise<ConnectAcceptResult>;
   decideConnectReview(tier: ConnectTier, id: string, choice: ConnectReviewChoice): Promise<void>;
   unlinkConnectMatch(tier: ConnectTier, id: string): Promise<void>;
+  /** Send a held record again (Admin): the hold is released and the drain looks the record up before it creates anything. */
+  retryConnectSend(tier: ConnectTier, id: string): Promise<void>;
   /** Set ERPNext company on org binding (calls external-set-company edge fn). */
   setCompany(orgId: string, tier: ExternalTier, companyId: string): Promise<{ ok: true; companyId: string }>;
 }

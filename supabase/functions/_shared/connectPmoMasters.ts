@@ -8,7 +8,7 @@ import type { MasterKind, PmoMaster, CensusDomain } from '../../../pmo-portal/sr
 import { Constants } from '../../../pmo-portal/src/lib/supabase/database.types.ts';
 
 const PAGE = 1000;
-const OPEN_PROCUREMENT = '(Paid,Cancelled)';
+export const OPEN_PROCUREMENT = '(Paid,Cancelled)';
 
 /** Distinct names of the items on procurements that are still open, as `{id, name}` keyset pages. */
 async function* itemNamePages(sc: SupabaseClient, orgId: string): AsyncGenerator<Array<{ id: string; name: string }>> {

@@ -16,6 +16,7 @@ import { expenseJournalFromDoc } from './bodies/expenseJournal.ts';
 import { budgetAccountIdentity } from './budgetAccountIdentity.ts';
 import { DOCTYPE_BODIES } from './doctypeBodies.ts';
 import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatchFactory.ts';
+import type { MasterKind, NormalisedMaster } from '../connect/types.ts';
 import { createErpnextConnectAdapter, ERP_CONNECT_PAGE } from './connectAdapter.ts';
 import { fakeErp } from './fakeErp.ts';
 import { onboardParties } from './onboarding.ts';
@@ -24,6 +25,7 @@ import { invertProjectMap } from './projectMap.ts';
 import { createPushAndReadHarness } from './contract.pushAndRead.harness.ts';
 
 const ORG = 'org';
+const ACCOUNTING = new Set(['Account', 'Tax Category', 'Item Tax Template', 'Sales Taxes and Charges Template', 'Purchase Taxes and Charges Template', 'Fiscal Year']);
 const VERSION_ID = '44444444-4444-4444-8444-444444444444';
 const ACTIVATED_BINDING = {
   site_url: 'https://erp.test', version_major: 16, activated_at: '2026-01-01T00:00:00Z',
@@ -232,17 +234,32 @@ export function createErpnextHarness(): ErpHarness {
   };
 }
 
-/** A fake ERPNext behind the connect adapter, loaded in PMO terms. Reads only until ECA-3 teaches it to send. */
+/** A fake ERPNext behind the connect adapter, loaded in PMO terms. */
 function createConnectHarness(): ConnectHarness {
   const tables: Record<string, Array<Record<string, unknown>>> = {};
-  const { client, seen } = fakeErp(tables);
+  const { client, seen, arm } = fakeErp(tables);
   const put = (doctype: string, row: Record<string, unknown>) => { (tables[doctype] ??= []).push({ company: 'Test Co', ...row }); };
-  const notYet = () => { throw new Error('erpnext sends arrive with ECA-3'); };
+  // What the fake now holds, read straight from its tables: independent of the adapter's own listing.
+  const documents = (kind: MasterKind): NormalisedMaster[] => {
+    const rows = (doctype: string) => tables[doctype] ?? [];
+    if (kind === 'party') {
+      return [
+        ...rows('Supplier').map((r) => ({ kind, externalId: `Supplier:${r.name}`, role: 'vendor' as const, taxId: (r.tax_id as string) ?? null, name: String(r.supplier_name), active: r.disabled !== 1 })),
+        ...rows('Customer').map((r) => ({ kind, externalId: `Customer:${r.name}`, role: 'client' as const, taxId: (r.tax_id as string) ?? null, name: String(r.customer_name), active: r.disabled !== 1 })),
+      ];
+    }
+    if (kind === 'project') return rows('Project').map((r) => ({ kind, externalId: String(r.name), code: null, name: String(r.project_name), active: true }));
+    if (kind === 'item') return rows('Item').map((r) => ({ kind, externalId: String(r.name), code: String(r.item_code), name: String(r.item_name), active: r.disabled !== 1 }));
+    return [];
+  };
   return {
     adapter: createErpnextConnectAdapter(client, 'Test Co'),
     pageSize: ERP_CONNECT_PAGE,
-    documents: notYet,
-    failNextWrite: notYet,
+    documents,
+    failNextWrite: arm,
+    rejectNextWrite: () => arm('reject'),
+    ownKeys: ['project'],   // the ERP names a project itself; the PMO code is not on the document
+    touchedAccounting: () => seen.some((r) => ACCOUNTING.has(decodeURIComponent(r.path.split('?')[0].split('/').pop()!))),
     calls: () => ({ reads: seen.filter((r) => r.method === 'GET').length, writes: seen.filter((r) => r.method !== 'GET').length }),
     load(kind, rows) {
       for (const r of rows) {

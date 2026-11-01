@@ -6,7 +6,6 @@
 import type { TierWorkflows } from '../connect/workflows.ts';
 
 // ECA slices that will build the missing behaviour (the ERP-connect-anytime map).
-const SEND_TO_EMPTY_ERP = 1606;
 const CUTOVER_PROCESS_DOMAINS = 1601;
 const INVOICE_PAIRING = 1602;
 // Documented exception (#1601): `cutover.timesheet` is shipped, but its only proof is Deno-side (the sweep's
@@ -15,18 +14,22 @@ const INVOICE_PAIRING = 1602;
 // pending against the open cut-over issue that owns a shared Deno-side suite; the Deno test keeps running in the meantime.
 const DENO_SIDE_PROOF_ONLY = 1601;
 
+/** Why a person cannot be sent: the declaration's reason, and the sentence the Admin reads (one copy, so another tier never shows this one's). */
+export const EMPLOYEE_SEND_UNAVAILABLE_REASON = 'This ERP asks for a birth date and gender for each person, which PMO does not hold.';
+
 export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   'census': { status: 'supported', version: 1 },
   'party.match': { status: 'supported', version: 2 },
   'party.bring-in': { status: 'supported', version: 1 },
-  'party.send': { status: 'pending', version: 1, issue: SEND_TO_EMPTY_ERP },
+  'party.send': { status: 'supported', version: 1 },
   'project.match': { status: 'supported', version: 1 },
-  'project.send': { status: 'pending', version: 1, issue: SEND_TO_EMPTY_ERP },
+  'project.send': { status: 'supported', version: 1 },
   'item.match': { status: 'supported', version: 1 },
-  'item.send': { status: 'pending', version: 1, issue: SEND_TO_EMPTY_ERP },
+  'item.send': { status: 'supported', version: 1 },
   'account.match': { status: 'supported', version: 1 },
   'employee.match': { status: 'supported', version: 1 },
-  'employee.send': { status: 'pending', version: 1, issue: SEND_TO_EMPTY_ERP },
+  // PQ-ECA-1, verified on the bed (ECA3-T1): the ERP requires gender, date of birth and date of joining for an employee; PMO holds none of them and never invents them.
+  'employee.send': { status: 'unavailable', version: 1, reason: EMPLOYEE_SEND_UNAVAILABLE_REASON },
   'purchase.push': { status: 'supported', version: 1 },
   'bill.push': { status: 'supported', version: 1 },
   'vendor-payment.push': { status: 'supported', version: 1 },

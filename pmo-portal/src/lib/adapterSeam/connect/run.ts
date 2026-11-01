@@ -13,7 +13,7 @@ export interface ConnectRunDeps {
   stagedErp(kind: MasterKind): Promise<NormalisedMaster[]>;   // read back from erp_connect_staged, keyset pages of 1,000 (< max_rows)
   pmoMasters(kind: MasterKind): Promise<PmoMaster[]>;          // org-scoped from the binding's org
   /** Writes in chunks of ≤ 1,000 rows through replace_connect_proposals; the last chunk marks the kind proposed. */
-  writeProposals(kind: MasterKind, rows: MatchOutcome[], snapshot: (externalId: string) => NormalisedMaster | undefined): Promise<void>;
+  writeProposals(kind: MasterKind, rows: MatchOutcome[], snapshot: (externalId: string) => NormalisedMaster | undefined, pmoName: (pmoId: string) => string | undefined): Promise<void>;
   /** Counts a failed tick against the run; `fatal` ends it. Returns the run's state after. */
   failRun(errorClass: string, fatal: boolean): Promise<'staging' | 'proposing' | 'failed'>;
   budget: { calls: number };                                     // ERP calls left this tick
@@ -40,7 +40,9 @@ export async function advanceConnectRun(d: ConnectRunDeps): Promise<'more' | 're
   if (kind === undefined) return 'ready';
   const erp = await d.stagedErp(kind);
   const byId = new Map(erp.map((e) => [e.externalId, e]));
-  await d.writeProposals(kind, proposeMatches(kind, await d.pmoMasters(kind), erp), (id) => byId.get(id));
+  const pmo = await d.pmoMasters(kind);
+  const names = new Map(pmo.map((m) => [m.id, m.name]));   // a send row names its PMO record, so the Admin sees who is waiting or refused
+  await d.writeProposals(kind, proposeMatches(kind, pmo, erp), (id) => byId.get(id), (id) => names.get(id));
   d.run.proposedKinds.push(kind);
   return d.run.proposedKinds.length === RUN_KINDS.length ? 'ready' : 'more';
 }
