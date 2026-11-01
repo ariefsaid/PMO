@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
-import type {
-  WorkOrderInput,
-  WorkOrderPatch,
-  WorkOrderStatus,
-  SetWorkOrderValueInput,
-} from '@/src/lib/db/workOrders';
+import {
+  repositories,
+  type WorkOrderInput,
+  type WorkOrderPatch,
+  type WorkOrderStatus,
+  type SetWorkOrderValueInput,
+} from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 
 /**

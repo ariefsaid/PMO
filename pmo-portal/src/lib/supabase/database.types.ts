@@ -9626,6 +9626,16 @@ export type Database = {
         }
         Relationships: []
       }
+      work_order_uninvoiced_acceptance: {
+        Row: {
+          anchor_date: string | null
+          days: number | null
+          org_id: string | null
+          project_id: string | null
+          work_order_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       boq_allowance_ok: {

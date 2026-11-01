@@ -41,14 +41,15 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
   const [picked, setRange] = useState<{ fromMonth: string; toMonth: string } | null>(null);
   const range = picked ?? (orgDay ? defaultMonthRange(orgDay) : null);
   const { from, to } = range ? monthRangeDates(range.fromMonth, range.toMonth) : { from: '', to: '' };
-  const q = useProjectConsumption(range ? projectId : undefined, from, to);
+  const reversed = Boolean(range && range.fromMonth > range.toMonth);                                // 'YYYY-MM' compares as text; the server would only say "invalid range"
+  const q = useProjectConsumption(range && !reversed ? projectId : undefined, from, to);
   const qty = (v: string, unit: string) => <>{formatQuantity(v, loc)} <span className="text-muted-foreground">{unit}</span></>;
   const monthLabel = (iso: string) => formatUtcMonthYearFull(new Date(`${iso}T00:00:00Z`));
   const signed = (v: string) => (v.startsWith('-') || /^0(\.0+)?$/.test(v) ? formatQuantity(v, loc) : `+${formatQuantity(v, loc)}`);
 
   const r = q.data;
   const showValue = (r?.months ?? []).some((m: ConsumptionMonthRow) => m.netValue !== undefined);
-  const empty = r && r.months.length === 0 && r.allowances.length === 0 && r.unplanned.length === 0;
+  const empty = !reversed && r && r.months.length === 0 && r.allowances.length === 0 && r.unplanned.length === 0;
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -65,13 +66,14 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
         </label>
       </div>}
 
-      {(!range || q.isPending) && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
-      {q.isError && (
+      {reversed && <p role="alert" className="text-sm text-destructive-text">{t('consumption.rangeReversed')}</p>}
+      {(!range || (!reversed && q.isPending)) && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={4} /></div>}
+      {!reversed && q.isError && (
         <ListState variant="error" title={t('consumption.errorTitle')} sub={t('consumption.errorSub')} retryLabel={t('actions.retry')} onRetry={() => void q.refetch()} />
       )}
       {empty && <ListState variant="empty" icon="folder" title={t('consumption.empty')} sub={t('consumption.emptySub')} />}
 
-      {r && !empty && (
+      {!reversed && r && !empty && (
         <>
           {r.allowances.length > 0 && (
             <Section title={t('consumption.allowanceTitle')} sub={t('consumption.allowanceSub')}>

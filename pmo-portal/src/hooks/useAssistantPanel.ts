@@ -9,9 +9,7 @@ import type { AgentEvent, RunStatusPayload, QuestionPayload } from '../lib/agent
 import { useAgentRuntimeContext } from '../lib/agent/runtime/AgentRuntimeContext';
 import { useAgentContext } from '../lib/agent/context/useAgentContext';
 import { isFeatureEnabled } from '../lib/features';
-import { listRunEvents } from '../lib/db/agentEvents';
-import type { AgentEventRow } from '../lib/db/agentEvents';
-import { getRunHeartbeat } from '../lib/db/agentRuns';
+import { repositories, type AgentEventRow } from '../lib/repositories';
 import { STUCK_RUN_STALE_MS } from '../components/panel/stuckRun.constants';
 import {
   trackAgentRunStarted,
@@ -675,7 +673,7 @@ export function useAssistantPanel(): UseAssistantPanel {
   const openThread = useCallback(
     async (targetRunId: string, threadId?: string) => {
       if (!runtime) return;
-      const rows: AgentEventRow[] = await listRunEvents(targetRunId);
+      const rows: AgentEventRow[] = await repositories.agentRun.listEvents(targetRunId);
       const ordered = [...rows].sort((a, b) => a.seq - b.seq);
       const events: AgentEvent[] = ordered.map((row) => ({
         id: row.id,
@@ -728,7 +726,7 @@ export function useAssistantPanel(): UseAssistantPanel {
     let cancelled = false;
     const poll = async () => {
       try {
-        const heartbeat = await getRunHeartbeat(activeRunId);
+        const heartbeat = await repositories.agentRun.getHeartbeat(activeRunId);
         if (cancelled) return;
         if (heartbeat?.last_progress_at) {
           setLastProgressAt(heartbeat.last_progress_at);

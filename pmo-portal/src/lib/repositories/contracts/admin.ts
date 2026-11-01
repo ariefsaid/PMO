@@ -1,5 +1,5 @@
 /** People, operator, usage, views and org-settings contracts. */
-import type { OrgVendorTaxAccounts, ProjectClassificationOptions } from '@/src/lib/db/orgs';
+import type { OrgVendorTaxAccounts, ProjectClassificationOptions, OrgLifecycleState, OrgLocaleDefaultsRow } from '@/src/lib/db/orgs';
 import type { SpendApproverRow } from '@/src/lib/db/spendApprovers';
 import type { ProcurementGates } from '@/src/lib/db/orgs';
 import type { ProfileRow } from '@/src/lib/db/profiles';
@@ -75,6 +75,12 @@ export interface UserViewRepository {
  * unrecoverable.
  */
 export interface OrgSettingsRepository {
+  /** The org's default currency code (own-org read). */
+  getDefaultCurrency(): Promise<string>;
+  /** The org's locale/timezone defaults used to resolve a user's effective locale. */
+  getLocaleDefaults(): Promise<OrgLocaleDefaultsRow>;
+  /** The org lifecycle state, or null when unreadable. */
+  getLifecycleState(): Promise<OrgLifecycleState | null>;
   /** The stored PMO project-number pattern; null is the system default. */
   getProjectNumberPattern(): Promise<string | null>;
   /** Strict own-org timezone read for the project-number business-year preview. */

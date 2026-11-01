@@ -22,7 +22,14 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
-import { repositories } from '@/src/lib/repositories';
+import {
+  repositories,
+  type ProcurementError,
+  type PurchaseRequestRow,
+  type RfqRow,
+  type PurchaseOrderRow,
+  type PaymentRow,
+} from '@/src/lib/repositories';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import {
   IDLE_PENDING_PUSH,
@@ -30,13 +37,6 @@ import {
   pendingPushAfterWrite,
   type PendingPushState,
 } from '@/src/lib/adapterSeam/pendingPush';
-import type {
-  PurchaseRequestRow,
-  RfqRow,
-  PurchaseOrderRow,
-  PaymentRow,
-} from '@/src/lib/db/procurementRecords';
-import { ProcurementError } from '@/src/lib/db/procurementLifecycle';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 
 // ---------------------------------------------------------------------------
