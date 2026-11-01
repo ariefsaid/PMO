@@ -56,6 +56,7 @@ import {
   workOrderAcceptanceRepository,
 } from './workOrders';
 import { expenseClaimRepository, expenseReceiptsRepository } from './expenses';
+import { imprestRepository } from './imprest';
 import { integrationsRepository } from './integrations';
 import { odooRepository } from './odoo';
 import { erpSnapshotsRepository, reportsRepository } from './reporting';
@@ -103,6 +104,7 @@ export const repositories: Repositories = {
   workOrderAcceptance: workOrderAcceptanceRepository,
   procurementFiles: procurementFilesRepository,
   expenseClaim: expenseClaimRepository,
+  imprest: imprestRepository,
   expenseReceipts: expenseReceiptsRepository,
   expensePostings: expensePostingsRepository,
   erpPurchases: erpPurchasesRepository,
@@ -143,6 +145,7 @@ export type {
   WorkOrderAcceptanceRepository,
   ProcurementFileRepository,
   ExpenseClaimRepository,
+  ImprestRepository,
   ExpenseReceiptRepository,
   ExpensePostingRepository,
   ContactRepository,

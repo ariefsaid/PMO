@@ -74,6 +74,8 @@ const ProcurementPage = React.lazy(() => import('./pages/Procurement'));
 const ProcurementDetails = React.lazy(() => import('./pages/ProcurementDetails'));
 const ProcurementCreate = React.lazy(() => import('./pages/ProcurementCreate'));
 const TimesheetsPage = React.lazy(() => import('./pages/Timesheets'));
+const ImprestFloatsPage = React.lazy(() => import('./pages/ImprestFloats'));
+const ImprestFloatDetailPage = React.lazy(() => import('./pages/ImprestFloatDetail'));
 const ApprovalsPage = React.lazy(() => import('./pages/Approvals'));
 const CompaniesPage = React.lazy(() => import('./pages/Companies'));
 const MasterDataPage = React.lazy(() => import('./pages/MasterData'));
@@ -212,6 +214,8 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/expenses', element: <ExpenseClaimsPage /> },
   { path: '/expenses/new', element: <ExpenseClaimNewPage /> },
   { path: '/expenses/:claimId', element: <ExpenseClaimDetailPage /> },
+  { path: '/imprest', element: <ImprestFloatsPage /> },
+  { path: '/imprest/:floatId', element: <ImprestFloatDetailPage /> },
   { path: '/reports', element: <FinanceLegacyRedirect to="/finance/reports" /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },
   { path: '/administration/users', element: <AdministrationPage /> },

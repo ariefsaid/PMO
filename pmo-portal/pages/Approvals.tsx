@@ -17,6 +17,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { TimesheetApprovalPreview } from './timesheets/ApprovalsQueue';
 import { TimesheetBulkConfirm, TimesheetBulkSelect, TimesheetBulkToolbar, useTimesheetBulkApprove, weekLabel, type BulkController } from './timesheets/TimesheetBulkApprove';
 import { ExpenseClaimApprovalSection } from './approvals/ExpenseClaimApprovalSection';
+import { ImprestApprovalSection } from './approvals/ImprestApprovalSection';
 import { SalesInvoiceApprovalSection } from './approvals/SalesInvoiceApprovalSection';
 import { useInvoicesAwaitingViewer } from '@/src/hooks/useInvoicesAwaitingViewer';
 import { ProcurementApprovalPreview } from './approvals/ProcurementApprovalRow';
@@ -862,6 +863,7 @@ const ApprovalsPage: React.FC = () => {
       ) : activeScope === 'expense' || activeScope === 'invoice' ? (
         <div className="space-y-5">
           {activeScope === 'expense' && canShowExpenses && <ExpenseClaimApprovalSection />}
+          {activeScope === 'expense' && canApproveExpenses && <ImprestApprovalSection />}
           {activeScope === 'invoice' && canShowInvoices && <SalesInvoiceApprovalSection />}
         </div>
       ) : (
@@ -966,6 +968,7 @@ const ApprovalsPage: React.FC = () => {
       )}
 
       {activeScope === 'all' && canShowExpenses && <ExpenseClaimApprovalSection />}
+      {activeScope === 'all' && canApproveExpenses && <ImprestApprovalSection />}
       {activeScope === 'all' && canShowInvoices && <SalesInvoiceApprovalSection />}
       {hasTimesheetRole && <PushAttentionSection />}
       {hasTimesheetRole && <EmployeeLinkConfirmSection />}

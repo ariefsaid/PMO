@@ -51,6 +51,7 @@ import type {
   ExpensePostingRepository,
   ExpenseReceiptRepository,
 } from './contracts/expenses';
+import type { ImprestRepository } from './contracts/imprest';
 import type {
   IncidentRepository,
 } from './contracts/incidents';
@@ -120,6 +121,7 @@ export interface Repositories {
   workOrderAcceptance: WorkOrderAcceptanceRepository;
   procurementFiles: ProcurementFileRepository;
   expenseClaim: ExpenseClaimRepository;
+  imprest: ImprestRepository;
   expenseReceipts: ExpenseReceiptRepository;
   expensePostings: ExpensePostingRepository;
   erpPurchases: ErpPurchaseRepository;
@@ -155,6 +157,7 @@ export type { IncidentRepository } from './contracts/incidents';
 export type { CommentRepository } from './contracts/comments';
 export type { MilestoneRepository, ProgressBillingRepository, WorkOrderAcceptanceRepository, WorkOrderRepository } from './contracts/workOrders';
 export type { ExpenseClaimRepository, ExpensePostingRepository, ExpenseReceiptRepository } from './contracts/expenses';
+export type { ImprestRepository } from './contracts/imprest';
 export type { ErpPurchaseRepository } from './contracts/erpPurchases';
 export type { VendorWithholdingSlipsRepository } from './contracts/vendorWithholdingSlips';
 export type { CreditsRepository, ExternalDomainOwnershipRepository, OperatorRepository, OrgFeatureRepository, OrgSettingsRepository, ProfileRepository, UsageRepository, UserViewRepository } from './contracts/admin';

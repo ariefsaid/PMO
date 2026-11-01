@@ -139,6 +139,9 @@ export const MODULES: ModuleDef[] = [
   // #775: Expenses — every role (own claims); RLS scopes reads.
   { module: 'expenses', icon: 'expenses', label: 'Expenses', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.expenses', path: '/expenses', detail: { pattern: '/expenses/:claimId', param: 'claimId' } },
+  // #1515: Site cash — floats visible to approval rank (RLS); the rail hides it from Engineers.
+  { module: 'imprest', icon: 'expenses', label: 'Site cash', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'imprest:nav.siteCash', path: '/imprest', detail: { pattern: '/imprest/:floatId', param: 'floatId' } },
   // UXS-007: My Tasks is the assignee-scoped personal doorway for PMs, Finance, Engineers and Admins
   // (Finance works assigned tasks like an Engineer, owner 2026-10-23).
   // Project-level Tasks remain available for oversight; Executive navigation is unchanged.
@@ -617,6 +620,8 @@ export interface RecordLists {
   meetings?: { id: string; title: string }[];
   /** Expense claims resolve from the detail query cache; no additional list read. */
   expenses?: { id: string; claim_number?: string | null; title?: string | null }[];
+  /** #1515: site floats resolve from the cached float list; the label is the project name. */
+  imprestFloats?: { id: string; name: string }[];
   /** I3: user views — the record "name" is view.name, resolved from the useUserViews() cache. */
   userViews?: { id: string; name: string }[];
   /** #1512: stock documents resolve from the detail query cache; the label is the document number. */
@@ -738,6 +743,9 @@ export function recordLabelForPath(
     const claim = lists.expenses?.find((item) => item.id === expenseId);
     return claim?.claim_number || claim?.title || undefined;
   }
+
+  const imprestFloatId = idFrom('/imprest');
+  if (imprestFloatId) return lists.imprestFloats?.find((f) => f.id === imprestFloatId)?.name;
 
   // I3: user views — resolve view name from the useUserViews() cache (FR-VR-082).
   const viewId = idFrom('/views');

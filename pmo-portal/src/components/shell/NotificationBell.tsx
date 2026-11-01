@@ -64,6 +64,8 @@ const ENTITY_ROUTE_BASE: Record<string, string> = {
 const ENTITY_LIST_ROUTE: Record<string, string> = {
   timesheet: '/timesheets',
   task: '/my-tasks',
+  imprest_plan: '/imprest',
+  imprest_replenishment: '/imprest',
 };
 
 interface NotificationEntity {
