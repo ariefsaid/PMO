@@ -145,6 +145,11 @@
 -- supabase/tests/billing_kinds_roles.test.sql (AC-007). `assign_sales_invoice_project` and
 -- `create_native_sales_invoice` changed signature only (proname unchanged).
 --
+-- ⚑ AMENDED BY 0451 (#1605): `accept_connect_proposals`, `decide_connect_review` and `unlink_connect_match` join the retained
+-- set (+3, count 107, re-derived by hand from the list). SECURITY DEFINER writers under a member's JWT; each re-asserts the
+-- org, active membership and the Admin (Finance for account rows) role in its body; proved by
+-- supabase/tests/erp_connect_setup.test.sql (AC-ECA-004/007). The seven other 0451 functions are service-role-only or internal.
+--
 -- The budget import and procurement import-run commands retain authenticated access;
 -- their owning proofs are 0397_budget_import_protocol.test.sql and
 -- 0399_procurement_import_identity_authority.test.sql. Atomic draft creation is
@@ -178,6 +183,7 @@ select plan(6);
 -- frontend calls plus six existing authenticated RPC contracts).
 create temp table client_callable_rpc_names (proname text primary key) on commit drop;
 insert into client_callable_rpc_names (proname) values
+  ('accept_connect_proposals'),
   ('activate_budget_version'),
   ('assign_sales_invoice_project'),
   ('admin_set_user_status'),
@@ -194,6 +200,7 @@ insert into client_callable_rpc_names (proname) values
   ('confirm_erp_employee_link'),
   ('confirm_work_order_acceptance'),
   ('create_native_sales_invoice'),
+  ('decide_connect_review'),
   ('create_payment'),
   ('create_procurement_invoice'),
   ('create_procurement_with_items'),
@@ -278,6 +285,7 @@ insert into client_callable_rpc_names (proname) values
   ('transition_project'),
   ('transition_timesheet'),
   ('transition_work_order'),
+  ('unlink_connect_match'),
   ('unlink_erp_purchase_document'),
   ('update_procurement_header'),
   ('withdraw_progress_claim'),
@@ -303,8 +311,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  104,
-  'AC-ACL-002 all 104 retained client-callable RPC names still have a public function');
+  107,
+  'AC-ACL-002 all 107 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -313,8 +321,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  104,
-  'AC-ACL-003 all 104 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  107,
+  'AC-ACL-003 all 107 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
