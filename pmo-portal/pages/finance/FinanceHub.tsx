@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useFeature } from '@/src/auth/useFeature';
 import { useEffectiveRole } from '@/src/auth/impersonation';
+import { useAuth } from '@/src/auth/useAuth';
+import { InvoicePairReview } from '@/src/components/integrations/InvoicePairReview';
 import { AccessDenied, Button, Card, CardHead, CardPad, Icon, ListState, Tooltip } from '@/src/components/ui';
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
 import { FinanceAttention } from '@/src/components/finance/FinanceAttention';
@@ -106,6 +108,7 @@ const FinanceHub: React.FC = () => {
   const { t } = useTranslation();
   const may = usePermission();
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const { realRole } = useEffectiveRole();
   const canView = may('view', 'finance');
   const canAct = may('act', 'finance');
@@ -243,6 +246,8 @@ const FinanceHub: React.FC = () => {
         </div>
         {canAct && <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background p-3 sm:static sm:inset-auto sm:z-auto sm:border-0 sm:bg-transparent sm:p-0"><Button variant="primary" onClick={() => navigate('/finance/receivables?create=1')} className="w-full shrink-0 sm:w-auto"><Icon name="plus" />{t('financeHub:hub.newInvoice', 'New invoice')}</Button></div>}
       </header>
+      {/* ECA-5: Finance accepts invoice pairs here. Receivables is hidden while an ERP owns revenue, so this is the page Finance can always reach; self-hides when there is nothing to review. */}
+      <InvoicePairReview orgId={currentUser?.org_id} />
       <div className="space-y-[var(--space-panel-gap)]">
         {areas}
         <div className="grid gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2">

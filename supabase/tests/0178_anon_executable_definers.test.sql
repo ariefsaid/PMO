@@ -179,8 +179,8 @@
 -- `po_revision_push_refusal` is service-role only; neither is listed. Proven by supabase/tests/subcontract_erp_guards.test.sql.
 -- ⚑ AMENDED BY 0448 (#1638): redate_stage_entry, add_skipped_stage_entry and import_project_stage_history join the retained set (+3, count 113 on dev's 110, re-derived by hand from the list). Each re-asserts org, active membership and role rank >= Project Manager through assert_stage_date_editor; proven by pipeline_stage_history_write.test.sql.
 --
--- ⚑ AMENDED BY 0484 (#1602 ECA-5): `accept_invoice_pairs` joins the retained set (+1, count 126 on dev's 125, re-derived by hand from the 126 rows of the list). SECURITY DEFINER
--- writer under a member's JWT: re-asserts active membership, org, role Admin/Finance and the ERP-owns-revenue gate, re-checks every pair on locked rows;
+-- ⚑ AMENDED BY 0484 (#1602 ECA-5): `accept_invoice_pairs` and `unpair_invoice` join the retained set (+2, count 127 on dev's 125, re-derived by hand from the 127 rows of the list). SECURITY DEFINER
+-- writers under a member's JWT: re-assert active membership, org and role Admin/Finance (accept also the ERP-owns-revenue gate and re-checks every pair on locked rows);
 -- proven by supabase/tests/invoice_pairs.test.sql. `propose_invoice_pairs`, `list_unpaired_native_invoices`, `invoice_pair_candidates` are INVOKER and not listed.
 --
 -- ⚑ AMENDED BY 0450 (#1614): `create_vault_secret_for_org` LEAVES the retained set (-1, count 109, re-derived by hand
@@ -252,6 +252,7 @@ insert into client_callable_rpc_names (proname) values
   ('propose_imprest_float_amount'),
   ('record_vendor_withholding_slip'),
   ('correct_vendor_withholding_slip'),
+  ('unpair_invoice'),
   ('void_vendor_withholding_slip'),
   ('create_procurement_quotation'),
   ('create_procurement_receipt'),
@@ -367,8 +368,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  126,
-  'AC-ACL-002 all 126 retained client-callable RPC names still have a public function');
+  127,
+  'AC-ACL-002 all 127 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -377,8 +378,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  126,
-  'AC-ACL-003 all 126 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  127,
+  'AC-ACL-003 all 127 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

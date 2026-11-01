@@ -4,8 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { repositories } from '@/src/lib/repositories';
 import { formatCurrency, formatDateOnly } from '@/src/lib/format';
-import type { InvoicePairProposal, UnpairedReason } from '@/src/lib/db/revenue';
+import type { AcceptedInvoicePair, InvoicePairProposal, UnpairedReason } from '@/src/lib/db/revenue';
 import { Button, ConfirmDialog } from '@/src/components/ui';
+import { AppError } from '@/src/lib/appError';
 
 /**
  * ECA-5 (#1602, AC-ECA-030): PMO invoices that are the same invoice the ERP already holds. One bulk accept makes
@@ -18,6 +19,7 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
   const canPair = may('pair_invoices', 'salesInvoice');
   const qc = useQueryClient();
   const [confirming, setConfirming] = useState(false);
+  const [undoing, setUndoing] = useState<AcceptedInvoicePair | null>(null);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -52,10 +54,18 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
     'no-match': t('invoicePairs.reason.noMatch', 'No matching ERP invoice'),
     'ambiguous': t('invoicePairs.reason.ambiguous', 'More than one ERP invoice matches'),
     'has-receipt': t('invoicePairs.reason.hasReceipt', 'PMO already recorded a payment on this invoice'),
+    'project-differs': t('invoicePairs.reason.projectDiffers', 'The ERP invoice is on a different project or work order'),
   };
   const countLabel = (n: number) => n === 1
     ? t('invoicePairs.countOne', '1 invoice')
     : t('invoicePairs.countOther', '{{count}} invoices', { count: n });
+
+  // Every figure that sums invoices moves when a pair is accepted or undone.
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: ['invoicePairs'] });
+    void qc.invalidateQueries({ queryKey: ['salesInvoices'] });
+    void qc.invalidateQueries({ queryKey: ['project-finances'] });
+  };
 
   const accept = async () => {
     setSaving(true);
@@ -67,26 +77,43 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
       setNotice(applied === 1
         ? t('invoicePairs.doneOne', '1 invoice now counts once.')
         : t('invoicePairs.doneOther', '{{count}} invoices now count once.', { count: applied }));
-    } catch {
-      setError(t('invoicePairs.failed', 'No invoice was changed. The list may be out of date; it has been reloaded. Try again.'));
+    } catch (e) {
+      const detail = e instanceof AppError ? e.details : undefined;
+      setError(detail === 'pair-not-eligible' || detail === 'already-paired' || detail === 'pair-not-found'
+        ? t('invoicePairs.failedStale', 'No invoice was changed. A pair is no longer a clear match; the list has been reloaded. Review it and try again.')
+        : t('invoicePairs.failed', 'No invoice was changed. The list may be out of date; it has been reloaded. Try again.'));
     } finally {
       setSaving(false);
       setConfirming(false);
-      // Every figure that sums invoices moves when a pair is accepted.
-      void qc.invalidateQueries({ queryKey: ['invoicePairs'] });
-      void qc.invalidateQueries({ queryKey: ['salesInvoices'] });
-      void qc.invalidateQueries({ queryKey: ['project-finances'] });
+      refresh();
+    }
+  };
+
+  const undo = async () => {
+    if (!undoing) return;
+    setSaving(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await repositories.revenue.unpairInvoice(undoing.pmoInvoiceId);
+      setNotice(t('invoicePairs.undoDone', '{{number}} counts on its own again.', { number: undoing.pmoNumber ?? '-' }));
+    } catch {
+      setError(t('invoicePairs.undoFailed', 'Nothing was changed. The pair may already be undone; the list has been reloaded.'));
+    } finally {
+      setSaving(false);
+      setUndoing(null);
+      refresh();
     }
   };
 
   const th = 'px-2 py-1.5 text-left text-xs font-medium text-muted-foreground';
   const td = 'px-2 py-1.5 align-top';
   return (
-    <section id='invoice-pairs' className='mt-4 space-y-4 text-sm' aria-labelledby='invoice-pairs-title'>
+    <section id='invoice-pairs' className='panel-card mb-[var(--space-panel-gap)] min-w-0 space-y-4 p-[var(--panel-inset)] text-sm' aria-labelledby='invoice-pairs-title'>
       <div>
-        <h3 id='invoice-pairs-title' className='font-medium'>
+        <h2 id='invoice-pairs-title' className='font-medium'>
           {t('invoicePairs.title', 'Invoices on both sides')}
-        </h3>
+        </h2>
         <p className='mt-1 text-muted-foreground'>
           {t('invoicePairs.intro', 'Some invoices PMO raised are also in your ERP. Count each sale once, as the ERP copy. The PMO copy stays on record, linked to it, and stops adding to revenue and receivables.')}
         </p>
@@ -120,7 +147,7 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
 
       {ambiguous.length > 0 && (
         <section aria-label={t('invoicePairs.needsDecision', 'Needs a decision')}>
-          <h4 className='font-medium'>{t('invoicePairs.needsDecision', 'Needs a decision')}</h4>
+          <h3 className='font-medium'>{t('invoicePairs.needsDecision', 'Needs a decision')}</h3>
           <p className='mt-1 text-muted-foreground'>
             {t('invoicePairs.needsDecisionHelp', 'These match more than one invoice. Open them in the ERP to tell them apart; PMO will not choose for you.')}
           </p>
@@ -136,7 +163,7 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
 
       {stillPmo.length > 0 && (
         <section aria-label={t('invoicePairs.stillPmo', 'Still counted as PMO invoices')}>
-          <h4 className='font-medium'>{t('invoicePairs.stillPmo', 'Still counted as PMO invoices')}</h4>
+          <h3 className='font-medium'>{t('invoicePairs.stillPmo', 'Still counted as PMO invoices')}</h3>
           <ul className='mt-2 divide-y divide-border'>
             {stillPmo.map((u) => (
               <li key={u.invoiceId} className='flex flex-wrap justify-between gap-2 py-1.5'>
@@ -157,15 +184,33 @@ export function InvoicePairReview({ orgId }: { orgId?: string }) {
           </summary>
           <ul className='mt-2 divide-y divide-border'>
             {done.map((d) => (
-              <li key={d.pmoInvoiceId} className='py-1.5'>
-                <span>{d.pmoNumber ?? '-'}</span>
-                <span className='text-muted-foreground'> · {t('invoicePairs.countedAs', 'counted as ERP invoice {{number}}', { number: d.erpNumber ?? '-' })} · {money(d.amount, d.currency)}</span>
+              <li key={d.pmoInvoiceId} className='flex flex-wrap items-center justify-between gap-2 py-1.5'>
+                <span>
+                  <span>{d.pmoNumber ?? '-'}</span>
+                  <span className='text-muted-foreground'> · {t('invoicePairs.countedAs', 'counted as ERP invoice {{number}}', { number: d.erpNumber ?? '-' })} · {money(d.amount, d.currency)}</span>
+                </span>
+                <Button
+                  size='sm' variant='ghost'
+                  aria-label={t('invoicePairs.undoFor', 'Undo {{number}}', { number: d.pmoNumber ?? '-' })}
+                  onClick={() => setUndoing(d)}
+                >
+                  {t('invoicePairs.undo', 'Undo')}
+                </Button>
               </li>
             ))}
           </ul>
         </details>
       )}
 
+      <ConfirmDialog
+        open={undoing !== null}
+        title={t('invoicePairs.undoTitle', 'Count {{number}} on its own again?', { number: undoing?.pmoNumber ?? '-' })}
+        description={t('invoicePairs.undoBody', 'The PMO invoice goes back into revenue and receivables. The ERP invoice {{erp}} stays, so if both count, the sale shows twice until you pair them again.', { erp: undoing?.erpNumber ?? '-' })}
+        confirmLabel={t('invoicePairs.undo', 'Undo')}
+        loading={saving}
+        onConfirm={() => void undo()}
+        onCancel={() => setUndoing(null)}
+      />
       <ConfirmDialog
         open={confirming}
         title={t('invoicePairs.confirmTitle', 'Count these invoices once?')}

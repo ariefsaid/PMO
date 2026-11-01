@@ -3,7 +3,7 @@
 -- Fixtures load with no JWT (a server load); every assertion runs as a real caller.
 begin;
 create extension if not exists pgtap;
-select plan(63);
+select plan(95);
 
 -- ── fixture ────────────────────────────────────────────────────────────────────────────────────
 insert into public.organizations (id, name) values
@@ -175,6 +175,12 @@ select is((select project_id from public.sales_invoices where id = '04840000-000
           '04840000-0000-0000-0000-0000000000c1'::uuid, 'the ERP invoice stays on the project');
 select is((select count(*)::int from public.audit_events where action = 'revenue.invoice_pair'
             and org_id = '04840000-0000-0000-0000-000000000001'), 1, 'one audit row records the accept');
+select is((select detail -> 'pairs' -> 0 ->> 'erp' from public.audit_events where action = 'revenue.invoice_pair'
+            and org_id = '04840000-0000-0000-0000-000000000001'), '04840000-0000-0000-0000-0000000005e1',
+          'the audit row names each pair, not only a count');
+select is((select detail -> 'pairs' -> 0 ->> 'pmo' from public.audit_events where action = 'revenue.invoice_pair'
+            and org_id = '04840000-0000-0000-0000-000000000001'), '04840000-0000-0000-0000-0000000005a1',
+          'the audit row names the PMO invoice of each pair');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select is((public.get_project_finances('04840000-0000-0000-0000-0000000000c1') #>> '{invoices,0,invoiced}')::numeric, 26100::numeric,
@@ -275,12 +281,123 @@ select is((public.get_project_finances('04840000-0000-0000-0000-0000000000c1') #
           'the second sale is counted once too (26,100 + 2,500)');
 reset role;
 
+-- ── 6c. unpair (I3): Admin or Finance undo an accept; the sale goes back to counting as the PMO copy ──
+reset role;
+select ok(not has_function_privilege('anon', 'public.unpair_invoice(uuid)', 'execute'), 'unpair_invoice is not anon-executable');
+select is((select billing_kind from public.sales_invoices where id = '04840000-0000-0000-0000-0000000005e7'),
+          (select billing_kind from public.sales_invoices where id = '04840000-0000-0000-0000-0000000005a6'),
+          'fixture: the accept copied the PMO copy''s billing kind to the ERP copy');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select throws_ok($$select public.unpair_invoice('04840000-0000-0000-0000-0000000005a6')$$, '42501', null, 'I3 an Engineer cannot unpair');
+set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select throws_ok($$select public.unpair_invoice('04840000-0000-0000-0000-0000000005a6')$$, '23514', null,
+                 'I3 another org''s Finance cannot unpair org A''s pair');
+set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$select public.unpair_invoice('04840000-0000-0000-0000-0000000005a2')$$, '23514', null, 'I3 an invoice that is not paired cannot be unpaired');
+select lives_ok($$select public.unpair_invoice('04840000-0000-0000-0000-0000000005a6')$$, 'I3 Finance unpairs N6');
+select is((public.get_project_finances('04840000-0000-0000-0000-0000000000c1') #>> '{invoices,0,invoiced}')::numeric, 28600::numeric,
+          'I3 after unpair the sale still counts once: N6 counts again and the ERP copy''s project fill is undone');
+reset role;
+select is((select paired_erp_invoice_id from public.sales_invoices where id = '04840000-0000-0000-0000-0000000005a6'), null::uuid, 'I3 the PMO copy is unpaired');
+select ok((select paired_at is null and paired_by is null from public.sales_invoices where id = '04840000-0000-0000-0000-0000000005a6'), 'I3 unpair clears who and when');
+select is((select project_id from public.sales_invoices where id = '04840000-0000-0000-0000-0000000005e7'), null::uuid,
+          'I3 the ERP copy loses the project the accept had filled');
+select is((select count(*)::int from public.sales_invoice_work_billed where id = '04840000-0000-0000-0000-0000000005a6'), 1,
+          'I3 the unpaired PMO copy is counted again');
+select is((select detail ->> 'pmo' from public.audit_events where action = 'revenue.invoice_unpair'
+            and org_id = '04840000-0000-0000-0000-000000000001'), '04840000-0000-0000-0000-0000000005a6', 'I3 unpair is audited with the pair named');
+-- N1: the accept had filled the ERP copy's work order, not its project (an attribution it already had)
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+select lives_ok($$select public.unpair_invoice('04840000-0000-0000-0000-0000000005a1')$$, 'I3 an Admin unpairs N1');
+reset role;
+select is((select work_order_id from public.sales_invoices where id = '04840000-0000-0000-0000-0000000005e1'), null::uuid,
+          'I3 the ERP copy loses the work order the accept had filled');
+select is((select project_id from public.sales_invoices where id = '04840000-0000-0000-0000-0000000005e1'), '04840000-0000-0000-0000-0000000000c1'::uuid,
+          'I3 the ERP copy keeps the project it had before the accept');
+select is((select invoiced from public.work_order_billing where work_order_id = '04840000-0000-0000-0000-0000000000d1'), 10000::numeric,
+          'I3 the work order is billed once again, by the PMO copy');
+-- N6 pairs again (single candidate): the unpair left nothing behind
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(public.accept_invoice_pairs('[{"pmo":"04840000-0000-0000-0000-0000000005a6","erp":"04840000-0000-0000-0000-0000000005e7"}]'::jsonb), 1,
+          'I3 an unpaired invoice can be paired again');
+reset role;
+
+-- ── 6d. a pair never moves revenue between projects or work orders (I1) ───────────────────────
+insert into public.projects (id, org_id, name, status, currency, contract_value, tax_treatment, tax_amount, tax_rate,
+                             tax_base_numerator, tax_base_denominator, subject_to_vat, client_id, project_manager_id) values
+  ('04840000-0000-0000-0000-0000000000c2', '04840000-0000-0000-0000-000000000001', 'Pair Q', 'Ongoing Project', 'USD',
+   1000000, 'exclusive', 0, 0, 1, 1, false, '04840000-0000-0000-0000-0000000000f1', '04840000-0000-0000-0000-0000000000a4');
+insert into public.work_orders (id, org_id, project_id, title, status, wo_number, order_value, tax_treatment, tax_amount) values
+  ('04840000-0000-0000-0000-0000000000d2', '04840000-0000-0000-0000-000000000001', '04840000-0000-0000-0000-0000000000c2',
+   'Pair WO 2', 'Issued', 'WO-PAIR-2', 500000, 'exclusive', 0),
+  ('04840000-0000-0000-0000-0000000000d3', '04840000-0000-0000-0000-000000000001', '04840000-0000-0000-0000-0000000000c2',
+   'Pair WO 3', 'Issued', 'WO-PAIR-3', 500000, 'exclusive', 0);
+-- N8 (project Q) vs E8 already on project P; N9 (Q, WO 2) vs E9 (Q, WO 3); N10 (Q) vs E10 (Q); N11 (Q, WO 2) vs E11 (Q, WO 2)
+insert into public.sales_invoices (id, org_id, project_id, work_order_id, customer_id, invoice_date, amount, erp_outstanding_amount,
+                                   tax_treatment, tax_amount, currency, status, reference_number, native_lines, pmo_native, author_user_id, pmo_number) values
+  ('04840000-0000-0000-0000-0000000005b8', '04840000-0000-0000-0000-000000000001', '04840000-0000-0000-0000-0000000000c2', null,
+   '04840000-0000-0000-0000-0000000000f1', '2026-03-16', 800, 800, 'exclusive', 0, 'USD', 'Unpaid', 'PO-81', '[{"description":"n8"}]', true, '04840000-0000-0000-0000-0000000000a1', 'PMO-N8'),
+  ('04840000-0000-0000-0000-0000000005b9', '04840000-0000-0000-0000-000000000001', '04840000-0000-0000-0000-0000000000c2', '04840000-0000-0000-0000-0000000000d2',
+   '04840000-0000-0000-0000-0000000000f1', '2026-03-16', 900, 900, 'exclusive', 0, 'USD', 'Unpaid', 'PO-82', '[{"description":"n9"}]', true, '04840000-0000-0000-0000-0000000000a1', 'PMO-N9'),
+  ('04840000-0000-0000-0000-0000000005ba', '04840000-0000-0000-0000-000000000001', '04840000-0000-0000-0000-0000000000c2', null,
+   '04840000-0000-0000-0000-0000000000f1', '2026-03-16', 700, 700, 'exclusive', 0, 'USD', 'Unpaid', 'PO-83', '[{"description":"n10"}]', true, '04840000-0000-0000-0000-0000000000a1', 'PMO-N10'),
+  ('04840000-0000-0000-0000-0000000005bb', '04840000-0000-0000-0000-000000000001', '04840000-0000-0000-0000-0000000000c2', '04840000-0000-0000-0000-0000000000d2',
+   '04840000-0000-0000-0000-0000000000f1', '2026-03-16', 600, 600, 'exclusive', 0, 'USD', 'Unpaid', 'PO-84', '[{"description":"n11"}]', true, '04840000-0000-0000-0000-0000000000a1', 'PMO-N11');
+insert into public.sales_invoices (id, org_id, project_id, work_order_id, customer_id, si_number, invoice_date, amount,
+                                   erp_outstanding_amount, tax_treatment, tax_amount, currency, status, erp_docstatus, reference_number) values
+  ('04840000-0000-0000-0000-0000000005c8', '04840000-0000-0000-0000-000000000001', '04840000-0000-0000-0000-0000000000c1', null,
+   '04840000-0000-0000-0000-0000000000f1', 'SI-E8', '2026-03-26', 800, 800, 'inclusive', 0, 'USD', 'Unpaid', 1, 'PO-81'),
+  ('04840000-0000-0000-0000-0000000005c9', '04840000-0000-0000-0000-000000000001', '04840000-0000-0000-0000-0000000000c2', '04840000-0000-0000-0000-0000000000d3',
+   '04840000-0000-0000-0000-0000000000f1', 'SI-E9', '2026-03-26', 900, 900, 'inclusive', 0, 'USD', 'Unpaid', 1, 'PO-82'),
+  ('04840000-0000-0000-0000-0000000005ca', '04840000-0000-0000-0000-000000000001', '04840000-0000-0000-0000-0000000000c2', null,
+   '04840000-0000-0000-0000-0000000000f1', 'SI-E10', '2026-03-26', 700, 700, 'inclusive', 0, 'USD', 'Unpaid', 1, 'PO-83'),
+  ('04840000-0000-0000-0000-0000000005cb', '04840000-0000-0000-0000-000000000001', '04840000-0000-0000-0000-0000000000c2', '04840000-0000-0000-0000-0000000000d2',
+   '04840000-0000-0000-0000-0000000000f1', 'SI-E11', '2026-03-26', 600, 600, 'inclusive', 0, 'USD', 'Unpaid', 1, 'PO-84');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((select count(*)::int from public.propose_invoice_pairs() where pmo_invoice_id in
+            ('04840000-0000-0000-0000-0000000005b8', '04840000-0000-0000-0000-0000000005b9')), 0,
+          'I1 an ERP copy on another project or work order is never proposed (the pair would move revenue)');
+select is((select count(*)::int from public.propose_invoice_pairs() where pmo_invoice_id in
+            ('04840000-0000-0000-0000-0000000005ba', '04840000-0000-0000-0000-0000000005bb')), 2,
+          'I1 an ERP copy on the same project (or the same work order) is still proposed');
+select throws_ok($$select public.accept_invoice_pairs('[{"pmo":"04840000-0000-0000-0000-0000000005b8","erp":"04840000-0000-0000-0000-0000000005c8"}]'::jsonb)$$,
+                 '23514', null, 'I1 accept refuses a pair whose ERP copy sits on another project');
+select throws_ok($$select public.accept_invoice_pairs('[{"pmo":"04840000-0000-0000-0000-0000000005b9","erp":"04840000-0000-0000-0000-0000000005c9"}]'::jsonb)$$,
+                 '23514', null, 'I1 accept refuses a pair whose ERP copy sits on another work order');
+select is((select reason from public.list_unpaired_native_invoices() where invoice_id = '04840000-0000-0000-0000-0000000005b8'), 'project-differs',
+          'I1 the project mismatch is listed with its reason');
+select is((select reason from public.list_unpaired_native_invoices() where invoice_id = '04840000-0000-0000-0000-0000000005b9'), 'project-differs',
+          'I1 the work-order mismatch is listed with its reason');
+select is(public.accept_invoice_pairs('[{"pmo":"04840000-0000-0000-0000-0000000005ba","erp":"04840000-0000-0000-0000-0000000005ca"}]'::jsonb), 1,
+          'I1 a same-project pair still accepts');
+-- M11: only the roles that may pair can read the candidate rule
+select cmp_ok((select count(*)::int from public.invoice_pair_candidates()), '>', 0, 'M11 Finance reads the candidate rule');
+set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+select is((select count(*)::int from public.invoice_pair_candidates()), 0, 'M11 a Project Manager reads no candidates');
+reset role;
+
 -- ── 7. the guard: only the accept may set the pair columns ────────────────────────────────────
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok($$update public.sales_invoices set paired_erp_invoice_id = '04840000-0000-0000-0000-0000000005e3' where id = '04840000-0000-0000-0000-0000000005a2'$$,
-                 '42501', null, 'PD-ECA-11 a direct write of paired_erp_invoice_id by a person is refused');
+                 '42501', null, 'PD-ECA-11 a direct write of paired_erp_invoice_id by a person is refused (no table privilege)');
 reset role;
+-- The privilege layer is not what holds the pin: open it (and row security) for the test and the trigger alone must refuse.
+grant update on public.sales_invoices to authenticated;
+create policy pair_pin_probe on public.sales_invoices for update to authenticated using (true) with check (true);
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok($$update public.sales_invoices set paired_erp_invoice_id = '04840000-0000-0000-0000-0000000005e3', paired_at = now(),
+                          paired_by = '04840000-0000-0000-0000-0000000000a1' where id = '04840000-0000-0000-0000-0000000005a2'$$,
+                 '42501', 'an invoice is paired only by accepting a proposed pair',
+                 'PD-ECA-11 the trigger pin refuses a person''s write even with the table privilege and row access open');
+reset role;
+drop policy pair_pin_probe on public.sales_invoices;
+revoke update on public.sales_invoices from authenticated;
 
 -- a server-side session (current_user = postgres, no flag) is refused too: the flag, not the role alone, opens the pin
 select throws_ok($$update public.sales_invoices set paired_erp_invoice_id = '04840000-0000-0000-0000-0000000005e3', paired_at = now(),
@@ -303,6 +420,17 @@ set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a1","r
 select throws_ok($$update public.sales_invoices set paired_erp_invoice_id = '04840000-0000-0000-0000-0000000005e3' where id = '04840000-0000-0000-0000-0000000005a2'$$,
                  '42501', null, 'PD-ECA-11 the pair column is pinned even when the ERP does not own revenue');
 reset role;
+
+
+-- ── 9. a paired copy takes no native write once PMO owns revenue again (M7) ──────────────────────
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+select throws_ok($$select public.transition_native_sales_invoice('04840000-0000-0000-0000-0000000005a6', 'Cancelled')$$, '42501',
+                 'a paired invoice counts through its ERP invoice and cannot be changed in PMO', 'M7 a paired copy cannot be cancelled natively');
+reset role;
+select throws_ok($$update public.sales_invoices set status = 'Paid', erp_outstanding_amount = 0 where id = '04840000-0000-0000-0000-0000000005a6'$$,
+                 '42501', 'a paired invoice counts through its ERP invoice and cannot be changed in PMO', 'M7 a paired copy takes no status or balance write');
+select lives_ok($$update public.sales_invoices set pmo_number = pmo_number where id = '04840000-0000-0000-0000-0000000005a6'$$, 'M7 a no-op write on a paired copy is allowed');
 
 select * from finish();
 rollback;

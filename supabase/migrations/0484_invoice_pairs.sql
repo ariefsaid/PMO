@@ -16,21 +16,25 @@ alter table public.sales_invoices
   add column paired_erp_invoice_id uuid references public.sales_invoices(id),
   add column paired_at timestamptz,
   add column paired_by uuid references public.profiles(id),
+  add column paired_filled jsonb,
   add constraint sales_invoices_pair_shape check (
     (paired_erp_invoice_id is null) = (paired_at is null)
     and (paired_erp_invoice_id is null) = (paired_by is null)
+    and (paired_erp_invoice_id is null) = (paired_filled is null)
     and paired_erp_invoice_id is distinct from id);
 create unique index sales_invoices_one_pair on public.sales_invoices (paired_erp_invoice_id) where paired_erp_invoice_id is not null;
 comment on column public.sales_invoices.paired_erp_invoice_id is
-  'ECA-5 PD-ECA-11: the ERP invoice that counts for this PMO-raised invoice. Set only by accept_invoice_pairs; a non-null value removes this row from every revenue, receivable and overdue figure.';
+  'ECA-5 PD-ECA-11: the ERP invoice that counts for this PMO-raised invoice. Set only by accept_invoice_pairs; a non-null value removes this row from every revenue, receivable and overdue figure. A paired Unpaid copy also still carries erp_opening_amount (DD-NAR-16): any opening-entry reconciliation must exclude rows where this is set.';
+comment on column public.sales_invoices.paired_filled is
+  'ECA-5: what accept_invoice_pairs filled on the ERP copy (project, prior billing kind, work order), so unpair_invoice can undo exactly that. Set with the pair, never by a client.';
 
 -- §2 history: classified once (the catalog gate fails on an unclassified column). The pair is the event; who and when are in the audit row.
 update public.record_history_config
    set captured = captured || '{"paired_erp_invoice_id":"ref"}'::jsonb,
-       omit_cols = omit_cols || array['paired_at','paired_by']
+       omit_cols = omit_cols || array['paired_at','paired_by','paired_filled']
  where entity_type = 'sales_invoice';
 
--- §3 mirror guard: 0410 body verbatim + the pair-column pin and one narrow exemption (a pairing may fill an empty work order).
+-- §3 mirror guard: 0410 body verbatim + the pair-column pin, the paired-copy freeze, and one narrow exemption (a pairing may set the work order on the ERP copy).
 create or replace function public.sales_invoices_native_mirror_guard() returns trigger
   language plpgsql set search_path = public as $$
 begin
@@ -39,9 +43,18 @@ begin
   -- in its own transaction). Pinned before the externally-owned early return: a person never sets them directly.
   if (new.paired_erp_invoice_id is distinct from old.paired_erp_invoice_id
       or new.paired_at is distinct from old.paired_at
-      or new.paired_by is distinct from old.paired_by)
+      or new.paired_by is distinct from old.paired_by
+      or new.paired_filled is distinct from old.paired_filled)
      and not (current_user = 'postgres' and coalesce(current_setting('pmo.invoice_pairing', true), '') = 'on') then
     raise exception 'an invoice is paired only by accepting a proposed pair' using errcode = '42501';
+  end if;
+  -- A paired copy counts through its ERP invoice: no native status, amount or balance write, even if PMO later owns revenue again.
+  if old.paired_erp_invoice_id is not null and new.paired_erp_invoice_id is not distinct from old.paired_erp_invoice_id
+     and (new.status is distinct from old.status or new.amount is distinct from old.amount
+          or new.erp_outstanding_amount is distinct from old.erp_outstanding_amount
+          or new.overpaid_amount is distinct from old.overpaid_amount
+          or new.native_lines is distinct from old.native_lines) then
+    raise exception 'a paired invoice counts through its ERP invoice and cannot be changed in PMO' using errcode = '42501';
   end if;
   if new.erp_project is distinct from old.erp_project then
     raise exception 'ERP project provenance is read-only' using errcode = '42501';
@@ -67,7 +80,7 @@ begin
      or new.tax_rate is distinct from old.tax_rate               -- 0188 (#478)
      or new.tax_template is distinct from old.tax_template       -- 0188 (#478)
      or (new.work_order_id is distinct from old.work_order_id    -- 0193 (#498): which scope grant this bills
-         and not (current_user = 'postgres' and coalesce(current_setting('pmo.invoice_pairing', true), '') = 'on' and old.work_order_id is null)) -- 0484: a pairing may fill an empty one
+         and not (current_user = 'postgres' and coalesce(current_setting('pmo.invoice_pairing', true), '') = 'on')) -- 0484: accept fills an empty one, unpair clears what it filled
      or new.pmo_native is distinct from old.pmo_native           -- 0275 (#784)
      or new.pmo_number is distinct from old.pmo_number           -- 0275 (#784)
      or new.native_lines is distinct from old.native_lines       -- 0275 (#784)
@@ -100,13 +113,6 @@ create or replace view public.sales_invoice_work_billed with (security_invoker =
 revoke all on public.sales_invoice_work_billed from public, anon, authenticated;
 grant select on public.sales_invoice_work_billed to authenticated;
 
--- ════════════════════════════════════════════════════════════════════════════════════════════════
--- §2 — work_order_billing_lines (DD-BWO-1): one row per record that bills a work order.
---   • a linked invoice that is not Cancelled, at its billed work (net + recovery; a down payment bills 0);
---   • a live progress claim on the work order with NO invoice yet, at its gross (it will become an invoice, and
---     0250 makes its invoice reuse the claim id — so a raised claim appears exactly once, as its invoice).
--- `billed` is NULL when the invoice has no amount; the aggregate below reports that as "not totalled".
--- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- §5 get_project_finances (0410 verbatim + the filter on the two invoice sets it reads directly).
 CREATE OR REPLACE FUNCTION public.get_project_finances(p_project_id uuid)
  RETURNS jsonb
@@ -470,13 +476,14 @@ grant execute on function public.get_project_finances(uuid) to authenticated;
 -- §6 candidates: the one rule every pairing step uses. SECURITY INVOKER (RLS and the caller's org apply); a PMO-raised invoice
 -- with no live receipt against a submitted ERP invoice of the same client, reference (or ERP number), tax-inclusive total,
 -- currency and month (FR-ECA-040). Optional filters let accept re-check a single pair without scanning the org.
-create or replace function public.invoice_pair_candidates(p_pmo_id uuid default null, p_erp_id uuid default null)
+create or replace function public.invoice_pair_candidates(p_pmo_id uuid default null, p_erp_id uuid default null, p_ignore_scope boolean default false)
   returns table (pmo_invoice_id uuid, erp_invoice_id uuid)
   language sql stable security invoker set search_path = public as $$
   select n.id, e.id
     from public.sales_invoices n
     join public.sales_invoices e on e.org_id = n.org_id and e.customer_id = n.customer_id
    where n.org_id = public.auth_org_id()
+     and public.auth_role() in ('Admin', 'Finance')   -- the roles that may pair; INVOKER, so RLS applies on top
      and (p_pmo_id is null or n.id = p_pmo_id) and (p_erp_id is null or e.id = p_erp_id)
      and n.pmo_native and n.status = 'Unpaid' and n.paired_erp_invoice_id is null
      and not exists (select 1 from public.incoming_payments ip
@@ -484,6 +491,10 @@ create or replace function public.invoice_pair_candidates(p_pmo_id uuid default 
      and not e.pmo_native and e.erp_docstatus = 1 and e.erp_cancelled_at is null
      and e.status in ('Submitted', 'Unpaid', 'Paid')
      and not exists (select 1 from public.sales_invoices t where t.paired_erp_invoice_id = e.id)
+     -- A pair never moves revenue: the ERP copy has no project (or work order) of its own yet, or the PMO copy's own.
+     -- p_ignore_scope drops only this test, so the review list can say "same invoice, different project".
+     and (p_ignore_scope or ((e.project_id is null or e.project_id = n.project_id)
+                             and (e.work_order_id is null or e.work_order_id = n.work_order_id)))
      and ((n.reference_number is not null and n.reference_number = e.reference_number)
           or (n.si_number is not null and n.si_number = e.si_number))
      -- Compared on the tax-inclusive total: PMO invoices are raised exclusive of tax, the ERP mirror stores its grand total (inclusive),
@@ -493,8 +504,8 @@ create or replace function public.invoice_pair_candidates(p_pmo_id uuid default 
        = case when e.tax_treatment = 'inclusive' then e.amount else e.amount + e.tax_amount end
      and date_trunc('month', n.invoice_date) = date_trunc('month', e.invoice_date)
 $$;
-revoke all on function public.invoice_pair_candidates(uuid, uuid) from public, anon;
-grant execute on function public.invoice_pair_candidates(uuid, uuid) to authenticated;
+revoke all on function public.invoice_pair_candidates(uuid, uuid, boolean) from public, anon;
+grant execute on function public.invoice_pair_candidates(uuid, uuid, boolean) to authenticated;
 
 -- §7 propose (read-only). Admin/Finance of an org whose ERP owns revenue. `ambiguous` = either side has more than one candidate;
 -- those rows are listed for a person to decide and are never accepted in bulk.
@@ -545,11 +556,12 @@ begin
            case when exists (select 1 from public.incoming_payments ip
                               where ip.org_id = n.org_id and ip.sales_invoice_id = n.id and ip.cancelled_at is null) then 'has-receipt'
                 when n.id in (select pmo_invoice_id from amb) then 'ambiguous'
+                when n.id in (select pmo_invoice_id from public.invoice_pair_candidates(null, null, true)) then 'project-differs'
                 else 'no-match' end
       from public.sales_invoices n
       left join public.companies co on co.id = n.customer_id
      where n.org_id = public.auth_org_id() and n.pmo_native and n.paired_erp_invoice_id is null
-       and n.status in ('Submitted', 'Unpaid', 'Paid')
+       and n.status in ('Unpaid', 'Paid')   -- a PMO invoice is Draft, Unpaid, Paid or Cancelled; a Draft is not yet a sale
        and (n.id in (select pmo_invoice_id from amb) or n.id not in (select pmo_invoice_id from c))
      order by n.invoice_date, n.pmo_number;
 end $$;
@@ -570,6 +582,8 @@ declare
   v_n     public.sales_invoices%rowtype;
   v_e     public.sales_invoices%rowtype;
   v_count int := 0;
+  v_fill  jsonb;
+  v_pairs jsonb := '[]'::jsonb;
 begin
   -- SECURITY: membership, role, ownership and org re-assertions MUST stay - a SECURITY DEFINER body bypasses RLS.
   perform public.assert_is_active_member();
@@ -604,22 +618,29 @@ begin
     end if;
     -- The PMO copy stops counting first, so the work-order capacity check below sees the sale once.
     update public.sales_invoices
-       set paired_erp_invoice_id = v_e.id, paired_at = now(), paired_by = v_uid
+       set paired_erp_invoice_id = v_e.id, paired_at = now(), paired_by = v_uid, paired_filled = '{}'::jsonb
      where id = v_n.id;
-    -- The ERP copy takes the PMO copy's project, kind and work order when it has none of its own.
+    -- The ERP copy takes the PMO copy's project, kind and work order when it has none of its own (the candidate rule
+    -- guarantees it has none or the same). What is filled is recorded so unpair_invoice can undo exactly that. The ERP
+    -- copy is never PMO-native (the candidate rule), so assign_sales_invoice_project's provenance check holds by construction.
+    v_fill := '{}'::jsonb;
     if v_e.project_id is null and v_n.project_id is not null then
       update public.sales_invoices set project_id = v_n.project_id, billing_kind = v_n.billing_kind where id = v_e.id;
+      v_fill := jsonb_build_object('project', true, 'billing_kind', v_e.billing_kind);
       v_e.project_id := v_n.project_id;
     end if;
     if v_e.work_order_id is null and v_n.work_order_id is not null and v_e.project_id is not distinct from v_n.project_id then
       update public.sales_invoices set work_order_id = v_n.work_order_id where id = v_e.id;
+      v_fill := v_fill || jsonb_build_object('work_order', true);
     end if;
+    update public.sales_invoices set paired_filled = v_fill where id = v_n.id;
+    v_pairs := v_pairs || jsonb_build_array(jsonb_build_object('pmo', v_n.id, 'erp', v_e.id));
     v_count := v_count + 1;
   end loop;
   -- The flag is transaction-local; close it here so nothing later in the same transaction rides on it.
   perform set_config('pmo.invoice_pairing', 'off', true);
   if v_count > 0 then
-    perform public.log_audit('revenue.invoice_pair', v_org, v_uid, null, jsonb_build_object('count', v_count));
+    perform public.log_audit('revenue.invoice_pair', v_org, v_uid, null, jsonb_build_object('count', v_count, 'pairs', v_pairs));
   end if;
   return v_count;
 end $$;
@@ -628,3 +649,45 @@ revoke all on function public.accept_invoice_pairs(jsonb) from public, anon;
 grant execute on function public.accept_invoice_pairs(jsonb) to authenticated;
 comment on function public.accept_invoice_pairs(jsonb) is
   'ECA-5 FR-ECA-040: Admin/Finance accepts proposed invoice pairs in bulk. Re-checks every pair; sets paired_erp_invoice_id; the PMO copy stops counting.';
+
+-- §10 unpair. Undoes one accept: the PMO copy counts again and the ERP copy loses only what the accept filled (and only if that
+-- is still what it holds). SECURITY DEFINER for the same reason as accept; the pair is looked up on locked rows of the caller's org,
+-- so another org's invoice reads as "not found". It does not require the ERP to still own revenue: undoing must always be possible.
+create or replace function public.unpair_invoice(p_pmo_id uuid) returns void
+  language plpgsql security definer set search_path = public as $$
+declare
+  v_org  uuid := public.auth_org_id();
+  v_uid  uuid := auth.uid();
+  v_n    public.sales_invoices%rowtype;
+  v_e    public.sales_invoices%rowtype;
+  v_fill jsonb;
+begin
+  -- SECURITY: membership, role and org re-assertions MUST stay - a SECURITY DEFINER body bypasses RLS.
+  perform public.assert_is_active_member();
+  if public.auth_role() is null or public.auth_role() not in ('Admin', 'Finance') then
+    raise exception 'only Finance or an Admin can unpair an invoice' using errcode = '42501';
+  end if;
+  select * into v_n from public.sales_invoices where id = p_pmo_id and org_id = v_org for update;
+  if not found then raise exception 'invoice not found' using errcode = '23514', detail = 'pair-not-found'; end if;
+  if v_n.paired_erp_invoice_id is null then
+    raise exception 'this invoice is not paired' using errcode = '23514', detail = 'not-paired';
+  end if;
+  select * into v_e from public.sales_invoices where id = v_n.paired_erp_invoice_id and org_id = v_org for update;
+  v_fill := coalesce(v_n.paired_filled, '{}'::jsonb);
+  perform set_config('pmo.invoice_pairing', 'on', true);
+  update public.sales_invoices set paired_erp_invoice_id = null, paired_at = null, paired_by = null, paired_filled = null where id = v_n.id;
+  -- The work order goes first: its project check reads the ERP copy's project.
+  if (v_fill ->> 'work_order')::boolean is true and v_e.work_order_id is not distinct from v_n.work_order_id then
+    update public.sales_invoices set work_order_id = null where id = v_e.id;
+  end if;
+  if (v_fill ->> 'project')::boolean is true and v_e.project_id is not distinct from v_n.project_id then
+    update public.sales_invoices set project_id = null, billing_kind = coalesce(v_fill ->> 'billing_kind', 'contract') where id = v_e.id;
+  end if;
+  perform set_config('pmo.invoice_pairing', 'off', true);
+  perform public.log_audit('revenue.invoice_unpair', v_org, v_uid, null, jsonb_build_object('pmo', v_n.id, 'erp', v_n.paired_erp_invoice_id));
+end $$;
+alter function public.unpair_invoice(uuid) owner to postgres;
+revoke all on function public.unpair_invoice(uuid) from public, anon;
+grant execute on function public.unpair_invoice(uuid) to authenticated;
+comment on function public.unpair_invoice(uuid) is
+  'ECA-5: Admin/Finance undo an accepted invoice pair. The PMO copy counts again; the ERP copy loses only the project and work order the accept filled.';

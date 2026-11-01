@@ -9,6 +9,8 @@ const h = vi.hoisted(() => ({
   pages: [] as Array<Array<Record<string, unknown>>>,
   isCalls: [] as Array<[string, unknown]>,
   notCalls: [] as Array<[string, string, unknown]>,
+  single: null as Record<string, unknown> | null,
+  inCalls: [] as Array<[string, unknown]>,
 }));
 vi.mock('@/src/lib/supabase/client', () => ({
   supabase: {
@@ -17,6 +19,9 @@ vi.mock('@/src/lib/supabase/client', () => ({
       const b: Record<string, unknown> = {};
       Object.assign(b, {
         select: () => b,
+        eq: () => b,
+        in: (c: string, v: unknown) => { h.inCalls.push([c, v]); return b; },
+        maybeSingle: () => Promise.resolve({ data: h.single, error: null }),
         not: (c: string, op: string, v: unknown) => { h.notCalls.push([c, op, v]); return b; },
         order: () => b,
         range: () => b,
@@ -27,9 +32,9 @@ vi.mock('@/src/lib/supabase/client', () => ({
   },
 }));
 
-import { proposeInvoicePairs, acceptInvoicePairs, listUnpairedNativeInvoices, listAcceptedInvoicePairs } from './revenue';
+import { proposeInvoicePairs, acceptInvoicePairs, unpairInvoice, getSalesInvoice, listUnpairedNativeInvoices, listAcceptedInvoicePairs } from './revenue';
 
-beforeEach(() => { h.rpc.mockReset(); h.pages = []; h.notCalls = []; });
+beforeEach(() => { h.rpc.mockReset(); h.pages = []; h.notCalls = []; h.single = null; h.inCalls = []; });
 
 describe('invoice pairing DAL (ECA-5)', () => {
   it('AC-ECA-030 proposeInvoicePairs maps the proposal rows and keeps the ambiguous flag', async () => {
@@ -64,6 +69,27 @@ describe('invoice pairing DAL (ECA-5)', () => {
     await expect(acceptInvoicePairs([{ pmoInvoiceId: 'n1', erpInvoiceId: 'e1' }])).rejects.toThrow();
   });
 
+  it('I3 unpairInvoice sends the PMO invoice id and surfaces a refusal', async () => {
+    h.rpc.mockResolvedValue({ data: null, error: null });
+    await unpairInvoice('n1');
+    expect(h.rpc).toHaveBeenCalledWith('unpair_invoice', { p_pmo_id: 'n1' });
+
+    h.rpc.mockResolvedValue({ data: null, error: { message: 'this invoice is not paired', code: '23514', details: 'not-paired' } });
+    await expect(unpairInvoice('n1')).rejects.toMatchObject({ code: '23514', details: 'not-paired' });
+  });
+
+  it('M10 getSalesInvoice carries the ERP invoice number a paired copy counts as', async () => {
+    h.single = { id: 'n1', paired_erp_invoice_id: 'e1', companies: null, sales_invoice_authors: [] };
+    h.pages = [[{ id: 'e1', si_number: 'SI-9' }]];
+    expect((await getSalesInvoice('n1'))?.paired_erp_number).toBe('SI-9');
+    expect(h.inCalls).toContainEqual(['id', ['e1']]);
+
+    h.inCalls = [];
+    h.single = { id: 'x', paired_erp_invoice_id: null, companies: null, sales_invoice_authors: [] };
+    expect((await getSalesInvoice('x'))?.paired_erp_number).toBeUndefined();
+    expect(h.inCalls).toEqual([]);
+  });
+
   it('acceptInvoicePairs with nothing to accept makes no call', async () => {
     expect(await acceptInvoicePairs([])).toBe(0);
     expect(h.rpc).not.toHaveBeenCalled();
@@ -81,11 +107,16 @@ describe('invoice pairing DAL (ECA-5)', () => {
   });
 
   it('listAcceptedInvoicePairs reads PMO copies that now count as an ERP invoice, with the ERP number', async () => {
-    h.pages = [[{ id: 'n1', pmo_number: 'PMO-1', amount: 11100, currency: 'IDR', paired_at: '2026-11-02T01:00:00Z', erp: { si_number: 'SI-1' } }]];
+    // two reads: the paired PMO copies, then the numbers of the ERP invoices they point at (a self-embed is not resolvable by PostgREST)
+    h.pages = [
+      [{ id: 'n1', pmo_number: 'PMO-1', amount: 11100, currency: 'IDR', paired_at: '2026-11-02T01:00:00Z', paired_erp_invoice_id: 'e1' }],
+      [{ id: 'e1', si_number: 'SI-1' }],
+    ];
 
     const rows = await listAcceptedInvoicePairs();
 
     expect(h.notCalls).toContainEqual(['paired_erp_invoice_id', 'is', null]);
+    expect(h.inCalls).toContainEqual(['id', ['e1']]);
     expect(rows).toEqual([{ pmoInvoiceId: 'n1', pmoNumber: 'PMO-1', amount: 11100, currency: 'IDR', pairedAt: '2026-11-02T01:00:00Z', erpNumber: 'SI-1' }]);
   });
 });

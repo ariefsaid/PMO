@@ -183,7 +183,8 @@
     "reason": {
       "noMatch": "No matching ERP invoice",
       "ambiguous": "More than one ERP invoice matches",
-      "hasReceipt": "PMO already recorded a payment on this invoice"
+      "hasReceipt": "PMO already recorded a payment on this invoice",
+      "projectDiffers": "The ERP invoice is on a different project or work order"
     },
     "countOne": "1 invoice",
     "countOther": "{{count}} invoices",
@@ -195,6 +196,13 @@
     "countedAs": "counted as ERP invoice {{number}}",
     "confirmTitle": "Count these invoices once?",
     "confirmBody": "Count {{what}} once, as the ERP copy?",
-    "confirmAction": "Count once"
+    "confirmAction": "Count once",
+    "failedStale": "No invoice was changed. A pair is no longer a clear match; the list has been reloaded. Review it and try again.",
+    "undo": "Undo",
+    "undoFor": "Undo {{number}}",
+    "undoTitle": "Count {{number}} on its own again?",
+    "undoBody": "The PMO invoice goes back into revenue and receivables. The ERP invoice {{erp}} stays, so if both count, the sale shows twice until you pair them again.",
+    "undoDone": "{{number}} counts on its own again.",
+    "undoFailed": "Nothing was changed. The pair may already be undone; the list has been reloaded."
   }
 }

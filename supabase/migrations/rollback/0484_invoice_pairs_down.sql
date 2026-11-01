@@ -1,5 +1,5 @@
 -- 0484_invoice_pairs_down.sql - reverses 0484. Refuses while any invoice is paired: dropping the column would put every paired
--- PMO copy back into revenue and receivables next to its ERP invoice (a double count). Unpair first (or restore from backup).
+-- PMO copy back into revenue and receivables next to its ERP invoice (a double count). Unpair each pair first (unpair_invoice, Admin or Finance).
 do $$ begin
   if exists (select 1 from public.sales_invoices where paired_erp_invoice_id is not null) then
     raise exception 'invoice pairs exist (paired_erp_invoice_id is set); rollback refused - it would count those sales twice'
@@ -7,10 +7,11 @@ do $$ begin
   end if;
 end $$;
 
+drop function public.unpair_invoice(uuid);
 drop function public.accept_invoice_pairs(jsonb);
 drop function public.list_unpaired_native_invoices();
 drop function public.propose_invoice_pairs();
-drop function public.invoice_pair_candidates(uuid, uuid);
+drop function public.invoice_pair_candidates(uuid, uuid, boolean);
 
 -- readers back to their prior definitions (view: 0262; get_project_finances and the guard: 0410)
 create or replace view public.sales_invoice_work_billed with (security_invoker = true) as
@@ -24,13 +25,6 @@ create or replace view public.sales_invoice_work_billed with (security_invoker =
 revoke all on public.sales_invoice_work_billed from public, anon, authenticated;
 grant select on public.sales_invoice_work_billed to authenticated;
 
--- ════════════════════════════════════════════════════════════════════════════════════════════════
--- §2 — work_order_billing_lines (DD-BWO-1): one row per record that bills a work order.
---   • a linked invoice that is not Cancelled, at its billed work (net + recovery; a down payment bills 0);
---   • a live progress claim on the work order with NO invoice yet, at its gross (it will become an invoice, and
---     0250 makes its invoice reuse the claim id — so a raised claim appears exactly once, as its invoice).
--- `billed` is NULL when the invoice has no amount; the aggregate below reports that as "not totalled".
--- ════════════════════════════════════════════════════════════════════════════════════════════════
 CREATE OR REPLACE FUNCTION public.get_project_finances(p_project_id uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -436,9 +430,9 @@ end; $$;
 
 update public.record_history_config
    set captured = captured - 'paired_erp_invoice_id',
-       omit_cols = array_remove(array_remove(omit_cols, 'paired_at'), 'paired_by')
+       omit_cols = array_remove(array_remove(array_remove(omit_cols, 'paired_at'), 'paired_by'), 'paired_filled')
  where entity_type = 'sales_invoice';
 drop index public.sales_invoices_one_pair;
 alter table public.sales_invoices
   drop constraint sales_invoices_pair_shape,
-  drop column paired_by, drop column paired_at, drop column paired_erp_invoice_id;
+  drop column paired_filled, drop column paired_by, drop column paired_at, drop column paired_erp_invoice_id;

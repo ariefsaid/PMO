@@ -13,7 +13,7 @@ insert into public.sales_invoices (id, org_id, si_number, invoice_date, amount, 
   ('04840000-0000-0000-0000-0000000000f6', '04840000-0000-0000-0000-0000000000f0', 'SI-RB-2', '2026-01-01', 10, 'exclusive', 0, 'USD', 'Unpaid', 1);
 set local session_replication_role = replica;
 update public.sales_invoices set paired_erp_invoice_id = '04840000-0000-0000-0000-0000000000f6', paired_at = now(),
-       paired_by = '04840000-0000-0000-0000-0000000000f9' where id = '04840000-0000-0000-0000-0000000000f5';
+       paired_by = '04840000-0000-0000-0000-0000000000f9', paired_filled = '{}'::jsonb where id = '04840000-0000-0000-0000-0000000000f5';
 set local session_replication_role = origin;
 
 \set ip_embedded 1
@@ -21,12 +21,12 @@ set local session_replication_role = origin;
 select throws_ok('select pg_temp.run_ip_down()', 'P0001', null, 'rollback refuses while a pair exists');
 select has_column('public', 'sales_invoices', 'paired_erp_invoice_id', 'a refused rollback leaves the column in place');
 set local session_replication_role = replica;
-update public.sales_invoices set paired_erp_invoice_id = null, paired_at = null, paired_by = null where id = '04840000-0000-0000-0000-0000000000f5';
+update public.sales_invoices set paired_erp_invoice_id = null, paired_at = null, paired_by = null, paired_filled = null where id = '04840000-0000-0000-0000-0000000000f5';
 set local session_replication_role = origin;
 select lives_ok('select pg_temp.run_ip_down()', 'rollback runs once no pair remains');
 select hasnt_column('public', 'sales_invoices', 'paired_erp_invoice_id', 'rollback removes the column');
 select ok(to_regprocedure('public.accept_invoice_pairs(jsonb)') is null and to_regprocedure('public.propose_invoice_pairs()') is null
-          and to_regprocedure('public.list_unpaired_native_invoices()') is null and to_regprocedure('public.invoice_pair_candidates(uuid,uuid)') is null,
+          and to_regprocedure('public.list_unpaired_native_invoices()') is null and to_regprocedure('public.invoice_pair_candidates(uuid,uuid,boolean)') is null and to_regprocedure('public.unpair_invoice(uuid)') is null,
           'rollback removes the pair functions');
 select ok(position('paired_erp_invoice_id' in pg_get_viewdef('public.sales_invoice_work_billed'::regclass)) = 0,
           'rollback restores the billed-work view without the filter');

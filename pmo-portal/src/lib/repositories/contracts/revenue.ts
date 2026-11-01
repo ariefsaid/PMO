@@ -65,6 +65,8 @@ export interface RevenueRepository {
   proposeInvoicePairs(): Promise<InvoicePairProposal[]>;
   /** ECA-5: accept pairs in bulk; the PMO copy stops counting and the ERP invoice counts once. Returns how many applied. */
   acceptInvoicePairs(pairs: Array<{ pmoInvoiceId: string; erpInvoiceId: string }>): Promise<number>;
+  /** ECA-5: undo one accepted pair; the PMO copy counts again. */
+  unpairInvoice(pmoInvoiceId: string): Promise<void>;
   /** ECA-5: PMO invoices that keep counting as they are, with the reason they were not paired. */
   listUnpairedNativeInvoices(): Promise<UnpairedNativeInvoice[]>;
   /** ECA-5: PMO invoices already counted as an ERP invoice. */

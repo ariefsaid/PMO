@@ -183,7 +183,8 @@
     "reason": {
       "noMatch": "Tidak ada faktur ERP yang cocok",
       "ambiguous": "Lebih dari satu faktur ERP yang cocok",
-      "hasReceipt": "PMO sudah mencatat pembayaran pada faktur ini"
+      "hasReceipt": "PMO sudah mencatat pembayaran pada faktur ini",
+      "projectDiffers": "Faktur ERP berada di proyek atau perintah kerja yang berbeda"
     },
     "countOne": "1 faktur",
     "countOther": "{{count}} faktur",
@@ -195,6 +196,13 @@
     "countedAs": "dihitung sebagai faktur ERP {{number}}",
     "confirmTitle": "Hitung faktur ini sekali saja?",
     "confirmBody": "Hitung {{what}} sekali saja, sebagai salinan ERP?",
-    "confirmAction": "Hitung sekali"
+    "confirmAction": "Hitung sekali",
+    "failedStale": "Tidak ada faktur yang diubah. Sebuah pasangan tidak lagi cocok dengan jelas; daftar telah dimuat ulang. Periksa lalu coba lagi.",
+    "undo": "Batalkan",
+    "undoFor": "Batalkan {{number}}",
+    "undoTitle": "Hitung {{number}} secara terpisah lagi?",
+    "undoBody": "Faktur PMO kembali masuk ke pendapatan dan piutang. Faktur ERP {{erp}} tetap ada, jadi jika keduanya dihitung, penjualan tampil dua kali sampai Anda memasangkannya lagi.",
+    "undoDone": "{{number}} kini dihitung secara terpisah lagi.",
+    "undoFailed": "Tidak ada yang diubah. Pasangan mungkin sudah dibatalkan; daftar telah dimuat ulang."
   }
 }

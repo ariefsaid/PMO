@@ -20,6 +20,7 @@ import {
   getOrgReadsErpLedger,
   proposeInvoicePairs,
   acceptInvoicePairs,
+  unpairInvoice,
   listUnpairedNativeInvoices,
   listAcceptedInvoicePairs,
 } from '@/src/lib/db/revenue';
@@ -52,6 +53,7 @@ export const revenueRepository: RevenueRepository = {
   getOrgReadsErpLedger: () => wrap(() => getOrgReadsErpLedger()),
   proposeInvoicePairs: () => wrap(() => proposeInvoicePairs()),
   acceptInvoicePairs: (pairs) => wrap(() => acceptInvoicePairs(pairs)),
+  unpairInvoice: (pmoInvoiceId) => wrap(() => unpairInvoice(pmoInvoiceId)),
   listUnpairedNativeInvoices: () => wrap(() => listUnpairedNativeInvoices()),
   listAcceptedInvoicePairs: () => wrap(() => listAcceptedInvoicePairs()),
   // Write methods — route through dispatch when externally-owned

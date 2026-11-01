@@ -32,7 +32,6 @@ import { getErpSetupIncompleteness } from './erpSetupIncompleteness';
 import { M365OrgApprovalCard } from './M365OrgApprovalCard';
 import { M365DefaultLibraryCard } from './M365DefaultLibraryCard';
 import { ErpSetupChecklist } from './ErpSetupChecklist';
-import { InvoicePairReview } from './InvoicePairReview';
 import { OdooIntegrationSection } from './odoo/OdooIntegrationSection';
 import { erpActivationRefusalOf, type ErpActivationRefusal } from '@/src/lib/repositories/erpActivationRefusal';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -592,7 +591,6 @@ export const IntegrationsView: React.FC = () => {
               {tier === 'erpnext' && isConnected && !isConnectedButNotActivated && (
                 <CanWrite entity="integration" action="manage">
                   <ErpSetupChecklist orgId={orgId} onRefreshCompany={() => handleSetCompanyClick('erpnext')} />
-                  <InvoicePairReview orgId={orgId} />
                 </CanWrite>
               )}
               {tier === 'clickup' && (

@@ -8403,6 +8403,7 @@ export type Database = {
           paired_at: string | null
           paired_by: string | null
           paired_erp_invoice_id: string | null
+          paired_filled: Json | null
           pmo_native: boolean
           pmo_number: string | null
           project_id: string | null
@@ -8446,6 +8447,7 @@ export type Database = {
           paired_at?: string | null
           paired_by?: string | null
           paired_erp_invoice_id?: string | null
+          paired_filled?: Json | null
           pmo_native?: boolean
           pmo_number?: string | null
           project_id?: string | null
@@ -8489,6 +8491,7 @@ export type Database = {
           paired_at?: string | null
           paired_by?: string | null
           paired_erp_invoice_id?: string | null
+          paired_filled?: Json | null
           pmo_native?: boolean
           pmo_number?: string | null
           project_id?: string | null
@@ -10603,6 +10606,7 @@ export type Database = {
     }
     Functions: {
       accept_invoice_pairs: { Args: { p_pairs: Json }; Returns: number }
+      unpair_invoice: { Args: { p_pmo_id: string }; Returns: undefined }
       attribute_subcontract_bill_lines: {
         Args: { p_invoice_id: string; p_lines: Json }
         Returns: undefined
@@ -12240,7 +12244,7 @@ export type Database = {
       }
       invoice_command_line_total: { Args: { p_payload: Json }; Returns: number }
       invoice_pair_candidates: {
-        Args: { p_erp_id?: string; p_pmo_id?: string }
+        Args: { p_erp_id?: string; p_ignore_scope?: boolean; p_pmo_id?: string }
         Returns: {
           erp_invoice_id: string
           pmo_invoice_id: string

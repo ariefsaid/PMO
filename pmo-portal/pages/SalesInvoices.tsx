@@ -5,6 +5,8 @@ import { useSalesInvoiceActions } from './sales-invoices/useSalesInvoiceActions'
 import { SalesInvoiceFormModal } from './sales-invoices/SalesInvoiceFormModal';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
+import { repositories } from '@/src/lib/repositories';
 import {
   ListPage,
   SearchMini,
@@ -239,7 +241,15 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       return next;
     }, { replace: true });
   }, [mode, searchParams, setSearchParams, statusFilters]);
-  const viewTarget = invoiceId ? all.find((inv) => inv.id === invoiceId) ?? null : null;
+  // The list leaves out a PMO copy that counts through its ERP invoice (ECA-5); a direct link still opens it, read by id.
+  const listedTarget = invoiceId ? all.find((inv) => inv.id === invoiceId) : undefined;
+  const unlisted = useQuery({
+    queryKey: ['salesInvoice', currentUser?.org_id, invoiceId],
+    queryFn: () => repositories.revenue.getInvoice(invoiceId!),
+    enabled: Boolean(invoiceId && currentUser?.org_id && !isPending && !isError && !listedTarget),
+    retry: false,
+  });
+  const viewTarget = invoiceId ? listedTarget ?? unlisted.data ?? null : null;
   const openInvoiceId = embedded ? searchParams.get('open') : null;
   const panelInvoice = openInvoiceId ? all.find((inv) => inv.id === openInvoiceId) ?? null : null;
   const [localSelectedKeys, setLocalSelectedKeys] = useState<Set<string>>(() => new Set());
@@ -464,7 +474,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   }
 
   if (invoiceId) {
-    return <SalesInvoiceDetail viewTarget={viewTarget} isPending={isPending} isError={isError} data={data} mode={mode} organizationToday={organizationToday} onBack={recordContext.closeRecord} refetch={refetch} recordPrimaryAction={recordPrimaryAction} invoiceDisplayLabel={invoiceDisplayLabel} may={may} pdfDownload={pdfDownload} dialogs={<SalesInvoiceDialogs actions={actions} submitFallback={invoiceDisplayLabel} />} />;
+    return <SalesInvoiceDetail viewTarget={viewTarget} isPending={isPending || unlisted.isFetching} isError={isError || unlisted.isError} data={data} mode={mode} organizationToday={organizationToday} onBack={recordContext.closeRecord} refetch={refetch} recordPrimaryAction={recordPrimaryAction} invoiceDisplayLabel={invoiceDisplayLabel} may={may} pdfDownload={pdfDownload} dialogs={<SalesInvoiceDialogs actions={actions} submitFallback={invoiceDisplayLabel} />} />;
   }
 
   const { projectLabelOf, displayColumns, exportColumns, mobileCardDetails } = salesInvoiceColumns({ t, all, embedded, native, location, orgCurrency, sharedTaxBasis, projectOptionsById, projectsById, profilesById, invoiceStatus });

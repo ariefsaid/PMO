@@ -56,6 +56,11 @@ export function SalesInvoiceDetail({ viewTarget, isPending, isError, data, mode,
                     : invoiceDisplayLabel(viewTarget)}
                 </h1>
                 <p className="mt-1 text-sm text-muted-foreground">{viewTarget.customer_name ?? '—'}</p>
+                {viewTarget.paired_erp_invoice_id && (
+                  <p className="mt-1 text-sm">
+                    {t('finance:receivables.pairedCountedOnce', 'Counted once with the ERP invoice {{number}}.', { number: viewTarget.paired_erp_number ?? '—' })}
+                  </p>
+                )}
               </div>
               {recordPrimaryAction && <Button variant="primary" onClick={recordPrimaryAction.onClick}>{recordPrimaryAction.label}</Button>}
             </header>
