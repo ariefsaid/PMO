@@ -78,6 +78,13 @@ describe('ECA setup verbs — census', () => {
     assertEquals(rpcCall(r.calls, 'start_connect_run').length, 0);
   });
 
+  it('Minor 6 a tier whose sweep pass does not exist yet takes no census and starts no run', async () => {
+    const r = await call({ setupAction: 'census', tier: 'odoo' });
+    assertEquals(r.res.status, 400);
+    assertEquals(rpcCall(r.calls, 'start_connect_run').length, 0);
+    assertEquals(erpCalls(r.calls).length, 0);
+  });
+
   for (const role of ['Engineer', 'Finance']) {
     it(`FR-ECA-002 ${role} cannot take a census, even naming the account kind`, async () => {
       const r = await call({ setupAction: 'census', kind: 'account' }, { role });
@@ -126,6 +133,20 @@ describe('ECA setup verbs — accept, decide, unlink', () => {
     const r = await call({ setupAction: 'accept-proposals' }, { rpc: { accept_connect_proposals: () => jsonResponse({ counts: { party: { link: 1, bring_in: 0, send: 0, left_open: 0 } }, remaining: 99 }) } });
     assertEquals(rpcCall(r.calls, 'accept_connect_proposals').length, 20);
     assertEquals(r.json.remaining, 99);
+  });
+
+  it('Minor 7 the loop also stops on elapsed time, not only on the call count', async () => {
+    const realNow = Date.now;
+    let clock = realNow();
+    Date.now = () => clock;
+    try {
+      const r = await call({ setupAction: 'accept-proposals' }, { rpc: { accept_connect_proposals: () => {
+        clock += 25_000;   // each call is slow
+        return jsonResponse({ counts: { party: { link: 1, bring_in: 0, send: 0, left_open: 0 } }, remaining: 99 });
+      } } });
+      assertEquals(rpcCall(r.calls, 'accept_connect_proposals').length, 3);   // 25 s, 50 s, 75 s: the third call passes the 60 s budget
+      assertEquals(r.json.remaining, 99);
+    } finally { Date.now = realNow; }
   });
 
   it('FR-ECA-012 Finance may accept account rows only', async () => {

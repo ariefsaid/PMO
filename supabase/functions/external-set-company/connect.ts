@@ -17,6 +17,10 @@ const STATES = ['open', 'sending', 'applied', 'dismissed'];
 const LIST_PAGE = 200;
 /** Each accept call applies ≤ 500 rows inside the user statement timeout; a request makes at most this many, and says what is left. */
 const ACCEPT_CALLS_PER_REQUEST = 20;
+/** ... and stops once this much time has passed, so one request ends before the platform's request limit. */
+const ACCEPT_BUDGET_MS = 60_000;
+/** Tiers whose sweep pass advances a setup run. A census starts a run, so a tier without a pass would leave it open forever. */
+const CENSUS_TIERS = new Set(['erpnext']);
 
 export interface ConnectCtx {
   serviceClient: SupabaseClient;
@@ -91,6 +95,7 @@ export async function handleConnectAction(ctx: ConnectCtx): Promise<unknown> {
 
   if (action === 'census') {
     if (ctx.role !== 'Admin') throw new AppError('Not allowed for your role', 'FORBIDDEN');
+    if (!CENSUS_TIERS.has(tier)) throw new AppError('Setting up this ERP is not available yet', 'BAD_REQUEST');
     try {
       const adapter = await connectAdapterForOrg(ctx.serviceClient, ctx.orgId, tier);
       // Count first: an unreachable ERP leaves no half-started run behind.
@@ -110,11 +115,12 @@ export async function handleConnectAction(ctx: ConnectCtx): Promise<unknown> {
     const ids = Array.isArray(body.ids) ? body.ids.map(String) : null;
     const counts: Counts = {};
     let remaining = 0;
+    const startedAt = Date.now();
     for (let i = 0; i < ACCEPT_CALLS_PER_REQUEST; i += 1) {
       const r = await rpc<{ counts: Counts; remaining: number }>(ctx.callerClient, 'accept_connect_proposals', { p_tier: tier, p_kind: body.kind ?? null, p_ids: ids });
       addCounts(counts, r.counts);
       remaining = r.remaining;
-      if (remaining === 0 || applied(r.counts) === 0) break;
+      if (remaining === 0 || applied(r.counts) === 0 || Date.now() - startedAt >= ACCEPT_BUDGET_MS) break;
     }
     return { counts, remaining };
   }

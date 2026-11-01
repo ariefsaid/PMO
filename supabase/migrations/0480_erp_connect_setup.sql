@@ -1,5 +1,5 @@
 -- ECA-2 (#1605): census, match proposals and one-pass accept (FR-ECA-001..016). Tier-keyed, shared by ERPNext and Odoo.
--- Four tables (run, staged ERP pages, census, proposals) and sixteen functions. Reversal: rollback/0480_erp_connect_setup_down.sql.
+-- Four tables (run, staged ERP pages, census, proposals), seventeen functions and one trigger. Reversal: rollback/0480_erp_connect_setup_down.sql.
 --
 -- Who may do what:
 --   * service role (the edge function, from the org's own binding): start a run, write the census, stage pages,
@@ -175,8 +175,8 @@ create or replace function public.replace_connect_proposals(p_org_id uuid, p_tie
 language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_run public.erp_connect_runs%rowtype;
 begin
-  select * into v_run from public.erp_connect_runs where id = p_run_id and org_id = p_org_id and external_tier = p_tier for update;
-  if not found then raise exception 'no run for this organisation'; end if;
+  select * into v_run from public.erp_connect_runs where id = p_run_id and org_id = p_org_id and external_tier = p_tier and state in ('staging','proposing') for update;
+  if not found then raise exception 'no open run for this organisation'; end if;   -- a straggler tick cannot write into a run that already ended
   insert into public.erp_connect_proposals (org_id, binding_id, external_tier, run_id, kind, outcome, identity, pmo_ids, external_ids, match_key, reason, reason_text, snapshot)
     select p_org_id, v_run.binding_id, p_tier, p_run_id, p_kind, x.outcome,
            x.outcome || '|' || to_jsonb(x.pmo)::text || '|' || to_jsonb(x.ext)::text, x.pmo, x.ext, x.key, x.reason, x.reason_text, x.snapshot
@@ -237,7 +237,8 @@ end $$;
 create or replace function public.settle_connect_run(p_org_id uuid, p_tier text) returns void
 language sql security definer set search_path = public, pg_temp as $$
   update public.erp_connect_runs r set finished_at = now()
-   where r.org_id = p_org_id and r.external_tier = p_tier and r.state = 'ready' and r.finished_at is null
+   where r.id = (select l.id from public.erp_connect_runs l where l.org_id = p_org_id and l.external_tier = p_tier order by l.started_at desc, l.id desc limit 1)
+     and r.state = 'ready' and r.finished_at is null
      and not exists (select 1 from public.erp_connect_proposals p
                       where p.org_id = p_org_id and p.external_tier = p_tier and p.state = 'sending')
 $$;
@@ -271,6 +272,25 @@ begin
      and (not p_unique_target or not exists (select 1 from jsonb_each_text(coalesce(config->p_map, '{}'::jsonb)) e where e.value = p_ext));
   get diagnostics v_n = row_count;
   return v_n = 1;
+end $$;
+
+-- The map rules for ONE row of an accept call, read-only: `p_map` is the committed map, `p_batch` what this call already accepted.
+-- accept_connect_proposals merges the batch into the binding row once per call (a rewrite per row grows with the map and stalls it).
+create or replace function public.connect_map_link_check(p_org uuid, p_tier text, p_kind text, p_pmo text, p_ext text, p_map jsonb, p_batch jsonb) returns text
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_cur text := coalesce(p_batch->>p_pmo, p_map->>p_pmo);
+begin
+  if p_kind = 'project' then
+    if p_tier <> 'erpnext' then return 'Project links for this ERP are not available yet'; end if;
+    if not exists (select 1 from public.projects where id = p_pmo::uuid and org_id = p_org) then return 'This project is no longer in PMO'; end if;
+  end if;
+  if v_cur is not null then return case when v_cur = p_ext then null else 'This ' || p_kind || ' is already linked' end; end if;   -- same target: reconciled
+  -- a project has one ERP project and an ERP project has one project (the target is unique); an item name may share a code
+  if p_kind = 'project' and (exists (select 1 from jsonb_each_text(coalesce(p_map, '{}'::jsonb)) e where e.value = p_ext)
+                          or exists (select 1 from jsonb_each_text(coalesce(p_batch, '{}'::jsonb)) e where e.value = p_ext)) then
+    return 'This project is already linked';
+  end if;
+  return null;
 end $$;
 
 create or replace function public.connect_link_project(p_org uuid, p_tier text, p_pmo text, p_ext text) returns text
@@ -405,18 +425,22 @@ end $$;
 -- ---------------------------------------------------------------------------------------------------------------
 -- One call applies at most 500 rows (a user JWT has an 8 s statement timeout) and says how many untried rows are left; the
 -- caller loops until `remaining` is 0. A row that was left open with a reason sorts last and is not counted as remaining, so the
--- loop ends. One audit row per call, naming each applied person and account pair.
+-- loop ends; a left-open row is retried through `p_ids` once its cause is fixed (accept-all does not sweep them again). One audit row
+-- per call, naming each applied person and account pair.
 create or replace function public.accept_connect_proposals(p_tier text, p_kind text default null, p_ids uuid[] default null, p_batch int default 500)
 returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_actor uuid := auth.uid(); v_org uuid := public.auth_org_id(); v_role text := public.auth_role()::text;
         r record; v_reason text; v_counts jsonb := '{}'::jsonb; v_k text; v_field text; v_binding uuid;
         v_links jsonb := '[]'::jsonb; v_errors jsonb := '[]'::jsonb; v_remaining int; v_state text; v_msg text;
+        v_cfg jsonb; v_batch jsonb := '{}'::jsonb; v_mapkey text;
 begin
   if v_actor is null or v_org is null or not public.is_active_member() or v_role is null or v_role not in ('Admin','Finance') then
     raise exception 'not allowed' using errcode = '42501';
   end if;
   if v_role = 'Finance' and coalesce(p_kind, 'account') <> 'account' then raise exception 'not allowed' using errcode = '42501'; end if;
-  select id into v_binding from public.external_org_bindings where org_id = v_org and external_tier = p_tier and status = 'active';
+  -- the binding row is locked for the call: item and project links are checked against this snapshot and merged once at the end
+  select id, coalesce(config, '{}'::jsonb) into v_binding, v_cfg from public.external_org_bindings
+   where org_id = v_org and external_tier = p_tier and status = 'active' for update;
   if v_binding is null then raise exception 'no active connection for this ERP' using errcode = 'P0001'; end if;
   -- p_kind null = every kind the actor may accept; p_ids null = every open non-review row of the current connection (FR-ECA-012 "all").
   for r in select * from public.erp_connect_proposals
@@ -427,7 +451,13 @@ begin
     v_reason := null;
     if r.outcome <> 'send' then
       begin   -- one bad row is left open with a reason and never aborts the batch; its partial writes roll back with it
-        if r.outcome = 'link' then
+        if r.outcome = 'link' and r.kind in ('item', 'project') then
+          v_mapkey := r.kind || '_map';
+          v_reason := public.connect_map_link_check(v_org, p_tier, r.kind, r.pmo_ids[1], r.external_ids[1], v_cfg->v_mapkey, v_batch->v_mapkey);
+          if v_reason is null then
+            v_batch := jsonb_set(v_batch, array[v_mapkey], coalesce(v_batch->v_mapkey, '{}'::jsonb) || jsonb_build_object(r.pmo_ids[1], r.external_ids[1]));
+          end if;
+        elsif r.outcome = 'link' then
           v_reason := public.apply_connect_link(v_org, p_tier, r.kind, r.pmo_ids[1], r.external_ids[1],
                                                 r.snapshot || jsonb_build_object('matchKey', r.match_key, 'reviewed', false), v_actor);
         else
@@ -456,6 +486,12 @@ begin
     v_counts := jsonb_set(v_counts, array[r.kind], coalesce(v_counts->r.kind, '{"link":0,"bring_in":0,"send":0,"left_open":0}'::jsonb));
     v_counts := jsonb_set(v_counts, array[r.kind, v_field], to_jsonb((v_counts #>> array[r.kind, v_field])::int + 1));
   end loop;
+  if v_batch ? 'item_map' then
+    update public.external_org_bindings set config = jsonb_set(config, '{item_map}', coalesce(config->'item_map', '{}'::jsonb) || (v_batch->'item_map')) where id = v_binding;
+  end if;
+  if v_batch ? 'project_map' then
+    update public.external_org_bindings set config = jsonb_set(config, '{project_map}', coalesce(config->'project_map', '{}'::jsonb) || (v_batch->'project_map')) where id = v_binding;
+  end if;
   -- "set up once" (PD-ECA-15) is stamped only for a kind where something was applied or queued
   for v_k in select jsonb_object_keys(v_counts) loop
     if (v_counts #>> array[v_k, 'link'])::int + (v_counts #>> array[v_k, 'bring_in'])::int + (v_counts #>> array[v_k, 'send'])::int > 0 then
@@ -464,7 +500,9 @@ begin
     end if;
   end loop;
   if exists (select 1 from jsonb_each(v_counts) e where (e.value->>'send')::int > 0) then
-    update public.erp_connect_runs set finished_at = null where org_id = v_org and external_tier = p_tier and state = 'ready';
+    update public.erp_connect_runs set finished_at = null   -- only the latest run: older runs keep their end times
+     where id = (select l.id from public.erp_connect_runs l where l.org_id = v_org and l.external_tier = p_tier order by l.started_at desc, l.id desc limit 1)
+       and state = 'ready';
   end if;
   if v_counts <> '{}'::jsonb then
     perform public.log_audit('integration.connect_accept', v_org, v_actor, null,
@@ -544,6 +582,23 @@ begin
     jsonb_build_object('tier', r.external_tier, 'kind', r.kind, 'pmoId', v_pmo, 'externalId', v_ext, 'linkedBy', r.decided_by, 'linkedAt', r.decided_at));
 end $$;
 
+-- I1: a reconnect reuses the binding row (unique per org and tier), so its id cannot tell one ERP site from the next. A disconnect
+-- therefore takes the tier's open setup state with it: open proposals, the census, and any open run with its staged pages.
+-- Applied and sending rows stay as history. Covers every tier and every disconnect path.
+create or replace function public.purge_connect_setup_on_disconnect() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  delete from public.erp_connect_proposals where org_id = new.org_id and external_tier = new.external_tier and state = 'open';
+  delete from public.erp_connect_staged where run_id in (select id from public.erp_connect_runs
+    where org_id = new.org_id and external_tier = new.external_tier and state in ('staging','proposing'));
+  update public.erp_connect_runs set state = 'failed', error_class = 'disconnected', finished_at = now()
+   where org_id = new.org_id and external_tier = new.external_tier and state in ('staging','proposing');
+  delete from public.erp_connect_census where org_id = new.org_id and external_tier = new.external_tier;
+  return null;
+end $$;
+create trigger erp_connect_purge_on_disconnect after update of status on public.external_org_bindings
+  for each row when (new.status = 'disconnected' and old.status is distinct from 'disconnected')
+  execute function public.purge_connect_setup_on_disconnect();
 
 -- ACL. Service-only writers: service_role alone. Internal appliers and the in-use check: nobody (the definers above
 -- call them as their owner). Actor-checked writers: authenticated, never anon.
@@ -558,6 +613,7 @@ grant execute on function public.start_connect_run(uuid,text,uuid), public.write
   public.fail_connect_run(uuid,uuid,text,boolean), public.settle_connect_run(uuid,text)
   to service_role;
 revoke all on function public.connect_config_map_link(uuid,text,text,text,text,boolean), public.connect_link_project(uuid,text,text,text),
+  public.connect_map_link_check(uuid,text,text,text,text,jsonb,jsonb), public.purge_connect_setup_on_disconnect(),
   public.apply_connect_link(uuid,text,text,text,text,jsonb,uuid), public.apply_connect_bring_in(uuid,text,text,text,jsonb)
   from public, anon, authenticated, service_role;
 revoke all on function public.accept_connect_proposals(text,text,uuid[],int), public.decide_connect_review(uuid,jsonb), public.unlink_connect_match(uuid)

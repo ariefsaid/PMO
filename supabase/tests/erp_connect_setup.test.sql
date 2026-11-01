@@ -3,7 +3,7 @@
 -- FOR UPDATE re-checking state='open' after the lock wait plus the external_refs reverse-unique claim (AC-ECA-004 traceability note).
 -- AC-ECA-004 (exactly-once apply), AC-ECA-007 (audited, undoable while unused), plus the role / tenancy / grant contract.
 begin;
-select plan(106);
+select plan(124);
 
 insert into organizations (id, name) values
  ('a4510000-0000-0000-0000-000000000001','Connect A'),
@@ -325,6 +325,9 @@ select is((select count(*)::int from erp_connect_proposals where identity='stale
 insert into erp_connect_proposals (org_id, binding_id, external_tier, kind, outcome, identity, pmo_ids, external_ids, match_key)
   select 'a4510000-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'),'erpnext','item','link','bulk-'||g,
          array['bulk-pmo-'||g], array['BULK-'||g], 'code' from generate_series(1, 600) g;
+-- I3: the map already holds 20,000 entries, so a per-row rewrite of the whole map would stall the call.
+update external_org_bindings set config = jsonb_set(config, '{item_map}', (select jsonb_object_agg('seed-pmo-' || g, 'SEED-' || g) from generate_series(1, 20000) g))
+  where org_id='a4510000-0000-0000-0000-000000000001';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select set_config('a451.small', public.accept_connect_proposals('erpnext','item', array(select id from erp_connect_proposals where identity in ('bulk-1','bulk-2','bulk-3')), 2)::text, true);
@@ -339,7 +342,8 @@ select is(current_setting('a451.small')::jsonb, '{"counts":{"item":{"link":2,"br
 select is(current_setting('a451.big')::jsonb #> '{counts,item,link}', '500'::jsonb, 'I1 an unbounded call stops at 500 rows');
 select is(current_setting('a451.big')::jsonb -> 'remaining', '98'::jsonb, 'I1 the call reports the rest (600 - 2 - 500)');
 select cmp_ok(extract(epoch from current_setting('a451.t1')::timestamptz - current_setting('a451.t0')::timestamptz)::numeric, '<', 8::numeric, 'I1 a 500-row call stays under the 8 s user statement timeout');
-select is((select count(*)::int from jsonb_object_keys((select config->'item_map' from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'))), 502, 'I1 every applied item link is in the map');
+select cmp_ok(extract(epoch from current_setting('a451.t1')::timestamptz - current_setting('a451.t0')::timestamptz)::numeric, '<', 2::numeric, 'I3 a 500-row call against a 20,000-entry map takes well under the timeout: the map is merged once per call');
+select is((select count(*)::int from jsonb_object_keys((select config->'item_map' from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'))), 20502, 'I1 every applied item link is in the map');
 
 -- I6 (item): a kind with a row that failed and nothing else applied stays unstamped.
 update external_org_bindings set config = jsonb_set(config, '{item_map}', config->'item_map' || '{"bulk-pmo-600":"ELSEWHERE"}'::jsonb)
@@ -355,6 +359,23 @@ set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000a1","r
 select is(public.accept_connect_proposals('erpnext','item') #>> '{counts,item,left_open}', '1', 'I6 the only item row cannot be applied');
 reset role;
 select is((select accepted_at from erp_connect_census where org_id='a4510000-0000-0000-0000-000000000001' and kind='item'), null, 'I6 an item kind with nothing applied is not stamped');
+
+-- I3: the map rules hold inside one merged call: a target taken earlier in the call, or a key mapped twice, leaves the later row open.
+insert into projects (id, org_id, name, status) values
+ ('a4510000-0000-0000-0000-0000000000f5','a4510000-0000-0000-0000-000000000001','Second Project','Ongoing Project');
+insert into erp_connect_proposals (org_id, binding_id, external_tier, kind, outcome, identity, pmo_ids, external_ids, match_key) values
+ ('a4510000-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'),'erpnext','project','link','i3-p1','{a4510000-0000-0000-0000-0000000000f2}','{PRJ-1}','code'),
+ ('a4510000-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'),'erpnext','project','link','i3-p2','{a4510000-0000-0000-0000-0000000000f5}','{PRJ-1}','code'),
+ ('a4510000-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'),'erpnext','item','link','i3-i1','{dup-item}','{ITEM-X}','code'),
+ ('a4510000-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'),'erpnext','item','link','i3-i2','{dup-item}','{ITEM-Y}','code');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select set_config('a451.i3b', public.accept_connect_proposals('erpnext', null, array(select id from erp_connect_proposals where identity like 'i3-%'))::text, true);
+reset role;
+select is(current_setting('a451.i3b')::jsonb #> '{counts,project}', '{"link":1,"bring_in":0,"send":0,"left_open":1}'::jsonb, 'I3 two projects asking for one ERP project: one links, one stays open');
+select is(current_setting('a451.i3b')::jsonb #> '{counts,item}', '{"link":1,"bring_in":0,"send":0,"left_open":1}'::jsonb, 'I3 one item asking for two ERP items: one links, one stays open');
+select is((select count(*)::int from jsonb_object_keys((select config->'project_map' from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'))), 1, 'I3 the project map got exactly one entry');
+select is((select config->'item_map'->>'dup-item' from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001') in ('ITEM-X','ITEM-Y'), true, 'I3 the item map got the key once');
 
 -- I2: a disconnect takes the tier's setup state with it; a reconnect starts clean and an old row cannot apply.
 delete from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001' and external_tier='erpnext';
@@ -387,16 +408,24 @@ select public.fail_connect_run('a4510000-0000-0000-0000-000000000001', current_s
 select public.stage_connect_master_page('a4510000-0000-0000-0000-000000000001', current_setting('a451.f2')::uuid, 'party',
   '[{"kind":"party","externalId":"Supplier:S1","name":"S1","active":true}]'::jsonb, 'cursor-1');
 select is((select failed_ticks from erp_connect_runs where id = current_setting('a451.f2')::uuid), 0, 'Minor 8 a page that lands resets the failure count');
+-- I2: while f2 is still open, another organisation's call must be refused and must not count a failure against it.
+select throws_ok($$select public.fail_connect_run('a4510000-0000-0000-0000-000000000002', current_setting('a451.f2')::uuid, 'timeout')$$,
+  'P0001', 'no open run for this organisation', 'I2 another organisation cannot fail an open run');
+select is((select failed_ticks from erp_connect_runs where id = current_setting('a451.f2')::uuid), 0, 'I2 the refused cross-organisation call counted no failure');
 select is(public.fail_connect_run('a4510000-0000-0000-0000-000000000001', current_setting('a451.f2')::uuid, 'budget-exceeded', true), 'failed',
   'Minor 8 a fatal failure (the run outlived its budget) ends the run at once');
 select is((select count(*)::int from erp_connect_staged where run_id = current_setting('a451.f2')::uuid), 0, 'Minor 8 a failed run drops its staged pages');
 select throws_ok($$select public.stage_connect_master_page('a4510000-0000-0000-0000-000000000001', current_setting('a451.f2')::uuid, 'party', '[]'::jsonb, null)$$,
   'P0001', 'no staging run for this organisation', 'Minor 8 a failed run takes no more pages');
-select throws_ok($$select public.fail_connect_run('a4510000-0000-0000-0000-000000000002', current_setting('a451.f2')::uuid, 'timeout')$$,
-  'P0001', 'no open run for this organisation', 'Minor 8 another organisation cannot fail the run');
+select throws_ok($$select public.replace_connect_proposals('a4510000-0000-0000-0000-000000000001','erpnext', current_setting('a451.f2')::uuid, 'party', '[]'::jsonb, true)$$,
+  'P0001', 'no open run for this organisation', 'Minor 2 a failed run takes no proposals from a straggler tick');
 
 -- Minor 10: all five kinds proposed while a send is still waiting: the proposals are ready, the run is not complete.
+update erp_connect_runs set started_at = started_at - interval '1 hour' where id in (current_setting('a451.f1')::uuid, current_setting('a451.f2')::uuid);   -- one transaction: give the latest run a distinct start
 select set_config('a451.f3', public.start_connect_run('a4510000-0000-0000-0000-000000000001','erpnext',null)::text, true);
+insert into erp_connect_runs (id, org_id, binding_id, external_tier, state, started_at, finished_at) values
+ ('a4510000-0000-0000-0000-0000000000e5','a4510000-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'),'erpnext','ready','2026-01-01 00:00+00','2026-01-02 00:00+00'),
+ ('a4510000-0000-0000-0000-0000000000e6','a4510000-0000-0000-0000-000000000001',(select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'),'erpnext','ready','2026-01-03 00:00+00',null);
 insert into erp_connect_proposals (org_id, binding_id, external_tier, kind, outcome, state, identity, pmo_ids)
   values ('a4510000-0000-0000-0000-000000000001', (select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'), 'erpnext', 'project', 'send', 'sending', 'send|["p-wait"]|[]', '{p-wait}');
 select public.replace_connect_proposals('a4510000-0000-0000-0000-000000000001','erpnext',current_setting('a451.f3')::uuid,k,'[]'::jsonb,true)
@@ -416,6 +445,38 @@ select public.accept_connect_proposals('erpnext', 'project');
 reset role;
 select is((select finished_at is null from erp_connect_runs where id = current_setting('a451.f3')::uuid), true,
   'Minor 10 queuing a send re-opens a completed run');
+select is((select finished_at from erp_connect_runs where id = 'a4510000-0000-0000-0000-0000000000e5'), '2026-01-02 00:00+00'::timestamptz,
+  'Minor 1 queuing a send leaves an older finished run''s end time alone');
+select is((select finished_at from erp_connect_runs where id = 'a4510000-0000-0000-0000-0000000000e6'), null,
+  'Minor 1 settling stamps only the latest run, not every older ready run');
+
+-- I1: a disconnect purges the tier's open setup state, so a reconnect (same binding row, maybe another ERP site) starts clean.
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select set_config('a451.r1', public.start_connect_run('a4510000-0000-0000-0000-000000000001','erpnext',null)::text, true);
+select public.stage_connect_master_page('a4510000-0000-0000-0000-000000000001', current_setting('a451.r1')::uuid, 'party', '[{"kind":"party","externalId":"Supplier:OLDSITE","name":"Old","active":true}]'::jsonb, 'cursor-1');
+select public.write_connect_census('a4510000-0000-0000-0000-000000000001','erpnext','[{"kind":"party","pmoCount":1,"erpCount":1,"scenario":"S-D"}]'::jsonb);
+select public.replace_connect_proposals('a4510000-0000-0000-0000-000000000001','erpnext', current_setting('a451.r1')::uuid, 'party', '[
+  {"outcome":"link","pmoIds":["a4510000-0000-0000-0000-0000000000d3"],"externalIds":["Supplier:OLDSITE"],"key":"name","snapshot":{}}]'::jsonb, false);
+reset role;
+select is((select count(*)::int from erp_connect_proposals where external_ids = '{Supplier:OLDSITE}' and state = 'open'), 1, 'I1 premise: the old site left an open proposal');
+update external_org_bindings set status = 'disconnected', disconnected_at = now(), activated_at = null where org_id = 'a4510000-0000-0000-0000-000000000001' and external_tier = 'erpnext';
+update external_org_bindings set status = 'active', activated_at = now(), site_url = 'https://other-erp.example.test' where org_id = 'a4510000-0000-0000-0000-000000000001' and external_tier = 'erpnext';
+select is((select count(*)::int from erp_connect_proposals where org_id = 'a4510000-0000-0000-0000-000000000001' and state = 'open'), 0, 'I1 a disconnect removes the open proposals');
+select is((select count(*)::int from erp_connect_census where org_id = 'a4510000-0000-0000-0000-000000000001'), 0, 'I1 a disconnect removes the census');
+select is((select state || ':' || error_class || ':' || (finished_at is not null)::text from erp_connect_runs where id = current_setting('a451.r1')::uuid), 'failed:disconnected:true', 'I1 a disconnect ends the open run');
+select is((select count(*)::int from erp_connect_staged where run_id = current_setting('a451.r1')::uuid), 0, 'I1 a disconnect drops the old site''s staged pages');
+select is((select state from erp_connect_proposals where identity = 'send|["p-wait"]|[]'), 'applied', 'I1 applied history survives a disconnect');
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select isnt(public.start_connect_run('a4510000-0000-0000-0000-000000000001','erpnext',null), current_setting('a451.r1')::uuid, 'I1 a reconnect starts a new run; the old site''s run is not resumed');
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(public.accept_connect_proposals('erpnext', 'party') -> 'counts', '{}'::jsonb, 'I1 accept after a reconnect applies nothing from the old site');
+reset role;
+select is((select count(*)::int from external_refs where external_record_id = 'Supplier:OLDSITE'), 0, 'I1 no reference to the old site''s supplier was written');
+
 select is((has_function_privilege('authenticated', 'public.fail_connect_run(uuid,uuid,text,boolean)', 'execute')
         or has_function_privilege('anon', 'public.settle_connect_run(uuid,text)', 'execute')), false, 'Minor 8/10 the new writers are not client-callable');
 select is((has_function_privilege('service_role', 'public.fail_connect_run(uuid,uuid,text,boolean)', 'execute')

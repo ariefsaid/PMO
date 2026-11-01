@@ -31,9 +31,10 @@ function memoryClient(seed: Record<string, Row[]>, rpcResult: { error: unknown }
       in(col: string, vals: unknown[]) { filters.push((r) => vals.includes(r[col])); return b; },
       contains(col: string, val: Row) { filters.push((r) => Object.entries(val).every(([k, v]) => (r[col] as Row | undefined)?.[k] === v)); return b; },
       is(col: string, val: unknown) { filters.push((r) => (r[col] ?? null) === val); return b; },
-      ilike(col: string, pattern: string) { // %word% only (what findCompanyCandidates sends), `\\` escapes
-        const needle = pattern.slice(1, -1).replace(/\\(.)/g, '$1').toLowerCase();
-        filters.push((r) => String(r[col] ?? '').toLowerCase().includes(needle)); return b;
+      ilike(col: string, pattern: string) { // `%` is any run, `\\` escapes (what findCompanyCandidates sends)
+        const re = new RegExp('^' + pattern.replace(/\\(.)|(%)|([.*+?^${}()|[\]\\])/g,
+          (_m, esc, pct, special) => pct ? '.*' : '\\' + (esc ?? special)) + '$', 'i');
+        filters.push((r) => re.test(String(r[col] ?? ''))); return b;
       },
       limit() { return b; },
       maybeSingle() { const out = run(filtered(table, filters)); return Promise.resolve({ ...out, data: Array.isArray(out.data) ? out.data[0] ?? null : out.data }); },
@@ -127,6 +128,13 @@ Deno.test('AC-ECA-005 sweep: a tax-id match with a different name links the exis
   const { client, tables, rpcCalls } = memoryClient({ companies: [company('company-1', 'Totally Different Name', 'Vendor', '01.234.567')] });
   const outcome = await sweepSupplier(client, 'Test party', 'Supplier:ERP-TEST-001', '01.234.567');
   assertEq(outcome, { kind: 'upserted', pmoRecordId: 'company-1', adopted: false }, 'linked on the tax id');
+  assertEq([tables.companies.length, tables.external_refs.length, rpcCalls.length], [1, 1, 0], 'one company, one ref, no review');
+});
+
+Deno.test('Minor 4 sweep: a tax id stored with punctuation matches the ERP value without it', async () => {
+  const { client, tables, rpcCalls } = memoryClient({ companies: [company('company-1', 'Totally Different Name', 'Vendor', '01.234.567.8-901.000')] });
+  const outcome = await sweepSupplier(client, 'Test party', 'Supplier:ERP-TEST-001', '012345678901000');
+  assertEq(outcome, { kind: 'upserted', pmoRecordId: 'company-1', adopted: false }, 'linked on the normalised tax id');
   assertEq([tables.companies.length, tables.external_refs.length, rpcCalls.length], [1, 1, 0], 'one company, one ref, no review');
 });
 

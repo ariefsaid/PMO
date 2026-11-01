@@ -72,7 +72,7 @@ async function resolveCaseItems(serviceClient: DispatchServiceClient, procuremen
   capture?.(lines);
 
   return lines.map((row) => ({
-    item_code: itemMap[row.name] ?? row.name,   // PD-ECA-5: an accepted item link, else the line name is the code
+    item_code: Object.hasOwn(itemMap, row.name) ? itemMap[row.name] : row.name,   // PD-ECA-5: an accepted item link, else the line name is the code
     qty: row.quantity,
     rate: row.rate ?? undefined,
     ...(row.description ? { description: row.description } : {}),

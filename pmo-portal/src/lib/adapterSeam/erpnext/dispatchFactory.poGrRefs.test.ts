@@ -135,6 +135,11 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
     expect(body.items.map((i) => i.item_code)).toEqual(['Pasir', 'SMN-50']);
   });
 
+  it('Minor 3 a line named like a JavaScript built-in keeps its own name as the item code', async () => {
+    const body = await purchaseOrderBody({ item_map: { Pasir: 'PSR-1' } }, [{ name: 'toString', quantity: 1, rate: 1 }, { name: 'constructor', quantity: 1, rate: 1 }], ['toString', 'constructor']);
+    expect(body.items.map((i) => i.item_code)).toEqual(['toString', 'constructor']);
+  });
+
   it('ECA2-T15 no item map at all changes nothing', async () => {
     const body = await purchaseOrderBody({}, [{ name: 'SPIKE-ITEM-1', quantity: 1, rate: 1 }], ['SPIKE-ITEM-1']);
     expect(body.items.map((i) => i.item_code)).toEqual(['SPIKE-ITEM-1']);
