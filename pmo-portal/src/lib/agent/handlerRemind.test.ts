@@ -36,4 +36,47 @@ describe('remind_overdue through the handler (#1639)', () => {
     expect(chip?.payload).toMatchObject({ actionName: 'remind_overdue', structuredArgs: { kind: 'prepared-reminders', reminders: [{ taskId: T1 }] } });
     expect((client.rpc.mock.calls as unknown[][]).map((c) => c[0])).toEqual(['preview_task_reminders']);
   });
+
+  it('simulates the approve decision for remind_overdue proving no send happens before approve and a send happens after', async () => {
+    const { client } = fakeSupabase(respond);
+    client.rpc
+      .mockResolvedValueOnce({ data: { remaining: 20, items: [{ task_id: T1, outcome: 'eligible', recipient_name: 'Site engineer' }] }, error: null } as never)
+      .mockResolvedValueOnce({ data: { remaining: 19, items: [{ task_id: T1, outcome: 'sent', recipient_name: 'Site engineer', task_name: 'Pour foundation' }] }, error: null } as never);
+    const stop = (text: string) => ({ finish_reason: 'stop', usage: {}, model: 'm', message: { role: 'assistant', content: text } });
+    const create = vi.fn()
+      .mockResolvedValueOnce(toolCall('remind_overdue', {}))
+      .mockResolvedValueOnce(stop('I have sent the reminder to Site engineer.'));
+    const deps: HandlerDeps = { modelClient: { create }, model: 'm', userId: 'u-me', can: () => true, supabase: client as unknown as HandlerDeps['supabase'] };
+
+    // Initial turn: proposes remind_overdue via preview_task_reminders; no send_task_reminders is called before approval
+    const turn1Events = await collect(agentChatHandler({ runId: 'run-1', messages: [{ role: 'user', content: 'Remind whoever is late.' }] }, deps));
+    const chip = turn1Events.find((e) => (e.payload as { status?: string } | undefined)?.status === 'needs-approval');
+    const chipPayload = chip?.payload as { pendingId: string; actionName: string; structuredArgs: Record<string, unknown> };
+    expect(chipPayload?.actionName).toBe('remind_overdue');
+    expect((client.rpc.mock.calls as unknown[][]).map((c) => c[0])).toEqual(['preview_task_reminders']);
+    expect((client.rpc.mock.calls as unknown[][]).map((c) => c[0])).not.toContain('send_task_reminders');
+
+    // Follow-up turn: caller approves the chip
+    const turn2Events = await collect(agentChatHandler({
+      runId: 'run-1',
+      decision: { pendingId: chipPayload.pendingId, verdict: 'approve' },
+      messages: [
+        { role: 'user', content: 'Remind whoever is late.' },
+        { role: 'assistant', content: [{ type: 'tool_use', id: chipPayload.pendingId, name: 'remind_overdue', input: chipPayload.structuredArgs }] },
+      ],
+    }, deps));
+
+    // send_task_reminders called after approval with the approved task IDs
+    expect((client.rpc.mock.calls as unknown[][]).map((c) => c[0])).toEqual(['preview_task_reminders', 'send_task_reminders']);
+    expect(client.rpc).toHaveBeenLastCalledWith('send_task_reminders', { p_task_ids: [T1] });
+    const toolEvent = turn2Events.find((e) => e.type === 'tool');
+    expect(toolEvent?.payload).toMatchObject({
+      name: 'remind_overdue',
+      result: {
+        ok: true,
+        sent: [{ to: 'Site engineer', task: 'Pour foundation' }],
+        remainingToday: 19,
+      },
+    });
+  });
 });
