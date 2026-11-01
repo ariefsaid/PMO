@@ -2892,6 +2892,10 @@ export type Database = {
           created_at: string
           currency: string
           id: string
+          imprest_float_id: string | null
+          imprest_month: string | null
+          imprest_replenishment_id: string | null
+          is_plan_exception: boolean
           kind: Database["public"]["Enums"]["expense_kind"]
           org_id: string
           paid_at: string | null
@@ -2923,6 +2927,10 @@ export type Database = {
           created_at?: string
           currency?: string
           id?: string
+          imprest_float_id?: string | null
+          imprest_month?: string | null
+          imprest_replenishment_id?: string | null
+          is_plan_exception?: boolean
           kind?: Database["public"]["Enums"]["expense_kind"]
           org_id?: string
           paid_at?: string | null
@@ -2954,6 +2962,10 @@ export type Database = {
           created_at?: string
           currency?: string
           id?: string
+          imprest_float_id?: string | null
+          imprest_month?: string | null
+          imprest_replenishment_id?: string | null
+          is_plan_exception?: boolean
           kind?: Database["public"]["Enums"]["expense_kind"]
           org_id?: string
           paid_at?: string | null
@@ -2989,6 +3001,20 @@ export type Database = {
             columns: ["claimant_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_claims_imprest_float_id_fkey"
+            columns: ["imprest_float_id"]
+            isOneToOne: false
+            referencedRelation: "imprest_floats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_claims_imprest_replenishment_id_fkey"
+            columns: ["imprest_replenishment_id"]
+            isOneToOne: false
+            referencedRelation: "imprest_replenishments"
             referencedColumns: ["id"]
           },
           {
@@ -11161,6 +11187,25 @@ export type Database = {
       }
       pipeline_project_statuses: { Args: never; Returns: string[] }
       confirm_work_order_acceptance: { Args: { p_id: string }; Returns: Json }
+      imprest_advances_out: { Args: { p_float: string }; Returns: number }
+      imprest_cash_book: { Args: { p_float: string }; Returns: number }
+      imprest_drawn: {
+        Args: {
+          p_category: Database["public"]["Enums"]["budget_category"]
+          p_float: string
+          p_month: string
+        }
+        Returns: number
+      }
+      imprest_receipts_waiting: { Args: { p_float: string }; Returns: number }
+      imprest_remaining: {
+        Args: {
+          p_category: Database["public"]["Enums"]["budget_category"]
+          p_float: string
+          p_month: string
+        }
+        Returns: number
+      }
       post_stock_document: {
         Args: { p_document_id: string; p_expected_revision?: number }
         Returns: string
@@ -11409,6 +11454,10 @@ export type Database = {
       replace_erp_snapshot: {
         Args: { p_org_id: string; p_rows: Json; p_table: string }
         Returns: number
+      }
+      request_imprest_replenishment: {
+        Args: { p_float: string; p_kind?: string }
+        Returns: string
       }
       reserve_credits: {
         Args: { p_amount: number; p_org_id: string; p_run_id: string }
@@ -11797,6 +11846,15 @@ export type Database = {
       }
       transition_imprest_plan: {
         Args: { p_id: string; p_notes?: string; p_to: string }
+        Returns: undefined
+      }
+      transition_imprest_replenishment: {
+        Args: {
+          p_id: string
+          p_notes?: string
+          p_payment_reference?: string
+          p_to: string
+        }
         Returns: undefined
       }
       transition_native_sales_invoice: {
