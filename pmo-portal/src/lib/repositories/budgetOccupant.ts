@@ -31,8 +31,17 @@ export async function listRefusedOccupantAccounts(versionId: string, fiscalYear:
   if (error) throw toAppError(error);
   const accounts = (Array.isArray(data) ? data as Array<{ erp_account: string | null }> : [])
     .map((row) => row.erp_account?.trim() ?? '').filter(Boolean);
-  // No per-account rows: a per-project-and-year budget (ERPNext 15).
-  return accounts.length > 0 ? [...new Set(accounts)] : [''];
+  if (accounts.length > 0) return [...new Set(accounts)];
+  // No per-account rows: a per-project-and-year budget (ERPNext 15) records the refusal on the version's own mirror row.
+  // Anything else offers no action, rather than a request with an empty account that the server would refuse.
+  const { data: version, error: versionError } = await supabase
+    .from('budget_version_erp_mirror')
+    .select('fiscal_year')
+    .eq('budget_version_id', versionId)
+    .eq('fiscal_year', fiscalYear)
+    .like('push_error', `${OCCUPANT_REFUSAL}%`);
+  if (versionError) throw toAppError(versionError);
+  return Array.isArray(version) && version.length > 0 ? [''] : [];
 }
 
 async function ask(action: 'inspect' | 'use-as-draft', projectId: string, fiscalYear: string, erpAccount: string): Promise<Record<string, unknown>> {

@@ -1,4 +1,4 @@
--- 0481_budget_occupant_resolution_down.sql — reverse of 0483 (ECA-6, #1603). Drops the consent table and the three
+-- 0483_budget_occupant_resolution_down.sql — reverse of 0483 (ECA-6, #1603). Drops the consent table and the three
 -- functions; no PMO-owned budget row depends on them (a Draft created from an ERP budget is an ordinary budget version).
 drop function if exists public.create_budget_draft_from_erp(uuid, text, jsonb);
 drop function if exists public.consume_budget_occupant_consent(uuid, uuid, uuid);

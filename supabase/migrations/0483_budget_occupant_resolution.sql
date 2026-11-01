@@ -4,7 +4,7 @@
 --     with the service role before it relaxes the ownership refusal; the request payload never asserts it.
 --   • "Use the ERP figures as a draft" creates a PMO Draft version holding the ERP figures. It runs as the caller (SECURITY
 --     INVOKER), so RLS and the budget authorship triggers apply, and it reuses the import protocol's line writer.
--- Rollback: supabase/migrations/rollback/0481_budget_occupant_resolution_down.sql
+-- Rollback: supabase/migrations/rollback/0483_budget_occupant_resolution_down.sql
 
 create table public.budget_occupant_consents (
   id uuid primary key default gen_random_uuid(),
@@ -86,7 +86,7 @@ revoke all on function public.consume_budget_occupant_consent(uuid, uuid, uuid) 
 grant execute on function public.consume_budget_occupant_consent(uuid, uuid, uuid) to service_role;
 
 -- A PMO Draft holding the ERP figures. SECURITY INVOKER: the caller's RLS decides, and the lines go through the
--- import protocol's writer (0397), so the Draft-only and role checks stay its own. p_lines is
+-- import protocol's writer (0397), so its Draft-only check stays its own; the role gate (Admin/Finance) is asserted here. p_lines is
 -- [{category, budgeted_amount, fiscal_year}], built by adapter-dispatch from the ERP document.
 create function public.create_budget_draft_from_erp(p_project_id uuid, p_erp_budget_name text, p_lines jsonb)
 returns uuid
@@ -99,6 +99,12 @@ declare
   v_key text;
   v_outcome text;
 begin
+  -- Admin/Finance only (FR-ECA-041), the same gate as the consent: the writer below also admits PM and Executive,
+  -- who must not be able to label a Draft as the ERP's.
+  if auth.uid() is null or not coalesce(public.is_active_member(), false)
+     or coalesce(public.auth_role()::text, '') not in ('Admin', 'Finance') then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
   if p_project_id is null or coalesce(btrim(p_erp_budget_name), '') = '' or p_lines is null
      or jsonb_typeof(p_lines) <> 'array' or jsonb_array_length(p_lines) = 0 then
     raise exception 'Invalid budget draft arguments' using errcode = '22023';

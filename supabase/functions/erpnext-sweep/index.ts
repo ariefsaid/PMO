@@ -98,7 +98,7 @@ export const STATEMENT_SOURCE_READ_REQUEST_TIMEOUT_MS = 5_000;
 export const STATEMENT_SOURCE_READ_STAGE_TIMEOUT_MS = 7_000;
 import { feedAccountMirror } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountMirrorFeed.ts';
 import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountingFanout.ts';
-import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
+import { dispatchMoneyWrite as dispatchMoneyWriteCore, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { erpnextRequest, ErpError, getDoc, withProbeBudget, ERP_PROBE_TIMEOUT_MS, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { AdapterError } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
@@ -3596,12 +3596,26 @@ export function moneyWriteReadModelContext(args: { orgId: string; actorUserId: s
   };
 }
 
+/** Runs after a swept money write lands (set by `buildMoneyWriteDepsLive`). */
+type SweepAfterSuccess = { afterSuccess?: () => Promise<void> };
+
+/**
+ * ECA-6: every sweep dispatch goes through here, so a replace the sweep finishes spends its consent exactly as the
+ * foreground push does. Runs only after `dispatchMoneyWrite` resolves; a spend failure is logged, not surfaced (the
+ * consent names a document that is now cancelled, so it unlocks nothing).
+ */
+export async function dispatchMoneyWrite(deps: DispatchMoneyWriteDeps & SweepAfterSuccess): ReturnType<typeof dispatchMoneyWriteCore> {
+  const result = await dispatchMoneyWriteCore(deps);
+  await deps.afterSuccess?.();
+  return result;
+}
+
 export async function buildMoneyWriteDepsLive(
   serviceClient: SupabaseClient,
   org: OrgBinding,
   args: { command: AdapterCommand; actorUserId: string | null; outboxRecordId: string; persistPayload: boolean; trustedReceiptSnapshot?: boolean },
   cache?: ErpAuthPairCache,
-): Promise<DispatchMoneyWriteDeps> {
+): Promise<DispatchMoneyWriteDeps & SweepAfterSuccess> {
   const command = args.command;
   const operation = command.operation as 'create' | 'update' | 'transition';
   const payload = command.record as Record<string, unknown>;
@@ -3619,6 +3633,8 @@ export async function buildMoneyWriteDepsLive(
   // consuming the whole 300s quarantine window and letting a claimant POST after its own reissue.
   const client = withProbeBudget({ fetchImpl: guardedErpFetch(org.siteUrl), apiKey, apiSecret, baseUrl: org.siteUrl });
 
+  // ECA-6: a budget replace the sweep finishes names its recorded consent; it is spent once the write lands.
+  let occupantConsentId: string | null = null;
   const adapter = await resolveErpDispatchAdapter({
     serviceClient: serviceClient as never,
     orgId: org.orgId,
@@ -3627,6 +3643,7 @@ export async function buildMoneyWriteDepsLive(
     apiKey,
     apiSecret,
     rateLimiter: { acquire: async () => {} },
+    onOccupantConsent: (id) => { occupantConsentId = id; },
     doctypeBodies: DOCTYPE_BODIES,
     // #858: recovery replays the persisted items/taxes (inside the digest) and makes no ERPNext read to rebuild them.
     // Fresh expense commands carry their own frozen payload and must use the ordinary first-build path.
@@ -3699,7 +3716,14 @@ export async function buildMoneyWriteDepsLive(
   // FR-BFY-032: the outbox row + `external_refs` are keyed on the row's OWN `pmo_record_id` — the
   // year-qualified `<vid>:<encoded_fy>` for a budget fan-out, the bare record id for every other
   // domain (where the two are the same string, so this is byte-for-byte).
-  return { adapter, command, writeReadModel, recordExternalRef, money, outboxRecordId: args.outboxRecordId };
+  const afterSuccess = async (): Promise<void> => {
+    if (!occupantConsentId) return;
+    const { error: spendError } = await serviceClient.rpc('consume_budget_occupant_consent', {
+      p_org_id: org.orgId, p_id: occupantConsentId, p_actor_id: args.actorUserId,
+    });
+    if (spendError) console.error('[erpnext-sweep] could not spend the budget replace consent:', spendError.message);
+  };
+  return { adapter, command, writeReadModel, recordExternalRef, money, outboxRecordId: args.outboxRecordId, afterSuccess };
 }
 
 /**

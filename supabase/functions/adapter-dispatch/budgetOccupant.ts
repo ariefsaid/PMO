@@ -18,6 +18,7 @@ import type { DispatchServiceClient } from '../../../pmo-portal/src/lib/adapterS
 import type { AdapterCommand } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import type { AuthorizationClient } from './authGuard.ts';
 import { dispatchErrorStatus } from './dispatchErrorStatus.ts';
+import { fromCents, toCents } from '../../../pmo-portal/src/lib/budget/budgetAmount.ts';
 import { isCanonicalUuid } from './transitionTargetGuard.ts';
 
 const OCCUPANT_ROLES = ['Admin', 'Finance'] as const;
@@ -57,10 +58,13 @@ export type BudgetOccupantReply = { status: number; body: Record<string, unknown
 
 const refuse = (message: string, code = 'commit-rejected'): never => { throw new AppError(message, code); };
 
+/** Exact integer cents, by the same parser the push uses (`toCents`), so the draft and the push agree to the cent. */
 function cents(amount: unknown): number {
-  const n = Number(amount);
-  if (!Number.isFinite(n) || n < 0) refuse('the ERP budget holds an amount PMO cannot read');
-  return Math.round(n * 100);
+  try {
+    const c = toCents(String(amount));
+    if (c >= 0) return c;
+  } catch { /* falls through to the refusal */ }
+  return refuse('the ERP budget holds an amount PMO cannot read');
 }
 
 /** The ERP budget's (account, amount) rows: one document row on ERPNext 16, the `accounts` table on 15. */
@@ -112,7 +116,7 @@ async function run(d: BudgetOccupantDeps): Promise<BudgetOccupantReply> {
   const byCategory = new Map<string, number>();
   for (const r of rows) byCategory.set(categoryOf.get(r.account)!, (byCategory.get(categoryOf.get(r.account)!) ?? 0) + r.amount);
   const lines = [...byCategory].filter(([, c]) => c > 0)
-    .map(([category, c]) => ({ category, budgeted_amount: (c / 100).toFixed(2), fiscal_year: fiscalYear }));
+    .map(([category, c]) => ({ category, budgeted_amount: fromCents(c), fiscal_year: fiscalYear }));
   if (lines.length === 0) return refuse('the ERP budget holds no amount to copy');
 
   const created = await d.callerClient.rpc('create_budget_draft_from_erp', {

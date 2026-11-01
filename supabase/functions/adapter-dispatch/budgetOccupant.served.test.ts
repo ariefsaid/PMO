@@ -185,6 +185,24 @@ describe('AC-ECA-031 — use the ERP figures as a PMO draft', () => {
     assertEquals(s.drafts.length, 0);
   });
 
+  it('AC-ECA-031 use as draft: the draft carries the ERP amount to the cent, with no float rounding', async () => {
+    const s = slice({ erpDoc: { ...DESK_DOC, budget_amount: 1234567.89 } });
+    const { routes } = servedRoutes(seed16(), 16);
+    const { res, body } = await post(occupant('use-as-draft'), [...s.routes, ...routes]);
+
+    assertEquals(res.status, 200, JSON.stringify(body));
+    assertEquals((s.drafts[0].args.p_lines as Array<{ budgeted_amount: string }>)[0].budgeted_amount, '1234567.89');
+  });
+
+  it('AC-ECA-031 use as draft: an amount too large to hold exactly in cents is refused, no draft', async () => {
+    const s = slice({ erpDoc: { ...DESK_DOC, budget_amount: '90071992547409.93' } });
+    const { routes } = servedRoutes(seed16(), 16);
+    const { res } = await post(occupant('use-as-draft'), [...s.routes, ...routes]);
+
+    assertEquals(res.status, 422);
+    assertEquals(s.drafts.length, 0);
+  });
+
   it('AC-ECA-031 inspect names the exact ERP budget a replace would touch, and writes nothing', async () => {
     const s = slice({});
     const { routes } = servedRoutes(seed16(), 16);
@@ -269,6 +287,30 @@ describe('AC-ECA-031 — replace the ERP budget only on a consent naming it', ()
     assertEquals(body.error, 'budget-unowned-live-occupant');
     assertEquals(writesTo(calls, DESK).length, 0);
     assertEquals(erpBudgets.length, 0);
+  });
+
+  it('AC-ECA-031 replace: a consent for another PMO project does not unlock it', async () => {
+    const s = slice({ consents: [consent({ project_id: '66666666-6666-4666-8666-666666666666' })] });
+    const { routes, erpBudgets } = servedRoutes(seed16(), 16);
+    const { res, body, calls } = await post(push(), [...s.routes, ...routes]);
+
+    assertEquals(res.status, 422);
+    assertEquals(body.error, 'budget-unowned-live-occupant');
+    assertEquals(writesTo(calls, DESK).length, 0);
+    assertEquals(erpBudgets.length, 0);
+    assertEquals(s.consumed.length, 0);
+  });
+
+  it('AC-ECA-031 replace: when the ERP budget already holds PMO’s figures the consent adopts it with no ERP write and is spent', async () => {
+    const s = slice({ consents: [consent()], erpDoc: { ...DESK_DOC, budget_amount: 90000 } });
+    const { routes, erpBudgets } = servedRoutes(seed16({ grainByAccountYear: { [`2026|${ACCOUNT}`]: [{ ...DESK_DOC, budget_amount: 90000 }] } }), 16);
+    const { res, body, calls } = await post(push(), [...s.routes, ...routes]);
+
+    assertEquals(res.status, 200, JSON.stringify(body));
+    assertEquals(erpWrites(calls).length, 0, 'nothing to change in the ERP');
+    assertEquals(erpBudgets.length, 0);
+    assert(calls.some((c) => c.url.pathname === '/rest/v1/rpc/record_outbox_ref'), 'PMO now owns the adopted document');
+    assertEquals(s.consumed, [consent().id]);
   });
 
   it('AC-ECA-031 replace: a consent for another account or year does not unlock it', async () => {

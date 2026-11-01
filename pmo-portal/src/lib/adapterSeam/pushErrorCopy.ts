@@ -71,7 +71,7 @@ const CODES: Record<string, Entry> = {
     message: 'ERPNext already holds a budget for this project and fiscal year that PMO did not create.',
     retryable: false,
     remedy:
-      'Someone authored that budget in ERPNext directly. PMO will not cancel or amend it unless you confirm. Use its figures as a PMO draft, or replace it with this version.',
+      'Someone authored that budget in ERPNext directly. PMO will not cancel or amend it unless an Admin or Finance user confirms. They can use its figures as a PMO draft, or replace it with this version.',
   },
   'budget-enforcement-absent': {
     // HIGH-1: the previous ERP budget was cancelled and its replacement never landed.

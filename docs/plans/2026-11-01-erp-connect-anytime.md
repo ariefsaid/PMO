@@ -14,7 +14,7 @@
   Orca workers (`docs/orca-dispatch.md`); money-path slices are Director-dispatched per issue.
 - **Migrations (Director, 2026-11-01):** each with `supabase/migrations/rollback/<number>_<slug>_down.sql`. Five migrations:
   ECA-2 `0451_erp_connect_setup`, ECA-3 `0452_erp_connect_sends`, ECA-4 `0453_process_domain_cutover`, ECA-5
-  `0454_invoice_pairs`, ECA-6 `0483_budget_occupant_resolution` (rollback file `0481_budget_occupant_resolution_down.sql`; Director-allocated, replaces the draft's 0455; 0450 is #1614's). A collision at build is fixed with
+  `0454_invoice_pairs`, ECA-6 `0483_budget_occupant_resolution` (rollback file `0483_budget_occupant_resolution_down.sql`; Director-allocated, replaces the draft's 0455; 0450 is #1614's). A collision at build is fixed with
   `scripts/renumber-migration.sh`, never by hand.
 - **IDs:** plan decisions `PD-ECA-#`; questions for the Director `PQ-ECA-#`; tasks `<slice>-T<n>`.
 

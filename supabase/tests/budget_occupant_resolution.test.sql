@@ -2,7 +2,7 @@
 -- the recorded, single-use replace consent and the Draft built from an ERP budget.
 begin;
 create extension if not exists pgtap;
-select plan(25);
+select plan(28);
 
 insert into public.organizations(id, name, default_currency) values
   ('16030000-0000-0000-0000-00000000000a', 'BOC Org', 'IDR'),
@@ -11,11 +11,15 @@ insert into auth.users(id, email) values
   ('16030000-0000-0000-0000-0000000000a1', 'boc-admin@example.test'),
   ('16030000-0000-0000-0000-0000000000a2', 'boc-fin@example.test'),
   ('16030000-0000-0000-0000-0000000000a3', 'boc-eng@example.test'),
+  ('16030000-0000-0000-0000-0000000000a4', 'boc-pm@example.test'),
+  ('16030000-0000-0000-0000-0000000000a5', 'boc-exec@example.test'),
   ('16030000-0000-0000-0000-0000000000b1', 'boc-xorg@example.test');
 insert into public.profiles(id, org_id, full_name, email, role, status) values
   ('16030000-0000-0000-0000-0000000000a1', '16030000-0000-0000-0000-00000000000a', 'BOC Admin', 'boc-admin@example.test', 'Admin', 'active'),
   ('16030000-0000-0000-0000-0000000000a2', '16030000-0000-0000-0000-00000000000a', 'BOC Fin', 'boc-fin@example.test', 'Finance', 'active'),
   ('16030000-0000-0000-0000-0000000000a3', '16030000-0000-0000-0000-00000000000a', 'BOC Eng', 'boc-eng@example.test', 'Engineer', 'active'),
+  ('16030000-0000-0000-0000-0000000000a4', '16030000-0000-0000-0000-00000000000a', 'BOC PM', 'boc-pm@example.test', 'Project Manager', 'active'),
+  ('16030000-0000-0000-0000-0000000000a5', '16030000-0000-0000-0000-00000000000a', 'BOC Exec', 'boc-exec@example.test', 'Executive', 'active'),
   ('16030000-0000-0000-0000-0000000000b1', '16030000-0000-0000-0000-00000000000b', 'BOC XOrg', 'boc-xorg@example.test', 'Admin', 'active');
 insert into public.projects(id, org_id, code, name, status) values
   ('16030000-0000-0000-0000-0000000000c1', '16030000-0000-0000-0000-00000000000a', 'BOC1', 'Has active budget', 'Ongoing Project'),
@@ -88,6 +92,18 @@ select pg_temp.act_as('16030000-0000-0000-0000-0000000000a3');
 select throws_ok($$ select create_budget_draft_from_erp('16030000-0000-0000-0000-0000000000c1', 'DESK-BUDGET',
   '[{"category":"Labor","budgeted_amount":"50000000.00","fiscal_year":"2026"}]'::jsonb) $$,
   '42501', null, 'AC-ECA-031 an Engineer cannot create the draft');
+
+-- Admin and Finance only (FR-ECA-041): a PM or an Executive can write budget lines elsewhere, but cannot label a Draft as the ERP's.
+select pg_temp.act_as('16030000-0000-0000-0000-0000000000a4');   -- Project Manager
+select throws_ok($$ select create_budget_draft_from_erp('16030000-0000-0000-0000-0000000000c1', 'DESK-BUDGET',
+  '[{"category":"Labor","budgeted_amount":"50000000.00","fiscal_year":"2026"}]'::jsonb) $$,
+  '42501', null, 'AC-ECA-031 a Project Manager cannot create the draft');
+select pg_temp.act_as('16030000-0000-0000-0000-0000000000a5');   -- Executive
+select throws_ok($$ select create_budget_draft_from_erp('16030000-0000-0000-0000-0000000000c1', 'DESK-BUDGET',
+  '[{"category":"Labor","budgeted_amount":"50000000.00","fiscal_year":"2026"}]'::jsonb) $$,
+  '42501', null, 'AC-ECA-031 an Executive cannot create the draft');
+select is((select count(*)::int from budget_versions where project_id = '16030000-0000-0000-0000-0000000000c1' and name like 'From ERP%'), 0,
+  'AC-ECA-031 the refused callers left no draft behind');
 
 select pg_temp.act_as('16030000-0000-0000-0000-0000000000a2');
 insert into _c select 'draft', create_budget_draft_from_erp('16030000-0000-0000-0000-0000000000c1', 'DESK-BUDGET',

@@ -5,19 +5,29 @@ const h = vi.hoisted(() => ({
   rpc: vi.fn(),
   retry: vi.fn(),
   dispatch: vi.fn(),
+  tables: {} as Record<string, unknown[]>,
+  from: vi.fn(),
 }));
 
-vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc } }));
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.from } }));
 vi.mock('./budgetProjection', () => ({ retryActiveBudgetPush: h.retry }));
 vi.mock('@/src/lib/adapterSeam/dispatchClient', () => ({ dispatchDomainCommand: h.dispatch }));
 
-import { createDraftFromErpBudget, inspectBudgetOccupant, replaceErpBudget } from './budgetOccupant';
+import { createDraftFromErpBudget, inspectBudgetOccupant, listRefusedOccupantAccounts, replaceErpBudget } from './budgetOccupant';
 
 beforeEach(() => {
   h.calls.length = 0;
   h.rpc.mockReset().mockImplementation(async () => { h.calls.push('consent'); return { data: 'c1', error: null }; });
   h.retry.mockReset().mockImplementation(async () => { h.calls.push('push'); return { pushState: 'pushed' }; });
   h.dispatch.mockReset();
+  h.tables = {};
+  // A select chain that resolves to the rows seeded for the table, whatever filters are applied.
+  h.from.mockReset().mockImplementation((table: string) => {
+    const chain: Record<string, unknown> = {};
+    for (const m of ['select', 'eq', 'like']) chain[m] = () => chain;
+    chain.then = (resolve: (v: unknown) => void) => resolve({ data: h.tables[table] ?? [], error: null });
+    return chain;
+  });
 });
 
 describe('AC-ECA-031 budget occupant repository', () => {
@@ -45,5 +55,19 @@ describe('AC-ECA-031 budget occupant repository', () => {
       id: 'proj-1', erp_doc_kind: 'budget-occupant', action: 'inspect', projectId: 'proj-1', fiscalYear: '2026', erpAccount: '5100',
     });
     expect(h.dispatch).toHaveBeenNthCalledWith(2, 'budget', 'read', expect.objectContaining({ action: 'use-as-draft' }));
+  });
+
+  it('lists the refused accounts of a per-account (ERPNext 16) budget', async () => {
+    h.tables.budget_version_account_erp_mirror = [{ erp_account: '5100' }, { erp_account: '5100' }, { erp_account: '5200' }];
+    expect(await listRefusedOccupantAccounts('v1', '2026')).toEqual(['5100', '5200']);
+  });
+
+  it('a per-project-and-year (ERPNext 15) refusal offers the one empty-account action', async () => {
+    h.tables.budget_version_erp_mirror = [{ fiscal_year: '2026' }];
+    expect(await listRefusedOccupantAccounts('v1', '2026')).toEqual(['']);
+  });
+
+  it('offers no action when neither mirror records the refusal, so no request carries an empty account', async () => {
+    expect(await listRefusedOccupantAccounts('v1', '2026')).toEqual([]);
   });
 });
