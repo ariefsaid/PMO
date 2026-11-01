@@ -80,12 +80,6 @@ insert into imprest_floats (id, org_id, project_id, custodian_id, float_amount, 
   ('15150000-0000-0000-0000-0000000000d3', '15150000-0000-0000-0000-00000000000a', '15150000-0000-0000-0000-0000000000c3',
    '15150000-0000-0000-0000-0000000000a3', 10000000, 'IDR', '15150000-0000-0000-0000-0000000000a1');
 
--- A funding on F recorded by someone other than its custodian (an imported or pre-existing row): the custodian is
--- refused as decider on their own float whoever requested it.
-insert into imprest_replenishments (id, org_id, float_id, kind, number, status, amount, requested_by) values
-  ('15150000-0000-0000-0000-0000000000e9', '15150000-0000-0000-0000-00000000000a', '15150000-0000-0000-0000-0000000000d1',
-   'funding', 'REP-FIXTURE-X', 'Requested', 1, '15150000-0000-0000-0000-0000000000a1');
-
 -- ── AC-IMP-003 funding ─────────────────────────────────────────────────────────────────────────────────────────────
 set local role authenticated;
 select pg_temp.act_as('15150000-0000-0000-0000-0000000000a3');  -- Fin2 = H's custodian
@@ -119,8 +113,19 @@ select ok((select imprest_replenishment_id is null from expense_claims where id 
 select throws_ok($$ select transition_imprest_replenishment(
     (select id from imprest_replenishments where float_id = '15150000-0000-0000-0000-0000000000d1' and status = 'Requested'), 'Approved') $$,
   '42501', null, 'AC-IMP-041 the custodian (and requester) cannot approve');
+-- A request on F recorded by someone other than its custodian (an imported or pre-existing row): the custodian is
+-- refused as decider on their own float whoever raised it. Scoped to this one assertion.
+reset role;
+insert into imprest_replenishments (id, org_id, float_id, kind, number, status, amount, requested_by) values
+  ('15150000-0000-0000-0000-0000000000e9', '15150000-0000-0000-0000-00000000000a', '15150000-0000-0000-0000-0000000000d1',
+   'funding', 'REP-FIXTURE-X', 'Requested', 1, '15150000-0000-0000-0000-0000000000a1');
+set local role authenticated;
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a2');
 select throws_ok($$ select transition_imprest_replenishment('15150000-0000-0000-0000-0000000000e9', 'Approved') $$,
   '42501', null, 'AC-IMP-041 the custodian cannot approve a request on their float that someone else raised');
+reset role;
+delete from imprest_replenishments where id = '15150000-0000-0000-0000-0000000000e9';
+set local role authenticated;
 select pg_temp.act_as('15150000-0000-0000-0000-0000000000a4');  -- PM1: approval rank, but not Finance
 select throws_ok($$ select transition_imprest_replenishment(
     (select id from imprest_replenishments where float_id = '15150000-0000-0000-0000-0000000000d1' and status = 'Requested'), 'Approved') $$,
