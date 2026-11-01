@@ -89,7 +89,7 @@ Deno.test('AC-ENA-CAD-009: a slow first org cannot stop the second org money pas
   const r = await runErpSweepCycle(h.deps);
   assert(h.log.includes('reconcile:next') && h.log.includes('budget:next'), `second org money passes must run: ${JSON.stringify(h.log)}`);
   assert(!h.log.includes('sweep:next'), 'second org hourly sweep must not start past the deadline');
-  assert(h.defers.some((d) => d.orgId === 'next' && d.dueInSeconds === 0), `second org stays due: ${JSON.stringify(h.defers)}`);
+  assert(!h.defers.some((d) => d.orgId === 'next'), `a run that never started keeps its wait marker: ${JSON.stringify(h.defers)}`);
   assert(!h.marks.includes('next'), 'a skipped hourly run must not be stamped');
   assert(r.orgs === 2, 'both orgs reported');
 });
@@ -105,4 +105,37 @@ Deno.test('AC-ENA-CAD-008: a money-pass error does not turn a clean hourly run i
   const h = harness([org('a')], { reconcileOrgBudgetPushes: () => Promise.resolve({ driven: 0, error: 'refused' }) });
   await runErpSweepCycle(h.deps);
   assert(h.marks.join() === 'a' && h.defers.length === 0, `marks=${h.marks} defers=${JSON.stringify(h.defers)}`);
+});
+
+Deno.test('AC-ENA-CAD-008: an incomplete doctype walk still feeds the ledger and later passes; the run is deferred with no delay', async () => {
+  const called: string[] = [];
+  const h = harness([org('a')], {
+    sweepOrgDoctypes: () => Promise.resolve({ applied: 3, complete: false }),
+    repairOrgLinks: () => { called.push('repair'); return Promise.resolve({ repaired: 0 }); },
+    feedOrgLedgers: () => { called.push('ledger'); return Promise.resolve({ gl: 0, ple: 0, glCaughtUp: true, pleCaughtUp: true }); },
+    feedOrgPurchases: () => { called.push('purchases'); return Promise.resolve({ fed: 0 }); },
+    refreshOrgAccounting: () => { called.push('accounting'); return Promise.resolve({}); },
+  });
+  await runErpSweepCycle(h.deps);
+  assert(called.join() === 'repair,ledger,purchases,accounting', `later passes must run: ${called}`);
+  assert(h.marks.length === 0 && h.defers.length === 1 && h.defers[0]!.dueInSeconds === 0, `deferred, not stamped: ${JSON.stringify(h.defers)}`);
+});
+
+Deno.test('AC-ENA-CAD-009: across ticks a slow first org cannot starve the next org hourly work', async () => {
+  let clock = Date.parse('2026-11-01T00:00:00Z');
+  const markers = new Map<string, string | null>([['A', null], ['B', null]]);
+  const ran: string[] = [];
+  for (let tick = 0; tick < 3; tick++) {
+    const orgs = ['A', 'B'].map((id) => org(id, markers.get(id)!));
+    const h = harness(orgs, {
+      nowMs: () => clock,
+      hourlyDeadlineAtMs: clock + 1_000,
+      sweepOrgDoctypes: (o: { orgId: string }) => { ran.push(`${tick}:${o.orgId}`); clock += 5_000; return Promise.resolve({ applied: 0, complete: false }); },
+      deferFullSweep: (o: { orgId: string }) => { markers.set(o.orgId, new Date(clock - 55 * 60_000).toISOString()); return Promise.resolve(); },
+    } as Overrides);
+    await runErpSweepCycle(h.deps);
+    clock += 5 * 60_000;
+  }
+  assert(ran.includes('1:B') || ran.includes('2:B'), `org B starved across ticks: ${JSON.stringify(ran)}`);
+  assert(ran.some((r) => r.endsWith(':A')), `org A made progress: ${JSON.stringify(ran)}`);
 });

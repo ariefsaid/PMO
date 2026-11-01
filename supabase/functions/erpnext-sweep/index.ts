@@ -768,15 +768,18 @@ export async function runErpSweepCycle(
     let ledger: ErpSweepCycleResult['perOrg'][number]['ledger'];
     if (hourly) {
       // `truncated`: work was left for the next tick (not an error). `failed`: a pass errored (retry after a delay).
-      let truncated = false;
+      let truncated = false; // out of invocation time: later passes wait
+      let walkIncomplete = false; // doctype walk hit its page quantum: later passes still run, the run is deferred
+      let hourlyStarted = false;
       const hourlyFrom = errors.length; // money-pass errors above never hold the hourly marker back
       try {
         if (pastDeadline()) {
           truncated = true;
         } else {
+          hourlyStarted = true;
           const r = await deps.sweepOrgDoctypes(org);
           sweep = { applied: r.applied };
-          if (r.complete === false) truncated = true;
+          if (r.complete === false) walkIncomplete = true;
           if (r.error) errors.push(`sweep:${r.error}`);
         }
       } catch (err) {
@@ -843,8 +846,10 @@ export async function runErpSweepCycle(
       // (continue next tick when work was left, retry after a delay when a pass failed). Statement-side errors
       // retry on their own cadence and do not hold the marker back. A tick that dies before here leaves the org due.
       const failed = errors.slice(hourlyFrom).some((e) => !e.startsWith('native-statement:') && !e.startsWith('statement:'));
-      const unfinished = truncated || ledgerBehind;
-      const settle = unfinished || failed ? deps.deferFullSweep?.bind(null, org, failed ? SWEEP_RETRY_DELAY_SECONDS : 0) : deps.markFullSweepDone?.bind(null, org);
+      const unfinished = truncated || walkIncomplete || ledgerBehind;
+      // An org whose hourly work never started keeps its marker: a defer would reset how long it has waited
+      // and let a slow earlier org go first again on every tick.
+      const settle = !hourlyStarted ? undefined : unfinished || failed ? deps.deferFullSweep?.bind(null, org, failed ? SWEEP_RETRY_DELAY_SECONDS : 0) : deps.markFullSweepDone?.bind(null, org);
       if (settle) {
         try {
           await settle();
