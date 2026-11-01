@@ -13,11 +13,20 @@ describe('StageDateDialog (#1638)', () => {
     const field = screen.getByLabelText('Stage date');
     await userEvent.clear(field);
     await userEvent.type(field, '2026-10-25');
-    expect(screen.getByRole('button', { name: 'Save date' })).toBeDisabled();
+    const saveButton = screen.getByRole('button', { name: 'Save date' });
+    expect(saveButton).toBeDisabled();
+    expect(saveButton).toHaveAccessibleDescription(/Pick a date between 2026-10-01 and 2026-10-20/);
     await userEvent.clear(field);
     await userEvent.type(field, '2026-10-05');
     expect(onConfirm).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: 'Save date' }));
     expect(onConfirm).toHaveBeenCalledWith({ enteredOn: '2026-10-05', stage: undefined });
+  });
+
+  it('AC-PSH-013: accessible name includes stage and subtitle shows current date', () => {
+    render(<StageDateDialog title="Change date · Quoted" subtitle="Currently 12 Oct" initialDate="2026-10-12"
+      onConfirm={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.getByRole('dialog', { name: 'Change date · Quoted' })).toBeInTheDocument();
+    expect(screen.getByText('Currently 12 Oct')).toBeInTheDocument();
   });
 });

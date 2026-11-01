@@ -193,7 +193,7 @@ const ProjectDetail: React.FC = () => {
       {pipelineGroup === 'onHand' && (
         <details className="mb-8">
           <summary className="cursor-pointer text-sm font-semibold">{t('projectDetail.stageHistory.salesHistory', 'Sales history')}</summary>
-          <div className="pt-2"><StageHistory projectId={project.id} /></div>
+          <div className="pt-2"><StageHistory projectId={project.id} hideHeading /></div>
         </details>
       )}
       <div className="md:mb-4" />

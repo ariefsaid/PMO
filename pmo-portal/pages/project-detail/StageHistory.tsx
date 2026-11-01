@@ -9,8 +9,13 @@ import { formatInstantDate } from '@/src/lib/format';
 import { STAGE_KEY_DATE_LABEL, formatIsoDayMonth } from '@/components/salesPipeline';
 import StageDateDialog from './StageDateDialog';
 
+export interface StageHistoryProps {
+  projectId: string;
+  hideHeading?: boolean;
+}
+
 /** #1638 FR-PSH-016/017: every stage a deal went through, newest first; editors may correct dates. */
-export default function StageHistory({ projectId }: { projectId: string }) {
+export default function StageHistory({ projectId, hideHeading = false }: StageHistoryProps) {
   const { t } = useTranslation('project');
   const { data: entries = [], isLoading, error } = useProjectStageEntries(projectId);
   const { redate, addSkipped } = useStageEntryMutations();
@@ -30,8 +35,10 @@ export default function StageHistory({ projectId }: { projectId: string }) {
   if (error) return <ListState variant="error" title={t('projectDetail.stageHistory.loadError', 'Stage history could not load')} />;
   const entry = editing ? entries[editing.index] : null;
   return (
-    <section aria-labelledby="stage-history-heading" className="space-y-2">
-      <h2 id="stage-history-heading" className="text-sm font-semibold">{t('projectDetail.stageHistory.heading', 'Stage history')}</h2>
+    <section aria-labelledby={hideHeading ? undefined : 'stage-history-heading'} aria-label={hideHeading ? t('projectDetail.stageHistory.heading', 'Stage history') : undefined} className="space-y-2">
+      {!hideHeading && (
+        <h2 id="stage-history-heading" className="text-sm font-semibold">{t('projectDetail.stageHistory.heading', 'Stage history')}</h2>
+      )}
       <ol aria-label={t('projectDetail.stageHistory.listLabel', 'Stage history')} className="divide-y divide-border">
         {entries.map((e, i) => (
           <li key={e.id} className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 py-2 first:pt-0 last:pb-0">
@@ -62,7 +69,12 @@ export default function StageHistory({ projectId }: { projectId: string }) {
       </ol>
       {editing && entry && (
         <StageDateDialog
-          title={editing.kind === 'redate' ? t('projectDetail.stageHistory.changeDate', 'Change date') : t('projectDetail.stageHistory.addSkipped', 'Add skipped stage')}
+          title={editing.kind === 'redate'
+            ? `${t('projectDetail.stageHistory.changeDate', 'Change date')} · ${stageLabel(entry.stage)}`
+            : t('projectDetail.stageHistory.addSkipped', 'Add skipped stage')}
+          subtitle={editing.kind === 'redate'
+            ? t('projectDetail.stageHistory.currentDate', 'Currently {{date}}', { date: formatIsoDayMonth(entry.entered_on) })
+            : undefined}
           initialDate={entry.entered_on}
           {...boundsFor(editing.index, editing.kind)}
           stageOptions={editing.kind === 'add' ? (PIPELINE_STATUSES as readonly ProjectStatus[]) : undefined}

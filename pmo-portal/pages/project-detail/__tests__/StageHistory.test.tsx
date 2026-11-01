@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import StageHistory from '../StageHistory';
 
@@ -45,5 +46,19 @@ describe('StageHistory (#1638)', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(4);
     expect(screen.queryByRole('button', { name: /change date/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /add skipped stage/i })).toBeNull();
+  });
+  it('AC-PSH-013: opening the re-date dialog names the stage in accessible name and shows current date', async () => {
+    canEdit.mockReturnValue(true);
+    render(<StageHistory projectId="p1" />);
+    const firstRow = screen.getAllByRole('listitem')[0];
+    await userEvent.click(within(firstRow).getByRole('button', { name: /change date/i }));
+    expect(screen.getByRole('dialog', { name: /Quoted/i })).toBeInTheDocument();
+    expect(screen.getByText(/Currently 12 Oct/i)).toBeInTheDocument();
+  });
+  it('AC-PSH-013: suppresses its own heading when hideHeading is true', () => {
+    canEdit.mockReturnValue(true);
+    render(<StageHistory projectId="p1" hideHeading />);
+    expect(screen.queryByRole('heading', { level: 2, name: /stage history/i })).toBeNull();
+    expect(screen.getByRole('list', { name: /stage history/i })).toBeInTheDocument();
   });
 });

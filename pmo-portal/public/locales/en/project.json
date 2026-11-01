@@ -874,7 +874,15 @@
       "salesHistory": "Sales history",
       "loadError": "Stage history could not load",
       "stage": "Stage",
-      "notAfter": "Pick a date on or before {{max}}"
+      "notAfter": "Pick a date on or before {{max}}",
+      "currentDate": "Currently {{date}}",
+      "source": {
+        "origination": "Origination",
+        "transition": "Transition",
+        "added": "Added later",
+        "import": "Import",
+        "backfill": "Backfill"
+      }
     }
   },
   "common": {

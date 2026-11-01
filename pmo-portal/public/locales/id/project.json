@@ -874,7 +874,15 @@
       "salesHistory": "Riwayat penjualan",
       "loadError": "Riwayat tahap gagal dimuat",
       "stage": "Tahap",
-      "notAfter": "Pilih tanggal paling lambat {{max}}"
+      "notAfter": "Pilih tanggal paling lambat {{max}}",
+      "currentDate": "Saat ini {{date}}",
+      "source": {
+        "origination": "Pembuatan",
+        "transition": "Transisi pipeline",
+        "added": "Ditambahkan kemudian",
+        "import": "Impor",
+        "backfill": "Pengisian awal"
+      }
     }
   },
   "common": {

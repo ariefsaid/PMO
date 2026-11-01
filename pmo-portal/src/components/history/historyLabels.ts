@@ -100,7 +100,7 @@ export function fieldLabels(t: TFunction): Record<string, string> {
     released_at: t('history.field.released_at', 'Released at'),
     stage: t('history.field.stage', 'Stage'),
     entered_on: t('history.field.entered_on', 'Stage date'),
-    source: t('history.field.source', 'Recorded by'),
+    source: t('history.field.source', 'Source'),
     redated_at: t('history.field.redated_at', 'Date changed at'),
   };
 }

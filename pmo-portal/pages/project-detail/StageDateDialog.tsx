@@ -8,6 +8,7 @@ import type { ProjectStatus } from '@/src/lib/db/projectTransitions';
 
 interface StageDateDialogProps {
   title: string;
+  subtitle?: string;
   /** Pre-filled value ('YYYY-MM-DD'); today when not given. */
   initialDate?: string;
   /** Inclusive bounds from the neighbouring entries; max defaults to today. */
@@ -20,7 +21,7 @@ interface StageDateDialogProps {
 }
 
 /** Date picker for a stage entry. Nothing is written until "Save date": the only write is `onConfirm`. */
-export default function StageDateDialog({ title, initialDate, min, max, stageOptions, onConfirm, onClose }: StageDateDialogProps) {
+export default function StageDateDialog({ title, subtitle, initialDate, min, max, stageOptions, onConfirm, onClose }: StageDateDialogProps) {
   const { t } = useTranslation('project');
   const today = useOrgToday();
   const hi = max ?? today;
@@ -42,14 +43,14 @@ export default function StageDateDialog({ title, initialDate, min, max, stageOpt
       setSaving(false);
     }
   };
-  const rangeError = outOfRange && value !== ''
-    ? (min != null
-        ? t('projectDetail.stageHistory.outOfRange', 'Pick a date between {{min}} and {{max}}', { min, max: hi })
-        : t('projectDetail.stageHistory.notAfter', 'Pick a date on or before {{max}}', { max: hi }))
-    : null;
+  const rangeMessage = min != null
+    ? t('projectDetail.stageHistory.outOfRange', 'Pick a date between {{min}} and {{max}}', { min, max: hi })
+    : t('projectDetail.stageHistory.notAfter', 'Pick a date on or before {{max}}', { max: hi });
+  const rangeError = outOfRange && value !== '' ? rangeMessage : null;
   return (
-    <EntityFormModal open title={title} submitLabel={t('projectDetail.stageHistory.save', 'Save date')}
+    <EntityFormModal open title={title} subtitle={subtitle} submitLabel={t('projectDetail.stageHistory.save', 'Save date')}
       onSubmit={(e) => void submit(e)} onClose={onClose} loading={saving} submitDisabled={outOfRange}
+      disabledReason={outOfRange ? rangeMessage : undefined}
       dirty={value !== (initialDate ?? today)}>
       {stageOptions && (
         <SelectField label={t('projectDetail.stageHistory.stage', 'Stage')} value={stage} onChange={setStage}

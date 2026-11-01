@@ -44,8 +44,22 @@ describe('#1638 stage entry history', () => {
     typeof options === 'string' ? options : options.defaultValue ?? key;
   it('AC-PSH-007: a stage entry is a known record kind with a dated stage field and labelled audit lines', () => {
     expect(FIELD_KINDS.project_stage_entry.entered_on).toBe('date');
+    expect(FIELD_KINDS.project_stage_entry.source).toBe('enum');
+    expect(fieldLabels(translate as never).source).toBe('Source');
+    expect(en.history.field.source).toBe('Source');
+    expect(id.history.field.source).toBe('Sumber');
     expect(kindLabels(translate as never).project_stage_entry).toBe('Stage entry');
     expect(auditActionLabels(translate as never)['project.stage_entry.redate']).toBe('Stage date changed');
     expect(id.history.kind.project_stage_entry).toBe('Entri tahap');
+  });
+
+  it('AC-PSH-007: maps stage entry source enum values to friendly words', () => {
+    const { result } = renderHook(() => useHistoryEnumLabel());
+    expect(result.current('project_stage_entry', 'source', 'backfill')).toBe('Backfill');
+    expect(result.current('project_stage_entry', 'source', 'import')).toBe('Import');
+    expect(result.current('project_stage_entry', 'source', 'added')).toBe('Added later');
+    expect(result.current('project_stage_entry', 'source', 'transition')).toBe('Transition');
+    expect(result.current('project_stage_entry', 'source', 'origination')).toBe('Origination');
+    expect(result.current('project_stage_entry', 'source', 'unknown')).toBe('unknown');
   });
 });
