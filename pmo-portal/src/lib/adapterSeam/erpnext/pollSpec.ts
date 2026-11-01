@@ -55,6 +55,8 @@ const FROM_DOC_FIELDS_BY_KIND: Record<ErpDocKind, readonly string[]> = {
   'expense-journal': EXPENSE_JOURNAL_FROM_DOC_FIELDS,
   'expense-payment': EXPENSE_PAYMENT_FROM_DOC_FIELDS,
   'expense-receipt': EXPENSE_PAYMENT_FROM_DOC_FIELDS,
+  // #1515 §9 — site float transfers: the same lifecycle-only read as the expense journal.
+  'imprest-transfer': EXPENSE_JOURNAL_FROM_DOC_FIELDS,
 };
 
 /** The fields the poll requests for one kind: the mapper's own fields plus the `payment_type`

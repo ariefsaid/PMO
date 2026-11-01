@@ -30,7 +30,8 @@ export type ErpDocKind =
   | 'budget'
   | 'expense-journal'
   | 'expense-payment'
-  | 'expense-receipt';
+  | 'expense-receipt'
+  | 'imprest-transfer';
 
 /** Per-command context injected into `toBody` (resolved refs + the org's binding config defaults). */
 export interface ErpCtx {
@@ -174,6 +175,8 @@ export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' |
   // and a post-submit PUT is refused (UpdateAfterSubmitError) ⇒ immutable ⇒ a probe miss is conclusive absence.
   // `user_remark` is `no_copy`, so an amend must re-stamp it — `adapter.ts` amendFrom does (AC-EXP-112).
   'expense-journal': { doctype: 'Journal Entry', submittable: true, submitOnCreate: true, anchorField: 'user_remark', anchorMutable: false },
+  // #1515 §9: the expense-journal twin (`user_remark` survives validate+submit, immutable, so ADR-0058 C-1 allows reissue on a conclusive miss).
+  'imprest-transfer': { doctype: 'Journal Entry', submittable: true, submitOnCreate: true, anchorField: 'user_remark', anchorMutable: false },
   // Employee Payment Entries (Pay: claim cash part + advance payout; Receive: advance return). Same anchor and
   // C-1 policy as every Payment Entry kind: reference_no is mutable ⇒ composite probe, held on inconclusive.
   'expense-payment': { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },

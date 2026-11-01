@@ -89,6 +89,7 @@ const SHIPPED_WATERMARK_KEYS: Record<string, string> = {
   'expense-journal': 'expenses::Journal Entry',
   'expense-payment': 'expenses::Payment Entry::expense-payment',
   'expense-receipt': 'expenses::Payment Entry::expense-receipt',
+  'imprest-transfer': 'expenses::Journal Entry::imprest-transfer',
 };
 
 Deno.test('AC-EXP-122 every kind keeps its shipped watermark key; the two expense Payment Entry kinds keep separate ones', () => {
@@ -97,4 +98,19 @@ Deno.test('AC-EXP-122 every kind keeps its shipped watermark key; the two expens
   );
   assertEquals(Object.keys(actual).sort(), Object.keys(SHIPPED_WATERMARK_KEYS).sort(), 'a kind was added or removed: pin its key');
   for (const [kind, key] of Object.entries(SHIPPED_WATERMARK_KEYS)) assertEquals(actual[kind], key, kind);
+});
+
+Deno.test('AC-IMP-072 the poll adopts an impt: journal and never an exp-keyed or foreign one', () => {
+  const j = pollFiltersForKind('imprest-transfer', CO)!;
+  const IMPT = 'impt:15150000-0000-0000-0000-0000000000e3:1791367200123';
+  assertEquals(j.extraFilters, [['user_remark', 'like', 'impt:%'], ['company', '=', CO]]);
+  assertEquals(j.admits({ user_remark: IMPT, company: CO }), true);
+  assertEquals(j.admits({ user_remark: KEY, company: CO }), false);
+  assertEquals(j.admits({ user_remark: 'impt: reclass', company: CO }), false);
+  assertEquals(j.admits({ user_remark: IMPT, company: 'Other Co' }), false);
+  // …and the expense journal poll never takes an impt: one.
+  assertEquals(pollFiltersForKind('expense-journal', CO)!.admits({ user_remark: IMPT, company: CO }), false);
+  assertEquals(sweepWatermarkDomain('imprest-transfer'), 'expenses::Journal Entry::imprest-transfer');
+  // The shipped expense-journal cursor keeps its key: sharing the doctype with a newer kind must not reset it.
+  assertEquals(sweepWatermarkDomain('expense-journal'), 'expenses::Journal Entry');
 });

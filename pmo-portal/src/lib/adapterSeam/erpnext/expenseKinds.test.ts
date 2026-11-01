@@ -46,7 +46,7 @@ describe('expense kinds (AC-EXP-114)', () => {
 
   it('AC-EXP-114 an org employing only expenses also polls the Employee master', () => {
     const kinds = sweepKindsForOrg(['expenses']).map((k) => k.kind).sort();
-    expect(kinds).toEqual(['employee', 'expense-journal', 'expense-payment', 'expense-receipt']);
+    expect(kinds).toEqual(['employee', 'expense-journal', 'expense-payment', 'expense-receipt', 'imprest-transfer']);
     expect(sweepKindsForOrg(['revenue']).map((k) => k.kind)).not.toContain('employee');
   });
 
@@ -65,6 +65,17 @@ describe('expense kinds (AC-EXP-114)', () => {
     expect(je.admits({ user_remark: `expj:${CLAIM}:1791367200123` })).toBe(true);
     expect(je.admits({ user_remark: 'expense reclass' })).toBe(false);
     expect(pollDiscriminatorForKind('sales-invoice')).toBeNull();
+  });
+
+  it('AC-IMP-072 the impt: journal poll admits only an impt: key, and the expense journal poll never does', () => {
+    const IMPT = '15150000-0000-0000-0000-0000000000e3';
+    const transfer = pollDiscriminatorForKind('imprest-transfer')!;
+    expect(transfer.filters).toEqual([['user_remark', 'like', 'impt:%']]);
+    expect(transfer.admits({ user_remark: `impt:${IMPT}:1791367200123` })).toBe(true);
+    expect(transfer.admits({ user_remark: `expj:${CLAIM}:1791367200123` })).toBe(false);
+    expect(transfer.admits({ user_remark: 'impt: reclass' })).toBe(false);
+    expect(pollDiscriminatorForKind('expense-journal')!.admits({ user_remark: `impt:${IMPT}:1791367200123` })).toBe(false);
+    expect(kindFromDoctype('Journal Entry')).toBe('expense-journal');
   });
 
   it('AC-EXP-114 a Payment Entry without party_type is not adopted by procurement or revenue', () => {

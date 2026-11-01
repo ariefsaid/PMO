@@ -94,7 +94,7 @@ Deno.test('AC-EXP-121 fresh money-write deps options carry replay false', () => 
 
 const GATE_TRUTH = {
   mirror_id: 'mirror-1', posting: 'approval', posting_identity: `${CLAIM}:approval`, subject_id: CLAIM, claim_id: CLAIM,
-  claim_number: 'EXP-1', claimant_id: 'u-claimant', project_id: null, project_is_internal: false, currency: 'IDR', amount: '100.00', lines: [],
+  claim_number: 'EXP-1', claimant_id: 'u-claimant', project_id: null, project_is_internal: false, float_cash_account: null, currency: 'IDR', amount: '100.00', lines: [],
   state_stamp: STAMP, posting_date: '2026-10-07', approval_posting_exists: true, actor_id: 'u-pm',
 };
 
@@ -256,7 +256,7 @@ Deno.test('AC-EXP-121 a fresh posting whose recorded actor is no longer active i
   });
   await deps(f.client).driveFresh(intent({ posting: 'claim-payment', posting_identity: `${CLAIM}:claim-payment` }), {
     mirror_id: 'mirror-1', posting: 'claim-payment', posting_identity: `${CLAIM}:claim-payment`, subject_id: CLAIM, claim_id: CLAIM,
-    claim_number: 'EXP-1', claimant_id: 'u-claimant', project_id: null, project_is_internal: false, currency: 'IDR', amount: '100.00', lines: [],
+    claim_number: 'EXP-1', claimant_id: 'u-claimant', project_id: null, project_is_internal: false, float_cash_account: null, currency: 'IDR', amount: '100.00', lines: [],
     state_stamp: STAMP, posting_date: '2026-10-07', approval_posting_exists: false, actor_id: 'u-finance',
   }, {
     company: 'Example Co', employee: 'HR-EMP-1', payableAccount: 'Employee Payable - EX', advanceAccount: null, expenseAccounts: {},

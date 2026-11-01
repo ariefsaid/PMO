@@ -41,4 +41,5 @@ export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   'budget.push': { status: 'pending', version: 1, issue: SHIPPED_TESTS_NOT_YET_SHARED },
   'budget.unowned-occupant': { status: 'supported', version: 1 },
   'timesheet.push': { status: 'pending', version: 1, issue: SHIPPED_TESTS_NOT_YET_SHARED },
+  'imprest.transfer': { status: 'supported', version: 1 },
 };

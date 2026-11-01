@@ -6,7 +6,7 @@
  * (record failed with the named code), `already-done` (a cancel ERPNext already shows, or a cancel of an approval
  * that never posted and never will — record pushed).
  */
-import { expenseAccountProblem, type ErpAccountFacts, type ExpenseAccountKey } from './expenseAccountRules.ts';
+import { expenseAccountProblem, imprestCashAccountFits, type ErpAccountFacts, type ExpenseAccountKey } from './expenseAccountRules.ts';
 import type { ExpenseGateTruth, ExpenseResolvedRefs } from './expensePostingCommand.ts';
 
 export interface ExpenseBindingFacts {
@@ -102,7 +102,8 @@ export async function resolveExpensePosting(truth: ExpenseGateTruth, deps: Expen
   }
 
   const isPaymentEntry = truth.posting === 'claim-payment' || truth.posting === 'advance-payment' || truth.posting === 'advance-return';
-  if (isPaymentEntry && !binding.cashAccount) {
+  // #1515 §9: a float record pays through the float's own account, so the company default is not needed for it.
+  if (isPaymentEntry && !binding.cashAccount && !truth.float_cash_account) {
     return refuse('expense-cash-account-unconfigured', 'the ERPNext binding has no default cash or bank account');
   }
   const employee = await deps.readConfirmedEmployee(truth.claimant_id);
@@ -141,7 +142,13 @@ export async function resolveExpensePosting(truth: ExpenseGateTruth, deps: Expen
   if (companyCurrency !== truth.currency) {
     return refuse('config-rejected', `the claim is in ${truth.currency} but the ERPNext company keeps its books in ${companyCurrency}`);
   }
-  const facts = await deps.readErpAccounts(Array.from(new Set(keys.map((key) => map[key] as string))));
+  // The same check that bound the float's account, re-run before every posting (spec §9): an account re-typed,
+  // disabled or moved in ERPNext since it was bound is refused here, not posted to.
+  const floatAccount = isPaymentEntry ? truth.float_cash_account : null;
+  const facts = await deps.readErpAccounts(Array.from(new Set([...keys.map((key) => map[key] as string), ...(floatAccount ? [floatAccount] : [])])));
+  if (floatAccount && !imprestCashAccountFits(facts.find((f) => f.name === floatAccount) ?? null, binding.company)) {
+    return refuse('imprest-cash-account-unfit', `${floatAccount} is no longer a cash account of ${binding.company} that can take site cash`);
+  }
   for (const key of keys) {
     const problem = expenseAccountProblem(key, facts.find((f) => f.name === map[key]) ?? null, {
       company: binding.company, companyCurrency, defaultPayableAccount: company?.defaultPayableAccount ?? null,

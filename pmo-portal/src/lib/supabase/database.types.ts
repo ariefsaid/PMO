@@ -3973,6 +3973,91 @@ export type Database = {
           },
         ]
       }
+      imprest_posting_erp_mirror: {
+        Row: {
+          actor_id: string | null
+          attempt_count: number
+          created_at: string
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
+          erp_name: string | null
+          id: string
+          last_attempt_at: string | null
+          org_id: string
+          posting: string
+          posting_identity: string
+          push_error: string | null
+          push_state: string
+          pushed_at: string | null
+          replenishment_id: string
+          state_stamp: string
+        }
+        Insert: {
+          actor_id?: string | null
+          attempt_count?: number
+          created_at?: string
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
+          erp_name?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          org_id: string
+          posting?: string
+          posting_identity: string
+          push_error?: string | null
+          push_state?: string
+          pushed_at?: string | null
+          replenishment_id: string
+          state_stamp: string
+        }
+        Update: {
+          actor_id?: string | null
+          attempt_count?: number
+          created_at?: string
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
+          erp_name?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          org_id?: string
+          posting?: string
+          posting_identity?: string
+          push_error?: string | null
+          push_state?: string
+          pushed_at?: string | null
+          replenishment_id?: string
+          state_stamp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "imprest_posting_erp_mirror_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imprest_posting_erp_mirror_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "imprest_posting_erp_mirror_replenishment_id_fkey"
+            columns: ["replenishment_id"]
+            isOneToOne: false
+            referencedRelation: "imprest_replenishments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       imprest_replenishments: {
         Row: {
           amount: number
@@ -9552,6 +9637,10 @@ export type Database = {
         Returns: Json
       }
       get_stock_below_reorder: { Args: never; Returns: Json }
+      imprest_posting_for_push: {
+        Args: { p_mirror_id: string; p_org_id: string }
+        Returns: Json
+      }
       normalize_procurement_import_refs: {
         Args: { p_refs: string[] }
         Returns: { input_ref: string; normalized_ref: string }[]
@@ -9559,6 +9648,10 @@ export type Database = {
       lookup_procurement_import_cases: {
         Args: { p_refs: string[]; p_after_key?: string | null; p_after_id?: string | null; p_limit?: number; p_org_id?: string | null }
         Returns: { id: string; import_key: string; import_batch_id: string | null; normalized_ref: string }[]
+      }
+      org_employs_imprest_postings: {
+        Args: { p_org_id: string }
+        Returns: boolean
       }
       set_stock_reorder_level: {
         Args: {

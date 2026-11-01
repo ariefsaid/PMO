@@ -69,6 +69,7 @@
     {"table":"imprest_floats","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"imprest_plan_lines","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"imprest_plans","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
+    {"table":"imprest_posting_erp_mirror","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"imprest_replenishments","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"incident_reports","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
     {"table":"incoming_payments","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"},
@@ -432,6 +433,7 @@
     "external-set-company",
     "external-unlink",
     "health",
+    "imprest-cash-account",
     "m365-token-custody",
     "odoo-sweep",
     "telegram-notify"

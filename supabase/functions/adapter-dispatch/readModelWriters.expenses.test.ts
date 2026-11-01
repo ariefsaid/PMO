@@ -120,3 +120,19 @@ Deno.test('AC-EXP-124 the ERP name comes from erp_name, never from the PMO-recor
     ), Error, 'no ERP document name');
   assertEquals(g.updates.length, 0);
 });
+
+Deno.test('AC-IMP-072 a landed site float transfer marks its intent pushed on the imprest mirror, never the expense one', async () => {
+  const f = fake();
+  const REP = '15150000-0000-0000-0000-0000000000e3';
+  await getReadModelWriter('expenses').upsert(
+    { serviceClient: f.client as never, orgId: 'org-1' },
+    { id: REP, erp_name: 'ACC-JV-2026-00009', erp_docstatus: 1, erp_modified: 'm1' },
+    {
+      domain: 'expenses', operation: 'create',
+      record: { id: REP, erp_doc_kind: 'imprest-transfer', posting_identity: `${REP}:replenishment` },
+    },
+  );
+  assertEquals(f.updates.map((u) => u.table), ['imprest_posting_erp_mirror']);
+  assertEquals([f.updates[0].patch.push_state, f.updates[0].patch.erp_name], ['pushed', 'ACC-JV-2026-00009']);
+  assertEquals(f.updates[0].filters, [['org_id', 'org-1'], ['posting_identity', `${REP}:replenishment`]]);
+});
