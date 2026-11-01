@@ -60,8 +60,10 @@ export const CASES = [
   // S6 (0418): reorder levels, the suggestion's usage rules and the worklist.
   { id: 'reorder_rank',  fn: 'public.set_stock_reorder_level(uuid,uuid,numeric,numeric)', from: /(v_ok := )[^;]+(;\s*-- mut:reorder_rank)/, to: '$1true$2', test: 'supabase/tests/stock_reorder.test.sql' },
   { id: 'suggest_org',   fn: 'public.get_reorder_suggestions(uuid,uuid)', from: /(or not exists \(select 1 from public\.stock_warehouses w where w\.id = p_warehouse_id and )w\.org_id = v_org(\) then\s*-- mut:suggest_org)/, to: '$1true$2', test: 'supabase/tests/stock_tenant_isolation.test.sql' },
+  { id: 'suggest_item_org', fn: 'public.get_reorder_suggestions(uuid,uuid)', from: /(where i\.id = p_item_id and )i\.org_id = v_org(;\s*-- mut:suggest_item_org)/, to: '$1true$2', test: 'supabase/tests/stock_tenant_isolation.test.sql' },
+  { id: 'set_org',       fn: 'public.set_stock_reorder_level(uuid,uuid,numeric,numeric)', from: /(w\.id = p_warehouse_id and )w\.org_id = v_org(\) then\s*-- mut:set_org)/, to: '$1true$2', test: 'supabase/tests/stock_tenant_isolation.test.sql' },
   { id: 'min_history',   fn: 'public.get_reorder_suggestions(uuid,uuid)', from: /(if )v_history < prm\.min_history_days or v_moves < prm\.min_movements( then\s*-- mut:min_history)/, to: '$1false$2', test: 'supabase/tests/stock_reorder.test.sql' },
-  { id: 'central_excl',  fn: 'public.get_reorder_suggestions(uuid,uuid)', from: /(l\.qty_delta < 0 and )not coalesce\(dw\.kind = 'central', false\)( then -l\.qty_delta\s*-- mut:central_excl)/, to: '$1true$2', test: 'supabase/tests/stock_reorder.test.sql' },
+  { id: 'central_excl',  fn: 'public.get_reorder_suggestions(uuid,uuid)', from: /(l\.qty_delta < 0 and )not coalesce\(dw\.kind = 'central', false\)(\) as m\s*-- mut:central_excl)/, to: '$1true$2', test: 'supabase/tests/stock_reorder.test.sql' },
   { id: 'below_cmp',     fn: 'public.get_stock_below_reorder()', from: /coalesce\(b\.qty_on_hand, 0\) <= r\.reorder_level(\), '\[\]'::jsonb\);\s*-- mut:below_cmp)/, to: 'coalesce(b.qty_on_hand, 0) < r.reorder_level$1', test: 'supabase/tests/stock_reorder.test.sql' },
   { id: 'below_org',     fn: 'public.get_stock_below_reorder()', from: /where r\.org_id = v_org( \/\* mut:below_org \*\/)/, to: 'where true$1', test: 'supabase/tests/stock_tenant_isolation.test.sql' },
 ];

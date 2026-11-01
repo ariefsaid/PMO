@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap;
 -- #1512 S6: reorder levels, suggestion and worklist (AC-STK-025, 026, 027, FR-STK-054). Plan S6.1; dates are relative to the org today.
-select plan(25);
+select plan(27);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15120000-0000-0000-0000-000000000001', 'STK Org',       'IDR', 'Asia/Jakarta'),
@@ -107,6 +107,8 @@ select is(public.get_reorder_suggestions('15120000-0000-0000-0000-000000002003',
 select is((select count(*)::int from public.stock_reorder_levels), 0, 'AC-STK-027 nobody accepted, so no level exists');
 select lives_ok($$ select public.set_stock_reorder_level('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002', 42, 60) $$, 'AC-STK-027 an authorised user accepts');
 select is((select reorder_level::text from public.stock_reorder_levels), '42.000', 'AC-STK-027 the level is set');
+select is(public.get_reorder_suggestions('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002') #>> '{current,reorder_quantity}', '60', 'AC-STK-027 the level in force comes back beside the suggestion');
+select is(public.get_reorder_suggestions('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001001') -> 'current', 'null'::jsonb, 'AC-STK-027 and an item with no level shows none');
 reset role;                                                                                         -- audit_events is not readable by a PM
 select is((select count(*)::int from public.audit_events where action = 'stock.reorder_level.set'), 1, 'AC-STK-027 one audit row');
 select is((select detail #>> '{after,reorder_level}' from public.audit_events where action = 'stock.reorder_level.set'), '42', 'AC-STK-027 the audit row carries the after value');
