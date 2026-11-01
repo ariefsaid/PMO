@@ -59,6 +59,8 @@ const NODE_LOGIC_INCLUDE = [
   // P3b task 6.4: `timesheetBackstop.test.ts` is the exact sibling of the entry above — same reason,
   // same shape (a Deno- AND Vitest-importable pure-orchestration module beside its Deno-native tests).
   '../supabase/functions/erpnext-sweep/timesheetBackstop.test.ts',
+  // THEME-BACK-06: the queue-fairness proof drives those same pure orchestrators.
+  '../supabase/functions/erpnext-sweep/queueFairness.test.ts',
   // ── unit-speed (#1584 scope 4, profiled 2026-10-31): pure-logic suites that lived on the
   // jsdom project but never touch the DOM. jsdom environment load measured ~460-680 ms/file
   // (612 s summed across the suite); these 70 files run under `node` after proving green

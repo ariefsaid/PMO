@@ -2137,6 +2137,23 @@ function holdBudgetMirrorRow(
     .is('erp_cancelled_at', null);
 }
 
+/** THEME-BACK-06 (0427): stamp the rows a queue pass just selected, so the next tick serves the rows it
+ *  did NOT select first. Written for rows that are skipped, waiting or failing too — that is the point. */
+async function stampQueueAttempt(serviceClient: SupabaseClient, table: string, orgId: string, column: string, ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const { error } = await serviceClient.from(table)
+    .update({ last_attempt_at: new Date().toISOString() }).eq('org_id', orgId).in(column, ids);
+  if (error) throw new AppError(error.message, error.code);
+}
+
+/** The queues' fair order, as a comparator over the rows' own keys: never attempted first, then the
+ *  longest-waiting, then the oldest, then id (the same total order the SQL `order by` uses). */
+function byQueueFairness(a: { last_attempt_at?: string | null; created_at?: string | null; id?: string | null }, b: { last_attempt_at?: string | null; created_at?: string | null; id?: string | null }): number {
+  return (a.last_attempt_at ?? '').localeCompare(b.last_attempt_at ?? '')
+    || (a.created_at ?? '').localeCompare(b.created_at ?? '')
+    || (a.id ?? '').localeCompare(b.id ?? '');
+}
+
 /** The synthetic candidate state for a budget push whose OUTBOX row exists but whose mirror row does
  *  not — the crash-between-the-ERP-write-and-the-finalize window (⚑ MEDIUM-2). */
 const BUDGET_MIRROR_ABSENT = 'absent';
@@ -2160,13 +2177,13 @@ export function budgetBackstopDepsLive(
     listPendingBudgetPushes: async (orgId, limit) => {
       const [legacyResult, accountResult] = await Promise.all([
         serviceClient.from('budget_version_erp_mirror')
-          .select('id,budget_version_id,push_state,erp_cancelled_at,fiscal_year,created_at')
+          .select('id,budget_version_id,push_state,erp_cancelled_at,fiscal_year,created_at,last_attempt_at')
           .eq('org_id', orgId).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null)
-          .order('created_at', { ascending: true }).limit(limit),
+          .order('last_attempt_at', { ascending: true, nullsFirst: true }).order('created_at', { ascending: true }).order('id', { ascending: true }).limit(limit),
         serviceClient.from('budget_version_account_erp_mirror')
-          .select('id,budget_version_id,push_state,erp_cancelled_at,fiscal_year,erp_account,budget_intent,created_at')
+          .select('id,budget_version_id,push_state,erp_cancelled_at,fiscal_year,erp_account,budget_intent,created_at,last_attempt_at')
           .eq('org_id', orgId).in('push_state', ['pending', 'failed']).is('erp_cancelled_at', null)
-          .order('created_at', { ascending: true }).limit(limit),
+          .order('last_attempt_at', { ascending: true, nullsFirst: true }).order('created_at', { ascending: true }).order('id', { ascending: true }).limit(limit),
       ]);
       if (legacyResult.error) throw new AppError(legacyResult.error.message, legacyResult.error.code);
       if (accountResult.error) throw new AppError(accountResult.error.message, accountResult.error.code);
@@ -2181,13 +2198,14 @@ export function budgetBackstopDepsLive(
           budget_intent: (r.budget_intent as 'ensure' | 'remove' | null) ?? null,
         } : { erp_account: null, budget_intent: 'ensure' as const }),
         created_at: (r.created_at as string | null) ?? null,
+        last_attempt_at: (r.last_attempt_at as string | null) ?? null,
       });
       const mirrored = [
         ...((legacyResult.data as Array<Record<string, unknown>> | null) ?? []).map((r) => toCandidate(r, false)),
         ...((accountResult.data as Array<Record<string, unknown>> | null) ?? [])
           .filter((r) => typeof r.erp_account === 'string' && r.erp_account !== '')
           .map((r) => toCandidate(r, true)),
-      ].sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? '') || (a.id ?? '').localeCompare(b.id ?? ''))
+      ].sort(byQueueFairness)
         .slice(0, limit);
       // ⚑ MEDIUM-2 — …plus the OUTBOX-ONLY orphans. Nothing writes a `budget_version_erp_mirror` row
       // before the dispatch (every mirror writer lives inside `adapter-dispatch`'s finalize), so a
@@ -2232,8 +2250,14 @@ export function budgetBackstopDepsLive(
           created_at: null,
         }));
       return [...mirrored, ...orphans]
-        .sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? '') || (a.id ?? '').localeCompare(b.id ?? ''))
+        .sort(byQueueFairness)
         .slice(0, limit);
+    },
+    markAttempted: async (orgId, rows) => {
+      // Only rows with a mirror row of their own can be stamped; an `absent` orphan is an outbox row.
+      const real = rows.filter((r) => r.push_state !== BUDGET_MIRROR_ABSENT && typeof r.id === 'string');
+      await stampQueueAttempt(serviceClient, 'budget_version_erp_mirror', orgId, 'id', real.filter((r) => !r.erp_account).map((r) => String(r.id)));
+      await stampQueueAttempt(serviceClient, 'budget_version_account_erp_mirror', orgId, 'id', real.filter((r) => !!r.erp_account).map((r) => String(r.id)));
     },
     readBudgetVersion: async (versionId) => {
       // FR-BUD-102: re-read under SERVICE ROLE (the sweep carries no user JWT) — scoped to this org
@@ -2432,10 +2456,12 @@ async function reconcileOrgBudgetArchiveCancellationsLive(
       const { data, error } = await serviceClient.from('budget_archive_cancel_intents')
         .select('id,org_id,project_id,budget_version_id,source_mirror_id,actor_user_id,fiscal_year,erp_account,erp_budget_name,activated_at_witness,pushed_project_start_date,pushed_project_end_date')
         .eq('org_id', orgId).eq('state', 'pending')
+        .order('last_attempt_at', { ascending: true, nullsFirst: true })
         .order('created_at', { ascending: true }).order('id', { ascending: true }).limit(limit);
       if (error) throw new AppError(error.message, error.code);
       return (data ?? []) as unknown as BudgetArchiveCancelIntent[];
     },
+    markAttempted: (orgId, jobs) => stampQueueAttempt(serviceClient, 'budget_archive_cancel_intents', orgId, 'id', jobs.map((j) => j.id)),
     readLifecycle: (job) => readBudgetArchiveLifecycleLive(serviceClient, job),
     targetIsStillLiveAndOwned: (job) => budgetArchiveTargetStillLiveAndOwnedLive(serviceClient, job),
     driveCancellation: async (job) => {
@@ -2787,15 +2813,18 @@ export function timesheetBackstopDepsLive(
       // Index-served on (org_id, push_state) and bounded, ordered oldest-first so the queue is fair.
       const { data, error } = await serviceClient
         .from('timesheet_erp_mirror')
-        .select('timesheet_id, push_state, erp_cancelled_at')
+        .select('id, timesheet_id, push_state, erp_cancelled_at, last_attempt_at')
         .eq('org_id', orgId)
         .in('push_state', ['pending', 'failed'])
         .is('erp_cancelled_at', null)
+        // Fair order (0427): never attempted first, then the longest-waiting — see `stampQueueAttempt`.
+        .order('last_attempt_at', { ascending: true, nullsFirst: true })
         .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
         .limit(limit);
       if (error) throw new AppError(error.message, error.code);
-      const mirrored = ((data as Array<{ timesheet_id: string; push_state: string; erp_cancelled_at: string | null }> | null) ?? [])
-        .map((r) => ({ timesheet_id: r.timesheet_id, push_state: r.push_state, erp_cancelled_at: r.erp_cancelled_at }));
+      const mirrored = ((data as Array<{ timesheet_id: string; push_state: string; erp_cancelled_at: string | null; last_attempt_at: string | null }> | null) ?? [])
+        .map((r) => ({ timesheet_id: r.timesheet_id, push_state: r.push_state, erp_cancelled_at: r.erp_cancelled_at, last_attempt_at: r.last_attempt_at }));
       // …plus the `absent` half: APPROVED sheets that never got a mirror row at all (see
       // `listApprovedSheetsWithoutMirror` — the browser-died-before-the-fetch case this pass exists
       // for). Mirror rows come FIRST, and each half has a bounded budget NEITHER of which the other can
@@ -2804,6 +2833,11 @@ export function timesheetBackstopDepsLive(
       // missed — a saturated `failed` mirror queue cannot blind the stranded-sheet detector.
       const absent = await listApprovedSheetsWithoutMirror(serviceClient, org, absentQueueBudget(limit, mirrored.length));
       return [...mirrored, ...absent];
+    },
+
+    markAttempted: async (orgId, rows) => {
+      await stampQueueAttempt(serviceClient, 'timesheet_erp_mirror', orgId, 'timesheet_id',
+        rows.filter((r) => r.push_state !== 'absent').map((r) => r.timesheet_id));
     },
 
     assertApprovedForPush: async (row) => {

@@ -55,6 +55,8 @@ export interface BudgetMirrorCandidateRow {
   erp_account?: string | null;
   budget_intent?: 'ensure' | 'remove' | null;
   created_at?: string | null;
+  /** The fair-queue order key (0427): when this row was last selected by a pass; null = never. */
+  last_attempt_at?: string | null;
   id?: string | null;
 }
 
@@ -73,6 +75,11 @@ export interface BudgetBackstopDeps {
    *  outbox's own 23505 collision), never duplicated. Resolves (or marks `held` + surfaces
    *  action-required, never silently drops) when there is nothing resolvable to finalize with. */
   driveBudgetPush(row: BudgetMirrorCandidateRow, version: BudgetBackstopVersionRow): Promise<void>;
+  /** Stamp the listed rows' last attempt BEFORE any is driven (THEME-BACK-06): `listPendingBudgetPushes`
+   *  serves never-attempted rows first, then the longest-waiting, so a page of skipped / waiting /
+   *  failing rows rotates behind the rest instead of hiding every newer eligible push. Rows with no
+   *  mirror row of their own (`absent` outbox orphans) are skipped by the live implementation. */
+  markAttempted?(orgId: string, rows: BudgetMirrorCandidateRow[]): Promise<void>;
 }
 
 export interface ReconcileOrgBudgetPushesResult {
@@ -99,6 +106,7 @@ export async function reconcileOrgBudgetPushes(
   org: { orgId: string },
 ): Promise<ReconcileOrgBudgetPushesResult> {
   const candidates = await deps.listPendingBudgetPushes(org.orgId, BUDGET_BACKSTOP_TICK_LIMIT);
+  if (candidates.length > 0) await deps.markAttempted?.(org.orgId, candidates);
   let driven = 0;
   let skipped = 0;
   const errors: Array<{ budgetVersionId: string; error: string }> = [];
