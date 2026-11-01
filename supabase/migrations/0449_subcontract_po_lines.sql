@@ -20,6 +20,8 @@
 
 -- §1 The flag: set at creation, never changed (OQ-1). No client column grant; the trigger binds definers and the owner too.
 alter table public.procurements add column is_subcontract boolean not null default false;
+-- change history (#719 registry, AC-CHG-011): the subcontract flag is a captured business field.
+update public.record_history_config set captured = captured || '{"is_subcontract":"bool"}'::jsonb where table_name = 'procurements';
 create or replace function public.guard_procurement_subcontract_flag() returns trigger
   language plpgsql set search_path = public, pg_catalog as $$
 begin

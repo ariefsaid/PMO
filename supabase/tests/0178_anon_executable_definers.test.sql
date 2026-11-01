@@ -140,6 +140,8 @@
 -- read. Proven by imprest_position pgTAP.
 -- ⚑ 0426 (#1515 fix round) adds no definer: get_expense_claim_approval_routes and get_imprest_position stay invoker, re-created under
 -- their own names, so the retained count stays 104 (recounted by hand from the list below: 104 rows).
+-- ⚑ AMENDED BY 0442 (#1639): preview_task_reminders and send_task_reminders join the retained set (+2; merged with 0447 the count is 110). Each
+-- asserts active membership and the caller's org in its body; proven by supabase/tests/task_reminders.test.sql.
 -- ⚑ AMENDED BY 0410 (#1471): `set_sales_invoice_billing_kind` joins the retained set (+1, count 104 on dev's 103, re-derived by hand from the list). SECURITY
 -- DEFINER writer under a member's JWT; re-asserts active membership, Admin/Finance and the caller's org; paired with
 -- supabase/tests/billing_kinds_roles.test.sql (AC-007). `assign_sales_invoice_project` and
@@ -148,15 +150,15 @@
 -- `archive_equipment_usage` join the retained set (+4, count 108 on dev's 104, re-derived by hand from the list). SECURITY
 -- DEFINER writers (entries have no client INSERT/UPDATE grant); each re-asserts active membership and the JWT org, the
 -- transition checks approver ≠ author before the approver role; proved by equipment_usage / equipment_rls pgTAP.
--- ⚑ AMENDED BY 0449 (#1513 S1): `set_subcontract_po_lines` and `issue_subcontract_po_lines` join the retained set (+2, count 110 with 0447,
+-- ⚑ AMENDED BY 0449 (#1513 S1): `set_subcontract_po_lines` and `issue_subcontract_po_lines` join the retained set (+2, count 112 with dev's additions,
 -- re-derived by hand from the list). SECURITY DEFINER writers under a member's JWT: each re-asserts active membership, the caller's
 -- org and a Project Manager / Finance / Admin role in its body. Proven by supabase/tests/subcontract_po_lines.test.sql.
 -- ⚑ AMENDED BY 0470 (#1513 S2): `prepare_subcontract_acceptance`, `withdraw_subcontract_acceptance` and `confirm_subcontract_acceptance` join
--- the retained set (+3, count 113 with 0449, re-derived by hand from the list). SECURITY DEFINER writers under a member's JWT: each
+-- the retained set (+3, count 115 with 0449 and dev, re-derived by hand from the list). SECURITY DEFINER writers under a member's JWT: each
 -- re-asserts active membership and the caller's org; prepare also the project's progress authority, confirm Admin / Finance and
 -- preparer ≠ confirmer unless the sole active member. Proven by supabase/tests/subcontract_acceptances.test.sql.
--- ⚑ AMENDED BY 0472 (#1513 S3): `capture_subcontract_vendor_invoice` joins the retained set (+1, count 114 with 0470, re-derived by
--- hand from the list). A SECURITY DEFINER writer under a member's JWT: it re-asserts active membership, the caller's org and the
+-- ⚑ AMENDED BY 0472 (#1513 S3): `capture_subcontract_vendor_invoice` joins the retained set (+1, count 116 with 0470 and S2's dev merge,
+-- re-derived by hand from the 116 rows of the merged list). A SECURITY DEFINER writer under a member's JWT: it re-asserts active membership, the caller's org and the
 -- invoice-capture role, then wraps capture_vendor_invoice (role/SoD unchanged) and the bill cap. `subcontract_po_position` is
 -- SECURITY INVOKER and deliberately NOT listed; the cap, the billed read and both guards are definers revoked from clients.
 -- Proven by supabase/tests/subcontract_bill_caps.test.sql.
@@ -264,6 +266,7 @@ insert into client_callable_rpc_names (proname) values
   ('operator_set_org_lifecycle_state'),
   ('operator_list_orgs'),
   ('post_stock_document'),
+  ('preview_task_reminders'),
   ('operator_toggle_feature'),
   ('operator_usage_summary'),
   ('org_agent_run_stats'),
@@ -278,6 +281,7 @@ insert into client_callable_rpc_names (proname) values
   ('request_imprest_replenishment'),
   ('reserve_credits'),
   ('save_timesheet_week'),
+  ('send_task_reminders'),
   ('select_procurement_quote'),
   ('set_procurement_invoice_efaktur'),
   ('set_procurement_gates'),
@@ -329,8 +333,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  114,
-  'AC-ACL-002 all 114 retained client-callable RPC names still have a public function');
+  116,
+  'AC-ACL-002 all 116 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -339,8 +343,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  114,
-  'AC-ACL-003 all 114 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  116,
+  'AC-ACL-003 all 116 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;

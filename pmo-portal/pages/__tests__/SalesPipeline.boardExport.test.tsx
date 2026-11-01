@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
+// Harness: the board now mounts DraggableSalesBoard (useQueryClient), so the page renders under a QueryClientProvider (#1637).
+import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider, type Column } from '@/src/components/ui';
