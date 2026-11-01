@@ -27,13 +27,17 @@ existing client work order and never creates one).
 
 **Gate: money path.** Vendor-bill caps, PO amounts, spend approval and the ERP push are all money. Executor:
 Director-dispatched Orca workers, **one worker per slice, each slice its own branch and PR**. The money / SoD slices
-**S1, S2, S3, S4 and S5 each ship alone**, never batched (CLAUDE.md money tier, `docs/orca-dispatch.md`). S6 and S7 are
-UI-lane and batchable with each other. Every money-slice worker reads [`docs/money-path-primer.md`](../money-path-primer.md)
+**S1, S2, S3, S4 and S5 each ship alone**, never batched (CLAUDE.md money tier, `docs/orca-dispatch.md`). S6, S7a and S7b
+are UI-lane and batchable with each other. Every money-slice worker reads [`docs/money-path-primer.md`](../money-path-primer.md)
 first and reuses the outbox / sweep / SoD architecture it maps; nothing here re-derives it.
 
-Everything cited was read on `origin/dev` at `6440a961` (migration head `0426_imprest_approval_route.sql`). A path
-marked **(new)** does not exist yet. New migrations are written `supabase/migrations/<NNNN>_<slug>.sql`; the coordinator
-assigns each `<NNNN>` immediately before the slice is dispatched (`scripts/renumber-migration.sh` on collision).
+Everything cited was read on `origin/dev` at `6440a961` (migration head `0426_imprest_approval_route.sql`) and re-checked
+at `b52aa48a` in the 2026-11-01 review. A path marked **(new)** does not exist yet.
+
+**Migration numbers (Lane B range 0442–0446; 0440/0441 belong to sibling slices).** S1 `0442_subcontract_po_lines.sql`,
+S2 `0443_subcontract_acceptances.sql`, S3 `0444_subcontract_bill_caps.sql`, S4 `0445_po_variations.sql`, S5
+`0446_subcontract_erp_guards.sql`. On a collision, `scripts/renumber-migration.sh` within this range only; never take a
+number outside it. Every `<NNNN>` in a code block below is that slice's number.
 
 ---
 
@@ -70,15 +74,17 @@ None blocks dispatch. Each names the one slice that changes if the coordinator o
 | # | Question | Default taken | Slice |
 |---|---|---|---|
 | PQ-1 | Shipped POs are **born Issued** (`0362_…:292`), so "add lines to a Draft subcontract PO, freeze at Issue" (FR-SCA-001/002) has no Draft window to hang on. | Lines are drafted as revision 1 on the subcontract PO while it has **no issued revision**, whatever `purchase_orders.status` says, and are frozen by an explicit `issue_subcontract_po_lines(po)` that writes revision 1 and sets the PO `Issued`. "Issued" in the spec = "has an issued revision" in this plan. | S1 |
-| PQ-2 | Can revision 1 total more than the purchase's approved amount? | No. Where `procurements.approved_total_value` is set, revision 1's total must be ≤ it (23514). Otherwise issuing lines would raise spend past an approval. | S1 |
+| PQ-2 | Can revision 1 total more than the purchase's approved amount? | No. Revision 1's total must be ≤ `coalesce(approved_total_value, nullif(total_value, 0))` (23514); when both are absent, issuing is refused (23514, "record the purchase's value first"). Otherwise issuing lines would raise spend past an approval, or past what the budget line counts (`spend_approval_route` counts `total_value`), without routing. | S1 |
 | PQ-3 | Several POs on one subcontract purchase? | At most **one** PO per subcontract purchase carries BoQ lines (partial unique index on revisions by procurement). Bills on that purchase cap against that PO. | S1 |
 | PQ-4 | A subcontract purchase with draft (unissued) lines, or a bill already captured before lines exist. | Capture is refused (`SC002`) while draft lines exist without an issued revision; issuing revision 1 is refused once a non-cancelled bill exists on the purchase (23514). A subcontract PO with no lines at all bills as today (OQ-1). | S1, S3 |
-| PQ-5 | When does an approved variation count against the budget line? | At **approval**: `procurements.total_value` and (when set) `approved_total_value` rise by the variation amount in the same definer. Two approved-not-yet-revised variations therefore cannot both fit the same headroom, and the payment ceiling admits the revised bill. | S4 |
+| PQ-5 | When does an approved variation count against the budget line? | At **approval**: `procurements.total_value` and (when set) `approved_total_value` rise by the variation amount in the same definer, and `amount_approved_by_id` is stamped with the variation's approver. Two approved-not-yet-revised variations therefore cannot both fit the same headroom, the payment ceiling admits the revised bill, and approver ≠ payer (SoD-b) covers the variation's approver on every payment path, because each one already compares the payer with `amount_approved_by_id` (Paid guard `0368_…:82`, `procurement_create_refusal` `0373_…:52` and through it the outbox claim, `paymentGate.ts:114`). This is the column's shipped meaning: "the billed amount was later approved higher" (`paymentGate.ts:112-113`); `approve_procurement_amount` re-stamps it the same way (`0349_…:254`). | S4 |
 | PQ-6 | After a post-work variation is rejected (Disputed), can it be raised again? | Disputed is terminal for that record. A new post-work variation may be raised over the same unresolved quantity; once approved and revised it makes that quantity payable, and the Disputed figure shrinks by what is now on the PO. | S4 |
 | PQ-7 | The spec names "PM, Finance" for the client work-order link. Admin? | Admin too (every procurement writer admits Admin, `0362_…:246`). Engineers and Executives cannot link. | S4 |
 | PQ-8 | Which "line verified" when the latest confirmed acceptance omits a line? | Per line, the quantity on the latest **Confirmed** acceptance **that includes the line** (cumulative, monotone by FR-SCA-014). | S2 |
 | PQ-9 | Connected mode: the shipped purchase-invoice command carries no BoQ lines, so the claim-time re-check (FR-SCA-022) cannot evaluate the cap. | Fail closed: `procurement_create_refusal` refuses a `purchase-invoice` create for a subcontract purchase with issued lines (`subcontract_bill_lines_required`) until #1505 carries the lines; #1505 replaces that branch with the cap evaluation over the stored payload lines. | S5 |
-| PQ-10 | What clears an OQ-10 reconciliation exception? | (a) an Admin/Finance attributes BoQ line quantities to the ERP-origin bill through `attribute_subcontract_bill_lines`, which runs the same cap; or (b) the ERP cancels or amends the bill (the shipped predicate drops it). | S5 |
+| PQ-10 | What clears an OQ-10 reconciliation exception? | For a mirrored `procurement_invoices` row: (a) an Admin/Finance attributes BoQ line quantities through `attribute_subcontract_bill_lines`, which runs the same cap; or (b) the ERP cancels or amends the bill (the shipped predicate drops it). For a linked ERP Purchase Invoice (`procurement_erp_links`, not a PMO bill row, so it cannot carry lines): only the ERP cancel or `unlink_erp_purchase_document` (shipped, `0361_…`) clears it. | S5 |
+| PQ-11 | Connected org (procurement externally owned): PMO cannot change the ERP PO until #1505 carries `purchase-order.revise`. | `issue_subcontract_po_lines` in a connected org requires the lines total to equal the mirrored PO amount and does not write the amount; `issue_po_revision` is refused (42501, detail `erp_revise_pending`) until #1505 lifts it. The ERP mirror's own writes of `purchase_orders.amount` are never refused (ADR-0048: the ledger is the oracle). | S1, S4 |
+| PQ-12 | A purchase that is Cancelled or Rejected. | Every new writer (lines, acceptance, bill, variation, revision) refuses it (42501). | S1-S4 |
 
 ---
 
@@ -95,7 +101,9 @@ None blocks dispatch. Each names the one slice that changes if the coordinator o
 - **D3 The cap is one function.** `subcontract_bill_cap_violation(po, lines jsonb, exclude_invoice)` (internal, no client
   execute) is the only place the rule lives: per line `billed_other + requested ≤ least(verified, po_qty)`. The capture
   wrapper, the ERP-origin attribution RPC and (from #1505) the outbox claim all call it. The mutation test (AC-SCA-014)
-  replaces exactly this function.
+  replaces exactly this function. Because #1505 will feed it a queued payload nobody validated, the function validates its
+  own input: it sums requested quantity per `boq_item_id` (a line named twice counts twice) and returns
+  `unreadable_input` for a null, zero or negative quantity.
 - **D4 Fail closed everywhere.** No issued revision with draft lines → refuse. A line not on the effective revision →
   refuse. A null/unreadable input → refuse. A connected-mode bill that cannot carry lines → refuse (PQ-9). An ERP-origin
   bill that cannot be attributed → reconciliation exception, payment refused (OQ-10).
@@ -106,7 +114,18 @@ None blocks dispatch. Each names the one slice that changes if the coordinator o
 - **D6 Tenancy is inherited.** Every new table carries `org_id not null`, stamped by a `before insert` trigger from its
   parent (never from the client), FORCE RLS, `select` only to `authenticated`, no client DML. Child RLS is
   `exists (select 1 from <parent> …)` evaluated under the caller's RLS, so the Engineer purchasing scope
-  (`0350_engineer_purchasing_scope.sql:84`) is inherited, not re-stated.
+  (`0350_engineer_purchasing_scope.sql:84`) is inherited, not re-stated. **RLS does not apply inside a definer** (the
+  owner bypasses it, `0243_…:511`; an invoker helper called from a definer runs as the owner too), so every definer
+  states its scope as an explicit predicate. The purchase-visibility predicate is 0350's, verbatim:
+  `public.auth_role() in ('Admin','Executive','Project Manager','Finance') or v_proc.requested_by_id = auth.uid()`.
+  Bill quantities, billed and payable are "the same money by another name" under the 0350 ruling (no invoices for
+  Engineers): every read that returns them returns `null` for them outside those four roles, never a `0` computed from
+  rows RLS hid.
+- **D6a Service role.** New tables keep the default `service_role` grant (`0080_service_role_grants.sql:26`), so the 0137
+  catalog backstop (`supabase/tests/0137_service_role_grants.test.sql`) passes without an allow-list entry; the write
+  guards are triggers, which bind every role. No new `*_erp_mirror` table is created, so the 0136 side-mirror inventory
+  (`supabase/tests/0136_posture_b_side_mirror_droppable.test.sql`) is unchanged; if #1505 adds a revise mirror it extends
+  that set.
 - **D7 ERP is a side mirror (ADR-0059/0094).** PMO owns acceptance, cap and variation. The ERP receives the effective PO
   line set through a canonical `purchase-order.revise` command (key `porev:<po uuid>:<revision>`) and the vendor bill
   through the shipped purchase-invoice command. Transport for both tiers is #1505; this plan ships the command contract,
@@ -132,15 +151,18 @@ None blocks dispatch. Each names the one slice that changes if the coordinator o
 
 | Slice | Migration | Tasks | Blocked by | Worker tier | Ships |
 |---|---|---|---|---|---|
-| **S1 Subcontract flag, PO lines, revision 1** | `<NNNN>_subcontract_po_lines.sql` | S1.1-S1.8 | none | Sol (money: PO amount) | **alone** |
-| **S2 Subcontract acceptance** | `<NNNN>_subcontract_acceptances.sql` | S2.1-S2.6 | S1 | Sol (SoD) | **alone** |
-| **S3 Bill lines, the cap, position read** | `<NNNN>_subcontract_bill_caps.sql` | S3.1-S3.9 | S2 | **Sol** (money path) | **alone** |
-| **S4 Variations, revisions, client link, tenancy** | `<NNNN>_po_variations.sql` | S4.1-S4.9 | S3 | **Sol** (money + SoD) | **alone** |
-| **S5 ERP guards, OQ-10, `purchase-order.revise` contract** | `<NNNN>_subcontract_erp_guards.sql` | S5.1-S5.8 | S4 | **Sol** (money path) | **alone** |
+| **S1 Subcontract flag, PO lines, revision 1** | `0442_subcontract_po_lines.sql` | S1.1-S1.8 | none | Sol (money: PO amount) | **alone** |
+| **S2 Subcontract acceptance** | `0443_subcontract_acceptances.sql` | S2.1-S2.6 | S1 | Sol (SoD) | **alone** |
+| **S3 Bill lines, the cap, position read** | `0444_subcontract_bill_caps.sql` | S3.1-S3.9 | S2 | **Sol** (money path) | **alone** |
+| **S4 Variations, revisions, client link, tenancy** | `0445_po_variations.sql` | S4.1-S4.9 | S3 | **Sol** (money + SoD) | **alone** |
+| **S5 ERP guards, OQ-10, `purchase-order.revise` contract** | `0446_subcontract_erp_guards.sql` | S5.1-S5.8 | S4 | **Sol** (money path) | **alone** |
 | **S6 Data layer** (DAL, repository, hooks, rules, policy) | none | S6.1-S6.5 | S4 | Luna | batchable |
-| **S7 Screens and e2e journey** | none | S7.1-S7.7 | S6 (S5 for the push badge) | Flash or Luna (UI lane) | batchable |
+| **S7a Lines, acceptance and bill screens** | none | S7.1-S7.4 | S6 | Flash or Luna (UI lane) | batchable |
+| **S7b Variation and link screens, push badge, e2e journey** | none | S7.5-S7.7 | S7a, S5 | Flash or Luna (UI lane) | batchable |
 
-Order: S1 → S2 → S3 → S4 → (S5 ∥ S6) → S7. Branches `feat/sca-s<n>` off `origin/dev`, each in its own worktree with
+Order: S1 → S2 → S3 → S4 → (S5 ∥ S6) → S7a → S7b. Each slice is about one builder-day or less and ships on its own:
+S1-S5 each leave dev green and standalone-complete for what they cover; S7 was split because its seven tasks (three
+screens, i18n, the variation UI and the journey) exceed a builder-day. Branches `feat/sca-s<n>` off `origin/dev`, each in its own worktree with
 `.env.local` copied in. Workers push their branch only; the Director opens PRs. A slice may stack on the previous slice's
 branch before that PR merges; each money slice is still its own PR.
 
@@ -157,8 +179,14 @@ branch before that PR merges; each money slice is still its own PR.
 - **Every migration slice's gate (S1-S5), all green before push, in order:**
   1. `scripts/check-migration-collisions.sh && scripts/check-migration-collisions.sh --self-test`
   2. `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db <this slice's files> supabase/tests/0178_anon_executable_definers.test.sql'`
-  3. `node scripts/check-isolation-denominator.mjs && node scripts/check-isolation-denominator.mjs --self-test` (add every
-     new table and client definer to `scripts/isolation-probe-denominator.json`).
+  3. `node scripts/check-isolation-denominator.mjs && node scripts/check-isolation-denominator.mjs --self-test`. The
+     manifest `scripts/isolation-probe-denominator.json` is checked in **both directions** against the reset DB, so add,
+     per slice: every new table to `tables` (model: the `work_order_acceptances` / `work_order_acceptance_lines` rows at
+     `:146-147`; a child with no `org_id` is `"has_org":false,"b_read":"parent-org-only"`); **every** new SECURITY DEFINER
+     signature to `definer_functions`, internal ones included (guards, `subcontract_billed`, the cap, the push refusal);
+     and every new client-callable writer to `rpcs` with `expect_denial` codes whose `source` lines contain the literal
+     SQLSTATE (model: `prepare_work_order_acceptance` at `:484`), plus the matching `$(rpc <name>` probe line in
+     `scripts/isolation-probe.sh` (the checker requires exact coverage, `check-isolation-denominator.mjs:208-216`).
   4. The 0178 retained-RPC count: add each new **client-executable definer** to the VALUES list of
      `supabase/tests/0178_anon_executable_definers.test.sql`, re-derive the count **by hand from the list after rebasing**
      (it read 104 at the 0410 amendment on `6440a961`), update both hard-coded counts and add an `⚑ AMENDED BY <NNNN> (#1513)`
@@ -170,9 +198,11 @@ branch before that PR merges; each money slice is still its own PR.
   self-assertion `do $$ … $$` that raises if a new table lacks FORCE RLS, holds a client DML grant, or a new internal
   function is client-executable.
 - **Rollback:** `supabase/migrations/rollback/<NNNN>_<slug>_down.sql`, reverse dependency order, and the same reverse in the
-  migration header. NFR-SCA-007: each down file first copies the dropped rows into `pg_temp`-free export tables
-  `public._sca_export_<table>_<NNNN>` (created `as select *`), so revisions and acceptances survive a rollback for manual
-  re-import; the header says so.
+  migration header. NFR-SCA-007 follows the shipped refuse-if-rows precedent (`rollback/0281_vendor_withholding_slips_down.sql:1-8`,
+  `rollback/0410_billing_kinds_down.sql:2-5`): each down file first raises `'rollback refused: <table> rows exist — export
+  and remove them first'` when any row exists in a table it would drop, so revisions, acceptances, bill lines and
+  variations are exported operationally (`scripts/prod-read.sh` / `pg_dump -t`) before a reversal. Never copy rows into a
+  table in `public`: that schema is API-exposed and an `as select *` copy carries no RLS. The header says so.
 - **Re-created shipped functions** carry the head body verbatim with each changed line marked `-- <NNNN>` (0247
   convention), and the down file restores the head body.
 - **Audit:** every state change calls `public.log_audit('<entity>.<verb>', org, auth.uid(), id, detail)` (NFR-SCA-006).
@@ -270,17 +300,17 @@ end $$;
 
 ---
 
-## S1 - Subcontract flag, PO lines, revision 1 (`<NNNN>_subcontract_po_lines.sql`) - ships alone
+## S1 - Subcontract flag, PO lines, revision 1 (`0442_subcontract_po_lines.sql`) - ships alone
 
 Covers FR-SCA-001, 002, 003; OQ-1; PQ-1..4. Header:
 
 ```sql
--- <NNNN>_subcontract_po_lines.sql — #1513 S1: subcontract purchases carry BoQ lines on their PO; revision 1 freezes them.
+-- 0442_subcontract_po_lines.sql — #1513 S1: subcontract purchases carry BoQ lines on their PO; revision 1 freezes them.
 -- Spec docs/specs/subcontract-acceptance.spec.md (signed 2026-11-01) · Plan docs/plans/2026-11-01-subcontract-acceptance.md S1.
 -- Proven by supabase/tests/subcontract_po_lines.test.sql and the 0178 allow-list.
--- ── REVERSE (also rollback/<NNNN>_subcontract_po_lines_down.sql; export first per NFR-SCA-007) ──
---   create table public._sca_export_purchase_order_revisions_<NNNN> as select * from public.purchase_order_revisions;
---   create table public._sca_export_purchase_order_lines_<NNNN> as select * from public.purchase_order_lines;
+-- ── REVERSE (also rollback/0442_subcontract_po_lines_down.sql; refused while rows exist, NFR-SCA-007) ──
+--   do $$ begin if exists (select 1 from public.purchase_order_lines) or exists (select 1 from public.purchase_order_revisions)
+--     then raise exception 'rollback refused: subcontract PO lines exist — export and remove them first'; end if; end $$;
 --   drop trigger if exists purchase_orders_zz_subcontract_amount on public.purchase_orders;
 --   drop function if exists public.issue_subcontract_po_lines(uuid);
 --   drop function if exists public.set_subcontract_po_lines(uuid, jsonb);
@@ -474,7 +504,8 @@ begin
   select r.total into v_total from public.purchase_order_revisions r
    where r.po_id = new.id and r.revision = (select max(x.revision) from public.purchase_order_revisions x where x.po_id = new.id);
   if found and new.amount is distinct from v_total
-     and coalesce(current_setting('pmo.subcontract_po_amount', true), '') <> 'on' then
+     and coalesce(current_setting('pmo.subcontract_po_amount', true), '') <> 'on'
+     and coalesce(auth.jwt() ->> 'role', '') <> 'service_role' then          -- PQ-11: the ERP mirror records ERP truth (ADR-0048)
     raise exception 'a subcontract PO''s amount is the total of its effective BoQ lines (%); change it by a PO revision', v_total
       using errcode = '23514';
   end if;
@@ -485,8 +516,13 @@ create trigger purchase_orders_zz_subcontract_amount before update of amount on 
   for each row execute function public.guard_purchase_order_subcontract_amount();
 ```
 
-The guard deliberately applies to every actor (owner included) — the S1.3 owner-update assertion proves it; the only
-writer is a definer that sets the flag transaction-locally for one statement.
+The guard deliberately applies to every user-path actor (owner included) — the S1.3 owner-update assertion proves it; the
+only PMO writer is a definer that sets the flag transaction-locally for one statement. The one exemption is the service
+role (the ERP read-model mirror, `procurement_invoices_native_mirror_guard`'s idiom `0273_…:174-176`): refusing a mirror
+write would fail the feed or sweep for the org, and a mirrored amount that disagrees with the revision shows on the
+position read (`po_amount` ≠ revision total) rather than being rejected. S1.3 adds:
+`FR-SCA-003 PQ-11 the service-role ERP mirror may record the ERP PO amount` — as superuser with
+`set local request.jwt.claims = '{"role":"service_role"}'`, `lives_ok(update purchase_orders set amount = 1 …)`.
 
 ### S1.6 Migration §5: `set_subcontract_po_lines` and `issue_subcontract_po_lines`
 
@@ -501,6 +537,8 @@ begin
   select * into v_proc from public.procurements where id = v_po.procurement_id for update;          -- D5 row first
   perform public.subcontract_po_lock(p_po_id);                                                     -- D5 then the PO
   if not v_proc.is_subcontract then raise exception 'only a subcontract purchase has BoQ lines' using errcode = '42501'; end if;
+  if v_proc.status::text in ('Cancelled','Rejected') then                                          -- PQ-12
+    raise exception 'this purchase is closed' using errcode = '42501'; end if;
   if public.auth_role() not in ('Admin','Finance','Project Manager') then
     raise exception 'only a Project Manager, Finance or an Admin may set PO lines' using errcode = '42501'; end if;
   if exists (select 1 from public.purchase_order_revisions r where r.po_id = p_po_id) then
@@ -530,22 +568,44 @@ end $$;
 
 (The same-project and unique checks fire from `guard_purchase_order_line` and the unique key — 23514 / 23505.)
 
-`issue_subcontract_po_lines(p_po_id) returns integer`: same membership, row-then-PO locks and role check; refuse
-(42501) if a revision exists; refuse (23502) if no draft lines; refuse (23514) if any non-cancelled bill exists on the
-purchase (`coalesce(erp_docstatus,1) <> 2 and erp_cancelled_at is null`, PQ-4); compute `v_total := sum(amount)`;
-refuse (23514) `if v_proc.approved_total_value is not null and v_total > v_proc.approved_total_value` (PQ-2); insert the
-revision row `(revision 1, total v_total, issued_by auth.uid(), issue_basis 'standard')`; then
-`perform set_config('pmo.subcontract_po_amount','on',true); update purchase_orders set amount = v_total,
+`issue_subcontract_po_lines(p_po_id) returns integer`: same membership, row-then-PO locks, subcontract, closed-purchase
+(PQ-12) and role checks; refuse (42501) if a revision exists; refuse (23502) if no draft lines; refuse (23514) if any
+non-cancelled bill exists on the purchase (`coalesce(erp_docstatus,1) <> 2 and erp_cancelled_at is null`, PQ-4);
+compute `v_total := sum(amount)`; PQ-2:
+
+```sql
+  v_ceiling := coalesce(v_proc.approved_total_value, nullif(v_proc.total_value, 0));
+  if v_ceiling is null then
+    raise exception 'record the purchase''s value or approval before issuing its BoQ lines' using errcode = '23514';
+  end if;
+  if v_total > v_ceiling then
+    raise exception 'the BoQ lines total % exceeds the purchase''s approved value %', v_total, v_ceiling using errcode = '23514';
+  end if;
+  if public.domain_externally_owned(v_proc.org_id, 'procurement')                                 -- PQ-11
+     and v_po.amount is not null and v_po.amount is distinct from v_total then
+    raise exception 'the BoQ lines total % must equal the ERP purchase order amount %', v_total, v_po.amount using errcode = '23514';
+  end if;
+```
+
+insert the revision row `(revision 1, total v_total, issued_by auth.uid(), issue_basis 'standard')`; then, **only when the
+org is not connected** (`not public.domain_externally_owned(v_proc.org_id, 'procurement')`; a connected PO's amount is the
+ERP's, PQ-11): `perform set_config('pmo.subcontract_po_amount','on',true); update purchase_orders set amount = v_total,
 status = case when status = 'Draft' then 'Issued' else status end where id = p_po_id; perform set_config('pmo.subcontract_po_amount','',true);`;
 audit `purchase_order_revision.issue` with `{revision:1,total}`; return 1. Grants for both:
 `revoke all … from public, anon; grant execute … to authenticated;`.
+
+S1.3 adds, beside the PQ-2 block: a subcontract purchase `…f6` with `total_value` 0 and no approval →
+`throws_ok … '23514' … 'PQ-2 lines cannot be issued on a purchase with no recorded value'`; a Cancelled subcontract purchase
+`…f7` → `set_subcontract_po_lines` `throws_ok … '42501' … 'PQ-12 a closed purchase takes no BoQ lines'`.
 
 ### S1.7 Closing assertion, rollback, 0178, denominator
 
 Closing `do $$` asserts: both tables have `relforcerowsecurity`; `has_table_privilege('authenticated', t, 'INSERT')`,
 `'UPDATE'`, `'DELETE'` are false for both; `subcontract_po_lock` and the two guards are not executable by `authenticated`.
-Write `supabase/migrations/rollback/<NNNN>_subcontract_po_lines_down.sql` from the header. Add the two RPCs to the 0178
-list (+2) and both tables plus both RPCs to `scripts/isolation-probe-denominator.json`.
+Write `supabase/migrations/rollback/0442_subcontract_po_lines_down.sql` from the header. Add the two RPCs to the 0178
+list (+2); in `scripts/isolation-probe-denominator.json` (Conventions gate step 3) add both tables, every new SECURITY
+DEFINER signature (the two RPCs and `guard_procurement_subcontract_flag` only if written as definer — the plan writes the
+guards as invoker), and `rpcs` entries + `scripts/isolation-probe.sh` probes for the two RPCs.
 
 ### S1.8 Gate and commit
 
@@ -554,9 +614,9 @@ Run the slice gate (Conventions) with `supabase/tests/subcontract_po_lines.test.
 
 ---
 
-## S2 - Subcontract acceptance (`<NNNN>_subcontract_acceptances.sql`) - ships alone
+## S2 - Subcontract acceptance (`0443_subcontract_acceptances.sql`) - ships alone
 
-Covers AC-SCA-006 and FR-SCA-010..015; PQ-8. Header REVERSE lists, in order: export both tables; drop
+Covers AC-SCA-006 and FR-SCA-010..015; PQ-8. Header REVERSE lists, in order: refuse while rows exist (NFR-SCA-007); drop
 `confirm_subcontract_acceptance(uuid)`, `withdraw_subcontract_acceptance(uuid)`,
 `prepare_subcontract_acceptance(uuid,date,jsonb,uuid,text,uuid)`, `subcontract_verified(uuid)`; drop
 `subcontract_acceptance_lines`, `subcontract_acceptances` (drops triggers); drop the two guard functions.
@@ -655,7 +715,7 @@ Only `Confirmed` rows count; Draft and Withdrawn never do (AC-SCA-009 is proven 
 ### S2.4 `prepare_subcontract_acceptance`
 
 Signature `(p_po_id uuid, p_acceptance_date date, p_lines jsonb, p_document_id uuid default null, p_note text default null, p_acceptance_id uuid default null) returns uuid`.
-Body = `0337_…:201-248` with these replacements (each marked `-- <NNNN>`):
+Body = `0337_…:201-248` with these replacements (each marked `-- 0443`):
 - load `v_po` from `purchase_orders where id = p_po_id and org_id = v_org`; `v_project` from its procurement; lock the
   procurement row `for update`, then `perform public.subcontract_po_lock(p_po_id)` (D5);
 - `if public.po_effective_revision(p_po_id) is null then raise exception 'the PO has no issued BoQ lines' using errcode = '42501'`;
@@ -687,13 +747,13 @@ As S1.7/S1.8 with `supabase/tests/subcontract_acceptances.test.sql`. Commit `fea
 
 ---
 
-## S3 - Bill lines, the cap, position read (`<NNNN>_subcontract_bill_caps.sql`) - ships alone (money path)
+## S3 - Bill lines, the cap, position read (`0444_subcontract_bill_caps.sql`) - ships alone (money path)
 
 Covers AC-SCA-001, 004, 007, 008, 009, 014 and FR-SCA-020..024, NFR-SCA-001/002/004/005; PQ-4. Read
 `docs/money-path-primer.md` "five things" #1 and #5 before starting. Header REVERSE: drop trigger
 `procurement_invoices_zz_subcontract_capture`; drop `capture_subcontract_vendor_invoice(...)`,
 `subcontract_po_position(uuid)`, `subcontract_bill_cap_violation(uuid,jsonb,uuid)`, `subcontract_billed(uuid,uuid)`,
-`guard_subcontract_invoice_capture()`, `guard_procurement_invoice_line()`; export then drop `procurement_invoice_lines`.
+`guard_subcontract_invoice_capture()`, `guard_procurement_invoice_line()`; refuse while rows exist, then drop `procurement_invoice_lines`.
 
 ### S3.1 Failing tests: caps (AC-SCA-001, 004, 008, 009 owning)
 
@@ -777,12 +837,18 @@ FR-tagged blocks in the same file:
   a PO whose revision exists but whose lines are removed via `alter table … disable trigger` inside the savepoint →
   `subcontract_bill_cap_violation(...)->>'reason' = 'unreadable_po_lines'` and the capture refuses `SC001`.
 - `PQ-4` draft lines, no revision, on PO `…104` → capture `SC002`.
+- `FR-SCA-021 D3` as superuser, `subcontract_bill_cap_violation(po, '[{L1,60},{L1,60}]', null)` with verified 100 →
+  `->>'reason' = 'over_cap'` (summed, not checked row by row); with quantity `0` or `-1` → `'unreadable_input'`; the
+  capture with L1 named twice → `23514`.
 - `NFR-SCA-001` property: under `setseed(0.1513)`, 200 iterations of a random confirm (monotone) / random bill attempt
   (caught) / random cancel; after each step assert as superuser
   `not exists (select 1 from subcontract_po_position(po) where billed > least(verified, po_qty))` — one `ok(...)` at the end
   over a `bool_and` accumulated in a temp table.
 - `NFR-SCA-005` `subcontract_po_position` on a PO the caller cannot see (Engineer, not requester) returns 0 rows, not a zero
-  line.
+  line; for the Engineer who **raised** the purchase (inside a savepoint, as superuser,
+  `update procurements set requested_by_id = '…a5' where id = '…f1'`, so the Engineer sees the PO under 0350), after a bill of 60, the L1 row has
+  `po_qty` 100 and `verified` 60 but `billed is null and payable is null` (D6: no bill money for Engineers, never a `0`
+  from hidden rows).
 
 Run → fails.
 
@@ -889,8 +955,10 @@ create or replace function public.subcontract_bill_cap_violation(p_po_id uuid, p
   returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare v_rev integer; v_bad record;
 begin
-  if p_po_id is null or p_lines is null or jsonb_typeof(p_lines) <> 'array' or jsonb_array_length(p_lines) = 0 then
-    return jsonb_build_object('reason', 'unreadable_input');
+  if p_po_id is null or p_lines is null or jsonb_typeof(p_lines) <> 'array' or jsonb_array_length(p_lines) = 0
+     or exists (select 1 from jsonb_to_recordset(p_lines) x(boq_item_id uuid, quantity numeric)
+                 where x.boq_item_id is null or x.quantity is null or not (x.quantity > 0 and x.quantity < 'Infinity'::numeric)) then
+    return jsonb_build_object('reason', 'unreadable_input');                                  -- D3: the cap validates its own input
   end if;
   v_rev := public.po_effective_revision(p_po_id);
   if v_rev is null then return jsonb_build_object('reason', 'no_issued_lines'); end if;
@@ -900,12 +968,13 @@ begin
   select x.boq_item_id, b.item_code, x.quantity as requested, pl.quantity as po_qty,
          coalesce(v.quantity, 0) as verified, coalesce(bl.quantity, 0) as billed
     into v_bad
-    from jsonb_to_recordset(p_lines) x(boq_item_id uuid, quantity numeric)
+    from (select r.boq_item_id, sum(r.quantity) as quantity                                 -- D3: a line named twice counts twice
+            from jsonb_to_recordset(p_lines) r(boq_item_id uuid, quantity numeric) group by r.boq_item_id) x
     left join public.purchase_order_lines pl on pl.po_id = p_po_id and pl.revision = v_rev and pl.boq_item_id = x.boq_item_id
     left join public.boq_items b on b.id = x.boq_item_id
     left join (select * from public.subcontract_verified(p_po_id)) v on v.boq_item_id = x.boq_item_id
     left join (select * from public.subcontract_billed(p_po_id, p_exclude_invoice)) bl on bl.boq_item_id = x.boq_item_id
-   where pl.boq_item_id is null or x.quantity is null
+   where pl.boq_item_id is null
       or coalesce(bl.quantity, 0) + x.quantity > least(coalesce(v.quantity, 0), pl.quantity)
    order by b.item_code nulls first
    limit 1;
@@ -948,8 +1017,12 @@ begin
   if exists (select 1 from jsonb_to_recordset(p_lines) x(boq_item_id uuid, quantity numeric, rate numeric)
               left join public.purchase_order_lines pl on pl.po_id = v_po and pl.revision = v_rev and pl.boq_item_id = x.boq_item_id
               where pl.boq_item_id is null or x.rate is null or x.rate > pl.rate or x.rate <> round(x.rate, 2)
-                 or x.quantity is null or x.quantity <= 0 or x.quantity <> round(x.quantity, 3)) then
-    raise exception 'each bill line must be a BoQ line of this PO at no more than the PO rate' using errcode = '23514'; -- FR-SCA-023
+                 or x.quantity is null or x.quantity <= 0 or x.quantity <> round(x.quantity, 3))
+     or exists (select 1 from jsonb_to_recordset(p_lines) x(boq_item_id uuid) group by x.boq_item_id having count(*) > 1) then
+    raise exception 'each bill line must be a distinct BoQ line of this PO at no more than the PO rate' using errcode = '23514'; -- FR-SCA-023
+  end if;
+  if v_proc.status::text in ('Cancelled','Rejected') then                                            -- PQ-12
+    raise exception 'this purchase is closed' using errcode = '42501';
   end if;
   v_v := public.subcontract_bill_cap_violation(v_po, p_lines, null);
   if v_v is not null then
@@ -1021,12 +1094,14 @@ create or replace function public.subcontract_po_position(p_po_id uuid)
            join public.procurement_invoices i on i.id = l.invoice_id
           where i.po_id = p_po_id and coalesce(i.erp_docstatus, 1) <> 2 and i.erp_cancelled_at is null
           group by l.boq_item_id)
+  money as (select public.auth_role() in ('Admin','Executive','Project Manager','Finance') as ok)  -- D6 / 0350 ruling
   select pl.boq_item_id, b.item_code, b.description, pl.unit, pl.rate, pl.revision, pl.quantity,
-         coalesce(v.quantity, 0), coalesce(bl.q, 0),
-         greatest(least(coalesce(v.quantity, 0), pl.quantity) - coalesce(bl.q, 0), 0),
+         coalesce(v.quantity, 0),
+         case when money.ok then coalesce(bl.q, 0) end,
+         case when money.ok then greatest(least(coalesce(v.quantity, 0), pl.quantity) - coalesce(bl.q, 0), 0) end,
          greatest(coalesce(v.quantity, 0) - pl.quantity, 0),
          v.confirmed_at
-    from rev join public.purchase_order_lines pl on pl.po_id = p_po_id and pl.revision = rev.r
+    from rev cross join money join public.purchase_order_lines pl on pl.po_id = p_po_id and pl.revision = rev.r
     join public.boq_items b on b.id = pl.boq_item_id
     left join public.subcontract_verified(p_po_id) v on v.boq_item_id = pl.boq_item_id
     left join bl on bl.boq_item_id = pl.boq_item_id
@@ -1036,7 +1111,8 @@ revoke all on function public.subcontract_po_position(uuid) from public, anon;
 grant execute on function public.subcontract_po_position(uuid) to authenticated;
 ```
 
-Invoker: a caller who cannot see the PO gets no rows (never a fabricated 0 line). One PO's lines are a BoQ subset,
+Invoker: a caller who cannot see the PO gets no rows (never a fabricated 0 line); a caller outside the four
+invoice-reading roles gets `billed`/`payable` as `null` (rendered "—", not `0`). One PO's lines are a BoQ subset,
 far below `max_rows` (1000); the FE asserts `rows.length < 1000` and errors otherwise (S6.3). `verified_at` feeds the
 OQ-7 age display.
 
@@ -1054,20 +1130,21 @@ plus the shipped neighbours that call the wrapped path: `supabase/tests/spend_ap
 
 ---
 
-## S4 - Variations, revisions, client link, tenancy (`<NNNN>_po_variations.sql`) - ships alone (money + SoD)
+## S4 - Variations, revisions, client link, tenancy (`0445_po_variations.sql`) - ships alone (money + SoD)
 
 Covers AC-SCA-002, 003, 005, 010, 013 and FR-SCA-030..036, 040..041; PQ-5..7. Header REVERSE: drop
 `project_subcontract_exposure(uuid)`; drop and re-create `subcontract_po_position(uuid)` from S3; drop
 `link_po_variation(uuid,uuid,text)`, `issue_po_revision(uuid)`, `decide_po_variation(uuid,boolean,text)`,
 `request_po_variation(uuid,text,jsonb,text)`; `alter table purchase_order_revisions drop constraint purchase_order_revisions_variation_fk`;
-export then drop `po_variation_lines`, `po_variations`; drop guard functions.
+refuse while rows exist, then drop `po_variation_lines`, `po_variations`; drop guard functions. (`amount_approved_by_id` is a shipped column; nothing to undo.)
 
 ### S4.1 Failing tests: variation route, SoD, revision (AC-SCA-002, 003, 005 owning)
 
 Create `supabase/tests/po_variations.test.sql` (new) = F1 + F2 + F3 and, as superuser, an Active budget on project d1 with
 a `Subcontractors` line of 13,000,000 (columns as `spend_approval_enforce.test.sql:62-79`: insert the version Draft, its
-line, then `update budget_versions set status='Active'`), and `spend_approvers (org a, project null, profile …a6)` (the
-Executive is the senior set). The purchase already commits 12,000,000 on that line, so 1,000,000 of headroom remains.
+line, then `update budget_versions set status='Active'`), and `spend_approvers (org_id a, project_id null, profile_id …a6)`
+and `(org_id a, project_id null, profile_id …a3)` (the Executive and Fin2 are the senior set; Fin2 is there so the
+issuer ≠ approver refusal is reached by a user who holds the issuing role, not refused earlier on role). The purchase already commits 12,000,000 on that line, so 1,000,000 of headroom remains.
 
 ```sql
 select pg_temp.confirmed_acceptance('15130000-0000-0000-0000-000000000101', 120, null);   -- verified 120 > PO 100
@@ -1096,8 +1173,8 @@ select pg_temp.act_as('15130000-0000-0000-0000-0000000000a2');   -- Fin1 request
 select lives_ok($$ select request_po_variation('15130000-0000-0000-0000-000000000101', 'pre_work',
   '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e1","additional_quantity":20}]', 'Design change') $$,
   'FR-SCA-030 a variation request is raised');
-select is((select route from po_variation_route((select id from po_variations where po_id = '15130000-0000-0000-0000-000000000101'))),
-  'senior', 'AC-SCA-005 a variation that exceeds the budget line routes to the senior set (shipped rule)');
+select is((select route || '/' || reason from po_variation_route((select id from po_variations where po_id = '15130000-0000-0000-0000-000000000101'))),
+  'org/exceeds_line', 'AC-SCA-005 a variation that exceeds the budget line routes to the senior set (shipped rule: route org, reason exceeds_line)');
 select throws_like($$ select decide_po_variation((select id from po_variations where po_id = '15130000-0000-0000-0000-000000000101'), true, null) $$,
   '%separation of duties%', 'AC-SCA-005 the requester cannot approve it');
 select pg_temp.act_as('15130000-0000-0000-0000-0000000000a4');
@@ -1114,14 +1191,16 @@ select request_po_variation('15130000-0000-0000-0000-000000000101', 'post_work',
   '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e1","additional_quantity":20}]', 'Extra excavation');
 select throws_like($$ select decide_po_variation((select id from po_variations where po_id = '15130000-0000-0000-0000-000000000101'), true, null) $$,
   '%separation of duties%', 'AC-SCA-003 requester ≠ approver is refused');
-select pg_temp.act_as('15130000-0000-0000-0000-0000000000a6');
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a3');   -- Fin2, in the senior set
 select lives_ok($$ select decide_po_variation((select id from po_variations where po_id = '15130000-0000-0000-0000-000000000101'), true, 'Agreed') $$,
   'AC-SCA-003 the senior approver approves');
 select throws_like($$ select issue_po_revision((select id from po_variations where po_id = '15130000-0000-0000-0000-000000000101')) $$,
   '%separation of duties%', 'AC-SCA-003 issuer ≠ approver is refused');
-select pg_temp.act_as('15130000-0000-0000-0000-0000000000a3');
+select throws_like($$ select transition_procurement('15130000-0000-0000-0000-0000000000f1', 'Paid') $$,
+  '%approver cannot pay%', 'AC-SCA-003 the variation''s approver cannot pay the purchase (SoD-b, PQ-5)');
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a2');   -- Fin1, not the approver
 select is(issue_po_revision((select id from po_variations where po_id = '15130000-0000-0000-0000-000000000101')), 2,
-  'AC-SCA-003 Fin2 issues revision 2');
+  'AC-SCA-003 Fin1 issues revision 2');
 select is((select po_qty from subcontract_po_position('15130000-0000-0000-0000-000000000101') where item_code = 'L1'),
   120::numeric, 'FR-SCA-033 the cap uses the new PO quantity immediately');
 select pg_temp.act_as('15130000-0000-0000-0000-0000000000a2');
@@ -1133,14 +1212,17 @@ rollback to savepoint s3;
 
 The approval in AC-SCA-003 is 2,000,000 against 1,000,000 headroom, so it routes `senior` and the Executive is the named
 approver — the same path AC-SCA-005 proves for refusals. FR-tagged blocks in the same file:
-`FR-SCA-031` a 500,000 pre-work variation (5 × 100,000) fits → route `within_budget`; `FR-SCA-032` a revision on a
+`FR-SCA-031` a 500,000 pre-work variation (5 × 100,000) fits → reason `within_budget`, route `flat` (no project
+approvers configured; the shipped route values are `flat` / `project` / `org` / `admin`, `0247_expense_claims.sql:618-648`); `FR-SCA-032` a revision on a
 Requested variation → 42501; `FR-SCA-034` a post-work variation above verified-not-on-PO (21) → 23514; `PQ-5` after
 approval `procurements.total_value` and `approved_total_value` = 14,000,000 and `spend_approval_route(... , 'Subcontractors', 1, …)`
 reports `line_used` 14,000,000; `PQ-5` the totals survive a later bill insert (no refresh trigger rewrites them);
-`FR-SCA-036` the sole member of org S may request, approve and issue on PO `…109` only via the Admin break-glass rule
-(requester ≠ approver stays absolute, as `transition_procurement` `0362_…:207-210`), and the revision issue by the
-approver succeeds with `issue_basis = 'sole_operator'`; `NFR-SCA-006` every request/approve/reject/revise/link wrote an
-audit row.
+`FR-SCA-036` (org S, PO `…109`): the sole member requests a variation and cannot approve it
+(`'%separation of duties%'`; requester ≠ approver has no sole-operator exception, as `transition_procurement`
+`0362_…:207-210`); then, as superuser, add a second active member `…c2` (Finance) to org S who requests a second variation,
+the sole original member `…c1` approves it, `…c2` is set `disabled`, and `…c1` — now the approver **and** the sole active
+member — issues the revision: `lives_ok` and `issue_basis = 'sole_operator'`; with `…c2` still active the same issue is
+refused `'%separation of duties%'`; `NFR-SCA-006` every request/approve/reject/revise/link wrote an audit row.
 
 ### S4.2 Failing tests: client link (AC-SCA-010 owning)
 
@@ -1172,8 +1254,10 @@ select is((select status::text from work_orders where id = '15130000-0000-0000-0
 
 ### S4.3 Failing test: tenancy isolation (AC-SCA-013 owning)
 
-Create `supabase/tests/subcontract_tenancy.test.sql` (new) = F1 + F2 + F3 + one Requested variation on `…101` and one
-bill line (inserted as superuser with `set_config('pmo.subcontract_capture','on',true)`), then as org B's Admin:
+Create `supabase/tests/subcontract_tenancy.test.sql` (new) = F1 + F2 + F3 + one Requested variation `…501` on `…101`
+(with one line), work order `…401` on d1 linked to it, and one bill line (inserted as superuser with
+`set_config('pmo.subcontract_capture','on',true)` and `set_config('pmo.po_variation_write','on',true)`), then as org B's
+Admin (the `attribute_subcontract_bill_lines` cross-org refusal is added to this file in S5):
 
 ```sql
 set local role authenticated;
@@ -1193,6 +1277,19 @@ select throws_ok($$ select prepare_subcontract_acceptance('15130000-0000-0000-00
 select throws_ok($$ select request_po_variation('15130000-0000-0000-0000-000000000101', 'pre_work',
   '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e1","additional_quantity":1}]', 'x') $$, 'P0002', null,
   'AC-SCA-013 org B cannot raise a variation on org A''s PO');
+select throws_ok($$ select capture_subcontract_vendor_invoice('15130000-0000-0000-0000-0000000000f1', 'Received', current_date,
+  '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e1","quantity":1,"rate":100000}]', p_amount => 100000,
+  p_tax_treatment => 'exclusive', p_tax_amount => 0) $$, 'P0002', null, 'AC-SCA-013 org B cannot bill against org A''s purchase');
+select throws_ok($$ select decide_po_variation((select id from po_variations limit 1), true, null) $$, 'P0002', null,
+  'AC-SCA-013 org B cannot decide org A''s variation (it reads none, so the id is null → not found)');
+select throws_ok($$ select decide_po_variation('15130000-0000-0000-0000-000000000501', true, null) $$, 'P0002', null,
+  'AC-SCA-013 … nor by its known id');
+select throws_ok($$ select issue_po_revision('15130000-0000-0000-0000-000000000501') $$, 'P0002', null,
+  'AC-SCA-013 … nor issue its revision');
+select throws_ok($$ select link_po_variation('15130000-0000-0000-0000-000000000501', null, 'x') $$, 'P0002', null,
+  'AC-SCA-013 … nor link it');
+select is((select count(*)::int from work_order_cost_variations('15130000-0000-0000-0000-000000000401')), 0,
+  'AC-SCA-013 … and reads no cost variation on org A''s work order');
 -- an offboarded org-A member reads nothing
 reset role; update profiles set status = 'disabled' where id = '15130000-0000-0000-0000-0000000000a3'; set local role authenticated;
 select pg_temp.act_as('15130000-0000-0000-0000-0000000000a3');
@@ -1254,20 +1351,23 @@ Number: `next_procurement_doc_number(org, 'VAR')` (the shipped counter, used by 
 ### S4.5 `request_po_variation` and `po_variation_route`
 
 `request_po_variation(p_po_id uuid, p_origin text, p_lines jsonb, p_reason text) returns uuid`:
-active member; PO in caller's org (else P0002); procurement row `for update`; `subcontract_po_lock`; require an
-effective revision (42501); FR-SCA-030 "any project member" = any active member of the org who can see the PO under RLS
-(`exists (select 1 from public.purchase_orders where id = p_po_id)` evaluated as invoker via
-`public.procurement_visible_to_caller`-style check — implemented as a `security invoker` helper
-`po_visible(p_po_id) returns boolean` called from the definer with `set role`-free semantics: the helper reads
-`purchase_orders` under the caller's JWT because RLS policies read `auth.uid()`/`auth_org_id()` from claims, not
-`current_user`; refuse 42501 when false). Lines: each on the effective revision (23514), positive, 3 dp, no duplicates;
+active member; PO in caller's org (else P0002); procurement row `for update`; `subcontract_po_lock`; closed purchase
+refused (PQ-12); require an effective revision (42501); FR-SCA-030 "any project member" = any active member of the org
+who can read the purchase, stated as D6's explicit predicate (RLS does not apply inside this definer):
+`if not (public.auth_role() in ('Admin','Executive','Project Manager','Finance') or v_proc.requested_by_id = auth.uid()) then
+raise exception 'purchase order not found' using errcode = 'P0002'; end if;` (the same answer as a PO in another org, so
+the refusal does not confirm the PO exists). S4.1 adds: `FR-SCA-030` an Engineer who did not raise the purchase → P0002;
+inside a savepoint with `requested_by_id` set to the Engineer → `lives_ok`. Lines: each on the effective revision (23514), positive, 3 dp, no duplicates;
 rate copied from the effective line; for `post_work` each `additional_quantity` ≤ that line's `verified_not_on_po` minus
 quantity already on other `Requested`/`Approved` post-work variations for the line (23514, FR-SCA-034); amount =
 Σ round(q × rate, 2). Insert under the write flag; audit `po_variation.request`.
 
-`po_variation_route(p_id uuid)` (invoker read for the UI and tests) returns the row of
-`public.spend_approval_route(v.org_id, p.project_id, p.budget_category, v.amount, p.currency, v.requested_by, auth.uid(), v.requested_at)`
-— a call, never a copy (ADR-0075 §3, D1).
+`po_variation_route(p_id uuid)` (invoker read for the UI and tests; `revoke all … from public, anon; grant execute … to
+authenticated`) returns the row of
+`public.spend_approval_route(v.org_id, p.project_id, p.budget_category, v.amount, p.currency, v.requested_by, nullif(auth.uid(), v.requested_by), v.requested_at)`
+— a call, never a copy (ADR-0075 §3, D1); the decider is the viewer unless the viewer is the requester, exactly as
+`get_procurement_approval_routes` (`0243_…:310-326`). Route values are `flat` / `project` / `org` / `admin`; "senior set"
+is route `org`.
 
 ### S4.6 `decide_po_variation`
 
@@ -1307,6 +1407,7 @@ begin
            decided_by = v_uid, decided_at = clock_timestamp(), decided_notes = nullif(btrim(p_notes), '') where id = p_id;
     update public.procurements set total_value = total_value + v.amount,                                   -- PQ-5
            approved_total_value = case when approved_total_value is null then null else approved_total_value + v.amount end,
+           amount_approved_by_id = v_uid,                                  -- PQ-5: SoD-b now covers the variation's approver
            updated_at = now() where id = v.procurement_id;
   else
     update public.po_variations set status = case when v.origin = 'post_work' then 'Disputed' else 'Rejected' end,
@@ -1324,12 +1425,19 @@ grant execute on function public.decide_po_variation(uuid, boolean, text) to aut
 
 The route check copies `transition_procurement`'s **refusal shape** (`0362_…:227-237`) so both surfaces say the same
 thing; the routing **decision** is the shipped function. The `procurements` update runs as the definer, which
-`guard_procurement_approved_total` admits (`0362_…:99-106`).
+`guard_procurement_approved_total` admits (`0368_…:54-58`, `actor_bypasses_rls()`), as does
+`assert_procurement_routing_inputs_frozen` for `total_value` (`0243_…:514-518`). Stamping `amount_approved_by_id` puts
+the variation's approver under approver ≠ payer on the Paid guard, the outbox claim and the edge payment gate with no
+change to any of them (PQ-5); AC-SCA-003 proves it (the approver's `transition_procurement(…, 'Paid')` is refused).
 
 ### S4.7 `issue_po_revision` and `link_po_variation`
 
 `issue_po_revision(p_variation_id uuid) returns integer`: active member; variation in org (P0002); procurement row
-`for update`, `subcontract_po_lock(po)`; variation `for update`, status `Approved` (42501); role in
+`for update`, `subcontract_po_lock(po)`; closed purchase refused (PQ-12); in a connected org
+(`public.domain_externally_owned(org, 'procurement')`) refuse `42501` with `detail = 'erp_revise_pending'` (PQ-11, lifted
+by #1505; S4.1 adds `PQ-11 a connected org cannot issue a PO revision before the ERP revise exists` flipping the org as superuser
+inside a savepoint with `insert into external_domain_ownership (org_id, external_tier, domain) values (org a, 'erpnext',
+'procurement')`, the fixture of `0273_vendor_tax_accounts_native_withholding.test.sql:148`); variation `for update`, status `Approved` (42501); role in
 `('Admin','Finance','Project Manager')` (42501); SoD: `if auth.uid() = v.approved_by` then the 0337 sole-operator predicate
 (`0337_…:283`) must hold, else `raise 'separation of duties: the variation''s approver cannot issue its PO revision'`
 (42501), basis `sole_operator` when it holds; `v_new := po_effective_revision(po) + 1`; insert lines
@@ -1351,9 +1459,21 @@ All client RPCs: `revoke all … from public, anon; grant execute … to authent
 
 ### S4.8 Position with Disputed, project exposure (FR-SCA-035)
 
-`drop function public.subcontract_po_position(uuid);` and re-create with one more column
-`disputed numeric` = `least(verified_not_on_po, coalesce(sum(additional_quantity) of this line on Disputed variations of the PO, 0) - (quantity of the same line on later Revised post-work variations, floored at 0))`;
-compute in a CTE `dsp` over `po_variations v join po_variation_lines l`.
+`drop function public.subcontract_po_position(uuid);` and re-create it (S3 body verbatim, re-granted as in S3.7) with one
+more output column, `disputed numeric`, from one more CTE:
+
+```sql
+  dsp as (select l.boq_item_id, sum(l.additional_quantity) q
+            from public.po_variations v join public.po_variation_lines l on l.variation_id = v.id
+           where v.po_id = p_po_id and v.status = 'Disputed'
+           group by l.boq_item_id)
+  -- select list, after verified_not_on_po:
+  --   least(greatest(coalesce(v.quantity, 0) - pl.quantity, 0), coalesce(dsp.q, 0)) as disputed
+  -- from list: left join dsp on dsp.boq_item_id = pl.boq_item_id
+```
+
+Because `verified_not_on_po` falls as soon as a later variation's revision raises the PO quantity, `least(...)` shrinks
+the Disputed figure by what is now on the PO (PQ-6) with no second subtraction.
 
 ```sql
 create or replace function public.project_subcontract_exposure(p_project_id uuid)
@@ -1383,10 +1503,12 @@ As S1.7 for `po_variations`, `po_variation_lines`; the four RPCs into 0178 and t
 
 ---
 
-## S5 - ERP guards, OQ-10, `purchase-order.revise` contract (`<NNNN>_subcontract_erp_guards.sql`) - ships alone
+## S5 - ERP guards, OQ-10, `purchase-order.revise` contract (`0446_subcontract_erp_guards.sql`) - ships alone
 
 Covers AC-SCA-011, 012, FR-SCA-022, OQ-9, OQ-10, PQ-9, PQ-10. Read `docs/money-path-primer.md` in full, ADR-0058 §3 and
-the C-1 invariant before starting. Header REVERSE: restore `procurement_create_refusal` from `0373_…:20-62` and
+the C-1 invariant before starting. Both re-created functions are head bodies today (`procurement_create_refusal` only in
+0373, `procurement_payment_allowed` only in 0368; re-grep `create (or replace )?function public.<name>` after rebasing in
+case a sibling slice re-created one). Header REVERSE: restore `procurement_create_refusal` from `0373_…:20-62` and
 `procurement_payment_allowed` from `0368_…:18-45`; drop `attribute_subcontract_bill_lines(uuid,jsonb)`,
 `subcontract_cap_exceptions(uuid)`, `po_revision_push_refusal(uuid,uuid,integer,boolean)`.
 
@@ -1416,6 +1538,12 @@ select is(po_revision_push_refusal('15130000-0000-0000-0000-00000000000a', '1513
   'AC-SCA-012 (DB half) no live bill: a cancel-style revise is allowed');
 ```
 
+a block proving the re-created `procurement_create_refusal` keeps SoD-b for a variation's approver: after S4's approval
+by Fin2 (PQ-5 stamp), `procurement_create_refusal(org a, …f1, 'payment', '…a3') = 'separation_of_duties'`;
+`OQ-10` read as a client: Fin1 sees the exception row from `subcontract_cap_exceptions('…f1')`, the Engineer sees none;
+a linked ERP Purchase Invoice (superuser insert into `erp_purchase_documents` (`erp_doctype` 'Purchase Invoice',
+`erp_docstatus` 1, `pmo_owned` false) + `procurement_erp_links` on `…f1`) is an exception with reason
+`erp_linked_unattributed`;
 and a block where a non-cancelled bill exists: `po_revision_push_refusal(org, po, 2, true) = 'po_has_submitted_bill'`,
 `po_revision_push_refusal(org, po, 2, false) is null` (an edit-style revise cancels nothing), and
 `po_revision_push_refusal(org, '<unknown uuid>', 2, true) = 'po_not_found'` (fail closed).
@@ -1425,10 +1553,10 @@ and a block where a non-cancelled bill exists: `po_revision_push_refusal(org, po
 `procurement_create_refusal` = `0373_…:20-62` verbatim plus, after the `v_proc.id is null` check (each line marked):
 
 ```sql
-  if p_erp_doc_kind = 'purchase-invoice' and v_proc.is_subcontract                                       -- <NNNN>
-     and exists (select 1 from public.purchase_order_revisions r where r.procurement_id = v_proc.id) then -- <NNNN>
-    return 'subcontract_bill_lines_required';  -- PQ-9: #1505 replaces this with the cap over the payload  -- <NNNN>
-  end if;                                                                                                 -- <NNNN>
+  if p_erp_doc_kind = 'purchase-invoice' and v_proc.is_subcontract                                       -- 0446
+     and exists (select 1 from public.purchase_order_revisions r where r.procurement_id = v_proc.id) then -- 0446
+    return 'subcontract_bill_lines_required';  -- PQ-9: #1505 replaces this with the cap over the payload  -- 0446
+  end if;                                                                                                 -- 0446
 ```
 
 Same signature, so `claim_outbox_for_commit` (`0373_…:137`) and the edge function's reissue check
@@ -1436,7 +1564,7 @@ Same signature, so `claim_outbox_for_commit` (`0373_…:137`) and the edge funct
 = `0368_…:18-45` verbatim plus, before the final `return null`:
 
 ```sql
-  if exists (select 1 from public.subcontract_cap_exceptions(v_row.id)) then return 'subcontract_cap_exception'; end if; -- <NNNN>
+  if exists (select 1 from public.subcontract_cap_exceptions(v_row.id)) then return 'subcontract_cap_exception'; end if; -- 0446
 ```
 
 Because the Paid guard, the ERP payment dispatch and the outbox claim all ask this one function (`0368_…` header §1), all
@@ -1444,12 +1572,36 @@ three refuse together.
 
 ### S5.3 `subcontract_cap_exceptions`, `attribute_subcontract_bill_lines`, `po_revision_push_refusal`
 
-`subcontract_cap_exceptions(p_procurement_id uuid) returns table (invoice_id uuid, erp_number text, amount numeric, reason text)`
-(definer, internal + `service_role`, and an invoker twin for the UI is not needed — the UI reads it through
-`subcontract_po_position`'s companion RPC in S6): for a subcontract purchase with revision 1, every non-cancelled
-`procurement_invoices` row with no `procurement_invoice_lines` (`reason 'no_lines'`), plus every linked submitted ERP
-Purchase Invoice in `procurement_erp_links`/`erp_purchase_documents` (`0361_…`) whose PMO record does not exist
-(`reason 'erp_linked_unattributed'`).
+`subcontract_cap_exceptions` is **one invoker function** serving both callers: the UI (RLS decides what the caller sees;
+Engineers see no bill rows, D6) and `procurement_payment_allowed` (a definer, so inside it the read runs as the owner and
+sees every row):
+
+```sql
+create or replace function public.subcontract_cap_exceptions(p_procurement_id uuid)
+  returns table (invoice_id uuid, erp_purchase_document_id uuid, number text, amount numeric, reason text)
+  language sql stable security invoker set search_path = public as $$
+  select i.id, null::uuid, i.vi_number, i.amount, 'no_lines'
+    from public.procurements p
+    join public.procurement_invoices i on i.procurement_id = p.id
+   where p.id = p_procurement_id and p.is_subcontract
+     and exists (select 1 from public.purchase_order_revisions r where r.procurement_id = p.id)
+     and coalesce(i.erp_docstatus, 1) <> 2 and i.erp_cancelled_at is null
+     and not exists (select 1 from public.procurement_invoice_lines l where l.invoice_id = i.id)
+  union all
+  select null::uuid, d.id, d.erp_name, d.grand_total, 'erp_linked_unattributed'
+    from public.procurements p
+    join public.procurement_erp_links k on k.procurement_id = p.id
+    join public.erp_purchase_documents d on d.id = k.erp_purchase_document_id
+   where p.id = p_procurement_id and p.is_subcontract
+     and exists (select 1 from public.purchase_order_revisions r where r.procurement_id = p.id)
+     and d.erp_doctype = 'Purchase Invoice' and d.erp_docstatus = 1 and not d.pmo_owned
+$$;
+revoke all on function public.subcontract_cap_exceptions(uuid) from public, anon;
+grant execute on function public.subcontract_cap_exceptions(uuid) to authenticated, service_role;
+```
+
+(Columns: `procurement_erp_links` `0360_…:75-83`, `erp_purchase_documents` `0335_…:9-28`.) A linked ERP Purchase Invoice
+is not a PMO bill row and cannot carry lines, so it clears only by the ERP cancel or `unlink_erp_purchase_document` (PQ-10).
 
 `attribute_subcontract_bill_lines(p_invoice_id uuid, p_lines jsonb) returns void` (client, Admin/Finance): invoice
 in org, on a subcontract purchase, currently without lines; procurement row lock then `subcontract_po_lock`; same
@@ -1494,6 +1646,9 @@ Deno.test('AC-SCA-011 one PMO revision has one key: a retry after a mid-way fail
   assertEquals(purchaseOrderReviseKey(PO, 2), purchaseOrderReviseKey(PO, 2));
 });
 
+// AC-SCA-011 scope: #1505 owns the transport, so here the owning test proves the shipped seam module that the
+// #1505 dispatch must call (key derivation + recovery decision). #1505's done-condition adds the wiring test that
+// dispatch.ts recovery for `purchase-order.revise` calls poReviseRecoveryDecision (spec note 12).
 Deno.test('AC-SCA-011 recovery after an inconclusive probe holds, never reissues (at most one ERP revision)', () => {
   assertEquals(poReviseRecoveryDecision({ probe: 'inconclusive' }), 'held');
   assertEquals(poReviseRecoveryDecision({ probe: 'found', key: `porev:${PO}:2`, expectedKey: `porev:${PO}:2` }), 'adopt');
@@ -1618,7 +1773,9 @@ Functions (each a typed `supabase.rpc`/`from` call, `throwRpc` on error, no `org
 `procurementLifecycle.ts:430-450` does); `listPoVariations(poId)`; `requestPoVariation(input)`; `decidePoVariation(id, approve, notes)`;
 `issuePoRevision(variationId)`; `linkPoVariation(variationId, workOrderId | null, reason | null)`;
 `getVariationRoute(variationId)`; `getProjectSubcontractExposure(projectId)`; `listWorkOrderCostVariations(workOrderId)`;
-`attributeSubcontractBillLines(invoiceId, lines)`. `src/lib/db/subcontracts.test.ts` (new) mocks `supabase` as
+`listSubcontractCapExceptions(procurementId)` → `subcontract_cap_exceptions` (OQ-10); `attributeSubcontractBillLines(invoiceId, lines)`.
+Position rows type `billed` and `payable` as `number | null` (D6: `null` for a caller outside the four invoice-reading
+roles); nothing coerces `null` to `0`. `src/lib/db/subcontracts.test.ts` (new) mocks `supabase` as
 `src/lib/db/workOrderAcceptances.test.ts` does and asserts each call's RPC name and argument names, and that an SC001 error
 surfaces with `code: 'SC001'` (FR-SCA-020).
 
@@ -1648,7 +1805,7 @@ Gate: `npm run check:guards && npm run typecheck`, the touched vitest files, esl
 
 ---
 
-## S7 - Screens and e2e journey (no migration) - UI lane
+## S7 - Screens and e2e journey (no migration) - UI lane, shipped as S7a (S7.1-S7.4) then S7b (S7.5-S7.7)
 
 UI-lane gate: typecheck, eslint, touched vitest, the touched e2e, `scripts/ux-proof.sh` on `/procurement/:id` and
 `/projects/:id` (work-orders tab); security-auditor only because money RPCs are called. Director does one rendered review;
@@ -1684,7 +1841,9 @@ it('AC-SCA-015 shows per-line PO / verified / billed / payable / verified-not-on
 plus `FR-SCA-050` states: loading skeleton; error (a failed read renders the error notice and **no** figures, never `0`);
 empty (no issued lines → "No BoQ lines issued" with the `edit` affordance gated by `can('edit','subcontractLines')`);
 Draft lines with an Issue button behind `ConfirmDialog`; OQ-7 age chip "verified, not on PO for N days" from `verifiedAt`;
-Disputed figure. Mount it in `pages/ProcurementDetails.tsx` beside `LineItemsSection` (`:1110`) when
+Disputed figure; `billed`/`payable` `null` renders "—" (never `0`); OQ-10 exceptions from `listSubcontractCapExceptions`
+render as a reconciliation notice naming each bill and its reason, with "Attribute lines" (Admin/Finance) for a `no_lines`
+row. Mount it in `pages/ProcurementDetails.tsx` beside `LineItemsSection` (`:1110`) when
 `procurement.is_subcontract` and the purchase has a PO. Run: `npx vitest run pages/procurement/SubcontractLinesSection.test.tsx`.
 
 ### S7.3 `pages/procurement/SubcontractAcceptanceModal.tsx` (new)
@@ -1738,7 +1897,9 @@ journey, each step a real user action:
 Goal oracle (step 6): the purchase's bills total 12,000,000 + 2,000,000 and no line shows billed above its PO quantity.
 The test names AC-SCA-001 as its leading token; AC-SCA-001's **owning** proof stays pgTAP (traceability below).
 Run: `scripts/e2e-local.sh AC-SCA-001` (CI's `integration` runs it on the release PR to `main`, owner rule 2026-10-30).
-Then `scripts/ux-proof.sh` on the two routes; commit `feat(ui): subcontract lines, acceptance, caps and variations (#1513 S7)`.
+Then `scripts/ux-proof.sh` on the two routes. Commits: S7a ends S7.4 with `feat(ui): subcontract lines, acceptance and bill
+screens (#1513 S7a)` after the same UI-lane gate on `/procurement/:id`; S7b ends here with
+`feat(ui): subcontract variations, link and journey (#1513 S7b)`.
 
 ---
 
@@ -1756,16 +1917,17 @@ Then `scripts/ux-proof.sh` on the two routes; commit `feat(ui): subcontract line
 | AC-SCA-008 | pgTAP | `supabase/tests/subcontract_bill_caps.test.sql` | `AC-SCA-008 a cancelled bill's quantity returns to payable` | S3 |
 | AC-SCA-009 | pgTAP | `supabase/tests/subcontract_bill_caps.test.sql` | `AC-SCA-009 only the latest Confirmed acceptance counts (Draft 95 and Withdrawn 90 do not)` | S3 |
 | AC-SCA-010 | pgTAP | `supabase/tests/po_variations.test.sql` | `AC-SCA-010 a work order on another project is refused` (+ same project both sides, reason required) | S4 |
-| AC-SCA-011 | Deno | `supabase/functions/adapter-dispatch/poReviseGuard.test.ts` | `AC-SCA-011 recovery after an inconclusive probe holds, never reissues (at most one ERP revision)` (+ key reuse) | S5 |
+| AC-SCA-011 | Deno | `supabase/functions/adapter-dispatch/poReviseGuard.test.ts` | `AC-SCA-011 recovery after an inconclusive probe holds, never reissues (at most one ERP revision)` (+ key reuse) | S5 (seam); dispatch wiring proof is #1505's done-condition |
 | AC-SCA-012 | Deno | `supabase/functions/adapter-dispatch/poReviseGuard.test.ts` | `AC-SCA-012 a revise that would cancel a PO with a submitted bill is refused before any ERP write` | S5 |
 | AC-SCA-013 | pgTAP | `supabase/tests/subcontract_tenancy.test.sql` | `AC-SCA-013 org B reads none of org A's acceptances` (+ lines, revisions, variations, bill lines, writes) | S4 |
 | AC-SCA-014 | pgTAP | `supabase/tests/subcontract_cap_mutation.test.sql` | `AC-SCA-014 with the cap mutated to always allow, AC-SCA-004's refused bill … goes through` | S3 |
-| AC-SCA-015 | Vitest/RTL | `pmo-portal/pages/procurement/SubcontractLinesSection.test.tsx` | `AC-SCA-015 shows per-line PO / verified / billed / payable / verified-not-on-PO and totals that reconcile to the bill lines` | S7 |
-| (journey) | Playwright | `pmo-portal/e2e/AC-SCA-001-subcontract-bill-cap-journey.spec.ts` | `AC-SCA-001 prepare → confirm → capture → refusal → variation → revision → bill` (reference, not owner) | S7 |
+| AC-SCA-015 | Vitest/RTL | `pmo-portal/pages/procurement/SubcontractLinesSection.test.tsx` | `AC-SCA-015 shows per-line PO / verified / billed / payable / verified-not-on-PO and totals that reconcile to the bill lines` | S7a |
+| (journey) | Playwright | `pmo-portal/e2e/AC-SCA-001-subcontract-bill-cap-journey.spec.ts` | `AC-SCA-001 prepare → confirm → capture → refusal → variation → revision → bill` (reference, not owner) | S7b |
 
 Requirements without an AC are proven by the FR-/NFR-tagged tests named in each slice (FR-SCA-001..003 S1;
 010..015 S2; 020..024 S3; 030..036, 040..041 S4; 022 / OQ-10 S5; 050..051 S6/S7; NFR-SCA-001 S3 + S6, 002 S3, 004/005 S3,
-006 S2/S4, 007 every rollback file).
+006 S2/S4, 007 every rollback file; PQ-5 SoD-b for a variation's approver S4 (AC-SCA-003 block) + S5;
+PQ-11/12 S1/S4).
 
 ## Scaling and risk notes (planner lens)
 
@@ -1816,3 +1978,27 @@ The spec is not edited. Each note says what breaks if it is left as written, and
     approver is eligible; the plan surfaces that exactly as `transition_procurement` does (`0362_…:233-237`).
 11. **The spec's journey row has no AC id.** The e2e file is named for AC-SCA-001 (the issue acceptance) as a reference;
     its owning proof stays pgTAP.
+12. **AC-SCA-011 ("given a connected ERP") cannot be fully proven before #1505.** This plan owns the key and the
+    hold-never-reissue decision in the shipped seam module (S5.4/S5.5); #1505 must add the wiring test that its dispatch
+    recovery for `purchase-order.revise` calls `poReviseRecoveryDecision`. Until then no revise command exists, and a
+    connected org cannot issue a revision at all (PQ-11), so nothing can mint a second ERP revision.
+13. **FR-SCA-036 names requester ≠ approver and issuer ≠ approver, not approver ≠ payer for the variation's approver.**
+    The plan adds it (PQ-5) by stamping the shipped amount-approver column, because a variation raises the amount the
+    purchase may be paid; every payment path already enforces approver ≠ payer on that column.
+14. **FR-SCA-020 makes a subcontract purchase with lines refuse every bill path without lines** (the S3 capture guard),
+    including the shipped importer and a plain `capture_vendor_invoice`. That is the spec's fail-closed rule (NFR-SCA-004);
+    a bulk subcontract bill import is a follow-up (spec Follow-ups).
+
+## Review log (2026-11-01, Opus review against shipped code at `b52aa48a`)
+
+Changes made in review: migration numbers fixed to Lane B 0442-0446; S7 split into S7a/S7b (builder-day bound); PQ-2
+bounded by the requested value when no approval exists; PQ-5 stamps the variation's approver as amount approver (SoD-b on
+every payment path) with AC-SCA-003 proof; PQ-11 (connected org) and PQ-12 (closed purchase) added; D6 states that RLS does
+not apply inside definers and gives the explicit 0350 visibility predicate (replacing an invoker-helper approach that
+would have run as the owner); bill money (`billed`, `payable`) is `null`, never `0`, for roles that cannot read bills;
+the PO-amount guard admits the service-role ERP mirror (ADR-0048); the cap validates and sums its own input (D3); rollback
+follows the refuse-if-rows precedent instead of copying rows into `public`; route assertions use the shipped route values
+(`flat`/`project`/`org`/`admin`); the AC-SCA-003 issuer refusal now reaches the SoD check (Fin2 approver) instead of a
+role refusal; FR-SCA-036 test made coherent; Disputed given exact SQL; OQ-10 exceptions are one invoker read used by both
+the UI and the payment rule, including linked ERP Purchase Invoices; AC-SCA-013 covers every new writer; the isolation
+denominator step names all three manifest sections and the probe-script coverage rule; 0137/0136 inventories addressed (D6a).
