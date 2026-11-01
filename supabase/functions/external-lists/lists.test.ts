@@ -342,7 +342,7 @@ describe('external-lists — ClickUp branch', () => {
     );
   });
 
-  it('continues on folder/list fetch failure', async () => {
+  it('folder fetch failure in one space fails the whole request (no partial picker)', async () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
@@ -381,11 +381,121 @@ describe('external-lists — ClickUp branch', () => {
       ],
       async ({ calls }) => {
         const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+        assertEquals(res.status, 502);
+      },
+    );
+  });
+});
+describe('external-lists — hierarchy honesty', () => {
+  const baseMocks = () => [
+    supabaseSelect('profiles', () =>
+      jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+        headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+      })),
+    supabaseSelect('platform_operators', () => new Response('null', {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    })),
+    supabaseSelect('external_org_bindings', () =>
+      jsonResponse({ secret_ref: 'vault-ref', status: 'active' }, {
+        headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+      })),
+    supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
+    clickup('/api/v2/team', () => jsonResponse({ teams: [{ id: 'team-1', name: 'Acme' }] })),
+  ];
+  const fail = () => new Response('{}', { status: 500 });
+
+  it('spaces level non-success → 502, not an empty picker', async () => {
+    await withFetchMock(
+      [...baseMocks(), clickup('/api/v2/team/team-1/space', fail)],
+      async () => {
+        const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+        assertEquals(res.status, 502);
+      },
+    );
+  });
+
+  it('folders level non-success → 502', async () => {
+    await withFetchMock(
+      [
+        ...baseMocks(),
+        clickup('/api/v2/team/team-1/space', () => jsonResponse({ spaces: [{ id: 's1', name: 'S' }] })),
+        clickup('/api/v2/space/s1/folder', fail),
+        clickup('/api/v2/space/s1/list', () => jsonResponse({ lists: [] })),
+      ],
+      async () => {
+        const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+        assertEquals(res.status, 502);
+      },
+    );
+  });
+
+  it('folder lists level non-success → 502', async () => {
+    await withFetchMock(
+      [
+        ...baseMocks(),
+        clickup('/api/v2/team/team-1/space', () => jsonResponse({ spaces: [{ id: 's1', name: 'S' }] })),
+        clickup('/api/v2/space/s1/folder', () =>
+          jsonResponse({ folders: [{ id: 'f1', name: 'F', space_id: 's1' }] })),
+        clickup('/api/v2/folder/f1/list', fail),
+        clickup('/api/v2/space/s1/list', () => jsonResponse({ lists: [] })),
+      ],
+      async () => {
+        const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+        assertEquals(res.status, 502);
+      },
+    );
+  });
+
+  it('space lists level non-success → 502', async () => {
+    await withFetchMock(
+      [
+        ...baseMocks(),
+        clickup('/api/v2/team/team-1/space', () => jsonResponse({ spaces: [{ id: 's1', name: 'S' }] })),
+        clickup('/api/v2/space/s1/folder', () => jsonResponse({ folders: [] })),
+        clickup('/api/v2/space/s1/list', fail),
+      ],
+      async () => {
+        const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+        assertEquals(res.status, 502);
+      },
+    );
+  });
+
+  it('concurrent sibling traversal is bounded and returns the full tree', async () => {
+    const N = 12;
+    let inFlight = 0;
+    let peak = 0;
+    const spaces = Array.from({ length: N }, (_, i) => ({ id: `s${i}`, name: `S${i}` }));
+    await withFetchMock(
+      [
+        ...baseMocks(),
+        clickup('/api/v2/team/team-1/space', () => jsonResponse({ spaces })),
+        ...spaces.flatMap((s) => [
+          clickup(`/api/v2/space/${s.id}/folder`, () => jsonResponse({ folders: [] })),
+          clickup(`/api/v2/space/${s.id}/list`, () => jsonResponse({
+            lists: [{ id: `l-${s.id}`, name: `L-${s.id}`, folder_id: null, space_id: s.id }],
+          })),
+        ]),
+      ],
+      async () => {
+        const mocked = globalThis.fetch;
+        globalThis.fetch = (async (input: Request | URL | string, init?: RequestInit) => {
+          const url = String(input instanceof Request ? input.url : input);
+          if (!url.includes('clickup')) return mocked(input, init);
+          inFlight++;
+          peak = Math.max(peak, inFlight);
+          await new Promise((r) => setTimeout(r, 5));
+          inFlight--;
+          return mocked(input, init);
+        }) as typeof fetch;
+        const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+        globalThis.fetch = mocked;
         assertEquals(res.status, 200);
         const data = await res.json();
-        // Only space-1 root lists should be returned
-        assertEquals(data.lists.length, 2);
-        assertEquals(data.lists.map((l: { name: string }) => l.name).sort(), ['Bugs', 'Features']);
+        assertEquals(data.lists.length, N);
+        assertEquals(data.lists.map((l: { id: string }) => l.id), spaces.map((s) => `l-${s.id}`));
+        if (peak > 4 || peak < 2) throw new Error(`peak concurrency ${peak} outside 2..4`);
       },
     );
   });
