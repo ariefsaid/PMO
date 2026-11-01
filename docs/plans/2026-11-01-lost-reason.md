@@ -9,7 +9,7 @@
 - **Executor:** Orca workers per `docs/orca-dispatch.md`. **S1 changes `transition_project`** (the money/SoD transition RPC,
   win branch untouched): per CLAUDE.md it is Director-dispatched per issue, and **S1 ships alone** (own PR, not batched);
   `security-auditor` at full depth on S1 + S2. S3-S6 are a normal FE lane.
-- **Migration numbers:** S1 is `0449` (columns + `transition_project`; renumbered from 0437 because dev passed it), S2 `0438` (`get_loss_breakdown`) is renumbered above the highest number on `origin/dev` when it is built. Never hand-roll a renumber: `scripts/renumber-migration.sh`.
+- **Migration numbers:** S1 is `0461` (columns + `transition_project`; renumbered from 0437 because dev passed it), S2 `0438` (`get_loss_breakdown`) is renumbered above the highest number on `origin/dev` when it is built. Never hand-roll a renumber: `scripts/renumber-migration.sh`.
 - **Order:** S1 -> S2 -> S3 are independent of #1637. S4 needs #1637's S2 on the base branch
   (`components/project-status/ProjectTransitionConfirm.tsx`). If it is absent: **stop and ask the Director**, never create a second confirm.
 - **#1638 builds first (pipeline stage history, migrations 0430-0433).** Before writing any SQL: `git fetch origin && git rebase origin/dev`,
@@ -36,9 +36,9 @@
 
 | File | Change | Slice |
 |---|---|---|
-| `supabase/migrations/0449_lost_reason.sql` | new | S1 |
-| `supabase/migrations/rollback/0449_lost_reason_down.sql` | new | S1 |
-| `supabase/tests/0449_lost_reason.test.sql` | new | S1 |
+| `supabase/migrations/0461_lost_reason.sql` | new | S1 |
+| `supabase/migrations/rollback/0461_lost_reason_down.sql` | new | S1 |
+| `supabase/tests/0461_lost_reason.test.sql` | new | S1 |
 | `supabase/tests/0030_project_loss_path.test.sql`, `0236_project_declined_outcome.test.sql` | pass a reason | S1 |
 | `scripts/isolation-probe-denominator.json` | definer entry `transition_project(uuid,project_status,text,date)` -> `transition_project(uuid,project_status,text,date,text,text)` | S1 |
 | `supabase/migrations/0438_loss_breakdown.sql`, `rollback/0438_loss_breakdown_down.sql` | new | S2 |
@@ -76,7 +76,7 @@ so the retained-definer allow-list count is unchanged; the re-created function m
 UNLISTED surface and the old 4-argument entry is STALE until S1 swaps the one line (`:407`). `get_loss_breakdown` is not a definer
 and is not listed. **`scripts/pmo-load.test.mjs:72`** parses the transition map from the latest file matching
 `create or replace function (public\.)?transition_project\(`: S1 therefore re-creates the function with `create or replace`
-(after the drop), so that test reads 0449's map, not a stale one.
+(after the drop), so that test reads 0461's map, not a stale one.
 
 ---
 
@@ -84,12 +84,12 @@ and is not listed. **`scripts/pmo-load.test.mjs:72`** parses the transition map 
 
 > S1 must not reach main before S4 (the UI reason picker); on dev the mark-lost UI paths fail with a clear refusal until S4 lands.
 
-### S1-T1 Failing pgTAP: `supabase/tests/0449_lost_reason.test.sql` (5 min)
+### S1-T1 Failing pgTAP: `supabase/tests/0461_lost_reason.test.sql` (5 min)
 
 Fixtures: one org, one PM (Project Manager), four projects (Negotiation, Tender Submitted, Leads, PQ Submitted). The role gate is
 unchanged and stays proven by 0027 (S1-T5), so no Engineer fixture is needed here.
 ```sql
--- 0449_lost_reason.test.sql — #1577
+-- 0461_lost_reason.test.sql — #1577
 -- AC-LR-001..007. Isolated org; UUID prefix 04490000-…
 begin;
 select plan(24);
@@ -182,7 +182,7 @@ select * from finish();
 rollback;
 ```
 Adjust `plan(N)` to the final assertion count (24 as drafted: count the assertion `select`s).
-Run it first (RED): `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0449_lost_reason.test.sql'` fails (no such columns).
+Run it first (RED): `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0461_lost_reason.test.sql'` fails (no such columns).
 
 ### S1-T2 AC-LR-006 pgTAP updates (3 min)
 - `supabase/tests/0030_project_loss_path.test.sql:28` -> `transition_project('00300000-…0010','Loss Tender',null,null,'price',null)`.
@@ -193,15 +193,15 @@ Run it first (RED): `scripts/with-db-lock.sh bash -c 'supabase db reset && supab
 - Every other pgTAP call of `transition_project` targets a non-lost status (swept: `grep -rnE "transition_project\([^)]*'(Loss Tender|Declined)'" supabase/tests`
   returns only 0027, 0030, 0032 and 0236), so no other test file changes.
 
-### S1-T3 Migration `supabase/migrations/0449_lost_reason.sql` (10 min)
+### S1-T3 Migration `supabase/migrations/0461_lost_reason.sql` (10 min)
 
 Header comment (public repo: describe what and why, no weakness language):
 ```sql
--- 0449_lost_reason.sql — #1577: a reason is required when a deal is lost or declined.
+-- 0461_lost_reason.sql — #1577: a reason is required when a deal is lost or declined.
 --   AC-LR-001..007. projects gains lost_reason / lost_note (nullable: historic losses stay "Not recorded").
---   transition_project gains p_lost_reason / p_lost_note. Body is 0236's VERBATIM except the six marked edits (⚑ 0449).
+--   transition_project gains p_lost_reason / p_lost_note. Body is 0236's VERBATIM except the six marked edits (⚑ 0461).
 --   A reason exists only on a lost or declined deal (projects_lost_reason_status_check).
--- Reversibility: rollback/0449_lost_reason_down.sql restores 0236's function and drops the columns.
+-- Reversibility: rollback/0461_lost_reason_down.sql restores 0236's function and drops the columns.
 
 alter table public.projects
   add column lost_reason text,
@@ -221,8 +221,8 @@ Then the function. **Build it from the latest body by copy, not by retyping** (`
 ```bash
 cd <worktree root>
 SRC=$(grep -lE "create (or replace )?function (public\.)?transition_project\(" supabase/migrations/*.sql | grep -v /rollback/ | sort | tail -1)
-test "$SRC" != supabase/migrations/0449_lost_reason.sql || echo "STOP: run this before 0449 has its function"
-sed -nE '/^create or replace function (public\.)?transition_project\(/,/^end; \$\$;/p' "$SRC" >> supabase/migrations/0449_lost_reason.sql
+test "$SRC" != supabase/migrations/0461_lost_reason.sql || echo "STOP: run this before 0461 has its function"
+sed -nE '/^create or replace function (public\.)?transition_project\(/,/^end; \$\$;/p' "$SRC" >> supabase/migrations/0461_lost_reason.sql
 # then apply ONLY edits E1-E6 to the appended function
 ```
 Apply exactly these six edits to the copied function (everything else byte-identical, including every SECURITY comment):
@@ -232,10 +232,10 @@ Apply exactly these six edits to the copied function (everything else byte-ident
   `p_id uuid, p_to project_status, p_customer_contract_ref text default null, p_contract_date date default null,`
   `p_lost_reason text default null, p_lost_note text default null)`.
 - **E2 declare**, after `v_role user_role := auth_role();` add
-  `v_reason text := nullif(btrim(p_lost_reason), '');  -- ⚑ 0449` and `v_note text := nullif(btrim(p_lost_note), '');  -- ⚑ 0449`.
+  `v_reason text := nullif(btrim(p_lost_reason), '');  -- ⚑ 0461` and `v_note text := nullif(btrim(p_lost_note), '');  -- ⚑ 0461`.
 - **E3 validation**, immediately after the "Transition-map legality" `if ... raise exception 'illegal transition ...' end if;` and before `-- Branch on the target`:
 ```sql
-  -- ⚑ 0449 (#1577, FR-LR-002/003): a lost or declined deal must say why. The role, org, membership and legality
+  -- ⚑ 0461 (#1577, FR-LR-002/003): a lost or declined deal must say why. The role, org, membership and legality
   -- checks above run first, so an unauthorized or illegal call still gets its own error.
   if p_to in ('Loss Tender','Declined') then
     if v_reason is null or not (v_reason = any (array['price','competitor','scope_fit','timing','capacity',
@@ -251,9 +251,9 @@ Apply exactly these six edits to the copied function (everything else byte-ident
   end if;
 ```
 - **E4 loss branch** (`elsif p_to in ('Loss Tender','Declined') then`, 0236:167-172): after the line `decided_at  = now(),` insert
-  `lost_reason = v_reason,  -- ⚑ 0449` and `lost_note   = v_note,    -- ⚑ 0449`.
+  `lost_reason = v_reason,  -- ⚑ 0461` and `lost_note   = v_note,    -- ⚑ 0461`.
 - **E5 else (ordinary) branch** (0236:173-177): after the line `status      = p_to,` insert
-  `lost_reason = null,  -- ⚑ 0449 FR-LR-005: a revived deal is no longer lost` and `lost_note   = null,  -- ⚑ 0449`.
+  `lost_reason = null,  -- ⚑ 0461 FR-LR-005: a revived deal is no longer lost` and `lost_note   = null,  -- ⚑ 0461`.
   FR-LR-006: a stray reason on a non-lost target is never read. The win branch is untouched: a win is never legal from the
   lost group (Lost -> Negotiation only), and `projects_lost_reason_status_check` would refuse a won row carrying a reason.
 - **E6 audit detail**, append two keys inside `jsonb_build_object(...)`:
@@ -267,27 +267,27 @@ grant  execute on function public.transition_project(uuid, project_status, text,
 revoke execute on function public.transition_project(uuid, project_status, text, date, text, text) from anon;
 ```
 Verify the body diff shows only E1-E6:
-`diff <(sed -nE '/^create or replace function (public\.)?transition_project\(/,/^end; \$\$;/p' "$SRC") <(sed -n '/^create or replace function public\.transition_project(/,/^end; \$\$;/p' supabase/migrations/0449_lost_reason.sql)`.
+`diff <(sed -nE '/^create or replace function (public\.)?transition_project\(/,/^end; \$\$;/p' "$SRC") <(sed -n '/^create or replace function public\.transition_project(/,/^end; \$\$;/p' supabase/migrations/0461_lost_reason.sql)`.
 Then swap the definer line in `scripts/isolation-probe-denominator.json` (`:407`):
 `"transition_project(uuid,project_status,text,date)",` -> `"transition_project(uuid,project_status,text,date,text,text)",` (keep the list order).
 
-### S1-T4 Rollback `supabase/migrations/rollback/0449_lost_reason_down.sql` (3 min)
+### S1-T4 Rollback `supabase/migrations/rollback/0461_lost_reason_down.sql` (3 min)
 `drop function public.transition_project(uuid, project_status, text, date, text, text);` then the `$SRC` function body verbatim
 (`create or replace function transition_project(...)` copied the same way), then the same three grant lines with the 4-argument signature,
 then `alter table public.projects drop constraint projects_lost_reason_status_check, drop constraint projects_lost_note_check, drop constraint projects_lost_reason_check, drop column lost_note, drop column lost_reason;`.
 #1638 holds no call to `transition_project` outside its own tests, so both directions are safe for it.
 
 ### S1-T5 Green + siblings (5 min)
-`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0449_lost_reason.test.sql supabase/tests/0030_project_loss_path.test.sql supabase/tests/0236_project_declined_outcome.test.sql supabase/tests/0027_project_transition_authz.test.sql supabase/tests/0028_project_transition_legality.test.sql supabase/tests/0029_project_win_path.test.sql supabase/tests/0031_project_decided_at_preserved.test.sql supabase/tests/0032_pipeline_stage_config_rls.test.sql supabase/tests/0033_project_direct_update_revoked.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0137_service_role_grants.test.sql supabase/tests/0170_delete_path_sod_and_project_money_sod.test.sql supabase/tests/0176_witness_must_be_active.test.sql'`
+`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0461_lost_reason.test.sql supabase/tests/0030_project_loss_path.test.sql supabase/tests/0236_project_declined_outcome.test.sql supabase/tests/0027_project_transition_authz.test.sql supabase/tests/0028_project_transition_legality.test.sql supabase/tests/0029_project_win_path.test.sql supabase/tests/0031_project_decided_at_preserved.test.sql supabase/tests/0032_pipeline_stage_config_rls.test.sql supabase/tests/0033_project_direct_update_revoked.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0137_service_role_grants.test.sql supabase/tests/0170_delete_path_sod_and_project_money_sod.test.sql supabase/tests/0176_witness_must_be_active.test.sql'`
 (the win/SoD files prove the win branch is unchanged: FR-LR-007). If #1638 is on the base branch, append its
 `supabase/tests/pipeline_stage_history_write.test.sql` to the same command, and in that file append `,null,null,'price',null` to its one
 lost call (`transition_project('16380000-0000-0000-0000-000000000013','Loss Tender')`, #1638 plan Task 4): a step change, the
 AC-PSH-002 date oracle is untouched; grep that file and its siblings `pipeline_stage_history_*.test.sql` for any other lost call.
 Append `&& node scripts/check-isolation-denominator.mjs` inside the same `bash -c '…'` (it reads the freshly reset DB; green = the manifest swap is right). All green.
-Then `node --test scripts/pmo-load.test.mjs scripts/check-isolation-denominator.test.mjs` (AC-CSD-014 reads 0449's map; the manifest still parses) and `npm run check:migrations` (from `pmo-portal/`, no number collision).
+Then `node --test scripts/pmo-load.test.mjs scripts/check-isolation-denominator.test.mjs` (AC-CSD-014 reads 0461's map; the manifest still parses) and `npm run check:migrations` (from `pmo-portal/`, no number collision).
 
 ### S1-T6 Mutation check (3 min)
-Temporarily edit the migration's E3 condition to `if false then` and re-run 0449: AC-LR-002/003 must go RED. Revert. Record in the report.
+Temporarily edit the migration's E3 condition to `if false then` and re-run 0461: AC-LR-002/003 must go RED. Revert. Record in the report.
 Commit: `feat(db): lost reason required on lost/declined transitions (#1577)`.
 
 ---
@@ -365,7 +365,7 @@ grant  execute on function public.get_loss_breakdown(date, date) to authenticate
 Rollback `rollback/0438_loss_breakdown_down.sql`: `drop function if exists public.get_loss_breakdown(date, date);`.
 
 ### S2-T3 Green (3 min)
-`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0438_loss_breakdown.test.sql supabase/tests/0449_lost_reason.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0040_win_rate_all_time.test.sql supabase/tests/0041_win_rate_timeframe.test.sql'`.
+`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/0438_loss_breakdown.test.sql supabase/tests/0461_lost_reason.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0040_win_rate_all_time.test.sql supabase/tests/0041_win_rate_timeframe.test.sql'`.
 Commit: `feat(db): get_loss_breakdown (#1577)`.
 
 ---
@@ -385,7 +385,7 @@ Test `src/lib/lostReasons.test.ts` (title tags `AC-LR-016`, `FR-LR-014`): the ke
 "Not recorded" for `null`; and every key has an entry in `public/locales/en/lostReason.json` `reasons` and `public/locales/id/lostReason.json`
 (read both with `fs.readFileSync`; fail if any key is missing).
 ```ts
-// src/lib/lostReasons.ts — the nine stored keys (mirror of projects_lost_reason_check in 0449) and the one validity rule.
+// src/lib/lostReasons.ts — the nine stored keys (mirror of projects_lost_reason_check in 0461) and the one validity rule.
 export const LOST_REASON_KEYS = [
   'price', 'competitor', 'scope_fit', 'timing', 'capacity', 'relationship', 'client_cancelled', 'no_decision', 'other',
 ] as const;
@@ -727,7 +727,7 @@ Report: branch, head SHA, commands + pass counts, deviations.
 
 ## 3. Deploy note (NFR-LR-009)
 
-Back to front: `0449`+`0438` (DB), then the FE. Until the FE lands, a user on the old bundle who marks a deal lost sees the
+Back to front: `0461`+`0438` (DB), then the FE. Until the FE lands, a user on the old bundle who marks a deal lost sees the
 server message "a reason is required when a deal is lost or declined" and the deal stays open; a reload picks up the picker.
 No shim, no data loss. S1 can merge to `dev` before S4 only if the Director accepts that window on `dev` (it is the same window prod sees
 between the DB push and the FE push); otherwise hold S1 and merge S1-S4 back to back.
@@ -742,7 +742,7 @@ No other plan or spec is edited. #1637's plan/spec stay as written; this plan ex
 
 | AC | Test |
 |---|---|
-| AC-LR-001..005, 007 | `supabase/tests/0449_lost_reason.test.sql` |
+| AC-LR-001..005, 007 | `supabase/tests/0461_lost_reason.test.sql` |
 | AC-LR-006 | `0027 0028 0029 0030 0031 0032 0033 0236` re-run (S1-T5) |
 | AC-LR-008, 009 | `supabase/tests/0438_loss_breakdown.test.sql` |
 | AC-LR-010, 013 (menu) | `components/ProjectStatusControl.lostReason.test.tsx` |

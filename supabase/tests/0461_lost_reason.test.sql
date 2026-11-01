@@ -1,9 +1,9 @@
--- 0449_lost_reason.test.sql — #1577
+-- 0461_lost_reason.test.sql — #1577
 -- AC-LR-001..007. Isolated org; UUID prefix 04490000-…
 begin;
 select plan(24);
 
-insert into organizations (id, name) values ('04490000-0000-0000-0000-000000000001', 'Lost Reason Org (0449)');
+insert into organizations (id, name) values ('04490000-0000-0000-0000-000000000001', 'Lost Reason Org (0461)');
 insert into auth.users (id, email) values ('04490000-0000-0000-0000-0000000000a1', 'pm@lostreason0449.example');
 insert into profiles (id, org_id, full_name, email, role) values
   ('04490000-0000-0000-0000-0000000000a1', '04490000-0000-0000-0000-000000000001',

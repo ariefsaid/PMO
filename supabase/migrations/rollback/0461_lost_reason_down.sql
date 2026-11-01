@@ -1,37 +1,13 @@
--- 0449_lost_reason.sql — #1577: a reason is required when a deal is lost or declined.
---   AC-LR-001..007. projects gains lost_reason / lost_note (nullable: historic losses stay "Not recorded").
---   transition_project gains p_lost_reason / p_lost_note. Body is 0236's VERBATIM except the six marked edits (⚑ 0449).
---   A reason exists only on a lost or declined deal (projects_lost_reason_status_check).
--- Reversibility: rollback/0449_lost_reason_down.sql restores 0236's function and drops the columns.
+-- rollback of 0461_lost_reason.sql: restore 0236's transition_project and drop the lost-reason columns.
+drop function public.transition_project(uuid, project_status, text, date, text, text);
 
-alter table public.projects
-  add column lost_reason text,
-  add column lost_note   text,
-  add constraint projects_lost_reason_check check (lost_reason is null or lost_reason in
-    ('price','competitor','scope_fit','timing','capacity','relationship','client_cancelled','no_decision','other')),
-  add constraint projects_lost_note_check check (lost_note is null or (lost_reason is not null and char_length(lost_note) <= 500)),
-  add constraint projects_lost_reason_status_check check (
-    (lost_reason is null and lost_note is null) or status in ('Loss Tender','Declined'));
--- Change history (0260 gate): both columns are captured, like 0365 does for short_name, so a reason change shows on the deal.
-update public.record_history_config
-   set captured = captured || '{"lost_reason":"text","lost_note":"text"}'::jsonb
- where table_name = 'projects';
-
--- No UPDATE or INSERT grant is added: 0075 lists the updatable columns and 0173 the insertable ones explicitly, so
--- authenticated cannot write these directly. Existing rows are all null, so the constraints validate on apply.
-
-drop function public.transition_project(uuid, project_status, text, date);
-
-create or replace function public.transition_project(
-  p_id uuid, p_to project_status, p_customer_contract_ref text default null, p_contract_date date default null,
-  p_lost_reason text default null, p_lost_note text default null)
+create or replace function transition_project(
+  p_id uuid, p_to project_status, p_customer_contract_ref text default null, p_contract_date date default null)
   returns void language plpgsql security definer set search_path = public as $$
 declare
   v_from project_status;
   v_org  uuid;
   v_role user_role := auth_role();
-  v_reason text := nullif(btrim(p_lost_reason), '');  -- ⚑ 0449
-  v_note   text := nullif(btrim(p_lost_note), '');    -- ⚑ 0449
   v_value  numeric;      -- 0176: read for the audit detail.
   v_set_by uuid;         -- ⚑ 0177: the contract_value witness — the SoD subject of the win branch.
   v_set_at timestamptz;  -- ⚑ 0177: NULL here = no witness was ever taken -> FAIL CLOSED.
@@ -82,21 +58,6 @@ begin
   -- Transition-map legality (FR-PR-001/003): (from,to) must be in the data map and not a no-op, else P0001.
   if p_to = v_from or not (v_legal -> v_from::text) ? p_to::text then
     raise exception 'illegal transition % -> %', v_from, p_to using errcode = 'P0001';
-  end if;
-
-  -- ⚑ 0449 (#1577, FR-LR-002/003): a lost or declined deal must say why. The role, org, membership and legality
-  -- checks above run first, so an unauthorized or illegal call still gets its own error.
-  if p_to in ('Loss Tender','Declined') then
-    if v_reason is null or not (v_reason = any (array['price','competitor','scope_fit','timing','capacity',
-         'relationship','client_cancelled','no_decision','other'])) then
-      raise exception 'a reason is required when a deal is lost or declined' using errcode = 'P0001';
-    end if;
-    if v_reason = 'other' and v_note is null then
-      raise exception 'a note is required when the reason is other' using errcode = 'P0001';
-    end if;
-    if char_length(v_note) > 500 then
-      raise exception 'the note is limited to 500 characters' using errcode = 'P0001';
-    end if;
   end if;
 
   -- Branch on the target (OD-PR-C/D, FR-PR-005/006/007).
@@ -201,15 +162,11 @@ begin
     update public.projects set
       status      = p_to,
       decided_at  = now(),
-      lost_reason = v_reason,  -- ⚑ 0449
-      lost_note   = v_note,    -- ⚑ 0449
       last_update = now()
     where id = p_id;
   else
     update public.projects set
       status      = p_to,
-      lost_reason = null,  -- ⚑ 0449 FR-LR-005: a revived deal is no longer lost
-      lost_note   = null,  -- ⚑ 0449
       last_update = now()
     where id = p_id;
   end if;
@@ -223,11 +180,20 @@ begin
                                               'contract_value_set_by', v_set_by,
                                               'contract_value_set_at', v_set_at,
                                               'customer_contract_ref', p_customer_contract_ref,
-                                              'contract_date',         p_contract_date,
-                                              'lost_reason', case when p_to in ('Loss Tender','Declined') then v_reason end,  -- ⚑ 0449
-                                              'lost_note',   case when p_to in ('Loss Tender','Declined') then v_note end));  -- ⚑ 0449
+                                              'contract_date',         p_contract_date));
 end; $$;
 
-revoke all     on function public.transition_project(uuid, project_status, text, date, text, text) from public;
-grant  execute on function public.transition_project(uuid, project_status, text, date, text, text) to   authenticated;
-revoke execute on function public.transition_project(uuid, project_status, text, date, text, text) from anon;
+revoke all     on function public.transition_project(uuid, project_status, text, date) from public;
+grant  execute on function public.transition_project(uuid, project_status, text, date) to   authenticated;
+revoke execute on function public.transition_project(uuid, project_status, text, date) from anon;
+
+alter table public.projects
+  drop constraint projects_lost_reason_status_check,
+  drop constraint projects_lost_note_check,
+  drop constraint projects_lost_reason_check,
+  drop column lost_note,
+  drop column lost_reason;
+
+update public.record_history_config
+   set captured = captured - 'lost_reason' - 'lost_note'
+ where table_name = 'projects';
