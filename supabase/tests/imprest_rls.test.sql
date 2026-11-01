@@ -2,7 +2,7 @@
 -- drafts and their lines (S1 half of AC-IMP-061; plan S1.11). F1 + F2 + one Draft plan by PM1 on float F.
 begin;
 create extension if not exists pgtap;
-select plan(17);
+select plan(21);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15150000-0000-0000-0000-00000000000a', 'IMP Org',       'IDR', 'Asia/Jakarta'),
@@ -103,6 +103,19 @@ select is((select total from imprest_plans where id = '15150000-0000-0000-0000-0
 select lives_ok($$ insert into imprest_plan_lines (plan_id, budget_category, planned_amount)
   values ('15150000-0000-0000-0000-000000000101', 'Materials', 500000) $$, 'AC-IMP-061 the author adds a line to a draft');
 select throws_ok($$ update imprest_plans set total = 1 $$, '42501', null, 'AC-IMP-061 no client writes a plan total');
+
+-- S3.4 (PQ-4): the expense form's narrow float chooser.
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a6');
+select is((select array_agg(row(float_id, remaining)::text) from imprest_float_choices('15150000-0000-0000-0000-0000000000c2', 'Vehicle')),
+  array[row('15150000-0000-0000-0000-0000000000d2'::uuid, 0::numeric)::text],
+  'AC-IMP-061 an Engineer picks a float through the narrow chooser and still reads no float row');
+select is((select count(*)::int from imprest_floats), 0, 'AC-IMP-061 the chooser leaves the float table hidden from an Engineer');
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000b1');
+select is((select count(*)::int from imprest_float_choices('15150000-0000-0000-0000-0000000000c2', 'Vehicle')), 0,
+  'AC-IMP-061 another org''s caller gets no float choices');
+select pg_temp.act_as('15150000-0000-0000-0000-0000000000a5');
+select is((select count(*)::int from imprest_float_choices('15150000-0000-0000-0000-0000000000c2', 'Vehicle')), 0,
+  'AC-IMP-061 DD-IMP-7.2 a custodian is never offered their own float');
 
 select * from finish();
 rollback;

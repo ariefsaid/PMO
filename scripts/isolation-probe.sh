@@ -251,6 +251,10 @@ if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then c=$(rpc establish_impre
 if [ -n "$A_IMPREST_FLOAT" ] && [ "$A_IMPREST_FLOAT" != null ]; then c=$(rpc propose_imprest_float_amount "{\"p_float\":\"$A_IMPREST_FLOAT\",\"p_amount\":1}"); else skip "propose_imprest_float_amount (imprest_floats)"; fi
 if [ -n "$A_IMPREST_CHANGE" ] && [ "$A_IMPREST_CHANGE" != null ]; then c=$(rpc decide_imprest_float_change "{\"p_change\":\"$A_IMPREST_CHANGE\",\"p_approve\":false}"); else skip "decide_imprest_float_change (imprest_float_changes)"; fi
 if [ -n "$A_IMPREST_PLAN" ] && [ "$A_IMPREST_PLAN" != null ]; then c=$(rpc transition_imprest_plan "{\"p_id\":\"$A_IMPREST_PLAN\",\"p_to\":\"Cancelled\"}"); else skip "transition_imprest_plan (imprest_plans)"; fi
+# Counts are append-only, so a write that slipped through could never be removed: probe with an invalid amount. The org
+# check runs first (P0002); a regression reaches the amount check instead (P0001) and fails the run without writing a row.
+if [ -n "$A_IMPREST_FLOAT" ] && [ "$A_IMPREST_FLOAT" != null ]; then c=$(rpc record_imprest_count "{\"p_float\":\"$A_IMPREST_FLOAT\",\"p_counted\":-1,\"p_note\":\"probe\"}"); else skip "record_imprest_count (imprest_floats)"; fi
+if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then c=$(rpc imprest_float_choices "{\"p_project\":\"$A_PROJECT\"}"); else skip "imprest_float_choices (projects)"; fi
 A_BUDGET_LINE=$(jq -r '.[]|select(.table=="budget_line_items")|.id' "$A_ROWS_JSON")
 if [ -n "$A_BUDGET_LINE" ] && [ "$A_BUDGET_LINE" != null ]; then c=$(rpc recategorise_budget_lines "{\"p_line_ids\":[\"$A_BUDGET_LINE\"],\"p_category\":\"Vehicle\"}"); else skip "recategorise_budget_lines (budget_line_items)"; fi
 checks=$(wc -l < "$_work/checks" | tr -d ' ')

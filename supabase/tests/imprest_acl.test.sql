@@ -1,18 +1,25 @@
 -- imprest_acl.test.sql — #1515 site imprest: the ACL shape of every imprest function (AC-IMP-060; plan S1.11). Client
 -- RPCs: authenticated only, never anon. Internals: neither.
-begin; create extension if not exists pgtap; select plan(18);
+begin; create extension if not exists pgtap; select plan(31);
 select ok(not has_function_privilege('anon', p, 'EXECUTE'), 'AC-IMP-060 anon cannot execute ' || p)
   from unnest(array['public.set_imprest_procurement_limit(numeric)', 'public.establish_imprest_float(uuid, uuid, numeric)',
                     'public.propose_imprest_float_amount(uuid, numeric)', 'public.decide_imprest_float_change(uuid, boolean, text)',
                     'public.transition_imprest_plan(uuid, text, text)', 'public.request_imprest_replenishment(uuid, text)',
-                    'public.transition_imprest_replenishment(uuid, text, text, text)']) p;
+                    'public.transition_imprest_replenishment(uuid, text, text, text)', 'public.record_imprest_count(uuid, numeric, text)',
+                    'public.get_imprest_position(uuid)', 'public.get_imprest_plan_usage(uuid, date)',
+                    'public.imprest_float_choices(uuid, public.budget_category)']) p;
 select ok(has_function_privilege('authenticated', p, 'EXECUTE'), 'AC-IMP-060 authenticated may execute ' || p)
   from unnest(array['public.set_imprest_procurement_limit(numeric)', 'public.establish_imprest_float(uuid, uuid, numeric)',
                     'public.propose_imprest_float_amount(uuid, numeric)', 'public.decide_imprest_float_change(uuid, boolean, text)',
                     'public.transition_imprest_plan(uuid, text, text)', 'public.request_imprest_replenishment(uuid, text)',
-                    'public.transition_imprest_replenishment(uuid, text, text, text)']) p;
+                    'public.transition_imprest_replenishment(uuid, text, text, text)', 'public.record_imprest_count(uuid, numeric, text)',
+                    'public.get_imprest_position(uuid)', 'public.get_imprest_plan_usage(uuid, date)',
+                    'public.imprest_float_choices(uuid, public.budget_category)']) p;
 select ok(not has_function_privilege('anon', p, 'EXECUTE') and not has_function_privilege('authenticated', p, 'EXECUTE'),
           'AC-IMP-060 no client executes the internal ' || p)
   from unnest(array['public.imprest_custodian_eligible(uuid, uuid, uuid)', 'public.imprest_senior_route(uuid, uuid)',
-                    'public.imprest_lock_float(uuid)', 'public.check_expense_claim_float()']) p;
+                    'public.imprest_lock_float(uuid)', 'public.check_expense_claim_float()',
+                    'public.refuse_imprest_count_change()', 'public.notify_imprest_plan_transition()',
+                    'public.notify_imprest_replenishment()', 'public.notify_expense_claim_transition()',
+                    'public.imprest_exception_recipients(uuid, uuid, date, uuid)']) p;
 select * from finish(); rollback;
