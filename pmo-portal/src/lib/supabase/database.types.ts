@@ -8929,6 +8929,133 @@ export type Database = {
           },
         ]
       }
+      subcontract_acceptance_lines: {
+        Row: {
+          acceptance_id: string
+          boq_item_id: string
+          quantity: number
+        }
+        Insert: {
+          acceptance_id: string
+          boq_item_id: string
+          quantity: number
+        }
+        Update: {
+          acceptance_id?: string
+          boq_item_id?: string
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcontract_acceptance_lines_acceptance_id_fkey"
+            columns: ["acceptance_id"]
+            isOneToOne: false
+            referencedRelation: "subcontract_acceptances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_acceptance_lines_boq_item_id_fkey"
+            columns: ["boq_item_id"]
+            isOneToOne: false
+            referencedRelation: "boq_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subcontract_acceptances: {
+        Row: {
+          acceptance_date: string
+          confirm_basis: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          document_id: string | null
+          id: string
+          note: string | null
+          org_id: string
+          po_id: string
+          prepared_at: string
+          prepared_by: string
+          project_id: string
+          status: string
+          withdrawn_at: string | null
+        }
+        Insert: {
+          acceptance_date: string
+          confirm_basis?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          document_id?: string | null
+          id?: string
+          note?: string | null
+          org_id: string
+          po_id: string
+          prepared_at?: string
+          prepared_by: string
+          project_id: string
+          status?: string
+          withdrawn_at?: string | null
+        }
+        Update: {
+          acceptance_date?: string
+          confirm_basis?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          document_id?: string | null
+          id?: string
+          note?: string | null
+          org_id?: string
+          po_id?: string
+          prepared_at?: string
+          prepared_by?: string
+          project_id?: string
+          status?: string
+          withdrawn_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcontract_acceptances_confirmed_by_fkey"
+            columns: ["confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_acceptances_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "project_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_acceptances_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_acceptances_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_acceptances_prepared_by_fkey"
+            columns: ["prepared_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_acceptances_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_dependencies: {
         Row: {
           depends_on_id: string
@@ -10225,6 +10352,10 @@ export type Database = {
         Args: { p_boq_item_id: string; p_item_id: string }
         Returns: boolean
       }
+      confirm_subcontract_acceptance: {
+        Args: { p_id: string }
+        Returns: string
+      }
       cost_attribution_allocations: {
         Args: {
           p_draft?: Json
@@ -10483,6 +10614,17 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: boolean
       }
+      prepare_subcontract_acceptance: {
+        Args: {
+          p_acceptance_date: string
+          p_acceptance_id?: string
+          p_document_id?: string
+          p_lines: Json
+          p_note?: string
+          p_po_id: string
+        }
+        Returns: string
+      }
       preview_equipment_costing: {
         Args: { p_setting: Json }
         Returns: {
@@ -10510,6 +10652,15 @@ export type Database = {
         Returns: string
       }
       create_procurement_with_items: { Args: { p_id: string; p_header: Json; p_items: Json }; Returns: Database['public']['Tables']['procurements']['Row'] }
+      subcontract_verified: {
+        Args: { p_po_id: string }
+        Returns: {
+          acceptance_id: string
+          boq_item_id: string
+          confirmed_at: string
+          quantity: number
+        }[]
+      }
       update_procurement_header: { Args: { p_id: string; p_patch: Json }; Returns: boolean }
       procurement_item_values_editable: { Args: { p_case: string }; Returns: boolean }
       budget_version_read_totals: {
@@ -10656,6 +10807,10 @@ export type Database = {
       }
       budget_activation_mode: { Args: { version_id: string }; Returns: string }
       project_win_eligibility: { Args: { p_id: string }; Returns: string }
+      withdraw_subcontract_acceptance: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
       work_order_issue_eligibility: { Args: { p_ids: string[] }; Returns: { work_order_id: string; reason: string }[] }
       procurement_amount_eligibility: { Args: { p_procurement_id: string; p_amount: number }; Returns: string }
       budget_fiscal_year_token: {

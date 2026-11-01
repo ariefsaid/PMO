@@ -158,6 +158,10 @@
 -- ⚑ AMENDED BY 0449 (#1513 S1): `set_subcontract_po_lines` and `issue_subcontract_po_lines` join the retained set (+2, count 112 with dev's additions,
 -- re-derived by hand from the list). SECURITY DEFINER writers under a member's JWT: each re-asserts active membership, the caller's
 -- org and a Project Manager / Finance / Admin role in its body. Proven by supabase/tests/subcontract_po_lines.test.sql.
+-- ⚑ AMENDED BY 0470 (#1513 S2): `prepare_subcontract_acceptance`, `withdraw_subcontract_acceptance` and `confirm_subcontract_acceptance` join
+-- the retained set (+3, count 119 on dev's 116, re-derived by hand from the list). SECURITY DEFINER writers under a member's JWT: each
+-- re-asserts active membership and the caller's org; prepare also the project's progress authority, confirm Admin / Finance and
+-- preparer ≠ confirmer unless the sole active member. Proven by supabase/tests/subcontract_acceptances.test.sql.
 -- ⚑ AMENDED BY 0448 (#1638): redate_stage_entry, add_skipped_stage_entry and import_project_stage_history join the retained set (+3, count 113 on dev's 110, re-derived by hand from the list). Each re-asserts org, active membership and role rank >= Project Manager through assert_stage_date_editor; proven by pipeline_stage_history_write.test.sql.
 --
 -- ⚑ AMENDED BY 0450 (#1614): `create_vault_secret_for_org` LEAVES the retained set (-1, count 109, re-derived by hand
@@ -214,6 +218,7 @@ insert into client_callable_rpc_names (proname) values
   ('claim_sales_invoice_author'),
   ('clone_budget_version'),
   ('confirm_erp_employee_link'),
+  ('confirm_subcontract_acceptance'),
   ('confirm_work_order_acceptance'),
   ('create_native_sales_invoice'),
   ('create_payment'),
@@ -229,6 +234,7 @@ insert into client_callable_rpc_names (proname) values
   ('create_procurement_quotation'),
   ('create_procurement_receipt'),
   ('create_progress_claim'),
+  ('prepare_subcontract_acceptance'),
   ('prepare_work_order_acceptance'),
   ('create_purchase_order'),
   ('create_purchase_request'),
@@ -312,6 +318,7 @@ insert into client_callable_rpc_names (proname) values
   ('unlink_erp_purchase_document'),
   ('update_procurement_header'),
   ('withdraw_progress_claim'),
+  ('withdraw_subcontract_acceptance'),
   ('withdraw_work_order_acceptance');
 
 select ok(
@@ -334,8 +341,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  116,
-  'AC-ACL-002 all 116 retained client-callable RPC names still have a public function');
+  119,
+  'AC-ACL-002 all 119 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -344,8 +351,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  116,
-  'AC-ACL-003 all 116 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  119,
+  'AC-ACL-003 all 119 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
