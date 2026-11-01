@@ -68,6 +68,38 @@ export async function listCounts(floatId: string): Promise<Bounded<ImprestCountR
   fail(error);
   return bounded(data);
 }
+/** The float's charged records (claims and advances), newest first: the screen derives Receipts waiting from them. */
+export async function listFloatClaims(floatId: string): Promise<Bounded<Tables<'expense_claims'>>> {
+  const { data, error } = await supabase.from('expense_claims').select('*').eq('imprest_float_id', floatId)
+    .order('created_at', { ascending: false }).limit(LIST_LIMIT + 1);
+  fail(error);
+  return bounded(data);
+}
+/** The org's procurement limit (FR-IMP-024 hint); null when none is set. Readable by any active member (RLS). */
+export async function getProcurementLimit(): Promise<number | null> {
+  const { data, error } = await supabase.from('org_imprest_settings').select('procurement_limit').maybeSingle();
+  fail(error);
+  return data ? Number(data.procurement_limit) : null;
+}
+/** Charge a just-saved Draft claim to a float. The capture RPC does not carry the float; `imprest_float_id` is a granted column and the trigger re-checks project, category and advance. */
+export async function setClaimFloat(claimId: string, floatId: string | null): Promise<void> {
+  const { data, error } = await supabase.from('expense_claims').update({ imprest_float_id: floatId } as never).eq('id', claimId).select('id');
+  fail(error);
+  assertWriteLanded(data, 'the claim was not charged to the float: it can no longer be edited');
+}
+export type AwaitingPlan = ImprestPlanRow & { float: { custodian_id: string; currency: string; project: { name: string } | null } | null };
+export type AwaitingReplenishment = ImprestReplenishmentRow & { float: { custodian_id: string; currency: string; project: { name: string } | null } | null };
+const FLOAT_EMBED = 'float:imprest_floats(custodian_id, currency, project:projects(name))';
+/** What waits on a decision, org-wide under RLS: Submitted plans and Requested/Approved replenishments (FR-IMP-073). */
+export async function listAwaitingImprest(): Promise<{ plans: AwaitingPlan[]; replenishments: AwaitingReplenishment[] }> {
+  const [plans, reps] = await Promise.all([
+    supabase.from('imprest_plans').select(`*, ${FLOAT_EMBED}`).eq('status', 'Submitted').order('submitted_at').limit(LIST_LIMIT),
+    supabase.from('imprest_replenishments').select(`*, ${FLOAT_EMBED}`).in('status', ['Requested', 'Approved']).order('requested_at').limit(LIST_LIMIT),
+  ]);
+  fail(plans.error);
+  fail(reps.error);
+  return { plans: (plans.data ?? []) as unknown as AwaitingPlan[], replenishments: (reps.data ?? []) as unknown as AwaitingReplenishment[] };
+}
 export async function createPlan(floatId: string, month: string): Promise<string> {
   const { data, error } = await supabase.from('imprest_plans').insert({ float_id: floatId, month } as never).select('id').single();
   fail(error);

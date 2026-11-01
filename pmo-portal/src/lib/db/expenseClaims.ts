@@ -45,6 +45,8 @@ export interface ExpenseClaimInput {
   amount?: number;
   /** Claims only — one of the claimant's own paid advances (DD-EXP-6). */
   advanceId?: string | null;
+  /** Claims only — charge the claim to a site float (#1515). Omitted on a patch = leave the link unchanged. */
+  imprestFloatId?: string | null;
 }
 export type ExpenseClaimPatch = Omit<ExpenseClaimInput, 'kind'>;
 
@@ -130,6 +132,7 @@ export async function createExpenseClaim(input: ExpenseClaimInput): Promise<Expe
   };
   if (input.kind === 'advance') body.amount = input.amount ?? 0;
   if (input.kind === 'claim' && input.advanceId) body.advance_id = input.advanceId;
+  if (input.kind === 'claim' && input.imprestFloatId) body.imprest_float_id = input.imprestFloatId;
   const { data, error } = await supabase.from('expense_claims').insert(body as never).select(SELECT).single();
   if (error) throwWrite(error);
   return data as unknown as ExpenseClaimWithRefs;
@@ -143,7 +146,10 @@ export async function updateExpenseClaim(id: string, kind: ExpenseKind, patch: E
     budget_category: patch.budgetCategory,
   };
   if (kind === 'advance') body.amount = patch.amount ?? 0;
-  else body.advance_id = patch.advanceId ?? null;
+  else {
+    body.advance_id = patch.advanceId ?? null;
+    if (patch.imprestFloatId !== undefined) body.imprest_float_id = patch.imprestFloatId;
+  }
   const { data, error } = await supabase.from('expense_claims').update(body as never).eq('id', id).select('id');
   if (error) throwWrite(error);
   assertWriteLanded(data, 'Expense claim not found, or it can no longer be edited.');

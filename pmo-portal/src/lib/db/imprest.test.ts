@@ -3,12 +3,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 /** AC-IMP-080 — the imprest DAL sends only granted columns, never org/status/amount/number, and never a silently trimmed list. */
 const h = vi.hoisted(() => {
   const result = { value: { data: null as unknown, error: null as unknown } };
-  const calls = { from: [] as string[], rpc: [] as Array<[string, unknown]>, insert: [] as unknown[], upsert: [] as unknown[], limit: [] as unknown[], select: [] as unknown[], eq: [] as unknown[], deleted: 0 };
+  const calls = { from: [] as string[], rpc: [] as Array<[string, unknown]>, insert: [] as unknown[], upsert: [] as unknown[], update: [] as unknown[], in: [] as unknown[], limit: [] as unknown[], select: [] as unknown[], eq: [] as unknown[], deleted: 0 };
   const builder: Record<string, unknown> = {};
-  const chain = (name?: 'insert' | 'upsert' | 'limit' | 'select' | 'eq') => (...a: unknown[]) => { if (name) calls[name].push(a.length === 1 ? a[0] : a); return builder; };
+  const chain = (name?: 'insert' | 'upsert' | 'update' | 'in' | 'limit' | 'select' | 'eq') => (...a: unknown[]) => { if (name) calls[name].push(a.length === 1 ? a[0] : a); return builder; };
   for (const k of ['select', 'eq', 'limit', 'insert'] as const) builder[k] = chain(k);
   builder.upsert = chain('upsert');
-  builder.is = chain(); builder.order = chain(); builder.single = chain();
+  builder.is = chain(); builder.order = chain(); builder.single = chain(); builder.maybeSingle = chain(); builder.in = chain('in' as never);
+  builder.update = chain('update' as never);
   builder.delete = () => { calls.deleted++; return builder; };
   builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
   const from = vi.fn((t: string) => { calls.from.push(t); return builder; });
@@ -18,6 +19,7 @@ const h = vi.hoisted(() => {
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
 import * as dal from './imprest';
+const { LIST_LIMIT } = dal;
 
 beforeEach(() => {
   h.from.mockClear(); h.rpc.mockClear();
@@ -115,5 +117,49 @@ describe('AC-IMP-080 reads', () => {
     ]);
     h.result.value = { data: [], error: null };
     expect(await dal.getPosition('f1')).toBeNull();
+  });
+});
+
+describe('AC-IMP-084 form reads and the claim-to-float link', () => {
+  it('AC-IMP-084 listFloatClaims reads the float\'s claims bounded at 200 + 1', async () => {
+    h.result.value = { data: Array.from({ length: 201 }, (_, i) => ({ id: String(i) })), error: null };
+    const r = await dal.listFloatClaims('f1');
+    expect(r.rows).toHaveLength(200);
+    expect(r.truncated).toBe(true);
+    expect(h.calls.from).toEqual(['expense_claims']);
+    expect(h.calls.eq).toContainEqual(['imprest_float_id', 'f1']);
+    expect(h.calls.limit).toEqual([201]);
+  });
+  it('AC-IMP-084 setClaimFloat writes only imprest_float_id and a no-row result is a 42501', async () => {
+    h.result.value = { data: [{ id: 'c1' }], error: null };
+    await dal.setClaimFloat('c1', 'f1');
+    expect(h.calls.from).toEqual(['expense_claims']);
+    expect(h.calls.update[0]).toEqual({ imprest_float_id: 'f1' });
+    h.result.value = { data: [], error: null };
+    await expect(dal.setClaimFloat('c1', 'f1')).rejects.toMatchObject({ code: '42501' });
+  });
+  it('AC-IMP-084 getProcurementLimit reads the org row as a number and is null when none is set', async () => {
+    h.result.value = { data: { procurement_limit: '750000.00' }, error: null };
+    expect(await dal.getProcurementLimit()).toBe(750000);
+    expect(h.calls.from).toEqual(['org_imprest_settings']);
+    h.result.value = { data: null, error: null };
+    expect(await dal.getProcurementLimit()).toBeNull();
+  });
+});
+
+describe('FR-IMP-073 awaiting reads', () => {
+  it('FR-IMP-073 listAwaitingImprest reads Submitted plans and Requested/Approved replenishments, each bounded', async () => {
+    h.result.value = { data: [{ id: 'x' }], error: null };
+    const out = await dal.listAwaitingImprest();
+    expect(h.calls.from).toEqual(['imprest_plans', 'imprest_replenishments']);
+    expect(h.calls.eq).toContainEqual(['status', 'Submitted']);
+    expect(h.calls.in).toContainEqual(['status', ['Requested', 'Approved']]);
+    expect(out.plans).toEqual([{ id: 'x' }]);
+    expect(out.replenishments).toEqual([{ id: 'x' }]);
+    expect(h.calls.limit).toEqual([LIST_LIMIT, LIST_LIMIT]);
+  });
+  it('FR-IMP-073 a failed awaiting read throws rather than returning an empty inbox', async () => {
+    h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
+    await expect(dal.listAwaitingImprest()).rejects.toMatchObject({ code: '42501' });
   });
 });

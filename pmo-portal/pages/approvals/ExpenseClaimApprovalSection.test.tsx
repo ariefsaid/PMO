@@ -26,6 +26,17 @@ const item = (id: string, claimant: string, route: unknown) => ({
 });
 
 describe('ExpenseClaimApprovalSection', () => {
+  it('FR-IMP-073 an out-of-plan site cash claim carries an Out of plan tag; an ordinary claim does not', () => {
+    h.data = [
+      { ...item('exc', 'eng', { route: 'flat', approvers: [] }), claim: { ...item('exc', 'eng', null).claim, is_plan_exception: true } },
+      item('ord', 'eng', { route: 'flat', approvers: [] }),
+    ];
+    render(<MemoryRouter><ExpenseClaimApprovalSection /></MemoryRouter>);
+    expect(screen.getAllByText('Out of plan')).toHaveLength(1);
+    expect(screen.getByText('Claim exc').closest('li')).toHaveTextContent('Out of plan');
+    h.data = [];
+  });
+
   it('shows loading instead of hiding the section while claims are pending', () => {
     h.isPending = true;
     render(<MemoryRouter><ExpenseClaimApprovalSection /></MemoryRouter>);

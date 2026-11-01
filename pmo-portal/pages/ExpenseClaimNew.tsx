@@ -8,11 +8,14 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useExpenseClaims } from '@/src/hooks/useExpenseClaims';
 import { useExpenseCapture } from '@/src/hooks/useExpenseCapture';
+import { useImprestFloatChoices, useImprestProcurementLimit, useSetClaimFloat } from '@/src/hooks/useImprest';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
+import { isPlanException, toCents } from '@/src/lib/imprest/imprestRules';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { parseMoneyInputAtScale } from '@/src/lib/format';
+import { formatCurrencyAuto, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { BudgetCategory, ExpenseLineInput, ExpenseType } from '@/src/lib/db/expenseClaims';
 import { RECEIPT_INPUT_ACCEPT } from '@/src/lib/db/expenseReceipts';
 import { BackBar } from '@/src/components/shell';
@@ -42,7 +45,12 @@ const ExpenseClaimNew: React.FC = () => {
   const [categoryEdited, setCategoryEdited] = useState(false);
   const [purpose, setPurpose] = useState('');
   const [advanceId, setAdvanceId] = useState('');
+  const [floatId, setFloatId] = useState('');
   const advanceOptions = useOwnAdvanceOptions();
+  const currency = useOrgCurrency();
+  const setClaimFloat = useSetClaimFloat();
+  const floatChoices = useImprestFloatChoices(projectId || undefined, (category || null) as BudgetCategory | null).data ?? [];
+  const procurementLimit = useImprestProcurementLimit().data ?? null;
   const [lines, setLines] = useState<DraftLine[]>([blankLine()]);
   const [receipt, setReceipt] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -66,6 +74,14 @@ const ExpenseClaimNew: React.FC = () => {
   const lineInputs: ExpenseLineInput[] = lines.filter((line) => line.date || line.type || line.description || line.amount).map((line) => ({
     expenseDate: line.date, expenseType: line.type as ExpenseType, description: line.description.trim(), amount: parseMoneyInputAtScale(line.amount, 2) ?? 0,
   }));
+  const chosenFloat = floatChoices.find((choice) => choice.float_id === floatId);
+  const chargedFloatId = chosenFloat ? floatId : '';
+  const totalCents = toCents(lineInputs.reduce((sum, line) => sum + line.amount, 0));
+  const floatHint = chosenFloat && totalCents > 0 ? {
+    remaining: category && chosenFloat.remaining != null ? formatCurrencyAuto(Number(chosenFloat.remaining), currency) : null,
+    exception: Boolean(category) && isPlanException(totalCents / 100, chosenFloat.remaining),
+    overLimit: procurementLimit !== null && totalCents > toCents(procurementLimit),
+  } : null;
   const invalidLine = lineInputs.some((line) => !line.expenseDate || !line.expenseType || !line.description || !(line.amount > 0));
 
   const save = async (event: React.FormEvent) => {
@@ -87,6 +103,15 @@ const ExpenseClaimNew: React.FC = () => {
         receiptFile: receipt,
       });
       createdClaimId = claimId;
+      if (chargedFloatId) {
+        // The capture RPC does not carry the float; link it now. A refusal leaves the saved draft (the same recovery as a later line failure).
+        try { await setClaimFloat.mutateAsync({ claimId, floatId: chargedFloatId }); } catch (reason) {
+          const { headline, detail } = classifyMutationError(reason);
+          toast(t('imprest:form.linkFailed', 'Saved, but not charged to the site float'), `${headline}: ${detail}`, 'warning');
+          navigate(`/expenses/${claimId}`, { replace: true });
+          return;
+        }
+      }
       toast(t('expenses.toast.created', 'Created'), title.trim(), 'success');
       navigate(`/expenses/${claimId}`, { replace: true });
     } catch (reason) {
@@ -116,10 +141,21 @@ const ExpenseClaimNew: React.FC = () => {
       <FormSection legend={t('expenses.form.sections.details', 'Details')}>
         <FormGrid>
           <TextField label={t('expenses.form.title.label', 'Title')} required value={title} onChange={(value) => { setTitle(value); setTitleEdited(true); }} fullWidth />
-          <SelectField label={t('expenses.form.project.label', 'Project')} value={projectId} onChange={(value) => { setProjectId(value); if (!categoryEdited) setCategory(value ? categoryPrecedents.get(value)?.budgetCategory ?? '' : ''); }} options={[{ value: '', label: t('expenses.form.project.none', 'Overhead (no project)') }, ...options]} />
+          <SelectField label={t('expenses.form.project.label', 'Project')} value={projectId} onChange={(value) => { setProjectId(value); setFloatId(''); if (!categoryEdited) setCategory(value ? categoryPrecedents.get(value)?.budgetCategory ?? '' : ''); }} options={[{ value: '', label: t('expenses.form.project.none', 'Overhead (no project)') }, ...options]} />
           <SelectField label={t('expenses.form.category.label', 'Budget category')} value={category} onChange={(value) => { setCategory(value); setCategoryEdited(true); }} options={categories} helper={t('expenses.form.category.helper', "Decides who approves: spend within the project's budget for this category goes to the project's approver.")} />
           {!categoryEdited && categoryPrecedents.get(projectId) && <p className="col-span-full text-xs text-muted-foreground" role="note">{t('uxs29.expenseCapture.categorySource', 'Suggested from your most recent same-project claim: {{title}}.', { title: categoryPrecedents.get(projectId)?.sourceTitle })}</p>}
           <TextField label={t('expenses.form.purpose.label', 'Purpose')} value={purpose} onChange={setPurpose} fullWidth />
+          {floatChoices.length > 0 && <>
+            <SelectField label={t('imprest:form.chargeToFloat', 'Charge to site float')} value={floatId} onChange={setFloatId}
+              options={[{ value: '', label: t('imprest:form.noFloat', 'Not charged to a float') },
+                ...floatChoices.map((choice) => ({ value: choice.float_id, label: choice.custodian_name }))]}
+              helper={t('imprest:form.helper', 'Cash paid out of site cash held by the custodian.')} />
+            {floatHint && <div className="col-span-full space-y-1 text-xs text-muted-foreground" role="note">
+              {floatHint.remaining && <p>{t('imprest:form.remainingHint', 'Remaining this month for this category: {{amount}}.', { amount: floatHint.remaining })}</p>}
+              {floatHint.exception && <p>{t('imprest:form.exceptionHint', "This is above this month's plan: it goes to a senior approver as an out-of-plan item.")}</p>}
+              {floatHint.overLimit && <p>{t('imprest:form.limitHint', 'Above the procurement limit ({{limit}}): site cash will refuse this. Raise it as a procurement request.', { limit: formatCurrencyAuto(procurementLimit as number, currency) })}</p>}
+            </div>}
+          </>}
           {advanceOptions.length > 0 && <SelectField label={t('expenses.form.advance.label', 'Settle against advance')} value={advanceId} onChange={setAdvanceId} options={[{ value: '', label: t('expenses.form.advance.none', 'No advance') }, ...advanceOptions]} />}
         </FormGrid>
       </FormSection>

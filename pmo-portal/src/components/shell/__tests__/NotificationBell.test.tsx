@@ -207,6 +207,22 @@ describe('NotificationBell', () => {
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/my-tasks'));
   });
 
+  it('FR-IMP-074 selecting a site cash plan or replenishment notification opens Site cash', async () => {
+    listUnreadCount.mockResolvedValue(2);
+    listNotifications.mockResolvedValue([
+      row({ id: 'n1', title: 'Plan awaiting', metadata: { entity: { type: 'imprest_plan', id: 'pl-1', label: 'P' } } }),
+      row({ id: 'n2', title: 'Replenishment ready', metadata: { entity: { type: 'imprest_replenishment', id: 'r-1', label: 'R' } } }),
+    ]);
+    renderBell();
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /plan awaiting/i }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/imprest'));
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /replenishment ready/i }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledTimes(2));
+    expect(mockNavigate).toHaveBeenLastCalledWith('/imprest');
+  });
+
   it('AC-AAN-035 selecting a notification with only metadata.run_id opens that run', async () => {
     listUnreadCount.mockResolvedValue(1);
     listNotifications.mockResolvedValue([

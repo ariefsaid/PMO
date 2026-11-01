@@ -10,6 +10,10 @@ export interface ImprestRepository {
   listPlanLines: typeof dal.listPlanLines;
   listReplenishments: typeof dal.listReplenishments;
   listCounts: typeof dal.listCounts;
+  listFloatClaims: typeof dal.listFloatClaims;
+  listAwaitingImprest: typeof dal.listAwaitingImprest;
+  getProcurementLimit: typeof dal.getProcurementLimit;
+  setClaimFloat: typeof dal.setClaimFloat;
   createPlan: typeof dal.createPlan;
   savePlanLine: typeof dal.savePlanLine;
   deletePlanLine: typeof dal.deletePlanLine;

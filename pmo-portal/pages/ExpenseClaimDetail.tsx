@@ -11,6 +11,7 @@ import { useProjects } from '@/src/hooks/useProjects';
 import {
   useExpenseAdvanceOutstanding, useExpenseClaim, useExpenseClaimLines, useExpenseClaimMutations, useExpenseClaimRoute,
 } from '@/src/hooks/useExpenseClaims';
+import { useImprestFloats } from '@/src/hooks/useImprest';
 import { availableExpenseActions, settlementPreview } from '@/src/lib/expenses/expenseRules';
 import { approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
@@ -38,6 +39,7 @@ const ExpenseClaimDetail: React.FC = () => {
   const routeQuery = useExpenseClaimRoute(claimId, claim?.status);
   const outstandingQuery = useExpenseAdvanceOutstanding(claim?.kind === 'advance' ? claim.id : claim?.advance_id ?? null);
   const { update } = useExpenseClaimMutations();
+  const floats = useImprestFloats();
   const { data: projects } = useProjects();
   const advanceOptions = useOwnAdvanceOptions(claim?.advance_id ?? null);
   const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })), [projects]);
@@ -71,6 +73,8 @@ const ExpenseClaimDetail: React.FC = () => {
   const outstanding = outstandingQuery.isError ? null : outstandingQuery.data ?? null;
   const actions = availableExpenseActions({
     claim, userId, realRole, route, advanceOutstanding: claim.kind === 'advance' ? outstanding : null,
+    // DD-IMP-7: the float's custodian (null when this float is not visible to the viewer: the ordinary rule shows, the RPC decides).
+    floatCustodianId: claim.imprest_float_id ? floats.data?.rows.find((f) => f.id === claim.imprest_float_id)?.custodian_id ?? null : null,
   });
   const canEdit = may('edit', 'expenseClaim', { currentUserId: userId, record: { claimant_id: claim.claimant_id, status: claim.status } });
   const showRouteNote = claim.status === 'Submitted' && route !== null && route.route !== 'flat'
@@ -156,6 +160,15 @@ const ExpenseClaimDetail: React.FC = () => {
 
       {showRouteNote && route && (
         <p data-testid="approval-route-note" className="mb-4 text-sm">{approvalRouteNote(route, claim.budget_category, t, realRole)}</p>
+      )}
+
+      {claim.is_plan_exception && claim.status !== 'Draft' && (
+        <p data-testid="imprest-exception-note" role="note" className="mb-4 text-sm">
+          <StatusPill variant="warn">{t('imprest:plan.exception', 'Out of plan')}</StatusPill>{' '}
+          {route === null ? t('imprest:exception.noRoute', 'This is outside the approved site cash plan, so a senior approver decides it.')
+            : route.route === 'admin' ? t('imprest:exception.admin', 'This is outside the approved site cash plan. No senior approver can act on it, so an Admin decides it.')
+            : t('imprest:exception.deciders', 'This is outside the approved site cash plan. Decided by: {{names}}.', { names: route.approvers.map((a) => a.fullName).join(t('imprest:exception.joiner', ', ')) })}
+        </p>
       )}
 
       <ExpenseDecisionBar claim={claim} actions={actions} advanceOutstanding={outstanding} />

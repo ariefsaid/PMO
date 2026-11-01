@@ -1,0 +1,188 @@
+{
+  "actions": {
+    "approve": "Setujui",
+    "cancel": "Batalkan",
+    "pay": "Bayar",
+    "recordCount": "Catat hitung kas",
+    "reject": "Tolak",
+    "reopenPlan": "Ubah dan ajukan ulang",
+    "requestFunding": "Minta pendanaan",
+    "requestReplenishment": "Minta penggantian",
+    "submitPlan": "Ajukan rencana"
+  },
+  "approvals": {
+    "error": "Gagal memuat kas lapangan yang menunggu Anda",
+    "errorSub": "Yang lain di bawah tidak terpengaruh.",
+    "heading": "Kas lapangan menunggu Anda ({{count}})",
+    "label": "Kas lapangan menunggu Anda",
+    "plan": "Rencana {{month}}",
+    "planKind": "Rencana kas lapangan",
+    "toApprove": "Penggantian untuk disetujui",
+    "toPay": "Penggantian untuk dibayar"
+  },
+  "confirm": {
+    "countBook": "Kas di tangan menurut pembukuan: {{amount}}",
+    "countTitle": "Catat hitung kas",
+    "counted": "Kas yang dihitung",
+    "fundingBody": "Meminta Keuangan memasukkan kas ke kas lapangan hingga jumlahnya.",
+    "fundingTitle": "Minta pendanaan untuk kas lapangan ini?",
+    "note": "Catatan (opsional)",
+    "noteRequired": "Catatan (wajib: hasil hitung berbeda dari pembukuan)",
+    "notes": "Catatan (opsional)",
+    "reference": "Referensi pembayaran (opsional)",
+    "repTitle": "{{action}} {{number}}: {{amount}}?",
+    "requestBody": "Meminta Keuangan mengisi kembali kas lapangan dengan kuitansi senilai {{amount}} yang menunggu.",
+    "requestTitle": "Minta penggantian?"
+  },
+  "counts": {
+    "book": "Pembukuan {{amount}}",
+    "counted": "Dihitung {{amount}}",
+    "error": "Gagal memuat hitung kas",
+    "none": "Belum ada hitung kas yang dicatat.",
+    "title": "Hitung kas",
+    "variance": "Selisih {{amount}}"
+  },
+  "detail": {
+    "active": "Aktif",
+    "back": "Kas lapangan",
+    "custodian": "Pemegang kas: {{name}}",
+    "errorTitle": "Gagal memuat kas lapangan ini",
+    "notFound": "Kas lapangan tidak ditemukan",
+    "notFoundSub": "Tidak ada, atau Anda tidak memiliki akses.",
+    "position": "Posisi",
+    "positionError": "Gagal memuat posisi kas lapangan ini",
+    "positionErrorSub": "Lebih baik tidak menampilkan angka daripada angka yang salah. Coba lagi."
+  },
+  "establish": {
+    "amount": "Jumlah kas lapangan",
+    "custodian": "Pemegang kas",
+    "custodianNoun": "pemegang kas",
+    "errors": {
+      "amount": "Masukkan jumlah lebih dari nol."
+    },
+    "project": "Proyek",
+    "projectNoun": "proyek",
+    "submit": "Tetapkan kas lapangan",
+    "subtitle": "Kas lapangan adalah uang tunai yang dipegang di lokasi oleh satu pemegang kas untuk satu proyek.",
+    "title": "Tetapkan kas lapangan",
+    "toast": "Kas lapangan ditetapkan"
+  },
+  "exception": {
+    "admin": "Ini di luar rencana kas lapangan yang disetujui. Tidak ada penyetuju senior yang dapat bertindak, jadi Admin yang memutuskan.",
+    "deciders": "Ini di luar rencana kas lapangan yang disetujui. Diputuskan oleh: {{names}}.",
+    "joiner": ", ",
+    "noRoute": "Ini di luar rencana kas lapangan yang disetujui, jadi penyetuju senior yang memutuskan."
+  },
+  "form": {
+    "chargeToFloat": "Bebankan ke kas lapangan",
+    "exceptionHint": "Ini melebihi rencana bulan ini: diteruskan ke penyetuju senior sebagai item di luar rencana.",
+    "helper": "Uang tunai yang dibayarkan dari kas lapangan yang dipegang pemegang kas.",
+    "limitHint": "Di atas batas pengadaan ({{limit}}): kas lapangan akan menolak ini. Ajukan sebagai permintaan pengadaan.",
+    "linkFailed": "Tersimpan, tetapi tidak dibebankan ke kas lapangan",
+    "noFloat": "Tidak dibebankan ke kas lapangan",
+    "remainingHint": "Sisa bulan ini untuk kategori ini: {{amount}}."
+  },
+  "list": {
+    "columns": {
+      "custodian": "Pemegang kas",
+      "project": "Proyek"
+    },
+    "description": "Uang tunai di lokasi, per kas lapangan: yang ada di tangan, yang keluar sebagai uang muka, dan yang menunggu penggantian.",
+    "empty": "Belum ada kas lapangan",
+    "emptySub": "Keuangan atau Admin menetapkan kas lapangan untuk proyek dan menunjuk pemegang kasnya.",
+    "error": "Gagal memuat kas lapangan",
+    "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
+    "positionUnavailable": "Tidak tersedia",
+    "rowLabel": "Buka {{project}}",
+    "title": "Kas lapangan",
+    "truncated": "Menampilkan {{count}} terbaru. Arsipkan kas lapangan yang tidak dipakai untuk melihat yang lebih lama."
+  },
+  "nav": {
+    "siteCash": "Kas lapangan"
+  },
+  "plan": {
+    "category": "Kategori anggaran",
+    "chooseCategory": "Pilih kategori",
+    "confirm": {
+      "approveTitle": "Setujui rencana {{month}}?",
+      "cancelTitle": "Batalkan rencana {{month}}?",
+      "notes": "Catatan untuk penyusun (opsional)",
+      "rejectTitle": "Tolak rencana {{month}}?"
+    },
+    "draftNumber": "Draf",
+    "drawn": "Terpakai",
+    "error": "Gagal memuat rencana",
+    "exception": "Di luar rencana",
+    "exceptions": "Pengecualian",
+    "hideLines": "Sembunyikan baris",
+    "late": "Terlambat",
+    "linesError": "Gagal memuat baris rencana",
+    "month": "Bulan",
+    "new": "Rencana baru",
+    "nextMonth": "Bulan depan ({{month}})",
+    "noLines": "Belum ada baris.",
+    "noPlans": "Belum ada rencana. Pemegang kas menyusun satu per bulan.",
+    "none": "Tidak ada rencana yang disetujui bulan ini",
+    "noneSub": "Pengeluaran bulan ini di luar rencana sampai rencana disetujui.",
+    "planned": "Direncanakan",
+    "plannedAmount": "Jumlah rencana",
+    "rejectionNote": "Ditolak: {{note}}",
+    "remaining": "Sisa",
+    "remove": "Hapus",
+    "removeLine": "Hapus {{category}}",
+    "saveLine": "Simpan baris",
+    "sectionTitle": "Rencana",
+    "showLines": "Tampilkan baris",
+    "thisMonth": "Bulan ini ({{month}})",
+    "title": "Rencana bulan ini ({{month}})",
+    "toast": {
+      "created": "Rencana draf dibuat",
+      "updated": "Rencana diperbarui"
+    }
+  },
+  "position": {
+    "advancesOut": "Uang muka keluar",
+    "cash": "Kas di tangan",
+    "float": "Kas lapangan",
+    "gap": "Selisih",
+    "gapFlag": "Pembukuan tidak seimbang",
+    "inFlight": "Penggantian dalam proses",
+    "lastCount": "Hitung terakhir {{date}}: selisih {{variance}}",
+    "receiptsWaiting": "Kuitansi menunggu",
+    "varianceFlag": "Selisih hitung kas"
+  },
+  "receipts": {
+    "error": "Gagal memuat catatan kas lapangan",
+    "none": "Belum ada yang dibebankan ke kas lapangan ini.",
+    "replenished": "Sudah diganti",
+    "title": "Kuitansi",
+    "waiting": "Menunggu"
+  },
+  "rep": {
+    "actions": "Tindakan",
+    "amount": "Jumlah",
+    "error": "Gagal memuat penggantian",
+    "funding": "Pendanaan",
+    "kind": "Jenis",
+    "none": "Belum ada penggantian",
+    "noneSub": "Pemegang kas memintanya saat ada kuitansi yang menunggu.",
+    "number": "Nomor",
+    "replenishment": "Penggantian",
+    "status": "Status",
+    "title": "Penggantian"
+  },
+  "status": {
+    "approved": "Disetujui",
+    "cancelled": "Dibatalkan",
+    "draft": "Draf",
+    "paid": "Dibayar",
+    "rejected": "Ditolak",
+    "requested": "Diminta",
+    "submitted": "Diajukan"
+  },
+  "toast": {
+    "counted": "Hitung kas dicatat",
+    "requested": "Permintaan dikirim",
+    "updated": "Diperbarui"
+  }
+}

@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
   outstandingState: 'ready' as 'ready' | 'loading' | 'error',
   projects: [] as Array<{ id: string; name: string; short_name?: string | null }>,
   agingRows: [] as Array<Record<string, unknown>>,
+  floats: [] as Array<Record<string, unknown>>,
   userId: 'eng',
   realRole: 'Engineer',
   m: {
@@ -38,6 +39,7 @@ vi.mock('@/src/hooks/useExpenseReceipts', () => ({
     download: vi.fn(), progress: null, uploadError: null, clearUploadError: vi.fn(),
   }),
 }));
+vi.mock('@/src/hooks/useImprest', () => ({ useImprestFloats: () => ({ data: { rows: h.floats, truncated: false } }) }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: h.projects }) }));
 vi.mock('@/src/hooks/useExpensePostingReadiness', () => ({ useExpensePostingReadiness: () => ({ state: 'inactive', retry: vi.fn() }) }));
 // #775 phase B — the Ledger postings card is proven by its own test (AC-EXP-131); it needs a QueryClient this page test does not mount.
@@ -71,6 +73,7 @@ beforeEach(() => {
   h.outstandingState = 'ready';
   h.projects = [];
   h.agingRows = [];
+  h.floats = [];
   h.m.update.mutateAsync.mockReset();
   h.m.update.mutateAsync.mockResolvedValue(undefined);
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
@@ -119,6 +122,44 @@ describe('ExpenseClaimDetail', () => {
     renderAt();
     expect(screen.getByTestId('approval-route-note')).toHaveTextContent('Ayu Approver');
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+  });
+
+  it('AC-IMP-084 only the float custodian may mark an Approved float claim paid', () => {
+    h.claim = { ...base, status: 'Approved', approved_by_id: 'pm', imprest_float_id: 'f1' };
+    h.floats = [{ id: 'f1', custodian_id: 'cust' }];
+    as('fin', 'Finance');
+    const { unmount } = renderAt();
+    expect(screen.queryByRole('button', { name: 'Mark paid' })).toBeNull();
+    unmount();
+    as('cust', 'Finance');
+    renderAt();
+    expect(screen.getByRole('button', { name: 'Mark paid' })).toBeInTheDocument();
+  });
+
+  it('AC-IMP-084 a float claim the viewer cannot read the float of falls back to the ordinary rule', () => {
+    h.claim = { ...base, status: 'Approved', approved_by_id: 'pm', imprest_float_id: 'f1' };
+    h.floats = [];
+    as('fin', 'Finance');
+    renderAt();
+    expect(screen.getByRole('button', { name: 'Mark paid' })).toBeInTheDocument();
+  });
+
+  it('FR-IMP-025 an out-of-plan claim says so and names who can decide it', () => {
+    h.claim = { ...base, status: 'Submitted', imprest_float_id: 'f1', is_plan_exception: true };
+    h.floats = [{ id: 'f1', custodian_id: 'cust' }];
+    h.route = { claimId: 'c1', route: 'org', reason: 'within_budget', approvers: [{ id: 's1', fullName: 'Sam Senior' }], requestAmount: 300, lineBudget: 500, lineUsed: 0 };
+    as('eng', 'Engineer');
+    renderAt();
+    const banner = screen.getByTestId('imprest-exception-note');
+    expect(banner).toHaveTextContent('Out of plan');
+    expect(banner).toHaveTextContent('Sam Senior');
+  });
+
+  it('FR-IMP-025 an in-plan claim shows no exception banner', () => {
+    h.claim = { ...base, status: 'Submitted', imprest_float_id: 'f1', is_plan_exception: false };
+    as('eng', 'Engineer');
+    renderAt();
+    expect(screen.queryByTestId('imprest-exception-note')).toBeNull();
   });
 
   it('AC-UXS-011 the named approver confirms the selected claim identity and amount', async () => {

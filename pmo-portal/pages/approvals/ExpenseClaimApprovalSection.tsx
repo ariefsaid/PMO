@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, DecisionContextSummary, ListState } from '@/src/components/ui';
+import { Button, Card, CardHead, DecisionContextSummary, ListState, StatusPill } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useExpenseClaimsAwaitingDecision, type ExpenseClaimAwaiting } from '@/src/hooks/useExpenseClaims';
@@ -75,6 +75,7 @@ export const ExpenseClaimApprovalSection: React.FC = () => {
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 <Link to={`/expenses/${claim.id}`} className="font-medium text-primary-text hover:underline">{claim.claim_number ?? claim.title}</Link>
                 <span className="min-w-0 flex-1 truncate">{claim.title}</span>
+                {claim.is_plan_exception && <StatusPill variant="warn">{t('imprest:plan.exception', 'Out of plan')}</StatusPill>}
                 <span className="text-muted-foreground">{claim.claimant?.full_name ?? '—'}</span>
                 <span className="tabular-nums">{formatCurrencyAuto(Number(claim.amount), claim.currency)}</span>
                 <Button variant="outline" size="sm" aria-expanded={evidenceClaimId === claim.id} onClick={() => setEvidenceClaimId((current) => current === claim.id ? null : claim.id)}>
