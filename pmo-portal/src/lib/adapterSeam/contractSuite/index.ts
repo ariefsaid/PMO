@@ -6,6 +6,11 @@ import type { Suite } from './harness.ts';
 import { imprestTransferSuite } from './imprestTransfer.suite.ts';
 import { invoicePairSuite } from './invoicePair.suite.ts';
 import { partySuite } from './party.suite.ts';
+import { actualsReadSuite } from './actuals.suite.ts';
+import { budgetPushSuite } from './budgetPush.suite.ts';
+import { billPushSuite, purchaseLinkExistingSuite, purchasePushSuite, vendorPaymentPushSuite } from './procurement.suite.ts';
+import { invoicePushSuite, receiptReadSuite } from './revenue.suite.ts';
+import { timesheetPushSuite } from './timesheet.suite.ts';
 import { projectSuite } from './project.suite.ts';
 import { itemSendSuite, partySendSuite, projectSendSuite } from './send.suite.ts';
 
@@ -19,6 +24,15 @@ export const SUITES: Readonly<Partial<Record<WorkflowId, Suite>>> = {
   'item.send': itemSendSuite,
   'budget.unowned-occupant': budgetSuite,
   'cutover.activation': cutoverSuite,
+  'purchase.push': purchasePushSuite,
+  'bill.push': billPushSuite,
+  'vendor-payment.push': vendorPaymentPushSuite,
+  'purchase.link-existing': purchaseLinkExistingSuite,
+  'invoice.push': invoicePushSuite,
+  'receipt.read': receiptReadSuite,
+  'actuals.read': actualsReadSuite,
+  'budget.push': budgetPushSuite,
+  'timesheet.push': timesheetPushSuite,
   'imprest.transfer': imprestTransferSuite,
   'invoice.pair-existing': invoicePairSuite,
 };

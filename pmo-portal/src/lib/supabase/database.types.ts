@@ -10603,6 +10603,10 @@ export type Database = {
     }
     Functions: {
       accept_invoice_pairs: { Args: { p_pairs: Json }; Returns: number }
+      attribute_subcontract_bill_lines: {
+        Args: { p_invoice_id: string; p_lines: Json }
+        Returns: undefined
+      }
       add_skipped_stage_entry: {
         Args: {
           p_before_entry_id: string
@@ -10929,6 +10933,15 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: boolean
       }
+      po_revision_push_refusal: {
+        Args: {
+          p_org: string
+          p_po_id: string
+          p_revise_cancels: boolean
+          p_revision: number
+        }
+        Returns: string
+      }
       po_variation_route: {
         Args: { p_id: string }
         Returns: {
@@ -10995,6 +11008,16 @@ export type Database = {
         Returns: string
       }
       create_procurement_with_items: { Args: { p_id: string; p_header: Json; p_items: Json }; Returns: Database['public']['Tables']['procurements']['Row'] }
+      subcontract_cap_exceptions: {
+        Args: { p_procurement_id: string }
+        Returns: {
+          amount: number
+          erp_purchase_document_id: string
+          invoice_id: string
+          number: string
+          reason: string
+        }[]
+      }
       subcontract_po_position: {
         Args: { p_po_id: string }
         Returns: {

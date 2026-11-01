@@ -225,6 +225,9 @@ else skip "prepare_subcontract_acceptance (purchase_orders)"; fi
 if [ -n "$A_PROC" ] && [ "$A_PROC" != null ]; then
   c=$(rpc capture_subcontract_vendor_invoice "{\"p_procurement_id\":\"$A_PROC\",\"p_status\":\"Received\",\"p_invoice_date\":\"2026-09-08\",\"p_lines\":[{\"boq_item_id\":\"$A_PROC\",\"quantity\":1,\"rate\":1}]}")
 else skip "capture_subcontract_vendor_invoice (procurements)"; fi
+if [ -n "$A_PI" ] && [ "$A_PI" != null ]; then
+  c=$(rpc attribute_subcontract_bill_lines "{\"p_invoice_id\":\"$A_PI\",\"p_lines\":[{\"boq_item_id\":\"$A_PI\",\"quantity\":1,\"rate\":1}]}")
+else skip "attribute_subcontract_bill_lines (procurement_invoices)"; fi
 A_VAR=$(jq -r '.[]|select(.table=="po_variations")|.id' "$A_ROWS_JSON")
 A_BOQ=$(jq -r '.[]|select(.table=="boq_items")|.id' "$A_ROWS_JSON")
 if [ -n "$A_PO" ] && [ "$A_PO" != null ] && [ -n "$A_BOQ" ] && [ "$A_BOQ" != null ]; then

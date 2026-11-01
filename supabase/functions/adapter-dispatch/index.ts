@@ -82,6 +82,7 @@ import { authorizeClickUpTaskCommand } from './taskAuthorization.ts';
 import { enforcePaymentGate, isProcurementPaymentCreate } from './paymentGate.ts';
 import { checkSiProjectGate } from './projectGateGuard.ts';
 import { checkProcurementGate, checkQueuedProcurementCreate } from './procurementGateGuard.ts';
+import { checkPoRevise } from './poReviseGuard.ts';
 import { checkCreateTargetUnmapped, checkRevenueErpPathTarget, checkTransitionTargetBinding, isCanonicalUuid, isOpaqueIdempotencyKey } from './transitionTargetGuard.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
 import {
@@ -1189,6 +1190,20 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     if (!procurementGate.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: procurementGate.message }), {
         status: procurementGate.status,
+        headers,
+      });
+    }
+  }
+
+  // AC-SCA-012 (#1513) — a PO revise never cancels a billed ERP order. Reached by no command until #1505 registers the
+  // revise operation; the guard is wired now so that registration cannot ship without it. ponytail: reviseCancels is
+  // true (the strict ERPNext amend); the Odoo edit-style tier relaxes it when #1505 adds that tier.
+  if (command.domain === 'procurement' && String(command.operation) === 'revise') {
+    const rec = (command as { record?: { poId?: unknown; revision?: unknown } }).record ?? {};
+    const poRevise = await checkPoRevise(serviceClient as never, orgId, { poId: rec.poId, revision: rec.revision }, { reviseCancels: true });
+    if (!poRevise.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: poRevise.message }), {
+        status: poRevise.status,
         headers,
       });
     }
