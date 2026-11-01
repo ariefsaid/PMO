@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveBudgetAccounts, BudgetCategoryUnmappedError, proposeBudgetAccountMap, type BudgetPostingAccount } from './categoryAccountMap';
+import { resolveBudgetAccounts, BudgetCategoryUnmappedError, proposeBudgetAccountMap, accountCategoryKey, type BudgetPostingAccount } from './categoryAccountMap';
 
 const MAP = [
   { category: 'Labor', erp_account: 'Salary - PSC' },
@@ -29,6 +29,12 @@ describe('categoryAccountMap (FR-BUD-110..114 — the PMO category ↔ ERP accou
       { account: '5120 - Labor', accountName: 'Labor', accountNumber: '5120', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
     ];
     expect(proposeBudgetAccountMap(accounts, ['Labor', 'Special expenses'])).toEqual([]);
+  });
+  it('accountCategoryKey is null when two categories match', () => {
+    const base = { accountNumber: '5100', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false };
+    expect(accountCategoryKey({ ...base, account: '5100 - Labor', accountName: 'Labor' })).toBe('Labor');
+    expect(accountCategoryKey({ ...base, account: '5100 - Labor material', accountName: 'Labor material' })).toBeNull();
+    expect(accountCategoryKey({ ...base, account: '5100 - Misc', accountName: 'Misc' })).toBeNull();
   });
   it('AC-CAT-006: maps Special expenses through its configured account and sums integer cents exactly', () => {
     expect(resolveBudgetAccounts([
