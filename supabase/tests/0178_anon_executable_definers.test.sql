@@ -126,6 +126,10 @@
 -- writers (documents, lines, ledger and balances have no client write grant); each gates on active membership and
 -- the JWT org, and posting on keeper-or-Admin; stock_posting_guards / stock_tenant_isolation prove the contract.
 --
+-- ⚑ AMENDED BY 0418 (#1512 S6): `set_stock_reorder_level` joins the retained set (+1, count 95 on 94, re-derived by hand from the list). A SECURITY
+-- DEFINER writer (reorder levels have no client write grant); it gates on active membership, rank >= 20 and the JWT org;
+-- stock_reorder.test.sql proves the contract.
+--
 -- The budget import and procurement import-run commands retain authenticated access;
 -- their owning proofs are 0397_budget_import_protocol.test.sql and
 -- 0399_procurement_import_identity_authority.test.sql. Atomic draft creation is
@@ -237,6 +241,7 @@ insert into client_callable_rpc_names (proname) values
   ('set_project_contract_value'),
   ('set_sales_invoice_efaktur'),
   ('set_sales_invoice_received_date'),
+  ('set_stock_reorder_level'),
   ('set_stock_warehouse_keeper'),
   ('set_vendor_tax_defaults'),
   ('set_work_order_value'),
@@ -274,8 +279,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  94,
-  'AC-ACL-002 all 94 retained client-callable RPC names still have a public function');
+  95,
+  'AC-ACL-002 all 95 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -284,8 +289,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  94,
-  'AC-ACL-003 all 94 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  95,
+  'AC-ACL-003 all 95 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
