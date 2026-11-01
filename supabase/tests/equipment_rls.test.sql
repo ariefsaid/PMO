@@ -3,7 +3,7 @@
 -- hard delete (FR-EQU-064). Fixture F1 is docs/plans/2026-11-01-equipment-usage.md "Fixture F1".
 begin;
 create extension if not exists pgtap;
-select plan(67);
+select plan(72);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15190000-0000-0000-0000-00000000000a', 'EQU Org',   'IDR', 'Asia/Jakarta'),
@@ -171,6 +171,18 @@ select throws_ok($$ update equipment_usage_entries set approver_id = author_id w
 
 
 -- ── S2 (0460): costing settings audience, AC-EQU-012 settings half ───────────────────────────────────
+-- Approved usage the S2 reads can see: EXC-1 2 h (priced at 50/h below), and the foreign org's own asset 7 h.
+select pg_temp.usage('15190000-0000-0000-0000-0000000000d4', '15190000-0000-0000-0000-0000000000c1', '2026-09-10', 2, 'hours');
+insert into auth.users (id, email) values ('15190000-0000-0000-0000-0000000000b2', 'equ-xorg2@example.com');
+insert into profiles (id, org_id, full_name, email, role, status) values
+  ('15190000-0000-0000-0000-0000000000b2', '15190000-0000-0000-0000-00000000000b', 'EQU XOrg2', 'equ-xorg2@example.com', 'Admin', 'active');
+insert into equipment_usage_entries (org_id, asset_id, project_id, work_date, quantity, unit, status, author_id, approver_id, approved_at)
+values ('15190000-0000-0000-0000-00000000000b', '15190000-0000-0000-0000-0000000000d9', '15190000-0000-0000-0000-0000000000cb',
+        '2026-09-12', 7, 'hours', 'Approved', '15190000-0000-0000-0000-0000000000b1', '15190000-0000-0000-0000-0000000000b2', now());
+-- a disabled Finance member (the active-member gate on end_equipment_costing: the role alone would let them through)
+insert into auth.users (id, email) values ('15190000-0000-0000-0000-0000000000a9', 'equ-gonefin@example.com');
+insert into profiles (id, org_id, full_name, email, role, status) values
+  ('15190000-0000-0000-0000-0000000000a9', '15190000-0000-0000-0000-00000000000a', 'EQU GoneFin', 'equ-gonefin@example.com', 'Finance', 'disabled');
 -- Money setting is separated from usage approval: a PM approves hours but never sets what an hour is worth.
 insert into budget_category_account_map (org_id, category, erp_account, is_push_target) values
   ('15190000-0000-0000-0000-00000000000a','Equipment','Depreciation - EQ',true);
@@ -208,8 +220,12 @@ select throws_ok($$ select * from preview_equipment_costing('{"asset_id":"151900
   '42501', 'not authorized', 'AC-EQU-012 a PM cannot preview a costing setting');
 select is((select count(*)::int from list_equipment_costing()), 2, 'AC-EQU-012 a PM reads the costing settings');
 select is((select count(*)::int from equipment_costing_settings), 2, 'AC-EQU-012 a PM reads the settings table');
-select lives_ok($$ select * from list_equipment_allocations('15190000-0000-0000-0000-0000000000d1','2026-09-01','2026-09-30') $$,
-  'AC-EQU-012 a PM reads amounts');
+select is((select amount from list_equipment_allocations('15190000-0000-0000-0000-0000000000d4','2026-09-01','2026-09-30')), 100.00::numeric,
+  'AC-EQU-012 a PM reads amounts (2 h × 50)');
+select is((select count(*)::int from list_equipment_allocations('15190000-0000-0000-0000-0000000000d1','2026-09-01','2026-09-30')
+            where status = 'usage_only' and amount is null), 1, 'AC-EQU-012 a PM reads usage-only rows with no amount');
+select is((select sum(work_units) from list_equipment_usage_totals(null,'15190000-0000-0000-0000-0000000000d1','2026-09-01','2026-09-30')),
+  5.00::numeric, 'AC-EQU-012 the home org reads its approved usage totals (the cross-org rows below are not vacuous)');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a5');
 select is((select count(*)::int from list_equipment_costing()), 2, 'AC-EQU-012 an Executive reads the costing settings');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a6');   -- Eng1
@@ -230,10 +246,14 @@ select throws_ok($$ select * from list_equipment_usage_totals('15190000-0000-000
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000b1');   -- another org's Admin
 select is((select count(*)::int from list_equipment_costing(true)), 0, 'AC-EQU-012 another org lists no settings');
 select is((select count(*)::int from equipment_costing_settings), 0, 'AC-EQU-012 another org reads no settings row');
-select is((select count(*)::int from list_equipment_allocations('15190000-0000-0000-0000-0000000000d4','2026-01-01','2026-12-31')), 0,
-  'AC-EQU-012 another org reads no allocation');
-select is((select count(*)::int from list_equipment_usage_totals(null,'15190000-0000-0000-0000-0000000000d4','2026-01-01','2026-12-31')), 0,
-  'AC-EQU-012 another org reads no usage totals');
+select is((select count(*)::int from list_equipment_allocations('15190000-0000-0000-0000-0000000000d1','2026-09-01','2026-09-30')), 0,
+  'AC-EQU-012 another org reads no usage-only allocation of this org''s asset');
+select is((select count(*)::int from list_equipment_allocations('15190000-0000-0000-0000-0000000000d4','2026-09-01','2026-09-30')), 0,
+  'AC-EQU-012 another org reads no hire charge of this org''s asset');
+select is((select count(*)::int from list_equipment_usage_totals(null,'15190000-0000-0000-0000-0000000000d1','2026-09-01','2026-09-30')), 0,
+  'AC-EQU-012 another org reads no usage totals of this org''s asset');
+select is((select sum(work_units) from list_equipment_usage_totals(null,'15190000-0000-0000-0000-0000000000d9','2026-09-01','2026-09-30')), 7.00::numeric,
+  'AC-EQU-012 another org reads its own usage totals');
 select throws_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d4","basis":"none","effective_from":"2026-01-01"}') $$,
   'P0002', null, 'AC-EQU-012 another org cannot cost this org''s asset');
 select throws_ok($$ select end_equipment_costing((select (v->>'setting_key')::uuid from _k where k='f'),'2026-12-31',1) $$,
@@ -241,6 +261,9 @@ select throws_ok($$ select end_equipment_costing((select (v->>'setting_key')::uu
 select throws_ok($$ select save_equipment_costing(jsonb_build_object('setting_key',(select v->>'setting_key' from _k where k='f'),'expected_version',1,
   'asset_id','15190000-0000-0000-0000-0000000000d9','basis','none','effective_from','2026-01-01')) $$,
   'P0002', null, 'AC-EQU-012 another org cannot version this org''s setting');
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a9');   -- disabled Finance
+select throws_ok($$ select end_equipment_costing((select (v->>'setting_key')::uuid from _k where k='f'),'2026-12-31',1) $$,
+  '42501', null, 'AC-EQU-012 a disabled Finance member cannot end a costing setting');
 reset role;
 
 select * from finish();

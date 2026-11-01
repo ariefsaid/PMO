@@ -3,7 +3,7 @@
 -- Fixture F1 is docs/plans/2026-11-01-equipment-usage.md "Fixture F1".
 begin;
 create extension if not exists pgtap;
-select plan(45);
+select plan(52);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15190000-0000-0000-0000-00000000000a', 'EQU Org',   'IDR', 'Asia/Jakarta'),
@@ -102,6 +102,8 @@ select is((select sum(amount) from list_equipment_allocations('15190000-0000-000
   580.00::numeric, 'AC-EQU-006 Submitted, Rejected and archived rows leave the hire charge at 580.00');
 select is((select status from list_equipment_allocations('15190000-0000-0000-0000-0000000000d4','2026-10-01','2026-10-31')),
   'allocated', 'AC-EQU-003 a hire-rate charge reads as allocated');
+select is((select driver from list_equipment_allocations('15190000-0000-0000-0000-0000000000d4','2026-10-01','2026-10-31')),
+  null::text, 'FR-EQU-044 a hire-rate row names no driver (driver is an actual-cost input)');
 
 -- ── AC-EQU-008 versions keep their own dates; a stale expected_version is refused ────────────────────
 insert into _s select 'gen', save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d3","basis":"hire_rate",
@@ -183,35 +185,35 @@ select throws_like($$ select save_equipment_costing('{"asset_id":"15190000-0000-
 
 -- ── conflicts (FR-EQU-034) ───────────────────────────────────────────────────────────────────────────
 select throws_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d4","basis":"none","effective_from":"2026-06-01"}') $$,
-  '23505', null, 'AC-EQU-008 a second setting on the same asset over overlapping dates is refused');
+  '23505', null, 'FR-EQU-034 a second setting on the same asset over overlapping dates is refused');
 select lives_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d4","basis":"none","effective_from":"2025-01-01","effective_to":"2025-12-31"}') $$,
-  'AC-EQU-008 a second setting on the same asset over a disjoint window is saved');
+  'FR-EQU-034 a second setting on the same asset over a disjoint window is saved');
 insert into _s select 'rule', save_cost_attribution_rule('{"name":"Plant to P3","account_group":"Plant - EQ","cost_center":"Truck-1 - EQ","effective_from":"2026-01-01",
   "targets":[{"project_id":"15190000-0000-0000-0000-0000000000c3","percent":100}]}');
 select throws_like($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d2","basis":"actual_cost","driver":"units",
   "rate_unit":"days","account_group":"Plant - EQ","cost_center":"Truck-1 - EQ","effective_from":"2026-10-01"}') $$, '%Plant to P3%',
-  'AC-EQU-008 an actual-cost match tying a cost attribution rule is refused, naming the rule');
+  'FR-EQU-034 an actual-cost match tying a cost attribution rule is refused, naming the rule');
 select throws_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d2","basis":"actual_cost","driver":"units",
   "rate_unit":"days","account_group":"Plant - EQ","effective_from":"2026-10-01"}') $$,
-  '23505', null, 'AC-EQU-008 a less specific match under a more specific rule is refused');
+  '23505', null, 'FR-EQU-034 a less specific match under a more specific rule is refused');
 select lives_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d2","basis":"actual_cost","driver":"units",
   "rate_unit":"days","account":"Fuel - EQ","cost_center":"Truck-1 - EQ","effective_from":"2026-10-01"}') $$,
-  'AC-EQU-008 a more specific actual-cost match than the rule is saved');
+  'FR-EQU-034 a more specific actual-cost match than the rule is saved');
 select throws_like($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d6","basis":"actual_cost","driver":"fuel",
   "account":"Fuel - EQ","cost_center":"Truck-1 - EQ","effective_from":"2026-10-01"}') $$, '%TRK-1%',
-  'AC-EQU-008 an actual-cost match tying another asset''s setting is refused, naming that asset');
+  'FR-EQU-034 an actual-cost match tying another asset''s setting is refused, naming that asset');
 
 -- ── shape and reference validation ───────────────────────────────────────────────────────────────────
 select throws_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d6","basis":"hire_rate","rate_unit":"hours","effective_from":"2026-01-01"}') $$,
-  '22023', null, 'AC-EQU-008 a hire rate without a work rate is refused');
+  '22023', null, 'FR-EQU-031 a hire rate without a work rate is refused');
 select throws_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d6","basis":"hire_rate","work_rate":-1,"rate_unit":"hours","effective_from":"2026-01-01"}') $$,
-  '22023', null, 'AC-EQU-008 a negative rate is refused');
+  '22023', null, 'FR-EQU-031 a negative rate is refused');
 select throws_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d6","basis":"actual_cost","account":"Fuel - EQ","effective_from":"2026-01-01"}') $$,
-  '22023', null, 'AC-EQU-008 an actual-cost setting without a driver is refused');
+  '22023', null, 'FR-EQU-032 an actual-cost setting without a driver is refused');
 select throws_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d6","basis":"actual_cost","driver":"trips","account":"No Such - EQ","effective_from":"2026-01-01"}') $$,
-  'P0002', null, 'AC-EQU-008 an unknown ledger account is refused');
+  'P0002', null, 'FR-EQU-032 an unknown ledger account is refused');
 select throws_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d6","basis":"hire_rate","work_rate":10,"rate_unit":"hours",
-  "charge_category":"Labor","effective_from":"2026-01-01"}') $$, 'P0002', null, 'AC-EQU-008 a hire-rate charge category with no mapped account is refused (PQ-3)');
+  "charge_category":"Labor","effective_from":"2026-01-01"}') $$, 'P0002', null, 'PQ-3 a hire-rate charge category with no mapped account is refused (PQ-3)');
 select throws_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d9","basis":"none","effective_from":"2026-01-01"}') $$,
   'P0002', null, 'AC-EQU-012 a foreign asset is refused');
 
@@ -225,6 +227,52 @@ select is((select sum(amount) from list_equipment_allocations(null,'2026-10-01',
 select is((select row(work_units, standby_units, submitted_count)::text from list_equipment_usage_totals(
   '15190000-0000-0000-0000-0000000000c1','15190000-0000-0000-0000-0000000000d4','2026-10-01','2026-10-31')),
   '(10.00,4.00,1)', 'AC-EQU-002 usage totals count approved units and what is waiting');
+
+-- ── a charge never counts an entry in another unit than the rate ─────────────────────────────────────
+-- HIR-1: a day entry is rejected before an hours rate is saved; redrafting and submitting it must be refused (FR-EQU-032)
+reset role;
+insert into equipment_assets (id, org_id, code, name, default_unit) values
+  ('15190000-0000-0000-0000-0000000000d7', '15190000-0000-0000-0000-00000000000a', 'HIR-1', 'Hired 1', 'hours');
+set local role authenticated;
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a6');   -- Eng1
+insert into _s select 'day', save_equipment_usage('{"asset_id":"15190000-0000-0000-0000-0000000000d7","project_id":"15190000-0000-0000-0000-0000000000c1",
+  "work_date":"2026-10-15","quantity":1,"unit":"days"}');
+select transition_equipment_usage((select (v->>'id')::uuid from _s where k = 'day'), 'Submitted');
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a3');   -- PM1 manages P1
+select transition_equipment_usage((select (v->>'id')::uuid from _s where k = 'day'), 'Rejected');
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a2');   -- Finance: a Rejected row does not block the unit
+select lives_ok($$ select save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d7","basis":"hire_rate",
+  "work_rate":100,"rate_unit":"hours","effective_from":"2026-10-01"}') $$, 'AC-EQU-015 an hours rate is saved while the only day entry is Rejected');
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a6');
+select transition_equipment_usage((select (v->>'id')::uuid from _s where k = 'day'), 'Draft');
+select throws_like($$ select transition_equipment_usage((select (v->>'id')::uuid from _s where k = 'day'), 'Submitted') $$,
+  '%costed per hours%', 'AC-EQU-015 resubmitting a day entry under an hours rate is refused');
+-- a Submitted day entry that slipped past the save-time check (a race) cannot be approved either
+reset role;
+select pg_temp.usage('15190000-0000-0000-0000-0000000000d7','15190000-0000-0000-0000-0000000000c1','2026-10-17',1,'days','work','Submitted');
+select pg_temp.usage('15190000-0000-0000-0000-0000000000d7','15190000-0000-0000-0000-0000000000c1','2026-10-16',1,'days');   -- Approved
+select pg_temp.usage('15190000-0000-0000-0000-0000000000d7','15190000-0000-0000-0000-0000000000c1','2026-10-18',3,'hours');
+set local role authenticated;
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a3');
+select throws_like($$ select transition_equipment_usage((select id from equipment_usage_entries
+  where asset_id = '15190000-0000-0000-0000-0000000000d7' and work_date = '2026-10-17'), 'Approved') $$,
+  '%costed per hours%', 'AC-EQU-015 approving a day entry under an hours rate is refused');
+select is((select row(count(*), sum(work_units), sum(amount))::text from list_equipment_allocations(
+  '15190000-0000-0000-0000-0000000000d7','2026-10-01','2026-10-31') where status = 'allocated'), '(1,3.00,300.00)',
+  'AC-EQU-015 the hire charge counts only the hours entry (3 h × 100), never the approved day entry');
+select is((select row(unit, work_units, amount)::text from list_equipment_allocations(
+  '15190000-0000-0000-0000-0000000000d7','2026-10-01','2026-10-31') where status = 'usage_only'), '(days,1.00,)',
+  'AC-EQU-015 an approved entry in another unit surfaces as usage, never priced');
+
+-- ── list_equipment_costing tells a voided version from an open-ended one (FR-EQU-045) ─────────────────
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a2');
+insert into _s select 'vd', save_equipment_costing('{"asset_id":"15190000-0000-0000-0000-0000000000d6","basis":"hire_rate",
+  "work_rate":10,"rate_unit":"hours","effective_from":"2026-01-01"}');
+select save_equipment_costing(jsonb_build_object('setting_key',(select v->>'setting_key' from _s where k='vd'),'expected_version',1,
+  'asset_id','15190000-0000-0000-0000-0000000000d6','basis','hire_rate','work_rate',12,'rate_unit','hours','effective_from','2026-01-01'));
+select is(array(select version::text || ':' || voided::text || ':' || coalesce(window_to::text, 'open')
+                  from list_equipment_costing(true) where setting_key = (select (v->>'setting_key')::uuid from _s where k='vd') order by version),
+  array['1:true:open','2:false:open'], 'AC-EQU-008 a version replaced on its own start day reads voided, the open-ended current one does not');
 
 select * from finish();
 rollback;

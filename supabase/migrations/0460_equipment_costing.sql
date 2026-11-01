@@ -14,7 +14,7 @@
 --   drop function if exists public.equipment_costing_write(jsonb, text, boolean);
 --   drop function if exists public.equipment_hire_charges(uuid, jsonb, uuid);
 --   drop function if exists public.equipment_usage_by_project(uuid);
---   (restore S1's stub body of equipment_entry_locked_unit BEFORE dropping equipment_settings_effective)
+--   (restore S1's equipment_usage_transition_core body from 0447, and S1's stub body of equipment_entry_locked_unit, BEFORE dropping equipment_settings_effective)
 --   drop function if exists public.equipment_settings_effective(uuid, jsonb);
 --   drop function if exists public.equipment_costing_assert_no_conflict(uuid, jsonb);
 --   drop function if exists public.cost_attribution_matches_overlap(uuid, text, text, text, text, text, text, text, text, text, text);
@@ -321,6 +321,7 @@ language sql stable set search_path = public, pg_temp as $$
     join public.equipment_usage_entries e
       on e.org_id = p_org_id and e.asset_id = v.asset_id and e.status = 'Approved' and e.archived_at is null
      and e.work_date between v.window_from and v.window_to
+     and e.unit = v.rate_unit                       -- a charge never counts an entry in another unit than its rate
    where v.basis = 'hire_rate' and (p_project_id is null or e.project_id = p_project_id)
    group by v.id, v.setting_key, v.version, v.asset_id, e.project_id, date_trunc('month', e.work_date), v.charge_category,
             to_char(e.work_date, 'YYYY'), v.work_rate, v.standby_rate, v.rate_unit
@@ -422,7 +423,7 @@ returns table(id uuid, setting_key uuid, version int, is_current boolean, asset_
               basis text, work_rate numeric, standby_rate numeric, rate_unit text, driver text, count_standby boolean,
               charge_category public.budget_category, match_account text, match_account_group text, match_cost_center text,
               match_party_type text, match_party text, specificity int, effective_from date, effective_to date,
-              window_to date, created_by uuid, created_at timestamptz)
+              window_to date, created_by uuid, created_at timestamptz, voided boolean)
 language plpgsql stable security definer set search_path = public, pg_temp as $$
 begin
   perform public.assert_is_active_member();
@@ -433,7 +434,8 @@ begin
     select s.id, s.setting_key, s.version, s.is_current, s.asset_id, a.code, a.name, s.basis, s.work_rate, s.standby_rate,
            s.rate_unit, s.driver, s.count_standby, s.charge_category, s.match_account, s.match_account_group,
            s.match_cost_center, s.match_party_type, s.match_party, s.specificity, s.effective_from, s.effective_to,
-           nullif(w.window_to, 'infinity'::date), s.created_by, s.created_at
+           nullif(w.window_to, 'infinity'::date), s.created_by, s.created_at,
+           w.id is null                                   -- replaced on its own start day: it never applied
       from public.equipment_costing_settings s
       join public.equipment_assets a on a.id = s.asset_id
       left join public.equipment_settings_effective(public.auth_org_id(), null) w on w.id = s.id
@@ -487,7 +489,7 @@ begin
     with eff as materialized (select * from public.equipment_settings_effective(v_org, null))
     -- hire_rate charges
     select c.asset_id, a.code, c.project_id, p.name, c.month, 'hire_rate'::text, c.setting_key, c.version, 'allocated'::text,
-           null::text, 'units'::text, c.work_units, c.standby_units, c.work_rate, c.standby_rate, null::numeric, null::numeric,
+           null::text, null::text, c.work_units, c.standby_units, c.work_rate, c.standby_rate, null::numeric, null::numeric,
            null::numeric, null::numeric, c.amount, c.category, 0, c.entry_count, c.rate_unit
       from public.equipment_hire_charges(v_org, null, p_project_id) c
       join public.equipment_assets a on a.id = c.asset_id join public.projects p on p.id = c.project_id
@@ -504,7 +506,7 @@ begin
      where e.org_id = v_org and e.status = 'Approved' and e.archived_at is null
        and (p_asset_id is null or e.asset_id = p_asset_id) and (p_project_id is null or e.project_id = p_project_id)
        and e.work_date >= date_trunc('month', p_from)::date and e.work_date < (date_trunc('month', p_to) + interval '1 month')::date
-       and coalesce(x.basis, 'none') = 'none'
+       and (coalesce(x.basis, 'none') = 'none' or (x.basis = 'hire_rate' and e.unit <> x.rate_unit))   -- never silently dropped
      group by e.asset_id, a.code, e.project_id, p.name, date_trunc('month', e.work_date), x.setting_key, x.version, e.unit
     order by 5, 4, 2;
 end $$;
@@ -547,6 +549,61 @@ create or replace function public.equipment_entry_locked_unit(p_org uuid, p_asse
      and (v.basis = 'hire_rate' or (v.basis = 'actual_cost' and v.driver = 'units'))
    order by v.window_from desc limit 1
 $$;
+
+-- ── re-check the unit on submit and approve (S1's transition core, redefined; copied from 0447) ──────
+create or replace function public.equipment_usage_transition_core(p_id uuid, p_to text, p_notes text) returns text
+language plpgsql set search_path = public, pg_temp as $$
+declare
+  v_uid uuid := auth.uid(); v_role public.user_role := public.auth_role(); v_e public.equipment_usage_entries;
+  v_legal jsonb := jsonb_build_object('Draft', jsonb_build_array('Submitted'), 'Submitted', jsonb_build_array('Approved','Rejected'),
+                                      'Rejected', jsonb_build_array('Draft'), 'Approved', jsonb_build_array('Draft'));
+  v_action text; v_locked text;
+begin
+  select * into v_e from public.equipment_usage_entries e where e.id = p_id for update;
+  if not found then raise exception 'entry not found' using errcode = 'P0002'; end if;
+  -- SECURITY: definer bypasses RLS; this org re-assertion MUST stay.
+  if v_e.org_id is distinct from public.auth_org_id() then raise exception 'not authorized' using errcode = '42501'; end if;
+  if v_e.archived_at is not null then raise exception 'an archived entry cannot move' using errcode = '22023'; end if;
+  if p_to is null or not coalesce((v_legal -> v_e.status) ? p_to, false) then
+    raise exception 'illegal transition % -> %', v_e.status, p_to using errcode = '22023';
+  end if;
+  if p_to = 'Submitted' or (v_e.status = 'Rejected' and p_to = 'Draft') then
+    if v_uid is distinct from v_e.author_id then raise exception 'not authorized' using errcode = '42501'; end if;
+    v_action := case when p_to = 'Submitted' then 'submitted' else 'redraft' end;
+  elsif p_to in ('Approved','Rejected') then
+    -- SoD FIRST, ALWAYS (FR-EQU-011, the 0180 transition_timesheet order). Do not reorder.
+    if v_uid is not distinct from v_e.author_id then raise exception 'separation of duties: cannot decide own equipment usage' using errcode = '42501'; end if;
+    if not public.equipment_can_approve(v_uid, v_role, v_e.org_id, v_e.project_id) then
+      raise exception 'not authorized' using errcode = '42501';
+    end if;
+    v_action := lower(p_to);
+  else  -- Approved -> Draft: Admin reopen (FR-EQU-012), never by the author
+    if v_uid is not distinct from v_e.author_id then raise exception 'separation of duties: cannot reopen own equipment usage' using errcode = '42501'; end if;
+    if v_role is distinct from 'Admin' then raise exception 'only an Admin reopens approved usage' using errcode = '42501'; end if;
+    v_action := 'reopen';
+  end if;
+  -- FR-EQU-032: a costing setting saved after the entry was logged (a day entry Rejected before an hours rate existed,
+  -- or a race with the setting save) must not let the entry reach a charge in another unit. The author's resubmit and the
+  -- approver's decision both re-check; bulk week approval runs this core, so it stops at such an entry with this message.
+  if p_to in ('Submitted','Approved') then
+    v_locked := public.equipment_entry_locked_unit(v_e.org_id, v_e.asset_id, v_e.work_date);
+    if v_locked is not null and v_locked <> v_e.unit then
+      raise exception 'this asset is costed per % on that date; this entry is in %', v_locked, v_e.unit using errcode = '22023';
+    end if;
+  end if;
+  update public.equipment_usage_entries
+     set status = p_to,
+         approver_id = case when p_to in ('Approved','Rejected') then v_uid when p_to = 'Draft' then null else approver_id end,
+         approved_at = case when p_to = 'Approved' then now() else null end,
+         decision_notes = case when p_to in ('Approved','Rejected') or v_action = 'reopen' then nullif(btrim(coalesce(p_notes,'')), '')
+                               else decision_notes end,
+         updated_at = now()
+   where id = p_id;
+  perform public.log_audit('equipment_usage.' || v_action, v_e.org_id, v_uid, p_id,
+    jsonb_build_object('from', v_e.status, 'to', p_to, 'notes', p_notes));
+  return p_to;
+end $$;
+revoke all on function public.equipment_usage_transition_core(uuid, text, text) from public, anon, authenticated;
 
 -- ── grants ─────────────────────────────────────────────────────────────────────────────────────────
 alter function public.save_equipment_costing(jsonb) owner to postgres;

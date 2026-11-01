@@ -10083,6 +10083,7 @@ export type Database = {
           specificity: number
           standby_rate: number
           version: number
+          voided: boolean
           window_to: string
           work_rate: number
         }[]
