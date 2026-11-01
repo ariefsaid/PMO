@@ -36,7 +36,7 @@ export const timesheetRepository: TimesheetRepository = {
   listPushesNeedingAttention,
   confirmEmployeeLink,
   getPushState,
-  list: (userId, params) => wrap(() => listTimesheets(userId, params)),
+  list: (userId) => wrap(() => listTimesheets(userId)),
   createDraft: (weekStartDate, userId) => wrap(() => createDraftTimesheet(weekStartDate, userId)),
   upsertEntries: (entries) => wrap(() => upsertTimesheetEntries(entries)),
   deleteEntry: (id) => wrap(() => deleteTimesheetEntry(id)),

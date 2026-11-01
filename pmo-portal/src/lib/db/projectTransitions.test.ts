@@ -127,6 +127,15 @@ describe('projectStatusGroup', () => {
 // ---------------------------------------------------------------------------
 
 describe('transitionProject', () => {
+  it('AC-1002: transitionProject refusal keeps its SQLSTATE and detail on the thrown error', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'illegal transition', code: 'P0001', details: 'bad-state' } });
+    await expect(transitionProject('p1', 'Won, Pending KoM')).rejects.toMatchObject({
+      message: 'illegal transition',
+      code: 'P0001',
+      details: 'bad-state',
+    });
+  });
+
   it('AC-1002: transitionProject surfaces the RPC 42501/P0001 error and sends {p_id,p_to,p_customer_contract_ref,p_contract_date} with no org_id (FR-PR-002/011)', async () => {
     // Error path: should throw
     makeRpcBuilder({ data: null, error: { message: 'illegal transition', code: 'P0001' } });

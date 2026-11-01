@@ -41,6 +41,7 @@ import {
   externalDomainOwnershipRepository,
 } from './admin';
 import { taskRepository } from './tasks';
+import { commentRepository } from './comments';
 import { meetingRepository } from './meetings';
 import { incidentRepository } from './incidents';
 import { procurementRepository, procurementFilesRepository } from './procurement';
@@ -95,6 +96,7 @@ export const repositories: Repositories = {
   budget: budgetRepository,
   task: taskRepository,
   incident: incidentRepository,
+  comment: commentRepository,
   milestone: milestoneRepository,
   workOrder: workOrderRepository,
   progressBilling: progressBillingRepository,

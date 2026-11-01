@@ -2,7 +2,6 @@
 import type { CommandIntent } from './commandIntent';
 import type { SalesInvoiceRow, IncomingPaymentRow, RevenueByProjectRow } from '@/src/lib/db/revenue';
 import type { ProjectFinances } from '@/src/lib/projectFinances';
-import type { PageParams } from '@/src/lib/pagination';
 import type { BillingKind } from '@/src/lib/billingKind';
 
 export interface RevenueRepository {
@@ -42,11 +41,11 @@ export interface RevenueRepository {
   /** Cancel an Incoming Payment (docstatus 1→2) — mirrors ERP cancel. */
   cancelPayment(ipId: string, intent?: CommandIntent): Promise<void>;
   /** List sales invoices in the caller's org (RLS scopes org). */
-  listInvoices(params?: { projectId?: string; status?: SalesInvoiceRow['status']; nativeOnly?: boolean } & PageParams): Promise<SalesInvoiceRow[]>;
+  listInvoices(params?: { projectId?: string; status?: SalesInvoiceRow['status']; nativeOnly?: boolean }): Promise<SalesInvoiceRow[]>;
   /** Get a single sales invoice by id. */
   getInvoice(id: string): Promise<SalesInvoiceRow | null>;
   /** List incoming payments in the caller's org (RLS scopes org). */
-  listPayments(params?: { customerId?: string; salesInvoiceId?: string } & PageParams): Promise<IncomingPaymentRow[]>;
+  listPayments(params?: { customerId?: string; salesInvoiceId?: string }): Promise<IncomingPaymentRow[]>;
   /** Get a single incoming payment by id. */
   getPayment(id: string): Promise<IncomingPaymentRow | null>;
   /** Revenue rollup per project — SUM(amount) grouped by project_id. */

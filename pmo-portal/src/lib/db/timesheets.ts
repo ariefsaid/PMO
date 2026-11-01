@@ -2,7 +2,6 @@ import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { EntryUpsert } from '@/src/lib/timesheet-edit';
-import { resolveRange, type PageParams } from '@/src/lib/pagination';
 
 export type TimesheetRow = Tables<'timesheets'>;
 export type TimesheetEntryRow = Tables<'timesheet_entries'>;
@@ -23,23 +22,15 @@ const SELECT = '*, entries:timesheet_entries(*, project:projects(name,short_name
  * List the given user's timesheets + entries for the caller's org. org_id is NEVER sent — RLS
  * (timesheets_select) scopes rows; passing the signed-in user's own id keeps it to own rows even
  * for manager roles (FR-DAL-TS-001). On error it throws.
- *
- * Paginated (data-layer performance hardening #4, OPT-IN): passing `params.page`/
- * `params.pageSize` range-bounds the query; omitting both preserves the original unbounded
- * read for every existing caller.
  */
 export async function listTimesheets(
   userId: string,
-  params?: PageParams,
 ): Promise<TimesheetWithEntries[]> {
-  const range = resolveRange(params);
-  let query = supabase
+  const { data, error } = await supabase
     .from('timesheets')
     .select(SELECT)
     .eq('user_id', userId)
     .order('week_start_date', { ascending: false });
-  if (range) query = query.range(range.from, range.to);
-  const { data, error } = await query;
   if (error) throw new Error(error.message);
   // Normalise hours to number at the data boundary so callers never need Number() casts.
   return ((data ?? []) as unknown as TimesheetWithEntries[]).map(sheet => ({

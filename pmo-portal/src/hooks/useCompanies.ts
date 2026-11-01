@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
-import { listProcurementsByVendor, type ProcurementWithRefs } from '@/src/lib/db/procurements';
+import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { useAuth } from '@/src/auth/useAuth';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import {
@@ -71,7 +71,7 @@ export function useProcurementsByVendor(companyId: string | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery<ProcurementWithRefs[]>({
     queryKey: procurementKeys.byVendor(orgId, companyId),
-    queryFn: () => listProcurementsByVendor(companyId!),
+    queryFn: () => repositories.procurement.listByVendor(companyId!),
     enabled: Boolean(orgId && companyId),
   });
 }
