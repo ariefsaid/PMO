@@ -27,8 +27,10 @@ import { fetchBounded } from '../_shared/fetchWithDeadline.ts';
 // still drains in FIFO order rather than starving old, still-unnotified rows.
 const UNNOTIFIED_BATCH_LIMIT = 500;
 
-// Drain lease TTL: > the 2-minute cron cadence, < the edge wall-clock cap; expiry frees a crashed drain's lease.
-const DRAIN_LEASE_TTL = '5 minutes';
+// Drain lease TTL: must OUTLIVE any live drain (>= the edge wall-clock cap, 400 s on the largest plan)
+// or a slow drain's lease expires mid-run and the next tick double-sends; <= the RPC's 15-minute
+// ceiling. Expiry still frees a crashed drain's lease.
+const DRAIN_LEASE_TTL = '7 minutes';
 
 /** A failed read must surface as a failed drain, never as "nothing pending". */
 function orThrow<T>(res: { data: T | null; error: unknown }, what: string): T | null {
@@ -74,7 +76,8 @@ export async function handleTelegramNotifyRequest(req: Request): Promise<Respons
         return data === true;
       },
       releaseLease: async () => {
-        await serviceClient.rpc('release_ops_job_lease', { p_job: 'telegram-notify', p_holder: leaseHolder });
+        const { error } = await serviceClient.rpc('release_ops_job_lease', { p_job: 'telegram-notify', p_holder: leaseHolder });
+        if (error) throw new Error('drain lease release failed');
       },
       now: () => new Date(),
       cooldownSec,

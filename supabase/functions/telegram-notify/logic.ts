@@ -52,8 +52,8 @@ export function alertKey(orgId: string | null, errorCode: string): string {
  * notified_at by the caller (index.ts) — this function only decides WHICH groups
  * send + WHICH ids belong to each group, never performs the DB write.
  *
- * The cooldown clock compares `nowMs` (the drain tick's time) with the last CONFIRMED send, so a
- * failed send never extends its own suppression and retries on the next tick. Without `nowMs`
+ * The cooldown clock compares `nowMs` (the drain tick's time) with the last delivery (or, if never
+ * delivered, the last attempt), so a failed send retries once the cooldown passes. Without `nowMs`
  * (legacy callers) the group's own `lastCreatedAt` is the reference.
  */
 export function groupIntoMessages(
@@ -241,7 +241,9 @@ export async function runDrain(deps: DrainDeps): Promise<DrainResult> {
     return await drainLocked(deps);
   } finally {
     // Best-effort: the lease expires on its own if this fails.
-    await deps.releaseLease().catch(() => {});
+    await deps.releaseLease().catch(() => {
+      logStructuredError({ fn: 'telegram-notify', errorCode: 'DRAIN_LEASE_RELEASE_FAILED' });
+    });
   }
 }
 
@@ -259,9 +261,9 @@ async function drainLocked(deps: DrainDeps): Promise<DrainResult> {
   for (const entry of sendLog) {
     const key = alertKey(entry.orgId, entry.errorCode);
     sendLogByKey[key] = entry;
-    // Cooldown runs from the last CONFIRMED send only: a failed attempt (write-ahead, no
-    // delivered_at) must not suppress its own retry.
-    if (entry.deliveredAt) lastSentByKey[key] = entry.deliveredAt;
+    // Cooldown runs from delivery, else from the last attempt (FR-HRD-002 bound): a failed send
+    // retries once the cooldown has passed, and send-ok + failed marks never re-alerts every tick.
+    lastSentByKey[key] = entry.deliveredAt ?? entry.lastSentAt;
   }
   const groups = groupIntoMessages(rows, lastSentByKey, deps.cooldownSec, deps.now().getTime());
   let stampedRows = 0;

@@ -229,7 +229,7 @@ describe('runDrain liveness (FR-HRD-010)', () => {
 // ── 2026-07-28 review round: C1 (blocking), I2, I3, I4, I7 ────────────────────────────────────
 
 describe('C1 (BLOCKING) — a failed send must not authorise a stamp on a later suppressed tick', () => {
-  it('C1/AC-T09-002: tick 1 send fails (write-ahead already landed); tick 2 RETRIES and, once delivered, stamps', async () => {
+  it('C1/AC-T09-002: failed send is not retried at the same instant, retries and stamps once the cooldown from the attempt passes', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const store: Record<string, { orgId: string | null; errorCode: string; lastSentAt: string; deliveredAt: string | null }> = {};
     const recordSendAhead = vi.fn(async (orgId: string | null, code: string, atIso: string) => {
@@ -257,10 +257,38 @@ describe('C1 (BLOCKING) — a failed send must not authorise a stamp on a later 
     expect(stampNotified).not.toHaveBeenCalled(); // an undelivered alert never stamps
 
     telegramUp = true;
-    const tick2 = await runDrain(deps(shared)); // same instant: the failed attempt must not suppress the retry
-    expect(tick2.suppressed).toBe(0);
-    expect(tick2.sent).toBe(1);
+    const tick2 = await runDrain(deps({ ...shared, readHeartbeat: async () => null })); // same instant: cooldown from the attempt holds
+    expect(tick2.suppressed).toBe(1);
+    expect(tick2.sent).toBe(0);
+    expect(sendTelegram).toHaveBeenCalledTimes(1); // only tick 1's failed attempt
+    expect(stampNotified).not.toHaveBeenCalled();
+    expect(tick2.livenessPinged).toBe(false); // unstamped row still pending: no false all-clear
+
+    const tick3 = await runDrain(deps({ ...shared, now: () => new Date('2026-07-25T12:16:00.000Z') })); // > 900 s later
+    expect(tick3.suppressed).toBe(0);
+    expect(tick3.sent).toBe(1);
     expect(stampNotified).toHaveBeenCalledTimes(1);
+  });
+
+  it('FR-HRD-002/AC-T09-002: send ok + markDelivered fail + stamp fail => no resend inside the cooldown', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const store: Record<string, { orgId: string | null; errorCode: string; lastSentAt: string; deliveredAt: string | null }> = {};
+    const sendTelegram = vi.fn(async () => ({ ok: true }));
+    const shared = {
+      selectUnnotified: async () => [row('r1', 'ERP_PUSH_FAILED', '2026-07-25T11:59:00.000Z')],
+      selectLastSentByKey: async () => Object.values(store),
+      recordSendAhead: vi.fn(async (orgId: string | null, code: string, atIso: string) => {
+        store[alertKey(orgId, code)] = { orgId, errorCode: code, lastSentAt: atIso, deliveredAt: null };
+        return { error: null };
+      }),
+      markDelivered: vi.fn(async () => ({ error: { code: 'XX000' } })),
+      stampNotified: vi.fn(async () => ({ error: { code: 'XX000' } })),
+      sendTelegram,
+    };
+    await runDrain(deps(shared));
+    await runDrain(deps({ ...shared, now: () => new Date('2026-07-25T12:02:00.000Z') }));
+    await runDrain(deps({ ...shared, now: () => new Date('2026-07-25T12:04:00.000Z') }));
+    expect(sendTelegram).toHaveBeenCalledTimes(1);
   });
 
   it('C1: once the write-ahead cooldown lapses, the never-delivered alert eventually retries and delivers', async () => {
@@ -292,6 +320,30 @@ describe('C1 (BLOCKING) — a failed send must not authorise a stamp on a later 
     expect(sendTelegram).toHaveBeenCalledTimes(1);
     expect(markDelivered).toHaveBeenCalledWith(null, 'ERP_PUSH_FAILED', expect.any(String));
     expect(stampNotified).toHaveBeenCalledWith(null, ['r1'], expect.any(String)); // eventually delivered
+  });
+});
+
+describe('cooldown reference', () => {
+  it('AC-T09-002: a delivered key counts from deliveredAt, not from a newer failed attempt', async () => {
+    const sendTelegram = vi.fn(async () => ({ ok: true }));
+    const r = await runDrain(deps({
+      selectLastSentByKey: async () => [{
+        orgId: null, errorCode: 'ERP_PUSH_FAILED',
+        lastSentAt: '2026-07-25T11:59:00.000Z', deliveredAt: '2026-07-25T11:30:00.000Z', // delivered 30 min ago
+      }],
+      sendTelegram,
+    }));
+    expect(r.suppressed).toBe(0);
+    expect(sendTelegram).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('lease release', () => {
+  it('logs DRAIN_LEASE_RELEASE_FAILED when the release throws, without failing the drain', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const r = await runDrain(deps({ releaseLease: vi.fn(async () => { throw new Error('boom'); }) }));
+    expect(r.sent).toBe(1);
+    expect(errSpy).toHaveBeenCalledWith('[telegram-notify] DRAIN_LEASE_RELEASE_FAILED', expect.anything());
   });
 });
 

@@ -1,6 +1,6 @@
 -- 0490_ops_job_lease.test.sql — expiring single-drainer lease (telegram-notify).
 begin;
-select plan(8);
+select plan(9);
 
 select ok(public.claim_ops_job_lease('lease-test', '90000000-0000-0000-0000-000000000001', interval '5 minutes'),
   'AC-T09-004 first claim wins');
@@ -22,6 +22,12 @@ select ok(
   and not has_function_privilege('authenticated', 'public.claim_ops_job_lease(text,uuid,interval)', 'EXECUTE')
   and has_function_privilege('service_role', 'public.claim_ops_job_lease(text,uuid,interval)', 'EXECUTE'),
   'AC-T09-004 claim is service_role only');
+
+select ok(
+  not has_function_privilege('anon', 'public.release_ops_job_lease(text,uuid)', 'EXECUTE')
+  and not has_function_privilege('authenticated', 'public.release_ops_job_lease(text,uuid)', 'EXECUTE')
+  and has_function_privilege('service_role', 'public.release_ops_job_lease(text,uuid)', 'EXECUTE'),
+  'AC-T09-004 release is service_role only');
 
 select * from finish();
 rollback;
