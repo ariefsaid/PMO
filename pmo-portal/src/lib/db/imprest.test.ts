@@ -128,9 +128,9 @@ describe('AC-IMP-080 reads', () => {
     h.result.value = { data: [], error: null };
     expect(await dal.getPosition('f1')).toBeNull();
   });
-  it('#1635 floatChoices returns the RPC row with the float currency, amount and project name, no second read', async () => {
+  it('#1635 floatChoices returns the RPC row with the float currency and project name, no second read', async () => {
     h.calls.from.length = 0;
-    const rows = [{ float_id: 'f1', custodian_name: 'Cass', remaining: 5, currency: 'USD', float_amount: 70, project_name: 'Harbour' }];
+    const rows = [{ float_id: 'f1', custodian_name: 'Cass', remaining: 5, currency: 'USD', project_name: 'Harbour' }];
     h.result.value = { data: rows, error: null };
     expect(await dal.floatChoices('p1', null)).toEqual(rows);
     expect(h.calls.from).not.toContain('imprest_floats');
