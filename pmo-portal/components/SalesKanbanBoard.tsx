@@ -1,7 +1,9 @@
 import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Kanban, KanbanColumn, KanbanStageIndicator, StatusPill, Badge, TaxBasisLabel } from '@/src/components/ui';
+import { Kanban, KanbanColumn, KanbanStageIndicator, StatusPill, Badge, TaxBasisLabel, type DropState } from '@/src/components/ui';
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
+import { BoardDnd, DraggableCard, DroppableColumn } from '@/src/components/kanban/BoardDnd';
+import type { MoveState } from '@/src/components/kanban/useOptimisticMoves';
 import { useProjectStatusLabel, useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
 import { formatCurrency } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
@@ -31,6 +33,15 @@ interface SalesKanbanBoardProps {
   presentation?: 'board' | 'list';
   /** Active URL stage; compact rows omit a repeated status label when grouped by stage. */
   selectedStatus?: PipelineProject['status'] | null;
+  /** Drag controller (DND, #1637). Absent: the board renders exactly as before. */
+  drag?: {
+    columnOf: (projectId: string, serverColumnId: string) => string;
+    stateOf: (projectId: string) => MoveState | null;
+    canDrag: (project: PipelineProject) => boolean;
+    canDrop: (projectId: string, columnId: string) => boolean;
+    isHome: (projectId: string, columnId: string) => boolean;
+    onMove: (projectId: string, columnId: string) => void;
+  };
 }
 
 /**
@@ -198,12 +209,15 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
   onOpen,
   selectedId,
   selectedStageIndex = null,
+  drag,
 }) => {
   const { t } = useTranslation();
   // Cards use each project's OWN currency (migration 0201). Open columns show a count only: the
   // stage value lives once, in the funnel above, where mixed currencies are handled.
   const stageLabel = useSalesStageLabel();
-  const byColumn = (col: SalesColumn) => projects.filter((p) => col.statuses.includes(p.status));
+  const serverColumnId = (p: PipelineProject) => SALES_COLUMNS.find((c) => c.statuses.includes(p.status))?.testId ?? '';
+  const byColumn = (col: SalesColumn) =>
+    projects.filter((p) => (drag ? drag.columnOf(p.id, serverColumnId(p)) : serverColumnId(p)) === col.testId);
   const { activeStageIndex, scrollWrapRef, colRefs, onScroll, handleStageClick } =
     useKanbanMobileScroll();
 
@@ -212,6 +226,29 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
   useEffect(() => {
     if (selectedStageIndex !== null) handleStageClick(selectedStageIndex);
   }, [selectedStageIndex, handleStageClick]);
+
+  const byId = new Map(projects.map((p) => [p.id, p]));
+  const withDnd = (board: React.ReactElement) =>
+    drag ? (
+      <BoardDnd
+        canDrop={drag.canDrop}
+        isHome={drag.isHome}
+        onMove={drag.onMove}
+        cardLabel={(id) => { const p = byId.get(id); return p ? projectDisplayName(p) : ''; }}
+        columnLabel={(id) => { const c = SALES_COLUMNS.find((x) => x.testId === id); return c ? stageLabel(c) : id; }}
+        renderOverlay={(id) => {
+          const p = byId.get(id);
+          // The card being held, at its own width (dnd-kit sizes the overlay to the source card). Inert: a picture, not a control.
+          return p ? (
+            <div inert aria-hidden="true" className="pointer-events-none w-full shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
+              <DealCard project={p} selected={false} onActivate={() => undefined} />
+            </div>
+          ) : null;
+        }}
+      >
+        {board}
+      </BoardDnd>
+    ) : board;
 
   // The five OPEN columns for the stage indicator (terminal Won/Lost are excluded —
   // the indicator is for navigating the pipeline, not the terminal archive columns).
@@ -233,6 +270,7 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
       {/* Kanban scroll wrapper — onScroll is passed directly to <Kanban> so it lands on
           the actual .kanban-scroll element. scroll events do NOT bubble, so attaching the
           handler to any ancestor wrapper would never fire on a swipe gesture. */}
+      {withDnd(
       <Kanban aria-label={t('sales.board.ariaLabel', 'Sales pipeline board')} className="px-2" onScroll={onScroll}>
         {SALES_COLUMNS.map((col, colIdx) => {
           const colProjects = byColumn(col);
@@ -248,34 +286,52 @@ const SalesKanbanBoardView: React.FC<SalesKanbanBoardProps> = ({
                 })}
               </span>
             ) : undefined;
-          return (
-            <div
-              key={col.title}
-              ref={(el) => { colRefs.current[colIdx] = el; }}
-              data-testid={col.testId}
-              className="flex min-w-0 flex-col"
+          const column = (dropState?: DropState) => (
+            <KanbanColumn
+              title={colTitle}
+              dotColor={col.dotColor}
+              count={colProjects.length}
+              totals={col.terminal ? lostCountsLine : undefined}
+              emptyMessage={t('projects.kanban.empty', { defaultValue: 'No projects in {{stage}}', stage: colTitle })}
+              selected={colIdx === selectedStageIndex}
+              dropState={dropState}
             >
-              <KanbanColumn
-                title={colTitle}
-                dotColor={col.dotColor}
-                count={colProjects.length}
-                totals={col.terminal ? lostCountsLine : undefined}
-                emptyMessage={t('projects.kanban.empty', { defaultValue: 'No projects in {{stage}}', stage: colTitle })}
-                selected={colIdx === selectedStageIndex}
-              >
-                {colProjects.map((p) => (
+              {colProjects.map((p) => {
+                const card = (
                   <DealCard
                     key={p.id}
                     project={p}
                     selected={p.id === selectedId}
                     onActivate={() => onOpen(p)}
                   />
-                ))}
-              </KanbanColumn>
+                );
+                if (!drag) return card;
+                const moveState = drag.stateOf(p.id);
+                return (
+                  <DraggableCard key={p.id} id={p.id} disabled={!drag.canDrag(p)} moveState={moveState}>
+                    {card}
+                    {moveState === 'saving' && (
+                      <p className="px-1 pt-1 text-[11.5px] text-muted-foreground">{t('boardDrag:saving', 'Saving…')}</p>
+                    )}
+                  </DraggableCard>
+                );
+              })}
+            </KanbanColumn>
+          );
+          const columnClass = 'flex min-w-0 flex-col';
+          const setColRef = (el: HTMLDivElement | null) => { colRefs.current[colIdx] = el; };
+          return drag ? (
+            <DroppableColumn key={col.title} id={col.testId} testId={col.testId} className={columnClass} nodeRef={setColRef}>
+              {column}
+            </DroppableColumn>
+          ) : (
+            <div key={col.title} ref={setColRef} data-testid={col.testId} className={columnClass}>
+              {column()}
             </div>
           );
         })}
-      </Kanban>
+      </Kanban>,
+      )}
     </div>
   );
 };
