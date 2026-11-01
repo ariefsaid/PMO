@@ -24,13 +24,12 @@ import type { Tables } from '@/src/lib/supabase/database.types';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { efakturRefusal } from '@/src/lib/efaktur';
 import { useStartRecordFolder } from '@/src/hooks/useStartRecordFolder';
+import { procurementDetailKey, cachedProcurementProjectId, invalidateProcurementCase } from '@/src/hooks/procurementQueryKeys';
 
 // ---------------------------------------------------------------------------
 // Query key factory — org-scoped (mirrors useBudget pattern, AC-816)
 // ---------------------------------------------------------------------------
 
-const procurementDetailKey = (orgId: string | undefined, id: string | undefined) =>
-  ['procurement', orgId, id] as const;
 
 // ---------------------------------------------------------------------------
 // Read hook (C1)
@@ -74,7 +73,7 @@ export function useProcurementMutations(id: string) {
   const realRole = useOptionalRealRole();
 
   const invalidateDetail = () => {
-    queryClient.invalidateQueries({ queryKey: procurementDetailKey(orgId, id) });
+    invalidateProcurementCase(queryClient, orgId, id, [cachedProcurementProjectId(queryClient, orgId, id)]);
     queryClient.invalidateQueries({ queryKey: ['procurement-item-eligibility', orgId, id] });
   };
 

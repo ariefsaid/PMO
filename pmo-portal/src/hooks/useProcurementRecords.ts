@@ -37,14 +37,13 @@ import {
   pendingPushAfterWrite,
   type PendingPushState,
 } from '@/src/lib/adapterSeam/pendingPush';
+import { cachedProcurementProjectId, invalidateProcurementCase } from '@/src/hooks/procurementQueryKeys';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 
 // ---------------------------------------------------------------------------
 // Query key factory — org-scoped (mirrors useProcurementDetail shape)
 // ---------------------------------------------------------------------------
 
-const procurementDetailKey = (orgId: string | undefined, id: string) =>
-  ['procurement', orgId, id] as const;
 
 // ---------------------------------------------------------------------------
 // Input shapes (mirrored to RecordCaptureForm for type safety)
@@ -106,7 +105,7 @@ export function useProcurementRecordMutations(procurementId: string) {
   const orgId = currentUser?.org_id;
 
   const invalidateDetail = () => {
-    qc.invalidateQueries({ queryKey: procurementDetailKey(orgId, procurementId) });
+    invalidateProcurementCase(qc, orgId, procurementId, [cachedProcurementProjectId(qc, orgId, procurementId)]);
     qc.invalidateQueries({ queryKey: ['procurement-item-eligibility', orgId, procurementId] });
   };
 

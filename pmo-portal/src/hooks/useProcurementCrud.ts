@@ -13,6 +13,11 @@ import {
   type ProcurementDocumentInput,
   type ProcurementDocumentRow,
 } from '@/src/lib/repositories';
+import {
+  procurementDetailKey,
+  cachedProcurementProjectId,
+  invalidateProcurementCase,
+} from '@/src/hooks/procurementQueryKeys';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
 // ---------------------------------------------------------------------------
@@ -25,9 +30,6 @@ import type { Tables } from '@/src/lib/supabase/database.types';
 //     ['procurement', orgId, id] so the open detail page refetches.
 // All errors propagate as AppError (code preserved) for classifyMutationError.
 // ---------------------------------------------------------------------------
-
-const procurementDetailKey = (orgId: string | undefined, id: string) =>
-  ['procurement', orgId, id] as const;
 
 const procurementDocsKey = (orgId: string | undefined, id: string) =>
   ['procurement-docs', orgId, id] as const;
@@ -94,43 +96,44 @@ export function useProcurementCrudMutations(id: string) {
   const qc = useQueryClient();
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  const invalidate = () =>
-    qc.invalidateQueries({ queryKey: procurementDetailKey(orgId, id) });
+  const invalidate = (extraProjectIds: ReadonlyArray<string | null> = []) =>
+    invalidateProcurementCase(qc, orgId, id, [cachedProcurementProjectId(qc, orgId, id), ...extraProjectIds]);
   // Document mutations refresh both the detail key (in case a count surfaces there)
   // and the dedicated document-register query.
   const invalidateDocs = () => {
-    invalidate();
+    qc.invalidateQueries({ queryKey: procurementDetailKey(orgId, id) });
     qc.invalidateQueries({ queryKey: procurementDocsKey(orgId, id) });
   };
 
   const updateHeader = useMutation<void, AppError, ProcurementHeaderPatch>({
     mutationFn: (patch) => repositories.procurement.updateHeader(id, patch),
-    onSuccess: invalidate,
+    // the cached detail still holds the OLD project here; the patch carries the new one.
+    onSuccess: (_d, patch) => invalidate([patch.projectId]),
   });
 
   const updateVendor = useMutation<void, AppError, string>({
     mutationFn: (vendorId) => repositories.procurement.updateVendor(id, vendorId),
-    onSuccess: invalidate,
+    onSuccess: () => invalidate(),
   });
 
   const createItem = useMutation<ProcurementItemRow, AppError, ProcurementItemInput>({
     mutationFn: (input) => repositories.procurement.createItem(id, input),
-    onSuccess: invalidate,
+    onSuccess: () => invalidate(),
   });
 
   const updateItem = useMutation<void, AppError, UpdateItemArgs>({
     mutationFn: ({ id: itemId, patch }) => repositories.procurement.updateItem(itemId, patch),
-    onSuccess: invalidate,
+    onSuccess: () => invalidate(),
   });
 
   const deleteItem = useMutation<void, AppError, string>({
     mutationFn: (itemId) => repositories.procurement.deleteItem(itemId),
-    onSuccess: invalidate,
+    onSuccess: () => invalidate(),
   });
 
   const selectQuote = useMutation<void, AppError, string>({
     mutationFn: (quotationId) => repositories.procurement.selectQuote(quotationId),
-    onSuccess: invalidate,
+    onSuccess: () => invalidate(),
   });
 
   const createDocument = useMutation<ProcurementDocumentRow, AppError, ProcurementDocumentInput>({

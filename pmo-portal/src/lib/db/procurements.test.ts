@@ -98,6 +98,31 @@ describe('listProcurements', () => {
     await expect(listProcurements()).rejects.toThrow('boom');
   });
 
+  it('T-11: loads the whole accessible list past the 1000-row cap, keyset-ordered by id', async () => {
+    const mk = (n: number) => ({ id: String(n).padStart(6, '0') });
+    const all = Array.from({ length: 1500 }, (_, i) => mk(i));
+    const gtSpy = vi.fn();
+    const orderSpy = vi.fn();
+    let after: string | null = null;
+    const builder: Record<string, unknown> = {
+      select: mockSelect,
+      order: (...a: unknown[]) => { orderSpy(...a); return builder; },
+      gt: (_c: string, v: string) => { gtSpy(v); after = v; return builder; },
+      limit: () => builder,
+      then: (resolve: (v: unknown) => void) => {
+        const rows = all.filter((r) => after === null || r.id > after).slice(0, 1000);
+        after = null;
+        return Promise.resolve({ data: rows, error: null }).then(resolve);
+      },
+    };
+    mockSelect.mockReturnValue(builder);
+    mockFrom.mockReturnValue(builder);
+    const result = await listProcurements();
+    expect(result).toHaveLength(1500);
+    expect(orderSpy).toHaveBeenCalledWith('id', { ascending: true });
+    expect(gtSpy).toHaveBeenCalledWith('000999');
+  });
+
   it('data-layer perf hardening #4: does NOT range-bound the query when called with no params (opt-in pagination)', async () => {
     makeBuilder({ data: [], error: null });
     await listProcurements();
