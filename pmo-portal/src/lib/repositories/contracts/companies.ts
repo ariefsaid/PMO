@@ -12,6 +12,8 @@ export interface CompanyRepository {
   list(params?: { type?: CompanyType }): Promise<CompanyRow[]>;
   /** A single company by id, or null when not found / not readable. */
   get(id: string): Promise<CompanyRow | null>;
+  /** The readable subset of `ids` in batched reads; ids the caller cannot read are absent. */
+  getMany(ids: readonly string[]): Promise<CompanyRow[]>;
   /** Create a company (org_id stamped by RLS, never sent). */
   create(input: CompanyInput): Promise<CompanyRow>;
   /** Update a company's name + type. */

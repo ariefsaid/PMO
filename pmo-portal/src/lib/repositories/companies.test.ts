@@ -23,6 +23,7 @@ describe('companyRepository reads and lifecycle', () => {
     ['listClients', 'listClientCompanies', []],
     ['list', 'listCompanies', [{ search: 'a' }]],
     ['get', 'getCompany', ['c1']],
+    ['getMany', 'getCompaniesByIds', [['c1', 'c2']]],
     ['setProjectNumberSegment', 'setCompanyProjectNumberSegment', ['c1', 'ABC']],
     ['setTaxDefaults', 'setCompanyTaxDefaults', ['c1', { rate: 11 }]],
     ['archive', 'archiveCompany', ['c1']],

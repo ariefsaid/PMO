@@ -1,6 +1,6 @@
 import { projectCodedPickerLabel } from '@/src/lib/projectDisplayName';
 import { useEffect, useMemo, useState } from 'react';
-import { useQueries } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/src/auth/useAuth';
@@ -33,12 +33,6 @@ function latestSuppliedPair(periods: readonly FinancialStatementPair[], kind: St
 
 function pairLabel(pair: FinancialStatementPair, priorLabel: string): string {
   return `${formatDateOnly(pair.currentStart)} – ${formatDateOnly(pair.currentEnd)} · ${priorLabel}: ${formatDateOnly(pair.priorStart)} – ${formatDateOnly(pair.priorEnd)}`;
-}
-
-function reportTitle(statement: Statement, t: (key: string, fallback: string) => string): string {
-  if (statement === 'trial_balance') return t('financialStatements.trialBalance', 'Trial balance');
-  if (statement === 'profit_and_loss') return t('financialStatements.profitAndLoss', 'Profit and loss');
-  return t('financialStatements.balanceSheet', 'Balance sheet');
 }
 
 function completeDetailRead(value: FinancialStatementRead | undefined): value is FinancialStatementRead & {
@@ -78,20 +72,20 @@ const FinancialStatements: React.FC = () => {
     () => admittedProjectScopes.flatMap((scope) => scope.projectId ? [scope.projectId] : []),
     [admittedProjectScopes],
   );
-  const projectNameQueries = useQueries({
-    queries: admittedProjectIds.map((projectId) => ({
-      queryKey: ['financial-statements', 'mapped-project-name', currentUser?.org_id, currentUser?.id, realRole, projectId],
-      queryFn: () => repositories.project.get(projectId),
-      enabled: Boolean(catalogueQuery.eligible && catalogue?.state === 'complete' && currentUser?.org_id),
-    })),
+  const projectNames = useQuery({
+    queryKey: ['financial-statements', 'mapped-project-name', currentUser?.org_id, currentUser?.id, realRole, [...admittedProjectIds].sort()],
+    queryFn: () => repositories.project.getMany(admittedProjectIds),
+    enabled: Boolean(catalogueQuery.eligible && catalogue?.state === 'complete' && currentUser?.org_id && admittedProjectIds.length > 0),
   });
-  const namedProjectOptions = admittedProjectIds.flatMap((projectId, index) => {
-    const query = projectNameQueries[index];
-    if (!query || query.isError) return [];
-    const project = query.data;
-    if (!project || typeof project.name !== 'string' || project.name.trim() === '') return [];
-    return [{ value: projectId, label: projectCodedPickerLabel(project) }];
-  });
+  const namedProjectOptions = useMemo(() => {
+    if (projectNames.isError) return [];
+    const byId = new Map((projectNames.data ?? []).map((project) => [project.id, project]));
+    return admittedProjectIds.flatMap((projectId) => {
+      const project = byId.get(projectId);
+      if (!project || typeof project.name !== 'string' || project.name.trim() === '') return [];
+      return [{ value: projectId, label: projectCodedPickerLabel(project) }];
+    });
+  }, [admittedProjectIds, projectNames.data, projectNames.isError]);
 
   useEffect(() => {
     if (selectedScope !== COMPANY_SCOPE && selectedScope !== null && !namedProjectOptions.some((option) => option.value === selectedScope)) {
@@ -119,8 +113,7 @@ const FinancialStatements: React.FC = () => {
     ? companyScope
     : selectedProjectScope;
   const scopeAdmitsStatement = Boolean(selectedProjectHasReadableName && currentScope && currentScope.statements.includes(statement) && currentScope.viewKinds.includes('account_breakdown'));
-  const validPeriod = selectedPair !== null && selectedPair.currentStart === pickerPeriod;
-  const selection: GetFinancialStatementInput | null = catalogue?.state === 'complete' && validPeriod && scopeAdmitsStatement && selectedScope !== null
+  const selection: GetFinancialStatementInput | null = catalogue?.state === 'complete' && selectedPair !== null && scopeAdmitsStatement && selectedScope !== null
     ? {
         periodKind,
         periodStart: selectedPair.currentStart,
@@ -145,6 +138,7 @@ const FinancialStatements: React.FC = () => {
     { value: 'profit_and_loss', label: t('financialStatements.profitAndLoss', 'Profit and loss') },
     { value: 'balance_sheet', label: t('financialStatements.balanceSheet', 'Balance sheet') },
   ];
+  const statementTitle = statementOptions.find((option) => option.value === statement)?.label ?? '';
   const scopeOptions = [
     { value: COMPANY_SCOPE, label: t('financialStatements.companyScope', 'Company') },
     ...namedProjectOptions,
@@ -293,7 +287,7 @@ const FinancialStatements: React.FC = () => {
         </div>
       )}
       <FinancialStatementsSection
-        title={reportTitle(statement, t)}
+        title={statementTitle}
         state={sectionState}
         labels={sectionLabels}
         onRetry={sectionRetry}
@@ -301,7 +295,7 @@ const FinancialStatements: React.FC = () => {
         {isValidRead && detailRead && detailRead.result.viewKind === 'account_breakdown' && (
           <NativeStatementPair
             pair={detailRead.result.payload}
-            reportTitle={reportTitle(statement, t)}
+            reportTitle={statementTitle}
             companyLabel={detailRead.companyLabel}
             currency={detailRead.generation.currency}
             presentation={detailRead.generation.presentation}

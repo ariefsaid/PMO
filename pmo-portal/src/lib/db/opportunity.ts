@@ -81,3 +81,18 @@ export async function getOpportunity(id: string): Promise<OpportunityRow | null>
   if (error) throw new Error(error.message);
   return (data as unknown as OpportunityRow) ?? null;
 }
+
+/** Ids per `.in('id', …)` request: keeps the URL short and each page under the row cap. */
+export const BY_IDS_CHUNK = 100;
+
+/** Opportunities readable by the caller among `ids`; inaccessible ids are simply absent. Reads in chunks. */
+export async function getOpportunitiesByIds(ids: readonly string[]): Promise<OpportunityRow[]> {
+  const unique = [...new Set(ids)];
+  const out: OpportunityRow[] = [];
+  for (let i = 0; i < unique.length; i += BY_IDS_CHUNK) {
+    const { data, error } = await supabase.from('projects').select(SELECT).in('id', unique.slice(i, i + BY_IDS_CHUNK));
+    if (error) throw new Error(error.message);
+    out.push(...((data as unknown as OpportunityRow[]) ?? []));
+  }
+  return out;
+}

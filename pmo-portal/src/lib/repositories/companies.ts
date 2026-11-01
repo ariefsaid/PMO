@@ -4,6 +4,7 @@ import {
   listClientCompanies,
   listCompanies,
   getCompany,
+  getCompaniesByIds,
   createCompany,
   updateCompany,
   updateCompanyShortName,
@@ -51,6 +52,7 @@ export const companyRepository: CompanyRepository = {
   listClients: () => wrap(() => listClientCompanies()),
   list: (params) => wrap(() => listCompanies(params)),
   get: (id) => wrap(() => getCompany(id)),
+  getMany: (ids) => wrap(() => getCompaniesByIds(ids)),
   create: async (input) => {
     const kind = erpPartyDocKind(input.type);
     if (routeDomainWrite('companies') !== 'external' || !kind) return wrap(() => createCompany(input));

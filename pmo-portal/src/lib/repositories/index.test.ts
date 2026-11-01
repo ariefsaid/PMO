@@ -26,12 +26,13 @@ vi.mock('@/src/lib/db/projects', () => ({
   deleteProject: vi.fn(),
   setProjectContractValue: vi.fn(),
 }));
-vi.mock('@/src/lib/db/opportunity', () => ({ getOpportunity: vi.fn() }));
+vi.mock('@/src/lib/db/opportunity', () => ({ getOpportunity: vi.fn(), getOpportunitiesByIds: vi.fn() }));
 vi.mock('@/src/lib/db/projectTransitions', () => ({ transitionProject: vi.fn(), getProjectWinEligibility: vi.fn(), listPipelineStageConfig: vi.fn() }));
 vi.mock('@/src/lib/db/companies', () => ({
   listClientCompanies: vi.fn(),
   listCompanies: vi.fn(),
   getCompany: vi.fn(),
+  getCompaniesByIds: vi.fn(),
   createCompany: vi.fn(),
   updateCompany: vi.fn(),
   archiveCompany: vi.fn(),
@@ -263,10 +264,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     expect(Object.keys(repositories.project).sort()).toEqual(
       // 'getWithRefs'/'listByClient'/'listPipelineStageConfig' added with 2d97e91d5 (project &
       // task projection refresh). Exhaustive API-seam contract — extend only deliberately.
-      ['archive', 'create', 'delete', 'get', 'getVatEditability', 'getWithRefs', 'list', 'listByClient', 'listIdentity', 'listPipelineStageConfig', 'proposeNumber', 'setContractValue', 'transition', 'updateHeader', 'winEligibility'].sort(),
+      ['archive', 'create', 'delete', 'get', 'getMany', 'getVatEditability', 'getWithRefs', 'list', 'listByClient', 'listIdentity', 'listPipelineStageConfig', 'proposeNumber', 'setContractValue', 'transition', 'updateHeader', 'winEligibility'].sort(),
     );
     expect(Object.keys(repositories.company).sort()).toEqual(
-      ['archive', 'create', 'delete', 'get', 'list', 'listClients', 'setProjectNumberSegment', 'setTaxDefaults', 'update'].sort(),
+      ['archive', 'create', 'delete', 'get', 'getMany', 'list', 'listClients', 'setProjectNumberSegment', 'setTaxDefaults', 'update'].sort(),
     );
     expect(Object.keys(repositories.document).sort()).toEqual(
       [
@@ -377,6 +378,12 @@ describe('delegation — methods pass args through and return the DAL result', (
     const result = await repositories.project.list(params);
     expect(projectsDal.listProjects).toHaveBeenCalledWith(params);
     expect(result).toBe(rows);
+  });
+
+  it('project.getMany delegates to getOpportunitiesByIds', async () => {
+    vi.mocked(opportunityDal.getOpportunitiesByIds).mockResolvedValue([]);
+    await repositories.project.getMany(['o1', 'o2']);
+    expect(opportunityDal.getOpportunitiesByIds).toHaveBeenCalledWith(['o1', 'o2']);
   });
 
   it('project.get delegates to getOpportunity', async () => {

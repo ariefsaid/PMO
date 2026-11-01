@@ -19,6 +19,8 @@ export interface ProjectRepository {
   listPipelineStageConfig(): Promise<PipelineStageConfig[]>;
   listIdentity(): Promise<Array<Pick<ProjectRow, 'id' | 'name'>>>;
   get(id: string): Promise<OpportunityRow | null>;
+  /** The readable subset of `ids` in batched reads; ids the caller cannot read are absent. */
+  getMany(ids: readonly string[]): Promise<OpportunityRow[]>;
   transition(id: string, to: ProjectStatus, opts?: TransitionProjectOpts): Promise<void>;
   winEligibility(id: string): Promise<string | null>;
   /** Create a new opportunity (Leads / Internal Project only; org_id stamped by RLS). */
