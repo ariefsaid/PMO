@@ -97,7 +97,17 @@ Alerts and destinations need the owner's PostHog account.
 
 ## S4 Push outcomes
 
-_Owned by slice S4 (#1532)._
+Dashboard `[PMO] Money pushes` (tiles in `scripts/posthog/spec/pushes.mjs`, source `erp_push_outcome`): outcomes per domain per day, outcomes by kind, failure rate per day, top error codes (not confirmed), held or quarantined in the last 7 days, quarantined per domain per day (alert C), push duration p95. Held/quarantined counts transitions, not what is held now: the outbox row is the record. Empty when PMO is standalone (no external tier), by design (ADR-0094). Run `node scripts/posthog/provision-dashboards.mjs` to create it (idempotent).
+
+### Alert click-path (owner account; not done by the build)
+
+1. Open `[PMO] Money pushes`, tile `Money pushes — outcomes per domain per day`. Insight menu, **Alerts**, **New alert**.
+2. **Alert A, money push failed:** series `erp_push_outcome`, filters `outcome = failed` and `domain` in `budget`, `revenue`, `procurement`, `expenses`. Condition: value **is greater than 0** (≥ 1), check every 15 minutes (or the finest interval offered).
+3. **Alert B, a command needs a person:** series `erp_push_outcome`, filter `needs_human = true`, any domain, any attempt count. Condition **is greater than 0**, same check interval.
+4. **Alert C, ERP outage (quarantined):** tile `Money pushes — quarantined per domain per day`; filter `domain` in `budget`, `revenue`, `procurement`, `expenses`. Condition **is greater than 0** over the check window (15 minutes or the finest interval offered). An unreachable ERP marks no `failed` row: the claim goes stale and the sweep quarantines it, so this is the alert that fires in an outage.
+5. Destination: the operator channel used for error alerts (S2). Subscribers only; no customer addresses.
+6. Other domains (`timesheets`, `companies`, …) are emitted and charted but not alerted.
+7. Create all three only on an environment with an ERP binding; a standalone deployment never emits the event.
 
 ## S5 Business events
 
