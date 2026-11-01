@@ -4358,7 +4358,11 @@
       "withheld_at_record": "Withheld at record",
       "pph_type_at_record": "PPh type at record",
       "type_source": "Type source",
-      "released_at": "Released at"
+      "released_at": "Released at",
+      "stage": "Stage",
+      "entered_on": "Stage date",
+      "source": "Source",
+      "redated_at": "Date changed at"
     },
     "kind": {
       "project": "Project",
@@ -4376,7 +4380,8 @@
       "sales_invoice": "Sales invoice",
       "procurement_invoice": "Supplier invoice",
       "vendor_withholding_slip": "Bukti potong",
-      "vendor_withholding_slip_bill": "Bukti potong bill link"
+      "vendor_withholding_slip_bill": "Bukti potong bill link",
+      "project_stage_entry": "Stage entry"
     },
     "withholdingType": {
       "pph23": "PPh 23",
@@ -4435,7 +4440,9 @@
       "org_tax_default_change": "Tax defaults changed",
       "org_down_payment_item_change": "Down-payment items changed",
       "meeting_grant_create": "Meeting access granted",
-      "meeting_grant_revoke": "Meeting access revoked"
+      "meeting_grant_revoke": "Meeting access revoked",
+      "project_stage_entry_redate": "Stage date changed",
+      "project_stage_entry_add": "Skipped stage added"
     }
   },
   "entityForm": {

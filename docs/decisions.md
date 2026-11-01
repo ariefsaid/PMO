@@ -3619,3 +3619,11 @@ PMO must sync with the ERP in all four cases: a new org whose ERP already holds 
 - **Pipeline dates (CRM-grade history):** every stage entry is kept (stage, date, who, when recorded), including going back for a re-tender or re-quote; a stage entry's date is the stage's key date ("Quoted", "Tender sent", "Signed" = contract date, "Lost"). Project admin and above, including PMs, may backdate or add a skipped stage; a new entry is never dated before the previous one; every change is audited. Issuing a quotation document proposes the Quoted date. The card shows one concise line for the latest entry ("Quoted 12 Oct · 20 d"); the full history is on the deal page; bulk import takes a date per stage.
 - **Assistant reminders (#1594):** build a confirmed "Remind this person": the assistant proposes, the user confirms, the recipient gets an in-app notification; same org, active member, daily cap.
 - **Evals (#1596):** run the two reel journeys 10 times each on the deployed model (DeepSeek 4.1 Flash); bar 9/10; only the scores are stored.
+
+### DD-EQU-1 — equipment allocation drill-down: Project Managers see their share and non-payroll amounts only (Director, 2026-11-02)
+
+In the equipment allocation drill-down (`list_equipment_allocations`), a Project Manager reads their share and the
+amounts of non-Employee-party pools. The pool, its line count and the driver total are null for them on every row,
+and so is the amount of any Employee-party row. Admin, Finance and Executive read every value. The ledger-read
+ruling (0311, mirror rows for Admin/Finance/Executive) outranks FR-EQU-062 and FR-EQU-044, which are amended to
+say so. Proven in `supabase/tests/equipment_actual_cost.test.sql` (one row per hidden field, PM null / Finance value).
