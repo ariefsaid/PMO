@@ -165,48 +165,63 @@ async function fetchLists(
   return data.lists;
 }
 
-/** Small fixed cap on parallel ClickUp reads (rate-limit friendly). */
+/** Small fixed cap on parallel ClickUp reads across the WHOLE traversal (rate-limit friendly). */
 const HIERARCHY_CONCURRENCY = 4;
 
-/** Ordered map with at most `limit` calls in flight; the first rejection rejects the whole map. */
-async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const out = new Array<R>(items.length);
-  let next = 0;
-  const worker = async () => {
-    while (next < items.length) {
-      const i = next++;
-      out[i] = await fn(items[i]);
+/**
+ * One request-wide gate: at most `limit` calls in flight across every level of the tree.
+ * Once any call fails, queued and new calls reject without touching the network
+ * (calls already in flight still settle).
+ */
+function createGate(limit: number) {
+  let active = 0;
+  let failure: unknown;
+  let failed = false;
+  const waiting: Array<() => void> = [];
+  return async <R>(fn: () => Promise<R>): Promise<R> => {
+    while (active >= limit && !failed) await new Promise<void>((r) => waiting.push(r));
+    if (failed) throw failure;
+    active++;
+    try {
+      return await fn();
+    } catch (e) {
+      if (!failed) { failed = true; failure = e; }
+      throw e;
+    } finally {
+      active--;
+      // Wake everyone on failure so they reject; otherwise hand the slot to one waiter.
+      if (failed) waiting.splice(0).forEach((r) => r());
+      else waiting.shift()?.();
     }
   };
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-  return out;
 }
 
 /** Build flattened list hierarchy from ClickUp workspace. */
 async function buildFlattenedLists(deps: ClickUpHierarchyDeps): Promise<ListItem[]> {
-  const teams = await fetchTeams(deps);
-  const perTeam = await mapLimit(teams, HIERARCHY_CONCURRENCY, async (team) => {
-    const spaces = await fetchSpaces(deps, team.id);
-    const perSpace = await mapLimit(spaces, HIERARCHY_CONCURRENCY, async (space) => {
+  const gate = createGate(HIERARCHY_CONCURRENCY);
+  const teams = await gate(() => fetchTeams(deps));
+  const perTeam = await Promise.all(teams.map(async (team) => {
+    const spaces = await gate(() => fetchSpaces(deps, team.id));
+    const perSpace = await Promise.all(spaces.map(async (space) => {
       const items: ListItem[] = [];
-      const folders = await fetchFolders(deps, space.id);
+      const folders = await gate(() => fetchFolders(deps, space.id));
       // Lists in folders
-      const perFolder = await mapLimit(folders, HIERARCHY_CONCURRENCY, async (folder) =>
-        (await fetchLists(deps, space.id, folder.id)).map((list) => ({
+      const perFolder = await Promise.all(folders.map(async (folder) =>
+        (await gate(() => fetchLists(deps, space.id, folder.id))).map((list) => ({
           id: list.id,
           name: list.name,
           space_name: space.name,
           folder_name: folder.name as string | null,
-        })));
+        }))));
       for (const group of perFolder) items.push(...group);
       // Lists directly in space (no folder)
-      for (const list of await fetchLists(deps, space.id, null)) {
+      for (const list of await gate(() => fetchLists(deps, space.id, null))) {
         items.push({ id: list.id, name: list.name, space_name: space.name, folder_name: null });
       }
       return items;
-    });
+    }));
     return perSpace.flat();
-  });
+  }));
   return perTeam.flat();
 }
 

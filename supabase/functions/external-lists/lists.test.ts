@@ -499,4 +499,77 @@ describe('external-lists — hierarchy honesty', () => {
       },
     );
   });
+
+  // 6 spaces x 6 folders: every level fans out, so nested per-level caps would multiply.
+  const wideTree = () => {
+    const spaces = Array.from({ length: 6 }, (_, i) => ({ id: `s${i}`, name: `S${i}` }));
+    const folderIds = (s: string) => Array.from({ length: 6 }, (_, i) => `${s}f${i}`);
+    return [
+      ...baseMocks(),
+      clickup('/api/v2/team/team-1/space', () => jsonResponse({ spaces })),
+      ...spaces.flatMap((s) => [
+        clickup(`/api/v2/space/${s.id}/folder`, () =>
+          jsonResponse({ folders: folderIds(s.id).map((id) => ({ id, name: id })) })),
+        clickup(`/api/v2/space/${s.id}/list`, () => jsonResponse({ lists: [] })),
+        ...folderIds(s.id).map((id) =>
+          clickup(`/api/v2/folder/${id}/list`, () => jsonResponse({ lists: [] }))),
+      ]),
+    ];
+  };
+
+  /** Wrap the mocked fetch: `onStart` runs as each ClickUp call begins; returning 'fail' makes it 429. */
+  async function runInstrumented(
+    mocks: ReturnType<typeof wideTree>,
+    onStart: (url: string) => 'fail' | void,
+    onEnd: () => void,
+  ): Promise<Response> {
+    let res!: Response;
+    await withFetchMock(mocks, async () => {
+      const mocked = globalThis.fetch;
+      globalThis.fetch = (async (input: Request | URL | string, init?: RequestInit) => {
+        const url = String(input instanceof Request ? input.url : input);
+        if (!url.includes('clickup')) return mocked(input, init);
+        const verdict = onStart(url);
+        await new Promise((r) => setTimeout(r, 5));
+        onEnd();
+        return verdict === 'fail' ? new Response('{}', { status: 429 }) : mocked(input, init);
+      }) as typeof fetch;
+      try {
+        res = await handleListsRequest(await authed({ tier: 'clickup' }));
+      } finally {
+        globalThis.fetch = mocked;
+      }
+    });
+    return res;
+  }
+
+  it('total in-flight ClickUp calls across the whole nested tree stay within the cap', async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const res = await runInstrumented(wideTree(), () => {
+      peak = Math.max(peak, ++inFlight);
+    }, () => { inFlight--; });
+    assertEquals(res.status, 200);
+    if (peak > 4 || peak < 2) throw new Error(`peak concurrency ${peak} outside 2..4`);
+  });
+
+  it('after the first ClickUp failure no further ClickUp calls start', async () => {
+    let started = 0;
+    let startedAtFailureEnd = -1;
+    let failed = false;
+    const res = await runInstrumented(wideTree(), (url) => {
+      started++;
+      if (!failed && url.endsWith('/folder')) {
+        failed = true;
+        return 'fail';
+      }
+    }, () => {
+      if (failed && startedAtFailureEnd < 0) startedAtFailureEnd = started;
+    });
+    assertEquals(res.status, 502);
+    // Calls already in flight (<= cap) may land; nothing new may begin once any call has failed.
+    if (started > startedAtFailureEnd) {
+      throw new Error(`${started - startedAtFailureEnd} calls started after the failure`);
+    }
+  });
 });
