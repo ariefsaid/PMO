@@ -261,11 +261,12 @@ describe('ProjectStatusControl — confirm before write (PR1-PR3)', () => {
     const dlg = screen.getByRole('alertdialog');
     expect(dlg).toBeInTheDocument();
 
+    await user.selectOptions(screen.getByRole('combobox', { name: /Reason/i }), 'price');
     await user.click(getConfirmButton(/Mark lost/i));
     expect(mockMutateAsync).toHaveBeenCalledWith({
       id: 'proj-1',
       to: 'Loss Tender',
-      opts: undefined,
+      opts: { lostReason: 'price', lostNote: undefined },
     });
   });
 
