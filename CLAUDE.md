@@ -36,6 +36,9 @@ B2B multi-tenancy without a rewrite.
 - `supabase/migrations/` — Postgres schema + RLS policies.
 - `.claude/agents/`, `.claude/skills/` — the role agents and vendored skills (skills gitignored, via `scripts/vendor-skills.sh`). **Edit skills ONLY in `.claude/skill-overrides/<name>/` (tracked)** — the vendor script overlays them; edits in `.claude/skills/` are destroyed on re-vendor. Config the skills read: `docs/agents/{issue-tracker,triage-labels,domain,skills}.md`.
 
+## What's next: the pinned Roadmap issue
+Start every session at **GitHub issue "Roadmap: vision, the maps, and what's next" (#1571, pinned)**: vision, every map, and the Now/Next/Later order. Every open issue sits under one map with a status label. When a Now item ships, update the roadmap in the same session.
+
 ## Operating model: Owner → Director → role agents
 The **owner** talks to the **Director** (Opus 4.8, the main session). The Director runs an
 **issue-driven loop** and takes each issue end-to-end — but **does not run the build itself by
@@ -136,15 +139,17 @@ Do not merge, push or promote to `main` or production. This overrides the generi
 below and in older plans. Production additionally retains its separate per-instance approval rule.
 
 
-**v0.23.0 throughput override (owner, 2026-10-18):** every slice PR to dev requires the normal
-two unit shards, pgTAP and verify. (Browser cadence: see the 2026-10-30 rule below.) Up to **two** browser dispatches may
+**Dev CI runs what a PR can affect (owner, 2026-10-31, #1584):** a PR to dev runs only the affected unit
+tests, pgTAP only for `supabase/**`, Deno only for edge functions (`scripts/ci-test-scope.mjs`; config,
+setup, deps, `ci.yml`, deletions or >60 files force full). Every push to dev runs everything; a red push run
+is fixed on dev first. **v0.23.0 throughput override (owner, 2026-10-18):** (Browser cadence: see the 2026-10-30 rule below.) Up to **two** browser dispatches may
 run concurrently through the logged shared wrapper; at most **two** heavy local runs on the Mac.
 Build the three approved UX lanes in parallel with statements and money fixes; statements take
 priority on shared resources. Rebase translation-file edits immediately before each PR (#1070).
 Dev remains the ceiling. This supersedes older per-slice browser and single-dispatch limits.
 
 **Browser e2e runs on the PR to main, not on dev PRs (owner, 2026-10-30; replaces the 2026-10-23 and v0.23 browser cadences):**
-merge a PR to dev once `verify`, `pgtap` and both unit shards are green. CI's `integration` job runs the browser suite on the release PR
+merge a PR to dev once its `verify`, `unit` and (when run) `pgtap` checks are green. CI's `integration` job runs the browser suite on the release PR
 to `main`; a red run there is fixed on `dev`. `scripts/ci-e2e.sh` on a dev branch only to diagnose.
 
 - **CI is the full-suite gate for every PR (owner 2026-09-29/30):** PRs to `dev` gate on CI's `verify` +
@@ -196,7 +201,10 @@ to `main`; a red run there is fixed on `dev`. `scripts/ci-e2e.sh` on a dev branc
 - **⛔ HARD STOP — PRODUCTION (binding, owner directive 2026-06-17, RE-ENFORCED 2026-07-14 after a violation):** **NEVER push/deploy/promote to `production` without the owner's EXPLICIT, per-instance, this-message "yes" naming production.** This includes `git push origin main:production`, CF Pages prod, prod DB push (`db-push-prod.sh`), prod reseed, and prod edge-fn deploy. **Do NOT infer prod authorization** from "do it all", "ship it", "make it reachable", a stated deploy plan, or any prior approval — a prior "ship to prod" is **per-instance, never standing**, and ambiguity means STOP and ASK. Reaching `main` is the autonomous ceiling; the `main`→`production` step is ALWAYS a separate, explicit, owner-gated action. *(2026-07-14 incident: read "do it all and on by default" as prod authorization and promoted `main:production` without an explicit prod OK — this is exactly what must not happen; when in doubt, stop at `main` and ask.)*
 - **Branch flow (binding, owner directive 2026-06-17):** **work lands on `dev` → promoted to `main` (gated). `main` is the ceiling for autonomous work.** A prior "ship to prod" is per-instance, never standing. CI is tiered + resource-lean: PR→`dev` = `verify` + `pgtap` (fast lane; `ci.yml` gates pgtap on `base_ref == 'dev'`); PR→`main` = `verify` + `integration` (pgTAP + e2e + visual gates) so `main` is always clean; push to `main` = `verify` smoke (the only re-test of the merged result). `integration` fires automatically on the PR→`main`, and on a PR→`dev` only when dispatched via `scripts/ci-e2e.sh` (a dispatch skips `verify` + pgTAP — the PR ran them) and starts Supabase without the CI-unused containers (`studio,realtime,vector`) with Playwright browsers cached. `main`→`production` is a manual, owner-instructed promote only.
 - **Checkpoints:** the **owner** approves spec sign-off + **every production deploy** / irreversible infra (see Branch flow — prod requires a direct, per-instance instruction); the **Director** approves merge-to-`dev` and merge-to-`main` within the signed spec, and escalates anything strategic or out-of-spec.
-- **PRs:** one per issue — *for code*. **Docs-only changes (`docs/**`, `*.md`) push DIRECT to `dev`; no PR, no branch.**
+- **PRs: batch 3–5 related branches into one PR to `dev` (owner, 2026-10-31).** Workers push branches only; the
+  Director merges each into a batch branch with `git merge --no-ff` and opens one PR listing every `Closes`. Merge the
+  PR with a merge commit (`gh pr merge --merge`), never squash, so any one branch reverts on its own. Money, SoD and
+  auth changes ship alone. **Docs-only changes (`docs/**`, `*.md`) push DIRECT to `dev`; no PR, no branch.**
   CI paths-ignores them, so a docs PR gates on nothing and is pure ceremony (a docs PR reports "no checks
   reported"). This matches long-standing practice on `dev`. Exception: a docs change that is genuinely
   *reviewable content* (a spec/ADR you want the owner to sign off) may still take a PR — that's a review
@@ -314,7 +322,7 @@ immutable `headRefOid`, and, if the remote branch exists, require
 `git ls-remote --heads origin refs/heads/<branch>` to report the same OID. Any mismatch means stop and preserve
 the divergent branch. Only then confirm the exact issue worktree is clean, run
 `git worktree remove <exact-path>` (never `--force`) and `git worktree prune`, delete the local feature branch
-with `git branch -d <branch>` (use `-D` only after the exact-tip checks for a verified squash merge), and
+with `git branch -d <branch>` (use `-D` only after the exact-tip checks), and
 finally delete the still-matching repository-owned remote branch with `git push origin --delete <branch>`.
 Never remove a worktree or branch merely because it looks stale.
 

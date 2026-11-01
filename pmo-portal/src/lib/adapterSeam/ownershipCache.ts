@@ -40,20 +40,18 @@ export interface ProjectBindingRow {
 
 export function setProjectBindings(rows: readonly ProjectBindingRow[]): void {
   boundTaskProjects = new Set(rows.map((row) => row.projectId));
+  notifyOwnershipCacheListeners();
 }
 
 /** Update the loaded set after a successful link/unlink without making a write-time request. */
 export function setProjectBinding(projectId: string, isBound: boolean): void {
-  if (!cache) return;
-  const next = new Set(boundTaskProjects ?? []);
+  if (!cache || !boundTaskProjects) return;
+  const next = new Set(boundTaskProjects);
   if (isBound) next.add(projectId);
   else next.delete(projectId);
   boundTaskProjects = next;
+  notifyOwnershipCacheListeners();
 }
-
-/** Alias naming the generalized intent (P2, FR-ENA-005) — P1 callers keep `setTaskOwnership`;
- * identical body (the cache is domain-keyed, so one seed already covers every domain). */
-export const setDomainOwnership = setTaskOwnership;
 
 /** Reset to the fail-closed cold-start state (sign-out) — `routeTaskWrite()` returns `'pmo'` until re-seeded. */
 export function clearOwnershipCache(): void {
@@ -85,14 +83,14 @@ function notifyOwnershipCacheListeners(): void {
   for (const listener of listeners) listener();
 }
 
-/** True once the cache is seeded — ownership AND project bindings have resolved and been stamped.
+/** True once ownership AND project bindings have resolved and been stamped.
  *  This is exactly the state `routeDomainWrite` consults, so a mode held until this flips can
  *  never disagree with where the write will land. */
 export function isOwnershipCacheSynced(): boolean {
-  return cache !== null;
+  return cache !== null && boundTaskProjects !== null;
 }
 
-/** React-side subscription for `isOwnershipCacheSynced` (see `useOwnershipCacheSynced`). */
+/** React-side subscription for readiness and project route changes. */
 export function subscribeOwnershipCache(listener: OwnershipCacheListener): () => void {
   listeners.add(listener);
   return () => {
@@ -109,4 +107,9 @@ export function routeTaskWrite(projectId?: string | null): WriteRoute {
   // (0199's header). The DB predicate `task_domain_externally_owned` states the identical rule.
   if (projectId == null) return 'pmo';
   return boundTaskProjects?.has(projectId) ? 'external' : 'pmo';
+}
+
+/** UI projection: unlike the repository fallback, unresolved project state is unknown. */
+export function taskRouteState(projectId: string): WriteRoute | 'unknown' {
+  return isOwnershipCacheSynced() ? routeTaskWrite(projectId) : 'unknown';
 }

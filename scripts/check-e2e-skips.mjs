@@ -79,12 +79,6 @@ export const ALLOWED_SKIPS = [
     verified: '2026-09-30',
   },
   {
-    file: 'erpnext-feed-served-smoke.spec.ts',
-    reason: 'Served-lane ERPNext feed smoke — needs the served functions (bench-FREE: rejection-path 401s only).',
-    restore: 'Runs whenever SUPABASE_FUNCTIONS_URL is set (scripts/serve-functions.sh); no bench needed.',
-    verified: '2026-09-30',
-  },
-  {
     file: 'AC-JWT-005-compose-view-auth.spec.ts',
     reason: 'Invokes the compose-view edge fn; also needs the stack env exported.',
     restore: 'Runs whenever SUPABASE_FUNCTIONS_URL + the stack env are present.',

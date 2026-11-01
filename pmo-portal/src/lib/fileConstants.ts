@@ -1,8 +1,6 @@
 /**
- * Shared file constraints — single source of truth for client + server (OD-DOC-5).
- * The bucket's `file_size_limit` and `allowed_mime_types` in the migration (0025)
- * mirror these values. Changing the cap/type requires changing this constant AND
- * the bucket setting (a migration).
+ * Shared client file constraints (OD-DOC-5). Bucket limits are configured separately
+ * in the storage migration and must remain aligned with the upload rules.
  */
 
 /** Maximum file size in bytes (5 MB). NFR-DOC-001. */
@@ -17,28 +15,6 @@ export const ALLOWED_FILE_TYPES: readonly string[] = [
   '.docx', '.xlsx', '.pptx',
   '.dwg', '.dxf',
   '.csv', '.txt',
-] as const;
-
-/**
- * MIME types matching the bucket's `allowed_mime_types` (migration 0025).
- * Used for server-side bucket enforcement (defense-in-depth) and pgTAP reference.
- * NOTE: application/octet-stream is intentionally absent — browsers report CAD files
- * as octet-stream, which must NOT be in the bucket list. Use FILE_MIME_BY_EXT for
- * the explicit Content-Type on upload.
- */
-export const ALLOWED_MIME_TYPES: readonly string[] = [
-  'application/pdf',
-  'image/png',
-  'image/jpeg',
-  'image/webp',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'image/vnd.dxf',
-  'application/dxf',
-  'application/acad',
-  'text/csv',
-  'text/plain',
 ] as const;
 
 /**
@@ -69,9 +45,16 @@ export const DENIED_EXTENSIONS: readonly string[] = [
 /** Signed URL expiry in seconds (60 minutes). NFR-DOC-003 / FR-DOC-013. */
 export const SIGNED_URL_EXPIRY_SECONDS = 3600;
 
-/** Extensions that can be previewed in a new browser tab. FR-DOC-042. */
-export const PREVIEWABLE_EXTENSIONS: readonly string[] = [
+/** Expiry for a link handed to Microsoft's public Office viewer, which fetches the file once when the preview opens. */
+export const OFFICE_PREVIEW_URL_SECONDS = 300;
+
+/**
+ * Extensions the in-app document viewer can show (preview only; upload acceptance is `ALLOWED_FILE_TYPES`).
+ * Legacy Word/Excel/PowerPoint are best effort through Microsoft's public viewer.
+ */
+export const VIEWABLE_EXTENSIONS: readonly string[] = [
   '.pdf', '.png', '.jpg', '.jpeg', '.webp',
+  '.docx', '.xlsx', '.pptx', '.doc', '.xls', '.ppt',
 ] as const;
 
 /** The `accept` attribute string for the file input. */

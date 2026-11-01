@@ -10,8 +10,7 @@ import { login } from './helpers';
  *   AC-PROC-001  New procurement → choose A new need → full-page form captures title + line → Save lands on Draft detail
  *   AC-PROC-003  add a line item on the Draft PR → it appears with a derived line total
  *
- * Journey B (gating, goal: an Engineer can raise but never approves):
- *   AC-PROC-006b an Engineer reaching /procurement still sees "New procurement"
+ * (AC-PROC-006b gating — an Engineer still sees "New procurement" — lives in Procurement.rbac.test.tsx.)
  *
  * Isolation: the unique PR title is generated inside the test so all steps share
  * it with zero seed-coupling (P011 pattern). DB ops (this spec + migration 0015
@@ -98,21 +97,5 @@ test(
       timeout: 15_000,
     });
     await expect(lineItems.getByText(/\$2,064/).first()).toBeVisible({ timeout: 10_000 });
-  },
-);
-
-// ── Journey B — Engineer may raise (any member) ──────────────────────────────
-
-test(
-  'AC-PROC-006b gating: an Engineer reaching /procurement still sees New procurement (any member may raise)',
-  async ({ page }) => {
-    await login(page, 'engineer@acme.test');
-    await page.goto('/procurement');
-    await waitIndexReady(page);
-
-    // GOAL ORACLE: the create path is open to an Engineer (requester server-stamped).
-    await expect(page.getByRole('button', { name: 'New procurement', exact: true })).toBeVisible({
-      timeout: 10_000,
-    });
   },
 );

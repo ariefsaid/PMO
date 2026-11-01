@@ -73,7 +73,7 @@ public-Office-viewer preview result. It does not mutate the business record.
 
 | Source | Preview path | Recovery / secondary actions |
 | --- | --- | --- |
-| SharePoint / work-or-school OneDrive reference | Server-mediated Graph `driveItem: preview` under the viewer's own connection | Open in SharePoint (or source-appropriate OneDrive label); authorized Download |
+| SharePoint / work-or-school OneDrive reference | Server-mediated Graph `driveItem: preview` under the viewer's own connection | Open in SharePoint (or source-appropriate OneDrive label); no Download (a SharePoint file is fetched from SharePoint, and NFR-003 allows no extra custody operation) |
 | New upload, org connected to M365 | Store in the owning record's SharePoint folder; persist a Microsoft reference; same Graph path | Explicit folder/connection/upload recovery; no silent change of destination |
 | Existing private upload, or new upload without M365 | Browser-native PDF/image; public Microsoft online viewer for Office using a short-lived signed link where supported | Download; clear preview-unavailable state |
 | Folder reference | Existing folder browse; selecting a child file opens the common viewer | Open folder in source; folders themselves are not files to render |
@@ -246,11 +246,13 @@ spec makes no claim about live database grants or production state.
 
 ## Implementation handoff checklist
 
+Implementation plan: `docs/plans/2026-10-31-document-preview.md` (branch `feat/document-preview`).
+
 - [ ] Obtain owner spec sign-off; design the side panel and complete source adapters.
-- [ ] Define the bounded Graph preview and record-folder upload operations, preserving
+- [x] Define the bounded Graph preview and record-folder upload operations, preserving
   ADR-0060/0089 boundaries and verifying existing write capability before implementation.
-- [ ] Specify the reversible purchase-attachment source migration and AC-010 pgTAP proof.
-- [ ] Implement the common viewer and wire every scoped entry point, preserving
+- [x] Specify the reversible purchase-attachment source migration and AC-010 pgTAP proof.
+- [x] Implement the common viewer and wire every scoped entry point, preserving
   parent permissions, legacy uploads and controlled-version semantics.
 - [ ] Add AC-tagged tests at the owning layers above and the curated real-file journey;
   verify provider embedding with non-sensitive fixtures and reliable fallback behavior.

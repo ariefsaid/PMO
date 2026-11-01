@@ -1,4 +1,9 @@
 [
+  "fx.expandedFileTooLarge",
+  "integrations.personalM365.errors.previewUnsupported",
+  "integrations.personalM365.errors.recordFolderUnavailable",
+  "integrations.personalM365.errors.sourceAccessDenied",
+  "integrations.personalM365.errors.sourceNotFound",
   "m365Documents.backfill.done",
   "m365Documents.backfill.failed",
   "m365Documents.backfill.resolve",
@@ -179,5 +184,10 @@
   "m365Documents.versions.loadMore",
   "m365Documents.versions.loading",
   "m365Documents.versions.title",
-  "m365Documents.versions.version"
+  "m365Documents.versions.version",
+  "shell.contextBar.feedback",
+  "uxs38.previewGapSummary_one",
+  "uxs38.previewGapSummary_other",
+  "shell.nav.stock",
+  "dashboard.stillToInvoice.daysSinceAcceptance"
 ]

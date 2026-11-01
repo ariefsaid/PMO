@@ -24,23 +24,33 @@ function makeFakeState() {
   let updateCount = 0;
   let recordRefCount = 0;
 
+  const notified: string[] = [];
   const deps = {
     findPmoRecordId: async (externalRecordId: string) => externalRefs.get(externalRecordId) ?? null,
     findCandidates: async (_doctype: ErpPartySource['doctype'], _name: string): Promise<PartyCandidate[]> => [],
+    // REAL insert semantics (the old fake overwrote on a duplicate id, which hid #1600): the primary key
+    // and both external_refs uniques refuse, like Postgres does.
     insertCompaniesMirror: async (canonical: PmoRecord) => {
+      if (companies.has(canonical.id)) throw Object.assign(new Error('duplicate key (companies_pkey)'), { code: '23505' });
       companies.set(canonical.id, canonical);
       insertCount += 1;
     },
     updateCompaniesMirror: async (pmoRecordId: string, canonical: PmoRecord) => {
+      if (!companies.has(pmoRecordId)) throw new Error('update of a missing company');
       companies.set(pmoRecordId, canonical);
       updateCount += 1;
     },
     recordExternalRef: async (mapping: { pmoRecordId: string; externalRecordId: string }) => {
+      if (externalRefs.has(mapping.externalRecordId) || [...externalRefs.values()].includes(mapping.pmoRecordId)) {
+        throw Object.assign(new Error('duplicate key (external_refs)'), { code: '23505' });
+      }
       externalRefs.set(mapping.externalRecordId, mapping.pmoRecordId);
       recordRefCount += 1;
     },
+    mirrorExists: async (pmoRecordId: string) => companies.has(pmoRecordId),
+    notifyUnclearMatch: async (entry: { name: string }) => { notified.push(entry.name); },
   };
-  return { deps, companies, externalRefs, counts: () => ({ insertCount, updateCount, recordRefCount }) };
+  return { deps, companies, externalRefs, notified, counts: () => ({ insertCount, updateCount, recordRefCount }) };
 }
 
 Deno.test({
@@ -49,7 +59,7 @@ Deno.test({
     const { deps, companies, externalRefs, counts } = makeFakeState();
     const sources: ErpPartySource[] = [{ doctype: 'Supplier', id: 'Acme Co', name: 'Acme Co', taxId: 'TAX-1' }];
     const result = await onboardParties(sources, deps);
-    assertEquals(result, { adopted: 1, reconciled: 0 });
+    assertEquals(result, { adopted: 1, reconciled: 0, needsDecision: [], skippedInternal: 0 });
     assertEquals(counts(), { insertCount: 1, updateCount: 0, recordRefCount: 1 });
     assertEquals(externalRefs.size, 1);
     assertEquals(companies.size, 1);
@@ -65,8 +75,8 @@ Deno.test({
     const first = await onboardParties(sources, deps);
     const second = await onboardParties(sources, deps);
 
-    assertEquals(first, { adopted: 1, reconciled: 0 }, 'first run mints the mirror + ref');
-    assertEquals(second, { adopted: 0, reconciled: 1 }, 'second run reconciles the SAME mapping, never re-mints');
+    assertEquals(first, { adopted: 1, reconciled: 0, needsDecision: [], skippedInternal: 0 }, 'first run mints the mirror + ref');
+    assertEquals(second, { adopted: 0, reconciled: 1, needsDecision: [], skippedInternal: 0 }, 'second run reconciles the SAME mapping, never re-mints');
     const c = counts();
     assertEquals(c.insertCount, 1, 'exactly one companies INSERT across both runs');
     assertEquals(c.recordRefCount, 1, 'exactly one external_refs record across both runs');
@@ -85,7 +95,7 @@ Deno.test({
       { doctype: 'Customer', id: 'Acme Co', name: 'Acme Co' },
     ];
     const result = await onboardParties(sources, deps);
-    assertEquals(result, { adopted: 2, reconciled: 0 });
+    assertEquals(result, { adopted: 2, reconciled: 0, needsDecision: [], skippedInternal: 0 });
     assertEquals(externalRefs.size, 2);
     assertEquals(companies.size, 2);
     const types = [...companies.values()].map((c) => c.type).sort();
@@ -102,7 +112,7 @@ Deno.test({
       { doctype: 'Supplier', id: 'S-000001', name: 'PT Vendor' },
     ];
     const result = await onboardParties(sources, deps);
-    assertEquals(result, { adopted: 2, reconciled: 0 });
+    assertEquals(result, { adopted: 2, reconciled: 0, needsDecision: [], skippedInternal: 0 });
     assertEquals([...externalRefs.keys()].sort(), ['Customer:C-000001', 'Supplier:S-000001']);
     const customer = companies.get(externalRefs.get('Customer:C-000001')!);
     const supplier = companies.get(externalRefs.get('Supplier:S-000001')!);
@@ -125,8 +135,8 @@ Deno.test({
     const first = await onboardParties(sources, deps);
     const second = await onboardParties(sources, deps);
 
-    assertEquals(first, { adopted: 0, reconciled: 1 }, 'first run finds the swept mapping by ID');
-    assertEquals(second, { adopted: 0, reconciled: 1 }, 'second run still reconciles, never re-mints');
+    assertEquals(first, { adopted: 0, reconciled: 1, needsDecision: [], skippedInternal: 0 }, 'first run finds the swept mapping by ID');
+    assertEquals(second, { adopted: 0, reconciled: 1, needsDecision: [], skippedInternal: 0 }, 'second run still reconciles, never re-mints');
     assertEquals(counts(), { insertCount: 0, updateCount: 2, recordRefCount: 0 });
     assertEquals(externalRefs.size, 1);
     assertEquals(companies.size, 1);
@@ -134,8 +144,21 @@ Deno.test({
   },
 });
 
-Deno.test('same-name adoption narrows a tax match before recording the party mapping', async () => {
+Deno.test('AC-ECA-006 a matched existing company is LINKED (update + ref), never re-inserted', async () => {
   const { deps, companies, externalRefs, counts } = makeFakeState();
+  companies.set('pmo-existing', { id: 'pmo-existing', name: 'Test party', type: 'Vendor' });
+  deps.findCandidates = async () => [{ pmoRecordId: 'pmo-existing', taxId: null }];
+  const result = await onboardParties([{ doctype: 'Supplier', id: 'ERP-TEST-001', name: 'Test party' }], deps);
+  assertEquals([result.adopted, result.reconciled, result.needsDecision.length], [1, 0, 0]);
+  assertEquals([...companies.keys()], ['pmo-existing'], 'no second company');
+  assertEquals(externalRefs.get('Supplier:ERP-TEST-001'), 'pmo-existing');
+  assertEquals(counts(), { insertCount: 0, updateCount: 1, recordRefCount: 1 });
+});
+
+Deno.test('same-name adoption narrows a tax match and links it, no second company', async () => {
+  const { deps, companies, externalRefs, counts } = makeFakeState();
+  companies.set('pmo-other', { id: 'pmo-other', name: 'Test party', type: 'Vendor' });
+  companies.set('pmo-matching', { id: 'pmo-matching', name: 'Test party', type: 'Vendor' });
   deps.findCandidates = async () => [
     { pmoRecordId: 'pmo-other', taxId: 'TAX-TEST-2' },
     { pmoRecordId: 'pmo-matching', taxId: 'TAX-TEST-1' },
@@ -143,25 +166,111 @@ Deno.test('same-name adoption narrows a tax match before recording the party map
   const result = await onboardParties([
     { doctype: 'Supplier', id: 'ERP-TEST-001', name: 'Test party', taxId: 'TAX-TEST-1' },
   ], deps);
-  assertEquals(result, { adopted: 1, reconciled: 0 });
-  assertEquals([...companies.keys()], ['pmo-matching']);
+  assertEquals([result.adopted, result.needsDecision.length], [1, 0]);
+  assertEquals([...companies.keys()].sort(), ['pmo-matching', 'pmo-other']);
   assertEquals(externalRefs.get('Supplier:ERP-TEST-001'), 'pmo-matching');
-  assertEquals(counts(), { insertCount: 1, updateCount: 0, recordRefCount: 1 });
+  assertEquals(counts(), { insertCount: 0, updateCount: 1, recordRefCount: 1 });
 });
 
-Deno.test('conflicting same-name tax ID requires action before any mirror or mapping write', async () => {
+Deno.test('#1600 a conflicting tax ID becomes a needs-a-decision row with no writes, and the rest still apply', async () => {
   const { deps, companies, externalRefs, counts } = makeFakeState();
-  deps.findCandidates = async () => [{ pmoRecordId: 'pmo-other', taxId: 'TAX-TEST-2' }];
-  let failure: unknown;
-  try {
-    await onboardParties([
-      { doctype: 'Supplier', id: 'ERP-TEST-001', name: 'Test party', taxId: 'TAX-TEST-1' },
-    ], deps);
-  } catch (error) {
-    failure = error;
-  }
-  assertEquals((failure as { code?: string } | undefined)?.code, 'action-required');
-  assertEquals(counts(), { insertCount: 0, updateCount: 0, recordRefCount: 0 });
-  assertEquals(companies.size, 0);
-  assertEquals(externalRefs.size, 0);
+  deps.findCandidates = async (_doctype, name) =>
+    name === 'Test party' ? [{ pmoRecordId: 'pmo-other', taxId: 'TAX-TEST-2' }] : [];
+  const result = await onboardParties([
+    { doctype: 'Supplier', id: 'ERP-TEST-001', name: 'Test party', taxId: 'TAX-TEST-1' },
+    { doctype: 'Supplier', id: 'ERP-TEST-002', name: 'Other party' },
+  ], deps);
+  assertEquals([result.adopted, result.reconciled], [1, 0]);
+  assertEquals(result.needsDecision.map((row) => [row.doctype, row.id, row.reason]), [['Supplier', 'ERP-TEST-001', 'conflicting-tax-id']]);
+  assertEquals(counts(), { insertCount: 1, updateCount: 0, recordRefCount: 1 });
+  assertEquals([...externalRefs.keys()], ['Supplier:ERP-TEST-002']);
+  assertEquals(companies.size, 1);
+});
+
+Deno.test('AC-ECA-006 an ambiguous match becomes a needs-a-decision row and the rest apply', async () => {
+  const { deps, externalRefs } = makeFakeState();
+  deps.findCandidates = async (_doctype, name) =>
+    name === 'Test party' ? [{ pmoRecordId: 'pmo-a', taxId: null }, { pmoRecordId: 'pmo-b', taxId: null }] : [];
+  const result = await onboardParties([
+    { doctype: 'Supplier', id: 'ERP-TEST-001', name: 'Test party' },
+    { doctype: 'Customer', id: 'ERP-TEST-003', name: 'Third party' },
+  ], deps);
+  assertEquals([result.adopted, result.needsDecision.map((row) => row.reason)], [1, ['ambiguous-match']]);
+  assertEquals([...externalRefs.keys()], ['Customer:ERP-TEST-003']);
+});
+
+Deno.test('#1600 setup loses the race to the sweep: the claim is refused, NO second company is written, the run goes on', async () => {
+  const { deps, companies, externalRefs, counts } = makeFakeState();
+  // The sweep polls the same ERP party between setup's candidate lookup and its first write: it claims the
+  // link and mints company A. Setup's claim then hits the real unique (23505) BEFORE any company insert.
+  let raced = false;
+  deps.findCandidates = async (_doctype, name) => {
+    if (name === 'Test party' && !raced) {
+      raced = true;
+      externalRefs.set('Supplier:ERP-TEST-001', 'pmo-swept');
+      companies.set('pmo-swept', { id: 'pmo-swept', name: 'Test party', type: 'Vendor' });
+    }
+    return [];
+  };
+  const result = await onboardParties([
+    { doctype: 'Supplier', id: 'ERP-TEST-001', name: 'Test party' },
+    { doctype: 'Supplier', id: 'ERP-TEST-002', name: 'Other party' },
+  ], deps);
+  assertEquals([result.adopted, result.reconciled, result.needsDecision.length], [1, 1, 0], 'raced party reconciled, next one applied');
+  assertEquals([...companies.keys()].filter((id) => id !== 'pmo-swept').length, 1, 'only the next party minted; no unlinked twin of the raced one');
+  assertEquals(externalRefs.get('Supplier:ERP-TEST-001'), 'pmo-swept', 'the sweep link stands');
+  assertEquals(counts().insertCount, 1, 'exactly one insert (the other party)');
+});
+
+Deno.test('#1600 a matched company the sweep linked first is never re-pointed: reconciled, not rewritten', async () => {
+  const { deps, companies, externalRefs, counts } = makeFakeState();
+  companies.set('pmo-existing', { id: 'pmo-existing', name: 'Test party', type: 'Vendor' });
+  deps.findCandidates = async () => {
+    externalRefs.set('Supplier:ERP-TEST-001', 'pmo-existing'); // the sweep linked it after setup matched it
+    return [{ pmoRecordId: 'pmo-existing', taxId: null }];
+  };
+  const result = await onboardParties([{ doctype: 'Supplier', id: 'ERP-TEST-001', name: 'Test party' }], deps);
+  assertEquals([result.adopted, result.reconciled], [0, 1], 'reconciled');
+  assertEquals(counts(), { insertCount: 0, updateCount: 0, recordRefCount: 0 }, 'nothing written');
+});
+
+Deno.test('#1600 a matched company already linked to ANOTHER ERP party is a decision, never a re-point', async () => {
+  const { deps, companies, externalRefs, notified, counts } = makeFakeState();
+  companies.set('pmo-existing', { id: 'pmo-existing', name: 'Test party', type: 'Vendor' });
+  externalRefs.set('Supplier:ERP-TEST-009', 'pmo-existing');
+  deps.findCandidates = async () => [{ pmoRecordId: 'pmo-existing', taxId: null }];
+  const result = await onboardParties([{ doctype: 'Supplier', id: 'ERP-TEST-001', name: 'Test party' }], deps);
+  assertEquals(result.needsDecision.map((row) => [row.id, row.reason]), [['ERP-TEST-001', 'already-linked']], 'decision row');
+  assertEquals(notified, ['Test party'], 'admins told');
+  assertEquals(externalRefs.get('Supplier:ERP-TEST-009'), 'pmo-existing', 'old link untouched');
+  assertEquals(externalRefs.has('Supplier:ERP-TEST-001'), false, 'no new link');
+  assertEquals(counts().updateCount, 0, 'company not rewritten');
+});
+
+Deno.test('#1600 an unclear match tells the org admins and writes nothing', async () => {
+  const { deps, externalRefs, notified, counts } = makeFakeState();
+  deps.findCandidates = async (_doctype, name) =>
+    name === 'Test party' ? [{ pmoRecordId: 'pmo-a', taxId: null }, { pmoRecordId: 'pmo-b', taxId: null }] : [];
+  await onboardParties([{ doctype: 'Supplier', id: 'ERP-TEST-001', name: 'Test party' }], deps);
+  assertEquals(notified, ['Test party'], 'notified');
+  assertEquals([externalRefs.size, counts().insertCount], [0, 0], 'no writes');
+});
+
+Deno.test('#1600 a claimed link whose company never landed is repaired with the same id on the next run', async () => {
+  const { deps, companies, externalRefs, counts } = makeFakeState();
+  externalRefs.set('Supplier:ERP-TEST-001', 'pmo-claimed'); // run died after the claim, before the insert
+  const result = await onboardParties([{ doctype: 'Supplier', id: 'ERP-TEST-001', name: 'Test party' }], deps);
+  assertEquals([result.adopted, result.reconciled], [1, 0], 'repaired');
+  assertEquals(companies.get('pmo-claimed')?.name, 'Test party', 'same id');
+  assertEquals(counts().insertCount, 1, 'one insert');
+});
+
+Deno.test('an Internal-type ERP party is skipped and counted; it never aborts the run', async () => {
+  const { deps, externalRefs } = makeFakeState();
+  const result = await onboardParties([
+    { doctype: 'Customer', id: 'ERP-TEST-INT', name: 'Own company', isInternal: true },
+    { doctype: 'Supplier', id: 'ERP-TEST-002', name: 'Other party' },
+  ], deps);
+  assertEquals([result.adopted, result.skippedInternal], [1, 1], 'counts');
+  assertEquals([...externalRefs.keys()], ['Supplier:ERP-TEST-002'], 'only the external party linked');
 });

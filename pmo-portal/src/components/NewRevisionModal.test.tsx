@@ -69,6 +69,13 @@ describe('NewRevisionModal', () => {
     expect(screen.getByRole('textbox', { name: 'Revision' })).toHaveValue('4');
   });
 
+  it.each([['9', '10'], ['19', '20'], ['99', '100'], ['Rev009', 'Rev010']])(
+    'suggests the next full numeric suffix for %s', (revision, expected) => {
+      render(<NewRevisionModal parent={{ ...baseDoc, revision }} onSubmit={vi.fn()} onClose={vi.fn()} loading={false} />);
+      expect(screen.getByRole('textbox', { name: 'Revision' })).toHaveValue(expected);
+    },
+  );
+
   it('AC-DOC-084: Create revision stays disabled until Title is non-empty', async () => {
     const user = userEvent.setup();
 

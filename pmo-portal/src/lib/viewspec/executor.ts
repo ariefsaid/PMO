@@ -114,10 +114,15 @@ export async function executeCompiledQuery(compiled: CompiledQuery): Promise<unk
   // ENTITY_WHITELIST at compile time (compileCompositionSpec), so the cast is safe.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as unknown as { from: (t: string) => any };
+  const fetchColumns = new Set(compiled.resolvedSelect);
+  if (compiled.resolvedAggregate) {
+    fetchColumns.add(compiled.resolvedAggregate.column);
+    if (compiled.resolvedGroupBy) fetchColumns.add(compiled.resolvedGroupBy);
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let chain: any = db
     .from(tableName)
-    .select(compiled.resolvedSelect.join(','));
+    .select([...fetchColumns].join(','));
 
   // Apply filters (FR-VR-023)
   for (const filter of compiled.resolvedFilters) {

@@ -109,6 +109,52 @@
 -- It preserves the four-role archive gate while atomically recording the ERP cancellation decision;
 -- proved by supabase/tests/budget_archive_cancel_intents.test.sql (AC-BUD-122).
 --
+-- ⚑ AMENDED BY 0393: `update_procurement_header` joins the retained set (+1, count 85).
+-- It checks active membership, org, requester/Admin authority and editable state;
+-- supabase/tests/procurement_header_requester.test.sql exercises its contract and ACL.
+--
+-- ⚑ AMENDED BY 0419 (#1532 S9): `admin_set_feedback_surveys` joins the retained set (+1, count 89 on top of dev's 88,
+-- re-derived by hand). Active-Admin writer under a member's JWT; supabase/tests/0419_feedback_surveys_switch.test.sql proves it.
+-- Anonymous grants remain subject to the sweep even for retained names.
+--
+-- ⚑ AMENDED BY 0412 (#1512): `set_stock_warehouse_keeper` joins the retained set (+1, count 90 once both 0419 and 0412 are on dev). A SECURITY
+-- DEFINER writer (the keeper table has no client write grant); its body gates on active membership, org and
+-- Admin rank; supabase/tests/stock_master_data.test.sql proves the contract.
+--
+-- ⚑ AMENDED BY 0413 (#1512 S2a): `create_stock_document`, `save_stock_draft`, `post_stock_document` and
+-- `cancel_stock_document` join the retained set (+4, count 94 on dev's 90, re-derived by hand from the list). SECURITY DEFINER
+-- writers (documents, lines, ledger and balances have no client write grant); each gates on active membership and
+-- the JWT org, and posting on keeper-or-Admin; stock_posting_guards / stock_tenant_isolation prove the contract.
+--
+-- ⚑ AMENDED BY 0422 (#1515): five imprest writers join the retained set (+5, count 99). Each re-asserts org, active
+-- membership and role (or the plan author / route) in its body; proven by imprest_floats/imprest_plans pgTAP.
+--
+-- ⚑ AMENDED BY 0423 (#1515): two replenishment writers join (+2, count 101). transition_expense_claim and
+-- record_expense_advance_return were already retained. Proven by imprest_replenishment pgTAP.
+-- ⚑ AMENDED BY 0418 (#1512 S6): `set_stock_reorder_level` joins the retained set (+1, count 102, re-derived by hand from the list). A SECURITY
+-- DEFINER writer (reorder levels have no client write grant); it gates on active membership, rank >= 20 and the JWT org;
+-- stock_reorder.test.sql proves the contract.
+--
+-- ⚑ AMENDED BY 0424 (#1515): record_imprest_count joins (+1, count 103 with 0418, re-derived by hand from the list); it re-asserts org, active membership and
+-- custodian-eligible-or-Finance/Admin in its body. The position/usage reads are invoker; imprest_float_choices is a
+-- read. Proven by imprest_position pgTAP.
+-- ⚑ 0426 (#1515 fix round) adds no definer: get_expense_claim_approval_routes and get_imprest_position stay invoker, re-created under
+-- their own names, so the retained count stays 104 (recounted by hand from the list below: 104 rows).
+-- ⚑ AMENDED BY 0410 (#1471): `set_sales_invoice_billing_kind` joins the retained set (+1, count 104 on dev's 103, re-derived by hand from the list). SECURITY
+-- DEFINER writer under a member's JWT; re-asserts active membership, Admin/Finance and the caller's org; paired with
+-- supabase/tests/billing_kinds_roles.test.sql (AC-007). `assign_sales_invoice_project` and
+-- `create_native_sales_invoice` changed signature only (proname unchanged).
+-- ⚑ AMENDED BY 0447 (#1519 S1): `save_equipment_usage`, `transition_equipment_usage`, `approve_equipment_usage_week` and
+-- `archive_equipment_usage` join the retained set (+4, count 108 on dev's 104, re-derived by hand from the list). SECURITY
+-- DEFINER writers (entries have no client INSERT/UPDATE grant); each re-asserts active membership and the JWT org, the
+-- transition checks approver ≠ author before the approver role; proved by equipment_usage / equipment_rls pgTAP.
+--
+-- The budget import and procurement import-run commands retain authenticated access;
+-- their owning proofs are 0397_budget_import_protocol.test.sql and
+-- 0399_procurement_import_identity_authority.test.sql. Atomic draft creation is
+-- exercised by procurement_atomic_create.test.sql and its interleave companion.
+-- Anonymous and PUBLIC grants remain subject to the sweep.
+--
 -- ⚑ MERGE HAZARD, learned the hard way here: the list and its CARDINALITY live in this one file.
 -- Two branches each adding one name merge cleanly in the LIST (different lines) while the count
 -- line is a real conflict that resolves to one side — leaving a list of 51 asserted as 50. That is
@@ -128,7 +174,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(5);
+select plan(6);
 
 -- This is duplicated from 0185 as a visible proof contract. A future client RPC must retain its
 -- authenticated grant explicitly after the default-privilege guard; otherwise the count below fails.
@@ -142,9 +188,12 @@ insert into client_callable_rpc_names (proname) values
   ('approve_procurement_amount'),
   ('archive_budget_version_with_cancel_intent'),
   ('approved_timesheet_for_push'),
+  ('approve_equipment_usage_week'),
+  ('archive_equipment_usage'),
   ('attach_claim_evidence'),
   ('attest_timesheet_no_erp_document'),
   ('cancel_native_receipt'),
+  ('cancel_stock_document'),
   ('capture_vendor_invoice'),
   ('claim_sales_invoice_author'),
   ('clone_budget_version'),
@@ -153,6 +202,11 @@ insert into client_callable_rpc_names (proname) values
   ('create_native_sales_invoice'),
   ('create_payment'),
   ('create_procurement_invoice'),
+  ('create_procurement_with_items'),
+  ('create_stock_document'),
+  ('decide_imprest_float_change'),
+  ('establish_imprest_float'),
+  ('propose_imprest_float_amount'),
   ('record_vendor_withholding_slip'),
   ('correct_vendor_withholding_slip'),
   ('void_vendor_withholding_slip'),
@@ -174,14 +228,18 @@ insert into client_callable_rpc_names (proname) values
   ('get_projects_milestone_dates'),
   ('get_sales_pipeline'),
   ('get_win_rate'),
+  ('import_budget_line_v2'),
   ('is_operator'),
   ('link_erp_purchase_documents'),
   ('link_procurement_sharepoint_item'),
   ('mark_erp_purchase_documents'),
   ('link_m365_documents_batch'),
   ('save_cost_attribution_rule'),
+  ('save_equipment_usage'),
+  ('save_stock_draft'),
   ('end_cost_attribution_rule'),
   ('admin_change_domain_ownership'),
+  ('admin_set_feedback_surveys'),
   ('list_budget_fiscal_years'),
   ('operator_agent_run_stats'),
   ('operator_create_org'),
@@ -189,35 +247,47 @@ insert into client_callable_rpc_names (proname) values
   ('operator_set_domain_ownership'),
   ('operator_set_org_lifecycle_state'),
   ('operator_list_orgs'),
+  ('post_stock_document'),
   ('operator_toggle_feature'),
   ('operator_usage_summary'),
   ('org_agent_run_stats'),
   ('org_credit_balance'),
   ('org_usage_summary'),
   ('record_expense_advance_return'),
+  ('record_imprest_count'),
   ('record_native_receipt'),
   ('recategorise_budget_lines'),
   ('release_credits'),
   ('release_outbox_hold'),
+  ('request_imprest_replenishment'),
   ('reserve_credits'),
   ('save_timesheet_week'),
   ('select_procurement_quote'),
   ('set_procurement_invoice_efaktur'),
   ('set_procurement_gates'),
   ('set_project_contract_value'),
+  ('set_sales_invoice_billing_kind'),
   ('set_sales_invoice_efaktur'),
   ('set_sales_invoice_received_date'),
+  ('set_stock_reorder_level'),
+  ('set_stock_warehouse_keeper'),
+  ('set_imprest_procurement_limit'),
   ('set_vendor_tax_defaults'),
   ('set_work_order_value'),
+  ('start_procurement_import_run'),
   ('submit_sales_invoice'),
   ('transition_document_status'),
+  ('transition_equipment_usage'),
   ('transition_expense_claim'),
+  ('transition_imprest_plan'),
+  ('transition_imprest_replenishment'),
   ('transition_native_sales_invoice'),
   ('transition_procurement'),
   ('transition_project'),
   ('transition_timesheet'),
   ('transition_work_order'),
   ('unlink_erp_purchase_document'),
+  ('update_procurement_header'),
   ('withdraw_progress_claim'),
   ('withdraw_work_order_acceptance');
 
@@ -241,8 +311,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  84,
-  'AC-ACL-002 all 84 retained client-callable RPC names still have a public function');
+  108,
+  'AC-ACL-002 all 108 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -251,12 +321,12 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  84,
-  'AC-ACL-003 all 84 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  108,
+  'AC-ACL-003 all 108 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
--- granted to both roles from being named twice. The empty allow-list is intentional here: migration
--- 0185's allow-list is the only safe exemption, and this test checks its resulting surface.
+-- granted to both roles from being named twice. Retained names exempt authenticated grants only;
+-- an anonymous or PUBLIC grant is always reported, including for retained writers.
 create temp view anon_definer_write_sweep as
 select distinct p.oid, p.proname
   from pg_proc p
@@ -268,12 +338,21 @@ select distinct p.oid, p.proname
    and (a.grantee = 0 or grantee.rolname in ('anon', 'authenticated'))
    and a.privilege_type = 'EXECUTE'
    and pg_get_functiondef(p.oid) ~* '(insert\s+into|update\s+(public\.)?[a-z_]|delete\s+from|merge\s+into)'
-   and not exists (select 1 from client_callable_rpc_names c where c.proname = p.proname);
+   and (a.grantee = 0 or grantee.rolname = 'anon'
+        or not exists (select 1 from client_callable_rpc_names c where c.proname = p.proname));
 
 select is(
   (select coalesce(string_agg(proname, ', ' order by proname), '') from anon_definer_write_sweep),
   '',
   'AC-ACL-004 no SECURITY DEFINER writer outside the client allow-list is explicitly executable by anon or authenticated (offenders are named)');
+
+-- An authenticated client exemption must never exempt an anonymous grant.
+grant execute on function public.update_procurement_header(uuid,jsonb) to anon;
+select is(
+  (select coalesce(string_agg(proname, ', ' order by proname), '') from anon_definer_write_sweep),
+  'update_procurement_header',
+  'AC-ACL-006 anonymous grants to retained client writers are named');
+revoke execute on function public.update_procurement_header(uuid,jsonb) from anon;
 
 -- REGRESSION: mutate the exact ACL class that production exposed. The sweep must return the function
 -- name; a count-only or authenticated-only implementation is not sufficient. The transaction rollback

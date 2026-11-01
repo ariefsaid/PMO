@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { listTimesheets, type TimesheetWithEntries } from '@/src/lib/db/timesheets';
+import type { TimesheetWithEntries } from '@/src/lib/db/timesheets';
+import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 
 /** Org+user-scoped timesheet list. queryKey includes org_id + user id so cache is tenant- and
@@ -10,7 +11,7 @@ export function useTimesheets() {
   const userId = currentUser?.id;
   return useQuery<TimesheetWithEntries[]>({
     queryKey: ['timesheets', orgId, userId],
-    queryFn: () => listTimesheets(userId as string),
+    queryFn: () => repositories.timesheet.list(userId as string),
     enabled: Boolean(orgId && userId),
   });
 }

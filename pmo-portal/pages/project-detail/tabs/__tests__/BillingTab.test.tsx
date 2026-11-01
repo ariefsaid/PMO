@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import i18next from 'i18next';
 import { readFileSync } from 'node:fs';
@@ -14,6 +14,7 @@ import { parseMissingKeyHandler } from '@/src/lib/i18n';
 
 const h = vi.hoisted(() => ({
   role: 'Finance' as string,
+  effectiveRole: null as string | null,
   userId: 'u-fin',
   connected: true,
   routeReady: true,
@@ -21,8 +22,11 @@ const h = vi.hoisted(() => ({
   boq: [] as unknown[],
   claims: [] as unknown[],
   docs: [] as unknown[],
+  docsState: { isPending: false, isError: false, refetch: vi.fn() },
+  ordersState: { isPending: false, isError: false, refetch: vi.fn() },
   m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.effectiveRole ?? h.role }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/usePermission', async () => {
   const { can } = await vi.importActual<typeof import('@/src/auth/policy')>('@/src/auth/policy');
@@ -37,12 +41,12 @@ vi.mock('@/src/hooks/useProgressBilling', () => ({
   useProjectClaims: () => ({ data: h.claims, isPending: false, isError: false, refetch: vi.fn() }),
   useProgressBillingMutations: () => h.m,
 }));
-vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [], ...h.ordersState }) }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs, ...h.docsState }) }));
 import BillingTab from '../BillingTab';
 import { summarizeInvoiceSettlement } from '../../ContractCascade';
 
@@ -71,9 +75,11 @@ const money = (value: number) => formatNumberMax2(value);
 
 beforeEach(() => {
   vi.clearAllMocks();
-  h.role = 'Finance'; h.userId = 'u-fin'; h.connected = true; h.routeReady = true;
+  h.role = 'Finance'; h.effectiveRole = null; h.userId = 'u-fin'; h.connected = true; h.routeReady = true;
   h.billing = { data: FACTS, isPending: false, isError: false, refetch: vi.fn() };
   h.boq = BOQ; h.claims = CLAIMS; h.docs = DOCS;
+  h.docsState = { isPending: false, isError: false, refetch: vi.fn() };
+  h.ordersState = { isPending: false, isError: false, refetch: vi.fn() };
   h.m = Object.fromEntries(['createBoq', 'updateBoq', 'deleteBoq', 'recordAssessment', 'createClaim', 'attachEvidence', 'withdrawClaim', 'raiseInvoice']
     .map((name) => [name, { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false }]));
 });
@@ -182,6 +188,33 @@ describe('BillingTab', () => {
     expect(screen.queryByTestId('billing-billed')).toBeNull();
   });
 
+  it('FR-STK-050 the material allowance editor is offered to the project\'s own PM and Finance, not to an Engineer or another PM', async () => {
+    i18next.addResourceBundle('en', 'stock', { allowance: { action: 'Material allowance' } }, true, true);
+    const offered = () => screen.queryAllByRole('button', { name: 'Material allowance' }).length > 0;
+    h.role = 'Finance'; h.userId = 'u-fin';
+    const a = render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+    expect(offered()).toBe(true);
+    a.unmount();
+    h.role = 'Project Manager'; h.userId = 'pm-1';
+    const b = render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+    expect(offered()).toBe(true);
+    b.unmount();
+    h.role = 'Project Manager'; h.userId = 'pm-2';
+    const c = render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+    expect(offered()).toBe(false);
+    c.unmount();
+    h.role = 'Engineer'; h.userId = 'u-eng';
+    render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+    expect(offered()).toBe(false);
+  });
+
+  it('FR-STK-050 the material allowance editor is not offered while an Admin views as another role (view-only)', () => {
+    i18next.addResourceBundle('en', 'stock', { allowance: { action: 'Material allowance' } }, true, true);
+    h.role = 'Admin'; h.userId = 'u-admin'; h.effectiveRole = 'Engineer';
+    render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+    expect(screen.queryAllByRole('button', { name: 'Material allowance' })).toHaveLength(0);
+  });
+
   it('AC-PB-008 the BoQ shows assessed, claimed and left-to-claim quantities and flags over-claiming', () => {
     renderTab();
     expect(screen.getByTestId('boq-assessed-b1')).toHaveTextContent('6');
@@ -189,6 +222,18 @@ describe('BillingTab', () => {
     expect(screen.getByTestId('boq-remaining-b1')).toHaveTextContent('5');
     expect(screen.getByTestId('boq-assessed-b2')).toHaveTextContent('—');
     expect(screen.getByTestId('boq-remaining-b2')).toHaveTextContent('Over-claimed');
+  });
+
+  it('shows fractional lump-sum claimed and remaining as percentages in the table and detail', async () => {
+    h.boq = [{ ...BOQ[0], earning_basis: 'lump_sum', unit: 'lot', quantity: 1 }];
+    h.billing = { ...h.billing, data: { ...FACTS, claimedByBoqItem: { b1: 0.4 } } };
+    const user = renderTab();
+    expect(screen.getByTestId('boq-claimed-b1')).toHaveTextContent('40%');
+    expect(screen.getByTestId('boq-remaining-b1')).toHaveTextContent('60%');
+    await user.click(screen.getByRole('button', { name: /Open SURVEY/ }));
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).getByText('40%')).toBeInTheDocument();
+    expect(within(drawer).getByText('60%')).toBeInTheDocument();
   });
 
   it('AC-1402 opens a claim drawer from the row with sourced amounts and evidence', async () => {
@@ -262,6 +307,70 @@ describe('BillingTab', () => {
     const toast = await findToastAnnouncement('alert', 'Tagihan ini telah ditarik. Fakturnya tidak dapat diterbitkan.');
     expect(toast).toHaveTextContent('Tagihan ini telah ditarik. Fakturnya tidak dapat diterbitkan.');
     expect(toast).not.toHaveTextContent('Update failed');
+  });
+
+  it('keeps evidence unavailable while documents load and offers retry after failure', async () => {
+    h.docsState = { isPending: true, isError: false, refetch: vi.fn() };
+    const user = renderTab();
+    await user.click(within(screen.getByTestId('claim-actions-k1')).getByRole('button', { name: 'Attach evidence' }));
+    expect(screen.queryByText(/No issued or approved document/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Evidence document')).not.toBeInTheDocument();
+  });
+
+  it('offers document retry instead of an empty evidence state on read failure', async () => {
+    h.docsState = { isPending: false, isError: true, refetch: vi.fn() };
+    const user = renderTab();
+    await user.click(within(screen.getByTestId('claim-actions-k1')).getByRole('button', { name: 'Attach evidence' }));
+    expect(screen.queryByText(/No issued or approved document/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /retry|try again/i }));
+    expect(h.docsState.refetch).toHaveBeenCalled();
+  });
+
+  it('does not open a claim with unavailable customer orders', () => {
+    h.routeReady = false;
+    h.ordersState = { isPending: true, isError: false, refetch: vi.fn() };
+    renderTab();
+    expect(screen.queryByRole('button', { name: 'New claim' })).not.toBeInTheDocument();
+    expect(screen.getByText('Loading customer orders…')).toBeInTheDocument();
+  });
+
+  it('retains a claim draft while a required source fails and recovers', async () => {
+    h.routeReady = false;
+    const user = userEvent.setup();
+    const tree = () => <MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId="c1" projectManagerId="pm-1" /></ToastProvider></MemoryRouter>;
+    const view = render(tree());
+    await user.click(screen.getByRole('button', { name: 'New claim' }));
+    const dialog = screen.getByRole('dialog', { name: 'New billing claim' });
+    await user.type(within(dialog).getByLabelText(/SURVEY.*Route survey/), '2.5');
+    h.ordersState.isPending = true;
+    view.rerender(tree());
+    expect(within(screen.getByRole('dialog')).getByLabelText(/SURVEY.*Route survey/)).toHaveValue('2.5');
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Create claim' })).toBeDisabled();
+    h.ordersState.isPending = false;
+    h.ordersState.isError = true;
+    view.rerender(tree());
+    expect(within(screen.getByRole('dialog')).getByLabelText(/SURVEY.*Route survey/)).toHaveValue('2.5');
+    expect(within(screen.getByRole('dialog')).getByText("Couldn't load customer orders")).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Create claim' })).toBeDisabled();
+    fireEvent.submit(within(screen.getByRole('dialog')).getByRole('button', { name: 'Create claim' }).closest('form')!);
+    expect(h.m.createClaim.mutateAsync).not.toHaveBeenCalled();
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: /retry/i }));
+    expect(h.ordersState.refetch).toHaveBeenCalled();
+    h.ordersState.isError = false;
+    view.rerender(tree());
+    expect(within(screen.getByRole('dialog')).getByLabelText(/SURVEY.*Route survey/)).toHaveValue('2.5');
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Create claim' }));
+    expect(h.m.createClaim.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ lines: [{ boqItemId: 'b1', quantity: 2.5 }] }));
+  });
+
+  it('offers retry for failed customer-order data without opening a claim', async () => {
+    h.routeReady = false;
+    h.ordersState = { isPending: false, isError: true, refetch: vi.fn() };
+    const user = renderTab();
+    expect(screen.queryByRole('button', { name: 'New claim' })).not.toBeInTheDocument();
+    expect(screen.getByText("Couldn't load customer orders")).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /retry/i }));
+    expect(h.ordersState.refetch).toHaveBeenCalled();
   });
 
   it('AC-PB-008 attaching evidence sends the claim and the chosen document', async () => {

@@ -58,6 +58,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 import TasksTab from '../tabs/TasksTab';
+import { clearOwnershipCache, setTaskOwnership, setProjectBindings } from '@/src/lib/adapterSeam/ownershipCache';
 
 const profiles = [{ id: 'pm-1', full_name: 'Pat Manager', role: 'Project Manager' }];
 
@@ -92,6 +93,9 @@ const renderTab = () => {
 };
 
 beforeEach(() => {
+    clearOwnershipCache();
+    setTaskOwnership([]);
+    setProjectBindings([]);
   listState.data = [];
   listState.isPending = false;
   listState.isError = false;

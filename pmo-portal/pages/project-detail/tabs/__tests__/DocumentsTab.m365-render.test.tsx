@@ -14,6 +14,12 @@ const h = vi.hoisted(() => ({
 }));
 
 // The register mounts RecordFolderAction (own coverage: DocumentsTab.record-folder.test).
+const destinationState = vi.hoisted(() => ({ value: { kind: 'private' } as { kind: 'private' | 'microsoft' | 'unknown' } }));
+vi.mock('@/src/hooks/useUploadDestination', async (orig) => ({
+  ...(await orig<typeof import('@/src/hooks/useUploadDestination')>()),
+  useUploadDestination: () => destinationState.value,
+}));
+
 vi.mock('@/src/components/m365/RecordFolderAction', () => ({ RecordFolderAction: () => null }));
 vi.mock('@/src/hooks/useDocuments', () => ({
   useDocuments: () => h.docs,
@@ -64,6 +70,7 @@ beforeEach(() => {
   h.docs.isError = false;
   h.connectionReads.mockClear();
   Object.values(h.graph).forEach((spy) => spy.mockClear());
+  h.graph.checkMicrosoftDocuments?.mockResolvedValue(undefined);
   vi.spyOn(window, 'open').mockImplementation(() => null);
 });
 
@@ -92,7 +99,11 @@ describe('DocumentsTab — Microsoft reference rendering', () => {
 
   it('AC-M365DOC-022: with no connection state at all the committed row still renders and opens', async () => {
     // The mocked connection hook would report "pending forever" if it were consulted.
-    h.docs.data = [makeLinkedDoc({ status: 'Approved' })];
+    h.docs.data = [makeLinkedDoc({
+      status: 'Approved',
+      ms_drift_state: 'clean',
+      ms_last_verified_at: new Date().toISOString(),
+    })];
     renderTab();
     await userEvent.click(screen.getByRole('button', { name: 'View Foundation GA' }));
     expect(within(screen.getByRole('complementary')).getByRole('button', { name: /Open latest in SharePoint/ })).toBeEnabled();

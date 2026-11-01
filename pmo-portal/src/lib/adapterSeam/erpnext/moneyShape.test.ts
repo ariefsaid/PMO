@@ -5,10 +5,46 @@
  * always the money oracle — never a PMO-side Σ of the lines (ADR-0048).
  */
 import { describe, expect, it } from 'vitest';
-import { mirrorMoney, PROCUREMENT_ITEMS_AMOUNT_ORACLE_COLUMN, toDecimalString } from './moneyShape.ts';
+import { mirrorMoney, toDecimalString } from './moneyShape.ts';
 import { AdapterError } from '../contract.ts';
 
 describe('erpnext/moneyShape', () => {
+  it('rounds decimal midpoints away from zero at different magnitudes', () => {
+    for (const [input, expected] of [
+      ['10.075', '10.08'], ['-10.075', '-10.08'], ['1.005', '1.01'],
+      ['-1.005', '-1.01'], ['123456789012.345', '123456789012.35'],
+      ['-123456789012.345', '-123456789012.35'], ['0.0049', '0.00'],
+      ['-0.0049', '0.00'], ['-0.005', '-0.01'], ['00010.075', '10.08'],
+    ]) expect(toDecimalString(input)).toBe(expected);
+    expect(toDecimalString(10.075)).toBe('10.08');
+    expect(toDecimalString(1e-7)).toBe('0.00');
+    expect(toDecimalString(-1e-7)).toBe('0.00');
+    expect(toDecimalString(-0)).toBe('0.00');
+  });
+
+  it('enforces the range after rounding including carry', () => {
+    expect(toDecimalString('999999999999.994')).toBe('999999999999.99');
+    expect(toDecimalString('-999999999999.994')).toBe('-999999999999.99');
+    expect(() => toDecimalString(1e21)).toThrowError(AdapterError);
+    for (const value of ['999999999999.995', '-999999999999.995', '1000000000000', '-1000000000000']) {
+      expect(() => toDecimalString(value)).toThrowError(AdapterError);
+    }
+  });
+
+  it('preserves whitespace, absent and invalid input contracts', () => {
+    expect(toDecimalString('  10.075  ')).toBe('10.08');
+    expect(mirrorMoney('  ')).toBeNull();
+    expect(mirrorMoney(null)).toBeNull();
+    expect(mirrorMoney(undefined)).toBeNull();
+    for (const value of ['1e2', '+1', '.5', '1.', '1 2', 'NaN', '', '  ']) {
+      expect(() => toDecimalString(value)).toThrowError(AdapterError);
+    }
+    for (const value of [NaN, Infinity, -Infinity, {}, true]) {
+      try { mirrorMoney(value); throw new Error('expected rejection'); }
+      catch (error) { expect(error).toBeInstanceOf(AdapterError); expect((error as AdapterError).code).toBe('commit-rejected'); }
+    }
+  });
+
   describe('AC-ENA-030 — Purchase Invoice header + line round-trip exactly, no JS float artifact', () => {
     it('round-trips the header grand_total/outstanding_amount exactly', () => {
       expect(toDecimalString('150000.00')).toBe('150000.00');
@@ -58,9 +94,5 @@ describe('erpnext/moneyShape', () => {
     it('an over-scale allocated_amount is commit-rejected', () => {
       expect(() => mirrorMoney('1000000000000.00')).toThrow(AdapterError);
     });
-  });
-
-  it('documents the procurement_items.amount GENERATED-column divergence: the money oracle is erp_line_amount, never the generated `amount`', () => {
-    expect(PROCUREMENT_ITEMS_AMOUNT_ORACLE_COLUMN).toBe('erp_line_amount');
   });
 });

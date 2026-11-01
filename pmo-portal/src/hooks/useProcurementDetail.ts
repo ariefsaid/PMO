@@ -1,7 +1,18 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
-import { repositories } from '@/src/lib/repositories';
+import { useOptionalRealRole } from '@/src/auth/impersonation';
+import { safeTrack, trackPurchaseApproved } from '@/src/lib/analytics';
+import {
+  repositories,
+  type ProcurementError,
+  type ProcurementDetail,
+  type ProcurementStatus,
+  type ProcurementReceiptRow,
+  type ProcurementInvoiceRow,
+  type CreateInvoiceInput,
+  type CaptureVendorInvoiceInput,
+} from '@/src/lib/repositories';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import {
   IDLE_PENDING_PUSH,
@@ -9,22 +20,6 @@ import {
   pendingPushAfterWrite,
   type PendingPushState,
 } from '@/src/lib/adapterSeam/pendingPush';
-import {
-  getProcurementDetail,
-  // task FIX-1 (Discover CRITICAL 1): captureVendorInvoice is the atomic case-transition + invoice
-  // RPC (`capture_vendor_invoice`) — it REUSES transition_procurement's SoD guard (harden #2 above),
-  // so it is a case-aggregate write, not a per-doctype ERP command. Per FR-ENA-101/073 the case
-  // aggregate stays PMO-derived even on a flipped org (same rule as `transition`, task 4.9), so this
-  // stays on the direct DAL — it has no repository seam entry and none is added here.
-  captureVendorInvoice as dalCaptureVendorInvoice,
-  ProcurementError,
-  type ProcurementDetail,
-  type ProcurementStatus,
-  type ProcurementReceiptRow,
-  type ProcurementInvoiceRow,
-  type CreateInvoiceInput,
-  type CaptureVendorInvoiceInput,
-} from '@/src/lib/db/procurementLifecycle';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { efakturRefusal } from '@/src/lib/efaktur';
@@ -43,7 +38,7 @@ const procurementDetailKey = (orgId: string | undefined, id: string | undefined)
 
 /**
  * Fetches the full procurement detail (header + quotations + receipts + invoices).
- * Cache key is org-scoped: ['procurement', orgId, id] (AC-816).
+ * Cache key is scoped to the org and actor because approval eligibility is caller-specific.
  * Disabled when orgId or id are falsy.
  */
 export function useProcurementDetail(id: string | undefined) {
@@ -51,8 +46,8 @@ export function useProcurementDetail(id: string | undefined) {
   const orgId = currentUser?.org_id;
 
   return useQuery<ProcurementDetail>({
-    queryKey: procurementDetailKey(orgId, id),
-    queryFn: () => getProcurementDetail(id!),
+    queryKey: [...procurementDetailKey(orgId, id), currentUser?.id, currentUser?.role],
+    queryFn: () => repositories.procurement.get(id!),
     enabled: Boolean(orgId && id),
   });
 }
@@ -76,9 +71,11 @@ export function useProcurementMutations(id: string) {
   const queryClient = useQueryClient();
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
+  const realRole = useOptionalRealRole();
 
   const invalidateDetail = () => {
     queryClient.invalidateQueries({ queryKey: procurementDetailKey(orgId, id) });
+    queryClient.invalidateQueries({ queryKey: ['procurement-item-eligibility', orgId, id] });
   };
 
   // The shared pending-push state for this procurement's record-creation writes (quotation/GR/VI —
@@ -98,6 +95,7 @@ export function useProcurementMutations(id: string) {
       // folder is named by. Start the (fire-and-forget) folder step now; any other target status
       // starts nothing, and the transition result is never touched by what the folder does.
       if (to === 'Requested') startRecordFolder({ kind: 'procurement', id });
+      if (to === 'Approved') safeTrack(() => trackPurchaseApproved(realRole ?? 'unknown'));
     },
   });
 
@@ -109,14 +107,20 @@ export function useProcurementMutations(id: string) {
     mutationFn: ({ vendorId, totalAmount, receivedDate, intent }) =>
       repositories.procurement.createQuotation(id, vendorId, totalAmount, receivedDate, intent),
     onMutate: () => {
-      if (isExternal()) setPendingPush(beginPush(IDLE_PENDING_PUSH));
+      if (isExternal()) {
+        queryClient.setQueryData(['procurement-item-eligibility', orgId, id], false);
+        setPendingPush(beginPush(IDLE_PENDING_PUSH));
+      }
     },
     onSuccess: () => {
       invalidateDetail();
       if (isExternal()) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
     },
     onError: (err) => {
-      if (isExternal()) setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+      if (isExternal()) {
+        queryClient.invalidateQueries({ queryKey: ['procurement-item-eligibility', orgId, id] });
+        setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+      }
     },
   });
 
@@ -128,14 +132,20 @@ export function useProcurementMutations(id: string) {
     mutationFn: ({ status, receiptDate, referenceNumber, intent }) =>
       repositories.procurement.createReceipt(id, status, receiptDate, referenceNumber, intent),
     onMutate: () => {
-      if (isExternal()) setPendingPush(beginPush(IDLE_PENDING_PUSH));
+      if (isExternal()) {
+        queryClient.setQueryData(['procurement-item-eligibility', orgId, id], false);
+        setPendingPush(beginPush(IDLE_PENDING_PUSH));
+      }
     },
     onSuccess: () => {
       invalidateDetail();
       if (isExternal()) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
     },
     onError: (err) => {
-      if (isExternal()) setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+      if (isExternal()) {
+        queryClient.invalidateQueries({ queryKey: ['procurement-item-eligibility', orgId, id] });
+        setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+      }
     },
   });
 
@@ -154,14 +164,20 @@ export function useProcurementMutations(id: string) {
     mutationFn: ({ intent, ...input }) =>
       repositories.procurement.createInvoice({ ...input, procurementId: id }, intent),
     onMutate: () => {
-      if (isExternal()) setPendingPush(beginPush(IDLE_PENDING_PUSH));
+      if (isExternal()) {
+        queryClient.setQueryData(['procurement-item-eligibility', orgId, id], false);
+        setPendingPush(beginPush(IDLE_PENDING_PUSH));
+      }
     },
     onSuccess: () => {
       invalidateDetail();
       if (isExternal()) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
     },
     onError: (err) => {
-      if (isExternal()) setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+      if (isExternal()) {
+        queryClient.invalidateQueries({ queryKey: ['procurement-item-eligibility', orgId, id] });
+        setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+      }
     },
   });
 
@@ -174,7 +190,7 @@ export function useProcurementMutations(id: string) {
     ProcurementError,
     Omit<CaptureVendorInvoiceInput, 'procurementId'>
   >({
-    mutationFn: (input) => dalCaptureVendorInvoice({ ...input, procurementId: id }),
+    mutationFn: (input) => repositories.procurement.captureVendorInvoice({ ...input, procurementId: id }),
     onSuccess: invalidateDetail,
   });
 

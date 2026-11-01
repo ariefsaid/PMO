@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { AppError, assertWriteLanded, toAppError } from '@/src/lib/appError';
 import { activateAndPush } from '@/src/lib/budget/budgetPushConsequence';
@@ -87,6 +88,31 @@ export interface ImportProvenance {
   importKey?: string | null;
 }
 
+export interface BudgetImportRequest {
+  versionId: string;
+  item: NewLineItem;
+  batchId: string;
+  importedAt: string;
+  v2Key: string;
+  legacyKey: string;
+  hasReference: boolean;
+}
+
+export async function importBudgetLine(request: BudgetImportRequest): Promise<{ outcome: 'created' | 'skipped' | 'conflict'; line_id: string }> {
+  const { item } = request;
+  const { data, error } = await supabase.rpc('import_budget_line_v2', {
+    p_version_id: request.versionId, p_category: item.category,
+    p_description: item.description as string, p_budgeted_amount: item.budgeted_amount,
+    p_fiscal_year: (item.fiscal_year ?? null) as string,
+    p_batch_id: request.batchId, p_imported_at: request.importedAt,
+    p_v2_key: request.v2Key, p_legacy_key: request.legacyKey, p_has_reference: request.hasReference,
+  });
+  if (error) throw error;
+  const row = data?.[0];
+  if (!row || (!['created', 'skipped', 'conflict'].includes(row.outcome) || typeof row.line_id !== 'string' || !row.line_id)) throw new Error('Unexpected budget import result');
+  return row as { outcome: 'created' | 'skipped' | 'conflict'; line_id: string };
+}
+
 // ---------------------------------------------------------------------------
 // Phase B — reads
 // ---------------------------------------------------------------------------
@@ -125,41 +151,40 @@ export async function deriveProjectBudget(projectId: string): Promise<number> {
   return Number(data);
 }
 
-const VERSIONS_SELECT = '*, line_items:budget_line_items(*)';
-
-type RawVersionWithItems = BudgetVersionRow & { line_items: BudgetLineItemRow[] };
-
-/**
- * Returns all budget versions for a project, ordered ascending by version number,
- * with their line_items nested and a normalised numeric `total` (FR-BV-010 read side).
- * org_id is NEVER sent — RLS scopes via `auth_org_id()`.
- */
+/** Read all visible versions and their related rows independently, with bounded ordered pages. */
 export async function listBudgetVersions(projectId: string): Promise<BudgetVersionWithItems[]> {
-  const { data, error } = await supabase
-    .from('budget_versions')
-    .select(VERSIONS_SELECT)
-    .eq('project_id', projectId)
-    .order('version', { ascending: true });
-  if (error) throw toAppError(error);
-  const rows = (data ?? []) as unknown as RawVersionWithItems[];
-  if (rows.length === 0) return [];
-  const { data: editors, error: editorError } = await supabase
-    .from('budget_version_editors')
-    .select('budget_version_id, user_id')
-    .in('budget_version_id', rows.map((v) => v.id));
-  if (editorError) throw toAppError(editorError);
+  const versions = await fetchAllPages((from, to) => supabase.from('budget_versions')
+    .select('*').eq('project_id', projectId)
+    .order('version', { ascending: true }).order('id', { ascending: true }).range(from, to));
+  if (!versions.length) return [];
+  const [lines, editors, totals] = await Promise.all([
+    fetchAllPages((from, to) => supabase.from('budget_line_items')
+      .select('*, budget_versions!inner(project_id)').eq('budget_versions.project_id', projectId)
+      .order('id', { ascending: true }).range(from, to)),
+    fetchAllPages((from, to) => supabase.from('budget_version_editors')
+      .select('budget_version_id,user_id,budget_versions!inner(project_id)').eq('budget_versions.project_id', projectId)
+      .order('budget_version_id', { ascending: true }).order('user_id', { ascending: true }).range(from, to)),
+    fetchAllPages((from, to) => supabase.rpc('budget_version_read_totals', { p_project_id: projectId })
+      .order('version_id', { ascending: true }).range(from, to)),
+  ]);
+  const linesByVersion = new Map<string, BudgetLineItemRow[]>();
+  for (const { budget_versions: _parent, ...line } of lines) {
+    const items = linesByVersion.get(line.budget_version_id) ?? [];
+    items.push(line);
+    linesByVersion.set(line.budget_version_id, items);
+  }
   const editorsByVersion = new Map<string, string[]>();
-  for (const editor of editors ?? []) {
+  for (const editor of editors) {
     const ids = editorsByVersion.get(editor.budget_version_id) ?? [];
     ids.push(editor.user_id);
     editorsByVersion.set(editor.budget_version_id, ids);
   }
-  return rows.map((v) => ({
-    ...v,
-    line_items: v.line_items ?? [],
-    total: (v.line_items ?? []).reduce((sum, li) => sum + Number(li.budgeted_amount), 0),
-    editor_ids: editorsByVersion.get(v.id) ?? [],
-  }));
+  const totalsByVersion = new Map(totals.map(row => [row.version_id, Number(row.total)]));
+  return versions.map(v => {
+    const total = totalsByVersion.get(v.id);
+    if (total === undefined || !Number.isFinite(total)) throw new Error('Missing or invalid budget version total');
+    return { ...v, line_items: linesByVersion.get(v.id) ?? [], total, editor_ids: editorsByVersion.get(v.id) ?? [] };
+  });
 }
 
 /**
@@ -177,13 +202,18 @@ export async function listBudgetArchiveLiveTargets(versionIds: readonly string[]
   // A failed binding read disables the optional cancel choice, while the mirror query below still
   // powers the action-required banner and preserves the ability to archive PMO's version.
   const cancellationAvailable = !bindingError && binding?.version_major === 16 && typeof binding.activated_at === 'string';
-  const { data, error } = await supabase
-    .from('budget_push_mirror_rows')
-    .select('id,budget_version_id,fiscal_year,erp_account,erp_budget_name,erp_docstatus,erp_cancelled_at,push_state,budget_intent,activated_at_witness')
-    .in('budget_version_id', [...versionIds])
-    .neq('erp_account', '')
-    .is('erp_cancelled_at', null);
-  if (error) throw toAppError(error);
+  const data = await fetchAllPages(async (from, to) => {
+    const result = await supabase
+      .from('budget_push_mirror_rows')
+      .select('id,budget_version_id,fiscal_year,erp_account,erp_budget_name,erp_docstatus,erp_cancelled_at,push_state,budget_intent,activated_at_witness')
+      .in('budget_version_id', [...versionIds])
+      .neq('erp_account', '')
+      .is('erp_cancelled_at', null)
+      .order('id')
+      .range(from, to);
+    if (result.error) throw toAppError(result.error);
+    return result;
+  });
   const targets = ((data ?? []) as unknown as Array<Partial<BudgetArchiveMirrorTarget>>)
     .filter((row): row is BudgetArchiveMirrorTarget =>
       typeof row.id === 'string' &&
@@ -284,6 +314,13 @@ export async function deleteLineItem(id: string): Promise<void> {
 // Phase C — writes (version lifecycle)
 // ---------------------------------------------------------------------------
 
+const VERSION_ALLOCATION_ATTEMPTS = 4;
+
+function isVersionAllocationConflict(error: { code?: string; message?: string }): boolean {
+  return error.code === '23505' && error.message ===
+    'duplicate key value violates unique constraint "budget_versions_project_id_version_key"';
+}
+
 /**
  * Creates a new Draft budget version at max(version)+1 for the project.
  * org_id is NEVER sent (AC-724, FR-BV-004).
@@ -293,41 +330,47 @@ export async function createBudgetVersion(
   name: string,
   provenance?: ImportProvenance,
 ): Promise<BudgetVersionRow> {
-  // Step 1: read current max version for this project
-  const { data: maxData, error: maxError } = await supabase
-    .from('budget_versions')
-    .select('version')
-    .eq('project_id', projectId)
-    .order('version', { ascending: false })
-    .limit(1);
-  if (maxError) throw new Error(maxError.message);
+  for (let attempt = 0; attempt < VERSION_ALLOCATION_ATTEMPTS; attempt++) {
+    // Step 1: read current max version for this project
+    const { data: maxData, error: maxError } = await supabase
+      .from('budget_versions')
+      .select('version')
+      .eq('project_id', projectId)
+      .order('version', { ascending: false })
+      .limit(1);
+    if (maxError) throw new Error(maxError.message);
 
-  const rows = (maxData ?? []) as { version: number }[];
-  const nextVersion = rows.length > 0 ? rows[0].version + 1 : 1;
+    const rows = (maxData ?? []) as { version: number }[];
+    const nextVersion = rows.length > 0 ? rows[0].version + 1 : 1;
 
-  // Step 2: insert new Draft at next version
-  const { data, error } = await supabase
-    .from('budget_versions')
-    .insert({
-      project_id: projectId,
-      version: nextVersion,
-      name,
-      status: 'Draft',
-      // ⚑ `currency` is DELIBERATELY absent (FR-BIMP-006 / DD-BIMP-2): 0187's `stamp_currency`
-      // BEFORE-INSERT trigger resolves it from `organizations.default_currency`. A client
-      // hand-carrying a currency is the thing that seam exists to prevent, exactly as with org_id.
-      ...(provenance
-        ? {
-            import_batch_id: provenance.importBatchId,
-            imported_at: provenance.importedAt,
-            import_key: provenance.importKey ?? null,
-          }
-        : {}),
-    })
-    .select()
-    .single();
-  if (error) throw toAppError(error);
-  return data as unknown as BudgetVersionRow;
+    // Step 2: insert new Draft at next version
+    const { data, error } = await supabase
+      .from('budget_versions')
+      .insert({
+        project_id: projectId,
+        version: nextVersion,
+        name,
+        status: 'Draft',
+        // ⚑ `currency` is DELIBERATELY absent (FR-BIMP-006 / DD-BIMP-2): 0187's `stamp_currency`
+        // BEFORE-INSERT trigger resolves it from `organizations.default_currency`. A client
+        // hand-carrying a currency is the thing that seam exists to prevent, exactly as with org_id.
+        ...(provenance
+          ? {
+              import_batch_id: provenance.importBatchId,
+              imported_at: provenance.importedAt,
+              import_key: provenance.importKey ?? null,
+            }
+          : {}),
+      })
+      .select()
+      .single();
+    if (error) {
+      if (isVersionAllocationConflict(error) && attempt + 1 < VERSION_ALLOCATION_ATTEMPTS) continue;
+      throw toAppError(error);
+    }
+    return data as unknown as BudgetVersionRow;
+  }
+  throw new Error('Version allocation attempts exhausted');
 }
 
 /**
@@ -336,11 +379,17 @@ export async function createBudgetVersion(
  * org_id is NEVER sent — the RPC re-asserts org from auth context (AC-725, FR-BV-007).
  */
 export async function cloneVersion(versionId: string): Promise<string> {
-  const { data, error } = await supabase.rpc('clone_budget_version', {
-    version_id: versionId,
-  });
-  if (error) throw toAppError(error);
-  return data as string;
+  for (let attempt = 0; attempt < VERSION_ALLOCATION_ATTEMPTS; attempt++) {
+    const { data, error } = await supabase.rpc('clone_budget_version', {
+      version_id: versionId,
+    });
+    if (error) {
+      if (isVersionAllocationConflict(error) && attempt + 1 < VERSION_ALLOCATION_ATTEMPTS) continue;
+      throw toAppError(error);
+    }
+    return data as string;
+  }
+  throw new Error('Version allocation attempts exhausted');
 }
 
 /**
@@ -555,14 +604,17 @@ export async function archiveVersion(versionId: string, cancelErp: boolean): Pro
  * `classifyMutationError` toast surfaces it — it is not a silent no-op.
  */
 export async function listBudgetDocumentLinks(versionId: string): Promise<BudgetDocumentLinkRow[]> {
-  const { data, error } = await supabase
-    .from('budget_version_document_links')
-    .select('*')
-    .eq('budget_version_id', versionId)
-    .order('ms_linked_at')
-    .order('id');
-  if (error) throw toAppError(error);
-  return data ?? [];
+  return fetchAllPages(async (from, to) => {
+    const result = await supabase
+      .from('budget_version_document_links')
+      .select('*')
+      .eq('budget_version_id', versionId)
+      .order('ms_linked_at')
+      .order('id')
+      .range(from, to);
+    if (result.error) throw toAppError(result.error);
+    return result;
+  });
 }
 
 export async function addBudgetDocumentLink(

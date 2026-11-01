@@ -1,0 +1,236 @@
+{
+  "actions": {
+    "approve": "Approve",
+    "cancel": "Cancel",
+    "pay": "Pay",
+    "recordCount": "Record count",
+    "reject": "Reject",
+    "reopenPlan": "Edit and resubmit",
+    "requestFunding": "Request funding",
+    "requestReplenishment": "Request replenishment",
+    "submitPlan": "Submit plan"
+  },
+  "amount": {
+    "approveTitle": "Approve the proposed float amount?",
+    "current": "Current float: {{amount}}",
+    "error": "Couldn't load the float amount changes",
+    "history": {
+      "amount": "Amount",
+      "date": "Date",
+      "decidedBy": " · decided by {{name}}",
+      "note": "Note",
+      "status": "Status",
+      "who": "Proposed by"
+    },
+    "newAmount": "New float amount",
+    "open": "Proposed {{amount}} on {{date}}: awaiting a senior approver.",
+    "propose": "Propose new amount",
+    "proposeConfirm": "Propose amount",
+    "proposeTitle": "Propose a new float amount",
+    "proposed": "Amount proposed",
+    "rejectTitle": "Reject the proposed float amount?",
+    "title": "Float amount"
+  },
+  "approvals": {
+    "error": "Couldn't load site cash awaiting you",
+    "errorSub": "Everything else below is unaffected.",
+    "heading": "Site cash awaiting you ({{count}})",
+    "label": "Site cash awaiting you",
+    "plan": "Plan {{month}}",
+    "planKind": "Site cash plan",
+    "toApprove": "Replenishment to approve",
+    "toPay": "Replenishment to pay"
+  },
+  "cash": {
+    "title": "ERP cash account",
+    "fixed": "· set once, cannot be changed",
+    "unset": "No cash account set. This float's cash movements are not posted to the ERP.",
+    "label": "ERP cash account name",
+    "set": "Set account",
+    "confirmTitle": "Set the cash account to {{account}}?",
+    "confirmBody": "The ERP checks it. Once set it cannot be changed, so set it before the float first moves cash.",
+    "done": "Cash account set",
+    "locked": "This float's cash account can't be changed",
+    "taken": "That account belongs to another float",
+    "unfit": "That isn't a usable cash account",
+    "unsupported": "The ERP connection can't take a cash account yet"
+  },
+  "confirm": {
+    "countBook": "Cash in hand by the books: {{amount}}",
+    "countTitle": "Record a cash count",
+    "counted": "Counted cash",
+    "fundingBody": "Asks Finance to put cash into the float up to its amount.",
+    "fundingTitle": "Request funding for this float?",
+    "note": "Note (optional)",
+    "noteRequired": "Note (required: the count differs from the books)",
+    "notes": "Note (optional)",
+    "reference": "Payment reference (optional)",
+    "repTitle": "{{action}} {{number}}: {{amount}}?",
+    "requestBody": "Asks Finance to refill the float with the {{amount}} of receipts waiting.",
+    "requestTitle": "Request replenishment?"
+  },
+  "counts": {
+    "book": "Book {{amount}}",
+    "counted": "Counted {{amount}}",
+    "error": "Couldn't load counts",
+    "none": "No cash count recorded yet.",
+    "title": "Cash counts",
+    "variance": "Variance {{amount}}"
+  },
+  "detail": {
+    "active": "Active",
+    "back": "Site cash",
+    "custodian": "Custodian: {{name}}",
+    "errorTitle": "Couldn't load this float",
+    "notFound": "Float not found",
+    "notFoundSub": "It doesn't exist, or you don't have access to it.",
+    "position": "Position",
+    "positionError": "Couldn't load this float's position",
+    "positionErrorSub": "No figure is shown rather than a wrong one. Try again."
+  },
+  "establish": {
+    "amount": "Float amount",
+    "custodian": "Custodian",
+    "custodianNoun": "custodian",
+    "errors": {
+      "amount": "Enter an amount greater than zero."
+    },
+    "project": "Project",
+    "projectNoun": "project",
+    "submit": "Establish float",
+    "subtitle": "A float is cash held on site by one custodian for one project.",
+    "title": "Establish site float",
+    "toast": "Float established"
+  },
+  "exception": {
+    "admin": "This is outside the approved site cash plan. No senior approver can act on it, so an Admin decides it.",
+    "deciders": "This is outside the approved site cash plan. Decided by: {{names}}.",
+    "joiner": ", ",
+    "noRoute": "This is outside the approved site cash plan, so a senior approver decides it."
+  },
+  "form": {
+    "chargeToFloat": "Charge to site float",
+    "currentFloat": "The float it is charged to",
+    "exceptionHint": "This is above this month's plan: it goes to a senior approver as an out-of-plan item.",
+    "helper": "Cash paid out of site cash held by the custodian.",
+    "limitHint": "Above the procurement limit ({{limit}}): site cash will refuse this. Raise it as a procurement request.",
+    "linkFailed": "Saved, but not charged to the site float",
+    "noFloat": "Not charged to a float",
+    "remainingHint": "Remaining this month for this category: {{amount}}."
+  },
+  "list": {
+    "columns": {
+      "custodian": "Custodian",
+      "project": "Project"
+    },
+    "countOk": "Matched",
+    "description": "Cash held on site, by float: what is in hand, what is out as advances and what is waiting to be replenished.",
+    "empty": "No site floats yet",
+    "emptySub": "Finance or an Admin establishes a float for a project and names its custodian.",
+    "error": "Couldn't load site cash floats",
+    "errorSub": "The request failed. Check your connection and try again.",
+    "positionUnavailable": "Unavailable",
+    "rowLabel": "Open {{project}}",
+    "title": "Site cash",
+    "truncated": "Showing the latest {{count}}. Archive floats you no longer use to see older ones."
+  },
+  "nav": {
+    "siteCash": "Site cash"
+  },
+  "plan": {
+    "category": "Budget category",
+    "chooseCategory": "Choose a category",
+    "confirm": {
+      "approveTitle": "Approve the {{month}} plan?",
+      "cancelTitle": "Cancel the {{month}} plan?",
+      "notes": "Note to the author (optional)",
+      "rejectTitle": "Reject the {{month}} plan?"
+    },
+    "draftNumber": "Draft",
+    "drawn": "Drawn",
+    "error": "Couldn't load plans",
+    "exception": "Out of plan",
+    "exceptions": "Exceptions",
+    "hideLines": "Hide lines",
+    "late": "Late",
+    "linesError": "Couldn't load the plan lines",
+    "month": "Month",
+    "new": "New plan",
+    "nextMonth": "Next month ({{month}})",
+    "noLines": "No lines yet.",
+    "noPlans": "No plans yet. The custodian drafts one per month.",
+    "none": "No approved plan this month",
+    "noneSub": "Spend this month is out of plan until a plan is approved.",
+    "planned": "Planned",
+    "plannedAmount": "Planned amount",
+    "rejectionNote": "Rejected: {{note}}",
+    "remaining": "Remaining",
+    "remove": "Remove",
+    "removeLine": "Remove {{category}}",
+    "saveLine": "Save line",
+    "sectionTitle": "Plans",
+    "showLines": "Show lines",
+    "thisMonth": "This month ({{month}})",
+    "title": "This month's plan ({{month}})",
+    "toast": {
+      "created": "Draft plan created",
+      "updated": "Plan updated"
+    }
+  },
+  "position": {
+    "advancesOut": "Advances out",
+    "cash": "Cash in hand",
+    "float": "Float",
+    "gap": "Gap",
+    "gapFlag": "Books do not balance",
+    "inFlight": "Replenishment in flight",
+    "lastCount": "Last count {{date}}: variance {{variance}}",
+    "lastCountColumn": "Last count",
+    "notFunded": "Not yet funded",
+    "receiptsWaiting": "Receipts waiting",
+    "topUp": "Top-up due {{amount}}",
+    "varianceFlag": "Count variance"
+  },
+  "posting": {
+    "pending": "Posting to ERP",
+    "failed": "ERP posting failed",
+    "uncertain": "ERP posting unconfirmed",
+    "error": "Couldn't load the ERP posting status",
+    "truncated": "Showing posting status for the first {{count}} movements only."
+  },
+  "receipts": {
+    "error": "Couldn't load the float's records",
+    "inRequest": "In a replenishment request",
+    "none": "Nothing has been charged to this float yet.",
+    "replenished": "Replenished",
+    "title": "Receipts",
+    "waiting": "Waiting"
+  },
+  "rep": {
+    "actions": "Actions",
+    "amount": "Amount",
+    "error": "Couldn't load replenishments",
+    "funding": "Funding",
+    "kind": "Type",
+    "none": "No replenishments yet",
+    "noneSub": "The custodian requests one when receipts are waiting.",
+    "number": "Number",
+    "replenishment": "Replenishment",
+    "status": "Status",
+    "title": "Replenishments"
+  },
+  "status": {
+    "approved": "Approved",
+    "cancelled": "Cancelled",
+    "draft": "Draft",
+    "paid": "Paid",
+    "rejected": "Rejected",
+    "requested": "Requested",
+    "submitted": "Submitted"
+  },
+  "toast": {
+    "counted": "Count recorded",
+    "requested": "Request sent",
+    "updated": "Updated"
+  }
+}

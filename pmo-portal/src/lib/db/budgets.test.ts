@@ -65,6 +65,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
 
 import {
   deriveProjectBudget,
+  importBudgetLine,
   getBudgetActivationMode,
   precheckBudgetActivation,
   listBudgetVersions,
@@ -112,6 +113,7 @@ function makeFromBuilder(resolved: { data: unknown; error: unknown }) {
   builder.neq = mockNeq.mockReturnValue(builder);
   builder.order = mockOrder.mockReturnValue(builder);
   builder.limit = mockLimit.mockReturnValue(builder);
+  builder.range = vi.fn().mockReturnValue(builder);
   builder.update = mockUpdate.mockReturnValue(builder);
   builder.delete = mockDelete.mockReturnValue(builder);
   builder.insert = mockInsert.mockReturnValue(builder);
@@ -265,12 +267,19 @@ describe('listBudgetVersions', () => {
       },
     ];
 
-    makeFromBuilder({ data: versions, error: null });
+    const rows = { budget_versions: versions, budget_line_items: versions.flatMap(v => v.line_items), budget_version_editors: [] };
+    const makeRead = (data: unknown) => {
+      const b = { select: mockSelect, eq: mockEq, order: mockOrder, range: vi.fn(), then: (resolve: (v: unknown) => void) => Promise.resolve({ data, error: null }).then(resolve) };
+      for (const method of [mockSelect, mockEq, mockOrder, b.range]) method.mockReturnValue(b);
+      return b;
+    };
+    mockFrom.mockImplementation((table: keyof typeof rows) => makeRead(rows[table]));
+    mockRpc.mockImplementation(() => makeRead([{ version_id: 'v1', total: 4700000 }, { version_id: 'v2', total: 0 }]));
 
     const result = await listBudgetVersions('p1');
 
     expect(mockFrom).toHaveBeenCalledWith('budget_versions');
-    expect(mockSelect).toHaveBeenCalledWith('*, line_items:budget_line_items(*)');
+    expect(mockSelect).toHaveBeenCalledWith('*, budget_versions!inner(project_id)');
     expect(mockEq).toHaveBeenCalledWith('project_id', 'p1');
     expect(mockOrder).toHaveBeenCalledWith('version', { ascending: true });
 
@@ -300,7 +309,14 @@ describe('listBudgetVersions', () => {
         ],
       },
     ];
-    makeFromBuilder({ data: versions, error: null });
+    const rows = { budget_versions: versions, budget_line_items: versions.flatMap(v => v.line_items), budget_version_editors: [] };
+    const makeRead = (data: unknown) => {
+      const b = { select: mockSelect, eq: mockEq, order: mockOrder, range: vi.fn(), then: (resolve: (v: unknown) => void) => Promise.resolve({ data, error: null }).then(resolve) };
+      for (const method of [mockSelect, mockEq, mockOrder, b.range]) method.mockReturnValue(b);
+      return b;
+    };
+    mockFrom.mockImplementation((table: keyof typeof rows) => makeRead(rows[table]));
+    mockRpc.mockImplementation(() => makeRead([{ version_id: 'v1', total: '3000000' }]));
 
     const result = await listBudgetVersions('p1');
 
@@ -386,6 +402,45 @@ describe('createLineItem and deleteLineItem', () => {
   it('deleteLineItem throws on error', async () => {
     makeFromBuilder({ data: null, error: { message: 'delete fail' } });
     await expect(deleteLineItem('li-bad')).rejects.toThrow('delete fail');
+  });
+});
+
+describe('version allocation under contention', () => {
+  it('re-reads the maximum after a project-version collision', async () => {
+    const conflict = { code: '23505', message: 'duplicate key value violates unique constraint "budget_versions_project_id_version_key"' };
+    const result = { id: 'created', version: 3 };
+    let read = 0;
+    const inserted: number[] = [];
+    mockFrom.mockImplementation(() => {
+      const b: Record<string, unknown> = {};
+      for (const method of ['select', 'eq', 'order', 'limit', 'single']) b[method] = () => b;
+      let isInsert = false;
+      b.insert = (row: { version: number }) => { isInsert = true; inserted.push(row.version); return b; };
+      b.then = (resolve: (value: unknown) => void) => Promise.resolve(!isInsert
+        ? { data: [{ version: ++read }], error: null }
+        : inserted.length === 1 ? { data: null, error: conflict } : { data: result, error: null }).then(resolve);
+      return b;
+    });
+    await expect(createBudgetVersion('p1', 'Draft')).resolves.toEqual(result);
+    expect(inserted).toEqual([2, 3]);
+  });
+
+  it('does not retry a different unique constraint', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "budget_versions_import_key_uidx"' } });
+    await expect(cloneVersion('source')).rejects.toMatchObject({ code: '23505' });
+    expect(mockRpc).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops retrying persistent version collisions and preserves the error', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "budget_versions_project_id_version_key"' } });
+    await expect(cloneVersion('source')).rejects.toMatchObject({ code: '23505' });
+    expect(mockRpc).toHaveBeenCalledTimes(4);
+  });
+
+  it('retries a clone when another allocation wins its version', async () => {
+    mockRpc.mockResolvedValueOnce({ data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "budget_versions_project_id_version_key"' } });
+    mockRpc.mockResolvedValueOnce({ data: 'copy', error: null });
+    await expect(cloneVersion('source')).resolves.toBe('copy');
   });
 });
 
@@ -925,5 +980,26 @@ describe('#541 budget writes reject a using-denied 0-row no-op', () => {
     expect(err).toBeInstanceOf(AppError);
     expect((err as AppError).code).toBe('42501');
     expect(mockDelete).toHaveBeenCalled();
+  });
+});
+
+
+describe('budget import authority adapter', () => {
+  const request = { versionId: 'v', item: { category: 'Labor' as const, description: null, budgeted_amount: 1.25, fiscal_year: null },
+    batchId: 'b', importedAt: 'date', v2Key: 'v2', legacyKey: 'old', hasReference: false };
+  it('passes the exact arguments and preserves the outcome', async () => {
+    mockRpc.mockResolvedValueOnce({ data: [{ outcome: 'conflict', line_id: 'existing' }], error: null });
+    await expect(importBudgetLine(request)).resolves.toEqual({ outcome: 'conflict', line_id: 'existing' });
+    expect(mockRpc).toHaveBeenCalledWith('import_budget_line_v2', { p_version_id: 'v', p_category: 'Labor', p_description: null,
+      p_budgeted_amount: 1.25, p_fiscal_year: null, p_batch_id: 'b', p_imported_at: 'date',
+      p_v2_key: 'v2', p_legacy_key: 'old', p_has_reference: false });
+  });
+  it('propagates database errors and rejects unexpected outcomes', async () => {
+    mockRpc.mockResolvedValueOnce({ data: null, error: { code: '23505' } });
+    await expect(importBudgetLine(request)).rejects.toMatchObject({ code: '23505' });
+    mockRpc.mockResolvedValueOnce({ data: [{ outcome: 'unknown' }], error: null });
+    await expect(importBudgetLine(request)).rejects.toThrow(/Unexpected/);
+    mockRpc.mockResolvedValueOnce({ data: [{ outcome: 'created', line_id: null }], error: null });
+    await expect(importBudgetLine(request)).rejects.toThrow(/Unexpected/);
   });
 });

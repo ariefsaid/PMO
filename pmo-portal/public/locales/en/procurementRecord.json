@@ -25,7 +25,14 @@
     "documentsLinked_other": "{{count}} documents linked"
   },
   "items": {
-    "countLabel": "line items"
+    "countLabel": "line items",
+    "submitting": "A case document is being submitted.",
+    "retry": "Retry",
+    "ownershipError": "Ownership could not be loaded. Try again.",
+    "ownershipChecking": "Checking ownership…",
+    "eligibilityError": "Line editing availability could not be loaded. Try again.",
+    "eligibilityChecking": "Checking line editing availability…",
+    "valuesManaged": "Quantity and unit price are managed by ERP for this purchase."
   },
   "action": {
     "submit": "Submit for approval",

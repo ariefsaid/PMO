@@ -7,7 +7,8 @@
  * so both belong in one tested function rather than two hand-written ladders in two components.
  */
 import { describe, it, expect } from 'vitest';
-import { describePushError, RAW_ADAPTER_TOKEN } from './pushErrorCopy';
+import { describePushError } from './pushErrorCopy';
+import { RAW_ADAPTER_TOKEN } from '../testing/rawAdapterToken';
 
 /** Every code that any writer can persist into `*_erp_mirror.push_error` today. */
 const ALL_CODES = [

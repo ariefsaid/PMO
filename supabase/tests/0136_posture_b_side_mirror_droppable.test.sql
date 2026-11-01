@@ -7,7 +7,7 @@ begin;
 -- `create temporary table xing_before` step is setup, not a test. The plan's own draft declared
 -- plan(8) — pg_prove caught the miscount ("planned 8 tests but ran 7", 0 of the 7 failing) — fixed
 -- here to match the assertions actually written, never inflated to hit an arbitrary count.
-select plan(10);
+select plan(11);
 
 -- 1. The Posture-B mirror inventory now includes the account-grained Budget companion. The invoker
 --    union view is an explicit read-compatibility dependency, so remove that view before proving the
@@ -15,7 +15,7 @@ select plan(10);
 select set_eq(
   $$ select table_name::text from information_schema.tables
       where table_schema = 'public' and table_name like '%\_erp\_mirror' $$,
-  $$ values ('timesheet_erp_mirror'), ('budget_version_erp_mirror'), ('budget_version_account_erp_mirror'), ('expense_posting_erp_mirror') $$,
+  $$ values ('timesheet_erp_mirror'), ('budget_version_erp_mirror'), ('budget_version_account_erp_mirror'), ('expense_posting_erp_mirror'), ('imprest_posting_erp_mirror') $$,
   'AC-XING-004 Posture-B side-mirror inventory includes the v16 Budget companion'
 );
 
@@ -27,7 +27,9 @@ union all select 'budget_versions',    count(*) from public.budget_versions
 union all select 'budget_line_items',  count(*) from public.budget_line_items
 union all select 'projects',           count(*) from public.projects
 union all select 'expense_claims',     count(*) from public.expense_claims
-union all select 'expense_advance_returns', count(*) from public.expense_advance_returns;
+union all select 'expense_advance_returns', count(*) from public.expense_advance_returns
+union all select 'imprest_floats', count(*) from public.imprest_floats
+union all select 'imprest_replenishments', count(*) from public.imprest_replenishments;
 
 -- 3. RESTRICT, not CASCADE: invariant 7 says the mirror carries only external-side state. The
 --    compatibility view must be explicitly removed before testing the underlying Budget mirror.
@@ -49,6 +51,10 @@ select lives_ok(
   'drop table public.expense_posting_erp_mirror restrict',
   'AC-XING-004 expense_posting_erp_mirror drops with RESTRICT — nothing PMO owns depends on it'
 );
+select lives_ok(
+  'drop table public.imprest_posting_erp_mirror restrict',
+  'AC-XING-004 imprest_posting_erp_mirror drops with RESTRICT — nothing PMO owns depends on it'
+);
 
 -- 4. Every PMO SoT table still exists and still holds every row.
 select has_table('public', 'timesheets',        'AC-XING-004 timesheets survives the drop');
@@ -61,7 +67,9 @@ select is_empty(
              union all select 'budget_line_items', count(*) from public.budget_line_items
              union all select 'projects',          count(*) from public.projects
              union all select 'expense_claims',    count(*) from public.expense_claims
-             union all select 'expense_advance_returns', count(*) from public.expense_advance_returns) a
+             union all select 'expense_advance_returns', count(*) from public.expense_advance_returns
+             union all select 'imprest_floats', count(*) from public.imprest_floats
+             union all select 'imprest_replenishments', count(*) from public.imprest_replenishments) a
          on a.t = b.t
       where a.n <> b.n $$,
   'AC-XING-004 dropping every side mirror changes no PMO row count'

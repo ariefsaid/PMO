@@ -82,6 +82,17 @@ vi.mock('@/src/lib/db/procurementFiles', () => ({
   getSignedDownloadUrl: vi.fn(async (path: string) => `https://cdn.example.com/${path}`),
 }));
 
+// The ledger consumes useVendorWithholdingCoverage directly; the tests steer the query object
+// here instead of injecting coverage props.
+const coverageQuery = vi.hoisted(() => ({
+  fn: vi.fn(),
+  current: { data: [] as unknown[], isLoading: false, isError: false, refetch: vi.fn(async () => {}) },
+}));
+vi.mock('@/src/hooks/useVendorWithholdingSlips', async (orig) => {
+  const actual = await orig<typeof import('@/src/hooks/useVendorWithholdingSlips')>();
+  return { ...actual, useVendorWithholdingCoverage: coverageQuery.fn };
+});
+
 import { ProcurementLedger } from './ProcurementLedger';
 import * as procurementFilesModule from '@/src/lib/db/procurementFiles';
 import type { LedgerRow } from '../../src/lib/db/procurementLedger';
@@ -207,6 +218,17 @@ function wrap(ui: React.ReactElement) {
   );
 }
 
+function setCoverage(next: Partial<typeof coverageQuery.current>) {
+  coverageQuery.current = { ...coverageQuery.current, ...next };
+  coverageQuery.fn.mockImplementation(() => coverageQuery.current);
+  return coverageQuery.current;
+}
+
+beforeEach(() => {
+  setCoverage({ data: [], isLoading: false, isError: false });
+  coverageQuery.current.refetch = vi.fn(async () => {});
+});
+
 const BASE_PROPS = {
   detail: makeDetail(),
   rows: SAMPLE_ROWS,
@@ -252,7 +274,8 @@ describe('AC-PR-LEDGER-010: ProcurementLedger renders DataTable', () => {
 
   it('AC-UXS-004 offers the existing vendor edit recovery instead of opening a slip form without a vendor', () => {
     const onSetVendor = vi.fn();
-    wrap(<ProcurementLedger {...BASE_PROPS} detail={makeDetail({ status: 'Draft', vendor_id: null })} rows={[SAMPLE_ROWS[1]]} invoices={[{ id: 'vi-1', amount: 100, currency: 'USD' } as never]} withholdingCoverage={{ 'vi-1': { coverage_state: 'not-recorded', active_slip_id: null } as never }} canWriteWithholdingSlip vendorMissing onSetVendor={onSetVendor} />);
+    setCoverage({ data: [{ invoice_id: 'vi-1', coverage_state: 'not-recorded', active_slip_id: null } as never] });
+    wrap(<ProcurementLedger {...BASE_PROPS} detail={makeDetail({ status: 'Draft', vendor_id: null })} rows={[SAMPLE_ROWS[1]]} invoices={[{ id: 'vi-1', amount: 100, currency: 'USD' } as never]} canWriteWithholdingSlip vendorMissing onSetVendor={onSetVendor} />);
     expect(screen.getByText('Set a supplier on this procurement before recording this slip.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Record bukti potong' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Set supplier' })).toBeInTheDocument();
@@ -603,5 +626,39 @@ describe('AC-SEC-234: a role that reads no bills or payments is told so, never s
     });
     render(<I18nextProvider i18n={i18n}><MemoryRouter><QueryClientProvider client={new QueryClient()}><ProcurementLedger {...BASE_PROPS} canWrite={false} detail={makeDetail({ status: 'Paid' })} rows={NON_MONEY_ROWS} /></QueryClientProvider></MemoryRouter></I18nextProvider>);
     expect(screen.getByText('Tagihan pemasok dan pembayaran tidak ditampilkan untuk peran Anda.')).toBeInTheDocument();
+  });
+});
+
+describe('the ledger derives withholding coverage from the hook itself', () => {
+  const invoiceProps = { invoices: [{ id: 'vi-1', amount: 100, currency: 'USD' } as never] };
+
+  it('shows the coverage state from the query with no coverage props at all', () => {
+    setCoverage({ data: [{ invoice_id: 'vi-1', coverage_state: 'not-recorded', active_slip_id: null } as never] });
+    wrap(<ProcurementLedger {...BASE_PROPS} {...invoiceProps} rows={[SAMPLE_ROWS[1]]} />);
+    expect(coverageQuery.fn).toHaveBeenCalledWith(['vi-1']);
+    expect(screen.getByText('Not recorded')).toBeInTheDocument();
+  });
+
+  it('shows the loading state while the coverage query runs', () => {
+    setCoverage({ isLoading: true });
+    wrap(<ProcurementLedger {...BASE_PROPS} {...invoiceProps} rows={[SAMPLE_ROWS[1]]} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Loading bukti potong…');
+  });
+
+  it('offers an actual retry when the coverage query fails', async () => {
+    const refetch = vi.fn(async () => {});
+    setCoverage({ isError: true, refetch });
+    wrap(<ProcurementLedger {...BASE_PROPS} {...invoiceProps} rows={[SAMPLE_ROWS[1]]} />);
+    expect(screen.getByText('Bukti potong unavailable')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(refetch).toHaveBeenCalledTimes(1));
+  });
+
+  it('records a bukti potong for the invoiced row when permitted', async () => {
+    const onRecordWithholdingSlip = vi.fn();
+    setCoverage({ data: [{ invoice_id: 'vi-1', coverage_state: 'not-recorded', active_slip_id: null } as never] });
+    wrap(<ProcurementLedger {...BASE_PROPS} {...invoiceProps} rows={[SAMPLE_ROWS[1]]} canWriteWithholdingSlip onRecordWithholdingSlip={onRecordWithholdingSlip} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Record bukti potong' }));
+    await waitFor(() => expect(onRecordWithholdingSlip).toHaveBeenCalledWith(expect.objectContaining({ id: 'vi-1' })));
   });
 });

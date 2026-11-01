@@ -58,6 +58,8 @@ function fakeServiceClient(opts: {
   actorUserId: string | null;
   domainOwned?: boolean;
   actorState?: { role: string | null; active: boolean } | null;
+  payload?: Record<string, unknown>;
+  inputDigest?: string | null;
 }) {
   const rpcCalls: RpcCall[] = [];
   const client = {
@@ -72,8 +74,9 @@ function fakeServiceClient(opts: {
         maybeSingle: async () => ({
           data: {
             operation: 'create',
-            payload: { id: 'si-1', erp_doc_kind: 'sales-invoice' },
+            payload: opts.payload ?? { id: 'si-1', erp_doc_kind: 'sales-invoice' },
             actor_user_id: opts.actorUserId,
+            procurement_input_digest: opts.inputDigest ?? null,
           },
           error: null,
         }),
@@ -91,6 +94,16 @@ function fakeServiceClient(opts: {
   } as unknown as SupabaseClient;
   return { client, rpcCalls };
 }
+
+Deno.test('a receipt recovery refuses an inconsistent server witness before resolving credentials', async () => {
+  const { client } = fakeServiceClient({ actorUserId: ACTOR, inputDigest: 'a'.repeat(64),
+    payload: { id: 'receipt-1', procurementId: 'purchase-1', erp_doc_kind: 'goods-receipt',
+      items: [{ item_code: 'Item', qty: 1, rate: 10 }], pmo_gr_snapshot: { supplier: 'Supplier', po: null, raw_digest: 'b'.repeat(64) } } });
+  const row = { ...outboxRow('pending'), domain: 'procurement', payloadDigest: 'c'.repeat(64) };
+  const { error, envReads } = await buildAndCatch(client, row);
+  assert(error?.message.includes('receipt snapshot') === true, `expected an inconsistent receipt snapshot refusal, got: ${error?.message}`);
+  assert(envReads === 0, 'an inconsistent snapshot is refused before credential resolution');
+});
 
 /**
  * Counts env reads so "did we reach credential resolution?" is a real observation, not an inference.

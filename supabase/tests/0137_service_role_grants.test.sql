@@ -10,7 +10,7 @@
 -- security-definer lock-order RPCs (0105/0106) are the only mutation path (closing the child→parent
 -- deadlock seam). The catalog backstop below excludes it; the exception is asserted explicitly.
 begin;
-select plan(20);
+select plan(22);
 
 -- profiles: the exact table the promote e2e failed on (admin-invite-user inserts here).
 select ok(has_table_privilege('service_role', 'public.profiles', 'INSERT'),
@@ -32,8 +32,16 @@ select ok(has_table_privilege('service_role', 'public.projects', 'SELECT'),
 
 -- Catalog-driven backstop: NO ordinary base table in public is missing service_role INSERT —
 -- EXCEPT the deliberate RPC-only tables: ms_graph_connections (0106) and the two internal
--- statement-state tables (0321). Those tables intentionally deny direct mutation; their owners'
--- trigger/RPC paths maintain state. Uses pg_class BY OID (relkind 'r'), which is authoritative —
+-- statement-state tables (0321), plus procurement_import_runs (0399): import-run rows are minted
+-- ONLY by the start_procurement_import_run definer, which stamps org and identity_version
+-- server-side — a direct service_role INSERT would let a caller register run identities the RPC
+-- path never attests. The owning proof is 0399_procurement_import_identity_authority.test.sql.
+-- Also the four stock tables (0413, ADR-0097 §1): append-only ledger, single-writer balances and the
+-- RPC-written documents/lines; service_role's writes are revoked on purpose. Proof:
+-- stock_immutability_idempotency.test.sql (service role cannot insert/update/delete/truncate them).
+-- Also imprest_cash_counts (0424): write-once cash counts, written only by record_imprest_count; service_role's
+-- writes are revoked on purpose.
+-- Uses pg_class BY OID (relkind 'r'), which is authoritative —
 -- no name-resolution phantoms, unlike information_schema. If a future migration adds an ordinary
 -- table without the default-priv grant landing, this fails loud.
 select is(
@@ -43,11 +51,23 @@ select is(
       and c.relname not in (
         'ms_graph_connections',
         'erp_financial_statement_dirty_date',
-        'erp_financial_statement_published_context'
+        'erp_financial_statement_published_context',
+        'procurement_import_runs',
+        'stock_documents',
+        'stock_document_lines',
+        'stock_ledger',
+        'stock_balances',
+        'imprest_cash_counts'
       )
       and not has_table_privilege('service_role', c.oid, 'INSERT')),
   0,
   'AC-SVCROLE-008 every ordinary public base table grants service_role INSERT');
+
+-- 0399's exemption is a named pin, not a silent omission: runs are RPC-minted (see above).
+select is(has_table_privilege('service_role', 'public.procurement_import_runs', 'INSERT'), false,
+  'AC-SVCROLE-008b service_role may NOT directly INSERT procurement_import_runs (RPC-minted only)');
+select is(has_table_privilege('service_role', 'public.procurement_import_runs', 'SELECT'), true,
+  'AC-SVCROLE-008b service_role RETAINS SELECT on procurement_import_runs (0399 grant)');
 
 -- Luna round-4 (MED-2) explicit exception: ms_graph_connections is RPC-only. service_role may NOT
 -- directly INSERT/UPDATE/DELETE it (the 0105/0106 security-definer RPCs are the only mutation path),

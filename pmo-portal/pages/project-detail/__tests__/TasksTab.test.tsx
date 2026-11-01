@@ -74,6 +74,8 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 import TasksTab from '../tabs/TasksTab';
+import { clearOwnershipCache, setTaskOwnership, setProjectBindings, setProjectBinding } from '@/src/lib/adapterSeam/ownershipCache';
+import { act } from '@testing-library/react';
 
 const profiles = [
   { id: 'eng-1', full_name: 'Dana Engineer', role: 'Engineer' },
@@ -140,6 +142,9 @@ const renderTab = (role: Role = 'Project Manager', userId = 'pm-1', initialEntry
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  clearOwnershipCache();
+  setTaskOwnership([]);
+  setProjectBindings([]);
   listState.data = seed;
   listState.isPending = false;
   listState.isError = false;
@@ -261,9 +266,55 @@ describe('TasksTab — archive affordance (AC-CUA-098/099/100)', () => {
     expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
   });
 
+  it.each(['Finance', 'Engineer'] as const)('%s updates creator actions when ownership becomes known and bindings change', async (role) => {
+    clearOwnershipCache();
+    listState.data = [{ ...seed[0], created_by: 'eng-1' }];
+    renderTab(role, 'eng-1');
+    await userEvent.click(screen.getByRole('button', { name: /row actions/i }));
+    expect(screen.queryByRole('menuitem', { name: 'Edit' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /status for survey the site/i })).not.toBeInTheDocument();
+    act(() => { setTaskOwnership([]); setProjectBindings([]); });
+    expect(screen.getByRole('button', { name: /status for survey the site/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeInTheDocument();
+    act(() => setProjectBinding('p1', true));
+    expect(screen.queryByRole('menuitem', { name: 'Edit' })).not.toBeInTheDocument();
+    act(() => clearOwnershipCache());
+    expect(screen.queryByRole('menuitem', { name: 'Edit' })).not.toBeInTheDocument();
+    act(() => { setTaskOwnership([]); setProjectBindings([{ projectId: 'p1', externalTier: 'clickup' }]); });
+    expect(screen.queryByRole('menuitem', { name: 'Edit' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /status for survey the site/i })).toBeInTheDocument();
+  });
+
+  it('offers a creator structural edits only for native ownership while retaining assigned status', async () => {
+    setProjectBinding('p1', true);
+    listState.data = [{ ...seed[0], created_by: 'eng-1' }];
+    renderTab('Engineer', 'eng-1');
+    expect(screen.getByRole('button', { name: /status for survey the site/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /row actions/i }));
+    expect(screen.queryByRole('menuitem', { name: 'Edit' })).not.toBeInTheDocument();
+  });
+
+  it('withdraws an open structural bulk action when the binding changes', async () => {
+    listState.data = [{ ...seed[0], created_by: 'eng-1' }];
+    renderTab('Engineer', 'eng-1');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select task Survey the site' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Change due date' }));
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeInTheDocument();
+    act(() => setProjectBinding('p1', true));
+    expect(screen.queryByRole('button', { name: 'Apply' })).not.toBeInTheDocument();
+    expect(mutations.update.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('keeps delivery editing and assignee status for a known external route', async () => {
+    setProjectBinding('p1', true);
+    renderTab('Project Manager', 'pm-1');
+    expect(screen.getByRole('button', { name: /status for survey the site/i })).toBeInTheDocument();
+    await userEvent.click(screen.getAllByRole('button', { name: /row actions/i })[0]);
+    expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeInTheDocument();
+  });
+
   it('AC-CUA-100: archive action is absent while tasks are externally owned', async () => {
-    const ownership = await import('@/src/lib/adapterSeam/ownershipCache');
-    vi.spyOn(ownership, 'routeTaskWrite').mockReturnValue('external');
+    setProjectBinding('p1', true);
     renderTab('Admin');
     await userEvent.click(screen.getAllByRole('button', { name: /Row actions/i })[0]);
     expect(screen.queryByText('Archive')).not.toBeInTheDocument();
@@ -431,6 +482,42 @@ describe('TasksTab — status update (AC-TASK-005)', () => {
     await waitFor(() => expect(mutations.updateStatus.mutateAsync).toHaveBeenCalledWith({ id: 't1', status: 'Done' }));
     // The status-only path must never call the structure update.
     expect(mutations.update.mutateAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe('TasksTab — ClickUp round trip (AC-EAC-018)', () => {
+  it('AC-EAC-018: an edited task status is confirmed to the editor, and a ClickUp-side change shows up as the converged status after reload', async () => {
+    realRole = 'Admin';
+    const first = renderTab('Admin', 'admin-1');
+    await userEvent.click(screen.getByRole('button', { name: /status for survey the site/i }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /status for survey the site/i }), 'In Progress');
+    await waitFor(() => expect(mutations.updateStatus.mutateAsync).toHaveBeenCalledWith({ id: 't1', status: 'In Progress' }));
+    expect(await screen.findByText('Status updated')).toBeInTheDocument();
+    first.unmount();
+
+    // The webhook has moved the task to Done on the PMO read model; a reload reads that.
+    listState.data = seed.map((task) => (task.id === 't1' ? { ...task, status: 'Done' } : task));
+    renderTab('Admin', 'admin-1');
+    await userEvent.click(screen.getByRole('button', { name: '1 done' }));
+    await userEvent.click(screen.getByRole('button', { name: /status for survey the site/i }));
+    expect(screen.getByRole('combobox', { name: /status for survey the site/i })).toHaveValue('Done');
+  });
+});
+
+describe('TasksTab — inbound ClickUp change (AC-CUA-091)', () => {
+  it('AC-CUA-091: a ClickUp-side status change applied to the read model shows on the board after a refresh', async () => {
+    const demolition = { ...seed[1], id: 't9', name: 'Demolition', status: 'Done', dependencies: [] };
+    listState.data = [demolition];
+    const first = renderTab('Admin', 'admin-1');
+    await userEvent.click(screen.getByRole('tab', { name: /^board$/i }));
+    expect(screen.getByRole('combobox', { name: 'Status for Demolition' })).toHaveValue('Done');
+    first.unmount();
+
+    // The signed webhook has been applied server-side: the read model now says In Progress.
+    listState.data = [{ ...demolition, status: 'In Progress' }];
+    renderTab('Admin', 'admin-1');
+    await userEvent.click(screen.getByRole('tab', { name: /^board$/i }));
+    expect(screen.getByRole('combobox', { name: 'Status for Demolition' })).toHaveValue('In Progress');
   });
 });
 

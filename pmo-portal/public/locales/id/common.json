@@ -240,6 +240,7 @@
     "futureDate": "Tanggal publikasi tidak boleh di masa depan.",
     "invalidRate": "Masukkan kurs 1.000–100.000 dengan maksimal enam angka desimal; periksa pemisah angka.",
     "fileTooLarge": "Ukuran file melebihi 5 MiB.",
+    "expandedFileTooLarge": "Ukuran buku kerja setelah diekstrak melebihi 20 MiB.",
     "emptyFile": "File tidak berisi baris kurs.",
     "tooManyRows": "Impor maksimal 500 baris sekaligus.",
     "unsupportedFile": "Pilih file Excel BI atau CSV tanggal,kurs yang didukung.",
@@ -1428,6 +1429,7 @@
       "helpLabel": "Bantuan: {{label}}"
     },
     "stillToInvoice": {
+      "daysSinceAcceptance": "Hari sejak BAST, belum ditagih: {{days}}",
       "count": "Work Order: {{n}}",
       "daysSinceClosed": "Hari sejak ditutup: {{days}}",
       "empty": "Tidak ada lagi yang perlu ditagih pada Work Order yang diterbitkan",
@@ -1655,13 +1657,8 @@
       "attachAria": "Pilih berkas bukti",
       "attached": "Bukti terlampir",
       "download": "Unduh {{name}}",
-      "downloadOriginal": "Unduh berkas asli",
       "empty": "Belum ada bukti terlampir.",
       "preview": "Pratinjau bukti",
-      "previewError": "Berkas ini tidak dapat dipratinjau.",
-      "previewLoading": "Memuat bukti…",
-      "unsupported": "Pratinjau tidak tersedia untuk jenis berkas ini.",
-      "close": "Tutup",
       "error": "Gagal memuat bukti.",
       "loading": "Memuat bukti…",
       "remove": "Hapus {{name}}",
@@ -3322,7 +3319,8 @@
       "themeDark": "Gelap",
       "themeHeading": "Tema",
       "themeLight": "Terang",
-      "viewAsRoleHeading": "Lihat sebagai role"
+      "viewAsRoleHeading": "Lihat sebagai role",
+      "feedback": "Masukan"
     },
     "drawer": {
       "close": "Tutup menu navigasi",
@@ -3351,7 +3349,8 @@
       "profileSettings": "Profil & preferensi",
       "expenses": "Biaya",
       "financialStatements": "Laporan keuangan",
-      "managementPack": "Laporan"
+      "managementPack": "Laporan",
+      "stock": "Stok"
     },
     "notifications": {
       "empty": "Belum ada notifikasi.",
@@ -3670,6 +3669,10 @@
         "badRequest": "Permintaan tidak valid. Silakan coba lagi.",
         "graphError": "Microsoft Graph sedang tidak tersedia. Silakan coba lagi sebentar lagi.",
         "internalError": "Terjadi kesalahan di sisi kami. Silakan coba lagi.",
+        "sourceAccessDenied": "Anda tidak memiliki akses ke berkas ini di Microsoft 365. Minta pemiliknya membagikannya kepada Anda.",
+        "sourceNotFound": "Berkas ini tidak ditemukan di Microsoft 365. Mungkin sudah dipindahkan atau dihapus.",
+        "previewUnsupported": "Jenis berkas ini tidak dapat dipratinjau di sini. Buka di Microsoft 365.",
+        "recordFolderUnavailable": "Folder Microsoft 365 untuk catatan ini tidak tersedia. Periksa tautan folder, lalu coba lagi.",
         "disconnectFailureHeadline": "Kami tidak dapat memastikan pemutusan koneksi. Status koneksi terakhir yang terkonfirmasi masih terhubung.",
         "disconnectFailureGuidance": "Anda dapat mencoba lagi atau membatalkan.",
         "statusFallback": "Kami tidak dapat mengonfirmasi status koneksi Microsoft 365 Anda. Muat ulang halaman untuk mencoba lagi.",
@@ -4038,16 +4041,10 @@
     "notPmoNative": "Faktur ini dikelola di ERP",
     "erpOwnsRevenue": "ERP yang terhubung kini menerbitkan dan melunasi faktur",
     "newInvoiceTitle": "Faktur baru",
-    "editInvoiceTitle": "Ubah faktur",
     "newInvoiceSubtitle": "Buat faktur penjualan baru untuk klien",
-    "editInvoiceSubtitle": "Perbarui faktur penjualan ini",
-    "saveInvoice": "Simpan faktur",
     "createInvoice": "Buat faktur",
     "removeLine": "Hapus baris {{line}}",
-    "editPaymentTitle": "Ubah pembayaran",
-    "editPaymentSubtitle": "Perbarui pembayaran masuk ini",
     "receivePaymentSubtitle": "Catat pembayaran masuk baru dari klien",
-    "savePayment": "Simpan pembayaran",
     "recordPayment": "Catat pembayaran",
     "amountOutstanding": "{{amount}} belum dibayar",
     "pmoNative": "Faktur ini dibuat di PMO. Setujui dari Persetujuan",
@@ -4610,7 +4607,9 @@
     "pageGaps": "Tidak ada kurs untuk {{dates}}",
     "moreEarlier": "kurs lebih lama di halaman berikutnya",
     "previewCoverage": "Tanggal dari {{first}} hingga {{last}}: {{count}} memiliki kurs",
-    "previewGaps": "Tidak ada kurs untuk {{dates}}"
+    "previewGaps": "Tidak ada kurs untuk {{dates}}",
+    "previewGapSummary_one": "{{dates}} tanggal tanpa kurs dalam {{count}} rentang",
+    "previewGapSummary_other": "{{dates}} tanggal tanpa kurs dalam {{count}} rentang"
   },
   "uxs17": {
     "deliverySection": "Pengiriman kepada klien",
@@ -4905,15 +4904,15 @@
       "issuedVersionLabel": "Versi diterbitkan"
     },
     "drift": {
-      "sinceApproval": "sejak disetujui",
-      "sinceIssue": "sejak diterbitkan",
+      "sinceApproval": "dibandingkan dengan acuan konten saat dokumen diterbitkan",
+      "sinceIssue": "dibandingkan dengan acuan konten saat dokumen diterbitkan",
       "changed": "Berubah",
       "unchanged": "Tidak berubah",
       "checked": "Diperiksa {{date}}",
-      "changedSinceApproval": "Berubah sejak disetujui",
-      "changedSinceIssue": "Berubah sejak diterbitkan",
-      "unchangedSinceApproval": "Tidak berubah sejak disetujui. Diverifikasi {{date}}.",
-      "unchangedSinceIssue": "Tidak berubah sejak diterbitkan. Diverifikasi {{date}}.",
+      "changedSinceApproval": "Isi file berbeda dari acuan konten saat diterbitkan.",
+      "changedSinceIssue": "Isi file berbeda dari acuan konten saat diterbitkan.",
+      "unchangedSinceApproval": "Isi file sesuai dengan acuan konten saat diterbitkan. Diverifikasi {{date}}.",
+      "unchangedSinceIssue": "Isi file sesuai dengan acuan konten saat diterbitkan. Diverifikasi {{date}}.",
       "notVerified": "Belum diverifikasi",
       "notVerifiedSince": "Belum diverifikasi sejak {{date}}. Microsoft tidak dapat diperiksa.",
       "notVerifiedYet": "Belum diverifikasi.",

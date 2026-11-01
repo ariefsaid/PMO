@@ -10,11 +10,13 @@ import { useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { ProjectAttention } from './ProjectAttention';
 import { useOverdueReceivables, useProjectAttention } from './useProjectPosition';
 import { CostBlock, DeliveryBlock, MoneyBlock } from './ProjectBlocks';
+import { BillingMilestonesBlock } from './BillingMilestonesBlock';
 import { ProjectFinancesSection } from './ProjectFinancesSection';
 import { ActivityFooter, MyOpenTasks, ProjectActivity } from './ProjectActivity';
 
 const BudgetTab = React.lazy(() => import('./tabs/BudgetTab'));
 const ProcurementTab = React.lazy(() => import('./tabs/ProcurementTab'));
+const MaterialsTab = React.lazy(() => import('./tabs/MaterialsTab'));
 const TasksTab = React.lazy(() => import('./tabs/TasksTab'));
 const DocumentsTab = React.lazy(() => import('./tabs/DocumentsTab'));
 const WorkOrdersTab = React.lazy(() => import('./tabs/WorkOrdersTab'));
@@ -93,6 +95,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
           {showDeliveryAttention && <ProjectAttention {...attentionProps} className="min-w-0" />}
         </div>
         <DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock>
+        <BillingMilestonesBlock projectId={project.id} />
       </div>
     ) : (
       <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
@@ -104,6 +107,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
           <div className={`min-w-0 ${canSeeMoney ? 'xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={() => onOpen('budget')} /></div>
         </div>
         <DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock>
+        <BillingMilestonesBlock projectId={project.id} />
       </div>
     )
   );
@@ -115,6 +119,7 @@ const AreaContent: React.FC<{ project: ProjectWithRefs; area: Exclude<Area, 'ove
     case 'budget': return <BudgetTab projectId={project.id} />;
     case 'procurement': return <ProcurementTab projectId={project.id} onCountChange={onCountChange} />;
     case 'tasks': return <TasksTab projectId={project.id} projectName={project.name} onCountChange={onCountChange} />;
+    case 'materials': return <MaterialsTab projectId={project.id} />;
     case 'documents': return <DocumentsTab projectId={project.id} projectCode={project.code} onCountChange={onCountChange} />;
     case 'activity': return <ProjectActivity projectId={project.id} />;
     case 'contract': {
@@ -124,6 +129,7 @@ const AreaContent: React.FC<{ project: ProjectWithRefs; area: Exclude<Area, 'ove
           <div className="flex min-w-0 flex-col gap-4">
             <WorkOrdersTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
               focusWorkOrderId={new URLSearchParams(window.location.search).get('wo')}
+              autoInvoiceWorkOrderId={new URLSearchParams(window.location.search).get('invoice') === '1' ? new URLSearchParams(window.location.search).get('wo') : null}
               projectManagerId={project.project_manager_id ?? null} showSettlementNote={false}
               projectName={project.name} projectStatus={project.status} />
           </div>
@@ -141,6 +147,7 @@ function useAreaLabels(): Record<Area, string> {
     procurement: t('projectDetail.tabs.procurement', 'Procurement'),
     tasks: t('projectDetail.tabs.tasks', 'Tasks'),
     contract: t('projectDetail.tabs.contract', 'Contract & billing'),
+    materials: t('projectDetail.tabs.materials', 'Materials'),
     documents: t('projectDetail.tabs.documents', 'Documents'),
     activity: t('projectDetail.tabs.activity', 'Activity'),
   };
@@ -152,7 +159,7 @@ function useVisibleAreas(isPipeline: boolean): Area[] {
   return AREAS.filter((a) => {
     // A deal not yet won has no orders, billing or purchases (brief addendum, #1402).
     if (a === 'contract') return !isPipeline && lens !== 'delivery' && may('view', 'workOrder');
-    if (a === 'procurement') return !isPipeline;
+    if (a === 'procurement' || a === 'materials') return !isPipeline;
     if (a === 'budget') return lens !== 'delivery';
     return true;
   });

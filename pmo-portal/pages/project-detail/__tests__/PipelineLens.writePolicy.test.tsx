@@ -29,6 +29,10 @@ const { transitionProject } = vi.hoisted(() => ({
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/lib/repositories', async (orig) => {
+  const actual = await orig() as typeof import('@/src/lib/repositories');
+  return { ...actual, repositories: { ...actual.repositories, project: { ...actual.repositories.project, transition: transitionProject } } };
+});
 vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, transitionProject };
@@ -43,6 +47,7 @@ const pipelineState = {
   },
 };
 vi.mock('@/src/hooks/useDashboard', () => ({ useSalesPipeline: () => pipelineState }));
+vi.mock('@/src/hooks/useProjectTransitions', () => ({ useProjectWinEligibility: () => ({ data: 'allowed' }) }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
 }));

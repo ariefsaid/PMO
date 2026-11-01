@@ -12,7 +12,7 @@ import type { Role } from '@/src/auth/AuthContext';
  *     Rows PREVIEW IN PLACE (expand) with adjacent Approve/Reject — no drill-in
  *     (intent-fix-wave IF-A / AC-IFW-PROC-01, replacing the CW-6 route-away).
  *   Timesheet section: the enhanced ApprovalsQueue.
- *   Role-awareness: Finance → procurement only; PM/Exec/Admin → both; Engineer → no-access.
+ *   Role-awareness: eligible managers also receive their timesheet queue.
  */
 const navigateMock = vi.fn();
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
@@ -20,6 +20,9 @@ const navigateMock = vi.fn();
 // syntax error and hides every real error beneath it.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
+const { authorityFrom } = vi.hoisted(() => ({ authorityFrom: vi.fn() }));
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: authorityFrom } }));
+
 vi.mock('react-router', async () => {
   const actual = await vi.importActual<typeof import('react-router')>('react-router');
   return { ...actual, useNavigate: () => navigateMock };
@@ -35,17 +38,18 @@ const procRows = [
 ];
 
 const procState = { data: procRows as unknown[], isPending: false, isError: false };
+const tsRefetch = vi.fn();
 const tsState = { data: [{ id: 's1', status: 'Submitted', week_start_date: '2026-06-01', owner: { full_name: 'Anita Rao' }, entries: [{ project_id: 'pA', entry_date: '2026-06-01', hours: 8, project: { name: 'Apollo', code: 'PRJ-014' } }] }] as unknown[], isPending: false, isError: false };
 const expenseState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 const invoiceState = { rows: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
-const reopenableState = { data: [] as unknown[], isPending: false, isError: false };
+const reopenableState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ ...procState, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useReopenableApprovedTimesheets: () => reopenableState,
-  useTimesheetsAwaitingApproval: () => ({ ...tsState, refetch: vi.fn() }),
+  useTimesheetsAwaitingApproval: () => ({ ...tsState, refetch: tsRefetch }),
   useTimesheetMutations: () => ({
     approve: { mutate: vi.fn(), isPending: false },
     reject: { mutate: vi.fn(), isPending: false },
@@ -73,14 +77,16 @@ vi.mock('@/src/auth/useAuth', () => ({
 // IF-A: the procurement section now renders <ProcurementApprovalRow>, which expands
 // in place (react-query detail) instead of routing away. Mock its hooks like the row's
 // own unit test, so the page test stays hermetic (no real QueryClientProvider needed).
+// A request's own line items, keyed by id, so a test can prove the preview follows the selection.
+const detailItems: Record<string, Array<{ id: string; name: string; quantity: number; rate: number; amount: number; description: null }>> = {};
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
-  useProcurementDetail: () => ({
+  useProcurementDetail: (id?: string) => ({
     data: {
-      id: 'pr1',
+      id: id ?? 'pr1',
       title: 'Steel beams',
       project: { name: 'Apollo', code: 'PRJ-014' },
       vendor: null,
-      items: [{ id: 'li1', name: 'Beam', quantity: 1, rate: 48000, amount: 48000, description: null }],
+      items: (id && detailItems[id]) || [{ id: 'li1', name: 'Beam', quantity: 1, rate: 48000, amount: 48000, description: null }],
     },
     isPending: false,
     isError: false,
@@ -100,19 +106,20 @@ vi.mock('@/pages/procurement/DecisionSupportPanel', () => ({
 
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => expenseState }));
 vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceApprovalSection: () => null }));
+vi.mock('@/pages/approvals/ImprestApprovalSection', () => ({ ImprestApprovalSection: () => null }));
 vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingViewer: () => invoiceState }));
 import ApprovalsPage from '../Approvals';
+import { listTimesheetsAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 
-const renderAs = (realRole: Role, initialPath = '/approvals') =>
-  render(
+const pageAs = (realRole: Role, initialPath = '/approvals') =>
     <MemoryRouter initialEntries={[initialPath]}>
       <ImpersonationProvider realRole={realRole}>
         <ToastProvider>
           <ApprovalsPage />
         </ToastProvider>
       </ImpersonationProvider>
-    </MemoryRouter>,
-  );
+    </MemoryRouter>;
+const renderAs = (realRole: Role, initialPath = '/approvals') => render(pageAs(realRole, initialPath));
 
 beforeEach(() => {
   navigateMock.mockReset();
@@ -129,6 +136,10 @@ beforeEach(() => {
   invoiceState.isPending = false;
   invoiceState.isError = false;
   reopenableState.data = [];
+  reopenableState.isPending = false;
+  reopenableState.isError = false;
+  reopenableState.refetch.mockReset();
+  tsRefetch.mockReset();
 });
 
 describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
@@ -146,6 +157,36 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     await userEvent.click(button);
     expect(within(screen.getByRole('region', { name: /Approval preview/i })).getByRole('button', { name: /Approve/i })).toBeVisible();
     expect(navigateMock).not.toHaveBeenCalled();
+  });
+  it.each([[1440, true], [390, false]])('UIP-008 previews the South request by keyboard at %ipx wide', async (width, wide) => {
+    const north = { ...procRows[0], id: 'north', title: 'UIP-008 Switchgear — North hall commissioning', total_value: 9800 };
+    const south = { ...procRows[0], id: 'south', title: 'UIP-008 Switchgear — South hall commissioning', total_value: 48000 };
+    procState.data = [north, south];
+    detailItems.north = [{ id: 'n1', name: 'North hall switchgear evidence', quantity: 1, rate: 9800, amount: 9800, description: null }];
+    detailItems.south = [{ id: 's1', name: 'South hall switchgear evidence', quantity: 1, rate: 48000, amount: 48000, description: null }];
+    const realMatchMedia = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: wide && query.includes('1024'), media: query, onchange: null,
+      addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+    try {
+      renderAs('Finance', '/approvals?scope=procurement');
+      const control = within(screen.getByRole('region', { name: 'Approvals queue' })).getByRole('button', { name: /South hall commissioning/ });
+      control.focus();
+      await userEvent.keyboard('{Enter}');
+      const preview = screen.getByRole('region', { name: 'Approval preview' });
+      expect(within(preview).getByText('South hall switchgear evidence')).toBeVisible();
+      expect(within(preview).getAllByText('$48,000').length).toBeGreaterThan(0);
+      expect(within(preview).queryByText('North hall switchgear evidence')).toBeNull();
+      expect(within(preview).getByRole('button', { name: 'Approve' })).toBeVisible();
+      expect(within(preview).getByRole('button', { name: 'Reject' })).toBeVisible();
+      expect(control).toHaveTextContent('Requested');
+      expect(navigateMock).not.toHaveBeenCalled();
+    } finally {
+      window.matchMedia = realMatchMedia;
+      delete detailItems.north;
+      delete detailItems.south;
+    }
   });
   it('CW-6: the page title is "Approvals" (matches the rail label), with the "Needs my approval" subtitle', () => {
     renderAs('Project Manager');
@@ -187,16 +228,14 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(screen.getByRole('tab', { name: /Expense claims/i })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('Finance All pending excludes hook-returned timesheets from its count and selectable queue', () => {
+  it('Finance All pending includes eligible timesheets in its count and selectable queue', () => {
     procState.data = [];
     expenseState.data = [{ claim: { id: 'ex1', created_at: '2026-06-03', status: 'Submitted', claimant_id: 'other', claim_number: 'EXP-1', title: 'Travel', amount: 250, currency: 'USD', claimant: { full_name: 'Colleague' } }, route: { route: 'project', approvers: [{ id: 'me' }] } }];
     renderAs('Finance');
 
-    expect(screen.getByRole('tab', { name: /All pending/i })).toHaveTextContent('1');
+    expect(screen.getByRole('tab', { name: /All pending/i })).toHaveTextContent('2');
     const queue = screen.getByRole('region', { name: /Approvals queue/i });
-    expect(within(queue).queryByRole('button', { name: /Anita Rao/i })).not.toBeInTheDocument();
-    expect(within(queue).queryByText('Timesheets')).not.toBeInTheDocument();
-    expect(screen.getByRole('region', { name: /Approval preview/i })).toHaveTextContent(/Select an approval item/i);
+    expect(within(queue).getByRole('button', { name: /Anita Rao/i })).toBeInTheDocument();
   });
 
   it('keeps the desktop preview loading while an eligible expense read is pending', () => {
@@ -270,14 +309,16 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
-  it('Finance sees ONLY the procurement queue group (no timesheet approval, no extra filters)', () => {
+  it('Finance with no eligible timesheets sees the procurement queue', () => {
+    tsState.data = [];
     renderAs('Finance');
     expect(screen.getByRole('region', { name: /Approvals queue/i })).toBeInTheDocument();
     // A single-module role gets no tab-switcher (nothing to switch to).
     expect(screen.queryByRole('tab', { name: /Timesheets/i })).not.toBeInTheDocument();
   });
 
-  it('Engineer (cannot approve anything) gets the no-access surface', () => {
+  it('Engineer with no eligible timesheets gets the no-access surface', () => {
+    tsState.data = [];
     renderAs('Engineer');
     expect(screen.queryByText(/Purchase requests awaiting you/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Timesheets awaiting you/i)).not.toBeInTheDocument();
@@ -297,4 +338,101 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     renderAs('Project Manager', '/approvals?scope=procurement');
     expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
   });
+});
+
+
+describe('submitted query drives the rendered action', () => {
+  it.each([
+    ['Engineer', 'me', 'other', true], ['Engineer', 'another', 'other', false],
+    ['Finance', 'me', 'other', true], ['Project Manager', 'another', 'other', false],
+    ['Executive', null, 'other', true], ['Executive', 'another', 'other', false],
+    ['Admin', 'another', 'other', true], ['Admin', 'me', 'me', false],
+  ] as const)('%s projects record authority to its approval action', async (role, managerId, ownerId, expected) => {
+    const row = { id: 'authority', user_id: ownerId, status: 'Submitted', week_start_date: '2026-06-01', owner: { full_name: 'Team member', manager_id: managerId }, entries: [] };
+    authorityFrom.mockImplementation(() => {
+      const result = { data: [row], error: null };
+      const builder: Record<string, unknown> = {};
+      for (const op of ['select', 'eq', 'neq', 'order', 'or']) builder[op] = () => builder;
+      builder.then = (resolve: (value: typeof result) => void) => Promise.resolve(result).then(resolve);
+      return builder;
+    });
+    tsState.data = await listTimesheetsAwaitingApproval('me', role);
+    procState.data = [];
+    renderAs(role);
+    expect(Boolean(screen.queryByRole('button', { name: /Team member/i }))).toBe(expected);
+    if (expected) expect(await screen.findByRole('button', { name: /^Approve$/i })).toBeInTheDocument();
+  });
+});
+
+
+describe('timesheet eligibility availability', () => {
+  it.each(['Engineer', 'Finance'] as const)('%s sees loading rather than a settled outcome while eligibility is pending', (role) => {
+    procState.data = [];
+    tsState.data = [];
+    tsState.isPending = true;
+    renderAs(role);
+    expect(screen.queryByTestId('approvals-caught-up')).not.toBeInTheDocument();
+    expect(screen.queryByText(/you don't have access to approvals/i)).not.toBeInTheDocument();
+  });
+
+  it.each(['Engineer', 'Finance'] as const)('%s can retry a failed correction eligibility read', async (role) => {
+    procState.data = [];
+    tsState.data = [];
+    reopenableState.isError = true;
+    renderAs(role);
+    expect(screen.queryByTestId('approvals-caught-up')).not.toBeInTheDocument();
+    expect(screen.getByText(/couldn't load approved history/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(reopenableState.refetch).toHaveBeenCalled();
+  });
+});
+
+
+it.each(['Engineer', 'Finance'] as const)('%s can retry a failed pending read even with cached data', async (role) => {
+  procState.data = [];
+  tsState.isError = true;
+  const view = renderAs(role);
+  expect(screen.getByText(/couldn't load timesheets/i)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /^approve$/i })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+  expect(tsRefetch).toHaveBeenCalled();
+  tsState.isError = false;
+  view.rerender(pageAs(role));
+  expect(screen.getByRole('button', { name: /^approve$/i })).toBeInTheDocument();
+});
+
+it.each(['Engineer', 'Finance'] as const)('%s sees loading while correction eligibility is pending', (role) => {
+  procState.data = [];
+  tsState.data = [];
+  reopenableState.isPending = true;
+  renderAs(role);
+  expect(screen.queryByTestId('approvals-caught-up')).not.toBeInTheDocument();
+  expect(screen.queryByText(/you don't have access to approvals/i)).not.toBeInTheDocument();
+});
+
+
+it.each(['Engineer', 'Finance'] as const)('%s recovers eligibility after retry and removes failed cached correction actions', async (role) => {
+  procState.data = [];
+  tsState.data = [];
+  reopenableState.data = [{ id: 'approved-week', user_id: 'other', week_start_date: '2026-05-25', status: 'Approved', owner: { full_name: 'Report' }, entries: [], mirror: null, pushCommandState: null }];
+  reopenableState.isError = true;
+  const view = renderAs(role);
+  expect(screen.queryByRole('button', { name: /re-open for correction/i })).not.toBeInTheDocument();
+  expect(screen.getByText(/couldn't load approved history/i)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+  expect(reopenableState.refetch).toHaveBeenCalled();
+  reopenableState.isError = false;
+  view.rerender(pageAs(role));
+  expect(screen.getByRole('button', { name: /re-open for correction/i })).toBeInTheDocument();
+});
+
+it.each(['Engineer', 'Finance'] as const)('%s can retry an initial pending eligibility failure', async (role) => {
+  procState.data = [];
+  tsState.data = [];
+  tsState.isError = true;
+  renderAs(role);
+  expect(screen.queryByTestId('approvals-caught-up')).not.toBeInTheDocument();
+  expect(screen.getByText(/couldn't load timesheets/i)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+  expect(tsRefetch).toHaveBeenCalled();
 });

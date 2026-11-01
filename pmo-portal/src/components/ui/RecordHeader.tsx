@@ -65,7 +65,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
     stats={stats}
     actions={
       actions ? (
-        <span data-testid="record-header-actions" className="flex items-center gap-2">
+        <span data-testid="record-header-actions" className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
           {actions}
         </span>
       ) : undefined

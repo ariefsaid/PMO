@@ -1,3 +1,5 @@
+import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
+import { useProcurementItemEligibility } from '@/src/hooks/useProcurementItemEligibility';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
@@ -197,6 +199,8 @@ const ProcurementDetails: React.FC = () => {
   const bupotId = bupotParams.get('bupot');
   const targetInvoiceId = bupotId ? bupotParams.get('bupotBill') : null;
 
+  const ownership = useDomainOwnershipMode('procurement');
+  const itemEligibility = useProcurementItemEligibility(procurementId, ownership.mode === 'external');
   const detailQuery = useProcurementDetail(procurementId);
   const projectScopeQuery = useProject(realRole === 'Project Manager' ? detailQuery.data?.project_id ?? undefined : undefined);
   const linkedErpQuery = useLinkedErpDocuments(procurementId);
@@ -224,7 +228,9 @@ const ProcurementDetails: React.FC = () => {
 
   // Vendor name map for VendorQuotesTab — reuses the cached FK option list so
   // there is no extra fetch; org_id scoping is handled by RLS inside the repo.
-  const { data: vendorOptions } = useVendorOptions();
+  const vendorQuery = useVendorOptions();
+  const { data: vendorOptions } = vendorQuery;
+  const vendorReferencesReady = !vendorQuery.isPending && !vendorQuery.isError && vendorOptions !== undefined;
   const vendorMap: Record<string, string> = React.useMemo(
     () => Object.fromEntries((vendorOptions ?? []).map((o) => [o.value, o.label])),
     [vendorOptions],
@@ -464,12 +470,20 @@ const ProcurementDetails: React.FC = () => {
   // A8: Admin break-glass header edit while Draft/Rejected (RLS 0010 permits; edit is not an SoD axis).
   // CW-EDIT-1: the Edit affordance is surfaced inside the RecordHeader action zone (not buried
   // elsewhere), but its visibility remains record-scoped — Edit only appears on Draft/Rejected
-  // procurements and only to the requester or an Admin. No archive/delete — Cancel is a lifecycle
+  // procurements and only to an authorized requester or an Admin. No archive/delete — Cancel is a lifecycle
   // transition in the action zone. RLS remains the enforcement authority.
   const canEditHeader =
     (isDraft || isRejected) && (isRequester || realRole === 'Admin') && may('edit', 'procurement');
   // Line items: requester OR PM/Finance/Admin while Draft (matches the 0015 RLS).
-  const canEditItems = isDraft && (isRequester || may('edit', 'procItem'));
+  const ownershipReady = ownership.mode === 'pmo' || ownership.mode === 'external';
+  const canEditItems = ownershipReady && isDraft && (isRequester || may('edit', 'procItem'));
+  const casePushInFlight = ownership.mode === 'external' && (
+    mutations.pendingPush?.status === 'pushing' || recordMutations.pendingPush?.status === 'pushing'
+    || mutations.createQuotation.isPending || mutations.createReceipt.isPending || mutations.createInvoice.isPending
+    || recordMutations.createPurchaseRequest.isPending || recordMutations.createRfq.isPending
+    || recordMutations.createPurchaseOrder.isPending || recordMutations.createPayment.isPending
+  );
+  const canEditItemValues = ownership.mode === 'pmo' || (ownership.mode === 'external' && !casePushInFlight && itemEligibility.data === true && !itemEligibility.isError && !itemEligibility.isFetching);
   // Quotations: sourcing roles add; select offered only while Vendor Quoted.
   const canAddQuote = may('create', 'quotation');
   const canSelectQuote = may('create', 'quotation') && p.status === 'Vendor Quoted';
@@ -498,7 +512,9 @@ const ProcurementDetails: React.FC = () => {
   // approver (the Approve role set, never the requester) may approve the higher amount. UX only — the
   // server decides eligibility from the approval route and refuses the quote selector / bill recorder.
   const canApproveAmount = canApproveReject(role) && !isRequester;
+  const currentAmountApproval = canApproveAmount && !detailQuery.isPending && !detailQuery.isFetching && !detailQuery.isError && p.paymentEligibility === 'allowed';
   const approveHigherAmount = async (amount: number) => {
+    if (!currentAmountApproval) return;
     try {
       await mutations.approveAmount.mutateAsync(amount);
       toast(t('procurement:ceiling.approved', 'Higher amount approved'), undefined, 'success');
@@ -510,7 +526,8 @@ const ProcurementDetails: React.FC = () => {
     <PaymentCeilingNotice
       ceiling={p.paymentCeiling}
       currency={p.currency}
-      canApprove={canApproveAmount}
+      canApprove={currentAmountApproval}
+      eligibilityReason={detailQuery.isPending || detailQuery.isFetching ? 'checking' : detailQuery.isError ? 'unavailable' : p.paymentEligibility}
       busy={mutations.approveAmount?.isPending ?? false}
       onApprove={approveHigherAmount}
     />
@@ -982,7 +999,7 @@ const ProcurementDetails: React.FC = () => {
         }
         meta={meta.length ? <span>{meta}</span> : undefined}
         actions={<div className="flex flex-wrap items-center justify-end gap-2">
-          {waitingNote && <span className="whitespace-nowrap text-[12px] text-muted-foreground">{waitingNote}</span>}
+          {waitingNote && <span className="min-w-0 text-[12px] text-muted-foreground">{waitingNote}</span>}
           {(recordKinds.length > 0 || canAddQuote || canLinkAccounting) && <div className="relative hidden sm:block">
             <Button variant="outline" size="sm" aria-expanded={recordMenuOpen} onClick={() => setRecordMenuOpen((open) => !open)}>
               {t('procurementRecord:recordAnother', 'Record another document')} <Icon name="chev" className="size-3.5 rotate-90" />
@@ -1088,10 +1105,13 @@ const ProcurementDetails: React.FC = () => {
         {tab === 'items' && (
           <div className="space-y-2">
           <p className="text-[12.5px] text-muted-foreground">{p.items.length} {t('procurementRecord:items.countLabel', 'line items')}</p>
+          {!ownershipReady && <p className="text-sm text-muted-foreground">{ownership.mode === 'error' ? t('procurementRecord:items.ownershipError', 'Ownership could not be loaded. Try again.') : t('procurementRecord:items.ownershipChecking', 'Checking ownership…')}{ownership.mode === 'error' && <Button variant="ghost" size="sm" onClick={ownership.retry}>{t('procurementRecord:items.retry', 'Retry')}</Button>}</p>}
+          {ownership.mode === 'external' && canEditItems && !canEditItemValues && <p className="text-sm text-muted-foreground">{casePushInFlight ? t('procurementRecord:items.submitting', 'A case document is being submitted.') : itemEligibility.isError ? t('procurementRecord:items.eligibilityError', 'Line editing availability could not be loaded. Try again.') : (itemEligibility.isPending || itemEligibility.isFetching) ? t('procurementRecord:items.eligibilityChecking', 'Checking line editing availability…') : t('procurementRecord:items.valuesManaged', 'Quantity and unit price are managed by ERP for this purchase.')} {!casePushInFlight && itemEligibility.isError && <Button variant="ghost" size="sm" onClick={() => void itemEligibility.refetch()}>{t('procurementRecord:items.retry', 'Retry')}</Button>}</p>}
           <LineItemsSection
             erpItems={erpItems.connected ? erpItems : undefined}
             items={p.items}
             editable={canEditItems}
+            valuesEditable={canEditItemValues}
             busy={crud.createItem.isPending || crud.updateItem.isPending || crud.deleteItem.isPending}
             onError={onMutationError}
             onAdd={async (input) => {
@@ -1163,12 +1183,14 @@ const ProcurementDetails: React.FC = () => {
                   value={selectedVendorId}
                   onChange={(value) => setSelectedVendorId(value)}
                   loadOptions={async () => vendorOptions ?? []}
+                  disabled={!vendorReferencesReady}
                   placeholder={t('bupot.selectVendor', 'Select a supplier…')}
                 />
+                {!vendorReferencesReady && <div role="status">{vendorQuery.isPending ? t('procurementCreate:references.loadingSuppliers', 'Loading suppliers…') : <>{t('procurementCreate:references.suppliersError', "Couldn't load suppliers.")} <Button type="button" variant="outline" onClick={() => void vendorQuery.refetch()}>{t('procurementCreate:references.retrySuppliers', 'Retry suppliers')}</Button></>}</div>}
                 <Button
                   variant="primary"
                   size="sm"
-                  disabled={!selectedVendorId || crud.updateVendor.isPending}
+                  disabled={!vendorReferencesReady || !selectedVendorId || crud.updateVendor.isPending}
                   onClick={async () => {
                     if (!selectedVendorId) return;
                     try {

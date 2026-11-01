@@ -28,7 +28,7 @@
 --   XORG (b1) Admin in another org      — tenancy
 begin;
 create extension if not exists pgtap;
-select plan(90);
+select plan(101);
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- FIXTURES (owner inserts — bypass RLS, which is the point: they model server-side state)
@@ -289,6 +289,7 @@ select is(
   'AC-WO-030 the witness trigger records WHO set the value at origination — it is a witness, not an input, and it is what the issue gate reads');
 
 -- (1) THE SELF-APPROVAL VARIANT (0181).
+select is((select reason from public.work_order_issue_eligibility(array['01930000-0000-0000-0000-0000000000d1'::uuid])), 'self', 'AC-WO-031: self-authored issue is unavailable before confirmation');
 select throws_ok(
   $$ select transition_work_order('01930000-0000-0000-0000-0000000000d1','Issued') $$,
   '42501',
@@ -305,11 +306,26 @@ select lives_ok(
 reset role;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01930000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select is((select reason from public.work_order_issue_eligibility(array['01930000-0000-0000-0000-0000000000d2'::uuid])), 'reviewer_required', 'AC-WO-033: peer-authored issue is ineligible');
 select throws_ok(
   $$ select transition_work_order('01930000-0000-0000-0000-0000000000d2','Issued') $$,
   '42501',
   'this work order''s value was not set by anyone senior to you, so you cannot issue it: it must be confirmed by your supervisor or by someone who outranks you, through set_work_order_value (which records who set it) — or ask them to issue it',
   'AC-WO-033 …but a PEER''s signature does not clear the issue: the question is not "may the issuer approve the author?" but "did someone with authority OVER THE ISSUER put their name on this number?"');
+reset role;
+
+-- The inverse relationship is not a ratification by someone senior to the issuer.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"01930000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+insert into work_orders (id, project_id, title, order_value, tax_treatment, tax_amount) values
+  ('01930000-0000-0000-0000-0000000000ef','01930000-0000-0000-0000-0000000000c1','Report value',100,'exclusive',0);
+set local request.jwt.claims = '{"sub":"01930000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((select reason from public.work_order_issue_eligibility(array['01930000-0000-0000-0000-0000000000ef'::uuid])), 'reviewer_required', 'AC-WO-034: report-authored issue is ineligible');
+select throws_ok(
+  $$ select transition_work_order('01930000-0000-0000-0000-0000000000ef','Issued') $$,
+  '42501',
+  'this work order''s value was not set by anyone senior to you, so you cannot issue it: it must be confirmed by your supervisor or by someone who outranks you, through set_work_order_value (which records who set it) — or ask them to issue it',
+  'AC-WO-034: an issuer cannot use their report as the value reviewer');
 reset role;
 
 -- (3) THE LEGITIMATE LINE-MANAGEMENT PATH — the control that proves the gate is not just a wall.
@@ -321,6 +337,7 @@ select lives_ok(
 reset role;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01930000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select is((select reason from public.work_order_issue_eligibility(array['01930000-0000-0000-0000-0000000000d3'::uuid])), 'allowed', 'AC-WO-034: manager-authored issue is eligible');
 select lives_ok(
   $$ select transition_work_order('01930000-0000-0000-0000-0000000000d3','Issued') $$,
   'AC-WO-034 …and the work order issues. Note the manager holds the SAME role — this limb is line management, not rank.');
@@ -351,6 +368,19 @@ select lives_ok(
   $$ select set_work_order_value('01930000-0000-0000-0000-0000000000d4', 100, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-WO-037 CONTROL Finance (who outranks a PM) sets the value…');
 reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"01930000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select is((select reason from public.work_order_issue_eligibility(array['01930000-0000-0000-0000-0000000000d4'::uuid])), 'allowed', 'AC-WO-037: active senior author is eligible');
+reset role;
+update auth.users set banned_until=now() + interval '1 hour' where id='01930000-0000-0000-0000-0000000000a4';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"01930000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select is((select reason from public.work_order_issue_eligibility(array['01930000-0000-0000-0000-0000000000d4'::uuid])), 'inactive_reviewer', 'AC-WO-037: banned senior author is ineligible before confirmation');
+select throws_ok($$ select transition_work_order('01930000-0000-0000-0000-0000000000d4','Issued') $$,
+  '42501', 'this work order''s value was set by someone who is no longer an active member of this organisation, so you cannot issue it: it must be re-set by your supervisor or by someone who outranks you who is currently active, through set_work_order_value (which records who set it) — or ask them to issue it',
+  'AC-WO-037: banned senior author is refused by the locked transition');
+reset role;
+update auth.users set banned_until=null where id='01930000-0000-0000-0000-0000000000a4';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01930000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select lives_ok(
@@ -408,6 +438,7 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"01930000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 insert into work_orders (id, project_id, title, order_value, tax_treatment, tax_amount) values
   ('01930000-0000-0000-0000-0000000000d9','01930000-0000-0000-0000-0000000000c1','Finance self-issued',100,'exclusive',0);
+select is((select reason from public.work_order_issue_eligibility(array['01930000-0000-0000-0000-0000000000d9'::uuid])), 'allowed', 'AC-WO-043: senior self-authored issue remains eligible');
 select lives_ok(
   $$ select transition_work_order('01930000-0000-0000-0000-0000000000d9','Issued') $$,
   'AC-WO-043 CONTROL a FINANCE issuer needs nobody: holds_won_value_authority means they are already the accountable party (a rank threshold, never a role list — ADR-0070)');
@@ -748,6 +779,12 @@ select throws_ok(
   'sales_invoices native fields are read-only while revenue is externally-owned',
   'AC-WO-107 sales_invoices_native_mirror_guard pins work_order_id while revenue is externally-owned — omitting it would have left the column user-writable on exactly the org where the money is not ours to describe');
 reset request.jwt.claims;
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"01930000-0000-0000-0000-0000000000b1","role":"authenticated"}';
+select is((select count(*)::int from public.work_order_issue_eligibility(array['01930000-0000-0000-0000-0000000000d1'::uuid])), 0, 'AC-WO-108: another organization receives no issue decision');
+reset role;
+select ok(not has_function_privilege('anon','public.work_order_issue_eligibility(uuid[])','EXECUTE'), 'AC-WO-108: anonymous callers cannot read issue eligibility');
 
 select * from finish();
 rollback;

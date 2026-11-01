@@ -7,22 +7,30 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BahasaProvider } from '@/test/bahasa';
 import { formatCurrency, formatDateOnly, formatDateTime } from '@/src/lib/format';
 
-const { repo, listProcurementsByProject, listBudgetVersions, procDetail } = vi.hoisted(() => ({
-  repo: {
-    recordHistory: { list: vi.fn(), lookupNames: vi.fn() },
-    profile: { listOrgProfiles: vi.fn() },
-    company: { list: vi.fn(), get: vi.fn() },
-    task: { list: vi.fn() },
-    milestone: { list: vi.fn() },
-    workOrder: { list: vi.fn() },
-  },
-  listProcurementsByProject: vi.fn(),
-  listBudgetVersions: vi.fn(),
-  procDetail: { data: undefined as Record<string, unknown> | undefined },
-}));
+const { repo, listProcurementsByProject, listBudgetVersions, procDetail, authState } = vi.hoisted(() => {
+  const listBudgetVersions = vi.fn();
+  const listProcurementsByProject = vi.fn();
+  return {
+    repo: {
+      recordHistory: { list: vi.fn(), lookupNames: vi.fn() },
+      profile: { listOrgProfiles: vi.fn() },
+      company: { list: vi.fn(), get: vi.fn() },
+      task: { list: vi.fn() },
+      milestone: { list: vi.fn() },
+      workOrder: { list: vi.fn() },
+      // PR-2 (7b63bc389 "Refresh budget and timesheet query consumers") moved useBudgetVersions onto
+      // the repository seam, so the versions read arrives here; the journey is unchanged.
+      budget: { listVersions: listBudgetVersions },
+      procurement: { listByProject: listProcurementsByProject },
+    },
+    listProcurementsByProject,
+    listBudgetVersions,
+    procDetail: { data: undefined as Record<string, unknown> | undefined },
+    authState: { orgId: 'org-1' },
+  };
+});
 vi.mock('@/src/lib/repositories', () => ({ repositories: repo }));
 vi.mock('@/src/lib/db/procurements', () => ({ listProcurementsByProject }));
-vi.mock('@/src/lib/db/budgets', () => ({ listBudgetVersions }));
 // #878: the procurement History names its document children (PR / RFQ / PO / payment) from the SAME
 // cached detail query the page itself uses — the hook stays disabled off a procurement History.
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
@@ -32,7 +40,7 @@ vi.mock('@/src/hooks/useProcurementDetail', () => ({
     isError: false,
   }),
 }));
-vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: authState.orgId } }) }));
 
 import { RecordHistory } from '../RecordHistory';
 
@@ -55,6 +63,7 @@ const renderIt = (props: Partial<React.ComponentProps<typeof RecordHistory>> = {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  authState.orgId = 'org-1';
   repo.recordHistory.lookupNames.mockResolvedValue({});
   repo.profile.listOrgProfiles.mockResolvedValue([
     { id: 'u1', full_name: 'Dana PM' }, { id: 'u2', full_name: 'Sam Lead' },
@@ -75,6 +84,79 @@ beforeEach(() => {
 });
 
 describe('RecordHistory — formatting (AC-CHG-015)', () => {
+  it('AC-CHG-015 retains earlier names while resolving more than fifty appended child events', async () => {
+    const first = Array.from({ length: 40 }, (_, i) => ev(i + 1, { entityType: 'purchase_request', entityId: `child-${i + 1}`, op: 'insert' }));
+    const second = Array.from({ length: 35 }, (_, i) => ev(i + 41, { entityType: 'purchase_request', entityId: `child-${i + 41}`, op: 'insert' }));
+    const cursor = { seq: 1, at: '2026-10-06T09:00:00Z' };
+    repo.recordHistory.list.mockResolvedValueOnce({ events: first, nextCursor: cursor }).mockResolvedValueOnce({ events: second, nextCursor: null });
+    let release: (value: unknown) => void = () => {};
+    repo.recordHistory.lookupNames.mockImplementation(({ purchase_request }: { purchase_request: string[] }) => {
+      const names = { purchase_request: new Map(purchase_request.map((id) => [id, `PR-${id}`])) };
+      return purchase_request.length > 50 ? new Promise((resolve) => { release = resolve; }) : Promise.resolve(names);
+    });
+    renderIt({ includeChildren: true });
+    expect(await screen.findByText('Purchase request · PR-child-1')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Load older' }));
+    await waitFor(() => expect(repo.recordHistory.lookupNames).toHaveBeenLastCalledWith({ purchase_request: expect.arrayContaining(['child-1', 'child-75']) }));
+    expect(screen.getByText('Purchase request · PR-child-1')).toBeInTheDocument();
+    release({ purchase_request: new Map([...first, ...second].map((event) => [event.entityId, `PR-${event.entityId}`])) });
+    expect(await screen.findByText('Purchase request · PR-child-75')).toBeInTheDocument();
+    expect(screen.getByText('Purchase request · PR-child-1')).toBeInTheDocument();
+  });
+
+  it('keeps reference lookups scoped to the current organization and history record', async () => {
+    const event = ev(1, { entityType: 'purchase_request', entityId: 'shared-child', op: 'insert' });
+    repo.recordHistory.list.mockResolvedValue({ events: [event], nextCursor: null });
+    let resolveSecond: (value: unknown) => void = () => {};
+    repo.recordHistory.lookupNames
+      .mockResolvedValueOnce({ purchase_request: new Map([['shared-child', 'First record name']]) })
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveSecond = resolve; }))
+      .mockResolvedValueOnce({ purchase_request: new Map([['shared-child', 'Second organization name']]) });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const tree = (entityId: string) => (
+      <MemoryRouter>
+        <QueryClientProvider client={client}>
+          <RecordHistory entityType="project" entityId={entityId} includeChildren />
+        </QueryClientProvider>
+      </MemoryRouter>
+    );
+    const view = render(tree('project-one'));
+
+    expect(await screen.findByText('Purchase request · First record name')).toBeInTheDocument();
+    view.rerender(tree('project-two'));
+    await waitFor(() => expect(repo.recordHistory.lookupNames).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText('Purchase request · First record name')).not.toBeInTheDocument();
+    expect(screen.getByText('Purchase request · Unavailable')).toBeInTheDocument();
+    resolveSecond({ purchase_request: new Map([['shared-child', 'Second record name']]) });
+    expect(await screen.findByText('Purchase request · Second record name')).toBeInTheDocument();
+
+    authState.orgId = 'org-2';
+    view.rerender(tree('project-two'));
+    expect(await screen.findByText('Purchase request · Second organization name')).toBeInTheDocument();
+    expect(repo.recordHistory.lookupNames).toHaveBeenCalledTimes(3);
+  });
+
+  it('reports a failed appended name lookup without replacing known names or inventing new ones', async () => {
+    const first = Array.from({ length: 40 }, (_, i) => ev(i + 1, { entityType: 'purchase_request', entityId: `child-${i + 1}`, op: 'insert' }));
+    const second = Array.from({ length: 35 }, (_, i) => ev(i + 41, { entityType: 'purchase_request', entityId: `child-${i + 41}`, op: 'insert' }));
+    repo.recordHistory.list.mockResolvedValueOnce({ events: first, nextCursor: { seq: 1, at: '2026-10-06T09:00:00Z' } })
+      .mockResolvedValueOnce({ events: second, nextCursor: null });
+    repo.recordHistory.lookupNames
+      .mockImplementationOnce(({ purchase_request }: { purchase_request: string[] }) => Promise.resolve({
+        purchase_request: new Map(purchase_request.map((id) => [id, `PR-${id}`])),
+      }))
+      .mockRejectedValueOnce(new Error('later name chunk diagnostic'));
+    renderIt({ includeChildren: true });
+
+    expect(await screen.findByText('Purchase request · PR-child-1')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Load older' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Some record names could not be loaded.');
+    expect(screen.getByText('Purchase request · PR-child-1')).toBeInTheDocument();
+    expect(screen.getAllByText('Purchase request · Unavailable').length).toBeGreaterThan(0);
+    expect(document.body.textContent).not.toMatch(/later name chunk diagnostic/);
+  });
+
   it('HI-1: resolves only procurement child event IDs on the loaded History page', async () => {
     repo.recordHistory.list.mockResolvedValue({ events: [
       ev(4, { entityType: 'purchase_request', entityId: 'pr-child', changes: {} }),

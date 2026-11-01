@@ -9,6 +9,7 @@ import { Icon, type IconName } from '@/src/components/ui/icons';
 import { Badge } from '@/src/components/ui/StatusPill';
 import { usePermission } from '@/src/auth/usePermission';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
+import { useTimesheetsAwaitingApproval, useReopenableApprovedTimesheets } from '@/src/hooks/useTimesheetApproval';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { isFeatureEnabled } from '@/src/lib/features';
 import { AppVersion } from '@/src/components/AppVersion';
@@ -63,14 +64,13 @@ const ALL_ITEMS: NavItem[] = [
   { to: '/projects', text: 'Projects', icon: 'projects', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/sales', text: 'Sales Pipeline', icon: 'pipeline', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/procurement', text: 'Procurement', icon: 'procurement', group: 'Delivery', feature: 'procurement', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/stock', text: 'Stock', icon: 'inbox', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'Workforce', feature: 'timesheets', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
   // #775: every member files their own claims; RLS scopes reads to own ∪ approval rank.
   { to: '/expenses', text: 'Expenses', icon: 'expenses', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  // B-2 (AC-W2-IXD-003 / OD-W2-2): Approvals nav is limited to roles that CAN approve.
-  // Engineer approval stays OFF (OD-W2-2 decision) — an IC landing on /approvals sees only
-  // "sheets from your reports" which is misleading. Finance is now included: Finance approves
-  // *procurement* (policy.ts `transition: allow([...MASTER_DATA])`) and reaches /approvals
-  // only via a dashboard tile without the rail. Fix #7: add Finance to this list.
+  // #1515: floats are visible to approval rank (policy imprestFloat.view = master-data roles); Engineers see none.
+  { to: '/imprest', text: 'Site cash', icon: 'expenses', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  // Ordinary role access is supplemented by record-scoped timesheet eligibility below.
   { to: '/approvals', text: 'Approvals', icon: 'approvals', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Standalone /tasks nav removed — real Tasks CRUD lives in the project Tasks tab
   // (rbac-visibility §M.1: Tasks are reached through project detail, not a top-level nav).
@@ -156,7 +156,19 @@ export interface RailProps {
   assistantPanelOpen?: boolean;
 }
 
-export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOpenAssistant, assistantPanelOpen, operatorAccessError = false }) => {
+export const Rail: React.FC<RailProps> = (props) => {
+  const auth = useContext(AuthContext);
+  const { effectiveRole } = useEffectiveRole();
+  return auth && effectiveRole === 'Engineer' ? <RailWithTimesheetEligibility {...props} /> : <RailContent {...props} />;
+};
+
+const RailWithTimesheetEligibility: React.FC<RailProps> = (props) => {
+  const pending = useTimesheetsAwaitingApproval();
+  const corrections = useReopenableApprovedTimesheets();
+  return <RailContent {...props} hasEligibleTimesheets={Boolean(pending.data?.length || corrections.data?.length || pending.isPending || corrections.isPending || pending.isError || corrections.isError)} />;
+};
+
+const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = ({ onNavigate, railActiveOverride, onOpenAssistant, assistantPanelOpen, operatorAccessError = false, hasEligibleTimesheets = false }) => {
   const { t } = useTranslation();
   const location = useLocation();
   const { effectiveRole, realRole } = useEffectiveRole();
@@ -185,7 +197,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
   const items = ALL_ITEMS.filter(
     (i) => (i.realRoleOnly
       ? role !== null && realRoleValue !== null && i.roles.includes(role) && i.roles.includes(realRoleValue)
-      : i.roles.includes(role)) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)) && (i.to !== '/finance/statements' || canViewStatements),
+      : (i.roles.includes(role) || (i.to === '/approvals' && hasEligibleTimesheets))) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)) && (i.to !== '/finance/statements' || canViewStatements),
   );
   // My Views group + the Assistant toggle remain env-flag-driven (NOT org entitlements — plan M5):
   // `userViews`/`agentAssistant` are env-only sub-flags until the entitlements system absorbs them.
@@ -210,8 +222,10 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
     '/projects': t('shell.nav.projects', 'Projects'),
     '/sales': t('shell.nav.sales', 'Sales Pipeline'),
     '/procurement': t('shell.nav.procurement', 'Procurement'),
+    '/stock': t('shell.nav.stock', 'Stock'),
     '/timesheets': t('shell.nav.timesheets', 'Timesheets'),
     '/expenses': t('shell.nav.expenses', 'Expenses'),
+    '/imprest': t('imprest:nav.siteCash', 'Site cash'),
     '/finance': t('financeHub:nav.finance', 'Finance'),
     '/finance/receivables': t('financeHub:hub.receivables', 'Receivables'),
     '/finance/payables': t('financeHub:hub.payables', 'Payables'),

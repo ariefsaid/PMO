@@ -36,6 +36,7 @@ export const FIELD_KINDS: Record<string, Record<string, HistoryKind>> = {
   sales_invoice: {
     project_id: 'ref', efaktur_number: 'text', efaktur_date: 'date', received_date: 'date', author_user_id: 'ref',
     approved_by_id: 'ref', approved_at: 'timestamp', pmo_native: 'bool', pmo_number: 'text', native_lines: 'text',
+    billing_kind: 'enum',
   },
   procurement_invoice: {
     efaktur_number: 'text', efaktur_date: 'date', withheld_amount: 'money', withheld_pph_type: 'enum',

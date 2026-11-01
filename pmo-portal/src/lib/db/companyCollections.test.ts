@@ -123,3 +123,15 @@ describe('company customer reference reads', () => {
     await expect(listCompanyCustomerRefs(['company-a'])).rejects.toMatchObject({ message: 'read denied', code: '42501' });
   });
 });
+
+it('resolves mapped customer and supplier companies for contact creation', async () => {
+  h.setRows([
+    { id: 'a', domain: 'companies', external_tier: 'erpnext', pmo_record_id: 'a', external_record_id: 'Customer:A' },
+    { id: 'b', domain: 'companies', external_tier: 'erpnext', pmo_record_id: 'b', external_record_id: 'Supplier:B' },
+    { id: 'c', domain: 'companies', external_tier: 'erpnext', pmo_record_id: 'c', external_record_id: 'Supplier:' },
+  ]);
+  const module = await import('./companyCollections');
+  expect(module).toHaveProperty('listCompanyPartyRefs');
+  const list = (module as unknown as { listCompanyPartyRefs: (ids: string[]) => Promise<string[]> }).listCompanyPartyRefs;
+  expect(await list(['a', 'b', 'c'])).toEqual(['a', 'b']);
+});

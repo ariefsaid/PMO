@@ -1,4 +1,6 @@
 {
+  "workOrderEligibility": {"checking": "Memeriksa kelayakan penerbitan…", "unavailable": "Kelayakan penerbitan tidak dapat diperiksa. Muat ulang halaman ini dan coba lagi."},
+  "winEligibility": {"checking": "Memeriksa kelayakan memenangkan proyek…", "unavailable": "Kelayakan memenangkan proyek tidak tersedia. Muat ulang halaman ini dan coba lagi.", "reviewer": "Minta atasan atau peninjau yang lebih senior untuk memastikan nilai sebelum memenangkan proyek ini.", "inactive": "Minta atasan yang aktif atau peninjau yang lebih senior untuk memastikan nilai."},
   "finishSpendingSetup": "Selesaikan penyiapan pengeluaran",
   "spendingAdminHandoff": "Minta administrator menyelesaikan penyiapan pengeluaran.",
   "spendingSetupPrompt": "Pengeluaran tercatat akan muncul setelah penyiapan akun selesai.",
@@ -8,10 +10,20 @@
   "categoryNeedsSetup": "Penyiapan pengeluaran untuk kategori ini belum selesai.",
   "invoiceBalanceUnavailable": "Saldo faktur masih menunggu konfirmasi.",
   "invoiceScope": "Hanya faktur yang ditautkan ke proyek ini yang disertakan.",
+  "history": {
+    "referenceNamesError": "Beberapa nama catatan tidak dapat dimuat."
+  },
   "noLinkedInvoices": "Belum ada faktur yang ditautkan ke proyek ini",
   "billedWork": "Pendapatan pekerjaan tertagih",
   "billedWorkQualifier": "Tanpa pajak; tidak termasuk uang muka",
   "projectFinances": {
+    "excessTitle": "Ditagihkan melebihi kontrak sebesar {{amount}}",
+    "excessInvoices": "Tagihan kontrak di balik kelebihan ini",
+    "excessInvoiceNoNumber": "Tagihan",
+    "excessDetailUnavailable": "Rincian tagihan di balik kelebihan ini tidak dapat diverifikasi.",
+    "contractComparisonUnavailable": "Perbandingan kontrak tidak tersedia: nilai kontrak belum dicatat, atau tagihan kontrak tidak dapat dibandingkan (mata uang atau dasar pajak).",
+    "currencyUnavailable": "Mata uang tidak tersedia",
+    "pmoPartial": "Posisi belum lengkap; mata uang lain atau jumlah yang tidak tersedia tidak disertakan.",
     "contractAfterCostSource": "Nilai kontrak dikurangi Aktual tercatat yang dapat dibandingkan.",
     "contractAfterCostPending": "Ditampilkan setelah pengeluaran tercatat lengkap."
   },
@@ -104,6 +116,15 @@
       "invoiceDateSource": "Sumber: tanggal faktur dari akuntansi."
     },
     "billing": {
+      "sources": {
+        "loading": "Memuat {{source}}…",
+        "boq": "baris kontrak",
+        "billing": "angka penagihan",
+        "claims": "tagihan",
+        "orders": "pesanan pelanggan",
+        "allocations": "alokasi pesanan",
+        "error": "Gagal memuat {{source}}"
+      },
       "boq": {
         "lineStatus": "Baris kontrak",
         "source": {
@@ -291,6 +312,8 @@
         "titleEdit": "Ubah baris bill of quantities"
       },
       "evidence": {
+        "documentsError": "Dokumen bukti gagal dimuat",
+        "claimError": "Tagihan gagal dimuat",
         "save": "Lampirkan",
         "none": "Tidak ada dokumen terbit atau disetujui yang memiliki berkas di proyek ini.",
         "subtitle": "Pilih dokumen terbit atau disetujui dari register proyek ini, seperti laporan progres atau berita acara serah terima (BAST) klien.",
@@ -305,7 +328,10 @@
     "pipeline": {
       "currentStage": "Tahap saat ini",
       "readOnlyShort": "Manajer proyek mengelola alur ini.",
-      "moreAboutDeal": "Selengkapnya tentang peluang ini"
+      "moreAboutDeal": "Selengkapnya tentang peluang ini",
+      "statLoading": "Memuat…",
+      "statUnavailable": "Tidak tersedia",
+      "retry": "Coba lagi"
     },
     "activity": {
       "title": "Aktivitas",
@@ -431,6 +457,7 @@
       "categoryOverSub": "Terpakai {{spent}} dari anggaran {{budget}}",
       "within": "Sesuai anggaran",
       "withinSub": "Terpakai {{spent}} dari {{budget}}",
+      "commitmentsError": "Tidak dapat memeriksa komitmen",
       "spendingChecking": "Memeriksa pengeluaran…",
       "spendingError": "Pengeluaran tidak dapat diperiksa",
       "spendingUnlinked": "Pengeluaran belum ditautkan.",
@@ -453,6 +480,23 @@
       "currentPhaseLabel": "Fase saat ini",
       "taskCount": "{{done}} dari {{total}} tugas",
       "noCurrentPhase": "Tidak ada fase aktif"
+    },
+    "billingMilestones": {
+      "title": "Milestone penagihan",
+      "subline": "Work order klien. Penagihan mengikuti tiap work order.",
+      "error": "Gagal memuat milestone penagihan",
+      "empty": "Belum ada work order.",
+      "openContract": "Buka kontrak & penagihan",
+      "notIssued": "Belum diterbitkan",
+      "dates": "{{start}} – {{end}}",
+      "startOnly": "Mulai {{date}}",
+      "endOnly": "Jatuh tempo {{date}}",
+      "ordered": "Dipesan {{date}}",
+      "noDates": "Tanpa tanggal",
+      "status": { "planned": "Direncanakan", "inProgress": "Berjalan", "invoiced": "Ditagih", "paid": "Lunas" },
+      "statusSource": "Sumber: faktur dan draf work order ini (Kontrak & penagihan).",
+      "invoiceThis": "Tagih ini",
+      "invoiceThisLabel": "Tagih {{order}}"
     },
     "delivery": {
       "timelineTitle": "Linimasa tahapan",
@@ -499,7 +543,8 @@
     },
     "tabs": {
       "contract": "Kontrak & penagihan",
-      "activity": "Aktivitas"
+      "activity": "Aktivitas",
+      "materials": "Material"
     },
     "action": {
       "chasePayment": "Tindak lanjuti pembayaran",
@@ -773,6 +818,9 @@
       "drawerMoreActions": "Tindakan tugas lainnya"
     },
     "workOrders": {
+      "acceptanceAge": "Hari sejak BAST, belum ditagih: {{days}}",
+      "acceptanceAgeSource": "Dihitung dari BAST terkonfirmasi paling awal yang belum diikuti faktur terkirim.",
+      "cannotInvoiceHere": "Work order ini belum bisa ditagih dari sini.",
       "export": {
         "number": "Surat perintah kerja",
         "title": "Judul",
@@ -839,5 +887,15 @@
     "contractPosition": "Posisi penagihan kontrak",
     "purchaseOrdersUnavailable": "Total pesanan pembelian masih menunggu konfirmasi.",
     "reviewInvoices": "Tinjau faktur"
+  },
+  "m365Documents": {
+    "history": {
+      "openVerified": "Buka riwayat versi yang terverifikasi"
+    },
+    "verification": {
+      "checking": "Memeriksa konten file Microsoft…",
+      "failed": "Tidak dapat memeriksa Microsoft. Status ini mungkin sudah tidak terbaru.",
+      "retry": "Coba periksa lagi"
+    }
   }
 }

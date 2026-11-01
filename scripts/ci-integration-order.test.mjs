@@ -267,12 +267,34 @@ test('every repo guard runs in CI: check:guards holds every check:* and CI verif
   // The unit suite runs in the sharded `unit` job; verify must wait for it, fail (not skip) when a
   // shard fails, and merge every shard's report + coverage before the changed-lines gate.
   const merge = at('run: npx vitest run --merge-reports --coverage');
-  assert.match(verifyJob, /\n    needs: unit\n/, 'verify must need the sharded unit job');
+  assert.match(verifyJob, /\n    needs: \[scope, unit\]\n/, 'verify must need the scope and unit jobs');
   assert.ok(at('run: test "${{ needs.unit.result }}" = success') !== -1, 'verify must fail when any shard fails');
   assert.ok(merge !== -1 && merge < at('Changed-lines coverage gate'), 'shard coverage must merge before the gate');
   const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  verify:'));
-  assert.match(unitJob, /shard: \[1, 2\]/, 'unit job must run every shard');
+  assert.match(unitJob, /fromJSON\(needs\.scope\.outputs\.unit_matrix\)/, 'unit matrix comes from the scope job');
+  assert.match(workflow, /"include":\[\{"shard":1,"mode":"full"\},\{"shard":2,"mode":"full"\}\]/, 'full mode must run both shards');
   assert.match(unitJob, /--coverage --shard=\$\{\{ matrix\.shard \}\}\/2 .*--reporter=blob/, 'each shard must record coverage');
+  assert.match(unitJob, /vitest run --coverage --reporter=default --reporter=blob "\$\{files\[@\]\}"/, 'affected mode must record coverage too');
+  assert.match(unitJob, /timeout-minutes: 40/, 'unit job must have a timeout (#1528)');
+});
+
+test('AC-CI-002/003/004: scope narrows only a PR to dev; dev pushes run everything', () => {
+  // Everything but a PR to dev is forced to full — in the workflow, not in the script.
+  assert.match(workflow, /if \[ "\$EVENT" = pull_request \] && \[ "\$BASE_REF" = dev \]; then/);
+  assert.match(workflow, /"unit":"full","pgtap":true,"deno":true/);
+  assert.match(workflow, /\n    branches: \[main, dev\]\n/, 'push CI covers dev');
+  const pgtap = workflow.slice(workflow.indexOf('\n  pgtap:'), workflow.indexOf('\n  browser-chromium:'));
+  assert.match(pgtap, /needs\.scope\.outputs\.pgtap == 'true'/);
+  assert.match(pgtap, /github\.event_name == 'push' && github\.ref == 'refs\/heads\/dev'/, 'pgTAP is part of the full run on push to dev');
+  const verifyJob = workflow.slice(workflow.indexOf('\n  verify:'), workflow.indexOf('\n  pgtap:'));
+  for (const step of ['denoland/setup-deno', 'bash scripts/deno-typecheck-edge-fns.sh', 'bash scripts/deno-boot-smoke-edge-fns.sh', 'bash scripts/deno-test-edge-fns.sh']) {
+    const at = verifyJob.indexOf(step);
+    assert.ok(at !== -1, `${step} missing`);
+    const from = verifyJob.lastIndexOf('\n      - ', at);
+    const to = verifyJob.indexOf('\n      - ', at);
+    assert.match(verifyJob.slice(from, to), /if: needs\.scope\.outputs\.deno == 'true'/, `${step} must be gated on scope.deno`);
+  }
+  assert.match(verifyJob, /node scripts\/ci-test-scope\.mjs --self-test/);
 });
 
 test('a dispatched e2e run skips verify and pgTAP; the PR-to-main integration gate keeps pgTAP', () => {

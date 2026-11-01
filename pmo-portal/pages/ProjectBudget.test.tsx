@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'jest-axe';
+import 'jest-axe/extend-expect'; // global registration moved out of test/setup.ts (unit-speed #1584)
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -26,7 +27,7 @@ const versionsState = {
   isError: false,
   refetch: vi.fn(),
 };
-const activationModeState = { data: undefined as string | undefined, isPending: false, isError: false };
+const activationModeState = { data: 'allowed' as string | undefined, isPending: false, isFetching: false, isError: false };
 const readyActivationPrecheck: BudgetActivationPrecheckResult = {
   status: 'ready',
   erpCheck: 'available',
@@ -223,8 +224,9 @@ function resetState() {
   versionsState.data = undefined;
   versionsState.isPending = false;
   versionsState.isError = false;
-  activationModeState.data = undefined;
+  activationModeState.data = 'allowed';
   activationModeState.isPending = false;
+  activationModeState.isFetching = false;
   activationModeState.isError = false;
   activationPrecheckState.data = readyActivationPrecheck;
   activationPrecheckState.isPending = false;
@@ -285,6 +287,35 @@ describe('ProjectBudget Bahasa confirmation copy (BU-2)', () => {
       expect(dialog).toHaveTextContent(scenario.body);
       view.unmount();
     }
+  });
+});
+
+describe('budget confirmation cancellation', () => {
+  it.each([
+    { kind: 'create', versions: [], trigger: /^Create budget$/, form: true, drawer: false },
+    { kind: 'activate', versions: [draftVersion], trigger: /^Activate v2$/, form: false, drawer: false },
+    { kind: 'clone', versions: [activeVersion], trigger: /^Update budget$/, form: false, drawer: false },
+    { kind: 'archive', versions: [activeVersion], trigger: /^Archive$/, form: false, drawer: true },
+    { kind: 'delete draft', versions: [draftVersion], trigger: /^Delete draft$/, form: false, drawer: true },
+    { kind: 'delete line', versions: [draftVersion], trigger: /Delete line item Labor/i, form: false, drawer: false },
+  ])('cancelling $kind closes its confirmation without writing', async ({ versions, trigger, form, drawer }) => {
+    roleState.realRole = 'Finance';
+    budgetState.data = 0;
+    versionsState.data = versions;
+    renderPage();
+    if (drawer) await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
+    await userEvent.click(screen.getByRole('button', { name: trigger }));
+    if (form) {
+      await userEvent.type(screen.getByPlaceholderText(/Version name/i), '  Revision  ');
+      await userEvent.click(screen.getByRole('button', { name: /^Create$/i }));
+    }
+    const dialog = screen.queryByRole('alertdialog') ?? screen.getByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Cancel$/i }));
+    expect(dialog).not.toBeInTheDocument();
+    for (const mutation of [mockCreateVersion, mockActivate, mockClone, mockArchive, mockDeleteDraft, mockDeleteLineItem]) {
+      expect(mutation).not.toHaveBeenCalled();
+    }
+    if (form) expect(screen.getByPlaceholderText(/Version name/i)).toHaveValue('  Revision  ');
   });
 });
 
@@ -655,6 +686,29 @@ describe('ProjectBudget Draft version actions', () => {
     resetState();
   });
 
+  it('requires the current mode while confirming a sole-operator activation', async () => {
+    roleState.realRole = 'Finance';
+    budgetState.data = 100;
+    versionsState.data = [{ ...draftVersion, created_by: 'u1', editor_ids: ['u1'] }];
+    activationModeState.data = 'sole_operator';
+    const view = renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const refresh = () => view.rerender(<FinanceI18nTestProvider><QueryClientProvider client={client}><MemoryRouter><ToastProvider><ProjectBudget projectId="p-1" project={project} /></ToastProvider></MemoryRouter></QueryClientProvider></FinanceI18nTestProvider>);
+    activationModeState.isFetching = true; refresh();
+    expect(screen.getByText('Checking activation eligibility…')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: /Activate version/i })).toBeDisabled();
+    activationModeState.isFetching = false; activationModeState.isError = true; refresh();
+    expect(screen.getByText('Activation eligibility is unavailable. Refresh this page and try again.')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: /Activate version/i })).toBeDisabled();
+    activationModeState.isError = false; activationModeState.data = 'blocked_editor'; refresh();
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: /Activate version/i })).toBeDisabled();
+    expect(mockActivate).not.toHaveBeenCalled();
+    activationModeState.data = 'sole_operator'; refresh();
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Activate version/i }));
+    expect(mockActivate).toHaveBeenCalledWith('v-draft');
+  });
+
   it('AC-1050-07: sole operator sees Activate and must confirm the exception before activation', async () => {
     roleState.realRole = 'Finance';
     budgetState.data = 100;
@@ -669,6 +723,18 @@ describe('ProjectBudget Draft version actions', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: /Activate version/i }));
     expect(mockActivate).toHaveBeenCalledWith('v-draft');
   });
+
+  it.each(['Project Manager', 'Executive'] as const)(
+    'explains the missing drafter to a sole %s editor when the server blocks activation',
+    (role) => {
+      roleState.realRole = role;
+      versionsState.data = [{ ...draftVersion, created_by: null, editor_ids: ['u1'] }];
+      activationModeState.data = 'blocked_no_drafter';
+      renderPage();
+      expect(screen.queryByRole('button', { name: /^Activate v2$/i })).not.toBeInTheDocument();
+      expect(screen.getByText('No drafter is recorded for this version. Ask an Admin or Finance user to activate it.')).toBeInTheDocument();
+    },
+  );
 
   it('OD-BUDGET-6: the drafter sees approval guidance instead of an Activate button', async () => {
     budgetState.data = 0;
@@ -767,6 +833,23 @@ describe('ProjectBudget Draft version actions', () => {
     renderPage();
     expect(screen.getByText(/\+ Add line item/i)).toBeInTheDocument();
     resetState();
+  });
+
+  it.each([
+    { code: 'budget-category-unmapped', expected: /map.*budget categories/i },
+    { code: 'budget-fiscal-year-invalid', expected: /fiscal year listed by ERPNext/i },
+    { code: 'budget-fiscal-year-out-of-span', expected: /fiscal year outside the project dates/i },
+    { code: 'budget-fiscal-year-ambiguous', expected: /overlapping fiscal years/i },
+    { code: 'budget-project-start-date-missing', expected: /add a project start date/i },
+    { code: 'budget-fiscal-year-unresolved', expected: /no fiscal year for the project end date/i, datePart: 'end' as const },
+    { code: 'unknown-readiness-issue', expected: /readiness check found an issue/i },
+  ])('explains readiness issue $code before activation', ({ code, expected, datePart }) => {
+    roleState.realRole = 'Finance';
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    activationPrecheckState.data = { status: 'blocked', erpCheck: 'available', fiscalYearNames: ['2026'], issues: [{ code, datePart, categories: ['Labor'], lines: [{ category: 'Labor', fiscalYear: '2026' }], date: '2026-01-01', fiscalYears: ['FY1', 'FY2'] }] };
+    renderPage();
+    expect(screen.getByTestId('budget-readiness-summary')).toHaveTextContent(expected);
   });
 
   it('issue #1421: lists missing readiness on the Draft and disables confirmation until fixed', async () => {

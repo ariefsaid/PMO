@@ -33,7 +33,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
-import { findPmoRecordId, recordExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
+import { findPmoRecordId, insertExternalRef, recordExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { KIND_DOMAIN, KIND_MIRROR_TABLE, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { deriveSiStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/siStatus.ts';
@@ -47,6 +47,8 @@ import { reconcileSiCancelAutoUnlink } from '../../../pmo-portal/src/lib/adapter
 import type { ErpFeedDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/applyFeed.ts';
 import type { LineageRow } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/lineage.ts';
 import type { PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
+import { pickCandidate, type PartyDoctype } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/partyAdopt.ts';
+import { findCompanyCandidates } from './companyCandidates.ts';
 import { resolveInvoiceProject } from './projectInvoiceAttribution.ts';
 import { allocationDetailsPatch } from './receiptAllocations.ts';
 
@@ -224,7 +226,29 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
     ...(kind === 'timesheet' || kind === 'budget' || KIND_DOMAIN[kind] === 'expenses' || KIND_DOMAIN[kind] === 'procurement' ? {} : {
       adoptAtomically: {
         newPmoRecordId: () => crypto.randomUUID(),
-        claimExternalRef: (mapping) => recordExternalRef(serviceClient as never, { orgId, ...mapping }),
+        // Insert-only: the claim is a first link, so it must refuse (23505) rather than re-point a record
+        // that is already linked to another ERP record (#1600).
+        claimExternalRef: (mapping) => insertExternalRef(serviceClient as never, { orgId, ...mapping }),
+        // #1600 — an unmapped ERP Supplier/Customer that is already a PMO company links to it; only a
+        // no-match mints. Same matcher as the setup step (partyAdopt.pickCandidate); unclear ⇒ throws.
+        ...(kind === 'supplier' || kind === 'customer' ? {
+          matchExisting: async (canonical: PmoRecord) => {
+            const doctype: PartyDoctype = kind === 'supplier' ? 'Supplier' : 'Customer';
+            const name = (canonical.name ?? canonical.erp_supplier_name ?? canonical.erp_customer_name) as string | null | undefined;
+            if (!name) return null;
+            const taxId = (canonical.erp_tax_id as string | null | undefined) ?? null;
+            const candidates = await findCompanyCandidates(serviceClient, orgId, doctype, name);
+            try {
+              return pickCandidate({ doctype, id: name, name, taxId }, candidates)?.pmoRecordId ?? null;
+            } catch (err) {
+              if (!(err instanceof AppError) || err.code !== 'action-required') throw err;
+              // Unclear match: tell an admin and skip THIS party (a terminal reason, feedErrorPolicy.ts) so
+              // one unclear party never halts the poll behind it.
+              await surfaceActionRequired(serviceClient, orgId, 'party-match-unclear', { erpName: name });
+              throw new AppError(err.message, 'party-match-unclear');
+            }
+          },
+        } : {}),
         mintWithId: (canonical, sourceModMs, pmoRecordId) => mintMirrorRow(serviceClient, orgId, kind, canonical, sourceModMs, pmoRecordId),
         mirrorExists: async (pmoRecordId) => {
           const { data, error } = await scopeMirrorQuery(serviceClient.from(tableFor(pmoRecordId)).select(lookupColumn), kind, lookupColumn, orgId, pmoRecordId).maybeSingle();
@@ -278,7 +302,10 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
       }
       // #775 phase B (FR-EXP-113) — a posted expense document cancelled in ERPNext. PMO's own approval-cancel is
       // expected and silent; anything else is a human acting in a headless ERP and must be surfaced.
-      if (domain === 'expenses') {
+      // A site float transfer (#1515) is also in the `expenses` domain but is never PMO-cancelled: always surface it, in its own words.
+      if (kind === 'imprest-transfer') {
+        await surfaceActionRequired(serviceClient, orgId, 'imprest-posting-desk-cancelled', { postingIdentity: pmoRecordId });
+      } else if (domain === 'expenses') {
         await surfaceExpenseDeskCancelUnlessOurs(serviceClient, orgId, pmoRecordId);
       }
       // Luna BLOCK A4 (feed side): ERPNext auto-unlinks a Receive Payment Entry's `references` when the
@@ -966,6 +993,8 @@ function describeActionRequired(actionRequired: string, detail: Record<string, u
       return `Some ERP ledger entries carry no fiscal year, so their spend cannot appear under any year on the budget screen — set the fiscal year on those GL entries in ERPNext.`;
     case 'receipt-withholding-unconfirmed':
       return `Receipt ${detail.erpName ?? ''} in ERPNext carries a withholding-tax deduction PMO could not confirm (${detail.reason ?? 'unknown'}) — PMO recorded the cash amount without the tax. Check the Payment Entry's deductions in ERPNext.`;
+    case 'party-match-unclear':
+      return `ERP ${detail.erpName ?? 'party'} matches more than one company in PMO (or one with a different tax ID), so it was not linked. Merge or rename the PMO duplicates, then it links on its next change.`;
     case 'contact-not-adopted':
       return `ERPNext Contact ${String(detail.erpName ?? '').replace(/^Contact:/, '')} was NOT synced to PMO (${detail.reason ?? 'refused'}) — resolve its company links or duplicate in ERPNext; later contact changes are unaffected.`;
     case 'budget-push-failed':
@@ -978,6 +1007,12 @@ function describeActionRequired(actionRequired: string, detail: Record<string, u
       return `An expense claim could not be posted to ERPNext (${detail.reason ?? 'unknown reason'}) — fix the cause; the next sweep retries it.`;
     case 'expense-posting-held':
       return `An expense posting to ERPNext needs an operator (${detail.reason ?? 'unknown reason'}) — it is not retried automatically.`;
+    case 'imprest-posting-desk-cancelled':
+      return `A site float top-up PMO posted in ERPNext was cancelled directly in ERPNext — the replenishment in PMO is unchanged; review the ledger.`;
+    case 'imprest-posting-failed':
+      return `A site float top-up could not be posted to ERPNext (${detail.reason ?? 'unknown reason'}) — fix the cause; the next sweep retries it.`;
+    case 'imprest-posting-held':
+      return `A site float top-up posting to ERPNext needs an operator (${detail.reason ?? 'unknown reason'}) — it is not retried automatically.`;
     default:
       return `Action required: ${actionRequired}`;
   }

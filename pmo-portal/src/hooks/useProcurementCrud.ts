@@ -1,17 +1,18 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useStartRecordFolder } from '@/src/hooks/useStartRecordFolder';
-import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import type { AppError } from '@/src/lib/appError';
-import type {
-  NewProcurementInput,
-  ProcurementHeaderPatch,
-  ProcurementItemInput,
-  ProcurementItemPatch,
-  ProcurementItemRow,
-  ProcurementDocumentInput,
-  ProcurementDocumentRow,
-} from '@/src/lib/db/procurementCrud';
+import {
+  repositories,
+  type NewProcurementInput,
+  type AtomicProcurementInput,
+  type ProcurementHeaderPatch,
+  type ProcurementItemInput,
+  type ProcurementItemPatch,
+  type ProcurementItemRow,
+  type ProcurementDocumentInput,
+  type ProcurementDocumentRow,
+} from '@/src/lib/repositories';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
 // ---------------------------------------------------------------------------
@@ -32,20 +33,6 @@ const procurementDocsKey = (orgId: string | undefined, id: string) =>
   ['procurement-docs', orgId, id] as const;
 
 /**
- * The document-metadata register for a PR (AC-PROC-005). Org-scoped cache key;
- * the document mutations below invalidate it so the register refetches.
- */
-export function useProcurementDocuments(id: string | undefined) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<ProcurementDocumentRow[]>({
-    queryKey: procurementDocsKey(orgId, id ?? ''),
-    queryFn: () => repositories.procurement.listDocuments(id!),
-    enabled: Boolean(orgId && id),
-  });
-}
-
-/**
  * Raise a new Purchase Request (AC-PROC-001). The requester id is supplied from
  * the auth context (`currentUser.id`) — the FE form never carries it, and the
  * requester widening RLS (migration 0015) keys off this exact id. Invalidates
@@ -62,6 +49,20 @@ export function useCreateProcurement() {
       // number (`pr_number`, else the imported `code`), so a number-less Draft starts nothing here —
       // it gets its folder when it is submitted to Requested (useProcurementMutations.transition).
       // Fire-and-forget: the saved case is returned unchanged whatever the folder does.
+      if (row.pr_number || row.code) startRecordFolder({ kind: 'procurement', id: row.id });
+      return row;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['procurements'] }),
+  });
+}
+
+/** Create the complete draft at a single transactional boundary. */
+export function useCreateProcurementWithItems() {
+  const qc = useQueryClient();
+  const startRecordFolder = useStartRecordFolder();
+  return useMutation<Tables<'procurements'>, AppError, AtomicProcurementInput>({
+    mutationFn: async (input) => {
+      const row = await repositories.procurement.createWithItems(input);
       if (row.pr_number || row.code) startRecordFolder({ kind: 'procurement', id: row.id });
       return row;
     },

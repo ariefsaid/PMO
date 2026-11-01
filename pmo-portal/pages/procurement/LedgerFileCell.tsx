@@ -18,14 +18,17 @@
  * Compact by design (dense table cell). Reuses existing file helpers + sized Icon.
  * DESIGN.md tokens only; no raw hex/px. WCAG-AA: buttons have aria-label.
  */
-import React, { useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import { Icon, useToast } from '@/src/components/ui';
-import { getSignedDownloadUrl } from '@/src/lib/db/procurementFiles';
+import { procurementFileTarget } from '@/src/components/documents/targets/procurement';
+import { useViewerOnDemand } from '@/src/components/documents/viewerContext';
 import { useProcurementFiles } from '@/src/hooks/useProcurementFiles';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { UploadFailure } from '@/src/lib/m365/uploadClient';
+import { useUploadFailureText } from '@/src/hooks/useUploadDestination';
 import { FILE_INPUT_ACCEPT } from '@/src/lib/fileConstants';
 import type { ProcPhase } from '@/src/lib/db/procurementFiles';
-import type { RecordType } from '@/src/lib/db/procurementLedger';
+import type { LedgerFileRef, RecordType } from '@/src/lib/db/procurementLedger';
 
 // ---------------------------------------------------------------------------
 // RecordType → ProcPhase mapping
@@ -55,6 +58,8 @@ export interface LedgerFileCellProps {
   fileTitle: string | null;
   /** Count of non-archived files for this record (0 = none). */
   fileCount: number;
+  /** The first file's row id and SharePoint reference (from the same bundle embed). */
+  fileRef?: LedgerFileRef;
   /** Whether write affordances (upload) are shown. UX gate; RLS is authoritative. */
   canWrite: boolean;
   /** The owning procurement id (upload path + query invalidation). */
@@ -73,54 +78,37 @@ export interface LedgerFileCellProps {
 // ---------------------------------------------------------------------------
 
 interface SingleFileButtonProps {
+  phase: ProcPhase;
+  recordId: string;
   fileHref: string;
   fileTitle: string;
+  fileRef?: LedgerFileRef;
+  procurementId: string;
+  uploadedById: string | null;
   label: string;
 }
 
-const SingleFileButton: React.FC<SingleFileButtonProps> = ({ fileHref, fileTitle, label }) => {
-  const { toast } = useToast();
-  const [busy, setBusy] = useState(false);
-  const [inlineError, setInlineError] = useState<string | null>(null);
-
-  const handleClick = async () => {
-    if (busy) return;
-    setBusy(true);
-    setInlineError(null);
-    try {
-      const url = await getSignedDownloadUrl(fileHref);
-      window.open(url, '_blank', 'noopener,noreferrer');
-    } catch (err) {
-      // Non-fatal: seed rows exist with no storage object. Show inline message.
-      const { headline } = classifyMutationError(err);
-      setInlineError(headline);
-      toast(headline, 'The file could not be opened. It may not have been uploaded yet.', 'warning');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (inlineError) {
-    return (
-      <span
-        role="alert"
-        className="inline-flex items-center gap-1 text-[12px] text-destructive"
-        title={inlineError}
-      >
-        <Icon name="file" className="size-3.5 shrink-0" />
-        <span className="truncate max-w-[120px]">{fileTitle}</span>
-      </span>
-    );
-  }
-
+/** Opens the record's file in the side-panel viewer; the viewer signs the URL fresh and reports a failure itself. */
+const SingleFileButton: React.FC<SingleFileButtonProps> = ({ phase, recordId, fileHref, fileTitle, fileRef, procurementId, uploadedById, label }) => {
+  const viewer = useViewerOnDemand();
+  const { download } = useProcurementFiles(phase, recordId, procurementId, uploadedById, { list: false });
   return (
     <button
       type="button"
-      onClick={() => void handleClick()}
-      disabled={busy}
+      onClick={(e) => viewer.open(
+        procurementFileTarget({
+          phase,
+          // The ledger bundle carries only the first file; a SharePoint row is addressed by its own row id.
+          file: fileRef?.source === 'onedrive'
+            ? { id: fileRef.id, title: fileTitle, file_path: null, source: 'onedrive', ms_web_url: fileRef.ms_web_url, ms_item_name: fileRef.ms_item_name }
+            : { id: recordId, title: fileTitle, file_path: fileHref, source: null, ms_web_url: null, ms_item_name: null },
+          getSignedUrl: download,
+        }),
+        e.currentTarget,
+      )}
       aria-label={label}
       title={fileTitle}
-      className="inline-flex items-center gap-1 text-[12.5px] font-medium text-primary-text hover:underline underline-offset-4 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className="inline-flex items-center gap-1 text-[12.5px] font-medium text-primary-text hover:underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
       <Icon name="file" className="size-3.5 shrink-0" />
       <span className="truncate max-w-[120px]">{fileTitle}</span>
@@ -146,9 +134,10 @@ const AttachButton: React.FC<AttachButtonProps> = ({
   uploadedById,
 }) => {
   const { toast } = useToast();
+  const failureText = useUploadFailureText();
   const phase = PHASE_BY_TYPE[type];
   const inputRef = useRef<HTMLInputElement>(null);
-  const { upload } = useProcurementFiles(phase, recordId, procurementId, uploadedById, {
+  const { upload, uploadDisabled } = useProcurementFiles(phase, recordId, procurementId, uploadedById, {
     list: false,
   });
 
@@ -161,6 +150,11 @@ const AttachButton: React.FC<AttachButtonProps> = ({
       {
         onSuccess: () => toast('File attached', file.name, 'success'),
         onError: (err: unknown) => {
+          // The ledger cell shows no inline upload error, so a typed SharePoint failure is toasted with its recovery text.
+          if (err instanceof UploadFailure) {
+            if (err.kind !== 'cancelled') toast(failureText(err.kind, { purchase: true }), undefined, 'warning');
+            return;
+          }
           const { headline, detail } = classifyMutationError(err);
           toast(headline, detail, 'warning');
         },
@@ -181,7 +175,7 @@ const AttachButton: React.FC<AttachButtonProps> = ({
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        disabled={upload.isPending}
+        disabled={upload.isPending || uploadDisabled}
         aria-label="Attach file"
         title="Attach file"
         className="inline-flex items-center gap-1 text-[12px] font-medium text-muted-foreground hover:text-primary disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
@@ -208,6 +202,7 @@ export const LedgerFileCell: React.FC<LedgerFileCellProps> = ({
   fileHref,
   fileTitle,
   fileCount,
+  fileRef,
   canWrite,
   procurementId,
   uploadedById,
@@ -232,8 +227,13 @@ export const LedgerFileCell: React.FC<LedgerFileCellProps> = ({
   if (fileHref && fileTitle) {
     return (
       <SingleFileButton
+        phase={PHASE_BY_TYPE[type]}
+        recordId={recordId}
         fileHref={fileHref}
         fileTitle={fileTitle}
+        fileRef={fileRef}
+        procurementId={procurementId}
+        uploadedById={uploadedById}
         label={`Open file for ${systemNumber ?? type}`}
       />
     );

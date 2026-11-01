@@ -4,7 +4,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
 // The hooks consume the repository seam (ADR-0017), not the DAL directly.
-const { company } = vi.hoisted(() => ({
+const { company, project } = vi.hoisted(() => ({
+  project: { listByClient: vi.fn().mockResolvedValue([]) },
   company: {
     list: vi.fn(),
     get: vi.fn(),
@@ -14,13 +15,13 @@ const { company } = vi.hoisted(() => ({
     delete: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { company } }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { company, project } }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
 }));
 
-import { useCompanies, useCompany, useCompanyMutations } from './useCompanies';
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { useCompanies, useCompany, useCompanyMutations, useProjectsByClient } from './useCompanies';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 const wrap = (client: QueryClient) =>
   function Wrapper({ children }: { children: React.ReactNode }) {
@@ -42,6 +43,17 @@ beforeEach(() => {
   company.archive.mockResolvedValue(undefined);
   company.delete.mockResolvedValue(undefined);
   clearOwnershipCache();
+});
+
+describe('client project cache', () => {
+  it('uses the repository and is invalidated by the current org project prefix', async () => {
+    const client = freshClient();
+    const { result } = renderHook(() => useProjectsByClient('c1'), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(project.listByClient).toHaveBeenCalledWith('c1');
+    await client.invalidateQueries({ queryKey: ['projects', 'org-1'], refetchType: 'none' });
+    expect(client.getQueryState(['projects', 'org-1', 'by-client', 'c1'])?.isInvalidated).toBe(true);
+  });
 });
 
 describe('useCompanies', () => {
@@ -146,7 +158,7 @@ describe('useCompanyMutations', () => {
 // an Internal-type write NEVER shows a push badge (FR-ENA-090/091), even flipped.
 // ---------------------------------------------------------------------------
 describe('task FIX-1 — flipped ownership map drives pendingPush on a Vendor/Client write', () => {
-  beforeEach(() => setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
+  beforeEach(() => setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
   afterEach(() => clearOwnershipCache());
 
   it('create cycles pendingPush idle -> pushing -> pushed for a Vendor', async () => {
@@ -196,13 +208,20 @@ describe('task FIX-1 — flipped ownership map drives pendingPush on a Vendor/Cl
 
 
 it('local short-name save shows no external push badge and refreshes dependent project displays', async () => {
-  setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+  setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
   const client = freshClient();
   const invalidate = vi.spyOn(client, 'invalidateQueries');
+  client.setQueryData(['won-deals', 'org-1'], 'old');
+  client.setQueryData(['won-deals', 'org-2'], 'other');
   const { result } = renderHook(() => useCompanyMutations(), { wrapper: wrap(client) });
   await act(async () => { await result.current.update.mutateAsync({ id: 'c1', input: { name: 'Example Legal Company', type: 'Client', short_name: 'Example' } }); });
+  expect(client.getQueryState(['won-deals', 'org-1'])?.isInvalidated).toBe(true);
+  expect(client.getQueryState(['won-deals', 'org-2'])?.isInvalidated).toBe(false);
   expect(result.current.pendingPush.status).toBe('idle');
-  for (const key of ['companies', 'company', 'projects', 'project', 'opportunity', 'sales-pipeline', 'lost-deals', 'dashboard', 'finance-budget-review']) {
+  for (const key of ['companies', 'company']) {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: [key] });
+  }
+  for (const key of ['projects', 'project', 'opportunity', 'sales-pipeline', 'lost-deals', 'won-deals', 'win-rate', 'dashboard', 'finance-budget-review']) {
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [key, 'org-1'] });
   }
 });

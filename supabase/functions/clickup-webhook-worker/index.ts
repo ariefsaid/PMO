@@ -44,6 +44,7 @@ import {
   createClickUpMirrorCallbacks,
 } from '../_shared/clickupMirrorDeps.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+import { withJobRun, type JobSummary } from '../_shared/jobRun.ts';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -350,37 +351,46 @@ async function markFailedLive(serviceClient: SupabaseClient, id: string, message
   if (error) throw new AppError(error.message, error.code);
 }
 
-if (import.meta.main) {
-  serveWithErrorReporting('clickup-webhook-worker', async (req: Request): Promise<Response> => {
-    // The DEDICATED worker secret (NOT the master service_role key — least-privilege, mirrors
-    // clickup-sweep's CLICKUP_SWEEP_SECRET pattern). The pg_cron tick (migration 0143) presents this
-    // same secret from Vault; the master key never crosses into the DB.
-    const workerSecret = Deno.env.get('CLICKUP_WEBHOOK_WORKER_SECRET') ?? '';
-    const authHeader = req.headers.get('Authorization') ?? '';
-    if (!workerSecret || !(await constantTimeBearerEquals(authHeader, `Bearer ${workerSecret}`))) {
-      return json({ error: 'UNAUTHORIZED' }, 401);
-    }
+/** job_run summary (#1532 S3): rows processed; any failed row fails the run. */
+export function summarizeWebhookWorker(body: unknown): JobSummary | null {
+  const b = body as { processed?: number; failed?: number } | null;
+  if (!b || typeof b.processed !== 'number') return null;
+  return { items: b.processed, ...(b.failed ? { failedCode: 'ROWS_FAILED' } : {}) };
+}
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    if (!supabaseUrl || !serviceRoleKey) {
-      return json({ error: 'MISCONFIGURED', message: 'missing Supabase configuration' }, 500);
-    }
-    const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+export const jobHandler = withJobRun('clickup-webhook-worker', async (req: Request): Promise<Response> => {
+  // The DEDICATED worker secret (NOT the master service_role key — least-privilege, mirrors
+  // clickup-sweep's CLICKUP_SWEEP_SECRET pattern). The pg_cron tick (migration 0143) presents this
+  // same secret from Vault; the master key never crosses into the DB.
+  const workerSecret = Deno.env.get('CLICKUP_WEBHOOK_WORKER_SECRET') ?? '';
+  const authHeader = req.headers.get('Authorization') ?? '';
+  if (!workerSecret || !(await constantTimeBearerEquals(authHeader, `Bearer ${workerSecret}`))) {
+    return json({ error: 'UNAUTHORIZED' }, 401);
+  }
 
-    const result = await runWorkerBatch({
-      claimPending: (batchSize) => claimPendingLive(serviceClient, batchSize),
-      markDone: (id) => markDoneLive(serviceClient, id),
-      markFailed: (id, message) => markFailedLive(serviceClient, id, message),
-      markUnresolvable: (id, reason) => markUnresolvableLive(serviceClient, id, reason),
-      processRow: (row) =>
-        processInboxRow(row, {
-          resolveOrg: (teamId) => resolveOrgForTeam(serviceClient, teamId),
-          getTask: (taskId, token) => getTaskWithToken(taskId, token),
-          resolveBinding: (taskId, listId) => resolveBindingLive(serviceClient, taskId, listId),
-          buildApplyDeps: (binding) => buildApplyDepsLive(serviceClient, binding),
-        }),
-    });
-    return json({ ok: true, ...result });
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  if (!supabaseUrl || !serviceRoleKey) {
+    return json({ error: 'MISCONFIGURED', message: 'missing Supabase configuration' }, 500);
+  }
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+
+  const result = await runWorkerBatch({
+    claimPending: (batchSize) => claimPendingLive(serviceClient, batchSize),
+    markDone: (id) => markDoneLive(serviceClient, id),
+    markFailed: (id, message) => markFailedLive(serviceClient, id, message),
+    markUnresolvable: (id, reason) => markUnresolvableLive(serviceClient, id, reason),
+    processRow: (row) =>
+      processInboxRow(row, {
+        resolveOrg: (teamId) => resolveOrgForTeam(serviceClient, teamId),
+        getTask: (taskId, token) => getTaskWithToken(taskId, token),
+        resolveBinding: (taskId, listId) => resolveBindingLive(serviceClient, taskId, listId),
+        buildApplyDeps: (binding) => buildApplyDepsLive(serviceClient, binding),
+      }),
   });
+  return json({ ok: true, ...result });
+}, { summarize: summarizeWebhookWorker });
+
+if (import.meta.main) {
+  serveWithErrorReporting('clickup-webhook-worker', jobHandler);
 }

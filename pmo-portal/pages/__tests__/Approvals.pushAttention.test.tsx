@@ -19,7 +19,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
-import { RAW_ADAPTER_TOKEN } from '@/src/lib/adapterSeam/pushErrorCopy';
+import { RAW_ADAPTER_TOKEN } from '@/src/lib/testing/rawAdapterToken';
 
 const { retryMutate } = vi.hoisted(() => ({ retryMutate: vi.fn() }));
 
@@ -74,6 +74,7 @@ vi.mock('@/src/auth/impersonation', async (importOriginal) => {
 
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceApprovalSection: () => null }));
+vi.mock('@/pages/approvals/ImprestApprovalSection', () => ({ ImprestApprovalSection: () => null }));
 vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingViewer: () => ({ rows: [], isPending: false, isError: false, refetch: () => undefined }) }));
 import ApprovalsPage from '../Approvals';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';

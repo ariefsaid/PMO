@@ -1,17 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
 // Mock the repository seam (ADR-0017) — the hooks consume `repositories.procurement`.
 const repo = vi.hoisted(() => ({
   create: vi.fn(),
+  createWithItems: vi.fn(),
   updateHeader: vi.fn(),
   createItem: vi.fn(),
   updateItem: vi.fn(),
   deleteItem: vi.fn(),
   selectQuote: vi.fn(),
-  listDocuments: vi.fn(),
   createDocument: vi.fn(),
   deleteDocument: vi.fn(),
 }));
@@ -22,8 +22,8 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 import {
   useCreateProcurement,
+  useCreateProcurementWithItems,
   useProcurementCrudMutations,
-  useProcurementDocuments,
 } from './useProcurementCrud';
 
 function makeWrapper() {
@@ -41,24 +41,8 @@ beforeEach(() => {
   repo.updateItem.mockResolvedValue(undefined);
   repo.deleteItem.mockResolvedValue(undefined);
   repo.selectQuote.mockResolvedValue(undefined);
-  repo.listDocuments.mockResolvedValue([{ id: 'd1', type: 'PO', status: 'Draft' }]);
   repo.createDocument.mockResolvedValue({ id: 'd1' });
   repo.deleteDocument.mockResolvedValue(undefined);
-});
-
-describe('AC-PROC-005 useProcurementDocuments (register query)', () => {
-  it('AC-PROC-005: loads the document register for a PR and is disabled when id is empty', async () => {
-    const { Wrapper } = makeWrapper();
-    const { result } = renderHook(() => useProcurementDocuments('pr1'), { wrapper: Wrapper });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(repo.listDocuments).toHaveBeenCalledWith('pr1');
-    expect(result.current.data?.[0].id).toBe('d1');
-
-    const { result: idle } = renderHook(() => useProcurementDocuments(undefined), {
-      wrapper: makeWrapper().Wrapper,
-    });
-    expect(idle.current.fetchStatus).toBe('idle');
-  });
 });
 
 describe('AC-PROC-001 useCreateProcurement', () => {
@@ -77,6 +61,19 @@ describe('AC-PROC-001 useCreateProcurement', () => {
     expect(created?.id).toBe('pr-new');
     const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
     expect(calls.some((c) => c.includes('"procurements"'))).toBe(true);
+  });
+});
+
+describe('atomic procurement creation hook', () => {
+  it('returns the saved draft and invalidates the list', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    const input = { id: 'pr', header: { title: 'T', projectId: null, vendorId: null }, lines: [] };
+    repo.createWithItems.mockResolvedValue({ id: 'pr' });
+    const { result } = renderHook(() => useCreateProcurementWithItems(), { wrapper: Wrapper });
+    await act(async () => { await expect(result.current.mutateAsync(input)).resolves.toEqual({ id: 'pr' }); });
+    expect(repo.createWithItems).toHaveBeenCalledWith(input);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['procurements'] });
   });
 });
 

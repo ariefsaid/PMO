@@ -287,3 +287,124 @@ provisioned tile depends on an event with no real call site (see `src/lib/analyt
 — the CI gate that generalises the two friction-event fixes above (ADR-0067).
 
 Do not add PostHog management API tokens or paid Group Analytics beyond what's already provisioned.
+
+---
+
+# Operational (server) events and business events (#1532)
+
+Server-emitted operational events follow [ADR-0096](adr/0096-server-operational-telemetry-vs-consent-gated-analytics.md): `emitServerEvent`, per-event key allowlist (`supabase/functions/_shared/posthogServer.ts`), synthetic `edge:<fn>` distinct id, no user id. Business events are browser facade events (`src/lib/analytics/business.ts`). Each slice fills its own section below and edits no other.
+
+## S1 AI
+
+_Owned by slice S1 (#1532)._ Emitted by `agent-chat` (`agent-chat/aiTelemetry.ts`) and `compose-view`, through `_shared/posthogAi.ts`. Server events, person-less (`$process_person_profile: false`), distinct id `edge:<fn>`.
+
+| Event | Properties (allowlist, `posthogServer.ts`) |
+|---|---|
+| `$ai_generation` | `$ai_trace_id` (= run id), `$ai_session_id` (= thread id), `$ai_span_id`, `$ai_model`, `$ai_provider`, `$ai_input_tokens`, `$ai_output_tokens`, `$ai_total_cost_usd`, `$ai_latency` (seconds), `$ai_is_error`, `$ai_http_status`, `action` (`chat`/`compose`/`automation`; `eval` = the online-eval judge's own call, never any text), `cached_tokens`, `reasoning_tokens`, `error_code`, `org_id` |
+| `$ai_span` | `$ai_trace_id`, `$ai_span_id`, `$ai_parent_id` (the requesting generation), `$ai_span_name` (tool name), `$ai_latency`, `$ai_is_error`, `org_id` |
+| `$ai_trace` | `$ai_trace_id`, `$ai_session_id`, `$ai_latency`, `$ai_is_error`, `error_code`, `action`, `org_id` |
+| `ai_eval` | `$ai_trace_id`, `$ai_session_id`, `eval_name` (`right_tool`, `answered_question`), `eval_pass`, `judge_model` (the model that actually answered), `action`, `org_id` |
+| `agent_feedback_rated` (browser) | adds `run_id` and `$ai_trace_id` (same uuid): the rating joins its trace |
+
+**Two privacy tiers, enforced by the emitter allowlist (a key not listed is dropped on the edge and thrown under Vitest):**
+
+1. **Everyone (real orgs, test orgs, unknown):** numbers, booleans and short codes only. Never a prompt, reply, tool argument or result, provider message or title.
+2. **Link keys `$session_id` (browser replay session) and `user_id` (opaque auth uuid):** added only when the user's browser sent the analytics-consent flag (`analytics` on the agent-chat request; present only while analytics is active: not opted out, no Do Not Track). Drives cost per user and replay linking.
+3. **Text keys (`$ai_input`, `$ai_output_choices`, `$ai_input_state`, `$ai_output_state`):** added only when BOTH the org's `organizations.lifecycle_state` is exactly `demo` (read under the caller's JWT; any error, NULL, `live` or `test` means no text) AND the consent flag is present. Truncated to 4000 characters per message; system prompt never included.
+
+**Online evals.** After a run completes, a judge (the deployed non-Claude model; a Claude model id is refused) scores `right_tool` and `answered_question` from the question, tool list and final answer held in memory. Only the two booleans are sent. Sampling: the demo org always; other orgs 1 run in 4, chosen deterministically from the run id. No judge call or lookup happens when no PostHog key is configured.
+
+**Not sent:** the judge's reasoning text, `compose_view` prompt text (numbers only for that function), tool arguments for real orgs.
+
+## S2 Alerts and source maps
+
+Super property `release` (7-char commit id, same as `__GIT_SHA__`) is registered at init and rides every browser event, including `$exception`. It is not personal data. Server exception events are unchanged.
+
+## S3 Jobs
+
+`job_run`, server event, one per scheduled run, emitted by `withJobRun` (`supabase/functions/_shared/jobRun.ts`) around the handler of the five jobs. No user id; distinct id `edge:<job>`. A wrong-secret request (401) and `OPTIONS` are not runs; a manual maintenance request to `erpnext-sweep` is not a run.
+
+| Property | Meaning |
+|---|---|
+| `job` | `erpnext-sweep`, `clickup-sweep`, `clickup-webhook-worker`, `agent-dispatch`, `telegram-notify` |
+| `status` | `ok`, `failed`, or `skipped` (nothing to do by design: no ERP or ClickUp bound org, e.g. standalone) |
+| `items_processed` | work done this run (rows, orgs' applied changes, notifications) |
+| `duration_ms` | handler time |
+| `error_code` | when `failed`: a stable upper-case code (`MISCONFIGURED`, `UNHANDLED_EXCEPTION`, `HTTP_<status>`, `ROWS_FAILED`, `ORG_SWEEP_FAILED`, `SEND_FAILED`, `SECRETS_UNSET`) |
+| `org_count` | orgs looped (`erpnext-sweep`, `clickup-sweep`) |
+| `recovered`, `reconcile_errors`, `org_error_count` | `erpnext-sweep` only: outbox commands recovered, reconcile errors, orgs with an error |
+
+Held and quarantined counts are not here; they come from the `erp_push_outcome` stream (S4). `agent-dispatch` reports `items_processed: 0` (the tick returns no counts).
+
+## S4 Push outcomes
+
+`erp_push_outcome`, server event, one per outbox transition that the write-back itself made, emitted by `emitErpPushOutcome` (`supabase/functions/_shared/erpPushOutcome.ts`) from the four fenced write-backs in `adapter-dispatch/moneyOutboxDeps.ts`. That factory serves both `adapter-dispatch` (the user's push) and `erpnext-sweep` (recovery), so both paths report through one distinct id, `edge:money-outbox`. No user id. A write-back that changed nothing (superseded, already confirmed) emits nothing, so a retry never double-counts. Fire-and-forget after the write returned: PostHog down, slow or throwing never changes the push.
+
+| Property | Meaning |
+|---|---|
+| `outcome` | `confirmed`, `failed`, `held` (an operator must decide), `quarantined` (a stale claim fenced; the sweep resolves it after its window) |
+| `domain` | outbox domain (`budget`, `revenue`, `procurement`, `expenses`, `timesheets`, `companies`, …) |
+| `tier`, `operation` | external tier (`erpnext`) and `create` / `update` / `transition` |
+| `error_code` | `failed` / `held` / `quarantined` only: the leading code token of the outbox reason (`commit-rejected`, `recovery-inconclusive-absence`, `committing-lease-expired`, …; only a known code, else `unclassified`). An unreachable ERP (`external-unreachable`) marks nothing: it arrives later as `quarantined` / `committing-lease-expired`. Never the ERP error text |
+| `attempt_count` | the claim's attempt number (also on a sweep `quarantined`, read from the row; a sweep `confirmed` carries none) |
+| `duration_ms` | claim to transition (also on a sweep `quarantined`, from the row's claim time) |
+| `needs_human` | `true` exactly when `outcome = held` |
+| `org_id`, `outbox_id` | opaque ids; the outbox row is the record to open |
+
+No amounts, party names or ERP document ids, for any org.
+
+## S5 Business events
+
+Four browser events record **observed use** (FR-PHO-040..045): best effort, never a record, and nothing
+commercial reads from them. They go through the consent-gated browser facade, so an opted-out user or an
+ad blocker sends nothing (AC-PHO-042). Properties are `module` and `role` only; `org_id` rides along as the
+plain super property registered at identify. No amounts, ids, names or free text; no Group Analytics.
+
+| Event | Fires when | `module` | Boundary hook |
+|---|---|---|---|
+| `budget_activated` | a budget version is activated | `budget` | `useBudgetMutations().activate` `onSuccess` |
+| `invoice_issued` | a sales invoice is submitted (ERP submit or native approve); a draft is not counted | `revenue` | `useRevenueMutations().submitInvoice` `onSuccess` |
+| `payment_recorded` | an incoming payment is saved | `revenue` | `useRevenueMutations().createPayment` `onSuccess` |
+| `purchase_approved` | a procurement transition to `Approved` succeeds | `procurement` | `useProcurementMutations().transition` and `ProcurementBlock` `transition` `onSuccess` |
+
+- `role` is the **real** role (`useEffectiveRole().realRole`); impersonation is view-only, so the real role is the actor.
+- Each call sits inside `onSuccess` and is wrapped in `safeTrack`. A refused or failed write fires nothing (AC-PHO-041).
+- A bulk approve in the procurement list fires once per approved row.
+- Builders: `src/lib/analytics/events.business.ts`; facade: `src/lib/analytics/business.ts`. Dashboard: `[PMO] Usage per org (observed use)`.
+- **Submission, not confirmation:** for an organisation on an external ERP tier, `invoice_issued` and `payment_recorded` fire when the write is accepted and queued for the ERP, not when the ERP confirms it; a push that fails later is still counted (the dashboard is "observed use", FR-PHO-045). Push outcomes are the `erp_push_outcome` stream (S4).
+- **Coverage gap, by design:** a purchase approved by the Assistant (an agent action) or by a direct API call fires no browser event. These events count what people do in the screens, not what the database holds.
+
+## S6 Demo funnels
+
+`[PMO] Demo · Money path (project → budget → purchase → invoice)` is a funnel over four existing events,
+no new event: `project_detail_opened` → `budget_activated` → `purchase_approved` → `invoice_issued`. It is filtered
+to the event property `demo_audience = prospect` and broken down by `demo_account` (both are super properties
+registered on every event in demo mode, see `AnalyticsProvider.tsx`). Defined in `scripts/posthog/spec/demo.mjs`;
+`node scripts/check-dashboard-tiles.mjs` fails if any of the four events loses its call site.
+
+## S7 Logs (conditional)
+
+_Owned by slice S7 (#1532)._
+
+## S9 Feedback and surveys
+
+_Owned by slice S9 (#1532)._ Four PostHog surveys, all type API (PostHog never opens one by itself; the SDK is initialised with `disable_surveys_automatic_display: true`). The app opens each as PostHog's own popover, so the events below are the **SDK's**, not `track*` helpers, and carry spaces in their names:
+
+| Event | When | Properties we rely on |
+|---|---|---|
+| `survey shown` | the popover opened | `$survey_name`, `$survey_id`, `module`, `route`; `run_id` / `$ai_trace_id` in the assistant |
+| `survey sent` | an answer was submitted | the same, plus `$survey_response` (rating, NPS, or text) |
+| `survey dismissed` | closed without answering | the same |
+
+| Survey (exact name) | Opened by | Gate |
+|---|---|---|
+| `[PMO] Feedback` | the header Feedback button (user-initiated) | org switch on, analytics live, published |
+| `[PMO] Assistant: what went wrong?` | picking a thumbs-down reason | the above, and past the user's first week |
+| `[PMO] First core flow` (1-5) | first budget / invoice / payment / purchase success | prompted: the above + safe moment + PostHog eligibility |
+| `[PMO] NPS` (0-10, quarterly) | a minute into a session of an active user | prompted: the same |
+
+- **Prompted** means: past the first week (`profiles.created_at`), org switch on, analytics live (not opted out, no Do Not Track), a safe moment (no open dialog, no focused field, no save in flight, not on a create / edit / import route, three quiet seconds), PostHog says eligible (`canRenderSurvey`: running, targeting, wait period, not already seen), and at most one per session. **Active** = seen on three distinct days of the last fourteen (this browser).
+- **Context keys** attached to the answer: `module`, `route` (template, never a raw path) and in the assistant `run_id` and `$ai_trace_id`. Free-text answers are scrubbed by `before_send` (emails, tokens, long ids, query strings) and are the only user-typed text we send; the survey copy says not to include customer or financial detail.
+- **Who sees it.** Demo deployment: always. Real org: on unless its Admin switched **Feedback and surveys** off (Administration > Organization integrations, `org_features.feedback_surveys`, migration 0419; absence of a row means on). The switch hides the button and stops every prompt.
+- **Ceiling.** The SDK's "any survey in the last N days" wait period is stored in this browser, so across devices one person can see one prompted survey per device per 30 days. A survey that is not repeatable is once per person (PostHog person property). A cross-device cap would need a per-user row (not built).
+- **Gate.** The tile gate (`scripts/check-dashboard-tiles.mjs`) reads names made of `[a-z0-9_$]`; the survey events have spaces, so `src/lib/analytics/feedbackSpec.test.ts` owns the dashboard tiles instead.

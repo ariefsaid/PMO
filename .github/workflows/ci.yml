@@ -2,11 +2,13 @@ name: CI
 
 on:
   push:
-    # PUSH CI on `main` ONLY: a post-merge `verify` smoke of what actually landed. `main`'s
-    # protection is not strict (a PR can merge on a stale base) and Dependabot / release-please
-    # merge there directly, so this is the only re-test of the merged result. `dev`/feature
-    # branches are PR-gated → no push trigger there.
-    branches: [main]
+    # PUSH CI on `main` and `dev`. `main`: a post-merge `verify` smoke of what actually landed —
+    # its protection is not strict (a PR can merge on a stale base) and Dependabot / release-please
+    # merge there directly, so this is the only re-test of the merged result. `dev` (#1584): PRs to
+    # `dev` run only the tests their diff can affect (see `scope`), so the push to `dev` is the
+    # FULL suite — unit, verify, pgTAP — and anything a PR's selection missed is caught here, one
+    # run after the merge. Feature branches are PR-gated → no push trigger there.
+    branches: [main, dev]
     paths-ignore:
       - 'docs/**'
       - 'review/**'
@@ -46,7 +48,10 @@ permissions:
   contents: read
 
 # Cancel an in-progress run when a newer commit is pushed to the same branch/PR —
-# avoids paying for superseded runs during iterative pushes.
+# avoids paying for superseded runs during iterative pushes. On a push to `dev` this is safe
+# (#1584): every push runs the FULL suite on a tree that contains all earlier commits, so a later
+# run covers whatever a cancelled earlier one would have tested; a failure in the later run still
+# names the merge it ran on (the "Name the merged change" step in `verify`).
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -56,33 +61,101 @@ defaults:
     working-directory: pmo-portal
 
 # ─── CI TIERING (resource-lean) ─────────────────────────────────────────────────
-# PR → dev    → `verify` + `pgtap` (typecheck · lint · unit tests · build; Supabase +
-#               pgTAP only — no browser, fast). Fast lane.
-# PR → main   → `verify` + `integration` (Supabase + pgTAP + Playwright e2e incl. the
+# PR → dev    → `scope` picks what the diff can affect (scripts/ci-test-scope.mjs): the unit
+#               job runs only the AFFECTED tests (or the full suite when the diff touches
+#               anything the module graph can't see), `pgtap` only when supabase/** or its
+#               scripts change, the Deno steps of `verify` only when edge functions change.
+#               Typecheck · lint · guards · build always run. No browser. Fast lane.
+# push dev    → everything, full: unit (2 shards) · verify · pgtap (#1584).
+# PR → main   → (everything full, unchanged) `verify` + `integration` (Supabase + pgTAP + Playwright e2e incl. the
 #               visual-invariant gate AC-VISUAL-ICON-001 + mobile-overflow gate
 #               AC-MOBILE-OVERFLOW-001). Authoritative pre-merge gate. (pgTAP runs again
 #               here — cheap, and this job must stand alone as the merge-gate proof.)
-# push main   → `verify` smoke only (pgtap/integration skipped — see their `if`).
+# push main   → `verify` smoke only (pgtap/integration skipped — see their `if`); unit is full.
 # dispatch    → `integration` only, pgTAP skipped (scripts/ci-e2e.sh; the PR already ran
 #               `verify` + `pgtap`).
-# No push CI at all (PR-gated) → no duplicate `verify` runs.
+# Feature branches have no push CI (PR-gated) → no duplicate `verify` runs.
 # Integration trims: Playwright browsers cached + Supabase starts without the
 # CI-unused containers (studio/realtime/vector). `pgtap` uses the same trim.
 # main→production → no CI; main is already pre-gated by the PR that merged it.
 # ───────────────────────────────────────────────────────────────────────────────
 jobs:
-  # The Vitest suite split across 2 parallel runners (one runner took ~28 min; 4 cost more runner-minutes per push — owner 2026-10-20). Each shard writes a
-  # blob report with its coverage; `verify` merges them, so the required `verify` check still owns
-  # every unit test and the changed-lines coverage gate.
-  unit:
+  # What can this change affect? (#1584, scripts/ci-test-scope.mjs, self-tested in `verify`.)
+  # Only a PR to `dev` is narrowed; a push (main, dev), a PR to `main` and any other base run
+  # everything. Narrowed = `unit: affected` (module-graph selection) unless the diff touches
+  # something the graph can't see, `pgtap` only for supabase/** and its scripts, `deno` only for
+  # edge functions (and the pmo-portal files they import). Lint, typecheck, guards, build: always.
+  scope:
     if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2]
+    timeout-minutes: 5
+    outputs:
+      unit_matrix: ${{ steps.scope.outputs.unit_matrix }}
+      unit: ${{ steps.scope.outputs.unit }}
+      pgtap: ${{ steps.scope.outputs.pgtap }}
+      deno: ${{ steps.scope.outputs.deno }}
+      base_sha: ${{ steps.scope.outputs.base_sha }}
+    defaults:
+      run:
+        working-directory: .
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - id: scope
+        # Event/ref values arrive via env, never interpolated into the shell.
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$EVENT" = pull_request ] && [ "$BASE_REF" = dev ]; then
+            git fetch --no-tags origin "$BASE_REF"
+            json=$(node scripts/ci-test-scope.mjs --base "origin/$BASE_REF")
+            base_sha=$(git merge-base "origin/$BASE_REF" HEAD)
+          else
+            json='{"unit":"full","pgtap":true,"deno":true,"reason":"not a PR to dev: everything runs"}'
+            base_sha=
+          fi
+          echo "$json"
+          unit=$(jq -r .unit <<<"$json")
+          if [ "$unit" = full ]; then
+            matrix='{"include":[{"shard":1,"mode":"full"},{"shard":2,"mode":"full"}]}'
+          else
+            matrix='{"include":[{"shard":1,"mode":"affected"}]}'
+          fi
+          {
+            echo "unit=$unit"
+            echo "unit_matrix=$matrix"
+            echo "pgtap=$(jq -r .pgtap <<<"$json")"
+            echo "deno=$(jq -r .deno <<<"$json")"
+            echo "base_sha=$base_sha"
+          } >> "$GITHUB_OUTPUT"
+          echo "### Test scope" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`$json\`" >> "$GITHUB_STEP_SUMMARY"
+
+  # The Vitest suite. Full mode: split across 2 parallel runners (one runner took ~28 min; 4 cost more
+  # runner-minutes per push — owner 2026-10-20). Affected mode (PR to dev, see `scope`): ONE runner,
+  # the tests the module graph selects from the diff PLUS every test that reads repo files with fs
+  # (the graph can't see those reads). Either way each runner writes a blob report with its coverage;
+  # `verify` merges them (a single blob merges fine), so the required `verify` check still owns every
+  # selected test and the changed-lines coverage gate.
+  unit:
+    needs: scope
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # A hung test must not hold a runner for the 6h default (absorbs #1528). Full shards run ~17 min.
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.scope.outputs.unit_matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Affected mode diffs against the PR's merge base, so it needs the history.
+          fetch-depth: 0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
@@ -90,10 +163,26 @@ jobs:
           cache-dependency-path: pmo-portal/package-lock.json
       - run: npm ci
       - name: Unit tests (shard ${{ matrix.shard }}/2, + coverage)
+        if: matrix.mode == 'full'
         run: npx vitest run --coverage --shard=${{ matrix.shard }}/2 --reporter=default --reporter=blob
+      - name: Select the affected unit tests
+        if: matrix.mode == 'affected'
+        env:
+          BASE_SHA: ${{ needs.scope.outputs.base_sha }}
+        run: |
+          test -n "$BASE_SHA"
+          npx vitest list --filesOnly --changed "$BASE_SHA" | sed -E 's/^\[[a-z]+\] //' > /tmp/changed-tests.txt
+          node ../scripts/ci-test-scope.mjs --fs-coupled > /tmp/fs-tests.txt
+          sort -u /tmp/changed-tests.txt /tmp/fs-tests.txt > /tmp/affected-tests.txt
+          echo "$(wc -l < /tmp/changed-tests.txt) via the module graph + $(wc -l < /tmp/fs-tests.txt) that read repo files = $(wc -l < /tmp/affected-tests.txt) test files"
+      - name: Unit tests (affected by the diff, + coverage)
+        if: matrix.mode == 'affected'
+        run: |
+          mapfile -t files < /tmp/affected-tests.txt
+          npx vitest run --coverage --reporter=default --reporter=blob "${files[@]}"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: unit-blob-${{ matrix.shard }}
+          name: unit-blob-${{ matrix.mode }}-${{ matrix.shard }}
           path: pmo-portal/.vitest-reports/
           include-hidden-files: true
           if-no-files-found: error
@@ -102,7 +191,7 @@ jobs:
   verify:
     # PR-only: a workflow_dispatch (scripts/ci-e2e.sh) is for e2e; its PR already ran verify.
     # `!cancelled()`: a failed shard must FAIL verify, not skip it (a skipped required check passes).
-    needs: unit
+    needs: [scope, unit]
     if: ${{ !cancelled() && github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
@@ -135,6 +224,7 @@ jobs:
           node scripts/check-browser-shard-inventory.mjs --self-test
           node scripts/check-e2e-time-budget.mjs --self-test
           node scripts/check-redirect-targets.mjs --self-test
+          node scripts/ci-test-scope.mjs --self-test
           bash scripts/check-e2e-isolation.sh --self-test
           bash scripts/check-nul-bytes.sh --self-test
           bash scripts/ci-e2e.sh --self-test
@@ -162,14 +252,15 @@ jobs:
         run: npm run typecheck
       - name: Lint
         run: npm run lint:ci
-      - name: Unit shards all passed
+      - name: Unit tests all passed
         run: test "${{ needs.unit.result }}" = success
+
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: unit-blob-*
           path: pmo-portal/.vitest-reports/
           merge-multiple: true
-      - name: Unit tests (+ coverage) — merge the 2 shard reports
+      - name: Unit tests (+ coverage) — merge the shard report(s)
         run: npx vitest run --merge-reports --coverage
       - name: Changed-lines coverage gate (≥80%)
         if: github.event_name == 'pull_request'
@@ -191,7 +282,9 @@ jobs:
         working-directory: .
         run: python3 -m unittest discover -s scripts/tests -v
 
+      # Deno steps run only when the diff can affect them (`scope.deno`; always on push / PR to main).
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        if: needs.scope.outputs.deno == 'true'
         with:
           # Pinned (not `latest`/`vx.x`) for deploy-check determinism — bump deliberately.
           deno-version: '2.7.11'
@@ -205,6 +298,7 @@ jobs:
       # script DISCOVERS the functions (every dir with a deno.json + index.ts) instead of carrying the
       # hand-kept list this step used to hold, which had already drifted 10 functions behind.
       - name: Deno typecheck — edge function entry points + _shared
+        if: needs.scope.outputs.deno == 'true'
         working-directory: .
         run: bash scripts/deno-typecheck-edge-fns.sh
       # Boot smoke — `deno check` is type-only and Vitest resolves module-init order differently than
@@ -212,6 +306,7 @@ jobs:
       # deployed worker at boot (WORKER_ERROR). This imports each entrypoint's graph (Deno.serve stubbed)
       # and fails on any import-time throw. Regression guard for the 2026-07-04 agent-chat boot crash.
       - name: Deno boot smoke — edge function entry points load without throwing
+        if: needs.scope.outputs.deno == 'true'
         working-directory: .
         run: bash scripts/deno-boot-smoke-edge-fns.sh
 
@@ -228,21 +323,35 @@ jobs:
       #     runner reports `NotCapable: Requires env access` as a TEST FAILURE, which reads exactly
       #     like a broken assertion but is a missing flag.
       - name: Deno unit tests — edge functions + _shared
+        if: needs.scope.outputs.deno == 'true'
         working-directory: .
         run: bash scripts/deno-test-edge-fns.sh
 
       # The Microsoft folder-write allowlist is the one place PMO writes to Microsoft: break each tagged
       # rule and the tests must go red (scripts/m365-record-folder-write-mutation.mjs restores the sources).
       - name: M365 folder-write mutation witness
+        if: needs.scope.outputs.deno == 'true'
         working-directory: .
         run: node scripts/m365-record-folder-write-mutation.mjs
+
+      # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
+      # which merge it ran on (a squash merge's subject ends in the PR number).
+      - name: Name the merged change
+        if: ${{ failure() && github.event_name == 'push' }}
+        working-directory: .
+        run: echo "::error title=Full suite failed after a push::$(git log -1 --format=%s)"
 
   pgtap:
     # PR→dev fast-lane addition: pgTAP is cheap (no browser, Supabase stack only, seconds not
     # minutes) so it runs here too — RLS/tenancy/SoD regressions get caught before merge to
     # dev, not just at the dev→main promote. The Playwright/e2e/visual portion stays reserved
     # for the `integration` job (PR→main only) below — this job does NOT duplicate it.
-    if: github.event_name == 'pull_request' && github.base_ref == 'dev'
+    #
+    # #1584: on a PR to dev it runs only when `scope.pgtap` (supabase/** or a script this job runs
+    # changed); a skipped job counts as passing and `dev` has no required checks. A push to `dev`
+    # always runs it (the full-suite backstop). PR→main / push main are unchanged (`integration`).
+    needs: scope
+    if: ${{ !cancelled() && ((github.event_name == 'pull_request' && github.base_ref == 'dev' && needs.scope.outputs.pgtap == 'true') || (github.event_name == 'push' && github.ref == 'refs/heads/dev')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -299,6 +408,13 @@ jobs:
       # pgTAP gate (0001..0060) — RLS, tenancy, SoD proofs.
       - name: pgTAP integration tests
         run: supabase test db
+
+      # A push to `dev` is the full suite that backstops every PR's narrowed run; when it fails, say
+      # which merge it ran on (a squash merge's subject ends in the PR number).
+      - name: Name the merged change
+        if: ${{ failure() && github.event_name == 'push' }}
+        working-directory: .
+        run: echo "::error title=Full suite failed after a push::$(git log -1 --format=%s)"
 
   browser-chromium:
     if: (github.event_name == 'pull_request' && github.base_ref == 'main') || github.event_name == 'workflow_dispatch'

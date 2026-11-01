@@ -338,7 +338,7 @@ No drag-and-drop / row-dropdown stage change on the board; the detail page (Pipe
 
 ## Wave 5 — Approval Experience (OD-W5-*, locked 2026-06-09; plan `docs/plans/2026-06-09-wave5-approval-experience.md`)
 ### OD-W5-1 — Approvals inbox = PROMOTE the existing `/approvals` route
-One canonical role-aware inbox (NOT a new `/inbox`): lists everything awaiting the viewer's decision — procurement PRs (link to the decision screen) + timesheet weeks (embedded queue) — gated by `may('transition', entity)` (Engineer → no access; Finance → procurement; PM/Exec → both). UX-only; RLS is authority. Dashboard "Awaiting your approval" KPI-as-link routes here (N15).
+One canonical role-aware inbox (NOT a new `/inbox`): lists everything awaiting the viewer's decision — procurement PRs (link to the decision screen) + timesheet weeks (embedded queue) — gated by `may('transition', entity)` (Engineer → no access; Finance → procurement; PM/Exec → both). UX-only; RLS is authority. Dashboard "Awaiting your approval" KPI-as-link routes here (N15). For timesheets, the later and more specific OD-TS-5 applies: a viewer of any role sees the timesheet section when they have eligible pending or correction records; Admin break-glass and Executive unmanaged fallback remain subject to separation of duties. The procurement and invoice gates are unchanged.
 ### OD-W5-2 — Approved stage = BOTH forward paths stay, skip-able (one VISUAL primary, both reachable)
 The state machine already allows `Approved → Vendor Quoted` (quote-first) OR `Approved → Ordered` (skip-to-PO). Do NOT force one. Keep both actions; give ONE a visual `primary` and the other `outline` so no stage emits two blue primaries (resolves D7), but the user can choose either path as the situation needs (sole-source → straight to PO; competitive → quotes first). Supersedes the plan's "Request Vendor Quotes is THE primary" — it's the default emphasis, not the only path.
 ### OD-W5-3 — Bulk approve = BOTH timesheets AND procurement, but EVIDENCE-BASED
@@ -3582,3 +3582,40 @@ The local gate for redesign builds and fix rounds no longer includes `vitest --c
 ### OD-LOCAL-GATE-LIGHT (2026-10-26, owner) — no local full suite, CI shards are the proof
 Standing rule for the whole project, not only the redesign lane: the local pre-PR gate is `check:guards`, typecheck, eslint on touched files, the directly touched test files, touched e2e, rendered captures for UI, touched pgTAP for DB. `vitest --changed origin/dev` and full local suites are dropped: CI's two unit shards + pgTAP are the full proof on every PR to dev. Reason: on a shared Mac with parallel builds, one near-full local run per build serialised everything behind the test lock for hours and drove builders to bypass the lock. Supersedes the local-gate wording in older plans and briefs.
 
+
+### DD-ERP-PARTY-DRAFT — party creation and draft case authoring (Director, 2026-10-29)
+
+When ERP owns companies, new parties use the supported Customer or Supplier flow; Internal remains an
+own-organization marker. Creating a contact for an ERP-owned party requires a Customer or Supplier mapping.
+Mirrored contact identity fields stay with ERP while PMO-only enhancements remain editable. Draft procurement
+line values may be authored by an authorized requester or purchasing writer until a case command or ERP
+reference establishes the external record; recovery uses the submitted case snapshot.
+
+### DD-PROC-HEADER-REQUESTER — requester header editing (Director, 2026-10-29)
+
+A requester or same-organization Admin may edit the existing procurement header fields while the case
+is Draft or Rejected. The header command checks active membership, the procurement feature, referenced
+records and case ownership, and leaves identity, lifecycle and accounting fields outside its input.
+
+### DD-BKIND-1 — billing kinds on project invoices (Director, 2026-10-31)
+
+A project invoice carries one billing kind, `contract` (default) or `other`, as a constrained column on
+`sales_invoices`. Only Contract billing draws down the contract value; `get_project_finances` is the single
+calculation authority and Other billing stays in revenue, settlement, outstanding and margin. When Contract
+billing exceeds a known contract value the same payload carries the exact excess and every contributing
+Contract invoice, so the list reconciles to the headline by construction and cannot be truncated. Kind is
+written by three definer paths only (project assignment, a kind-only correction for any linked invoice, native
+creation) plus the connected-creation mirror writer; an omitted kind keeps the stored one, so a classified
+invoice is never silently flipped. It is PMO metadata and never reaches an ERP body. Rollback refuses while any
+Other invoice exists, so no classification silently changes meaning.
+
+### OD-ERP-ANYTIME-1 — PMO syncs with the ERP whenever the connection is made (owner, 2026-10-31)
+PMO must sync with the ERP in all four cases: a new org whose ERP already holds data; a new org with no ERP (connected later); an operational org connecting to a new, empty ERP (PMO's data is pushed out); an operational org connecting to an ERP that already holds data (match both sides, no duplicates, no double count). Setup maps once with bulk-accepted auto-proposals. ERPNext and Odoo follow the same sync workflow through one adapter contract with one contract test suite; an ERPNext sync-workflow change is made in the shared seam or replicated to Odoo where the ERP allows. Spec: `docs/specs/erp-connect-anytime.spec.md`.
+
+### OD-GRILL-20261101 — owner rulings, grill of 2026-11-01
+- **Specs signed:** connect-an-ERP-anytime (OQ-ECA-1..4 defaults, "for now"), subcontract acceptance #1513 (OQ-1..10 defaults), equipment usage #1519 (OQ-1..9 defaults).
+- **Work orders are the project's billing milestones (#1592).** The project plan shows each work order as a milestone: dates, value, billing status (Planned / In progress / Invoiced / Paid), "Invoice this"; each work order shows days since its acceptance with no invoice yet. OD-BILL-1 stands (bill by the client's PO); this is the same record shown on the plan, no second entry. The showreel is a teaser and is **not re-cut**.
+- **Reel differences (#1593):** build drag-and-drop on the Sales Pipeline board and the project Tasks board (same rules and confirms as the status menu; the menu stays for keyboard users); build the "Signed" pill with its date. Not built: an "In review" task status, the reel's sidebar names.
+- **Pipeline dates (CRM-grade history):** every stage entry is kept (stage, date, who, when recorded), including going back for a re-tender or re-quote; a stage entry's date is the stage's key date ("Quoted", "Tender sent", "Signed" = contract date, "Lost"). Project admin and above, including PMs, may backdate or add a skipped stage; a new entry is never dated before the previous one; every change is audited. Issuing a quotation document proposes the Quoted date. The card shows one concise line for the latest entry ("Quoted 12 Oct · 20 d"); the full history is on the deal page; bulk import takes a date per stage.
+- **Assistant reminders (#1594):** build a confirmed "Remind this person": the assistant proposes, the user confirms, the recipient gets an in-app notification; same org, active member, daily cap.
+- **Evals (#1596):** run the two reel journeys 10 times each on the deployed model (DeepSeek 4.1 Flash); bar 9/10; only the scores are stored.

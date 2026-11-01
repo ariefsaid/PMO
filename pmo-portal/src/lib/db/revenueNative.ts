@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
+import type { BillingKind } from '@/src/lib/billingKind';
 
 /**
  * #784 (ADR-0055 addendum 2026-10-07): the PMO-native revenue writes — used while no ERP owns revenue for the org.
@@ -20,6 +21,8 @@ export interface NativeInvoiceInput {
   /** Pre-tax lines; PPN is added server-side from the project's VAT setting (OD-TAX-4). */
   lines: NativeInvoiceLineInput[];
   workOrderId?: string | null;
+  /** #1471: chosen beside the project; omitted = Contract billing (the server default). */
+  billingKind?: BillingKind;
 }
 
 export interface NativeReceiptInput {
@@ -77,6 +80,7 @@ export async function createNativeSalesInvoice(input: NativeInvoiceInput): Promi
     p_customer_id: input.customerId,
     p_lines: input.lines,
     ...(input.workOrderId ? { p_work_order_id: input.workOrderId } : {}),
+    ...(input.billingKind ? { p_billing_kind: input.billingKind } : {}),
   });
   if (error) fail(error);
   return newId(data, 'invoice');

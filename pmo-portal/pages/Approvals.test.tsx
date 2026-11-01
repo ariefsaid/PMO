@@ -78,6 +78,7 @@ vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingVie
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
 const expenseState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => expenseState }));
+vi.mock('@/src/hooks/useImprest', () => ({ useImprestAwaiting: () => ({ data: { plans: [], replenishments: [] }, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useReopenableApprovedTimesheets: () => ({ data: [], isPending: false, isError: false }),
   useTimesheetsAwaitingApproval: () => queryState,
@@ -111,6 +112,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: authState.role, realRole: authState.role }),
+  useOptionalRealRole: () => authState.role,
 }));
 
 const submittedSheets: TimesheetAwaitingApproval[] = [

@@ -4,14 +4,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // vi.hoisted mock setup — mirrors procurementLifecycle.test.ts builder pattern
 // ---------------------------------------------------------------------------
 
-const { mockRpc, mockFrom, mockSelect, mockEq, mockNeq, mockOrder } = vi.hoisted(() => {
+const { mockRpc, mockFrom, mockSelect, mockEq, mockNeq, mockOrder, mockOr } = vi.hoisted(() => {
   const mockRpc = vi.fn();
   const mockFrom = vi.fn();
   const mockSelect = vi.fn();
   const mockEq = vi.fn();
   const mockNeq = vi.fn();
   const mockOrder = vi.fn();
-  return { mockRpc, mockFrom, mockSelect, mockEq, mockNeq, mockOrder };
+  const mockOr = vi.fn();
+  return { mockRpc, mockFrom, mockSelect, mockEq, mockNeq, mockOrder, mockOr };
 });
 
 vi.mock('@/src/lib/supabase/client', () => ({
@@ -24,6 +25,8 @@ import {
   submitTimesheet,
   approveTimesheet,
   rejectTimesheet,
+  reopenTimesheet,
+  attestTimesheetNoErpDocument,
   listTimesheetsAwaitingApproval,
 } from './timesheetTransition';
 
@@ -46,6 +49,7 @@ function makeFromBuilder(resolved: { data: unknown; error: unknown }) {
   builder.eq = mockEq.mockReturnValue(builder);
   builder.neq = mockNeq.mockReturnValue(builder);
   builder.order = mockOrder.mockReturnValue(builder);
+  builder.or = mockOr.mockReturnValue(builder);
   builder.then = (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
     Promise.resolve(resolved).then(resolve, reject);
   mockFrom.mockReturnValue(builder);
@@ -59,6 +63,7 @@ beforeEach(() => {
   mockEq.mockReset();
   mockNeq.mockReset();
   mockOrder.mockReset();
+  mockOr.mockReset();
 });
 
 // ---------------------------------------------------------------------------
@@ -136,6 +141,20 @@ describe('timesheetActions', () => {
 // ---------------------------------------------------------------------------
 
 describe('submitTimesheet / approveTimesheet / rejectTimesheet', () => {
+  it('AC-902: every transition and attest RPC refusal keeps its SQLSTATE and detail on the thrown error', async () => {
+    const calls = [
+      () => submitTimesheet('ts'),
+      () => approveTimesheet('ts'),
+      () => rejectTimesheet('ts'),
+      () => reopenTimesheet('ts'),
+      () => attestTimesheetNoErpDocument('ts', 'checked'),
+    ];
+    for (const call of calls) {
+      makeRpcBuilder({ data: null, error: { message: 'refused', code: 'P0001', details: 'sheet-state' } });
+      await expect(call()).rejects.toMatchObject({ message: 'refused', code: 'P0001', details: 'sheet-state' });
+    }
+  });
+
   it('AC-902: submitTimesheet/approveTimesheet/rejectTimesheet surface the RPC 42501/P0001 error and send {p_timesheet_id,p_to,p_notes} with no org_id (FR-TS-002/010)', async () => {
     // Error path: should throw
     makeRpcBuilder({ data: null, error: { message: 'not authorized', code: '42501' } });
@@ -206,7 +225,7 @@ describe('listTimesheetsAwaitingApproval', () => {
 
     expect(mockFrom).toHaveBeenCalledWith('timesheets');
     expect(mockSelect).toHaveBeenCalledWith(
-      '*, owner:profiles!timesheets_user_id_fkey(full_name,manager_id), entries:timesheet_entries(*, project:projects(name,short_name,code))',
+      '*, owner:profiles!timesheets_user_id_fkey!inner(full_name,manager_id), entries:timesheet_entries(*, project:projects(name,short_name,code))',
     );
     expect(mockEq).toHaveBeenCalledWith('status', 'Submitted');
     expect(mockNeq).toHaveBeenCalledWith('user_id', 'self-id');
@@ -250,6 +269,19 @@ describe('listTimesheetsAwaitingApproval', () => {
     makeFromBuilder({ data: approvalRows.filter(row => row.id !== 'self'), error: null });
     const result = await listTimesheetsAwaitingApproval('manager-9', 'Project Manager');
     expect(result).toEqual([]);
+  });
+
+  it.each(['Engineer', 'Finance'] as const)('AC-903: %s sees assigned records with a server-side manager filter', async role => {
+    makeFromBuilder({ data: approvalRows, error: null });
+    const rows = await listTimesheetsAwaitingApproval('manager-1', role);
+    expect(rows.map(row => row.id)).toEqual(['assigned']);
+    expect(mockEq).toHaveBeenCalledWith('owner.manager_id', 'manager-1');
+  });
+
+  it('AC-903: Executive server filtering includes assigned and unmanaged records', async () => {
+    makeFromBuilder({ data: approvalRows, error: null });
+    await listTimesheetsAwaitingApproval('manager-1', 'Executive');
+    expect(mockOr).toHaveBeenCalledWith('manager_id.eq.manager-1,manager_id.is.null', { referencedTable: 'owner' });
   });
 
   it('AC-903: a missing joined owner is excluded rather than treated as unassigned', async () => {

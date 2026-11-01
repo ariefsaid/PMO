@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { toAppError } from '@/src/lib/appError';
 import type { ProjectRow } from './projects';
 
 // ---------------------------------------------------------------------------
@@ -11,6 +12,12 @@ export type ProjectStatusGroup = 'pipeline' | 'onHand' | 'lost' | 'internal';
 export interface PipelineStageConfig {
   status: ProjectStatus;
   win_probability: number;
+}
+
+export async function getProjectWinEligibility(id: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc('project_win_eligibility', { p_id: id });
+  if (error) throw error;
+  return data;
 }
 
 export interface TransitionProjectOpts {
@@ -114,7 +121,7 @@ export async function transitionProject(
     p_customer_contract_ref: opts?.customerContractRef,
     p_contract_date: opts?.contractDate,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
 }
 
 // ---------------------------------------------------------------------------

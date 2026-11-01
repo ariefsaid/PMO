@@ -39,15 +39,28 @@ const { procurement } = vi.hoisted(() => ({
     approveAmount: vi.fn().mockResolvedValue(undefined),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { procurement } }));
+// `get` and `captureVendorInvoice` delegate to the mocked DAL so the read/capture assertions below stay on the DAL calls.
+vi.mock('@/src/lib/repositories', async () => {
+  const dal = await import('@/src/lib/db/procurementLifecycle');
+  return {
+    repositories: {
+      procurement: {
+        ...procurement,
+        get: (id: string) => dal.getProcurementDetail(id),
+        captureVendorInvoice: (input: Parameters<typeof dal.captureVendorInvoice>[0]) => dal.captureVendorInvoice(input),
+      },
+    },
+  };
+});
 
+const actor = vi.hoisted(() => ({ id: 'u1', role: 'Finance' }));
 vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Finance' }),
+  useAuth: () => ({ currentUser: { id: actor.id, org_id: 'org-1', role: actor.role }, role: actor.role }),
 }));
 
 import { useProcurementDetail, useProcurementMutations } from './useProcurementDetail';
 import { getProcurementDetail, captureVendorInvoice } from '@/src/lib/db/procurementLifecycle';
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 // ---------------------------------------------------------------------------
 // Wrapper factory — each test gets a fresh QueryClient (mirrors useBudget.test.ts)
@@ -64,7 +77,7 @@ function makeWrapper() {
 // ---------------------------------------------------------------------------
 
 describe('useProcurementDetail', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => { vi.clearAllMocks(); actor.id = 'u1'; actor.role = 'Finance'; });
 
   it("AC-816 (hook): useProcurementDetail keys cache by ['procurement', orgId, id] and calls getProcurementDetail", async () => {
     const { Wrapper } = makeWrapper();
@@ -72,6 +85,27 @@ describe('useProcurementDetail', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(getProcurementDetail).toHaveBeenCalledWith('proc-1');
     expect(result.current.data).toMatchObject({ id: 'proc-1', title: 'Test Procurement' });
+  });
+
+  it('refreshes the actor-specific decision when the role changes', async () => {
+    vi.mocked(getProcurementDetail).mockImplementation(async () => ({ id: 'proc-1', paymentEligibility: actor.role === 'Finance' ? 'allowed' : 'routing' }) as never);
+    const { Wrapper } = makeWrapper();
+    const { result, rerender } = renderHook(() => useProcurementDetail('proc-1'), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.data?.paymentEligibility).toBe('allowed'));
+    actor.role = 'Project Manager';
+    rerender();
+    await waitFor(() => expect(result.current.data?.paymentEligibility).toBe('routing'));
+    expect(getProcurementDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not reuse another actor’s approval decision', async () => {
+    vi.mocked(getProcurementDetail).mockImplementation(async () => ({ id: 'proc-1', paymentEligibility: actor.id === 'u1' ? 'allowed' : 'bill_recorder' }) as never);
+    const { Wrapper } = makeWrapper();
+    const { result, rerender } = renderHook(() => useProcurementDetail('proc-1'), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.data?.paymentEligibility).toBe('allowed'));
+    actor.id = 'u2';
+    rerender();
+    await waitFor(() => expect(result.current.data?.paymentEligibility).toBe('bill_recorder'));
   });
 
   it('is disabled when id is empty string', () => {
@@ -98,6 +132,22 @@ describe('useProcurementMutations', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clearOwnershipCache();
+  });
+
+  it('holds and refreshes line eligibility around an external receipt', async () => {
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    let resolveReceipt!: (value: unknown) => void;
+    procurement.createReceipt.mockReturnValueOnce(new Promise((resolve) => { resolveReceipt = resolve; }));
+    const { qc, Wrapper } = makeWrapper();
+    const key = ['procurement-item-eligibility', 'org-1', 'proc-1'];
+    qc.setQueryData(key, true);
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useProcurementMutations('proc-1'), { wrapper: Wrapper });
+    let pending!: Promise<unknown>;
+    act(() => { pending = result.current.createReceipt.mutateAsync({ status: 'Partial', receiptDate: '2026-06-04' }); });
+    await waitFor(() => expect(qc.getQueryData(key)).toBe(false));
+    await act(async () => { resolveReceipt({ id: 'receipt-1' }); await pending; });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: key });
   });
 
   it('AC-SEC-220 (hook): approveAmount sends the billed amount through the repository and refreshes the detail', async () => {
@@ -208,7 +258,7 @@ describe('useProcurementMutations', () => {
     ).toBe(true);
   });
 
-  it('harden #2 (hook): captureVendorInvoice mutation calls the atomic DAL RPC directly (case-aggregate write, PMO-only — never the repository seam) + invalidates the detail key', async () => {
+  it('harden #2 (hook): captureVendorInvoice mutation calls the atomic RPC through the PMO-only repository method (case-aggregate write, never dispatched external) + invalidates the detail key', async () => {
     const { qc, Wrapper } = makeWrapper();
     const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
 
@@ -227,8 +277,8 @@ describe('useProcurementMutations', () => {
     });
 
     // The whole VI capture goes through the ONE atomic RPC (transition + invoice + event),
-    // never the two separate transition + createInvoice writes, and never the repository seam
-    // (task FIX-1's import comment — the case aggregate stays PMO-derived, FR-ENA-101/073).
+    // never the two separate transition + createInvoice writes, and it never routes external
+    // (the case aggregate stays PMO-derived, FR-ENA-101/073).
     expect(captureVendorInvoice).toHaveBeenCalledWith({
       procurementId: 'proc-1',
       status: 'Received',
@@ -268,7 +318,7 @@ describe('useProcurementMutations', () => {
 describe('task FIX-1 — flipped ownership map routes createReceipt externally + drives pendingPush', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
   });
   afterEach(() => clearOwnershipCache());
 

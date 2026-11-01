@@ -1,6 +1,6 @@
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 
@@ -137,5 +137,91 @@ describe('ApprovalsNavCount owner cache keys', () => {
     expect(screen.getByText('3')).toBeInTheDocument();
     expect(keys.timesheets).toHaveBeenCalledWith(orgId, userId, 'Project Manager');
     expect(keys.invoices).not.toHaveBeenCalled();
+  });
+
+  it('OD-TS-5 counts cached pending timesheet for assigned Engineer manager', () => {
+    const client = makeClient();
+    // Engineer has no procurement or invoice approval authority; only timesheets queue is applicable
+    client.setQueryData(queueKeys[2], [{ id: 't1' }]);
+
+    renderCount(client, 'Engineer');
+
+    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(keys.timesheets).toHaveBeenCalledWith(orgId, userId, 'Engineer');
+    expect(keys.procurements).not.toHaveBeenCalled();
+    expect(keys.expenses).not.toHaveBeenCalled();
+    expect(keys.invoices).not.toHaveBeenCalled();
+    expect(client.getQueryCache().findAll().every((query) => query.getObserversCount() === 0)).toBe(true);
+  });
+
+  it('OD-TS-5 counts cached pending timesheet for assigned Finance manager with role-appropriate queues seeded', () => {
+    const client = makeClient();
+    // Finance can approve procurement and invoices; seed those applicable queues as empty / ready
+    client.setQueryData(ownershipKey, []);
+    client.setQueryData(queueKeys[0], []);
+    client.setQueryData(queueKeys[1], []);
+    client.setQueryData(queueKeys[2], [{ id: 't1' }]);
+    client.setQueryData(queueKeys[3], []);
+
+    renderCount(client, 'Finance');
+
+    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(keys.timesheets).toHaveBeenCalledWith(orgId, userId, 'Finance');
+    expect(client.getQueryCache().findAll().every((query) => query.getObserversCount() === 0)).toBe(true);
+  });
+
+  it('OD-TS-5 omits the count when the pending timesheets cache is missing, errored, or invalidated', async () => {
+    // Missing pending cache for Engineer
+    const missingClient = makeClient();
+    renderCount(missingClient, 'Engineer');
+    expect(screen.queryByText('1')).not.toBeInTheDocument();
+    expect(screen.queryByText('0')).not.toBeInTheDocument();
+    cleanup();
+
+    // Errored pending cache for Engineer
+    const erroredClient = makeClient();
+    erroredClient.setQueryData(queueKeys[2], [{ id: 't1' }]);
+    erroredClient.getQueryCache().find({ queryKey: queueKeys[2], exact: true })?.setState({
+      status: 'error',
+      error: new Error('timesheets unavailable'),
+    });
+    renderCount(erroredClient, 'Engineer');
+    expect(screen.queryByText('1')).not.toBeInTheDocument();
+    expect(screen.queryByText('0')).not.toBeInTheDocument();
+    cleanup();
+
+    // Invalidated pending cache for Engineer
+    const invalidatedClient = makeClient();
+    invalidatedClient.setQueryData(queueKeys[2], [{ id: 't1' }]);
+    await invalidatedClient.invalidateQueries({ queryKey: queueKeys[2], exact: true });
+    renderCount(invalidatedClient, 'Engineer');
+    expect(screen.queryByText('1')).not.toBeInTheDocument();
+    expect(screen.queryByText('0')).not.toBeInTheDocument();
+    cleanup();
+
+    // For Admin: missing pending cache omits count rather than presenting a partial total
+    const partialClient = makeClient();
+    seedReady(partialClient);
+    partialClient.removeQueries({ queryKey: queueKeys[2], exact: true });
+    renderCount(partialClient, 'Admin');
+    expect(screen.queryByText('4')).not.toBeInTheDocument();
+    expect(screen.queryByText('3')).not.toBeInTheDocument();
+    expect(screen.queryByText('0')).not.toBeInTheDocument();
+  });
+
+  it('OD-TS-5 updates count on successful cache update, retaining all existing role and other queue totals', async () => {
+    const client = makeClient();
+    seedReady(client); // Admin: 1 proc + 1 exp + 1 ts + 1 inv = 4
+
+    renderCount(client, 'Admin');
+    expect(screen.getByText('4')).toBeInTheDocument();
+
+    act(() => {
+      client.setQueryData(queueKeys[2], [{ id: 't1' }, { id: 't2' }]);
+    });
+
+    expect(await screen.findByText('5')).toBeInTheDocument();
+    expect(screen.queryByText('4')).not.toBeInTheDocument();
+    expect(client.getQueryCache().findAll().every((query) => query.getObserversCount() === 0)).toBe(true);
   });
 });

@@ -1,30 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import React from 'react';
-
-// ---------------------------------------------------------------------------
-// Mock the DAL
-// ---------------------------------------------------------------------------
-vi.mock('@/src/lib/db/timesheetTransition', () => ({
-  listTimesheetsAwaitingApproval: vi.fn().mockResolvedValue([
-    {
-      id: 'ts-1',
-      user_id: 'other-user',
-      week_start_date: '2026-06-01',
-      status: 'Submitted',
-      entries: [],
-      owner: { full_name: 'Dave Engineer' },
-    },
-  ]),
-  submitTimesheet: vi.fn().mockResolvedValue(undefined),
-  approveTimesheet: vi.fn().mockResolvedValue(undefined),
-  rejectTimesheet: vi.fn().mockResolvedValue(undefined),
-  reopenTimesheet: vi.fn().mockResolvedValue(undefined),
-  reopenApprovedTimesheet: vi.fn().mockResolvedValue(undefined),
-  attestTimesheetNoErpDocument: vi.fn().mockResolvedValue(undefined),
-  listReopenableApprovedTimesheets: vi.fn().mockResolvedValue([]),
-}));
 
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
@@ -33,43 +10,36 @@ vi.mock('@/src/auth/useAuth', () => ({
 // P3b (FR-TSP-006, ADR-0059 §3.2): the push is a CONSEQUENCE of approval, dispatched via the
 // repository seam (ADR-0017) — never the DAL directly.
 const pushApprovedMock = vi.fn().mockResolvedValue(undefined);
-vi.mock('@/src/lib/repositories', () => ({
-  repositories: { timesheet: { pushApproved: (...args: unknown[]) => pushApprovedMock(...args) } },
-}));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { timesheet: {
+  pushApproved: (...args: unknown[]) => pushApprovedMock(...args),
+  listAwaitingApproval: vi.fn().mockResolvedValue([{ id: 'ts-1', user_id: 'other-user', week_start_date: '2026-06-01', status: 'Submitted', entries: [], owner: { full_name: 'Dave Engineer' } }]),
+  listReopenableApproved: vi.fn().mockResolvedValue([]),
+  submit: vi.fn().mockResolvedValue(undefined), approve: vi.fn().mockResolvedValue(undefined),
+  reject: vi.fn().mockResolvedValue(undefined), reopen: vi.fn().mockResolvedValue(undefined),
+  attestNoErpDocument: vi.fn().mockResolvedValue(undefined),
+  listPushesNeedingAttention: vi.fn().mockResolvedValue([]),
+  confirmEmployeeLink: vi.fn().mockResolvedValue(undefined),
+  getPushState: vi.fn().mockResolvedValue({ push_state: 'failed', push_error: 'external-unreachable', ts_number: null }),
+} } }));
 
 vi.mock('@/src/lib/repositories/employeeMatchReview', () => ({
   listEmployeeMatchReview: vi.fn().mockResolvedValue({ links: [], profiles: [] }),
 }));
 
-// P3b (FR-TSP-085, OQ-TSP-10(C)) — the operator-surface reads/mutation.
-vi.mock('@/src/lib/db/timesheetPush', () => ({
-  listPushesNeedingAttention: vi.fn().mockResolvedValue([]),
-  listProposedEmployeeLinks: vi.fn().mockResolvedValue([]),
-  confirmEmployeeLink: vi.fn().mockResolvedValue(undefined),
-  getPushState: vi.fn().mockResolvedValue({ push_state: 'failed', push_error: 'external-unreachable', ts_number: null }),
-}));
-
 import {
   awaitingApprovalKey,
   useTimesheetsAwaitingApproval,
+  useReopenableApprovedTimesheets,
   useTimesheetMutations,
   usePushesNeedingAttention,
   useEmployeeLinkConfirm,
   useOwnTimesheetPushState,
 } from './useTimesheetApproval';
-import { getPushState } from '@/src/lib/db/timesheetPush';
+import { repositories } from '@/src/lib/repositories';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import { listEmployeeMatchReview } from '@/src/lib/repositories/employeeMatchReview';
-import {
-  listTimesheetsAwaitingApproval,
-  submitTimesheet,
-  approveTimesheet,
-  rejectTimesheet,
-  reopenApprovedTimesheet,
-  attestTimesheetNoErpDocument,
-} from '@/src/lib/db/timesheetTransition';
-import { listPushesNeedingAttention, confirmEmployeeLink } from '@/src/lib/db/timesheetPush';
 
+const { getPushState, listAwaitingApproval: listTimesheetsAwaitingApproval, submit: submitTimesheet, approve: approveTimesheet, reject: rejectTimesheet, reopen: reopenTimesheet, attestNoErpDocument: attestTimesheetNoErpDocument, listPushesNeedingAttention, confirmEmployeeLink } = repositories.timesheet;
 // ---------------------------------------------------------------------------
 // Wrapper factory — each test gets a fresh QueryClient (mirrors useProcurementDetail.test.ts)
 // ---------------------------------------------------------------------------
@@ -116,6 +86,14 @@ describe('useTimesheetsAwaitingApproval', () => {
 // ---------------------------------------------------------------------------
 // C2 — mutations hook: invalidates both keys on success (AC-911 hook)
 // ---------------------------------------------------------------------------
+
+it('loads the approved correction queue for the signed-in user', async () => {
+  const { Wrapper } = makeWrapper();
+  const { result } = renderHook(() => useReopenableApprovedTimesheets(), { wrapper: Wrapper });
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  expect(repositories.timesheet.listReopenableApproved).toHaveBeenCalledWith('u1', 'Project Manager');
+  expect(result.current.data).toEqual([]);
+});
 
 describe('useTimesheetMutations', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -168,6 +146,13 @@ describe('useTimesheetMutations', () => {
   });
 
   // ── SHOULD-FIX 4 (Luna code review) — a successful re-open must clear the surfaces it invalidated.
+  it('reopens an own timesheet through the same transition', async () => {
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useTimesheetMutations(), { wrapper: Wrapper });
+    await act(async () => { await result.current.reopen.mutateAsync({ id: 'own-sheet' }); });
+    expect(reopenTimesheet).toHaveBeenCalledWith('own-sheet');
+  });
+
   // The re-openable queue is where the button was clicked, and the push-attention queue can still be
   // offering a Retry for the very week that just went back to Draft (a Retry the server now refuses).
   // Invalidating only own/awaiting left BOTH on screen until something else happened to refetch them.
@@ -179,7 +164,7 @@ describe('useTimesheetMutations', () => {
     await act(async () => {
       await result.current.reopenApproved.mutateAsync({ id: 'ts-reopened' });
     });
-    expect(reopenApprovedTimesheet).toHaveBeenCalledWith('ts-reopened');
+    expect(reopenTimesheet).toHaveBeenCalledWith('ts-reopened');
 
     const keys = invalidateSpy.mock.calls.map(c => JSON.stringify(c[0]));
     expect(keys.some(k => k.includes('"timesheets-reopenable-approved"') && k.includes('"org-1"'))).toBe(true);
@@ -242,6 +227,17 @@ describe('useTimesheetMutations — P3b push-after-approve wiring (FR-TSP-006)',
     const approveOrder = vi.mocked(approveTimesheet).mock.invocationCallOrder[0];
     const pushOrder = pushApprovedMock.mock.invocationCallOrder[0];
     expect(approveOrder).toBeLessThan(pushOrder);
+  });
+
+  it('surfaces an approval refusal without attempting a push', async () => {
+    const refusal = new Error('Approval refused');
+    vi.mocked(approveTimesheet).mockRejectedValueOnce(refusal);
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useTimesheetMutations(), { wrapper: Wrapper });
+    await act(async () => {
+      await expect(result.current.approve.mutateAsync({ id: 'ts-refused' })).rejects.toBe(refusal);
+    });
+    expect(pushApprovedMock).not.toHaveBeenCalled();
   });
 
   it("AC-TSP-051: when pushApproved REJECTS, the approve mutation STILL resolves successfully (the sheet shows Approved; no error toast blocks the user — PMO's SoT never depends on ERP liveness)", async () => {
@@ -372,3 +368,131 @@ describe('useOwnTimesheetPushState (I-16/I-17)', () => {
     expect(result.current.fetchStatus).toBe('idle');
   });
 });
+
+
+it('refreshes mounted correction eligibility after approval and push', async () => {
+  let approved = false;
+  let finishPush!: () => void;
+  pushApprovedMock.mockClear().mockImplementationOnce(() => new Promise<void>(resolve => { finishPush = resolve; }));
+  vi.mocked(repositories.timesheet.listAwaitingApproval).mockImplementation(async () => approved ? [] : [{ id: 'ts-1', user_id: 'other-user', week_start_date: '2026-06-01', status: 'Submitted', entries: [], owner: { full_name: 'Report', manager_id: 'u1' } }] as unknown as Awaited<ReturnType<typeof repositories.timesheet.listAwaitingApproval>>);
+  vi.mocked(repositories.timesheet.listReopenableApproved).mockImplementation(async () => approved ? [{ id: 'ts-1', user_id: 'other-user', week_start_date: '2026-06-01', status: 'Approved', entries: [], owner: { full_name: 'Report', manager_id: 'u1' }, mirror: null, pushCommandState: null }] as unknown as Awaited<ReturnType<typeof repositories.timesheet.listReopenableApproved>> : []);
+  vi.mocked(repositories.timesheet.approve).mockImplementation(async () => { approved = true; });
+  const { Wrapper, qc } = makeWrapper();
+  const invalidate = vi.spyOn(qc, 'invalidateQueries');
+  const { result } = renderHook(() => ({ pending: useTimesheetsAwaitingApproval(), correction: useReopenableApprovedTimesheets(), mutation: useTimesheetMutations() }), { wrapper: Wrapper });
+  await waitFor(() => expect(result.current.pending.data).toHaveLength(1));
+  await waitFor(() => expect(result.current.correction.data).toEqual([]));
+  let approval!: Promise<void>;
+  act(() => { approval = result.current.mutation.approve.mutateAsync({ id: 'ts-1' }); });
+  await waitFor(() => expect(pushApprovedMock).toHaveBeenCalled());
+  expect(invalidate).not.toHaveBeenCalled();
+  await act(async () => { finishPush(); await approval; });
+  await waitFor(() => expect(result.current.pending.data).toHaveLength(0));
+  await waitFor(() => expect(result.current.correction.data).toHaveLength(1));
+  expect(invalidate).toHaveBeenCalledWith({ queryKey: ['timesheets-reopenable-approved', 'org-1', 'u1'] });
+});
+
+it.each(['approve', 'approve-push-failure', 'approve-refusal', 'retry', 'retry-failure'] as const)(
+  '%s refreshes settled push surfaces for the correct scope', async (operation) => {
+    pushApprovedMock.mockReset().mockResolvedValue(undefined);
+    vi.mocked(listPushesNeedingAttention).mockClear();
+    vi.mocked(approveTimesheet).mockReset().mockResolvedValue(undefined);
+    if (operation === 'approve-push-failure' || operation === 'retry-failure') pushApprovedMock.mockRejectedValueOnce(new Error('push failed'));
+    if (operation === 'approve-refusal') vi.mocked(approveTimesheet).mockRejectedValueOnce(new Error('refused'));
+    const { qc, Wrapper } = makeWrapper();
+    const keys = [
+      ['timesheet-pushes-attention', 'org-1'], ['timesheet-pushes-attention', 'org-2'],
+      ['timesheet-push-state', 'ts-1'], ['timesheet-push-state', 'ts-2'],
+      ['timesheets-reopenable-approved', 'org-1', 'u1', 'Project Manager'],
+      ['timesheets-reopenable-approved', 'org-1', 'u2', 'Project Manager'],
+    ];
+    keys.forEach(key => qc.setQueryData(key, 'old'));
+    const { result } = renderHook(() => ({ mutation: useTimesheetMutations(), attention: usePushesNeedingAttention() }), { wrapper: Wrapper });
+    await waitFor(() => expect(listPushesNeedingAttention).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(result.current.attention.fetchStatus).toBe('idle'));
+    await act(async () => {
+      const promise = operation.startsWith('retry') ? result.current.attention.retry.mutateAsync({ timesheetId: 'ts-1' }) : result.current.mutation.approve.mutateAsync({ id: 'ts-1' });
+      if (operation === 'retry-failure' || operation === 'approve-refusal') await expect(promise).rejects.toThrow();
+      else await expect(promise).resolves.toBeUndefined();
+    });
+    expect(qc.getQueryState(keys[1])?.isInvalidated).toBe(false);
+    expect(qc.getQueryState(keys[2])?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(keys[3])?.isInvalidated).toBe(false);
+    expect(qc.getQueryState(keys[4])?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(keys[5])?.isInvalidated).toBe(false);
+    expect(listPushesNeedingAttention).toHaveBeenCalledTimes(2);
+  },
+);
+
+it('keeps the pending row until the settled correction history refresh finishes', async () => {
+  pushApprovedMock.mockReset().mockResolvedValue(undefined);
+  vi.mocked(approveTimesheet).mockReset().mockResolvedValue(undefined);
+  let finishHistory!: (value: Awaited<ReturnType<typeof repositories.timesheet.listReopenableApproved>>) => void;
+  const history = vi.mocked(repositories.timesheet.listReopenableApproved);
+  history.mockReset().mockResolvedValueOnce([]).mockImplementationOnce(() => new Promise(resolve => { finishHistory = resolve; }));
+  const pending = vi.mocked(repositories.timesheet.listAwaitingApproval);
+  pending.mockReset().mockResolvedValue([{ id: 'ts-1' }] as Awaited<ReturnType<typeof repositories.timesheet.listAwaitingApproval>>);
+  const { Wrapper } = makeWrapper();
+  const { result } = renderHook(() => ({ pending: useTimesheetsAwaitingApproval(), history: useReopenableApprovedTimesheets(), mutation: useTimesheetMutations() }), { wrapper: Wrapper });
+  await waitFor(() => expect(result.current.history.isSuccess && result.current.pending.isSuccess).toBe(true));
+  let approval!: Promise<void>;
+  act(() => { approval = result.current.mutation.approve.mutateAsync({ id: 'ts-1' }); });
+  await waitFor(() => expect(history).toHaveBeenCalledTimes(2));
+  expect(pending).toHaveBeenCalledTimes(1);
+  expect(result.current.pending.data).toHaveLength(1);
+  await act(async () => { finishHistory([]); await approval; });
+  await waitFor(() => expect(pending).toHaveBeenCalledTimes(2));
+});
+
+
+it.each(['resolve', 'reject'] as const)(
+  'refreshes mounted retry consumers only after the push %ss', async (outcome) => {
+    let settle!: () => void;
+    let fail!: (error: Error) => void;
+    pushApprovedMock.mockReset().mockImplementationOnce(() => new Promise<void>((resolve, reject) => { settle = resolve; fail = reject; }));
+    let state = 'before';
+    const attention = vi.mocked(listPushesNeedingAttention);
+    const history = vi.mocked(repositories.timesheet.listReopenableApproved);
+    const sheet = vi.mocked(getPushState);
+    attention.mockReset().mockImplementation(async () => [{ timesheet_id: state }] as Awaited<ReturnType<typeof listPushesNeedingAttention>>);
+    history.mockReset().mockImplementation(async () => [{ id: state }] as Awaited<ReturnType<typeof repositories.timesheet.listReopenableApproved>>);
+    sheet.mockReset().mockImplementation(async (id) => ({ push_state: id === 'ts-1' ? state : 'other-sheet', push_error: null, ts_number: null }) as Awaited<ReturnType<typeof getPushState>>);
+    const otherOrg = vi.fn(async () => 'other-org');
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => ({
+      attention: usePushesNeedingAttention(),
+      history: useReopenableApprovedTimesheets(),
+      sheet: useOwnTimesheetPushState('ts-1'),
+      otherSheet: useOwnTimesheetPushState('ts-2'),
+      otherOrg: useQuery({ queryKey: ['timesheet-pushes-attention', 'org-2'], queryFn: otherOrg }),
+      otherHistory: useQuery({ queryKey: ['timesheets-reopenable-approved', 'org-2', 'u2', 'Project Manager'], queryFn: otherOrg }),
+    }), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.attention.data?.[0]?.timesheet_id).toBe('before'));
+    await waitFor(() => expect(result.current.history.data?.[0]?.id).toBe('before'));
+    await waitFor(() => expect(result.current.sheet.data?.push_state).toBe('before'));
+    await waitFor(() => expect(result.current.otherSheet.data?.push_state).toBe('other-sheet'));
+    await waitFor(() => expect(otherOrg).toHaveBeenCalledTimes(2));
+    let retry!: Promise<unknown>;
+    act(() => { retry = result.current.attention.retry.mutateAsync({ timesheetId: 'ts-1' }).then(() => 'resolved', () => 'rejected'); });
+    await waitFor(() => expect(pushApprovedMock).toHaveBeenCalledOnce());
+    state = 'after';
+    expect(attention).toHaveBeenCalledTimes(1);
+    expect(history).toHaveBeenCalledTimes(1);
+    expect(sheet).toHaveBeenCalledTimes(2);
+    expect(result.current.attention.data?.[0]?.timesheet_id).toBe('before');
+    expect(result.current.history.data?.[0]?.id).toBe('before');
+    expect(result.current.sheet.data?.push_state).toBe('before');
+    await act(async () => {
+      if (outcome === 'resolve') settle(); else fail(new Error('push failed'));
+      expect(await retry).toBe(outcome === 'resolve' ? 'resolved' : 'rejected');
+    });
+    await waitFor(() => expect(result.current.attention.data?.[0]?.timesheet_id).toBe('after'));
+    await waitFor(() => expect(result.current.history.data?.[0]?.id).toBe('after'));
+    await waitFor(() => expect(result.current.sheet.data?.push_state).toBe('after'));
+    expect(otherOrg).toHaveBeenCalledTimes(2);
+    expect(result.current.otherOrg.data).toBe('other-org');
+    expect(result.current.otherHistory.data).toBe('other-org');
+    expect(result.current.otherSheet.data?.push_state).toBe('other-sheet');
+    expect(sheet.mock.calls.filter(([id]) => id === 'ts-2')).toHaveLength(1);
+  },
+);

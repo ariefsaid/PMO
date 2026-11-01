@@ -103,8 +103,10 @@ describe('AC-M365DOC-071 create-project wiring', () => {
     const spy = vi.spyOn(qc, 'invalidateQueries');
     const { result } = renderHook(() => useProjectMutations(), { wrapper: wrapper() });
     await act(async () => { await result.current.create.mutateAsync(input); });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ['projects'] });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ['sales-pipeline'] });
+    // Keys are org-scoped (projectQueryKeys); the original invalidations survive under their
+    // scoped names.
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['projects', 'org-1'] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['sales-pipeline', 'org-1'] });
   });
 
   it.each([

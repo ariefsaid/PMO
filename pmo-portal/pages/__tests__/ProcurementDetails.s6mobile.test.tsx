@@ -33,6 +33,9 @@ import idProcurementRecord from '../../public/locales/id/procurementRecord.json'
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
+
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => ({ ...((await orig()) as Record<string, unknown>), useOrgTaxDefault: () => undefined }));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
@@ -83,12 +86,6 @@ const mockDeleteItem = vi.fn().mockResolvedValue(undefined);
 const mockSelectQuote = vi.fn().mockResolvedValue(undefined);
 const mockCreateDocument = vi.fn().mockResolvedValue({ id: 'd-new' });
 const mockDeleteDocument = vi.fn().mockResolvedValue(undefined);
-const docsState = {
-  data: [] as Record<string, unknown>[],
-  isPending: false,
-  isError: false,
-  refetch: vi.fn(),
-};
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useProcurementCrudMutations: () => ({
     updateHeader: { mutateAsync: mockUpdateHeader, isPending: false },
@@ -99,7 +96,6 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
     createDocument: { mutateAsync: mockCreateDocument, isPending: false },
     deleteDocument: { mutateAsync: mockDeleteDocument, isPending: false },
   }),
-  useProcurementDocuments: () => docsState,
 }));
 
 vi.mock('@/src/hooks/useFkOptions', () => ({

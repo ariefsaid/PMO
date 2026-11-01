@@ -715,8 +715,10 @@ select throws_ok(
 -- The trust boundary the whole class rests on stays exactly where it was put.
 reset role;
 select is(
+  -- 0407 added the caller-role overload (the definer-context entry point); this pins the CLIENT
+  -- form, so the subquery names the no-arg signature explicitly.
   (select proconfig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public' and p.proname = 'actor_bypasses_rls'),
+    where n.nspname = 'public' and p.proname = 'actor_bypasses_rls' and p.pronargs = 0),
   array['search_path=pg_catalog, public'],
   'AC-RES-071 actor_bypasses_rls is unchanged — one definition of the trust boundary (ADR-0069)');
 

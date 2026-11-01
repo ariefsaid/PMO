@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, DecisionContextSummary, ListState, ReceiptPreview } from '@/src/components/ui';
+import { Button, Card, CardHead, DecisionContextSummary, ListState, StatusPill } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useExpenseClaimsAwaitingDecision, type ExpenseClaimAwaiting } from '@/src/hooks/useExpenseClaims';
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
 import { formatCurrencyAuto } from '@/src/lib/format';
+import { ReceiptPreviewButton } from '@/src/components/documents/targets/ReceiptPreviewButton';
 import { useExpenseReceipts } from '@/src/hooks/useExpenseReceipts';
 import type { ExpenseReceiptRow } from '@/src/lib/db/expenseReceipts';
 
@@ -30,14 +31,14 @@ const ExpenseClaimEvidencePreview: React.FC<{ claim: ExpenseClaimAwaiting['claim
     <div className="border-t border-border px-4 py-3">
       <DecisionContextSummary
         identity={claim.claim_number ?? claim.title}
-        amount={formatCurrencyAuto(Number(claim.amount), claim.currency)}
+        amount={formatCurrencyAuto(Number(claim.amount), claim.float?.currency ?? claim.currency)}
       />
       <ul className="mt-3 space-y-2">
       {files.map((file) => {
         const name = receiptName(file.file_path);
         return <li key={file.id} className="flex flex-wrap items-center gap-2">
           <span className="min-w-0 flex-1 truncate text-xs" title={name}>{name}</span>
-          <ReceiptPreview fileName={name} getPreviewUrl={() => download(file.file_path)} onDownload={() => downloadOriginal(file.file_path)} />
+          <ReceiptPreviewButton id={file.id} fileName={name} filePath={file.file_path} getSignedUrl={download} onDownload={() => downloadOriginal(file.file_path)} />
         </li>;
       })}
       </ul>
@@ -69,13 +70,14 @@ export const ExpenseClaimApprovalSection: React.FC = () => {
       <Card seam>
         <CardHead className="rounded-t-lg">{t('expenses.approvals.heading', 'Expense claims awaiting you ({{count}})', { count: rows.length })}</CardHead>
         <ul className="divide-y divide-border rounded-b-lg border-t border-border">
-          {rows.map(({ claim }) => (
+          {rows.map(({ claim, route }) => (
             <li key={claim.id} className="px-4 py-2.5 text-sm">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 <Link to={`/expenses/${claim.id}`} className="font-medium text-primary-text hover:underline">{claim.claim_number ?? claim.title}</Link>
                 <span className="min-w-0 flex-1 truncate">{claim.title}</span>
+                {route?.isException && <StatusPill variant="warn">{t('imprest:plan.exception', 'Out of plan')}</StatusPill>}
                 <span className="text-muted-foreground">{claim.claimant?.full_name ?? '—'}</span>
-                <span className="tabular-nums">{formatCurrencyAuto(Number(claim.amount), claim.currency)}</span>
+                <span className="tabular-nums">{formatCurrencyAuto(Number(claim.amount), claim.float?.currency ?? claim.currency)}</span>
                 <Button variant="outline" size="sm" aria-expanded={evidenceClaimId === claim.id} onClick={() => setEvidenceClaimId((current) => current === claim.id ? null : claim.id)}>
                   {t('expenses.approvals.previewEvidence', 'Preview claim evidence')}
                 </Button>

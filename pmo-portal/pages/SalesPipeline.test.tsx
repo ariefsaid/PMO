@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within, waitFor, act } from '@testing-library/react';
+import { screen, fireEvent, within, waitFor, act } from '@testing-library/react';
+// Harness: the board now mounts DraggableSalesBoard (useQueryClient), so the page renders under a QueryClientProvider (#1637).
+import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
@@ -8,6 +10,10 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 import { findPageAnnouncement } from '@/src/components/ui/__tests__/announcementTestQueries';
 import { formatCurrency } from '@/src/lib/format';
+import i18next from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import en from '@/public/locales/en/common.json';
+import id from '@/public/locales/id/common.json';
 
 const viewport = vi.hoisted(() => ({ isDesktop: true }));
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => viewport.isDesktop }));
@@ -240,6 +246,92 @@ describe('SalesPipeline phone stage list (AC-S24-001)', () => {
     });
     expect(screen.getByText('Declined Deal Echo')).toBeInTheDocument();
     expect(screen.queryByText('Regional Services')).toBeNull();
+  });
+});
+
+// AC-S24-004 (moved down from the browser): the same synthetic pipeline in both locales. Light/dark
+// only changed paint, so it adds no behaviour to prove here.
+describe.each(['en', 'id'] as const)('SalesPipeline AC-S24-004 synthetic pipeline in %s', (locale) => {
+  const word = locale === 'id'
+    ? { stage: 'Tahap pipeline', search: 'Cari proyek', empty: 'Tidak ada proyek pada tahap ini', clear: 'Hapus filter', lost: /Kalah/, summary: /Ringkasan pipeline/i }
+    : { stage: 'Pipeline stage', search: 'Search projects', empty: 'No projects in this stage', clear: 'Clear filters', lost: /Lost/, summary: /Pipeline summary/i };
+  const stages = [
+    { status: 'Leads', count: 1, total_value: 1_250_000_000_000, win_probability: 0.1, weighted_value: 125_000_000_000 },
+    { status: 'PQ Submitted', count: 1, total_value: 800_000, win_probability: 0.25, weighted_value: 200_000 },
+    { status: 'Quotation Submitted', count: 1, total_value: 560_000, win_probability: 0.4, weighted_value: 224_000 },
+    { status: 'Tender Submitted', count: 1, total_value: 0, win_probability: 0.5, weighted_value: 0 },
+    { status: 'Negotiation', count: 1, total_value: 3_400_000, win_probability: 0.75, weighted_value: 2_550_000 },
+  ];
+  const open = [
+    { id: 'syn-1', name: 'Integrated maintenance planning for regional facilities and remote teams', short_name: null, client_name: 'PT Garuda Regional Infrastructure Services', status: 'Leads', contract_value: 1_250_000_000_000, currency: 'IDR', win_probability: 0.1 },
+    { id: 'syn-2', name: 'Regional Services Upgrade', short_name: null, client_name: 'Northwind Services', status: 'PQ Submitted', contract_value: 800_000, currency: 'USD', win_probability: 0.25 },
+    { id: 'syn-3', name: 'Quotation for Fleet Support', short_name: null, client_name: 'Meridian Transport', status: 'Quotation Submitted', contract_value: 560_000, currency: 'USD', win_probability: 0.4 },
+    { id: 'syn-4', name: 'Tender for Service Coverage', short_name: null, client_name: 'Atlas Contracting', status: 'Tender Submitted', contract_value: 0, currency: 'IDR', win_probability: 0.5 },
+    { id: 'syn-5', name: 'Negotiation for Network Maintenance', short_name: null, client_name: 'Horizon Network Group', status: 'Negotiation', contract_value: 3_400_000, currency: 'USD', win_probability: 0.75 },
+  ];
+
+  const renderLocalized = async (initialPath: string) => {
+    const i18n = i18next.createInstance();
+    await i18n.init({ lng: locale, fallbackLng: 'en', defaultNS: 'common', resources: { en: { common: en }, id: { common: id } } });
+    return render(
+      <I18nextProvider i18n={i18n}>
+        <ImpersonationProvider realRole="Admin">
+          <MemoryRouter initialEntries={[initialPath]}>
+            <LocationProbe />
+            <ToastProvider>
+              <SalesPipeline />
+            </ToastProvider>
+          </MemoryRouter>
+        </ImpersonationProvider>
+      </I18nextProvider>,
+    );
+  };
+  const search = () => screen.getByTestId('location-probe').getAttribute('data-search');
+
+  it(`AC-S24-004: phone stage, search, and Lost recovery in ${locale}`, async () => {
+    const user = userEvent.setup();
+    pipelineState.data = { stages, projects: open } as never;
+    lostState.data = [
+      { id: 'syn-6', name: 'Synthetic Lost Coverage Contract', client_name: 'Example Lost Customer', status: 'Loss Tender', contract_value: 1_600_000, currency: 'USD', win_probability: 0 },
+      { id: 'syn-7', name: 'Synthetic Declined Service Bid', client_name: 'Example Declined Customer', status: 'Declined', contract_value: 0, currency: 'IDR', win_probability: 0 },
+    ];
+    viewport.isDesktop = false;
+    await renderLocalized('/sales?view=kanban');
+
+    const selector = screen.getByRole('combobox', { name: word.stage });
+    expect(screen.getAllByRole('combobox', { name: word.stage })).toHaveLength(1);
+    const list = () => screen.getByTestId('sales-phone-stage-list');
+    expect(within(list()).getAllByRole('listitem')).toHaveLength(open.length);
+
+    await user.selectOptions(selector, 'Negotiation');
+    await waitFor(() => expect(search()).toMatch(/[?&]status=Negotiation/));
+    expect(within(list()).getAllByRole('listitem')).toHaveLength(1);
+    expect(within(list()).getByText('Negotiation for Network Maintenance')).toBeInTheDocument();
+    expect(within(list()).queryByText(open[0].name)).toBeNull();
+
+    await user.type(screen.getByRole('searchbox', { name: word.search }), 'no synthetic match');
+    expect(await screen.findByText(word.empty)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: word.clear }));
+    await waitFor(() => expect(search()).toBe('?view=kanban'));
+    expect(within(list()).getAllByRole('listitem')).toHaveLength(open.length);
+
+    await user.click(screen.getByRole('tab', { name: word.lost }));
+    await waitFor(() => expect(search()).toMatch(/[?&]scope=Lost/));
+    expect(search()).toMatch(/[?&]view=table/);
+    expect(await screen.findByText('Synthetic Lost Coverage Contract')).toBeInTheDocument();
+    expect(screen.getByText('Synthetic Declined Service Bid')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: word.stage })).toBeNull();
+  });
+
+  it(`AC-S24-004: desktop funnel and board in ${locale}`, async () => {
+    pipelineState.data = { stages, projects: open } as never;
+    viewport.isDesktop = true;
+    await renderLocalized('/sales?view=kanban');
+
+    expect(screen.getByRole('region', { name: word.summary })).toBeVisible();
+    expect(screen.getByTestId('stage-Leads')).toBeInTheDocument();
+    expect(screen.getByTestId('stage-Tender Submitted')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: word.stage })).toBeNull();
   });
 });
 

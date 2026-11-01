@@ -33,6 +33,8 @@ import {
 } from "./documentVerification.ts";
 import { handleEnsureRecordFolder } from "./recordFolders.ts";
 import { handleLinkExistingRecordFolders } from "./recordFolderBackfill.ts";
+import { handlePreviewDocument } from "./documentPreview.ts";
+import { authorizeUploadCaller, handleUploadRecordFile, readUploadForm, UPLOAD_BODY_LIMIT } from "./recordFileUpload.ts";
 import { corsHeaders } from "./auth.ts";
 import type {
   GraphProxyRequest,
@@ -161,6 +163,35 @@ async function routeRequest(req: Request, scope?: RequestDeadline): Promise<Resp
   const authed = await authedDeps(req, env, scope?.fetch);
   if (authed instanceof Response) return authed;
 
+  // Multipart POST: the one file-upload action (ADR-0095). Authenticated above, BEFORE the body is read.
+  if ((req.headers.get("content-type") ?? "").startsWith("multipart/form-data")) {
+    scope?.limit(30_000); // mutation-witness:upload-request-deadline
+    let uploaded: HandlerResult;
+    try {
+      // Cheap refusals first: an oversize declared length, then membership and role, all before any body byte is read.
+      const tooLarge = (): HandlerResult => ({ status: 413, body: { error: "BAD_REQUEST", message: "file too large" } satisfies M365ErrorResponse });
+      if (Number(req.headers.get("content-length")) > UPLOAD_BODY_LIMIT) return toResponse(tooLarge(), env.allowedOrigin); // mutation-witness:upload-body-cap-declared
+      const caller = await authorizeUploadCaller(authed); // mutation-witness:upload-auth-before-body
+      if ("status" in caller) return toResponse(caller, env.allowedOrigin);
+      const form = await readUploadForm(req);
+      if (form === "too_large") return toResponse(tooLarge(), env.allowedOrigin);
+      if (!form) {
+        return toResponse(
+          { status: 400, body: { error: "BAD_REQUEST", message: "invalid form body" } satisfies M365ErrorResponse },
+          env.allowedOrigin,
+        );
+      }
+      uploaded = await handleUploadRecordFile(form, authed, caller);
+    } catch (err) {
+      console.error("[m365-token-custody] unexpected error", {
+        errorCode: "INTERNAL_ERROR",
+        message: err instanceof Error ? err.name : "unknown",
+      });
+      uploaded = { status: 500, body: { error: "INTERNAL_ERROR", message: "unexpected error" } satisfies M365ErrorResponse };
+    }
+    return toResponse(uploaded, env.allowedOrigin);
+  }
+
   // POST: parse the {action} body, then route.
   let body: Omit<Partial<M365Request>, "action"> & {
     action?: M365Request["action"] | "refresh";
@@ -181,6 +212,7 @@ async function routeRequest(req: Request, scope?: RequestDeadline): Promise<Resp
   }
 
   if (body?.action === "ensure_record_folder") scope?.limit(12_000); // mutation-witness:folder-request-deadline
+  if (body?.action === "preview_document") scope?.limit(12_000); // mutation-witness:preview-request-deadline
   let result: HandlerResult;
   try {
     switch (body.action) {
@@ -224,6 +256,10 @@ async function routeRequest(req: Request, scope?: RequestDeadline): Promise<Resp
       case "ensure_record_folder":
         // ADR-0089: ensure + link the record's one reference-only folder. Typed kind + UUID only.
         result = await handleEnsureRecordFolder(body, authed);
+        break;
+      case "preview_document":
+        // ADR-0095: typed document identity only; the server derives drive/item and previews with the caller's own connection.
+        result = await handlePreviewDocument(body, authed);
         break;
       case "link_existing_record_folders":
         // ADR-0089 / FR-M365DOC-072: Admin, match-only, keyset-paged sweep. Never creates.

@@ -9,7 +9,7 @@ const { feedLedgerMirrors } = await import('../../../pmo-portal/src/lib/adapterS
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 type AnyRow = Record<string, unknown>;
-type QueryFilter = { column: string; op: 'eq' | 'gt' | 'lt' | 'is'; value: unknown };
+type QueryFilter = { column: string; op: 'eq' | 'gt' | 'lt' | 'is' | 'in'; value: unknown };
 type QueryResult = { data: unknown; error: { message: string; code?: string } | null; count?: number };
 type Scenario = {
   org: TestOrg;
@@ -141,6 +141,7 @@ class MemoryQuery implements PromiseLike<QueryResult> {
   eq(column: string, value: unknown): this { this.filters.push({ column, op: 'eq', value }); return this; }
   gt(column: string, value: unknown): this { this.filters.push({ column, op: 'gt', value }); return this; }
   lt(column: string, value: unknown): this { this.filters.push({ column, op: 'lt', value }); return this; }
+  in(column: string, values: unknown[]): this { this.filters.push({ column, op: 'in', value: values }); return this; }
   is(column: string, value: unknown): this { this.filters.push({ column, op: 'is', value }); return this; }
   not(column: string, _operator: string, value: unknown): this { this.filters.push({ column, op: 'is', value: value === 'null' ? null : value }); return this; }
   order(column: string, options?: { ascending?: boolean }): this { this.orderBy = column; this.orderAscending = options?.ascending !== false; return this; }
@@ -191,6 +192,7 @@ class MemoryDatabase {
     return rows.filter((row) => filters.every(({ column, op, value }) => {
       const actual = row[column];
       if (op === 'eq' || op === 'is') return actual === value;
+      if (op === 'in') return (value as unknown[]).includes(actual);
       if (op === 'gt') return String(actual ?? '') > String(value ?? '');
       return String(actual ?? '') < String(value ?? '');
     }));
@@ -294,6 +296,8 @@ class MemoryDatabase {
 function makeHarness(scenarios: Scenario[]) {
   const db = new MemoryDatabase(scenarios);
   const originalFetch = globalThis.fetch;
+  const glReads = new Map<string, number>();
+  const pleReads = new Map<string, number>();
   const fetchMock = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = String(input);
     const scenario = scenarios.find((entry) => url.startsWith(entry.org.siteUrl));
@@ -370,13 +374,17 @@ function makeHarness(scenarios: Scenario[]) {
     if (pathname.startsWith('/api/resource/Currency/')) return response({ data: { name: 'IDR', smallest_currency_fraction_value: 100 } });
     if (pathname === '/api/resource/GL Entry') {
       if (scenario.gl === 'http-503') return response({ exc: 'SyntheticERPUnavailable' }, 503);
-      const start = Number(parsed.searchParams.get('limit_start') ?? '0');
+      // The shipped scan pages by keyset (no offset): the n-th ledger read plays the n-th 500-row page.
+      const start = (glReads.get(org.orgId) ?? 0) * 500;
+      glReads.set(org.orgId, (glReads.get(org.orgId) ?? 0) + 1);
       if (scenario.gl === 'full-replay-exhaustion' && start < 300 * 500) return response({ data: pageGl(org, start, 500) });
       if (scenario.gl === 'ordinary-partial' && start < 20 * 500) return response({ data: pageGl(org, start, 500) });
       return response({ data: [glSource(org)] });
     }
     if (pathname === '/api/resource/Payment Ledger Entry') {
-      if (scenario.ple === 'incomplete' && Number(parsed.searchParams.get('limit_start') ?? '0') < 20 * 500) return response({ data: pagePle(org, Number(parsed.searchParams.get('limit_start') ?? '0'), 500) });
+      const pleStart = (pleReads.get(org.orgId) ?? 0) * 500;
+      pleReads.set(org.orgId, (pleReads.get(org.orgId) ?? 0) + 1);
+      if (scenario.ple === 'incomplete' && pleStart < 20 * 500) return response({ data: pagePle(org, pleStart, 500) });
       return response({ data: scenario.pleRows ?? pleSource(org) });
     }
     if (pathname === '/api/method/frappe.desk.query_report.run') {
@@ -480,7 +488,7 @@ Deno.test('AC-005: v15 statement metadata denial does not affect the ordinary GL
     assertNativeStatementStateUnchanged(harness.db, first, 'v15 metadata denial');
     assert(diagnosticMetadataRequests(harness.db, first).length === 0, 'ordinary v15 feed requested native statement metadata');
     const initialFinish = harness.db.rpcCalls.find((call) => call.orgId === first.orgId && call.name === 'finish_erp_gl_replay');
-    assert(initialFinish && initialFinish.args.p_company === first.company && typeof initialFinish.args.p_replay_id === 'string' && initialFinish.args.p_watermark === '2026-10-01 10:00:00.000000', `initial replay completion arguments were not preserved: ${stable(initialFinish)}`);
+    assert(initialFinish && initialFinish.args.p_company === first.company && typeof initialFinish.args.p_replay_id === 'string' && initialFinish.args.p_watermark === `2026-10-01 10:00:00.000000|GL-${first.orgId}`, `initial replay completion arguments were not preserved: ${stable(initialFinish)}`);
     assert(harness.db.rpcCalls.filter((call) => call.orgId === first.orgId && call.name === 'finish_erp_gl_replay').length === 1, 'the migrated initial replay must finish exactly once');
     assert(requestsFor(harness.db, first, 'GL Entry').length === 1 && requestsFor(harness.db, first, 'Payment Ledger Entry').length === 1, 'raw feed did not execute exactly once for the initial cycle');
     assert(noModifiedFilter(requestsFor(harness.db, first, 'GL Entry')[0]!), 'initial pending replay must fetch all GL history without a modified filter');
@@ -491,7 +499,8 @@ Deno.test('AC-005: v15 statement metadata denial does not affect the ordinary GL
     const retry = await feedOrgLedgersLive(harness.db as unknown as SupabaseClient, next, retryCache) as { glCaughtUp?: boolean; pleCaughtUp?: boolean; statementReady?: boolean };
     assert(retry.glCaughtUp === true && retry.pleCaughtUp === true && retry.statementReady === true, `later ordinary feed did not stay separate from unused metadata: ${stable(retry)}`);
     const glRequests = requestsFor(harness.db, first, 'GL Entry');
-    assert(glRequests.length === 2 && !noModifiedFilter(glRequests[1]!), 'an unused metadata denial must not repeat a full replay on the next tick');
+    // The ordinary tick resumes after the composite cursor: a same-instant tie read, then a later-instant read.
+    assert(glRequests.length >= 2 && glRequests.slice(1).every((request) => !noModifiedFilter(request)), 'an unused metadata denial must not repeat a full replay on the next tick');
     assert(harness.db.rpcCalls.filter((call) => call.orgId === first.orgId && call.name === 'finish_erp_gl_replay').length === 1, 'metadata denial caused a duplicate replay completion');
     assert(diagnosticMetadataRequests(harness.db, first).length === 0, 'ordinary retry requested native statement metadata');
 
@@ -540,7 +549,7 @@ Deno.test('AC-005: valid chart and complete raw history retain diagnostic readin
     const sourceOrder = harness.db.requests.filter((request) => request.orgId === org.orgId && (decodeURIComponent(request.path.split('?')[0] ?? '') === '/api/resource/Account' || decodeURIComponent(request.path.split('?')[0] ?? '') === '/api/resource/GL Entry'))
       .map((request) => decodeURIComponent(request.path.split('?')[0] ?? '') === '/api/resource/Account' ? 'chart' : 'ledger');
     equal(sourceOrder, ['chart', 'ledger'], 'chart must be read before the raw ledger feed');
-    assert(harness.db.rpcCalls.some((call) => call.orgId === org.orgId && call.name === 'finish_erp_gl_replay' && call.args.p_company === org.company && call.args.p_watermark === '2026-10-01 10:00:00.000000'), 'full raw replay completion arguments changed');
+    assert(harness.db.rpcCalls.some((call) => call.orgId === org.orgId && call.name === 'finish_erp_gl_replay' && call.args.p_company === org.company && call.args.p_watermark === `2026-10-01 10:00:00.000000|GL-${org.orgId}`), 'full raw replay completion arguments changed');
   } finally {
     harness.restore();
   }

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "postbuild": "node ../scripts/upload-sourcemaps.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
@@ -41,6 +42,7 @@
     "@blocknote/core": "0.54.0",
     "@blocknote/react": "0.54.0",
     "@blocknote/shadcn": "0.54.0",
+    "@dnd-kit/core": "6.3.1",
     "@supabase/supabase-js": "^2.45.0",
     "@tanstack/react-query": "^5.101.0",
     "@tanstack/react-table": "8.21.3",
@@ -56,6 +58,7 @@
     "react-router": "^8.3.0",
     "recharts": "^3.1.2",
     "remark-gfm": "^4.0.1",
+    "saxes": "5.0.1",
     "zod": "^4.6.7"
   },
   "engines": {

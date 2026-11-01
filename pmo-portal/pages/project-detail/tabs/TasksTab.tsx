@@ -35,6 +35,9 @@ import { ProjectIntegrationsCard } from '@/src/components/projects/ProjectIntegr
 import { Link, useLocation, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
+import { useQueryClient } from '@tanstack/react-query';
+import { BoardDnd, DraggableCard, DroppableColumn } from '@/src/components/kanban/BoardDnd';
+import { useOptimisticMoves } from '@/src/components/kanban/useOptimisticMoves';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
@@ -44,7 +47,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { classifyExternalError } from '@/src/lib/adapterSeam/pendingPush';
 import { completionPct, formatDateOnly } from '@/src/lib/format';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
-import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import { useTaskRouteState } from '@/src/hooks/useOwnershipCacheSync';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import type { TaskWithRefs, TaskStatus, TaskPriority, TaskInput, TaskPatch } from '@/src/lib/db/tasks';
@@ -333,6 +336,16 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   const scrolledRef = useRef<string | null>(null);
 
   useEffect(() => {
+    setHighlightedTaskId(null);
+  }, [location.hash]);
+
+  useEffect(() => {
+    if (!highlightedTaskId) return;
+    const timerId = setTimeout(() => setHighlightedTaskId(null), 2000);
+    return () => clearTimeout(timerId);
+  }, [highlightedTaskId]);
+
+  useEffect(() => {
     const hash = location.hash; // e.g. "#task-abc-123"
     if (!hash.startsWith('#task-')) {
       scrolledRef.current = null;
@@ -343,17 +356,18 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
     if (scrolledRef.current === taskId) return;
     // Attempt to scroll — the element may not yet be rendered (data still loading).
     // requestAnimationFrame gives the list one paint cycle.
-    const doScroll = () => {
+    const rafId = requestAnimationFrame(() => {
       const el = document.getElementById(`task-${taskId}`);
       if (el) {
         scrolledRef.current = taskId;
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setHighlightedTaskId(taskId);
-        // Remove highlight after 2 s so it is genuinely transient.
-        setTimeout(() => setHighlightedTaskId(null), 2000);
       }
+    });
+
+    return () => {
+      cancelAnimationFrame(rafId);
     };
-    requestAnimationFrame(doScroll);
   // Re-run when data loads (in case the element wasn't mounted on initial render).
   }, [location.hash, data, view]);
 
@@ -362,18 +376,20 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   // `may('edit','task')` with NO ctx — the record-scoped predicate fails closed on missing
   // identity, so an Engineer could create a task and then not edit it: the exact incoherence the
   // ruling exists to prevent, invisible to every non-rendered test (3-lens review, C1).
-  const canCreate = may('create', 'task');
+  const route = useTaskRouteState(projectId);
+  const routeKnown = route !== 'unknown';
+  const canCreate = routeKnown && may('create', 'task');
+  const externallyOwned = route === 'external';
   const canEditTask = (task: TaskWithRefs): boolean =>
-    may('edit', 'task', {
+    routeKnown && may('edit', 'task', {
       currentUserId,
-      record: { created_by: task.created_by, assignee_id: task.assignee_id },
+      record: { created_by: task.created_by, assignee_id: task.assignee_id, externallyOwned },
     });
-  const canDelete = may('delete', 'task');
+  const canDelete = routeKnown && may('delete', 'task');
 
   // ADR-0056: the per-task pending-push badge wires in ONLY when task writes route externally
   // (ClickUp-owned). PMO-owned orgs stay byte-for-byte — no badge chrome at all (AC-CUA-061).
-  const externallyOwned = routeTaskWrite(projectId) === 'external';
-  const canArchive = may('archive', 'task');
+  const canArchive = routeKnown && may('archive', 'task');
 
   // Review fix #5 — one headline for one event: an externally-routed write fails through the SAME
   // vocabulary the badge renders (classifyExternalError), so the toast and the badge never disagree.
@@ -407,7 +423,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
 
   /** May the current viewer set THIS task's status? Managers: any; Engineer: own only. */
   const canSetStatus = (t: TaskWithRefs): boolean =>
-    may('edit', 'taskStatus', { currentUserId, record: { assignee_id: t.assignee_id } });
+    routeKnown && may('edit', 'taskStatus', { currentUserId, record: { assignee_id: t.assignee_id } });
   useEffect(() => {
     const taskIds = new Set(all.map((task) => task.id));
     setSelectedTaskIds((current) => {
@@ -419,6 +435,9 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   const canBulkStatus = selectedTasks.length > 0 && selectedTasks.every(canSetStatus);
   const canBulkEdit = selectedTasks.length > 0 && selectedTasks.every(canEditTask);
   const canBulkArchive = canArchive && !externallyOwned && selectedTasks.some((task) => task.archived_at == null);
+  const canApplyBulk = bulkAction === 'status' ? canBulkStatus
+    : bulkAction === 'archive' ? canBulkArchive
+      : canBulkEdit;
   const taskSelection: DataTableSelection<TaskWithRefs> = {
     selectedIds: selectedTaskIds,
     onChange: (ids) => {
@@ -439,8 +458,9 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         : undefined;
 
   // ── Mutations ───────────────────────────────────────────────────────────
-  const onStatusChange = async (task: TaskWithRefs, status: TaskStatus) => {
-    if (status === task.status) return;
+  // Resolves true when the write landed, false when it was skipped or failed (the board drop rolls back on false).
+  const onStatusChange = async (task: TaskWithRefs, status: TaskStatus): Promise<boolean> => {
+    if (status === task.status || !canSetStatus(task)) return false;
     try {
       await updateStatus.mutateAsync({ id: task.id, status });
       toast(
@@ -451,13 +471,16 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         }),
         'success',
       );
+      return true;
     } catch (err) {
       const { headline, detail } = classifyWriteError(err);
       toast(headline, detail, 'warning');
+      return false;
     }
   };
 
   const onArchive = async (task: TaskWithRefs) => {
+    if (!canArchive || externallyOwned) return;
     try {
       await archive.mutateAsync({ id: task.id, archived: task.archived_at == null });
       toast(
@@ -474,7 +497,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
   };
 
   const onDeleteConfirm = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget || !canDelete) return;
     const target = deleteTarget;
     try {
       await remove.mutateAsync(target.id);
@@ -489,7 +512,9 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
 
   const applyBulkAction = async () => {
     if (!bulkAction || !selectedTasks.length || bulkPending) return;
-    if (bulkAction === 'status' && !bulkStatus) return;
+    if ((bulkAction === 'assignee' || bulkAction === 'due') && !canBulkEdit) return;
+    if (bulkAction === 'archive' && !canBulkArchive) return;
+    if (bulkAction === 'status' && (!bulkStatus || !canBulkStatus)) return;
     if (bulkAction === 'assignee' && !bulkAssignee) return;
     if (bulkAction === 'due' && !bulkDueDate && !bulkClearDueDate) return;
 
@@ -710,7 +735,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
           {canBulkArchive && <Button variant="outline" size="sm" aria-pressed={bulkAction === 'archive'} onClick={() => setBulkAction((current) => current === 'archive' ? null : 'archive')}>{t('projectDetail.tasks.bulk.archive', 'Archive')}</Button>}
           <Button variant="ghost" size="sm" onClick={() => { setSelectedTaskIds(new Set()); setBulkAction(null); }}>{t('projectDetail.tasks.bulk.clearSelection', 'Clear selection')}</Button>
         </div>}
-        {view === 'list' && bulkAction && selectedTasks.length > 0 && <div className="flex min-w-0 flex-wrap items-end gap-2 rounded-md border border-border bg-card px-3 py-2.5">
+        {view === 'list' && bulkAction && canApplyBulk && selectedTasks.length > 0 && <div className="flex min-w-0 flex-wrap items-end gap-2 rounded-md border border-border bg-card px-3 py-2.5">
           {bulkAction === 'status' && <SelectField
             hideLabel
             label={t('projectDetail.tasks.bulk.statusLabel', 'New status for selected tasks')}
@@ -805,6 +830,8 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
           statusBusy={updateStatus.isPending}
           externallyOwned={externallyOwned}
           pendingPushByTask={pendingPushByTask}
+          orgId={currentUser?.org_id}
+          projectId={projectId}
         />
       )}
 
@@ -821,7 +848,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
 
       {/* Setup stays available after the task register so it does not block daily task work. */}
       <div ref={integrationsRef}>
-        <ProjectIntegrationsCard projectId={projectId} projectName={projectName} compact />
+        <ProjectIntegrationsCard projectId={projectId} projectName={projectName} />
       </div>
 
       <TaskRecordDrawer
@@ -838,11 +865,11 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         onDelete={(task) => setDeleteTarget(task)}
         openTask={openTask}
         onClose={closeTask}
-        nestedOpen={!!formTarget || !!deleteTarget}
+        nestedOpen={!!(formTarget && (formTarget.task ? canEditTask(formTarget.task) : canCreate)) || (!!deleteTarget && canDelete)}
       />
 
       {/* Create / edit modal */}
-      {formTarget && (
+      {formTarget && (formTarget.task ? canEditTask(formTarget.task) : canCreate) && (
         <TaskFormModal
           key={formTarget.task?.id ?? 'new'}
           task={formTarget.task}
@@ -883,7 +910,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
 
       {/* Delete confirm (destructive tone) */}
       <ConfirmDialog
-        open={!!deleteTarget}
+        open={!!deleteTarget && canDelete}
         tone="destructive"
         title={
           deleteTarget
@@ -908,19 +935,22 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
 interface TaskBoardProps {
   tasks: TaskWithRefs[];
   canSetStatus: (t: TaskWithRefs) => boolean;
-  onStatusChange: (t: TaskWithRefs, status: TaskStatus) => void;
+  onStatusChange: (t: TaskWithRefs, status: TaskStatus) => Promise<boolean>;
   onActivate: (t: TaskWithRefs) => void;
   rowMenu: (task: TaskWithRefs) => RowMenuItem[];
   today: string;
   statusBusy: boolean;
   externallyOwned: boolean;
   pendingPushByTask: Record<string, import('@/src/lib/adapterSeam/pendingPush').PendingPushState>;
+  orgId: string | undefined;
+  projectId: string;
 }
 
 /**
- * Status-column board. A keyboard-first alternative to drag (ui-ux-pro-max
- * gesture-alternative): each card carries a status `<select>` for those who may
- * move it (managers: any; Engineer: own task only), or a static pill otherwise.
+ * Status-column board. Each card carries a status `<select>` for those who may
+ * move it (managers: any; Engineer: own task only), or a static pill otherwise. That select
+ * stays the keyboard and screen-reader path; dragging a card to another column (pointer and
+ * touch, DND #1637) is a shortcut to the same write, gated by the same `canSetStatus`.
  */
 const TaskBoard: React.FC<TaskBoardProps> = ({
   tasks,
@@ -932,24 +962,61 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
   statusBusy,
   externallyOwned,
   pendingPushByTask,
+  orgId,
+  projectId,
 }) => {
   const { t } = useTranslation('project');
-  const byStatus = (s: TaskStatus) => tasks.filter((task) => task.status === s);
+  const qc = useQueryClient();
+  const moves = useOptimisticMoves();
+  const byId = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
+  const byStatus = (s: TaskStatus) => tasks.filter((task) => moves.columnOf(task.id, task.status) === s);
+  // Same write, toasts and external routing as the select. The card is held in the target column
+  // while it saves and released once the tasks query has refetched, or at once on a failed write.
+  const dropTask = async (id: string, to: TaskStatus) => {
+    const task = byId.get(id);
+    if (!task || !canSetStatus(task) || to === task.status) return;
+    moves.hold(id, to);
+    moves.save(id);
+    let ok = false;
+    try {
+      ok = await onStatusChange(task, to);
+      if (ok) await qc.invalidateQueries({ queryKey: ['tasks', orgId, projectId] }, { cancelRefetch: false });
+    } finally {
+      if (ok) await moves.releaseAfterRender(id);
+      else moves.release(id);
+    }
+  };
   return (
+    <BoardDnd
+      canDrop={(id, col) => { const task = byId.get(id); return !!task && canSetStatus(task) && col !== task.status; }}
+      isHome={(id, col) => byId.get(id)?.status === col}
+      onMove={(id, col) => void dropTask(id, col as TaskStatus)}
+      cardLabel={(id) => byId.get(id)?.name ?? ''}
+      columnLabel={(id) => id}
+      renderOverlay={(id) => (
+        // The card being held, at its own width (dnd-kit sizes the overlay to the source card).
+        <div className="w-full min-w-0 rounded-md border border-border bg-card px-3 py-2.5 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
+          <span className="block whitespace-normal break-words text-[13px] font-semibold leading-snug">{byId.get(id)?.name}</span>
+        </div>
+      )}
+    >
     <Kanban className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {BOARD_STATUSES.map((s) => {
         const col = byStatus(s);
         return (
+          <DroppableColumn key={s} id={s} testId={`task-col-${s}`} className="flex min-w-0 flex-col">
+            {(dropState) => (
           <KanbanColumn
-            key={s}
             title={s}
+            dropState={dropState}
             count={col.length}
             emptyMessage={t('projectDetail.tasks.board.noTasks', 'No tasks')}
             totals={<Tooltip content={t('projectDetail.tasks.board.countTooltip', 'Count of current filtered project tasks in this status. Source: the current task list and filters.')}>
               <button type="button" aria-label={t('projectDetail.tasks.board.countHelp', 'Explain status count')} className="inline-flex rounded-sm text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="info" className="size-3.5" /></button>
             </Tooltip>}
           >
-            {col.map((task) => <div key={task.id} onClick={() => onActivate(task)} className="min-w-0 cursor-pointer rounded-md border border-border bg-card px-3 py-2.5 hover:border-muted-foreground/35 hover:bg-accent/40">
+            {col.map((task) => <DraggableCard key={task.id} id={task.id} disabled={!canSetStatus(task)} moveState={moves.stateOf(task.id)}>
+            <div onClick={() => onActivate(task)} className="min-w-0 cursor-pointer rounded-md border border-border bg-card px-3 py-2.5 hover:border-muted-foreground/35 hover:bg-accent/40">
               <div className="flex items-start justify-between gap-2">
                 <button type="button" aria-label={t('projectDetail.tasks.openTask', 'Open task {{name}}', { name: task.name })} onClick={(event) => { event.stopPropagation(); onActivate(task); }} className="min-w-0 text-left text-[13px] font-semibold leading-snug hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                   <span className="block whitespace-normal break-words">{task.name}</span>
@@ -981,11 +1048,18 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                   fullWidth
                 /> : <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>}
               </div>
-            </div>)}
+              {moves.stateOf(task.id) === 'saving' && (
+                <p className="mt-1 text-[11.5px] text-muted-foreground">{t('boardDrag:saving', 'Saving…')}</p>
+              )}
+            </div>
+            </DraggableCard>)}
           </KanbanColumn>
+            )}
+          </DroppableColumn>
         );
       })}
     </Kanban>
+    </BoardDnd>
   );
 };
 
@@ -1035,13 +1109,17 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
 
   // milestone_id is tracked separately (not part of useEntityForm, since it's a string | null
   // but not a text field). Default: pre-populated group id for create, or the task's current value.
-  const [milestoneId, setMilestoneId] = useState<string | null>(
-    task?.milestone_id ?? defaultMilestoneId,
-  );
+  const initialMilestoneId = task?.milestone_id ?? defaultMilestoneId;
+  const [milestoneId, setMilestoneId] = useState<string | null>(initialMilestoneId);
 
   // OD-INT-9 — parent_task_id is tracked the same way (string | null, not a text field).
   // Default: the task's current parent when editing, or none (top-level) when creating.
-  const [parentTaskId, setParentTaskId] = useState<string | null>(task?.parent_task_id ?? null);
+  const initialParentTaskId = task?.parent_task_id ?? null;
+  const [parentTaskId, setParentTaskId] = useState<string | null>(initialParentTaskId);
+
+  // PGB-025: Track phase and parent changes as part of form dirty state
+  const phaseDirty = milestoneId !== initialMilestoneId;
+  const parentDirty = parentTaskId !== initialParentTaskId;
 
   const form = useEntityForm<FormValues>({
     initialValues: {
@@ -1187,7 +1265,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
       submitError={saveError}
       onClose={onClose}
       loading={form.isSubmitting}
-      dirty={form.isDirty || depsDirty}
+      dirty={form.isDirty || depsDirty || phaseDirty || parentDirty}
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary}
     >

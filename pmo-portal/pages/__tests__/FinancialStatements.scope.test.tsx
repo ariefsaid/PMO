@@ -1,7 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { Session } from '@supabase/supabase-js';
 import { MemoryRouter } from 'react-router';
+import { I18nextProvider } from 'react-i18next';
+import { financeTestI18n, financeTestI18nReady } from './financeI18nTestInstance';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -121,14 +124,14 @@ const authValue = (role: string): AuthContextValue => ({
   refreshCurrentUser: vi.fn(),
 });
 
-function renderPage(role = 'Finance') {
+function renderPage(role = 'Finance', localized = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   const view = render(
     <QueryClientProvider client={client}>
       <AuthContext.Provider value={authValue(role)}>
         <ImpersonationProvider realRole={role as AuthContextValue['role']}>
           <MemoryRouter>
-            <FinancialStatements />
+            {localized ? <I18nextProvider i18n={financeTestI18n}><FinancialStatements /></I18nextProvider> : <FinancialStatements />}
           </MemoryRouter>
         </ImpersonationProvider>
       </AuthContext.Provider>
@@ -266,6 +269,52 @@ describe('Financial statements company scope (AC-007)', () => {
       periodKind: 'month', periodStart: '2026-09-01', statement: 'trial_balance', viewKind: 'account_breakdown',
     }));
     expect(screen.queryByText('private refresh failure')).not.toBeInTheDocument();
+  });
+
+  it('AC-008 support: company profit and loss preserves both native sides and source labels in Bahasa', async () => {
+    await financeTestI18nReady;
+    await financeTestI18n.changeLanguage('id');
+    try {
+      catalogueSpy.mockResolvedValue(catalogue(false));
+      renderPage('Finance', true);
+      await screen.findByText('Current native row');
+      await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Laporan' }), 'profit_and_loss');
+      expect(await screen.findByText('Prior native row')).toBeVisible();
+      expect(screen.getAllByRole('table')).toHaveLength(1);
+      expect(screen.getAllByText('Current native row')).toHaveLength(1);
+      expect(screen.getByText('Current native row')).toBeVisible();
+      expect(screen.getByRole('columnheader', { name: /Periode berjalan/ })).toBeVisible();
+      expect(screen.getByRole('columnheader', { name: /Periode sebelumnya/ })).toBeVisible();
+      expect(screen.queryByRole('combobox', { name: 'Cakupan' })).not.toBeInTheDocument();
+    } finally {
+      await financeTestI18n.changeLanguage('en');
+    }
+  });
+
+  it('AC-008 support: initial read error hides backend detail and Retry restores the report', async () => {
+    readSpy.mockRejectedValueOnce(new Error('Private backend details must stay hidden.'));
+    renderPage();
+    expect(await screen.findByText("Couldn't load financial statements")).toBeVisible();
+    expect(screen.queryByText('Private backend details must stay hidden.')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('Current native row')).toBeVisible();
+    expect(readSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('AC-008 support: keyboard order stays period kind, period, statement, then Retry', async () => {
+    readSpy.mockRejectedValue(new Error('Read failed'));
+    catalogueSpy.mockResolvedValue(catalogue(false));
+    renderPage();
+    const statement = await screen.findByRole('combobox', { name: 'Statement' });
+    await userEvent.selectOptions(statement, 'profit_and_loss');
+    await screen.findByRole('button', { name: 'Retry' });
+    screen.getByRole('combobox', { name: 'Period type' }).focus();
+    await userEvent.tab();
+    expect(screen.getByRole('combobox', { name: /^Period$/ })).toHaveFocus();
+    await userEvent.tab();
+    expect(statement).toHaveFocus();
+    await userEvent.tab();
+    expect(screen.getByRole('button', { name: 'Retry' })).toHaveFocus();
   });
 
   it('AC-007: switching mapped-project P&L to TB atomically returns to Company and never requests project TB', async () => {

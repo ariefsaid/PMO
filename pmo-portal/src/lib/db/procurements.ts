@@ -1,6 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
-import { resolveRange, type PageParams } from '@/src/lib/pagination';
+import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
 import { attachApprovalRoutes } from './approvalRoutes';
 import type { ApprovalRoute } from '@/src/lib/procurement/approvalRoute';
 
@@ -117,35 +117,45 @@ export const RESERVED_STATUSES: ProcurementRow['status'][] = [
   'Quote Selected',
 ];
 
-export async function getProjectReservedSpend(projectId: string): Promise<number> {
-  const { data, error } = await supabase
-    .from('procurements')
-    .select('total_value')
-    .eq('project_id', projectId)
-    .in('status', RESERVED_STATUSES);
+export interface ProjectReservedSpend {
+  amount: number;
+  projectCurrency: string | null;
+  budgetCurrency: string | null;
+  otherCurrencies: Array<{ currency: string | null; amount: number }>;
+}
+
+export async function getProjectReservedSpend(projectId: string): Promise<ProjectReservedSpend> {
+  const { data, error } = await supabase.rpc('project_reserved_position', { p_project_id: projectId });
   if (error) throw new Error(error.message);
-  return (data ?? []).reduce(
-    (sum, row) => sum + Number((row as { total_value: number }).total_value ?? 0),
-    0,
-  );
+  if (!data?.length) throw new Error('Project budget position unavailable');
+  const { project_currency: projectCurrency, budget_currency: budgetCurrency, positions } = data[0];
+  if (!Array.isArray(positions)) throw new Error('Project budget position unavailable');
+  const amounts = positions.map((position) => {
+    if (!position || typeof position !== 'object' || Array.isArray(position) ||
+        !(typeof position.currency === 'string' || position.currency === null) ||
+        !['string', 'number'].includes(typeof position.amount) || !Number.isFinite(Number(position.amount)) ||
+        Math.abs(Number(position.amount)) >= 2 ** 46) {
+      throw new Error('Project budget position unavailable');
+    }
+    return { currency: position.currency, amount: Number(position.amount) };
+  });
+  const own = projectCurrency ? amounts.find((row) => row.currency === projectCurrency) : undefined;
+  return {
+    amount: own?.amount ?? 0, projectCurrency, budgetCurrency,
+    otherCurrencies: amounts.filter((row) => (!projectCurrency || row.currency !== projectCurrency) && row.amount !== 0),
+  };
 }
 
 /**
  * List procurements for the caller's org. org_id is NEVER sent — RLS (org_id = auth_org_id())
- * scopes rows (FR-DAL-PROC-001). Paginated (data-layer performance hardening #4, OPT-IN):
- * passing `params.page`/`params.pageSize` range-bounds the query; omitting `params` entirely
- * preserves the original unbounded read for every existing caller (e.g. the ⌘K CommandPalette
- * record search, which indexes the full cached list).
+ * scopes rows (FR-DAL-PROC-001). Unbounded read: the ⌘K CommandPalette record search indexes
+ * the full cached list.
  */
 export async function listProcurements(
-  params?: PageParams,
   opts?: { withRefs?: boolean; withSharedDetails?: boolean },
 ): Promise<ProcurementWithRefs[]> {
-  const range = resolveRange(params);
   const selection = opts?.withSharedDetails ? SELECT_WITH_SHARED_DETAILS : opts?.withRefs ? SELECT_WITH_REFS : SELECT;
-  let q = supabase.from('procurements').select(selection);
-  if (range) q = q.range(range.from, range.to);
-  const { data, error } = await q;
+  const { data, error } = await supabase.from('procurements').select(selection);
   if (error) throw new Error(error.message);
   return attachApprovalRoutes((data ?? []) as unknown as ProcurementWithRefs[]);
 }
@@ -157,12 +167,13 @@ export async function listProcurements(
  * RLS scopes rows.
  */
 export async function listProcurementsByProject(projectId: string): Promise<ProcurementWithRefs[]> {
-  const { data, error } = await supabase
-    .from('procurements')
-    .select(PROJECT_DETAIL_SELECT)
-    .eq('project_id', projectId);
-  if (error) throw new Error(error.message);
-  return attachApprovalRoutes((data ?? []) as unknown as ProcurementWithRefs[]);
+  const data = await fetchAllRowsByKeyset((afterId, limit) => {
+    let query = supabase.from('procurements').select(PROJECT_DETAIL_SELECT)
+      .eq('project_id', projectId).order('id', { ascending: true }).limit(limit);
+    if (afterId !== null) query = query.gt('id', afterId);
+    return query as unknown as PromiseLike<{ data: ProcurementWithRefs[] | null; error: { message: string; code?: string } | null }>;
+  });
+  return attachApprovalRoutes(data);
 }
 
 /**

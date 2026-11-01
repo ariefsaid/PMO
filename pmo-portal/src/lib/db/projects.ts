@@ -2,7 +2,6 @@ import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from './projectTransitions';
-import { resolveRange, type PageParams } from '@/src/lib/pagination';
 import type { TaxTreatment } from './procurementLifecycle';
 import type { ProjectClassification } from '../projectClassification';
 
@@ -201,13 +200,9 @@ export interface ProjectHeaderInput extends ProjectClassification {
  * default partition with a precise `.eq('status', …)`. Every default and explicit status
  * scope is live-only via `.is('archived_at', null)`; explicit id and client-history reads
  * use their separate functions and retain their own archive semantics.
- *
- * Paginated (data-layer performance hardening #4, OPT-IN): passing `params.page`/
- * `params.pageSize` range-bounds the query; omitting both preserves the original unbounded
- * read for every existing caller (e.g. the ⌘K CommandPalette record search).
  */
 export async function listProjects(
-  params?: { status?: ProjectRow['status']; statuses?: ProjectRow['status'][]; pmId?: string } & PageParams,
+  params?: { status?: ProjectRow['status']; statuses?: ProjectRow['status'][]; pmId?: string },
 ): Promise<ProjectWithRefs[]> {
   // `any` is a localized escape hatch: PostgREST's TypeScript builder types
   // make it difficult to accumulate `.eq()`/`.in()` chains conditionally without
@@ -227,8 +222,6 @@ export async function listProjects(
   }
   q = q.is('archived_at', null);
   if (params?.pmId) q = q.eq('project_manager_id', params.pmId);
-  const range = resolveRange(params);
-  if (range) q = q.range(range.from, range.to);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   return (data ?? []) as unknown as ProjectWithRefs[];

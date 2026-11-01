@@ -34,7 +34,7 @@ interface Filter {
   column: string;
   value: unknown;
   /** `eq` (default), or `gt`/`lt` — the keyset-cursor / conditional-update comparisons. */
-  op?: 'eq' | 'gt' | 'lt';
+  op?: 'eq' | 'gt' | 'lt' | 'in';
 }
 
 /** One recorded request, so a test can assert HOW the read was issued (paged? ordered?). */
@@ -290,6 +290,10 @@ export class FakePostgrest {
         filters.push({ column, value, op: 'gt' });
         return builder;
       },
+      in(column: string, values: unknown[]) {
+        filters.push({ column, value: values, op: 'in' });
+        return builder;
+      },
       range(from: number, to: number) {
         range = { from, to };
         return builder;
@@ -316,6 +320,7 @@ function matches(row: FakeRow, filters: Filter[]): boolean {
     // A column the seed row simply doesn't carry is not a mismatch (the unit seeds are partial rows);
     // a column it DOES carry must satisfy the filter, so org isolation is really modelled.
     if (v === undefined) return true;
+    if (f.op === 'in') return (f.value as unknown[]).includes(v);
     if (f.op === 'gt') return String(v) > String(f.value);
     if (f.op === 'lt') return String(v) < String(f.value);
     return v === f.value;

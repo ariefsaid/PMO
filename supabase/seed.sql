@@ -2268,3 +2268,123 @@ on conflict (id) do nothing;
 
 -- Approved seed procurements carry the approved amount their approval would have stamped (0349).
 select public.backfill_procurement_approved_total();
+
+-- #1512 stock master data (S1). Master data only: no ledger rows (S2a seeds opening stock through the posting RPC).
+-- Fixed 1512.... ids (15121000 prefix, distinct from the pgTAP fixtures' 15120000); org = the seed org; keepers are the seeded Engineer and Project Manager accounts.
+insert into public.stock_units (id, org_id, code, name, whole_only) values
+  ('15121000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-000000000001','bag','Bag',true),
+  ('15121000-0000-0000-0000-0000000000d2','00000000-0000-0000-0000-000000000001','m','Metre',false),
+  ('15121000-0000-0000-0000-0000000000d3','00000000-0000-0000-0000-000000000001','kg','Kilogram',false),
+  ('15121000-0000-0000-0000-0000000000d4','00000000-0000-0000-0000-000000000001','pcs','Piece',true),
+  ('15121000-0000-0000-0000-0000000000d5','00000000-0000-0000-0000-000000000001','L','Litre',false)
+on conflict do nothing;
+insert into public.stock_items (id, org_id, code, name, unit_id, lead_time_days) values
+  ('15121000-0000-0000-0000-000000001001','00000000-0000-0000-0000-000000000001','CEM-50','Cement 50kg','15121000-0000-0000-0000-0000000000d1',7),
+  ('15121000-0000-0000-0000-000000001002','00000000-0000-0000-0000-000000000001','REBAR-12','Rebar 12mm','15121000-0000-0000-0000-0000000000d3',14),
+  ('15121000-0000-0000-0000-000000001003','00000000-0000-0000-0000-000000000001','CABLE-4','Cable 4mm','15121000-0000-0000-0000-0000000000d2',10),
+  ('15121000-0000-0000-0000-000000001004','00000000-0000-0000-0000-000000000001','CABLE-10','Cable 10mm','15121000-0000-0000-0000-0000000000d2',10),
+  ('15121000-0000-0000-0000-000000001005','00000000-0000-0000-0000-000000000001','SAND','Sand','15121000-0000-0000-0000-0000000000d3',3),
+  ('15121000-0000-0000-0000-000000001006','00000000-0000-0000-0000-000000000001','GRAVEL','Gravel','15121000-0000-0000-0000-0000000000d3',3),
+  ('15121000-0000-0000-0000-000000001007','00000000-0000-0000-0000-000000000001','PAINT-W','White paint','15121000-0000-0000-0000-0000000000d5',5),
+  ('15121000-0000-0000-0000-000000001008','00000000-0000-0000-0000-000000000001','DIESEL','Diesel','15121000-0000-0000-0000-0000000000d5',2),
+  ('15121000-0000-0000-0000-000000001009','00000000-0000-0000-0000-000000000001','BRICK','Brick','15121000-0000-0000-0000-0000000000d4',7),
+  ('15121000-0000-0000-0000-00000000100a','00000000-0000-0000-0000-000000000001','BOLT-M12','Bolt M12','15121000-0000-0000-0000-0000000000d4',21),
+  ('15121000-0000-0000-0000-00000000100b','00000000-0000-0000-0000-000000000001','PIPE-PVC','PVC pipe 3in','15121000-0000-0000-0000-0000000000d2',10),
+  ('15121000-0000-0000-0000-00000000100c','00000000-0000-0000-0000-000000000001','PANEL-PV','Solar panel mounting rail','15121000-0000-0000-0000-0000000000d4',30)
+on conflict do nothing;
+insert into public.stock_warehouses (id, org_id, code, name, kind, project_id) values
+  ('15121000-0000-0000-0000-000000002001','00000000-0000-0000-0000-000000000001','CENTRAL','Central store','central',null),
+  ('15121000-0000-0000-0000-000000002002','00000000-0000-0000-0000-000000000001','SITE-A','Site A store','site','40000000-0000-0000-0000-000000000001'),
+  ('15121000-0000-0000-0000-000000002003','00000000-0000-0000-0000-000000000001','SITE-B','Site B store','site','40000000-0000-0000-0000-000000000004'),
+  ('15121000-0000-0000-0000-000000002004','00000000-0000-0000-0000-000000000001','SITE-C','Site C store','site','40000000-0000-0000-0000-000000000013')
+on conflict do nothing;
+insert into public.stock_warehouse_keepers (org_id, warehouse_id, user_id) values
+  ('00000000-0000-0000-0000-000000000001','15121000-0000-0000-0000-000000002002','00000000-0000-0000-0000-0000000000a4'),
+  ('00000000-0000-0000-0000-000000000001','15121000-0000-0000-0000-000000002003','00000000-0000-0000-0000-0000000000a2')
+on conflict do nothing;
+
+-- #1512 S2a opening stock, posted THROUGH the posting RPC as the seeded Admin (no direct ledger write: the seed obeys the
+-- single-writer invariant it tests). Fixed client_request_ids make a re-run a no-op (FR-STK-015). Unit costs are in the seed org's currency (USD).
+do $$
+declare c text := '15121000-0000-0000-0000-'; w_cen uuid := '15121000-0000-0000-0000-000000002001';
+begin
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a5","role":"authenticated"}', true);
+  perform public.create_stock_document(jsonb_build_object('kind','receive','warehouse_id',w_cen,'note','Opening stock'),
+    jsonb_build_array(
+      jsonb_build_object('item_id',c||'000000001001','quantity',400,  'unit_cost',8.50),
+      jsonb_build_object('item_id',c||'000000001002','quantity',5000, 'unit_cost',0.95),
+      jsonb_build_object('item_id',c||'000000001003','quantity',1500, 'unit_cost',1.20),
+      jsonb_build_object('item_id',c||'000000001004','quantity',600,  'unit_cost',3.50),
+      jsonb_build_object('item_id',c||'000000001005','quantity',20000,'unit_cost',0.03),
+      jsonb_build_object('item_id',c||'000000001006','quantity',25000,'unit_cost',0.035),
+      jsonb_build_object('item_id',c||'000000001007','quantity',200,  'unit_cost',9.00),
+      jsonb_build_object('item_id',c||'000000001008','quantity',2000, 'unit_cost',1.10),
+      jsonb_build_object('item_id',c||'000000001009','quantity',10000,'unit_cost',0.45),
+      jsonb_build_object('item_id',c||'00000000100a','quantity',800,  'unit_cost',0.60),
+      jsonb_build_object('item_id',c||'00000000100b','quantity',300,  'unit_cost',4.50),
+      jsonb_build_object('item_id',c||'00000000100c','quantity',120,  'unit_cost',28.00)),
+    true, (c||'0000000f0001')::uuid);
+  perform public.create_stock_document(jsonb_build_object('kind','transfer','warehouse_id',w_cen,'to_warehouse_id',c||'000000002002'),
+    jsonb_build_array(jsonb_build_object('item_id',c||'000000001001','quantity',80),
+                      jsonb_build_object('item_id',c||'000000001002','quantity',1200),
+                      jsonb_build_object('item_id',c||'000000001003','quantity',400)), true, (c||'0000000f0002')::uuid);
+  perform public.create_stock_document(jsonb_build_object('kind','transfer','warehouse_id',w_cen,'to_warehouse_id',c||'000000002003'),
+    jsonb_build_array(jsonb_build_object('item_id',c||'000000001005','quantity',5000),
+                      jsonb_build_object('item_id',c||'000000001006','quantity',6000),
+                      jsonb_build_object('item_id',c||'000000001009','quantity',3000)), true, (c||'0000000f0003')::uuid);
+  perform public.create_stock_document(jsonb_build_object('kind','transfer','warehouse_id',w_cen,'to_warehouse_id',c||'000000002004'),
+    jsonb_build_array(jsonb_build_object('item_id',c||'00000000100a','quantity',200),
+                      jsonb_build_object('item_id',c||'00000000100c','quantity',40),
+                      jsonb_build_object('item_id',c||'000000001008','quantity',500)), true, (c||'0000000f0004')::uuid);
+  perform set_config('request.jwt.claims', '', true);
+end $$;
+
+-- #1512 S5 BoQ + allowances. P001 (Innovate Corp HQ Fit-Out, Ongoing) takes the demo: its SITE-A store holds cement, rebar and
+-- cable, and no BoQ / progress test reads P001 (P013 is kept BoQ-free for the delivery-milestone journey). Issues are posted
+-- THROUGH the RPC in two months relative to the org's today, so the consumption report always has last month and this month.
+-- Cement on FO-01 ends over its allowance (67 issued - 3 returned = 64 vs 60); rebar on FO-04 has no allowance (unplanned).
+insert into public.boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate, line_no) values
+  ('15121000-0000-0000-0000-00000000b001','00000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001','FO-01','Floor screed','m2',1200,18,1),
+  ('15121000-0000-0000-0000-00000000b002','00000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001','FO-02','Blockwork partitions','m2',800,32,2),
+  ('15121000-0000-0000-0000-00000000b003','00000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001','FO-03','Electrical first fix','m',2500,6,3),
+  ('15121000-0000-0000-0000-00000000b004','00000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001','FO-04','Structural reinforcement','kg',6000,2.1,4)
+on conflict do nothing;
+insert into public.boq_material_allowances (id, org_id, boq_item_id, item_id, planned_quantity) values
+  ('15121000-0000-0000-0000-00000000a001','00000000-0000-0000-0000-000000000001','15121000-0000-0000-0000-00000000b001','15121000-0000-0000-0000-000000001001',60),
+  ('15121000-0000-0000-0000-00000000a002','00000000-0000-0000-0000-000000000001','15121000-0000-0000-0000-00000000b003','15121000-0000-0000-0000-000000001003',300)
+on conflict do nothing;
+do $$
+declare c text := '15121000-0000-0000-0000-'; w_a uuid := '15121000-0000-0000-0000-000000002002'; p uuid := '40000000-0000-0000-0000-000000000001';
+  m0 date := date_trunc('month', public.stock_org_today('00000000-0000-0000-0000-000000000001'))::date; m1 date; v_doc uuid; v_line uuid;
+begin
+  m1 := (m0 - interval '1 month')::date;
+  -- last month, by the Admin (may date any past day)
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a5","role":"authenticated"}', true);
+  perform public.create_stock_document(jsonb_build_object('kind','issue','warehouse_id',w_a,'project_id',p,'occurred_on',(m1 + 4)::text),
+    jsonb_build_array(jsonb_build_object('item_id',c||'000000001001','quantity',20,'boq_item_id',c||'00000000b001')), true, (c||'0000000f0101')::uuid);
+  perform public.create_stock_document(jsonb_build_object('kind','issue','warehouse_id',w_a,'project_id',p,'occurred_on',(m1 + 19)::text),
+    jsonb_build_array(jsonb_build_object('item_id',c||'000000001001','quantity',25,'boq_item_id',c||'00000000b001'),
+                      jsonb_build_object('item_id',c||'000000001003','quantity',150,'boq_item_id',c||'00000000b003')), true, (c||'0000000f0102')::uuid);
+  -- this month (day 1, never in the future), by the SITE-A keeper
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a4","role":"authenticated"}', true);
+  v_doc := public.create_stock_document(jsonb_build_object('kind','issue','warehouse_id',w_a,'project_id',p,'occurred_on',m0::text),
+    jsonb_build_array(jsonb_build_object('item_id',c||'000000001001','quantity',22,'boq_item_id',c||'00000000b001'),
+                      jsonb_build_object('item_id',c||'000000001002','quantity',120,'boq_item_id',c||'00000000b004')), true, (c||'0000000f0103')::uuid);
+  select id into v_line from public.stock_document_lines where document_id = v_doc and item_id = (c||'000000001001')::uuid;
+  perform public.create_stock_document(jsonb_build_object('kind','return','warehouse_id',w_a,'occurred_on',m0::text),
+    jsonb_build_array(jsonb_build_object('item_id',c||'000000001001','quantity',3,'source_line_id',v_line)), true, (c||'0000000f0104')::uuid);
+  perform set_config('request.jwt.claims', '', true);
+end $$;
+
+-- #1512 S6 reorder levels, set THROUGH the RPC as the seeded Admin. Cement at Site A (16 on hand) and sand at Site B (5,000) end below
+-- their level and so appear on the worklist; rebar and cable sit above theirs. History is too short for a suggestion on any seeded pair.
+do $$
+declare c text := '15121000-0000-0000-0000-';
+begin
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a5","role":"authenticated"}', true);
+  perform public.set_stock_reorder_level((c||'000000002002')::uuid, (c||'000000001001')::uuid, 60, 100);
+  perform public.set_stock_reorder_level((c||'000000002003')::uuid, (c||'000000001005')::uuid, 6000, 10000);
+  perform public.set_stock_reorder_level((c||'000000002002')::uuid, (c||'000000001002')::uuid, 800, 1500);
+  perform public.set_stock_reorder_level((c||'000000002002')::uuid, (c||'000000001003')::uuid, 200, 400);
+  perform set_config('request.jwt.claims', '', true);
+end $$;

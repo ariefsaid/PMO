@@ -7,9 +7,13 @@ import { MemoryRouter } from 'react-router';
 import ProcurementCreate from '../../ProcurementCreate';
 
 const createRequest = vi.fn();
+// PR-2 (efe58d045/82686a63d) made procurement draft creation atomic: the page now calls the
+// single `useCreateProcurementWithItems` mutation with an `{ id, header, lines }` input instead of
+// `useCreateProcurement` + per-line `useCreateProcurementItem`. The mock follows the module; the
+// AC-APR-037 goal-oracle is unchanged (chosen category reaches the create call, "No category"
+// omits the field from the header).
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
-  useCreateProcurement: () => ({ mutateAsync: createRequest, isPending: false }),
-  useCreateProcurementItem: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useCreateProcurementWithItems: () => ({ mutateAsync: createRequest, isPending: false }),
 }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
@@ -33,7 +37,7 @@ describe('AC-APR-037 budget category on the request forms', () => {
     await userEvent.selectOptions(screen.getByLabelText('Budget category'), 'Materials');
     await userEvent.click(screen.getByRole('button', { name: /save/i }));
     await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1));
-    expect(onCreate.mock.calls[0][0]).toMatchObject({ budgetCategory: 'Materials' });
+    expect(onCreate.mock.calls[0][0]).toMatchObject({ header: { budgetCategory: 'Materials' } });
   });
 
   it('AC-APR-037: "No category" omits the field', async () => {
@@ -41,7 +45,7 @@ describe('AC-APR-037 budget category on the request forms', () => {
     await userEvent.type(screen.getByLabelText(/title/i), 'Cable');
     await userEvent.click(screen.getByRole('button', { name: /save/i }));
     await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1));
-    expect(onCreate.mock.calls[0][0]).not.toHaveProperty('budgetCategory');
+    expect(onCreate.mock.calls[0][0].header).not.toHaveProperty('budgetCategory');
   });
 
   it('AC-APR-037: the Draft header edit sends a cleared category as null', async () => {

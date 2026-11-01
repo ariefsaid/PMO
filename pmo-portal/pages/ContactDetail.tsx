@@ -1,3 +1,5 @@
+import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
+import { contactIdentityChanged } from '@/src/lib/crmOwnership';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { HistorySection } from '@/src/components/history/HistorySection';
 import React, { useLayoutEffect, useMemo, useState } from 'react';
@@ -56,6 +58,8 @@ const kindOptions = (t: TFunction) => [
 
 const ContactDetail: React.FC = () => {
   const { t } = useTranslation();
+  const ownership = useDomainOwnershipMode('companies');
+  const ownershipReady = ownership.mode === 'pmo' || ownership.mode === 'external';
   const { contactId } = useParams<{ contactId: string }>();
   const navigate = useNavigate();
   const may = usePermission();
@@ -82,8 +86,8 @@ const ContactDetail: React.FC = () => {
 
   // CRM directory access = the master-data roles (Engineer = ○) — mirrors Companies §D.
   const canView = may('view', 'contact');
-  const canEdit = may('edit', 'contact');
-  const canArchive = may('archive', 'contact');
+  const canEdit = ownershipReady && may('edit', 'contact');
+  const canArchive = ownershipReady && may('archive', 'contact');
 
   const companies = useMemo(() => companyData ?? [], [companyData]);
   const companyById = useMemo(() => new Map(companies.map((c) => [c.id, companyDisplayName(c)])), [companies]);
@@ -271,6 +275,8 @@ const ContactDetail: React.FC = () => {
         </CardPad>
       </Card>
 
+      {!ownershipReady && <p className="mb-3 text-sm text-muted-foreground">{ownership.mode === 'error' ? t('crm:ownershipError', 'Ownership could not be loaded. Try again.') : t('crm:ownershipChecking', 'Checking ownership…')}{ownership.mode === 'error' && <Button variant="ghost" size="sm" onClick={ownership.retry}>{t('crm:retry', 'Retry')}</Button>}</p>}
+
       {/* CRM activity timeline + Log-activity form — moved here off the retired drawer. */}
       <Card variant="bare">
         <CardHead>{t('contactDetail.activity.title', 'Activity')}</CardHead>
@@ -283,9 +289,10 @@ const ContactDetail: React.FC = () => {
       <HistorySection entityType="contact" entityId={contact.id} />
 
       {/* Edit modal — reuses the shared create/edit form. */}
-      {editOpen && (
+      {editOpen && canEdit && (
         <ContactEditModal
           contact={contact}
+          ownership={ownership.mode}
           companyOptions={companyOptions}
           onClose={() => setEditOpen(false)}
           onUpdate={async (id, input) => {
@@ -725,6 +732,7 @@ const makeValidate =
   };
 
 interface ContactEditModalProps {
+  ownership: 'pmo' | 'external' | 'unknown' | 'error';
   contact: {
     id: string;
     full_name: string;
@@ -742,12 +750,14 @@ interface ContactEditModalProps {
 
 const ContactEditModal: React.FC<ContactEditModalProps> = ({
   contact,
+  ownership,
   companyOptions,
   onClose,
   onUpdate,
   onError,
 }) => {
   const { t } = useTranslation();
+  const mirrorReadOnly = ownership === 'external';
   const form = useEntityForm<FormValues>({
     initialValues: {
       full_name: contact.full_name,
@@ -762,6 +772,7 @@ const ContactEditModal: React.FC<ContactEditModalProps> = ({
     requiredFields: ['full_name', 'company_id'],
     module: 'contacts',
   });
+  const identityChanged = mirrorReadOnly && contactIdentityChanged(form.values, contact);
 
   const nameField = form.fieldProps('full_name');
   const companyField = form.fieldProps('company_id');
@@ -783,12 +794,13 @@ const ContactEditModal: React.FC<ContactEditModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
+      if (mirrorReadOnly && contactIdentityChanged(values, contact)) return;
       const input: ContactInput = {
-        company_id: values.company_id,
-        full_name: values.full_name.trim(),
+        company_id: mirrorReadOnly ? contact.company_id : values.company_id,
+        full_name: mirrorReadOnly ? contact.full_name : values.full_name.trim(),
         title: values.title.trim() || null,
-        email: values.email.trim() || null,
-        phone: values.phone.trim() || null,
+        email: mirrorReadOnly ? contact.email : values.email.trim() || null,
+        phone: mirrorReadOnly ? contact.phone : values.phone.trim() || null,
         notes: values.notes.trim() || null,
       };
       try {
@@ -814,12 +826,15 @@ const ContactEditModal: React.FC<ContactEditModalProps> = ({
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
-      submitDisabled={!form.isComplete}
+      submitDisabled={!form.isComplete || identityChanged}
       errorSummary={errorSummary.length ? errorSummary : undefined}
     >
+      {identityChanged && <p className="mb-3 text-sm text-muted-foreground">{t('crm:ownershipChanged', 'Ownership changed while you were editing. Close and reopen the form to continue.')}</p>}
+      {mirrorReadOnly && <p className="mb-3 text-sm text-muted-foreground">{t('crm:mirrorFields', 'Name, company, email and phone are managed in ERP.')}</p>}
       <FormSection legend={t('contactDetail.editContact.legendIdentity', 'Identity')}>
         <FormGrid>
           <TextField
+            disabled={mirrorReadOnly}
             id={nameField.id}
             label={t('contactDetail.field.fullName', 'Full name')}
             required
@@ -832,6 +847,7 @@ const ContactEditModal: React.FC<ContactEditModalProps> = ({
             fullWidth
           />
           <SelectField
+            disabled={mirrorReadOnly}
             id={companyField.id}
             label={t('contactDetail.field.company', 'Company')}
             required
@@ -857,6 +873,7 @@ const ContactEditModal: React.FC<ContactEditModalProps> = ({
       <FormSection legend={t('contactDetail.editContact.legendContact', 'Contact details')}>
         <FormGrid>
           <TextField
+            disabled={mirrorReadOnly}
             id={emailField.id}
             label={t('contactDetail.field.email', 'Email')}
             type="email"
@@ -867,6 +884,7 @@ const ContactEditModal: React.FC<ContactEditModalProps> = ({
             autoComplete="email"
           />
           <TextField
+            disabled={mirrorReadOnly}
             id={phoneField.id}
             label={t('contactDetail.field.phone', 'Phone')}
             value={phoneField.value}

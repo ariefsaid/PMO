@@ -6,11 +6,11 @@
  */
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import type { FlatEntry } from '@/src/lib/timesheet-derive';
+import type { TimesheetEntryWithProject } from '@/src/lib/db/timesheets';
 import { formatMonthDay } from '@/src/lib/format';
 
 export interface EntryListProps {
-  entries: FlatEntry[];
+  entries: TimesheetEntryWithProject[];
 }
 
 function formatEntryDate(iso: string): string {

@@ -172,7 +172,7 @@ const companiesWriter: ReadModelWriter = {
 };
 
 /** Round-7 B10 — the REQUIRED-link org guard for the procurement mirrors (the defence-in-depth half;
- *  `dispatchFactory.assertCommandLinksSameOrg` is the pre-flight that refuses before any ERP write).
+ *  `dispatchPreflight.assertCommandLinksSameOrg` is the pre-flight that refuses before any ERP write).
  *
  *  These writers run as SERVICE ROLE, so RLS does not protect them: they used to copy the command's
  *  `procurementId`/`vendorId`/`invoiceId` verbatim into an insert stamped with the CALLER's org_id,
@@ -184,14 +184,13 @@ const companiesWriter: ReadModelWriter = {
  *  nulling (the insert would fail on the constraint anyway), so `missing` throws the SAME classified
  *  error as cross-org rather than a raw 23503. Defined below `checkLinkSameOrg`/`resolveLinkOrNull`
  *  is not possible (hoisting is fine for function declarations) — it reuses them, never a second copy. */
-async function requireOwnOrgLink(ctx: ReadModelWriterCtx, table: string, id: string): Promise<string> {
+async function requireOwnOrgLink(ctx: ReadModelWriterCtx, table: string, id: string): Promise<void> {
   if ((await checkLinkSameOrg(ctx, table, id)) === 'missing') {
     throw new AppError(
       `cross-org link rejected: ${table} '${id}' does not exist in org '${ctx.orgId}'`,
       'cross-org-link-rejected',
     );
   }
-  return id;
 }
 
 /** A registered-but-not-yet-wired erp_doc_kind WITHIN the 'procurement' writer (task 4.5's own
@@ -616,43 +615,15 @@ async function resolveLinkOrNull(
  *  thenable PostgrestFilterBuilder shape real supabase-js resolves through with no terminal call).
  *  `ExternalRefsLookupClient` only models the `.maybeSingle()` single-row shape, and the SI-cancel
  *  auto-unlink needs every referencing row, not just one. */
-interface ListSelectClient {
-  from(table: string): { select(columns: string): ListFilterBuilder };
-}
-interface ListFilterBuilder extends PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }> {
-  eq(column: string, value: string): ListFilterBuilder;
-}
-
-/** AC-SAR-022 (Luna re-audit BLOCK 3) — the SI-cancel auto-unlink reconcile, OUTBOUND writer side.
- *  ERPNext returns 200 on an SI cancel even when a Receive Payment Entry references it, silently
- *  auto-unlinking the PE's `references` child table (OQ-SAR-1 #8 — unlike procurement, an active PE
- *  does NOT block the cancel). The PMO mirror must follow: every `incoming_payments` row still citing
- *  the cancelled SI becomes on-account (`sales_invoice_id` -> null), else the read-model shows a
- *  receipt allocated to an invoice ERPNext no longer considers allocated.
- *
- *  The per-row patch comes from `transitionPolicy.reconcileSiCancelAutoUnlink` (the designated pure
- *  helper — imported, never duplicated). Its `siTombstone` half is deliberately unused here: the SI's
- *  own `erp_cancelled_at`/`erp_docstatus`/`erp_modified` tombstone is already written by the caller's
- *  mirror `patch` from the ERP-refetched canonical; this writer applies only the PE-receive half. */
+/** Reconcile all receipt links for a cancelled invoice in one org-scoped update. */
 async function unlinkPeReceivesOnSiCancel(ctx: ReadModelWriterCtx, canonical: PmoRecord): Promise<void> {
-  const { data, error } = await (ctx.serviceClient as unknown as ListSelectClient)
-    .from('incoming_payments')
-    .select('id')
-    .eq('org_id', ctx.orgId)
-    .eq('sales_invoice_id', String(canonical.id));
+  const { peReceivePatch } = reconcileSiCancelAutoUnlink(String(canonical.id), String(canonical.erp_modified ?? ''));
+  if (!peReceivePatch) return;
+  const { error } = await (ctx.serviceClient.from('incoming_payments').update(peReceivePatch)
+    .eq('org_id', ctx.orgId).eq('sales_invoice_id', String(canonical.id)) as unknown as Promise<{
+      error: { message: string; code?: string } | null;
+    }>);
   if (error) throw new AppError(error.message, error.code);
-  const referencing = Array.isArray(data) ? (data as Array<{ id: string }>) : [];
-  const erpModified = (canonical.erp_modified as string | null | undefined) ?? '';
-  for (const row of referencing) {
-    const { peReceivePatch } = reconcileSiCancelAutoUnlink(row.id, erpModified);
-    if (!peReceivePatch) continue;
-    const { error: unlinkError } = await (
-      ctx.serviceClient.from('incoming_payments').update(peReceivePatch).eq('org_id', ctx.orgId).eq('id', row.id) as unknown as Promise<{
-        error: { message: string; code?: string } | null;
-      }>
-    );
-    if (unlinkError) throw new AppError(unlinkError.message, unlinkError.code);
-  }
 }
 
 /** Append a body-writing caller to `sales_invoice_authors` — the APPEND-ONLY authorship SET the
@@ -730,7 +701,7 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
   const siReceived = (canonical.received_date as string | null | undefined) ?? null;
   if (siReceived !== null) patch.received_date = siReceived;
   if (command.operation === 'create') {
-    const record = command.record as { projectId?: string; customerId?: string; workOrderId?: string | null };
+    const record = command.record as { projectId?: string; customerId?: string; workOrderId?: string | null; billingKind?: unknown };
     // Luna SF7 + BLOCK #11: cross-org FK guard — verify each non-null link belongs to ctx.orgId BEFORE
     // the service-role insert (RLS is bypassed, so the writer must enforce tenancy itself). A null link
     // (e.g. an SI without a project) skips the lookup — only asserted links are guarded. A link whose
@@ -743,6 +714,10 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
     // one an ordinary create names. The outbox fence (0262) checked its project, status and what is left before the
     // ERP write, so the same-project trigger (0193 §10) cannot refuse it here; an absent work order writes no key.
     const workOrderId = await resolveLinkOrNull(ctx, 'work_orders', record.workOrderId);
+    // #1471 (D5): only the two known kinds are written; anything else is ignored so a bad value cannot abort the mirror
+    // after the ERP document already exists. Update/transition branches never mention the column (FR-012).
+    // A kind only means something on a project-linked invoice, so an unlinked mirror keeps the column default.
+    const billingKind = projectId && (record.billingKind === 'contract' || record.billingKind === 'other') ? record.billingKind : null;
     // project_id and customer_id are machine-set from the command record
     // Luna BLOCK 4: stamp author_user_id = the dispatch caller (creator) so the submit SoD is not a
     // no-op (the RPC skips the approver≠author check when author is null). ctx.callerUserId is
@@ -754,6 +729,7 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
       erp_project: canonical.erp_project ?? null,
       customer_id: customerId,
       ...(workOrderId ? { work_order_id: workOrderId } : {}),
+      ...(billingKind ? { billing_kind: billingKind } : {}),
       author_user_id: ctx.callerUserId ?? null,
       ...patch,
       // NOT NULL with no DB default (0188), so the create branch must always state it. ERPNext returns
@@ -1273,12 +1249,14 @@ const expensesWriter: ReadModelWriter = {
     if (!erpName) throw new AppError(`expense posting ${identity}: the ERP result carries no ERP document name`, 'commit-rejected');
     const erpModified = (canonical.erp_modified as string | null | undefined) ?? null;
     const now = new Date().toISOString();
+    // #1515 §9: a site float transfer lands on its own side mirror (keyed the same way, by posting identity).
+    const table = (command.record as { erp_doc_kind?: unknown }).erp_doc_kind === 'imprest-transfer' ? 'imprest_posting_erp_mirror' : 'expense_posting_erp_mirror';
     const write = async (postingIdentity: string, patch: Record<string, unknown>): Promise<void> => {
-      const { error } = await (ctx.serviceClient.from('expense_posting_erp_mirror').update(patch)
+      const { error } = await (ctx.serviceClient.from(table).update(patch)
         .eq('org_id', ctx.orgId).eq('posting_identity', postingIdentity) as unknown as Promise<{
         error: { message: string; code?: string } | null;
       }>);
-      if (error) throw new AppError(`expense_posting_erp_mirror write failed: ${error.message}`, 'DISPATCH_FAILED');
+      if (error) throw new AppError(`${table} write failed: ${error.message}`, 'DISPATCH_FAILED');
     };
     await write(identity, {
       push_state: 'pushed', push_error: null, erp_name: erpName, pushed_at: now,

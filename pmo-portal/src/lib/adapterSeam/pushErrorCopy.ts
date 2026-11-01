@@ -13,7 +13,8 @@
  * it is decided once, here, and proven once, here.
  *
  * Three facts per code:
- *   • `message`  — a sentence. NEVER a token (`RAW_ADAPTER_TOKEN` is asserted against in the tests).
+ *   • `message`  — a sentence. NEVER a token (the tests assert against the test-support
+ *                  `lib/testing/rawAdapterToken` oracle).
  *   • `retryable`— can re-running the SAME command plausibly land it without a change elsewhere?
  *                  Fail OPEN on an unknown code: stranding an operator is worse than a wasted click.
  *   • `transport`— did it fail to REACH ERPNext (nothing on screen was fixable), or did ERPNext /
@@ -22,13 +23,6 @@
  * `remedy` is what must change first; it is always present when `retryable` is false, because a
  * withheld button with no route out is a dead end (the C-3 lesson, applied to error copy).
  */
-
-/**
- * A raw adapter token: two-or-more lowercase/digit segments joined by hyphens, standing alone as a
- * word. Surfaces assert against this so a NEW code can never quietly reach the DOM by being added to
- * a writer and forgotten here.
- */
-export const RAW_ADAPTER_TOKEN = /(?:^|[\s(])[a-z0-9]+(?:-[a-z0-9]+)+(?=$|[\s.,;:)])/;
 
 export interface PushErrorCopy {
   /** The classified code, for logic/tests. `null` when nothing was recorded. */
@@ -175,12 +169,13 @@ const CODES: Record<string, Entry> = {
     retryable: true,
   },
   'external-unreachable': {
-    message: 'ERPNext could not be reached, so the push never arrived.',
+    message: 'ERPNext could not be reached, so the outcome is unconfirmed.',
     retryable: true,
     transport: true,
+    remedy: 'The system rechecks ERPNext on its own; confirm there before assuming the push did not land.',
   },
   DISPATCH_FAILED: {
-    message: 'The push failed before ERPNext answered.',
+    message: 'The push stopped before ERPNext answered, so the outcome is unconfirmed.',
     retryable: true,
     transport: true,
   },

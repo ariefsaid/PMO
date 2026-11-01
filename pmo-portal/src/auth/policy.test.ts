@@ -19,6 +19,7 @@ const STATEMENT_NON_VIEW_ACTIONS: Exclude<Action, 'view'>[] = [
   'record_efaktur',
   'assign_project',
   'manage_external_bindings',
+  'view_financial_directory',
   'manage',
   'push_timesheet',
   'confirm_employee_link',
@@ -682,6 +683,22 @@ describe('can() — expenseClaim (#775; migration 0247 is the enforcement author
     expect(allowedRoles('edit', 'expenseClaim', own('Rejected'))).toEqual(ALL_ROLES);
     expect(allowedRoles('edit', 'expenseClaim', own('Submitted'))).toEqual([]);
     expect(allowedRoles('edit', 'expenseClaim', { currentUserId: 'u2', record: { claimant_id: 'u1', status: 'Draft' } })).toEqual([]);
+  });
+});
+
+describe('can() — site imprest (#1515; RLS and the 0422-0424 RPCs are the authority)', () => {
+  it('AC-IMP-085 an Engineer cannot view a float, plan or replenishment', () => {
+    for (const e of ['imprestFloat', 'imprestPlan', 'imprestReplenishment'] as const) {
+      expect(allowedRoles('view', e)).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+    }
+  });
+  it('AC-IMP-085 only Admin and Finance create a float', () => {
+    expect(allowedRoles('create', 'imprestFloat')).toEqual(['Admin', 'Finance']);
+    expect(allowedRoles('edit', 'imprestFloat')).toEqual(['Admin', 'Finance']);
+  });
+  it('AC-IMP-085 approval rank creates a plan; nobody creates a replenishment by policy (identity-gated RPC)', () => {
+    expect(allowedRoles('create', 'imprestPlan')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+    expect(allowedRoles('create', 'imprestReplenishment')).toEqual([]);
   });
 });
 

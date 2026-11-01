@@ -43,4 +43,8 @@ export const EVENT_PRODUCERS: Record<AnalyticsEventName, { producer: string; kin
   agent_thread_resumed:      { producer: 'trackAgentThreadResumed',     kind: 'facade' },
   agent_feedback_rated:      { producer: 'trackAgentFeedbackRated',     kind: 'facade' },
   agent_compose_view_saved:  { producer: 'trackAgentComposeViewSaved',  kind: 'facade' },
+  budget_activated:          { producer: 'trackBudgetActivated',        kind: 'facade' },
+  invoice_issued:            { producer: 'trackInvoiceIssued',          kind: 'facade' },
+  payment_recorded:          { producer: 'trackPaymentRecorded',        kind: 'facade' },
+  purchase_approved:         { producer: 'trackPurchaseApproved',       kind: 'facade' },
 };

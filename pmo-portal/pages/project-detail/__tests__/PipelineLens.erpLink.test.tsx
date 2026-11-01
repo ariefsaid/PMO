@@ -18,6 +18,10 @@ const { transitionProject, synchronizeErpProject } = vi.hoisted(() => ({
   synchronizeErpProject: vi.fn(),
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/lib/repositories', async (orig) => {
+  const actual = await orig() as typeof import('@/src/lib/repositories');
+  return { ...actual, repositories: { ...actual.repositories, project: { ...actual.repositories.project, transition: transitionProject } } };
+});
 vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, transitionProject };
@@ -26,6 +30,7 @@ vi.mock('@/src/lib/repositories/projectErpSetup', () => ({ synchronizeErpProject
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => ({ data: { stages: [], projects: [] } }),
 }));
+vi.mock('@/src/hooks/useProjectTransitions', () => ({ useProjectWinEligibility: () => ({ data: 'allowed' }) }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
 }));

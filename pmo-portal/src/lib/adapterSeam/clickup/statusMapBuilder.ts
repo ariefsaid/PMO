@@ -28,7 +28,6 @@ export interface ClickUpListStatus {
 
 /** PMO's `task_status` enum (`0001_init_schema.sql:23`) — every one MUST get an outbound target. */
 export const PMO_TASK_STATUSES = ['To Do', 'In Progress', 'Done', 'Blocked'] as const;
-export type PmoTaskStatus = (typeof PMO_TASK_STATUSES)[number];
 
 /**
  * Build a `ClickUpStatusMap` from a List's configured statuses.

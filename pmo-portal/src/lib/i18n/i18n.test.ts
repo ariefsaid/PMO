@@ -80,6 +80,9 @@ describe('FR-L10N-041 / AC-L10N-040: a missing key never renders as a raw key', 
 });
 
 describe('feature namespaces', () => {
+  it('registers the CRM catalogue for lazy loading', () => {
+    expect(NAMESPACES).toContain('crm');
+  });
   it('registers the finance hub catalogue for lazy loading', () => {
     expect(NAMESPACES).toContain('financeHub');
   });

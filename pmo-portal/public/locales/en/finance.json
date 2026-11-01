@@ -176,6 +176,13 @@
     "rowActions": "Invoice actions",
     "paymentActions": "Payment actions",
     "figures": "Receivables figures",
+    "projectSearchLoading": "Loading projects for search…",
+    "businessDayLoading": "Loading the business day; overdue results cannot be calculated yet.",
+    "projectSearchUnavailable": "Project search is unavailable.",
+    "retryProjects": "Retry projects",
+    "businessDayUnavailable": "Business day unavailable; overdue results cannot be calculated.",
+    "retryBusinessDay": "Retry business day",
+    "overdueUnavailable": "Overdue results are unavailable",
     "evidenceLoadError": "Couldn't load the invoice lines from the accounting system.",
     "amount": "Amount",
     "outstandingUnknown": "The outstanding balance is not known yet: the accounting system has not reported it for this invoice.",
@@ -208,6 +215,9 @@
     "emptySub": "They appear here after the next sync once ERPNext is connected.",
     "amountPreTaxTooltip": "Pre-tax total from the accounting-system document. Source: ERP purchase document.",
     "noProject": "No project",
+    "projectUnavailable": "Project unavailable ({{id}})",
+    "exportEntity": "ERP documents",
+    "exportList": "Export list",
     "type": {
       "order": "Purchase order",
       "invoice": "Supplier invoice",
@@ -221,7 +231,8 @@
       "date": "Date",
       "amount": "Amount",
       "erpStatus": "ERPNext status",
-      "amountPreTax": "Amount (pre-tax)"
+      "amountPreTax": "Amount (pre-tax)",
+      "currency": "Currency"
     },
     "aging": {
       "title": "Unpaid by age",
@@ -243,6 +254,8 @@
     "uncategorized": "Uncategorized"
   },
   "budgetActivation": {
+    "eligibilityChecking": "Checking activation eligibility…",
+    "eligibilityUnavailable": "Activation eligibility is unavailable. Refresh this page and try again.",
     "checking": "Checking project dates, line phasing, ERPNext fiscal years and account mapping…",
     "checkFailed": "Couldn't check budget readiness. Refresh and try again.",
     "erpUnavailable": "Couldn't check ERPNext; it'll be checked again when the budget is pushed.",
@@ -259,6 +272,9 @@
     "invalidFiscalYearName": "Choose a fiscal year from ERPNext, or leave it blank."
   },
   "budgetArchive": {
+    "checkingArchivedBudget": "Checking archived budget status…",
+    "archivedBudgetStatusError": "Could not check archived budget status.",
+    "retryArchivedBudget": "Retry archived budget check",
     "alsoCancelErpBudgets_one": "Also cancel {{count}} Budget document in ERPNext",
     "alsoCancelErpBudgets_other": "Also cancel {{count}} Budget documents in ERPNext",
     "archivedBudgetStillLiveInErp": "ERPNext is still enforcing an archived budget for this project. Cancel the ERPNext Budget documents or activate a new PMO budget.",
@@ -456,6 +472,7 @@
       "draftWaiting": "Draft waiting for approval",
       "waitingForFinance": "Waiting for approval by finance",
       "activationSeparationNextStep": "The drafter and activator must be different people. Ask an eligible Admin or Finance user who did not edit this draft to activate it.",
+      "saveOrDiscardLines": "Save or discard all open line item edits before activating.",
       "draftReady": "This draft is ready for an eligible approver to activate.",
       "editDraft": "Edit draft",
       "activateVersionNamed": "Activate v{{version}}",
@@ -464,6 +481,8 @@
       "activeBudgetSource": "Source: active budget version line items, grouped by category.",
       "spendingUnavailable": "Spending is unknown or unavailable.",
       "commitmentsUnavailable": "Commitments are unknown or unavailable.",
+      "currencyBasisNotice": "Budget: {{budgetCurrency}}. Spending and commitments: {{projectCurrency}}. Comparisons are unavailable across currencies.",
+      "currencyComparisonUnavailable": "Comparison unavailable because budget and spending use different currencies.",
       "leftUnavailable": "Left is unknown while spending or commitments are unavailable.",
       "budgetVsActual": "Budget vs actual",
       "selectedCategories": "Selected categories",
@@ -517,5 +536,14 @@
   },
   "budgetMap": {
     "overheadsHint": "Direct project cost, not company overhead."
+  },
+  "billingKind": {
+    "label": "Billing kind",
+    "contract": "Contract billing",
+    "other": "Other billing",
+    "contractHelp": "Counts against the contract: reduces Remaining to invoice, and counts toward revenue and margin.",
+    "otherHelp": "Licences, reimbursables and work outside the contract: counts toward revenue and margin, never reduces Remaining to invoice.",
+    "change": "Change billing kind",
+    "save": "Save billing kind"
   }
 }

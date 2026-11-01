@@ -7,7 +7,6 @@ import React from 'react';
 const { repo } = vi.hoisted(() => ({
   repo: {
     company: { list: vi.fn(), listClients: vi.fn() },
-    profile: { listProjectManagers: vi.fn() },
     project: { list: vi.fn() },
   },
 }));
@@ -22,7 +21,6 @@ import {
   useVendorOptions,
   useProjectOptions,
   useClientCompanyOptions,
-  useProjectManagerOptions,
   useInvoiceProjectOptions,
 } from './useFkOptions';
 import { I18nextProvider } from 'react-i18next';
@@ -102,17 +100,6 @@ describe('useClientCompanyOptions — client FK picker', () => {
     const { result } = renderHook(() => useClientCompanyOptions(), { wrapper: wrapper() });
     await waitFor(() => expect(result.current.data).toBeDefined());
     expect(result.current.data).toEqual([{ value: 'c1', label: 'Innovate Corp', sub: 'Client' }]);
-  });
-});
-
-describe('useProjectManagerOptions — PM FK picker', () => {
-  it('maps PM profiles into ComboboxOptions (id→value, full_name→label)', async () => {
-    repo.profile.listProjectManagers.mockResolvedValue([
-      { id: 'u1', full_name: 'Alice Manager', role: 'Project Manager' },
-    ]);
-    const { result } = renderHook(() => useProjectManagerOptions(), { wrapper: wrapper() });
-    await waitFor(() => expect(result.current.data).toBeDefined());
-    expect(result.current.data).toEqual([{ value: 'u1', label: 'Alice Manager' }]);
   });
 });
 

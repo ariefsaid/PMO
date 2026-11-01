@@ -12,6 +12,7 @@ interface BudgetVersionsDrawerProps {
   open: boolean;
   onClose: () => void;
   versions: BudgetVersionWithItems[];
+  fallbackCurrency: string;
   canWrite: boolean;
   hasDraft: boolean;
   nestedOpen?: boolean;
@@ -34,6 +35,7 @@ export default function BudgetVersionsDrawer({
   open,
   onClose,
   versions,
+  fallbackCurrency,
   canWrite,
   hasDraft,
   nestedOpen = false,
@@ -56,11 +58,11 @@ export default function BudgetVersionsDrawer({
   );
   const compareColumns: Column<BudgetComparisonRow>[] = [
     { key: 'category', header: t('financeCopy.category', 'Category'), kind: 'primary', cell: (row) => budgetCategoryLabel(row.category, t) },
-    { key: 'a', header: t('projectDetail.budget.versionMarkerA', 'A'), kind: 'money', align: 'num', cell: (row) => formatNumberMax2(row.a) },
-    { key: 'b', header: t('projectDetail.budget.versionMarkerB', 'B'), kind: 'money', align: 'num', cell: (row) => formatNumberMax2(row.b) },
-    { key: 'change', header: t('projectDetail.budget.change', 'Change'), kind: 'money', align: 'num', cell: (row) => (
+    { key: 'a', header: t('projectDetail.budget.versionMarkerA', 'A'), kind: 'money', align: 'num', cell: (row) => `${a?.currency || fallbackCurrency} ${formatNumberMax2(row.a)}` },
+    { key: 'b', header: t('projectDetail.budget.versionMarkerB', 'B'), kind: 'money', align: 'num', cell: (row) => `${b?.currency || fallbackCurrency} ${formatNumberMax2(row.b)}` },
+    { key: 'change', header: t('projectDetail.budget.change', 'Change'), kind: 'money', align: 'num', cell: (row) => (a?.currency || fallbackCurrency) !== (b?.currency || fallbackCurrency) ? '—' : (
       <span className={row.change > 0 ? 'text-destructive-text' : undefined}>
-        {row.change > 0 ? '+' : ''}{formatNumberMax2(row.change)}
+        {row.change > 0 ? '+' : ''}{a?.currency || fallbackCurrency} {formatNumberMax2(row.change)}
       </span>
     ) },
   ];
@@ -88,7 +90,7 @@ export default function BudgetVersionsDrawer({
                     )}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {formatCurrencyAuto(version.total, version.currency)}
+                    {formatCurrencyAuto(version.total, version.currency || fallbackCurrency)}
                     {' · '}{version.activated_at ? formatInstantDate(version.activated_at) : t('projectDetail.budget.notActivated', 'Not activated')}
                   </p>
                 </div>

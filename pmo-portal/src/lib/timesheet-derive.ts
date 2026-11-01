@@ -1,7 +1,7 @@
 /**
  * Pure derivation helpers for timesheet data. All functions operate on
  * the types already returned by useTimesheets() — no new queries.
- * T1, T2 (plan §9 Phase 1).
+ * T1 (plan §9 Phase 1).
  */
 import type { TimesheetWithEntries, TimesheetEntryWithProject } from '@/src/lib/db/timesheets';
 
@@ -36,11 +36,6 @@ export function entriesByProject(
   return Array.from(map.values()).sort((a, b) => b.hours - a.hours);
 }
 
-export interface FlatEntry extends TimesheetEntryWithProject {
-  /** Which timesheet sheet this entry belongs to (for context if needed). */
-  sheetId: string;
-}
-
 /**
  * T1: Flattens all sheets' entries, sorts by entry_date descending (newest first),
  * and returns the top `limit` entries.
@@ -48,32 +43,8 @@ export interface FlatEntry extends TimesheetEntryWithProject {
 export function recentEntries(
   sheets: TimesheetWithEntries[],
   limit: number,
-): FlatEntry[] {
-  const flat: FlatEntry[] = [];
-  for (const sheet of sheets) {
-    for (const e of sheet.entries) {
-      flat.push({ ...e, sheetId: sheet.id });
-    }
-  }
+): TimesheetEntryWithProject[] {
+  const flat = sheets.flatMap((sheet) => sheet.entries);
   flat.sort((a, b) => b.entry_date.localeCompare(a.entry_date));
   return flat.slice(0, limit);
-}
-
-export interface WeekTotal {
-  weekStart: string;
-  total: number;
-}
-
-/**
- * T2: Returns the last `n` weeks (sheets already newest-first) with their
- * summed total hours.
- */
-export function weeksTotals(
-  sheets: TimesheetWithEntries[],
-  n: number,
-): WeekTotal[] {
-  return sheets.slice(0, n).map((sheet) => ({
-    weekStart: sheet.week_start_date,
-    total: sheet.entries.reduce((sum, e) => sum + (e.hours || 0), 0),
-  }));
 }

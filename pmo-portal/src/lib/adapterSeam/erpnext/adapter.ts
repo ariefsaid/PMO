@@ -12,12 +12,13 @@
  * factories. An un-wired kind fails loud (`commit-rejected`), mirroring the `notWired` read-model
  * writer pattern (task 1.6) — never a silent no-op that could swallow a real write.
  */
-import type { Adapter, AdapterCommand, ChangesSinceWatermark, CommandResult, PmoDomain, PmoRecord, SupersededDocumentMarker } from '../contract.ts';
+import type { Adapter, AdapterCommand, CommandResult, PmoDomain, PmoRecord, SupersededDocumentMarker } from '../contract.ts';
 import { AdapterError } from '../contract.ts';
-import { cancelDoc, createDoc, ErpError, getDoc, submitDoc, updateDoc, withCommitDeadline, type ErpClientDeps } from './client.ts';
+import { cancelDoc, createDoc, getDoc, submitDoc, updateDoc, withCommitDeadline, type ErpClientDeps } from './client.ts';
 import { DOCTYPE_REGISTRY, type ErpCtx, type ErpDocKind } from './doctypeRegistry.ts';
 import { findDefaultPurchaseTaxTemplate, resolvePurchaseTaxRows } from './erpPurchaseTaxRows.ts';
 import { routeEdit } from './transitionPolicy.ts';
+import { erpGetByExternalId, erpListChangesSinceWatermark } from './adapterReads.ts';
 import { toCents } from '../../budget/budgetAmount.ts';
 
 export const ERPNEXT_TIER = 'erpnext';
@@ -63,6 +64,15 @@ export interface ErpAdapterDeps {
    *  means ERPNext is enforcing nothing, so the recovery from it has to be provable at the real served
    *  boundary. Optional — a production caller that never arms the fault gate omits it (a true no-op). */
   afterCancelHook?: () => Promise<void>;
+  /** The scope the adapter's change-feed reads poll under (the same company / ERP major the sweep uses). */
+  readScope?: {
+    /** The binding's ERP company; company-owned doctypes cannot be listed without it. */
+    company?: string | null;
+    /** The ERP major version (selects the budget field set). */
+    versionMajor?: number;
+    /** Pages listed per kind per read (default 1); the cursor resumes the walk. */
+    maxPages?: number;
+  };
 }
 
 function requireKind(record: PmoRecord): ErpDocKind {
@@ -335,8 +345,8 @@ async function commitTransition(command: AdapterCommand, deps: ErpAdapterDeps): 
 
   if (verb === 'cancel') {
     // OQ-8 (R9 §5): cancel is `{docstatus:2}` — stock REST enforces cancel-only, never delete, on a
-    // once-submitted doc. Chain-reverse ordering (PR-then-PO, PE-then-PI) is a caller/chain concern
-    // (transitionPolicy.ts `cancelChain`); this is the single-doc cancel primitive.
+    // once-submitted doc. Chain-reverse ordering (PR-then-PO, PE-then-PI) is a caller/chain concern;
+    // this is the single-doc cancel primitive.
     await cancelDoc(deps.client, entry.doctype, externalRecordId);
     const refetched = await getDoc(deps.client, entry.doctype, externalRecordId);
     const canonical: PmoRecord = { ...bodyFns.fromDoc(refetched), id: command.record.id };
@@ -590,20 +600,6 @@ async function commitErpCommand(command: AdapterCommand, rawDeps: ErpAdapterDeps
   throw new AdapterError('commit-rejected', `erpnext adapter operation '${command.operation}' is not supported`);
 }
 
-/** Parses the `"<Doctype>:<name>"` external-id encoding established by the companies-domain adopt
- *  path (task 3.2) and generalized here so `getByExternalId` works uniformly across every domain. */
-function parseExternalId(externalRecordId: string): { doctype: string; name: string } {
-  const separatorIndex = externalRecordId.indexOf(':');
-  if (separatorIndex === -1) {
-    throw new AdapterError('commit-rejected', `invalid external id format (expected "<Doctype>:<name>"): ${externalRecordId}`);
-  }
-  return { doctype: externalRecordId.slice(0, separatorIndex), name: externalRecordId.slice(separatorIndex + 1) };
-}
-
-function findKindByDoctype(doctype: string): ErpDocKind | undefined {
-  return (Object.keys(DOCTYPE_REGISTRY) as ErpDocKind[]).find((kind) => DOCTYPE_REGISTRY[kind].doctype === doctype);
-}
-
 /** Construct the erpnext adapter (task 2.12): the only entry point above the contract that ever sees
  *  an ERPNext/Frappe-shaped dependency bag — every method it exposes speaks PMO domain language only. */
 export function createErpAdapter(deps: ErpAdapterDeps): Adapter {
@@ -620,23 +616,9 @@ export function createErpAdapter(deps: ErpAdapterDeps): Adapter {
       ERPNEXT_EXPENSES_DOMAIN,
     ]),
     commit: (command: AdapterCommand) => commitErpCommand(command, deps),
-    // The modified-poll sweep is the change-feed convergence authority (design decision #9) — its
-    // real implementation lands in slice 8 (`applyEngine.ts` reuse). A loud throw here, never a
-    // silent empty page (which would look like "no changes" and desync a caller).
-    listChangesSinceWatermark(_domain: PmoDomain, _cursor: string | null): Promise<ChangesSinceWatermark> {
-      return Promise.reject(new AdapterError('commit-rejected', 'erpnext listChangesSinceWatermark is wired in slice 8 (modified-poll sweep)'));
-    },
-    async getByExternalId(_domain: PmoDomain, externalRecordId: string): Promise<PmoRecord | null> {
-      const { doctype, name } = parseExternalId(externalRecordId);
-      const kind = findKindByDoctype(doctype);
-      const bodyFns = kind ? deps.doctypeBodies[kind] : undefined;
-      try {
-        const doc = await getDoc(deps.client, doctype, name);
-        return bodyFns ? { ...bodyFns.fromDoc(doc), id: externalRecordId } : { id: externalRecordId, ...(doc as Record<string, unknown>) };
-      } catch (err) {
-        if (err instanceof ErpError && err.status === 404) return null;
-        throw err;
-      }
-    },
+    // The sweep polls through `listErpChangesSinceWatermark` directly (it adds the outbox in-flight guard);
+    // these are the contract's reads, over the same poll spec. See adapterReads.ts for the identity rules.
+    listChangesSinceWatermark: (domain: PmoDomain, cursor: string | null) => erpListChangesSinceWatermark(deps, domain, cursor),
+    getByExternalId: (domain: PmoDomain, externalRecordId: string) => erpGetByExternalId(deps, domain, externalRecordId),
   };
 }

@@ -22,6 +22,8 @@ import {
 } from '@/src/components/ui';
 import { ExportButton, useExport } from '@/src/components/export';
 import { usePermission } from '@/src/auth/usePermission';
+import { useEffectiveRole } from '@/src/auth/impersonation';
+import { safeTrack, trackPurchaseApproved } from '@/src/lib/analytics';
 import { useAuth } from '@/src/auth/useAuth';
 import { useProject } from '@/src/hooks/useProjects';
 import { useProcurements, useProjectProcurements } from '@/src/hooks/useProcurements';
@@ -317,6 +319,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const may = usePermission();
+  const { realRole } = useEffectiveRole();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { exportXlsx, busy: exportBusy } = useExport();
@@ -368,6 +371,9 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
   }, [setSearchParams]);
   const transition = useMutation({
     mutationFn: ({ id, to }: { id: string; to: ProcurementStatus }) => repositories.procurement.transition(id, to),
+    onSuccess: (_data, { to }) => {
+      if (to === 'Approved') safeTrack(() => trackPurchaseApproved(realRole ?? 'unknown'));
+    },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ['procurements'] });
       void queryClient.invalidateQueries({ queryKey: ['procurement'] });

@@ -34,10 +34,7 @@ vi.mock('@/src/hooks/useUserViews', () => ({
   }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: mockUseAuth }));
-vi.mock('@/src/auth/usePermission', () => ({
-  usePermission: () => () => true,
-  CanWrite: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Engineer' }) }));
 vi.mock('@/src/components/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/components/ui')>();
   return { ...actual, useToast: () => ({ toast: mockToast }) };
@@ -73,6 +70,13 @@ beforeEach(() => {
 });
 
 describe('MyViewsPage', () => {
+  it('does not offer edit or archive for another owner’s shared view', () => {
+    mockUseUserViews.mockReturnValue({ data: [{ ...VIEW_ROW, user_id: 'other', scope: 'shared_org' }], isPending: false, isError: false });
+    renderPage();
+    expect(screen.getByText('Weekly Status')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /row actions/i })).not.toBeInTheDocument();
+  });
+
   it('AC-VB-017: empty state shows "Create your first view" CTA linking to /views/new', () => {
     mockUseUserViews.mockReturnValue({ data: [], isPending: false, isError: false });
     renderPage();

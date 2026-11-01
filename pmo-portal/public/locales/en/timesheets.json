@@ -1,0 +1,46 @@
+{
+  "approvalQueue": {
+    "unknownProject": "Unknown Project",
+    "approved": "Timesheet approved",
+    "returned": "Timesheet returned",
+    "approvedDetail": "{{name}}'s week approved",
+    "returnedDetail": "Sent back to {{name}} for changes",
+    "approve": "Approve",
+    "return": "Return",
+    "noHours": "No hours recorded for this week.",
+    "approveTitle": "Approve {{name}}'s week?",
+    "returnTitle": "Return {{name}}'s timesheet?",
+    "approveDescription": "This approves {{name}}'s submitted week. You can't approve your own timesheet — separation of duties is enforced.",
+    "returnDescription": "This sends {{name}}'s week back for changes. They'll need to correct and resubmit it.",
+    "returnConfirm": "Return timesheet",
+    "loadError": "Couldn't load the approval queue",
+    "loadErrorSub": "Something went wrong fetching timesheets awaiting your approval.",
+    "heading": "Team approvals queue",
+    "awaiting": "{{total}} awaiting you",
+    "empty": "Nothing awaiting you",
+    "emptySub": "Submitted timesheets from your reports will appear here for review.",
+    "showHours": "Show hours for {{name}}"
+  },
+  "discardWeek": {
+    "title": "Discard unsaved changes?",
+    "description": "Your unsaved hours for this week will be discarded.",
+    "confirm": "Discard changes"
+  },
+  "reconcile": {
+    "message": "Refresh this week before continuing.",
+    "retry": "Retry week refresh"
+  },
+  "picker": {
+    "loading": "Loading projects…",
+    "error": "Could not load projects.",
+    "retry": "Retry projects"
+  },
+  "copyLastWeek": {
+    "button": "Copy last week",
+    "reasonNotDraft": "This week is no longer a draft",
+    "reasonEmpty": "Nothing to copy — no time was logged last week",
+    "reasonNothingNew": "Last week's projects are already in this week",
+    "toastHeadline": "Rows copied from last week",
+    "toastDetail": "Review the copied hours, then save the week."
+  }
+}

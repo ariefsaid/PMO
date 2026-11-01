@@ -13,8 +13,11 @@ const h = vi.hoisted(() => ({
   claim: null as unknown,
   route: null as unknown,
   outstanding: null as number | null,
+  outstandingState: 'ready' as 'ready' | 'loading' | 'error',
   projects: [] as Array<{ id: string; name: string; short_name?: string | null }>,
   agingRows: [] as Array<Record<string, unknown>>,
+  floats: [] as Array<Record<string, unknown>>,
+  floatState: 'ready' as 'ready' | 'loading',
   userId: 'eng',
   realRole: 'Engineer',
   m: {
@@ -27,7 +30,7 @@ vi.mock('@/src/hooks/useExpenseClaims', () => ({
   useExpenseClaim: () => ({ data: h.claim, isPending: false, isError: false, refetch: vi.fn() }),
   useExpenseClaimLines: () => ({ data: [], isPending: false, isError: false }),
   useExpenseClaimRoute: () => ({ data: h.route }),
-  useExpenseAdvanceOutstanding: () => ({ data: h.outstanding }),
+  useExpenseAdvanceOutstanding: () => ({ data: h.outstanding, isPending: h.outstandingState === 'loading', isError: h.outstandingState === 'error' }),
   useExpenseAdvanceAging: () => ({ data: { rows: h.agingRows, truncated: false } }),
   useExpenseClaimMutations: () => h.m,
 }));
@@ -35,6 +38,12 @@ vi.mock('@/src/hooks/useExpenseReceipts', () => ({
   useExpenseReceipts: () => ({
     list: { data: [], isPending: false, isError: false }, upload: { mutate: vi.fn() }, archive: { mutate: vi.fn(), isPending: false },
     download: vi.fn(), progress: null, uploadError: null, clearUploadError: vi.fn(),
+  }),
+}));
+vi.mock('@/src/hooks/useImprest', () => ({
+  useImprestFloatChoices: () => ({ data: [] }),
+  useImprestFloat: (id?: string | null) => ({
+    data: h.floatState === 'loading' ? undefined : h.floats.find((f) => f.id === id) ?? null, isPending: h.floatState === 'loading',
   }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: h.projects }) }));
@@ -67,8 +76,11 @@ const as = (userId: string, role: string) => { h.userId = userId; h.realRole = r
 beforeEach(() => {
   h.route = null;
   h.outstanding = null;
+  h.outstandingState = 'ready';
   h.projects = [];
   h.agingRows = [];
+  h.floats = [];
+  h.floatState = 'ready';
   h.m.update.mutateAsync.mockReset();
   h.m.update.mutateAsync.mockResolvedValue(undefined);
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
@@ -117,6 +129,98 @@ describe('ExpenseClaimDetail', () => {
     renderAt();
     expect(screen.getByTestId('approval-route-note')).toHaveTextContent('Ayu Approver');
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+  });
+
+  it('AC-IMP-084 only the float custodian may mark an Approved float claim paid', () => {
+    h.claim = { ...base, status: 'Approved', approved_by_id: 'pm', imprest_float_id: 'f1' };
+    h.floats = [{ id: 'f1', custodian_id: 'cust' }];
+    as('fin', 'Finance');
+    const { unmount } = renderAt();
+    expect(screen.queryByRole('button', { name: 'Mark paid' })).toBeNull();
+    unmount();
+    as('cust', 'Finance');
+    renderAt();
+    expect(screen.getByRole('button', { name: 'Mark paid' })).toBeInTheDocument();
+  });
+
+  it('AC-IMP-084 a float claim the viewer cannot read the float of falls back to the ordinary rule', () => {
+    h.claim = { ...base, status: 'Approved', approved_by_id: 'pm', imprest_float_id: 'f1' };
+    h.floats = [];
+    as('fin', 'Finance');
+    renderAt();
+    expect(screen.getByRole('button', { name: 'Mark paid' })).toBeInTheDocument();
+  });
+
+  it('FR-IMP-025 an out-of-plan claim says so and names who can decide it', () => {
+    h.claim = { ...base, status: 'Submitted', imprest_float_id: 'f1', is_plan_exception: true };
+    h.floats = [{ id: 'f1', custodian_id: 'cust' }];
+    h.route = { claimId: 'c1', route: 'org', reason: 'within_budget', approvers: [{ id: 's1', fullName: 'Sam Senior' }], requestAmount: 300, lineBudget: 500, lineUsed: 0 };
+    as('eng', 'Engineer');
+    renderAt();
+    const banner = screen.getByTestId('imprest-exception-note');
+    expect(banner).toHaveTextContent('Out of plan');
+    expect(banner).toHaveTextContent('Sam Senior');
+  });
+
+  describe('FR-IMP-025 a Submitted float claim above the month\'s remaining (the server route says so: is_exception)', () => {
+    const floatClaim = { ...base, status: 'Submitted', imprest_float_id: 'f1', imprest_month: '2026-11-01', is_plan_exception: false };
+    const seniorRoute = { claimId: 'c1', route: 'org', reason: 'within_budget', approvers: [{ id: 's1', fullName: 'Sam Senior' }], requestAmount: 300, lineBudget: 500, lineUsed: 0, isException: true };
+    beforeEach(() => { h.claim = floatClaim; h.route = seniorRoute; h.floats = [{ id: 'f1', custodian_id: 'cust' }]; });
+
+    it('FR-IMP-025 the project approver sees no Approve and the banner names the senior set', () => {
+      as('pm', 'Project Manager');
+      renderAt();
+      expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+      expect(screen.getByTestId('imprest-exception-note')).toHaveTextContent('Sam Senior');
+    });
+    it('FR-IMP-025 a senior set member and an Admin may approve', () => {
+      as('s1', 'Executive');
+      const { unmount } = renderAt();
+      expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+      unmount();
+      as('adm', 'Admin');
+      renderAt();
+      expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    });
+    it('FR-IMP-025 with no eligible senior approver the banner says an Admin decides', () => {
+      h.route = { ...seniorRoute, route: 'admin', approvers: [] };
+      as('pm', 'Project Manager');
+      renderAt();
+      expect(screen.getByTestId('imprest-exception-note')).toHaveTextContent('Admin');
+      expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    });
+    it('FR-IMP-025 an item the server does not flag is no exception: the project approver approves it', () => {
+      h.route = { ...seniorRoute, route: 'project', approvers: [{ id: 'pm', fullName: 'Pia Project' }], isException: false };
+      as('pm', 'Project Manager');
+      renderAt();
+      expect(screen.queryByTestId('imprest-exception-note')).toBeNull();
+      expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    });
+    it('FR-IMP-025 a failed route read derives nothing on the client: the RPC decides', () => {
+      h.route = null;
+      as('pm', 'Project Manager');
+      renderAt();
+      expect(screen.queryByTestId('imprest-exception-note')).toBeNull();
+    });
+    it('AC-IMP-084 Pay is withheld while the float is still loading, then follows the custodian rule', () => {
+      h.claim = { ...floatClaim, status: 'Approved', approved_by_id: 'pm' };
+      h.floatState = 'loading';
+      as('fin', 'Finance');
+      const { unmount } = renderAt();
+      expect(screen.queryByRole('button', { name: 'Mark paid' })).toBeNull();
+      unmount();
+      h.floatState = 'ready';
+      as('cust', 'Finance');
+      renderAt();
+      expect(screen.getByRole('button', { name: 'Mark paid' })).toBeInTheDocument();
+    });
+  });
+
+  it('FR-IMP-025 an in-plan claim shows no exception banner', () => {
+    h.claim = { ...base, status: 'Submitted', imprest_float_id: 'f1', is_plan_exception: false };
+    as('eng', 'Engineer');
+    renderAt();
+    expect(screen.queryByTestId('imprest-exception-note')).toBeNull();
   });
 
   it('AC-UXS-011 the named approver confirms the selected claim identity and amount', async () => {
@@ -171,6 +275,19 @@ describe('ExpenseClaimDetail', () => {
     expect(screen.getByTestId('pay-preview-cash')).toHaveTextContent(money(50, 'IDR'));
     // The headline restates the cash actually paid, not the full claim the advance partly covers.
     expect(dialog).toHaveTextContent(`Mark EXP-2610060001 paid: ${money(50, 'IDR')}?`);
+  });
+
+  it.each(['loading', 'error'] as const)('keeps cash payment unknown when the linked advance balance is %s', async (state) => {
+    h.claim = { ...base, status: 'Approved', approved_by_id: 'pm', advance_id: 'adv-1' };
+    h.outstanding = state === 'error' ? 250 : null;
+    h.outstandingState = state;
+    as('f2', 'Finance');
+    renderAt();
+    await userEvent.click(screen.getByRole('button', { name: 'Mark paid' }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('heading')).not.toHaveTextContent(money(300, 'IDR'));
+    expect(within(dialog).getByRole('heading')).not.toHaveTextContent(money(50, 'IDR'));
+    expect(screen.getByTestId('pay-preview-cash')).toHaveTextContent('—');
   });
 
   it('AC-UXS-011 cash-return confirmation keeps the advance and outstanding amount in context', async () => {
@@ -282,6 +399,16 @@ describe('AC-UXS-011 Bahasa confirmations restate identity and amount', () => {
         </MemoryRouter>
       </FinanceI18nTestProvider>,
     );
+
+  it('localizes the payment title when the advance balance is unknown', async () => {
+    await financeTestI18n.changeLanguage('id');
+    h.claim = { ...base, status: 'Approved', approved_by_id: 'pm', advance_id: 'adv-1' };
+    h.outstanding = null;
+    as('f2', 'Finance');
+    renderAtId();
+    await userEvent.click(screen.getByRole('button', { name: 'Tandai dibayar' }));
+    expect(within(screen.getByRole('dialog')).getByRole('heading')).toHaveTextContent('Tandai dibayar · EXP-2610060001');
+  });
 
   it('binds approve, pay, cash-return and cancel to the id catalogue', async () => {
     await financeTestI18n.changeLanguage('id');

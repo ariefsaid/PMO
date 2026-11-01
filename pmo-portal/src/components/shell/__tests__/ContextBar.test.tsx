@@ -99,7 +99,7 @@ describe('ContextBar', () => {
 // ── The unified account menu (AC-ACCT-001/002/003/004) ──────────────────────
 // One responsive avatar/identity trigger owns the ONLY account popup at every width.
 describe('ContextBar — unified account menu', () => {
-  it('applies and selects a text size in the account menu', async () => {
+  it('AC-ACCT-005 applies and selects a text size in the account menu', async () => {
     delete document.documentElement.dataset.textSize;
     renderBar();
     await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
@@ -197,7 +197,7 @@ describe('ContextBar — unified account menu', () => {
     expect(viewAs).toHaveBeenCalledWith(null);
   });
 
-  it('FR-ACCT-006: arrow, Home, End and Tab keys navigate or leave the menu without trapping focus', async () => {
+  it('AC-ACCT-005 FR-ACCT-006: arrow, Home, End and Tab keys navigate or leave the menu without trapping focus', async () => {
     canImpersonate = false;
     effectiveRole = 'Finance';
     renderBar();

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { act, render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
@@ -25,6 +25,8 @@ const { listState, mutations } = vi.hoisted(() => ({
   },
 }));
 
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+
 vi.mock('@/src/hooks/useCompanies', () => ({
   useCompanies: () => listState,
   useCompanyMutations: () => mutations,
@@ -41,7 +43,8 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 
 import Companies from './Companies';
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { ownershipMock } from '@/test/domainOwnershipMock';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 const seed = [
   { id: 'c1', name: 'Cascade Port Authority', type: 'Client', org_id: 'org-1', client_number_segment: 'RIS', archived_at: null, created_at: '2026-01-01T00:00:00Z' },
@@ -99,6 +102,8 @@ beforeEach(() => {
     m.isPending = false;
   });
   realRole = 'Admin';
+  ownershipMock.override = null;
+  ownershipMock.retry.mockClear();
   clearOwnershipCache();
 });
 
@@ -463,7 +468,7 @@ describe('company short names', () => {
   });
 
   it('externally-owned legal name stays disabled while the short name can be saved', async () => {
-    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
     renderPage();
     await userEvent.click(within(screen.getByText(seed[0].name).closest('tr')!).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Edit/i }));
@@ -472,6 +477,17 @@ describe('company short names', () => {
     await userEvent.type(screen.getByLabelText(/Short name/i), 'Example');
     await userEvent.click(screen.getByRole('button', { name: /^Save company$/i }));
     await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalledWith({ id: seed[0].id, input: { name: seed[0].name, type: 'Client', short_name: 'Example' } }));
+  });
+  it('preserves the stored legal name when saving an external company nickname', async () => {
+    setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    const original = { ...seed[0], name: `  ${seed[0].name}  ` };
+    listState.data = [original];
+    renderPage();
+    await userEvent.click(within(screen.getByText(seed[0].name).closest('tr')!).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit/i }));
+    await userEvent.type(screen.getByLabelText(/Short name/i), 'Example');
+    await userEvent.click(screen.getByRole('button', { name: /^Save company$/i }));
+    await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalledWith({ id: original.id, input: { name: original.name, type: 'Client', short_name: 'Example' } }));
   });
 });
 
@@ -483,4 +499,82 @@ it('standalone company creation persists a trimmed optional nickname', async () 
   await userEvent.type(screen.getByLabelText(/Short name/i), ' Example ');
   await userEvent.click(screen.getByRole('button', { name: /^Create company$/i }));
   await waitFor(() => expect(mutations.create.mutateAsync).toHaveBeenCalledWith({ name: 'Example Legal Company', type: 'Client', short_name: 'Example' }));
+});
+
+describe('company ownership actions', () => {
+  it('keeps an Internal company editable without offering a type conversion under external ownership', async () => {
+    setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    renderPage();
+    await userEvent.click(within(screen.getByText('Internal Holdings').closest('tr')!).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit/i }));
+    expect(screen.getByLabelText(/Company name/i)).toBeEnabled();
+    expect(screen.getByLabelText(/^Type/i, { selector: 'input, select, textarea' })).toBeDisabled();
+  });
+  it('holds a pending type conversion if ownership changes while editing', async () => {
+    renderPage();
+    await userEvent.click(within(screen.getByText('Internal Holdings').closest('tr')!).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit/i }));
+    await userEvent.selectOptions(screen.getByLabelText(/^Type/i, { selector: 'input, select, textarea' }), 'Vendor');
+    act(() => setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
+    expect(screen.getByRole('button', { name: /^save company$/i })).toBeDisabled();
+  });
+  it('holds a pending legal-name edit if ownership changes while editing', async () => {
+    renderPage();
+    await userEvent.click(within(screen.getByText(seed[0].name).closest('tr')!).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /Edit/i }));
+    await userEvent.type(screen.getByLabelText(/Company name/i), ' Revised');
+    act(() => setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
+    expect(screen.getByRole('button', { name: /^save company$/i })).toBeDisabled();
+  });
+  it('holds company actions while ownership is unresolved', () => {
+    ownershipMock.override = 'unknown';
+    renderPage();
+    expect(screen.queryByRole('button', { name: /new company/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/checking ownership/i)).toBeInTheDocument();
+  });
+
+  it('offers a retry after ownership fails', async () => {
+    ownershipMock.override = 'error';
+    renderPage();
+    expect(screen.queryByRole('button', { name: /new company/i })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^retry$/i }));
+    expect(ownershipMock.retry).toHaveBeenCalled();
+  });
+
+  it('offers Internal for native company creation', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /New company/i }));
+    const type = within(screen.getByRole('dialog')).getByLabelText(/^Type/);
+    expect(within(type).getByRole('option', { name: 'Internal' })).toBeInTheDocument();
+  });
+
+  it('updates create choices when company ownership changes', async () => {
+    setTaskOwnership([]);
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /New company/i }));
+    const type = within(screen.getByRole('dialog')).getByLabelText(/^Type/);
+    expect(within(type).getByRole('option', { name: 'Internal' })).toBeInTheDocument();
+    act(() => setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
+    expect(within(type).queryByRole('option', { name: 'Internal' })).not.toBeInTheDocument();
+  });
+
+  it('offers only supported party types when creating under external ownership', async () => {
+    setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /New company/i }));
+    const type = within(screen.getByRole('dialog')).getByLabelText(/^Type/);
+    expect(within(type).queryByRole('option', { name: 'Internal' })).not.toBeInTheDocument();
+    expect(within(type).getByRole('option', { name: 'Client' })).toBeInTheDocument();
+    expect(within(type).getByRole('option', { name: 'Supplier' })).toBeInTheDocument();
+  });
+});
+
+it('keeps external companies from offering deletion', async () => {
+  setTaskOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+  renderPage();
+  const row = screen.getByText('Cascade Port Authority').closest('tr')!;
+  await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
+  expect(screen.queryByRole('menuitem', { name: /delete/i })).not.toBeInTheDocument();
+  expect(screen.getByRole('menuitem', { name: /archive/i })).toBeInTheDocument();
+  expect(screen.getByText(/records managed in ERP can be archived/i)).toBeInTheDocument();
 });

@@ -67,6 +67,21 @@ describe('RecordHeader', () => {
     expect(screen.getByTestId('record-header-actions').parentElement?.className).toContain('w-full');
   });
 
+  it('#1591: the action slot may shrink and wrap so a long unbreakable action cannot widen the page at 320px', () => {
+    render(
+      <RecordHeader
+        icon={null}
+        variant="drawer"
+        name="Record"
+        status={<StatusPill variant="neutral">Client</StatusPill>}
+        actions={<button type="button">Edit</button>}
+      />,
+    );
+    const slot = screen.getByTestId('record-header-actions');
+    expect(slot.className).toContain('min-w-0');
+    expect(slot.className).toContain('flex-wrap');
+  });
+
   it('drawer variant renders without the standalone card chrome (host supplies the seam)', () => {
     render(
       <RecordHeader

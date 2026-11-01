@@ -1,0 +1,19 @@
+{
+  "announce": {
+    "cancelled": "Pemindahan dibatalkan. {{name}} tetap di tempatnya.",
+    "dropped": "{{name}} dilepas di {{column}}.",
+    "overAllowed": "{{name}} berada di atas {{column}}. Boleh dilepas.",
+    "overBlocked": "{{name}} berada di atas {{column}}. Pemindahan ini tidak diizinkan.",
+    "overNone": "{{name}} tidak berada di atas kolom.",
+    "start": "{{name}} diambil."
+  },
+  "cantMoveHere": "Tidak dapat dipindahkan ke sini",
+  "dropHere": "Lepas untuk memindahkan ke sini",
+  "instructions": "Untuk mengubah status dengan keyboard, gunakan kontrol status pada kartu.",
+  "lostChoice": {
+    "legend": "Hasil yang mana?"
+  },
+  "refused": "{{name}} tidak dapat dipindahkan dari {{from}} ke {{to}}.",
+  "refusedTitle": "Pemindahan tidak diizinkan",
+  "saving": "Menyimpan…"
+}

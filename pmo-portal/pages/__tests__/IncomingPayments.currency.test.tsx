@@ -129,6 +129,14 @@ describe('IncomingPayments — currency (#530)', () => {
     expect(screen.getByText('Withholding slip: SYN-WHT-IDR')).toBeInTheDocument();
   });
 
+  it('uses the organization currency before an invoice is selected', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getAllByRole('button', { name: /Receive Payment/i })[0]);
+    expect(screen.getByLabelText(/^Amount settled/).parentElement).toHaveTextContent('$');
+    expect(screen.getByLabelText(/^Cash received/).parentElement).toHaveTextContent('$');
+  });
+
   it('renders an IDR payment in IDR, never the org default', () => {
     paymentsState.data = [payment({ id: 'ip-idr', currency: 'IDR' })];
     renderPage();

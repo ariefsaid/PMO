@@ -92,7 +92,7 @@ export interface ValidatedGroup {
   group: CaseGroup;
   groupErrors: string[];
   rows: ValidatedRow[];
-  /** True iff groupErrors is empty AND ≥1 row is valid. */
+  /** True when the case is importable and at least one row is valid. */
   valid: boolean;
 }
 
@@ -127,3 +127,6 @@ export interface CommitResult {
   failed: number;
   cases: CommitCaseResult[];
 }
+
+/** A preview has no registered run until the user confirms the import. */
+export type ImportRunIdentity = { kind: 'provisional' } | { kind: 'registered'; id: string };

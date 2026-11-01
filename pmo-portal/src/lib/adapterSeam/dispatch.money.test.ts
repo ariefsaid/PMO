@@ -1634,6 +1634,35 @@ describe('Luna r3 SHOULD-FIX 3 — a DETERMINISTIC probe/adoption failure is hel
     expect(marked.heldClaimGeneration).toBe(held.claimGeneration);
   });
 
+  it('THEME-DATA-48: a probe failure whose hold is fenced out re-reads the outbox under the year-qualified identity', async () => {
+    const fake = createFakeOutbox();
+    const yearQualified = 'vid-1:ENC-FY';
+    const readOutbox = vi.spyOn(fake.deps, 'readOutbox');
+    const commit = vi.fn();
+    const money: DispatchMoneyOutboxDeps = {
+      ...fake.deps,
+      readOutbox,
+      probeByRemarksKey: vi.fn(async () => {
+        // a reclaimer confirms the row while this claimant's probe is failing
+        const row = [...fake.rows.values()][0];
+        row.state = 'confirmed';
+        row.claimGeneration += 1;
+        row.externalRecordId = 'TS-WON';
+        throw new AdapterError('commit-rejected', 'invalid decimal value');
+      }),
+    };
+    const result = await dispatchMoneyWrite({
+      adapter: { tier: 'erpnext', capabilityMap: new Set(['timesheets']), commit },
+      command,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money,
+      outboxRecordId: yearQualified,
+    });
+    expect(result.externalRecordId).toBe('TS-WON');
+    for (const call of readOutbox.mock.calls) expect(call[1]).toBe(yearQualified);
+    expect(commit).not.toHaveBeenCalled();
+  });
+
   it('AC-TSC-R9: an UNREACHABLE ERP during the probe still leaves the row in-flight (a transient unknown is not a hold)', async () => {
     const { fake, commit, outcome } = await probeFails(new AdapterError('external-unreachable', 'connection reset'));
     expect((outcome as AdapterError).code).toBe('external-unreachable');

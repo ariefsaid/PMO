@@ -12,6 +12,7 @@
 const TIER_LABELS: Record<string, string> = {
   clickup: 'ClickUp',
   erpnext: 'ERPNext',
+  odoo: 'Odoo',
 };
 
 /**

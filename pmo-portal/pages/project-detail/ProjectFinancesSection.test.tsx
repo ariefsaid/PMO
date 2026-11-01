@@ -5,6 +5,7 @@ import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter } from 'react-router';
 import { axe } from 'jest-axe';
+import 'jest-axe/extend-expect'; // global registration moved out of test/setup.ts (unit-speed #1584)
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -17,11 +18,13 @@ const h = vi.hoisted(() => ({
     isError: false,
     refetch: vi.fn().mockResolvedValue(undefined),
   },
+  collection: { data: {} as Record<string, { ledgerBasis: 'pmo' | 'erp'; actuals: { currency: string; total: string | null; complete: boolean } }>, isPending: false, isError: false },
   role: 'Project Manager' as 'Admin' | 'Finance' | 'Project Manager' | 'Engineer' | 'Executive',
   effectiveRole: 'Project Manager' as 'Admin' | 'Finance' | 'Project Manager' | 'Engineer' | 'Executive',
   commitments: { data: 75, isPending: false, isError: false, commitmentSource: 'not-tracked' as const, ledgerBasis: 'erp' as 'erp' | 'pmo' | 'unavailable',
-    otherCurrencies: [] as Array<{ currency: string; amount: number }> },
+    otherCurrencies: [] as Array<{ currency: string | null; amount: number }> },
 }));
+vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({ useProjectsMoneyCollection: () => h.collection }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProjectCommittedSpend: () => h.commitments }));
 vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => h.query }));
 vi.mock('@/src/components/fx/FxEquivalent', () => ({ default: () => null }));
@@ -62,6 +65,7 @@ beforeEach(() => {
   h.query.isPending = false;
   h.query.isError = false;
   h.query.refetch.mockReset().mockResolvedValue(undefined);
+  h.collection = { data: { [project.id]: { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '75', complete: true } } }, isPending: false, isError: false };
   h.role = 'Project Manager';
   h.effectiveRole = 'Project Manager';
   h.commitments = { data: 75, isPending: false, isError: false, commitmentSource: 'not-tracked', ledgerBasis: 'erp', otherCurrencies: [] };
@@ -203,6 +207,56 @@ describe('ProjectFinancesSection reading states', () => {
     render(<ProjectFinancesSection project={project} />);
     expect(within(screen.getByRole('heading', { name: /Recorded spending/ }).parentElement!).getByText('75', { selector: 'p' })).toBeInTheDocument();
     expect(screen.getByTestId('committed-other-currencies')).toHaveTextContent('Plus amounts in other currencies: €40');
+  });
+
+  it('names an unavailable commitment currency without formatting an invented code', () => {
+    h.query.data = payload({});
+    h.commitments.ledgerBasis = 'pmo';
+    h.commitments.otherCurrencies = [{ currency: null, amount: 40 }];
+    h.collection.data[project.id] = { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '75', complete: false } };
+    render(<ProjectFinancesSection project={project} />);
+    expect(screen.getByTestId('committed-other-currencies')).toHaveTextContent('Currency unavailable');
+  });
+
+  it('uses the full PMO position for spending and withholds it on a failed read', () => {
+    h.query.data = payload({});
+    h.commitments.ledgerBasis = 'pmo';
+    h.collection.data[project.id] = { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '110', complete: false } };
+    const { rerender } = render(<ProjectFinancesSection project={project} />);
+    const spending = () => within(screen.getByRole('heading', { name: /Recorded spending/ }).parentElement!);
+    expect(spending().getByText('110', { selector: 'p' })).toBeInTheDocument();
+    expect(spending().getByText(/Partial position/)).toBeInTheDocument();
+    h.collection.isError = true;
+    rerender(<ProjectFinancesSection project={project} />);
+    expect(screen.queryByText('110', { selector: 'p' })).not.toBeInTheDocument();
+    expect(screen.queryByText('75', { selector: 'p' })).not.toBeInTheDocument();
+    expect(spending().getByText('Spending coverage unavailable')).toBeInTheDocument();
+  });
+
+  it('withholds a position when its ledger basis disagrees with the current basis', () => {
+    h.query.data = payload({});
+    h.commitments.ledgerBasis = 'pmo';
+    h.collection.data[project.id] = { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '110', complete: true } };
+    render(<ProjectFinancesSection project={project} />);
+    expect(screen.queryByText('110', { selector: 'p' })).not.toBeInTheDocument();
+  });
+
+  it('withholds a cached position when its currency differs from the project', () => {
+    h.query.data = payload({});
+    h.commitments.ledgerBasis = 'pmo';
+    h.collection.data[project.id] = { ledgerBasis: 'pmo', actuals: { currency: 'EUR', total: '110', complete: true } };
+    render(<ProjectFinancesSection project={project} />);
+    expect(screen.queryByText('110', { selector: 'p' })).not.toBeInTheDocument();
+  });
+
+  it('does not calculate margin from an ERP snapshot when the position uses PMO commitments', () => {
+    h.commitments.ledgerBasis = 'pmo';
+    h.query.data = payload({
+      invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '100', settled: '0', outstanding: '100', missing_amount: 0, missing_outstanding: 0, tax_basis: 'exclusive', work_revenue: '100', missing_work: 0 }],
+      actuals: { currency: 'USD', as_of: null, total: '40', excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '40' }] },
+    });
+    render(<ProjectFinancesSection project={project} />);
+    expect(within(screen.getByTestId('project-finances-USD')).getByText(/Gross margin is left out/)).toBeInTheDocument();
   });
 
   it('DD-MONEY-1 uses mapped ERP Actual when procurement is ERP-owned, PO Actual for PMO, and withholds on signal error', () => {
@@ -567,5 +621,109 @@ describe('ProjectFinancesSection reading states', () => {
     expect(within(bucket).getByText('Margin').parentElement).toHaveTextContent(
       'Gross margin is left out until spending is linked for every budget category.',
     );
+  });
+});
+
+describe('ProjectFinancesSection billing kinds (#1471)', () => {
+  const onHandProject = { ...project, status: 'Ongoing Project' } as ProjectWithRefs;
+  const usdBucket = (invoiced: string) => ({ currency: 'USD', invoice_count: 3, invoiced, settled: '0.00', outstanding: invoiced,
+    missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive' as const, work_revenue: invoiced, missing_work: 0 });
+  const renderSection = (p: ProjectWithRefs = onHandProject) => render(<MemoryRouter><ProjectFinancesSection project={p} /></MemoryRouter>);
+
+  it('AC-004 says "Invoiced above contract by 100" with both contract invoices, never a bare negative', async () => {
+    h.query.data = payload({
+      contract_invoiced: '1100.00', remaining_to_invoice: '-100.00', invoices: [usdBucket('1350.00')],
+      contract_excess: { state: 'known', amount: '100.00', contractBilling: '1100.00', contributors: [
+        { invoice_id: 'inv-a', invoice_number: 'SI-A', invoice_date: '2026-03-03', contribution: '700.00' },
+        { invoice_id: 'inv-b', invoice_number: 'SI-B', invoice_date: '2026-03-01', contribution: '400.00' },
+      ] },
+    });
+    const { container } = renderSection();
+    const excess = screen.getByTestId('contract-excess');
+    expect(within(excess).getByText('Invoiced above contract by 100')).toBeInTheDocument();
+    expect(screen.queryByText('Remaining to invoice')).not.toBeInTheDocument();
+    expect(screen.queryByText(/-100|−100/)).not.toBeInTheDocument();
+    const links = within(excess).getAllByRole('link');
+    expect(links.map((a) => a.textContent)).toEqual(['SI-A', 'SI-B']);
+    expect(links.map((a) => a.getAttribute('href'))).toEqual(['/sales-invoices/inv-a', '/sales-invoices/inv-b']);
+    const rows = within(excess).getAllByRole('listitem');
+    expect(rows[0]).toHaveTextContent('700');
+    expect(rows[1]).toHaveTextContent('400');
+    expect(rows).toHaveLength(2);
+    // Graduated from the rendered pass: the excess block once sat inside the <dl> (axe definition-list).
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it('#1631 shows the contract-invoiced figure next to the excess for multiple contributing invoices (known and incomplete)', () => {
+    h.query.data = payload({
+      contract_invoiced: '1100.00', remaining_to_invoice: '-100.00', invoices: [usdBucket('1350.00')],
+      contract_excess: { state: 'known', amount: '100.00', contractBilling: '1100.00', contributors: [
+        { invoice_id: 'inv-a', invoice_number: 'SI-A', invoice_date: '2026-03-03', contribution: '700.00' },
+        { invoice_id: 'inv-b', invoice_number: 'SI-B', invoice_date: '2026-03-01', contribution: '400.00' },
+      ] },
+    });
+    const { unmount } = renderSection();
+    const known = screen.getByTestId('contract-excess');
+    expect(within(known).getByText('Invoiced above contract by 100')).toBeInTheDocument();
+    expect(within(known).getByText('Invoiced against contract')).toBeInTheDocument();
+    expect(within(known).getByTestId('contract-excess-invoiced')).toHaveTextContent('1,100');
+    unmount();
+    h.query.data = payload({
+      contract_invoiced: '1100.00', remaining_to_invoice: '-100.00', invoices: [usdBucket('1100.00')],
+      contract_excess: { state: 'incomplete', amount: '100.00' },
+    });
+    renderSection();
+    expect(within(screen.getByTestId('contract-excess')).getByTestId('contract-excess-invoiced')).toHaveTextContent('1,100');
+  });
+
+  it('#1631 shows no excess or invoiced figure when there are no invoices', () => {
+    h.query.data = payload({ contract_invoiced: null, remaining_to_invoice: null, invoices: [], contract_excess: null });
+    renderSection();
+    expect(screen.queryByTestId('contract-excess')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('contract-excess-invoiced')).not.toBeInTheDocument();
+    expect(screen.getByTestId('project-no-invoices')).toBeInTheDocument();
+  });
+
+  it('AC-004 derives the excess and explains missing detail when the contributor list cannot be verified', async () => {
+    h.query.data = payload({
+      contract_invoiced: '1100.00', remaining_to_invoice: '-100.00', invoices: [usdBucket('1100.00')],
+      contract_excess: { state: 'incomplete', amount: '100.00' },
+    });
+    renderSection();
+    expect(screen.getByText('Invoiced above contract by 100')).toBeInTheDocument();
+    expect(screen.getByText(/could not be verified/)).toBeInTheDocument();
+    expect(screen.queryByRole('listitem')).not.toBeInTheDocument();
+    fireEvent.click(within(screen.getByTestId('contract-excess')).getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(h.query.refetch).toHaveBeenCalledOnce());
+  });
+
+  it('AC-013 shows distinct loading, error-with-retry, empty and unavailable states without fabricating an excess or zero', async () => {
+    h.query.isPending = true;
+    const view = renderSection();
+    expect(screen.getByRole('status')).toHaveTextContent('Loading project finances…');
+    expect(screen.queryByText(/Invoiced above contract/)).not.toBeInTheDocument();
+
+    h.query.isPending = false; h.query.isError = true;
+    view.rerender(<MemoryRouter><ProjectFinancesSection project={onHandProject} /></MemoryRouter>);
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load project finances.");
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(h.query.refetch).toHaveBeenCalledOnce());
+
+    h.query.isError = false; h.query.data = payload();
+    view.rerender(<MemoryRouter><ProjectFinancesSection project={onHandProject} /></MemoryRouter>);
+    expect(screen.getByTestId('project-no-invoices')).toBeInTheDocument();
+    expect(screen.queryByText(/Remaining to invoice|Invoiced above contract/)).not.toBeInTheDocument();
+
+    h.query.data = payload({ contract_invoiced: null, remaining_to_invoice: null, invoices: [usdBucket('50.00')], contract_excess: null });
+    view.rerender(<MemoryRouter><ProjectFinancesSection project={onHandProject} /></MemoryRouter>);
+    expect(screen.getByTestId('contract-comparison-unavailable')).toHaveTextContent('Contract comparison unavailable');
+    expect(screen.queryByText(/Remaining to invoice|Invoiced above contract/)).not.toBeInTheDocument();
+  });
+
+  it('AC-013 within the contract still shows invoiced and remaining', () => {
+    h.query.data = payload({ contract_invoiced: '600.00', remaining_to_invoice: '400.00', invoices: [usdBucket('900.00')], contract_excess: null });
+    renderSection();
+    expect(screen.getByText('Remaining to invoice')).toBeInTheDocument();
+    expect(screen.queryByTestId('contract-excess')).not.toBeInTheDocument();
   });
 });

@@ -1,5 +1,6 @@
-import { projectCodedPickerLabel, projectDisplayName } from '@/src/lib/projectDisplayName';
-import React, { useMemo, useRef, useState } from 'react';
+import { projectCodedPickerLabel } from '@/src/lib/projectDisplayName';
+import React, { useMemo, useState } from 'react';
+import { format } from 'date-fns/format';
 import {
   Button,
   Card,
@@ -10,14 +11,10 @@ import {
   SelectField,
   StatusPill,
   TimesheetGrid,
-  MobileActionStrip,
-  Toolbar,
   AccessDenied,
   useToast,
-  type TimesheetDay,
-  type TimesheetGridRow,
 } from '@/src/components/ui';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { useNavigate } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { TimesheetStatus } from '../types';
@@ -30,35 +27,15 @@ import {
 import { PushStateBadge } from '@/src/components/timesheets/PushStateBadge';
 import { useTimesheetEntryMutations } from '@/src/hooks/useTimesheetEntries';
 import { useProjects } from '@/src/hooks/useProjects';
-import { timesheetActions } from '@/src/lib/db/timesheetTransition';
-import {
-  type EditRow,
-  computeTotals,
-  diffEntries,
-  gridIsValid,
-  parseHourCell,
-  saveToastForChangeCount,
-} from '@/src/lib/timesheet-edit';
 import { useAuth } from '@/src/auth/useAuth';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatFullDate, formatMonthDay, formatNumberExact, formatWeekday } from '@/src/lib/format';
+import { formatNumberExact } from '@/src/lib/format';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
-
-// ── Date helpers (preserved verbatim — week logic unchanged) ─────────────────
-const getWeekStartDate = (date: Date): Date => {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  return new Date(d.setDate(diff));
-};
-
-const formatDate = (date: Date): string => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-};
+import { weekStart, datesInWeek, entriesToGridRows, gridDaysForWeek } from './timesheets/timesheetWeekModel';
+import { useTimesheetWeekEditor } from './timesheets/useTimesheetWeekEditor';
+import { TimesheetWeekToolbar } from './timesheets/TimesheetWeekToolbar';
+import { TimesheetWeekActions } from './timesheets/TimesheetWeekActions';
 
 // Timesheet status pill comes from the single status registry (`workflowVariant`):
 // Draft = neutral, Submitted = neutral grey `progress` (NOT the action-blue, per the
@@ -68,7 +45,7 @@ const formatDate = (date: Date): string => {
 const PICKER_NAME_MAX = 36;
 
 const TimesheetsPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'timesheets']);
   const isDesktop = useIsDesktop();
   const { data: sheets, isPending, isError, refetch } = useTimesheets();
   const { submit, reopen } = useTimesheetMutations();
@@ -89,32 +66,14 @@ const TimesheetsPage: React.FC = () => {
   // Engineer cannot approve timesheets (OD-W2-2), so showing them the cross-link is a RBAC leak.
   const isApprover = may('transition', 'approval');
   const signedInUserId = currentUser?.id;
-  // O1 (review fix): synchronous re-entrancy guard for the async Submit. React Query's
-  // `isPending` only flips on the next render, so a fast double-click on the confirm fires
-  // `commitSubmit` twice before the `loading` prop updates — on a fresh week that means TWO
-  // lazy-Draft creates → two sheets. This ref blocks the second invocation in the same tick.
-  const submittingRef = useRef(false);
-  // T1: the Submit button stages this confirm; nothing submits on a single click.
-  const [confirmSubmit, setConfirmSubmit] = useState(false);
-
   // Pending-approval count for the queue toggle badge (shared cache; cheap).
   const { data: awaiting } = useTimesheetsAwaitingApproval();
   const pendingCount = awaiting?.length ?? 0;
 
   const [currentDate, setCurrentDate] = useState(new Date());
 
-  const weekStartDate = getWeekStartDate(new Date(currentDate));
-  const weekStartString = formatDate(weekStartDate);
-
-  const weekDates = useMemo(
-    () =>
-      Array.from({ length: 7 }).map((_, i) => {
-        const date = new Date(weekStartDate);
-        date.setDate(date.getDate() + i);
-        return date;
-      }),
-    [weekStartDate]
-  );
+  const { date: weekStartDate, key: weekStartString } = weekStart(currentDate);
+  const weekDates = useMemo(() => datesInWeek(weekStartDate), [weekStartDate]);
 
   const currentTimesheet = useMemo(
     () => (sheets ?? []).find((t) => t.week_start_date === weekStartString) ?? null,
@@ -126,47 +85,25 @@ const TimesheetsPage: React.FC = () => {
     [currentTimesheet]
   );
 
+  // "Copy last week" source: LAST week's sheet (same repository list, already fetched) — the
+  // entries the copy merges into the current week's edit buffer.
+  const lastWeekStartDate = useMemo(() => {
+    const shifted = new Date(weekStartDate);
+    shifted.setDate(shifted.getDate() - 7);
+    return shifted;
+  }, [weekStartDate]);
+  const lastWeekStartString = useMemo(() => format(lastWeekStartDate, 'yyyy-MM-dd'), [lastWeekStartDate]);
+  const lastWeekEntries = useMemo(
+    () => (sheets ?? []).find((t) => t.week_start_date === lastWeekStartString)?.entries ?? [],
+    [sheets, lastWeekStartString]
+  );
+
   // ⚑ I-16/I-17 — the owner's own ERP push state (rendered by `PushStateBadge` beside the status pill
   // below). Declared here, with the other top-level reads, so it stays above every early return.
   const { data: ownPushState } = useOwnTimesheetPushState(currentTimesheet?.id);
 
-  // Group entries into grid rows (one row per project), each with 7 daily hours.
-  // Entries for the same project on the same day are summed regardless of note text.
-  const gridRows = useMemo<TimesheetGridRow[]>(() => {
-    const map = new Map<string, TimesheetGridRow>();
-    const dateStrings = weekDates.map(formatDate);
-    for (const e of currentWeekEntries) {
-      const key = `${e.project_id}`;
-      let row = map.get(key);
-      if (!row) {
-        row = {
-          id: key,
-          projectId: `${e.project_id}`,
-          project: e.project ? projectDisplayName(e.project) : t('timesheets.unknownProject', 'Unknown Project'),
-          projectLegalName: e.project?.name,
-          code: e.project?.code ?? null,
-          hours: [0, 0, 0, 0, 0, 0, 0],
-        };
-        map.set(key, row);
-      }
-      const dayIdx = dateStrings.indexOf(e.entry_date);
-      if (dayIdx >= 0) row.hours[dayIdx] += e.hours;
-    }
-    return Array.from(map.values()).sort((a, b) => a.project.localeCompare(b.project));
-  }, [currentWeekEntries, weekDates, t]);
-
-  const gridDays = useMemo<TimesheetDay[]>(
-    () =>
-      weekDates.map((d) => {
-        const dow = d.getDay();
-        return {
-          label: formatWeekday(d),
-          dateNum: String(d.getDate()),
-          weekend: dow === 0 || dow === 6,
-        };
-      }),
-    [weekDates]
-  );
+  const gridRows = useMemo(() => entriesToGridRows(currentWeekEntries, weekDates, t('timesheets.unknownProject', 'Unknown Project')), [currentWeekEntries, weekDates, t]);
+  const gridDays = useMemo(() => gridDaysForWeek(weekDates), [weekDates]);
 
   // ── timesheet-entry: editable-state machine (FR-TSE-001/002/003) ───────────
   // Editable iff the sheet is absent, or the signed-in user owns it AND it is Draft.
@@ -174,383 +111,41 @@ const TimesheetsPage: React.FC = () => {
     currentTimesheet == null ||
     (currentTimesheet.user_id === signedInUserId && currentTimesheet.status === 'Draft');
 
-  const { saveWeek, deleteRow } = useTimesheetEntryMutations();
-  const { data: allProjects } = useProjects();
+  const entryMutations = useTimesheetEntryMutations();
+  const { saveWeek, deleteRow, isReconciling, retryDeleteRefresh } = entryMutations;
+  const { data: allProjects, isPending: projectsPending, isError: projectsError, refetch: refetchProjects } = useProjects();
 
-  const weekDateStrings = useMemo(() => weekDates.map(formatDate), [weekDates]);
+  const editor = useTimesheetWeekEditor({
+    currentTimesheet, currentWeekEntries, gridRows, weekDates, weekStartDate, weekStartString,
+    allProjects, signedInUserId, currentDate, setCurrentDate, lastWeekEntries, entryMutations, submit,
+  });
+  const { pickerOptions, invalidCells, editValid, editTotals, editGridRows, editNotes,
+    editRawHours, rowToDelete, dirty, weeklyTotal, pendingWeekDelta, weekRangeLabel,
+    isOwner, editBufferHasHours, canSubmit, confirmSubmit, copyPlan } = editor.view;
+  const { setCell, setNote, addProject, copyLastWeek, requestDelete, cancelDelete, confirmDeleteRow,
+    commitSave, stepWeek, cancelWeekChange, confirmWeekChange, requestSubmit,
+    cancelSubmit, commitSubmit } = editor.actions;
 
-  // AC-IFW-TASKS-02: consume ?project=<id> from the URL (set by MyTasks "Log time" link).
-  // Declared before the seedRows/seedKey block so the reseed can re-include the prefilled
-  // project when the seedKey transitions (e.g. sheets resolves AFTER projects — the common case
-  // for an active engineer with a saved draft). `prefillApplied` tracks the last applied id
-  // so we do not re-add the project on subsequent non-seedKey-changing renders.
-  const [searchParams] = useSearchParams();
-  const prefillProjectId = searchParams.get('project');
-  const prefillApplied = React.useRef<string | null>(null);
+  // ── Copy last week enablement (plain visible reason for every stable disabled state) ──
+  // While projects are still loading the reason is deliberately BLANK (transient — the picker's
+  // own "Loading projects…" status already reports it; a second copy would break the unique-status
+  // oracle). The stable causes — not-a-draft, empty last week, nothing new — render their reason.
+  const copyBusy = deleteRow.isPending || isReconciling || saveWeek.isPending || submit.isPending;
+  const copyDisabledReason = projectsPending
+    ? null
+    : !editable
+      ? t('timesheets:copyLastWeek.reasonNotDraft', 'This week is no longer a draft')
+      : copyPlan.addedCount === 0
+        ? copyPlan.lastWeekHasRows
+          ? t('timesheets:copyLastWeek.reasonNothingNew', "Last week's projects are already in this week")
+          : t('timesheets:copyLastWeek.reasonEmpty', 'Nothing to copy — no time was logged last week')
+        : null;
+  const copyDisabled = projectsPending || copyDisabledReason !== null || copyBusy;
 
-  // Seed the in-memory edit state from the last-fetched server grid. Re-seed ONLY when the
-  // week, sheet identity, or sheet editability changes — NOT when entry content changes.
-  // Keying on entry content would let every post-mutation invalidation refetch (the async
-  // onSuccess after Save/Delete) re-seed and clobber unsaved local edits (e.g. delete a row,
-  // re-add a project + type hours, then have the delete's refetch wipe the re-added row).
-  // Week navigation, the none→real draft-id transition on first Save, and Draft→Submitted all
-  // change this key and still correctly re-seed; a same-week post-mutation refetch does not.
-  const seedRows = useMemo<EditRow[]>(
-    () =>
-      gridRows.map((r) => {
-        const note =
-          currentWeekEntries.find((e) => e.project_id === r.id && (e.notes ?? '') !== '')?.notes ??
-          '';
-        return {
-          project_id: r.id,
-          project: r.project,
-          code: r.code,
-          hours: r.hours.map((h) => (h === 0 ? '' : String(h))),
-          note,
-        };
-      }),
-    [gridRows, currentWeekEntries]
-  );
-  const seedKey = useMemo(
-    () =>
-      `${currentTimesheet?.id ?? 'none'}|${currentTimesheet?.status ?? 'none'}|${weekStartString}`,
-    [currentTimesheet?.id, currentTimesheet?.status, weekStartString]
-  );
-  const [editRows, setEditRows] = useState<EditRow[]>(seedRows);
-  const lastSeedKey = useRef<string | null>(null);
-  if (lastSeedKey.current !== seedKey) {
-    lastSeedKey.current = seedKey;
-    // AC-IFW-TASKS-02 reseed-survival: when the seedKey transitions (e.g. the saved draft
-    // arrives from the server after the prefill effect already ran), the prefilled project
-    // would be dropped from editRows because seedRows only reflects the server state.
-    // Re-include the prefilled project in the reseed target if:
-    //   (a) a prefill was already applied (prefillApplied.current === prefillProjectId),
-    //   (b) the project is a valid Ongoing Project in allProjects, AND
-    //   (c) the project is not already present in seedRows (not yet saved to the server).
-    let nextRows = seedRows;
-    if (
-      prefillProjectId &&
-      prefillApplied.current === prefillProjectId &&
-      allProjects &&
-      !seedRows.some((r) => r.project_id === prefillProjectId)
-    ) {
-      const proj = allProjects.find(
-        (p) => p.id === prefillProjectId && p.status === 'Ongoing Project',
-      );
-      if (proj) {
-        nextRows = [
-          ...seedRows,
-          {
-            project_id: proj.id,
-            project: projectDisplayName(proj),
-            code: proj.code,
-            hours: ['', '', '', '', '', '', ''],
-            note: '',
-          },
-        ];
-      }
-    }
-    if (editRows !== nextRows) setEditRows(nextRows);
-  }
-
-  // Server entries shaped for diffEntries (id/project/date/hours/notes per cell). `notes` lets the
-  // diff detect a note-only edit (hours unchanged) and re-upsert it instead of silently dropping it.
-  const serverEntriesForDiff = useMemo(
-    () =>
-      currentWeekEntries.map((e) => ({
-        id: e.id,
-        project_id: e.project_id,
-        entry_date: e.entry_date,
-        hours: e.hours,
-        notes: e.notes ?? null,
-      })),
-    [currentWeekEntries]
-  );
-
-  // Picker options: Active org projects (Ongoing Project) minus those already a row.
-  const presentProjectIds = useMemo(
-    () => new Set(editRows.map((r) => r.project_id)),
-    [editRows]
-  );
-  const pickerOptions = useMemo(
-    () =>
-      (allProjects ?? [])
-        .filter((p) => p.status === 'Ongoing Project' && !presentProjectIds.has(p.id))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [allProjects, presentProjectIds]
-  );
-
-  // Live invalid-cell set (color-not-only: drives border + inline alert + aria-invalid).
-  const invalidCells = useMemo(() => {
-    const set = new Set<string>();
-    editRows.forEach((r) => {
-      r.hours.forEach((cell, i) => {
-        if (!parseHourCell(cell).valid) set.add(`${r.project_id}:${i}`);
-      });
-    });
-    return set;
-  }, [editRows]);
-  const editValid = useMemo(() => gridIsValid(editRows), [editRows]);
-  // The week's totals from edited (string) state — invalid cells gate to 0 — via the same pure
-  // selector the grid footer uses, so the header weekly total and the footer grand total agree
-  // (no inline raw double-reduce that would count an invalid "25" as 25). FR-TSE-013.
-  const editTotals = useMemo(() => computeTotals(editRows), [editRows]);
-
-  // Edited rows shaped for TimesheetGrid (numeric hours for display) + the note map.
-  const editGridRows = useMemo<TimesheetGridRow[]>(
-    () =>
-      editRows.map((r) => ({
-        id: r.project_id,
-        project: r.project,
-        projectLegalName: (allProjects ?? []).find((p) => p.id === r.project_id)?.name,
-        code: r.code,
-        hours: r.hours.map((c) => parseHourCell(c).value || 0),
-      })),
-    [editRows, allProjects]
-  );
-  const editNotes = useMemo(
-    () => Object.fromEntries(editRows.map((r) => [r.project_id, r.note])),
-    [editRows]
-  );
-  const editRawHours = useMemo(
-    () => Object.fromEntries(editRows.map((r) => [r.project_id, r.hours])),
-    [editRows]
-  );
-
-  const setCell = (rowId: string, dayIndex: number, raw: string) =>
-    setEditRows((rows) =>
-      rows.map((r) =>
-        r.project_id === rowId
-          ? { ...r, hours: r.hours.map((c, i) => (i === dayIndex ? raw : c)) }
-          : r
-      )
-    );
-  const setNote = (rowId: string, note: string) =>
-    setEditRows((rows) => rows.map((r) => (r.project_id === rowId ? { ...r, note } : r)));
-  const addProject = (projectId: string) => {
-    const proj = (allProjects ?? []).find((p) => p.id === projectId);
-    if (!proj || presentProjectIds.has(projectId)) return;
-    setEditRows((rows) => [
-      ...rows,
-      {
-        project_id: proj.id,
-        project: projectDisplayName(proj),
-        code: proj.code,
-        hours: ['', '', '', '', '', '', ''],
-        note: '',
-      },
-    ]);
-  };
-
-  // AC-IFW-TASKS-02 prefill effect: run once per param value after allProjects loads.
-  // Guard: only Ongoing Project rows are valid timesheet projects (matches picker filter);
-  // unknown / already-present / non-active ids are silently ignored by addProject.
-  // The reseed-survival fix above handles the case where this effect fires BEFORE the
-  // server draft arrives — the reseed block re-appends the prefilled row when seedKey changes.
-  React.useEffect(() => {
-    if (
-      !prefillProjectId ||
-      !allProjects ||
-      allProjects.length === 0 ||
-      prefillApplied.current === prefillProjectId
-    ) {
-      return;
-    }
-    prefillApplied.current = prefillProjectId;
-    addProject(prefillProjectId);
-  // addProject is stable (no deps that change); allProjects loading is the trigger.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefillProjectId, allProjects]);
-
-  // Delete-row confirm (mandatory destructive ConfirmDialog — FR-TSE-008/009).
-  const [confirmDeleteRowId, setConfirmDeleteRowId] = useState<string | null>(null);
-  const rowToDelete = editRows.find((r) => r.project_id === confirmDeleteRowId) ?? null;
-  const confirmDeleteRow = () => {
-    if (!confirmDeleteRowId) return;
-    const rowIdToDelete = confirmDeleteRowId;
-    const persistedEntryIds = currentWeekEntries
-      .filter((e) => e.project_id === rowIdToDelete)
-      .map((e) => e.id);
-    setConfirmDeleteRowId(null);
-
-    if (persistedEntryIds.length === 0) {
-      // Unsaved row — remove from edit state only (no server write needed).
-      setEditRows((rows) => rows.filter((r) => r.project_id !== rowIdToDelete));
-      return;
-    }
-
-    // Capture the row before removal so we can restore it on failure.
-    const removedRow = editRows.find((r) => r.project_id === rowIdToDelete);
-
-    // Remove optimistically from edit state; restore on server error (resilience F5).
-    setEditRows((rows) => rows.filter((r) => r.project_id !== rowIdToDelete));
-    deleteRow.mutate(
-      { entryIds: persistedEntryIds },
-      {
-        onSuccess: () => toast(
-            t('timesheets.toast.rowDeleted.headline', 'Row deleted'),
-            t('timesheets.toast.rowDeleted.detail', 'Removed this project from the week'),
-            'success',
-          ),
-        onError: (err) => {
-          // Restore the removed row so the user's data is not silently lost — unless the user
-          // already re-added the project while the delete was in flight (#596): appending then
-          // yields two rows for one project, and the next Save sends two upserts for the same
-          // cell, which Postgres refuses. Their re-added row wins; the server still holds the
-          // old entries and the next diff reconciles against them.
-          if (removedRow) {
-            setEditRows((rows) =>
-              rows.some((r) => r.project_id === removedRow.project_id) ? rows : [...rows, removedRow],
-            );
-          }
-          toast(t('timesheets.toast.deleteFailed', 'Delete failed'), err.message, 'warning');
-        },
-      }
-    );
-  };
-
-  // Save (explicit commit — FR-TSE-011/012/016). Builds the diff, calls saveWeek.
-  const commitSave = () => {
-    const diff = diffEntries(
-      editRows,
-      weekDateStrings,
-      serverEntriesForDiff,
-      currentTimesheet?.id ?? ''
-    );
-    const changeCount = diff.upserts.length + diff.deletes.length;
-    // Suppress the no-op: 0 changes never toasts a fake "0 changes saved" success — it reports an
-    // honest info "Nothing to save", and we skip the write entirely (AC-IXD-TS-003, OD-UX-1).
-    if (changeCount === 0) {
-      toast(...saveToastForChangeCount(0));
-      return;
-    }
-    saveWeek.mutate(
-      { currentTimesheetId: currentTimesheet?.id ?? null, weekStartDate: weekStartString, diff },
-      {
-        // Quiet success toast; the user stays on the editable grid (no view/navigation change).
-        onSuccess: () => toast(...saveToastForChangeCount(changeCount)),
-        onError: (err: { message: string }) =>
-          toast(t('timesheets.toast.saveFailed', 'Save failed'), err.message, 'warning'),
-      }
-    );
-  };
-
-  // UX-063: unsaved = the edit buffer differs from the server week (same diff Save commits).
-  const dirty = useMemo(() => {
-    const d = diffEntries(editRows, weekDateStrings, serverEntriesForDiff, currentTimesheet?.id ?? '');
-    return d.upserts.length + d.deletes.length > 0;
-  }, [editRows, weekDateStrings, serverEntriesForDiff, currentTimesheet?.id]);
-
-  const weeklyTotal = useMemo(
-    () => currentWeekEntries.reduce((sum, e) => sum + e.hours, 0),
-    [currentWeekEntries]
-  );
-
-  const stepWeek = (delta: number) => {
-    const next = new Date(currentDate);
-    next.setDate(next.getDate() + delta * 7);
-    setCurrentDate(next);
-  };
-
-  const weekRangeLabel = `${formatMonthDay(weekStartDate)} – ${formatFullDate(weekDates[6])}`;
-
-  // Submit affordance (FR-TS-004): only the owner of a Draft sheet for this week.
-  const isOwner = currentTimesheet?.user_id === signedInUserId;
-  const actions = currentTimesheet
-    ? timesheetActions(currentTimesheet.status as TimesheetStatus, Boolean(isOwner), false)
-    : { submit: false, approve: false, reject: false };
-
-  // OD-W3-1 (AC-W3-O1): Submit is enabled when EITHER:
-  //   (a) a Draft with at least one PERSISTED entry exists (legacy: clean/already-saved), OR
-  //   (b) the edit buffer has valid hours (dirty week — Submit auto-saves first then submits).
-  // This eliminates the 3-step Save→Submit→Confirm for a fresh/dirty week.
-  // The buffer having hours is detected via editValid && editRows.some(r => r.hours.some(h => h !== ''))
-  // (equivalent: editTotals.weekly > 0 since invalid cells count as 0 and empty cells count as 0).
-  const editBufferHasHours = editValid && editTotals.weekly > 0;
-  // canSubmit covers BOTH the already-saved path and the auto-save-first path — but is gated on
-  // `editValid` (review minor): if the visible buffer is dirty-but-INVALID (e.g. a 25h cell), do
-  // NOT offer Submit against the stale persisted data and silently discard the edits; force the
-  // user to fix/clear the invalid cell first (the grid shows the validation, Save stays disabled).
-  const canSubmit =
-    editValid && ((actions.submit && currentWeekEntries.length > 0) || editBufferHasHours);
-
-  // OD-W3-1 (AC-W3-O1): commit the week for approval.
-  //
-  // If the edit buffer has unsaved valid changes (dirty), run saveWeek.mutateAsync first to
-  // persist them (and create the Draft if none exists). saveWeek returns the resolved sheet id
-  // so we can submit immediately — no poll/setTimeout required.
-  //
-  // If the buffer is clean (no diff vs. server), skip the save and submit the already-persisted
-  // sheet directly (no-op-save suppression preserved).
-  //
-  // The confirm dialog still gates the action (consequential write), the RPC contract
-  // (submit_timesheet { id }) is preserved, and the seedKey re-seed-race guard is unchanged.
-  const commitSubmit = async () => {
-    // Re-entrancy guard (review fix): block a synchronous double-click on the confirm before the
-    // first save/submit's `isPending` becomes observable. Cleared in EVERY terminal path below
-    // (save-error, no-sheet, submit success, submit error) — NOT in a finally, because the trailing
-    // `submit.mutate` is fire-and-forget, so the ref must stay held until that mutation settles.
-    if (submittingRef.current) return;
-    submittingRef.current = true;
-    let sheetId = currentTimesheet?.id ?? null;
-
-    // Compute the diff to detect dirty state (mirrors commitSave logic).
-    const diff = diffEntries(
-      editRows,
-      weekDateStrings,
-      serverEntriesForDiff,
-      currentTimesheet?.id ?? '',
-    );
-    const changeCount = diff.upserts.length + diff.deletes.length;
-
-    if (changeCount > 0 && editValid) {
-      // Dirty + valid: auto-save first, get the resolved sheet id.
-      try {
-        sheetId = await saveWeek.mutateAsync({
-          currentTimesheetId: currentTimesheet?.id ?? null,
-          weekStartDate: weekStartString,
-          diff,
-        });
-      } catch (err: unknown) {
-        // Auto-save failed — don't attempt the submit; surface the error.
-        submittingRef.current = false;
-        setConfirmSubmit(false);
-        toast(
-          t('timesheets.toast.saveFailed', 'Save failed'),
-          err instanceof Error ? err.message : undefined,
-          'warning',
-        );
-        return;
-      }
-    }
-
-    if (!sheetId) {
-      // Shouldn't happen if canSubmit is guarded correctly, but defend gracefully.
-      submittingRef.current = false;
-      setConfirmSubmit(false);
-      return;
-    }
-
-    submit.mutate(
-      { id: sheetId },
-      {
-        onSuccess: () => {
-          submittingRef.current = false;
-          setConfirmSubmit(false);
-          toast(
-            t('timesheets.toast.submitted.headline', 'Timesheet submitted'),
-            t('timesheets.toast.submitted.detail', 'Sent to your line manager for approval'),
-            'success',
-          );
-        },
-        onError: (err: unknown) => {
-          submittingRef.current = false;
-          setConfirmSubmit(false);
-          const { headline, detail } = classifyMutationError(err);
-          toast(headline, detail, 'warning');
-        },
-      },
-    );
+  const actionProps = {
+    total: editTotals.weekly, dirty, editValid, canSubmit, hasHours: editBufferHasHours,
+    hasEntries: currentWeekEntries.length > 0, saving: saveWeek.isPending, submitting: submit.isPending,
+    deleting: deleteRow.isPending, isReconciling, onSave: commitSave, onSubmit: requestSubmit,
   };
 
   // T1 confirm dialog — shared across the grid-view renders below.
@@ -567,7 +162,7 @@ const TimesheetsPage: React.FC = () => {
       )}
       confirmLabel={t('timesheets.submitConfirm.confirmLabel', 'Submit timesheet')}
       loading={submit.isPending || saveWeek.isPending}
-      onCancel={() => setConfirmSubmit(false)}
+      onCancel={cancelSubmit}
       onConfirm={() => void commitSubmit()}
     />
   );
@@ -587,71 +182,13 @@ const TimesheetsPage: React.FC = () => {
     );
   }
 
-  // ── Page head + toolbar (shared by both views) ──────────────────────────────
-  const head = (
-    <>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[24px] font-bold tracking-[-0.02em]">
-            {t('timesheets.title', 'Timesheets')}
-          </h1>
-          <p className="mt-0.5 max-w-[72ch] text-sm text-muted-foreground">
-            {t(
-              'timesheets.subtitle',
-              'Week of {{range}}. Enter hours per project per day, then submit the whole week for your line manager to approve.',
-              { range: weekRangeLabel },
-            )}
-          </p>
-        </div>
-      </div>
-
-      <Toolbar standalone>
-        {/* CW-6: the approvals queue has ONE home at /approvals. Approvers get a cross-link
-            there (scoped to timesheets) instead of an in-page queue tab — so this page no longer
-            competes as a second approvals surface. Non-approvers (Engineer) see no link at all. */}
-        {/* UX-062: two named jobs. My time is this page; Team review is the canonical Approvals
-            inbox (scoped to timesheets), one click away. Engineers get no switch (no review job). */}
-        {isApprover && (
-          <nav
-            aria-label={t('uxs28.nav.label', 'Timesheet views')}
-            className="inline-flex items-center gap-1"
-          >
-            <span
-              aria-current="page"
-              className="inline-flex h-8 items-center rounded-md bg-accent px-2.5 text-[13px] font-semibold text-foreground"
-            >
-              {t('uxs28.nav.myTime', 'My time')}
-            </span>
-            <Link
-              to="/approvals?scope=timesheets"
-              className="touch-target inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
-            >
-              {pendingCount > 0
-                ? t('uxs28.nav.teamReviewAwaiting', 'Team review · {{n}} awaiting', { n: String(pendingCount) })
-                : t('uxs28.nav.teamReview', 'Team review')}
-              <Icon name="chev" aria-hidden />
-            </Link>
-          </nav>
-        )}
-        <span className="ml-auto inline-flex items-center gap-0.5">
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label={t('timesheets.previousWeek', 'Previous week')}
-            onClick={() => stepWeek(-1)}
-          >
-            <Icon name="back" />
-          </Button>
-          <span className="px-2 text-[13px] font-medium tabular text-muted-foreground">
-            {t('timesheets.weekOf', 'Week of')} {formatMonthDay(weekStartDate)}
-          </span>
-          <Button variant="outline" size="icon" aria-label={t('timesheets.nextWeek', 'Next week')} onClick={() => stepWeek(1)}>
-            <Icon name="chev" />
-          </Button>
-        </span>
-      </Toolbar>
-    </>
-  );
+  const head = <TimesheetWeekToolbar
+    weekRangeLabel={weekRangeLabel} isApprover={isApprover} pendingCount={pendingCount}
+    weekStartDate={weekStartDate} busy={deleteRow.isPending || isReconciling || saveWeek.isPending || submit.isPending}
+    stepWeek={stepWeek} pendingWeekDelta={pendingWeekDelta}
+    onCancelDiscard={cancelWeekChange}
+    onConfirmDiscard={confirmWeekChange}
+  />;
 
   // ── Weekly grid view ────────────────────────────────────────────────────────
   if (isPending) {
@@ -761,24 +298,53 @@ const TimesheetsPage: React.FC = () => {
                   so capping its width is safe; options still show in full. Use the shared
                   DS SelectField so dark mode keeps the tokened field shell. */}
               <div className="min-w-0 max-w-[160px] flex-1">
-                <SelectField
-                  id="ts-add-project"
-                  hideLabel
-                  label={t('timesheets.addAProject', 'Add a project')}
-                  value=""
-                  onChange={(value) => {
-                    if (value) addProject(value);
-                  }}
-                  disabled={pickerOptions.length === 0}
-                  options={pickerOptions.map((p) => ({ value: p.id, label: projectCodedPickerLabel(p, PICKER_NAME_MAX) }))}
-                  placeholder={
-                    pickerOptions.length === 0
-                      ? t('timesheets.picker.none', 'No projects to add')
-                      : t('timesheets.picker.select', 'Select a project…')
-                  }
-                  className="touch-target min-w-0 max-w-[160px] text-[13px]"
-                />
+                {projectsPending ? (
+                  <span role="status">{t('timesheets:picker.loading', 'Loading projects…')}</span>
+                ) : projectsError ? (
+                  <span role="alert">
+                    {t('timesheets:picker.error', 'Could not load projects.')}
+                    <Button variant="outline" onClick={() => refetchProjects()}>
+                      {t('timesheets:picker.retry', 'Retry projects')}
+                    </Button>
+                  </span>
+                ) : (
+                  <SelectField
+                    id="ts-add-project"
+                    hideLabel
+                    label={t('timesheets.addAProject', 'Add a project')}
+                    value=""
+                    onChange={(value) => {
+                      if (value) addProject(value);
+                    }}
+                    disabled={pickerOptions.length === 0}
+                    options={pickerOptions.map((p) => ({ value: p.id, label: projectCodedPickerLabel(p, PICKER_NAME_MAX) }))}
+                    placeholder={
+                      pickerOptions.length === 0
+                        ? t('timesheets.picker.none', 'No projects to add')
+                        : t('timesheets.picker.select', 'Select a project…')
+                    }
+                    className="touch-target min-w-0 max-w-[160px] text-[13px]"
+                  />
+                )}
               </div>
+            </div>
+          )}
+          {canEnterTimesheet && (
+            <div data-testid="timesheets-copy-last-week" className="inline-flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={copyLastWeek}
+                disabled={copyDisabled}
+                title={copyDisabledReason ?? undefined}
+              >
+                <Icon name="clipboard-check" aria-hidden />
+                {t('timesheets:copyLastWeek.button', 'Copy last week')}
+              </Button>
+              {copyDisabledReason && (
+                <span data-testid="timesheets-copy-reason" className="text-[13px] text-muted-foreground">
+                  {copyDisabledReason}
+                </span>
+              )}
             </div>
           )}
           {editable && (
@@ -787,7 +353,9 @@ const TimesheetsPage: React.FC = () => {
               role="status"
               className="text-[13px] text-muted-foreground"
             >
-              {dirty
+              {deleteRow.isPending || isReconciling
+                ? t('timesheets:reconcile.message', 'Refresh this week before continuing.')
+                : dirty
                 ? t('uxs28.save.dirty', 'Unsaved changes')
                 : currentWeekEntries.length > 0
                   ? t('uxs28.save.saved', 'All changes saved')
@@ -824,7 +392,7 @@ const TimesheetsPage: React.FC = () => {
               invalidCells={invalidCells}
               onCellChange={setCell}
               onNoteChange={setNote}
-              onDeleteRow={(id) => setConfirmDeleteRowId(id)}
+              onDeleteRow={requestDelete}
             />
           )
         ) : gridRows.length === 0 ? (
@@ -843,63 +411,23 @@ const TimesheetsPage: React.FC = () => {
           <TimesheetGrid days={gridDays} rows={gridRows} />
         )}
 
-        {editable && isDesktop && (
-          <div
-            data-testid="timesheets-footer"
-            className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-3.5 py-2.5"
-          >
-            {/* Helper text co-located with the disabled Submit (color-not-only; explains the gate). */}
-            {/* OD-W3-1: now that Submit auto-saves, the message is "enter hours" not "save first". */}
-            {!canSubmit && (
-              <span className="mr-auto text-[13px] text-muted-foreground">
-                {t('timesheets.enterHoursToSubmit', 'Enter hours to submit')}
-              </span>
-            )}
-            {/* Save = secondary (outline): a routine reversible write, single-click + quiet toast.
-                Both commits are locked while a row delete is in flight (#596): a Save diffed against
-                the pre-delete server entries deletes cells the delete loop is about to delete, the
-                loop's 0-row assertion then fails, and the restore duplicates the row. */}
-            <Button
-              variant="outline"
-              onClick={commitSave}
-              disabled={!dirty || !editValid || saveWeek.isPending || deleteRow.isPending}
-              loading={saveWeek.isPending}
-            >
-              <Icon name="check" />
-              {t('timesheets.save', 'Save')}
-            </Button>
-            {/* Submit = primary, co-located. Shown from first paint; disabled until a Draft with
-                persisted hours exists (T14). Opens a confirm before the state-lock. */}
-            <Button
-              variant="primary"
-              onClick={() => setConfirmSubmit(true)}
-              disabled={!canSubmit || submit.isPending || deleteRow.isPending}
-              loading={submit.isPending}
-            >
-              <Icon name="check" />
-              {t('timesheets.submit', 'Submit timesheet')}
-            </Button>
-          </div>
-        )}
+        {editable && isDesktop && <TimesheetWeekActions mode="desktop" {...actionProps} />}
       </Card>
 
-      {editable && !isDesktop && (
-        <MobileActionStrip
-          total={editTotals.weekly}
-          canSave={dirty && editValid && !saveWeek.isPending && !deleteRow.isPending}
-          canSubmit={canSubmit && !submit.isPending && !deleteRow.isPending}
-          showSubmitHint={!editBufferHasHours && currentWeekEntries.length === 0}
-          saving={saveWeek.isPending}
-          submitting={submit.isPending}
-          onSave={commitSave}
-          onSubmit={() => setConfirmSubmit(true)}
-        />
-      )}
+      {editable && !isDesktop && <TimesheetWeekActions mode="mobile" {...actionProps} />}
 
       {/* AC-IXD-TS-004: the per-project + recent-entries rollup panels are removed — the grid's own
           TOTAL column + daily-total row + header weekly total are the single source of truth; the
           rollups live on the Engineer dashboard only (plan task 16). */}
 
+      {isReconciling && !deleteRow.isPending && (
+        <div role="alert">
+          {t('timesheets:reconcile.message', 'Refresh this week before continuing.')}
+          <Button variant="outline" onClick={() => void retryDeleteRefresh()}>
+            {t('timesheets:reconcile.retry', 'Retry week refresh')}
+          </Button>
+        </div>
+      )}
       {submitConfirm}
 
       {rowToDelete && (
@@ -917,7 +445,7 @@ const TimesheetsPage: React.FC = () => {
           }
           confirmLabel={t('timesheets.deleteRow.confirmLabel', 'Delete row')}
           loading={deleteRow.isPending}
-          onCancel={() => setConfirmDeleteRowId(null)}
+          onCancel={cancelDelete}
           onConfirm={confirmDeleteRow}
         />
       )}

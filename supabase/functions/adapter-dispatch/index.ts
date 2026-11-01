@@ -34,7 +34,7 @@ import { CLICKUP_TASKS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/cl
 import { resolveClickUpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/dispatchFactory.ts';
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
 import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_REVENUE_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN, ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
-import { resolveErpDispatchAdapter, withPaymentTypeDiscriminator, readCategoryAccountMap, readBudgetLineItems } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
+import { resolveErpDispatchAdapter, withPaymentTypeDiscriminator, readCategoryAccountMap, readBudgetLineItems, type ProcurementSourceLine } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import {
   runBudgetGate,
   runBudgetActivationPrecheck,
@@ -53,7 +53,6 @@ import { fetchAllRowsByKeyset } from '../../../pmo-portal/src/lib/pagedRead.ts';
 import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts';
 import { withProbeBudget, ERP_PROBE_TIMEOUT_MS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { fetchWithDeadline } from '../_shared/fetchWithDeadline.ts';
-import { resolveClickUpCredentialsFromVault } from '../../../pmo-portal/src/lib/adapterSeam/clickup/vaultCredentials.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
@@ -78,7 +77,7 @@ import { classifyBudgetPushOutcome } from './budgetPushOutcome.ts';
 import { dispatchErrorStatus } from './dispatchErrorStatus.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { isRevenueSiSubmitTransition, grantSiSubmitClearance, requiresSiAuthorClaim, claimSiAuthor, releaseSiSubmitClearance } from './sodGuard.ts';
-import { checkErpnextCommandAuthorization, type AuthorizationClient } from './authGuard.ts';
+import { checkErpnextCommandAuthorization } from './authGuard.ts';
 import { authorizeClickUpTaskCommand } from './taskAuthorization.ts';
 import { enforcePaymentGate, isProcurementPaymentCreate } from './paymentGate.ts';
 import { checkSiProjectGate } from './projectGateGuard.ts';
@@ -93,6 +92,7 @@ import {
   type JwksResolver,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+import { reportEdgeError } from '../_shared/reportEdgeError.ts';
 
 // ADR-0057: one cached, rate-limited JWKS resolver, memoized across warm invocations. Built lazily
 // so an empty SUPABASE_URL can't throw a URL error before the handler can return a typed 401/500.
@@ -132,6 +132,11 @@ interface AdapterSelectContext {
   /** #651: the per-REQUEST auth-pair memo. Not module-level — a shared isolate must never hold one
    *  tenant's credential across requests, and a rotated credential must not outlive a request. */
   erpAuth: ErpAuthPairCache;
+  replay?: boolean;
+  trustedReceiptSnapshot?: boolean;
+  captureProcurementSourceLines?: (lines: ProcurementSourceLine[]) => void;
+  procurementSnapshot?: { caseId: string; lines: ProcurementSourceLine[] };
+  procurementInputDigest?: string;
 }
 
 type AdapterFactory = (ctx: AdapterSelectContext) => Promise<Adapter>;
@@ -256,6 +261,9 @@ async function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
     fetchImpl: guardedErpFetch(binding.site_url),
     apiKey,
     apiSecret,
+    replay: ctx.replay,
+    trustedReceiptSnapshot: ctx.trustedReceiptSnapshot,
+    captureProcurementSourceLines: ctx.captureProcurementSourceLines,
     rateLimiter: erpRateLimiter,
     // The (kind)->{toBody,fromDoc} side table (task 4.3): additive across slices 3-6, never a
     // per-slice edit to another kind's entry (confinement, FR-ENA-014).
@@ -371,6 +379,8 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
     reissueOnInconclusiveAbsence: reissueOnInconclusiveAbsence(entry),
     payload,
     payloadDigest,
+    procurementSnapshot: ctx.procurementSnapshot,
+    procurementInputDigest: ctx.procurementInputDigest,
     legacyPayloadDigests,
     encodeExternalRecordId,
     // A quarantined procurement create whose probe finds nothing is reissued as a NEW ERP document; the org's purchase
@@ -584,7 +594,7 @@ async function readErpFiscalYears(serviceClient: SupabaseClient, orgId: string, 
       { headers: { Authorization: `token ${apiKey}:${apiSecret}`, Accept: 'application/json' }, redirect: 'manual' },
       ERP_PROBE_TIMEOUT_MS,
     );
-  } catch (_err) {
+  } catch {
     throw new AppError('could not read the ERPNext fiscal calendar (unreachable)', 'external-unreachable');
   }
   if (!res.ok) {
@@ -598,6 +608,17 @@ async function readErpFiscalYears(serviceClient: SupabaseClient, orgId: string, 
       typeof (r as FiscalYearRow)?.year_start_date === 'string' &&
       typeof (r as FiscalYearRow)?.year_end_date === 'string',
   );
+}
+
+async function reportBudgetMirrorWriteFailure(orgId: string, versionId: string): Promise<void> {
+  try {
+    await reportEdgeError({
+      fn: 'adapter-dispatch', errorCode: 'BUDGET_FAILURE_MIRROR_WRITE_FAILED',
+      ...(isCanonicalUuid(versionId) ? { contextId: versionId } : {}), orgId,
+    });
+  } catch {
+    // Reporting must never replace the original budget rejection.
+  }
 }
 
 /** Record the gate's durable failure into the ADR-0059 §6 side mirror — BEFORE returning the rejection —
@@ -618,16 +639,19 @@ async function recordBudgetGateFailure(serviceClient: SupabaseClient, orgId: str
       unmapped_categories: err.unmappedCategories ?? null,
     };
     if (versionMajor === 16) {
-      await serviceClient.from('budget_version_account_erp_mirror').upsert({
+      const { error } = await serviceClient.from('budget_version_account_erp_mirror').upsert({
         ...row, erp_account: '', budget_intent: 'ensure', created_at: new Date().toISOString(),
       }, { onConflict: 'org_id,budget_version_id,fiscal_year,erp_account' });
+      if (error) throw error;
     } else {
-      await serviceClient.from('budget_version_erp_mirror').upsert(row, {
+      const { error } = await serviceClient.from('budget_version_erp_mirror').upsert(row, {
         onConflict: 'org_id,budget_version_id,fiscal_year',
       });
+      if (error) throw error;
     }
   } catch (mirrorErr) {
     console.error('[adapter-dispatch] failed to record budget gate failure:', mirrorErr);
+    await reportBudgetMirrorWriteFailure(orgId, versionId);
   }
 }
 
@@ -645,6 +669,12 @@ const ADAPTER_REGISTRY: Record<string, AdapterFactory> = {
   // P3b — the timesheets push (ADR-0059 Posture B). Same tier, same adapter, same outbox: Posture B
   // reuses the shipped machinery wholesale; only its GATE and its key derivation differ.
   [ERPNEXT_TIMESHEETS_DOMAIN]: resolveErpAdapter,
+};
+
+// The tiers whose non-read commands take the money-idempotency outbox (ADR-0058), keyed by tier like the
+// registry above. A new ERP tier registers its resolver here; the dispatch below never names a tier.
+const MONEY_OUTBOX_RESOLVERS: Record<string, (ctx: AdapterSelectContext) => Promise<DispatchMoneyOutboxDeps>> = {
+  [ERPNEXT_TIER]: resolveErpMoneyOutboxDeps,
 };
 
 // Same origin-narrowing seam as agent-chat/compose-view (AUDIT quick-win 2026-07-07): set
@@ -771,6 +801,9 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   if (command.domain === ERPNEXT_REVENUE_DOMAIN && command.record.erp_doc_kind === 'sales-invoice') {
     delete (command.record as Record<string, unknown>).vat_flag_at_resolution;
   }
+  if (command.domain === ERPNEXT_PROCUREMENT_DOMAIN && command.record.erp_doc_kind === 'goods-receipt') {
+    delete (command.record as Record<string, unknown>).pmo_gr_snapshot;
+  }
 
   // Compute isErpDomain early so it's available for both the auth guard and idempotency check.
   const isErpDomain = command.domain === ERPNEXT_COMPANIES_DOMAIN || command.domain === ERPNEXT_PROCUREMENT_DOMAIN || command.domain === ERPNEXT_REVENUE_DOMAIN || command.domain === ERPNEXT_BUDGET_DOMAIN || command.domain === ERPNEXT_TIMESHEETS_DOMAIN;
@@ -805,7 +838,11 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     }
   }
   if (isErpDomain) {
-    const auth = await checkErpnextCommandAuthorization(callerClient as never, orgId, userId, command);
+    // The guard reads only the authorization inputs (domain + the named ERP document kind).
+    const auth = await checkErpnextCommandAuthorization(callerClient as never, orgId, userId, {
+      domain: command.domain,
+      record: { erp_doc_kind: command.record.erp_doc_kind },
+    });
     if (!auth.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: auth.message }), {
         status: auth.status,
@@ -1392,27 +1429,31 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
         ? parseBudgetIdentity(accountRecord.outbox_identity)
         : null;
       if (accountIdentity?.erpAccount) {
-        await serviceClient.from('budget_version_account_erp_mirror').upsert({
+        const { error } = await serviceClient.from('budget_version_account_erp_mirror').upsert({
           ...failureRow,
           erp_account: accountIdentity.erpAccount,
           budget_intent: accountRecord.budget_intent === 'remove' ? 'remove' : 'ensure',
         }, { onConflict: 'org_id,budget_version_id,fiscal_year,erp_account' });
+        if (error) throw error;
       } else if (budgetVersionMajor === 16) {
-        await serviceClient.from('budget_version_account_erp_mirror').upsert({
+        const { error } = await serviceClient.from('budget_version_account_erp_mirror').upsert({
           ...failureRow, erp_account: '', budget_intent: 'ensure', created_at: new Date().toISOString(),
         }, { onConflict: 'org_id,budget_version_id,fiscal_year,erp_account' });
+        if (error) throw error;
       } else {
-        await serviceClient.from('budget_version_erp_mirror').upsert(failureRow, {
+        const { error } = await serviceClient.from('budget_version_erp_mirror').upsert(failureRow, {
           onConflict: 'org_id,budget_version_id,fiscal_year',
         });
+        if (error) throw error;
       }
-      await surfaceActionRequired(serviceClient as never, orgId, superseded ? 'budget-enforcement-absent' : 'budget-push-failed', {
-        versionId,
-        reason: superseded ? pushError : (failure.code ?? failure.message),
-      });
     } catch (recordErr) {
       console.error('[adapter-dispatch] failed to record budget push failure:', recordErr);
+      await reportBudgetMirrorWriteFailure(orgId, versionId);
     }
+    await surfaceActionRequired(serviceClient as never, orgId, superseded ? 'budget-enforcement-absent' : 'budget-push-failed', {
+      versionId,
+      reason: superseded ? pushError : (failure.code ?? failure.message),
+    });
   };
 
   // ── Named server-side fault seams (Slice 0 task 0.7, FR-ENA-003, plan §2 decision 5; host
@@ -1454,13 +1495,57 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
   let adapter: Adapter;
   let money: DispatchMoneyOutboxDeps | undefined;
   try {
-    adapter = await adapterFactory({ orgId, command, serviceClient, faultGate, userId, erpAuth });
+    const context: AdapterSelectContext = { orgId, command, serviceClient, faultGate, userId, erpAuth };
+    const record = command.record as Record<string, unknown>;
+    const isReceiptCreate = command.domain === ERPNEXT_PROCUREMENT_DOMAIN && command.operation === 'create'
+      && record.erp_doc_kind === 'goods-receipt';
+    let rawReceiptDigest: string | undefined;
+    if (isReceiptCreate) {
+      rawReceiptDigest = await canonicalCommandDigest({ domain: command.domain, operation: command.operation, record });
+      const { data, error } = await serviceClient.from('external_command_outbox')
+        .select('payload,payload_digest,procurement_input_digest')
+        .eq('org_id', orgId).eq('domain', command.domain).eq('pmo_record_id', command.record.id)
+        .eq('idempotency_key', command.idempotencyKey!).maybeSingle();
+      if (error) throw new AppError(error.message, error.code);
+      if (data) {
+        context.replay = true;
+        const stored = data as { payload: Record<string, unknown> | null; payload_digest: string | null; procurement_input_digest: string | null };
+        if (stored.procurement_input_digest != null) {
+          const snapshot = stored.payload?.pmo_gr_snapshot as { raw_digest?: unknown; supplier?: unknown; po?: unknown } | undefined;
+          const { created_after: _createdAfter, ...material } = stored.payload ?? {};
+          const storedDigest = await canonicalCommandDigest({ domain: command.domain, operation: command.operation, record: material });
+          if (!/^[0-9a-f]{64}$/.test(stored.procurement_input_digest) || !snapshot || snapshot.raw_digest !== stored.procurement_input_digest
+              || (snapshot.supplier !== null && typeof snapshot.supplier !== 'string')
+              || (snapshot.po !== null && typeof snapshot.po !== 'string')
+              || stored.payload_digest !== storedDigest || rawReceiptDigest !== stored.procurement_input_digest) {
+            throw new AppError('idempotency-key-payload-mismatch', 'commit-rejected');
+          }
+          command.record = stored.payload as PmoRecord;
+          context.trustedReceiptSnapshot = true;
+        }
+      }
+    }
+    let sourceLines: ProcurementSourceLine[] | undefined;
+    if (!context.replay && command.domain === ERPNEXT_PROCUREMENT_DOMAIN && command.operation === 'create'
+        && ['purchase-order', 'goods-receipt', 'purchase-invoice'].includes(String(record.erp_doc_kind))) {
+      context.captureProcurementSourceLines = (lines) => { sourceLines = lines; };
+    }
+    adapter = await adapterFactory(context);
+    const snapshot = command.record.pmo_gr_snapshot as Record<string, unknown> | undefined;
+    if (isReceiptCreate && !context.replay && snapshot && rawReceiptDigest) {
+      snapshot.raw_digest = rawReceiptDigest;
+      context.procurementInputDigest = rawReceiptDigest;
+    }
+    if (sourceLines !== undefined && typeof command.record.procurementId === 'string') {
+      context.procurementSnapshot = { caseId: command.record.procurementId, lines: sourceLines };
+    }
     // Task 6.4 (ADR-0058): every non-read-only erpnext command routes through the money-idempotency
     // outbox — `dispatchExternallyOwnedWrite` requires `money` to be set for this tier (it throws
     // "dispatched without outbox deps" otherwise, the exact failure this task closes). P0/P1 (every
     // other tier) never resolves this — `money` stays `undefined`, their path is byte-for-byte.
-    if (adapter.tier === ERPNEXT_TIER && (command.operation as string) !== 'read') {
-      money = await resolveErpMoneyOutboxDeps({ orgId, command, serviceClient, faultGate, userId, erpAuth });
+    const resolveMoneyOutbox = MONEY_OUTBOX_RESOLVERS[adapter.tier];
+    if (resolveMoneyOutbox && (command.operation as string) !== 'read') {
+      money = await resolveMoneyOutbox(context);
     }
   } catch (err) {
     // The submit never reaches ERP — end the body-rewrite freeze now rather than in five minutes.
@@ -1532,8 +1617,8 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       // Companies-domain STORAGE-layer encoding (task 6.4 fix-round, live-bench-discovered
       // 2026-07-12): `external_refs.external_record_id` for a party (Supplier/Customer) is ALWAYS
       // "<Doctype>:<name>" (task 3.2's collision rule, partyAdopt.ts's `externalIdFor` — the SAME
-      // encoding `dispatchFactory.ts`'s `stripDoctypePrefix`/`stripPartyDoctypePrefix` already strip
-      // back off on every READ path). The adapter's own return value (`mapping.externalRecordId`,
+      // encoding the dispatch factory's shared `stripDoctypePrefix` (erpnext/dispatchRefs.ts) already
+      // strips back off on every READ path). The adapter's own return value (`mapping.externalRecordId`,
       // also the served-fn HTTP response body) stays the BARE ERP name (AC-ENA-040: Supplier autonames
       // by `field:supplier_name`) — only THIS write applies the prefix, never the wire contract.
       recordExternalRef: (mapping) => {

@@ -1,4 +1,5 @@
-import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
+import { companyIdentityChanged } from '@/src/lib/crmOwnership';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useMemo, useState } from 'react';
 import {
@@ -89,6 +90,8 @@ const makeValidate =
 
 const Companies: React.FC = () => {
   const { t } = useTranslation();
+  const ownership = useDomainOwnershipMode('companies');
+  const ownershipReady = ownership.mode === 'pmo' || ownership.mode === 'external';
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
@@ -121,10 +124,10 @@ const Companies: React.FC = () => {
   // recovery path (crud-components §5.3).
   const [blockedCompany, setBlockedCompany] = useState<CompanyRow | null>(null);
 
-  const canCreate = may('create', 'company');
-  const canEdit = may('edit', 'company');
-  const canArchive = may('archive', 'company');
-  const canDelete = may('delete', 'company');
+  const canCreate = ownershipReady && may('create', 'company');
+  const canEdit = ownershipReady && may('edit', 'company');
+  const canArchive = ownershipReady && may('archive', 'company');
+  const canDelete = ownership.mode === 'pmo' && may('delete', 'company');
   const canRowWrite = canEdit || canArchive || canDelete;
 
   const all = useMemo(() => data ?? [], [data]);
@@ -343,7 +346,7 @@ const Companies: React.FC = () => {
          entity's create repository so RLS stamps org_id + gates the write role. On a
          successful import the wizard close refetches the list. */
       importAction={
-        state !== 'loading' && (
+        state !== 'loading' && canCreate && (
           <ImportButton
             entity="company"
             descriptor={companyImportDescriptor}
@@ -353,6 +356,8 @@ const Companies: React.FC = () => {
       }
     >
       {/* Body */}
+      {!ownershipReady && <p className="mb-3 text-sm text-muted-foreground">{ownership.mode === 'error' ? t('crm:ownershipError', 'Ownership could not be loaded. Try again.') : t('crm:ownershipChecking', 'Checking ownership…')}{ownership.mode === 'error' && <Button variant="ghost" size="sm" onClick={ownership.retry}>{t('crm:retry', 'Retry')}</Button>}</p>}
+      {ownership.mode === 'external' && may('delete', 'company') && <p className="mb-3 text-sm text-muted-foreground">{t('crm:deleteManaged', 'Records managed in ERP can be archived here.')}</p>}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
           <ListState variant="loading" rows={6} />
@@ -415,6 +420,7 @@ const Companies: React.FC = () => {
       {formTarget && (
         <CompanyFormModal
           company={formTarget.company}
+          ownership={ownership.mode}
           pendingPush={pendingPush}
           onClose={() => setFormTarget(null)}
           onCreate={async (input) => {
@@ -481,6 +487,7 @@ const Companies: React.FC = () => {
 
 interface CompanyFormModalProps {
   company: CompanyRow | null;
+  ownership: 'pmo' | 'external' | 'unknown' | 'error';
   onClose: () => void;
   onCreate: (input: CompanyInput) => Promise<void>;
   onUpdate: (id: string, input: CompanyInput, segment: string | null) => Promise<void>;
@@ -489,8 +496,11 @@ interface CompanyFormModalProps {
   pendingPush: PendingPushState;
 }
 
+function ownershipReadyForForm(mode: CompanyFormModalProps['ownership']) { return mode === 'pmo' || mode === 'external'; }
+
 const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
   company,
+  ownership,
   onClose,
   onCreate,
   onUpdate,
@@ -499,7 +509,7 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const isEdit = !!company;
-  const nativeReadOnly = isEdit && company.type !== 'Internal' && routeDomainWrite('companies') === 'external';
+  const nativeReadOnly = !ownershipReadyForForm(ownership) || (isEdit && company.type !== 'Internal' && ownership === 'external');
   // Identity changes only when `t` does (i.e. on a language change), so `useEntityForm`'s
   // `runValidate` memo behaves exactly as it did with the old module-level function.
   const validate = useMemo(() => makeValidate(t), [t]);
@@ -508,9 +518,9 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
     return [
       { value: 'Client', label: labels.Client },
       { value: 'Vendor', label: labels.Vendor },
-      { value: 'Internal', label: labels.Internal },
+      ...(!isEdit && ownership === 'external' ? [] : [{ value: 'Internal', label: labels.Internal }]),
     ];
-  }, [t]);
+  }, [t, isEdit, ownership]);
   const form = useEntityForm<FormValues>({
     initialValues: { name: company?.name ?? '', short_name: company?.short_name ?? '', type: company?.type ?? 'Client', clientNumberSegment: company?.client_number_segment ?? '' },
     validate,
@@ -534,12 +544,15 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
   const errorSummary = form.errors.name
     ? [{ fieldId: nameField.id, message: form.errors.name }]
     : undefined;
+  const identityChanged = ownership === 'external' && company !== null && companyIdentityChanged(form.values, company);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void form.handleSubmit(async (values) => {
+      if (!ownershipReadyForForm(ownership) || (!isEdit && ownership === 'external' && values.type === 'Internal')
+        || (ownership === 'external' && company && companyIdentityChanged(values, company))) return;
       const input: CompanyInput = {
-        name: values.name.trim(),
+        name: nativeReadOnly && company ? company.name : values.name.trim(),
         type: values.type,
         ...(nativeReadOnly || values.short_name.trim() || company?.short_name
           ? { short_name: values.short_name.trim() || null }
@@ -583,10 +596,11 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
-      submitDisabled={!form.isComplete}
+      submitDisabled={!form.isComplete || !ownershipReadyForForm(ownership) || identityChanged || (!isEdit && ownership === 'external' && form.values.type === 'Internal')}
       errorSummary={errorSummary}
       submitError={saveError}
     >
+      {identityChanged && <p className="mb-3 text-sm text-muted-foreground">{t('crm:ownershipChanged', 'Ownership changed while you were editing. Close and reopen the form to continue.')}</p>}
       {pendingPush.status !== 'idle' && (
         <div className="mb-3.5 flex justify-end">
           <TaskPushBadge state={pendingPush} />
@@ -617,7 +631,7 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
             fullWidth
           />
           <SelectField
-            disabled={nativeReadOnly}
+            disabled={nativeReadOnly || (isEdit && ownership === 'external')}
             id={typeField.id}
             label={t('companies.form.type.label', 'Type')}
             required
@@ -626,6 +640,7 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
             onBlur={typeField.onBlur}
             options={typeOptions}
           />
+          {!isEdit && ownership === 'external' && form.values.type === 'Internal' && <p className="text-sm text-muted-foreground">{t('crm:chooseParty', 'Choose a client or supplier to continue.')}</p>}
           {isEdit && (
             <TextField
               id={clientNumberSegmentField.id}

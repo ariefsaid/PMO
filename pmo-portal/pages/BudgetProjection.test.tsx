@@ -8,7 +8,7 @@
  */
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -17,11 +17,12 @@ import type { BudgetProjectionCellRow } from '@/src/lib/repositories/budgetProje
 import enProjectTabs from '../public/locales/en/projectTabs.json';
 import idProjectTabs from '../public/locales/id/projectTabs.json';
 
-const { fetchMock, upsertEtcMock, yearsMock, phasingMock } = vi.hoisted(() => ({
+const { fetchMock, upsertEtcMock, yearsMock, phasingMock, summaryMock } = vi.hoisted(() => ({
   fetchMock: vi.fn(),
   upsertEtcMock: vi.fn(),
   yearsMock: vi.fn(),
   phasingMock: vi.fn(),
+  summaryMock: vi.fn(),
 }));
 
 vi.mock('@/src/lib/repositories/budgetProjection', () => ({
@@ -29,9 +30,11 @@ vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   upsertBudgetProjectionEtc: upsertEtcMock,
   listBudgetFiscalYears: yearsMock,
   fetchActiveBudgetCategoryPhasing: phasingMock,
+  fetchFirstSpendingYear: summaryMock,
 }));
 
 import BudgetProjection from './BudgetProjection';
+import { useForecastEditor } from './budget-projection/useForecastEditor';
 import { FinanceI18nTestProvider } from './__tests__/financeI18nTestProvider';
 import { financeTestI18n } from './__tests__/financeI18nTestInstance';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
@@ -58,7 +61,7 @@ const ROW: BudgetProjectionCellRow = {
 
 const phasing = (years: Record<string, string[]>, unphased: Record<string, true> = {}) => ({ years, unphased });
 
-const renderForecast = ({ canEdit = true } = {}) => render(
+const renderForecast = ({ canEdit = true, budgetCurrency = 'USD', onExport = vi.fn() } = {}) => render(
   <FinanceI18nTestProvider>
     <MemoryRouter>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
@@ -66,11 +69,12 @@ const renderForecast = ({ canEdit = true } = {}) => render(
           <BudgetProjection
             projectId="proj-1"
             currency="USD"
+            budgetCurrency={budgetCurrency}
             canEdit={canEdit}
             committedByCategory={{}}
             canReadCommitments
             onAdjustInDraft={vi.fn()}
-            onExport={vi.fn()}
+            onExport={onExport}
           />
         </ToastProvider>
       </QueryClientProvider>
@@ -85,6 +89,8 @@ beforeEach(async () => {
   upsertEtcMock.mockReset();
   yearsMock.mockReset();
   phasingMock.mockReset();
+  summaryMock.mockReset();
+  summaryMock.mockResolvedValue(ERP_FISCAL_YEAR);
   yearsMock.mockResolvedValue([
     { fiscalYear: ERP_FISCAL_YEAR, isActivePush: true },
     { fiscalYear: PRIOR_ERP_FISCAL_YEAR, isActivePush: false },
@@ -109,6 +115,31 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     expect(row.getByRole('progressbar', { name: /forecast utilization/i })).toHaveAttribute('aria-valuenow', '75');
   });
 
+  it('keeps forecast inputs available and refuses comparisons across currency bases', async () => {
+    const onExport = vi.fn();
+    renderForecast({ budgetCurrency: 'GBP', onExport });
+    const row = within(await rowFor('Labor'));
+    expect(row.getByText('£100,000')).toBeInTheDocument();
+    expect(row.getByText('$40,000')).toBeInTheDocument();
+    expect(row.getByText('$75,000')).toBeInTheDocument();
+    expect(row.queryByText('$25,000')).not.toBeInTheDocument();
+    expect(row.getByText('Unavailable')).toBeInTheDocument();
+    expect(row.queryByRole('progressbar')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Export' }));
+    expect(onExport).toHaveBeenCalledWith([expect.objectContaining({ projectedVariance: null, projectedUtilization: null })]);
+    await userEvent.click(screen.getByRole('row', { name: /Labor/ }));
+    const drawer = screen.getByRole('dialog', { name: 'Labor' });
+    expect(within(drawer).getByText('£100,000')).toBeInTheDocument();
+    expect(within(drawer).queryByText('$25,000')).not.toBeInTheDocument();
+    await userEvent.click(within(drawer).getByRole('button', { name: 'Close' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Edit cost to finish' }));
+    const input = screen.getByRole('textbox', { name: 'Cost to finish for Labor' });
+    await userEvent.clear(input);
+    await userEvent.type(input, '45000');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(upsertEtcMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR, 'Labor', 45000));
+  });
+
   it('H-4 uses the client-listed fiscal year instead of the calendar year', async () => {
     renderForecast();
     await rowFor('Labor');
@@ -125,6 +156,7 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
       { fiscalYear: laterActivePush, isActivePush: true },
       { fiscalYear: 'FY-2024', isActivePush: false },
     ]);
+    summaryMock.mockResolvedValue(firstWithSpending);
     fetchMock.mockImplementation(async (_projectId: string, year: string) => {
       if (year === firstWithSpending) return [{ ...ROW, actualsToDate: 12_000 }];
       if (year === laterActivePush) return [{ ...ROW, actualsToDate: 95_000 }];
@@ -137,6 +169,38 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue(firstWithSpending);
     expect(fetchMock).toHaveBeenCalledWith('proj-1', firstWithSpending);
     expect(fetchMock).not.toHaveBeenCalledWith('proj-1', laterActivePush);
+  });
+
+  it('selects from one spending summary and loads only the chosen projection across many empty years', async () => {
+    const years = Array.from({ length: 40 }, (_, i) => ({ fiscalYear: `opaque-${i}`, isActivePush: i === 0 }));
+    yearsMock.mockResolvedValue(years);
+    summaryMock.mockResolvedValue('opaque-35');
+    fetchMock.mockResolvedValue([ROW]);
+    renderForecast();
+    await rowFor('Labor');
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue('opaque-35');
+    expect(summaryMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith('proj-1', 'opaque-35');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), 'opaque-2');
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('proj-1', 'opaque-2'));
+    expect(summaryMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to the first active year when the summary has no spending', async () => {
+    yearsMock.mockResolvedValue([{ fiscalYear: 'first', isActivePush: false }, { fiscalYear: 'active', isActivePush: true }]);
+    summaryMock.mockResolvedValue(null);
+    renderForecast();
+    await rowFor('Labor');
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toHaveValue('active');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces a summary error without guessing a year', async () => {
+    summaryMock.mockRejectedValue(new Error('summary failed'));
+    renderForecast();
+    expect(await screen.findByText('Fiscal years could not be loaded')).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -384,6 +448,15 @@ describe('BudgetProjection — a NULL budget, continued (HIGH-1, FU-2)', () => {
     expect(within(await rowFor('Labor')).getAllByText('$12,000').length).toBeGreaterThan(0);
   });
 
+  it('makes no attribution claim when phasing cannot be read', async () => {
+    fetchMock.mockResolvedValue([{ ...NO_BUDGET, attributionKnown: false }]);
+    phasingMock.mockRejectedValue(new Error('unavailable'));
+    renderForecast();
+    const incomplete = await screen.findByTestId('forecast-incomplete');
+    await waitFor(() => expect(phasingMock).toHaveBeenCalled());
+    expect(incomplete).not.toHaveTextContent(/cannot be attributed|stale|No budget|another fiscal year/);
+  });
+
   it('makes NO claim while the phasing fact is still in flight — never a transient false reason', async () => {
     fetchMock.mockResolvedValue([{ ...NO_BUDGET, attributionKnown: false }]);
     let deliver!: (value: ReturnType<typeof phasing>) => void;
@@ -423,6 +496,148 @@ describe('BudgetProjection — cost to finish editing (OD-BUDGET-3, UX-039)', ()
     expect(upsertEtcMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR, 'Materials', 45000);
   });
 
+  it('retains typing during a partial save and retries only unsaved changes in the same year', async () => {
+    let finish!: () => void;
+    upsertEtcMock.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }))
+      .mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined);
+    const user = await openEditor();
+    await type(user, 'Labor', '41000');
+    await type(user, 'Materials', '42000');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(upsertEtcMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR, 'Labor', 41000);
+    await type(user, 'Labor', '43000');
+    await act(async () => finish());
+    await screen.findByText(/Not saved: Materials/);
+    expect(screen.getByRole('textbox', { name: 'Cost to finish for Labor' })).toHaveValue('43000');
+    expect(screen.getByRole('textbox', { name: 'Cost to finish for Labor' })).toHaveFocus();
+    expect(screen.getByRole('textbox', { name: 'Cost to finish for Materials' })).toHaveValue('42000');
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Retry failed edits' }));
+    await waitFor(() => expect(upsertEtcMock).toHaveBeenCalledTimes(4));
+    expect(upsertEtcMock.mock.calls.slice(2)).toEqual([
+      ['proj-1', ERP_FISCAL_YEAR, 'Labor', 43000],
+      ['proj-1', ERP_FISCAL_YEAR, 'Materials', 42000],
+    ]);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Edit cost to finish' })).toHaveFocus());
+  });
+
+  it('keeps newer typing open after a successful pending save', async () => {
+    let finish!: () => void;
+    upsertEtcMock.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; })).mockResolvedValue(undefined);
+    const user = await openEditor([ROW]);
+    await type(user, 'Labor', '41000');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await type(user, 'Labor', '43000');
+    await act(async () => finish());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled());
+    expect(screen.getByRole('textbox', { name: 'Cost to finish for Labor' })).toHaveValue('43000');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(upsertEtcMock).toHaveBeenLastCalledWith('proj-1', ERP_FISCAL_YEAR, 'Labor', 43000));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Edit cost to finish' })).toHaveFocus());
+  });
+
+  it('keeps a new editor session intact when a cancelled save finishes', async () => {
+    let finish!: () => void;
+    upsertEtcMock.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
+    const user = await openEditor([ROW]);
+    await type(user, 'Labor', '41000');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await user.click(screen.getByRole('button', { name: 'Edit cost to finish' }));
+    await type(user, 'Labor', '43000');
+    await act(async () => finish());
+    expect(screen.getByRole('textbox', { name: 'Cost to finish for Labor' })).toHaveValue('43000');
+    expect(screen.getByRole('textbox', { name: 'Cost to finish for Labor' })).toHaveFocus();
+  });
+
+  it('waits for a cancelled write before saving the newer session value', async () => {
+    let finish!: () => void;
+    let stored = 35000;
+    upsertEtcMock.mockImplementation(async (_project, _year, _category, amount) => {
+      if (amount === 41000) await new Promise<void>((resolve) => { finish = resolve; });
+      stored = amount;
+    });
+    const user = await openEditor([ROW]);
+    await type(user, 'Labor', '41000');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await user.click(screen.getByRole('button', { name: 'Edit cost to finish' }));
+    await type(user, 'Labor', '43000');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(screen.getByRole('combobox', { name: 'Fiscal year' })).toBeDisabled();
+    await act(async () => finish());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(stored).toBe(43000));
+    expect(upsertEtcMock.mock.calls.map((call) => call[3])).toEqual([41000, 43000]);
+  });
+
+  it('saves the reopened baseline if the cancelled write changed it', async () => {
+    let finish!: () => void;
+    upsertEtcMock.mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; })).mockResolvedValue(undefined);
+    const user = await openEditor([ROW]);
+    await type(user, 'Labor', '41000');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await user.click(screen.getByRole('button', { name: 'Edit cost to finish' }));
+    await act(async () => finish());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled());
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(upsertEtcMock).toHaveBeenLastCalledWith('proj-1', ERP_FISCAL_YEAR, 'Labor', 35000));
+  });
+
+  it('keeps a different-year session intact when the cancelled write fails late', async () => {
+    let fail!: (reason: Error) => void;
+    upsertEtcMock.mockImplementationOnce(() => new Promise<void>((_resolve, reject) => { fail = reject; }));
+    const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <FinanceI18nTestProvider><QueryClientProvider client={client}>{children}</QueryClientProvider></FinanceI18nTestProvider>
+    );
+    const { result, rerender } = renderHook(({ project, year }) => useForecastEditor(project, year, [ROW]), {
+      wrapper, initialProps: { project: 'proj-1', year: ERP_FISCAL_YEAR },
+    });
+    act(() => result.current.beginEdit());
+    act(() => result.current.changeDraft('Labor', '41000'));
+    act(() => result.current.saveEdits());
+    await waitFor(() => expect(upsertEtcMock).toHaveBeenCalledTimes(1));
+    act(() => result.current.cancelEdit());
+    rerender({ project: 'proj-2', year: PRIOR_ERP_FISCAL_YEAR });
+    act(() => result.current.beginEdit());
+    act(() => result.current.changeDraft('Labor', '43000'));
+    act(() => result.current.saveEdits());
+    expect(upsertEtcMock).toHaveBeenCalledTimes(1);
+    await act(async () => fail(new Error('offline')));
+    await waitFor(() => expect(result.current.save.isPending).toBe(false));
+    expect(result.current.editing).toBe(true);
+    expect(result.current.draft.Labor).toBe('43000');
+    expect(result.current.errors).toEqual({});
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['budget-projection', 'proj-1', ERP_FISCAL_YEAR] });
+    expect(upsertEtcMock).toHaveBeenCalledWith('proj-1', ERP_FISCAL_YEAR, 'Labor', 41000);
+  });
+
+  it('retries only the failed entry and then saves a separately selected year', async () => {
+    upsertEtcMock.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined);
+    const user = await openEditor();
+    await type(user, 'Labor', '41000');
+    await type(user, 'Materials', '42000');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText(/Not saved: Materials/);
+    await user.click(screen.getByRole('button', { name: 'Retry failed edits' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Edit cost to finish' })).toHaveFocus());
+    expect(upsertEtcMock.mock.calls).toEqual([
+      ['proj-1', ERP_FISCAL_YEAR, 'Labor', 41000],
+      ['proj-1', ERP_FISCAL_YEAR, 'Materials', 42000],
+      ['proj-1', ERP_FISCAL_YEAR, 'Materials', 42000],
+    ]);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Fiscal year' }), PRIOR_ERP_FISCAL_YEAR);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('proj-1', PRIOR_ERP_FISCAL_YEAR));
+    await user.click(await screen.findByRole('button', { name: 'Edit cost to finish' }));
+    await type(user, 'Labor', '44000');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(upsertEtcMock).toHaveBeenLastCalledWith('proj-1', PRIOR_ERP_FISCAL_YEAR, 'Labor', 44000));
+  });
+
   it('I-2 UX-039 there is ONE edit trigger for the whole table, never one per category', async () => {
     fetchMock.mockResolvedValue([ROW, MATERIALS]);
     renderForecast();
@@ -435,6 +650,14 @@ describe('BudgetProjection — cost to finish editing (OD-BUDGET-3, UX-039)', ()
     expect(screen.getByRole('textbox', { name: 'Cost to finish for Labor' })).toHaveFocus();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Edit cost to finish' })).toHaveFocus());
+  });
+
+  it('moves focus into the editor when the forecast renders as narrow cards', async () => {
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 390, height: 100, x: 0, y: 0, top: 0, bottom: 100, left: 0, right: 390, toJSON: () => ({}) });
+    try {
+      await openEditor();
+      expect(screen.getByRole('textbox', { name: 'Cost to finish for Labor' })).toHaveFocus();
+    } finally { rect.mockRestore(); }
   });
 
   it('I-3 saving also returns focus to the trigger, never to <body>', async () => {

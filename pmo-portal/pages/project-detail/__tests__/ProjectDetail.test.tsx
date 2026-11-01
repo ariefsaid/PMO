@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { getPageAnnouncement } from '@/src/components/ui/__tests__/announcementTestQueries';
+import { setTaskOwnership, setProjectBindings } from '@/src/lib/adapterSeam/ownershipCache';
 import ProjectDetail from '../ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
@@ -97,6 +98,9 @@ vi.mock('@/src/hooks/useProcurements', () => ({
 }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => projectTransition,
+  // ProjectStatusControl composes the win-eligibility preflight (3700397d9); the shell tests here
+  // assert layout/journeys, so the preflight answers 'allowed' without a QueryClient.
+  useProjectWinEligibility: () => ({ data: 'allowed' }),
 }));
 // Model B: ProjectDetail falls back to a by-id opportunity fetch for records not in the active
 // projects cache. The seed here is on-hand (in the cache), so this is disabled — stub it to
@@ -193,6 +197,10 @@ const renderAt = async (path: string | { pathname: string; state?: unknown }) =>
 
 describe('ProjectDetail shell (decomposition)', () => {
   beforeEach(() => {
+    // TasksTab gates its write affordances on the synced per-project route (ADR-0056); seed the
+    // module cache so a PM's structure permissions are evaluated against a known route.
+    setTaskOwnership([]);
+    setProjectBindings([]);
     projectsState.data = seed;
     projectsState.isPending = false;
     projectsState.isError = false;
@@ -313,6 +321,26 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.getByText('Budget vs actual')).toBeInTheDocument();
     expect(screen.getByText(/Spent 2,350,000 of 4,700,000/)).toBeInTheDocument();
     expect(screen.getByText(/Plus 2,350,000 committed in purchase orders/)).toBeInTheDocument();
+  });
+
+  it.each(['Project Manager', 'Finance'])('UIP-006: %s contract and committed values remain visible', async (role) => {
+    roleBox.value = role;
+    projectsState.data = [{ ...seed[0], tax_treatment: 'exclusive' } as unknown as ProjectWithRefs];
+    committedSpendState.data = 2_360_000;
+    projectProcurementsState.data = [
+      { status: 'Paid', budget_category: 'Labor', approved_total_value: 1_680_000, total_value: 1_680_000, currency: 'USD' },
+      { status: 'Ordered', budget_category: 'Labor', approved_total_value: 680_000, total_value: 680_000, currency: 'USD' },
+    ];
+    budgetVersionsBox.value = [{ id: 'bv1', status: 'Active', total: 4_700_000,
+      line_items: [{ id: 'li1', category: 'Labor', budgeted_amount: 4_700_000 }] }];
+    await renderAt('/projects/p1');
+
+    const contractAmount = within(screen.getByRole('region', { name: 'Money position' })).getByTestId('contract-value-amount');
+    expect(contractAmount).toBeVisible();
+    const budgetActual = screen.getByRole('region', { name: 'Budget vs actual' });
+    expect(budgetActual).toHaveTextContent('USD · excl. PPN');
+    expect(within(budgetActual).getByText('Plus 2,360,000 committed in purchase orders')).toBeVisible();
+    projectsState.data = seed;
   });
 
   it('AC-SEC-229: an Engineer sees no project-wide purchase-order or spend figure — their purchasing read covers only their own requests', async () => {

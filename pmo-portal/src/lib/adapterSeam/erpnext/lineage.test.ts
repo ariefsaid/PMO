@@ -5,7 +5,7 @@
  * AC-SAR-020/021 — same logic for revenue domain (sales-invoice, incoming-payment).
  */
 import { describe, expect, it, vi } from 'vitest';
-import { applyAmend, applyCancel, guardStaleModified, isSupersededName } from './lineage.ts';
+import { applyAmend, applyCancel, isSupersededName } from './lineage.ts';
 
 const CTX_PROC = { domain: 'procurement' };
 const CTX_REV = { domain: 'revenue' };
@@ -118,20 +118,7 @@ describe('erpnext/lineage — applyAmend (AC-ENA-021 / AC-SAR-021)', () => {
   });
 });
 
-describe('erpnext/lineage — the erp_modified >= guard + superseded-name lookup (AC-ENA-022)', () => {
-  it('guardStaleModified: a strictly-older candidate is stale (never applied)', () => {
-    expect(guardStaleModified('2026-07-11 12:05:00.000000', '2026-07-11 12:00:00.000000')).toBe(true);
-  });
-
-  it('guardStaleModified: an equal-or-newer candidate is NOT stale (re-delivery/inclusive boundary re-applies)', () => {
-    expect(guardStaleModified('2026-07-11 12:05:00.000000', '2026-07-11 12:05:00.000000')).toBe(false);
-    expect(guardStaleModified('2026-07-11 12:05:00.000000', '2026-07-11 12:06:00.000000')).toBe(false);
-  });
-
-  it('guardStaleModified: no stored value (unmapped/fresh) is never stale', () => {
-    expect(guardStaleModified(null, '2026-07-11 12:00:00.000000')).toBe(false);
-  });
-
+describe('erpnext/lineage — superseded-name lookup (AC-ENA-022)', () => {
   it('isSupersededName: true for a name recorded as a lineage supersession, false otherwise', async () => {
     const findLineageBySupersededName = vi.fn(async (domain: string, name: string) => domain === 'procurement' && name === 'ACC-PINV-2026-00002');
     await expect(isSupersededName('procurement', 'ACC-PINV-2026-00002', { findLineageBySupersededName })).resolves.toBe(true);

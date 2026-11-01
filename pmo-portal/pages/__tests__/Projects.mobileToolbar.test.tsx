@@ -83,7 +83,6 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, error: null, isPending: false }),
-  usePipelineStageConfig: () => ({ data: [], isSuccess: true }),
 }));
 vi.mock('../../components/ProjectCalendarView', () => ({
   default: () => <div data-testid="project-calendar-view" />,
@@ -275,6 +274,25 @@ describe('AC-PRJUX-003 — disclosure keyboard, Escape, permission gating', () =
     projectsState.isPending = false;
     projectsState.isError = false;
     roleBox.value = 'Project Manager';
+  });
+
+  it('AC-PRJUX-003: switching disclosures closes Filters and Escape returns focus to More actions', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const filters = screen.getByRole('button', { name: /^Filters$/i });
+    const more = screen.getByRole('button', { name: /^More actions$/i });
+    await user.click(filters);
+    expect(filters).toHaveAttribute('aria-expanded', 'true');
+    await user.click(more);
+    expect(filters).toHaveAttribute('aria-expanded', 'false');
+    expect(more).toHaveAttribute('aria-expanded', 'true');
+    await user.keyboard('{Escape}');
+    expect(more).toHaveAttribute('aria-expanded', 'false');
+    expect(more).toHaveFocus();
+    await user.click(filters);
+    await user.click(screen.getByRole('heading', { name: 'Projects' }));
+    expect(filters).toHaveAttribute('aria-expanded', 'false');
+    expect(filters).toHaveFocus();
   });
 
   it('AC-PRJUX-003: More actions exposes Export/Import/Import budgets and closes on Escape with focus restored', async () => {

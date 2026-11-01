@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, EntityFormModal, FieldError, FormSection, NumberField, type SubmitError } from '@/src/components/ui';
+import { Button, ConfirmDialog, EntityFormModal, FieldError, FormSection, ListState, NumberField, type SubmitError } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatMoneyInputValue, formatNumberExact, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { BoqItemRow } from '@/src/lib/db/progressBilling';
@@ -21,6 +21,7 @@ export interface WorkOrderLinesModalProps {
   allocations: WorkOrderLineRow[];
   /** UX gate only; the database is the authority. */
   canEdit: boolean;
+  sources?: Array<{ name: string; pending: boolean; error: boolean; retry: () => void }>;
   onClose: () => void;
   onCreate: (boqItemId: string, quantity: number) => Promise<void>;
   onUpdate: (id: string, quantity: number) => Promise<void>;
@@ -30,7 +31,7 @@ export interface WorkOrderLinesModalProps {
 
 
 const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
-  workOrder, boqItems, contractLines, allocations, canEdit, onClose, onCreate, onUpdate, onDelete, onError,
+  workOrder, boqItems, contractLines, allocations, canEdit, sources = [], onClose, onCreate, onUpdate, onDelete, onError,
 }) => {
   const { t } = useTranslation('project');
   const own = new Map(allocations.map((row) => [row.boq_item_id, row]));
@@ -44,6 +45,7 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
   const [removeFor, setRemoveFor] = useState<{ item: BoqItemRow; row: WorkOrderLineRow } | null>(null);
 
+  const sourcesReady = sources.every((source) => !source.pending && !source.error);
   const editable = canEdit && (workOrder.status === 'Draft' || workOrder.status === 'Issued');
   const woLabel = workOrder.wo_number ? `${workOrder.wo_number} — ${workOrder.title}` : workOrder.title;
   const setError = (id: string, message: string | null) =>
@@ -67,6 +69,7 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
   };
 
   const save = async (item: BoqItemRow) => {
+    if (!sourcesReady) return;
     const quantity = parseMoneyInputAtScale((values[item.id] ?? '').trim(), 3);
     if (quantity === null || quantity <= 0) {
       setError(item.id, t('projectTabs:contractQuantities.workOrders.contractLines.errors.quantity', 'Enter a quantity above 0 with at most 3 decimal places'));
@@ -86,7 +89,7 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
   };
 
   const runRemove = async () => {
-    if (!removeFor) return;
+    if (!removeFor || !sourcesReady) return;
     const { item, row } = removeFor;
     setSaveError(null);
     setBusy(item.id);
@@ -113,6 +116,9 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
       submitError={saveError}
       onClose={onClose}
     >
+      {sources.filter((source) => source.pending || source.error).map((source) => source.error
+        ? <ListState key={source.name} variant="error" title={t('projectDetail.billing.sources.error', "Couldn't load {{source}}", { source: source.name })} onRetry={source.retry} />
+        : <p key={source.name} role="status" className="text-sm text-muted-foreground">{t('projectDetail.billing.sources.loading', 'Loading {{source}}…', { source: source.name })}</p>)}
       <FormSection legend={t('projectTabs:contractQuantities.workOrders.contractLines.legend', 'Bill of quantities lines')}>
         {!editable && (
           <p className="mb-3 text-[13px] text-muted-foreground">
@@ -149,13 +155,13 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
                           onChange={(value) => { setValues((current) => ({ ...current, [item.id]: value })); setError(item.id, null); }}
                           localeAware />
                       </div>
-                      <Button type="button" variant="outline" size="sm" loading={busy === item.id} disabled={busy !== null}
+                      <Button type="button" variant="outline" size="sm" loading={busy === item.id} disabled={busy !== null || !sourcesReady}
                         aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.saveRow', 'Save {{item}}', { item: item.item_code })}
                         onClick={() => void save(item)}>
                         {t('projectTabs:contractQuantities.workOrders.contractLines.save', 'Save')}
                       </Button>
                       {row && (
-                        <Button type="button" variant="ghost" size="sm" disabled={busy !== null}
+                        <Button type="button" variant="ghost" size="sm" disabled={busy !== null || !sourcesReady}
                           className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
                           aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.removeRow', 'Remove {{item}}', { item: item.item_code })}
                           onClick={() => setRemoveFor({ item, row })}>
@@ -191,6 +197,7 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
           description={t('projectTabs:contractQuantities.workOrders.contractLines.confirmRemove.body', '{{item}} returns to the contract balance. A line already accepted by a confirmed BAST cannot be removed.', { item: removeFor.item.item_code })}
           confirmLabel={t('projectTabs:contractQuantities.workOrders.contractLines.confirmRemove.confirm', 'Remove allocation')}
           loading={busy === removeFor.item.id}
+          confirmDisabled={!sourcesReady}
           onConfirm={() => void runRemove()}
           onCancel={() => setRemoveFor(null)}
         />

@@ -32,13 +32,15 @@ import { getErpSetupIncompleteness } from './erpSetupIncompleteness';
 import { M365OrgApprovalCard } from './M365OrgApprovalCard';
 import { M365DefaultLibraryCard } from './M365DefaultLibraryCard';
 import { ErpSetupChecklist } from './ErpSetupChecklist';
+import { OdooIntegrationSection } from './odoo/OdooIntegrationSection';
 import { erpActivationRefusalOf, type ErpActivationRefusal } from '@/src/lib/repositories/erpActivationRefusal';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { TaskListMatchReview } from './TaskListMatchReview';
 import { proposeTaskListMatches } from '@/src/lib/repositories/taskListMatchReview';
 import type { LinkClickUpProjectInput } from '@/src/lib/repositories/types';
 
-const TIERS: ExternalTier[] = ['clickup', 'erpnext'];
+// Odoo has its own card (OdooIntegrationSection), so this list stays the two generic tiers.
+const TIERS: Array<Exclude<ExternalTier, 'odoo'>> = ['clickup', 'erpnext'];
 
 /** Connect credential form values per tier */
 interface ConnectFormValues {
@@ -146,6 +148,7 @@ export const IntegrationsView: React.FC = () => {
   const domainsByTier: Record<ExternalTier, string[]> = {
     clickup: [],
     erpnext: [],
+    odoo: [],
   };
   ownershipRows.forEach((r) => {
     if (r.externalTier === 'clickup' || r.externalTier === 'erpnext') {
@@ -605,6 +608,8 @@ export const IntegrationsView: React.FC = () => {
             </Card>
           );
         })}
+        {/* #1504 S5: one ERP per org, so Odoo is offered only while no ERPNext binding is active. */}
+        {isSuccess && !isError && getBinding('erpnext')?.status !== 'active' && <OdooIntegrationSection />}
       </div>
 
       {bindingMapVisible && (

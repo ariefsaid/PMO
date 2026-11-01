@@ -4,27 +4,13 @@
  * untrusted until the HMAC-SHA256 of its raw body — keyed by the per-org webhook secret — matches the
  * `X-Signature` header. No signature ⇒ no side effect (the edge fn returns 401 before any apply).
  *
- * Pure + portable (Vitest + Deno): uses the Web Crypto `crypto.subtle` available in both runtimes,
- * the same idiom as `supabase/functions/_shared/constantTimeBearerEquals.ts`. The secret is taken as
- * a PARAM — it never lives in this module (it is read from `CLICKUP_WEBHOOK_SECRET` by the edge fn
+ * Pure + portable (Vitest + Deno): uses the Web Crypto `crypto.subtle` available in both runtimes.
+ * The comparison is the one shared `../constantTimeEquals.ts` helper. The secret is taken as a
+ * PARAM — it never lives in this module (it is read from `CLICKUP_WEBHOOK_SECRET` by the edge fn
  * only). ClickUp vocabulary (`X-Signature`) is confined here + the clickup-webhook fn (FR-CUA-012).
  */
 
-/** Constant-time equality of two strings of possibly-different length: SHA-256 both to fixed 32-byte
- *  digests and XOR-accumulate — no length-based early exit, no first-differing-char short-circuit
- *  (mirrors `constantTimeBearerEquals.ts`). */
-async function constantTimeEquals(a: string, b: string): Promise<boolean> {
-  const enc = new TextEncoder();
-  const [ha, hb] = await Promise.all([
-    crypto.subtle.digest('SHA-256', enc.encode(a)),
-    crypto.subtle.digest('SHA-256', enc.encode(b)),
-  ]);
-  const ua = new Uint8Array(ha);
-  const ub = new Uint8Array(hb);
-  let diff = 0;
-  for (let i = 0; i < ua.length; i += 1) diff |= ua[i] ^ ub[i];
-  return diff === 0;
-}
+import { constantTimeEquals } from '../constantTimeEquals.ts';
 
 /**
  * Verify a ClickUp webhook `X-Signature` (HMAC-SHA256 hex of `rawBody`, keyed by `secret`).

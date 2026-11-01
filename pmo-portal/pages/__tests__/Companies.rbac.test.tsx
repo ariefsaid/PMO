@@ -16,6 +16,8 @@ import type { Role } from '@/src/auth/AuthContext';
  * Two-sided: a PM sees the directory; an Engineer sees the denied region + Back.
  */
 const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }));
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+
 vi.mock('react-router', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useNavigate: () => navigate };
@@ -65,9 +67,10 @@ describe('Companies — Engineer page view-gate (A-5)', () => {
     expect(screen.getByText('Cascade Port Authority')).toBeInTheDocument();
   });
 
-  it('AC-W2-RBAC-010: an Engineer sees an access-denied surface, not the directory', () => {
+  it('AC-W2-RBAC-010 AC-CO-001b: an Engineer sees an access-denied surface, not the directory or New company button', () => {
     renderAs('Engineer');
     expect(screen.queryByText('Cascade Port Authority')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /new company/i })).not.toBeInTheDocument();
     expect(
       screen.getByRole('region', { name: /don't have access/i }),
     ).toBeInTheDocument();

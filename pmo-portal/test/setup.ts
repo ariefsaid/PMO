@@ -23,6 +23,12 @@ vi.mock('@/src/components/integrations/M365DefaultLibraryCard', () => ({
   M365DefaultLibraryCard: () => createElement('div', { 'data-testid': 'm365-default-library-stub' }),
 }));
 
+// The Odoo section reads its own queries (connection, companies, ownership) that the Integrations view suites do not
+// provide. Its parts have their own suites; the view suites need only know it is mounted.
+vi.mock('@/src/components/integrations/odoo/OdooIntegrationSection', () => ({
+  OdooIntegrationSection: () => createElement('div', { 'data-testid': 'odoo-section-stub' }),
+}));
+
 // Some local Node/Vitest combinations expose jsdom but do not install a usable
 // localStorage global. Several app primitives persist per-device UI prefs, so
 // unit tests need a Storage-compatible shim when the environment lacks one.
@@ -71,6 +77,18 @@ if (typeof window !== 'undefined') {
 // it as a no-op so production code can call it and tests can spy on it.
 if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = function scrollIntoView() {};
+}
+
+// Same class of gap: BlockNote's side menu (MinutesEditor) calls
+// `document.elementsFromPoint` from its capture-phase mousemove handler, and
+// jsdom has no implementation. Until 2026-10-31 the suite got axe-core's
+// polyfill as an invisible side effect of the global `jest-axe/extend-expect`
+// import (removed for speed — it cost ~72 ms/file). An empty result is the
+// faithful jsdom answer — axe's own polyfill also resolves to [] here, because
+// jsdom's elementFromPoint does no layout — and sends BlockNote down its
+// existing menu-hide path, exactly as before.
+if (typeof document !== 'undefined' && !document.elementsFromPoint) {
+  document.elementsFromPoint = () => [];
 }
 
 // jsdom has no `window.matchMedia`. The DataTable (and other responsive

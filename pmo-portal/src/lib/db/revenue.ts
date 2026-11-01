@@ -1,10 +1,10 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
-import { isProjectFinances, parseProjectReceiptCash, type ProjectFinances } from '@/src/lib/projectFinances';
+import { isProjectFinances, parseContractExcess, parseProjectReceiptCash, type ProjectFinances } from '@/src/lib/projectFinances';
 import { revenueRefusalCode } from '@/src/lib/db/revenueNative';
+import type { BillingKind } from '@/src/lib/billingKind';
 import { REVENUE_STATUSES } from '@/src/lib/projectInvoicing';
-import { resolveRange, type PageParams } from '@/src/lib/pagination';
 import type { ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
 import { fetchAllPages, fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
 
@@ -44,6 +44,8 @@ export interface SalesInvoiceRow {
   erp_cancelled_at: string | null;
   created_at: string;
   author_user_id: string | null;
+  /** #1471: how this invoice's project attribution counts (`contract` draws down the contract value; NOT NULL, default `contract`). */
+  billing_kind: BillingKind;
   /**
    * EVERY user who has built this invoice's ERP body — migration 0113's append-only
    * `sales_invoice_authors` set, which is the SoD oracle `submit_sales_invoice` actually enforces.
@@ -138,11 +140,10 @@ function throwWrite(error: PostgrestErrorLike): never {
  * Ordered by invoice_date desc for a stable, scannable list.
  * Includes customer's payment terms (erp_payment_terms_days) for due-date derivation.
  *
- * Money-safety (read-model audit S6): with no explicit `page`/`pageSize` this scans the WHOLE
- * list in `PAGE_SCAN_SIZE` pages. A single unpaged request is silently capped at PostgREST's
- * `max_rows`, so past 1000 invoices the list — and the client-side search that indexes it —
- * saw only the newest 1000 and answered "No invoices match your filters" for an invoice that
- * exists. An explicit `page`/`pageSize` still issues exactly one bounded request.
+ * Money-safety (read-model audit S6): this scans the WHOLE list in `PAGE_SCAN_SIZE` pages. A
+ * single unpaged request is silently capped at PostgREST's `max_rows`, so past 1000 invoices the
+ * list — and the client-side search that indexes it — saw only the newest 1000 and answered
+ * "No invoices match your filters" for an invoice that exists.
  */
 /**
  * The invoice projection every SI read shares: the row, the customer's payment terms, and the
@@ -169,7 +170,7 @@ function toSalesInvoiceRow(row: Record<string, unknown>): SalesInvoiceRow {
 }
 
 export async function listSalesInvoices(
-  params?: { projectId?: string; status?: SalesInvoiceStatus; nativeOnly?: boolean } & PageParams,
+  params?: { projectId?: string; status?: SalesInvoiceStatus; nativeOnly?: boolean },
 ): Promise<SalesInvoiceRow[]> {
   const build = (from: number, to: number) => {
     let query = supabase
@@ -186,17 +187,9 @@ export async function listSalesInvoices(
       .range(from, to);
   };
 
-  const range = resolveRange(params);
-  let data: Array<Record<string, unknown>>;
-  if (range) {
-    const res = await build(range.from, range.to);
-    if (res.error) throwWrite(res.error);
-    data = (res.data ?? []) as Array<Record<string, unknown>>;
-  } else {
-    data = await fetchAllPages<Record<string, unknown>>((from, to) =>
-      build(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
-    );
-  }
+  const data = await fetchAllPages<Record<string, unknown>>((from, to) =>
+    build(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
+  );
   return data.map(toSalesInvoiceRow);
 }
 
@@ -240,11 +233,11 @@ function toIncomingPaymentRow(row: Record<string, unknown>): IncomingPaymentRow 
  * invoice either by the native FK or by an ERP-reported JSON allocation, before paging.
  * Ordered by date desc then created_at desc, with an `id` tiebreaker so the scan is stable.
  *
- * Same money-safety contract as `listSalesInvoices` (audit S6): unpaged callers get the WHOLE
- * list via successive pages, never a silently-capped first 1000.
+ * Same money-safety contract as `listSalesInvoices` (audit S6): callers get the WHOLE list via
+ * successive pages, never a silently-capped first 1000.
  */
 export async function listIncomingPayments(
-  params?: { customerId?: string; salesInvoiceId?: string } & PageParams,
+  params?: { customerId?: string; salesInvoiceId?: string },
 ): Promise<IncomingPaymentRow[]> {
   const build = (from: number, to: number) => {
     let query = supabase.from('incoming_payments').select(INCOMING_PAYMENT_SELECT);
@@ -263,12 +256,6 @@ export async function listIncomingPayments(
       .range(from, to);
   };
 
-  const range = resolveRange(params);
-  if (range) {
-    const { data, error } = await build(range.from, range.to);
-    if (error) throwWrite(error);
-    return ((data ?? []) as Array<Record<string, unknown>>).map(toIncomingPaymentRow);
-  }
   const data = await fetchAllPages<Record<string, unknown>>((from, to) =>
     build(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
   );
@@ -305,11 +292,18 @@ export async function submitSalesInvoiceSod(siId: string): Promise<void> {
  * #767 (AC-DUE-001): record (or clear, with null) the date the client received the invoice.
  * Admin/Finance, draft or submitted — enforced by the SECURITY DEFINER RPC, not the UI.
  */
-export async function setSalesInvoiceProject(siId: string, projectId: string): Promise<void> {
+export async function setSalesInvoiceProject(siId: string, projectId: string, billingKind?: BillingKind): Promise<void> {
   const { error } = await supabase.rpc('assign_sales_invoice_project', {
     p_si_id: siId,
     p_project_id: projectId,
+    ...(billingKind ? { p_billing_kind: billingKind } : {}),
   });
+  if (error) throwWrite(error);
+}
+
+/** #1471 FR-004: PMO-only billing-kind correction of an already-linked invoice (Admin/Finance, RPC-enforced). */
+export async function setSalesInvoiceBillingKind(siId: string, billingKind: BillingKind): Promise<void> {
+  const { error } = await supabase.rpc('set_sales_invoice_billing_kind', { p_si_id: siId, p_billing_kind: billingKind });
   if (error) throwWrite(error);
 }
 
@@ -329,8 +323,12 @@ export async function getProjectFinances(projectId: string): Promise<ProjectFina
     throw new AppError('Project finance reading unavailable', 'invalid-project-finances');
   }
   // The legacy guard intentionally excludes cash_received; read that additive unknown only after it succeeds.
-  const payload = data as unknown as Omit<ProjectFinances, 'cash_received'> & { cash_received?: unknown };
-  return { ...payload, cash_received: parseProjectReceiptCash(payload.cash_received) };
+  const payload = data as unknown as Omit<ProjectFinances, 'cash_received' | 'contract_excess'> & { cash_received?: unknown; contract_excess?: unknown };
+  return {
+    ...payload,
+    cash_received: parseProjectReceiptCash(payload.cash_received),
+    contract_excess: parseContractExcess(payload.contract_excess, payload.remaining_to_invoice),
+  };
 }
 
 export async function setSalesInvoiceReceivedDate(siId: string, receivedDate: string | null): Promise<void> {

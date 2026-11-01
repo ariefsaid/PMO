@@ -1,14 +1,13 @@
+import { projectKeys, invalidateProjectProjections } from './projectQueryKeys';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  listProjects,
-  getProject,
   type ProjectWithRefs,
   type CreateProjectInput,
   type ProjectHeaderInput,
   type SetProjectContractValueInput,
 } from '@/src/lib/db/projects';
-import { listClientCompanies, type CompanyRow } from '@/src/lib/db/companies';
-import { listProjectManagers, type ProfileRow } from '@/src/lib/db/profiles';
+import type { CompanyRow } from '@/src/lib/db/companies';
+import type { ProfileRow } from '@/src/lib/db/profiles';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import { useStartRecordFolder } from '@/src/hooks/useStartRecordFolder';
@@ -29,8 +28,8 @@ export function useProjects(opts?: { enabled?: boolean }) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<ProjectWithRefs[]>({
-    queryKey: ['projects', orgId],
-    queryFn: () => listProjects(),
+    queryKey: projectKeys.all(orgId),
+    queryFn: () => repositories.project.list(),
     enabled: Boolean(orgId) && opts?.enabled !== false,
   });
 }
@@ -41,7 +40,7 @@ export function useProject(id: string | undefined) {
   const orgId = currentUser?.org_id;
   return useQuery<ProjectWithRefs | null>({
     queryKey: ['project', orgId, id],
-    queryFn: () => getProject(id!),
+    queryFn: () => repositories.project.getWithRefs(id!),
     enabled: Boolean(orgId && id),
   });
 }
@@ -61,7 +60,7 @@ export function useProjectsMilestoneDates(ids: string[], active = true) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery({
-    queryKey: ['milestone-dates', orgId, [...ids].sort()],
+    queryKey: projectKeys.milestoneDates(orgId, ids),
     queryFn: () => repositories.milestone.milestoneDatesForProjects(ids),
     enabled: active && Boolean(orgId) && ids.length > 0,
   });
@@ -72,7 +71,7 @@ export function useClientCompanies() {
   const orgId = currentUser?.org_id;
   return useQuery<CompanyRow[]>({
     queryKey: ['companies', 'client', orgId],
-    queryFn: () => listClientCompanies(),
+    queryFn: () => repositories.company.listClients(),
     enabled: Boolean(orgId),
   });
 }
@@ -82,7 +81,7 @@ export function useProjectManagers() {
   const orgId = currentUser?.org_id;
   return useQuery<ProfileRow[]>({
     queryKey: ['profiles', 'pm', orgId],
-    queryFn: () => listProjectManagers(),
+    queryFn: () => repositories.profile.listProjectManagers(),
     enabled: Boolean(orgId),
   });
 }
@@ -116,17 +115,13 @@ export function useProjectMutations() {
   // don't serve a stale, archived, or missing project name for the ~5-min query staleTime.
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['project-vat-editability'] });
-    qc.invalidateQueries({ queryKey: ['projects'] });
-    qc.invalidateQueries({ queryKey: ['opportunity'] });
-    qc.invalidateQueries({ queryKey: ['project'] });
+    invalidateProjectProjections(qc, currentUser?.org_id);
     qc.invalidateQueries({ queryKey: ['fk-options', 'project'] });
     qc.invalidateQueries({ queryKey: ['fk-options', 'invoice-project'] });
     qc.invalidateQueries({ queryKey: ['financial-statements', 'mapped-project-name'] });
     qc.invalidateQueries({ queryKey: ['uxs40', 'references'] });
     // #758: a project write can change the end customer (and client/status), so the sales
     // pipeline and lost-deal queries must refetch or they retain a stale value after the write.
-    qc.invalidateQueries({ queryKey: ['sales-pipeline'] });
-    qc.invalidateQueries({ queryKey: ['lost-deals'] });
     qc.invalidateQueries({ queryKey: ['integrations', 'bindings', currentUser?.org_id] });
     qc.invalidateQueries({ queryKey: ['integrations', 'project-erp', currentUser?.org_id] });
     qc.invalidateQueries({ queryKey: ['integrations', 'setup', currentUser?.org_id] });

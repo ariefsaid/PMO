@@ -11,6 +11,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // org READ is stubbed — `useTaxTreatmentPreselect` stays the shipped implementation, so the real
 // seeding behaviour runs here against a controllable org row.
 const orgDefault = vi.hoisted(() => ({ value: 'exclusive' as string | undefined }));
+vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
+vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
+
 vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
   return { ...actual, useOrgTaxDefault: () => orgDefault.value };
@@ -83,12 +86,6 @@ const mockDeleteItem = vi.fn().mockResolvedValue(undefined);
 const mockSelectQuote = vi.fn().mockResolvedValue(undefined);
 const mockCreateDocument = vi.fn().mockResolvedValue({ id: 'd-new' });
 const mockDeleteDocument = vi.fn().mockResolvedValue(undefined);
-const docsState = {
-  data: [] as Record<string, unknown>[],
-  isPending: false,
-  isError: false,
-  refetch: vi.fn(),
-};
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useProcurementCrudMutations: () => ({
     updateHeader: { mutateAsync: mockUpdateHeader, isPending: false },
@@ -99,7 +96,6 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
     createDocument: { mutateAsync: mockCreateDocument, isPending: false },
     deleteDocument: { mutateAsync: mockDeleteDocument, isPending: false },
   }),
-  useProcurementDocuments: () => docsState,
 }));
 
 vi.mock('@/src/hooks/useFkOptions', () => ({
@@ -222,7 +218,7 @@ const renderPage = (id = 'proc-w3') =>
   );
 
 
-import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 afterEach(() => clearOwnershipCache());
 
@@ -265,7 +261,7 @@ describe('AC-EXT-001: inline vendor-invoice capture (atomic capture_vendor_invoi
   });
 
   it('an ERP-owned org is not asked for it, and nothing is sent', async () => {
-    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
     await openInlineCapture();
     expect(screen.queryByTestId('vendor_invoice-group-ref-input')).not.toBeInTheDocument();
     await userEvent.click(screen.getByTestId('btn-submit-vi-capture'));
@@ -302,14 +298,14 @@ describe('AC-EXT-001: staged vendor-invoice capture is forwarded through the con
   });
 
   it('an ERP-owned org is not asked for it on the form either', async () => {
-    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
     renderPage();
     await recordFromMenu('Supplier invoice');
     expect(screen.queryByTestId('vendor_invoice-group-ref-input')).not.toBeInTheDocument();
   });
 
   it('AC-520-9 an ERP-owned org: the chosen ERPNext tax template reaches createInvoice after the confirm', async () => {
-    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
     renderPage();
     await recordFromMenu('Supplier invoice');
     await userEvent.selectOptions(screen.getByTestId('vi-tax-template-select'), 'Input VAT 11');
@@ -360,7 +356,7 @@ describe('AC-VWH-030 / AC-VWH-032 (#876 slice 2): vendor tax reaches the write',
   });
 
   it('AC-VWH-032 an ERP-owned org forwards the entered VAT and PPh as erpTaxAmounts, and no template', async () => {
-    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    setTaskOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
     mockEffectiveRole = 'Finance';
     detailState.data = { ...vendorInvoicedProcurement, invoices: [] };
     renderPage();

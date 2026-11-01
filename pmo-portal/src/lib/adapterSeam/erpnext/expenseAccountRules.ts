@@ -62,3 +62,13 @@ export function expenseAccountProblem(key: ExpenseAccountKey, account: ErpAccoun
   if (account.root_type !== 'Expense') return `${key}: ${account.name} must be an Expense account`;
   return null;
 }
+
+/**
+ * #1515 §9 — may this ERPNext account be a site float's cash account? A Cash-type ledger account of the bound company.
+ * One rule, run by `imprest-cash-account` when an Admin or Finance member binds it AND by the sweep before every float
+ * posting (an account can be re-typed or disabled in ERPNext after it was bound). Fail closed: no facts = does not fit.
+ */
+export function imprestCashAccountFits(account: ErpAccountFacts | null, company: string): boolean {
+  return account !== null && account.account_type === 'Cash' && account.company === company
+    && Number(account.is_group) !== 1 && Number(account.disabled) !== 1;
+}

@@ -4,7 +4,7 @@
  *
  * AC-VQ-001  empty state teaches "No vendor quotes yet"
  * AC-VQ-002  renders N bid rows with Vendor / Amount / Valid until columns
- * AC-VQ-003  selected row highlighted (bg-success wash) + "Selected · best value" won pill
+ * AC-VQ-003  selected row highlighted (bg-success wash) + "Selected" won pill
  * AC-VQ-004  Select button shown only when canSelect=true AND row is not selected
  * AC-VQ-005  Select button absent when canSelect=false (read-only past Quote Selected)
  * AC-VQ-006  clicking Select calls onSelect with the quotation id (confirm → mutation)
@@ -66,6 +66,8 @@ const makeQuote = (overrides: Partial<QuotationRow> = {}): QuotationRow => ({
   file_url: null,
   org_id: 'org-1',
   import_batch_id: null,
+  import_identity_facts: null,
+  import_identity_version: null,
   import_key: null,
   imported_at: null,
   erp_amended_from: null,
@@ -125,6 +127,24 @@ async function confirmInDialog(label: string | RegExp) {
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
+
+describe('quotation price comparison', () => {
+  it('separates an expensive selection from the lowest comparable price', () => {
+    render(<VendorQuotesTab {...defaultProps} quotations={[selectedQuote, unselectedQuote]} selectedId="q-hi" />);
+    const high = screen.getByText('Beta Corp').closest('tr')!;
+    const low = screen.getByText('Apex Supply').closest('tr')!;
+    expect(within(high).getByText('Selected')).toBeInTheDocument();
+    expect(within(high).queryByText(/best value|lowest price/i)).not.toBeInTheDocument();
+    expect(within(low).getByText('Lowest price')).toBeInTheDocument();
+  });
+
+  it('does not compare prices across currencies or with only one quotation', () => {
+    const { rerender } = render(<VendorQuotesTab {...defaultProps} quotations={[selectedQuote]} />);
+    expect(screen.queryByText('Lowest price')).not.toBeInTheDocument();
+    rerender(<VendorQuotesTab {...defaultProps} quotations={[selectedQuote, { ...unselectedQuote, currency: 'IDR' }]} />);
+    expect(screen.queryByText('Lowest price')).not.toBeInTheDocument();
+  });
+});
 
 describe('AC-VQ-001: VendorQuotesTab — empty state', () => {
   it('AC-PMC-006: empty state names the missing bid comparison and next step', () => {
@@ -201,7 +221,7 @@ describe('AC-VQ-002: VendorQuotesTab — bid comparison rows', () => {
 });
 
 describe('AC-VQ-003: VendorQuotesTab — selected row highlight', () => {
-  it('AC-VQ-003: selected row has "Selected · best value" pill', () => {
+  it('AC-VQ-003: selected row has "Selected" pill', () => {
     render(
       <VendorQuotesTab
         {...defaultProps}
@@ -210,10 +230,10 @@ describe('AC-VQ-003: VendorQuotesTab — selected row highlight', () => {
       />,
     );
     // Both desktop + mobile branches render the pill so ≥1 match is expected
-    expect(screen.getAllByText(/Selected · best value/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/Selected/i).length).toBeGreaterThanOrEqual(1);
   });
 
-  it('AC-VQ-003: "Selected · best value" pill present for selected; absent for unselected', () => {
+  it('AC-VQ-003: "Selected" pill present for selected; absent for unselected', () => {
     const { unmount } = render(
       <VendorQuotesTab
         {...defaultProps}
@@ -222,7 +242,7 @@ describe('AC-VQ-003: VendorQuotesTab — selected row highlight', () => {
         canSelect={false}
       />,
     );
-    expect(screen.getAllByText(/Selected · best value/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/Selected/i).length).toBeGreaterThanOrEqual(1);
     unmount();
 
     // Not-selected quote does NOT have the pill
@@ -234,7 +254,7 @@ describe('AC-VQ-003: VendorQuotesTab — selected row highlight', () => {
         canSelect={false}
       />,
     );
-    expect(screen.queryByText(/Selected · best value/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Selected/i)).not.toBeInTheDocument();
   });
 });
 
@@ -462,9 +482,9 @@ describe('review fixes: bid comparison presentation', () => {
     expect(files.closest('tr')).toBeInTheDocument();
   });
 
-  it('keeps the best-value indicator outside the clamped vendor identity', () => {
-    render(<VendorQuotesTab {...defaultProps} quotations={[makeQuote({ reference: 'A long reference value' })]} canSelect />);
-    const pill = screen.getByText('Best value');
+  it('keeps the lowest-price indicator outside the clamped vendor identity', () => {
+    render(<VendorQuotesTab {...defaultProps} quotations={[makeQuote({ reference: 'A long reference value' }), unselectedQuote]} canSelect />);
+    const pill = screen.getByText('Lowest price');
     expect(pill.closest('.line-clamp-2')).toBeNull();
     const vendorCell = screen.getByText('Apex Supply').closest('td');
     expect(pill.closest('td')).not.toBe(vendorCell);
@@ -477,8 +497,8 @@ describe('review fixes: bid comparison presentation', () => {
 });
 
 describe('AC-VQ-009: VendorQuotesTab — best-value pill during decision', () => {
-  it('AC-VQ-009: shows "Best value" pill on lowest-amount quote when canSelect=true (Vendor Quoted)', () => {
-    // q-lo ($148k) is lower than q-hi ($162k) — q-lo should get "Best value"
+  it('AC-VQ-009: shows "Lowest price" pill on lowest-amount quote when canSelect=true (Vendor Quoted)', () => {
+    // q-lo ($148k) is lower than q-hi ($162k) — q-lo should get "Lowest price"
     const low = makeQuote({ id: 'q-lo', vendor_id: 'v-1', total_amount: 148000, is_selected: false });
     const high = makeQuote({ id: 'q-hi', vendor_id: 'v-2', total_amount: 162000, is_selected: false });
     render(
@@ -490,10 +510,10 @@ describe('AC-VQ-009: VendorQuotesTab — best-value pill during decision', () =>
         vendorMap={testVendorMap}
       />,
     );
-    expect(screen.getAllByText(/best value/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/lowest price/i).length).toBeGreaterThanOrEqual(1);
   });
 
-  it('AC-VQ-009: "Best value" pill absent when canSelect=false (not in decision mode)', () => {
+  it('AC-VQ-009: lowest price remains visible after selection mode', () => {
     const low = makeQuote({ id: 'q-lo', vendor_id: 'v-1', total_amount: 148000, is_selected: false });
     const high = makeQuote({ id: 'q-hi', vendor_id: 'v-2', total_amount: 162000, is_selected: false });
     render(
@@ -505,8 +525,8 @@ describe('AC-VQ-009: VendorQuotesTab — best-value pill during decision', () =>
         vendorMap={testVendorMap}
       />,
     );
-    // No "Best value" pill when in read-only (past Quote Selected) and no selection
-    expect(screen.queryByText(/best value/i)).not.toBeInTheDocument();
+    // Comparison remains visible in read-only mode.
+    expect(screen.getByText(/lowest price/i)).toBeInTheDocument();
   });
 });
 

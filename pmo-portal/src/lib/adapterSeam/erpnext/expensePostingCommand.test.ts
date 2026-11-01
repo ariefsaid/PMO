@@ -9,7 +9,7 @@ const EPOCH = '1791367200123';
 const AFTER = '2026-10-07 09:59:00';
 const t = (over: Partial<ExpenseGateTruth>): ExpenseGateTruth => ({
   mirror_id: 'm1', posting: 'approval', posting_identity: `${CLAIM}:approval`, subject_id: CLAIM, claim_id: CLAIM,
-  claim_number: 'EXP-2610070001', claimant_id: 'u-e1', project_id: 'p1', project_is_internal: false, currency: 'IDR', amount: '175.00',
+  claim_number: 'EXP-2610070001', claimant_id: 'u-e1', project_id: 'p1', project_is_internal: false, float_cash_account: null, currency: 'IDR', amount: '175.00',
   lines: [{ expense_type: 'Meals', amount: '25.00' }, { expense_type: 'Travel', amount: '150.00' }],
   state_stamp: STAMP, posting_date: '2026-10-07', approval_posting_exists: true, actor_id: 'u-pm', ...over,
 });
@@ -74,6 +74,36 @@ describe('buildExpensePostingCommand (AC-EXP-117)', () => {
   });
 });
 
+describe('float variants of the posting command (AC-IMP-071)', () => {
+  const FLOAT = 'Site Cash F - PSC';
+  it('AC-IMP-071 a float advance pays from the float\'s cash account', () => {
+    const cmd = buildExpensePostingCommand(t({ posting: 'advance-payment', posting_identity: `${CLAIM}:advance-payment`, float_cash_account: FLOAT }), r, AFTER);
+    expect(cmd.record).toMatchObject({ payment_type: 'Pay', paid_from: FLOAT, paid_to: 'Employee Advances - PSC' });
+  });
+
+  it('AC-IMP-071 a float return lands in the float\'s cash account', () => {
+    const cmd = buildExpensePostingCommand(t({ posting: 'advance-return', posting_identity: `${CLAIM}:advance-return`, float_cash_account: FLOAT }), r, AFTER);
+    expect(cmd.record).toMatchObject({ payment_type: 'Receive', paid_from: 'Employee Advances - PSC', paid_to: FLOAT });
+  });
+
+  it('AC-IMP-071 a float claim payment is built without any company cash account', () => {
+    const cmd = buildExpensePostingCommand(t({ posting: 'claim-payment', posting_identity: `${CLAIM}:claim-payment`, float_cash_account: FLOAT }), { ...r, cashAccount: null }, AFTER);
+    expect(cmd.record).toMatchObject({ paid_from: FLOAT, paid_to: 'Employee Payable - PSC' });
+  });
+
+  it('AC-IMP-071 a non-float payment still uses the company cash account', () => {
+    const cmd = buildExpensePostingCommand(t({ posting: 'advance-payment', posting_identity: `${CLAIM}:advance-payment` }), r, AFTER);
+    expect(cmd.record).toMatchObject({ paid_from: 'Cash - PSC' });
+    expect(() => buildExpensePostingCommand(t({ posting: 'advance-payment', posting_identity: `${CLAIM}:advance-payment` }), { ...r, cashAccount: null }, AFTER)).toThrow(/cash or bank/);
+  });
+
+  it('AC-IMP-071 the float account is part of the frozen record, so the outbox digest binds it', () => {
+    const a = buildExpensePostingCommand(t({ posting: 'advance-payment', float_cash_account: FLOAT }), r, AFTER).record;
+    const b = buildExpensePostingCommand(t({ posting: 'advance-payment', float_cash_account: 'Other Cash - PSC' }), r, AFTER).record;
+    expect(JSON.stringify(a)).not.toEqual(JSON.stringify(b));
+  });
+});
+
 describe('expense approval cancel through the adapter (AC-EXP-127)', () => {
   it('AC-EXP-127 issues exactly one PUT {docstatus:2} on the approval Journal Entry, then re-reads it', async () => {
     const calls: Array<{ url: string; method: string; body?: unknown }> = [];
@@ -102,6 +132,12 @@ describe('parseExpenseGateTruth (AC-EXP-117)', () => {
     expect(parseExpenseGateTruth(nulls)).toEqual(nulls);
   });
 
+  it('AC-IMP-071 keeps the gate\'s float cash account, and reads a gate that states none as no float', () => {
+    expect(parseExpenseGateTruth(t({ float_cash_account: 'Site Cash F - PSC' })).float_cash_account).toBe('Site Cash F - PSC');
+    const { float_cash_account: _omitted, ...legacy } = t({});
+    expect(parseExpenseGateTruth(legacy).float_cash_account).toBeNull();
+  });
+
   it('AC-EXP-117 keeps the gate\'s project_is_internal verbatim (FR-EXP-119 reads it, never a default)', () => {
     expect(parseExpenseGateTruth(t({ project_is_internal: true })).project_is_internal).toBe(true);
     expect(parseExpenseGateTruth(t({ project_id: null, project_is_internal: false })).project_is_internal).toBe(false);
@@ -118,6 +154,8 @@ describe('parseExpenseGateTruth (AC-EXP-117)', () => {
     ['a non-boolean approval flag', { ...t({}), approval_posting_exists: 'yes' }],
     ['a missing internal-project flag', { ...t({}), project_is_internal: undefined }],
     ['a non-boolean internal-project flag', { ...t({}), project_is_internal: 'false' }],
+    ['a numeric float cash account', { ...t({}), float_cash_account: 5 }],
+    ['an empty float cash account', { ...t({}), float_cash_account: '' }],
     ['a malformed posting date', { ...t({}), posting_date: '07/10/2026' }],
   ])('AC-EXP-117 refuses %s — nothing is built from an unchecked shape', (_label, data) => {
     expect(() => parseExpenseGateTruth(data)).toThrow(/expense-gate-truth-malformed/);

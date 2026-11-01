@@ -1,0 +1,539 @@
+{
+  "nav": "Stock",
+  "setup": {
+    "title": "Stock setup",
+    "description": "Units, items, warehouses and who keeps them. Master data shared by the whole organisation.",
+    "tabsLabel": "Stock master data",
+    "tabs": {
+      "units": "Units",
+      "items": "Items",
+      "warehouses": "Warehouses"
+    },
+    "showArchived": "Show archived",
+    "archivedBadge": "Archived",
+    "columns": {
+      "code": "Code",
+      "name": "Name",
+      "unit": "Unit",
+      "wholeOnly": "Quantities",
+      "leadTime": "Lead time",
+      "kind": "Kind",
+      "project": "Site project",
+      "keepers": "Keepers",
+      "status": "Status",
+      "description": "Description"
+    },
+    "wholeOnly": {
+      "whole": "Whole numbers",
+      "fractional": "Fractions allowed"
+    },
+    "leadTimeDays": "days",
+    "kinds": {
+      "central": "Central",
+      "site": "Site"
+    },
+    "noKeepers": "No keeper",
+    "active": "Active",
+    "actions": {
+      "newUnit": "New unit",
+      "newItem": "New item",
+      "newWarehouse": "New warehouse",
+      "edit": "Edit",
+      "archive": "Archive",
+      "restore": "Restore",
+      "keepers": "Keepers",
+      "retry": "Retry",
+      "close": "Close"
+    },
+    "form": {
+      "unit": {
+        "newTitle": "New unit",
+        "editTitle": "Edit unit",
+        "submitNew": "Create unit",
+        "submitEdit": "Save unit",
+        "code": "Code",
+        "name": "Name",
+        "wholeOnly": "Whole numbers only",
+        "wholeOnlyHelp": "Tick for things counted in whole pieces (bags, pcs). Leave clear for lengths, weights and volumes.",
+        "codeRequired": "Code is required.",
+        "nameRequired": "Name is required."
+      },
+      "item": {
+        "newTitle": "New item",
+        "editTitle": "Edit item",
+        "submitNew": "Create item",
+        "submitEdit": "Save item",
+        "code": "Code",
+        "name": "Name",
+        "description": "Description",
+        "unit": "Unit",
+        "unitPlaceholder": "Choose a unit",
+        "leadTime": "Lead time (days)",
+        "leadTimeHelp": "Optional. Used later to suggest reorder levels.",
+        "codeRequired": "Code is required.",
+        "nameRequired": "Name is required.",
+        "unitRequired": "Choose a unit.",
+        "leadTimeInvalid": "Enter whole days between 0 and 365."
+      },
+      "warehouse": {
+        "newTitle": "New warehouse",
+        "editTitle": "Edit warehouse",
+        "submitNew": "Create warehouse",
+        "submitEdit": "Save warehouse",
+        "code": "Code",
+        "name": "Name",
+        "kind": "Kind",
+        "project": "Site project",
+        "projectHelp": "Optional. Only a default for issues; it does not restrict them.",
+        "noProject": "No default project",
+        "codeRequired": "Code is required.",
+        "nameRequired": "Name is required."
+      }
+    },
+    "states": {
+      "errorTitle": "Couldn't load stock setup",
+      "errorSub": "The request failed. Check your connection and try again.",
+      "emptyUnits": {
+        "title": "No units yet",
+        "sub": "Add the units you count stock in, such as bag, metre or kilogram.",
+        "action": "Add the first unit"
+      },
+      "emptyItems": {
+        "title": "No items yet",
+        "sub": "Add the materials you keep in stock. Each one needs a unit.",
+        "action": "Add the first item"
+      },
+      "emptyWarehouses": {
+        "title": "No warehouses yet",
+        "sub": "Add a central store and your site stores.",
+        "action": "Add the first warehouse"
+      },
+      "readOnlyHint": "You can view stock setup. Project Managers and above can change it."
+    },
+    "confirm": {
+      "archiveTitle": "Archive this record?",
+      "archiveDescription": "It disappears from new documents. Existing history stays. An item with stock on hand cannot be archived.",
+      "archiveConfirm": "Archive"
+    },
+    "toast": {
+      "created": "Created",
+      "updated": "Saved",
+      "archived": "Archived",
+      "restored": "Restored",
+      "keeperAssigned": "Keeper assigned",
+      "keeperRemoved": "Keeper removed",
+      "failed": "Could not save"
+    },
+    "keepersPanel": {
+      "title": "Keepers",
+      "subtitle": "Keepers post receipts, transfers and issues for this warehouse.",
+      "empty": "No active members to assign.",
+      "toggleLabel": "Keeper",
+      "close": "Done"
+    }
+  },
+  "kinds": {
+    "receive": "Receive",
+    "transfer": "Transfer",
+    "issue": "Issue to project",
+    "return": "Return from project",
+    "adjustment": "Adjustment",
+    "count": "Stock count"
+  },
+  "empty": {
+    "noStock": "No stock yet"
+  },
+  "errors": {
+    "STK_INSUFFICIENT": "Not enough stock on hand for this movement.",
+    "STK_NOT_KEEPER": "Only a keeper of this warehouse can do this.",
+    "STK_OWNED_BY_ERP": "Stock is managed in your accounting system, so it cannot be changed here.",
+    "STK_SELF_APPROVE": "You cannot approve your own adjustment.",
+    "STK_RANK": "Your role is not allowed to do this.",
+    "STK_PROJECT_NOT_ACTIVE": "The project is not active, so stock cannot be issued to it.",
+    "STK_BOQ_MISMATCH": "That work item does not belong to the project.",
+    "STK_RETURN_EXCEEDS": "You cannot return more than was issued.",
+    "STK_ARCHIVED": "This record is archived.",
+    "STK_FRACTION": "This unit only allows whole numbers.",
+    "STK_BACKDATE": "That date is too far back or in the future.",
+    "STK_HAS_STOCK": "Stock is still on hand, so this cannot be archived.",
+    "STK_UNIT_LOCKED": "This unit is already used by stock documents, so it cannot be changed.",
+    "STK_INVALID": "Some of the details are not valid.",
+    "STK_NOT_FOUND": "That record was not found in your organisation.",
+    "STK_TOO_MANY": "Too many rows to show. Narrow the filter.",
+    "STK_KIND_UNAVAILABLE": "This kind of document is not available yet.",
+    "STK_IMMUTABLE": "A posted or cancelled document cannot be changed.",
+    "STK_STALE": "This draft changed since you opened it. Review the new version, then post.",
+    "STK_INSUFFICIENT_DETAIL": "Only {{available}} on hand; you asked for {{requested}}."
+  },
+  "actions": {
+    "cancel": "Cancel",
+    "retry": "Retry"
+  },
+  "states": {
+    "errorTitle": "Couldn't load stock",
+    "errorSub": "Check your connection and try again. Nothing was changed."
+  },
+  "tabs": {
+    "label": "Stock sections",
+    "onHand": "On hand",
+    "documents": "Documents",
+    "ledger": "Ledger",
+    "setup": "Setup",
+    "reorder": "Reorder"
+  },
+  "onHand": {
+    "title": "Stock on hand",
+    "description": "What every warehouse holds right now. Open an item to see how it got there.",
+    "columns": {
+      "item": "Item",
+      "warehouse": "Warehouse",
+      "quantity": "On hand",
+      "avgCost": "Average cost",
+      "value": "Value"
+    },
+    "filters": {
+      "warehouse": "Warehouse",
+      "allWarehouses": "All warehouses",
+      "search": "Search items",
+      "belowReorder": "Below reorder level",
+      "includeZero": "Show zero balances"
+    },
+    "tiles": {
+      "items": "Items",
+      "warehouses": "Warehouses",
+      "central": "Central balances",
+      "site": "Site balances"
+    },
+    "states": {
+      "tooManyTitle": "Too many rows to show",
+      "noMatch": "Nothing matches",
+      "noMatchSub": "Clear the search or pick another warehouse.",
+      "emptySub": "Receive stock into a warehouse and it appears here."
+    }
+  },
+  "documents": {
+    "title": "Stock documents",
+    "description": "Every receipt, transfer, issue and return, newest first.",
+    "columns": {
+      "number": "Document",
+      "status": "Status",
+      "warehouse": "Warehouse",
+      "project": "Project",
+      "date": "Date",
+      "by": "By"
+    },
+    "status": {
+      "Draft": "Draft",
+      "Posted": "Posted",
+      "Cancelled": "Cancelled"
+    },
+    "filters": {
+      "kind": "Kind",
+      "allKinds": "All kinds",
+      "status": "Status",
+      "allStatuses": "All statuses"
+    },
+    "loadMore": "Load more",
+    "states": {
+      "empty": "No stock documents yet",
+      "emptySub": "Receive stock into a warehouse to create the first one.",
+      "noMatch": "No documents match",
+      "noMatchSub": "Clear a filter to see more."
+    }
+  },
+  "detail": {
+    "notFound": {
+      "title": "Document not found",
+      "sub": "It may belong to another organisation or no longer exist."
+    },
+    "backToList": "Back to documents",
+    "fields": {
+      "warehouse": "Warehouse",
+      "project": "Project",
+      "author": "Created by",
+      "created": "Created",
+      "reason": "Reason",
+      "note": "Note"
+    },
+    "lines": "Lines",
+    "entries": "Stock entries",
+    "noEntries": "Nothing has been posted for this document.",
+    "openInLedger": "Open in the ledger",
+    "columns": {
+      "item": "Item",
+      "quantity": "Quantity",
+      "warehouse": "Warehouse",
+      "change": "Change",
+      "balance": "Balance after",
+      "value": "Value"
+    },
+    "post": "Post",
+    "posted": "Document posted",
+    "cancelDraft": "Cancel draft",
+    "cancelled": "Draft cancelled",
+    "actionFailed": "That didn't work",
+    "confirm": {
+      "title": "Cancel this draft?",
+      "description": "The draft is kept for the record but can no longer be posted.",
+      "confirm": "Cancel draft"
+    }
+  },
+  "ledger": {
+    "title": "Stock ledger",
+    "description": "Every posting: who, when, which project and work item, and the balance after it.",
+    "columns": {
+      "when": "Posted",
+      "occurred": "Date",
+      "document": "Document",
+      "item": "Item",
+      "warehouse": "Warehouse",
+      "project": "Project / work item",
+      "change": "Change",
+      "balance": "Balance",
+      "valueChange": "Value change",
+      "valueBalance": "Value balance",
+      "by": "By"
+    },
+    "filters": {
+      "item": "Item",
+      "allItems": "All items",
+      "warehouse": "Warehouse",
+      "allWarehouses": "All warehouses",
+      "from": "From",
+      "to": "To",
+      "oneDocument": "One document"
+    },
+    "loadMore": "Load more",
+    "end": "{{count}} entries, end of the ledger",
+    "states": {
+      "empty": "Nothing posted yet",
+      "emptySub": "Postings appear here the moment they are made.",
+      "noMatch": "No entries match",
+      "noMatchSub": "Clear a filter to see more."
+    }
+  },
+  "materials": {
+    "title": "Materials",
+    "description": "Material used by this project per month and against its allowances, with who issued it.",
+    "issue": "Issue material",
+    "consumption": "Consumption",
+    "movements": "Movements"
+  },
+  "form": {
+    "unknownKind": "Unknown document kind",
+    "unknownKindSub": "Use Receive, Transfer, Issue, Return, Stock count or Adjustment from the Stock page.",
+    "intro": {
+      "receive": "Book goods into a warehouse you keep.",
+      "transfer": "Move stock between two warehouses in one step.",
+      "issue": "Take stock out of a warehouse onto a project work item.",
+      "return": "Put unused stock back, citing the issue it came from."
+    },
+    "submit": {
+      "receive": "Post receipt",
+      "transfer": "Post transfer",
+      "issue": "Post issue",
+      "return": "Post return"
+    },
+    "sections": {
+      "where": "Where",
+      "lines": "Lines",
+      "details": "Details"
+    },
+    "warehouse": "Warehouse",
+    "fromWarehouse": "From warehouse",
+    "toWarehouse": "To warehouse",
+    "warehousePlaceholder": "Choose a warehouse",
+    "project": "Project",
+    "projectPlaceholder": "Choose a project",
+    "item": "Item",
+    "itemPlaceholder": "Choose an item",
+    "itemSearch": "Search by code or name",
+    "itemNoun": "item",
+    "workItem": "Work item",
+    "workItemPlaceholder": "Choose a work item",
+    "cite": "Issue to return",
+    "citePlaceholder": "Choose the issue line",
+    "pickProjectFirst": "Choose a project first",
+    "issuedHelper": "Issued: {{qty}} {{unit}}",
+    "quantity": "Quantity",
+    "unitCost": "Unit cost",
+    "unitCostBlind": "Unit cost (you will not see it again)",
+    "occurredOn": "Date",
+    "occurredOnHelp": "Leave empty for today.",
+    "note": "Note",
+    "addLine": "Add another line",
+    "removeLine": "Remove line",
+    "loading": "Loading…",
+    "loadFailed": "Couldn't load the options",
+    "posted": "Posted",
+    "viewOnly": "You are viewing as another role, so nothing can be posted.",
+    "notKeeper": "Only a keeper of this warehouse can post here.",
+    "pickWarehouse": "Choose a warehouse to continue.",
+    "noWarehouse": {
+      "title": "You keep no warehouse",
+      "sub": "Ask an administrator to make you a keeper of a warehouse."
+    },
+    "errors": {
+      "warehouse": "Choose a warehouse.",
+      "toWarehouse": "Choose a different warehouse to receive the stock.",
+      "project": "Choose a project.",
+      "item": "Choose an item.",
+      "workItem": "Choose the work item.",
+      "source": "Choose the issue line you are returning.",
+      "quantity": "Enter a quantity above zero (up to 3 decimals).",
+      "unitCost": "Enter the unit cost (zero or more)."
+    }
+  },
+  "count": {
+    "intro": {
+      "count": "Count what is on the shelf. The system quantity is shown beside each line.",
+      "adjustment": "Correct stock for damage, loss or a find, with a reason."
+    },
+    "sections": {
+      "sheet": "Count sheet"
+    },
+    "counted": "Counted",
+    "systemNow": "System now",
+    "variance": "Difference",
+    "fill": "Fill from stock on hand",
+    "reason": "Reason",
+    "reasonHelp": "For example: damaged, lost, found in the yard.",
+    "direction": "Direction",
+    "out": "Remove stock",
+    "in": "Add stock",
+    "costDefault": "Leave empty to use the average cost.",
+    "anotherPerson": "Another person must post this: a Project Manager or above who did not write it.",
+    "saveDraft": "Save draft",
+    "post": "Post count",
+    "saved": "Draft saved",
+    "editDraft": "Edit draft",
+    "onHandFailed": "Couldn't load the quantities on hand",
+    "notEditable": {
+      "title": "This document can't be edited",
+      "sub": "Only a draft adjustment or count can be reopened."
+    },
+    "detail": {
+      "counted": "Counted",
+      "expected": "System at posting",
+      "direction": "Direction",
+      "unitCost": "Unit cost",
+      "atAverage": "At average cost"
+    },
+    "errors": {
+      "reason": "Say why the stock changed.",
+      "duplicate": "This item is already on the sheet.",
+      "counted": "Enter the counted quantity (0 or more, up to 3 decimals).",
+      "costNeeded": "Enter the unit cost: the system holds none of this item."
+    },
+    "costOnFile": "A unit cost is on file. Leave empty to keep it."
+  },
+  "consumption": {
+    "from": "From month",
+    "to": "To month",
+    "allowanceTitle": "Against allowance",
+    "allowanceSub": "Net used to the end of the selected months, against the planned quantity for each work item.",
+    "monthTitle": "By month",
+    "monthSub": "Issued, returned and net used per month, with who issued it.",
+    "unplannedTitle": "Issued without an allowance",
+    "unplannedSub": "Material used on a work item that has no planned quantity for it.",
+    "overAllowance": "Over allowance",
+    "noMonths": "Nothing issued in these months.",
+    "empty": "No material issued to this project in these months",
+    "emptySub": "Issues to this project's work items appear here, month by month.",
+    "errorTitle": "Consumption could not be loaded",
+    "errorSub": "The figures are not shown rather than shown wrong. Try again.",
+    "columns": {
+      "month": "Month",
+      "workItem": "Work item",
+      "item": "Item",
+      "allowance": "Allowance",
+      "usedToDate": "Used to date",
+      "variance": "Variance",
+      "status": "Status",
+      "issued": "Issued",
+      "returned": "Returned",
+      "net": "Net used",
+      "value": "Value",
+      "issuedBy": "Issued by"
+    },
+    "rangeReversed": "The first month is after the last month. Choose a start month on or before the end month."
+  },
+  "allowance": {
+    "action": "Material allowance",
+    "title": "Material allowance",
+    "description": "Planned quantity of each stock item for {{workItem}}. Issues beyond it are allowed and flagged.",
+    "item": "Item",
+    "quantity": "Planned quantity",
+    "add": "Add item",
+    "save": "Save",
+    "clear": "Clear",
+    "saved": "Allowance saved",
+    "cleared": "Allowance cleared",
+    "none": "No allowance set for this work item yet.",
+    "quantityInvalid": "Enter a quantity above 0, at most 3 decimals.",
+    "itemRequired": "Choose an item.",
+    "duplicate": "This item already has an allowance on this work item; change it in the list.",
+    "loadError": "Allowances could not be loaded.",
+    "clearConfirmTitle": "Clear allowance",
+    "clearConfirmDescription": "Remove the planned quantity of {{item}} for {{workItem}}? Quantities already issued are kept.",
+    "clearConfirm": "Clear allowance"
+  },
+  "issueOverAllowance": "Over allowance: {{workItem}} has now used {{used}} of {{planned}} {{unit}} planned. The issue is posted; this is a flag, not a block.",
+  "reorder": {
+    "title": "Reorder levels",
+    "description": "Set when each item needs ordering. A suggestion from past usage appears beside the figures; nothing changes until you accept it or save a value.",
+    "panel": {
+      "title": "Set a reorder level",
+      "item": "Item",
+      "warehouse": "Warehouse",
+      "warehousePlaceholder": "Choose a warehouse",
+      "pick": "Choose an item and a warehouse to see a suggestion.",
+      "current": "Level in force: {{level}} {{unit}}",
+      "currentQuantity": "order {{quantity}} {{unit}}",
+      "noCurrent": "No reorder level is set here.",
+      "suggestedLevel": "Suggested level",
+      "suggestedQuantity": "Suggested order quantity",
+      "basis": "Based on {{usage}} {{unit}} used over {{days}} days ({{avg}} a day), {{lead}} days lead time plus {{safety}} days safety, and a {{cycle}}-day order cycle.",
+      "insufficient": "Not enough history for a suggestion. It needs at least {{minDays}} days of history and {{minMoves}} usage movements; this item has {{days}} days and {{moves}}.",
+      "level": "Reorder level",
+      "quantity": "Order quantity (optional)",
+      "accept": "Accept suggestion",
+      "edit": "Edit",
+      "save": "Save level",
+      "cancel": "Cancel",
+      "clear": "Clear level",
+      "setManually": "Set a level"
+    },
+    "worklist": {
+      "title": "Below reorder level",
+      "emptyTitle": "Nothing is below its reorder level",
+      "emptySub": "Items appear here when stock at a warehouse falls to its level.",
+      "columns": {
+        "item": "Item",
+        "warehouse": "Warehouse",
+        "onHand": "On hand",
+        "level": "Reorder level",
+        "orderQuantity": "Order quantity",
+        "actions": "Actions"
+      },
+      "edit": "Edit",
+      "clear": "Clear",
+      "rowEdit": "Edit level for {{item}}",
+      "rowClear": "Clear level for {{item}}"
+    },
+    "confirmClear": {
+      "title": "Clear this reorder level",
+      "description": "{{item}} at {{warehouse}} will no longer appear on the list below.",
+      "confirm": "Clear level"
+    },
+    "toast": {
+      "saved": "Reorder level saved",
+      "cleared": "Reorder level cleared",
+      "failed": "Could not change the reorder level"
+    },
+    "errors": {
+      "levelInvalid": "Enter a level of 0 or more, with at most 3 decimals.",
+      "quantityInvalid": "Enter a quantity above 0, with at most 3 decimals, or leave it empty."
+    }
+  }
+}

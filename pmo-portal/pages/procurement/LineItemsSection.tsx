@@ -42,8 +42,9 @@ interface LineItemErrors { quantity?: string; rate?: string }
 export interface LineItemsSectionProps {
   items: ProcurementItemRow[];
   editable: boolean;
+  valuesEditable?: boolean;
   onAdd: (input: { name: string; quantity: number; rate: number; description?: string }) => Promise<unknown>;
-  onUpdate: (id: string, patch: { name: string; quantity: number; rate: number; description?: string }) => Promise<unknown>;
+  onUpdate: (id: string, patch: { name: string; quantity?: number; rate?: number; description?: string }) => Promise<unknown>;
   erpItems?: { loadOptions: () => Promise<ComboboxOption[]> };
   onDelete: (id: string) => Promise<unknown>;
   onError: (err: unknown) => void;
@@ -55,7 +56,7 @@ const CellInput: React.FC<React.ComponentPropsWithRef<'input'> & { numeric?: boo
     className={'h-8 w-full rounded-md border border-input bg-background px-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring ' + (numeric ? 'tabular text-right ' : '') + className} />
 );
 
-export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, editable, onAdd, onUpdate, onDelete, onError, busy, currency, erpItems }) => {
+export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, editable, valuesEditable = true, onAdd, onUpdate, onDelete, onError, busy, currency, erpItems }) => {
   const { t } = useTranslation('procurement');
   const [draft, setDraft] = useState<ItemDraft>(EMPTY_DRAFT);
   const [addErrors, setAddErrors] = useState<LineItemErrors>({});
@@ -86,13 +87,13 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
   };
   const submitEdit = async (id: string) => {
     if (!editDraft.name.trim()) return;
-    const quantityError = validateLineNum(editDraft.quantity, 'Quantity');
-    const rateError = validateRate(editDraft.rate);
-    const rate = parseRate(editDraft.rate);
-    if (quantityError || rateError || rate === null) { setEditErrors({ quantity: quantityError, rate: rateError }); return; }
+    const quantityError = valuesEditable ? validateLineNum(editDraft.quantity, 'Quantity') : undefined;
+    const rateError = valuesEditable ? validateRate(editDraft.rate) : undefined;
+    const rate = valuesEditable ? parseRate(editDraft.rate) : null;
+    if (quantityError || rateError || (valuesEditable && rate === null)) { setEditErrors({ quantity: quantityError, rate: rateError }); return; }
     setEditErrors({});
     try {
-      await onUpdate(id, { name: editDraft.name.trim(), quantity: num(editDraft.quantity), rate, ...(erpItems ? { description: editDraft.description?.trim() ?? '' } : {}) });
+      await onUpdate(id, { name: editDraft.name.trim(), ...(valuesEditable && rate !== null ? { quantity: num(editDraft.quantity), rate } : {}), ...(erpItems ? { description: editDraft.description?.trim() ?? '' } : {}) });
       setEditingId(null);
     } catch (err) { onError(err); }
   };
@@ -114,8 +115,8 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
         return <span className="font-medium">{it.name}{erpItems && it.description && <span className="mt-1 block font-normal text-muted-foreground">{it.description}</span>}</span>;
       },
     },
-    { key: 'quantity', header: t('lineItems.quantity', 'Qty'), kind: 'number', align: 'num', size: 88, cell: (it) => editable && editingId === it.id ? <div className="space-y-1"><CellInput numeric aria-label={`Edit quantity for ${it.name}`} value={editDraft.quantity} onChange={(e) => { setEditDraft((d) => ({ ...d, quantity: e.target.value })); setEditErrors((p) => ({ ...p, quantity: undefined })); }} /><FieldError>{editErrors.quantity}</FieldError></div> : Number(it.quantity) },
-    { key: 'rate', header: t('lineItems.unitPrice', 'Unit price'), kind: 'money', align: 'num', size: 150, cell: (it) => editable && editingId === it.id ? <div className="space-y-1"><CellInput numeric aria-label={`Edit unit price for ${it.name}`} ref={editRateMask.ref} value={editDraft.rate} onChange={editRateMask.onChange} /><FieldError>{editErrors.rate}</FieldError></div> : formatCurrencyAuto(Number(it.rate), currency) },
+    { key: 'quantity', header: t('lineItems.quantity', 'Qty'), kind: 'number', align: 'num', size: 88, cell: (it) => editable && editingId === it.id ? <div className="space-y-1"><CellInput disabled={!valuesEditable} numeric aria-label={`Edit quantity for ${it.name}`} value={editDraft.quantity} onChange={(e) => { setEditDraft((d) => ({ ...d, quantity: e.target.value })); setEditErrors((p) => ({ ...p, quantity: undefined })); }} /><FieldError>{editErrors.quantity}</FieldError></div> : Number(it.quantity) },
+    { key: 'rate', header: t('lineItems.unitPrice', 'Unit price'), kind: 'money', align: 'num', size: 150, cell: (it) => editable && editingId === it.id ? <div className="space-y-1"><CellInput disabled={!valuesEditable} numeric aria-label={`Edit unit price for ${it.name}`} ref={editRateMask.ref} value={editDraft.rate} onChange={editRateMask.onChange} /><FieldError>{editErrors.rate}</FieldError></div> : formatCurrencyAuto(Number(it.rate), currency) },
     { key: 'amount', header: t('lineItems.lineTotal', 'Line total'), kind: 'money', align: 'num', size: 150, cell: (it) => {
       const amount = editable && editingId === it.id
         ? itemsNetTotal([{ quantity: parseMoneyInputAtScale(editDraft.quantity, 2), rate: parseMoneyInputAtScale(editDraft.rate, 2) }])
@@ -135,7 +136,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
         <div>{erpItems ? <div className="space-y-2"><Combobox label={t('lineItems.erpItem', 'ERP item')} value={draft.name || null} selectedOption={draft.name ? { value: draft.name, label: draft.name } : null} onChange={(name) => setDraft((d) => ({ ...d, name }))} loadOptions={erpItems.loadOptions} noun="ERP item" placeholder={t('lineItems.selectItem', 'Select or search item…')} searchPlaceholder={t('lineItems.searchItem', 'Search item code or name…')} required /><CellInput aria-label={t('lineItems.newItemDescription', 'New item description')} placeholder={t('lineItems.describeItem', 'Describe the work or goods…')} value={draft.description ?? ''} onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))} /></div> : <CellInput aria-label={t('lineItems.newItemDescription', 'New item description')} placeholder={t('lineItems.addItemPlaceholder', 'Add an item…')} value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} />}</div>
         <div><CellInput numeric aria-label={t('lineItems.newItemQuantity', 'New item quantity')} placeholder="0" value={draft.quantity} onChange={(e) => { setDraft((d) => ({ ...d, quantity: e.target.value })); setAddErrors((p) => ({ ...p, quantity: undefined })); }} /><FieldError>{addErrors.quantity}</FieldError></div>
         <div><CellInput numeric aria-label={t('lineItems.newItemUnitPrice', 'New item unit price')} placeholder={`0${numberSymbols().decimal}00`} ref={addRateMask.ref} value={draft.rate} onChange={addRateMask.onChange} /><FieldError>{addErrors.rate}</FieldError></div>
-        <div className="flex items-center gap-3"><span aria-label={t('lineItems.newLineTotal', 'New line total')} className="tabular text-muted-foreground">{(() => { const qty = parseMoneyInputAtScale(draft.quantity, 2); const rate = parseMoneyInputAtScale(draft.rate, 2); return qty !== null && rate !== null ? formatCurrencyCents(qty * rate, currency) : '—'; })()}</span><Button size="sm" variant="outline" aria-label={t('lineItems.addLineItem', 'Add line item')} disabled={!draft.name.trim()} loading={busy} onClick={() => void submitAdd()}><Icon name="plus" />{t('lineItems.add', 'Add')}</Button></div>
+        <div className="flex items-center gap-3"><span aria-label={t('lineItems.newLineTotal', 'New line total')} className="tabular text-muted-foreground">{(() => { const qty = parseMoneyInputAtScale(draft.quantity, 2); const rate = parseMoneyInputAtScale(draft.rate, 2); const amount = itemsNetTotal([{ quantity: qty, rate }]); return amount !== null ? formatCurrencyCents(amount, currency) : '—'; })()}</span><Button size="sm" variant="outline" aria-label={t('lineItems.addLineItem', 'Add line item')} disabled={!draft.name.trim()} loading={busy} onClick={() => void submitAdd()}><Icon name="plus" />{t('lineItems.add', 'Add')}</Button></div>
       </div>
     </CardPad>}
     <ConfirmDialog open={!!deleteTarget} tone="destructive" title={deleteTarget ? `Remove ${deleteTarget.name}?` : 'Remove line item?'} description={t('lineItems.removeDescription', 'This removes the line item from procurement. You can add it again while the procurement is a draft.')} confirmLabel={t('lineItems.removeItem', 'Remove item')} loading={busy} onConfirm={confirmDelete} onCancel={() => setDeleteTarget(null)} />

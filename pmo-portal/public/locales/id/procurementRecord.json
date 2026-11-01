@@ -25,7 +25,14 @@
     "documentsLinked_other": "{{count}} dokumen tertaut"
   },
   "items": {
-    "countLabel": "item baris"
+    "countLabel": "item baris",
+    "submitting": "Dokumen pembelian sedang dikirim.",
+    "retry": "Coba lagi",
+    "ownershipError": "Kepemilikan tidak dapat dimuat. Coba lagi.",
+    "ownershipChecking": "Memeriksa kepemilikan…",
+    "eligibilityError": "Ketersediaan pengeditan item tidak dapat dimuat. Coba lagi.",
+    "eligibilityChecking": "Memeriksa ketersediaan pengeditan item…",
+    "valuesManaged": "Jumlah dan harga satuan pembelian ini dikelola di ERP."
   },
   "action": {
     "submit": "Ajukan untuk persetujuan",

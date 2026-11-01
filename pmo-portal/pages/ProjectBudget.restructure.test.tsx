@@ -77,6 +77,7 @@ vi.mock('@/src/lib/repositories/budgetProjection', async (importOriginal) => {
     fetchBudgetProjection: vi.fn().mockImplementation(() => Promise.resolve(state.projectionRows)),
     fetchActiveBudgetCategoryPhasing: vi.fn().mockImplementation(() => Promise.resolve(state.phasing)),
     listBudgetFiscalYears: vi.fn().mockImplementation(() => Promise.resolve(state.fiscalYears)),
+    fetchFirstSpendingYear: vi.fn().mockResolvedValue(null),
     upsertBudgetProjectionEtc: state.saveEtc,
   };
 });
@@ -406,6 +407,92 @@ describe('ProjectBudget Option A', () => {
 
 describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
   const bigActive = () => active([line('li-1', 'Labor', 'Design', 4_500_000)]) as unknown as BudgetVersionWithItems;
+
+  it('keeps the active budget currency when a different draft is selected', async () => {
+    state.versions.data = [{ ...active([line('li-1', 'Labor', 'Design', 4_500_000)]), currency: 'EUR' }, draft({ currency: 'GBP' })];
+    state.position.rows = [{ category: 'Labor', budget: 100, actual: 35 }];
+    state.procurements.data = [{ status: 'Ordered', budget_category: 'Labor', approved_total_value: 15, total_value: 15, currency: 'USD' }];
+    renderPage();
+    const tiles = screen.getByRole('region', { name: 'Budget figures' });
+    expect(within(tiles).getByText('€4.5M')).toHaveAttribute('title', '€4,500,000');
+    expect(within(tiles).getByText('$35')).toBeInTheDocument();
+    expect(within(tiles).getByText('$15')).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Version' }), 'v-draft');
+    expect(within(tiles).getByText('€4.5M')).toHaveAttribute('title', '€4,500,000');
+    expect(screen.getByRole('table', { name: 'Budget vs actual by category' })).toHaveTextContent('125');
+    expect(screen.getAllByText(/^USD ·/).length).toBeGreaterThan(0);
+    const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
+    expect(table).toHaveTextContent('GBP 125');
+    expect(table).not.toHaveTextContent('75');
+    expect(table).not.toHaveTextContent('40%');
+    expect(table).not.toHaveTextContent('On track');
+    await userEvent.click(screen.getByRole('button', { name: 'Open Labor budget details' }));
+    expect(screen.getByRole('dialog', { name: 'Labor' })).toHaveTextContent('GBP 125');
+  });
+
+  it.each(['Active', 'Archived'])('keeps %s budget in its own basis and leaves mixed comparisons unavailable', async (status) => {
+    const version = { ...active(), status, currency: 'GBP', total: 125, line_items: [line('foreign', 'Labor', 'Design', 125)] };
+    state.versions.data = [version];
+    state.position.rows = [{ category: 'Labor', budget: 125, actual: 35 }];
+    state.procurements.data = [{ status: 'Ordered', budget_category: 'Labor', approved_total_value: 15, total_value: 15, currency: 'USD' }];
+    renderPage();
+    const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
+    expect(table).toHaveTextContent('GBP 125');
+    expect(table).not.toHaveTextContent('75');
+    expect(table).not.toHaveTextContent('40%');
+    expect(table).not.toHaveTextContent('On track');
+  });
+
+  it('compares version amounts only when their recorded currencies match', async () => {
+    state.versions.data = [{ ...active(), currency: 'GBP' }, draft({ currency: 'EUR' }), { ...draft({ currency: 'GBP' }), id: 'v-archived', status: 'Archived', version: 3 }];
+    renderPage();
+    const versionRegion = screen.getByRole('region', { name: 'Budget versions' });
+    expect(versionRegion).toHaveTextContent('GBP 100');
+    expect(versionRegion).toHaveTextContent('EUR 125');
+    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    const drawer = screen.getByRole('dialog', { name: 'Budget versions' });
+    await userEvent.click(within(drawer).getByRole('button', { name: 'Compare' }));
+    const table = within(drawer).getByRole('table', { name: 'Version comparison' });
+    expect(table).toHaveTextContent('GBP 100');
+    expect(table).toHaveTextContent('EUR 125');
+    expect(within(table).getAllByText('—').length).toBeGreaterThan(0);
+    await userEvent.selectOptions(within(drawer).getByRole('combobox', { name: 'Version B' }), 'v-archived');
+    expect(table).toHaveTextContent('+GBP 25');
+  });
+
+  it('shows a same-currency change between foreign version totals', () => {
+    state.versions.data = [{ ...active(), currency: 'GBP' }, draft({ currency: 'GBP' })];
+    renderPage();
+    const versions = screen.getByRole('region', { name: 'Budget versions' });
+    expect(versions).toHaveTextContent('+GBP 25');
+  });
+
+  it('keeps the forecast editor available with a foreign active budget', async () => {
+    state.versions.data = [{ ...active(), currency: 'GBP' }];
+    state.projectionRows = [{ category: 'Labor', pmoBudgetAmount: 100, actualsToDate: 35, actualsAsOf: '2026-10-20T00:00:00Z', pmoEtc: 15, projectedFinalCost: 50, projectedVariance: 50, projectedUtilization: 0.5, attributionKnown: true }];
+    renderPage(['/projects/p-1/budget?budgetView=forecast']);
+    expect(await screen.findByRole('button', { name: 'Edit cost to finish' })).toBeInTheDocument();
+    const forecast = screen.getByRole('table', { name: 'Budget forecast by category' });
+    expect(forecast).toHaveTextContent('£100');
+    expect(forecast).not.toHaveTextContent('50%');
+  });
+
+  it.each([null, ''])('falls back to project currency when the active currency is %s', async (currency) => {
+    state.versions.data = [{ ...active(), currency }];
+    renderPage();
+    expect(within(screen.getByRole('region', { name: 'Budget figures' })).getByText('$100')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    expect(within(screen.getByRole('dialog', { name: 'Budget versions' })).getByText(/\$100/)).toBeInTheDocument();
+  });
+
+  it('shows no active amount when only a draft exists', () => {
+    state.versions.data = [draft({ currency: 'EUR' })];
+    renderPage();
+    expect(screen.getByText('No active budget')).toBeInTheDocument();
+    const tiles = screen.getByRole('region', { name: 'Budget figures' });
+    expect(within(tiles).queryByText('€125')).not.toBeInTheDocument();
+    expect(within(tiles).getAllByText('—').length).toBeGreaterThan(0);
+  });
 
   it('F11: summary tiles show short amounts with the full amount kept for hover and screen readers', () => {
     state.versions.data = [bigActive()];

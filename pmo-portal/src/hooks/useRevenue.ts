@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
+import { useOptionalRealRole } from '@/src/auth/impersonation';
+import { safeTrack, trackInvoiceIssued, trackPaymentRecorded } from '@/src/lib/analytics';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import {
   IDLE_PENDING_PUSH,
@@ -14,6 +16,7 @@ import type { SalesInvoiceEvidence } from '@/src/lib/adapterSeam/erpnext/invoice
 import { getSalesInvoiceEvidence } from '@/src/lib/repositories/invoiceEvidence';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import type { AssignInvoiceProjectInput } from '@/src/lib/projectFinances';
+import type { BillingKind } from '@/src/lib/billingKind';
 import { efakturRefusal } from '@/src/lib/efaktur';
 import { nativeDraftInvoicesKey } from './approvalsQueryKeys';
 
@@ -32,22 +35,6 @@ export function useSalesInvoices(projectId?: string, { enabled = true }: { enabl
     queryKey: ['salesInvoices', orgId, projectId ?? 'all'],
     queryFn: () => repositories.revenue.listInvoices(projectId ? { projectId } : undefined),
     enabled: enabled && Boolean(orgId),
-  });
-}
-
-/**
- * A single sales invoice by id over the repository seam (ADR-0017).
- * queryKey includes org_id so the cache is tenant-scoped; disabled until both
- * an org and an id are present. Returns `null` when the record is absent or
- * RLS-scoped out (the page renders a calm not-found).
- */
-export function useSalesInvoice(id: string | undefined) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<SalesInvoiceRow | null>({
-    queryKey: ['salesInvoice', orgId, id],
-    queryFn: () => repositories.revenue.getInvoice(id!),
-    enabled: Boolean(orgId && id),
   });
 }
 
@@ -96,19 +83,6 @@ export function useIncomingPayments(customerId?: string, enabled = true, salesIn
 }
 
 /**
- * A single incoming payment by id over the repository seam (ADR-0017).
- */
-export function useIncomingPayment(id: string | undefined) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<IncomingPaymentRow | null>({
-    queryKey: ['incomingPayment', orgId, id],
-    queryFn: () => repositories.revenue.getPayment(id!),
-    enabled: Boolean(orgId && id),
-  });
-}
-
-/**
  * Revenue per project rollup — SUM(amount) grouped by project_id, with an
  * 'Unassigned' bucket for null project_id (when require_project_on_si is OFF).
  * Consumes the read-model DAL directly via repository; never threads org_id.
@@ -138,6 +112,7 @@ export function useRevenueMutations() {
   const qc = useQueryClient();
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
+  const realRole = useOptionalRealRole();
   const [pendingPush, setPendingPush] = useState<PendingPushState>(IDLE_PENDING_PUSH);
   const isExternal = routeDomainWrite('revenue') === 'external';
 
@@ -156,7 +131,7 @@ export function useRevenueMutations() {
   };
 
   const create = useMutation({
-    mutationFn: ({ intent, ...input }: { customerId: string; projectId?: string | null; workOrderId?: string | null; items: Array<{ item_code: string; qty: number; rate: number; description?: string }>; intent?: CommandIntent }) =>
+    mutationFn: ({ intent, ...input }: { customerId: string; projectId?: string | null; workOrderId?: string | null; billingKind?: BillingKind; items: Array<{ item_code: string; qty: number; rate: number; description?: string }>; intent?: CommandIntent }) =>
       repositories.revenue.createInvoice(input, intent),
     onMutate: () => {
       if (isExternal) setPendingPush(beginPush(IDLE_PENDING_PUSH));
@@ -180,6 +155,7 @@ export function useRevenueMutations() {
     onSuccess: () => {
       invalidate();
       invalidateVatEligibility();
+      safeTrack(() => trackInvoiceIssued(realRole ?? 'unknown'));
       if (isExternal) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
     },
     onError: (err) => {
@@ -230,6 +206,7 @@ export function useRevenueMutations() {
     },
     onSuccess: () => {
       invalidate();
+      safeTrack(() => trackPaymentRecorded(realRole ?? 'unknown'));
       if (isExternal) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
     },
     onError: (err) => {
@@ -260,8 +237,13 @@ export function useAssignInvoiceProject() {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useMutation({
-    mutationFn: ({ siId, projectId }: AssignInvoiceProjectInput) =>
-      repositories.revenue.setProject(siId, projectId),
+    mutationFn: ({ siId, projectId, oldProjectId, billingKind }: AssignInvoiceProjectInput) => {
+      // Same project + a kind: the narrow correction (works for native, authored and paid invoices too, FR-004).
+      if (billingKind !== undefined && oldProjectId === projectId) return repositories.revenue.setBillingKind(siId, billingKind);
+      return billingKind === undefined
+        ? repositories.revenue.setProject(siId, projectId)
+        : repositories.revenue.setProject(siId, projectId, billingKind);
+    },
     onSuccess: (_data, { siId, projectId, oldProjectId }) => {
       const projectIds = [...new Set([oldProjectId, projectId].filter((id): id is string => Boolean(id)))];
       const keys: readonly (readonly unknown[])[] = [

@@ -1,9 +1,11 @@
+import { procurementKeys } from './procurementQueryKeys';
+import { projectKeys, invalidateProjectProjections } from './projectQueryKeys';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
-import { listProjectsByClient, type ProjectWithRefs } from '@/src/lib/db/projects';
-import { listProcurementsByVendor, type ProcurementWithRefs } from '@/src/lib/db/procurements';
+import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { useAuth } from '@/src/auth/useAuth';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import {
@@ -53,8 +55,8 @@ export function useProjectsByClient(companyId: string | undefined) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<ProjectWithRefs[]>({
-    queryKey: ['projects', 'by-client', orgId, companyId],
-    queryFn: () => listProjectsByClient(companyId!),
+    queryKey: projectKeys.byClient(orgId, companyId),
+    queryFn: () => repositories.project.listByClient(companyId!),
     enabled: Boolean(orgId && companyId),
   });
 }
@@ -68,8 +70,8 @@ export function useProcurementsByVendor(companyId: string | undefined) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<ProcurementWithRefs[]>({
-    queryKey: ['procurements', 'by-vendor', orgId, companyId],
-    queryFn: () => listProcurementsByVendor(companyId!),
+    queryKey: procurementKeys.byVendor(orgId, companyId),
+    queryFn: () => repositories.procurement.listByVendor(companyId!),
     enabled: Boolean(orgId && companyId),
   });
 }
@@ -87,6 +89,7 @@ export interface UpdateCompanyArgs {
  */
 export function useCompanyMutations() {
   const qc = useQueryClient();
+  const orgId = useAuth().currentUser?.org_id;
   // Also bust the FK-picker caches (F2, Wave 3): a company is both a vendor and a client option,
   // so create/edit/archive/delete must refresh `['fk-options','vendor']` + `['fk-options','client']`
   // or combobox forms serve a stale/archived/missing company for the ~5-min query staleTime.
@@ -96,13 +99,7 @@ export function useCompanyMutations() {
     qc.invalidateQueries({ queryKey: ['company'] });
     qc.invalidateQueries({ queryKey: ['fk-options', 'vendor'] });
     qc.invalidateQueries({ queryKey: ['fk-options', 'client'] });
-    qc.invalidateQueries({ queryKey: ['projects'] });
-    qc.invalidateQueries({ queryKey: ['project'] });
-    qc.invalidateQueries({ queryKey: ['opportunity'] });
-    qc.invalidateQueries({ queryKey: ['sales-pipeline'] });
-    qc.invalidateQueries({ queryKey: ['lost-deals'] });
-    qc.invalidateQueries({ queryKey: ['dashboard'] });
-    qc.invalidateQueries({ queryKey: ['finance-budget-review'] });
+    invalidateProjectProjections(qc, orgId);
   };
 
   // Discover CRITICAL 1 follow-up: create/update already route through the repository seam (Slice

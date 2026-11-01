@@ -10,6 +10,8 @@ export interface ContextBarProps {
   onOpenPalette: () => void;
   /** Opens the mobile rail drawer (≤920px). */
   onToggleRail: () => void;
+  /** Optional control placed just before the notification bell (the Feedback button, #1532 S9). */
+  beforeBell?: React.ReactNode;
 }
 
 /** Top context bar: hamburger (mobile), breadcrumb, ⌘K, notifications, and the single
@@ -19,6 +21,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
   breadcrumb,
   onOpenPalette,
   onToggleRail,
+  beforeBell,
 }) => {
   const { t } = useTranslation();
 
@@ -60,6 +63,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
       {/* FR-AAN-034/038: the notification bell (B-5/AC-W2-IXD-008 removed it for having
           no destination — it now has one, the notifications inbox, REC-3). Shown to every
           signed-in user (AC-WFN-001..003: workflow hand-offs notify regardless of the assistant flag). */}
+      {beforeBell}
       <NotificationBell />
 
       {/* The one responsive account menu owns identity, profile, theme, role-preview,

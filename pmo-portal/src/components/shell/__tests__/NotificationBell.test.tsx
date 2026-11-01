@@ -207,6 +207,22 @@ describe('NotificationBell', () => {
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/my-tasks'));
   });
 
+  it('FR-IMP-074 selecting a site cash plan or replenishment notification opens Site cash', async () => {
+    listUnreadCount.mockResolvedValue(2);
+    listNotifications.mockResolvedValue([
+      row({ id: 'n1', title: 'Plan awaiting', metadata: { entity: { type: 'imprest_plan', id: 'pl-1', label: 'P' } } }),
+      row({ id: 'n2', title: 'Replenishment ready', metadata: { entity: { type: 'imprest_replenishment', id: 'r-1', label: 'R' } } }),
+    ]);
+    renderBell();
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /plan awaiting/i }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/imprest'));
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /replenishment ready/i }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledTimes(2));
+    expect(mockNavigate).toHaveBeenLastCalledWith('/imprest');
+  });
+
   it('AC-AAN-035 selecting a notification with only metadata.run_id opens that run', async () => {
     listUnreadCount.mockResolvedValue(1);
     listNotifications.mockResolvedValue([
@@ -361,6 +377,17 @@ describe('NotificationBell', () => {
     await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
     await userEvent.click(await screen.findByRole('button', { name: /expense claim awaiting/i }));
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/expenses/ec-7'));
+  });
+
+  it('AC-AIN-NAT-002 selecting a customer-invoice hand-off opens the invoice', async () => {
+    listUnreadCount.mockResolvedValue(1);
+    listNotifications.mockResolvedValue([
+      row({ id: 'n1', title: 'Customer invoice awaiting your approval', metadata: { entity: { type: 'sales_invoice', id: 'si-9', label: 'PT Client' } } }),
+    ]);
+    renderBell();
+    await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /customer invoice awaiting/i }));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/sales-invoices/si-9'));
   });
 
   it('AC-843-005 requests one page on open; "Load more" shows only with a next cursor and appends the next page', async () => {

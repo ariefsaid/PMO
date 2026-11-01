@@ -11,6 +11,7 @@ import { useProjects } from '@/src/hooks/useProjects';
 import {
   useExpenseAdvanceOutstanding, useExpenseClaim, useExpenseClaimLines, useExpenseClaimMutations, useExpenseClaimRoute,
 } from '@/src/hooks/useExpenseClaims';
+import { useImprestFloat } from '@/src/hooks/useImprest';
 import { availableExpenseActions, settlementPreview } from '@/src/lib/expenses/expenseRules';
 import { approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
@@ -38,6 +39,7 @@ const ExpenseClaimDetail: React.FC = () => {
   const routeQuery = useExpenseClaimRoute(claimId, claim?.status);
   const outstandingQuery = useExpenseAdvanceOutstanding(claim?.kind === 'advance' ? claim.id : claim?.advance_id ?? null);
   const { update } = useExpenseClaimMutations();
+  const float = useImprestFloat(claim?.imprest_float_id);
   const { data: projects } = useProjects();
   const advanceOptions = useOwnAdvanceOptions(claim?.advance_id ?? null);
   const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })), [projects]);
@@ -68,10 +70,15 @@ const ExpenseClaimDetail: React.FC = () => {
   }
 
   const route = routeQuery.data ?? null;
-  const outstanding = outstandingQuery.data ?? null;
-  const actions = availableExpenseActions({
+  const outstanding = outstandingQuery.isError ? null : outstandingQuery.data ?? null;
+  const floatPending = Boolean(claim.imprest_float_id) && float.isPending;
+  const allActions = availableExpenseActions({
     claim, userId, realRole, route, advanceOutstanding: claim.kind === 'advance' ? outstanding : null,
+    // DD-IMP-7: the float's custodian (null when this float is not visible to the viewer: the ordinary rule shows, the RPC decides).
+    floatCustodianId: claim.imprest_float_id ? float.data?.custodian_id ?? null : null,
   });
+  // Until the float is read its custodian is unknown: withhold Pay rather than show the off-float rule (the RPC decides).
+  const actions = floatPending ? allActions.filter((a) => a !== 'pay') : allActions;
   const canEdit = may('edit', 'expenseClaim', { currentUserId: userId, record: { claimant_id: claim.claimant_id, status: claim.status } });
   const showRouteNote = claim.status === 'Submitted' && route !== null && route.route !== 'flat'
     && claim.claimant_id !== userId && !actions.includes('approve');
@@ -158,6 +165,15 @@ const ExpenseClaimDetail: React.FC = () => {
         <p data-testid="approval-route-note" className="mb-4 text-sm">{approvalRouteNote(route, claim.budget_category, t, realRole)}</p>
       )}
 
+      {((claim.is_plan_exception && claim.status !== 'Draft') || route?.isException) && (
+        <p data-testid="imprest-exception-note" role="note" className="mb-4 text-sm">
+          <StatusPill variant="warn">{t('imprest:plan.exception', 'Out of plan')}</StatusPill>{' '}
+          {route === null ? t('imprest:exception.noRoute', 'This is outside the approved site cash plan, so a senior approver decides it.')
+            : route.route === 'admin' ? t('imprest:exception.admin', 'This is outside the approved site cash plan. No senior approver can act on it, so an Admin decides it.')
+            : t('imprest:exception.deciders', 'This is outside the approved site cash plan. Decided by: {{names}}.', { names: route.approvers.map((a) => a.fullName).join(t('imprest:exception.joiner', ', ')) })}
+        </p>
+      )}
+
       <ExpenseDecisionBar claim={claim} actions={actions} advanceOutstanding={outstanding} />
 
       {claim.kind === 'claim' && (
@@ -174,7 +190,7 @@ const ExpenseClaimDetail: React.FC = () => {
           advanceOptions={advanceOptions}
           initial={{
             title: claim.title, projectId: claim.project_id, budgetCategory: claim.budget_category,
-            purpose: claim.purpose, amount, advanceId: claim.advance_id,
+            purpose: claim.purpose, amount, advanceId: claim.advance_id, imprestFloatId: claim.imprest_float_id,
           }}
           onClose={() => setEditOpen(false)}
           onSubmit={async (input) => {
@@ -182,7 +198,7 @@ const ExpenseClaimDetail: React.FC = () => {
               id: claim.id, kind: claim.kind,
               patch: {
                 title: input.title, purpose: input.purpose, projectId: input.projectId, budgetCategory: input.budgetCategory,
-                amount: input.amount, advanceId: input.advanceId ?? null,
+                amount: input.amount, advanceId: input.advanceId ?? null, imprestFloatId: input.imprestFloatId ?? null,
               },
             });
             setEditOpen(false);

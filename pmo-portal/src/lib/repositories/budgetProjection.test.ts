@@ -37,6 +37,7 @@ vi.mock('@/src/lib/db/budgets', () => ({ retryBudgetPush: retryBudgetPushMock })
 
 import {
   fetchBudgetProjection,
+  fetchFirstSpendingYear,
   fetchBudgetPushStatus,
   fetchActiveBudgetCategoryPhasing,
   listBudgetFiscalYears,
@@ -51,6 +52,19 @@ import {
   upsertBudgetProjectionEtc,
 } from './budgetProjection';
 import { AppError } from '@/src/lib/appError';
+
+describe('first spending year summary', () => {
+  it('passes opaque years in their existing order and returns the server selection', async () => {
+    mockRpc.mockResolvedValueOnce({ data: 'FY-B', error: null });
+    await expect(fetchFirstSpendingYear('project', ['FY-B', 'FY-A'])).resolves.toBe('FY-B');
+    expect(mockRpc).toHaveBeenCalledWith('first_budget_spending_year', { p_project_id: 'project', p_fiscal_years: ['FY-B', 'FY-A'] });
+  });
+
+  it('surfaces a failed summary instead of inventing a result', async () => {
+    mockRpc.mockResolvedValueOnce({ data: null, error: { message: 'unavailable', code: 'XX000' } });
+    await expect(fetchFirstSpendingYear('project', ['FY-B'])).rejects.toBeInstanceOf(AppError);
+  });
+});
 
 function makeRpcBuilder(resolved: { data: unknown; error: unknown }) {
   const builder = {

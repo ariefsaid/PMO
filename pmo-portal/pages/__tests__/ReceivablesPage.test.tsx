@@ -41,7 +41,7 @@ vi.mock('@/pages/IncomingPayments', () => ({ default: () => null }));
 import ReceivablesPage from '../finance/ReceivablesPage';
 
 const invoice = (over: Partial<SalesInvoiceRow> = {}): SalesInvoiceRow => ({
-  id: 'invoice-1', org_id: 'org-1', project_id: 'project-1', erp_project: null,
+  id: 'invoice-1', org_id: 'org-1', project_id: 'project-1', erp_project: null, billing_kind: 'contract',
   customer_id: 'client-1', customer_name: 'Northwind', si_number: 'SI-1', reference_number: null,
   invoice_date: '2026-10-22', amount: 100, currency: 'IDR', tax_treatment: 'inclusive', tax_amount: 0,
   erp_outstanding_amount: 100, status: 'Unpaid', erp_docstatus: 1, erp_modified: null,

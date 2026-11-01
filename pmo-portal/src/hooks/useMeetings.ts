@@ -1,15 +1,16 @@
+import { invalidateTaskProjections } from './taskQueryKeys';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { repositories } from '@/src/lib/repositories';
-import type {
-  MeetingWithRefs,
-  MeetingInput,
-  MeetingPatch,
-  MeetingListParams,
-  MeetingAttendeeWithRefs,
-  MeetingAttendeeInput,
-  MeetingGrantWithRefs,
-} from '@/src/lib/db/meetings';
-import type { TaskWithRefs } from '@/src/lib/db/tasks';
+import {
+  repositories,
+  type MeetingWithRefs,
+  type MeetingInput,
+  type MeetingPatch,
+  type MeetingListParams,
+  type MeetingAttendeeWithRefs,
+  type MeetingAttendeeInput,
+  type MeetingGrantWithRefs,
+  type TaskWithRefs,
+} from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 
 /**
@@ -108,6 +109,7 @@ export interface CreateActionItemArgs {
  */
 export function useMeetingMutations() {
   const qc = useQueryClient();
+  const orgId = useAuth().currentUser?.org_id;
   const invalidateMeetings = () => {
     qc.invalidateQueries({ queryKey: ['meetings'] });
     qc.invalidateQueries({ queryKey: ['meeting'] });
@@ -171,14 +173,7 @@ export function useMeetingMutations() {
         end_date: endDate,
         meeting_id: meetingId,
       }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['meeting-action-items'] });
-      // A /action task is a real task — refresh any open task list too, not just the meeting's
-      // own action-item list: the project Tasks tab keys off ['tasks', …] and My Tasks off
-      // ['my-tasks', …] (distinct caches — both must be busted).
-      qc.invalidateQueries({ queryKey: ['tasks'] });
-      qc.invalidateQueries({ queryKey: ['my-tasks'] });
-    },
+    onSuccess: (_data, { projectId, meetingId }) => invalidateTaskProjections(qc, orgId, projectId, meetingId),
   });
 
   return {

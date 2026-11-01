@@ -23,6 +23,14 @@ describe('revenueNative DAL (#784) — names the four RPCs and sends what the us
     await createNativeSalesInvoice({ projectId: 'p-1', customerId: 'c-1', lines: [{ item_code: 'SVC', qty: 1, rate: 1 }], workOrderId: null });
     expect(h.rpc.mock.calls[0][1]).not.toHaveProperty('p_work_order_id');
   });
+  it('FR-003 sends the billing kind to create_native_sales_invoice when chosen, and nothing when omitted', async () => {
+    const lines = [{ item_code: 'SVC', qty: 1, rate: 1 }];
+    await createNativeSalesInvoice({ projectId: 'p-1', customerId: 'c-1', lines, billingKind: 'other' });
+    expect(h.rpc.mock.calls[0][1]).toMatchObject({ p_billing_kind: 'other' });
+    h.rpc.mockClear();
+    await createNativeSalesInvoice({ projectId: 'p-1', customerId: 'c-1', lines });
+    expect(h.rpc.mock.calls[0][1]).not.toHaveProperty('p_billing_kind');
+  });
   it('AC-NAR-002 approves (Unpaid) and AC-NAR-005 cancels through the one transition RPC', async () => {
     await transitionNativeSalesInvoice('si-1', 'Unpaid');
     await transitionNativeSalesInvoice('si-1', 'Cancelled');

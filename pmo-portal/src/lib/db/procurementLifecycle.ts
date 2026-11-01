@@ -82,6 +82,7 @@ export type ProcurementDetail = Omit<
   statusEvents: Tables<'procurement_status_events'>[];
   /** The server payment ceiling, read only while the request awaits payment (Vendor Invoiced). */
   paymentCeiling?: ProcurementPaymentCeiling | null;
+  paymentEligibility?: string | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -183,7 +184,7 @@ export function formatDocNumber(
 // archived_at is null filtering is done client-side in buildLedgerRows (filePresence())
 // since PostgREST embedded `.is(archived_at, null)` filters are applied via query
 // params on the main select, not sub-selects. We fetch all and discard archived in JS.
-const FILE_FIELDS = 'id, title, file_path, archived_at';
+const FILE_FIELDS = 'id, title, file_path, archived_at, source, ms_web_url, ms_item_name';
 
 const DETAIL_SELECT = [
   '*',

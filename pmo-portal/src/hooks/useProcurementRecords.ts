@@ -22,7 +22,14 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
-import { repositories } from '@/src/lib/repositories';
+import {
+  repositories,
+  type ProcurementError,
+  type PurchaseRequestRow,
+  type RfqRow,
+  type PurchaseOrderRow,
+  type PaymentRow,
+} from '@/src/lib/repositories';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import {
   IDLE_PENDING_PUSH,
@@ -30,13 +37,6 @@ import {
   pendingPushAfterWrite,
   type PendingPushState,
 } from '@/src/lib/adapterSeam/pendingPush';
-import type {
-  PurchaseRequestRow,
-  RfqRow,
-  PurchaseOrderRow,
-  PaymentRow,
-} from '@/src/lib/db/procurementRecords';
-import { ProcurementError } from '@/src/lib/db/procurementLifecycle';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 
 // ---------------------------------------------------------------------------
@@ -105,22 +105,30 @@ export function useProcurementRecordMutations(procurementId: string) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
 
-  const invalidateDetail = () =>
+  const invalidateDetail = () => {
     qc.invalidateQueries({ queryKey: procurementDetailKey(orgId, procurementId) });
+    qc.invalidateQueries({ queryKey: ['procurement-item-eligibility', orgId, procurementId] });
+  };
 
   // Shared pending-push state across the four record-creation kinds — only one capture form is
   // open at a time (LedgerCaptureRow, task FIX-1). Stays idle for PMO-owned orgs.
   const [pendingPush, setPendingPush] = useState<PendingPushState>(IDLE_PENDING_PUSH);
   const isExternal = () => routeDomainWrite('procurement') === 'external';
   const onMutate = () => {
-    if (isExternal()) setPendingPush(beginPush(IDLE_PENDING_PUSH));
+    if (isExternal()) {
+      qc.setQueryData(['procurement-item-eligibility', orgId, procurementId], false);
+      setPendingPush(beginPush(IDLE_PENDING_PUSH));
+    }
   };
   const onSettledOk = () => {
     invalidateDetail();
     if (isExternal()) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
   };
   const onSettledErr = (err: unknown) => {
-    if (isExternal()) setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+    if (isExternal()) {
+      qc.invalidateQueries({ queryKey: ['procurement-item-eligibility', orgId, procurementId] });
+      setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+    }
   };
 
   const createPurchaseRequestMut = useMutation<

@@ -72,6 +72,8 @@ describe('erpnext/doctypeRegistry', () => {
       'expense-journal': { doctype: 'Journal Entry', submittable: true, submitOnCreate: true, anchorField: 'user_remark', anchorMutable: false },
       'expense-payment': { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },
       'expense-receipt': { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },
+      // #1515 §9 — the expense-journal twin for a site float's cash transfer (immutable `user_remark` anchor).
+      'imprest-transfer': { doctype: 'Journal Entry', submittable: true, submitOnCreate: true, anchorField: 'user_remark', anchorMutable: false },
     });
   });
 
@@ -81,7 +83,11 @@ describe('erpnext/doctypeRegistry', () => {
       kindsByDoctype.set(entry.doctype, [...(kindsByDoctype.get(entry.doctype) ?? []), kind]);
     }
     const shared = [...kindsByDoctype].filter(([, kinds]) => kinds.length > 1);
-    expect(shared).toEqual([['Payment Entry', ['payment', 'incoming-payment', 'expense-payment', 'expense-receipt']]]);
+    expect(shared).toEqual([
+      ['Payment Entry', ['payment', 'incoming-payment', 'expense-payment', 'expense-receipt']],
+      // #1515 §9: a site float transfer is a Journal Entry too; its `impt:` key (not the doctype) places it.
+      ['Journal Entry', ['expense-journal', 'imprest-transfer']],
+    ]);
   });
 
   it('every anchored kind (anchorField != null) is submittable (the money-doc recovery surface)', () => {

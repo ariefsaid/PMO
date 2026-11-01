@@ -1,3 +1,4 @@
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables, TablesInsert, TablesUpdate } from '@/src/lib/supabase/database.types';
@@ -50,11 +51,11 @@ function throwWrite(error: PostgrestErrorLike): never {
  * `AppError` (code preserved) on failure.
  */
 export async function listIncidents(params?: { status?: IncidentStatus }): Promise<IncidentRow[]> {
-  let query = supabase.from('incident_reports').select('*');
-  if (params?.status) query = query.eq('status', params.status);
-  const { data, error } = await query.order('incident_date', { ascending: false });
-  if (error) throwWrite(error);
-  return data ?? [];
+  return fetchAllPages((from, to) => {
+    let query = supabase.from('incident_reports').select('*');
+    if (params?.status) query = query.eq('status', params.status);
+    return query.order('incident_date', { ascending: false }).order('id', { ascending: true }).range(from, to);
+  });
 }
 
 /**

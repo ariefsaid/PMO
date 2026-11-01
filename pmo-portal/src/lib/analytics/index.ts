@@ -16,6 +16,9 @@ export type { AnalyticsConfig, DemoAudience, DemoContext } from './config';
 export { routeAnalyticsForPath, SAFE_TAB_ID } from './route';
 export type { RouteAnalytics } from './route';
 export { safeTrack } from './safeTrack';
+export * from './business';
+export * from './surveys';
+export * from './surveyPolicy';
 
 // ── Event-specific action helpers ────────────────────────────────────────
 // These are the ONLY way components should track events. They encapsulate
@@ -209,9 +212,9 @@ export function trackAgentThreadResumed(
   analyticsClient.capture(built.event, built.properties);
 }
 
-export function trackAgentFeedbackRated(rating: 'up' | 'down', downvoteReason: DownvoteReason | undefined): void {
+export function trackAgentFeedbackRated(rating: 'up' | 'down', downvoteReason: DownvoteReason | undefined, runId: string): void {
   if (!isFeatureEnabled('agentAssistant')) return;
-  const built = buildAgentFeedbackRatedEvent(rating, downvoteReason);
+  const built = buildAgentFeedbackRatedEvent(rating, downvoteReason, runId);
   analyticsClient.capture(built.event, built.properties);
 }
 

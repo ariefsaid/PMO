@@ -43,6 +43,7 @@ import { UserRole } from './types';
 import { AccessDenied, ToastProvider } from '@/src/components/ui';
 import { EnvBadge } from '@/src/components/EnvBadge';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
+import { DocumentViewerProvider } from '@/src/components/documents';
 import { FeatureRoute } from '@/src/components/FeatureRoute';
 import { isFeatureEnabled } from '@/src/lib/features';
 import { FEATURE_ENV_DEFAULT } from '@/src/lib/features';
@@ -54,6 +55,8 @@ import { useReturnNavigate } from '@/src/hooks/useListReturn';
 import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvider';
 import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
 import { AssistantPanel } from '@/src/components/panel/AssistantPanel';
+import { FeedbackWidget } from '@/src/components/feedback/FeedbackWidget';
+import { SurveyHost } from '@/src/components/feedback/SurveyHost';
 import { useAssistantHotkey } from '@/src/hooks/useAssistantHotkey';
 // ADR-0056: seeds the fail-closed task-write ownership cache load-on-auth (mounted once in Shell).
 import { useOwnershipCacheSync } from '@/src/hooks/useOwnershipCacheSync';
@@ -71,8 +74,11 @@ const ProcurementPage = React.lazy(() => import('./pages/Procurement'));
 const ProcurementDetails = React.lazy(() => import('./pages/ProcurementDetails'));
 const ProcurementCreate = React.lazy(() => import('./pages/ProcurementCreate'));
 const TimesheetsPage = React.lazy(() => import('./pages/Timesheets'));
+const ImprestFloatsPage = React.lazy(() => import('./pages/ImprestFloats'));
+const ImprestFloatDetailPage = React.lazy(() => import('./pages/ImprestFloatDetail'));
 const ApprovalsPage = React.lazy(() => import('./pages/Approvals'));
 const CompaniesPage = React.lazy(() => import('./pages/Companies'));
+const MasterDataPage = React.lazy(() => import('./pages/MasterData'));
 const CompanyDetailPage = React.lazy(() => import('./pages/CompanyDetail'));
 const ContactsPage = React.lazy(() => import('./pages/Contacts'));
 const ContactDetailPage = React.lazy(() => import('./pages/ContactDetail'));
@@ -100,6 +106,14 @@ const FinanceHubPage = React.lazy(() => import('./pages/finance/FinanceHub'));
 const ReceivablesPage = React.lazy(() => import('./pages/finance/ReceivablesPage'));
 const PayablesPage = React.lazy(() => import('./pages/finance/PayablesPage'));
 const ProfileSettingsPage = React.lazy(() => import('./pages/ProfileSettings'));
+const StockSetupPage = React.lazy(() => import('./pages/stock/StockSetup'));
+const StockOnHandPage = React.lazy(() => import('./pages/stock/StockOnHand'));
+const StockDocumentsPage = React.lazy(() => import('./pages/stock/StockDocuments'));
+const StockDocumentDetailPage = React.lazy(() => import('./pages/stock/StockDocumentDetail'));
+const StockLedgerPage = React.lazy(() => import('./pages/stock/StockLedger'));
+const StockMovementFormPage = React.lazy(() => import('./pages/stock/StockMovementForm'));
+const StockCountPage = React.lazy(() => import('./pages/stock/StockCount'));
+const StockReorderPage = React.lazy(() => import('./pages/stock/StockReorder'));
 
 /**
  * Model B (ADR-0020, AC-IXD-PROJ-002): the legacy `/sales/:opportunityId` deep link redirects
@@ -176,6 +190,8 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/timesheets', element: <TimesheetsPage /> },
   { path: '/approvals', element: <ApprovalsPage /> },
   { path: '/companies', element: <CompaniesPage /> },
+  // #1504 S5 (FR-ODC-111): the Odoo directories, read from PMO's mirror. Reached from the Odoo card.
+  { path: '/master-data/:kind', element: <MasterDataPage /> },
   // CW-4b: /companies/:id — the routable Company record page (retires the drawer-as-record).
   { path: '/companies/:companyId', element: <CompanyDetailPage /> },
   { path: '/contacts', element: <ContactsPage /> },
@@ -198,6 +214,8 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/expenses', element: <ExpenseClaimsPage /> },
   { path: '/expenses/new', element: <ExpenseClaimNewPage /> },
   { path: '/expenses/:claimId', element: <ExpenseClaimDetailPage /> },
+  { path: '/imprest', element: <ImprestFloatsPage /> },
+  { path: '/imprest/:floatId', element: <ImprestFloatDetailPage /> },
   { path: '/reports', element: <FinanceLegacyRedirect to="/finance/reports" /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },
   { path: '/administration/users', element: <AdministrationPage /> },
@@ -241,6 +259,15 @@ export const appRouteConfig: RouteObject[] = [
   // Personal profile language settings (RIS slice): every signed-in user's interface-language
   //   override. Declared before the `*` catch-all so it resolves to a real route.
   { path: '/settings/profile', element: <ProfileSettingsPage /> },
+  // Stock (#1512). Every segment is static or under /documents, so none can shadow another.
+  { path: '/stock', element: <StockOnHandPage /> },
+  { path: '/stock/setup', element: <StockSetupPage /> },
+  { path: '/stock/documents', element: <StockDocumentsPage /> },
+  { path: '/stock/documents/:documentId', element: <StockDocumentDetailPage /> },
+  { path: '/stock/documents/:documentId/edit', element: <StockCountPage /> },
+  { path: '/stock/ledger', element: <StockLedgerPage /> },
+  { path: '/stock/reorder', element: <StockReorderPage /> },
+  { path: '/stock/new/:kind', element: <StockMovementFormPage /> },
   { path: '*', element: <NotFoundPage /> },
 ];
 
@@ -500,6 +527,7 @@ export const ShellChrome: React.FC = () => {
             breadcrumb={breadcrumb}
             onOpenPalette={openPalette}
             onToggleRail={() => setRailOpen((v) => !v)}
+            beforeBell={<FeedbackWidget />}
           />
         }
         banner={<ImpersonationBanner />}
@@ -511,6 +539,7 @@ export const ShellChrome: React.FC = () => {
       >
         <AppRoutes />
       </AppShell>
+      <SurveyHost />
       <CommandPalette
         open={paletteOpen}
         items={paletteItems}
@@ -560,7 +589,11 @@ const Shell: React.FC = () => {
                 instead of white-screening the SPA. Wrapped inside the providers so a
                 recovery keeps auth/runtime/toast context intact. */}
             <ErrorBoundary>
-              <ShellChrome />
+              {/* #1474: one side-panel document viewer for every document entry point; it sits inside the
+                  router (route change closes it) and above the routes so the panel survives list re-renders. */}
+              <DocumentViewerProvider>
+                <ShellChrome />
+              </DocumentViewerProvider>
             </ErrorBoundary>
           </AgentContextProvider>
         </AgentRuntimeProvider>

@@ -1,5 +1,5 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ListPage,
   SearchMini,
@@ -16,7 +16,7 @@ import {
   type Column,
 } from '@/src/components/ui';
 import { ExportButton, withCurrencyColumn } from '@/src/components/export';
-import { ImportButton } from '@/src/components/import';
+import { ImportWizard } from '@/src/components/import/ImportWizard';
 import { ProcurementCycleImportWizard } from '@/src/components/import/procurementCycle/ProcurementCycleImportWizard';
 import { makeProcurementImportDescriptor, makeRefLookup } from '@/src/lib/import';
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
@@ -142,17 +142,48 @@ const ProcurementPage: React.FC = () => {
   const { data, isPending, isError, refetch } = useProcurements({ withRefs: true, withSharedDetails: true });
   const projectQuery = useProjectOptions();
   const supplierQuery = useVendorOptions();
-  const { data: projectOptions = [] } = projectQuery;
-  const { data: supplierOptions = [] } = supplierQuery;
-
-  const projectRefs = useMemo(() => projectOptions.map((option) => ({ id: option.value, name: option.label })), [projectOptions]);
-  const supplierRefs = useMemo(() => supplierOptions.map((option) => ({ id: option.value, name: option.label })), [supplierOptions]);
-  const importDescriptor = useMemo(
-    () => makeProcurementImportDescriptor(projectRefs, supplierRefs, userId ?? ''),
-    [projectRefs, supplierRefs, userId],
-  );
-  const cycleProjectLookup = useMemo(() => makeRefLookup(projectRefs, 'Project'), [projectRefs]);
-  const cycleSupplierLookup = useMemo(() => makeRefLookup(supplierRefs, 'Supplier'), [supplierRefs]);
+  const [importRefs, setImportRefs] = useState<{ projects: { id: string; name: string }[]; suppliers: { id: string; name: string }[] }>({ projects: [], suppliers: [] });
+  const [importKind, setImportKind] = useState<'bulk' | 'cycle' | null>(null);
+  const [refreshingRefs, setRefreshingRefs] = useState(false);
+  const [refreshError, setRefreshError] = useState(false);
+  const refreshLock = useRef(false);
+  const toRefs = (options: { value: string; label: string }[]) => options.map((option) => ({ id: option.value, name: option.label }));
+  const sameRefs = (a: { id: string; name: string }[], b: { id: string; name: string }[]) => a.length === b.length && a.every((x, i) => x.id === b[i].id && x.name === b[i].name);
+  // Keep mounted wizards responsive to subsequent query refreshes as well as the opening refresh.
+  // The updater BAILS OUT (returns prev) only when the mapped id+name pairs are unchanged: a query
+  // refresh hands back a fresh array identity even when the options are identical, and mirroring
+  // that identity into state on every render would re-render → new identity → effect → setState
+  // forever. A RENAME with stable ids must flow through, so names are compared too — an open
+  // wizard's ref lookup would otherwise keep resolving the old name.
+  useEffect(() => { if (projectQuery.data) setImportRefs((prev) => { const next = toRefs(projectQuery.data); return sameRefs(prev.projects, next) ? prev : { ...prev, projects: next }; }); }, [projectQuery.data]);
+  useEffect(() => { if (supplierQuery.data) setImportRefs((prev) => { const next = toRefs(supplierQuery.data); return sameRefs(prev.suppliers, next) ? prev : { ...prev, suppliers: next }; }); }, [supplierQuery.data]);
+  const referencesPending = projectQuery.isPending || supplierQuery.isPending || refreshingRefs;
+  const referencesError = refreshError || projectQuery.isError || supplierQuery.isError || projectQuery.data === undefined || supplierQuery.data === undefined;
+  const refreshReferences = async () => {
+    if (refreshLock.current) return null;
+    refreshLock.current = true;
+    setRefreshingRefs(true);
+    try {
+      const [projects, suppliers] = await Promise.all([projectQuery.refetch(), supplierQuery.refetch()]);
+      if (projects.isError || projects.error || suppliers.isError || suppliers.error || !projects.data || !suppliers.data) throw new Error('Reference refresh failed');
+      const fresh = { projects: toRefs(projects.data), suppliers: toRefs(suppliers.data) };
+      setImportRefs(fresh);
+      setRefreshError(false);
+      return fresh;
+    } catch {
+      setRefreshError(true);
+      return null;
+    } finally {
+      refreshLock.current = false;
+      setRefreshingRefs(false);
+    }
+  };
+  const beginImport = async (kind: 'bulk' | 'cycle') => {
+    if (await refreshReferences()) setImportKind(kind);
+  };
+  const importDescriptor = useMemo(() => makeProcurementImportDescriptor(importRefs.projects, importRefs.suppliers, userId ?? ''), [importRefs, userId]);
+  const cycleProjectLookup = useMemo(() => makeRefLookup(importRefs.projects, 'Project'), [importRefs.projects]);
+  const cycleSupplierLookup = useMemo(() => makeRefLookup(importRefs.suppliers, 'Supplier'), [importRefs.suppliers]);
 
   const { workingSet, setWorkingSet } = useListWorkingSet('procurement', { sessionView: readProcurementView() });
   const updateQuery = useCallback((updates: Record<string, string | null>) => {
@@ -166,7 +197,6 @@ const ProcurementPage: React.FC = () => {
   }, [location.pathname, location.search, location.state, navigate]);
   const [search, setSearch] = useUrlSearchInput(workingSet.q, (q) => updateQuery({ q: q || null }));
   const { openRecord } = useListReturn({ list: 'procurement', contentReady: !isPending && !isError });
-  const [showCycleImport, setShowCycleImport] = useState(false);
 
   // L12: unpaid totals read each procurement's linked accounting documents, as the record does (Engineers see no money).
   const linkedDocuments = useErpPurchases(undefined, { enabled: !isEngineer });
@@ -376,11 +406,13 @@ const ProcurementPage: React.FC = () => {
       <MobileToolbarDisclosure
         label={t('more', 'More')}
         className="relative shrink-0"
-        panelClassName="absolute right-0 top-full z-30 mt-1 flex w-auto min-w-48 flex-col gap-1 rounded-md border border-border bg-popover p-2 text-popover-foreground shadow-md"
+        panelClassName="absolute left-0 right-auto top-full z-30 sm:left-auto sm:right-0 mt-1 flex w-auto min-w-56 flex-col gap-1 rounded-md border border-border bg-popover p-2 text-popover-foreground shadow-md"
       >
-        <ExportButton rows={filtered} columns={exportColumns} entity="Procurement" label={t('moreTools.exportList', 'Export list')} className="w-full justify-start" />
-        {userId && <ImportButton entity="procurement" descriptor={importDescriptor} onImported={() => void refetch()} label={t('moreTools.importProcurements', 'Import procurements')} className="w-full justify-start" />}
-        {userId && canCreate && <Button variant="outline" onClick={() => setShowCycleImport(true)} className="w-full justify-start"><Icon name="upload" />{t('moreTools.importCycle', 'Import cycle data')}</Button>}
+        {tab !== 'orphans' && <ExportButton rows={filtered} columns={exportColumns} entity="Procurement" label={t('moreTools.exportList', 'Export list')} className="w-full justify-start" />}
+        {userId && canCreate && <Button variant="outline" disabled={referencesPending || referencesError} onClick={() => void beginImport('bulk')} className="w-full justify-start"><Icon name="upload" />{t('moreTools.importProcurements', 'Import procurements')}</Button>}
+        {userId && canCreate && <Button variant="outline" disabled={referencesPending || referencesError} onClick={() => void beginImport('cycle')} className="w-full justify-start"><Icon name="upload" />{t('moreTools.importCycle', 'Import cycle data')}</Button>}
+        {userId && canCreate && referencesPending && <div role="status">{t('references.loading', 'Loading references…')}</div>}
+        {userId && canCreate && !referencesPending && referencesError && <div role="status">{t('references.error', "Couldn't refresh references.")} <Button variant="outline" onClick={() => void refreshReferences()}>{t('references.retry', 'Retry references')}</Button></div>}
       </MobileToolbarDisclosure>
       {canCreate && <span className="hidden sm:block"><Button variant="primary" onClick={() => navigate('/procurement/new')}><Icon name="plus" />{t('newProcurement', 'New procurement')}</Button></span>}
     </div>
@@ -477,7 +509,15 @@ const ProcurementPage: React.FC = () => {
             orphanQuery.isPending ? <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={5} /></div>
               : orphanQuery.isError ? <ListState variant="error" title={t('orphans.error', "Couldn't load documents not in a procurement")} onRetry={() => void orphanQuery.refetch()} />
                 : orphanRows.length === 0 ? <ListState variant="empty" icon="table" title={t('orphans.empty.title', 'Every accounting-system document is in a procurement')} sub={t('orphans.empty.sub', 'New documents appear here after the next sync.')} />
-                  : <Card className="overflow-hidden"><ErpOrphansSection rows={orphanRows} canLink={may('create', 'erpPurchaseLink')} projectNames={projectNames} /></Card>
+                  : projectQueryForOrphans.isPending ? <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={5} /></div>
+                    : projectQueryForOrphans.isError || projectQueryForOrphans.data === undefined
+                      ? <ListState
+                        variant="error"
+                        title={t('orphans.projectsError', "Couldn't load project names")}
+                        sub={t('orphans.projectsErrorSub', 'Retry before reviewing project references.')}
+                        onRetry={() => void projectQueryForOrphans.refetch()}
+                      />
+                      : <Card className="overflow-hidden"><ErpOrphansSection rows={orphanRows} canLink={may('create', 'erpPurchaseLink')} projectNames={projectNames} /></Card>
           )}
 
           {ready && tab !== 'orphans' && all.length === 0 && (
@@ -511,13 +551,14 @@ const ProcurementPage: React.FC = () => {
           )}
         </div>
 
-        {showCycleImport && userId && (
+        {importKind === 'bulk' && userId && canCreate && <ImportWizard descriptor={importDescriptor} onClose={(didImport) => { setImportKind(null); if (didImport) void refetch(); }} />}
+        {importKind === 'cycle' && userId && canCreate && (
           <ProcurementCycleImportWizard
             requestedById={userId}
             projectLookup={cycleProjectLookup}
             vendorLookup={cycleSupplierLookup}
             onClose={(didImport) => {
-              setShowCycleImport(false);
+              setImportKind(null);
               if (didImport) void refetch();
             }}
           />

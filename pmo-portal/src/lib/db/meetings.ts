@@ -1,3 +1,4 @@
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { assertNoBinary, type NoteBlock } from '@/src/lib/meetingNotes';
@@ -288,15 +289,16 @@ export interface ContactMeetingRef {
  * state, not an error. The reverse embed is constraint-qualified per the house rule.
  */
 export async function listMeetingsForContact(contactId: string): Promise<ContactMeetingRef[]> {
-  const { data, error } = await supabase
+  const data = await fetchAllPages((from, to) => supabase
     .from('meetings')
     .select(
       'id, title, occurred_at, attendees:meeting_attendees!meeting_attendees_meeting_id_fkey!inner(contact_id)',
     )
     .eq('attendees.contact_id', contactId)
     .is('archived_at', null)
-    .order('occurred_at', { ascending: false });
-  if (error) throwWrite(error);
+    .order('occurred_at', { ascending: false })
+    .order('id', { ascending: true })
+    .range(from, to));
   return (data ?? []).map((m) => ({
     id: (m as { id: string }).id,
     title: (m as { title: string }).title,
@@ -315,14 +317,15 @@ export interface MeetingAttendeeInput {
 
 /** List a meeting's attendees (visible iff the meeting is), oldest-first (insertion order). */
 export async function listMeetingAttendees(meetingId: string): Promise<MeetingAttendeeWithRefs[]> {
-  const { data, error } = await supabase
+  const data = await fetchAllPages((from, to) => supabase
     .from('meeting_attendees')
     .select(
       '*, profile:profiles!meeting_attendees_profile_id_fkey(id, full_name), contact:contacts!meeting_attendees_contact_id_fkey(id, full_name)',
     )
     .eq('meeting_id', meetingId)
-    .order('created_at', { ascending: true });
-  if (error) throwWrite(error);
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+    .range(from, to));
   return (data ?? []) as unknown as MeetingAttendeeWithRefs[];
 }
 
@@ -363,14 +366,15 @@ export async function removeMeetingAttendee(id: string): Promise<void> {
 
 /** List a meeting's grants — see MeetingGrantWithRefs for why the embeds are qualified. */
 export async function listMeetingGrants(meetingId: string): Promise<MeetingGrantWithRefs[]> {
-  const { data, error } = await supabase
+  const data = await fetchAllPages((from, to) => supabase
     .from('meeting_access_grants')
     .select(
       '*, user:profiles!meeting_access_grants_user_id_fkey(id, full_name), granter:profiles!meeting_access_grants_granted_by_fkey(id, full_name)',
     )
     .eq('meeting_id', meetingId)
-    .order('granted_at', { ascending: true });
-  if (error) throwWrite(error);
+    .order('granted_at', { ascending: true })
+    .order('id', { ascending: true })
+    .range(from, to));
   return (data ?? []) as unknown as MeetingGrantWithRefs[];
 }
 

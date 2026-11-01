@@ -1,0 +1,261 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, within, waitFor, cleanup } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes } from 'react-router';
+import type { Role } from '@/src/auth/AuthContext';
+import { ToastProvider } from '@/src/components/ui';
+
+const ok = (data: unknown) => ({ data, isPending: false, isError: false, refetch: vi.fn() });
+const mut = () => ({ mutateAsync: vi.fn().mockResolvedValue('x'), isPending: false });
+const h = vi.hoisted(() => ({
+  userId: 'u-fin', realRole: 'Finance' as string,
+  floats: null as unknown, position: null as unknown, plans: null as unknown, planLines: null as unknown,
+  reps: null as unknown, counts: null as unknown, claims: null as unknown, postings: null as unknown,
+  m: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
+}));
+vi.mock('./imprest/FloatAmountSection', () => ({ FloatAmountSection: () => null })); // proven by its own test
+vi.mock('./imprest/CashAccountSection', () => ({ CashAccountSection: ({ account }: { account: string | null }) => <div data-testid="cash-account">{account ?? 'unset'}</div> }));
+vi.mock('@/src/hooks/useImprest', () => ({
+  useImprestFloat: () => h.floats,
+  useImprestPosition: () => h.position,
+  useImprestPlans: () => h.plans,
+  useImprestPlanLines: () => h.planLines,
+  useImprestReplenishments: () => h.reps,
+  useImprestCounts: () => h.counts,
+  useImprestFloatClaims: () => h.claims,
+  useImprestPostingStates: () => h.postings,
+  useCreatePlan: () => h.m.createPlan,
+  useSavePlanLine: () => h.m.savePlanLine,
+  useDeletePlanLine: () => h.m.deletePlanLine,
+  useTransitionPlan: () => h.m.transitionPlan,
+  useRequestReplenishment: () => h.m.requestReplenishment,
+  useTransitionReplenishment: () => h.m.transitionReplenishment,
+  useRecordCount: () => h.m.recordCount,
+}));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org-1' } }) }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.realRole as Role, effectiveRole: h.realRole as Role }) }));
+
+import ImprestFloatDetail from './ImprestFloatDetail';
+
+const FLOAT = { id: 'f1', project_id: 'p1', custodian_id: 'u-cust', currency: 'IDR', float_amount: 5000000, project: { name: 'Site Alpha' }, custodian: { full_name: 'Cass Custodian' } };
+const POSITION = {
+  float_id: 'f1', float_amount: 5000000, cash_book: 1000000, advances_out: 500000, receipts_waiting: 3500000, replenishment_in_flight: 0,
+  gap: 0, funded_total: 5000000, last_count_at: '2026-10-30T00:00:00Z', last_count_variance: -5000, month: '2026-11-01',
+  plan_lines: [
+    { budget_category: 'Vehicle', planned: 800000, drawn: 300000, remaining: 500000, exceptions: [] },
+    { budget_category: 'Materials', planned: 0, drawn: 700000, remaining: 0, exceptions: [{ id: 'c9', number: 'EXP-9', kind: 'claim', amount: '700000.00', status: 'Approved' }] },
+  ],
+};
+const REP = { id: 'r1', number: 'REP-1', kind: 'replenishment', amount: 3500000, status: 'Requested', requested_by: 'u-cust', approved_by: null, requested_at: '2026-11-02T00:00:00Z', float_id: 'f1' };
+const setViewer = (userId: string, role: string) => { h.userId = userId; h.realRole = role; };
+const renderPage = () => render(
+  <MemoryRouter initialEntries={['/imprest/f1']}><ToastProvider><Routes><Route path="/imprest/:floatId" element={<ImprestFloatDetail />} /></Routes></ToastProvider></MemoryRouter>,
+);
+
+describe('/imprest/:floatId (AC-IMP-082)', () => {
+  beforeEach(() => {
+    setViewer('u-fin', 'Finance');
+    h.floats = ok(FLOAT);
+    h.position = ok(POSITION);
+    h.plans = ok({ rows: [], truncated: false });
+    h.planLines = ok([]);
+    h.reps = ok({ rows: [REP], truncated: false });
+    h.counts = ok({ rows: [], truncated: false });
+    h.claims = ok({ rows: [], truncated: false });
+    h.postings = ok({ rows: [], truncated: false });
+    h.m = { createPlan: mut(), savePlanLine: mut(), deletePlanLine: mut(), transitionPlan: mut(), requestReplenishment: mut(), transitionReplenishment: mut(), recordCount: mut() };
+  });
+
+  it('AC-IMP-082 the detail shows the plan table with exception items marked', () => {
+    renderPage();
+    const vehicle = screen.getByRole('row', { name: /Vehicle/ });
+    expect(within(vehicle).getByText(/800,000/)).toBeInTheDocument();
+    expect(within(vehicle).getByText(/300,000/)).toBeInTheDocument();
+    expect(within(vehicle).getByText(/500,000/)).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /Materials/ })).getByText('Out of plan')).toBeInTheDocument();
+    expect(within(vehicle).queryByText('Out of plan')).toBeNull();
+  });
+
+  it('AC-IMP-082 the custodian sees Request replenishment and not Approve', () => {
+    setViewer('u-cust', 'Finance');
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Request replenishment' })).toBeNull(); // the Requested one already covers the waiting receipts
+    h.reps = ok({ rows: [], truncated: false });
+    cleanup();
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Request replenishment' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+  });
+
+  it('AC-IMP-082 a non-custodian Finance user sees Approve on a Requested replenishment', () => {
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Request replenishment' })).toBeNull();
+  });
+
+  it('AC-IMP-082 a failed position read shows the error state, not zeros', () => {
+    h.position = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
+    renderPage();
+    expect(screen.getByText("Couldn't load this float's position")).toBeInTheDocument();
+    expect(screen.queryByText(/Books do not balance/)).toBeNull();
+    expect(screen.queryByRole('row', { name: /Vehicle/ })).toBeNull();
+  });
+
+  it('AC-IMP-082 receipts already in an open replenishment request cannot be requested again', () => {
+    setViewer('u-cust', 'Finance');
+    h.reps = ok({ rows: [{ ...REP, status: 'Approved', approved_by: 'u-fin' }], truncated: false });
+    renderPage();
+    expect(screen.queryByRole('button', { name: 'Request replenishment' })).toBeNull();
+    cleanup();
+    h.reps = ok({ rows: [{ ...REP, amount: 1000000 }], truncated: false }); // only part of the waiting receipts is covered
+    renderPage();
+    expect(screen.getByRole('button', { name: 'Request replenishment' })).toBeInTheDocument();
+  });
+
+  it('AC-IMP-082 funded cash the holdings do not explain is flagged as books not balancing, by the shortfall', () => {
+    h.position = ok({ ...POSITION, cash_book: 900000, gap: 100000 });
+    renderPage();
+    expect(screen.getByText('Books do not balance')).toBeInTheDocument();
+    expect(within(screen.getByTestId('figure-gap')).getByText(/100,000/)).toBeInTheDocument();
+  });
+
+  it('AC-IMP-003 a float not yet funded reads Not yet funded, not a red gap, and the custodian can request funding', () => {
+    setViewer('u-cust', 'Finance');
+    h.position = ok({ ...POSITION, cash_book: 0, advances_out: 0, receipts_waiting: 0, gap: 5000000, funded_total: 0, last_count_at: null, last_count_variance: null });
+    h.reps = ok({ rows: [], truncated: false });
+    renderPage();
+    expect(screen.getByText('Not yet funded')).toBeInTheDocument();
+    expect(screen.queryByText('Books do not balance')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Request funding' })).toBeInTheDocument();
+  });
+
+  it('AC-IMP-003 an enlarged float shows the top-up due, not a defect', () => {
+    h.position = ok({ ...POSITION, float_amount: 6000000, gap: 1000000 });
+    renderPage();
+    expect(screen.getByText(/Top-up due/)).toBeInTheDocument();
+    expect(screen.queryByText('Books do not balance')).toBeNull();
+  });
+
+  it('AC-IMP-082 the replenishment confirm names the amount being requested, not every waiting receipt', async () => {
+    const user = userEvent.setup();
+    setViewer('u-cust', 'Finance');
+    h.reps = ok({ rows: [{ ...REP, amount: 1000000 }], truncated: false }); // 1,000,000 of the 3,500,000 waiting is already requested
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Request replenishment' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent(/2,500,000/);
+    expect(dialog).not.toHaveTextContent(/3,500,000/);
+  });
+
+  it('AC-IMP-082 paying a replenishment confirms and sends the payment reference', async () => {
+    const user = userEvent.setup();
+    h.reps = ok({ rows: [{ ...REP, status: 'Approved', approved_by: 'u-appr' }], truncated: false });
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Pay' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText(/Payment reference/), 'REF-1');
+    await user.click(within(dialog).getByRole('button', { name: 'Pay' }));
+    await waitFor(() => expect(h.m.transitionReplenishment.mutateAsync).toHaveBeenCalledWith({ id: 'r1', to: 'Paid', paymentReference: 'REF-1' }));
+  });
+
+  it('AC-IMP-082 requesting a replenishment confirms before sending', async () => {
+    const user = userEvent.setup();
+    setViewer('u-cust', 'Finance');
+    h.reps = ok({ rows: [], truncated: false });
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Request replenishment' }));
+    expect(h.m.requestReplenishment.mutateAsync).not.toHaveBeenCalled();
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Request replenishment' }));
+    await waitFor(() => expect(h.m.requestReplenishment.mutateAsync).toHaveBeenCalledWith({ floatId: 'f1', kind: 'replenishment' }));
+  });
+
+  it('AC-IMP-082 a count that differs from cash needs a note', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Record count' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText(/Counted cash/), '990000');
+    const confirm = within(dialog).getByRole('button', { name: 'Record count' });
+    expect(confirm).toBeDisabled();
+    await user.type(within(dialog).getByLabelText(/Note/), 'short by petty items');
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+    await waitFor(() => expect(h.m.recordCount.mutateAsync).toHaveBeenCalledWith({ floatId: 'f1', counted: 990000, note: 'short by petty items' }));
+  });
+
+  it('AC-IMP-082 a receipt is Replenished only once its replenishment is Paid', () => {
+    h.reps = ok({ rows: [{ ...REP, id: 'r0', status: 'Paid' }, { ...REP, id: 'r5', status: 'Requested' }], truncated: false });
+    h.claims = ok({ rows: [
+      { id: 'c1', claim_number: 'EXP-1', kind: 'claim', title: 'Diesel', amount: 300000, status: 'Paid', imprest_replenishment_id: 'r0', is_plan_exception: false, currency: 'IDR' },
+      { id: 'c3', claim_number: 'EXP-3', kind: 'claim', title: 'Oil', amount: 100000, status: 'Paid', imprest_replenishment_id: 'r5', is_plan_exception: false, currency: 'IDR' },
+      { id: 'c2', claim_number: 'EXP-2', kind: 'claim', title: 'Tyres', amount: 200000, status: 'Paid', imprest_replenishment_id: null, is_plan_exception: false, currency: 'IDR' },
+    ], truncated: false });
+    renderPage();
+    expect(within(screen.getByText('EXP-1').closest('li') as HTMLElement).getByText('Replenished')).toBeInTheDocument();
+    expect(within(screen.getByText('EXP-3').closest('li') as HTMLElement).getByText('In a replenishment request')).toBeInTheDocument();
+    expect(within(screen.getByText('EXP-2').closest('li') as HTMLElement).getByText('Waiting')).toBeInTheDocument();
+  });
+
+  it('AC-IMP-082 a settled receipt is marked replenished', () => {
+    h.reps = ok({ rows: [{ ...REP, id: 'r0', status: 'Paid' }], truncated: false });
+    h.claims = ok({ rows: [
+      { id: 'c1', claim_number: 'EXP-1', kind: 'claim', title: 'Diesel', amount: 300000, status: 'Paid', imprest_replenishment_id: 'r0', is_plan_exception: false, currency: 'IDR' },
+      { id: 'c2', claim_number: 'EXP-2', kind: 'claim', title: 'Tyres', amount: 200000, status: 'Paid', imprest_replenishment_id: null, is_plan_exception: false, currency: 'IDR' },
+    ], truncated: false });
+    renderPage();
+    expect(within(screen.getByText('EXP-1').closest('li') as HTMLElement).getByText('Replenished')).toBeInTheDocument();
+    expect(within(screen.getByText('EXP-2').closest('li') as HTMLElement).getByText('Waiting')).toBeInTheDocument();
+  });
+
+  it('AC-IMP-082 a float the viewer cannot see is not found', () => {
+    h.floats = ok(null);
+    renderPage();
+    expect(screen.getByText('Float not found')).toBeInTheDocument();
+  });
+
+  it('AC-IMP-072 a failed posting is shown beside its replenishment', () => {
+    h.postings = ok({ rows: [{ movementId: 'r1', kind: 'replenishment', state: 'failed' }], truncated: false });
+    renderPage();
+    expect(within(screen.getByRole('row', { name: /REP-1/ })).getByText('ERP posting failed')).toBeInTheDocument();
+  });
+
+  it('AC-IMP-072 pending and unconfirmed postings read as such; a posted one shows nothing', () => {
+    h.reps = ok({ rows: [REP, { ...REP, id: 'r2', number: 'REP-2' }, { ...REP, id: 'r3', number: 'REP-3' }], truncated: false });
+    h.postings = ok({ rows: [{ movementId: 'r1', kind: 'replenishment', state: 'pending' }, { movementId: 'r2', kind: 'replenishment', state: 'uncertain' }], truncated: false });
+    renderPage();
+    expect(within(screen.getByRole('row', { name: /REP-1/ })).getByText('Posting to ERP')).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /REP-2/ })).getByText('ERP posting unconfirmed')).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /REP-3/ })).queryByText(/ERP/)).toBeNull();
+  });
+
+  it('AC-IMP-072 a failed posting is shown beside the float record it belongs to', () => {
+    h.claims = ok({ rows: [{ id: 'c1', claim_number: 'EXP-1', title: 'Fuel', amount: 100000, status: 'Paid', kind: 'claim', is_plan_exception: false, imprest_replenishment_id: null }], truncated: false });
+    h.postings = ok({ rows: [{ movementId: 'c1', kind: 'record', state: 'failed' }], truncated: false });
+    renderPage();
+    expect(within(screen.getByText('EXP-1').closest('li') as HTMLElement).getByText('ERP posting failed')).toBeInTheDocument();
+  });
+
+  it('AC-IMP-072 an unreadable posting status says so rather than implying everything posted', () => {
+    h.postings = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
+    renderPage();
+    expect(screen.getByText("Couldn't load the ERP posting status")).toHaveAttribute('role', 'alert');
+  });
+
+  it('AC-IMP-072 a posting list past the cap says so rather than reading as the complete truth', () => {
+    h.postings = ok({ rows: [], truncated: true });
+    renderPage();
+    expect(screen.getByText(/movements only/)).toHaveAttribute('role', 'status');
+  });
+
+  it('AC-IMP-072 a posting list within the cap renders no truncation notice', () => {
+    renderPage();
+    expect(screen.queryByText(/movements only/)).toBeNull();
+  });
+
+  it('the float page shows the bound cash account', () => {
+    h.floats = ok({ ...FLOAT, erp_cash_account_ref: 'Site Cash - X' });
+    renderPage();
+    expect(screen.getByTestId('cash-account')).toHaveTextContent('Site Cash - X');
+  });
+});

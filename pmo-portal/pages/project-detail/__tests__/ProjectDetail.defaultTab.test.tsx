@@ -17,6 +17,7 @@ import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 import type { Role } from '@/src/auth/AuthContext';
+vi.mock('../BillingMilestonesBlock', () => ({ BillingMilestonesBlock: () => null }));
 vi.mock('@/pages/project-detail/ProjectFinancesSection', () => ({ ProjectFinancesSection: () => null }));
 
 // ── Shared project fixture (on-hand, delivery stage) ──────────────────────────
@@ -174,11 +175,13 @@ describe('AC-IXD-PROJ-W5-C3-A: role-invariant default tab (CW-7, supersedes OD-W
     expect(within(tablist).getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('AC-PB-008: Engineer sees only Overview, Procurement, Tasks and Documents tabs', async () => {
+  // Materials joins the Engineer's set: quantities are visible to all active members and the Engineer is
+  // the interim storekeeper (inventory spec OQ-STK-10 / OQ-STK-2, AC-STK-031; plan S3.9, PQ-8).
+  it('AC-PB-008: Engineer sees only Overview, Procurement, Tasks, Documents and Materials tabs', async () => {
     await renderAs('Engineer', '/projects/p1');
     const tabs = Array.from(screen.getByRole('tablist', { name: /project sections/i }).querySelectorAll('[role="tab"]'))
       .map((tab) => tab.textContent);
-    expect(tabs).toEqual(['Overview', 'Procurement', 'Tasks', 'Documents']);
+    expect(tabs).toEqual(['Overview', 'Procurement', 'Tasks', 'Materials', 'Documents']);
   });
 
   // ── All other roles ALSO default to Overview (unchanged) ───────────────────

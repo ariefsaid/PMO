@@ -13,6 +13,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'jest-axe';
+import 'jest-axe/extend-expect'; // global registration moved out of test/setup.ts (unit-speed #1584)
 import React from 'react';
 import { MobileToolbarDisclosure } from '../MobileToolbarDisclosure';
 

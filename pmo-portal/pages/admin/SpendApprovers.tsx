@@ -73,6 +73,14 @@ const SpendApprovers: React.FC = () => {
 
   const orgRows = useMemo(() => (data ?? []).filter((r) => r.projectId === null), [data]);
   const projectRows = useMemo(() => (data ?? []).filter((r) => r.projectId !== null), [data]);
+  const projectGroups = useMemo(() => {
+    const groups = new Map<string, SpendApproverRow[]>();
+    for (const row of projectRows) {
+      const id = row.projectId!;
+      groups.set(id, [...(groups.get(id) ?? []), row]);
+    }
+    return [...groups.entries()];
+  }, [projectRows]);
 
   const onRemoveConfirm = async () => {
     if (!removing) return;
@@ -188,7 +196,7 @@ const SpendApprovers: React.FC = () => {
             <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-[13.5px]">
               <span className="min-w-0">
                 <span className="font-medium">{r.fullName}</span>
-                {r.projectName && <span className="ml-2 text-muted-foreground">{r.projectName}</span>}
+                {scope === 'org' && r.projectName && <span className="ml-2 text-muted-foreground">{r.projectName}</span>}
               </span>
               {canManage && (
                 <Button variant="ghost" size="sm" onClick={() => setRemoving(r)}>
@@ -254,7 +262,17 @@ const SpendApprovers: React.FC = () => {
                 </Button>
               )}
             </div>
-            {renderRows(projectRows, 'project')}
+            {projectGroups.length === 0 ? renderRows([], 'project') : (
+              <div className="space-y-4">
+                {projectGroups.map(([id, rows]) => {
+                  const name = rows[0].projectName ?? id;
+                  return <div key={id} role="group" aria-label={name}>
+                    <h4 className="mb-2 text-[13px] font-medium">{name}</h4>
+                    {renderRows(rows, 'project')}
+                  </div>;
+                })}
+              </div>
+            )}
           </div>
           {!canManage && (
             <p className="text-[13px] text-muted-foreground">

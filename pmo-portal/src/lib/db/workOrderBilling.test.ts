@@ -27,7 +27,7 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
-import { getUnbilledWorkOrders, listWorkOrderBilling } from './workOrderBilling';
+import { getUnbilledWorkOrders, listWorkOrderAcceptanceAge, listWorkOrderBilling, parseUnbilledWorkOrders } from './workOrderBilling';
 
 const ROW = {
   work_order_id: 'wo-1', project_id: 'p1', status: 'Issued', currency: 'USD', order_net: 500000, invoiced: '330000.00',
@@ -71,7 +71,7 @@ describe('work-order billing DAL (OD-BILL-1)', () => {
     }, error: null };
     expect(await getUnbilledWorkOrders(8)).toEqual({
       totals: [{ currency: 'USD', remaining: 1300, count: 2 }], incompleteCount: 1,
-      rows: [{ workOrderId: 'wo-2', woNumber: null, title: 'Fit-out', projectId: 'p2', projectName: 'Annex', status: 'Closed', currency: 'USD', remaining: 300, daysSinceClosed: 3, clientPoNumber: null }],
+      rows: [{ workOrderId: 'wo-2', woNumber: null, title: 'Fit-out', projectId: 'p2', projectName: 'Annex', status: 'Closed', currency: 'USD', remaining: 300, daysSinceClosed: 3, daysSinceAcceptance: null, clientPoNumber: null }],
       incomplete: [],
     });
     expect(h.calls.rpc).toEqual([['get_unbilled_work_orders', { p_limit: 8 }]]);
@@ -140,5 +140,26 @@ describe('work-order billing DAL (OD-BILL-1)', () => {
     const doc = await getUnbilledWorkOrders(8);
     expect(doc.incomplete).toEqual([]);
     expect(h.calls.from).toEqual([]);
+  });
+});
+
+describe('work-order acceptance age DAL (#1640)', () => {
+  it('AC-WOMS-011 listWorkOrderAcceptanceAge reads the view for one project, figures validated', async () => {
+    h.state.rows = { data: [{ work_order_id: 'wo-1', anchor_date: '2026-10-22', days: 10 }], error: null };
+    expect(await listWorkOrderAcceptanceAge('p1')).toEqual([{ workOrderId: 'wo-1', anchorDate: '2026-10-22', days: 10 }]);
+    expect(h.calls.from).toEqual(['work_order_uninvoiced_acceptance']);
+    expect(h.calls.eq).toEqual([['project_id', 'p1']]);
+    expect(h.calls.limit).toEqual([501]);
+  });
+  it('AC-WOMS-011 a missing day count is an error, never a plausible 0', async () => {
+    h.state.rows = { data: [{ work_order_id: 'wo-1', anchor_date: '2026-10-22', days: null }], error: null };
+    await expect(listWorkOrderAcceptanceAge('p1')).rejects.toMatchObject({ code: 'malformed-billing' });
+  });
+  it('AC-WOMS-009 parseUnbilledWorkOrders carries days since acceptance, null when absent', () => {
+    const doc = parseUnbilledWorkOrders({ totals: [], incomplete_count: 0, rows: [
+      { work_order_id: 'wo-1', wo_number: 'WO-1', title: 'A', project_id: 'p1', project_name: 'P', status: 'Issued', currency: 'USD', remaining: 5, days_since_closed: null, days_since_acceptance: 12 },
+      { work_order_id: 'wo-2', wo_number: 'WO-2', title: 'B', project_id: 'p1', project_name: 'P', status: 'Closed', currency: 'USD', remaining: 5, days_since_closed: 3 },
+    ] });
+    expect(doc.rows.map((r) => r.daysSinceAcceptance)).toEqual([12, null]);
   });
 });

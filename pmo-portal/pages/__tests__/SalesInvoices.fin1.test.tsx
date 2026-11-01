@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -14,8 +14,12 @@ import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
  */
 const h = vi.hoisted(() => ({
   invoices: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
-  orgDay: { day: '2026-10-18' as string | null, isPending: false },
+  orgDay: { day: '2026-10-18' as string | null, isPending: false, isError: false, retry: vi.fn() },
   mode: 'erp' as 'erp' | 'native',
+  received: vi.fn(async () => {}),
+  submit: vi.fn(async (_input: { siId: string; intent: unknown }) => {}),
+  projectsError: false,
+  retryProjects: vi.fn(async () => ({ data: [], error: null })),
   projects: [
     { value: 'project-1', label: 'North Harbor', sub: 'Contractual Harbor Retrofit · CLIENT-PO-1', contractualName: 'Contractual Harbor Retrofit', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: false, customerContractRef: 'CLIENT-PO-1' },
   ],
@@ -28,9 +32,9 @@ vi.mock('@/src/hooks/useRevenue', () => ({
   useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRevenueMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
-    setReceivedDate: { mutateAsync: vi.fn(), isPending: false },
+    setReceivedDate: { mutateAsync: h.received, isPending: false },
     setEfaktur: { mutateAsync: vi.fn(), isPending: false },
-    submitInvoice: { mutateAsync: vi.fn(), isPending: false },
+    submitInvoice: { mutateAsync: h.submit, isPending: false },
     cancelInvoice: { mutateAsync: vi.fn(), isPending: false },
     pendingPush: { status: 'idle', lastError: null, lastPushAt: null },
   }),
@@ -38,9 +42,9 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-finance', org_id: 'org-1' }, role: 'Finance' }) }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useClientCompanyOptions: () => ({ data: [{ value: 'cust-1', label: 'Northwind Services' }], isPending: false, isError: false, refetch: vi.fn() }),
-  useInvoiceProjectOptions: () => ({ data: h.projects, isPending: false, isError: false, refetch: vi.fn(async () => ({ data: h.projects, error: null })) }),
+  useInvoiceProjectOptions: () => ({ data: h.projects, isPending: false, isError: h.projectsError, refetch: h.retryProjects }),
 }));
-vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ ...h.orgDay, isError: false, retry: vi.fn() }) }));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => h.orgDay }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => h.mode }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({ data: [], isError: false }) }));
 vi.mock('@/src/hooks/useInvoicePdfDownload', () => ({ useInvoicePdfDownload: () => ({ download: vi.fn(), inFlightIds: new Set<string>() }) }));
@@ -93,14 +97,15 @@ const invoice = (id: string, overrides: Partial<SalesInvoiceRow> = {}): SalesInv
 
 const LocationProbe = () => {
   const location = useLocation();
-  return <output data-testid="location">{`${location.pathname}${location.search}`}</output>;
+  const navigate = useNavigate();
+  return <><button onClick={() => navigate(-1)}>History back</button><button onClick={() => navigate(1)}>History forward</button><output data-testid="location">{`${location.pathname}${location.search}`}</output><button onClick={() => navigate('/sales-invoices?q=INV-002')}>Change search URL</button></>;
 };
 
-function renderAt(url: string, role: 'Finance' | 'Project Manager' = 'Finance', embedded = false) {
+function renderAt(url: string, role: 'Finance' | 'Project Manager' = 'Finance', entries = [url], embedded = false) {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
       <ImpersonationProvider realRole={role}>
-        <MemoryRouter initialEntries={[url]}>
+        <MemoryRouter initialEntries={entries} initialIndex={entries.length - 1}>
           <ToastProvider>
             <LocationProbe />
             <Routes>
@@ -122,14 +127,20 @@ beforeEach(() => {
   h.invoices.isError = false;
   h.orgDay.day = '2026-10-18';
   h.orgDay.isPending = false;
+  h.orgDay.isError = false;
+  h.orgDay.retry.mockClear();
   h.mode = 'erp';
+  h.projectsError = false;
+  h.retryProjects.mockClear();
+  h.received.mockReset().mockResolvedValue(undefined);
+  h.submit.mockReset().mockResolvedValue(undefined);
 });
 
 describe('FIN-S1 / AC-RD-TBL-INV-001: invoice list default state', () => {
   it('labels the mobile invoice amount and reports an unknown outstanding balance', () => {
     vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({ matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() })));
     h.invoices.data = [invoice('INV-001', { amount: 1000, tax_amount: 100, erp_outstanding_amount: null })];
-    renderAt('/sales-invoices', 'Finance', true);
+    renderAt('/sales-invoices', 'Finance', undefined, true);
     expect(screen.getByText(/Invoice total excl. PPN:.*1,000/)).toBeInTheDocument();
     expect(screen.getByText('Outstanding balance unknown')).toBeInTheDocument();
     vi.unstubAllGlobals();
@@ -265,4 +276,125 @@ describe('FIN-S1: Pre-ERP history keeps its opening-balance fact in a tooltip, n
     expect(within(row).getByText('Pre-ERP').closest('[title]')).toHaveAttribute('title', expect.stringContaining('$500.00'));
     for (const el of within(row).queryAllByText(/Carried into/)) expect(el).toHaveClass('sr-only');
   });
+});
+
+it('offers supported invoice actions without an edit workflow', async () => {
+  renderAt('/sales-invoices');
+  await userEvent.click(screen.getAllByRole('button', { name: /row actions/i })[0]);
+  expect(screen.queryByRole('menuitem', { name: /^edit$/i })).not.toBeInTheDocument();
+});
+
+
+it('allows recovery and clearing an overdue filter when the business day fails', async () => {
+  h.orgDay.day = null;
+  h.orgDay.isError = true;
+  renderAt('/sales-invoices?overdue=true');
+  expect(screen.getByText(/business day unavailable/i)).toBeInTheDocument();
+  expect(screen.queryByText('No invoices match your filters')).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+  expect(h.orgDay.retry).toHaveBeenCalled();
+  await userEvent.click(screen.getByRole('button', { name: /overdue only/i }));
+  expect(screen.getByTestId('location')).not.toHaveTextContent('overdue=true');
+  expect(screen.getByRole('row', { name: /INV-001/ })).toBeInTheDocument();
+});
+
+
+it('keeps search in sync with navigation to another list URL', async () => {
+  h.invoices.data = [invoice('INV-001'), invoice('INV-002')];
+  renderAt('/sales-invoices?q=INV-001');
+  await userEvent.click(screen.getByRole('button', { name: 'Change search URL' }));
+  expect(screen.getByRole('searchbox', { name: /search sales invoices/i })).toHaveValue('INV-002');
+  expect(screen.getByRole('row', { name: /INV-002/ })).toBeInTheDocument();
+  expect(screen.queryByRole('row', { name: /INV-001/ })).not.toBeInTheDocument();
+});
+
+
+it('reports unavailable project search and offers a retry', async () => {
+  h.projectsError = true;
+  renderAt('/sales-invoices?q=Harbor');
+  expect(screen.getByText(/project.*search.*unavailable/i)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: /retry projects/i }));
+  expect(h.retryProjects).toHaveBeenCalled();
+});
+
+it('records the selected invoice receipt from the list', async () => {
+  h.invoices.data = [invoice('INV-001'), invoice('INV-002')];
+  h.received.mockRejectedValueOnce(new Error('Save failed'));
+  renderAt('/sales-invoices');
+  await userEvent.click(within(screen.getByRole('row', { name: /INV-002/ })).getByRole('button', { name: /row actions/i }));
+  await userEvent.click(screen.getByRole('menuitem', { name: /record received date/i }));
+  const dialog = screen.getByRole('dialog');
+  await userEvent.type(within(dialog).getByLabelText('Received'), '2026-10-12');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+  expect(await within(dialog).findByTestId('entity-modal-save-error')).toBeInTheDocument();
+  expect(within(dialog).getByLabelText('Received')).toHaveValue('2026-10-12');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+  expect(h.received).toHaveBeenCalledWith({ siId: 'INV-002', receivedDate: '2026-10-12' });
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+
+it('restores search on history back and forward while typing replaces the current entry', async () => {
+  h.invoices.data = [invoice('INV-001'), invoice('INV-002')];
+  renderAt('/sales-invoices?q=INV-002', 'Finance', ['/sales-invoices?q=INV-001', '/sales-invoices?q=INV-002']);
+  const user = userEvent.setup();
+  const search = screen.getByRole('searchbox', { name: /search sales invoices/i });
+  expect(search).toHaveValue('INV-002');
+  await user.click(screen.getByRole('button', { name: 'History back' }));
+  expect(search).toHaveValue('INV-001');
+  await user.click(screen.getByRole('button', { name: 'History forward' }));
+  expect(search).toHaveValue('INV-002');
+  await user.clear(search);
+  await user.type(search, 'INV');
+  await user.click(screen.getByRole('button', { name: 'History back' }));
+  expect(search).toHaveValue('INV-001');
+  await user.click(screen.getByRole('button', { name: 'History forward' }));
+  expect(search).toHaveValue('INV');
+});
+
+
+it.each(['list', 'detail'] as const)('approves the selected invoice from %s and retains its command on retry', async (route) => {
+  h.invoices.data = [invoice('INV-001', { status: 'Draft', erp_docstatus: 0, pmo_native: false })];
+  h.submit.mockRejectedValueOnce(new Error('Save failed'));
+  const user = userEvent.setup();
+  renderAt(route === 'list' ? '/sales-invoices' : '/sales-invoices/INV-001');
+  if (route === 'list') {
+    await user.click(within(screen.getByRole('row', { name: /INV-001/ })).getByRole('button', { name: /row actions/i }));
+    await user.click(screen.getByRole('menuitem', { name: 'Submit' }));
+  } else {
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+  }
+  const dialog = screen.getByRole('dialog');
+  await user.click(within(dialog).getByRole('button', { name: 'Submit invoice' }));
+  expect(h.submit).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole('dialog')).toBeInTheDocument();
+  await user.click(within(dialog).getByRole('button', { name: 'Submit invoice' }));
+  expect(h.submit).toHaveBeenCalledTimes(2);
+  expect(h.submit.mock.calls[0][0]).toEqual(h.submit.mock.calls[1][0]);
+  expect(h.submit.mock.calls[1][0]).toMatchObject({ siId: 'INV-001' });
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+it('keeps invoice approval identities separate until each approval succeeds', async () => {
+  h.invoices.data = [invoice('INV-001', { status: 'Draft', erp_docstatus: 0, pmo_native: false }), invoice('INV-002', { status: 'Draft', erp_docstatus: 0, pmo_native: false })];
+  h.submit.mockRejectedValueOnce(new Error('First attempt failed')).mockRejectedValueOnce(new Error('Second attempt failed'));
+  const user = userEvent.setup();
+  renderAt('/sales-invoices');
+  const open = async (id: string) => {
+    await user.click(within(screen.getByRole('row', { name: new RegExp(id) })).getByRole('button', { name: /row actions/i }));
+    await user.click(screen.getByRole('menuitem', { name: 'Submit' }));
+  };
+  await open('INV-001');
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Submit invoice' }));
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+  await open('INV-002');
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Submit invoice' }));
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+  await open('INV-001');
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Submit invoice' }));
+  expect(h.submit.mock.calls[0][0].intent).not.toEqual(h.submit.mock.calls[1][0].intent);
+  expect(h.submit.mock.calls[2][0]).toEqual(h.submit.mock.calls[0][0]);
+  await open('INV-001');
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Submit invoice' }));
+  expect(h.submit.mock.calls[3][0].intent).not.toEqual(h.submit.mock.calls[0][0].intent);
 });

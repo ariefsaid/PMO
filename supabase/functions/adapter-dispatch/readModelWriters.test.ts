@@ -241,6 +241,53 @@ Deno.test({
   },
 });
 
+// ── #1471 (D5): the billing kind is PMO metadata. Written on create only, and only a known value. ──
+const siCanonical = { id: 'si-1', si_number: 'SINV-1', amount: '10.00', erp_docstatus: 1, erp_outstanding_amount: '5.00' };
+
+Deno.test({
+  name: 'FR-012 Sales Invoice creation writes a known billing kind from the command record',
+  fn: async () => {
+    const { client, calls } = makeFakeClient({ projects: { org_id: 'org-1' }, companies: { org_id: 'org-1' } });
+    await getReadModelWriter('revenue').upsert(
+      { serviceClient: client as never, orgId: 'org-1' }, siCanonical,
+      { domain: 'revenue', operation: 'create', record: { id: 'si-1', erp_doc_kind: 'sales-invoice', projectId: 'pmo-project', billingKind: 'other' } },
+    );
+    const insert = calls.find((call) => call.table === 'sales_invoices' && call.method === 'insert');
+    if (!insert) throw new Error('creation inserts Sales Invoice mirror');
+    assertEquals((insert.args[0] as Record<string, unknown>).billing_kind, 'other');
+  },
+});
+
+Deno.test({
+  name: 'FR-012 Sales Invoice creation ignores an unknown or absent billing kind, or a kind without a project, so the column default applies',
+  fn: async () => {
+    for (const record of [{ billingKind: 'bogus' }, { billingKind: null }, {}, { billingKind: 'other', projectId: undefined }]) {
+      const { client, calls } = makeFakeClient({ projects: { org_id: 'org-1' }, companies: { org_id: 'org-1' } });
+      await getReadModelWriter('revenue').upsert(
+        { serviceClient: client as never, orgId: 'org-1' }, siCanonical,
+        { domain: 'revenue', operation: 'create', record: { id: 'si-1', erp_doc_kind: 'sales-invoice', projectId: 'pmo-project', ...record } },
+      );
+      const insert = calls.find((call) => call.table === 'sales_invoices' && call.method === 'insert');
+      if (!insert) throw new Error('creation inserts Sales Invoice mirror');
+      assert(!Object.hasOwn(insert.args[0] as Record<string, unknown>, 'billing_kind'), 'a bad kind must not abort a mirror after the ERP document exists');
+    }
+  },
+});
+
+Deno.test({
+  name: 'FR-012 a Sales Invoice update never writes the billing kind, even when the record carries one',
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    await getReadModelWriter('revenue').upsert(
+      { serviceClient: client as never, orgId: 'org-1' }, { ...siCanonical, amount: '75.00', erp_outstanding_amount: '0.00' },
+      { domain: 'revenue', operation: 'update', record: { id: 'si-1', erp_doc_kind: 'sales-invoice', projectId: 'pmo-project', billingKind: 'other' } },
+    );
+    const update = calls.find((call) => call.table === 'sales_invoices' && call.method === 'update');
+    if (!update) throw new Error('update refreshes the Sales Invoice mirror');
+    assert(!Object.hasOwn(update.args[0] as Record<string, unknown>, 'billing_kind'), 'an ERP refresh must keep the saved PMO kind');
+  },
+});
+
 Deno.test({
   name: 'findPmoRecordId is the exact reverse of resolveExternalRef',
   fn: async () => {

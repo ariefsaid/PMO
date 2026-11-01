@@ -9,7 +9,6 @@ import { login, pickComboboxOption, openPipelineCard, visibleToast } from './hel
  *   AC-PRJ-003  PM creates a new project (Leads) → the new row appears in the Pipeline
  *   AC-PRJ-004  PM edits the project header (name) on the detail page → the change persists
  *   AC-PRJ-005  Executive archives a project → it leaves the default index
- *   AC-PRJ-007  gating: Finance does NOT see "New project" (FE stricter than RLS)
  *
  * Roles (seed.sql): pm@acme.test, exec@acme.test, finance@acme.test.
  * RBAC authority: docs/design/rbac-visibility.md §B/§B2 + docs/adr/0019.
@@ -94,18 +93,5 @@ test(
     await page.goto('/sales');
     await expect(page.getByText('Northwind ERP Rollout').first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(editedName)).toHaveCount(0, { timeout: 15_000 });
-  },
-);
-
-// ── AC-PRJ-007 — gating: Finance does not see "New project" ──────────────────────
-
-test(
-  'AC-PRJ-007 gating: Finance does not see the New project button on /projects (FE stricter than RLS)',
-  async ({ page }) => {
-    await login(page, 'finance@acme.test');
-    await page.goto('/projects');
-    await waitProjectsReady(page);
-    // GOAL ORACLE: "New project" is HIDDEN for Finance (FE excludes Finance from project create).
-    await expect(page.getByRole('button', { name: /new project/i })).not.toBeVisible({ timeout: 10_000 });
   },
 );

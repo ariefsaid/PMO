@@ -26,7 +26,12 @@ import {
   ERP_ACTIVITY_TYPE,
   ERP_EMPLOYEE,
   MANAGER_EMAIL,
+  BENCH_KEY,
+  BENCH_SECRET,
+  BENCH_URL,
   benchGet,
+  benchPost,
+  benchPut,
   cleanupTsp,
   readTsMirror,
   runWeek,
@@ -58,6 +63,7 @@ interface ErpTimesheetDoc {
   docstatus: number;
   employee: string;
   total_hours: number;
+  total_costing_amount: number;
   note: string | null;
   time_logs: Array<Record<string, unknown>>;
 }
@@ -104,23 +110,57 @@ async function approveInTheApp(page: Page, weekLabel: string) {
   await expect(queueItem).toHaveCount(0, { timeout: 20_000 });
 }
 
+/** Set an employee-specific rate for this journey and restore the bench fixture afterwards. */
+async function setFixtureRate(): Promise<() => Promise<void>> {
+  const filters = encodeURIComponent(JSON.stringify({ employee: ERP_EMPLOYEE, activity_type: ERP_ACTIVITY_TYPE }));
+  const fields = encodeURIComponent(JSON.stringify(['name', 'costing_rate']));
+  const rows = await benchGet<Array<{ name: string; costing_rate: number }>>(
+    `/api/resource/Activity%20Cost?filters=${filters}&fields=${fields}`,
+  );
+  expect(rows.length).toBeLessThanOrEqual(1);
+  if (rows.length) {
+    const original = rows[0];
+    await benchPut('Activity Cost', original.name, { costing_rate: 100 });
+    return async () => {
+      await benchPut('Activity Cost', original.name, { costing_rate: original.costing_rate });
+      const restored = await benchGet<{ costing_rate: number }>(`/api/resource/Activity%20Cost/${encodeURIComponent(original.name)}`);
+      expect(Number(restored.costing_rate), 'fixture rate is restored').toBe(Number(original.costing_rate));
+    };
+  }
+  const created = await benchPost<{ name: string }>('Activity Cost', {
+    employee: ERP_EMPLOYEE, activity_type: ERP_ACTIVITY_TYPE, costing_rate: 100, billing_rate: 0,
+  });
+  return async () => {
+    const response = await fetch(`${BENCH_URL}/api/resource/Activity%20Cost/${encodeURIComponent(created.name)}`, {
+      method: 'DELETE', headers: { Authorization: `token ${BENCH_KEY}:${BENCH_SECRET}` },
+    });
+    expect(response.ok, 'fixture rate is removed').toBe(true);
+    const remaining = await benchGet<unknown[]>(`/api/resource/Activity%20Cost?filters=${filters}&fields=${fields}`);
+    expect(remaining).toHaveLength(0);
+  };
+}
+
 test.describe('AC-TSP-011: approving a week in the app puts it on the client ledger', () => {
   test('AC-TSP-011 the line manager approves in the Approvals queue and the ERP Timesheet lands SUBMITTED with both projects hours and no billing fields', async ({ page }) => {
     const admin = createClient(AUTH_URL, SERVICE_KEY);
     const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const seeded = await seedTsp(admin, suffix);
+    const restoreRate = await setFixtureRate();
+    let seeded: Awaited<ReturnType<typeof seedTsp>> | undefined;
+    let pushedName: string | undefined;
 
     try {
-      // A real week: two projects × two days. 4.00 + 3.50 + 2.25 + 1.75 = 11.50 hours.
+      const runSeed = await seedTsp(admin, suffix);
+      seeded = runSeed;
+      // A real week: fractional rows across two projects and two days.
       const week = runWeek();
-      const timesheetId = await seedTimesheet(admin, seeded, {
+      const timesheetId = await seedTimesheet(admin, runSeed, {
         status: 'Submitted',
         weekStartDate: week.weekStartDate,
         entries: [
-          { projectId: seeded.projectAId, entryDate: week.day1, hours: '4.00' },
-          { projectId: seeded.projectBId, entryDate: week.day1, hours: '3.50' },
-          { projectId: seeded.projectAId, entryDate: week.day2, hours: '2.25' },
-          { projectId: seeded.projectBId, entryDate: week.day2, hours: '1.75' },
+          { projectId: runSeed.projectAId, entryDate: week.day1, hours: '0.01' },
+          { projectId: runSeed.projectBId, entryDate: week.day1, hours: '0.02' },
+          { projectId: runSeed.projectAId, entryDate: week.day2, hours: '2.25' },
+          { projectId: runSeed.projectBId, entryDate: week.day2, hours: '1.75' },
         ],
       });
 
@@ -135,6 +175,7 @@ test.describe('AC-TSP-011: approving a week in the app puts it on the client led
       expect(mirror, 'a side-mirror row exists for the approved week').not.toBeNull();
       expect(mirror!.push_state, `push did not land: ${mirror?.push_error ?? '(no error recorded)'}`).toBe('pushed');
       expect(mirror!.ts_number, 'the mirror carries the ERP document name').toBeTruthy();
+      pushedName = mirror!.ts_number!;
       expect(mirror!.approved_at_pushed, "the mirror witnesses the approval the push was keyed on").toBe(
         (sheet as { approved_at: string }).approved_at,
       );
@@ -144,13 +185,13 @@ test.describe('AC-TSP-011: approving a week in the app puts it on the client led
       expect(doc.name).toBe(mirror!.ts_number);
       expect(doc.docstatus, 'the ERP Timesheet is SUBMITTED, not left a draft').toBe(1);
       expect(doc.employee, 'the hours are costed to the CONFIRMED linked Employee').toBe(ERP_EMPLOYEE);
-      expect(Number(doc.total_hours), "ERP's own computed total equals the approved week").toBe(11.5);
+      expect(Number(doc.total_hours), "ERP's own computed total equals the approved week").toBe(4.03);
 
       // One time_log per entry, carrying the RESOLVED ERP projects (never an omitted dimension).
       expect(doc.time_logs).toHaveLength(4);
       const projects = doc.time_logs.map((l) => l.project);
-      expect(projects.filter((p) => p === seeded.erpProjectA), 'project A rows').toHaveLength(2);
-      expect(projects.filter((p) => p === seeded.erpProjectB), 'project B rows').toHaveLength(2);
+      expect(projects.filter((p) => p === runSeed.erpProjectA), 'project A rows').toHaveLength(2);
+      expect(projects.filter((p) => p === runSeed.erpProjectB), 'project B rows').toHaveLength(2);
       for (const log of doc.time_logs) {
         expect(log.activity_type, 'the configured activity type is stamped on every row').toBe(ERP_ACTIVITY_TYPE);
         // FR-TSP-063 — naive site-local datetimes; a Z/offset suffix is a raw ERP 500.
@@ -169,6 +210,28 @@ test.describe('AC-TSP-011: approving a week in the app puts it on the client led
         expect(intervals[i].from >= intervals[i - 1].to, `time_logs overlap: ${JSON.stringify(intervals)}`).toBe(true);
       }
 
+      const expectedHours = new Map([
+        [`${week.day1}:${runSeed.erpProjectA}`, 0.01],
+        [`${week.day1}:${runSeed.erpProjectB}`, 0.02],
+        [`${week.day2}:${runSeed.erpProjectA}`, 2.25],
+        [`${week.day2}:${runSeed.erpProjectB}`, 1.75],
+      ]);
+      for (const log of doc.time_logs) {
+        const key = `${String(log.from_time).slice(0, 10)}:${String(log.project)}`;
+        const hours = expectedHours.get(key);
+        expect(hours, `expected row ${key}`).toBeDefined();
+        expect(Number(log.hours), `persisted hours for ${key}`).toBe(hours);
+        expect(Number(log.costing_rate), `persisted nonzero rate for ${key}`).toBe(100);
+        expect(Number(log.costing_amount), `persisted cost for ${key}`).toBe(Number(log.costing_rate) * hours!);
+        expectedHours.delete(key);
+      }
+      expect(expectedHours.size).toBe(0);
+      expect(Number(doc.total_costing_amount)).toBe(403);
+      const { data: costMirror, error: costError } = await admin.from('timesheet_erp_mirror')
+        .select('erp_total_costing_amount').eq('timesheet_id', timesheetId).single();
+      expect(costError).toBeNull();
+      expect(Number(costMirror!.erp_total_costing_amount), 'cost mirror matches ERP').toBe(Number(doc.total_costing_amount));
+
       // The mirror carries ERP's OWN total verbatim (ADR-0048) — PMO never recomputes it.
       expect(Number(mirror!.erp_total_hours), 'erp_total_hours mirrors ERP verbatim').toBe(Number(doc.total_hours));
 
@@ -184,7 +247,15 @@ test.describe('AC-TSP-011: approving a week in the app puts it on the client led
         mirror!.ts_number,
       );
     } finally {
-      await cleanupTsp(admin, seeded);
+      try {
+        if (seeded) await cleanupTsp(admin, seeded);
+        if (pushedName) {
+          const cancelled = await benchGet<ErpTimesheetDoc>(`/api/resource/Timesheet/${encodeURIComponent(pushedName)}`);
+          expect(cancelled.docstatus, 'the run-owned ERP document is cancelled').toBe(2);
+        }
+      } finally {
+        await restoreRate();
+      }
     }
   });
 });

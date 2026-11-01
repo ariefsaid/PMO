@@ -6,21 +6,21 @@ create extension if not exists pgtap;
 select plan(6);
 
 select ok(not exists (
-  select 1 from (values ('public.create_native_sales_invoice(uuid,uuid,jsonb,uuid)'),
+  select 1 from (values ('public.create_native_sales_invoice(uuid,uuid,jsonb,uuid,text)'),
                         ('public.transition_native_sales_invoice(uuid,text)'),
                         ('public.record_native_receipt(uuid,numeric,numeric,numeric,text,date)'),
                         ('public.cancel_native_receipt(uuid)')) f(sig)
    where has_function_privilege('anon', sig, 'execute')),
   'NFR-NAR-001 anon cannot execute any PMO revenue writer');
 select ok(not exists (
-  select 1 from (values ('public.create_native_sales_invoice(uuid,uuid,jsonb,uuid)'),
+  select 1 from (values ('public.create_native_sales_invoice(uuid,uuid,jsonb,uuid,text)'),
                         ('public.transition_native_sales_invoice(uuid,text)'),
                         ('public.record_native_receipt(uuid,numeric,numeric,numeric,text,date)'),
                         ('public.cancel_native_receipt(uuid)')) f(sig)
    where not has_function_privilege('authenticated', sig, 'execute')),
   'NFR-NAR-001 a signed-in member can call all four (each checks role and SoD itself)');
 select ok(not exists (
-  select 1 from (values ('public.create_native_sales_invoice(uuid,uuid,jsonb,uuid)'),
+  select 1 from (values ('public.create_native_sales_invoice(uuid,uuid,jsonb,uuid,text)'),
                         ('public.transition_native_sales_invoice(uuid,text)'),
                         ('public.record_native_receipt(uuid,numeric,numeric,numeric,text,date)'),
                         ('public.cancel_native_receipt(uuid)')) f(sig)
