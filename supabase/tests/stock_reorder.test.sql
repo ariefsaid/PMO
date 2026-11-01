@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap;
 -- #1512 S6: reorder levels, suggestion and worklist (AC-STK-025, 026, 027, FR-STK-054). Plan S6.1; dates are relative to the org today.
-select plan(27);
+select plan(36);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('15120000-0000-0000-0000-000000000001', 'STK Org',       'IDR', 'Asia/Jakarta'),
@@ -90,6 +90,10 @@ select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');            
 select is(public.get_reorder_suggestions('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002') #>> '{suggestion,reorder_level}', '42',  'AC-STK-025 level = ceil(2 x (14 + 7)) = 42');
 select is(public.get_reorder_suggestions('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002') #>> '{suggestion,reorder_quantity}', '60', 'AC-STK-025 quantity = ceil(2 x 30) = 60');
 select is(public.get_reorder_suggestions('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002') #>> '{inputs,usage}', '180', 'AC-STK-025 the inputs (usage 180 over the window) are returned beside the figures');
+select is(public.get_reorder_suggestions('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002') #>> '{inputs,window_days}', '90', 'AC-STK-025 the window comes back');
+select is(public.get_reorder_suggestions('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002') #>> '{inputs,avg_daily_usage}', '2.0000', 'AC-STK-025 the average daily usage comes back');
+select is(public.get_reorder_suggestions('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002') #>> '{inputs,lead_time_days}', '14', 'AC-STK-025 the lead time comes back');
+select is(public.get_reorder_suggestions('15120000-0000-0000-0000-000000002002', '15120000-0000-0000-0000-000000001002') #>> '{suggestion,reorder_quantity}', '22.5', 'AC-STK-025 a fractional unit keeps its decimals: ceil(0.75 x 30 x 1000) / 1000');
 select is(public.get_reorder_suggestions('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001001') #>> '{suggestion,reorder_level}', '28', 'AC-STK-025 a whole-number unit rounds up: ceil(1.3 x 21 = 27.3) = 28');
 select is(public.get_reorder_suggestions('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001001') #>> '{suggestion,reorder_quantity}', '39', 'AC-STK-025 and the quantity ceil(1.3 x 30) = 39');
 select is(public.get_reorder_suggestions('15120000-0000-0000-0000-000000002003', '15120000-0000-0000-0000-000000001002') ->> 'status', 'insufficient_history', 'AC-STK-026 27 days of history is not enough');
@@ -128,6 +132,11 @@ select ok(not (public.get_stock_below_reorder() @> '[{"item_code":"CAB","warehou
 select public.set_stock_reorder_level('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002', 220, null);
 select ok(public.get_stock_below_reorder() @> '[{"item_code":"CAB","warehouse_code":"CEN"}]'::jsonb, 'FR-STK-054 on hand equal to the level counts as at or below');
 select throws_like($$ select public.set_stock_reorder_level('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002', 1.2345, null) $$, 'STK_INVALID%', 'FR-STK-053 a level has 3 decimals at most');
+select throws_like($$ select public.set_stock_reorder_level('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002', 10, -5) $$, 'STK_INVALID%', 'FR-STK-053 an order quantity of -5 is STK_INVALID, not a raw constraint error');
+select throws_like($$ select public.set_stock_reorder_level('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002', 10, 0) $$, 'STK_INVALID%', 'FR-STK-053 an order quantity of 0 is STK_INVALID, not a raw constraint error');
+select throws_like($$ select public.set_stock_reorder_level('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002', 10, 1.2345) $$, 'STK_INVALID%', 'FR-STK-053 an order quantity with 4 decimals is STK_INVALID, not a raw constraint error');
+select throws_like($$ select public.set_stock_reorder_level('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002', 99999999999999, null) $$, 'STK_INVALID%', 'FR-STK-053 a level past the column range is STK_INVALID, not a raw constraint error');
+select throws_like($$ select public.set_stock_reorder_level('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002', 'Infinity'::numeric, null) $$, 'STK_INVALID%', 'FR-STK-053 an infinite level is STK_INVALID, not a raw constraint error');
 reset role;
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a6');
 select lives_ok($$ select public.get_stock_below_reorder() $$, 'FR-STK-054 any active member reads the worklist');

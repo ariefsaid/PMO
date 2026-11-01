@@ -151,6 +151,26 @@ describe('StockReorder', () => {
     expect(screen.queryByRole('button', { name: 'Accept suggestion' })).not.toBeInTheDocument();
   });
 
+  it('the worklist shows the unit beside the level and the order quantity, and the form labels carry it', async () => {
+    renderPage();
+    const row = within(await screen.findByRole('table', { name: 'Below reorder level' })).getByText('CAB').closest('tr')!;
+    const cells = within(row).getAllByRole('cell').map((c) => c.textContent?.replace(/\s+/g, ' ').trim());
+    expect(cells).toContain('50 m');
+    expect(cells).toContain('60 m');
+    await userEvent.click(within(row).getByRole('button', { name: 'Edit level for CAB' }));
+    expect(await screen.findByRole('textbox', { name: /^Reorder level.*\(m\)$/ })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: /^Order quantity.*\(m\)$/ })).toBeInTheDocument();
+  });
+
+  it('a failed clear keeps the dialog open and shows the error in it', async () => {
+    reorder.setLevel.mockRejectedValue(new AppError('STK_INVALID: nope', 'P0001'));
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Clear level for CAB' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Clear level' }));
+    expect(await within(await screen.findByRole('alertdialog')).findByRole('alert')).toBeInTheDocument();
+  });
+
   it('a worklist row opens its level for editing with the row\'s figures', async () => {
     renderPage();
     await userEvent.click(await screen.findByRole('button', { name: 'Edit level for CAB' }));

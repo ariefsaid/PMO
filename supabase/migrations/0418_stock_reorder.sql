@@ -35,7 +35,9 @@ begin
   if p_level is null then                                                                                 -- clearing
     delete from public.stock_reorder_levels where item_id = p_item_id and warehouse_id = p_warehouse_id;
   else
-    if p_level < 0 or p_level <> round(p_level, 3) then raise exception 'STK_INVALID: a reorder level is 0 or more, 3 decimals at most' using errcode = 'P0001'; end if;
+    if p_level < 0 or p_level >= 1e11 or p_level <> round(p_level, 3) then raise exception 'STK_INVALID: a reorder level is 0 or more, 3 decimals at most' using errcode = 'P0001'; end if;
+    if p_quantity is not null and (p_quantity <= 0 or p_quantity >= 1e11 or p_quantity <> round(p_quantity, 3)) then
+      raise exception 'STK_INVALID: an order quantity is more than 0, 3 decimals at most' using errcode = 'P0001'; end if;
     insert into public.stock_reorder_levels (org_id, item_id, warehouse_id, reorder_level, reorder_quantity, set_by, set_at)
       values (v_org, p_item_id, p_warehouse_id, p_level, p_quantity, v_uid, now())
       on conflict (item_id, warehouse_id) do update set reorder_level = excluded.reorder_level, reorder_quantity = excluded.reorder_quantity, set_by = excluded.set_by, set_at = excluded.set_at;
@@ -76,7 +78,7 @@ begin
             left join public.stock_warehouses dw on dw.id = d.to_warehouse_id
            where l.org_id = v_org and l.item_id = p_item_id and l.warehouse_id = p_warehouse_id and l.occurred_on > v_today - v_window and l.occurred_on <= v_today
              and l.kind in ('issue','transfer','return')) x;
-  if v_history < prm.min_history_days or v_moves < prm.min_movements then                                -- mut:min_history
+  if v_history < prm.min_history_days or v_moves < prm.min_movements or v_usage <= 0 then                                -- mut:min_history (v_usage <= 0: returns of older issues can net usage to nothing, no negative level)
     return jsonb_build_object('status', 'insufficient_history', 'suggestion', null, 'current', v_cur,
       'inputs', jsonb_build_object('history_days', v_history, 'usage_movements', v_moves, 'min_history_days', prm.min_history_days, 'min_movements', prm.min_movements));
   end if;

@@ -161,9 +161,9 @@ export function useReorderSuggestion(warehouseId: string | undefined, itemId: st
     enabled: Boolean(orgId && warehouseId && itemId),
   });
 }
-export function useBelowReorder() {
+export function useBelowReorder(enabled = true) {
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-below-reorder', orgId], queryFn: () => repositories.stock.reorder.worklist(), enabled: Boolean(orgId) });
+  return useQuery({ queryKey: ['stock-below-reorder', orgId], queryFn: () => repositories.stock.reorder.worklist(), enabled: enabled && Boolean(orgId) });
 }
 export function useSetReorderLevel() {
   const qc = useQueryClient();

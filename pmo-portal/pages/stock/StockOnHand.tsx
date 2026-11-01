@@ -29,7 +29,7 @@ const StockOnHand: React.FC = () => {
 
   const warehouses = useStockWarehouses(false);
   const keepers = useStockKeepers();
-  const below = useBelowReorder();
+  const below = useBelowReorder(belowOnly);
   const onHand = useStockOnHand({ ...(warehouseId ? { warehouseId } : {}), ...(includeZero || belowOnly ? { includeZero: true } : {}) });
 
   const isKeeper = (keepers.data ?? []).some((k) => k.user_id === me);
@@ -37,10 +37,20 @@ const StockOnHand: React.FC = () => {
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const have = new Set((onHand.data ?? []).map((r) => `${r.itemId}:${r.warehouseId}`));
     const low = new Set((below.data ?? []).map((b) => `${b.itemId}:${b.warehouseId}`));
     const all = (onHand.data ?? []).filter((r) => !belowOnly || low.has(`${r.itemId}:${r.warehouseId}`));
+    // A level set on a never-stocked pair is on the worklist but has no balance row: show it at 0 so the two screens agree.
+    if (belowOnly) {
+      for (const b of below.data ?? []) {
+        const w = (warehouses.data ?? []).find((x) => x.id === b.warehouseId);
+        if (have.has(`${b.itemId}:${b.warehouseId}`) || !w || (warehouseId && warehouseId !== b.warehouseId)) continue;
+        all.push({ itemId: b.itemId, itemCode: b.itemCode, itemName: b.itemName, unitCode: b.unitCode, wholeOnly: false,
+          warehouseId: b.warehouseId, warehouseCode: b.warehouseCode, warehouseName: w.name, warehouseKind: w.kind as 'central' | 'site', qtyOnHand: b.qtyOnHand });
+      }
+    }
     return q ? all.filter((r) => `${r.itemCode} ${r.itemName}`.toLowerCase().includes(q)) : all;
-  }, [onHand.data, search, belowOnly, below.data]);
+  }, [onHand.data, search, belowOnly, below.data, warehouses.data, warehouseId]);
   // Cost columns follow the DATA, not the role: if the server omitted them they are absent, never a fabricated 0.
   const showCost = (onHand.data ?? []).some((r) => r.valueOnHand !== undefined);
 
