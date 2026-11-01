@@ -3699,15 +3699,6 @@
       "reviewParties": "Tinjau perusahaan",
       "refresh": "Perbarui daftar pengaturan",
       "saveDefaults": "Simpan nilai bawaan",
-      "accountantTask": "Minta akuntan Anda menambahkan akun biaya langsung untuk: {{categories}}",
-      "sends": {
-        "title": "Data yang sedang dikirim ke ERP",
-        "sending": "Sedang dikirim ke ERP",
-        "waiting": "{{count}} menunggu konfirmasi ERP.",
-        "needsDecision": "Perlu keputusan",
-        "unnamed": "Sebuah data",
-        "addPeople": "Tambahkan orang-orang ini di ERP. ERP meminta tanggal lahir dan jenis kelamin, yang tidak dimiliki PMO."
-      },
       "domainNames": {
         "companies": "Perusahaan",
         "procurement": "Pengadaan",

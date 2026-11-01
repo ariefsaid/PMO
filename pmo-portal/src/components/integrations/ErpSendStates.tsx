@@ -40,19 +40,19 @@ export function ErpSendStates({ enabled }: { enabled: boolean }) {
   if (waiting === 0 && refused.length === 0 && toAdd.length === 0) return null;
   return (
     <li id='erp-setup-sends' className='py-3'>
-      <p className='font-medium'>{t('integrations.erpSetup.sends.title', 'Records going to the ERP')}</p>
+      <p className='font-medium'>{t('administration:integrations.send.title', 'Records going to the ERP')}</p>
       {waiting > 0 && (
         <p className='mt-1 flex flex-wrap items-center gap-2 text-muted-foreground' role='status'>
-          <StatusPill variant='progress'>{t('integrations.erpSetup.sends.sending', 'Sending to the ERP')}</StatusPill>
-          <span className='tabular-nums'>{t('integrations.erpSetup.sends.waiting', '{{count}} waiting for the ERP to confirm.', { count: waiting })}</span>
+          <StatusPill variant='progress'>{t('administration:integrations.send.sending', 'Sending to the ERP')}</StatusPill>
+          <span className='tabular-nums'>{t('administration:integrations.send.waiting', '{{count}} waiting for the ERP to confirm.', { count: waiting })}</span>
         </p>
       )}
       {refused.length > 0 && (
         <ul className='mt-2 space-y-2'>
           {refused.map((p) => (
             <li key={p.id} className='min-w-0'>
-              <span className='break-words font-medium'>{p.snapshot.name ?? t('integrations.erpSetup.sends.unnamed', 'A record')}</span>{' '}
-              <StatusPill variant='warn'>{t('integrations.erpSetup.sends.needsDecision', 'Needs a decision')}</StatusPill>
+              <span className='break-words font-medium'>{p.snapshot.name ?? t('administration:integrations.send.unnamed', 'A record')}</span>{' '}
+              <StatusPill variant='warn'>{t('administration:integrations.send.needsDecision', 'Needs a decision')}</StatusPill>
               <p className='mt-1 break-words text-muted-foreground'>{p.reason_text}</p>
             </li>
           ))}
@@ -61,10 +61,10 @@ export function ErpSendStates({ enabled }: { enabled: boolean }) {
       {toAdd.length > 0 && (
         <div className='mt-2'>
           <p className='text-muted-foreground'>
-            {t('integrations.erpSetup.sends.addPeople', 'Add these people in the ERP. It asks for a birth date and gender, which PMO does not hold.')}
+            {t('administration:integrations.send.addPeople', 'Add these people in the ERP. It asks for a birth date and gender, which PMO does not hold.')}
           </p>
           <ul className='mt-1 list-disc pl-5'>
-            {toAdd.map((p) => <li key={p.id} className='break-words'>{p.snapshot.name ?? t('integrations.erpSetup.sends.unnamed', 'A record')}</li>)}
+            {toAdd.map((p) => <li key={p.id} className='break-words'>{p.snapshot.name ?? t('administration:integrations.send.unnamed', 'A record')}</li>)}
           </ul>
         </div>
       )}

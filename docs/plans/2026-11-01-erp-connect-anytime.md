@@ -1307,6 +1307,14 @@ rejected → review).
 Verify: `PGT supabase/tests/erp_connect_sends.test.sql`; `DENO erpnext-sweep connectSends.test.ts` with a case
 `'FR-ECA-016 a new line after setup is sent once and the admin sees nothing'`.
 
+**As built, T1–T11 (2026-11-02), where the code departs from the text above:**
+- *Bed (T1):* the ERPNext bed's Employee requires first name, gender, date of birth, date of joining, status and company, so `employee.send` is declared `unavailable` and the checklist lists people to add by hand. `employeeFields.bed.test.ts` re-checks it when the bench key pair is in the environment.
+- *Outbox finalize (T4):* the money path finalizes through `money.recordOutboxRef`, not the `recordExternalRef` dep, so `sendMasterOnce` swaps `recordOutboxRef` for a no-op on project, item and employee sends (the confirm after it stays fenced). `sendMaster` takes an optional `{ commitDeadlineAtMs }` so the create obeys the claim deadline like every other money POST.
+- *Lease (T6):* `claim_connect_sends` leases on a new `send_claimed_at` column (0482), not `decided_at`: accept stamps `decided_at`, so using it would have delayed every first send by five minutes. A refused or held send becomes a review row with `run_id` null and an identity of its own, so a later matcher run neither overwrites nor deletes it. Both result functions end by calling `settle_connect_run`.
+- *Contract suite (T2/T8):* `ConnectHarness` gains `rejectNextWrite`, `touchedAccounting` and `ownKeys` (ERPNext names a project itself, so the PMO code is not on the ERP document). The employee case of AC-ECA-010 is omitted: no tier supports `employee.send`.
+- *Setup screen (T9/T11):* the ECA2-T17 review screen is not built yet, so the states live in the existing checklist (`ErpSendStates`), and `missingAccountCategories(setup)` reads the readiness the checklist already has (categories required and not linked).
+- *Not done here:* ECA3-T12 (new items sent after setup) was outside the T1–T11 brief.
+
 ---
 
 ## 10. ECA-4 — cut-over for records in flight (#1601) — **ships alone**

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { ConnectProposal, ConnectStatus } from '@/src/lib/repositories/types';
+import type { ConnectProposal, ConnectStatus } from '@/src/lib/repositories/contracts/integrations';
 
 const repo = vi.hoisted(() => ({
   getConnectStatus: vi.fn<() => Promise<ConnectStatus>>(),
