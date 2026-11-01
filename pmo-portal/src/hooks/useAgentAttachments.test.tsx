@@ -141,3 +141,62 @@ describe('useAgentAttachments upload flow', () => {
     );
   });
 });
+
+describe('useAgentAttachments thread races (T-10)', () => {
+  it('concurrent first uploads share ONE created thread', async () => {
+    let resolveThread!: (v: { id: string }) => void;
+    vi.mocked(repositories.agentAttachment.createThread).mockReturnValue(
+      new Promise((r) => { resolveThread = r; }) as never,
+    );
+    const { result } = renderHook(() => useAgentAttachments(null), { wrapper: wrapper() });
+    const a = new File(['a'], 'a.pdf', { type: 'application/pdf' });
+    const b = new File(['b'], 'b.pdf', { type: 'application/pdf' });
+    let ps: Promise<unknown>[] = [];
+    await act(async () => {
+      ps = [result.current.uploadAttachment(a), result.current.uploadAttachment(b)];
+    });
+    await act(async () => {
+      resolveThread({ id: 'only-thread' });
+      await Promise.all(ps);
+    });
+    expect(repositories.agentAttachment.createThread).toHaveBeenCalledTimes(1);
+    const threadsUsed = vi.mocked(repositories.agentAttachment.prepareUpload).mock.calls.map((c) => c[0]);
+    expect(threadsUsed).toEqual(['only-thread', 'only-thread']);
+  });
+
+  it('an upload in flight when the conversation is reset is discarded, not returned', async () => {
+    let finishUpload!: () => void;
+    vi.mocked(uploadWithProgress).mockImplementation(
+      () => new Promise<void>((r) => { finishUpload = r; }),
+    );
+    const { result } = renderHook(() => useAgentAttachments(null), { wrapper: wrapper() });
+    const file = new File(['a'], 'a.pdf', { type: 'application/pdf' });
+    let outcome: Promise<unknown> = Promise.resolve();
+    let settled: 'ok' | 'rejected' | null = null;
+    await act(async () => {
+      outcome = result.current.uploadAttachment(file).then(() => (settled = 'ok'), () => (settled = 'rejected'));
+    });
+    await waitFor(() => expect(result.current.isUploading).toBe(true));
+    act(() => result.current.resetThread());
+    await act(async () => {
+      finishUpload();
+      await outcome;
+    });
+    expect(settled).toBe('rejected');
+    expect(result.current.error).toBeNull();
+    expect(result.current.isUploading).toBe(false);
+  });
+
+  it('a fresh upload after reset creates a new thread, not the retired one', async () => {
+    vi.mocked(repositories.agentAttachment.createThread)
+      .mockResolvedValueOnce({ id: 't-old' } as never)
+      .mockResolvedValueOnce({ id: 't-new' } as never);
+    const { result } = renderHook(() => useAgentAttachments(null), { wrapper: wrapper() });
+    const file = new File(['a'], 'a.pdf', { type: 'application/pdf' });
+    await act(async () => { await result.current.uploadAttachment(file); });
+    act(() => result.current.resetThread());
+    await act(async () => { await result.current.uploadAttachment(file); });
+    const used = vi.mocked(repositories.agentAttachment.prepareUpload).mock.calls.map((c) => c[0]);
+    expect(used).toEqual(['t-old', 't-new']);
+  });
+});
