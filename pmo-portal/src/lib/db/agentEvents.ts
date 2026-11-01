@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
@@ -22,13 +23,15 @@ function throwWrite(error: PostgrestErrorLike): never {
  * (code preserved) on a genuine query error.
  */
 export async function listRunEvents(runId: string): Promise<AgentEventRow[]> {
-  const { data, error } = await supabase
-    .from('agent_events')
-    .select('*')
-    .eq('run_id', runId)
-    .order('seq', { ascending: true });
-  if (error) throwWrite(error);
-  return data ?? [];
+  return fetchAllPages<AgentEventRow>((from, to) =>
+    supabase
+      .from('agent_events')
+      .select('*')
+      .eq('run_id', runId)
+      .order('seq', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to),
+  );
 }
 
 /**

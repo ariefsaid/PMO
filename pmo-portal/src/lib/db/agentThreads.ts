@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { AppError } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
@@ -47,16 +48,19 @@ type AgentThreadRowWithRunsEmbed = AgentThreadRow & { agent_runs?: Array<{ id: s
  * preserved) on a genuine query error.
  */
 export async function listAgentThreads(): Promise<AgentThreadListItem[]> {
-  const { data, error } = await supabase
-    .from('agent_threads')
-    .select('*, agent_runs(id)')
-    .is('archived_at', null)
-    .order('pinned_at', { ascending: false, nullsFirst: false })
-    .order('updated_at', { ascending: false })
-    .order('created_at', { referencedTable: 'agent_runs', ascending: false })
-    .limit(1, { referencedTable: 'agent_runs' });
-  if (error) throwWrite(error);
-  return (data ?? []).map((row: AgentThreadRowWithRunsEmbed) => {
+  const data = await fetchAllPages<AgentThreadRowWithRunsEmbed>((from, to) =>
+    supabase
+      .from('agent_threads')
+      .select('*, agent_runs(id)')
+      .is('archived_at', null)
+      .order('pinned_at', { ascending: false, nullsFirst: false })
+      .order('updated_at', { ascending: false })
+      .order('id', { ascending: true })
+      .order('created_at', { referencedTable: 'agent_runs', ascending: false })
+      .limit(1, { referencedTable: 'agent_runs' })
+      .range(from, to),
+  );
+  return data.map((row: AgentThreadRowWithRunsEmbed) => {
     const { agent_runs, ...thread } = row;
     return { ...thread, latestRunId: agent_runs?.[0]?.id ?? null };
   });

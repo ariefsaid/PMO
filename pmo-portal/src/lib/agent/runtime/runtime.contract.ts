@@ -73,6 +73,7 @@ export function runAgentRuntimeContract(
 
       const run = await runtime.createRun({ goal: 'test goal' });
       const events: unknown[] = [];
+      let cancelled = false;
 
       try {
         for await (const ev of runtime.subscribe(run.id)) {
@@ -80,11 +81,17 @@ export function runAgentRuntimeContract(
           if (events.length === 1) {
             // Cancel after the first event — a non-cancelled run would yield all scriptedCount events
             await runtime.control(run.id, 'cancel');
+            cancelled = true;
           }
         }
-      } catch {
-        // AbortError is acceptable — cancel aborted the fetch
+      } catch (e) {
+        // Only the cancel's own AbortError is acceptable; any other failure is a broken stream.
+        if (!(e instanceof Error && e.name === 'AbortError')) throw e;
       }
+
+      // A stream that never yielded would pass the bound below without ever exercising cancel.
+      expect(cancelled).toBe(true);
+      expect(events.length).toBeGreaterThanOrEqual(1);
 
       // Prove early termination: collected fewer events than the scripted total.
       // For a long stream (CANCEL_SCRIPTED_MIN+), this cannot pass if cancel was a no-op.
