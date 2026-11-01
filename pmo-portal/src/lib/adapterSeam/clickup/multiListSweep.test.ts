@@ -443,3 +443,33 @@ describe('mapped tasks resolve current status, parent and project through the sh
     expect(mintedParents).toEqual(['pmo-p1']);
   });
 });
+
+describe('ADP-023 an incomplete List read is reported and advances only to its partial cursor', () => {
+  const endless = () =>
+    vi.fn(async (url: string) => {
+      const page = Number(new URL(url).searchParams.get('page'));
+      return new Response(JSON.stringify({ tasks: [task(`cu-${page}`, String(10_000 + page))], last_page: false }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+  it('flags the List incomplete, applies what was read, and stores the partial cursor', async () => {
+    const harness = makeFakeDeps({ clientDeps: { fetchImpl: endless(), token: 't' } });
+    harness.watermarks.set('list-a', '10000');
+
+    const result = await runMultiListSweep({ ...harness.deps, bindings: [binding('list-a', 'proj-a')] });
+
+    expect(result.perList[0]).toMatchObject({ listId: 'list-a', incomplete: true, nextCursor: '10999' });
+    expect(result.applied).toBe(1000);
+    expect(harness.watermarks.get('list-a')).toBe('10999');
+  });
+
+  it('never rewinds a stored offset cursor with a plain one at the same timestamp', async () => {
+    const harness = makeFakeDeps({
+      clientDeps: { fetchImpl: vi.fn(async () => new Response(JSON.stringify({ tasks: [task('cu-1', '5000')], last_page: true }), { status: 200 })) as unknown as typeof fetch, token: 't' },
+    });
+    harness.watermarks.set('list-a', '5000:2000');
+
+    await runMultiListSweep({ ...harness.deps, bindings: [binding('list-a', 'proj-a')] });
+
+    expect(harness.watermarks.get('list-a')).toBe('5000:2000');
+  });
+});

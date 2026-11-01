@@ -22,6 +22,24 @@ export interface ClickUpReadDeps extends ClickUpClientDeps {
 const MAX_PAGES = 1000;
 
 /**
+ * A read cursor is the last `date_updated` (ms) fully read, optionally with a page offset
+ * (`"<ms>:<page>"`) that resumes INSIDE a run of tasks sharing one timestamp that is wider than the
+ * page cap — `date_updated_gt` alone can never get past such a tie, so the offset is what drains it.
+ * A plain `"<ms>"` (the only form the rest of the system writes) always means offset 0.
+ */
+export function parseReadCursor(cursor: string): { ms: number; page: number } {
+  const [ms, page] = cursor.split(':');
+  return { ms: Number(ms), page: page === undefined ? 0 : Number(page) };
+}
+
+/** The later of two cursors (by timestamp, then page offset) — never rewinds a stored watermark. */
+export function laterReadCursor(a: string, b: string): string {
+  const x = parseReadCursor(a);
+  const y = parseReadCursor(b);
+  return y.ms > x.ms || (y.ms === x.ms && y.page > x.page) ? b : a;
+}
+
+/**
  * Build the `date_updated_gt` + `page` query string for a given cursor (inclusive `>=` boundary).
  *
  * `GET /list/{id}/task` EXCLUDES four categories by default (ClickUp REST v2) — each flag below closes
@@ -47,13 +65,16 @@ const MAX_PAGES = 1000;
 function buildListQuery(cursor: string | null, page: number): URLSearchParams {
   const query = new URLSearchParams({
     order_by: 'updated',
+    // Oldest first: everything older than the newest task read is already read, which is what makes
+    // that timestamp a safe resume point when a read stops at the page cap.
+    reverse: 'true',
     page: String(page),
     include_closed: 'true',
     subtasks: 'true',
     archived: 'true',
     include_timl: 'true',
   });
-  if (cursor !== null) query.set('date_updated_gt', String(Math.max(0, Number(cursor) - 1)));
+  if (cursor !== null) query.set('date_updated_gt', String(Math.max(0, parseReadCursor(cursor).ms - 1)));
   return query;
 }
 
@@ -71,10 +92,13 @@ async function pageListTasks(
   deps: ClickUpClientDeps & { listId: string },
   cursor: string | null,
   priority: ClickUpLanePriority,
-): Promise<{ tasks: ClickUpTask[]; archivedTaskIds: string[]; nextCursor: string | null }> {
+): Promise<{ tasks: ClickUpTask[]; archivedTaskIds: string[]; nextCursor: string | null; complete: boolean }> {
+  const start = cursor !== null ? parseReadCursor(cursor) : null;
+  const firstPage = start?.page ?? 0;
   const allTasks: ClickUpTask[] = [];
-  let page = 0;
-  for (;;) {
+  let complete = false;
+  let page = firstPage;
+  for (; page < firstPage + MAX_PAGES; page += 1) {
     const query = buildListQuery(cursor, page);
     const raw = (await clickUpRequest(deps, {
       method: 'GET',
@@ -83,16 +107,29 @@ async function pageListTasks(
     })) as ClickUpTaskListResponse;
     const tasks = raw.tasks ?? [];
     allTasks.push(...tasks);
-    if (tasks.length === 0 || raw.last_page === true || page >= MAX_PAGES) break;
-    page += 1;
+    if (tasks.length === 0 || raw.last_page === true) {
+      complete = true;
+      break;
+    }
   }
-  const nextCursor = allTasks.length > 0 ? String(Math.max(...allTasks.map((t) => Number(t.date_updated)))) : null;
+  const newestMs = allTasks.length > 0 ? Math.max(...allTasks.map((t) => Number(t.date_updated))) : null;
+  // Cursor: where the NEXT read resumes. Complete → the newest task read (plain). Stopped at the page
+  // cap → the same, but only when that is past where this read started (everything older is read, the
+  // tie at the newest is simply re-read); when the whole read was one timestamp, keep the window and
+  // record how many pages of it are done. ponytail: the page offset can shift if a tied task is edited
+  // mid-drain; the next sweep re-reads the window from the plain cursor and converges.
+  let nextCursor: string | null = newestMs !== null ? String(newestMs) : null;
+  if (!complete && start !== null && newestMs !== null && newestMs <= start.ms) {
+    nextCursor = `${start.ms}:${page}`;
+  } else if (complete && newestMs === null && start !== null && start.page > 0) {
+    nextCursor = String(start.ms); // drained the tie: drop the offset
+  }
   const liveTasks = allTasks.filter((t) => t.archived !== true);
   // SEC-MEDIUM-6: archived tasks are never mirrored as LIVE (see the module docstring), but they must
   // not be silently discarded either — a caller (the sweep) needs their ids to archive an EXISTING
   // mirror. Surfaced separately so every current consumer of `tasks` (live-only) is unaffected.
   const archivedTaskIds = allTasks.filter((t) => t.archived === true).map((t) => t.id);
-  return { tasks: liveTasks, archivedTaskIds, nextCursor };
+  return { tasks: liveTasks, archivedTaskIds, nextCursor, complete };
 }
 
 /**
@@ -121,9 +158,9 @@ export async function clickUpListChangesSinceWatermark(
 export async function clickUpListRawChangesSinceWatermark(
   cursor: string | null,
   deps: ClickUpReadDeps,
-): Promise<{ changes: ClickUpTask[]; archivedTaskIds: string[]; nextCursor: string | null }> {
-  const { tasks, archivedTaskIds, nextCursor } = await pageListTasks(deps, cursor, 'bulk');
-  return { changes: tasks, archivedTaskIds, nextCursor };
+): Promise<{ changes: ClickUpTask[]; archivedTaskIds: string[]; nextCursor: string | null; complete: boolean }> {
+  const { tasks, archivedTaskIds, nextCursor, complete } = await pageListTasks(deps, cursor, 'bulk');
+  return { changes: tasks, archivedTaskIds, nextCursor, complete };
 }
 
 /**
@@ -161,6 +198,9 @@ export interface ClickUpMultiListRawChanges {
    *  independently off this map, so a List's own progress is never contaminated by a sibling's outage
    *  or a sibling simply being further ahead. */
   perListNextCursor: Record<string, string>;
+  /** Lists whose read stopped at the page cap with more still unread. Their `perListNextCursor` is a
+   *  safe partial resume point; the caller reports the List as incomplete and the next cycle continues. */
+  incompleteListIds: string[];
   /** listIds whose `GET /list/{id}/task` 404'd this cycle — the List was deleted/moved. The caller
    *  marks these bindings unhealthy (P4 health surface) rather than failing the whole org sweep. */
   notFoundListIds: string[];
@@ -182,6 +222,7 @@ export async function clickUpListRawChangesAcrossLists(
   const changes: ClickUpTaggedRawChange[] = [];
   const archivedTaskIds: string[] = [];
   const notFoundListIds: string[] = [];
+  const incompleteListIds: string[] = [];
   const perListNextCursor: Record<string, string> = {};
   for (const list of lists) {
     try {
@@ -189,6 +230,7 @@ export async function clickUpListRawChangesAcrossLists(
         changes: rawTasks,
         archivedTaskIds: archivedForList,
         nextCursor,
+        complete,
       } = await clickUpListRawChangesSinceWatermark(list.cursor, {
         ...clientDeps,
         listId: list.listId,
@@ -198,6 +240,7 @@ export async function clickUpListRawChangesAcrossLists(
       for (const t of rawTasks) changes.push({ task: t, listId: list.listId });
       archivedTaskIds.push(...archivedForList);
       if (nextCursor !== null) perListNextCursor[list.listId] = nextCursor;
+      if (!complete) incompleteListIds.push(list.listId);
     } catch (err) {
       if (err instanceof ClickUpHttpError && err.status === 404) {
         notFoundListIds.push(list.listId);
@@ -206,7 +249,7 @@ export async function clickUpListRawChangesAcrossLists(
       throw err;
     }
   }
-  return { changes, archivedTaskIds, perListNextCursor, notFoundListIds };
+  return { changes, archivedTaskIds, perListNextCursor, incompleteListIds, notFoundListIds };
 }
 
 /** `get-by-external-id` (AC-CUA-036): resolves a ClickUp task by id, or `null` on a 404. */

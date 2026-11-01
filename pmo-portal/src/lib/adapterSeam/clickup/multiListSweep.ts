@@ -35,7 +35,7 @@ import type { PmoRecord } from '../contract.ts';
 import { CLICKUP_TIER, CLICKUP_TASKS_DOMAIN } from './adapter.ts';
 import { resolveInboundRecord } from './inboundRecord.ts';
 import { applyInboundChange, type AtomicAdoptStrategy, type ExternalRefSeed } from '../applyEngine.ts';
-import { clickUpListRawChangesAcrossLists, type ClickUpListBindingRef } from './reads.ts';
+import { clickUpListRawChangesAcrossLists, laterReadCursor, type ClickUpListBindingRef } from './reads.ts';
 import type { ClickUpClientDeps } from './client.ts';
 import type { ClickUpStatusMap } from './statusMap.ts';
 import type { ClickUpMemberMap } from './memberMap.ts';
@@ -88,6 +88,9 @@ export interface MultiListSweepPerListResult {
   listId: string;
   nextCursor: string | null;
   notFound?: boolean;
+  /** The read stopped at the page cap with more still unread: the cursor is a partial resume point
+   *  and the next cycle continues from it. */
+  incomplete?: boolean;
 }
 
 export interface MultiListSweepResult {
@@ -116,7 +119,7 @@ export async function runMultiListSweep(deps: MultiListSweepDeps): Promise<Multi
       cursor: await deps.readListWatermark(b.listId),
     })),
   );
-  const { changes: tagged, archivedTaskIds, perListNextCursor, notFoundListIds } = await clickUpListRawChangesAcrossLists(
+  const { changes: tagged, archivedTaskIds, perListNextCursor, incompleteListIds, notFoundListIds } = await clickUpListRawChangesAcrossLists(
     listsWithCursor,
     deps.clientDeps,
   );
@@ -129,6 +132,7 @@ export async function runMultiListSweep(deps: MultiListSweepDeps): Promise<Multi
     listId: b.listId,
     nextCursor: perListNextCursor[b.listId] ?? null,
     ...(notFoundListIds.includes(b.listId) ? { notFound: true } : {}),
+    ...(incompleteListIds.includes(b.listId) ? { incomplete: true } : {}),
   }));
 
   // ── 2. Dedup: the SAME ClickUp task can be tagged under more than one bound List this cycle
@@ -226,10 +230,7 @@ export async function runMultiListSweep(deps: MultiListSweepDeps): Promise<Multi
   //    advanced further. ──
   for (const [listId, candidateCursor] of Object.entries(perListNextCursor)) {
     const current = await deps.readListWatermark(listId);
-    const currentMs = current !== null ? Number(current) : null;
-    const candidateMs = Number(candidateCursor);
-    const advanced = currentMs !== null && currentMs > candidateMs ? currentMs : candidateMs;
-    await deps.advanceListWatermark(listId, String(advanced));
+    await deps.advanceListWatermark(listId, current !== null ? laterReadCursor(current, candidateCursor) : candidateCursor);
   }
 
   return { applied, archived, skippedAmbiguous, perList };

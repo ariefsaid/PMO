@@ -318,3 +318,67 @@ describe('clickUpGetTaskRaw — the WORKER re-GET (OD-INT-11): the RAW task incl
     expect(raw).toBeNull();
   });
 });
+
+describe('ADP-023 a read that hits the page cap reports incomplete enumeration and resumes without skipping', () => {
+  const PAGE_CAP = 1000;
+
+  /** A server that never signals `last_page` for `pagesBeforeLast` pages, each page carrying `tasksOf(pageIndex)`. */
+  function endlessServer(tasksOf: (page: number) => ReturnType<typeof task>[], pagesBeforeLast = Infinity) {
+    const urls: string[] = [];
+    const fetchImpl = vi.fn(async (url: string) => {
+      urls.push(url);
+      const page = Number(new URL(`http://x${url.replace(/^https?:\/\/[^/]+/, '')}`).searchParams.get('page'));
+      return new Response(JSON.stringify({ tasks: tasksOf(page), last_page: page + 1 >= pagesBeforeLast }), { status: 200 });
+    });
+    return { fetchImpl: fetchImpl as unknown as typeof fetch, urls };
+  }
+
+  it('reads oldest-first so the max observed timestamp is a safe resume point', async () => {
+    const { fetchImpl, urls } = endlessServer(() => [], 1);
+    await clickUpListRawChangesSinceWatermark(null, baseDeps(fetchImpl));
+    expect(urls[0]).toContain('reverse=true');
+  });
+
+  it('a feed longer than the cap is reported incomplete and the cursor stops at the newest task actually read', async () => {
+    const { fetchImpl, urls } = endlessServer((p) => [task(`cu-${p}`, String(10_000 + p))]);
+    const result = await clickUpListRawChangesSinceWatermark('10000', baseDeps(fetchImpl));
+    expect(urls).toHaveLength(PAGE_CAP);
+    expect(result.complete).toBe(false);
+    expect(result.changes).toHaveLength(PAGE_CAP);
+    expect(result.nextCursor).toBe(String(10_000 + PAGE_CAP - 1));
+  });
+
+  it('a feed that ends inside the cap is complete', async () => {
+    const { fetchImpl } = endlessServer((p) => [task(`cu-${p}`, String(1000 + p))], 3);
+    const result = await clickUpListRawChangesSinceWatermark(null, baseDeps(fetchImpl));
+    expect(result.complete).toBe(true);
+    expect(result.nextCursor).toBe('1002');
+  });
+
+  it('a tie wider than the cap drains over several reads: the cursor remembers the page offset and the tie is never abandoned', async () => {
+    const tied = (p: number) => [task(`cu-${p}`, '5000')];
+    const first = endlessServer(tied);
+    const r1 = await clickUpListRawChangesSinceWatermark('5000', baseDeps(first.fetchImpl));
+    expect(r1.complete).toBe(false);
+    expect(r1.nextCursor).toBe(`5000:${PAGE_CAP}`);
+
+    // Resume from the offset: starts at that page of the SAME window (not page 0, not past the tie).
+    const second = endlessServer((p) => (p < PAGE_CAP + 2 ? [task(`cu-${p}`, '5000')] : []), PAGE_CAP + 2);
+    const r2 = await clickUpListRawChangesSinceWatermark(r1.nextCursor, baseDeps(second.fetchImpl));
+    expect(second.urls[0]).toContain(`page=${PAGE_CAP}`);
+    expect(second.urls[0]).toContain('date_updated_gt=4999');
+    expect(r2.changes.map((t) => t.id)).toEqual([`cu-${PAGE_CAP}`, `cu-${PAGE_CAP + 1}`]);
+    expect(r2.complete).toBe(true);
+    expect(r2.nextCursor).toBe('5000');
+  });
+
+  it('the multi-List read lists every List that came back incomplete', async () => {
+    const { fetchImpl } = endlessServer((p) => [task(`cu-${p}`, String(10_000 + p))]);
+    const result = await clickUpListRawChangesAcrossLists(
+      [{ listId: 'list-1', statusMap, memberMap, cursor: null }],
+      { fetchImpl, token: 't' },
+    );
+    expect(result.incompleteListIds).toEqual(['list-1']);
+    expect(result.perListNextCursor['list-1']).toBe(String(10_000 + PAGE_CAP - 1));
+  });
+});
