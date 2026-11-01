@@ -6,7 +6,6 @@ import type { Suite } from './harness.ts';
 import { imprestTransferSuite } from './imprestTransfer.suite.ts';
 import { partySuite } from './party.suite.ts';
 import { projectSuite } from './project.suite.ts';
-import { purchaseOrderReviseSuite } from './purchaseOrderRevise.suite.ts';
 import { itemSendSuite, partySendSuite, projectSendSuite } from './send.suite.ts';
 
 /** The shared suite that owns each workflow's behaviour. A workflow with no entry cannot be declared supported. */
@@ -20,5 +19,4 @@ export const SUITES: Readonly<Partial<Record<WorkflowId, Suite>>> = {
   'budget.unowned-occupant': budgetSuite,
   'cutover.activation': cutoverSuite,
   'imprest.transfer': imprestTransferSuite,
-  'purchase-order.revise': purchaseOrderReviseSuite,
 };
