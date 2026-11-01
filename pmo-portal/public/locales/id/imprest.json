@@ -195,7 +195,8 @@
     "pending": "Sedang diposting ke ERP",
     "failed": "Posting ERP gagal",
     "uncertain": "Posting ERP belum terkonfirmasi",
-    "error": "Status posting ERP tidak dapat dimuat"
+    "error": "Status posting ERP tidak dapat dimuat",
+    "truncated": "Status posting hanya ditampilkan untuk {{count}} transaksi pertama."
   },
   "receipts": {
     "error": "Gagal memuat catatan kas lapangan",

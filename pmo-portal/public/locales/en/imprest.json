@@ -195,7 +195,8 @@
     "pending": "Posting to ERP",
     "failed": "ERP posting failed",
     "uncertain": "ERP posting unconfirmed",
-    "error": "Couldn't load the ERP posting status"
+    "error": "Couldn't load the ERP posting status",
+    "truncated": "Showing posting status for the first {{count}} movements only."
   },
   "receipts": {
     "error": "Couldn't load the float's records",

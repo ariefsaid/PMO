@@ -166,21 +166,35 @@ const NOT_DONE = 'push_state.neq.pushed,erp_cancelled_at.not.is.null';
 type MirrorRow = { push_state: string; erp_cancelled_at: string | null };
 const postingState = (r: MirrorRow): PostingState | null =>
   r.push_state === 'pending' || r.push_state === 'failed' ? r.push_state : r.push_state === 'pushed' && !r.erp_cancelled_at ? null : 'uncertain';
-/** The float's replenishments and charged records whose posting is pending, failed or uncertain (both mirrors are RLS-scoped, bounded 200 + 1 each). */
+/** The float's replenishments and charged records whose posting is pending, failed or uncertain (both mirrors are RLS-scoped, bounded 200 + 1 each, deterministically ordered). One movement can carry several not-done mirror rows (e.g. approval + claim-payment at once), so rows fold to the WORST state per movement — a failed journal is never masked by a later pending one. */
 export async function listPostingStates(floatId: string): Promise<Bounded<ImprestPostingStateRow>> {
   const reps = await supabase.from('imprest_posting_erp_mirror')
     .select('replenishment_id, push_state, erp_cancelled_at, imprest_replenishments!inner(float_id)')
-    .eq('imprest_replenishments.float_id', floatId).or(NOT_DONE).limit(LIST_LIMIT + 1);
+    .eq('imprest_replenishments.float_id', floatId).or(NOT_DONE).order('created_at').order('id').limit(LIST_LIMIT + 1);
   fail(reps.error);
   const recs = await supabase.from('expense_posting_erp_mirror')
     .select('claim_id, push_state, erp_cancelled_at, expense_claims!inner(imprest_float_id)')
-    .eq('expense_claims.imprest_float_id', floatId).or(NOT_DONE).limit(LIST_LIMIT + 1);
+    .eq('expense_claims.imprest_float_id', floatId).or(NOT_DONE).order('created_at').order('id').limit(LIST_LIMIT + 1);
   fail(recs.error);
-  const rows: ImprestPostingStateRow[] = [
-    ...(reps.data ?? []).map((r) => ({ movementId: r.replenishment_id, kind: 'replenishment' as const, state: postingState(r) })),
-    ...(recs.data ?? []).map((r) => ({ movementId: r.claim_id, kind: 'record' as const, state: postingState(r) })),
-  ].filter((r): r is ImprestPostingStateRow => r.state !== null);
-  return { rows: rows.slice(0, LIST_LIMIT), truncated: (reps.data ?? []).length > LIST_LIMIT || (recs.data ?? []).length > LIST_LIMIT };
+  type MirrorRec = MirrorRow & { replenishment_id?: string; claim_id?: string };
+  const WORST: Record<PostingState, number> = { pending: 1, uncertain: 2, failed: 3 };
+  const foldWorst = (kind: ImprestPostingStateRow['kind'], idKey: 'replenishment_id' | 'claim_id', rows: MirrorRec[]): ImprestPostingStateRow[] => {
+    const worst = new Map<string, ImprestPostingStateRow>();
+    for (const r of rows) {
+      const state = postingState(r);
+      if (!state) continue;
+      const id = r[idKey]!;
+      const prev = worst.get(id);
+      if (!prev || WORST[state] > WORST[prev.state]) worst.set(id, { movementId: id, kind, state });
+    }
+    return [...worst.values()];
+  };
+  const rows = [
+    ...foldWorst('replenishment', 'replenishment_id', (reps.data ?? []) as MirrorRec[]),
+    ...foldWorst('record', 'claim_id', (recs.data ?? []) as MirrorRec[]),
+  ];
+  // truncated covers the combined list: either read hit its bound, or the folded movements past the cap would be sliced off.
+  return { rows: rows.slice(0, LIST_LIMIT), truncated: (reps.data ?? []).length > LIST_LIMIT || (recs.data ?? []).length > LIST_LIMIT || rows.length > LIST_LIMIT };
 }
 
 /** Bind the float's ERP cash account (Finance/Admin). The edge function validates it against the ERP and refuses a rebind, a moved float or an account another float uses. */

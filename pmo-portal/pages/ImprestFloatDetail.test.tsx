@@ -242,6 +242,17 @@ describe('/imprest/:floatId (AC-IMP-082)', () => {
     expect(screen.getByText("Couldn't load the ERP posting status")).toHaveAttribute('role', 'alert');
   });
 
+  it('AC-IMP-072 a posting list past the cap says so rather than reading as the complete truth', () => {
+    h.postings = ok({ rows: [], truncated: true });
+    renderPage();
+    expect(screen.getByText(/movements only/)).toHaveAttribute('role', 'status');
+  });
+
+  it('AC-IMP-072 a posting list within the cap renders no truncation notice', () => {
+    renderPage();
+    expect(screen.queryByText(/movements only/)).toBeNull();
+  });
+
   it('the float page shows the bound cash account', () => {
     h.floats = ok({ ...FLOAT, erp_cash_account_ref: 'Site Cash - X' });
     renderPage();

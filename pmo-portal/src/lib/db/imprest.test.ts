@@ -5,12 +5,12 @@ const h = vi.hoisted(() => {
   const result = { value: { data: null as unknown, error: null as unknown } };
   const byTable: Record<string, { data: unknown; error: unknown }> = {};
   let current = '';
-  const calls = { from: [] as string[], rpc: [] as Array<[string, unknown]>, insert: [] as unknown[], upsert: [] as unknown[], update: [] as unknown[], in: [] as unknown[], limit: [] as unknown[], select: [] as unknown[], eq: [] as unknown[], deleted: 0 };
+  const calls = { from: [] as string[], rpc: [] as Array<[string, unknown]>, insert: [] as unknown[], upsert: [] as unknown[], update: [] as unknown[], in: [] as unknown[], limit: [] as unknown[], select: [] as unknown[], eq: [] as unknown[], order: [] as unknown[], deleted: 0 };
   const builder: Record<string, unknown> = {};
-  const chain = (name?: 'insert' | 'upsert' | 'update' | 'in' | 'limit' | 'select' | 'eq') => (...a: unknown[]) => { if (name) calls[name].push(a.length === 1 ? a[0] : a); return builder; };
+  const chain = (name?: 'insert' | 'upsert' | 'update' | 'in' | 'limit' | 'select' | 'eq' | 'order') => (...a: unknown[]) => { if (name) calls[name].push(a.length === 1 ? a[0] : a); return builder; };
   for (const k of ['select', 'eq', 'limit', 'insert'] as const) builder[k] = chain(k);
   builder.upsert = chain('upsert');
-  builder.is = chain(); builder.order = chain(); builder.single = chain(); builder.maybeSingle = chain(); builder.in = chain('in' as never);
+  builder.is = chain(); builder.order = chain('order' as never); builder.single = chain(); builder.maybeSingle = chain(); builder.in = chain('in' as never);
   builder.update = chain('update' as never);
   builder.delete = () => { calls.deleted++; return builder; };
   builder.or = chain(); builder.then = (resolve: (v: unknown) => unknown) => resolve(byTable[current] ?? result.value);
@@ -212,6 +212,38 @@ describe('NFR-IMP-008 posting states', () => {
   it('AC-IMP-072 a failed posting read throws rather than showing nothing', async () => {
     h.byTable.imprest_posting_erp_mirror = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(dal.listPostingStates('f1')).rejects.toMatchObject({ code: '42501' });
+  });
+  it('AC-IMP-072 two not-done mirror rows for one claim fold to the WORST state — a failed journal is never masked', async () => {
+    // failed row FIRST: a naive last-row-wins would show the later pending row and hide the failure.
+    h.byTable.imprest_posting_erp_mirror = { data: [], error: null };
+    h.byTable.expense_posting_erp_mirror = { data: [
+      { claim_id: 'c1', push_state: 'failed', erp_cancelled_at: null },
+      { claim_id: 'c1', push_state: 'pending', erp_cancelled_at: null }], error: null };
+    const out = await dal.listPostingStates('f1');
+    expect(out.rows).toEqual([{ movementId: 'c1', kind: 'record', state: 'failed' }]);
+    // both reads are deterministically ordered (created_at, then the row id as tiebreaker)
+    expect(h.calls.order).toEqual(['created_at', 'id', 'created_at', 'id']);
+    // uncertain beats pending too (held reads as uncertain)
+    h.byTable.expense_posting_erp_mirror = { data: [
+      { claim_id: 'c2', push_state: 'held', erp_cancelled_at: null },
+      { claim_id: 'c2', push_state: 'pending', erp_cancelled_at: null }], error: null };
+    expect((await dal.listPostingStates('f1')).rows).toEqual([{ movementId: 'c2', kind: 'record', state: 'uncertain' }]);
+  });
+  it('NFR-IMP-008 truncated covers the combined list: a bound hit or a combined fold past the cap; folding below the cap is not truncated', async () => {
+    h.byTable.imprest_posting_erp_mirror = { data: Array.from({ length: LIST_LIMIT }, (_, i) => ({ replenishment_id: `r${i}`, push_state: 'pending', erp_cancelled_at: null })), error: null };
+    h.byTable.expense_posting_erp_mirror = { data: Array.from({ length: 50 }, (_, i) => ({ claim_id: `c${i}`, push_state: 'pending', erp_cancelled_at: null })), error: null };
+    let out = await dal.listPostingStates('f1');
+    expect(out.rows).toHaveLength(LIST_LIMIT); // neither query hit its bound, but the combined slice dropped 50 movements
+    expect(out.truncated).toBe(true);
+    h.byTable.imprest_posting_erp_mirror = { data: Array.from({ length: 150 }, (_, i) => ({ replenishment_id: `r${i % 100}`, push_state: 'pending', erp_cancelled_at: null })), error: null };
+    h.byTable.expense_posting_erp_mirror = { data: [], error: null };
+    out = await dal.listPostingStates('f1');
+    expect(out.rows).toHaveLength(100); // duplicates folded: 150 rows, 100 movements
+    expect(out.truncated).toBe(false);
+    h.byTable.imprest_posting_erp_mirror = { data: Array.from({ length: LIST_LIMIT + 1 }, (_, i) => ({ replenishment_id: `r${i}`, push_state: 'pending', erp_cancelled_at: null })), error: null };
+    out = await dal.listPostingStates('f1');
+    expect(out.truncated).toBe(true);
+    expect(out.rows).toHaveLength(LIST_LIMIT);
   });
 });
 

@@ -12,7 +12,7 @@ import {
   useRequestReplenishment, useTransitionReplenishment,
 } from '@/src/hooks/useImprest';
 import { availableFloatActions, availableReplenishmentActions, booksState, toCents, type ImprestAction } from '@/src/lib/imprest/imprestRules';
-import type { ImprestReplenishmentRow } from '@/src/lib/db/imprest';
+import { LIST_LIMIT, type ImprestReplenishmentRow } from '@/src/lib/db/imprest';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrencyAuto, parseMoneyInputAtScale } from '@/src/lib/format';
@@ -240,6 +240,9 @@ const ImprestFloatDetail: React.FC = () => {
         <CardHead>{t('imprest:rep.title', 'Replenishments')}</CardHead>
         <CardPad className="pt-0">
           {postings.isError && <p role="alert" className="mb-2 text-sm text-destructive-text">{t('imprest:posting.error', "Couldn't load the ERP posting status")}</p>}
+          {postings.data?.truncated && <p role="status" className="mb-2 text-sm text-muted-foreground">
+            {t('imprest:posting.truncated', 'Showing posting status for the first {{count}} movements only.', { count: LIST_LIMIT })}
+          </p>}
           {reps.isError ? <ListState variant="error" title={t('imprest:rep.error', "Couldn't load replenishments")} onRetry={() => void reps.refetch()} />
             : <DataTable<ImprestReplenishmentRow> embedded rows={repRows} columns={repColumns} rowKey={(r) => r.id}
               state={reps.isPending ? 'loading' : repRows.length === 0 ? 'empty' : undefined}
