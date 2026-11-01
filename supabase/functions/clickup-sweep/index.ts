@@ -12,8 +12,8 @@
  * creates those two Vault secrets, so the job fires as a no-op until then.
  *
  * Thin wiring ONLY — the sweep engine (apply via the shared source-mod-guarded applyInboundChange,
- * monotonic watermark advance, unreachable ⇒ no advance) is unit-tested under sweep.test.ts. This
- * file is INTEGRATION-ONLY — verified by `deno check` + the boot-smoke.
+ * monotonic watermark advance, unreachable ⇒ no advance) is unit-tested under multiListSweep.test.ts. This
+ * file's wiring (`buildSweepDepsLive`) is pinned by liveWiring.test.ts, plus `deno check` + the boot-smoke.
  *
  * Phase 1b (task 1.6): Per-org Vault credential resolution behind EXTERNAL_CONNECT_ENABLED flag.
  * When flag is ON: iterate external_org_bindings for ClickUp tier, resolve each org's token via Vault.

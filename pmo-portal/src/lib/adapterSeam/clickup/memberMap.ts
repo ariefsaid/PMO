@@ -18,31 +18,9 @@ export interface ClickUpMemberMap {
   skippedEmails?: string[];
 }
 
-/**
- * A resolved (or unresolvable) ClickUp assignee. A single flat shape (not a discriminated union) —
- * this repo's `tsconfig.json` runs with `strictNullChecks` off, under which TypeScript's control-flow
- * narrowing of boolean-discriminated unions is unreliable; callers read `.unassigned`/`.id` directly
- * instead of narrowing.
- */
-export interface ClickUpAssigneeResolution {
-  unassigned: boolean;
-  /** The ClickUp member id when resolved; `null` when unmapped. */
-  id: number | null;
-  /** Present only when unmapped — a human-readable reason (never thrown). */
-  surfaced?: string;
-}
-
-/** Outbound: PMO assignee id -> ClickUp member id. Never throws — unmapped resolves to `unassigned`. */
-export function toClickUpAssignee(map: ClickUpMemberMap, pmoAssigneeId: string): ClickUpAssigneeResolution {
-  const id = map.pmoToClickUp[pmoAssigneeId];
-  if (id === undefined) {
-    return {
-      unassigned: true,
-      id: null,
-      surfaced: `no ClickUp member mapped for PMO assignee "${pmoAssigneeId}"`,
-    };
-  }
-  return { unassigned: false, id };
+/** Outbound: PMO assignee id -> ClickUp member id, or `null` when unmapped (never throws). */
+export function toClickUpAssigneeId(map: ClickUpMemberMap, pmoAssigneeId: string): number | null {
+  return map.pmoToClickUp[pmoAssigneeId] ?? null;
 }
 
 /** Inbound: ClickUp member id -> PMO assignee id, or `null` when unmapped. */
@@ -54,7 +32,7 @@ export function fromClickUpAssignee(map: ClickUpMemberMap, clickUpMemberId: numb
 // Shared per-project member-map builder (OD-INT-10 §4). Pure email join — the ONE place both
 // `external-link` and `clickup-onboard` build a `ClickUpMemberMap`, so neither can drift into
 // bespoke (or empty) logic again. Both sides expose email; unmatched members on EITHER side are
-// simply absent from the map (routine, never an error — see toClickUpAssignee above).
+// simply absent from the map (routine, never an error — see toClickUpAssigneeId above).
 // ──────────────────────────────────────────────────────────────────────────────
 
 /** A PMO profile with the fields this join needs. */

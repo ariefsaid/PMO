@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  toClickUpAssignee,
+  toClickUpAssigneeId,
   fromClickUpAssignee,
   buildClickUpMemberMap,
   type ClickUpMemberMap,
@@ -11,17 +11,14 @@ const map: ClickUpMemberMap = {
   clickUpToPmo: { 111: 'pmo-user-1' },
 };
 
-describe('AC-CUA-037 outbound: toClickUpAssignee never throws on an unmapped assignee', () => {
+describe('AC-CUA-037 outbound: toClickUpAssigneeId never throws on an unmapped assignee', () => {
   it('AC-CUA-037 a mapped PMO assignee resolves to the ClickUp member id', () => {
-    const result = toClickUpAssignee(map, 'pmo-user-1');
-    expect(result).toEqual({ unassigned: false, id: 111 });
+    expect(toClickUpAssigneeId(map, 'pmo-user-1')).toBe(111);
   });
 
-  it('AC-CUA-037 an unmapped PMO assignee returns a surfaced unassigned marker, never throws', () => {
-    expect(() => toClickUpAssignee(map, 'pmo-user-unknown')).not.toThrow();
-    const result = toClickUpAssignee(map, 'pmo-user-unknown');
-    expect(result.unassigned).toBe(true);
-    expect((result as { surfaced: string }).surfaced).toContain('pmo-user-unknown');
+  it('AC-CUA-037 an unmapped PMO assignee resolves to null, never throws', () => {
+    expect(() => toClickUpAssigneeId(map, 'pmo-user-unknown')).not.toThrow();
+    expect(toClickUpAssigneeId(map, 'pmo-user-unknown')).toBeNull();
   });
 });
 
