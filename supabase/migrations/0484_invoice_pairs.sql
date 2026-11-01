@@ -40,7 +40,7 @@ begin
   if (new.paired_erp_invoice_id is distinct from old.paired_erp_invoice_id
       or new.paired_at is distinct from old.paired_at
       or new.paired_by is distinct from old.paired_by)
-     and not (current_user = 'postgres' and current_setting('pmo.invoice_pairing', true) = 'on') then
+     and not (current_user = 'postgres' and coalesce(current_setting('pmo.invoice_pairing', true), '') = 'on') then
     raise exception 'an invoice is paired only by accepting a proposed pair' using errcode = '42501';
   end if;
   if new.erp_project is distinct from old.erp_project then
@@ -67,7 +67,7 @@ begin
      or new.tax_rate is distinct from old.tax_rate               -- 0188 (#478)
      or new.tax_template is distinct from old.tax_template       -- 0188 (#478)
      or (new.work_order_id is distinct from old.work_order_id    -- 0193 (#498): which scope grant this bills
-         and not (current_user = 'postgres' and current_setting('pmo.invoice_pairing', true) = 'on' and old.work_order_id is null)) -- 0484: a pairing may fill an empty one
+         and not (current_user = 'postgres' and coalesce(current_setting('pmo.invoice_pairing', true), '') = 'on' and old.work_order_id is null)) -- 0484: a pairing may fill an empty one
      or new.pmo_native is distinct from old.pmo_native           -- 0275 (#784)
      or new.pmo_number is distinct from old.pmo_number           -- 0275 (#784)
      or new.native_lines is distinct from old.native_lines       -- 0275 (#784)
@@ -616,6 +616,8 @@ begin
     end if;
     v_count := v_count + 1;
   end loop;
+  -- The flag is transaction-local; close it here so nothing later in the same transaction rides on it.
+  perform set_config('pmo.invoice_pairing', 'off', true);
   if v_count > 0 then
     perform public.log_audit('revenue.invoice_pair', v_org, v_uid, null, jsonb_build_object('count', v_count));
   end if;

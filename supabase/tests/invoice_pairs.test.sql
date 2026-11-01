@@ -3,7 +3,7 @@
 -- Fixtures load with no JWT (a server load); every assertion runs as a real caller.
 begin;
 create extension if not exists pgtap;
-select plan(61);
+select plan(63);
 
 -- ── fixture ────────────────────────────────────────────────────────────────────────────────────
 insert into public.organizations (id, name) values
@@ -281,6 +281,13 @@ set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a1","r
 select throws_ok($$update public.sales_invoices set paired_erp_invoice_id = '04840000-0000-0000-0000-0000000005e3' where id = '04840000-0000-0000-0000-0000000005a2'$$,
                  '42501', null, 'PD-ECA-11 a direct write of paired_erp_invoice_id by a person is refused');
 reset role;
+
+-- a server-side session (current_user = postgres, no flag) is refused too: the flag, not the role alone, opens the pin
+select throws_ok($$update public.sales_invoices set paired_erp_invoice_id = '04840000-0000-0000-0000-0000000005e3', paired_at = now(),
+                          paired_by = '04840000-0000-0000-0000-0000000000a1' where id = '04840000-0000-0000-0000-0000000005a2'$$,
+                 '42501', null, 'PD-ECA-11 the pair columns need the accept''s own flag, not just a privileged session');
+select throws_ok($$update public.sales_invoices set work_order_id = '04840000-0000-0000-0000-0000000000d1' where id = '04840000-0000-0000-0000-0000000005a2'$$,
+                 '42501', null, 'a privileged session without the pairing flag cannot fill a work order on an ERP-owned invoice');
 
 -- ── 8. revenue not employed: no pairing at all ────────────────────────────────────────────────
 delete from public.external_domain_ownership where org_id = '04840000-0000-0000-0000-000000000001' and domain = 'revenue';
