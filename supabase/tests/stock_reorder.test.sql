@@ -110,8 +110,8 @@ select is((select reorder_level::text from public.stock_reorder_levels), '42.000
 select is(public.get_reorder_suggestions('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002') #>> '{current,reorder_quantity}', '60', 'AC-STK-027 the level in force comes back beside the suggestion');
 select is(public.get_reorder_suggestions('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001001') -> 'current', 'null'::jsonb, 'AC-STK-027 and an item with no level shows none');
 reset role;                                                                                         -- audit_events is not readable by a PM
-select is((select count(*)::int from public.audit_events where action = 'stock.reorder_level.set'), 1, 'AC-STK-027 one audit row');
-select is((select detail #>> '{after,reorder_level}' from public.audit_events where action = 'stock.reorder_level.set'), '42', 'AC-STK-027 the audit row carries the after value');
+select is((select count(*)::int from public.audit_events where org_id = '15120000-0000-0000-0000-000000000001' and action = 'stock.reorder_level.set'), 1, 'AC-STK-027 one audit row');
+select is((select detail #>> '{after,reorder_level}' from public.audit_events where org_id = '15120000-0000-0000-0000-000000000001' and action = 'stock.reorder_level.set'), '42', 'AC-STK-027 the audit row carries the after value');
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a6');                                                              -- U_ENG
 select throws_ok($$ select public.set_stock_reorder_level('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002', 10, null) $$, '42501', null, 'PQ-6 an Engineer cannot set a reorder level');
 reset role;
@@ -119,7 +119,7 @@ reset role;
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');
 select public.set_stock_reorder_level('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002', 50, 60);
 reset role;
-select is((select detail #>> '{before,reorder_level}' from public.audit_events where action = 'stock.reorder_level.set' and detail #>> '{after,reorder_level}' = '50'), '42', 'AC-STK-027 the audit row of an edit carries the before value');
+select is((select detail #>> '{before,reorder_level}' from public.audit_events where org_id = '15120000-0000-0000-0000-000000000001' and action = 'stock.reorder_level.set' and detail #>> '{after,reorder_level}' = '50'), '42', 'AC-STK-027 the audit row of an edit carries the before value');
 -- FR-STK-054: the worklist (cable at CEN holds 220 on hand, level 50: not listed)
 select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');
 select public.set_stock_reorder_level('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001001', 1000, 40);
@@ -136,6 +136,6 @@ select public.stk_t_as_user('15120000-0000-0000-0000-0000000000a3');
 select public.set_stock_reorder_level('15120000-0000-0000-0000-000000002001', '15120000-0000-0000-0000-000000001002', null, null);
 select is((select count(*)::int from public.stock_reorder_levels where item_id = '15120000-0000-0000-0000-000000001002'), 0, 'FR-STK-053 clearing removes the level');
 reset role;
-select is((select (detail -> 'after')::text from public.audit_events where action = 'stock.reorder_level.set' and detail #>> '{before,reorder_level}' = '220'), 'null', 'FR-STK-053 and the audit row records the clear');
+select is((select (detail -> 'after')::text from public.audit_events where org_id = '15120000-0000-0000-0000-000000000001' and action = 'stock.reorder_level.set' and detail #>> '{before,reorder_level}' = '220'), 'null', 'FR-STK-053 and the audit row records the clear');
 select * from finish();
 rollback;
