@@ -2,7 +2,7 @@
 -- Fixture F1 + F2 of docs/plans/2026-11-01-subcontract-acceptance.md, plus S2 extras.
 begin;
 create extension if not exists pgtap;
-select plan(65);
+select plan(72);
 
 -- F1: org A (multi-member), org B (other tenant), org S (sole member). Inserted as superuser, before `set local role`.
 insert into organizations (id, name, default_currency) values
@@ -92,6 +92,17 @@ insert into purchase_order_lines (po_id, revision, boq_item_id, quantity, rate, 
 insert into purchase_order_revisions (po_id, procurement_id, revision, status, total, issued_by, issue_basis) values
   ('15130000-0000-0000-0000-00000000010b', '15130000-0000-0000-0000-0000000000fb', 1, 'Issued', 1000, '15130000-0000-0000-0000-0000000000a4', 'standard');
 update procurements set status = 'Cancelled' where id = '15130000-0000-0000-0000-0000000000fb';
+-- A live subcontract purchase that is cancelled only after a draft is prepared (confirm-side PQ-12).
+insert into procurements (id, org_id, title, project_id, requested_by_id, status, total_value, approved_total_value,
+                          approved_by_id, budget_category, currency, is_subcontract) values
+  ('15130000-0000-0000-0000-0000000000fd', '15130000-0000-0000-0000-00000000000a', 'SCA later-cancelled sub', '15130000-0000-0000-0000-0000000000d1',
+   '15130000-0000-0000-0000-0000000000a4', 'Ordered', 1000, 1000, '15130000-0000-0000-0000-0000000000a6', 'Subcontractors', 'IDR', true);
+insert into purchase_orders (id, org_id, procurement_id, po_number, status, date, currency) values
+  ('15130000-0000-0000-0000-00000000010d', '15130000-0000-0000-0000-00000000000a', '15130000-0000-0000-0000-0000000000fd', 'PO-SCA-13', 'Issued', current_date, 'IDR');
+insert into purchase_order_lines (po_id, revision, boq_item_id, quantity, rate, unit) values
+  ('15130000-0000-0000-0000-00000000010d', 1, '15130000-0000-0000-0000-0000000000e1', 1, 1000, 'm3');
+insert into purchase_order_revisions (po_id, procurement_id, revision, status, total, issued_by, issue_basis) values
+  ('15130000-0000-0000-0000-00000000010d', '15130000-0000-0000-0000-0000000000fd', 1, 'Issued', 1000, '15130000-0000-0000-0000-0000000000a4', 'standard');
 -- Draft lookup by note (the caller's RLS applies).
 create or replace function pg_temp.acc(p_note text) returns uuid language sql as $$
   select id from subcontract_acceptances where note = p_note
@@ -153,6 +164,8 @@ select lives_ok($$ select confirm_subcontract_acceptance((select id from subcont
   'AC-SCA-006 a different Finance member confirms with the signed document');
 select is((select confirm_basis from subcontract_acceptances where po_id = '15130000-0000-0000-0000-000000000101'
   and status = 'Confirmed'), 'standard', 'AC-SCA-006 basis standard is recorded');
+select is((select confirmed_by from subcontract_acceptances where po_id = '15130000-0000-0000-0000-000000000101'
+  and status = 'Confirmed'), '15130000-0000-0000-0000-0000000000a3'::uuid, 'AC-SCA-006 confirmed_by is the confirming Finance member');
 select throws_ok($$ select confirm_subcontract_acceptance((select id from subcontract_acceptances
   where po_id = '15130000-0000-0000-0000-000000000101' and status = 'Confirmed')) $$, '42501', null,
   'AC-SCA-006 a confirmed acceptance cannot be confirmed again');
@@ -242,6 +255,31 @@ select is((select count(*)::int from subcontract_acceptances where note = 'dz'),
   'FR-SCA-010 the replace keeps one header: the old note is gone');
 select is((select count(*)::int from subcontract_acceptance_lines where acceptance_id = pg_temp.acc('dz2')), 2,
   'FR-SCA-010 replacing a draft swaps its lines (two lines, not three)');
+-- Replacing another member's draft re-stamps the preparer: the replacer cannot then confirm it, the original author can.
+select lives_ok($$ select prepare_subcontract_acceptance('15130000-0000-0000-0000-000000000101', current_date,
+  '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e2","quantity":40}]', '15130000-0000-0000-0000-000000000201', 'dr') $$,
+  'FR-SCA-010 Fin1 prepares draft R');
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a3');
+select lives_ok($$ select prepare_subcontract_acceptance('15130000-0000-0000-0000-000000000101', current_date,
+  '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e2","quantity":40}]', '15130000-0000-0000-0000-000000000201', 'dr2', pg_temp.acc('dr')) $$,
+  'FR-SCA-010 Fin2 replaces Fin1''s draft R');
+select throws_ok($$ select confirm_subcontract_acceptance(pg_temp.acc('dr2')) $$, '42501',
+  'separation of duties: the preparer cannot confirm this acceptance',
+  'AC-SCA-006 the member who replaced a draft is its preparer and cannot confirm it');
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a2');
+select lives_ok($$ select confirm_subcontract_acceptance(pg_temp.acc('dr2')) $$,
+  'AC-SCA-006 the original author, no longer the preparer, confirms the replaced draft');
+-- PQ-12 at confirm: a purchase cancelled after prepare takes no confirmation.
+select lives_ok($$ select prepare_subcontract_acceptance('15130000-0000-0000-0000-00000000010d', current_date,
+  '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e1","quantity":1}]', '15130000-0000-0000-0000-000000000201', 'dc') $$,
+  'PQ-12 a draft is prepared on a live purchase');
+reset role;
+update procurements set status = 'Cancelled' where id = '15130000-0000-0000-0000-0000000000fd';
+set local role authenticated;
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a3');
+select throws_ok($$ select confirm_subcontract_acceptance(pg_temp.acc('dc')) $$, '42501', 'this purchase is closed',
+  'PQ-12 a purchase cancelled after prepare cannot have its draft confirmed');
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a2');
 -- FR-SCA-011 at confirm: the document is re-checked when the draft is confirmed, not trusted from prepare.
 select lives_ok($$ select prepare_subcontract_acceptance('15130000-0000-0000-0000-000000000101', current_date,
   '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e2","quantity":40}]', '15130000-0000-0000-0000-000000000201', 'dm') $$,
