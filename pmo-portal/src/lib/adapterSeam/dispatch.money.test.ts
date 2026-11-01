@@ -1016,7 +1016,10 @@ describe('FIX 2: a post-window recovery REISSUE re-asserts the actor authz; adop
         writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
         money: { ...fake.deps, reauthorizeRecoveryReissue },
       }),
-    ).rejects.toMatchObject({ code: 'command-held' });
+    ).rejects.toMatchObject({
+      code: 'command-held',
+      message: expect.stringContaining('actor no longer active'),
+    });
 
     expect(reauthorizeRecoveryReissue).toHaveBeenCalledTimes(1);
     expect(commit).not.toHaveBeenCalled(); // the critical assertion: NO reissue under a stale actor
