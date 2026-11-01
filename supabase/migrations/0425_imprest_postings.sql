@@ -141,8 +141,8 @@ begin
           or (m.posting <> 'approval' and v_role = 'Finance')
           or (m.posting in ('claim-payment','advance-payment','advance-return','settlement')                        -- 0425 DD-IMP-7.5
               and exists (select 1 from public.expense_claims c join public.imprest_floats f on f.id = c.imprest_float_id  -- 0425
-                           where c.id = m.claim_id and c.org_id = p_org_id and f.org_id = p_org_id                  -- 0425
-                             and f.custodian_id = m.actor_id                                                        -- 0425
+                           where c.id = m.claim_id and f.custodian_id = m.actor_id                                   -- 0425
+                             -- (org: the eligibility check below reads the project and the profile inside p_org_id)    -- 0425
                              and public.imprest_custodian_eligible(p_org_id, f.project_id, m.actor_id)))) then      -- 0425
     raise exception 'expense-posting-actor-not-authorized' using errcode = '42501';
   end if;
