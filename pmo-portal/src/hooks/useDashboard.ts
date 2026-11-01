@@ -1,16 +1,12 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { useQuery } from '@tanstack/react-query';
 import {
-  getExecutiveDashboard, type ExecutiveDashboard,
-  getPMDashboardProjects, type PMDashboardProject,
-  getWinRate, type WinRate,
-  getSalesPipeline, type SalesPipeline, type PipelineProject,
-  getFinanceBudgetReview, type BudgetReviewRow,
-} from '@/src/lib/db/dashboard';
-import { repositories } from '@/src/lib/repositories';
+  repositories,
+  type ExecutiveDashboard, type PMDashboardProject, type WinRate, type SalesPipeline,
+  type PipelineProject, type BudgetReviewRow, type ProjectWithRefs, type ProjectStatus,
+} from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
-import { ON_HAND_STATUSES, type ProjectStatus } from '@/src/lib/db/projectTransitions';
-import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 
 /** Org-scoped executive dashboard aggregates. queryKey includes org_id so cache is tenant-scoped
  * (FR-QRY-DASH-001). Aggregates are computed in SQL (RPC) and RLS-scoped to the caller's org. */
@@ -19,7 +15,7 @@ export function usePMDashboardProjects() {
   const orgId = currentUser?.org_id;
   return useQuery<PMDashboardProject[]>({
     queryKey: ['pm-dashboard-projects', orgId, currentUser?.id],
-    queryFn: getPMDashboardProjects,
+    queryFn: () => repositories.dashboard.pmProjects(),
     enabled: Boolean(orgId && currentUser?.id),
   });
 }
@@ -29,7 +25,7 @@ export function useDashboard() {
   const orgId = currentUser?.org_id;
   return useQuery<ExecutiveDashboard>({
     queryKey: ['dashboard', orgId],
-    queryFn: () => getExecutiveDashboard(),
+    queryFn: () => repositories.dashboard.executive(),
     enabled: Boolean(orgId),
   });
 }
@@ -55,7 +51,7 @@ export function useWinRate(range: WinRateRange) {
   const orgId = currentUser?.org_id;
   return useQuery<WinRate>({
     queryKey: ['win-rate', orgId, range.key],
-    queryFn: () => getWinRate(range.from, range.to),
+    queryFn: () => repositories.dashboard.winRate(range.from, range.to),
     enabled: Boolean(orgId),
   });
 }
@@ -69,7 +65,7 @@ export function useSalesPipeline(opts?: { enabled?: boolean }) {
   const orgId = currentUser?.org_id;
   return useQuery<SalesPipeline>({
     queryKey: ['sales-pipeline', orgId],
-    queryFn: () => getSalesPipeline(),
+    queryFn: () => repositories.dashboard.salesPipeline(),
     enabled: Boolean(orgId) && opts?.enabled !== false,
   });
 }
@@ -117,7 +113,7 @@ export function useFinanceBudgetReview() {
   const orgId = currentUser?.org_id;
   return useQuery<BudgetReviewRow[]>({
     queryKey: ['finance-budget-review', orgId],
-    queryFn: () => getFinanceBudgetReview(),
+    queryFn: () => repositories.dashboard.financeBudgetReview(),
     enabled: Boolean(orgId),
   });
 }

@@ -212,7 +212,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // 'workOrderAcceptance' from contract quantities (migration 0337, ADR-0091): allocations + BAST RPCs.
       // 'imprest' from site cash (#1515 S4+S5).
       // 'stock' from inventory master data (#1512 S1, migration 0412); S2a+ add documents and reports to it.
-      ['agentAttachment', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'document', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'odoo', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'recordHistory', 'reports', 'revenue', 'stock', 'task', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
+      ['agentAttachment', 'agentRun', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dashboard', 'document', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'odoo', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'recordHistory', 'reports', 'revenue', 'stock', 'task', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
     );
   });
 
@@ -249,7 +249,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
   });
 
   it('orgSettings exposes its expected methods (OD-TAX-1 0207; #762 withholding; #803 spend approvers 0243)', () => {
-    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['addSpendApprover', 'getProjectClassificationOptions', 'getDownPaymentItem', 'getProcurementGates', 'getProjectNumberPattern', 'getProjectNumberTimezone', 'getTaxDefault', 'getVendorTaxAccounts', 'getWithholdingAccount', 'listSpendApprovers', 'removeSpendApprover', 'setProjectClassificationOptions', 'setDownPaymentItem', 'setProcurementGates', 'setProjectNumberPattern', 'setTaxDefault', 'setVendorTaxAccounts', 'setWithholdingAccount'].sort());
+    expect(Object.keys(repositories.orgSettings).sort()).toEqual(['addSpendApprover', 'getDefaultCurrency', 'getLifecycleState', 'getLocaleDefaults', 'getProjectClassificationOptions', 'getDownPaymentItem', 'getProcurementGates', 'getProjectNumberPattern', 'getProjectNumberTimezone', 'getTaxDefault', 'getVendorTaxAccounts', 'getWithholdingAccount', 'listSpendApprovers', 'removeSpendApprover', 'setProjectClassificationOptions', 'setDownPaymentItem', 'setProcurementGates', 'setProjectNumberPattern', 'setTaxDefault', 'setVendorTaxAccounts', 'setWithholdingAccount'].sort());
   });
 
   it('procurementFiles exposes its expected methods', () => {
@@ -307,6 +307,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // 'setEfaktur' added deliberately with #893 (DD-EFK-1): the PMO-only vendor e-Faktur setter.
       [
         'approveAmount',
+        'captureVendorInvoice',
         'create',
         'createDocument',
         'createInvoice',
@@ -323,9 +324,12 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'deleteDocument',
         'deleteItem',
         'get',
+        'getProjectCommittedSpend',
+        'getProjectReservedSpend',
         'itemValuesEditable',
         'linkMicrosoftDocument',
         'list',
+        'listByProject',
         'listByVendor',
         'listDocuments',
         'selectQuote',

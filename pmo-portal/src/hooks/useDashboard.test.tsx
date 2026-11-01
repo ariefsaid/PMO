@@ -36,8 +36,17 @@ vi.mock('@/src/auth/useAuth', () => ({
 // useLostDeals reads the projects repository directly (not the dashboard RPC) and hand-maps the
 // row into the PipelineProject shape — a mapping no other test exercises, because every page-level
 // test mocks this whole module and supplies the mapped result ready-made.
-vi.mock('@/src/lib/repositories', () => ({
+vi.mock('@/src/lib/repositories', async () => {
+  const dash = await import('@/src/lib/db/dashboard');
+  return {
   repositories: {
+    // The dashboard repository delegates to the mocked DAL above, so the assertions stay on the DAL calls.
+    dashboard: {
+      executive: () => dash.getExecutiveDashboard(),
+      pmProjects: () => dash.getPMDashboardProjects(),
+      winRate: (from?: Date, to?: Date) => dash.getWinRate(from, to),
+      salesPipeline: () => dash.getSalesPipeline(),
+    },
     project: {
       list: vi.fn().mockResolvedValue([
         {
@@ -55,7 +64,8 @@ vi.mock('@/src/lib/repositories', () => ({
       ]),
     },
   },
-}));
+};
+});
 
 import { useDashboard, useWinRate, useSalesPipeline, useLostDeals, useWonDeals, usePMDashboardProjects } from './useDashboard';
 import { getExecutiveDashboard, getWinRate, getSalesPipeline, getPMDashboardProjects } from '@/src/lib/db/dashboard';

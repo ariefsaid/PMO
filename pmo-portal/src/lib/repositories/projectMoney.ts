@@ -1,12 +1,8 @@
-import { toAppError } from '@/src/lib/appError';
-import { getProjectsMoneyCollection, type ProjectMoneyRead } from '@/src/lib/db/projectMoney';
+/** Project money repository implementation. */
+import { getProjectsMoneyCollection } from '@/src/lib/db/projectMoney';
+import { wrap } from './repositoryErrors';
+import type { ProjectMoneyRepository } from './contracts/projectMoney';
 
-export const projectMoneyRepository = {
-  async collection(ids: string[]): Promise<Record<string, ProjectMoneyRead>> {
-    try {
-      return await getProjectsMoneyCollection(ids);
-    } catch (error) {
-      throw toAppError(error);
-    }
-  },
+export const projectMoneyRepository: ProjectMoneyRepository = {
+  collection: (ids) => wrap(() => getProjectsMoneyCollection(ids)),
 };

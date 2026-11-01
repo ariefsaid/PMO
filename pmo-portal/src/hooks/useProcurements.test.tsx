@@ -5,7 +5,6 @@ import React from 'react';
 
 const { ownershipState, ledgerSignal } = vi.hoisted(() => ({ ownershipState: { data: [] as { id: string; orgId: string; externalTier: string; domain: string }[] | undefined, isPending: false, isError: false }, ledgerSignal: vi.fn().mockResolvedValue(false) }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ownershipState }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { revenue: { getOrgReadsErpLedger: () => ledgerSignal() } } }));
 vi.mock('@/src/lib/db/procurements', () => ({ 
   listProcurements: vi.fn().mockResolvedValue([
     { id: 'pc1', title: 'Workstations & AV', project: null, vendor: null, requested_by: null },
@@ -17,6 +16,22 @@ vi.mock('@/src/lib/db/procurements', () => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
+
+// The procurement repository methods delegate to the mocked DAL, so every assertion below stays on the DAL calls.
+vi.mock('@/src/lib/repositories', async () => {
+  const dal = await import('@/src/lib/db/procurements');
+  return {
+    repositories: {
+      revenue: { getOrgReadsErpLedger: () => ledgerSignal() },
+      procurement: {
+        list: (opts?: Parameters<typeof dal.listProcurements>[0]) => dal.listProcurements(opts),
+        listByProject: (id: string) => dal.listProcurementsByProject(id),
+        getProjectCommittedSpend: (id: string) => dal.getProjectCommittedSpend(id),
+        getProjectReservedSpend: (id: string) => dal.getProjectReservedSpend(id),
+      },
+    },
+  };
+});
 
 import { procurementsKey, useProcurements, useProjectProcurements, useProjectCommittedSpend, useProjectReservedSpend } from './useProcurements';
 import { listProcurements, listProcurementsByProject, getProjectCommittedSpend, getProjectReservedSpend } from '@/src/lib/db/procurements';

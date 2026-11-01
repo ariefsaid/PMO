@@ -1,6 +1,12 @@
 /** Procurement case and phase-file repository implementations, including the externally-owned record creators. */
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
-import { listProcurements, listProcurementsByVendor } from '@/src/lib/db/procurements';
+import {
+  listProcurements,
+  listProcurementsByVendor,
+  listProcurementsByProject,
+  getProjectCommittedSpend,
+  getProjectReservedSpend,
+} from '@/src/lib/db/procurements';
 import { approveProcurementAmount } from '@/src/lib/db/procurementPaymentCeiling';
 import {
   createPurchaseRequest,
@@ -18,6 +24,7 @@ import {
   createQuotation,
   createReceipt,
   createInvoice,
+  captureVendorInvoice,
   setProcurementInvoiceEfaktur,
   type ProcurementReceiptRow,
   type ProcurementInvoiceRow,
@@ -52,11 +59,16 @@ import {
 } from '@/src/lib/db/procurementFiles';
 import { wrap } from './repositoryErrors';
 import { dispatchCreate } from './repositoryDispatch';
-import type { ProcurementFileRepository, ProcurementRepository } from './contracts/procurement';
+import type { ProcurementFileRepository, ProcurementListOptions, ProcurementRepository } from './contracts/procurement';
 
 export const procurementRepository: ProcurementRepository = {
   itemValuesEditable: (id) => wrap(() => procurementItemValuesEditable(id)),
-  list: () => wrap(() => listProcurements()),
+  // Options are forwarded only when supplied, so a bare call keeps its exact zero-arg DAL shape.
+  list: ((opts?: ProcurementListOptions) => wrap(() => (opts ? listProcurements(opts) : listProcurements()))) as ProcurementRepository['list'],
+  listByProject: (projectId) => wrap(() => listProcurementsByProject(projectId)),
+  getProjectCommittedSpend: (projectId) => wrap(() => getProjectCommittedSpend(projectId)),
+  getProjectReservedSpend: (projectId) => wrap(() => getProjectReservedSpend(projectId)),
+  captureVendorInvoice: (input) => wrap(() => captureVendorInvoice(input)),
   listByVendor: (vendorId) => wrap(() => listProcurementsByVendor(vendorId)),
   get: (id) => wrap(() => getProcurementDetail(id)),
   // Task 4.9 (finding-3 path fix): the case-AGGREGATE status transition is PMO-derived, never an ERP
