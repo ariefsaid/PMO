@@ -1,6 +1,9 @@
 /** Revenue (sales invoices / incoming payments) repository contract. */
 import type { CommandIntent } from './commandIntent';
-import type { SalesInvoiceRow, IncomingPaymentRow, RevenueByProjectRow } from '@/src/lib/db/revenue';
+import type {
+  SalesInvoiceRow, IncomingPaymentRow, RevenueByProjectRow,
+  InvoicePairProposal, UnpairedNativeInvoice, AcceptedInvoicePair,
+} from '@/src/lib/db/revenue';
 import type { ProjectFinances } from '@/src/lib/projectFinances';
 import type { BillingKind } from '@/src/lib/billingKind';
 
@@ -58,5 +61,13 @@ export interface RevenueRepository {
   getProjectFinances(projectId: string): Promise<ProjectFinances>;
   /** Server-authoritative, caller-org ERP ledger basis signal. */
   getOrgReadsErpLedger(): Promise<boolean>;
+  /** ECA-5 FR-ECA-040: PMO-raised invoices that match an ERP invoice already in PMO (Admin/Finance, RPC-enforced). */
+  proposeInvoicePairs(): Promise<InvoicePairProposal[]>;
+  /** ECA-5: accept pairs in bulk; the PMO copy stops counting and the ERP invoice counts once. Returns how many applied. */
+  acceptInvoicePairs(pairs: Array<{ pmoInvoiceId: string; erpInvoiceId: string }>): Promise<number>;
+  /** ECA-5: PMO invoices that keep counting as they are, with the reason they were not paired. */
+  listUnpairedNativeInvoices(): Promise<UnpairedNativeInvoice[]>;
+  /** ECA-5: PMO invoices already counted as an ERP invoice. */
+  listAcceptedInvoicePairs(): Promise<AcceptedInvoicePair[]>;
 
 }

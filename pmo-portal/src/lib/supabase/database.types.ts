@@ -8400,6 +8400,9 @@ export type Database = {
           native_lines: Json | null
           org_id: string
           overpaid_amount: number | null
+          paired_at: string | null
+          paired_by: string | null
+          paired_erp_invoice_id: string | null
           pmo_native: boolean
           pmo_number: string | null
           project_id: string | null
@@ -8440,6 +8443,9 @@ export type Database = {
           native_lines?: Json | null
           org_id?: string
           overpaid_amount?: number | null
+          paired_at?: string | null
+          paired_by?: string | null
+          paired_erp_invoice_id?: string | null
           pmo_native?: boolean
           pmo_number?: string | null
           project_id?: string | null
@@ -8480,6 +8486,9 @@ export type Database = {
           native_lines?: Json | null
           org_id?: string
           overpaid_amount?: number | null
+          paired_at?: string | null
+          paired_by?: string | null
+          paired_erp_invoice_id?: string | null
           pmo_native?: boolean
           pmo_number?: string | null
           project_id?: string | null
@@ -8501,6 +8510,20 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_invoices_paired_by_fkey"
+            columns: ["paired_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_invoices_paired_erp_invoice_id_fkey"
+            columns: ["paired_erp_invoice_id"]
+            isOneToOne: true
+            referencedRelation: "sales_invoices"
             referencedColumns: ["id"]
           },
           {
@@ -10579,6 +10602,7 @@ export type Database = {
       }
     }
     Functions: {
+      accept_invoice_pairs: { Args: { p_pairs: Json }; Returns: number }
       add_skipped_stage_entry: {
         Args: {
           p_before_entry_id: string
@@ -12192,6 +12216,13 @@ export type Database = {
         }
       }
       invoice_command_line_total: { Args: { p_payload: Json }; Returns: number }
+      invoice_pair_candidates: {
+        Args: { p_erp_id?: string; p_pmo_id?: string }
+        Returns: {
+          erp_invoice_id: string
+          pmo_invoice_id: string
+        }[]
+      }
       is_active_member:
         | { Args: never; Returns: boolean }
         | { Args: { p_user_id: string }; Returns: boolean }
@@ -12268,6 +12299,18 @@ export type Database = {
           parent_type: string
           seq: number
           source: string
+        }[]
+      }
+      list_unpaired_native_invoices: {
+        Args: never
+        Returns: {
+          amount: number
+          currency: string
+          customer_name: string
+          invoice_date: string
+          invoice_id: string
+          pmo_number: string
+          reason: string
         }[]
       }
       list_vendor_withholding_bills: {
@@ -12982,6 +13025,20 @@ export type Database = {
       propose_imprest_float_amount: {
         Args: { p_amount: number; p_float: string }
         Returns: string
+      }
+      propose_invoice_pairs: {
+        Args: never
+        Returns: {
+          ambiguous: boolean
+          amount: number
+          currency: string
+          customer_name: string
+          erp_invoice_id: string
+          erp_number: string
+          invoice_date: string
+          pmo_invoice_id: string
+          pmo_number: string
+        }[]
       }
       propose_project_number: { Args: { p_client_id: string }; Returns: string }
       purge_error_events: {

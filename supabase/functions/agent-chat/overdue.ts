@@ -107,7 +107,8 @@ export async function loadOverdueFacts(ctx: DeputyContext, now: Date): Promise<O
     } else {
       let q = sb.from('sales_invoices')
         .select('id, si_number, invoice_date, received_date, erp_due_date, erp_outstanding_amount, currency, tax_treatment, project_id, companies!sales_invoices_customer_id_fkey(name, erp_payment_terms_days)')
-        .eq('status', 'Unpaid');
+        .eq('status', 'Unpaid')
+        .is('paired_erp_invoice_id', null);   // ECA-5: a paired PMO copy is its ERP invoice's, which is reported once
       if (managedIds) q = q.in('project_id', managedIds);
       const scanned = await readRows<InvoiceRow>(
         q.order('invoice_date', { ascending: true }).limit(OVERDUE_INVOICE_SCAN_CAP + 1),

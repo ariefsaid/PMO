@@ -78,6 +78,8 @@ export interface SalesInvoiceRow {
   efaktur_number: string | null;
   /** DD-EFK-1: PMO-owned tax-invoice date (never mirrored to ERP). */
   efaktur_date: string | null;
+  /** ECA-5 (PD-ECA-11): the ERP invoice that counts for this PMO-raised invoice; set only by accepting a pair. */
+  paired_erp_invoice_id?: string | null;
 }
 
 export interface IncomingPaymentRow {
@@ -170,7 +172,7 @@ function toSalesInvoiceRow(row: Record<string, unknown>): SalesInvoiceRow {
 }
 
 export async function listSalesInvoices(
-  params?: { projectId?: string; status?: SalesInvoiceStatus; nativeOnly?: boolean },
+  params?: { projectId?: string; status?: SalesInvoiceStatus; nativeOnly?: boolean; includePaired?: boolean },
 ): Promise<SalesInvoiceRow[]> {
   const build = (from: number, to: number) => {
     let query = supabase
@@ -179,6 +181,9 @@ export async function listSalesInvoices(
     if (params?.projectId) query = query.eq('project_id', params.projectId);
     if (params?.status) query = query.eq('status', params.status);
     if (params?.nativeOnly) query = query.eq('pmo_native', true);
+    // ECA-5 (PD-ECA-11): a PMO copy paired to an ERP invoice counts through the ERP invoice only, so it leaves every list
+    // that feeds a figure. Only the pairing screen asks for it back.
+    if (!params?.includePaired) query = query.is('paired_erp_invoice_id', null);
     return query
       .order('invoice_date', { ascending: false })
       .order('created_at', { ascending: false })
@@ -432,6 +437,7 @@ export async function getRevenueByProject(): Promise<RevenueByProjectRow[]> {
       .from('sales_invoices')
       .select('id, project_id, currency, erp_outstanding_amount')
       .in('status', REVENUE_STATUSES as unknown as string[])
+      .is('paired_erp_invoice_id', null)   // ECA-5: the paired PMO copy's receivable is its ERP invoice's
       .order('id', { ascending: true });
     if (afterId !== null) query = query.gt('id', afterId);
     return query.limit(limit) as unknown as PromiseLike<PageResult<ArRow>>;
@@ -466,5 +472,88 @@ export async function getRevenueByProject(): Promise<RevenueByProjectRow[]> {
     total_amount: v.total_amount,
     open_ar: v.open_ar,
     invoice_count: v.invoice_count,
+  }));
+}
+
+// ── ECA-5: pair PMO-raised invoices with the same invoices in the ERP (AC-ECA-030) ─────────────────────────────────
+
+export interface InvoicePairProposal {
+  pmoInvoiceId: string;
+  erpInvoiceId: string;
+  /** More than one candidate on either side: listed for a person to decide, never accepted in bulk. */
+  ambiguous: boolean;
+  pmoNumber: string | null;
+  erpNumber: string | null;
+  customerName: string | null;
+  amount: number;
+  currency: string;
+  invoiceDate: string | null;
+}
+
+export type UnpairedReason = 'no-match' | 'ambiguous' | 'has-receipt';
+
+export interface UnpairedNativeInvoice {
+  invoiceId: string;
+  pmoNumber: string | null;
+  customerName: string | null;
+  invoiceDate: string | null;
+  amount: number;
+  currency: string;
+  reason: UnpairedReason;
+}
+
+export interface AcceptedInvoicePair {
+  pmoInvoiceId: string;
+  pmoNumber: string | null;
+  amount: number;
+  currency: string;
+  pairedAt: string;
+  erpNumber: string | null;
+}
+
+export async function proposeInvoicePairs(): Promise<InvoicePairProposal[]> {
+  const { data, error } = await supabase.rpc('propose_invoice_pairs');
+  if (error) throwWrite(error);
+  return (data ?? []).map((r) => ({
+    pmoInvoiceId: r.pmo_invoice_id, erpInvoiceId: r.erp_invoice_id, ambiguous: r.ambiguous,
+    pmoNumber: r.pmo_number, erpNumber: r.erp_number, customerName: r.customer_name,
+    amount: Number(r.amount), currency: r.currency, invoiceDate: r.invoice_date,
+  }));
+}
+
+/** Accepts the given pairs in one transaction; the server re-checks every pair. Returns how many were applied. */
+export async function acceptInvoicePairs(pairs: Array<{ pmoInvoiceId: string; erpInvoiceId: string }>): Promise<number> {
+  if (pairs.length === 0) return 0;
+  const { data, error } = await supabase.rpc('accept_invoice_pairs', {
+    p_pairs: pairs.map((p) => ({ pmo: p.pmoInvoiceId, erp: p.erpInvoiceId })),
+  });
+  if (error) throwWrite(error);
+  return Number(data ?? 0);
+}
+
+export async function listUnpairedNativeInvoices(): Promise<UnpairedNativeInvoice[]> {
+  const { data, error } = await supabase.rpc('list_unpaired_native_invoices');
+  if (error) throwWrite(error);
+  return (data ?? []).map((r) => ({
+    invoiceId: r.invoice_id, pmoNumber: r.pmo_number, customerName: r.customer_name, invoiceDate: r.invoice_date,
+    amount: Number(r.amount), currency: r.currency, reason: r.reason as UnpairedReason,
+  }));
+}
+
+/** PMO invoices that now count as an ERP invoice, newest first (the "already done" list of the pairing screen). */
+export async function listAcceptedInvoicePairs(): Promise<AcceptedInvoicePair[]> {
+  type Row = { id: string; pmo_number: string | null; amount: number | null; currency: string; paired_at: string; erp: { si_number: string | null } | null };
+  const rows = await fetchAllPages<Row>((from, to) =>
+    supabase
+      .from('sales_invoices')
+      .select('id, pmo_number, amount, currency, paired_at, erp:sales_invoices!sales_invoices_paired_erp_invoice_id_fkey(si_number)')
+      .not('paired_erp_invoice_id', 'is', null)
+      .order('paired_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(from, to) as unknown as PromiseLike<PageResult<Row>>,
+  );
+  return rows.map((r) => ({
+    pmoInvoiceId: r.id, pmoNumber: r.pmo_number, amount: Number(r.amount ?? 0), currency: r.currency,
+    pairedAt: r.paired_at, erpNumber: r.erp?.si_number ?? null,
   }));
 }

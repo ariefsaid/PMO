@@ -7,6 +7,7 @@ const h = vi.hoisted(() => {
     Object.assign(b, {
       select: () => b,
       eq: (column: string, value: unknown) => { eqCalls.push([column, value]); return b; },
+      is: () => b,
       order: () => b,
       range: () => b,
       then: (resolve: (v: { data: unknown[]; error: null }) => unknown) => resolve({ data: [], error: null }),

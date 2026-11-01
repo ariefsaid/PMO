@@ -128,6 +128,20 @@ describe('loadOverdueFacts — invoices (#787)', () => {
     ]);
   });
 
+  it('AC-ECA-030 an unpaid PMO copy paired to an ERP invoice is not reported overdue next to its ERP twin', async () => {
+    const rows = [
+      inv('SI-ERP', '2026-08-20', 30),
+      inv('PMO-COPY', '2026-08-20', 30, { paired_erp_invoice_id: 'erp-invoice-id' }),
+    ];
+    const { client } = fakeSupabase(world({
+      // honour the `.is(column, null)` filters the tool asked for, as PostgREST would
+      sales_invoices: (c) => rows.filter((r) => c.ops.filter((o) => o[0] === 'is')
+        .every(([, col, v]) => ((r as Record<string, unknown>)[col as string] ?? null) === v)),
+    }));
+    const facts = await loadOverdueFacts(ctx('Finance', client), NOW);
+    expect(facts.invoices?.map((i) => i.siNumber)).toEqual(['SI-ERP']);
+  });
+
   it('AC-AIN-013 selects received_date + erp_due_date, the columns the Sales Invoices Due column reads', async () => {
     const { client, calls } = fakeSupabase(world({ sales_invoices: () => [] }));
     await loadOverdueFacts(ctx('Finance', client), NOW);
