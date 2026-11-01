@@ -127,6 +127,14 @@ describe('ECA3-T3 erpnext ConnectAdapter sends (lookup-then-create, FR-ECA-020/0
     expect(posts(seen)).toHaveLength(0);
   });
 
+  it('a create past the outbox claim\'s deadline is refused before it reaches the ERP (nothing is created, the lookup still ran)', async () => {
+    const { client, seen } = fakeErp({});
+    const a = createErpnextConnectAdapter(client, 'Test Co');
+    await expect(a.sendMaster('party', { id: 'c1', name: 'PT Baja', role: 'vendor' }, 'k', { commitDeadlineAtMs: Date.now() - 1 })).rejects.toMatchObject({ code: 'external-unreachable' });
+    expect(posts(seen)).toHaveLength(0);
+    expect(seen.filter((r) => r.method === 'GET')).toHaveLength(1);
+  });
+
   it('two ERP records that match one send are refused as ambiguous, nothing is created', async () => {
     const { client, seen } = fakeErp({ Project: [
       { name: 'PROJ-1', project_name: 'Jembatan', company: 'Test Co' }, { name: 'PROJ-2', project_name: 'Jembatan', company: 'Test Co' },

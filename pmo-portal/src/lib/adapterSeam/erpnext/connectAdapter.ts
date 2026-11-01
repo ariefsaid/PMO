@@ -1,6 +1,6 @@
 import { AdapterError } from '../contract.ts';
 import type { CensusDomain, ConnectAdapter, MasterKind, NormalisedMaster, PmoMaster } from '../connect/types.ts';
-import { createDoc, erpnextRequest, listDocsByFilters, type ErpClientDeps } from './client.ts';
+import { createDoc, erpnextRequest, listDocsByFilters, withCommitDeadline, type ErpClientDeps } from './client.ts';
 import { accountCategoryKey } from '../../budget/categoryAccountMap.ts';
 export const ERP_CONNECT_PAGE = 200;
 const SPECS: Partial<Record<MasterKind, Array<{ doctype: string; fields: string[]; company: boolean; map: (r: Record<string, unknown>) => NormalisedMaster }>>> = {
@@ -104,11 +104,13 @@ export function createErpnextConnectAdapter(client: ErpClientDeps, company: stri
       }
       return total;
     },
-    async sendMaster(kind, record, _key) {
+    async sendMaster(kind, record, _key, opts) {
       const found = await findSent(client, company, kind, record);
       if (found !== null) return { externalId: found };
       const { doctype, body, id } = createBody(company, kind, record);
-      return { externalId: id(String(((await createDoc(client, doctype, body)) as { name: string }).name)) };
+      // the create is the one non-idempotent call: it carries the outbox claim's deadline (a lookup stays re-issuable)
+      const writer = opts?.commitDeadlineAtMs === undefined ? client : withCommitDeadline(client, opts.commitDeadlineAtMs);
+      return { externalId: id(String(((await createDoc(writer, doctype, body)) as { name: string }).name)) };
     },
   };
 }

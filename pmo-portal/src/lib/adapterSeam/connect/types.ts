@@ -32,6 +32,9 @@ export interface PmoMaster {
   unit?: string | null;
 }
 
+/** `commitDeadlineAtMs`: the money outbox's claim deadline; past it the create must be refused, not issued (ADR-0058 BLOCK 10). */
+export interface SendOptions { commitDeadlineAtMs?: number }
+
 export interface ConnectAdapter {
   readonly tier: string;
   /** One page of a kind, keyset-paged; `nextCursor` is null on the last page. */
@@ -39,7 +42,7 @@ export interface ConnectAdapter {
   /** Census, read-only: how many records `listMasters` would page through. */
   countDomain(domain: string): Promise<number>;
   /** Lookup-then-create: a retry with the same record finds the first attempt's document instead of creating another. */
-  sendMaster(kind: MasterKind, record: PmoMaster, key: string): Promise<{ externalId: string }>;
+  sendMaster(kind: MasterKind, record: PmoMaster, key: string, opts?: SendOptions): Promise<{ externalId: string }>;
 }
 
 export type MatchKey = 'tax' | 'code' | 'name';
