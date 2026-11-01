@@ -194,6 +194,11 @@ if [ -n "$A_SI" ] && [ "$A_SI" != null ] && [ -n "$A_PROJECT" ] && [ "$A_PROJECT
 else
   skip "assign_sales_invoice_project (sales_invoices/projects)"
 fi
+if [ -n "$A_SI" ] && [ "$A_SI" != null ]; then
+  c=$(rpc set_sales_invoice_billing_kind "{\"p_si_id\":\"$A_SI\",\"p_billing_kind\":\"other\"}")
+else
+  skip "set_sales_invoice_billing_kind (sales_invoices)"
+fi
 A_PI=$(jq -r '.[]|select(.table=="procurement_invoices")|.id' "$A_ROWS_JSON")
 A_CLAIM=$(jq -r '.[]|select(.table=="expense_claims")|.id' "$A_ROWS_JSON")
 A_BUDGET=$(jq -r '.[]|select(.table=="budget_versions")|.id' "$A_ROWS_JSON")

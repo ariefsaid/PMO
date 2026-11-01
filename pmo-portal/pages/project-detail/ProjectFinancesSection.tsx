@@ -156,10 +156,38 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
       </p>}
       {hasInvoices && onHand && <div className="min-w-0 space-y-2">
         <h3 className="text-sm font-semibold">{t('moneyDisplay.contractPosition', 'Contract invoice position')} · {project.currency}</h3>
-        <dl className="grid min-w-0 gap-4 sm:grid-cols-3">
-          {field(t('projectFinances.contractInvoiced', 'Invoiced against contract'), money(data.contract_invoiced, project.currency))}
-          {field(t('projectFinances.remaining', 'Remaining to invoice'), money(data.remaining_to_invoice, project.currency))}
-        </dl>
+        {/* #1471 FR-009/FR-010: past the contract value the section says by how much and lists the Contract invoices behind it
+            (never a bare negative remaining); an incomparable contract shows an explained unavailable line, never a zero.
+            Both sit outside the <dl>, which may hold only term/description groups. */}
+        {data.contract_excess
+          ? <div className="min-w-0" data-testid="contract-excess">
+              <p role="status" className="text-sm font-semibold tabular-nums">
+                {t('projectFinances.excessTitle', 'Invoiced above contract by {{amount}}', { amount: money(data.contract_excess.amount, project.currency) })}
+              </p>
+              {data.contract_excess.state === 'known'
+                ? <ul className="mt-2 min-w-0 divide-y divide-border/70 text-sm" aria-label={t('projectFinances.excessInvoices', 'Contract invoices behind the excess')}>
+                    {data.contract_excess.contributors.map((c) => (
+                      <li key={c.invoice_id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-1.5">
+                        <Link className="min-w-0 break-words font-medium text-primary-text underline underline-offset-2" to={`/sales-invoices/${c.invoice_id}`}>
+                          {c.invoice_number ?? t('projectFinances.excessInvoiceNoNumber', 'Invoice')}
+                        </Link>
+                        <span className="tabular-nums">{money(c.contribution, project.currency)}</span>
+                      </li>))}
+                  </ul>
+                : <p className="mt-1 text-xs text-muted-foreground">
+                    {t('projectFinances.excessDetailUnavailable', 'The invoices behind this excess could not be verified.')}{' '}
+                    <Button variant="outline" size="sm" onClick={() => void query.refetch()}>{t('projectFinances.retry', 'Retry')}</Button>
+                  </p>}
+            </div>
+          : <>
+              <dl className="grid min-w-0 gap-4 sm:grid-cols-3">
+                {field(t('projectFinances.contractInvoiced', 'Invoiced against contract'), money(data.contract_invoiced, project.currency))}
+                {data.remaining_to_invoice !== null && field(t('projectFinances.remaining', 'Remaining to invoice'), money(data.remaining_to_invoice, project.currency))}
+              </dl>
+              {data.remaining_to_invoice === null && <p className="text-xs text-muted-foreground" data-testid="contract-comparison-unavailable">
+                {t('projectFinances.contractComparisonUnavailable', 'Contract comparison unavailable: the contract value is not recorded, or a contract invoice cannot be compared (currency or tax basis).')}
+              </p>}
+            </>}
         {isTaxTreatment(project.tax_treatment) && <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} testId="project-finances-contract-basis" />}
       </div>}
       {hasInvoices && otherCurrencyCash.length > 0 && <dl className="grid min-w-0 gap-4 sm:grid-cols-3">

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveActualPosition, deriveContractRemainingFromPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isActualComplete, isProjectFinances, moneyText, moneyUnits, parseProjectReceiptCash } from './projectFinances';
+import { deriveActualPosition, deriveContractRemainingFromPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, hasCompleteActuals, isActualComplete, isProjectFinances, moneyText, moneyUnits, parseContractExcess, parseProjectReceiptCash } from './projectFinances';
 import { isMoneyAtRisk } from './dashboardConstants';
 
 describe('project receipt cash parser', () => {
@@ -251,5 +251,29 @@ describe('attributedSplit (#1271 AC-3)', () => {
     const { attributedSplit } = await import('./projectFinances');
     expect(attributedSplit({ tagged: '100.00', attributed: '40.50' })).toEqual({ attributed: '40.50', tagged: '100.00' });
     expect(attributedSplit({ tagged: null, attributed: '40.50' })).toEqual({ attributed: '40.50', tagged: null });
+  });
+});
+
+describe('parseContractExcess (FR-009/FR-010)', () => {
+  const contributor = (id: string, contribution: string) => ({ invoice_id: id, invoice_number: `SI-${id}`, invoice_date: '2026-02-01', contribution });
+  it('FR-009 is null while remaining is zero, positive or unknown', () => {
+    for (const remaining of ['0.00', '400.00', null]) expect(parseContractExcess(null, remaining)).toBeNull();
+  });
+  it('FR-009 is known when the contributors reconcile exactly to the contract billing', () => {
+    const raw = { amount: '100.00', contract_billing: '1100.00', contributors: [contributor('a', '700.00'), contributor('b', '400.00')] };
+    expect(parseContractExcess(raw, '-100.00')).toEqual({ state: 'known', amount: '100.00', contractBilling: '1100.00',
+      contributors: raw.contributors });
+  });
+  it('FR-009 derives the excess from remaining and says the detail is incomplete when contributors do not reconcile', () => {
+    const raw = { amount: '100.00', contract_billing: '1100.00', contributors: [contributor('a', '700.00')] };
+    expect(parseContractExcess(raw, '-100.00')).toEqual({ state: 'incomplete', amount: '100.00' });
+  });
+  it('FR-009 never shows a bare negative: a missing or malformed object still yields the derived excess', () => {
+    expect(parseContractExcess(undefined, '-100.00')).toEqual({ state: 'incomplete', amount: '100.00' });
+    expect(parseContractExcess({ amount: 'x' }, '-100.00')).toEqual({ state: 'incomplete', amount: '100.00' });
+  });
+  it('FR-009 refuses an excess whose amount disagrees with remaining', () => {
+    const raw = { amount: '50.00', contract_billing: '1050.00', contributors: [contributor('a', '1050.00')] };
+    expect(parseContractExcess(raw, '-100.00')).toEqual({ state: 'incomplete', amount: '100.00' });
   });
 });

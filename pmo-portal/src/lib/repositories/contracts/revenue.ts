@@ -3,6 +3,7 @@ import type { CommandIntent } from './commandIntent';
 import type { SalesInvoiceRow, IncomingPaymentRow, RevenueByProjectRow } from '@/src/lib/db/revenue';
 import type { ProjectFinances } from '@/src/lib/projectFinances';
 import type { PageParams } from '@/src/lib/pagination';
+import type { BillingKind } from '@/src/lib/billingKind';
 
 export interface RevenueRepository {
   /** Create a Sales Invoice (Draft) — mints a PMO id, dispatches when revenue is externally-owned. The number is null
@@ -13,6 +14,8 @@ export interface RevenueRepository {
     items: Array<{ item_code: string; qty: number; rate: number; description?: string }>;
     /** OD-BILL-1: the work order this invoice bills ("Invoice this work order"). */
     workOrderId?: string | null;
+    /** #1471: how the project attribution counts; omitted = Contract billing. PMO metadata, never an ERP field. */
+    billingKind?: BillingKind;
   }, intent?: CommandIntent): Promise<{ id: string; si_number: string | null }>;
   /** Create an Incoming Payment — mints a PMO id, dispatches when revenue is externally-owned. The number is null for a
    *  PMO receipt (#784: the RPC returns only the id; the list read carries its PMO number). */
@@ -49,7 +52,9 @@ export interface RevenueRepository {
   /** Revenue rollup per project — SUM(amount) grouped by project_id. */
   getRevenueByProject(): Promise<RevenueByProjectRow[]>;
   /** PMO attribution for an existing adopted invoice; does not dispatch an ERP write. */
-  setProject(siId: string, projectId: string): Promise<void>;
+  setProject(siId: string, projectId: string, billingKind?: BillingKind): Promise<void>;
+  /** #1471 FR-004: PMO-only billing-kind correction of an already-linked invoice; does not dispatch an ERP write. */
+  setBillingKind(siId: string, billingKind: BillingKind): Promise<void>;
   /** Checked project-scoped finance payload from the invoker read RPC. */
   getProjectFinances(projectId: string): Promise<ProjectFinances>;
   /** Server-authoritative, caller-org ERP ledger basis signal. */

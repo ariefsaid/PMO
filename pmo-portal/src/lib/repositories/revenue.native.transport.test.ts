@@ -52,4 +52,22 @@ describe('repositories.revenue.createInvoice — the native RPC receives the who
       p_lines: items,
     });
   });
+
+  it('FR-003 carries billingKind through repositories.revenue.createInvoice into the native RPC', async () => {
+    const items = [{ item_code: 'SVC', qty: 1, rate: 10 }];
+    await repositories.revenue.createInvoice({ customerId: 'c-1', projectId: 'p-1', items, billingKind: 'other' });
+    expect(h.rpc).toHaveBeenCalledWith('create_native_sales_invoice', {
+      p_project_id: 'p-1', p_customer_id: 'c-1', p_lines: items, p_billing_kind: 'other',
+    });
+  });
+
+  it('FR-003/FR-004 setProject carries the kind as a third argument and setBillingKind calls the narrow RPC', async () => {
+    h.rpc.mockResolvedValue({ data: null, error: null });
+    await repositories.revenue.setProject('si-1', 'p-1', 'other');
+    expect(h.rpc).toHaveBeenLastCalledWith('assign_sales_invoice_project', { p_si_id: 'si-1', p_project_id: 'p-1', p_billing_kind: 'other' });
+    await repositories.revenue.setProject('si-1', 'p-1');
+    expect(h.rpc).toHaveBeenLastCalledWith('assign_sales_invoice_project', { p_si_id: 'si-1', p_project_id: 'p-1' });
+    await repositories.revenue.setBillingKind('si-1', 'contract');
+    expect(h.rpc).toHaveBeenLastCalledWith('set_sales_invoice_billing_kind', { p_si_id: 'si-1', p_billing_kind: 'contract' });
+  });
 });

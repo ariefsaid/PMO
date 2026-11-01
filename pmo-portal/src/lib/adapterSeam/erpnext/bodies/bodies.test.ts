@@ -55,6 +55,14 @@ describe('ERP tax ownership', () => {
   });
 });
 
+describe('billing kind stays PMO metadata', () => {
+  it('FR-012 never sends the billing kind to the ERP', () => {
+    const record = rec({ items: [{ item_code: 'ITEM', qty: 1, rate: 1000 }], billingKind: 'other', billing_kind: 'other' });
+    const body = JSON.stringify(siToBody(record, { ...CTX, refs: { customer: 'Customer' } }));
+    expect(body).not.toMatch(/billing/i);
+  });
+});
+
 describe('erpnext/bodies — R9-frozen toBody', () => {
   it('R9 §1 purchaseInvoice.ts: {supplier, items:[{item_code,qty,rate}]}', () => {
     const body = piToBody(rec({ items: [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 150000 }] }), CTX);
