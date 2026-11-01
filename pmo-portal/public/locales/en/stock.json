@@ -178,7 +178,8 @@
     "onHand": "On hand",
     "documents": "Documents",
     "ledger": "Ledger",
-    "setup": "Setup"
+    "setup": "Setup",
+    "reorder": "Reorder"
   },
   "onHand": {
     "title": "Stock on hand",
@@ -194,6 +195,7 @@
       "warehouse": "Warehouse",
       "allWarehouses": "All warehouses",
       "search": "Search items",
+      "belowReorder": "Below reorder level",
       "includeZero": "Show zero balances"
     },
     "tiles": {
@@ -472,5 +474,62 @@
     "duplicate": "This item already has an allowance on this work item; change it in the list.",
     "loadError": "Allowances could not be loaded."
   },
-  "issueOverAllowance": "Over allowance: {{workItem}} has now used {{used}} of {{planned}} {{unit}} planned. The issue is posted; this is a flag, not a block."
+  "issueOverAllowance": "Over allowance: {{workItem}} has now used {{used}} of {{planned}} {{unit}} planned. The issue is posted; this is a flag, not a block.",
+  "reorder": {
+    "title": "Reorder levels",
+    "description": "Set when each item needs ordering. A suggestion from past usage appears beside the figures; nothing changes until you accept it or save a value.",
+    "panel": {
+      "title": "Set a reorder level",
+      "item": "Item",
+      "warehouse": "Warehouse",
+      "warehousePlaceholder": "Choose a warehouse",
+      "pick": "Choose an item and a warehouse to see a suggestion.",
+      "current": "Level in force: {{level}} {{unit}}",
+      "currentQuantity": "order {{quantity}} {{unit}}",
+      "noCurrent": "No reorder level is set here.",
+      "suggestedLevel": "Suggested level",
+      "suggestedQuantity": "Suggested order quantity",
+      "basis": "Based on {{usage}} {{unit}} used over {{days}} days ({{avg}} a day), {{lead}} days lead time plus {{safety}} days safety, and a {{cycle}}-day order cycle.",
+      "insufficient": "Not enough history for a suggestion. It needs at least {{minDays}} days of history and {{minMoves}} usage movements; this item has {{days}} days and {{moves}}.",
+      "level": "Reorder level",
+      "quantity": "Order quantity (optional)",
+      "accept": "Accept suggestion",
+      "edit": "Edit",
+      "save": "Save level",
+      "cancel": "Cancel",
+      "clear": "Clear level",
+      "setManually": "Set a level"
+    },
+    "worklist": {
+      "title": "Below reorder level",
+      "emptyTitle": "Nothing is below its reorder level",
+      "emptySub": "Items appear here when stock at a warehouse falls to its level.",
+      "columns": {
+        "item": "Item",
+        "warehouse": "Warehouse",
+        "onHand": "On hand",
+        "level": "Reorder level",
+        "orderQuantity": "Order quantity",
+        "actions": "Actions"
+      },
+      "edit": "Edit",
+      "clear": "Clear",
+      "rowEdit": "Edit level for {{item}}",
+      "rowClear": "Clear level for {{item}}"
+    },
+    "confirmClear": {
+      "title": "Clear this reorder level",
+      "description": "{{item}} at {{warehouse}} will no longer appear on the list below.",
+      "confirm": "Clear level"
+    },
+    "toast": {
+      "saved": "Reorder level saved",
+      "cleared": "Reorder level cleared",
+      "failed": "Could not change the reorder level"
+    },
+    "errors": {
+      "levelInvalid": "Enter a level of 0 or more, with at most 3 decimals.",
+      "quantityInvalid": "Enter a quantity above 0, with at most 3 decimals, or leave it empty."
+    }
+  }
 }

@@ -2375,3 +2375,16 @@ begin
     jsonb_build_array(jsonb_build_object('item_id',c||'000000001001','quantity',3,'source_line_id',v_line)), true, (c||'0000000f0104')::uuid);
   perform set_config('request.jwt.claims', '', true);
 end $$;
+
+-- #1512 S6 reorder levels, set THROUGH the RPC as the seeded Admin. Cement at Site A (16 on hand) and sand at Site B (5,000) end below
+-- their level and so appear on the worklist; rebar and cable sit above theirs. History is too short for a suggestion on any seeded pair.
+do $$
+declare c text := '15121000-0000-0000-0000-';
+begin
+  perform set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a5","role":"authenticated"}', true);
+  perform public.set_stock_reorder_level((c||'000000002002')::uuid, (c||'000000001001')::uuid, 60, 100);
+  perform public.set_stock_reorder_level((c||'000000002003')::uuid, (c||'000000001005')::uuid, 6000, 10000);
+  perform public.set_stock_reorder_level((c||'000000002002')::uuid, (c||'000000001002')::uuid, 800, 1500);
+  perform public.set_stock_reorder_level((c||'000000002002')::uuid, (c||'000000001003')::uuid, 200, 400);
+  perform set_config('request.jwt.claims', '', true);
+end $$;

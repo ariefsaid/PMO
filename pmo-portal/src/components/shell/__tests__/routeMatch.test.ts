@@ -406,7 +406,7 @@ describe('breadcrumbForPath: Stock module (#1512 S3)', () => {
     expect(crumbs[0].label).toBe('Stock');
     expect(crumbs[1].label).toBe('ISS-1');
   });
-  it.each([['/stock/ledger', 'Ledger'], ['/stock/documents', 'Documents'], ['/stock/new/issue', 'Issue to project'], ['/stock/new/receive', 'Receive'], ['/stock/new/count', 'Stock count'], ['/stock/new/adjustment', 'Adjustment']])('%s reads [Stock > %s]', (p, label) => {
+  it.each([['/stock/ledger', 'Ledger'], ['/stock/reorder', 'Reorder'], ['/stock/documents', 'Documents'], ['/stock/new/issue', 'Issue to project'], ['/stock/new/receive', 'Receive'], ['/stock/new/count', 'Stock count'], ['/stock/new/adjustment', 'Adjustment']])('%s reads [Stock > %s]', (p, label) => {
     const crumbs = breadcrumbForPath(p);
     expect(crumbs.map((c) => c.label)).toEqual(['Stock', label]);
   });

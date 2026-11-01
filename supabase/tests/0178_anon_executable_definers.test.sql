@@ -131,6 +131,9 @@
 --
 -- ⚑ AMENDED BY 0423 (#1515): two replenishment writers join (+2, count 101). transition_expense_claim and
 -- record_expense_advance_return were already retained. Proven by imprest_replenishment pgTAP.
+-- ⚑ AMENDED BY 0418 (#1512 S6): `set_stock_reorder_level` joins the retained set (+1, count 102, re-derived by hand from the list). A SECURITY
+-- DEFINER writer (reorder levels have no client write grant); it gates on active membership, rank >= 20 and the JWT org;
+-- stock_reorder.test.sql proves the contract.
 --
 -- The budget import and procurement import-run commands retain authenticated access;
 -- their owning proofs are 0397_budget_import_protocol.test.sql and
@@ -247,6 +250,7 @@ insert into client_callable_rpc_names (proname) values
   ('set_project_contract_value'),
   ('set_sales_invoice_efaktur'),
   ('set_sales_invoice_received_date'),
+  ('set_stock_reorder_level'),
   ('set_stock_warehouse_keeper'),
   ('set_imprest_procurement_limit'),
   ('set_vendor_tax_defaults'),
@@ -287,8 +291,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  101,
-  'AC-ACL-002 all 101 retained client-callable RPC names still have a public function');
+  102,
+  'AC-ACL-002 all 102 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -297,8 +301,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  101,
-  'AC-ACL-003 all 101 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  102,
+  'AC-ACL-003 all 102 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. Retained names exempt authenticated grants only;
