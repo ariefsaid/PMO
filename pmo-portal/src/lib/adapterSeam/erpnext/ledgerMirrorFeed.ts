@@ -79,6 +79,8 @@ export interface LedgerFeedSelectBuilder extends PromiseLike<{ data: unknown[] |
   order(column: string, opts?: { ascending?: boolean }): LedgerFeedSelectBuilder;
   /** The KEYSET cursor: resume strictly AFTER the last row of the previous page. */
   gt(column: string, value: string): LedgerFeedSelectBuilder;
+  /** `column IN (values)` — the bounded lookup of just the rows a tick changed or touched. */
+  in(column: string, values: string[]): LedgerFeedSelectBuilder;
   /** One page's size. Without a bound PostgREST silently caps the response at `db-max-rows`. */
   limit(n: number): LedgerFeedSelectBuilder;
   maybeSingle(): Promise<{ data: unknown; error: { message: string; code?: string } | null }>;
@@ -139,7 +141,7 @@ export async function feedLedgerMirrors(
     });
   const glFed = gl.fed;
   // Held at the first voucher not yet replaced (the per-tick budget ran out): the next tick re-reads from it.
-  const glNext = gl.holdAt ?? maxModified(glResult.rows);
+  const glNext = gl.holdAt ?? (glResult.cursor ?? maxModified(glResult.rows));
   const glCaughtUp = glResult.caughtUp && gl.holdAt === null;
   let glFinalCursor: string | null;
   if (fullReplay) {
@@ -169,7 +171,7 @@ export async function feedLedgerMirrors(
       const r = await fetchPaymentLedgerEntries(client, { company, voucher, maxPages: VOUCHER_MAX_PAGES });
       return { caughtUp: r.caughtUp, rows: r.rows.map(pleRowToMirror) };
     });
-  const pleNext = ple.holdAt ?? maxModified(pleResult.rows);
+  const pleNext = ple.holdAt ?? (pleResult.cursor ?? maxModified(pleResult.rows));
   const pleCaughtUp = pleResult.caughtUp && ple.holdAt === null;
   const pleFinalCursor = await advanceWm(serviceClient, orgId, LEDGER_PLE_WM_DOMAIN, pleNext, pleCursor);
   if (pleRepair !== null && pleCaughtUp) {
@@ -274,10 +276,28 @@ export const VOUCHER_MAX_PAGES = 20;
  *  150 s wall clock; the cursor holds at the first voucher not reached, so the rest finish next tick. */
 export const VOUCHER_REPLACES_PER_TICK = 25;
 
+/** Values per `IN (…)` lookup: keeps the request URL small; each batch is keyset-paged, never truncated. */
+const LOOKUP_BATCH = 200;
+
+/** One bounded mirror lookup, keyset-paged over the mirror's uuid PK; `narrow` adds the `IN` predicate. */
+function readMirrorRows<T extends { id: string }>(
+  sc: LedgerFeedServiceClient,
+  ledger: LedgerTable,
+  orgId: string,
+  narrow: (q: LedgerFeedSelectBuilder) => LedgerFeedSelectBuilder,
+): Promise<T[]> {
+  return fetchAllRowsByKeyset<T>((afterId, limit) => {
+    const q = narrow(sc.from(ledger.table).select(ledger.scanColumns).eq('org_id', orgId))
+      .order(MIRROR_SCAN_ORDER, { ascending: true });
+    return (afterId === null ? q : q.gt(MIRROR_SCAN_ORDER, afterId))
+      .limit(limit) as PromiseLike<{ data: T[] | null; error: { message: string; code?: string } | null }>;
+  });
+}
+
 const voucherKey = (type: unknown, no: unknown): string | null =>
   typeof type === 'string' && type !== '' && typeof no === 'string' && no !== '' ? JSON.stringify([type, no]) : null;
 
-/** The per-row `erp_modified >=` guarded upsert. Reads the org's existing mirror rows (PAGED), drops
+/** The per-row `erp_modified >=` guarded upsert. Reads the existing mirror rows it needs (bounded, PAGED), drops
  *  any fetched row whose `modified` is strictly older than the stored `erp_modified`, and batch-upserts
  *  the rest (the mirror's `unique(org_id, erp_name)` makes it an idempotent upsert-by-name).
  *
@@ -301,17 +321,36 @@ async function upsertMirrorRows(
 ): Promise<{ fed: number; holdAt: string | null; skipped: string[] }> {
   if (rows.length === 0) return { fed: 0, holdAt: null, skipped: [] };
   const { table } = ledger;
-  // Read existing erp_modified per erp_name for the per-row guard (one batched read).
-  const existing = new Map<string, string>();
   type MirrorKeyRow = { id: string; erp_name?: string; erp_modified?: string; voucher_type?: string | null; voucher_no?: string | null; company?: string | null };
-  const mirrored = await fetchAllRowsByKeyset<MirrorKeyRow>((afterId, limit) => {
-    const q = sc.from(table).select(ledger.scanColumns).eq('org_id', orgId)
-      .order(MIRROR_SCAN_ORDER, { ascending: true });
-    return (afterId === null ? q : q.gt(MIRROR_SCAN_ORDER, afterId))
-      .limit(limit) as PromiseLike<{ data: MirrorKeyRow[] | null; error: { message: string; code?: string } | null }>;
-  });
-  for (const r of mirrored) {
-    if (r.erp_name) existing.set(String(r.erp_name), String(r.erp_modified ?? ''));
+  // THEME-DATA-33: read only the mirror rows this tick needs, in bounded batches — the changed
+  // identities for the per-row guard (`unique (org_id, erp_name)`), and the touched vouchers for
+  // reposted-row detection (`(org_id, voucher_type, voucher_no)` index). Every read is keyset-paged
+  // over `id`, so no batch can be silently truncated at PostgREST's row cap, and a read error throws
+  // before any write (fail closed).
+  const existing = new Map<string, string>();
+  const names = [...new Set(rows.map((r) => String(r.erp_name)))];
+  for (let i = 0; i < names.length; i += LOOKUP_BATCH) {
+    const batch = names.slice(i, i + LOOKUP_BATCH);
+    for (const r of await readMirrorRows<MirrorKeyRow>(sc, ledger, orgId, (q) => q.in('erp_name', batch))) {
+      if (r.erp_name) existing.set(String(r.erp_name), String(r.erp_modified ?? ''));
+    }
+  }
+  const mirrored: MirrorKeyRow[] = [];
+  if (readVoucher) {
+    const touched = new Map<string, string>(); // voucher_no -> every key seen for it
+    for (const r of rows) {
+      const key = voucherKey(r.voucher_type, r.voucher_no);
+      if (key) touched.set(String(r.voucher_no), key);
+    }
+    const fetchedKeys = new Set(rows.map((r) => voucherKey(r.voucher_type, r.voucher_no)).filter((k): k is string => k !== null));
+    const nos = [...touched.keys()];
+    for (let i = 0; i < nos.length; i += LOOKUP_BATCH) {
+      const batch = nos.slice(i, i + LOOKUP_BATCH);
+      for (const m of await readMirrorRows<MirrorKeyRow>(sc, ledger, orgId, (q) => q.in('voucher_no', batch))) {
+        const key = voucherKey(m.voucher_type, m.voucher_no);
+        if (key && fetchedKeys.has(key)) mirrored.push(m);
+      }
+    }
   }
   const fresh = rows.filter((r) => {
     const name = String(r.erp_name);
