@@ -93,7 +93,8 @@
       "needsReceipt": "needs a goods receipt first"
     },
     "preCutover": "Recorded before the ERP connection, not sent",
-    "notSent": "Not sent"
+    "notSent": "Not sent",
+    "notSentReason": "Not sent: this purchase started before the ERP connection"
   },
   "gates": {
     "heading": "Purchase rules",

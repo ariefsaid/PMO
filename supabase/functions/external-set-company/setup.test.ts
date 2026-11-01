@@ -1018,38 +1018,6 @@ Deno.test("Admin employs a supported ERP domain under the authenticated org and 
     });
   });
 });
-Deno.test("AC-ECA-021 employing procurement with an open draft is refused naming the count, as a plain config refusal", async () => {
-  await withFetchMock([
-    ...base(),
-    erp("erp.example.test", /^\/api\/resource\//, () => jsonResponse({ data: [] })),
-    supabaseRpc("admin_change_domain_ownership", () =>
-      jsonResponse(
-        { code: "P0001", message: "submit or cancel the 2 draft(s) in PMO before the ERP takes this over", details: "process-drafts-open", hint: null },
-        { status: 400 },
-      )),
-  ], async () => {
-    const response = await handleSetCompanyRequest(
-      await request({ tier: "erpnext", setupAction: "employ-domain", domain: "procurement" }),
-    );
-    assertEquals(response.status, 422);
-    const body = await response.json() as { error?: string; message?: string };
-    assertEquals(body.error, "config-rejected");
-    assertEquals(body.message, "submit or cancel the 2 draft(s) in PMO before the ERP takes this over");
-  });
-});
-Deno.test("an employ failure that is not the open-drafts refusal keeps its own code", async () => {
-  await withFetchMock([
-    ...base(),
-    erp("erp.example.test", /^\/api\/resource\//, () => jsonResponse({ data: [] })),
-    supabaseRpc("admin_change_domain_ownership", () =>
-      jsonResponse({ code: "42501", message: "not authorized", details: null, hint: null }, { status: 403 })),
-  ], async () => {
-    const response = await handleSetCompanyRequest(
-      await request({ tier: "erpnext", setupAction: "employ-domain", domain: "procurement" }),
-    );
-    assertEquals((await response.json() as { error?: string }).error !== "config-rejected", true);
-  });
-});
 Deno.test("Admin party onboarding forwards only the authenticated org to the existing service handler", async () => {
   await withFetchMock([...base(), {
     label: "party-onboard",

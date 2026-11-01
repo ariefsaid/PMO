@@ -72,7 +72,8 @@ describe('AC-ECA-020 pre-cut-over purchase through the served handler', () => {
       const r = await dispatch(kind, () => jsonResponse(true));
       assertEquals(r.response.status, 409, JSON.stringify(r.body));
       assertEquals(r.body.error, 'pre-cutover');
-      assertEquals(r.checks, [{ p_procurement_id: CASE_ID }]);
+      // A payment names its bill, so a bill the ERP holds is paid there (the check answers false for it).
+      assertEquals(r.checks, [kind === 'payment' ? { p_procurement_id: CASE_ID, p_invoice_id: INVOICE_ID } : { p_procurement_id: CASE_ID }]);
       assert(nothingWritten(r.calls), 'no outbox write, ref write or ERP request');
     });
   }

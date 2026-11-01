@@ -1,5 +1,5 @@
 -- Rollback of 0481_process_domain_cutover.sql: restore the six bodies from 0180, 0373, 0099, 0273, 0189, then drop the
--- employ trigger and both new functions. Grants are unchanged (create or replace keeps them).
+-- new function. Grants are unchanged (create or replace keeps them).
 create or replace function public.create_procurement_receipt(
   p_procurement_id uuid, p_status procurement_receipt_status, p_receipt_date date,
   p_reference_number text default null,
@@ -251,6 +251,4 @@ begin
   return new;
 end; $$;
 
-drop trigger if exists external_domain_ownership_process_employable on public.external_domain_ownership;
-drop function if exists public.assert_process_domain_employable();
-drop function if exists public.pre_cutover_procurement(uuid);
+drop function if exists public.pre_cutover_procurement(uuid, uuid);

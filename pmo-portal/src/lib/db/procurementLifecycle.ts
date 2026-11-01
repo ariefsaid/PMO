@@ -253,12 +253,14 @@ export async function transitionProcurement(
 }
 
 /**
- * ECA-4 (FR-ECA-030, PD-ECA-9): was this purchase ordered before the ERP connection? The server answers from PMO's own
- * tables; `null` (a case the caller cannot see) reads as "no". The ERP write gate re-checks, so this only picks a route.
+ * ECA-4 (FR-ECA-030, PD-ECA-9): was this purchase started before the ERP connection? A payment names its bill: one the
+ * ERP holds is paid there. The server answers from PMO's own tables; `null` (a case the caller cannot see) reads as "no".
+ * The ERP write gate re-checks, so this only picks a route.
  */
-export async function isPreCutoverProcurement(procurementId: string): Promise<boolean> {
+export async function isPreCutoverProcurement(procurementId: string, invoiceId?: string): Promise<boolean> {
   const { data, error } = (await supabase.rpc('pre_cutover_procurement', {
     p_procurement_id: procurementId,
+    ...(invoiceId ? { p_invoice_id: invoiceId } : {}),
   })) as unknown as { data: boolean | null; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data === true;

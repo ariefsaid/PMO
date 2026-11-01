@@ -1,55 +1,38 @@
--- 0481_process_domain_cutover.sql — ECA-4 (#1601, FR-ECA-030/031, PD-ECA-9; OQ-ECA-1 "finish in PMO only").
+-- 0481_process_domain_cutover.sql — ECA-4 (#1601, FR-ECA-030, PD-ECA-9; OQ-ECA-1 "finish in PMO only").
 --
--- §1 Employing procurement or expenses is refused while PMO holds Draft records of that domain that the ERP would strand.
---    Generalises assert_revenue_employable (0275 §7); same serialisation on the org row.
--- §2 pre_cutover_procurement(case): the case's first purchase order predates the connection's activated_at. Definer so the
---    answer does not depend on what the caller's RLS shows; a case outside the caller's org answers null and every
---    caller treats null as a refusal (fail closed).
--- §3 A purchase started before the connection finishes in PMO: the three native RPCs and the three native-mirror guards keep
---    refusing a flipped org's writes, except on a pre-cut-over case. Each body below is the latest one (0180, 0373, 0099,
---    0273, 0189) verbatim plus that one condition. Grants are unchanged (create or replace keeps them).
+-- §1 pre_cutover_procurement(case[, bill]): the purchase's first document PMO made itself (order, receipt or bill; rows
+--    the ERP holds do not count) predates the cut-over instant, the later of the connection's activated_at and the
+--    procurement domain's employ time. Definer so the answer does not depend on what the caller's RLS shows; a case
+--    outside the caller's org answers null and every caller treats null as a refusal (fail closed). A bill the ERP holds
+--    answers false: it is paid there.
+-- §2 A purchase started before the connection finishes in PMO: the three native RPCs and the three native-mirror guards keep
+--    refusing a flipped org's writes, except on a pre-cut-over case, and the guards except only rows PMO made itself.
+--    Each body below is the latest one (0180, 0373, 0099, 0273, 0189) verbatim plus those conditions. Grants are
+--    unchanged (create or replace keeps them).
 
 -- §1 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-create or replace function public.assert_process_domain_employable() returns trigger
-  language plpgsql security definer set search_path = public as $$
-declare v_count int;
-begin
-  if new.domain not in ('procurement','expenses') then return new; end if;
-  -- Re-employing what the org already employs (admin_change_domain_ownership inserts with on conflict do nothing) takes
-  -- nothing over, so a draft raised since is not stranded by it.
-  if tg_op = 'INSERT' and exists (select 1 from public.external_domain_ownership o
-       where o.org_id = new.org_id and o.external_tier = new.external_tier and o.domain = new.domain) then return new; end if;
-  perform 1 from public.organizations o where o.id = new.org_id for no key update;
-  if new.domain = 'procurement' then
-    select count(*) into v_count from public.procurements p where p.org_id = new.org_id and p.status = 'Draft';
-  else
-    select count(*) into v_count from public.expense_claims c where c.org_id = new.org_id and c.status = 'Draft';
-  end if;
-  if v_count > 0 then
-    raise exception 'submit or cancel the % draft(s) in PMO before the ERP takes this over', v_count
-      using errcode = 'P0001', detail = 'process-drafts-open';
-  end if;
-  return new;
-end $$;
-revoke all on function public.assert_process_domain_employable() from public, anon, authenticated;
-create trigger external_domain_ownership_process_employable
-  before insert or update of domain, org_id on public.external_domain_ownership
-  for each row execute function public.assert_process_domain_employable();
-
--- §2 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-create or replace function public.pre_cutover_procurement(p_procurement_id uuid) returns boolean
+create or replace function public.pre_cutover_procurement(p_procurement_id uuid, p_invoice_id uuid default null) returns boolean
   language sql stable security definer set search_path = public as $$
-  select case when p.id is null or (auth.uid() is not null and p.org_id is distinct from public.auth_org_id()) then null
-              else coalesce((select min(po.created_at) from public.purchase_orders po where po.procurement_id = p.id)
-                            < (select b.activated_at from public.external_org_bindings b
-                                where b.org_id = p.org_id and b.status = 'active' and b.activated_at is not null
-                                order by b.activated_at limit 1), false) end
+  select case
+    when p.id is null or (auth.uid() is not null and p.org_id is distinct from public.auth_org_id()) then null
+    when exists (select 1 from public.procurement_invoices i
+                  where i.id = p_invoice_id and i.procurement_id = p.id and i.erp_docstatus is not null) then false
+    else coalesce((select min(d.at) from (
+                      select po.created_at at from public.purchase_orders po where po.procurement_id = p.id and po.erp_docstatus is null
+                      union all select r.created_at from public.procurement_receipts r where r.procurement_id = p.id and r.erp_docstatus is null
+                      union all select i.created_at from public.procurement_invoices i where i.procurement_id = p.id and i.erp_docstatus is null) d)
+                   < (select greatest(b.activated_at, o.created_at)
+                        from public.external_org_bindings b
+                        join public.external_domain_ownership o
+                          on o.org_id = b.org_id and o.external_tier = b.external_tier and o.domain = 'procurement'
+                       where b.org_id = p.org_id and b.status = 'active' and b.activated_at is not null
+                       order by b.activated_at limit 1), false) end
     from (select 1) one left join public.procurements p on p.id = p_procurement_id
 $$;
-revoke all on function public.pre_cutover_procurement(uuid) from public, anon;
-grant execute on function public.pre_cutover_procurement(uuid) to authenticated, service_role;
+revoke all on function public.pre_cutover_procurement(uuid, uuid) from public, anon;
+grant execute on function public.pre_cutover_procurement(uuid, uuid) to authenticated, service_role;
 
--- §3 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+-- §2 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 create or replace function public.create_procurement_receipt(
   p_procurement_id uuid, p_status procurement_receipt_status, p_receipt_date date,
   p_reference_number text default null,
@@ -167,7 +150,7 @@ begin
   ) then raise exception 'invoice not in this case' using errcode = '42501'; end if;
   -- Slice 6 addition (AC-ENA-072): a flipped org's payment writes must route through the ERPNext adapter.
   if public.domain_externally_owned(v_org, 'procurement')
-     and not coalesce(public.pre_cutover_procurement(p_procurement_id), false) then   -- ECA-4 (PD-ECA-9)
+     and not coalesce(public.pre_cutover_procurement(p_procurement_id, p_invoice_id), false) then   -- ECA-4 (PD-ECA-9)
     raise exception 'procurement is externally-owned — payments route through the ERPNext adapter'
       using errcode = '42501';
   end if;
@@ -213,7 +196,7 @@ begin
     return new;
   end if;
   if not public.domain_externally_owned(new.org_id, 'procurement')
-     or coalesce(public.pre_cutover_procurement(new.procurement_id), false) then   -- ECA-4 (PD-ECA-9)
+     or (old.erp_docstatus is null and coalesce(public.pre_cutover_procurement(old.procurement_id), false)) then   -- ECA-4 (PD-ECA-9)
     return new;
   end if;
   if new.gr_number        is distinct from old.gr_number
@@ -243,7 +226,7 @@ begin
     return new;
   end if;
   if not public.domain_externally_owned(new.org_id, 'procurement')
-     or coalesce(public.pre_cutover_procurement(new.procurement_id), false) then   -- ECA-4 (PD-ECA-9)
+     or (old.erp_docstatus is null and coalesce(public.pre_cutover_procurement(old.procurement_id), false)) then   -- ECA-4 (PD-ECA-9)
     return new;
   end if;
   if new.vi_number             is distinct from old.vi_number
@@ -282,7 +265,7 @@ begin
     return new;
   end if;
   if not public.domain_externally_owned(new.org_id, 'procurement')
-     or coalesce(public.pre_cutover_procurement(new.procurement_id), false) then   -- ECA-4 (PD-ECA-9)
+     or (old.erp_docstatus is null and coalesce(public.pre_cutover_procurement(old.procurement_id, old.invoice_id), false)) then   -- ECA-4 (PD-ECA-9)
     return new;
   end if;
   if new.pay_number        is distinct from old.pay_number

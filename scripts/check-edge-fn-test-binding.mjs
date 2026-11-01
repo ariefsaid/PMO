@@ -31,7 +31,6 @@ const REQUIRED = {
   'supabase/functions/external-items/items.test.ts': 'handleItemsRequest',
   'supabase/functions/external-invoice-pdf/invoice-pdf.test.ts': 'handleInvoicePdfRequest',
   'supabase/functions/external-set-company/set-company.test.ts': 'handleSetCompanyRequest',
-  'supabase/functions/external-set-company/setup.test.ts': 'handleSetCompanyRequest',
   'supabase/functions/external-set-company/odoo.test.ts': 'handleSetCompanyRequest',
   'supabase/functions/external-set-company/discovery.bed.test.ts': 'handleSetCompanyRequest',
   'supabase/functions/imprest-cash-account/index.test.ts': 'handleImprestCashAccountRequest',

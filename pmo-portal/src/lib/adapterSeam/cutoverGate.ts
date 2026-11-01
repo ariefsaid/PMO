@@ -1,6 +1,6 @@
 /**
  * cutoverGate.ts — FR-ECA-030 / OQ-ECA-1: a purchase whose first ERP-bound step happened before the connection pushes no
- * later step. Tier-agnostic by construction: it asks PMO's own tables (`pre_cutover_procurement`) and runs before any
+ * later step (other than the payment of a bill the ERP holds). Tier-agnostic by construction: it asks PMO's own tables (`pre_cutover_procurement`) and runs before any
  * adapter is selected, so no ERP tier can skip it. Relative imports only (Deno-importable).
  */
 import { AppError } from '../appError.ts';
@@ -18,7 +18,9 @@ export async function assertNotPreCutover(
 ): Promise<void> {
   if (command.domain !== 'procurement' || !LATER_STEPS.has(String(command.record.erp_doc_kind))) return;
   if (typeof command.record.procurementId !== 'string') throw new AppError('purchase reference missing', 'commit-rejected');
-  const { data, error } = await client.rpc('pre_cutover_procurement', { p_procurement_id: command.record.procurementId });
+  // A payment names the bill it pays: a bill the ERP already holds is paid there, whatever the purchase's age.
+  const bill = command.record.erp_doc_kind === 'payment' && typeof command.record.invoiceId === 'string' ? { p_invoice_id: command.record.invoiceId } : {};
+  const { data, error } = await client.rpc('pre_cutover_procurement', { p_procurement_id: command.record.procurementId, ...bill });
   if (error || typeof data !== 'boolean') throw new AppError('could not check the connection date', 'commit-rejected');
-  if (data) throw new AppError('recorded before the ERP connection, not sent', 'pre-cutover');
+  if (data) throw new AppError('not sent: this purchase started before the ERP connection', 'pre-cutover');
 }

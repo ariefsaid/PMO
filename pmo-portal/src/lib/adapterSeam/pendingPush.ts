@@ -42,7 +42,7 @@ export function classifyExternalError(err: unknown): { headline: string; detail:
   const detail = err instanceof Error ? err.message : 'An error occurred';
   const code = errorCode(err);
   if (code === 'pre-cutover') {
-    return { headline: 'Recorded before the ERP connection, not sent', detail };
+    return { headline: 'Not sent: this purchase started before the ERP connection', detail };
   }
   if (code === 'external-unreachable') {
     return { headline: 'external system unreachable — try again', detail };

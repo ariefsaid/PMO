@@ -2,17 +2,30 @@ import { describe, expect, it, vi } from 'vitest';
 import { assertNotPreCutover } from './cutoverGate.ts';
 
 const CASE = '04810000-0000-4000-8000-0000000000c1';
+const BILL = '04810000-0000-4000-8000-0000000000e1';
 const clientAnswering = (data: unknown, error: { message: string } | null = null) => {
   const rpc = vi.fn().mockResolvedValue({ data, error });
   return { client: { rpc }, rpc };
 };
-const step = (erp_doc_kind: string, procurementId: unknown = CASE) => ({ domain: 'procurement', record: { erp_doc_kind, procurementId } });
+const step = (erp_doc_kind: string, procurementId: unknown = CASE) => ({ domain: 'procurement', record: { erp_doc_kind, procurementId, invoiceId: BILL } });
 
 describe('assertNotPreCutover (FR-ECA-030, OQ-ECA-1)', () => {
   it.each(['goods-receipt', 'purchase-invoice', 'payment'])('AC-ECA-020 a %s on a purchase ordered before the connection is refused as pre-cutover', async (kind) => {
     const { client, rpc } = clientAnswering(true);
     await expect(assertNotPreCutover(client, step(kind))).rejects.toMatchObject({ code: 'pre-cutover' });
-    expect(rpc).toHaveBeenCalledWith('pre_cutover_procurement', { p_procurement_id: CASE });
+    expect(rpc).toHaveBeenCalledWith('pre_cutover_procurement', { p_procurement_id: CASE, ...(kind === 'payment' ? { p_invoice_id: BILL } : {}) });
+  });
+
+  it('a payment asks about the bill it pays (a bill the ERP holds is paid there); the other steps do not name one', async () => {
+    const { client, rpc } = clientAnswering(false);
+    await assertNotPreCutover(client, { domain: 'procurement', record: { erp_doc_kind: 'payment', procurementId: CASE, invoiceId: BILL } });
+    await assertNotPreCutover(client, { domain: 'procurement', record: { erp_doc_kind: 'purchase-invoice', procurementId: CASE, invoiceId: BILL } });
+    await assertNotPreCutover(client, { domain: 'procurement', record: { erp_doc_kind: 'payment', procurementId: CASE } });
+    expect(rpc.mock.calls.map((c) => c[1])).toEqual([
+      { p_procurement_id: CASE, p_invoice_id: BILL },
+      { p_procurement_id: CASE },
+      { p_procurement_id: CASE },
+    ]);
   });
 
   it('a later step on a purchase ordered after the connection passes', async () => {

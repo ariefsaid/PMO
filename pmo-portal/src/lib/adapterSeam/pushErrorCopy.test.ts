@@ -180,18 +180,19 @@ describe('FR-ECA-030 a step on a purchase ordered before the ERP connection', ()
     const copy = describePushError('pre-cutover');
     expect(copy).toMatchObject({
       code: 'pre-cutover',
-      message: 'Recorded before the ERP connection, not sent',
+      message: 'Not sent: this purchase started before the ERP connection',
       severity: 'info',
       retryable: false,
       transport: false,
     });
     expect(copy.remedy, 'a withheld button still names where the work goes').toBeTruthy();
+    expect(copy.remedy, 'nothing was saved, and the copy says so').toMatch(/nothing was saved/i);
     expect(copy.message).not.toMatch(/error|fail|refus|reject/i);
     expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
   });
 
   it('classifies a live rejection by its code, not its prose', () => {
-    expect(describePushMutationError(new AppError('recorded before the ERP connection, not sent', 'pre-cutover')).severity).toBe('info');
+    expect(describePushMutationError(new AppError('not sent: this purchase started before the ERP connection', 'pre-cutover')).severity).toBe('info');
   });
 
   it('no other code is marked as information', () => {

@@ -76,10 +76,12 @@
   response is adopted, never re-POSTed; a probe that cannot decide holds the row (`command-held`) and the proposal returns as
   *review* "We could not confirm whether the ERP created this record" (NFR-ECA-004). Only `companies` writes `external_refs`
   through the outbox; project, item and employee links land only through `record_connect_send_result` (one link store per kind).
-- **PD-ECA-9 — Cut-over for a procurement case = its first purchase order row predates `activated_at`.** The PO is the first
-  ERP-bound document of a purchase (`dispatchProcurement.ts:133-176`). Same instant the timesheet rule uses
-  (`erpnext-sweep/index.ts:2617-2637`, `approved_at >= activated_at`). A case whose PO is created after connect pushes
-  normally even if the case was drafted before. *Review correction:* "finish in PMO only" (OQ-ECA-1) needs a PMO write path.
+- **PD-ECA-9 — Cut-over for a procurement case = its first PMO-made document (order, receipt or bill) predates the later of
+  `activated_at` and the time procurement was employed.** The PO is normally the first ERP-bound document of a purchase
+  (`dispatchProcurement.ts:133-176`), but a bill can come first (flexible entry), and a purchase ordered between connecting and
+  employing never reached the ERP, so activation alone is the wrong instant. Rows the ERP holds (`erp_docstatus` set) do not
+  count, and a bill the ERP holds is paid in the ERP. A case whose first document is created after the cut-over pushes
+  normally even if the case was drafted before. *(Fix round 2026-11-02.)* *Review correction:* "finish in PMO only" (OQ-ECA-1) needs a PMO write path.
   Once `procurement` is employed the repository routes every receipt, bill and payment to dispatch
   (`repositories/procurement.ts:66-95`, `routeDomainWrite`) and the native RPCs refuse
   (`create_procurement_receipt` `0180`, `create_procurement_invoice` and `create_payment` `0373`, plus the three
@@ -157,7 +159,7 @@
 | `supabase/functions/erpnext-onboard/index.ts` + `erpnext/onboarding.ts` | ECA-2 | — |
 | `supabase/functions/external-set-company/{index.ts,connect.ts (new),setup.ts}` | ECA-2 | ECA-3, 5 |
 | `supabase/functions/erpnext-sweep/index.ts` (connect pass) | ECA-2 | ECA-3 |
-| `supabase/functions/adapter-dispatch/{index.ts,cutoverGuard.ts (new),budgetOccupant.ts (new)}` | ECA-4 / ECA-6 | — |
+| `supabase/functions/adapter-dispatch/{index.ts,budgetOccupant.ts (new)}` (ECA-4's logic lives in `adapterSeam/cutoverGate.ts`, imported by `index.ts`) | ECA-4 / ECA-6 | — |
 | `scripts/check-edge-fn-test-binding.mjs` (`REQUIRED` map) | ECA-2 | ECA-4, 6 |
 | `pmo-portal/src/lib/adapterSeam/contractSuite/party.suite.ts` (v2 cases), `erpnext/partyAdopt.ts` (shared normaliser) | ECA-2 | — |
 | `pmo-portal/src/lib/repositories/procurement.ts` (pre-cut-over cases take the native path) | ECA-4 | — |
@@ -1310,6 +1312,13 @@ Verify: `PGT supabase/tests/erp_connect_sends.test.sql`; `DENO erpnext-sweep con
 ---
 
 ## 10. ECA-4 — cut-over for records in flight (#1601) — **ships alone**
+
+> **Fix round (Director rulings 2026-11-02).** (1) The procurement and expenses employ guard (`assert_process_domain_employable`,
+> AC-ECA-021, its setup copy and T6's employ mapping) is dropped: drafts on an employed org push normally, because their first
+> ERP step happens after employing. The guard stays for revenue (`0275` §7) and comes for inventory with #1508. (2) The
+> cut-over instant is the later of activation and employ time; the first document may be a bill or receipt, not only a PO;
+> rows the ERP holds are never exempt. (3) `cutover.revenue` and `cutover.timesheet` point at #1676. Where T1/T2/T6 below
+> still describe the employ guard, they are superseded.
 
 **Odoo parity row:** `cutover.purchase` — the guard (T4) reads PMO tables and `activated_at` only, so it is tier-agnostic;
 Odoo O2 (#1505) declares it *supported* by running `cutoverPurchaseSuite` through its purchase harness. The employ guard is

@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
+import i18next from 'i18next';
+import idProcurement from '../../../public/locales/id/procurement.json';
 import React from 'react';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -78,13 +80,26 @@ describe('TaskPushBadge — AA contrast + register + a11y (review fix #8)', () =
 });
 
 describe('TaskPushBadge — FR-ECA-030 not-sent is information', () => {
-  const notSent: PendingPushState = { status: 'not-sent', error: { headline: 'Recorded before the ERP connection, not sent', detail: 'recorded before the ERP connection, not sent' } };
+  const notSent: PendingPushState = { status: 'not-sent', error: { headline: 'Not sent: this purchase started before the ERP connection', detail: 'not sent: this purchase started before the ERP connection' } };
   it('names the state in words, carries the reason, and is not styled as a failure', () => {
     render(<TaskPushBadge state={notSent} />);
     const badge = screen.getByRole('status');
     expect(badge.textContent).toContain('Not sent');
-    expect(badge.getAttribute('title')).toBe('Recorded before the ERP connection, not sent');
+    expect(badge.getAttribute('title')).toBe('Not sent: this purchase started before the ERP connection');
+    expect(badge.getAttribute('aria-label')).toBe('Not sent: this purchase started before the ERP connection');
     expect(badge.getAttribute('style') ?? '').not.toContain('--status-lost-text');
     expect(badge.className).not.toContain('destructive');
+  });
+  it('M6 the reason is spoken in the user\'s language, not the server\'s English headline', async () => {
+    i18next.addResourceBundle('id', 'procurement', idProcurement, true, true);
+    await act(async () => { await i18next.changeLanguage('id'); });
+    try {
+      render(<TaskPushBadge state={notSent} />);
+      const badge = screen.getByRole('status');
+      expect(badge.getAttribute('aria-label')).toBe('Tidak dikirim: pembelian ini dimulai sebelum terhubung ke ERP');
+      expect(badge.textContent).toContain('Tidak dikirim');
+    } finally {
+      await act(async () => { await i18next.changeLanguage('en'); });
+    }
   });
 });

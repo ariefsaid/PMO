@@ -1,4 +1,8 @@
-/** cutover.purchase (v1) — a purchase started before the connection pushes no later step (FR-ECA-030, OQ-ECA-1). */
+/**
+ * cutover.purchase (v1) — a purchase started before the cut-over pushes no later step (FR-ECA-030, OQ-ECA-1). The suite sees
+ * only the verdict; the cut-over instant (the later of the connection and the procurement employ time) is decided in SQL
+ * and proven by pgTAP (`process_domain_cutover.test.sql`).
+ */
 import { describe, expect, it } from 'vitest';
 import type { ErpHarness } from './harness.ts';
 
@@ -12,7 +16,8 @@ export function cutoverPurchaseSuite(h: ErpHarness): void {
       },
     );
 
-    it('a purchase ordered after the connection still pushes its receipt', async () => {
+    it('a purchase ordered after the cut-over is not held back: the gate passes and the tier resolves its adapter', async () => {
+      // `pushed` here means the step got past the gate to a resolved adapter; the harness makes no document call to count.
       expect(await step('goods-receipt', false)).toMatchObject({ outcome: 'pushed' });
     });
 

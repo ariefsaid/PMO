@@ -9,6 +9,9 @@
     "discardStay": "Stay",
     "saving": "Saving…"
   },
+  "postings": {
+    "recordedBeforeConnection": "Recorded before the ERP connection"
+  },
   "accountMap": {
     "projectDirectCost": "Project direct cost"
   }

@@ -57,12 +57,8 @@ insert into procurement_quotations (id, org_id, procurement_id, vendor_id, total
   ('00970000-0000-0000-0000-000000000150','00970000-0000-0000-0000-000000000001','00970000-0000-0000-0000-000000000010','00970000-0000-0000-0000-000000000140',150,false);
 
 -- Flip org A's `procurement` domain to `erpnext`; org B stays PMO-owned (unflipped, byte-for-byte).
--- ECA-4 (FR-ECA-031): employing procurement is refused while a purchase draft is open, so the fixture case leaves
--- Draft for the flip and returns to it, keeping every assertion below on its original state.
-update procurements set status = 'Approved' where id = '00970000-0000-0000-0000-000000000010';
 insert into external_domain_ownership (org_id, external_tier, domain)
 values ('00970000-0000-0000-0000-000000000001','erpnext','procurement');
-update procurements set status = 'Draft' where id = '00970000-0000-0000-0000-000000000010';
 
 -- The case has an external document reference.
 insert into external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id)

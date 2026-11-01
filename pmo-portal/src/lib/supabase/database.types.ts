@@ -11838,7 +11838,7 @@ export type Database = {
         Returns: undefined
       }
       pre_cutover_procurement: {
-        Args: { p_procurement_id: string }
+        Args: { p_invoice_id?: string; p_procurement_id: string }
         Returns: boolean
       }
       preview_cost_attribution: {

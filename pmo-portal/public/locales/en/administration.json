@@ -166,8 +166,5 @@
     "on": "On",
     "off": "Off",
     "description": "A Feedback button in the header and, at most once every 30 days, a short question after a first task or a quarterly check-in. Never shown while someone is filling in a form. Answers carry no record contents."
-  },
-  "erpSetup": {
-    "domainDraftsOpen": "PMO still has {{count}} draft(s) that would be left behind. Submit or cancel them, then try again."
   }
 }

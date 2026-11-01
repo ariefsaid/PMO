@@ -9,6 +9,9 @@
     "discardStay": "Tetap di sini",
     "saving": "Menyimpan…"
   },
+  "postings": {
+    "recordedBeforeConnection": "Dicatat sebelum terhubung ke ERP"
+  },
   "accountMap": {
     "projectDirectCost": "Biaya langsung proyek"
   }

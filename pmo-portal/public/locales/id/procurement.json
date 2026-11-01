@@ -93,7 +93,8 @@
       "needsReceipt": "perlu penerimaan barang dulu"
     },
     "preCutover": "Dicatat sebelum terhubung ke ERP, tidak dikirim",
-    "notSent": "Tidak dikirim"
+    "notSent": "Tidak dikirim",
+    "notSentReason": "Tidak dikirim: pembelian ini dimulai sebelum terhubung ke ERP"
   },
   "gates": {
     "heading": "Aturan pembelian",

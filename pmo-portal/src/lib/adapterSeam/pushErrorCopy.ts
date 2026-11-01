@@ -130,10 +130,10 @@ const CODES: Record<string, Entry> = {
   // ── cut-over (FR-ECA-030, OQ-ECA-1) ──────────────────────────────────────────────────────────
   // Not a failure: a purchase ordered before the ERP connection is finished in PMO, on purpose.
   'pre-cutover': {
-    message: 'Recorded before the ERP connection, not sent',
+    message: 'Not sent: this purchase started before the ERP connection',
     retryable: false,
     severity: 'info',
-    remedy: 'This purchase finishes in PMO. Its open balance is entered in the ERP by your accountant.',
+    remedy: 'Nothing was saved. Record this step again in PMO: this purchase finishes there.',
   },
   // ── shared ───────────────────────────────────────────────────────────────────────────────────
   'commit-rejected': {

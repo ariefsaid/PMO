@@ -33,8 +33,9 @@ export const TaskPushBadge: React.FC<TaskPushBadgeProps> = ({ state }) => {
   if (state.status === 'idle') return null;
 
   // FR-ECA-030: the purchase predates the ERP connection and finishes in PMO. Information, not a failure: neutral, no alert icon.
+  // The reason is the translated line, not the server's English headline, so screen readers speak the user's language.
   if (state.status === 'not-sent') {
-    const reason = state.error?.headline ?? 'Recorded before the ERP connection, not sent';
+    const reason = t('procurement:ledger.notSentReason', 'Not sent: this purchase started before the ERP connection');
     return (
       <span
         role="status"
