@@ -603,6 +603,58 @@ export type Database = {
           },
         ]
       }
+      boq_material_allowances: {
+        Row: {
+          boq_item_id: string
+          created_at: string
+          id: string
+          item_id: string
+          org_id: string
+          planned_quantity: number
+          updated_at: string
+        }
+        Insert: {
+          boq_item_id: string
+          created_at?: string
+          id?: string
+          item_id: string
+          org_id?: string
+          planned_quantity: number
+          updated_at?: string
+        }
+        Update: {
+          boq_item_id?: string
+          created_at?: string
+          id?: string
+          item_id?: string
+          org_id?: string
+          planned_quantity?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "boq_material_allowances_boq_item_id_fkey"
+            columns: ["boq_item_id"]
+            isOneToOne: false
+            referencedRelation: "boq_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boq_material_allowances_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boq_material_allowances_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       budget_category_account_map: {
         Row: {
           category: Database["public"]["Enums"]["budget_category"]
@@ -9345,6 +9397,10 @@ export type Database = {
       }
     }
     Functions: {
+      boq_allowance_ok: {
+        Args: { p_boq_item_id: string; p_item_id: string }
+        Returns: boolean
+      }
       normalize_procurement_import_refs: {
         Args: { p_refs: string[] }
         Returns: { input_ref: string; normalized_ref: string }[]
@@ -10193,6 +10249,10 @@ export type Database = {
       get_procurement_gates: { Args: never; Returns: Json }
       get_project_billing: { Args: { p_project_id: string }; Returns: Json }
       get_project_budget: { Args: { p_project_id: string }; Returns: number }
+      get_project_consumption: {
+        Args: { p_from: string; p_project_id: string; p_to: string }
+        Returns: Json
+      }
       get_project_drawdown: {
         Args: { p_project_id: string }
         Returns: {

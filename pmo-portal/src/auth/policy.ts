@@ -100,7 +100,8 @@ export type Entity =
   | 'stockItem'
   | 'stockUnit'
   | 'warehouse'
-  | 'stockDocument';
+  | 'stockDocument'
+  | 'materialAllowance';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -195,6 +196,10 @@ const stockMaster = () => ({
   delete: allowUnlessViewOnly(ADMIN),
 });
 
+const allowanceWriter: Predicate = (role, ctx) =>
+  ctx.record?.viewOnly !== true &&
+  (has(MONEY_AUTHORITY, role) || (role === 'Project Manager' && !!ctx.currentUserId && ctx.record?.project_manager_id === ctx.currentUserId));
+
 const meetingAuthorOrAdmin: Predicate = (role, ctx) => {
   if (role === 'Admin') return true;
   if (!has(ALL, role)) return false;
@@ -259,6 +264,14 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   stockUnit: stockMaster(),
   /** `manage` = assign warehouse keepers (set_stock_warehouse_keeper is Admin only). */
   warehouse: { ...stockMaster(), manage: allowUnlessViewOnly(ADMIN) },
+  /** Material allowances (#1512 S5, PQ-7): mirrors `may_record_project_progress` - Finance rank and above on any project,
+   *  a PM only where `record.project_manager_id` is them. UX only; RLS is the authority. */
+  materialAllowance: {
+    view: allow(ALL),
+    create: (role, ctx) => allowanceWriter(role, ctx),
+    edit: (role, ctx) => allowanceWriter(role, ctx),
+    delete: (role, ctx) => allowanceWriter(role, ctx),
+  },
   /** Stock documents (#1512 S3): mirrors FR-STK-061/062. `isKeeper` is supplied by the screen from the keeper list. UX only; RLS/RPC is the authority. */
   stockDocument: {
     view: allow(ALL),

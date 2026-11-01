@@ -312,8 +312,10 @@
   },
   "materials": {
     "title": "Material",
-    "description": "Stok yang dikeluarkan untuk proyek ini, beserta siapa dan kapan.",
-    "issue": "Keluarkan material"
+    "description": "Material yang dipakai proyek ini per bulan dan terhadap jatahnya, beserta siapa yang mengeluarkan.",
+    "issue": "Keluarkan material",
+    "consumption": "Pemakaian",
+    "movements": "Pergerakan"
   },
   "form": {
     "unknownKind": "Jenis dokumen tidak dikenal",
@@ -422,5 +424,53 @@
       "costNeeded": "Isi biaya satuan: sistem tidak menyimpan barang ini."
     },
     "costOnFile": "Biaya satuan sudah tersimpan. Kosongkan untuk mempertahankannya."
-  }
+  },
+  "consumption": {
+    "from": "Dari bulan",
+    "to": "Sampai bulan",
+    "allowanceTitle": "Terhadap jatah",
+    "allowanceSub": "Pemakaian bersih sampai akhir bulan yang dipilih, dibandingkan kuantitas rencana tiap item pekerjaan.",
+    "monthTitle": "Per bulan",
+    "monthSub": "Dikeluarkan, dikembalikan dan pemakaian bersih per bulan, beserta siapa yang mengeluarkan.",
+    "unplannedTitle": "Dikeluarkan tanpa jatah",
+    "unplannedSub": "Material yang dipakai pada item pekerjaan yang tidak punya kuantitas rencana untuknya.",
+    "overAllowance": "Melebihi jatah",
+    "noMonths": "Tidak ada pengeluaran pada bulan-bulan ini.",
+    "empty": "Belum ada material yang dikeluarkan ke proyek ini pada bulan-bulan ini",
+    "emptySub": "Pengeluaran ke item pekerjaan proyek ini tampil di sini, per bulan.",
+    "errorTitle": "Pemakaian tidak dapat dimuat",
+    "errorSub": "Angka tidak ditampilkan daripada ditampilkan salah. Coba lagi.",
+    "columns": {
+      "month": "Bulan",
+      "workItem": "Item pekerjaan",
+      "item": "Barang",
+      "allowance": "Jatah",
+      "usedToDate": "Terpakai s.d. kini",
+      "variance": "Selisih",
+      "status": "Status",
+      "issued": "Dikeluarkan",
+      "returned": "Dikembalikan",
+      "net": "Pemakaian bersih",
+      "value": "Nilai",
+      "issuedBy": "Dikeluarkan oleh"
+    }
+  },
+  "allowance": {
+    "action": "Jatah material",
+    "title": "Jatah material",
+    "description": "Kuantitas rencana tiap barang stok untuk {{workItem}}. Pengeluaran melebihinya tetap boleh dan ditandai.",
+    "item": "Barang",
+    "quantity": "Kuantitas rencana",
+    "add": "Tambah barang",
+    "save": "Simpan",
+    "clear": "Hapus",
+    "saved": "Jatah disimpan",
+    "cleared": "Jatah dihapus",
+    "none": "Belum ada jatah untuk item pekerjaan ini.",
+    "quantityInvalid": "Isi kuantitas di atas 0, paling banyak 3 desimal.",
+    "itemRequired": "Pilih barang.",
+    "duplicate": "Barang ini sudah punya jatah pada item pekerjaan ini; ubah di daftar.",
+    "loadError": "Jatah tidak dapat dimuat."
+  },
+  "issueOverAllowance": "Melebihi jatah: {{workItem}} kini memakai {{used}} dari {{planned}} {{unit}} yang direncanakan. Pengeluaran tetap tercatat; ini penanda, bukan penghalang."
 }

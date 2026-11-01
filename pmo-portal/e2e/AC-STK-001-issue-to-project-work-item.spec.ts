@@ -5,7 +5,7 @@ import { keeperOf, makeItem, makeWarehouse, makeWorkItem, postReceive, runSuffix
 
 test.setTimeout(120_000);
 
-test('AC-STK-001: a storekeeper issues 30 of 100 bags to a project work item and sees 70 left, who did it, and the project trace', async ({ page }) => {
+test('AC-STK-001: a storekeeper issues 30 of 100 bags to a project work item and sees 70 left, who did it, the project trace, and 30 used against an allowance of 100', async ({ page }) => {
   // Given: stock in a warehouse the Engineer keeps, and a work item on an ongoing project
   const sfx = runSuffix();
   const admin = await userClient('admin@acme.test');
@@ -14,6 +14,8 @@ test('AC-STK-001: a storekeeper issues 30 of 100 bags to a project work item and
   const work = await makeWorkItem(admin, sfx);
   await keeperOf(admin, wh.id);
   await postReceive(admin, wh.id, item.id, '100');
+  const allowance = await admin.from('boq_material_allowances').insert({ boq_item_id: work.id, item_id: item.id, planned_quantity: 100 }).select('id');
+  if (allowance.error || !allowance.data?.length) throw new Error(`allowance: ${allowance.error?.message ?? 'no row'}`);
 
   // When: the Engineer issues 30 through the form
   await signIn(page, 'engineer@acme.test');
@@ -42,5 +44,15 @@ test('AC-STK-001: a storekeeper issues 30 of 100 bags to a project work item and
 
   // Then 3: the project's Materials tab shows the same issue
   await page.goto(`/projects/${SEED_PROJECT_ID}/materials`);
-  await expect(page.getByRole('row').filter({ hasText: item.code }).filter({ hasText: work.item_code }), 'the project Materials tab lists the issue').toBeVisible();
+  const movements = page.getByRole('region', { name: 'Movements' });
+  await expect(movements.getByRole('row').filter({ hasText: item.code }).filter({ hasText: work.item_code }), 'the project Materials tab lists the issue').toBeVisible();
+
+  // Then 4: the consumption report shows 30 used this month on that work item, against its allowance of 100
+  const byMonth = page.getByRole('table', { name: 'By month' }).getByRole('row').filter({ hasText: item.code }).filter({ hasText: work.item_code });
+  await expect(byMonth, 'this month: 30 issued, 30 net, issued by the Engineer').toContainText('30');
+  await expect(byMonth).toContainText('Tomas Beck');
+  const against = page.getByRole('table', { name: 'Against allowance' }).getByRole('row').filter({ hasText: item.code }).filter({ hasText: work.item_code });
+  await expect(against.getByRole('cell').nth(2), 'the allowance is 100').toHaveText(/^100\b/);
+  await expect(against.getByRole('cell').nth(3), '30 used to date').toHaveText(/^30\b/);
+  await expect(against, 'within allowance: no flag').not.toContainText('Over allowance');
 });

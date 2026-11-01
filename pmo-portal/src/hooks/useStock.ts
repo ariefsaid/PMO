@@ -4,6 +4,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import type { StockItemInput, StockUnitInput, StockWarehouseInput } from '@/src/lib/db/stockMaster';
 import type { StockDocumentFilters, StockDocumentInput } from '@/src/lib/db/stockDocuments';
 import type { StockLedgerFilters } from '@/src/lib/db/stockReports';
+import type { MaterialAllowanceInput } from '@/src/lib/db/stockAllowances';
 
 /** Stock master data reads (#1512 S1). Every key carries the org id so the cache is tenant-scoped. */
 export function useStockUnits(includeArchived = false) {
@@ -124,5 +125,29 @@ export function useStockDocumentMutations() {
     saveDraft: useMutation({ mutationFn: (a: { id: string; input: StockDocumentInput }) => d.saveDraft(a.id, a.input), onSuccess: refresh }),
     post: useMutation({ mutationFn: (a: { id: string; revision?: number }) => d.post(a.id, a.revision), onSuccess: refresh, onError: refresh }),
     cancel: useMutation({ mutationFn: (id: string) => d.cancel(id), onSuccess: refresh }),
+  };
+}
+
+/** Project consumption vs allowance (#1512 S5). The key carries the org; posting invalidates `['stock-consumption', orgId]`. */
+export function useProjectConsumption(projectId: string | undefined, from: string, to: string) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({
+    queryKey: ['stock-consumption', orgId, projectId, from, to],
+    queryFn: () => repositories.stock.consumption.report(projectId as string, from, to),
+    enabled: Boolean(orgId && projectId),
+  });
+}
+export function useAllowances(projectId: string | undefined) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({ queryKey: ['stock-allowances', orgId, projectId], queryFn: () => repositories.stock.allowances.list(projectId as string), enabled: Boolean(orgId && projectId) });
+}
+/** An allowance change moves the report's variance too, so both keys refresh. */
+export function useAllowanceMutations() {
+  const qc = useQueryClient();
+  const orgId = useAuth().currentUser?.org_id;
+  const refresh = () => { for (const k of ['stock-allowances', 'stock-consumption']) void qc.invalidateQueries({ queryKey: [k, orgId] }); };
+  return {
+    set: useMutation({ mutationFn: (i: MaterialAllowanceInput) => repositories.stock.allowances.set(i), onSuccess: refresh }),
+    clear: useMutation({ mutationFn: (id: string) => repositories.stock.allowances.clear(id), onSuccess: refresh }),
   };
 }
