@@ -4,7 +4,7 @@
 -- then an Approved plan on G with one exception item. Plan delta 8: AC-IMP-050's 800,000 is 500,000 here.
 begin;
 create extension if not exists pgtap;
-select plan(18);
+select plan(19);
 create extension if not exists dblink;
 
 
@@ -107,6 +107,8 @@ select throws_ok($$ select record_imprest_count('15150000-0000-0000-0000-0000000
   'P0001', null, 'AC-IMP-051 a negative count is refused');
 select throws_like($$ select record_imprest_count('15150000-0000-0000-0000-0000000000d2', 3950000, null) $$,
   '%note%', 'AC-IMP-051 a count with a variance and no note is refused');
+select throws_ok($$ select record_imprest_count('15150000-0000-0000-0000-0000000000d2', 3950000, ' ') $$,
+  'P0001', null, 'AC-IMP-051 the RPC itself refuses a blank note on a variance, before the table constraint');
 select lives_ok($$ select record_imprest_count('15150000-0000-0000-0000-0000000000d2', 3950000, 'one receipt missing') $$,
   'AC-IMP-051 with a note it is recorded');
 select is((select row(book_amount, variance)::text from imprest_cash_counts where float_id = '15150000-0000-0000-0000-0000000000d2'),

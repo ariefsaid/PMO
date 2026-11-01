@@ -4,7 +4,7 @@
 -- are renamed REP-FIXTURE-* (the server mints REP-<yymmdd>0001 first, as in imprest_replenishment).
 begin;
 create extension if not exists pgtap;
-select plan(9);
+select plan(11);
 create extension if not exists dblink;
 
 
@@ -139,6 +139,18 @@ select is((select count(*)::int from notifications where owner_id = '15150000-00
   'AC-IMP-062 Finance who is not the custodian hears nothing of a float record');
 set local role authenticated;
 reset role;
+
+-- The trigger's own exclusions, bound directly: through the RPC the requester is always the custodian and the acting user
+-- (whom notify_workflow_user already skips), so seed requests as superuser (no acting user) to prove each exclusion.
+insert into imprest_replenishments (id, org_id, float_id, kind, number, amount, requested_by) values
+  ('15150000-0000-0000-0000-0000000006a1', '15150000-0000-0000-0000-00000000000a', '15150000-0000-0000-0000-0000000000d1',
+   'replenishment', 'REP-FIXTURE-N1', 1, '15150000-0000-0000-0000-0000000000a4'),
+  ('15150000-0000-0000-0000-0000000006a2', '15150000-0000-0000-0000-00000000000a', '15150000-0000-0000-0000-0000000000d2',
+   'replenishment', 'REP-FIXTURE-N2', 1, '15150000-0000-0000-0000-0000000000a3');
+select is((select array_agg(owner_id) from notifications where metadata->'entity'->>'id' = '15150000-0000-0000-0000-0000000006a1'),
+  array['15150000-0000-0000-0000-0000000000a3']::uuid[], 'AC-IMP-062 a request never notifies the float''s custodian');
+select is((select array_agg(owner_id) from notifications where metadata->'entity'->>'id' = '15150000-0000-0000-0000-0000000006a2'),
+  array['15150000-0000-0000-0000-0000000000a2']::uuid[], 'AC-IMP-062 a request never notifies its requester');
 
 select * from finish();
 rollback;
