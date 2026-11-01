@@ -3,7 +3,7 @@
 -- P1 carries an active budget with PM1 as its project approver, float F an approved plan for this month (M).
 begin;
 create extension if not exists pgtap;
-select plan(18);
+select plan(20);
 
 
 insert into organizations (id, name, default_currency, default_timezone) values
@@ -137,6 +137,11 @@ update expense_claims set status = 'Submitted', submitted_at = now() + interval 
  where id in ('15150000-0000-0000-0000-000000000211', '15150000-0000-0000-0000-000000000212',
               '15150000-0000-0000-0000-000000000213');
 
+-- A float of the other org on P1 (a forged cross-org reference: nothing else would match).
+insert into imprest_floats (id, org_id, project_id, custodian_id, float_amount, currency, created_by) values
+  ('15150000-0000-0000-0000-0000000000db', '15150000-0000-0000-0000-00000000000b', '15150000-0000-0000-0000-0000000000c1',
+   '15150000-0000-0000-0000-0000000000b1', 1000000, 'IDR', '15150000-0000-0000-0000-0000000000b1');
+
 -- ── S2.1 charging rules (AC-IMP-020, 021) ──────────────────────────────────────────────────────────────────────
 set local role authenticated;
 select pg_temp.act_as('15150000-0000-0000-0000-0000000000a6');
@@ -146,6 +151,13 @@ select throws_ok($$ update expense_claims set imprest_float_id = '15150000-0000-
 select throws_ok($$ update expense_claims set budget_category = null, imprest_float_id = '15150000-0000-0000-0000-0000000000d1'
                     where id = '15150000-0000-0000-0000-000000000202' $$,
   '23514', null, 'AC-IMP-020 a float claim without a budget category is refused');
+select throws_ok($$ update expense_claims set imprest_float_id = '15150000-0000-0000-0000-0000000000db'
+                    where id = '15150000-0000-0000-0000-000000000201' $$,
+  '23514', null, 'AC-IMP-020 a float of another organization is refused');
+select throws_ok($$ insert into expense_claims (kind, title, project_id, budget_category, advance_id)
+  values ('claim', 'settles a float advance off-float', '15150000-0000-0000-0000-0000000000c1', 'Vehicle',
+          '15150000-0000-0000-0000-000000000204') $$,
+  '23514', null, 'AC-IMP-020 PQ-7 a claim settling a float advance must be charged to the same float');
 update expense_claims set imprest_float_id = '15150000-0000-0000-0000-0000000000d1'
  where id in ('15150000-0000-0000-0000-000000000201', '15150000-0000-0000-0000-000000000202');
 select throws_like($$ select transition_expense_claim('15150000-0000-0000-0000-000000000201', 'Submitted') $$,
