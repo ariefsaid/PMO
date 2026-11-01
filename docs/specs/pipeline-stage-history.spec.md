@@ -32,7 +32,10 @@
 | T12 | FE gate for moving a stage: `project.transition: allow(MASTER_DATA)` = Admin · Executive · Project Manager · Finance. Role rank (the one server definition): Admin 50 > Executive 40 > Finance 30 > Project Manager 20 > Engineer 10. There is no role literally named "Project admin" in `user_role`. | `pmo-portal/src/auth/policy.ts:223`; `pmo-portal/src/auth/coarseRoles.ts` (`MASTER_DATA_ROLES`); `supabase/migrations/0178_sod_class_completeness.sql:638-653` (`role_rank`) |
 | T13 | No outbound client **quotation document** exists. Scope searched: `supabase/migrations/`, `pmo-portal/src/`, `pmo-portal/pages/` for `sales_quotation|client_quotation|issue_quotation|quotation_document`. The `quotation` entity in `policy.ts` is the procurement **vendor** quotation. | `pmo-portal/src/auth/policy.ts:55` |
 | T14 | Org-local "today" helper exists: `native_org_today(p_org)` reads `organizations.default_timezone`. | `supabase/migrations/0275_native_revenue.sql:113-118`; column `0198_locale_preference_columns.sql:24` |
-| T15 | Day-month display helper exists and renders "12 Oct". | `pmo-portal/src/lib/format.ts:767-772` (`formatDayMonth`) |
+| T15 | Day-month display helper exists and renders "12 Oct". It formats in the **browser's** timezone (no `timeZone` option), so a calendar date must be passed as a local-midnight `Date`, never `T00:00:00Z`. | `pmo-portal/src/lib/format.ts:767-772` (`formatDayMonth`) |
+| T16 | "Advance to <stage>" on the deal page is a **single click with no confirm** (write policy OD-UX-1); only Mark lost / Declined confirm and Mark won has its inline capture. | `pmo-portal/pages/project-detail/__tests__/PipelineLens.writePolicy.test.tsx:97` (AC-IXD-WP-004) |
+| T17 | Shipped tests and flows win deals with a contract date **earlier than the day the deal was created or moved** (e.g. `0029_project_win_path.test.sql:29`, `0170_…test.sql:604`, `client_starting_data_sequence.test.sql:24`, `e2e/serial/AC-1011-win-project.spec.ts:73`). Onboarding a client's existing deals does the same. | as cited |
+| T18 | Drag-and-drop on this board (#1637, ruling #1593) moves stages through the same `transition_project` path; it adds `pages/sales-pipeline/DraggableSalesBoard.tsx` and an optional `drag` prop on `SalesKanbanBoard`, and leaves the card body unchanged. | `docs/plans/2026-11-01-board-drag-drop.md` §1.1, S3-T1 |
 
 ## 3. Terms
 
@@ -73,8 +76,14 @@
   captured at the win; when a deal is lost or declined, the system shall date the entry with `decided_at` in the
   org's timezone. When `contract_date` (or a current loss's `decided_at`) changes by any path, the matching entry
   shall follow it, so Signed always equals the contract date.
-- **FR-PSH-005 (event)** When a stage-date editor moves a stage and supplies an entered-on date, the system shall
-  date the new entry with that date instead of today, atomically with the move.
+- **FR-PSH-004a (conditional)** While earlier entries are dated after the contract date of a win (T17), when the
+  deal is won, the system shall move every such entry that the **system** dated (origination / transition /
+  backfill, never re-dated) back to the contract date and mark it re-dated; if any such entry was dated by a
+  **person** (re-dated, added, imported), the system shall refuse the win with `23514` and change nothing.
+  (OQ-PSH-9.)
+- **FR-PSH-005 (event)** When a stage moves by any path (deal page, status menu, drag-and-drop), the system shall
+  date the new entry with the org's today. Moves stay single-click (T16); backdating is done afterwards with
+  "Change date" in the history (FR-PSH-006).
 
 ### Correction (backdate / add a skipped stage)
 - **FR-PSH-006 (event)** When a stage-date editor re-dates an existing stage entry, the system shall change its
@@ -83,7 +92,8 @@
   pre-award stage (Leads … Negotiation) at a chosen journey position before an existing entry.
 - **FR-PSH-008 (ubiquitous)** The system shall refuse any write that would leave an entry dated earlier than the
   entry before it in the journey, or dated after the org's today. (Ruling: "a new entry is never dated before the
-  previous one.")
+  previous one.") The ordering half binds every write; the "not after today" half binds every date a person
+  picks (re-date, add, import). A win's Signed date is the contract date the win RPC accepts (FR-PSH-004).
 - **FR-PSH-009 (conditional)** While the entry being re-dated is a "Signed" entry, when it is re-dated, the system
   shall set the project's `contract_date` and `decided_at` to the new date in the same transaction; while the
   entry is the project's current Loss Tender / Declined entry, when it is re-dated, the system shall set
@@ -117,14 +127,18 @@
   else shall.
 
 ### Proposal from a quotation document
-- **FR-PSH-019 (optional)** Where a quotation document has been issued for the deal, when a user moves the deal to
-  Quotation Submitted (or re-dates its Quoted entry), the system shall propose the document's issue date as the
-  entered-on date; the user may accept or change it. (No such document ships today — T13; see OQ-PSH-4.)
+- **FR-PSH-019 (optional, deferred)** Where a quotation document has been issued for the deal, when a user moves
+  the deal to Quotation Submitted (or re-dates its Quoted entry), the system shall propose the document's issue
+  date as the entered-on date; the user may accept or change it. No such document ships today (T13), so this
+  FR is built by the issue that adds the outbound quotation document, on the "Change date" dialog's
+  `initialDate` (OQ-PSH-4). Nothing in this issue implements it.
 
 ### Import
 - **FR-PSH-020 (event)** When a Projects import row carries one or more stage dates (one optional column per
-  pre-award stage), the system shall create the project, record one entry per dated stage in canonical stage
-  order, and land the project at the latest dated stage.
+  pre-award stage, Lead date included), the system shall create the project, record one entry per dated stage in
+  canonical stage order, and land the project at the latest dated stage. The Leads entry takes the Lead date when
+  given; otherwise the earlier of the creation date and the first imported date (so a just-created lead can carry
+  past stage dates without breaking FR-PSH-008).
 - **FR-PSH-021 (conditional)** While an import row's stage dates are out of canonical order, in the future, or
   given for a row whose status is Internal Project, the import preview shall reject that row with zero writes.
 
@@ -139,15 +153,15 @@
   no-direct-write rule are enforced server-side (security-definer RPC + constraint trigger + RLS + grants) and
   each is proven by pgTAP; the FE gate is a UX projection only.
 - **NFR-PSH-002 (money-path safety)** The body of `transition_project` (win SoD, 0236) is **not** modified. Stage
-  entries are appended by an AFTER trigger on `projects`; the dated move is a wrapper that calls
-  `transition_project` unchanged.
+  entries are appended by an AFTER trigger on `projects`; there is no wrapper RPC and no session flag that can
+  switch the trigger off.
 - **NFR-PSH-003 (tenancy)** Every stage entry carries `org_id`, stamped server-side from the project; never sent by
   the client.
 - **NFR-PSH-004 (performance)** The card line and stage age come from the existing pipeline read (one indexed
   lateral lookup per row on `(project_id, position desc)`); no extra request per card. The won/lost columns use
   `contract_date` / `decided_at` already on the project row.
 - **NFR-PSH-005 (reversibility)** One forward migration and a rollback script that restores 0385's two functions
-  verbatim and drops the new objects.
+  and 0281's `record_history_visible` verbatim and drops the new objects.
 - **NFR-PSH-006 (i18n)** All new copy goes through `react-i18next` with English defaults and Bahasa keys; the
   date chip uses `formatDayMonth` (T15).
 - **NFR-PSH-007 (a11y)** The card line is text (not colour-only); the history is a semantic ordered list; the date
@@ -158,8 +172,8 @@
 | AC | Owning layer | FR |
 |---|---|---|
 | AC-PSH-001 | pgTAP | 002, 003 |
-| AC-PSH-002 | pgTAP | 004 |
-| AC-PSH-003 | pgTAP | 005, 008 |
+| AC-PSH-002 | pgTAP | 004, 004a |
+| AC-PSH-003 | pgTAP | 005, 006, 008 |
 | AC-PSH-004 | pgTAP | 006, 008, 009 |
 | AC-PSH-005 | pgTAP | 007, 008 |
 | AC-PSH-006 | pgTAP | 010, 011, 018, NFR-001/003 |
@@ -170,9 +184,9 @@
 | AC-PSH-011 | Vitest | 013 |
 | AC-PSH-012 | Vitest | 014 |
 | AC-PSH-013 | Vitest | 016, 017 |
-| AC-PSH-014 | Vitest | 019 |
+| AC-PSH-014 | — (deferred with FR-PSH-019) | 019 |
 | AC-PSH-015 | Vitest | 021 |
-| AC-PSH-016 | Playwright | 005, 013, 016, 017 (cross-stack journey) |
+| AC-PSH-016 | Playwright | 005, 006, 013, 016, 017 (cross-stack journey) |
 
 - **AC-PSH-001 — every entry kept, including going back.**
   Given a Leads project, When a PM moves it Leads → PQ Submitted → Quotation Submitted → Tender Submitted →
@@ -182,11 +196,14 @@
   Given a deal at Tender Submitted, When it is won with contract date D, Then the newest entry is
   `Won, Pending KoM` dated D; and Given another deal, When it is moved to Loss Tender, Then its newest entry is
   dated `decided_at` in the org's timezone; And When a won deal's `contract_date` is changed server-side, Then its
-  Signed entry carries the new date.
-- **AC-PSH-003 — dated move, never before the previous entry.**
-  Given a deal whose latest entry is PQ Submitted dated 2026-10-01, When a PM calls `advance_project_stage` to
-  Quotation Submitted with 2026-10-12, Then the new entry is dated 2026-10-12; And When they try 2026-09-30, Then
-  the call raises `23514` and the status is still PQ Submitted; And a date after the org's today raises `23514`.
+  Signed entry carries the new date; And Given a deal whose system-dated entries are all today, When it is won with
+  a contract date 10 days ago, Then the win succeeds, the Signed entry is dated 10 days ago and the earlier entries
+  are moved back to it and marked re-dated; And Given an earlier entry a person dated after that contract date,
+  Then the win raises `23514` and the deal is still open.
+- **AC-PSH-003 — a move is dated today; backdating is bounded by both neighbours and today.**
+  Given a Leads deal created 60 days ago, When a PM moves it to PQ Submitted, Then the new entry is dated the org's
+  today; When they re-date it to 20 days ago, Then it reads 20 days ago; When they re-date the Leads entry to 10
+  days ago (after PQ), Then `23514` and nothing changes; And a date after the org's today raises `23514`.
 - **AC-PSH-004 — re-date an entry; Signed syncs contract date.**
   Given a won deal whose journey is Tender 2026-09-01 → Signed 2026-09-20, When an Executive re-dates the Signed
   entry to 2026-09-15, Then the entry, `projects.contract_date` and `decided_at` all read 2026-09-15; And
@@ -213,9 +230,10 @@
   migration has run, Then it has three entries (start, two changes) with source `backfill`, the Signed entry dated
   `contract_date`, and dates non-decreasing along the journey.
 - **AC-PSH-010 — import with stage dates.**
-  Given a just-imported Leads project with only its origination entry, When `import_project_stage_history` is
-  called with PQ 2026-07-01 and Quoted 2026-07-15, Then the journey is Leads → PQ → Quotation with source
-  `import`, the status is Quotation Submitted, and a second call raises `P0001` (idempotent refusal).
+  Given a Leads project created today with only its origination entry, When `import_project_stage_history` is
+  called with PQ 2026-07-01 and Quoted 2026-07-15, Then the journey is Leads (2026-07-01) → PQ → Quotation with
+  source `import` on the two imported entries, the status is Quotation Submitted, and a second call raises
+  `P0001` (idempotent refusal).
 - **AC-PSH-011 — the card's one line.**
   Given an open deal whose latest entry is Quotation Submitted dated 12 Oct and today is 1 Nov, When the card
   renders, Then it shows exactly one stage line "Quoted 12 Oct · 20 d".
@@ -225,20 +243,22 @@
 - **AC-PSH-013 — deal page history + edit affordances.**
   Given a deal with a re-quote in its journey, When a PM opens the deal page, Then the history lists every entry
   newest-first with label, date and recorder, a re-dated entry shows "Date changed", and "Change date" / "Add
-  skipped stage" are offered; When an Engineer opens it, Then the same list shows with no edit affordances.
-- **AC-PSH-014 — quotation proposes the Quoted date.**
-  Given a quotation issue date of 10 Oct is supplied to the move dialog, When a PM moves the deal to Quotation
-  Submitted, Then the date field is pre-filled with 10 Oct and labelled as proposed from the quotation; Given none,
-  Then it is pre-filled with today.
+  skipped stage" are offered; When an Engineer opens it, Then the same list shows with no edit affordances; And
+  in the date dialog nothing is written until the user presses "Save date", and a date outside the neighbouring
+  entries or after today cannot be saved.
+- **AC-PSH-014 — quotation proposes the Quoted date (deferred with FR-PSH-019).**
+  Given an issued quotation document dated 10 Oct, When a PM opens "Change date" on the Quoted entry, Then the
+  date field is pre-filled with 10 Oct and labelled as proposed from the quotation. Owned by the outbound
+  quotation issue; no test in this issue.
 - **AC-PSH-015 — import preview refusals.**
   Given an import row with Quoted 2026-07-01 and PQ 2026-07-15, Then preview rejects the row ("stage dates must
   not go backwards"); Given a row dated tomorrow, Then rejected; Given an Internal Project row with a stage date,
   Then rejected; zero writes in each case.
 - **AC-PSH-016 — journey (e2e).**
-  Given the PM signs in and a seeded open deal is at PQ Submitted, When they move it to Quotation Submitted
-  choosing a date earlier than today, Then the board card reads "Quoted <that date> · <n> d"; When they open the
-  deal page and change that entry's date, Then the history shows the new date marked "Date changed" and the card
-  line follows it.
+  Given the PM signs in and an open deal is at PQ Submitted, When they click "Advance to" Quotation Submitted on
+  the deal page, Then the history's newest entry is Quoted dated today; When they change that entry's date to 12
+  days ago and save, Then the history shows it marked "Date changed", and the board card reads
+  "Quoted <that date> · 12 d".
 
 ## 7. Open questions (with recommended defaults — the default applies unless the owner rules otherwise)
 
@@ -250,9 +270,9 @@
   Signed = contract date, so they must not diverge. The ERP revenue dispatch reads `contract_date` at dispatch
   time (`pmo-portal/src/lib/adapterSeam/erpnext/dispatchRevenue.ts:44-56`), so documents already sent keep the
   old date. *Default:* allowed for stage-date editors, audited; no Finance-only gate.
-- **OQ-PSH-4 — quotation document.** None ships (T13). *Default:* build the proposal seam now
-  (`proposeStageDate` + the dialog's `proposedDate` prop, AC-PSH-014); the outbound-quotation issue wires its
-  issue date into it. No new document type in this issue.
+- **OQ-PSH-4 — quotation document.** None ships (T13). *Default:* nothing built here; the outbound-quotation
+  issue adds the proposal on the "Change date" dialog's `initialDate` (FR-PSH-019, AC-PSH-014). A proposal seam
+  with no document behind it would always propose today, which the dialog already does.
 - **OQ-PSH-5 — removing a wrong entry.** *Default:* not in this issue; correct by re-dating. An Admin-only
   "remove added stage" can follow if asked.
 - **OQ-PSH-6 — import of won/lost dates.** *Default:* the in-app import takes dates for pre-award stages only
@@ -261,12 +281,18 @@
 - **OQ-PSH-7 — re-quote in a flat import row.** One date per stage cannot express a back-and-forth. *Default:*
   accepted limitation; correct afterwards on the deal page.
 - **OQ-PSH-8 — "· n d" on lost cards.** *Default:* lost cards show "Lost 03 Sep · 58 d" from `decided_at`.
+- **OQ-PSH-9 — a win dated before earlier stage dates (owner).** The ruling says a new entry is never dated before
+  the previous one, but a win's date is the contract date the user enters, and deals are routinely recorded after
+  they were signed (T17). Refusing would break the shipped win flow and client onboarding. *Default:*
+  FR-PSH-004a — entries the system dated are moved back to the contract date and marked "Date changed"; entries a
+  person dated are never moved silently, so the win is refused until that date is corrected.
 
 ## 8. Out of scope
 
 - Changing the legal transition map, the win SoD, or the body of `transition_project`.
-- Drag-and-drop on the board (#1593) — it calls the same move path and so records entries (dated today)
-  automatically; the dated move is offered on the deal page, and any date is correctable from the history.
+- Drag-and-drop on the board (#1637, ruling #1593) — it calls the same move path and so records entries (dated
+  today) automatically; any date is correctable from the history. This issue builds on top of #1637.
+- A date picker on "Advance to" (T16 keeps it single-click); a dated-move RPC.
 - A new outbound quotation document type (OQ-PSH-4).
 - Deleting stage entries (OQ-PSH-5); per-stage notes; stage-duration analytics or reports beyond the existing
   stale-bid rule.
