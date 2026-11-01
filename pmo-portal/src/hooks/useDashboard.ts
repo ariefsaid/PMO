@@ -2,7 +2,7 @@ import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { useQuery } from '@tanstack/react-query';
 import {
   repositories,
-  type ExecutiveDashboard, type PMDashboardProject, type WinRate, type SalesPipeline,
+  type ExecutiveDashboard, type PMDashboardProject, type WinRate, type LossBreakdown, type SalesPipeline,
   type PipelineProject, type BudgetReviewRow, type ProjectWithRefs, type ProjectStatus,
 } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
@@ -56,6 +56,17 @@ export function useWinRate(range: WinRateRange) {
   });
 }
 
+/** Loss breakdown for the tile's period (#1577); same cache-key shape as useWinRate, own query. */
+export function useLossBreakdown(range: WinRateRange) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery<LossBreakdown>({
+    queryKey: ['loss-breakdown', orgId, range.key],
+    queryFn: () => repositories.dashboard.lossBreakdown(range.from, range.to),
+    enabled: Boolean(orgId),
+  });
+}
+
 /**
  * Sales pipeline stages + flat project list for the caller's org (FR-SPD-011).
  * queryKey includes org_id for cache isolation.
@@ -97,6 +108,8 @@ function toPipelineProject(row: ProjectWithRefs, winProbability: number): Pipeli
     end_client_name: row.end_client ? companyDisplayName(row.end_client) : null,
     end_client_legal_name: row.end_client?.name ?? null,
     last_update: row.last_update,
+    contract_date: row.contract_date,
+    decided_at: row.decided_at,
     pm_name: row.pm?.full_name ?? null,
   };
 }

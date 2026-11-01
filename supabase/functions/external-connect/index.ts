@@ -309,6 +309,16 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
   if (!credential || typeof credential !== 'object') return errorResponse('credential is required', 'BAD_REQUEST', 400);
   if (tier === 'odoo') return await connectOdoo(serviceClient, profile.org_id, userId, credential, killSwitchEnabled, json);
 
+  // FR-ODC-011 parity with Odoo: an ERPNext refusal leaves one audit row with its outcome class (never the credential
+  // or an upstream body). Best effort: a failed audit write never changes the answer.
+  const refuse = async (message: string, code: string, status: number): Promise<Response> => {
+    if (tier === 'erpnext') {
+      await serviceClient.rpc('log_audit', { p_action: 'integration.connect.refused', p_org_id: profile.org_id, p_actor_id: userId,
+        p_entity_id: null, p_detail: { tier, actor: userId, outcome_class: code } }).then(() => {}, () => {});
+    }
+    return errorResponse(message, code, status);
+  };
+
   // Validate credential against external system BEFORE any Vault write.
   const validatorDeps = { fetchImpl: fetch };
   let clickUpUserId: string | null = null;
@@ -330,20 +340,20 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     }
   } catch (err) {
     if (err instanceof AppError && err.code === 'config-rejected') {
-      return errorResponse(err.message, err.code, 422);
+      return await refuse(err.message, err.code, 422);
     }
     if (err instanceof AppError && err.code === 'external-unreachable') {
-      return errorResponse(err.message, err.code, 502);
+      return await refuse(err.message, err.code, 502);
     }
-    return errorResponse('Credential validation failed', 'config-rejected', 422);
+    return await refuse('Credential validation failed', 'config-rejected', 422);
   }
 
   // FR-ODC-008: one ERP tier per org. Checked before any write; a failed check refuses (fail closed).
   if (tier === 'erpnext') {
     const { data: odoo, error: odooError } = await serviceClient.from('external_org_bindings').select('external_tier')
       .eq('org_id', profile.org_id).eq('external_tier', 'odoo').eq('status', 'active').maybeSingle();
-    if (odooError) return errorResponse('Connection check failed; nothing was connected', 'CONNECT_NOT_COMMITTED', 500);
-    if (odoo) return errorResponse('Another accounting system is already connected; disconnect it first.', 'another-erp-active', 409);
+    if (odooError) return await refuse('Connection check failed; nothing was connected', 'CONNECT_NOT_COMMITTED', 500);
+    if (odoo) return await refuse('Another accounting system is already connected; disconnect it first.', 'another-erp-active', 409);
   }
 
   // 7. Credential is valid → create Vault secret + upsert binding via RPC
@@ -371,7 +381,7 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
 
   if (rpcError) {
     const pgCode = (rpcError as { code?: string }).code ?? 'INTERNAL';
-    return errorResponse(rpcError.message, pgCode, pgCode === '42501' ? 403 : 500);
+    return await refuse(rpcError.message, pgCode, pgCode === '42501' ? 403 : 500);
   }
 
   // 7b. FR-EAC-101 — persist the site URL the admin submitted. `create_vault_secret_for_org` writes
@@ -390,7 +400,7 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
       // (FR-EAC-103) and activate_external_binding's own guard both refuse. The partial state is inert,
       // and a retry of Connect rotates it. See ADR-0073 "Costs and risks accepted".
       console.error('set_external_binding_site_url failed', siteUrlError);
-      return errorResponse(
+      return await refuse(
         'The ERPNext site URL could not be saved; no connection was activated. Please try connecting again.',
         'SITE_URL_NOT_PERSISTED', 500);
     }

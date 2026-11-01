@@ -1,0 +1,14 @@
+{
+  "field": { "reason": "Reason", "choose": "Choose a reason", "note": "Note", "noteOptional": "Note (optional)", "noteRequired": "Note (required for Other)", "noteHelp": "Up to 500 characters." },
+  "reasons": {
+    "price": "Price", "competitor": "Lost to a competitor", "scope_fit": "Scope or fit", "timing": "Timing", "capacity": "Our capacity",
+    "relationship": "Relationship", "client_cancelled": "Client cancelled or postponed", "no_decision": "No decision from the client", "other": "Other"
+  },
+  "notRecorded": "Not recorded",
+  "deal": { "label": "Lost reason", "noteLabel": "Note" },
+  "breakdown": {
+    "reasonsTitle": "Why deals were lost", "clientsTitle": "Win and loss by client", "none": "No lost deals in this period.",
+    "lostCount": "{{n}} lost", "declinedCount": "{{n}} declined", "wonLost": "{{won}} won, {{lost}} lost",
+    "unknownClient": "Unknown client", "errorTitle": "Couldn't load the loss breakdown", "retry": "Try again"
+  }
+}

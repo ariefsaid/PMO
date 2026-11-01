@@ -17,6 +17,7 @@ const { winRateState } = vi.hoisted(() => ({
 
 vi.mock('@/src/hooks/useDashboard', () => ({
   useWinRate: () => winRateState,
+  useLossBreakdown: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
 }));
 
 import { WinRateCard } from '../WinRateCard';

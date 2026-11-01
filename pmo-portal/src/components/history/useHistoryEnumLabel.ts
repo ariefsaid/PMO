@@ -41,6 +41,16 @@ export function useHistoryEnumLabel(): (entityType: string, column: string, valu
       if (value === 'bill') return t('history.typeSource.bill', 'Bill type');
       if (value === 'declared') return t('history.typeSource.declared', 'Declared from slip');
     }
+    if (column === 'source' && entityType === 'project_stage_entry') {
+      switch (value) {
+        case 'origination': return t('project:projectDetail.stageHistory.source.origination', 'Origination');
+        case 'transition': return t('project:projectDetail.stageHistory.source.transition', 'Transition');
+        case 'added': return t('project:projectDetail.stageHistory.source.added', 'Added later');
+        case 'import': return t('project:projectDetail.stageHistory.source.import', 'Import');
+        case 'backfill': return t('project:projectDetail.stageHistory.source.backfill', 'Backfill');
+        default: return value;
+      }
+    }
     if (column === 'status' && entityType === 'vendor_withholding_slip') {
       if (value === 'active') return t('history.slipStatus.active', 'Active');
       if (value === 'void') return t('history.slipStatus.void', 'Void');

@@ -35,7 +35,7 @@ Everything cited was read on `origin/dev` at `6440a961` (migration head `0426_im
 at `b52aa48a` in the 2026-11-01 review. A path marked **(new)** does not exist yet.
 
 **Migration numbers (Lane B range 0442–0446; 0440/0441 belong to sibling slices).** S1 `0449_subcontract_po_lines.sql`,
-S2 `0443_subcontract_acceptances.sql`, S3 `0444_subcontract_bill_caps.sql`, S4 `0445_po_variations.sql`, S5
+S2 `0443_subcontract_acceptances.sql`, S3 `0472_subcontract_bill_caps.sql`, S4 `0474_po_variations.sql`, S5
 `0446_subcontract_erp_guards.sql`. On a collision, `scripts/renumber-migration.sh` within this range only; never take a
 number outside it. Every `<NNNN>` in a code block below is that slice's number.
 
@@ -153,8 +153,8 @@ None blocks dispatch. Each names the one slice that changes if the coordinator o
 |---|---|---|---|---|---|
 | **S1 Subcontract flag, PO lines, revision 1** | `0449_subcontract_po_lines.sql` | S1.1-S1.8 | none | Sol (money: PO amount) | **alone** |
 | **S2 Subcontract acceptance** | `0443_subcontract_acceptances.sql` | S2.1-S2.6 | S1 | Sol (SoD) | **alone** |
-| **S3 Bill lines, the cap, position read** | `0444_subcontract_bill_caps.sql` | S3.1-S3.9 | S2 | **Sol** (money path) | **alone** |
-| **S4 Variations, revisions, client link, tenancy** | `0445_po_variations.sql` | S4.1-S4.9 | S3 | **Sol** (money + SoD) | **alone** |
+| **S3 Bill lines, the cap, position read** | `0472_subcontract_bill_caps.sql` | S3.1-S3.9 | S2 | **Sol** (money path) | **alone** |
+| **S4 Variations, revisions, client link, tenancy** | `0474_po_variations.sql` | S4.1-S4.9 | S3 | **Sol** (money + SoD) | **alone** |
 | **S5 ERP guards, OQ-10, `purchase-order.revise` contract** | `0446_subcontract_erp_guards.sql` | S5.1-S5.8 | S4 | **Sol** (money path) | **alone** |
 | **S6 Data layer** (DAL, repository, hooks, rules, policy) | none | S6.1-S6.5 | S4 | Luna | batchable |
 | **S7a Lines, acceptance and bill screens** | none | S7.1-S7.4 | S6 | Flash or Luna (UI lane) | batchable |
@@ -751,7 +751,7 @@ As S1.7/S1.8 with `supabase/tests/subcontract_acceptances.test.sql`. Commit `fea
 
 ---
 
-## S3 - Bill lines, the cap, position read (`0444_subcontract_bill_caps.sql`) - ships alone (money path)
+## S3 - Bill lines, the cap, position read (`0472_subcontract_bill_caps.sql`) - ships alone (money path)
 
 Covers AC-SCA-001, 004, 007, 008, 009, 014 and FR-SCA-020..024, NFR-SCA-001/002/004/005; PQ-4. Read
 `docs/money-path-primer.md` "five things" #1 and #5 before starting. Header REVERSE: drop trigger
@@ -1134,7 +1134,9 @@ plus the shipped neighbours that call the wrapped path: `supabase/tests/spend_ap
 
 ---
 
-## S4 - Variations, revisions, client link, tenancy (`0445_po_variations.sql`) - ships alone (money + SoD)
+## S4 - Variations, revisions, client link, tenancy (`0474_po_variations.sql`) - ships alone (money + SoD)
+
+> **As shipped (fix round):** migration `0474`; 0178 retained count 116 → **120** (+4). Every approver of the purchase's amount is refused as payer: `procurement_amount_approver(proc, uid)` (request approver, billed-amount approver, every Approved/Revised variation's approver) is asked by the Paid update guard and `procurement_create_refusal` (so also the outbox claim). The variation's approver is recorded on the variation; `amount_approved_by_id` stays with `approve_procurement_amount`. `issue_po_revision` moves `total_value` / `approved_total_value` by the realized per-line rounding delta so the purchase and the PO agree exactly. The Disputed constraint is `po_variations_disputed_post_work`. Rollback is one-way once any variation exists.
 
 Covers AC-SCA-002, 003, 005, 010, 013 and FR-SCA-030..036, 040..041; PQ-5..7. Header REVERSE: drop
 `project_subcontract_exposure(uuid)`; drop and re-create `subcontract_po_position(uuid)` from S3; drop
@@ -1328,7 +1330,7 @@ create table public.po_variations (
   linked_at timestamptz,
   constraint po_variations_link_one check (work_order_id is null or not_passed_reason is null),
   constraint po_variations_approved_pair check ((status in ('Approved','Revised')) = (approved_by is not null and approved_at is not null)),
-  constraint po_variations_rejected_origin check (status <> 'Disputed' or origin = 'post_work'),
+  constraint po_variations_disputed_post_work check (status <> 'Disputed' or origin = 'post_work'),
   constraint po_variations_rejected_pre check (status <> 'Rejected' or origin = 'pre_work'),
   unique (org_id, number)
 );

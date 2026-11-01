@@ -98,6 +98,10 @@ export function fieldLabels(t: TFunction): Record<string, string> {
     pph_type_at_record: t('history.field.pph_type_at_record', 'PPh type at record'),
     type_source: t('history.field.type_source', 'Type source'),
     released_at: t('history.field.released_at', 'Released at'),
+    stage: t('history.field.stage', 'Stage'),
+    entered_on: t('history.field.entered_on', 'Stage date'),
+    source: t('history.field.source', 'Source'),
+    redated_at: t('history.field.redated_at', 'Date changed at'),
   };
 }
 
@@ -119,6 +123,7 @@ export function kindLabels(t: TFunction): Record<string, string> {
     procurement_invoice: t('history.kind.procurement_invoice', 'Supplier invoice'),
     vendor_withholding_slip: t('history.kind.vendor_withholding_slip', 'Bukti potong'),
     vendor_withholding_slip_bill: t('history.kind.vendor_withholding_slip_bill', 'Bukti potong bill link'),
+    project_stage_entry: t('history.kind.project_stage_entry', 'Stage entry'),
   };
 }
 
@@ -191,6 +196,8 @@ export function auditActionLabels(t: TFunction): Record<string, string> {
     'org.down_payment_item.change': t('history.action.org_down_payment_item_change', 'Down-payment items changed'),
     'meeting.grant.create': t('history.action.meeting_grant_create', 'Meeting access granted'),
     'meeting.grant.revoke': t('history.action.meeting_grant_revoke', 'Meeting access revoked'),
+    'project.stage_entry.redate': t('history.action.project_stage_entry_redate', 'Stage date changed'),
+    'project.stage_entry.add': t('history.action.project_stage_entry_add', 'Skipped stage added'),
   };
 }
 
