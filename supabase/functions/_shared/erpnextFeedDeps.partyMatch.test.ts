@@ -77,7 +77,7 @@ async function sweepSupplier(client: SupabaseClient, name: string, extId = 'Supp
   );
 }
 
-Deno.test('#1600 sweep: an unmapped ERP supplier matching an existing PMO vendor is LINKED, not created again', async () => {
+Deno.test('AC-ECA-005 sweep: an unmapped ERP supplier matching an existing PMO vendor is LINKED, not created again', async () => {
   const { client, tables } = memoryClient({ companies: [company('company-1', 'Test party')] });
   const outcome = await sweepSupplier(client, 'Test party');
   assertEq(outcome, { kind: 'upserted', pmoRecordId: 'company-1', adopted: false }, 'outcome');
@@ -100,7 +100,7 @@ Deno.test('#1600 sweep: applying the same event twice leaves one company and one
   assertEq([tables.companies.length, tables.external_refs.length], [1, 1], 'counts');
 });
 
-Deno.test('#1600 sweep: two PMO vendors with the name make an unclear match; nothing is written', async () => {
+Deno.test('AC-ECA-005 sweep: two PMO vendors with the name make an unclear match; nothing is written', async () => {
   const { client, tables } = memoryClient({ companies: [company('company-1', 'Test party'), company('company-2', 'Test party')] });
   let failure: { code?: string; details?: string } | undefined;
   try { await sweepSupplier(client, 'Test party'); } catch (err) { failure = err as typeof failure; }

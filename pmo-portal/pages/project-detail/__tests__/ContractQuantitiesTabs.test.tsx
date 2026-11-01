@@ -48,7 +48,7 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: { committed: 0, draft: 0, ceiling: 1_000_000, currency: 'IDR', basis: 'net' }, isPending: false, isError: false, refetch: vi.fn() }),
   useWorkOrderMutations: () => h.wom,
 }));
-vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => ({ data: h.woBilling, isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => ({ data: h.woBilling, isPending: false, isError: false, refetch: vi.fn() }), useWorkOrderAcceptanceAge: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderLines: () => ({ data: h.lines, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectWorkOrderLines: () => ({ data: h.lines, isPending: false, isError: false, refetch: vi.fn() }),

@@ -17,6 +17,7 @@ const project = {
 } as unknown as ProjectWithRefs;
 
 const h = vi.hoisted(() => ({ role: 'Admin' }));
+vi.mock('../BillingMilestonesBlock', () => ({ BillingMilestonesBlock: () => null }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: [project], isPending: false, isError: false, refetch: vi.fn() }),
   useProject: () => ({ data: project, isPending: false, isError: false, refetch: vi.fn() }),

@@ -36,7 +36,7 @@ import { useProjectWorkOrders, useWorkOrderMutations } from '@/src/hooks/useWork
 import WorkOrderFormModal from '../WorkOrderFormModal';
 import WorkOrderValueModal from '../WorkOrderValueModal';
 import InvoiceWorkOrderModal from '../InvoiceWorkOrderModal';
-import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
+import { useWorkOrderAcceptanceAge, useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { useBoqItems, useProgressBillingMutations, useProjectBilling, useProjectClaims } from '@/src/hooks/useProgressBilling';
 import { useDocuments } from '@/src/hooks/useDocuments';
 import {
@@ -286,6 +286,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     return grouped;
   }, [invoiceRows]);
   const billing = useWorkOrderBilling(projectId, canViewBilling);
+  const acceptanceAge = useWorkOrderAcceptanceAge(projectId, canViewBilling);
+  const ageById = useMemo(() => new Map((acceptanceAge.data ?? []).map((a) => [a.workOrderId, a.days] as const)), [acceptanceAge.data]);
   const billingById = useMemo(
     () => new Map((billing.data ?? []).map((b) => [b.workOrderId, b] as const)),
     [billing.data],
@@ -884,6 +886,11 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                       </StatusPill>}
                       {row.client_po_number && <span className="text-xs text-muted-foreground">{t('projectDetail.workOrders.clientPo', 'Customer PO')} {row.client_po_number}</span>}
                       {row.order_date && <span className="text-xs text-muted-foreground">{t('projectDetail.workOrders.orderDate', 'Order date')} {formatDateOnly(row.order_date)}</span>}
+                      {canViewBilling && ageById.has(row.id) && <Tooltip content={t('projectDetail.workOrders.acceptanceAgeSource', 'Counted from the earliest confirmed BAST not yet followed by a submitted invoice.')}>
+                        <span tabIndex={0} className="text-xs font-semibold text-warning-foreground">
+                          {t('projectDetail.workOrders.acceptanceAge', 'Days since acceptance, not invoiced: {{days}}', { days: ageById.get(row.id) })}
+                        </span>
+                      </Tooltip>}
                       <div className="ml-auto flex flex-wrap items-center gap-2">
                         {canRaiseOrderInvoice && billingRow && <Tooltip content={`${t('projectDetail.workOrders.billing.orderRemainingSource', 'Source: work-order billing balance after invoices and pending drafts.')} ${t('common:projectDetail.workOrders.billing.lineNet', 'Net value {{amount}}', { amount: formatNumberWhole(billingRow.orderNet) })}`}>
                           {/* L6: the amount is the order's "Still to invoice" figure below; the action does not repeat it. */}
