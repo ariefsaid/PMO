@@ -140,7 +140,8 @@ export async function applyInboundChange(
     const matchedId = await deps.adoptAtomically.matchExisting?.(canonical);
     if (matchedId) {
       await deps.adoptAtomically.claimExternalRef({ pmoRecordId: matchedId, externalTier: ctx.tier, externalRecordId, domain: ctx.domain });
-      await deps.updateMirror(matchedId, { ...canonical, id: matchedId }, sourceUpdatedAtMs);
+      const applied = await deps.updateMirror(matchedId, { ...canonical, id: matchedId }, sourceUpdatedAtMs);
+      if (applied === false) return { kind: 'no-op' };
       return { kind: 'upserted', pmoRecordId: matchedId, adopted: false };
     }
     const claimedId = deps.adoptAtomically.newPmoRecordId();

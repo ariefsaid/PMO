@@ -153,15 +153,34 @@ describe('sync-integrity a non-idempotent create (POST) is never auto-retried on
     vi.useRealTimers();
   });
 
-  it('a 429 on a POST create is attempted once too (retries are for idempotent methods only)', async () => {
+  it('a 429 on a POST create IS retried (ClickUp never processed it) and succeeds', async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 429 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 't1' }), { status: 200 }));
+    const settled = clickUpRequest({ fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' }, {
+      method: 'POST',
+      path: '/list/list-1/task',
+    }).then((v) => v, (e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(await settled).toEqual({ id: 't1' });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it('a POST whose 429 never clears exhausts the budget as a plain rate-limit failure, not "unconfirmed"', async () => {
+    vi.useFakeTimers();
     const fetchImpl = vi.fn(async () => new Response(null, { status: 429 }));
-    await expect(
-      clickUpRequest({ fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' }, {
-        method: 'POST',
-        path: '/list/list-1/task',
-      }),
-    ).rejects.toThrow(ClickUpHttpError);
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const settled = clickUpRequest({ fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' }, {
+      method: 'POST',
+      path: '/list/list-1/task',
+    }).then(() => null, (e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(10_000);
+    const err = await settled;
+    expect(err).toBeInstanceOf(ClickUpHttpError);
+    expect((err as ClickUpHttpError).message).not.toMatch(/unconfirmed/);
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+    vi.useRealTimers();
   });
 });
 

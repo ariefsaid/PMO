@@ -231,6 +231,16 @@ Deno.test('mirror update is compare-and-set: an older source-mod arriving after 
   assert(appliedEqual === true, 're-delivery of the SAME source-mod re-applies idempotently (the engine\'s >= semantics)');
 });
 
+Deno.test('mirror update applies when the stored source_updated_at is NULL (legacy / push-seeded rows)', async () => {
+  const db = fakeMirrorDb({ tasks: [{ ...mirrorTaskRow('pmo-1', 0), source_updated_at: null }] });
+  const callbacks = createClickUpMirrorCallbacks({ serviceClient: db, orgId: ORG, projectId: PROJECT });
+
+  const applied = await callbacks.updateMirror('pmo-1', taskRecord('Fresh name') as never, 1000);
+  assert(applied === true, 'a NULL stored source_updated_at must not freeze the row');
+  assert(db.__state.tasks[0].source_updated_at === iso(1000), 'the incoming source-mod must be stored');
+  assert(db.__state.tasks[0].name === 'Fresh name', 'the incoming fields must be applied');
+});
+
 Deno.test('an interleaved older apply (its read predating a newer write) is a no-op end-to-end through the engine', async () => {
   const db = fakeMirrorDb({ refs: [mappedRef('cu-1', 'pmo-1')], tasks: [mirrorTaskRow('pmo-1', 1000)] });
   const callbacks = createClickUpMirrorCallbacks({ serviceClient: db, orgId: ORG, projectId: PROJECT });
