@@ -339,6 +339,23 @@ describe('erpnext/ledgerMirrorFeed — MEDIUM-1: the staleness guard sees the WH
     expect(h(sc).gl.get('GLE-TARGET')!.debit).toBe('75000.00');
   });
 
+  it('mirror lookups are org-scoped: another org\'s row with the same erp_name never feeds this org\'s stale-drop guard', async () => {
+    const sc = fakeServiceClient([
+      // org-2 shares the ERP document name and holds a NEWER copy; it must be invisible to org-1.
+      { org_id: 'org-2', erp_name: 'GLE-1', account: 'Other Org', erp_modified: '2026-07-12 13:00:00.000000' },
+    ]);
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [
+      { name: 'GLE-1', account: 'Creditors - PSC', cost_center: null, fiscal_year: null, project: null, party_type: null,
+        party: null, voucher_type: null, voucher_no: null, posting_date: null, debit: '1.00', credit: '0.00',
+        is_cancelled: false, docstatus: 1, modified: '2026-07-12 12:00:00.000000' },
+    ], caughtUp: true });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    const res = await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'PMO Smoke Co' });
+    expect(res.glFed).toBe(1);
+    const mine = sc.fake.rowsOf('erp_gl_entry_mirror').find((r) => r.org_id === 'org-1' && r.erp_name === 'GLE-1');
+    expect(mine).toMatchObject({ account: 'Creditors - PSC' });
+  });
+
   it('fails CLOSED on a mirror read error — never an empty map that waves every stale row through', async () => {
     const fake = new FakePostgrest(
       { erp_gl_entry_mirror: [{ id: 'gl-1', org_id: 'org-1', erp_name: 'GLE-1', erp_modified: '2026-07-12 12:00:00.000000' }], external_sync_watermarks: [] },
