@@ -49,6 +49,7 @@ vi.mock('@/src/hooks/useRevenue', async (orig) => ({
 }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
+  useProjectWorkOrders: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: [project], isPending: false, isError: false, refetch: vi.fn() }),

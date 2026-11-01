@@ -132,7 +132,11 @@ select set_eq(
             ('imprest_floats -> profiles'),
             ('imprest_replenishments -> profiles'),
             ('imprest_plans -> profiles'),
-            ('imprest_float_changes -> profiles') $$,
+            ('imprest_float_changes -> profiles'),
+            -- 0442 (#1639 S1): task_reminders carries sender_id AND recipient_id -> profiles. CHECKED BEFORE ADDING:
+            -- no DAL, repository or edge-function code embeds profiles from it; whatever ships first MUST qualify
+            -- it with !constraint_name.
+            ('task_reminders -> profiles') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '

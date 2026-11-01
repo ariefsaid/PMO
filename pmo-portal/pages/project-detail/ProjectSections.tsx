@@ -10,6 +10,7 @@ import { useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { ProjectAttention } from './ProjectAttention';
 import { useOverdueReceivables, useProjectAttention } from './useProjectPosition';
 import { CostBlock, DeliveryBlock, MoneyBlock } from './ProjectBlocks';
+import { BillingMilestonesBlock } from './BillingMilestonesBlock';
 import { ProjectFinancesSection } from './ProjectFinancesSection';
 import { ActivityFooter, MyOpenTasks, ProjectActivity } from './ProjectActivity';
 
@@ -94,6 +95,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
           {showDeliveryAttention && <ProjectAttention {...attentionProps} className="min-w-0" />}
         </div>
         <DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock>
+        <BillingMilestonesBlock projectId={project.id} />
       </div>
     ) : (
       <div className="flex min-w-0 flex-col gap-[var(--space-panel-gap)]">
@@ -105,6 +107,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
           <div className={`min-w-0 ${canSeeMoney ? 'xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={() => onOpen('budget')} /></div>
         </div>
         <DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock>
+        <BillingMilestonesBlock projectId={project.id} />
       </div>
     )
   );
@@ -126,6 +129,7 @@ const AreaContent: React.FC<{ project: ProjectWithRefs; area: Exclude<Area, 'ove
           <div className="flex min-w-0 flex-col gap-4">
             <WorkOrdersTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
               focusWorkOrderId={new URLSearchParams(window.location.search).get('wo')}
+              autoInvoiceWorkOrderId={new URLSearchParams(window.location.search).get('invoice') === '1' ? new URLSearchParams(window.location.search).get('wo') : null}
               projectManagerId={project.project_manager_id ?? null} showSettlementNote={false}
               projectName={project.name} projectStatus={project.status} />
           </div>

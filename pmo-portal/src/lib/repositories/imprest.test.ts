@@ -17,6 +17,8 @@ describe('imprestRepository', () => {
     ['listReplenishments', 'listReplenishments', ['f1']],
     ['listFloatChanges', 'listFloatChanges', ['f1']],
     ['listCounts', 'listCounts', ['f1']],
+    ['listPostingStates', 'listPostingStates', ['f1']],
+    ['setCashAccount', 'setCashAccount', ['f1', 'Site Cash - X']],
     ['listFloatClaims', 'listFloatClaims', ['f1']],
     ['listAwaitingImprest', 'listAwaitingImprest', []],
     ['getProcurementLimit', 'getProcurementLimit', []],

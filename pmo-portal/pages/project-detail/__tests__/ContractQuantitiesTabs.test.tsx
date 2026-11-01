@@ -36,7 +36,7 @@ vi.mock('@/src/auth/usePermission', async () => {
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: true, loadOptions: vi.fn() }) }));
 vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
-vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: () => true }));
+vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useRevenueRouteReady: () => true, useOwnershipCacheSynced: () => true }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({
   useProjectBilling: () => h.billing,
   useBoqItems: () => ({ data: h.boq, isPending: false, isError: false, refetch: vi.fn() }),
@@ -48,7 +48,7 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: { committed: 0, draft: 0, ceiling: 1_000_000, currency: 'IDR', basis: 'net' }, isPending: false, isError: false, refetch: vi.fn() }),
   useWorkOrderMutations: () => h.wom,
 }));
-vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => ({ data: h.woBilling, isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => ({ data: h.woBilling, isPending: false, isError: false, refetch: vi.fn() }), useWorkOrderAcceptanceAge: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderLines: () => ({ data: h.lines, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectWorkOrderLines: () => ({ data: h.lines, isPending: false, isError: false, refetch: vi.fn() }),
