@@ -1,6 +1,6 @@
 import { AdapterError } from '../contract.ts';
 import type { CensusDomain, ConnectAdapter, MasterKind, NormalisedMaster, PmoMaster } from '../connect/types.ts';
-import { createDoc, erpnextRequest, listDocsByFilters, withCommitDeadline, type ErpClientDeps } from './client.ts';
+import { createDoc, erpnextRequest, listDocsByFilters, withCommitDeadline, withProbeBudget, type ErpClientDeps } from './client.ts';
 import { accountCategoryKey } from '../../budget/categoryAccountMap.ts';
 export const ERP_CONNECT_PAGE = 200;
 const SPECS: Partial<Record<MasterKind, Array<{ doctype: string; fields: string[]; company: boolean; map: (r: Record<string, unknown>) => NormalisedMaster }>>> = {
@@ -49,7 +49,7 @@ function lookupsFor(company: string, kind: MasterKind, record: PmoMaster): Looku
 async function findSent(client: ErpClientDeps, company: string, kind: MasterKind, record: PmoMaster): Promise<string | null> {
   for (const l of lookupsFor(company, kind, record)) {
     const hits = await listDocsByFilters(client, l.doctype, l.filters as never, ['name'], 2);
-    if (hits.length > 1) throw new AdapterError('commit-rejected', 'ambiguous');
+    if (hits.length > 1) throw new AdapterError('commit-rejected', 'Two ERP records match this record');
     if (hits[0]) return l.id(String(hits[0].name));
   }
   return null;
@@ -105,7 +105,8 @@ export function createErpnextConnectAdapter(client: ErpClientDeps, company: stri
       return total;
     },
     async sendMaster(kind, record, _key, opts) {
-      const found = await findSent(client, company, kind, record);
+      // the lookup is re-issuable and must not hold the claim: one bounded attempt; only the create below keeps the client's own budget
+      const found = await findSent(withProbeBudget(client), company, kind, record);
       if (found !== null) return { externalId: found };
       const { doctype, body, id } = createBody(company, kind, record);
       // the create is the one non-idempotent call: it carries the outbox claim's deadline (a lookup stays re-issuable)

@@ -291,13 +291,13 @@ export function ErpSetupChecklist(
                       },
                     )}
                   </p>
-                  {missingAccountCategories(setup.data).length > 0 && (
+                  {((missing) => missing.length > 0 && (
                     <p className='mt-1 break-words text-muted-foreground'>
                       {t('administration:integrations.send.accountantTask', 'Ask your accountant to add a direct-cost account for: {{categories}}', {
-                        categories: missingAccountCategories(setup.data).map((category) => budgetCategoryLabel(category, t)).join(', '),
+                        categories: missing.map((category) => budgetCategoryLabel(category, t)).join(', '),
                       })}
                     </p>
-                  )}
+                  ))(missingAccountCategories(setup.data))}
                 </div>
                 <a
                   className={actionLink}

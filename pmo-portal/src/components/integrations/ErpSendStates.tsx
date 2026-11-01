@@ -1,7 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { repositories } from '@/src/lib/repositories';
-import { StatusPill } from '@/src/components/ui';
+import { Button, StatusPill } from '@/src/components/ui';
 
 const TIER = 'erpnext';
 const POLL_MS = 10_000;
@@ -14,6 +14,11 @@ const POLL_MS = 10_000;
  */
 export function ErpSendStates({ enabled }: { enabled: boolean }) {
   const { t } = useTranslation();
+  const qc = useQueryClient();
+  const retry = useMutation({
+    mutationFn: (id: string) => repositories.integrations.retryConnectSend(TIER, id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['integrations'] }),
+  });
   const status = useQuery({
     queryKey: ['integrations', 'connect-status', TIER],
     queryFn: () => repositories.integrations.getConnectStatus(TIER),
@@ -34,8 +39,8 @@ export function ErpSendStates({ enabled }: { enabled: boolean }) {
     retry: false,
   });
   const waiting = status.data?.waitingForSend ?? 0;
-  // a send's review row names no ERP record; a matcher review row always does
-  const refused = (reviews.data?.proposals ?? []).filter((p) => p.external_ids.length === 0 && p.reason_text);
+  // only a refused or unconfirmed send leaves one of these (a matcher review row has another reason)
+  const refused = (reviews.data?.proposals ?? []).filter((p) => (p.reason === 'rejected' || p.reason === 'held') && p.reason_text);
   const toAdd = people.data?.proposals ?? [];
   if (waiting === 0 && refused.length === 0 && toAdd.length === 0) return null;
   return (
@@ -54,6 +59,16 @@ export function ErpSendStates({ enabled }: { enabled: boolean }) {
               <span className='break-words font-medium'>{p.snapshot.name ?? t('administration:integrations.send.unnamed', 'A record')}</span>{' '}
               <StatusPill variant='warn'>{t('administration:integrations.send.needsDecision', 'Needs a decision')}</StatusPill>
               <p className='mt-1 break-words text-muted-foreground'>{p.reason_text}</p>
+              {p.reason === 'held' && (
+                <div className='mt-2'>
+                  <Button variant='outline' size='sm' disabled={retry.isPending} onClick={() => retry.mutate(p.id)}>
+                    {t('administration:integrations.send.retry', 'It is not there: send it again')}
+                  </Button>
+                  {retry.isError && retry.variables === p.id && (
+                    <p role='alert' className='mt-1 break-words text-muted-foreground'>{t('administration:integrations.send.retryFailed', 'We could not send it again. Try again in a moment.')}</p>
+                  )}
+                </div>
+              )}
             </li>
           ))}
         </ul>

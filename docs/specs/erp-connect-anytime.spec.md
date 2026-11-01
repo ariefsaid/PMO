@@ -118,8 +118,10 @@ there is no workflow registry and no test suite that a second ERP adapter must p
 ### 4.3 Send PMO masters to the ERP (S-C, and the PMO-only rows of S-D)
 
 - **FR-ECA-020** — Where the Admin accepts *send* rows, the system SHALL create the ERP record for clients/vendors,
-  projects, items used on any open or post-cut-over purchase or invoice, and employees with an active PMO profile
-  (OQ-ECA-2). It SHALL NOT create accounts, taxes or fiscal years; missing direct-cost accounts SHALL appear as a
+  projects and items used on any open or post-cut-over purchase or invoice. Employees are not sent while the ERP requires
+  personal details PMO does not hold (PQ-ECA-1): such a row asks the Admin to add the person in the ERP, and a tier whose ERP
+  needs none declares `employee.send` supported. A record that already has its link SHALL NOT be sent, and an existing link
+  SHALL NOT be re-pointed by a send. It SHALL NOT create accounts, taxes or fiscal years; missing direct-cost accounts SHALL appear as a
   named setup task for the accountant (DD-SETUP-1).
 - **FR-ECA-021** — Each send SHALL go through the money outbox with a derived key `seed:<kind>:<pmo_record_id>`
   (ADR-0059 §4) and SHALL look the record up by its matching keys before any create, so a retry after an unknown
@@ -295,8 +297,9 @@ Layers: **U** Vitest · **D** Deno edge-function test (shipped handler, `fetch` 
 
 **Send (S-C)**
 - **AC-ECA-010 (FR-020, 021; S)** — Given an empty fake ERP and PMO with 3 vendors, 2 projects, 4 items on open
-  purchases and 2 active people, when the Admin accepts all sends, then the ERP holds exactly those records, each
-  PMO row has one external reference, and no account or tax was created.
+  purchases, when the Admin accepts all sends, then the ERP holds exactly those records, each
+  PMO row has one external reference, and no account or tax was created. Two active people are listed to add in the ERP
+  by hand (PQ-ECA-1), not sent.
 - **AC-ECA-011 (FR-021; S)** — Given a send whose create succeeded in the ERP but whose response was lost, when it is
   retried, then the lookup links the existing ERP record and the ERP holds one copy.
 - **AC-ECA-012 (FR-022; S)** — Given one send the ERP rejects, then it becomes a review row with a plain reason and

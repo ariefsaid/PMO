@@ -173,6 +173,8 @@
       "sending": "Sending to the ERP",
       "waiting": "{{count}} waiting for the ERP to confirm.",
       "needsDecision": "Needs a decision",
+      "retry": "It is not there: send it again",
+      "retryFailed": "We could not send it again. Try again in a moment.",
       "unnamed": "A record",
       "addPeople": "Add these people in the ERP. It asks for a birth date and gender, which PMO does not hold.",
       "accountantTask": "Ask your accountant to add a direct-cost account for: {{categories}}"

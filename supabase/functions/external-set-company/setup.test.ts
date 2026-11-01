@@ -730,6 +730,51 @@ Deno.test("AC-SETUP-001 AC-003 #1325 ECA3-T10: project creation goes through the
     assertEquals(outbox.length, 1);
   });
 });
+// I4: what the outbox can answer for a project created from its own page is a classified answer in plain words, never a 500.
+async function ensureAfterOutbox(opts: { existing?: Record<string, unknown>; inFlight?: boolean; reject?: boolean }) {
+  const outbox: Array<Record<string, unknown>> = opts.existing ? [opts.existing] : [];
+  return await withFetchMock([
+    ...base(),
+    supabaseSelect("projects", () => jsonResponse({ id: "project-2", name: "Contractual Delivery Title", code: "SYNTH-2", status: "Ongoing Project" })),
+    erp("erp.example.test", "/api/resource/Project", (call) => {
+      if (call.method === "POST") return opts.reject
+        ? jsonResponse({ exception: "frappe.exceptions.ValidationError: Project name is not allowed", _server_messages: "[]" }, { status: 417 })
+        : jsonResponse({ data: { name: "PROJ-1" } });
+      return jsonResponse({ data: [] });
+    }),
+    supabaseSelect("external_command_outbox", () => outbox[0]
+      ? jsonResponse(outbox[0], { headers: { "content-type": "application/vnd.pgrst.object+json" } })
+      : new Response("null", { status: 200, headers: { "content-type": "application/json" } })),
+    { label: "outbox-insert", method: "POST", pathname: "/rest/v1/external_command_outbox", response: (call) => {
+      if (opts.inFlight) return jsonResponse({ code: "23505", message: 'duplicate key value violates unique constraint "external_command_outbox_one_inflight_per_record"', details: "" }, { status: 409 });
+      const b = call.bodyJson as Record<string, unknown>;
+      const r = { id: "ob-1", domain: b.domain, pmo_record_id: b.pmo_record_id, idempotency_key: b.idempotency_key, state: "pending", external_record_id: null, canonical: null, claim_generation: 0, payload_digest: null };
+      outbox.push(r);
+      return jsonResponse(r, { headers: { "content-type": "application/vnd.pgrst.object+json" } });
+    } },
+    { label: "outbox-update", method: "PATCH", pathname: "/rest/v1/external_command_outbox", response: (call) => { Object.assign(outbox[0], call.bodyJson); return jsonResponse([{ id: "ob-1" }]); } },
+    supabaseRpc("claim_outbox_for_commit", () => { Object.assign(outbox[0], { state: "committing", claim_generation: 1 }); return jsonResponse(outbox[0]); }),
+    supabaseRpc("record_connect_record_held", () => jsonResponse(null)),
+  ], async ({ calls }) => {
+    const response = await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction: "ensure-project", projectId: "project-2" }));
+    return { status: response.status, body: await response.json() as { error?: string; message?: string }, calls };
+  });
+}
+Deno.test("I4 ensure-project: a send already in flight is a 409 in plain words, not a 500", async () => {
+  const { status, body } = await ensureAfterOutbox({ inFlight: true });
+  assertEquals([status, body.message], [409, "This project is already being created in the ERP. Try again in a minute."]);
+});
+Deno.test("I4 ensure-project: a held send is a 409 that points at the checklist and leaves the Admin a decision row", async () => {
+  const { status, body, calls } = await ensureAfterOutbox({ existing: { id: "ob-0", domain: "projects", pmo_record_id: "project-2", idempotency_key: "seed:project:project-2", state: "held", external_record_id: null, canonical: null, claim_generation: 1, payload_digest: null } });
+  assertEquals(status, 409);
+  assertEquals(body.message, "We could not confirm whether the ERP created this project. An Admin can check it in the ERP and send it again from the setup checklist.");
+  assertEquals(rpcCall(calls, "record_connect_record_held").map((c) => c.bodyJson), [{ p_org_id: "org-1", p_tier: "erpnext", p_kind: "project", p_pmo: "project-2", p_name: "Contractual Delivery Title" }]);
+});
+Deno.test("I4 ensure-project: an ERP refusal is a 422 with the ERP's reason, without its exception name", async () => {
+  const { status, body } = await ensureAfterOutbox({ reject: true });
+  assertEquals(status, 422);
+  assertEquals(body.message, "The ERP refused this project: Project name is not allowed");
+});
 Deno.test("Project Manager may ensure a project but cannot edit Admin defaults or relink it", async () => {
   for (const setupAction of ["save-defaults", "link-project"]) {
     await withFetchMock(base("Project Manager"), async ({ calls }) => {

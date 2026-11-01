@@ -337,7 +337,7 @@ export async function handleSetCompanyRequest(req: Request): Promise<Response> {
     } catch (err) {
       const code = (err as { code?: string }).code ?? 'INTERNAL';
       return errorResponse(err instanceof Error ? err.message : 'ERP setup failed', code,
-        code === 'NOT_FOUND' ? 404 : code === 'BAD_REQUEST' ? 400 : code === 'config-rejected' ? 422 : code === 'external-unreachable' ? 502 : 500);
+        code === 'NOT_FOUND' ? 404 : code === 'BAD_REQUEST' ? 400 : code === 'config-rejected' || code === 'send-refused' ? 422 : code === 'send-in-flight' || code === 'send-held' ? 409 : code === 'external-unreachable' ? 502 : 500);
     }
   }
 

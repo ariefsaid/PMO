@@ -26,12 +26,12 @@ export function masterSendAdapter(connect: ConnectAdapter, kind: SendKind, recor
 type SendDeps = Omit<DispatchMoneyWriteDeps, 'adapter' | 'command' | 'recordExternalRef' | 'writeReadModel'>;
 
 /**
- * PD-ECA-8: one outbox row per master; only companies keep their link in external_refs (one link store per kind: a project
- * or item link is written by `record_connect_send_result`, into the binding's map). The outbox finalizes through
- * `money.recordOutboxRef`, so that is the step a non-party send skips; the confirm that follows stays fenced on the claim.
+ * PD-ECA-8: one outbox row per master. The outbox never writes the link: `record_connect_send_result` does, for every kind, through
+ * `apply_connect_link` (one guarded writer: an existing link is never re-pointed, a clash is answered in plain words). The outbox
+ * finalizes through `money.recordOutboxRef`, so that is the step every send skips; the confirm that follows stays fenced on the claim.
  */
 export async function sendMasterOnce(deps: SendDeps, connect: ConnectAdapter, kind: SendKind, record: PmoMaster): Promise<CommandResult> {
-  const money = kind === 'party' ? deps.money : { ...deps.money, recordOutboxRef: async () => 1 };
+  const money = { ...deps.money, recordOutboxRef: async () => 1 };
   return dispatchMoneyWrite({
     ...deps,
     money,

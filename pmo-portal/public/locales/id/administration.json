@@ -173,6 +173,8 @@
       "sending": "Sedang dikirim ke ERP",
       "waiting": "{{count}} menunggu konfirmasi ERP.",
       "needsDecision": "Perlu keputusan",
+      "retry": "Tidak ada di ERP: kirim lagi",
+      "retryFailed": "Kami tidak dapat mengirim ulang. Coba lagi sebentar lagi.",
       "unnamed": "Sebuah data",
       "addPeople": "Tambahkan orang-orang ini di ERP. ERP meminta tanggal lahir dan jenis kelamin, yang tidak dimiliki PMO.",
       "accountantTask": "Minta akuntan Anda menambahkan akun biaya langsung untuk: {{categories}}"

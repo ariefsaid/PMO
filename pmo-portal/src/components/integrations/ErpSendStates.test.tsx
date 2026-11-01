@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ConnectProposal, ConnectStatus } from '@/src/lib/repositories/contracts/integrations';
 
 const repo = vi.hoisted(() => ({
   getConnectStatus: vi.fn<() => Promise<ConnectStatus>>(),
+  retryConnectSend: vi.fn<(tier: string, id: string) => Promise<void>>(),
   listConnectProposals: vi.fn<(tier: string, kind: string | null, outcome: string | null) => Promise<{ proposals: ConnectProposal[]; nextAfterId: string | null }>>(),
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations: repo } }));
@@ -13,7 +14,7 @@ import { ErpSendStates } from './ErpSendStates';
 
 const status = (waitingForSend: number): ConnectStatus => ({ run: null, census: [], waitingForSend });
 const proposal = (over: Partial<ConnectProposal>): ConnectProposal => ({
-  id: 'p', kind: 'item', outcome: 'review', pmo_ids: ['x'], external_ids: [], reason_text: null, snapshot: {}, state: 'open', ...over,
+  id: 'p', kind: 'item', outcome: 'review', pmo_ids: ['x'], external_ids: [], reason: null, reason_text: null, snapshot: {}, state: 'open', ...over,
 });
 
 function answer(waiting: number, review: ConnectProposal[] = [], sends: ConnectProposal[] = []) {
@@ -27,7 +28,7 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('ECA3-T11 ErpSendStates', () => {
   it('NFR-ECA-004 an accepted send shows "Sending to the ERP" until the ERP confirms; a rejection returns as "Needs a decision" with the reason', async () => {
-    answer(3, [proposal({ id: 'r1', snapshot: { name: 'Semen 50 kg' }, reason_text: 'The ERP refused this item: Value missing' })]);
+    answer(3, [proposal({ id: 'r1', reason: 'rejected', snapshot: { name: 'Semen 50 kg' }, reason_text: 'The ERP refused this item: Value missing' })]);
     renderIt();
     expect(await screen.findByText('Sending to the ERP')).toBeTruthy();
     expect(screen.getByText(/3 waiting for the ERP to confirm/)).toBeTruthy();
@@ -38,14 +39,33 @@ describe('ECA3-T11 ErpSendStates', () => {
   });
 
   it('a send the ERP could not confirm is a decision with its plain reason, not a success', async () => {
-    answer(0, [proposal({ id: 'r2', kind: 'project', snapshot: { name: 'Jembatan' }, reason_text: 'We could not confirm whether the ERP created this record' })]);
+    answer(0, [proposal({ id: 'r2', kind: 'project', reason: 'held', snapshot: { name: 'Jembatan' }, reason_text: 'We could not confirm whether the ERP created this record' })]);
     renderIt();
     expect(await screen.findByText('We could not confirm whether the ERP created this record')).toBeTruthy();
     expect(screen.queryByText('Sending to the ERP')).toBeNull();
   });
 
-  it('a matcher review row (it names ERP records) is not a send state', async () => {
-    answer(0, [proposal({ id: 'r3', external_ids: ['Supplier:ACME'], reason_text: 'Two PMO companies share this name.' })]);
+  it('I2 a held send has a way out: "It is not there: send it again" releases it and the list is read again; a refused send has no such button', async () => {
+    repo.retryConnectSend.mockResolvedValue(undefined);
+    answer(0, [proposal({ id: 'r2', kind: 'project', reason: 'held', snapshot: { name: 'Jembatan' }, reason_text: 'We could not confirm' }),
+      proposal({ id: 'r1', reason: 'rejected', snapshot: { name: 'Semen' }, reason_text: 'The ERP refused this item' })]);
+    renderIt();
+    fireEvent.click(await screen.findByRole('button', { name: 'It is not there: send it again' }));
+    await waitFor(() => expect(repo.retryConnectSend).toHaveBeenCalledWith('erpnext', 'r2'));
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+    await waitFor(() => expect(repo.listConnectProposals.mock.calls.length).toBeGreaterThan(2));
+  });
+
+  it('I2 a retry that fails says so in plain words', async () => {
+    repo.retryConnectSend.mockRejectedValue(new Error('boom'));
+    answer(0, [proposal({ id: 'r2', kind: 'project', reason: 'held', snapshot: { name: 'Jembatan' }, reason_text: 'We could not confirm' })]);
+    renderIt();
+    fireEvent.click(await screen.findByRole('button', { name: 'It is not there: send it again' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('We could not send it again. Try again in a moment.');
+  });
+
+  it('M10 a matcher review row is not a send state, even one that names no ERP record', async () => {
+    answer(0, [proposal({ id: 'r3', reason: 'ambiguous', external_ids: [], reason_text: 'Two PMO companies share this name.' })]);
     const { container } = renderIt();
     await waitFor(() => expect(repo.listConnectProposals).toHaveBeenCalled());
     await new Promise((r) => setTimeout(r, 20));

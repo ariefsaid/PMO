@@ -11,6 +11,9 @@ const INVOICE_PAIRING = 1602;
 // Shipped behaviour whose tests are still tier-local; the follow-up issue moves each into a shared suite.
 const SHIPPED_TESTS_NOT_YET_SHARED = 1609;
 
+/** Why a person cannot be sent: the declaration's reason, and the sentence the Admin reads (one copy, so another tier never shows this one's). */
+export const EMPLOYEE_SEND_UNAVAILABLE_REASON = 'This ERP asks for a birth date and gender for each person, which PMO does not hold.';
+
 export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   'census': { status: 'supported', version: 1 },
   'party.match': { status: 'supported', version: 2 },
@@ -23,7 +26,7 @@ export const ERPNEXT_WORKFLOWS: TierWorkflows = {
   'account.match': { status: 'supported', version: 1 },
   'employee.match': { status: 'supported', version: 1 },
   // PQ-ECA-1, verified on the bed (ECA3-T1): the ERP requires gender, date of birth and date of joining for an employee; PMO holds none of them and never invents them.
-  'employee.send': { status: 'unavailable', version: 1, reason: 'ERPNext requires birth date and gender for an employee; PMO does not hold them' },
+  'employee.send': { status: 'unavailable', version: 1, reason: EMPLOYEE_SEND_UNAVAILABLE_REASON },
   'purchase.push': { status: 'pending', version: 1, issue: SHIPPED_TESTS_NOT_YET_SHARED },
   'bill.push': { status: 'pending', version: 1, issue: SHIPPED_TESTS_NOT_YET_SHARED },
   'vendor-payment.push': { status: 'pending', version: 1, issue: SHIPPED_TESTS_NOT_YET_SHARED },

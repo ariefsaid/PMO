@@ -168,10 +168,10 @@ describe('ECA3-T4 sendViaOutbox', () => {
     }
   });
 
-  it('only a party is written to external_refs by the outbox (one link store per kind), and every send still confirms', async () => {
+  it('C1 the outbox writes no link for any kind (record_connect_send_result is the one guarded link writer), and every send still confirms', async () => {
     const { ob, send } = setup();
     for (const kind of ['party', 'project', 'item', 'employee'] as const) await send(kind);
-    expect(ob.refs).toEqual([{ pmoRecordId: 'c-1', externalRecordId: 'EXT-1', domain: 'companies' }]);
+    expect(ob.refs).toEqual([]);
     expect([...ob.rows.values()].map((r) => r.state)).toEqual(['confirmed', 'confirmed', 'confirmed', 'confirmed']);
   });
 

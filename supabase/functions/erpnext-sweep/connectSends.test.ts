@@ -44,6 +44,16 @@ interface Opts {
   itemOnOpenPurchase?: boolean;
   /** Outbox rows that exist before the tick (an earlier attempt that left the create undecided). */
   outbox?: Array<Record<string, unknown>>;
+  /** C1: ERP ids the records are already linked to, by PMO id. */
+  linked?: Record<string, string>;
+  /** I1: the result write for this proposal fails with this database error code. */
+  resultError?: Record<string, string>;
+  /** I1: what `record_connect_send_failure` answers (true: this was the fifth, the send ended). */
+  failureEnds?: boolean;
+  /** M7: the accepting Admin no longer holds the role. */
+  actorGone?: boolean;
+  /** I3: every ERP read answers with a server error. */
+  erpDown?: boolean;
 }
 
 function routes(o: Opts) {
@@ -58,7 +68,14 @@ function routes(o: Opts) {
     supabaseSelect('companies', () => one({ id: 'c-1', name: 'PT Baja', type: 'Vendor', erp_tax_id: '01.234' })),
     supabaseSelect('projects', () => (o.archivedProject ? none() : one({ id: 'p-1', name: 'Jembatan', code: 'PRJ-1' }))),
     supabaseSelect('procurement_items', () => jsonResponse(o.itemOnOpenPurchase === false ? [] : [{ id: 'i-1' }])),
-    supabaseRpc('record_connect_send_result', () => jsonResponse(null)),
+    supabaseRpc('connect_send_existing_link', (c) => jsonResponse(o.linked?.[(c.bodyJson as { p_pmo: string }).p_pmo] ?? null)),
+    supabaseSelect('profiles', () => (o.actorGone ? none() : one({ id: 'admin-1' }))),
+    supabaseRpc('record_connect_send_failure', () => jsonResponse(o.failureEnds === true)),
+    supabaseRpc('record_connect_send_result', (c) => {
+      const b = c.bodyJson as { p_id: string; p_rejection: string | null };
+      const code = b.p_rejection === null ? o.resultError?.[b.p_id] : undefined;   // only the link write fails; a rejection is accepted
+      return code ? jsonResponse({ code, message: 'duplicate key value violates unique constraint', details: '' }, { status: 409 }) : jsonResponse(null);
+    }),
     supabaseRpc('record_connect_send_held', () => jsonResponse(null)),
     supabaseSelect('external_command_outbox', (c) => {
       const row = outbox.find((x) => x.domain === f(c, 'domain') && x.pmo_record_id === f(c, 'pmo_record_id') && x.idempotency_key === f(c, 'idempotency_key'));
@@ -86,6 +103,7 @@ function routes(o: Opts) {
     supabaseRpc('mark_outbox_held', (c) => { outbox.find((x) => x.id === (c.bodyJson as { p_id: string }).p_id)!.state = 'held'; return jsonResponse(1); }),
     { label: 'erp', host: ERP, pathname: /^\/api\//, response: (c: FetchCall) => {
       const doctype = decodeURIComponent(c.url.pathname.split('/').pop()!);
+      if (o.erpDown && c.method === 'GET') return new Response('down', { status: 503 });
       if (c.method === 'POST' && o.fault?.[doctype]) erp.arm(o.fault[doctype]);
       return erp.client.fetchImpl(c.url.toString(), { method: c.method, body: c.bodyText });
     } },
@@ -93,10 +111,10 @@ function routes(o: Opts) {
   return { routes: r, erp, outbox, tables };
 }
 
-async function tick(o: Opts = {}, binding: { orgId: string; bindingId?: string | null } = org, budget?: number) {
+async function tick(o: Opts = {}, binding: { orgId: string; bindingId?: string | null } = org, budget?: number, clock?: { nowMs: () => number; budgetMs: number }) {
   const sc = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   const m = routes(o);
-  return await withFetchMock(m.routes, async ({ calls }) => ({ result: await drainConnectSends(sc, binding, budget), calls, ...m }));
+  return await withFetchMock(m.routes, async ({ calls }) => ({ result: await drainConnectSends(sc, binding, budget, clock), calls, ...m }));
 }
 const body = (c: FetchCall) => c.bodyJson as Record<string, unknown>;
 const erpPosts = (calls: FetchCall[]) => calls.filter((c) => c.url.host === ERP && c.method === 'POST');
@@ -132,9 +150,59 @@ describe('ECA3-T7 drainConnectSends', () => {
     for (const i of inserts) assertEquals([i.org_id, i.external_tier, i.operation, i.actor_user_id], [ORG, 'erpnext', 'create', 'admin-1']);
   });
 
-  it('only the company reference goes through the outbox into external_refs (one link store per kind)', async () => {
+  it('C1 the outbox writes no link for any kind: record_connect_send_result is the one guarded link writer', async () => {
     const { calls } = await tick({ claimed: [P.party, P.project, P.item] });
-    assertEquals(rpcCall(calls, 'record_outbox_ref').map((c) => body(c).p_domain), ['companies']);
+    assertEquals(rpcCall(calls, 'record_outbox_ref').length, 0);
+  });
+
+  it('C1 a record that already has its link is never sent again: no ERP call, no outbox row, its own link is the result', async () => {
+    const { result, calls, outbox } = await tick({ claimed: [P.party, P.project, P.item], linked: { 'c-1': 'Supplier:ACME-OLD', 'p-1': 'PROJ-7', 'Semen 50 kg': 'ITM-1' } });
+    assertEquals(results(calls).map((r) => [r.p_id, r.p_external_id, r.p_rejection ?? null]),
+      [['prop-party', 'Supplier:ACME-OLD', null], ['prop-project', 'PROJ-7', null], ['prop-item', 'ITM-1', null]]);
+    assertEquals(calls.filter((c) => c.url.host === ERP).length, 0);
+    assertEquals(outbox.length, 0);
+    assertEquals(result, { sent: 3, rejected: 0, held: 0, pending: 0 });
+  });
+
+  it('I1 a link clash from the result write ends the send as a decision in plain words, never a retry loop', async () => {
+    const { result, calls } = await tick({ claimed: [P.party], resultError: { 'prop-party': '23505' } });
+    const rs = results(calls);
+    assertEquals(rs.length, 2);   // the failed write, then the rejection
+    assertEquals(rs[1].p_external_id, null);
+    assertEquals(rs[1].p_rejection, 'This record is already linked to another ERP record.');
+    assertEquals(result.pending, 0);
+    assertEquals(result.rejected, 1);
+    assertEquals(rpcCall(calls, 'record_connect_send_failure').length, 0);
+  });
+
+  it('I1 trouble nobody can classify is counted; the send ends when the database says it was the last try', async () => {
+    const trouble = { claimed: [P.party], resultError: { 'prop-party': '57014' } };
+    const early = await tick(trouble);
+    assertEquals(early.result, { sent: 0, rejected: 0, held: 0, pending: 1, error: early.result.error });
+    assertEquals(rpcCall(early.calls, 'record_connect_send_failure').map(body), [{ p_org_id: ORG, p_id: 'prop-party' }]);
+    const last = await tick({ ...trouble, failureEnds: true });
+    assertEquals([last.result.rejected, last.result.pending], [1, 0]);
+  });
+
+  it('I3 a dead ERP ends the tick at the first send: one read without retry, the rest wait for a later tick', async () => {
+    const { result, calls } = await tick({ claimed: [P.party, P.project, P.item], erpDown: true });
+    assertEquals(calls.filter((c) => c.url.host === ERP).length, 1);
+    assertEquals(result, { sent: 0, rejected: 0, held: 0, pending: 3 });
+    assertEquals(results(calls).length, 0);
+  });
+
+  it('I3 the tick stops starting sends once its time is spent', async () => {
+    let t = 0;
+    const { result, calls } = await tick({ claimed: [P.party, P.project, P.item] }, org, undefined, { nowMs: () => (t += 100), budgetMs: 250 });
+    assertEquals(result, { sent: 2, rejected: 0, held: 0, pending: 1 });
+    assertEquals(results(calls).map((r) => r.p_id), ['prop-party', 'prop-project']);
+  });
+
+  it('M7 a send accepted by an Admin who is no longer one is not sent', async () => {
+    const { result, calls } = await tick({ claimed: [P.party], actorGone: true });
+    assertEquals(erpPosts(calls).length, 0);
+    assert(/no longer an Admin/.test(String(results(calls)[0].p_rejection)));
+    assertEquals(result.rejected, 1);
   });
 
   it('the same send is not created twice: a tick over a record the ERP already holds finds it', async () => {
@@ -178,20 +246,21 @@ describe('ECA3-T7 drainConnectSends', () => {
     assertEquals(erpPosts(calls).length, 0);
   });
 
-  it('NFR-ECA-004 a send the outbox cannot decide is held and says so, never created', async () => {
+  it('M1 two ERP records that match are a fact, not an unknown: a rejection that says so, never created, never "could not confirm"', async () => {
     const dup = [{ name: 'PROJ-1', project_name: 'Jembatan', company: 'Test Co' }, { name: 'PROJ-2', project_name: 'Jembatan', company: 'Test Co' }];
-    const { result, calls, outbox } = await tick({ claimed: [P.project], tables: { Project: dup } });
-    assertEquals(rpcCall(calls, 'record_connect_send_held').map(body), [{ p_org_id: ORG, p_id: 'prop-project' }]);
-    assertEquals(results(calls).length, 0);
+    const { result, calls } = await tick({ claimed: [P.project], tables: { Project: dup } });
+    assertEquals(rpcCall(calls, 'record_connect_send_held').length, 0);
+    assertEquals(results(calls).map((r) => r.p_rejection), ['Two ERP records match this project. Link the right one by hand.']);
     assertEquals(erpPosts(calls).length, 0);
-    assertEquals(outbox[0].state, 'held');
-    assertEquals(result.held, 1);
+    assertEquals(result.rejected, 1);
   });
 
   it('a company whose earlier create left no trace is held for a person; a project or item is created again (ERPNext refuses a duplicate of either)', async () => {
     const earlier = (domain: string, id: string, key: string) => ({ id: 'ob-0', domain, pmo_record_id: id, idempotency_key: key, state: 'quarantined', external_record_id: null, canonical: null, claim_generation: 1, payload_digest: null });
     const party = await tick({ claimed: [P.party], outbox: [earlier('companies', 'c-1', 'seed:party:c-1')] });
     assertEquals(party.result, { sent: 0, rejected: 0, held: 1, pending: 0 });
+    assertEquals(rpcCall(party.calls, 'record_connect_send_held').map(body), [{ p_org_id: ORG, p_id: 'prop-party' }]);
+    assertEquals(party.outbox[0].state, 'held');
     assertEquals(erpPosts(party.calls).length, 0);
     const project = await tick({ claimed: [P.project], outbox: [earlier('projects', 'p-1', 'seed:project:p-1')] });
     assertEquals(project.result, { sent: 1, rejected: 0, held: 0, pending: 0 });
@@ -202,7 +271,7 @@ describe('ECA3-T7 drainConnectSends', () => {
     const { result, calls } = await tick({ claimed: [P.employee] });
     const r = results(calls);
     assertEquals(r.length, 1);
-    assert(/birth date/.test(String(r[0].p_rejection)) && r[0].p_external_id === null, String(r[0].p_rejection));
+    assert(/birth date and gender/.test(String(r[0].p_rejection)) && r[0].p_external_id === null, String(r[0].p_rejection));
     assertEquals(erpPosts(calls).length, 0);
     assertEquals(calls.filter((c) => c.url.pathname === '/rest/v1/external_command_outbox').length, 0);
     assertEquals(result.rejected, 1);

@@ -409,8 +409,9 @@ export async function reconcileOrgOutbox(
   const errors: Array<{ id: string; error: string }> = [];
   for (const candidate of candidates) {
     // ECA-3 (#1606): a master send (`seed:<kind>:<id>`) is driven by the connect drain ALONE, which rebuilds its master from the PMO row;
-    // replaying one here as an ordinary command of its domain would post the wrong body. The row is not dropped: its proposal stays
-    // `sending` and the drain finishes it.
+    // replaying one here as an ordinary command of its domain would post the wrong body. The row is not dropped: when it has a proposal
+    // (an accepted send) that proposal stays `sending` and the drain finishes it; a project sent from its own page has none, and its
+    // retry finds the project by lookup (a held one leaves a decision row with a way out).
     if (candidate.idempotencyKey.startsWith('seed:')) continue;
     // ⚑ NEW-2/NEW-5 (audit r4): the `budget` domain is owned by pass 5 (`reconcileOrgBudgetPushes`)
     // ALONE. Two originators must never both drive one budget row:

@@ -140,7 +140,7 @@ describe('ECA3-T3 erpnext ConnectAdapter sends (lookup-then-create, FR-ECA-020/0
       { name: 'PROJ-1', project_name: 'Jembatan', company: 'Test Co' }, { name: 'PROJ-2', project_name: 'Jembatan', company: 'Test Co' },
     ] });
     const a = createErpnextConnectAdapter(client, 'Test Co');
-    await expect(a.sendMaster('project', { id: 'p1', name: 'Jembatan' }, 'k')).rejects.toMatchObject({ code: 'commit-rejected', message: 'ambiguous' });
+    await expect(a.sendMaster('project', { id: 'p1', name: 'Jembatan' }, 'k')).rejects.toMatchObject({ code: 'commit-rejected', message: 'Two ERP records match this record' });
     expect(posts(seen)).toHaveLength(0);
   });
 
@@ -151,5 +151,13 @@ describe('ECA3-T3 erpnext ConnectAdapter sends (lookup-then-create, FR-ECA-020/0
     expect(await erpnextSendProbe(client, 'Test Co', 'item', { id: 'Semen', name: 'Semen', code: 'SMN' })).toEqual({ externalRecordId: 'SMN' });
     expect(await erpnextSendProbe(client, 'Test Co', 'item', { id: 'Beton', name: 'Beton', code: 'BTN' })).toBeNull();
     await expect(erpnextSendProbe(client, 'Test Co', 'project', { id: 'p', name: 'Dup' })).rejects.toMatchObject({ code: 'commit-rejected' });
+  });
+
+  it('I3 the lookup before a create is one bounded attempt: a failing ERP is not retried into the claim budget', async () => {
+    let gets = 0;
+    const client = { fetchImpl: (async () => { gets += 1; return new Response('down', { status: 503 }); }) as typeof fetch, baseUrl: 'https://erp.example.test',
+      apiKey: 'k', apiSecret: 's', maxRetries: 3, sleep: async () => {} };
+    await expect(createErpnextConnectAdapter(client, 'Test Co').sendMaster('project', { id: 'p', name: 'Jembatan' }, 'k')).rejects.toMatchObject({ code: 'external-unreachable' });
+    expect(gets).toBe(1);
   });
 });

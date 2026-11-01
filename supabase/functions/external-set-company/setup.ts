@@ -17,6 +17,8 @@ import {
   ACTIVATION_PROBE_TOTAL_BUDGET_MS,
   assertErpReadPermissions,
 } from "../../../pmo-portal/src/lib/adapterSeam/erpnext/binding.ts";
+import { COMMAND_IN_FLIGHT_FOR_RECORD } from "../../../pmo-portal/src/lib/adapterSeam/dispatch.ts";
+import { erpReason } from "../_shared/erpReason.ts";
 import { sendMasterOnce } from "../../../pmo-portal/src/lib/adapterSeam/connect/sendViaOutbox.ts";
 import { createErpnextConnectAdapter, erpnextSendProbe } from "../../../pmo-portal/src/lib/adapterSeam/erpnext/connectAdapter.ts";
 import { createDbMoneyOutboxDeps } from "../adapter-dispatch/moneyOutboxDeps.ts";
@@ -540,7 +542,15 @@ async function ensureErpProject(body: ErpSetupBody, ctx: ErpSetupContext) {
   // ERPNext requires unique project_name. A retry looks up the landed master before any new POST; a project the ERP lacks is
   // sent through the money outbox under seed:project:<id> (ECA3-T10, PD-ECA-7), so one PMO project makes at most one ERP project.
   if (matches[0]) assertErpProject(matches[0], ctx.company);
-  const erpProject = matches[0]?.name as string ?? (await sendMasterOnce(
+  const erpProject = matches[0]?.name as string ?? (await sendProject(ctx, project, master)).externalRecordId;
+  await saveProjectMap(ctx, project.id, erpProject);
+  return { ok: true, erpProject };
+}
+
+/** I4: what the outbox can answer, in the words a Project Manager reads, with a status the handler maps (409 / 409 / 422), never a 500. */
+async function sendProject(ctx: ErpSetupContext, project: { id: string; name: string }, master: { id: string; name: string; code: string | null }) {
+  try {
+    return await sendMasterOnce(
     {
       money: createDbMoneyOutboxDeps({
         serviceClient: ctx.serviceClient as never,
@@ -555,9 +565,23 @@ async function ensureErpProject(body: ErpSetupBody, ctx: ErpSetupContext) {
     createErpnextConnectAdapter(ctx.client, ctx.company),
     "project",
     master,
-  )).externalRecordId;
-  await saveProjectMap(ctx, project.id, erpProject);
-  return { ok: true, erpProject };
+    );
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code === COMMAND_IN_FLIGHT_FOR_RECORD) {
+      throw new AppError("This project is already being created in the ERP. Try again in a minute.", "send-in-flight");
+    }
+    if (code === "command-held") {
+      // the Admin's decision row, with its way out (send it again), in the setup checklist
+      await ctx.serviceClient.rpc("record_connect_record_held", { p_org_id: ctx.orgId, p_tier: "erpnext", p_kind: "project", p_pmo: project.id, p_name: project.name });
+      throw new AppError("We could not confirm whether the ERP created this project. An Admin can check it in the ERP and send it again from the setup checklist.", "send-held");
+    }
+    if (code === "commit-rejected") {
+      const reason = erpReason(err);
+      throw new AppError(`The ERP refused this project${reason ? `: ${reason}` : ". Check it in the ERP, then try again."}`, "send-refused");
+    }
+    throw err;
+  }
 }
 
 async function verifyErpProjectLinks(ctx: ErpSetupContext) {
