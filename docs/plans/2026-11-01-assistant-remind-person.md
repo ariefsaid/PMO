@@ -7,7 +7,8 @@ Director-dispatched Orca workers (`docs/orca-dispatch.md`), one worker per slice
 **S1 (the RPC) ships alone**, and S2 waits for S1 on `dev` (S2's handler calls the S1 RPC).
 Everything cited was checked against `origin/dev` at `6440a961` (migration head `0426_imprest_approval_route.sql`; the
 0178 retained-RPC count is **104**, `supabase/tests/0178_anon_executable_definers.test.sql:306`). A path marked
-**(new)** does not exist yet. The migration number is left as the literal `<NNNN>` for the coordinator to assign.
+**(new)** does not exist yet. The migration is **0434** (Lane A gives #1639 the range 0434-0436; #1638 holds 0430-0433). If a sibling takes 0434
+first, renumber with `scripts/renumber-migration.sh 0434 0435` (never by hand).
 
 ## Open questions (each has the default this plan takes)
 
@@ -19,6 +20,9 @@ active member, de-duplication from anyone, 10 per chip). Found while planning:
 | PQ-1 | Two senders reminding the same task at the same moment could both pass the de-duplication check. | The send RPC also takes a per-task transaction lock, in ascending task-id order, so the second sender sees the first sender's row (`already_reminded`). Ascending order prevents lock-order deadlocks. | S1 |
 | PQ-2 | Which "today" decides overdue on the server? | The **sender's** zone (profile, else org default, else UTC), the same rule `whats_overdue` uses (DD-AIN-1, `overdue.ts:60`), so the server agrees with the list the sender saw. | S1 |
 | PQ-3 | Does the approve path need a `can()` preflight? | No new `can()` entity: `getPermissionCheck` returns `null` for `remind_overdue` (its `default` arm, `handler.ts:574-588`), so the approve path still re-derives org and role (`handler.ts:1717-1736`) and the RPC is the only authority (ADR-0016: `can()` is UX only; there is no FE button to gate). | S2 |
+| PQ-5 | A manager with more than 10 overdue tasks re-asks within 24 hours: the 10 oldest are `already_reminded`. | The preview takes up to 50 ids (the overdue list's fetch cap, `OVERDUE_TASK_CAP`, `overdue.ts:16`), so `prepare` finds the next 10 eligible tasks; the send still takes at most 10. Without this the reply would be "nobody can be reminded" while tasks 11-20 are remindable. | S1, S2 |
+| PQ-6 | The approved value is replayed by the client (`handler.ts:1695-1700`), so its names are client-supplied. | `run` reports names from the send RPC's result (server-read), never from the replayed value. Task ids remain the only input the RPC acts on. | S1, S2 |
+| PQ-7 | "Remind whoever is **late**" also matches the shipped map line "overdue, late, … → `whats_overdue`" (`prompt.ts:185`). | The remind map line goes **before** that line and says it wins when the user asks to remind/chase; the eval (AC-RMD-020) is the proof. | S2 |
 | PQ-4 | The offer line (FR-RMD-031) must appear only when the tool is registered. | `whats_overdue` becomes `makeWhatsOverdueAction({ offerReminders })`; the handler passes the kill-switch value. The exported `whatsOverdueAction` keeps `offerReminders: false`, so every existing import and test is unchanged. | S2 |
 
 ## Architecture
@@ -77,13 +81,19 @@ user approves
   internals also `from authenticated`; client RPCs then `grant execute ... to authenticated`. The migration ends with a
   closing self-assertion block that raises if the ACL shape is wrong.
 - Public repo: fixtures use the synthetic prefix `16390000-...` and `@example.com`; role-shaped display names only.
+- CI traps: **0137** (service_role grants) holds through the 0080 default privileges, since the migration revokes only
+  from `public, anon, authenticated`; the closing self-assertion also checks it. **0136** (side-mirror inventory) does
+  not apply: it lists `*_erp_mirror` tables only and `task_reminders` is not one. **0178** is S1.11.
+- i18n: this adds **no UI string**, so no locale keys. The notification title and body are stored server-written English,
+  as every workflow notification is (`0237`, rendered raw by the bell); localizing stored notification text is a
+  follow-up for all of them, not this slice. `npm run check:i18n` (inside `check:guards`) stays green.
 - Local final gate per slice (CLAUDE.md, from `pmo-portal/`): `npm run check:guards`, `npm run typecheck`,
   `npx eslint --max-warnings=0 <touched files>`, the touched test files only. Commits are conventional with no
   attribution trailers; before every push `git log --format=%B origin/dev..HEAD | grep -qi co-authored` must NOT match.
 
 ---
 
-## S1 - Ledger and RPCs (`supabase/migrations/<NNNN>_task_reminders.sql`) - ships alone
+## S1 - Ledger and RPCs (`supabase/migrations/0434_task_reminders.sql`) - ships alone
 
 ### S1.1 Failing test first: the shared fixture and AC-RMD-001 (3 min)
 
@@ -94,7 +104,7 @@ Create `supabase/tests/task_reminders.test.sql` **(new)**:
 -- removed (mutation-check: comment out a rule in task_reminder_check and its case goes red).
 begin;
 create extension if not exists pgtap;
-select plan(32);
+select plan(34);
 
 insert into organizations (id, name) values
   ('16390000-0000-0000-0000-00000000000a', 'RMD Org A'),
@@ -165,13 +175,13 @@ Close the file with `select * from finish(); rollback;` for now. Run (expect RED
 
 ### S1.2 The ledger table (3 min)
 
-Create `supabase/migrations/<NNNN>_task_reminders.sql` **(new)**:
+Create `supabase/migrations/0434_task_reminders.sql` **(new)**:
 
 ```sql
--- <NNNN>_task_reminders.sql — assistant "Remind this person" (#1639, OD-GRILL-20261101; spec assistant-remind-person).
+-- 0434_task_reminders.sql — assistant "Remind this person" (#1639, OD-GRILL-20261101; spec assistant-remind-person).
 -- A sender-readable ledger + one internal rule function + two client RPCs. The recipient's in-app notification is
 -- written by the shipped helper notify_workflow_user (0237), which is reused, not re-derived.
--- Reverse (also supabase/migrations/rollback/<NNNN>_task_reminders_down.sql):
+-- Reverse (also supabase/migrations/rollback/0434_task_reminders_down.sql):
 --   drop function if exists public.send_task_reminders(uuid[]);
 --   drop function if exists public.preview_task_reminders(uuid[]);
 --   drop function if exists public.task_reminder_check(uuid, uuid, uuid);
@@ -195,7 +205,7 @@ create index task_reminders_task_recipient_idx   on public.task_reminders (task_
 alter table public.task_reminders enable row level security;
 alter table public.task_reminders force row level security;
 create policy task_reminders_select on public.task_reminders for select
-  using (sender_id = auth.uid() and org_id = auth_org_id());
+  using (sender_id = auth.uid() and org_id = public.auth_org_id() and public.is_active_member());
 revoke all on public.task_reminders from public, anon, authenticated;
 grant select on public.task_reminders to authenticated;
 ```
@@ -256,6 +266,7 @@ revoke all on function public.task_reminder_check(uuid, uuid, uuid) from public,
 
 ```sql
 -- FR-RMD-018: the same checks, no writes. Returns {remaining, items:[{task_id, outcome, task_name, due_date, recipient_name}]}.
+-- Takes up to 50 ids (PQ-5: the overdue fetch cap), so prepare can skip already-reminded tasks; the send takes 10.
 create or replace function public.preview_task_reminders(p_task_ids uuid[]) returns jsonb
   language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare
@@ -267,8 +278,8 @@ declare
   c record;
 begin
   perform public.assert_is_active_member();
-  if coalesce(cardinality(p_task_ids), 0) not between 1 and 10 then
-    raise exception 'between 1 and 10 tasks may be reminded at once' using errcode = '22023';
+  if coalesce(cardinality(p_task_ids), 0) not between 1 and 50 then
+    raise exception 'between 1 and 50 tasks may be checked at once' using errcode = '22023';
   end if;
   select count(*) into v_used from public.task_reminders
    where sender_id = v_me and created_at > now() - interval '24 hours';
@@ -315,12 +326,13 @@ begin
     -- PQ-1: per-task lock, taken in ascending id order, so concurrent senders de-duplicate without deadlock.
     perform pg_advisory_xact_lock(hashtextextended('task_reminders:task:' || v_id::text, 0));
     select * into c from public.task_reminder_check(v_me, v_org, v_id);
+    -- PQ-6: names in the result are read here, never taken from the caller (task_name is null for not_found).
     if c.outcome <> 'eligible' then
-      v_out := v_out || jsonb_build_object('task_id', v_id, 'outcome', c.outcome);
+      v_out := v_out || jsonb_build_object('task_id', v_id, 'outcome', c.outcome, 'task_name', c.task_name);
       continue;
     end if;
     if v_used >= public.task_reminder_daily_cap() then
-      v_out := v_out || jsonb_build_object('task_id', v_id, 'outcome', 'daily_limit');
+      v_out := v_out || jsonb_build_object('task_id', v_id, 'outcome', 'daily_limit', 'task_name', c.task_name);
       continue;
     end if;
     insert into public.task_reminders (org_id, sender_id, recipient_id, task_id)
@@ -330,7 +342,8 @@ begin
       v_sender || ' reminded you: "' || c.task_name || '" was due ' || to_char(c.due_date, 'FMDD Mon YYYY') || '.',
       'info', 'task', v_id, c.task_name);
     v_used := v_used + 1;
-    v_out := v_out || jsonb_build_object('task_id', v_id, 'outcome', 'sent');
+    v_out := v_out || jsonb_build_object('task_id', v_id, 'outcome', 'sent', 'task_name', c.task_name,
+      'recipient_name', (select p.full_name from public.profiles p where p.id = c.recipient_id));
   end loop;
   return jsonb_build_object('remaining', greatest(public.task_reminder_daily_cap() - v_used, 0), 'items', v_out);
 end $$;
@@ -348,22 +361,23 @@ declare v text;
 begin
   foreach v in array array['public.preview_task_reminders(uuid[])', 'public.send_task_reminders(uuid[])'] loop
     if has_function_privilege('anon', v, 'EXECUTE') or not has_function_privilege('authenticated', v, 'EXECUTE') then
-      raise exception '<NNNN>: % ACL is not the intended shape', v;
+      raise exception '0434: % ACL is not the intended shape', v;
     end if;
   end loop;
   foreach v in array array['public.task_reminder_check(uuid, uuid, uuid)', 'public.task_reminder_daily_cap()'] loop
     if has_function_privilege('anon', v, 'EXECUTE') or has_function_privilege('authenticated', v, 'EXECUTE') then
-      raise exception '<NNNN>: internal % is client-executable', v;
+      raise exception '0434: internal % is client-executable', v;
     end if;
   end loop;
   if has_table_privilege('anon', 'public.task_reminders', 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE')
-     or has_table_privilege('authenticated', 'public.task_reminders', 'INSERT,UPDATE,DELETE,TRUNCATE') then
-    raise exception '<NNNN>: task_reminders ACL is not the intended shape';
+     or has_table_privilege('authenticated', 'public.task_reminders', 'INSERT,UPDATE,DELETE,TRUNCATE')
+     or not has_table_privilege('service_role', 'public.task_reminders', 'SELECT,INSERT,DELETE') then
+    raise exception '0434: task_reminders ACL is not the intended shape (0137: service_role keeps DML)';
   end if;
 end $$;
 ```
 
-Create `supabase/migrations/rollback/<NNNN>_task_reminders_down.sql` **(new)** = the header's five `drop` lines,
+Create `supabase/migrations/rollback/0434_task_reminders_down.sql` **(new)** = the header's five `drop` lines,
 uncommented, in that order. Re-run the S1.1 command: the three AC-RMD-001 cases go GREEN.
 
 ### S1.7 Rule cases AC-RMD-002..008 (4 min)
@@ -422,11 +436,21 @@ select pg_temp.act_as('16390000-0000-0000-0000-0000000000a1');
 select throws_ok($$ select send_task_reminders((select array_agg(gen_random_uuid()) from generate_series(1, 11))) $$, '22023', null,
   'AC-RMD-011 more than 10 tasks is refused');
 select throws_ok($$ select send_task_reminders(array[]::uuid[]) $$, '22023', null, 'AC-RMD-011 an empty batch is refused');
+select throws_ok($$ select preview_task_reminders((select array_agg(gen_random_uuid()) from generate_series(1, 51))) $$, '22023', null,
+  'AC-RMD-011 a preview of more than 50 tasks is refused');
 ```
 
 ### S1.9 Ledger visibility and ACL (4 min)
 
 ```sql
+reset role;
+-- a ledger row the disabled member sent before being disabled (as the table owner)
+insert into task_reminders (org_id, sender_id, recipient_id, task_id) values
+  ('16390000-0000-0000-0000-00000000000a', '16390000-0000-0000-0000-0000000000a3', '16390000-0000-0000-0000-0000000000a2',
+   '16390000-0000-0000-0000-0000000000d6');
+set local role authenticated;
+select pg_temp.act_as('16390000-0000-0000-0000-0000000000a3');
+select is((select count(*)::int from task_reminders), 0, 'AC-RMD-009 a disabled sender reads none of their own ledger rows');
 select pg_temp.act_as('16390000-0000-0000-0000-0000000000a2');
 select is((select count(*)::int from task_reminders), 0, 'AC-RMD-009 the recipient does not read the sender''s ledger');
 select pg_temp.act_as('16390000-0000-0000-0000-0000000000b1');
@@ -470,31 +494,35 @@ select is(pg_temp.reminders_for('16390000-0000-0000-0000-0000000000a2'), 2,
 
 `self` sorts before `eligible` because `...0000000000d2` < `...000000000d11` as text. The two real sends to the site
 engineer are AC-RMD-001's and AC-RMD-005's second call; the 19 is 20 minus AC-RMD-001's one send by this sender.
-`plan(32)` = S1.1 3 + S1.7 8 + S1.8 5 + S1.9 11 (5 single cases + 3 `unnest` lines yielding 2 each) + S1.10 5.
-Run the S1.1 command; all 32 GREEN.
+`plan(34)` = S1.1 3 + S1.7 8 + S1.8 6 + S1.9 12 (6 single cases + 3 `unnest` lines yielding 2 each) + S1.10 5.
+The disabled member's ledger row is for the Done task d6 and is sent by a3, so it moves neither the AC-RMD-012
+allowance (sender a1) nor any de-duplication case (d6 is never overdue). Run the S1.1 command; all 34 GREEN.
 **Mutation check:** comment out the `t.assignee_id = p_sender` arm and re-run: AC-RMD-002 must go RED (it would read
-`sent`); restore. Repeat for the `is_active_member` arm (AC-RMD-004) and the cap arm (AC-RMD-005).
+`sent`); restore. Repeat for the `is_active_member` arm (AC-RMD-004), the cap arm (AC-RMD-005) and the policy's
+`is_active_member()` conjunct (AC-RMD-009 disabled sender).
 
 ### S1.11 0178 allow-list, isolation denominator, types (4 min)
 
 - `supabase/tests/0178_anon_executable_definers.test.sql`: add `('preview_task_reminders')` and `('send_task_reminders')`
   to `client_callable_rpc_names` (sorted); add the header note
-  `-- ⚑ AMENDED BY <NNNN> (#1639): preview_task_reminders and send_task_reminders join the retained set (+2, count 106). Each
+  `-- ⚑ AMENDED BY 0434 (#1639): preview_task_reminders and send_task_reminders join the retained set (+2, count 106). Each
   -- asserts active membership and the caller's org in its body; proven by supabase/tests/task_reminders.test.sql.`;
   change both hard-coded counts `104` to `106` (lines 306 and 316 at `6440a961`). Re-derive by hand after any rebase.
 - `scripts/isolation-probe-denominator.json`: add to `tables`
   `{"table":"task_reminders","has_org":true,"pk":"id","columns":"*","b_read":"own-org-only","by_id":"applicable"}`;
   to `definer_functions` `"preview_task_reminders(uuid[])"`, `"send_task_reminders(uuid[])"`,
-  `"task_reminder_check(uuid,uuid,uuid)"`; to `rpcs`
-  `{"name":"send_task_reminders","class":"write","expect_denial":[{"http":403,"sqlstate":"42501"}],"source":["supabase/migrations/<NNNN>_task_reminders.sql:<line of assert_is_active_member in send>"]}` and the same for
-  `preview_task_reminders` with `"class":"read"`. Run `node scripts/check-isolation-denominator.mjs` and fix until clean;
-  then `node scripts/check-isolation-denominator.mjs --self-test`.
+  `"task_reminder_check(uuid,uuid,uuid)"` (all three are SECURITY DEFINER; `task_reminder_daily_cap` is not). Add **no**
+  `rpcs` entry: that list must match the probes in `scripts/isolation-probe.sh` exactly
+  (`validateExactRpcProbeCoverage`), and a tenant-B member calling either RPC with an org-A id is not denied, it gets
+  outcome `not_found` (HTTP 200), which no `expect_denial`/`shape` value describes. The cross-org proof is AC-RMD-003
+  (pgTAP). Run `node scripts/check-isolation-denominator.mjs` and fix until clean; then
+  `node scripts/check-isolation-denominator.mjs --self-test`.
 - Types: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase gen types typescript --local > pmo-portal/src/lib/supabase/database.types.ts'`.
 
 ### S1.12 Slice gate and commit (3 min)
 
 1. `scripts/check-migration-collisions.sh && scripts/check-migration-collisions.sh --self-test`
-2. `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/task_reminders.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0237_workflow_notifications.test.sql'`
+2. `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/task_reminders.test.sql supabase/tests/0178_anon_executable_definers.test.sql supabase/tests/0237_workflow_notifications.test.sql supabase/tests/0137_service_role_grants.test.sql supabase/tests/0203_rls_active_member_composition.test.sql'`
 3. `node scripts/check-isolation-denominator.mjs && node scripts/check-isolation-denominator.mjs --self-test`
 4. From `pmo-portal/`: `npm run check:guards && npm run typecheck`.
 
@@ -514,11 +542,13 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   prepareRemindOverdue, validatePreparedReminders, runRemindOverdue, REMINDER_BATCH_CAP,
 } from '../../../../supabase/functions/agent-chat/remindOverdue';
+import type { PreparedReminders } from '../../../../supabase/functions/agent-chat/remindOverdue';
 import { fakeSupabase, type FakeCall } from './testing/fakeSupabase';
 
 const NOW = new Date('2026-10-06T03:00:00Z');
 const P1 = '11111111-1111-4111-8111-111111111111';
 const T = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+const ids = (out: { ok: boolean; value?: object }) => (out.ok ? (out.value as PreparedReminders).reminders.map((r) => r.taskId) : null);
 const ctx = (client: unknown) => ({ jwt: '', userId: 'u-me', orgId: 'org-1', role: 'Project Manager', supabase: client as never });
 
 type TaskRow = { id: string; name: string; end_date: string; project_id: string; assignee_id: string | null };
@@ -551,8 +581,8 @@ describe('prepareRemindOverdue (#1639)', () => {
     client.rpc.mockResolvedValueOnce(eligible([T(1), T(4)]) as never);
     const out = await prepareRemindOverdue({}, ctx(client), NOW);
     expect(client.rpc).toHaveBeenCalledWith('preview_task_reminders', { p_task_ids: [T(1), T(4)] });
-    expect(out.ok && out.value.reminders.map((r) => r.taskId)).toEqual([T(1), T(4)]);
-    expect(out.ok && out.summary).toMatch(/^Send 2 reminders: Site engineer — Pour foundation/);
+    expect(ids(out)).toEqual([T(1), T(4)]);
+    expect(out.ok && out.summary).toMatch(/^Send 2 reminders: Site engineer about Pour foundation \(due /);
   });
 });
 ```
@@ -601,19 +631,20 @@ Create `supabase/functions/agent-chat/remindOverdue.ts` **(new)**:
  * from each task row). ADR-0079 §2: prepared before the chip; the approved value is what runs.
  */
 import type { AgentAction, DeputyContext, PrepareResult } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
-import { loadOverdueFacts, OVERDUE_TIMEOUT_MS } from './overdue.ts';
+import { loadOverdueFacts, OVERDUE_TASK_CAP, OVERDUE_TIMEOUT_MS } from './overdue.ts';
 import { REMIND_OVERDUE_SCHEMA } from './schema.ts';
 import { asRpc, UUID_RE, withTimeout } from './looseClient.ts';
 import { formatShortDate } from './agentFormat.ts';
 
 export const REMINDER_BATCH_CAP = 10; // FR-RMD-007 / OQ-7, = the send RPC's batch limit
+const PREVIEW_CAP = OVERDUE_TASK_CAP; // PQ-5: = the preview RPC's limit and the overdue fetch cap (50)
 const SUMMARY_LISTED = 3;
 
 export interface RemindRequest { task?: string }
 export interface PreparedReminder { taskId: string; taskName: string; recipientName: string; dueDate: string }
 export interface PreparedReminders { kind: 'prepared-reminders'; reminders: PreparedReminder[] }
 type Outcome = 'eligible' | 'sent' | 'not_found' | 'not_overdue' | 'no_assignee' | 'self' | 'recipient_inactive' | 'already_reminded' | 'daily_limit';
-interface RpcItem { task_id: string; outcome: Outcome; recipient_name?: string | null }
+interface RpcItem { task_id: string; outcome: Outcome; task_name?: string | null; recipient_name?: string | null }
 interface RpcResult { remaining: number; items: RpcItem[] }
 
 const refuse = (error: string, extra: Record<string, unknown> = {}): PrepareResult => ({ ok: false, error: { error, ...extra } });
@@ -638,12 +669,12 @@ export async function prepareRemindOverdue(input: RemindRequest, ctx: DeputyCont
     if (pool.length > 1) {
       return refuse('Which task should I send a reminder for?', {
         needs: 'choice',
-        candidates: pool.slice(0, 8).map((t) => ({ id: t.name, label: `${t.name}${t.assigneeName ? ` — ${t.assigneeName}` : ''}` })),
+        candidates: pool.slice(0, 8).map((t) => ({ id: t.name, label: `${t.name}${t.assigneeName ? ` (${t.assigneeName})` : ''}` })),
       });
     }
   }
   if (pool.length === 0) return refuse('Every overdue task shown is yours or has no assignee, so there is nobody to remind.');
-  pool = pool.slice(0, REMINDER_BATCH_CAP); // already oldest-due first (overdue.ts sort)
+  pool = pool.slice(0, PREVIEW_CAP); // already oldest-due first (overdue.ts sort)
 
   const { data, error } = await withTimeout(rpc.rpc('preview_task_reminders', { p_task_ids: pool.map((t) => t.id) }), OVERDUE_TIMEOUT_MS);
   if (error || !data) return refuse('Reminders could not be checked right now.');
@@ -652,16 +683,17 @@ export async function prepareRemindOverdue(input: RemindRequest, ctx: DeputyCont
   const eligible = pool.filter((t) => ok.has(t.id));
   if (eligible.length === 0) return refuse('Nobody can be reminded: these people were already reminded today or are no longer active.');
   if (preview.remaining <= 0) return refuse('You have reached today\'s reminder limit. Try again tomorrow.');
-  const chosen = eligible.slice(0, preview.remaining); // FR-RMD-006
+  const chosen = eligible.slice(0, Math.min(preview.remaining, REMINDER_BATCH_CAP)); // FR-RMD-006 / FR-RMD-007
   const left = eligible.length - chosen.length;
+  const why = preview.remaining < Math.min(eligible.length, REMINDER_BATCH_CAP) ? 'daily reminder limit' : `at most ${REMINDER_BATCH_CAP} per request`;
 
   const reminders: PreparedReminder[] = chosen.map((t) => ({
     taskId: t.id, taskName: t.name, recipientName: ok.get(t.id)!, dueDate: t.dueDate,
   }));
   const listed = reminders.slice(0, SUMMARY_LISTED)
-    .map((r) => `${r.recipientName} — ${r.taskName} (due ${formatShortDate(r.dueDate)})`).join('; ');
+    .map((r) => `${r.recipientName} about ${r.taskName} (due ${formatShortDate(r.dueDate)})`).join('; ');
   const more = reminders.length > SUMMARY_LISTED ? `; and ${reminders.length - SUMMARY_LISTED} more` : '';
-  const capped = left > 0 ? ` ${left} left out: daily reminder limit.` : '';
+  const capped = left > 0 ? ` ${left} left out: ${why}.` : '';
   const n = reminders.length;
   return {
     ok: true,
@@ -689,7 +721,8 @@ export function validatePreparedReminders(input: unknown): { ok: true; value: Pr
   return { ok: true, value: { kind: 'prepared-reminders', reminders } };
 }
 
-/** AC-RMD-017: sends task ids only; the RPC derives every recipient and enforces every rule. */
+/** AC-RMD-017: sends task ids only; the RPC derives every recipient and enforces every rule. Names come from the
+ *  RPC's result, never from the replayed value (PQ-6). */
 export async function runRemindOverdue(input: unknown, ctx: DeputyContext): Promise<unknown> {
   const v = validatePreparedReminders(input);
   if (v.ok === false) return { error: v.error };
@@ -700,11 +733,10 @@ export async function runRemindOverdue(input: unknown, ctx: DeputyContext): Prom
   );
   if (error || !data) return { error: 'The reminders could not be sent right now.', code: (error as { code?: string } | null)?.code };
   const result = data as RpcResult;
-  const byId = new Map(v.value.reminders.map((r) => [r.taskId, r]));
   return {
     ok: true,
-    sent: result.items.filter((i) => i.outcome === 'sent').map((i) => byId.get(i.task_id)?.recipientName ?? 'a colleague'),
-    skipped: result.items.filter((i) => i.outcome !== 'sent').map((i) => ({ task: byId.get(i.task_id)?.taskName ?? null, reason: i.outcome })),
+    sent: result.items.filter((i) => i.outcome === 'sent').map((i) => ({ to: i.recipient_name ?? 'a colleague', task: i.task_name ?? null })),
+    skipped: result.items.filter((i) => i.outcome !== 'sent').map((i) => ({ task: i.task_name ?? null, reason: i.outcome })),
     remainingToday: result.remaining,
     note: 'Say who was reminded in one short sentence. Mention any skipped task and why in plain words.',
   };
@@ -755,7 +787,7 @@ Append to `remindOverdue.test.ts`:
     const { client } = fakeSupabase(world(TASKS));
     client.rpc.mockResolvedValueOnce(eligible([T(1), T(4)], 1) as never);
     const out = await prepareRemindOverdue({}, ctx(client), NOW);
-    expect(out.ok && out.value.reminders.map((r) => r.taskId)).toEqual([T(1)]);
+    expect(ids(out)).toEqual([T(1)]);
     expect(out.ok && out.summary).toMatch(/1 left out: daily reminder limit\.$/);
   });
   it('AC-RMD-015 with nothing remaining there is no chip', async () => {
@@ -774,17 +806,23 @@ Append to `remindOverdue.test.ts`:
   ])('AC-RMD-016 the replayed value is rejected with %s', (_label, value) => {
     expect(validatePreparedReminders(value).ok).toBe(false);
   });
-  it('AC-RMD-017 run sends task ids only and reports each outcome', async () => {
+  it('AC-RMD-017 run sends task ids only and reports each outcome with the names the server read', async () => {
     const { client } = fakeSupabase(world([]));
-    client.rpc.mockResolvedValueOnce({ data: { remaining: 19, items: [{ task_id: T(1), outcome: 'sent' }] }, error: null } as never);
-    const out = await runRemindOverdue(ONE, ctx(client));
+    client.rpc.mockResolvedValueOnce({ data: { remaining: 19, items: [
+      { task_id: T(1), outcome: 'sent', task_name: 'Pour foundation', recipient_name: 'Site engineer' },
+    ] }, error: null } as never);
+    const replayed = { ...ONE, reminders: [{ ...ONE.reminders[0], recipientName: 'Edited name', taskName: 'Edited task' }] };
+    const out = await runRemindOverdue(replayed, ctx(client));
     expect(client.rpc).toHaveBeenCalledWith('send_task_reminders', { p_task_ids: [T(1)] });
-    expect(out).toMatchObject({ ok: true, sent: ['Site engineer'], skipped: [], remainingToday: 19 });
+    expect(out).toEqual(expect.objectContaining({
+      ok: true, sent: [{ to: 'Site engineer', task: 'Pour foundation' }], skipped: [], remainingToday: 19,
+    }));
   });
 ```
 
 Run `npx vitest run src/lib/agent/remindOverdue.test.ts`: GREEN. **Mutation check:** change the filter in
-`prepareRemindOverdue` to `t.assigneeId` only (drop `!== ctx.userId`); AC-RMD-013 must go RED; restore.
+`prepareRemindOverdue` to `t.assigneeId` only (drop `!== ctx.userId`); AC-RMD-013 must go RED; restore. Then make `run`
+read `byId.get(i.task_id)?.recipientName` from the replayed value: AC-RMD-017 must go RED; restore.
 
 ### S2.6 Offer line on the overdue answer (AC-RMD-023) (4 min)
 
@@ -952,8 +990,21 @@ Call \`remind_overdue\` right away — with no arguments for "remind them / whoe
     : '';
   ```
   and append `${remindSkill}` right after `${invoiceSkill}` where it is interpolated (`prompt.ts:180`).
-- map-questions line (`prompt.ts:185`), add after it (only when enabled, same ternary pattern):
-  `- "remind", "chase", "nudge", "follow up" + people/late work → call \`remind_overdue\`.`
+- map-questions block (PQ-7): beside `remindSkill`, add
+
+  ```ts
+  const remindMapLine = remindersEnabled
+    ? '- "remind", "chase", "nudge", "follow up" + people or late work → call `remind_overdue` (this wins over the overdue line below: "remind whoever is late" is a reminder, not a list).\n'
+    : '';
+  ```
+
+  and interpolate `${remindMapLine}` at the start of the overdue line (`prompt.ts:185`), so it renders directly before
+  `- "overdue", "late", …`. Extend the AC-RMD-019 test with
+
+  ```ts
+    expect(on.indexOf('call `remind_overdue` (this wins')).toBeGreaterThan(-1);
+    expect(on.indexOf('call `remind_overdue` (this wins')).toBeLessThan(on.indexOf('- "overdue", "late"'));
+  ```
 
 Run `npx vitest run src/lib/agent/agentPrompt.remind.test.ts src/lib/agent/agentPrompt.test.ts src/lib/agent/agentPrompt.mapBeforeRefuse.test.ts`: GREEN.
 
@@ -975,7 +1026,7 @@ Append to `pmo-portal/evals/harness/scorers.test.ts` (runs in the normal suite, 
 describe('noProposal (#1639)', () => {
   const run = (actionName?: string) => ({
     events: actionName ? [{ type: 'status', payload: { status: 'needs-approval', actionName } }] : [],
-    toolCalls: [], answer: '',
+    toolCalls: [], answerText: '',
   }) as unknown as EvalRunResult;
   it('AC-RMD-022 passes when the named action was not proposed', async () => {
     expect((await noProposal('remind_overdue')(run())).pass).toBe(true);
@@ -1063,8 +1114,9 @@ Append to `pmo-portal/evals/README.md` after "Invoice-reach fixture (#787)":
 ## Reminder fixture (#1639)
 
 `evals/cases/remind-overdue.eval.ts` runs as the same eval test user (Finance, whole-org overdue scope, DD-AIN-2). The org
-needs: an open task named **`EVAL overdue task for reminder`**, past its end date, assigned to **another active member**,
-not reminded in the last 24 hours; and an open task named **`EVAL own overdue task`**, past its end date, assigned to the
+needs: an open task named **`EVAL overdue task for reminder`**, with an end date earlier than every other open task in
+the org (so it is among the 10 oldest a proposal carries), assigned to **another active member**, not reminded in the
+last 24 hours; and an open task named **`EVAL own overdue task`**, past its end date, assigned to the
 eval user. The suite only proposes, never approves, so it sends nothing and uses none of the daily allowance.
 ```
 
@@ -1089,16 +1141,27 @@ Create `pmo-portal/e2e/AC-RMD-024-reminder-reaches-assignee.spec.ts` **(new)**:
  */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import { SEED_PASSWORD, signIn } from './helpers';
+import { loadEnv } from 'vite';
+import { SEED_PASSWORD, requireServiceRoleKey, signIn } from './helpers';
+import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
 
-const URL_ = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? '';
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
+// House pattern: AC-IMP-090-site-imprest-journey.spec.ts.
+const VITE_ENV = loadEnv('development', process.cwd(), 'VITE_');
+const URL_ = requireMatchingLocalSupabaseUrls(
+  process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL,
+  process.env.VITE_SUPABASE_URL ?? VITE_ENV.VITE_SUPABASE_URL,
+);
+const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? VITE_ENV.VITE_SUPABASE_ANON_KEY ?? '';
 const TASK_NAME = `AC-RMD-024 overdue task ${Date.now()}`;
 let taskId = '';
+const adminClient = () => {
+  const key = requireServiceRoleKey();
+  if (!key) throw new Error('AC-RMD-024 needs the service-role key: run it via scripts/e2e-local.sh, which exports it');
+  return createClient(URL_, key, { auth: { persistSession: false } });
+};
 
 test.beforeAll(async () => {
-  const admin = createClient(URL_, SERVICE_KEY);
+  const admin = adminClient();
   const { data: eng } = await admin.from('profiles').select('id, org_id').eq('email', 'engineer@acme.test').single();
   const { data: proj } = await admin.from('projects').select('id').eq('org_id', eng!.org_id).is('archived_at', null).limit(1).single();
   const due = new Date(Date.now() - 5 * 86_400_000).toISOString().slice(0, 10);
@@ -1109,15 +1172,18 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  const admin = createClient(URL_, SERVICE_KEY);
+  if (!taskId) return;
+  const admin = adminClient();
   await admin.from('notifications').delete().eq('metadata->entity->>id', taskId);
   await admin.from('task_reminders').delete().eq('task_id', taskId);
   await admin.from('tasks').delete().eq('id', taskId);
 });
 
 test('AC-RMD-024 a confirmed reminder reaches the assignee and opens My tasks', async ({ page }) => {
-  const pm = createClient(URL_, ANON_KEY);
-  await pm.auth.signInWithPassword({ email: 'pm@acme.test', password: SEED_PASSWORD });
+  if (!ANON_KEY) throw new Error('AC-RMD-024 needs the anon key: run it via scripts/e2e-local.sh');
+  const pm = createClient(URL_, ANON_KEY, { auth: { persistSession: false } });
+  const signedIn = await pm.auth.signInWithPassword({ email: 'pm@acme.test', password: SEED_PASSWORD });
+  expect(signedIn.error).toBeNull();
   const { data, error } = await pm.rpc('send_task_reminders', { p_task_ids: [taskId] });
   expect(error).toBeNull();
   expect((data as { items: Array<{ outcome: string }> }).items[0].outcome).toBe('sent');
@@ -1134,7 +1200,8 @@ test('AC-RMD-024 a confirmed reminder reaches the assignee and opens My tasks', 
 ```
 
 Note: the 0237 assignment trigger does not fire on this service-role insert (`auth.uid()` is null, `0237:98`), so the
-only notification for this task is the reminder. Run (DB reset needed only on S1's branch, which this branch follows):
+only notification for this task is the reminder. The send uses one of the seed PM's 20 daily reminders; `afterAll`
+deletes that ledger row, so reruns never reach the cap. Run (DB reset needed only on S1's branch, which this branch follows):
 `scripts/e2e-local.sh AC-RMD-024`, then (from `pmo-portal/`) `npm run check:e2e-isolation`.
 Commit S3 + S4 with S2's branch: `test(agent): reminder eval suite and assignee journey (#1639 S3-S4)`.
 
@@ -1152,15 +1219,15 @@ Commit S3 + S4 with S2's branch: `test(agent): reminder eval suite and assignee 
 | AC-RMD-006 | pgTAP | same | `AC-RMD-006 a second sender within 24 hours does not repeat the reminder` (+1) |
 | AC-RMD-007 | pgTAP | same | `AC-RMD-007 a disabled sender is refused` |
 | AC-RMD-008 | pgTAP | same | `AC-RMD-008 done or due-today tasks are not overdue; unassigned has no recipient` |
-| AC-RMD-009 | pgTAP | same | `AC-RMD-009 …` (5 cases) |
+| AC-RMD-009 | pgTAP | same | `AC-RMD-009 …` (6 cases) |
 | AC-RMD-010 | pgTAP | same | `AC-RMD-010 …` (6 cases) |
-| AC-RMD-011 | pgTAP | same | `AC-RMD-011 more than 10 tasks is refused` (+1) |
+| AC-RMD-011 | pgTAP | same | `AC-RMD-011 more than 10 tasks is refused` (+2) |
 | AC-RMD-012 | pgTAP | same | `AC-RMD-012 preview reports the same outcomes as send` (+4) |
 | AC-RMD-013 | Vitest | `pmo-portal/src/lib/agent/remindOverdue.test.ts` | `AC-RMD-013 with no argument proposes exactly the overdue tasks assigned to other people` |
 | AC-RMD-014 | Vitest | same | `AC-RMD-014 a task name matching two remindable tasks returns candidates and no chip` (+1) |
 | AC-RMD-015 | Vitest | same | `AC-RMD-015 proposes only as many as remain today, …` (+1) |
 | AC-RMD-016 | Vitest | same | `AC-RMD-016 the replayed value is rejected with %s` |
-| AC-RMD-017 | Vitest | same | `AC-RMD-017 run sends task ids only and reports each outcome` |
+| AC-RMD-017 | Vitest | same | `AC-RMD-017 run sends task ids only and reports each outcome with the names the server read` |
 | AC-RMD-018 | Vitest | `pmo-portal/src/lib/agent/handlerRemind.test.ts` | `AC-RMD-018 the call always ends in needs-approval and nothing is sent before approval` |
 | AC-RMD-019 | Vitest | `pmo-portal/src/lib/agent/agentPrompt.remind.test.ts` | `AC-RMD-019 the tool line and the remind skill appear only when reminders are registered` |
 | AC-RMD-020 | Eval | `pmo-portal/evals/cases/remind-overdue.eval.ts` | `AC-RMD-020 "what's overdue? remind whoever is late" → …` |
