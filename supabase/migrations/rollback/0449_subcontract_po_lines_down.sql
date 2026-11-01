@@ -1,4 +1,4 @@
--- 0448_subcontract_po_lines_down.sql — reverses 0448 (#1513 S1). Refuses while subcontract PO lines, revisions or
+-- 0449_subcontract_po_lines_down.sql — reverses 0449 (#1513 S1). Refuses while subcontract PO lines, revisions or
 -- subcontract-flagged purchases exist (NFR-SCA-007): export (scripts/prod-read.sh / pg_dump -t) and remove them first.
 -- Never copy rows into a table in `public`: that schema is API-exposed and an `as select *` copy carries no RLS.
 do $$ begin

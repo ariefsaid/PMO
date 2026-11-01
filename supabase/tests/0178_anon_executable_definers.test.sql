@@ -148,7 +148,7 @@
 -- `archive_equipment_usage` join the retained set (+4, count 108 on dev's 104, re-derived by hand from the list). SECURITY
 -- DEFINER writers (entries have no client INSERT/UPDATE grant); each re-asserts active membership and the JWT org, the
 -- transition checks approver ≠ author before the approver role; proved by equipment_usage / equipment_rls pgTAP.
--- ⚑ AMENDED BY 0448 (#1513 S1): `set_subcontract_po_lines` and `issue_subcontract_po_lines` join the retained set (+2, count 110 with 0447,
+-- ⚑ AMENDED BY 0449 (#1513 S1): `set_subcontract_po_lines` and `issue_subcontract_po_lines` join the retained set (+2, count 110 with 0447,
 -- re-derived by hand from the list). SECURITY DEFINER writers under a member's JWT: each re-asserts active membership, the caller's
 -- org and a Project Manager / Finance / Admin role in its body. Proven by supabase/tests/subcontract_po_lines.test.sql.
 --
