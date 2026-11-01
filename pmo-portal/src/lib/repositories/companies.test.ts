@@ -81,7 +81,7 @@ describe('companyRepository create/update routing', () => {
 
 describe('contactRepository', () => {
   itDelegates(contactRepository as never, { ...contacts, ...activities }, [
-    ['list', 'listContacts', [{ search: 'a' }]],
+    ['list', 'listContacts', []],
     ['listByCompany', 'listContactsByCompany', ['c1']],
     ['get', 'getContact', ['k1']],
     ['update', 'updateContact', ['k1', { name: 'N' }]],
