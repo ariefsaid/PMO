@@ -10,7 +10,7 @@ const { imprest, orgSettings } = vi.hoisted(() => ({
     listPlanLines: vi.fn(), listReplenishments: vi.fn(), listCounts: vi.fn(), createPlan: vi.fn(), savePlanLine: vi.fn(),
     deletePlanLine: vi.fn(), setProcurementLimit: vi.fn(), establishFloat: vi.fn(), proposeFloatAmount: vi.fn(),
     decideFloatChange: vi.fn(), transitionPlan: vi.fn(), requestReplenishment: vi.fn(), transitionReplenishment: vi.fn(),
-    recordCount: vi.fn(),
+    recordCount: vi.fn(), listPostingStates: vi.fn(), setCashAccount: vi.fn(),
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { imprest, orgSettings } }));
@@ -20,6 +20,7 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1'
 import {
   IMPREST_QUERY_ROOTS, useImprestFloats, useImprestPosition, useImprestPlanUsage, useImprestPlans, useImprestReplenishments,
   useImprestCounts, useImprestFloatChoices, useImprestFloat, useRequestReplenishment, useTransitionPlan, useRecordCount, useEstablishFloat,
+  useImprestPostingStates, useSetCashAccount,
 } from './useImprest';
 import { EXPENSE_QUERY_ROOTS } from './useExpenseClaims';
 import { expenseClaimsAwaitingKey } from './approvalsQueryKeys';
@@ -42,14 +43,14 @@ describe('AC-IMP-083 imprest hooks', () => {
     const client = fresh();
     renderHook(() => {
       useImprestFloats(); useImprestPosition('f1'); useImprestPlanUsage('f1', '2026-11-01'); useImprestPlans('f1');
-      useImprestReplenishments('f1'); useImprestCounts('f1'); useImprestFloatChoices('p1', 'Vehicle'); useImprestFloat('f1');
+      useImprestReplenishments('f1'); useImprestCounts('f1'); useImprestFloatChoices('p1', 'Vehicle'); useImprestFloat('f1'); useImprestPostingStates('f1');
     }, { wrapper: wrap(client) });
     await waitFor(() => expect(client.isFetching()).toBe(0));
     const keys = client.getQueryCache().getAll().map((q) => JSON.stringify(q.queryKey)).sort();
     expect(keys).toEqual([
       ['imprest-counts', 'org-1', 'f1'], ['imprest-float-choices', 'org-1', 'p1', 'Vehicle'], ['imprest-floats', 'org-1'], ['imprest-float', 'org-1', 'f1'],
       ['imprest-plan-usage', 'org-1', 'f1', '2026-11-01'], ['imprest-plans', 'org-1', 'f1'],
-      ['imprest-position', 'org-1', 'f1'], ['imprest-replenishments', 'org-1', 'f1'],
+      ['imprest-position', 'org-1', 'f1'], ['imprest-replenishments', 'org-1', 'f1'], ['imprest-posting-states', 'org-1', 'f1'],
     ].map((k) => JSON.stringify(k)).sort());
   });
 
@@ -74,12 +75,13 @@ describe('AC-IMP-083 imprest hooks', () => {
     const client = fresh();
     const spy = vi.spyOn(client, 'invalidateQueries');
     const { result } = renderHook(() => ({
-      rep: useRequestReplenishment(), plan: useTransitionPlan(), count: useRecordCount(), establish: useEstablishFloat(),
+      rep: useRequestReplenishment(), plan: useTransitionPlan(), count: useRecordCount(), establish: useEstablishFloat(), bind: useSetCashAccount(),
     }), { wrapper: wrap(client) });
     calls.push(
       ['request_imprest_replenishment', () => result.current.rep.mutateAsync({ floatId: 'f1', kind: 'funding' }), () => expect(imprest.requestReplenishment).toHaveBeenCalledWith('f1', 'funding')],
       ['transition_imprest_plan', () => result.current.plan.mutateAsync({ id: 'p1', to: 'Submitted' }), () => expect(imprest.transitionPlan).toHaveBeenCalledWith('p1', 'Submitted', undefined)],
       ['record_imprest_count', () => result.current.count.mutateAsync({ floatId: 'f1', counted: 100, note: 'n' }), () => expect(imprest.recordCount).toHaveBeenCalledWith('f1', 100, 'n')],
+      ['imprest-cash-account', () => result.current.bind.mutateAsync({ floatId: 'f1', account: 'A' }), () => expect(imprest.setCashAccount).toHaveBeenCalledWith('f1', 'A')],
       ['establish_imprest_float', () => result.current.establish.mutateAsync({ projectId: 'p', custodianId: 'c', amount: 5 }), () => expect(imprest.establishFloat).toHaveBeenCalledWith('p', 'c', 5)],
     );
     for (const [, run, assertCall] of calls) {
