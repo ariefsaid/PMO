@@ -416,3 +416,15 @@ describe('breadcrumbForPath: Stock module (#1512 S3)', () => {
     expect(labels).not.toContain('Dashboard');
   });
 });
+
+describe('FR-IMP-074 site cash routes', () => {
+  it('FR-IMP-074 /imprest and /imprest/:id map to the Site cash module with the project name as the record crumb', () => {
+    expect(breadcrumbForPath('/imprest')).toEqual([{ label: 'Site cash', i18nKey: 'imprest:nav.siteCash' }]);
+    expect(breadcrumbForPath('/imprest/f1', 'Site Alpha')).toEqual([
+      { label: 'Site cash', i18nKey: 'imprest:nav.siteCash', href: '/imprest', onClick: expect.any(Function) },
+      { label: 'Site Alpha' },
+    ]);
+    expect(recordLabelForPath('/imprest/f1', { imprestFloats: [{ id: 'f1', name: 'Site Alpha' }] })).toBe('Site Alpha');
+    expect(MODULES.find((m) => m.path === '/imprest')?.icon).toBe('expenses');
+  });
+});

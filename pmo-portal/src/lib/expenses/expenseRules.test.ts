@@ -61,3 +61,25 @@ describe('AC-EXP-052 claimsAwaitingViewer', () => {
     expect(claimsAwaitingViewer(rows, 'pm', 'Project Manager').map((r: { id: string }) => r.id)).toEqual(['unrouted', 'flat', 'named']);
   });
 });
+
+describe('AC-IMP-081 float records (DD-IMP-7)', () => {
+  const approved = claim({ status: 'Approved', approved_by_id: 'f1' });
+  it('AC-IMP-081 a float record: only its custodian gets pay, whatever their role', () => {
+    expect(availableExpenseActions({ claim: approved, userId: 'pm', realRole: 'Project Manager', floatCustodianId: 'pm' })).toContain('pay');
+    expect(availableExpenseActions({ claim: approved, userId: 'f2', realRole: 'Finance', floatCustodianId: 'pm' })).not.toContain('pay');
+  });
+  it('AC-IMP-081 a float record: the custodian never gets approve or reject', () => {
+    const submitted = claim({ status: 'Submitted' });
+    expect(availableExpenseActions({ claim: submitted, userId: 'pm', realRole: 'Project Manager', route: null, floatCustodianId: 'pm' })).toEqual([]);
+    expect(availableExpenseActions({ claim: submitted, userId: 'f2', realRole: 'Finance', route: null, floatCustodianId: 'pm' })).toEqual(['approve', 'reject', 'cancel']);
+  });
+  it('AC-IMP-081 a float advance takes its return from the custodian', () => {
+    const paidAdvance = claim({ kind: 'advance', status: 'Paid' });
+    expect(availableExpenseActions({ claim: paidAdvance, userId: 'pm', realRole: 'Project Manager', advanceOutstanding: 400, floatCustodianId: 'pm' })).toEqual(['recordReturn']);
+    expect(availableExpenseActions({ claim: paidAdvance, userId: 'pm', realRole: 'Project Manager', advanceOutstanding: 400 })).toEqual([]);
+  });
+  it('AC-IMP-081 a record with no float keeps Finance-or-Admin pay', () => {
+    expect(availableExpenseActions({ claim: approved, userId: 'pm', realRole: 'Project Manager' })).not.toContain('pay');
+    expect(availableExpenseActions({ claim: approved, userId: 'f2', realRole: 'Finance', floatCustodianId: null })).toContain('pay');
+  });
+});

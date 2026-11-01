@@ -22,6 +22,8 @@ export interface ExpenseActionContext {
   route?: RouteShape | null;
   /** The advance's own outstanding (only read for a paid advance). */
   advanceOutstanding?: number | null;
+  /** #1515 DD-IMP-7: the custodian of the float this record is charged to; null/undefined = not a float record. */
+  floatCustodianId?: string | null;
 }
 
 export function availableExpenseActions(ctx: ExpenseActionContext): ExpenseAction[] {
@@ -32,16 +34,19 @@ export function availableExpenseActions(ctx: ExpenseActionContext): ExpenseActio
   const isAdmin = realRole === 'Admin';
   const financeOrAdmin = FINANCE_OR_ADMIN.includes(realRole);
   const s = claim.status;
+  const onFloat = !!ctx.floatCustodianId;
+  const isCustodian = onFloat && ctx.floatCustodianId === userId;
   if (s === 'Draft' && isClaimant) out.push('submit');
   if (s === 'Rejected' && isClaimant) out.push('reopen');
-  if (s === 'Submitted' && !isClaimant && APPROVAL_RANK.includes(realRole) && mayDecideRoutedApproval(ctx.route, userId, isAdmin)) {
+  if (s === 'Submitted' && !isClaimant && !isCustodian && APPROVAL_RANK.includes(realRole) && mayDecideRoutedApproval(ctx.route, userId, isAdmin)) {
     out.push('approve', 'reject');
   }
-  if (s === 'Approved' && financeOrAdmin && !isClaimant && claim.approved_by_id !== userId) out.push('pay');
+  const mayPay = onFloat ? isCustodian : financeOrAdmin;
+  if (s === 'Approved' && mayPay && !isClaimant && claim.approved_by_id !== userId) out.push('pay');
   if (((s === 'Draft' || s === 'Submitted') && (isClaimant || financeOrAdmin)) || (s === 'Approved' && financeOrAdmin)) {
     out.push('cancel');
   }
-  if (claim.kind === 'advance' && s === 'Paid' && financeOrAdmin && !isClaimant && (ctx.advanceOutstanding ?? 0) > 0) {
+  if (claim.kind === 'advance' && s === 'Paid' && (financeOrAdmin || isCustodian) && !isClaimant && (ctx.advanceOutstanding ?? 0) > 0) {
     out.push('recordReturn');
   }
   return out;

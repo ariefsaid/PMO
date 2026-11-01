@@ -88,7 +88,7 @@ Owner ruling 2026-11-01: yes to OQ-IMP-1, 3, 4, 5, 6, 7 and 8 as written; OQ-IMP
   `receipts_waiting` = Σ amount of the float's Paid claims not yet in a Paid replenishment.
   The difference `float_amount − (cash_book + advances_out + receipts_waiting)` is the **gap**; before first funding it
   equals the float amount, afterwards it must be zero, and a non-zero gap after funding is a defect the position
-  surfaces loudly.
+  surfaces loudly (measured against the cash actually funded, `funded_total`: before first funding the screens say "Not yet funded").
 - **DD-IMP-3: a float can never be overdrawn.** Paying an advance or claim that would take `cash_book` below zero is
   refused. Site finance cannot hand out cash it does not hold; the answer is a replenishment, not a negative balance.
 - **DD-IMP-4: the plan caps nothing by itself; it decides the route.** Spend inside the month's remaining plan line
@@ -183,6 +183,7 @@ record charged to that float (DD-IMP-7.2).
   `spend_approval_route` to the senior approver set (Admin when none is configured, DD-APR-4) and shall set the float's
   amount only when that change is approved by a caller who is not its proposer (OQ-IMP-7).
 - **FR-IMP-003** The system shall refuse to establish a float while the org's procurement limit is unset (OQ-IMP-3).
+- **FR-IMP-024a** `get_expense_claim_approval_routes` (0426) shall return the senior route (the org senior set minus the claimant and the month's plan approver, else an Admin) with `is_exception = true` for a Submitted float record above the month's remaining, so the approvals inbox and the record page show the same approvers and the Out of plan tag.
 - **FR-IMP-004** When a float's gap is positive and no funding request for it is open, the custodian may request a
   `funding` whose amount the server sets to the gap (FR-IMP-050). Funding is how a new or enlarged float receives its
   cash.
@@ -251,7 +252,7 @@ record charged to that float (DD-IMP-7.2).
 
 ### Position, count and visibility
 - **FR-IMP-060** The system shall expose `get_imprest_position(p_float)` (SECURITY INVOKER) returning float amount,
-  `cash_book`, `advances_out`, `receipts_waiting`, `replenishment_in_flight`, `gap`, the latest count and its variance,
+  `cash_book`, `advances_out`, `receipts_waiting`, `replenishment_in_flight`, `gap`, `funded_total` (Σ Paid fundings, 0426), the latest count and its variance,
   and the month's plan lines with planned, drawn and remaining.
 - **FR-IMP-061** The system shall expose `get_imprest_plan_usage(p_float, p_month)` returning each category's planned,
   drawn, remaining and the list of exception items of that month.
@@ -268,7 +269,7 @@ record charged to that float (DD-IMP-7.2).
 
 ### Front end (UX only, ADR-0016; the server is the authority)
 - **FR-IMP-070** `/imprest` shall list the floats the viewer may see, each with its position (float, cash, advances out,
-  receipts waiting, gap) and a flag for a non-zero gap or a count variance. A read error shows an error state, never a
+  receipts waiting, gap) and a flag for a count variance. A float is flagged out of balance only when funded cash is not explained by cash + advances out + receipts waiting; a float never funded reads "Not yet funded" and an enlarged one "Top-up due". A read error shows an error state, never a
   fabricated zero.
 - **FR-IMP-071** `/imprest/:floatId` shall show the position, the month's plan table (planned, drawn, remaining per
   category, exception items marked), receipts waiting, replenishments and counts, and only the actions the server would
@@ -470,8 +471,9 @@ pgTAP files in `supabase/tests/`; unit tests in `pmo-portal/`. *mutation-worthy*
   the custodian does not.
 - **AC-IMP-083** `src/hooks/useImprest.test.tsx`: query keys carry the org; every mutation invalidates position, plan
   usage, replenishments, claims and approvals.
-- **AC-IMP-084** `pages/ExpenseClaims.test.tsx` addition: the **Charge to site float** field lists only floats on the
-  chosen project and shows the remaining and exception hint.
+- **AC-IMP-084** `pages/ExpenseClaimNew.test.tsx`, `pages/ExpenseClaimDetail.test.tsx`, `pages/expenses/ExpenseClaimFormModal.float.test.tsx`: the **Charge to site float** field lists only floats on the
+  chosen project, shows the remaining and exception hint, is offered on an advance and on an edited Draft (with a none option), and the
+  settle-against-advance list follows the chosen float.
 - **AC-IMP-085** `src/auth/policy.test.ts` additions for `imprestFloat`, `imprestPlan`, `imprestReplenishment`.
 
 **Cross-stack (Playwright)**
@@ -497,7 +499,7 @@ pgTAP files in `supabase/tests/`; unit tests in `pmo-portal/`. *mutation-worthy*
 | AC-IMP-062 | pgTAP | `supabase/tests/imprest_notify.test.sql` |
 | AC-IMP-070–071 | pgTAP | `supabase/tests/imprest_postings.test.sql` |
 | AC-IMP-072 | Deno | `supabase/functions/adapter-dispatch/` and `erpnext-sweep/` imprest tests; Odoo driver in #1509 |
-| AC-IMP-080–085 | Unit (Vitest/RTL) | `pmo-portal/src/lib/db/imprest.test.ts`, `src/lib/imprest/imprestRules.test.ts`, `pages/ImprestFloats.test.tsx`, `pages/ImprestFloatDetail.test.tsx`, `src/hooks/useImprest.test.tsx`, `pages/ExpenseClaims.test.tsx`, `src/auth/policy.test.ts` |
+| AC-IMP-080–085 | Unit (Vitest/RTL) | `pmo-portal/src/lib/db/imprest.test.ts`, `src/lib/imprest/imprestRules.test.ts`, `pages/ImprestFloats.test.tsx`, `pages/ImprestFloatDetail.test.tsx`, `src/hooks/useImprest.test.tsx`, `pages/ExpenseClaimNew.test.tsx`, `pages/ExpenseClaimDetail.test.tsx`, `pages/expenses/ExpenseClaimFormModal.float.test.tsx`, `src/auth/policy.test.ts` |
 | AC-IMP-090 | E2E | `pmo-portal/e2e/AC-IMP-090-site-imprest-journey.spec.ts` |
 
 ## 12. Build slices and executor routing

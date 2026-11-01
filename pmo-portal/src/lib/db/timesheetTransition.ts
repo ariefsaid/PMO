@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { toAppError } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { TimesheetRow, TimesheetWithEntries } from './timesheets';
 
@@ -84,7 +85,7 @@ export async function submitTimesheet(id: string): Promise<void> {
     p_to: 'Submitted',
 
   });
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
 }
 
 /**
@@ -97,7 +98,7 @@ export async function approveTimesheet(id: string, notes?: string): Promise<void
     p_to: 'Approved',
     p_notes: notes,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
 }
 
 /**
@@ -111,7 +112,7 @@ export async function rejectTimesheet(id: string, notes?: string): Promise<void>
     // Regenerated RPC arg types encode optionals as `string | undefined` — omit, never null.
     p_notes: notes,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
 }
 
 /**
@@ -124,7 +125,7 @@ export async function reopenTimesheet(id: string): Promise<void> {
     p_timesheet_id: id,
     p_to: 'Draft',
   });
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
 }
 
 /**
@@ -143,7 +144,7 @@ export async function attestTimesheetNoErpDocument(id: string, reason: string): 
     p_timesheet_id: id,
     p_reason: reason,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw toAppError(error);
 }
 
 // ---------------------------------------------------------------------------

@@ -76,6 +76,18 @@ export interface ErpHarness {
   pushPurchase(connection: 'activated' | 'not-activated' | 'absent'): Promise<PushBeforeConnectionResult>;
   /** party.send, project.send, item.send: each call starts an empty fake ERP. Absent until the tier sends masters. */
   connect?: () => ConnectHarness;
+  /** imprest.transfer: each call starts an empty fake ERP. Absent until the tier posts site cash. */
+  transfer?: () => TransferHarness;
+}
+
+export interface TransferHarness {
+  post(t: import('../imprestTransfer.ts').ImprestTransfer): Promise<{ externalId: string }>;
+  /** Plant a document the ERP already holds under another key (nothing PMO posted). */
+  seed(t: import('../imprestTransfer.ts').ImprestTransfer): void;
+  /** Ledger lines the fake ERP now holds for the key, normalised: account, debit and credit as 2-decimal strings. */
+  lines(key: string): Array<{ account: string; debit: string; credit: string }>;
+  documents(): Array<{ externalId: string; key: string }>;
+  failNextWrite(fault: 'transport' | 'lost-response'): void;
 }
 
 export type Suite = (harness: ErpHarness) => void;

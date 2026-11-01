@@ -4,7 +4,7 @@
 -- then an Approved plan on G with one exception item. Plan delta 8: AC-IMP-050's 800,000 is 500,000 here.
 begin;
 create extension if not exists pgtap;
-select plan(24);
+select plan(26);
 
 
 insert into organizations (id, name, default_currency, default_timezone) values
@@ -44,6 +44,13 @@ insert into imprest_floats (id, org_id, project_id, custodian_id, float_amount, 
    '15150000-0000-0000-0000-0000000000a2', 10000000, 'IDR', '15150000-0000-0000-0000-0000000000a1'),
   ('15150000-0000-0000-0000-0000000000d2', '15150000-0000-0000-0000-00000000000a', '15150000-0000-0000-0000-0000000000c2',
    '15150000-0000-0000-0000-0000000000a5', 5000000, 'IDR', '15150000-0000-0000-0000-0000000000a1');
+
+-- Float H: a third project, never funded (0426 funded_total).
+insert into projects (id, org_id, name, status, project_manager_id) values
+  ('15150000-0000-0000-0000-0000000000c9', '15150000-0000-0000-0000-00000000000a', 'IMP Site Unfunded', 'Ongoing Project', '15150000-0000-0000-0000-0000000000a4');
+insert into imprest_floats (id, org_id, project_id, custodian_id, float_amount, currency, created_by) values
+  ('15150000-0000-0000-0000-0000000000d3', '15150000-0000-0000-0000-00000000000a', '15150000-0000-0000-0000-0000000000c9',
+   '15150000-0000-0000-0000-0000000000a2', 3000000, 'IDR', '15150000-0000-0000-0000-0000000000a1');
 
 -- helper: act as a member (jwt claims are transaction-local)
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
@@ -85,6 +92,10 @@ select is((select row(float_amount, cash_book, advances_out, receipts_waiting, r
              from get_imprest_position('15150000-0000-0000-0000-0000000000d2')),
   row(5000000.00, 4000000.00, 500000.00, 500000.00, 500000.00, 0.00)::text,
   'AC-IMP-050 the position returns float, cash, advances out, receipts waiting, in flight and gap 0');
+select is((select funded_total from get_imprest_position('15150000-0000-0000-0000-0000000000d2')), 5000000.00,
+  'AC-IMP-050 the position carries the funded total: cash head office has put in (0426)');
+select is((select funded_total || '/' || gap from get_imprest_position('15150000-0000-0000-0000-0000000000d3')), '0/3000000.00',
+  'AC-IMP-003 an unfunded float: funded total 0 while the gap is the whole float amount');
 select pg_temp.act_as('15150000-0000-0000-0000-0000000000b1');
 select is((select count(*)::int from get_imprest_position('15150000-0000-0000-0000-0000000000d2')), 0,
   'AC-IMP-050 another org gets no rows');

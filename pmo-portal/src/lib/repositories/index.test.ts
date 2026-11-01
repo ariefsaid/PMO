@@ -210,8 +210,9 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // path impossible invites "fixing" a non-insertable column with a TABLE-level grant — the
       // silent no-op trap 0193 §5 exists to prevent.
       // 'workOrderAcceptance' from contract quantities (migration 0337, ADR-0091): allocations + BAST RPCs.
+      // 'imprest' from site cash (#1515 S4+S5).
       // 'stock' from inventory master data (#1512 S1, migration 0412); S2a+ add documents and reports to it.
-      ['agentAttachment', 'budget', 'company', 'companyCollections', 'contact', 'credits', 'document', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'incident', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'odoo', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'recordHistory', 'reports', 'revenue', 'stock', 'task', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
+      ['agentAttachment', 'budget', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'document', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'integrations', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'odoo', 'operator', 'orgFeature', 'orgSettings', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'recordHistory', 'reports', 'revenue', 'stock', 'task', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workOrder', 'workOrderAcceptance'].sort(),
     );
   });
 
@@ -325,6 +326,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'itemValuesEditable',
         'linkMicrosoftDocument',
         'list',
+        'listByVendor',
         'listDocuments',
         'selectQuote',
         'setEfaktur',
@@ -344,6 +346,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     expect(Object.keys(repositories.incident).sort()).toEqual(
       ['create', 'delete', 'get', 'list', 'transition', 'update'].sort(),
     );
+    expect(Object.keys(repositories.comment).sort()).toEqual(['archive', 'create', 'list']);
   });
 });
 
@@ -681,12 +684,7 @@ describe('delegation — methods pass args through and return the DAL result', (
 
     await repositories.procurement.list();
     expect(procurementsDal.listProcurements).toHaveBeenCalledTimes(1);
-    expect(procurementsDal.listProcurements).toHaveBeenLastCalledWith(undefined);
-
-    // data-layer perf hardening #4: page params pass through to the DAL
-    const pageParams = { page: 1, pageSize: 20 };
-    await repositories.procurement.list(pageParams);
-    expect(procurementsDal.listProcurements).toHaveBeenLastCalledWith(pageParams);
+    expect(procurementsDal.listProcurements).toHaveBeenLastCalledWith();
 
     await repositories.procurement.get('pr1');
     expect(procLifecycleDal.getProcurementDetail).toHaveBeenCalledWith('pr1');
@@ -876,12 +874,7 @@ describe('delegation — methods pass args through and return the DAL result', (
     expect(tsPushDal.getPushState).toHaveBeenCalledWith('t1');
 
     await repositories.timesheet.list('u1');
-    expect(timesheetsDal.listTimesheets).toHaveBeenCalledWith('u1', undefined);
-
-    // data-layer perf hardening #4: page params pass through to the DAL
-    const pageParams = { page: 2, pageSize: 10 };
-    await repositories.timesheet.list('u1', pageParams);
-    expect(timesheetsDal.listTimesheets).toHaveBeenLastCalledWith('u1', pageParams);
+    expect(timesheetsDal.listTimesheets).toHaveBeenCalledWith('u1');
 
     await repositories.timesheet.createDraft('2026-06-01', 'u1');
     expect(timesheetsDal.createDraftTimesheet).toHaveBeenCalledWith('2026-06-01', 'u1');

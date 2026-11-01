@@ -1,6 +1,6 @@
 # Spec: Equipment usage and allocation (#1519)
 
-> **Status:** Draft, 2026-11-01. Awaiting owner sign-off on §10 open questions (each has a recommended default).
+> **Status:** Owner-signed 2026-11-01: all nine §10 defaults accepted.
 > Route: `docs/plans/2026-10-30-epc-odoo-build-route.md` item T8 (owner-signed 2026-10-30); owner rulings in #1498.
 > IDs: `FR-EQU-###`, `NFR-EQU-###`, `AC-EQU-###`. Executor: Director-dispatched (money).
 > Extends, does not duplicate: cost attribution (#1271, `docs/specs/cost-attribution.spec.md`), the timesheet

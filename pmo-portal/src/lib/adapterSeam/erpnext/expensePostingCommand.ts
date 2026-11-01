@@ -19,6 +19,9 @@ export interface ExpenseGateTruth {
   /** 0354 (FR-EXP-119): the claim's project is an `Internal Project`, read by the gate at this attempt; false when
    *  the claim names no project. Decides direct-cost vs overhead — never sent by a client, never defaulted. */
   project_is_internal: boolean;
+  /** 0425 (#1515 §9): the ERP cash account of the claim's site float, read by the gate at this attempt; null for a record
+   *  that is not charged to a float. A float record moves cash through this account, never the company default. */
+  float_cash_account: string | null;
   currency: string;
   amount: string;
   lines: Array<{ expense_type: string; amount: string }>;
@@ -57,10 +60,11 @@ export function parseExpenseGateTruth(data: unknown): ExpenseGateTruth {
   });
   if (typeof d.approval_posting_exists !== 'boolean') bad('approval_posting_exists');
   if (typeof d.project_is_internal !== 'boolean') bad('project_is_internal');
+  const floatCash = d.float_cash_account === null || d.float_cash_account === undefined ? null : text('float_cash_account');
   return {
     mirror_id: text('mirror_id'), posting: posting as ExpensePosting, posting_identity: text('posting_identity'),
     subject_id: text('subject_id'), claim_id: text('claim_id'), claim_number: textOrNull('claim_number'),
-    claimant_id: text('claimant_id'), project_id: textOrNull('project_id'), project_is_internal: d.project_is_internal as boolean, currency: text('currency'), amount, lines,
+    claimant_id: text('claimant_id'), project_id: textOrNull('project_id'), project_is_internal: d.project_is_internal as boolean, float_cash_account: floatCash, currency: text('currency'), amount, lines,
     state_stamp: text('state_stamp'), posting_date: postingDate, approval_posting_exists: d.approval_posting_exists as boolean,
     actor_id: text('actor_id'),
   };
@@ -141,7 +145,8 @@ export function buildExpensePostingCommand(truth: ExpenseGateTruth, refs: Expens
     case 'advance-payment':
     case 'advance-return': {
       const employee = need(refs.employee, 'the ERPNext employee');
-      const cash = need(refs.cashAccount, 'the cash or bank account');
+      // #1515 §9: a float record moves cash in or out of the float's own account, never the company default.
+      const cash = truth.float_cash_account ?? need(refs.cashAccount, 'the cash or bank account');
       const receive = truth.posting === 'advance-return';
       const partyAccount = truth.posting === 'claim-payment'
         ? need(refs.payableAccount, 'the employee payable account')

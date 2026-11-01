@@ -408,12 +408,7 @@ describe('erpnext/adapter — un-wired kinds/operations fail loud, never a silen
   });
 });
 
-describe('erpnext/adapter — reads (listChangesSinceWatermark deferred to slice 8)', () => {
-  it('listChangesSinceWatermark throws loud (not yet wired until the slice-8 modified-poll sweep)', async () => {
-    const adapter = createErpAdapter(baseDeps(async () => jsonResponse(200, {})));
-    await expect(adapter.listChangesSinceWatermark('procurement', null)).rejects.toThrow(/slice 8/);
-  });
-
+describe('erpnext/adapter — reads (getByExternalId; the change feed is in adapter.reads.test.ts)', () => {
   it('getByExternalId resolves a "<Doctype>:<name>"-encoded id via the registry + doctypeBodies.fromDoc', async () => {
     const fetchImpl = async () => jsonResponse(200, { name: 'Spike Supplier', supplier_name: 'Spike Supplier' });
     const deps = baseDeps(fetchImpl, {

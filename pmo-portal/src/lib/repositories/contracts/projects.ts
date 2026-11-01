@@ -9,11 +9,10 @@ import type {
 } from '@/src/lib/db/projects';
 import type { OpportunityRow } from '@/src/lib/db/opportunity';
 import type { TransitionProjectOpts, ProjectStatus, PipelineStageConfig } from '@/src/lib/db/projectTransitions';
-import type { PageParams } from '@/src/lib/pagination';
 
 export interface ProjectRepository {
   list(
-    params?: { status?: ProjectRow['status']; statuses?: ProjectRow['status'][]; pmId?: string } & PageParams,
+    params?: { status?: ProjectRow['status']; statuses?: ProjectRow['status'][]; pmId?: string },
   ): Promise<ProjectWithRefs[]>;
   listByClient(clientId: string): Promise<ProjectWithRefs[]>;
   getWithRefs(id: string): Promise<ProjectWithRefs | null>;

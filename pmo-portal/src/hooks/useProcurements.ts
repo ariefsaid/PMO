@@ -28,7 +28,7 @@ export function useProcurements(opts?: { withRefs?: boolean; withSharedDetails?:
   const withSharedDetails = opts?.withSharedDetails === true;
   return useQuery<ProcurementWithRefs[]>({
     queryKey: procurementsKey(orgId, withRefs, withSharedDetails),
-    queryFn: () => listProcurements(undefined, withSharedDetails
+    queryFn: () => listProcurements(withSharedDetails
       ? { withRefs: true, withSharedDetails: true }
       : withRefs ? { withRefs: true } : undefined),
     enabled: Boolean(orgId) && opts?.enabled !== false,

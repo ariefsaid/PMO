@@ -3,14 +3,13 @@ import type { VendorTaxDefaultsInput } from '@/src/lib/vendorWithholding';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
 import type { CrmActivityRow, CrmActivityInput, CrmActivityPatch } from '@/src/lib/db/crmActivities';
-import type { PageParams } from '@/src/lib/pagination';
 import type { CompanyCustomerRef } from '@/src/lib/db/companyCollections';
 
 export interface CompanyRepository {
   /** Client companies only — the FK picker for project/opportunity clients. */
   listClients(): Promise<CompanyRow[]>;
   /** All companies in the org (archived hidden by default), optionally filtered by type. */
-  list(params?: { type?: CompanyType } & PageParams): Promise<CompanyRow[]>;
+  list(params?: { type?: CompanyType }): Promise<CompanyRow[]>;
   /** A single company by id, or null when not found / not readable. */
   get(id: string): Promise<CompanyRow | null>;
   /** Create a company (org_id stamped by RLS, never sent). */
@@ -29,7 +28,7 @@ export interface CompanyRepository {
 
 export interface ContactRepository {
   /** All non-archived contacts in the org, ordered by name. */
-  list(params?: PageParams): Promise<ContactRow[]>;
+  list(): Promise<ContactRow[]>;
   /** A company's non-archived contacts (the company-detail list). */
   listByCompany(companyId: string): Promise<ContactRow[]>;
   /** A single contact by id, or null when not found / not readable. */

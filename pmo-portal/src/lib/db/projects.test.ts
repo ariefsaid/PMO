@@ -252,11 +252,6 @@ describe('listProjects', () => {
     expect(mockRange).not.toHaveBeenCalled();
   });
 
-  it('data-layer perf hardening #4: applies an explicit page/pageSize range alongside a status filter', async () => {
-    makeBuilder({ data: [], error: null });
-    await listProjects({ status: 'Loss Tender', page: 1, pageSize: 20 });
-    expect(mockRange).toHaveBeenCalledWith(20, 39);
-  });
 });
 
 describe('AC-PRJ-003 createProject (create a Leads / Internal opportunity)', () => {

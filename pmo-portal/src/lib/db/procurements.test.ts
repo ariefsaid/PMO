@@ -66,7 +66,7 @@ describe('listProcurements', () => {
     makeBuilder({ data: [], error: null });
     await listProcurements();
     expect(mockSelect.mock.calls.at(-1)![0]).not.toMatch(/external_ref/);
-    await listProcurements(undefined, { withRefs: true });
+    await listProcurements({ withRefs: true });
     const sel = mockSelect.mock.calls.at(-1)![0] as string;
     expect(sel).toContain('pr_refs:purchase_requests(external_ref)');
     expect(sel).toContain('po_refs:purchase_orders(external_ref)');
@@ -76,7 +76,7 @@ describe('listProcurements', () => {
 
   it('AC-1402: the shared list gets batched money, stage, and project-manager inputs', async () => {
     makeBuilder({ data: [], error: null });
-    await listProcurements(undefined, { withRefs: true, withSharedDetails: true });
+    await listProcurements({ withRefs: true, withSharedDetails: true });
     const sel = mockSelect.mock.calls.at(-1)![0] as string;
     expect(sel).toContain('project:projects(name,short_name,code,project_manager_id)');
     expect(sel).toContain('purchase_requests(amount,date,created_at,external_ref)');
@@ -104,11 +104,6 @@ describe('listProcurements', () => {
     expect(mockRange).not.toHaveBeenCalled();
   });
 
-  it('data-layer perf hardening #4: applies an explicit page/pageSize range', async () => {
-    makeBuilder({ data: [], error: null });
-    await listProcurements({ page: 2, pageSize: 10 });
-    expect(mockRange).toHaveBeenCalledWith(20, 29);
-  });
 });
 
 // ---------------------------------------------------------------------------

@@ -65,6 +65,17 @@ const renderRailAs = (role: string) => {
   );
 };
 
+describe('Rail — Site cash (FR-IMP-074)', () => {
+  it.each(['Finance', 'Project Manager', 'Admin', 'Executive'])('FR-IMP-074: %s sees the Site cash item', (role) => {
+    renderRailAs(role);
+    expect(screen.getByRole('link', { name: 'Site cash' })).toHaveAttribute('href', '/imprest');
+  });
+  it('FR-IMP-074: an Engineer does not see Site cash (no float is visible to them)', () => {
+    renderRailAs('Engineer');
+    expect(screen.queryByRole('link', { name: 'Site cash' })).not.toBeInTheDocument();
+  });
+});
+
 describe('Rail — role-shaped nav Approvals (B-2, AC-W2-IXD-003)', () => {
   it('AC-W2-IXD-003: a PM sees the Approvals nav item (authorized approver)', () => {
     renderRailAs('Project Manager');

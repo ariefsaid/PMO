@@ -72,6 +72,9 @@ export type Entity =
   | 'workOrderLine'
   | 'workOrderAcceptance'
   | 'expenseClaim'
+  | 'imprestFloat'
+  | 'imprestPlan'
+  | 'imprestReplenishment'
   | 'contact'
   | 'contactActivity'
   | 'meeting'
@@ -166,6 +169,8 @@ const MILESTONE_WRITE: Role[] = ['Admin', 'Project Manager']; // OD-DEL-7: PM+Ad
 const REVENUE_WRITE: Role[] = [...REVENUE_WRITE_ROLES];
 /** #876 slice 2 (DD-VWH-11): who may set a vendor's default tax treatment — mirrors set_vendor_tax_defaults (0273). */
 const TAX_SETUP: Role[] = ['Admin', 'Finance'];
+/** #1515: establish a float, propose its amount (0422). */
+const IMPREST_SETUP: Role[] = ['Admin', 'Finance'];
 /** #1271: who may save / end / preview cost attribution rules — mirrors the 0376 RPC gate. */
 const COST_ATTRIBUTION_WRITE: Role[] = ['Admin', 'Finance'];
 
@@ -346,6 +351,14 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       ctx.record?.claimant_id === ctx.currentUserId &&
       (ctx.record?.status === 'Draft' || ctx.record?.status === 'Rejected'),
   },
+  /**
+   * Site imprest (#1515, 0422-0424). Floats, plans and replenishments are visible to approval rank (RLS). Status moves
+   * and pay depend on identity (custodian, author, requester) and are projected by src/lib/imprest/imprestRules.ts.
+   */
+  // MASTER_DATA = Admin, Executive, Project Manager, Finance = approval rank (holds_spend_approval_authority)
+  imprestFloat: { view: allow(MASTER_DATA), create: allow(IMPREST_SETUP), edit: allow(IMPREST_SETUP) },
+  imprestPlan: { view: allow(MASTER_DATA), create: allow(MASTER_DATA) },
+  imprestReplenishment: { view: allow(MASTER_DATA) },
   company: {
     // Companies directory view = Admin·Exec·PM·Finance (rbac-visibility §D); Engineer = ○ (no
     // nav, no page). Drives the page-level Companies gate (A-5).

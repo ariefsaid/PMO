@@ -1,7 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import React from 'react';
 
 const { maybeSingle, eq, select, from } = vi.hoisted(() => {
   const maybeSingle = vi.fn();
@@ -12,11 +9,8 @@ const { maybeSingle, eq, select, from } = vi.hoisted(() => {
 });
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from } }));
-vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Executive' }),
-}));
 
-import { getOpportunity, useOpportunity, OPPORTUNITY_COLUMNS } from './opportunity';
+import { getOpportunity, OPPORTUNITY_COLUMNS } from './opportunity';
 
 describe('getOpportunity DAL (AC-SP-208)', () => {
   beforeEach(() => {
@@ -89,31 +83,6 @@ describe('getOpportunity DAL (AC-SP-208)', () => {
   });
 });
 
-describe('useOpportunity hook (AC-SP-208)', () => {
-  const wrapper = ({ children }: { children: React.ReactNode }) => {
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
-  };
-
-  beforeEach(() => {
-    from.mockClear(); select.mockClear(); eq.mockClear(); maybeSingle.mockClear();
-  });
-
-  it('AC-SP-208: fetches the row by id when org + id are present (org-scoped queryKey)', async () => {
-    maybeSingle.mockResolvedValue({ data: { id: 'p1', name: 'Acme' }, error: null });
-    const { result } = renderHook(() => useOpportunity('p1'), { wrapper });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(eq).toHaveBeenCalledWith('id', 'p1');
-    expect(result.current.data?.name).toBe('Acme');
-  });
-
-  it('AC-SP-208: is disabled (no fetch) when the id is undefined', () => {
-    const { result } = renderHook(() => useOpportunity(undefined), { wrapper });
-    expect(result.current.fetchStatus).toBe('idle');
-    expect(from).not.toHaveBeenCalled();
-  });
-});
-
- it('AC-TAG-002 opportunity detail projection retains every classification', () => {
+it('AC-TAG-002 opportunity detail projection retains every classification', () => {
    for (const field of ['service_line', 'sector', 'location', 'award_type', 'bidding_entity']) expect(OPPORTUNITY_COLUMNS).toContain(field);
  });

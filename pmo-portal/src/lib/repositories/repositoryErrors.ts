@@ -21,6 +21,8 @@ export async function wrap<T>(fn: () => Promise<T>): Promise<T> {
 export async function throwInvokeError(
   error: unknown,
   decorate?: (appError: AppError, body: unknown) => void,
+  /** Builds the thrown error when the response carries no usable `{ message }` body (default: `toAppError`). */
+  fallback: (error: unknown) => AppError = toAppError,
 ): Promise<never> {
   const context = (error as { context?: Response } | null | undefined)?.context;
   if (context && typeof context.clone === 'function') {
@@ -35,5 +37,5 @@ export async function throwInvokeError(
       if (parsed instanceof AppError) throw parsed;
     }
   }
-  throw toAppError(error);
+  throw fallback(error);
 }

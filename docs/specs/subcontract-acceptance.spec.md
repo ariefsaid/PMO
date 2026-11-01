@@ -1,7 +1,7 @@
 # Subcontract acceptance, caps and variations (SCA)
 
 Issue #1513 (route item T2, `docs/plans/2026-10-30-epc-odoo-build-route.md`). Extends decision #1489 (owner
-rulings 2026-10-30) and ADR-0094. Status: **draft for owner sign-off; no implementation before sign-off.**
+rulings 2026-10-30) and ADR-0094. Status: **owner-signed 2026-11-01 (all ten open-question defaults accepted).**
 Executor on sign-off: Director-dispatched (money / SoD).
 
 **Job story.** When a subcontractor reports work done against a subcontract purchase order, I want the

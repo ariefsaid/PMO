@@ -21,6 +21,11 @@
 import type { ExpenseGateTruth, ExpenseResolvedRefs } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingCommand.ts';
 import type { ExpenseResolution } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/expensePostingResolve.ts';
 
+/** What a resolver answers; generic over the refs so the imprest pass (imprestPostingBackstop.ts) reuses this orchestration. */
+export type BackstopResolution<Refs = ExpenseResolvedRefs> =
+  | Exclude<ExpenseResolution, { outcome: 'ready' }>
+  | { outcome: 'ready'; refs: Refs };
+
 /** NFR-EXP-013 — bounded per org per tick (index-served), equal to the timesheet/budget twins. */
 export const EXPENSE_BACKSTOP_TICK_LIMIT = 200;
 
@@ -45,7 +50,7 @@ export interface ExpenseOutboxRef {
   state: string;
 }
 
-export type ExpenseGateOutcome = { ok: true; truth: ExpenseGateTruth } | { ok: false; reason: string };
+export type ExpenseGateOutcome<Truth = ExpenseGateTruth> = { ok: true; truth: Truth } | { ok: false; reason: string };
 
 export interface ExpenseOutcome {
   state: 'failed' | 'held' | 'pushed';
@@ -53,18 +58,18 @@ export interface ExpenseOutcome {
   erpName?: string | null;
 }
 
-export interface ExpenseBackstopDeps {
-  listPending(orgId: string, limit: number): Promise<ExpenseIntentRow[]>;
-  findOutbox(row: ExpenseIntentRow): Promise<ExpenseOutboxRef | null>;
-  replay(row: ExpenseIntentRow, outbox: ExpenseOutboxRef): Promise<void>;
-  assertGate(row: ExpenseIntentRow): Promise<ExpenseGateOutcome>;
-  resolve(truth: ExpenseGateTruth): Promise<ExpenseResolution>;
-  recordOutcome(row: ExpenseIntentRow, outcome: ExpenseOutcome): Promise<void>;
-  driveFresh(row: ExpenseIntentRow, truth: ExpenseGateTruth, refs: ExpenseResolvedRefs): Promise<void>;
+export interface ExpenseBackstopDeps<Row extends { id: string } = ExpenseIntentRow, Truth = ExpenseGateTruth, Refs = ExpenseResolvedRefs> {
+  listPending(orgId: string, limit: number): Promise<Row[]>;
+  findOutbox(row: Row): Promise<ExpenseOutboxRef | null>;
+  replay(row: Row, outbox: ExpenseOutboxRef): Promise<void>;
+  assertGate(row: Row): Promise<ExpenseGateOutcome<Truth>>;
+  resolve(truth: Truth): Promise<BackstopResolution<Refs>>;
+  recordOutcome(row: Row, outcome: ExpenseOutcome): Promise<void>;
+  driveFresh(row: Row, truth: Truth, refs: Refs): Promise<void>;
   /** Stamp the listed intents' last attempt (the round-robin order of `listPending`). */
   markAttempted(orgId: string, intentIds: string[]): Promise<void>;
   /** Outbox commands left `committed` whose intent is already `pushed` — finished by a finalize-only replay. */
-  listStranded(orgId: string): Promise<Array<{ row: ExpenseIntentRow; outbox: ExpenseOutboxRef }>>;
+  listStranded(orgId: string): Promise<Array<{ row: Row; outbox: ExpenseOutboxRef }>>;
 }
 
 export interface ReconcileOrgExpensePostingsResult {
@@ -77,8 +82,8 @@ export interface ReconcileOrgExpensePostingsResult {
   errors: Array<{ intentId: string; error: string }>;
 }
 
-export async function reconcileOrgExpensePostings(
-  deps: ExpenseBackstopDeps,
+export async function reconcileOrgExpensePostings<Row extends { id: string } = ExpenseIntentRow, Truth = ExpenseGateTruth, Refs = ExpenseResolvedRefs>(
+  deps: ExpenseBackstopDeps<Row, Truth, Refs>,
   org: { orgId: string },
 ): Promise<ReconcileOrgExpensePostingsResult> {
   const result: ReconcileOrgExpensePostingsResult = { finished: 0, driven: 0, replayed: 0, waiting: 0, refused: 0, errors: [] };
