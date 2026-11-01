@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useWinRate, type WinRateRange } from '@/src/hooks/useDashboard';
 import { ViewToggle, type ViewOption } from '@/src/components/ui/ViewToggle';
@@ -121,9 +121,18 @@ export interface WinRateCardProps {
 export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = false, range: externalRange, hidePeriodControl = false }) => {
   const [mode, setMode] = useState<'count' | 'value'>('count');
   const [period, setPeriod] = useState<PeriodKey>('all');
-  const range = useMemo(() => buildWinRateRange(period), [period]);
+  // Re-derive the window when the local date rolls over in a long-lived session.
+  const [today, setToday] = useState(() => toIso(new Date()));
+  useEffect(() => {
+    const now = new Date();
+    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const id = setTimeout(() => setToday(toIso(new Date())), nextMidnight.getTime() - now.getTime() + 1000);
+    return () => clearTimeout(id);
+  }, [today]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `today` re-keys the window at date rollover
+  const range = useMemo(() => buildWinRateRange(period), [period, today]);
   const activeRange = externalRange ?? range;
-  const { data: wr, isError, refetch } = useWinRate(activeRange);
+  const { data: wr, isPending, isError, refetch } = useWinRate(activeRange);
   const { t } = useTranslation();
   const basisOptions: ViewOption<'count' | 'value'>[] = [
     { value: 'count', label: t('dashboard.winRate.basisCount', 'By count'), testId: 'win-rate-toggle-count' },
@@ -212,6 +221,8 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
           sub={t('dashboard.winRate.errorSub', 'Something went wrong. Try again.')}
           onRetry={() => refetch()}
         />
+      ) : isPending && !externalRange?.key.startsWith('x') && !wr ? (
+        <ListState variant="loading" rows={3} />
       ) : !hasBids ? (
         <>
           <ListState
