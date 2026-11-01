@@ -22,12 +22,18 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 // vi.mock factories are hoisted above top-level consts, so the mock fn must be
 // created via vi.hoisted (the project's established pattern).
-const { transitionProject } = vi.hoisted(() => ({
+const { transitionProject, invalidateQueries } = vi.hoisted(() => ({
   transitionProject: vi.fn().mockResolvedValue(undefined),
+  invalidateQueries: vi.fn(),
 }));
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useProjectStageEntries', () => ({
+  useProjectStageEntries: () => ({ data: [], isLoading: false, error: null }),
+  useStageEntryMutations: () => ({ redate: { mutateAsync: vi.fn() }, addSkipped: { mutateAsync: vi.fn() } }),
+}));
+vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => '2026-11-01' }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/lib/repositories', async (orig) => {
   const actual = await orig() as typeof import('@/src/lib/repositories');
@@ -53,7 +59,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 vi.mock('@tanstack/react-query', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
+  return { ...actual, useQueryClient: () => ({ invalidateQueries }) };
 });
 
 import PipelineLens from '../PipelineLens';
@@ -104,6 +110,18 @@ describe('PipelineLens — write policy (AC-IXD-WP-004, OD-UX-1)', () => {
     expect(screen.queryByRole('alertdialog')).toBeNull();
     // The transition fired on the single click (Tender Submitted → Negotiation).
     await waitFor(() => expect(transitionProject).toHaveBeenCalledWith('d1', 'Negotiation'));
+  });
+
+  it('AC-PSH-013: a routine Advance refreshes the stage history', async () => {
+    renderLens();
+    await userEvent.click(screen.getByRole('button', { name: /Advance to/i }));
+    await waitFor(() => expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['project-stage-entries', 'org-1'] }));
+  });
+
+  it('AC-PSH-002: the Mark won contract date cannot be picked after the org\'s today', async () => {
+    renderLens();
+    await userEvent.click(screen.getByRole('button', { name: /Mark won/i }));
+    expect(await screen.findByLabelText('Contract date')).toHaveAttribute('max', '2026-11-01');
   });
 
   it('AC-IXD-WP-004: a routine Advance shows a quiet success toast', async () => {

@@ -1,6 +1,14 @@
 {
-  "workOrderEligibility": {"checking": "Checking issue eligibility…", "unavailable": "Issue eligibility could not be checked. Refresh this page and try again."},
-  "winEligibility": {"checking": "Checking win eligibility…", "unavailable": "Win eligibility is unavailable. Refresh this page and try again.", "reviewer": "Ask your supervisor or a more senior reviewer to confirm the value before winning this project.", "inactive": "Ask an active supervisor or a more senior reviewer to confirm the value."},
+  "workOrderEligibility": {
+    "checking": "Checking issue eligibility…",
+    "unavailable": "Issue eligibility could not be checked. Refresh this page and try again."
+  },
+  "winEligibility": {
+    "checking": "Checking win eligibility…",
+    "unavailable": "Win eligibility is unavailable. Refresh this page and try again.",
+    "reviewer": "Ask your supervisor or a more senior reviewer to confirm the value before winning this project.",
+    "inactive": "Ask an active supervisor or a more senior reviewer to confirm the value."
+  },
   "finishSpendingSetup": "Finish spending setup",
   "spendingAdminHandoff": "Ask an administrator to complete spending setup.",
   "spendingSetupPrompt": "Recorded spending will appear after account setup is complete.",
@@ -851,7 +859,23 @@
       "empty": "No contract lines or customer orders yet.",
       "noOrders": "No customer orders yet."
     },
-    "loadingTitle": "Loading project"
+    "loadingTitle": "Loading project",
+    "stageHistory": {
+      "heading": "Stage history",
+      "listLabel": "Stage history",
+      "date": "Stage date",
+      "outOfRange": "Pick a date between {{min}} and {{max}}",
+      "system": "System",
+      "redated": "Date changed",
+      "added": "Added later",
+      "changeDate": "Change date",
+      "addSkipped": "Add skipped stage",
+      "save": "Save date",
+      "salesHistory": "Sales history",
+      "loadError": "Stage history could not load",
+      "stage": "Stage",
+      "notAfter": "Pick a date on or before {{max}}"
+    }
   },
   "common": {
     "retry": "Retry",

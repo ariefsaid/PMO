@@ -5,7 +5,10 @@ import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileSc
 import { BoardDnd, DraggableCard, DroppableColumn } from '@/src/components/kanban/BoardDnd';
 import type { MoveState } from '@/src/components/kanban/useOptimisticMoves';
 import { useProjectStatusLabel, useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatCalendarDayInTimeZone } from '@/src/lib/format';
+import { getActiveLocale } from '@/src/lib/locale/activeLocale';
+import { useOrgToday } from '@/src/hooks/useOrgToday';
+import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import ProjectCardShell from './ProjectCardShell';
@@ -14,6 +17,8 @@ import {
   pillVariantForStatus,
   formatPercent,
   isStaleBid,
+  stageLine,
+  formatIsoDayMonth,
   type SalesColumn,
 } from './salesPipeline';
 
@@ -43,6 +48,37 @@ interface SalesKanbanBoardProps {
     onMove: (projectId: string, columnId: string) => void;
   };
 }
+
+/** #1638 FR-PSH-013: one line for the latest stage entry; lost deals date from decided_at (an instant). */
+const DealStageLine: React.FC<{ project: PipelineProject }> = ({ project }) => {
+  const { t } = useTranslation();
+  const today = useOrgToday();
+  const lost = project.status === 'Loss Tender' || project.status === 'Declined';
+  const enteredOn = lost
+    ? (project.decided_at ? formatCalendarDayInTimeZone(new Date(project.decided_at), getActiveLocale().timezone) : undefined)
+    : project.stage_started_at?.slice(0, 10); // the pipeline RPC emits entered_on at UTC midnight
+  if (!enteredOn) return null;
+  return (
+    <p data-testid={`stage-line-${project.id}`} className="text-xs text-muted-foreground tabular">
+      {stageLine(project.status, enteredOn, today, (k, d) => t(k, d))}
+    </p>
+  );
+};
+
+/** #1638 FR-PSH-014: won deals carry a Signed pill with the contract date, in place of the stage line. */
+const SignedPill: React.FC<{ project: PipelineProject }> = ({ project }) => {
+  const { t } = useTranslation();
+  const label = t('sales:stageDate.signed', 'Signed');
+  const date = project.contract_date ? formatIsoDayMonth(project.contract_date) : null;
+  return (
+    <Badge data-testid={`signed-pill-${project.id}`} className="w-fit px-1.5">
+      {date ? `${label} ${date}` : label}
+    </Badge>
+  );
+};
+
+const DealStamp: React.FC<{ project: PipelineProject }> = ({ project }) =>
+  ON_HAND_STATUSES.includes(project.status) ? <SignedPill project={project} /> : <DealStageLine project={project} />;
 
 /**
  * A single deal card — renders the canonical ProjectCardShell (CW-3b, `kanban`
@@ -79,6 +115,7 @@ const DealCard: React.FC<{
         // its own sideways scrollbar. `min-w-0` lets each group shrink to the card, `shrink-0` keeps
         // the pill whole when it drops to its own line.
         <div className="min-w-0 space-y-1">
+          <DealStamp project={project} />
           <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
               <span className="text-[15px] font-bold tabular">
@@ -134,6 +171,7 @@ const CompactDealCard: React.FC<{
       className="min-w-0 p-3 [&_button]:block [&_button]:overflow-visible [&_button]:[-webkit-line-clamp:unset] [&_span.truncate]:overflow-visible [&_span.truncate]:text-clip [&_span.truncate]:whitespace-normal [&_span.truncate]:break-words"
       body={
         <div className="min-w-0 space-y-1">
+          <DealStamp project={project} />
           <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
               <span className="break-words text-[15px] font-bold tabular">

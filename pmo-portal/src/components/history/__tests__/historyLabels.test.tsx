@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { fieldLabels } from '../historyLabels';
+import { fieldLabels, kindLabels, auditActionLabels } from '../historyLabels';
 import { FIELD_KINDS } from '../historyFields';
 import { useHistoryEnumLabel } from '../useHistoryEnumLabel';
 import en from '../../../../public/locales/en/common.json';
@@ -36,5 +36,16 @@ describe('#1471 billing kind history', () => {
     expect(result.current('sales_invoice', 'billing_kind', 'contract')).toBe('Contract billing');
     expect(result.current('sales_invoice', 'billing_kind', 'other')).toBe('Other billing');
     expect(result.current('sales_invoice', 'billing_kind', 'unexpected')).toBe('unexpected');
+  });
+});
+
+describe('#1638 stage entry history', () => {
+  const translate = (key: string, options: { defaultValue?: string } | string) =>
+    typeof options === 'string' ? options : options.defaultValue ?? key;
+  it('AC-PSH-007: a stage entry is a known record kind with a dated stage field and labelled audit lines', () => {
+    expect(FIELD_KINDS.project_stage_entry.entered_on).toBe('date');
+    expect(kindLabels(translate as never).project_stage_entry).toBe('Stage entry');
+    expect(auditActionLabels(translate as never)['project.stage_entry.redate']).toBe('Stage date changed');
+    expect(id.history.kind.project_stage_entry).toBe('Entri tahap');
   });
 });

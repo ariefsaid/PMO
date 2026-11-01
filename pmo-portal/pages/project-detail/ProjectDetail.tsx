@@ -17,6 +17,7 @@ import { useMilestones } from '@/src/hooks/useMilestones';
 import { completionPct, formatDateOnly, formatInstantDate, formatRelativeTime } from '@/src/lib/format';
 import ProjectDetailHeader from './ProjectDetailHeader';
 import PipelineLens from './PipelineLens';
+import StageHistory from './StageHistory';
 import ProjectDetailRail from './ProjectDetailRail';
 import ProjectFormModal from '../../components/ProjectFormModal';
 import ProjectSections, { PrimaryProjectAction } from './ProjectSections';
@@ -189,6 +190,12 @@ const ProjectDetail: React.FC = () => {
         menuContent={<ProjectDetailRail project={project} detailsOnly />} />
       <ProjectHeaderFacts project={project} />
       {isPipelineRecord && <div className="mb-8"><PipelineLens project={project} locationState={location.state} /></div>}
+      {pipelineGroup === 'onHand' && (
+        <details className="mb-8">
+          <summary className="cursor-pointer text-sm font-semibold">{t('projectDetail.stageHistory.salesHistory', 'Sales history')}</summary>
+          <div className="pt-2"><StageHistory projectId={project.id} /></div>
+        </details>
+      )}
       <div className="md:mb-4" />
     </>
   );

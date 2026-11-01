@@ -17,6 +17,10 @@ const { transitionProject, synchronizeErpProject } = vi.hoisted(() => ({
   transitionProject: vi.fn().mockResolvedValue(undefined),
   synchronizeErpProject: vi.fn(),
 }));
+vi.mock('@/src/hooks/useProjectStageEntries', () => ({
+  useProjectStageEntries: () => ({ data: [], isLoading: false, error: null }),
+  useStageEntryMutations: () => ({ redate: { mutateAsync: vi.fn() }, addSkipped: { mutateAsync: vi.fn() } }),
+}));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/lib/repositories', async (orig) => {
   const actual = await orig() as typeof import('@/src/lib/repositories');
