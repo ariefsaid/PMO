@@ -220,6 +220,21 @@ export async function getWinRate(from?: Date, to?: Date): Promise<WinRate> {
   return data as unknown as WinRate;
 }
 
+/** Loss counts by reason and by client for the same cohort and window as get_win_rate (#1577). */
+export interface LossBreakdown {
+  by_reason: Array<{ reason: string | null; losses_count: number; declined_count: number }>;
+  by_client: Array<{ client_id: string | null; client_name: string | null; wins_count: number; losses_count: number }>;
+}
+
+/** security invoker, counts only, no org_id — RLS scopes to the caller's org. On RPC error throws. */
+export async function getLossBreakdown(from?: Date, to?: Date): Promise<LossBreakdown> {
+  const p_from = from ? toIso(from) : undefined;
+  const p_to = to ? toIso(to) : undefined;
+  const { data, error } = await supabase.rpc('get_loss_breakdown', { p_from, p_to });
+  if (error) throw new Error(error.message);
+  return data as unknown as LossBreakdown;
+}
+
 /**
  * Sales pipeline stages + project list for the caller's org (FR-SPD-010).
  * security invoker, no org_id argument — RLS scopes (NFR-SPD-SEC-001).

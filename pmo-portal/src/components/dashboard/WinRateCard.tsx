@@ -14,6 +14,7 @@ import {
   type UnavailableRateReason,
 } from '@/src/lib/winRateMetrics';
 import { STALE_BID_THRESHOLD_DAYS } from '@/src/lib/dashboardConstants';
+import { LossBreakdown } from './LossBreakdown';
 
 // ── Win-rate period options (PRESERVED VERBATIM from the legacy file — AC-1117) ──
 
@@ -220,6 +221,7 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
             sub={t('dashboard.winRate.emptySub', 'Try a wider time frame to see your win rate.')}
           />
           {declinedNote}
+          <LossBreakdown range={activeRange} />
         </>
       ) : (
         <>
@@ -286,6 +288,7 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = f
             </span>
           </div>
           {declinedNote}
+          <LossBreakdown range={activeRange} />
         </>
       )}
     </section>

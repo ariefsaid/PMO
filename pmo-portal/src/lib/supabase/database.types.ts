@@ -3489,6 +3489,7 @@ export type Database = {
           external_tier: string
           id: string
           org_id: string
+          prev_binding: Json | null
           secret_ref: string
           site_url: string
           statement_calendar: Json | null
@@ -3510,6 +3511,7 @@ export type Database = {
           external_tier: string
           id?: string
           org_id?: string
+          prev_binding?: Json | null
           secret_ref: string
           site_url: string
           statement_calendar?: Json | null
@@ -3531,6 +3533,7 @@ export type Database = {
           external_tier?: string
           id?: string
           org_id?: string
+          prev_binding?: Json | null
           secret_ref?: string
           site_url?: string
           statement_calendar?: Json | null
@@ -6208,6 +6211,7 @@ export type Database = {
           import_key: string | null
           import_normalized_ref: string | null
           imported_at: string | null
+          is_subcontract: boolean
           org_id: string
           origin: string | null
           po_number: string | null
@@ -6238,6 +6242,7 @@ export type Database = {
           import_key?: string | null
           import_normalized_ref?: string | null
           imported_at?: string | null
+          is_subcontract?: boolean
           org_id?: string
           origin?: string | null
           po_number?: string | null
@@ -6268,6 +6273,7 @@ export type Database = {
           import_key?: string | null
           import_normalized_ref?: string | null
           imported_at?: string | null
+          is_subcontract?: boolean
           org_id?: string
           origin?: string | null
           po_number?: string | null
@@ -7024,6 +7030,8 @@ export type Database = {
           imported_at: string | null
           last_update: string
           location: string | null
+          lost_note: string | null
+          lost_reason: string | null
           name: string
           short_name: string | null
           org_id: string
@@ -7065,6 +7073,8 @@ export type Database = {
           imported_at?: string | null
           last_update?: string
           location?: string | null
+          lost_note?: string | null
+          lost_reason?: string | null
           name: string
           short_name?: string | null
           org_id?: string
@@ -7106,6 +7116,8 @@ export type Database = {
           imported_at?: string | null
           last_update?: string
           location?: string | null
+          lost_note?: string | null
+          lost_reason?: string | null
           name?: string
           short_name?: string | null
           org_id?: string
@@ -7241,6 +7253,138 @@ export type Database = {
             columns: ["uploaded_by_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_order_lines: {
+        Row: {
+          amount: number | null
+          boq_item_id: string
+          created_at: string
+          id: string
+          org_id: string
+          po_id: string
+          quantity: number
+          rate: number
+          revision: number
+          unit: string
+        }
+        Insert: {
+          amount?: number | null
+          boq_item_id: string
+          created_at?: string
+          id?: string
+          org_id: string
+          po_id: string
+          quantity: number
+          rate: number
+          revision: number
+          unit: string
+        }
+        Update: {
+          amount?: number | null
+          boq_item_id?: string
+          created_at?: string
+          id?: string
+          org_id?: string
+          po_id?: string
+          quantity?: number
+          rate?: number
+          revision?: number
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_lines_boq_item_id_fkey"
+            columns: ["boq_item_id"]
+            isOneToOne: false
+            referencedRelation: "boq_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_lines_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_lines_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_order_revisions: {
+        Row: {
+          id: string
+          issue_basis: string
+          issued_at: string
+          issued_by: string
+          org_id: string
+          po_id: string
+          procurement_id: string
+          revision: number
+          status: string
+          total: number
+          variation_id: string | null
+        }
+        Insert: {
+          id?: string
+          issue_basis: string
+          issued_at?: string
+          issued_by: string
+          org_id: string
+          po_id: string
+          procurement_id: string
+          revision: number
+          status?: string
+          total: number
+          variation_id?: string | null
+        }
+        Update: {
+          id?: string
+          issue_basis?: string
+          issued_at?: string
+          issued_by?: string
+          org_id?: string
+          po_id?: string
+          procurement_id?: string
+          revision?: number
+          status?: string
+          total?: number
+          variation_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_revisions_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_revisions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_revisions_po_id_fkey"
+            columns: ["po_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_revisions_procurement_id_fkey"
+            columns: ["procurement_id"]
+            isOneToOne: false
+            referencedRelation: "procurements"
             referencedColumns: ["id"]
           },
         ]
@@ -10852,6 +10996,10 @@ export type Database = {
           replenishment_in_flight: number
         }[]
       }
+      get_loss_breakdown: {
+        Args: { p_from?: string; p_to?: string }
+        Returns: Json
+      }
       get_management_pack: {
         Args: { p_from?: string; p_to?: string }
         Returns: Json
@@ -12520,6 +12668,8 @@ export type Database = {
           p_contract_date?: string
           p_customer_contract_ref?: string
           p_id: string
+          p_lost_note?: string
+          p_lost_reason?: string
           p_to: Database["public"]["Enums"]["project_status"]
         }
         Returns: undefined
@@ -12589,6 +12739,13 @@ export type Database = {
         Args: { p_id: string; p_notes?: string; p_to: string }
         Returns: string
       }
+      issue_subcontract_po_lines: { Args: { p_po_id: string }; Returns: number }
+      po_effective_revision: { Args: { p_po_id: string }; Returns: number }
+      set_subcontract_po_lines: {
+        Args: { p_lines: Json; p_po_id: string }
+        Returns: number
+      }
+      subcontract_po_lock: { Args: { p_po_id: string }; Returns: undefined }
     }
     Enums: {
       budget_category:

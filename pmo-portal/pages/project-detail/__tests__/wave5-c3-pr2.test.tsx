@@ -367,7 +367,7 @@ describe('SUB-I: opportunity lens figures and notices', () => {
 
   it('SUB-I: a lost deal shows Value, Owner, Decision — never a 0% win probability or a zero weighted value', () => {
     renderLens({ ...pipelineRow, status: 'Loss Tender' } as unknown as ProjectWithRefs);
-    expect(tileLabels()).toEqual(['Value', 'Owner', 'Decision']);
+    expect(tileLabels()).toEqual(['Value', 'Owner', 'Decision', 'Lost reason']);
     expect(screen.queryByText('0%')).not.toBeInTheDocument();
     expect(screen.getByText(/marked lost/i)).toBeInTheDocument();
   });

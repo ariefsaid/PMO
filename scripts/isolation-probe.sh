@@ -204,6 +204,7 @@ A_CLAIM=$(jq -r '.[]|select(.table=="expense_claims")|.id' "$A_ROWS_JSON")
 A_BUDGET=$(jq -r '.[]|select(.table=="budget_versions")|.id' "$A_ROWS_JSON")
 A_SLIP=$(jq -r '.[]|select(.table=="vendor_withholding_slips")|.id' "$A_ROWS_JSON")
 A_VENDOR_BILL=$(jq -r '.[]|select(.table=="procurement_invoices")|.id' "$A_ROWS_JSON")
+A_PO=$(jq -r '.[]|select(.table=="purchase_orders")|.id' "$A_ROWS_JSON")
 A_WO=$(jq -r '.[]|select(.table=="work_orders")|.id' "$A_ROWS_JSON")
 A_ACCEPTANCE=$(jq -r '.[]|select(.table=="work_order_acceptances")|.id' "$A_ROWS_JSON")
 A_ACCEPTANCE_WORK_ORDER=$(jq -r '.[]|select(.table=="work_order_acceptances")|.work_order_id // empty' "$A_ROWS_JSON")
@@ -212,6 +213,10 @@ for id in A_PROJECT A_COMPANY; do value=${!id}; [ -n "$value" ] && [ "$value" !=
 if [ -n "$A_PROJECT" ] && [ "$A_PROJECT" != null ]; then
   c=$(rpc create_progress_claim "{\"p_project_id\":\"$A_PROJECT\",\"p_kind\":\"down_payment\",\"p_work_order_id\":null,\"p_lines\":null,\"p_down_payment_amount\":1,\"p_recovery_pct\":1,\"p_recover_remaining\":false}")
 else skip "create_progress_claim (projects)"; fi
+if [ -n "$A_PO" ] && [ "$A_PO" != null ]; then
+  c=$(rpc set_subcontract_po_lines "{\"p_po_id\":\"$A_PO\",\"p_lines\":[{\"boq_item_id\":\"$A_PO\",\"quantity\":1,\"rate\":1,\"unit\":\"ls\"}]}")
+  c=$(rpc issue_subcontract_po_lines "{\"p_po_id\":\"$A_PO\"}")
+else skip "set_subcontract_po_lines (purchase_orders)"; skip "issue_subcontract_po_lines (purchase_orders)"; fi
 if [ -n "$A_ACCEPTANCE_WORK_ORDER" ] && [ -n "$A_ACCEPTANCE_LINES" ] \
   && [ "$A_ACCEPTANCE_LINES" != null ] \
   && jq -e 'type=="array" and length>0 and all(.[]; (.boq_item_id|type)=="string" and (.quantity|type)=="number" and .quantity>0)' <<< "$A_ACCEPTANCE_LINES" >/dev/null; then

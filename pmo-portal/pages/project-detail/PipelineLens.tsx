@@ -27,7 +27,10 @@ import {
   LEGAL_PROJECT_TRANSITIONS,
   PIPELINE_STATUSES,
   projectStatusGroup,
+  type TransitionProjectOpts,
 } from '@/src/lib/db/projectTransitions';
+import { LostReasonFields, type LostReasonValue } from '@/components/project-status/LostReasonFields';
+import { lostReasonValid, lostReasonLabel } from '@/src/lib/lostReasons';
 import {
   weightedValue,
   formatPercent,
@@ -113,6 +116,8 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
   // opens a destructive confirm; `Mark won` keeps its inline SoD capture (that consequential
   // capture IS the confirm).
   const [confirmAction, setConfirmAction] = useState<'lost' | 'declined' | null>(null);
+  const [lost, setLost] = useState<LostReasonValue>({ reason: '', note: '' });
+  useEffect(() => { setLost({ reason: '', note: '' }); }, [confirmAction]);
   const [showWonPanel, setShowWonPanel] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const showDetails = isDesktop || detailsOpen;
@@ -187,13 +192,12 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
 
   const runTransition = async (
     to: string,
-    opts?: { customerContractRef?: string; contractDate?: string },
+    opts?: TransitionProjectOpts,
   ) => {
     setError(null);
     setPending(true);
     try {
-      // Preserve the RPC contract byte-for-byte: a stage advance / loss passes
-      // exactly two args (no opts); only the Won path carries the SoD opts.
+      // Preserve the RPC contract byte-for-byte: only the win and loss paths carry opts.
       if (opts) await repositories.project.transition(project.id, to as never, opts);
       else await repositories.project.transition(project.id, to as never);
       // AC-SETUP-001: a native win stays successful; ERP linking is a separate, retryable step.
@@ -293,6 +297,14 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
             ? formatDecisionDateNumeric(project)
             : t('projectDetail.pipeline.pending', 'Pending'),
         },
+        ...((project.status === 'Loss Tender' || project.status === 'Declined')
+          ? [
+              {
+                label: t('lostReason:deal.label', 'Lost reason'),
+                value: lostReasonLabel((k, d) => String(t(k, d)), project.lost_reason),
+              },
+            ]
+          : []),
       ]
     : [
         ...(canSeeMoney ? [valueTile] : []),
@@ -347,15 +359,22 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
         </summary>
         {showDetails && <>
           {stats.length > 0 && (
-            <dl className="mb-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
-              {stats.map((tile, index) => (
-                <div key={index} className="min-w-0 border-b border-border pb-2">
-                  <dt className="text-xs text-muted-foreground">{tile.label}</dt>
-                  <dd className="mt-1 break-words text-base font-semibold tabular-nums text-foreground">{tile.value}</dd>
-                  {tile.sub && <dd className="mt-1 text-xs text-muted-foreground">{tile.sub}</dd>}
-                </div>
-              ))}
-            </dl>
+            <>
+              <dl className="mb-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+                {stats.map((tile, index) => (
+                  <div key={index} className="min-w-0 border-b border-border pb-2">
+                    <dt className="text-xs text-muted-foreground">{tile.label}</dt>
+                    <dd className="mt-1 break-words text-base font-semibold tabular-nums text-foreground">{tile.value}</dd>
+                    {tile.sub && <dd className="mt-1 text-xs text-muted-foreground">{tile.sub}</dd>}
+                  </div>
+                ))}
+              </dl>
+              {(project.status === 'Loss Tender' || project.status === 'Declined') && project.lost_note && (
+                <p data-testid="lost-note" className="-mt-2 mb-4 text-xs text-muted-foreground">
+                  {project.lost_note}
+                </p>
+              )}
+            </>
           )}
 
         <div className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-2">
@@ -480,15 +499,28 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
         open={canTransition && confirmAction === 'lost'}
         tone="destructive"
         title={t('projectDetail.pipeline.lostConfirm.title', 'Mark project as lost')}
-        description={t(
-          'projectDetail.pipeline.lostConfirm.body',
-          'This moves {{project}} to a terminal lost stage. You can still review it, but it will leave the active pipeline.',
-          { project: project.name },
-        )}
+        description={
+          <>
+            <p>
+              {t(
+                'projectDetail.pipeline.lostConfirm.body',
+                'This moves {{project}} to a terminal lost stage. You can still review it, but it will leave the active pipeline.',
+                { project: project.name },
+              )}
+            </p>
+            <LostReasonFields idPrefix="lens" value={lost} onChange={setLost} />
+          </>
+        }
         confirmLabel={t('projectDetail.pipeline.lostConfirm.confirm', 'Mark lost')}
+        confirmDisabled={!lostReasonValid(lost.reason, lost.note)}
         loading={pending}
         onCancel={() => setConfirmAction(null)}
-        onConfirm={() => void runTransition('Loss Tender')}
+        onConfirm={() =>
+          void runTransition('Loss Tender', {
+            lostReason: lost.reason,
+            lostNote: lost.note.trim() || undefined,
+          })
+        }
       />
 
       {/* Decline to bid (#774): terminal pre-award outcome, kept out of win-rate denominators. */}
@@ -496,15 +528,28 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
         open={canTransition && confirmAction === 'declined'}
         tone="destructive"
         title={t('projectDetail.pipeline.declinedConfirm.title', 'Decline to bid')}
-        description={t(
-          'projectDetail.pipeline.declinedConfirm.body',
-          'This records {{project}} as declined: we chose not to bid. It leaves the active pipeline and is not counted against the win rate.',
-          { project: project.name },
-        )}
+        description={
+          <>
+            <p>
+              {t(
+                'projectDetail.pipeline.declinedConfirm.body',
+                'This records {{project}} as declined: we chose not to bid. It leaves the active pipeline and is not counted against the win rate.',
+                { project: project.name },
+              )}
+            </p>
+            <LostReasonFields idPrefix="lens" value={lost} onChange={setLost} />
+          </>
+        }
         confirmLabel={t('projectDetail.pipeline.declinedConfirm.confirm', 'Decline to bid')}
+        confirmDisabled={!lostReasonValid(lost.reason, lost.note)}
         loading={pending}
         onCancel={() => setConfirmAction(null)}
-        onConfirm={() => void runTransition('Declined')}
+        onConfirm={() =>
+          void runTransition('Declined', {
+            lostReason: lost.reason,
+            lostNote: lost.note.trim() || undefined,
+          })
+        }
       />
     </div>
   );
