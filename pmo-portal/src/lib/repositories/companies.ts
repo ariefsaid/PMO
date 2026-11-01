@@ -84,7 +84,7 @@ export const companyRepository: CompanyRepository = {
 };
 
 export const contactRepository: ContactRepository = {
-  list: (params) => wrap(() => listContacts(params)),
+  list: () => wrap(() => listContacts()),
   listByCompany: (id) => wrap(() => listContactsByCompany(id)),
   get: (id) => wrap(() => getContact(id)),
   create: async (input) => {

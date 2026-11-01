@@ -23,11 +23,11 @@ import type {
 } from '@/src/lib/db/procurementCrud';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { ProcPhase, ProcurementFileRow } from '@/src/lib/db/procurementFiles';
-import type { PageParams } from '@/src/lib/pagination';
 
 export interface ProcurementRepository {
   itemValuesEditable(id: string): Promise<boolean>;
-  list(params?: PageParams): Promise<ProcurementWithRefs[]>;
+  list(): Promise<ProcurementWithRefs[]>;
+  listByVendor(vendorId: string): Promise<ProcurementWithRefs[]>;
   get(id: string): Promise<ProcurementDetail>;
   transition(id: string, to: ProcurementStatus, notes?: string): Promise<void>;
   createQuotation(

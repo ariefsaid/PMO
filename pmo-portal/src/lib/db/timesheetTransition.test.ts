@@ -25,6 +25,8 @@ import {
   submitTimesheet,
   approveTimesheet,
   rejectTimesheet,
+  reopenTimesheet,
+  attestTimesheetNoErpDocument,
   listTimesheetsAwaitingApproval,
 } from './timesheetTransition';
 
@@ -139,6 +141,20 @@ describe('timesheetActions', () => {
 // ---------------------------------------------------------------------------
 
 describe('submitTimesheet / approveTimesheet / rejectTimesheet', () => {
+  it('AC-902: every transition and attest RPC refusal keeps its SQLSTATE and detail on the thrown error', async () => {
+    const calls = [
+      () => submitTimesheet('ts'),
+      () => approveTimesheet('ts'),
+      () => rejectTimesheet('ts'),
+      () => reopenTimesheet('ts'),
+      () => attestTimesheetNoErpDocument('ts', 'checked'),
+    ];
+    for (const call of calls) {
+      makeRpcBuilder({ data: null, error: { message: 'refused', code: 'P0001', details: 'sheet-state' } });
+      await expect(call()).rejects.toMatchObject({ message: 'refused', code: 'P0001', details: 'sheet-state' });
+    }
+  });
+
   it('AC-902: submitTimesheet/approveTimesheet/rejectTimesheet surface the RPC 42501/P0001 error and send {p_timesheet_id,p_to,p_notes} with no org_id (FR-TS-002/010)', async () => {
     // Error path: should throw
     makeRpcBuilder({ data: null, error: { message: 'not authorized', code: '42501' } });

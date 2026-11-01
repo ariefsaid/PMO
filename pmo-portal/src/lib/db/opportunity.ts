@@ -1,7 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
-import { useAuth } from '@/src/auth/useAuth';
 
 /**
  * The full opportunity row for the detail page (Director decision 2). Selects
@@ -82,15 +80,4 @@ export async function getOpportunity(id: string): Promise<OpportunityRow | null>
     .maybeSingle();
   if (error) throw new Error(error.message);
   return (data as unknown as OpportunityRow) ?? null;
-}
-
-/** Org-scoped opportunity detail query. queryKey includes org_id for cache isolation. */
-export function useOpportunity(id: string | undefined) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<OpportunityRow | null>({
-    queryKey: ['opportunity', orgId, id],
-    queryFn: () => getOpportunity(id!),
-    enabled: Boolean(orgId && id),
-  });
 }

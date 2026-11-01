@@ -4,7 +4,6 @@ import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
 import { queryClient } from '@/src/lib/queryClient';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
-import { listOwnExternalDomainOwnership } from '@/src/lib/db/externalDomainOwnership';
 import type { ComboboxOption } from '@/src/components/ui/Combobox';
 
 /**
@@ -21,7 +20,7 @@ export function useErpItemOptions(purpose: 'sales' | 'purchase') {
   const ownership = useQuery(
     {
       queryKey: ['external-domain-ownership', orgId],
-      queryFn: listOwnExternalDomainOwnership,
+      queryFn: () => repositories.externalDomainOwnership.listOwn(),
       enabled: Boolean(orgId),
     },
     queryClient,

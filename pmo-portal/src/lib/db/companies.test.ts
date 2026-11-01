@@ -130,11 +130,6 @@ describe('AC-CO-001 listCompanies (all companies, archived hidden by default)', 
     expect(h.calls.range).toEqual([]);
   });
 
-  it('data-layer perf hardening #4: applies an explicit page/pageSize range alongside a type filter', async () => {
-    h.result.value = { data: [], error: null };
-    await listCompanies({ type: 'Vendor', page: 1, pageSize: 25 });
-    expect(h.calls.range).toContainEqual([25, 49]);
-  });
 });
 
 describe('AC-CO-002 getCompany', () => {

@@ -1,6 +1,6 @@
 /** Procurement case and phase-file repository implementations, including the externally-owned record creators. */
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
-import { listProcurements } from '@/src/lib/db/procurements';
+import { listProcurements, listProcurementsByVendor } from '@/src/lib/db/procurements';
 import { approveProcurementAmount } from '@/src/lib/db/procurementPaymentCeiling';
 import {
   createPurchaseRequest,
@@ -56,7 +56,8 @@ import type { ProcurementFileRepository, ProcurementRepository } from './contrac
 
 export const procurementRepository: ProcurementRepository = {
   itemValuesEditable: (id) => wrap(() => procurementItemValuesEditable(id)),
-  list: (params) => wrap(() => listProcurements(params)),
+  list: () => wrap(() => listProcurements()),
+  listByVendor: (vendorId) => wrap(() => listProcurementsByVendor(vendorId)),
   get: (id) => wrap(() => getProcurementDetail(id)),
   // Task 4.9 (finding-3 path fix): the case-AGGREGATE status transition is PMO-derived, never an ERP
   // command (`to` is a PMO `ProcurementStatus` like 'Approved' — the erpnext adapter has no concept of

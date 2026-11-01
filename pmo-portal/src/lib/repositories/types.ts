@@ -54,6 +54,7 @@ import type {
 import type {
   IncidentRepository,
 } from './contracts/incidents';
+import type { CommentRepository } from './contracts/comments';
 import type {
   IntegrationsRepository,
 } from './contracts/integrations';
@@ -111,6 +112,7 @@ export interface Repositories {
   budget: BudgetRepository;
   task: TaskRepository;
   incident: IncidentRepository;
+  comment: CommentRepository;
   milestone: MilestoneRepository;
   workOrder: WorkOrderRepository;
   progressBilling: ProgressBillingRepository;
@@ -150,6 +152,7 @@ export type { TimesheetRepository } from './contracts/timesheets';
 export type { BudgetRepository } from './contracts/budget';
 export type { StockMasterRepository, StockRepository } from './contracts/stock';
 export type { IncidentRepository } from './contracts/incidents';
+export type { CommentRepository } from './contracts/comments';
 export type { MilestoneRepository, ProgressBillingRepository, WorkOrderAcceptanceRepository, WorkOrderRepository } from './contracts/workOrders';
 export type { ExpenseClaimRepository, ExpensePostingRepository, ExpenseReceiptRepository } from './contracts/expenses';
 export type { ErpPurchaseRepository } from './contracts/erpPurchases';

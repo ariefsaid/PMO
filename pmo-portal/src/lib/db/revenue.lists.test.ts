@@ -5,8 +5,7 @@
  * `page`/`pageSize`, and the pages call them with NOTHING — so PostgREST silently capped the
  * response at `max_rows` (1000, `supabase/config.toml`). Past 1000 invoices the list AND its
  * client-side search see only the newest 1000: searching an invoice that EXISTS answers
- * "No invoices match your filters". These tests drive the exhaustive paged scan that closes it,
- * while keeping the explicit-page opt-in behaviour byte-for-byte.
+ * "No invoices match your filters". These tests drive the exhaustive paged scan that closes it.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -110,15 +109,6 @@ describe('db/revenue listSalesInvoices — the list must not silently stop at Po
     expect(h.state.calls).toHaveLength(1);
   });
 
-  it('honours an explicit page/pageSize as ONE bounded request (the opt-in contract is unchanged)', async () => {
-    h.state.pages.sales_invoices = [invoiceRows(50)];
-
-    const rows = await listSalesInvoices({ page: 1, pageSize: 50 });
-
-    expect(rows).toHaveLength(50);
-    expect(h.state.calls).toHaveLength(1);
-    expect(h.state.calls[0].range).toEqual([50, 99]);
-  });
 
   it('still filters to one project and flattens the customer payment terms + name', async () => {
     h.state.pages.sales_invoices = [invoiceRows(1)];
@@ -214,14 +204,6 @@ describe('db/revenue listIncomingPayments — same cap, same fix', () => {
     }
   });
 
-  it('honours an explicit page/pageSize as ONE bounded request', async () => {
-    h.state.pages.incoming_payments = [paymentRows(10)];
-
-    await listIncomingPayments({ page: 0, pageSize: 10 });
-
-    expect(h.state.calls).toHaveLength(1);
-    expect(h.state.calls[0].range).toEqual([0, 9]);
-  });
 
   // #781 (AC-FIN-001): incoming payments must ALSO resolve the customer company name in the SAME
   // read. PostgREST embeds break when the target gains a second FK, so the customer embed is
