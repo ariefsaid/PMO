@@ -196,7 +196,7 @@ begin
   if not exists (select 1 from public.org_imprest_settings s where s.org_id = v_org) then
     raise exception 'set the org''s procurement limit before establishing a site float' using errcode = 'P0001';
   end if;
-  if not exists (select 1 from public.projects p where p.id = p_project and p.org_id = v_org) then
+  if not exists (select 1 from public.projects p where p.id = p_project and p.org_id = v_org and p.archived_at is null) then
     raise exception 'project not found' using errcode = 'P0002';
   end if;
   if not public.imprest_custodian_eligible(v_org, p_project, p_custodian) then
@@ -226,10 +226,13 @@ begin
     raise exception 'only an Admin or Finance member proposes a float amount' using errcode = '42501';
   end if;
   select * into v_f from public.imprest_floats where id = p_float;
-  if not found or v_f.org_id is distinct from public.auth_org_id() then
+  if not found or v_f.org_id is distinct from public.auth_org_id() or v_f.archived_at is not null then
     raise exception 'site float not found' using errcode = 'P0002';
   end if;
   perform public.imprest_lock_float(p_float);
+  if exists (select 1 from public.imprest_float_changes c where c.float_id = p_float and c.status = 'Proposed') then
+    raise exception 'a float change is already awaiting a decision' using errcode = 'P0001';
+  end if;
   if p_amount is null or not (p_amount > 0 and p_amount < 'Infinity'::numeric) then
     raise exception 'a float amount must be greater than zero' using errcode = 'P0001';
   end if;
@@ -248,7 +251,7 @@ grant execute on function public.propose_imprest_float_amount(uuid, numeric) to 
 create or replace function public.decide_imprest_float_change(p_change uuid, p_approve boolean, p_notes text default null)
 returns void language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_c public.imprest_float_changes%rowtype; v_uid uuid := auth.uid(); v_admin boolean := public.auth_role() = 'Admin';
-        v_route record;
+        v_route record; v_f public.imprest_floats%rowtype;
 begin
   perform public.assert_is_active_member();
   select * into v_c from public.imprest_float_changes where id = p_change for update;
@@ -261,6 +264,14 @@ begin
   end if;
   if v_uid = v_c.proposed_by then
     raise exception 'separation of duties: the proposer cannot decide their own float amount' using errcode = '42501';
+  end if;
+  select * into v_f from public.imprest_floats where id = v_c.float_id;
+  if v_f.archived_at is not null then
+    raise exception 'site float not found' using errcode = 'P0002';
+  end if;
+  -- DD-IMP-7.3: the person holding the cash never decides how much they hold, via the senior set or break-glass alike.
+  if v_uid = v_f.custodian_id then
+    raise exception 'separation of duties: a custodian cannot decide their own float amount' using errcode = '42501';
   end if;
   select * into v_route from public.imprest_senior_route(v_c.org_id, v_c.proposed_by);
   if not v_admin and not coalesce(v_uid = any (v_route.approver_ids), false) then
@@ -383,7 +394,9 @@ begin
   if public.actor_bypasses_rls(coalesce(nullif(current_setting('role', true), 'none'), session_user)::name) then
     return coalesce(new, old);
   end if;
-  select p.status into v_status from public.imprest_plans p where p.id = coalesce(new.plan_id, old.plan_id) for update;
+  -- Author-scoped: this definer read runs before RLS WITH CHECK, so a non-author must learn nothing of the plan's status.
+  select p.status into v_status from public.imprest_plans p
+   where p.id = coalesce(new.plan_id, old.plan_id) and p.author_id = auth.uid() for update;
   if v_status is distinct from 'Draft' and v_status is distinct from 'Rejected' then
     raise exception 'this plan is % and its lines can no longer be changed (FR-IMP-012)', coalesce(v_status, 'missing')
       using errcode = '42501';
@@ -429,6 +442,9 @@ begin
     raise exception 'illegal transition % -> %', v_p.status, p_to using errcode = 'P0001';
   end if;
   select * into v_f from public.imprest_floats where id = v_p.float_id;
+  if v_f.archived_at is not null and p_to <> 'Cancelled' then  -- an archived float's plans may still be cancelled
+    raise exception 'site float not found' using errcode = 'P0002';
+  end if;
   -- Lock order (plan delta 5): every spend-line lock BEFORE the float lock, never after — transition_expense_claim
   -- takes spend-line then float, so the reverse here could deadlock. Category order keeps plan approvals consistent.
   if p_to in ('Approved','Rejected') then
