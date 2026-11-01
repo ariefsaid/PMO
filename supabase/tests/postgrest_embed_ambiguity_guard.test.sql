@@ -80,6 +80,9 @@ select set_eq(
             -- 0447 (#1519): equipment_usage_entries carries author_id and approver_id -> profiles. No DAL code embeds
             -- profiles from it yet; whatever ships first MUST qualify it with !constraint_name.
             ('equipment_usage_entries -> profiles'),
+            -- 0470 (#1513 S2): subcontract_acceptances carries prepared_by and confirmed_by -> profiles (the ADR-0091 shape). No DAL
+            -- code embeds profiles from it yet; whatever ships first MUST qualify it with !constraint_name.
+            ('subcontract_acceptances -> profiles'),
             -- 0243 (#803): spend_approvers carries profile_id AND created_by, both -> profiles. The one
             -- embed (src/lib/db/spendApprovers.ts) is qualified: profiles!spend_approvers_profile_id_fkey.
             ('spend_approvers -> profiles'),
