@@ -39,6 +39,7 @@ export function proposeProjectMatches(
     }
   };
   // AC-S09-002: the PMO code decides first; the name is consulted only for a project the code did not claim at all.
+  // A code that matches only by case is `unresolved` and is not retried by name (v1 fell back to the name): deliberately more conservative.
   take(proposeMatches('project', projects.filter((p) => p.code?.trim()).map((p) => ({ id: p.id, name: '', code: p.code })),
     erp.map((e) => ({ ...e, name: '' }))));
   const rest = projects.filter((p) => !byProject.has(p.id));

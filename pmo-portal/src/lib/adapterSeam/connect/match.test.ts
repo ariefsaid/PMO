@@ -65,3 +65,27 @@ describe('AC-ECA-002 proposeMatches gives every row exactly one outcome and neve
       .toEqual([{ outcome: 'send', pmoId: 'l' }]);
   });
 });
+
+describe('C1 a person or an account never links on a bare name', () => {
+  const emp = (externalId: string, name: string, o: Partial<NormalisedMaster> = {}): NormalisedMaster => ({ kind: 'employee', externalId, name, active: true, ...o });
+  it('a unique employee name is a review, never a link', () => {
+    expect(proposeMatches('employee', [{ id: 'u1', name: 'Budi Santoso' }], [emp('E1', 'Budi Santoso')]))
+      .toEqual([{ outcome: 'review', pmoIds: ['u1'], externalIds: ['E1'], reason: 'ambiguous' }]);
+  });
+  it('an employee name hit whose work emails disagree is a review marked as a conflict', () => {
+    expect(proposeMatches('employee', [{ id: 'u1', name: 'Budi Santoso', code: 'budi@pmo.co' }], [emp('E1', 'Budi Santoso', { code: 'other@x.co' })]))
+      .toEqual([{ outcome: 'review', pmoIds: ['u1'], externalIds: ['E1'], reason: 'tax-conflict' }]);
+  });
+  it('an employee still links on a unique work email', () => {
+    expect(proposeMatches('employee', [{ id: 'u1', name: 'Budi', code: 'budi@pmo.co' }], [emp('E1', 'Someone Else', { code: 'BUDI@pmo.co' })]))
+      .toEqual([{ outcome: 'link', pmoId: 'u1', externalId: 'E1', key: 'code' }]);
+  });
+  it('an account named like a category but without the category code is a review, never a link', () => {
+    const r = proposeMatches('account', [{ id: 'Labor', name: 'Labor', code: 'Labor' }], [{ kind: 'account', externalId: 'ACC', name: 'Labor', code: null, active: true }]);
+    expect(r).toEqual([{ outcome: 'review', pmoIds: ['Labor'], externalIds: ['ACC'], reason: 'ambiguous' }]);
+  });
+  it('other kinds still link on a unique name', () => {
+    expect(proposeMatches('item', [{ id: 'i', name: 'Semen' }], [{ kind: 'item', externalId: 'I', name: 'Semen', active: true }]))
+      .toEqual([{ outcome: 'link', pmoId: 'i', externalId: 'I', key: 'name' }]);
+  });
+});

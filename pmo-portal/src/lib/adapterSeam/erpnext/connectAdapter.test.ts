@@ -32,6 +32,12 @@ describe('ECA2-T7 erpnext ConnectAdapter reads', () => {
     expect(p2.nextCursor).toBeNull();
   });
 
+  it('an employee with an empty company email takes its login as the match code', async () => {
+    const { client } = fakeErp({ Employee: [{ name: 'HR-EMP-2', employee_name: 'Budi', company_email: '', user_id: 'Budi@Example.com', status: 'Active', company: 'Test Co' }] });
+    const rows = (await createErpnextConnectAdapter(client, 'Test Co').listMasters('employee', null)).rows;
+    expect(rows[0].code).toBe('budi@example.com');
+  });
+
   it('maps project, employee and account; only company-owned doctypes are filtered by company', async () => {
     const { client, seen } = fakeErp({
       Project: [{ name: 'PROJ-1', project_name: 'Bridge', status: 'Open', company: 'Test Co' }, { name: 'PROJ-2', project_name: 'Other', status: 'Open', company: 'Other Co' }],

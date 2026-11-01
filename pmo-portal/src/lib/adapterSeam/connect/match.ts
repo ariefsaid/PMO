@@ -11,15 +11,17 @@ const normTax = (t?: string | null) => (t ?? '').replace(/[^0-9a-z]/gi, '').toLo
 const normCode = (c?: string | null) => (c ?? '').trim().toLowerCase();
 
 /** PD-ECA-4: which outcomes each kind can have. */
-const POLICY: Record<MasterKind, { bringIn: boolean; send: boolean }> = {
-  party: { bringIn: true, send: true }, contact: { bringIn: false, send: false }, item: { bringIn: false, send: true },
-  project: { bringIn: false, send: true }, employee: { bringIn: false, send: true }, account: { bringIn: false, send: false },
+const POLICY: Record<MasterKind, { bringIn: boolean; send: boolean; nameLinks: boolean }> = {
+  party: { bringIn: true, send: true, nameLinks: true }, contact: { bringIn: false, send: false, nameLinks: true },
+  item: { bringIn: false, send: true, nameLinks: true }, project: { bringIn: false, send: true, nameLinks: true },
+  // A person's cost identity and a budget account never link on a name (OQ-TSP-10(C)): a name hit is a review for a person to decide.
+  employee: { bringIn: false, send: true, nameLinks: false }, account: { bringIn: false, send: false, nameLinks: false },
 };
 
-type Claim = { erp: NormalisedMaster; pmoIds: string[]; key: 'tax' | 'code' | 'name'; conflict: boolean };
+type Claim = { erp: NormalisedMaster; pmoIds: string[]; key: 'tax' | 'code' | 'name'; conflict: boolean; nameOnly: boolean };
 
 /** The one matcher (DD-ECA-2, FR-ECA-010/011). Deterministic: tax id, then code, then normalised name. A key that matches
- *  several rows, a name match whose tax ids differ, or two ERP rows claiming one PMO row is a review. */
+ *  several rows, a name match whose tax ids differ, a name match for a person or an account, or two ERP rows claiming one PMO row is a review. */
 export function proposeMatches(kind: MasterKind, pmo: readonly PmoMaster[], erp: readonly NormalisedMaster[]): MatchOutcome[] {
   const policy = POLICY[kind];
   const live = pmo.filter((p) => p.active !== false);
@@ -41,8 +43,10 @@ export function proposeMatches(kind: MasterKind, pmo: readonly PmoMaster[], erp:
     const hit = tax.length ? { c: tax, key: 'tax' as const } : code.length ? { c: code, key: 'code' as const } : { c: name, key: 'name' as const };
     if (hit.c.length === 0) continue;
     // Both tax ids set on a name match means they differ (equal ids would have matched on tax): a review.
-    const conflict = hit.key === 'name' && normTax(e.taxId) !== '' && hit.c.some((p) => normTax(p.taxId) !== '');
-    claims.push({ erp: e, pmoIds: hit.c.map((p) => p.id).sort(), key: hit.key, conflict });
+    // A person whose two work emails are both set and differ is a conflict too.
+    const conflict = hit.key === 'name' && ((normTax(e.taxId) !== '' && hit.c.some((p) => normTax(p.taxId) !== ''))
+      || (kind === 'employee' && normCode(e.code) !== '' && hit.c.some((p) => normCode(p.code) !== '')));
+    claims.push({ erp: e, pmoIds: hit.c.map((p) => p.id).sort(), key: hit.key, conflict, nameOnly: hit.key === 'name' && !policy.nameLinks });
   }
   // A PMO row claimed by more than one ERP row is doubtful for all of them.
   const claimCount = new Map<string, number>();
@@ -51,7 +55,7 @@ export function proposeMatches(kind: MasterKind, pmo: readonly PmoMaster[], erp:
   const doubtful: Claim[] = [];
   for (const c of claims) {
     touchedErp.add(c.erp.externalId); c.pmoIds.forEach((id) => touchedPmo.add(id));
-    if (!c.conflict && c.pmoIds.length === 1 && claimCount.get(c.pmoIds[0]) === 1) out.push({ outcome: 'link', pmoId: c.pmoIds[0], externalId: c.erp.externalId, key: c.key });
+    if (!c.conflict && !c.nameOnly && c.pmoIds.length === 1 && claimCount.get(c.pmoIds[0]) === 1) out.push({ outcome: 'link', pmoId: c.pmoIds[0], externalId: c.erp.externalId, key: c.key });
     else doubtful.push(c);
   }
   // Doubtful claims sharing a PMO row merge into one review (union-find on PMO ids): every row gets exactly one outcome.

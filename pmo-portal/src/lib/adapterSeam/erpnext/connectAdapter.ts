@@ -15,7 +15,7 @@ const SPECS: Partial<Record<MasterKind, Array<{ doctype: string; fields: string[
   item: [{ doctype: 'Item', fields: ['name', 'item_name', 'disabled'], company: false,
     map: (r) => ({ kind: 'item', externalId: String(r.name), code: String(r.name), name: String(r.item_name ?? r.name), active: r.disabled !== 1 }) }],
   employee: [{ doctype: 'Employee', fields: ['name', 'employee_name', 'company_email', 'user_id', 'status'], company: true,
-    map: (r) => ({ kind: 'employee', externalId: String(r.name), code: String(r.company_email ?? r.user_id ?? '').toLowerCase() || null,
+    map: (r) => ({ kind: 'employee', externalId: String(r.name), code: String(r.company_email || r.user_id || '').toLowerCase() || null,
       name: String(r.employee_name ?? r.name), active: r.status === 'Active' }) }],
   account: [{ doctype: 'Account', fields: ['name', 'account_name', 'account_number', 'parent_account', 'root_type', 'is_group', 'disabled'], company: true,
     map: (r) => ({ kind: 'account', externalId: String(r.name), code: accountCategoryKey({ account: String(r.name), accountName: String(r.account_name ?? ''), accountNumber: (r.account_number as string) ?? null, parentAccount: (r.parent_account as string) ?? null, rootType: String(r.root_type ?? ''), isGroup: r.is_group === 1, disabled: r.disabled === 1 }), name: String(r.account_name ?? r.name), active: r.disabled !== 1 && r.is_group !== 1 }) }],
