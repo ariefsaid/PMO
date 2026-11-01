@@ -13,7 +13,8 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me'
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-11-01' }) }));
 
-import ConsumptionReport, { defaultRange } from './ConsumptionReport';
+import ConsumptionReport from './ConsumptionReport';
+import { defaultMonthRange as defaultRange } from '@/src/lib/stockFormat';
 
 const key = (b: string, i: string) => ({ boqItemId: b, boqItemCode: b.toUpperCase(), boqDescription: `Work ${b}`, itemId: i, itemCode: i.toUpperCase(), itemName: `Item ${i}`, unitCode: 'bag' });
 const report = (over: Partial<ProjectConsumption> = {}): ProjectConsumption => ({

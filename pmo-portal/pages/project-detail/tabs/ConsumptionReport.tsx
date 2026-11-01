@@ -4,26 +4,10 @@ import { ListState, StatusPill } from '@/src/components/ui';
 import { useProjectConsumption } from '@/src/hooks/useStock';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
-import { formatQuantity, formatStockValue } from '@/src/lib/stockFormat';
+import { formatQuantity, formatStockValue, monthRangeDates, defaultMonthRange } from '@/src/lib/stockFormat';
+import { formatUtcMonthYearFull } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ConsumptionMonthRow } from '@/src/lib/db/stockReports';
-
-const pad = (n: number) => String(n).padStart(2, '0');
-const ym = (y: number, m0: number) => `${y}-${pad(m0 + 1)}`;
-
-/** The org's current month and the three before it, as `YYYY-MM` (the native month input's value). `orgDay` is the
- *  org-timezone today: stock dates are org dates (D9), so the browser's own date could pick the wrong month. */
-export function defaultRange(orgDay: string): { fromMonth: string; toMonth: string } {
-  const [y, m] = orgDay.split('-').map(Number);
-  const from = new Date(Date.UTC(y, m - 1 - 3, 1));
-  return { fromMonth: ym(from.getUTCFullYear(), from.getUTCMonth()), toMonth: ym(y, m - 1) };
-}
-/** Whole months: first day of `fromMonth` .. last day of `toMonth`. */
-function toDates(fromMonth: string, toMonth: string): { from: string; to: string } {
-  const [y, m] = toMonth.split('-').map(Number);
-  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  return { from: `${fromMonth}-01`, to: `${toMonth}-${pad(last)}` };
-}
 
 const th = 'px-3 py-2 text-left text-xs font-semibold text-muted-foreground';
 const thNum = `${th} text-right`;
@@ -55,11 +39,11 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
   const currency = useOrgCurrency();
   const orgDay = useFxOrgDay(true).day;
   const [picked, setRange] = useState<{ fromMonth: string; toMonth: string } | null>(null);
-  const range = picked ?? (orgDay ? defaultRange(orgDay) : null);
-  const { from, to } = range ? toDates(range.fromMonth, range.toMonth) : { from: '', to: '' };
+  const range = picked ?? (orgDay ? defaultMonthRange(orgDay) : null);
+  const { from, to } = range ? monthRangeDates(range.fromMonth, range.toMonth) : { from: '', to: '' };
   const q = useProjectConsumption(range ? projectId : undefined, from, to);
   const qty = (v: string, unit: string) => <>{formatQuantity(v, loc)} <span className="text-muted-foreground">{unit}</span></>;
-  const monthLabel = (iso: string) => new Intl.DateTimeFormat(loc, { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${iso}T00:00:00Z`));
+  const monthLabel = (iso: string) => formatUtcMonthYearFull(new Date(`${iso}T00:00:00Z`));
   const signed = (v: string) => (v.startsWith('-') || /^0(\.0+)?$/.test(v) ? formatQuantity(v, loc) : `+${formatQuantity(v, loc)}`);
 
   const r = q.data;
