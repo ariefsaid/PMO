@@ -225,6 +225,8 @@ insert into auth.users (id, email) values
   ('15130000-0000-0000-0000-0000000000a4', 'sca-pm@example.com'),
   ('15130000-0000-0000-0000-0000000000a5', 'sca-eng@example.com'),
   ('15130000-0000-0000-0000-0000000000a6', 'sca-exec@example.com'),
+  ('15130000-0000-0000-0000-0000000000a7', 'sca-pm-off@example.com'),
+  ('15130000-0000-0000-0000-0000000000a8', 'sca-fin-off@example.com'),
   ('15130000-0000-0000-0000-0000000000b1', 'sca-xorg@example.com'),
   ('15130000-0000-0000-0000-0000000000c1', 'sca-solo@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
@@ -234,6 +236,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('15130000-0000-0000-0000-0000000000a4', '15130000-0000-0000-0000-00000000000a', 'SCA PM',    'sca-pm@example.com',    'Project Manager', 'active'),
   ('15130000-0000-0000-0000-0000000000a5', '15130000-0000-0000-0000-00000000000a', 'SCA Eng',   'sca-eng@example.com',   'Engineer', 'active'),
   ('15130000-0000-0000-0000-0000000000a6', '15130000-0000-0000-0000-00000000000a', 'SCA Exec',  'sca-exec@example.com',  'Executive', 'active'),
+  ('15130000-0000-0000-0000-0000000000a7', '15130000-0000-0000-0000-00000000000a', 'SCA PM Off', 'sca-pm-off@example.com', 'Project Manager', 'disabled'),
+  ('15130000-0000-0000-0000-0000000000a8', '15130000-0000-0000-0000-00000000000a', 'SCA Fin Off', 'sca-fin-off@example.com', 'Finance', 'disabled'),
   ('15130000-0000-0000-0000-0000000000b1', '15130000-0000-0000-0000-00000000000b', 'SCA XOrg',  'sca-xorg@example.com',  'Admin', 'active'),
   ('15130000-0000-0000-0000-0000000000c1', '15130000-0000-0000-0000-00000000000c', 'SCA Solo',  'sca-solo@example.com',  'Finance', 'active');
 insert into projects (id, org_id, name, status, project_manager_id) values

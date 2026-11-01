@@ -2,7 +2,7 @@
 -- Fixture F1 of docs/plans/2026-11-01-subcontract-acceptance.md plus S1 extras.
 begin;
 create extension if not exists pgtap;
-select plan(55);
+select plan(62);
 
 -- F1: org A (multi-member), org B (other tenant), org S (sole member). Inserted as superuser, before `set local role`.
 insert into organizations (id, name, default_currency) values
@@ -16,6 +16,8 @@ insert into auth.users (id, email) values
   ('15130000-0000-0000-0000-0000000000a4', 'sca-pm@example.com'),
   ('15130000-0000-0000-0000-0000000000a5', 'sca-eng@example.com'),
   ('15130000-0000-0000-0000-0000000000a6', 'sca-exec@example.com'),
+  ('15130000-0000-0000-0000-0000000000a7', 'sca-pm-off@example.com'),
+  ('15130000-0000-0000-0000-0000000000a8', 'sca-fin-off@example.com'),
   ('15130000-0000-0000-0000-0000000000b1', 'sca-xorg@example.com'),
   ('15130000-0000-0000-0000-0000000000c1', 'sca-solo@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
@@ -25,6 +27,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('15130000-0000-0000-0000-0000000000a4', '15130000-0000-0000-0000-00000000000a', 'SCA PM',    'sca-pm@example.com',    'Project Manager', 'active'),
   ('15130000-0000-0000-0000-0000000000a5', '15130000-0000-0000-0000-00000000000a', 'SCA Eng',   'sca-eng@example.com',   'Engineer', 'active'),
   ('15130000-0000-0000-0000-0000000000a6', '15130000-0000-0000-0000-00000000000a', 'SCA Exec',  'sca-exec@example.com',  'Executive', 'active'),
+  ('15130000-0000-0000-0000-0000000000a7', '15130000-0000-0000-0000-00000000000a', 'SCA PM Off', 'sca-pm-off@example.com', 'Project Manager', 'disabled'),
+  ('15130000-0000-0000-0000-0000000000a8', '15130000-0000-0000-0000-00000000000a', 'SCA Fin Off', 'sca-fin-off@example.com', 'Finance', 'disabled'),
   ('15130000-0000-0000-0000-0000000000b1', '15130000-0000-0000-0000-00000000000b', 'SCA XOrg',  'sca-xorg@example.com',  'Admin', 'active'),
   ('15130000-0000-0000-0000-0000000000c1', '15130000-0000-0000-0000-00000000000c', 'SCA Solo',  'sca-solo@example.com',  'Finance', 'active');
 insert into projects (id, org_id, name, status, project_manager_id) values
@@ -83,6 +87,11 @@ insert into procurements (id, org_id, title, project_id, requested_by_id, status
 insert into purchase_orders (id, org_id, procurement_id, po_number, status, date, amount, currency) values
   ('15130000-0000-0000-0000-000000000111', '15130000-0000-0000-0000-00000000000a', '15130000-0000-0000-0000-0000000000fa', 'PO-SCA-11', 'Issued', current_date, 20000, 'IDR'),
   ('15130000-0000-0000-0000-000000000112', '15130000-0000-0000-0000-00000000000a', '15130000-0000-0000-0000-0000000000fb', 'PO-SCA-12', 'Issued', current_date, null, 'IDR');
+insert into procurements (id, org_id, title, project_id, requested_by_id, status, total_value, approved_total_value,
+                          approved_by_id, budget_category, currency, is_subcontract) values
+  ('15130000-0000-0000-0000-0000000000fc', '15130000-0000-0000-0000-00000000000a', 'SCA engineer-requested sub', '15130000-0000-0000-0000-0000000000d1', '15130000-0000-0000-0000-0000000000a5', 'Ordered', 5000, 5000, '15130000-0000-0000-0000-0000000000a6', 'Subcontractors', 'IDR', true);
+insert into purchase_orders (id, org_id, procurement_id, po_number, status, date, currency) values
+  ('15130000-0000-0000-0000-000000000113', '15130000-0000-0000-0000-00000000000a', '15130000-0000-0000-0000-0000000000fc', 'PO-SCA-13', 'Issued', current_date, 'IDR');
 insert into procurement_invoices (org_id, procurement_id, vi_number, invoice_date, status, tax_treatment, tax_amount)
   values ('15130000-0000-0000-0000-00000000000a', '15130000-0000-0000-0000-0000000000f5', 'VI-SCA-5', current_date, 'Received', 'exclusive', 0);
 
@@ -162,6 +171,25 @@ select throws_ok($$ select set_subcontract_po_lines('15130000-0000-0000-0000-000
 select throws_ok($$ select issue_subcontract_po_lines('15130000-0000-0000-0000-000000000110') $$, '42501', null, 'OQ-2 a goods purchase issues no BoQ revision');
 select pg_temp.act_as('15130000-0000-0000-0000-0000000000a1');
 select lives_ok($$ select set_subcontract_po_lines('15130000-0000-0000-0000-000000000107', '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e1","quantity":1,"rate":10,"unit":"m3"}]') $$, 'FR-SCA-001 an Admin may draft PO lines');
+
+-- Active-member gate (FR-AMG): a disabled PM / Finance account is refused by both writers.
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a7');
+select throws_ok($$ select set_subcontract_po_lines('15130000-0000-0000-0000-000000000113', '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e1","quantity":1,"rate":5000,"unit":"m3"}]') $$, '42501',
+  'your account is not an active member of this organisation, so it cannot write — an offboarded or suspended account is refused even while its session token is still valid', 'FR-AMG-001 a disabled Project Manager cannot draft PO lines');
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a8');
+select throws_ok($$ select issue_subcontract_po_lines('15130000-0000-0000-0000-000000000113') $$, '42501',
+  'your account is not an active member of this organisation, so it cannot write — an offboarded or suspended account is refused even while its session token is still valid', 'FR-AMG-001 a disabled Finance member cannot issue revision 1');
+
+-- Engineer scope (0350): lines and revisions follow the parent PO, so an Engineer sees them only on their own request.
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a4');
+select lives_ok($$ select set_subcontract_po_lines('15130000-0000-0000-0000-000000000113', '[{"boq_item_id":"15130000-0000-0000-0000-0000000000e1","quantity":1,"rate":5000,"unit":"m3"}]') $$, 'FR-SCA-001 the PM drafts lines on the Engineer-requested purchase');
+select is(issue_subcontract_po_lines('15130000-0000-0000-0000-000000000113'), 1, 'FR-SCA-002 the PM issues revision 1 on the Engineer-requested purchase');
+select pg_temp.act_as('15130000-0000-0000-0000-0000000000a5');
+select is((select count(*)::int from purchase_order_lines where po_id = '15130000-0000-0000-0000-000000000101')
+        + (select count(*)::int from purchase_order_revisions where po_id = '15130000-0000-0000-0000-000000000101'), 0,
+  'FR-SCA-001 an Engineer reads no lines or revisions on a purchase they did not request');
+select is((select count(*)::int from purchase_order_lines where po_id = '15130000-0000-0000-0000-000000000113'), 1, 'FR-SCA-001 an Engineer reads the lines on their own request');
+select is((select count(*)::int from purchase_order_revisions where po_id = '15130000-0000-0000-0000-000000000113'), 1, 'FR-SCA-002 an Engineer reads the revision on their own request');
 
 -- PQ-11: a connected org's PO amount is the ERP's.
 reset role;
