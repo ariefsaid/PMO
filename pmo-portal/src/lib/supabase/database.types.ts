@@ -10225,6 +10225,58 @@ export type Database = {
         Args: { p_boq_item_id: string; p_item_id: string }
         Returns: boolean
       }
+      cost_attribution_allocations: {
+        Args: {
+          p_draft?: Json
+          p_equipment_draft?: Json
+          p_exclude_rule_key?: string
+          p_org_id: string
+          p_project_id?: string
+        }
+        Returns: {
+          account: string
+          amount: number
+          as_of: string
+          fiscal_year: string
+          gl_id: string
+          party_type: string
+          posting_date: string
+          project_id: string
+          rule_id: string
+          rule_key: string
+        }[]
+      }
+      cost_attribution_engine: {
+        Args: {
+          p_draft?: Json
+          p_equipment_draft?: Json
+          p_exclude_rule_key?: string
+          p_org_id: string
+          p_project_id?: string
+        }
+        Returns: {
+          account: string
+          amount: number
+          as_of: string
+          asset_id: string
+          driver: string
+          driver_total: number
+          driver_value: number
+          entry_count: number
+          fiscal_year: string
+          gl_id: string
+          line_count: number
+          party_type: string
+          pool: number
+          posting_date: string
+          project_id: string
+          rule_id: string
+          rule_key: string
+          source: string
+          status: string
+          version: number
+        }[]
+      }
       cost_attribution_matches_overlap: {
         Args: {
           a_account: string
