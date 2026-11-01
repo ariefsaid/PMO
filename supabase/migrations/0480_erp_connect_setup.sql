@@ -1,5 +1,5 @@
 -- ECA-2 (#1605): census, match proposals and one-pass accept (FR-ECA-001..016). Tier-keyed, shared by ERPNext and Odoo.
--- Four tables (run, staged ERP pages, census, proposals) and fourteen functions. Reversal: rollback/0480_erp_connect_setup_down.sql.
+-- Four tables (run, staged ERP pages, census, proposals) and sixteen functions. Reversal: rollback/0480_erp_connect_setup_down.sql.
 --
 -- Who may do what:
 --   * service role (the edge function, from the org's own binding): start a run, write the census, stage pages,
@@ -17,7 +17,8 @@ create table public.erp_connect_runs (
   cursor jsonb not null default '{}'::jsonb check (jsonb_typeof(cursor) = 'object'),   -- {kind: next cursor|null}
   proposed_kinds text[] not null default '{}',                                         -- kinds proposed so far (one per tick)
   started_by uuid references public.profiles(id), started_at timestamptz not null default now(),
-  finished_at timestamptz, error_class text
+  finished_at timestamptz, error_class text,   -- finished_at: the run is over. ready and finished_at null = proposals are in, sends still wait
+  failed_ticks int not null default 0          -- consecutive ticks that failed; a page that lands resets it
 );
 create unique index erp_connect_runs_one_open on public.erp_connect_runs (org_id, external_tier) where state in ('staging','proposing');
 
@@ -164,7 +165,7 @@ begin
     select p_run_id, p_org_id, p_kind, r->>'externalId', r from jsonb_array_elements(p_rows) r
   on conflict (run_id, kind, external_id) do update set row = excluded.row;
   v_cursor := jsonb_set(v_run.cursor, array[p_kind], coalesce(to_jsonb(p_next_cursor), 'null'::jsonb));
-  update public.erp_connect_runs set cursor = v_cursor,
+  update public.erp_connect_runs set cursor = v_cursor, failed_ticks = 0,
       state = case when (select count(*) from unnest(array['party','item','project','employee','account']) k where v_cursor->k = 'null'::jsonb) = 5
                    then 'proposing' else state end
     where id = p_run_id;
@@ -200,14 +201,46 @@ begin
                                   where s.run_id = p_run_id and s.kind = p_kind and s.row->>'active' = 'false')
      where c.org_id = p_org_id and c.external_tier = p_tier and c.kind = p_kind;
     update public.erp_connect_runs
-       set proposed_kinds = case when p_kind = any(proposed_kinds) then proposed_kinds else proposed_kinds || p_kind end
+       set proposed_kinds = case when p_kind = any(proposed_kinds) then proposed_kinds else proposed_kinds || p_kind end,
+           failed_ticks = 0
      where id = p_run_id;
-    update public.erp_connect_runs set state = 'ready', finished_at = now()
+    update public.erp_connect_runs set state = 'ready'
      where id = p_run_id and state in ('staging','proposing')
        and (select count(*) from unnest(array['party','item','project','employee','account']) k where k = any(proposed_kinds)) = 5;
-    if found then delete from public.erp_connect_staged where run_id = p_run_id; end if;
+    if found then
+      delete from public.erp_connect_staged where run_id = p_run_id;
+      perform public.settle_connect_run(p_org_id, p_tier);   -- ready is not over while a send waits for the ERP
+    end if;
   end if;
 end $$;
+
+-- Minor 8: a run that cannot finish must end, or it blocks every later run of this org and tier. A tick that throws counts one
+-- failure; three in a row, or a run that outlived its budget (p_fatal), ends it. A page that lands resets the count.
+create or replace function public.fail_connect_run(p_org_id uuid, p_run_id uuid, p_error_class text, p_fatal boolean default false) returns text
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare v_state text;
+begin
+  update public.erp_connect_runs
+     set failed_ticks = failed_ticks + 1,
+         state = case when p_fatal or failed_ticks + 1 >= 3 then 'failed' else state end,
+         error_class = case when p_fatal or failed_ticks + 1 >= 3 then left(coalesce(p_error_class, 'unknown'), 64) else error_class end,
+         finished_at = case when p_fatal or failed_ticks + 1 >= 3 then now() else finished_at end
+   where id = p_run_id and org_id = p_org_id and state in ('staging','proposing')
+   returning state into v_state;
+  if v_state is null then raise exception 'no open run for this organisation'; end if;
+  if v_state = 'failed' then delete from public.erp_connect_staged where run_id = p_run_id; end if;
+  return v_state;
+end $$;
+
+-- Minor 10: sends park in `sending` until ECA-3's drain. A ready run is complete only when no send waits; ECA-3's drain calls this
+-- after it resolves the last one, and accept re-opens a completed run when it queues a send.
+create or replace function public.settle_connect_run(p_org_id uuid, p_tier text) returns void
+language sql security definer set search_path = public, pg_temp as $$
+  update public.erp_connect_runs r set finished_at = now()
+   where r.org_id = p_org_id and r.external_tier = p_tier and r.state = 'ready' and r.finished_at is null
+     and not exists (select 1 from public.erp_connect_proposals p
+                      where p.org_id = p_org_id and p.external_tier = p_tier and p.state = 'sending')
+$$;
 
 create or replace function public.record_connect_review(p_org_id uuid, p_tier text, p_kind text, p_pmo_ids text[], p_external_ids text[],
                                                          p_reason text, p_reason_text text) returns void
@@ -430,6 +463,9 @@ begin
        where org_id = v_org and external_tier = p_tier and kind = v_k;
     end if;
   end loop;
+  if exists (select 1 from jsonb_each(v_counts) e where (e.value->>'send')::int > 0) then
+    update public.erp_connect_runs set finished_at = null where org_id = v_org and external_tier = p_tier and state = 'ready';
+  end if;
   if v_counts <> '{}'::jsonb then
     perform public.log_audit('integration.connect_accept', v_org, v_actor, null,
       jsonb_build_object('tier', p_tier, 'kinds', v_counts, 'links', v_links, 'errors', v_errors));
@@ -513,11 +549,13 @@ end $$;
 -- call them as their owner). Actor-checked writers: authenticated, never anon.
 revoke all on function public.start_connect_run(uuid,text,uuid), public.write_connect_census(uuid,text,jsonb),
   public.stage_connect_master_page(uuid,uuid,text,jsonb,text), public.replace_connect_proposals(uuid,text,uuid,text,jsonb,boolean),
-  public.record_connect_review(uuid,text,text,text[],text[],text,text), public.apply_connect_outcome(uuid,text,text,text,text,text,jsonb)
+  public.record_connect_review(uuid,text,text,text[],text[],text,text), public.apply_connect_outcome(uuid,text,text,text,text,text,jsonb),
+  public.fail_connect_run(uuid,uuid,text,boolean), public.settle_connect_run(uuid,text)
   from public, anon, authenticated;
 grant execute on function public.start_connect_run(uuid,text,uuid), public.write_connect_census(uuid,text,jsonb),
   public.stage_connect_master_page(uuid,uuid,text,jsonb,text), public.replace_connect_proposals(uuid,text,uuid,text,jsonb,boolean),
-  public.record_connect_review(uuid,text,text,text[],text[],text,text), public.apply_connect_outcome(uuid,text,text,text,text,text,jsonb)
+  public.record_connect_review(uuid,text,text,text[],text[],text,text), public.apply_connect_outcome(uuid,text,text,text,text,text,jsonb),
+  public.fail_connect_run(uuid,uuid,text,boolean), public.settle_connect_run(uuid,text)
   to service_role;
 revoke all on function public.connect_config_map_link(uuid,text,text,text,text,boolean), public.connect_link_project(uuid,text,text,text),
   public.apply_connect_link(uuid,text,text,text,text,jsonb,uuid), public.apply_connect_bring_in(uuid,text,text,text,jsonb)

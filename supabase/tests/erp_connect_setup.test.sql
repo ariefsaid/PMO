@@ -3,7 +3,7 @@
 -- FOR UPDATE re-checking state='open' after the lock wait plus the external_refs reverse-unique claim (AC-ECA-004 traceability note).
 -- AC-ECA-004 (exactly-once apply), AC-ECA-007 (audited, undoable while unused), plus the role / tenancy / grant contract.
 begin;
-select plan(91);
+select plan(106);
 
 insert into organizations (id, name) values
  ('a4510000-0000-0000-0000-000000000001','Connect A'),
@@ -365,6 +365,61 @@ set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000a1","r
 select throws_ok($$select public.accept_connect_proposals('erpnext')$$, 'P0001', 'no active connection for this ERP', 'I2 accept needs an active connection');
 select throws_ok($$select public.decide_connect_review((select 'a4510000-0000-0000-0000-0000000000e8'::uuid), '{"action":"dismiss"}')$$, 'P0002', 'review not found', 'I2 a review of the disconnected ERP is gone');
 reset role;
+
+-- Part B: a stuck run fails (Minor 8) and a run is not complete while sends wait (Minor 10).
+insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, status, config, activated_at) values
+ ('a4510000-0000-0000-0000-000000000001','erpnext','https://erp.example.test','a451_a2','active','{"company":"Example Co"}', now());
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select set_config('a451.f1', public.start_connect_run('a4510000-0000-0000-0000-000000000001','erpnext',null)::text, true);
+select is(public.fail_connect_run('a4510000-0000-0000-0000-000000000001', current_setting('a451.f1')::uuid, 'timeout'), 'staging',
+  'Minor 8 one failed tick leaves the run open');
+select is(public.fail_connect_run('a4510000-0000-0000-0000-000000000001', current_setting('a451.f1')::uuid, 'timeout'), 'staging',
+  'Minor 8 two failed ticks leave the run open');
+select is(public.fail_connect_run('a4510000-0000-0000-0000-000000000001', current_setting('a451.f1')::uuid, 'timeout'), 'failed',
+  'Minor 8 the third consecutive failure ends the run');
+select is((select error_class || ':' || (finished_at is not null)::text from erp_connect_runs where id = current_setting('a451.f1')::uuid), 'timeout:true',
+  'Minor 8 a failed run records its class and an end time');
+select isnt(public.start_connect_run('a4510000-0000-0000-0000-000000000001','erpnext',null), current_setting('a451.f1')::uuid,
+  'Minor 8 a failed run no longer blocks a new run');
+select set_config('a451.f2', (select id::text from erp_connect_runs where org_id='a4510000-0000-0000-0000-000000000001' and state='staging'), true);
+select public.fail_connect_run('a4510000-0000-0000-0000-000000000001', current_setting('a451.f2')::uuid, 'timeout');
+select public.stage_connect_master_page('a4510000-0000-0000-0000-000000000001', current_setting('a451.f2')::uuid, 'party',
+  '[{"kind":"party","externalId":"Supplier:S1","name":"S1","active":true}]'::jsonb, 'cursor-1');
+select is((select failed_ticks from erp_connect_runs where id = current_setting('a451.f2')::uuid), 0, 'Minor 8 a page that lands resets the failure count');
+select is(public.fail_connect_run('a4510000-0000-0000-0000-000000000001', current_setting('a451.f2')::uuid, 'budget-exceeded', true), 'failed',
+  'Minor 8 a fatal failure (the run outlived its budget) ends the run at once');
+select is((select count(*)::int from erp_connect_staged where run_id = current_setting('a451.f2')::uuid), 0, 'Minor 8 a failed run drops its staged pages');
+select throws_ok($$select public.stage_connect_master_page('a4510000-0000-0000-0000-000000000001', current_setting('a451.f2')::uuid, 'party', '[]'::jsonb, null)$$,
+  'P0001', 'no staging run for this organisation', 'Minor 8 a failed run takes no more pages');
+select throws_ok($$select public.fail_connect_run('a4510000-0000-0000-0000-000000000002', current_setting('a451.f2')::uuid, 'timeout')$$,
+  'P0001', 'no open run for this organisation', 'Minor 8 another organisation cannot fail the run');
+
+-- Minor 10: all five kinds proposed while a send is still waiting: the proposals are ready, the run is not complete.
+select set_config('a451.f3', public.start_connect_run('a4510000-0000-0000-0000-000000000001','erpnext',null)::text, true);
+insert into erp_connect_proposals (org_id, binding_id, external_tier, kind, outcome, state, identity, pmo_ids)
+  values ('a4510000-0000-0000-0000-000000000001', (select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'), 'erpnext', 'project', 'send', 'sending', 'send|["p-wait"]|[]', '{p-wait}');
+select public.replace_connect_proposals('a4510000-0000-0000-0000-000000000001','erpnext',current_setting('a451.f3')::uuid,k,'[]'::jsonb,true)
+  from unnest(array['party','item','project','employee','account']) k;
+select is((select state || ':' || (finished_at is null)::text from erp_connect_runs where id = current_setting('a451.f3')::uuid), 'ready:true',
+  'Minor 10 a run with sends waiting is ready but not complete');
+update erp_connect_proposals set state = 'applied' where identity = 'send|["p-wait"]|[]';
+select public.settle_connect_run('a4510000-0000-0000-0000-000000000001', 'erpnext');
+select is((select finished_at is not null from erp_connect_runs where id = current_setting('a451.f3')::uuid), true,
+  'Minor 10 once no send waits the run is complete');
+insert into erp_connect_proposals (org_id, binding_id, external_tier, kind, outcome, identity, pmo_ids)
+  values ('a4510000-0000-0000-0000-000000000001', (select id from external_org_bindings where org_id='a4510000-0000-0000-0000-000000000001'), 'erpnext', 'project', 'send', 'send|["p-new"]|[]', '{p-new}');
+reset role;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a4510000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select public.accept_connect_proposals('erpnext', 'project');
+reset role;
+select is((select finished_at is null from erp_connect_runs where id = current_setting('a451.f3')::uuid), true,
+  'Minor 10 queuing a send re-opens a completed run');
+select is((has_function_privilege('authenticated', 'public.fail_connect_run(uuid,uuid,text,boolean)', 'execute')
+        or has_function_privilege('anon', 'public.settle_connect_run(uuid,text)', 'execute')), false, 'Minor 8/10 the new writers are not client-callable');
+select is((has_function_privilege('service_role', 'public.fail_connect_run(uuid,uuid,text,boolean)', 'execute')
+       and has_function_privilege('service_role', 'public.settle_connect_run(uuid,text)', 'execute')), true, 'Minor 8/10 the new writers are service-role callable');
 
 select * from finish();
 rollback;
