@@ -28,7 +28,7 @@ const serviceKey = requireServiceRoleKey();
 test.skip(!serviceKey, 'AC-BUPOT-021 requires service-role access for isolated fixture setup.');
 test.setTimeout(120_000);
 
-const lockScript = fileURLToPath(new URL('../../scripts/with-db-lock.sh', import.meta.url));
+const lockScript = fileURLToPath(new URL('../../../scripts/with-db-lock.sh', import.meta.url));
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Locale = 'en' | 'id';
