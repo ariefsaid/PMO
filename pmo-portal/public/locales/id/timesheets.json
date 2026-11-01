@@ -34,5 +34,13 @@
     "loading": "Memuat proyek…",
     "error": "Proyek tidak dapat dimuat.",
     "retry": "Coba muat proyek lagi"
+  },
+  "copyLastWeek": {
+    "button": "Salin pekan lalu",
+    "reasonNotDraft": "Pekan ini bukan lagi draf",
+    "reasonEmpty": "Tidak ada yang bisa disalin — tidak ada jam tercatat pekan lalu",
+    "reasonNothingNew": "Proyek pekan lalu sudah ada di pekan ini",
+    "toastHeadline": "Baris disalin dari pekan lalu",
+    "toastDetail": "Periksa jam yang disalin, lalu simpan pekan ini."
   }
 }

@@ -96,6 +96,7 @@ const NODE_LOGIC_INCLUDE = [
   'pages/procurement/*.test.ts',
   'pages/procurement/blocks/__tests__/*.test.ts',
   'pages/procurement/list/model.test.ts',
+  'pages/timesheets/__tests__/timesheetWeekModel.test.ts',
   'pages/sales-pipeline/__tests__/*.test.ts',
   'pages/project-detail/budget/__tests__/budgetModel.test.ts',
   'test/securityHeaders.test.ts',
