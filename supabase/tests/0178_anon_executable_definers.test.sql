@@ -140,6 +140,8 @@
 -- read. Proven by imprest_position pgTAP.
 -- ⚑ 0426 (#1515 fix round) adds no definer: get_expense_claim_approval_routes and get_imprest_position stay invoker, re-created under
 -- their own names, so the retained count stays 104 (recounted by hand from the list below: 104 rows).
+-- ⚑ AMENDED BY 0442 (#1639): preview_task_reminders and send_task_reminders join the retained set (+2; merged with 0447 the count is 110). Each
+-- asserts active membership and the caller's org in its body; proven by supabase/tests/task_reminders.test.sql.
 -- ⚑ AMENDED BY 0410 (#1471): `set_sales_invoice_billing_kind` joins the retained set (+1, count 104 on dev's 103, re-derived by hand from the list). SECURITY
 -- DEFINER writer under a member's JWT; re-asserts active membership, Admin/Finance and the caller's org; paired with
 -- supabase/tests/billing_kinds_roles.test.sql (AC-007). `assign_sales_invoice_project` and
@@ -255,6 +257,7 @@ insert into client_callable_rpc_names (proname) values
   ('operator_set_org_lifecycle_state'),
   ('operator_list_orgs'),
   ('post_stock_document'),
+  ('preview_task_reminders'),
   ('operator_toggle_feature'),
   ('operator_usage_summary'),
   ('org_agent_run_stats'),
@@ -269,6 +272,7 @@ insert into client_callable_rpc_names (proname) values
   ('request_imprest_replenishment'),
   ('reserve_credits'),
   ('save_timesheet_week'),
+  ('send_task_reminders'),
   ('select_procurement_quote'),
   ('set_procurement_invoice_efaktur'),
   ('set_procurement_gates'),

@@ -37,8 +37,9 @@ import {
   AGENT_READ_ROW_CAP,
 } from './actions.ts';
 import { buildAgentSystemPrompt } from './prompt.ts';
-import { whatsOverdueAction } from './overdue.ts';
+import { makeWhatsOverdueAction } from './overdue.ts';
 import { draftInvoiceAction } from './draftInvoice.ts';
+import { remindOverdueAction } from './remindOverdue.ts';
 import {
   hashToolArgs,
   createThreadAndRun,
@@ -95,6 +96,7 @@ export function stepLabel(toolName: string, input: unknown): string {
     case 'notify': return 'Preparing a notification…';
     case 'whats_overdue': return "Checking what's overdue…";
     case 'draft_invoice': return 'Preparing a draft invoice…';
+    case 'remind_overdue': return 'Preparing reminders…';
     default: return 'Working…';
   }
 }
@@ -121,12 +123,16 @@ const AUTOMATIONS_ENABLED = denoGlobal === undefined || denoGlobal.env.get('AGEN
 /** #787 kill switch: AGENT_INVOICE_DRAFTS=false removes draft_invoice without a redeploy (default ON; ON in
  *  a Deno-less test context, mirroring AUTOMATIONS_ENABLED). */
 const INVOICE_DRAFTS_ENABLED = denoGlobal === undefined || denoGlobal.env.get('AGENT_INVOICE_DRAFTS') !== 'false';
+/** #1639 kill switch: AGENT_REMINDERS=false removes remind_overdue (and the overdue offer line) without a redeploy
+ *  (default ON; ON in a Deno-less test context, mirroring INVOICE_DRAFTS_ENABLED). */
+const REMINDERS_ENABLED = denoGlobal === undefined || denoGlobal.env.get('AGENT_REMINDERS') !== 'false';
 const BASE_ACTIONS: AgentAction[] = [
   queryEntityAction,
-  whatsOverdueAction,
+  makeWhatsOverdueAction({ offerReminders: REMINDERS_ENABLED }),
   createActivityAction,
   updateTaskStatusAction,
   ...(INVOICE_DRAFTS_ENABLED ? [draftInvoiceAction] : []),
+  ...(REMINDERS_ENABLED ? [remindOverdueAction] : []),
   ...(AUTOMATIONS_ENABLED ? [notifyAction, createAutomationAction] : []),
 ];
 const BASE_ACTION_BY_NAME = new Map<string, AgentAction>(BASE_ACTIONS.map((a) => [a.name, a]));
@@ -581,6 +587,7 @@ function getPermissionCheck(
       return { action: 'edit', entity: 'taskStatus' };
     case 'draft_invoice':
       return { action: 'create', entity: 'salesInvoice' };
+    // remind_overdue: no can() entity — send_task_reminders is the authority (ADR-0016/0019, #1639 PQ-3).
     default:
       return null;
   }
@@ -1470,6 +1477,7 @@ async function* agentChatHandlerInner(
     composeEnabled: deps.composeEnabled,
     automationsEnabled: AUTOMATIONS_ENABLED,
     invoiceDraftsEnabled: INVOICE_DRAFTS_ENABLED,
+    remindersEnabled: REMINDERS_ENABLED,
   }) + buildGroundingHint(req.context?.entity);
 
   // The full conversation messages for the model call — system prompt is
@@ -1554,6 +1562,7 @@ async function* handleAnswer(
     composeEnabled: deps.composeEnabled,
     automationsEnabled: AUTOMATIONS_ENABLED,
     invoiceDraftsEnabled: INVOICE_DRAFTS_ENABLED,
+    remindersEnabled: REMINDERS_ENABLED,
   }) + buildGroundingHint(req.context?.entity);
 
   const messages: ModelMessage[] = [
@@ -1630,6 +1639,7 @@ async function* handleDecision(
     composeEnabled: false,
     automationsEnabled: AUTOMATIONS_ENABLED,
     invoiceDraftsEnabled: INVOICE_DRAFTS_ENABLED,
+    remindersEnabled: REMINDERS_ENABLED,
   }) + buildGroundingHint(req.context?.entity);
 
   const messages: ModelMessage[] = [

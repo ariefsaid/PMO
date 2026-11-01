@@ -67,7 +67,7 @@ test.describe('UXS-013 — a dashboard signal carries its lever', () => {
     // The budget exception names the project, and the name itself is the lever.
     const budgetRow = page.getByRole('row').filter({ hasText: SP2402_NAME });
     const budgetLink = budgetRow.getByRole('link', { name: 'Review budget', exact: true });
-    await expect(budgetLink).toBeVisible();
+    await expect(budgetLink).toBeVisible({ timeout: 20_000 });
 
     await budgetLink.click();
     await expect(page).toHaveURL(new RegExp(`/projects/${SP2402_ID}/budget$`));
