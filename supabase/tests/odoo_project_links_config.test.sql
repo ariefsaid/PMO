@@ -3,7 +3,7 @@
 -- (un-link is audited and refused through the one shared in-use check), the analytic-plan choice, and the setup accept /
 -- unlink paths for tier odoo (ECA-2's accept, decide and unlink reach the same writer).
 begin;
-select plan(69);
+select plan(118);
 
 insert into organizations (id, name) values
  ('a6050000-0000-0000-0000-000000000001','Odoo Links A'),
@@ -245,6 +245,121 @@ select public.unlink_odoo_cost_account('a6050000-0000-0000-0000-000000000001','a
 reset role;
 select is((select state from erp_connect_proposals where external_tier='odoo' and kind='project' and outcome='link' and pmo_ids='{a6050000-0000-0000-0000-0000000000c3}' and external_ids='{106}'), 'dismissed',
   'un-linking by the verb dismisses the setup row that made the link');
+
+-- ===== S7 (migration 0486 part 2): the one-time map, and link reconciliation (part 3) =====
+-- AC-ODC-070 (defaults: who writes, which accounts), AC-ODC-041 (unit map, default warehouse), AC-ODC-054 (needs-attention marks).
+insert into auth.users (id, email) values ('a6050000-0000-0000-0000-0000000000d1','a605-exec@example.com');
+insert into profiles (id, org_id, full_name, email, role, status) values
+ ('a6050000-0000-0000-0000-0000000000d1','a6050000-0000-0000-0000-000000000001','Executive','a605-exec@example.com','Executive','active');
+insert into external_master_records (org_id, external_tier, kind, external_id, name, code, active, tombstoned_at, attrs, source_write_date) values
+ ('a6050000-0000-0000-0000-000000000001','odoo','account','11','Payable','2100',true,null,'{"account_type":"liability_payable"}','2026-11-01 00:00:00'),
+ ('a6050000-0000-0000-0000-000000000001','odoo','account','12','Receivable','1200',true,null,'{"account_type":"asset_receivable"}','2026-11-01 00:00:00'),
+ ('a6050000-0000-0000-0000-000000000001','odoo','account','13','Group','1000',true,null,'{"account_type":"view"}','2026-11-01 00:00:00'),
+ ('a6050000-0000-0000-0000-000000000001','odoo','account','14','Old expense','5000',false,null,'{"account_type":"expense"}','2026-11-01 00:00:00'),
+ ('a6050000-0000-0000-0000-000000000001','odoo','account','15','Deleted expense','5001',true,now(),'{"account_type":"expense"}','2026-11-01 00:00:00'),
+ ('a6050000-0000-0000-0000-000000000001','odoo','account','16','Bank','1010',true,null,'{"account_type":"asset_cash"}','2026-11-01 00:00:00'),
+ ('a6050000-0000-0000-0000-000000000001','odoo','uom','5','m',null,true,null,'{}','2026-11-01 00:00:00'),
+ ('a6050000-0000-0000-0000-000000000001','odoo','uom','6','m2',null,true,null,'{}','2026-11-01 00:00:00'),
+ ('a6050000-0000-0000-0000-000000000001','odoo','warehouse','1','Main','WH',true,null,'{}','2026-11-01 00:00:00'),
+ ('a6050000-0000-0000-0000-000000000001','odoo','warehouse','2','Closed','WH2',false,null,'{}','2026-11-01 00:00:00'),
+ ('a6050000-0000-0000-0000-000000000002','odoo','account','21','B payable','2100',true,null,'{"account_type":"liability_payable"}','2026-11-01 00:00:00');
+
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+-- AC-ODC-070 who may set a default, and which accounts
+select lives_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000f1','account_defaults','{"payable":"11","receivable":"12","bank":"16"}')$$,
+  'AC-ODC-070 Finance sets the account defaults');
+select is((select config->'account_defaults'->>'payable' from external_org_bindings where org_id='a6050000-0000-0000-0000-000000000001' and external_tier='odoo'), '11', 'AC-ODC-070 the default is stored as the Odoo id');
+select is((select config->>'account_defaults_set_by' from external_org_bindings where org_id='a6050000-0000-0000-0000-000000000001' and external_tier='odoo'), 'a6050000-0000-0000-0000-0000000000f1', 'AC-ODC-070 who set it is recorded');
+select is((select count(*)::int from audit_events where action='integration.odoo.config' and actor_id='a6050000-0000-0000-0000-0000000000f1'), 1, 'AC-ODC-070 setting a default is audited');
+select lives_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','account_defaults','{"payable":"11"}')$$, 'AC-ODC-070 the Admin sets them too');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000e1','account_defaults','{"payable":"11"}')$$, '42501', null, 'AC-ODC-070 an Engineer cannot set a default');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a2','account_defaults','{"payable":"11"}')$$, '42501', null, 'AC-ODC-070 a Project Manager cannot set a default');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000d1','account_defaults','{"payable":"11"}')$$, '42501', null, 'AC-ODC-070 an Executive reads but cannot set a default');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000b1','account_defaults','{"payable":"11"}')$$, '42501', null, 'AC-ODC-070 another organisation''s Admin cannot set this organisation''s default');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','account_defaults','{"payable":"13"}')$$, 'P0001', null, 'AC-ODC-070 a group account is refused');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','account_defaults','{"expense":"14"}')$$, 'P0001', null, 'AC-ODC-070 an inactive account is refused');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','account_defaults','{"expense":"15"}')$$, 'P0001', null, 'AC-ODC-070 an account deleted in Odoo is refused');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','account_defaults','{"payable":"21"}')$$, 'P0001', null, 'AC-ODC-070 another organisation''s account is refused');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','account_defaults','{"nonsense":"11"}')$$, '22023', null, 'an unknown default name is refused');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','account_defaults','{"payable":11}')$$, '22023', null, 'a default that is not an id string is refused');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','account_defaults','"11"')$$, '22023', null, 'a default set that is not an object is refused');
+-- the patch allow-list: nothing outside the three keys can be written through this function
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','database','"other"')$$, '22023', null, 'the connection''s database cannot be overwritten through the setter');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','analytic_plan_id','8')$$, '22023', null, 'the analytic plan cannot be overwritten through the setter');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','account_defaults_set_by','"x"')$$, '22023', null, 'the recorded setter cannot be forged through the setter');
+select is((select config->>'database' || '|' || (config->>'analytic_plan_id') from external_org_bindings where org_id='a6050000-0000-0000-0000-000000000001' and external_tier='odoo'), 'db1|7', 'the refused patches changed nothing');
+
+-- AC-ODC-041 unit map and default warehouse
+select lives_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','unit_map','{"m":"5","m2":"6"}')$$, 'AC-ODC-041 the Admin maps two units');
+select is((select config->'unit_map'->>'m2' from external_org_bindings where org_id='a6050000-0000-0000-0000-000000000001' and external_tier='odoo'), '6', 'AC-ODC-041 the map is stored');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000e1','unit_map','{"m":"5"}')$$, '42501', null, 'AC-ODC-041 an Engineer cannot map units');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000a1','unit_map','{"m":"11"}')$$, 'P0001', null, 'AC-ODC-041 a value that is not a mirrored unit is refused');
+select lives_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000f1','default_warehouse_id','"1"')$$, 'AC-ODC-060 Finance chooses an active warehouse');
+select is((select config->>'default_warehouse_id' from external_org_bindings where org_id='a6050000-0000-0000-0000-000000000001' and external_tier='odoo'), '1', 'AC-ODC-060 the default warehouse is stored');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000f1','default_warehouse_id','"2"')$$, 'P0001', null, 'AC-ODC-060 an archived warehouse is refused');
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000f1','default_warehouse_id','"11"')$$, 'P0001', null, 'AC-ODC-060 an account id is not a warehouse');
+reset role;
+update external_org_bindings set activated_at = null where org_id='a6050000-0000-0000-0000-000000000002' and external_tier='odoo';
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select throws_ok($$select public.set_odoo_org_config('a6050000-0000-0000-0000-000000000002','a6050000-0000-0000-0000-0000000000b1','account_defaults','{"payable":"21"}')$$, 'P0001', 'Odoo connection is not activated', 'nothing is mapped before the company is chosen');
+reset role;
+select is((select config ? 'account_defaults' from external_org_bindings where org_id='a6050000-0000-0000-0000-000000000002' and external_tier='odoo'), false, 'the other organisation''s config was never touched');
+update external_org_bindings set activated_at = now() where org_id='a6050000-0000-0000-0000-000000000002' and external_tier='odoo';
+
+-- AC-ODC-070 read side: Admin, Finance and Executive read the account directory; a PM and an Engineer see none
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a6050000-0000-0000-0000-0000000000d1","role":"authenticated"}';
+select is((select count(*)::int from external_master_records where kind='account' and external_tier='odoo'), 6, 'AC-ODC-070 an Executive reads the account directory');
+set local request.jwt.claims = '{"sub":"a6050000-0000-0000-0000-0000000000f1","role":"authenticated"}';
+select is((select count(*)::int from external_master_records where kind='account' and external_tier='odoo'), 6, 'AC-ODC-070 Finance reads it');
+set local request.jwt.claims = '{"sub":"a6050000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select is((select count(*)::int from external_master_records where kind='account' and external_tier='odoo'), 0, 'AC-ODC-070 a Project Manager sees no accounts');
+set local request.jwt.claims = '{"sub":"a6050000-0000-0000-0000-0000000000e1","role":"authenticated"}';
+select is((select count(*)::int from external_master_records where kind='account' and external_tier='odoo'), 0, 'AC-ODC-070 an Engineer sees no accounts');
+reset role;
+
+-- AC-ODC-054 reconciliation: archived, deleted and moved-company accounts mark the link; nothing is deleted; other orgs are untouched
+delete from external_project_bindings where org_id='a6050000-0000-0000-0000-000000000001' and external_tier='odoo';
+insert into projects (id, org_id, name, status) values ('a6050000-0000-0000-0000-0000000000c4','a6050000-0000-0000-0000-000000000001','Bridge Four','Ongoing Project');
+update external_master_records set attrs = '{"company_id":"2"}' where org_id='a6050000-0000-0000-0000-000000000001' and kind='analytic_account' and external_id='105';
+insert into external_project_bindings (org_id, project_id, external_tier, external_container_id, config) values
+ ('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000c1','odoo','101','{"plan_id":"7"}'),
+ ('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000c2','odoo','104','{"plan_id":"7"}'),
+ ('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000c3','odoo','103','{"plan_id":"7"}'),
+ ('a6050000-0000-0000-0000-000000000001','a6050000-0000-0000-0000-0000000000c4','odoo','105','{"plan_id":"7"}'),
+ ('a6050000-0000-0000-0000-000000000002','a6050000-0000-0000-0000-0000000000cb','odoo','301','{"plan_id":"7"}');
+insert into external_master_records (org_id, external_tier, kind, external_id, name, code, parent_external_id, active, source_write_date) values
+ ('a6050000-0000-0000-0000-000000000002','odoo','analytic_account','101','B has the same id archived','PRJ-B1','7',false,'2026-11-01 00:00:00');
+update external_master_records set active = false where org_id='a6050000-0000-0000-0000-000000000002' and kind='analytic_account' and external_id='301';
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is(public.reconcile_odoo_links('a6050000-0000-0000-0000-000000000001'), 3, 'AC-ODC-054 three links need attention');
+reset role;
+select is((select string_agg(coalesce(config->>'attention','-'), ',' order by external_container_id) from external_project_bindings where org_id='a6050000-0000-0000-0000-000000000001' and external_tier='odoo'),
+  '-,tombstoned,archived,moved-company', 'AC-ODC-054 healthy / deleted / archived / moved company, each with its reason');
+select is((select config->>'attention' from external_project_bindings where org_id='a6050000-0000-0000-0000-000000000002' and external_tier='odoo'), null,
+  'AC-ODC-054 reconciling one organisation leaves another organisation''s links alone');
+update external_master_records set active = true where org_id='a6050000-0000-0000-0000-000000000001' and kind='analytic_account' and external_id='104';
+update external_master_records set tombstoned_at = null where org_id='a6050000-0000-0000-0000-000000000001' and kind='analytic_account' and external_id='103';
+update external_master_records set attrs = '{"company_id":"1"}' where org_id='a6050000-0000-0000-0000-000000000001' and kind='analytic_account' and external_id='105';
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is(public.reconcile_odoo_links('a6050000-0000-0000-0000-000000000001'), 3, 'AC-ODC-054 fixed in Odoo, the three marks clear');
+reset role;
+select is((select count(*)::int from external_project_bindings where org_id='a6050000-0000-0000-0000-000000000001' and external_tier='odoo' and config ? 'attention'), 0, 'AC-ODC-054 no link is marked any more');
+select is((select count(*)::int from external_project_bindings where org_id='a6050000-0000-0000-0000-000000000001' and external_tier='odoo'), 4, 'AC-ODC-054 reconciling never deletes a link');
+set local role service_role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select is(public.reconcile_odoo_links('a6050000-0000-0000-0000-000000000001'), 0, 'a second pass with nothing changed writes nothing');
+select is(public.reconcile_odoo_links('a6050000-0000-0000-0000-000000000002'), 1, 'the other organisation''s own pass marks its own archived account');
+reset role;
+select is((select config->>'attention' from external_project_bindings where org_id='a6050000-0000-0000-0000-000000000002' and external_tier='odoo'), 'archived', 'and says why');
+
+-- grants: service role only
+select is(has_function_privilege(r, f, 'execute'), r = 'service_role', f || ' for ' || r)
+  from unnest(array['public.set_odoo_org_config(uuid,uuid,text,jsonb)', 'public.reconcile_odoo_links(uuid)']) f, unnest(array['anon','authenticated','service_role']) r;
 
 select * from finish();
 rollback;
