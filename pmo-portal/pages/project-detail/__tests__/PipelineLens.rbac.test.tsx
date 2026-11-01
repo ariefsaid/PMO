@@ -23,6 +23,10 @@ const { transitionProject } = vi.hoisted(() => ({
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useProjectStageEntries', () => ({
+  useProjectStageEntries: () => ({ data: [], isLoading: false, error: null }),
+  useStageEntryMutations: () => ({ redate: { mutateAsync: vi.fn() }, addSkipped: { mutateAsync: vi.fn() } }),
+}));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => false }));
 vi.mock('@/src/lib/repositories', async (orig) => {
@@ -89,6 +93,8 @@ describe('PipelineLens — RBAC write-affordance gate (A-1)', () => {
     expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark won/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark lost/i })).toBeInTheDocument();
+    // #1638: the deal page carries the stage history beside the journey.
+    expect(screen.getByRole('heading', { name: 'Stage history' })).toBeInTheDocument();
   });
 
   it('AC-W2-RBAC-001: an Engineer sees the stage + journey but NO lifecycle control (denied)', async () => {

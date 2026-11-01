@@ -73,7 +73,7 @@ describe('AC-ECA-041 a stale version pin fails the parity test, naming tier and 
     const bumped = { ...WORKFLOWS, 'party.match': { ...WORKFLOWS['party.match'], version: 2 } };
     const tier = { ...ERPNEXT_WORKFLOWS, 'party.match': { status: 'unavailable', version: 2, reason: 'synthetic limitation' } } as TierWorkflows;
     expect(parityProblems({ synthetic: tier }, bumped, SUITES)).toEqual([]);
-    const pending = { ...ERPNEXT_WORKFLOWS, 'party.match': { status: 'pending', version: 2, issue: 1609 } } as TierWorkflows;
+    const pending = { ...ERPNEXT_WORKFLOWS, 'party.match': { status: 'pending', version: 2, issue: 1505 } } as TierWorkflows;
     expect(parityProblems({ synthetic: pending }, bumped, SUITES)).toEqual([]);
   });
 });

@@ -25,6 +25,9 @@ export interface TransitionProjectOpts {
   customerContractRef?: string;
   /** ISO 'YYYY-MM-DD' */
   contractDate?: string;
+  /** Required by the server for Loss Tender / Declined (one of LOST_REASON_KEYS). */
+  lostReason?: string;
+  lostNote?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -120,6 +123,8 @@ export async function transitionProject(
     p_to: to,
     p_customer_contract_ref: opts?.customerContractRef,
     p_contract_date: opts?.contractDate,
+    p_lost_reason: opts?.lostReason,
+    p_lost_note: opts?.lostNote?.trim() || undefined,
   });
   if (error) throw toAppError(error);
 }

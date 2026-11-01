@@ -4,7 +4,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
   supabase: { rpc: vi.fn() },
 }));
 
-import { getExecutiveDashboard, getFinanceBudgetReview, getPMDashboardProjects, getWinRate, getSalesPipeline } from './dashboard';
+import { getExecutiveDashboard, getFinanceBudgetReview, getPMDashboardProjects, getWinRate, getLossBreakdown, getSalesPipeline } from './dashboard';
 import { supabase } from '@/src/lib/supabase/client';
 
 const rpc = supabase.rpc as ReturnType<typeof vi.fn>;
@@ -121,6 +121,28 @@ describe('getWinRate', () => {
     // error branch
     rpc.mockResolvedValue({ data: null, error: { message: 'wr-error' } });
     await expect(getWinRate()).rejects.toThrow('wr-error');
+  });
+});
+
+// ---- Loss breakdown ----
+describe('getLossBreakdown', () => {
+  it('AC-LR-008: getLossBreakdown marshals a Date range like getWinRate, returns the payload, throws on error', async () => {
+    const payload = {
+      by_reason: [{ reason: 'price', losses_count: 2, declined_count: 1 }],
+      by_client: [{ client_id: 'c1', client_name: 'Acme', wins_count: 2, losses_count: 1 }],
+    };
+    rpc.mockResolvedValue({ data: payload, error: null });
+    const result = await getLossBreakdown(new Date('2026-02-01'), new Date('2026-02-28'));
+    expect(rpc).toHaveBeenCalledWith('get_loss_breakdown', { p_from: '2026-02-01', p_to: '2026-02-28' });
+    expect(result).toEqual(payload);
+
+    rpc.mockReset();
+    rpc.mockResolvedValue({ data: payload, error: null });
+    await getLossBreakdown();
+    expect(rpc).toHaveBeenCalledWith('get_loss_breakdown', {});
+
+    rpc.mockResolvedValue({ data: null, error: { message: 'lb-error' } });
+    await expect(getLossBreakdown()).rejects.toThrow('lb-error');
   });
 });
 

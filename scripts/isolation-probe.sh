@@ -77,6 +77,7 @@ if [ "${RPC_ONLY:-0}" != 1 ]; then
   while IFS=$'\t' read -r t has_org pk columns expectation by_id; do
     select_columns=$columns
     [ "$t" != work_order_acceptance_lines ] || select_columns='acceptance_id,acceptance:work_order_acceptances(org_id)'
+    [ "$t" != subcontract_acceptance_lines ] || select_columns='acceptance_id,acceptance:subcontract_acceptances(org_id)'
     code=$(req "${hdr_b[@]}" "$BASE/rest/v1/$t?select=$select_columns&limit=3")
     org_key=org_id; [ "$has_org" = true ] || org_key=$pk
     table_read "table $t blind read" "$code" "$expectation" "$org_key"
@@ -205,6 +206,7 @@ A_BUDGET=$(jq -r '.[]|select(.table=="budget_versions")|.id' "$A_ROWS_JSON")
 A_SLIP=$(jq -r '.[]|select(.table=="vendor_withholding_slips")|.id' "$A_ROWS_JSON")
 A_VENDOR_BILL=$(jq -r '.[]|select(.table=="procurement_invoices")|.id' "$A_ROWS_JSON")
 A_PO=$(jq -r '.[]|select(.table=="purchase_orders")|.id' "$A_ROWS_JSON")
+A_SCA=$(jq -r '.[]|select(.table=="subcontract_acceptances")|.id' "$A_ROWS_JSON")
 A_WO=$(jq -r '.[]|select(.table=="work_orders")|.id' "$A_ROWS_JSON")
 A_ACCEPTANCE=$(jq -r '.[]|select(.table=="work_order_acceptances")|.id' "$A_ROWS_JSON")
 A_ACCEPTANCE_WORK_ORDER=$(jq -r '.[]|select(.table=="work_order_acceptances")|.work_order_id // empty' "$A_ROWS_JSON")
@@ -217,6 +219,36 @@ if [ -n "$A_PO" ] && [ "$A_PO" != null ]; then
   c=$(rpc set_subcontract_po_lines "{\"p_po_id\":\"$A_PO\",\"p_lines\":[{\"boq_item_id\":\"$A_PO\",\"quantity\":1,\"rate\":1,\"unit\":\"ls\"}]}")
   c=$(rpc issue_subcontract_po_lines "{\"p_po_id\":\"$A_PO\"}")
 else skip "set_subcontract_po_lines (purchase_orders)"; skip "issue_subcontract_po_lines (purchase_orders)"; fi
+if [ -n "$A_PO" ] && [ "$A_PO" != null ]; then
+  c=$(rpc prepare_subcontract_acceptance "{\"p_po_id\":\"$A_PO\",\"p_acceptance_date\":\"2026-09-08\",\"p_lines\":[{\"boq_item_id\":\"$A_PO\",\"quantity\":1}]}")
+else skip "prepare_subcontract_acceptance (purchase_orders)"; fi
+if [ -n "$A_PROC" ] && [ "$A_PROC" != null ]; then
+  c=$(rpc capture_subcontract_vendor_invoice "{\"p_procurement_id\":\"$A_PROC\",\"p_status\":\"Received\",\"p_invoice_date\":\"2026-09-08\",\"p_lines\":[{\"boq_item_id\":\"$A_PROC\",\"quantity\":1,\"rate\":1}]}")
+else skip "capture_subcontract_vendor_invoice (procurements)"; fi
+if [ -n "$A_PI" ] && [ "$A_PI" != null ]; then
+  c=$(rpc attribute_subcontract_bill_lines "{\"p_invoice_id\":\"$A_PI\",\"p_lines\":[{\"boq_item_id\":\"$A_PI\",\"quantity\":1,\"rate\":1}]}")
+else skip "attribute_subcontract_bill_lines (procurement_invoices)"; fi
+A_VAR=$(jq -r '.[]|select(.table=="po_variations")|.id' "$A_ROWS_JSON")
+A_BOQ=$(jq -r '.[]|select(.table=="boq_items")|.id' "$A_ROWS_JSON")
+if [ -n "$A_PO" ] && [ "$A_PO" != null ] && [ -n "$A_BOQ" ] && [ "$A_BOQ" != null ]; then
+  c=$(rpc request_po_variation "{\"p_po_id\":\"$A_PO\",\"p_origin\":\"pre_work\",\"p_lines\":[{\"boq_item_id\":\"$A_BOQ\",\"additional_quantity\":1}],\"p_reason\":\"probe\"}")
+else skip "request_po_variation (purchase_orders, boq_items)"; fi
+if [ -n "$A_VAR" ] && [ "$A_VAR" != null ]; then
+  c=$(rpc decide_po_variation "{\"p_id\":\"$A_VAR\",\"p_approve\":true}")
+  c=$(rpc issue_po_revision "{\"p_variation_id\":\"$A_VAR\"}")
+  c=$(rpc link_po_variation "{\"p_variation_id\":\"$A_VAR\",\"p_work_order_id\":null,\"p_not_passed_reason\":\"probe\"}")
+else
+  skip "decide_po_variation (po_variations fixture)"
+  skip "issue_po_revision (po_variations fixture)"
+  skip "link_po_variation (po_variations fixture)"
+fi
+if [ -n "$A_SCA" ] && [ "$A_SCA" != null ]; then
+  c=$(rpc confirm_subcontract_acceptance "{\"p_id\":\"$A_SCA\"}")
+  c=$(rpc withdraw_subcontract_acceptance "{\"p_id\":\"$A_SCA\"}")
+else
+  skip "confirm_subcontract_acceptance (subcontract_acceptances fixture)"
+  skip "withdraw_subcontract_acceptance (subcontract_acceptances fixture)"
+fi
 if [ -n "$A_ACCEPTANCE_WORK_ORDER" ] && [ -n "$A_ACCEPTANCE_LINES" ] \
   && [ "$A_ACCEPTANCE_LINES" != null ] \
   && jq -e 'type=="array" and length>0 and all(.[]; (.boq_item_id|type)=="string" and (.quantity|type)=="number" and .quantity>0)' <<< "$A_ACCEPTANCE_LINES" >/dev/null; then

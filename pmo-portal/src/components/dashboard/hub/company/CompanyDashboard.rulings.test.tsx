@@ -32,6 +32,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => ok(state.pipeline),
   useFinanceBudgetReview: () => ok(state.budgetReview),
   useWinRate: () => ok(null),
+  useLossBreakdown: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ok(state.procurements) }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ok([]) }));
