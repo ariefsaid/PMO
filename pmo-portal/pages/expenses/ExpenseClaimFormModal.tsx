@@ -80,7 +80,7 @@ export interface ExpenseClaimFormModalProps {
   projectOptions: { value: string; label: string }[];
   advanceOptions: { value: string; label: string }[];
   /** Load state of `advanceOptions`: a NEW claim is not saved while it is pending or failed (unknown is not "no advance"). */
-  advanceLoad?: Pick<OwnAdvanceOptions, 'isPending' | 'isError' | 'refetch'>;
+  advanceLoad: Pick<OwnAdvanceOptions, 'isPending' | 'isError' | 'refetch'>;
   categoryPrecedents?: ExpenseCategoryPrecedent[];
   captureRecovery?: ExpenseCaptureRecoveryView | null;
   initial?: ExpenseClaimFormInitial;
@@ -186,7 +186,7 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
   const currentCategoryPrecedent = categoryPrecedents.find((item) => item.projectId === projectField.value);
   const recoveryPending = Boolean(captureRecovery?.draftSaved && captureRecovery.phase !== 'complete');
 
-  const advancesNotReady = kind === 'claim' && !initial && advanceLoad !== undefined && (advanceLoad.isPending || advanceLoad.isError);
+  const advancesNotReady = kind === 'claim' && !initial && (advanceLoad.isPending || advanceLoad.isError);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -366,7 +366,7 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
               options={[{ value: '', label: t('imprest:form.noFloat', 'Not charged to a float') }, ...floatOptions]}
               helper={t('imprest:form.helper', 'Cash paid out of site cash held by the custodian.')} />
           )}
-          {kind === 'claim' && advanceLoad && <AdvanceLoadNotice advances={advanceLoad} />}
+          {kind === 'claim' && <AdvanceLoadNotice advances={advanceLoad} />}
           {kind === 'claim' && advanceOptions.length > 0 && (
             <SelectField id={advanceField.id} label={t('expenses.form.advance.label', 'Settle against advance')} value={advanceField.value}
               onChange={(v) => advanceField.onChange(v)} onBlur={advanceField.onBlur}
