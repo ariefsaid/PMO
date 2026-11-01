@@ -4,8 +4,8 @@
 - **Ruling:** `docs/decisions.md` OD-GRILL-20261101 — "Pipeline dates (CRM-grade history)", "Reel differences (#1593)"
 - **Migration number:** `0430` (Lane A holds 0430–0433 for #1638; this plan needs one file — 0431–0433 stay
   unused). `scripts/renumber-migration.sh` only if `npm run check:migrations` reports a collision. Files:
-  `supabase/migrations/0430_pipeline_stage_history.sql`,
-  `supabase/migrations/rollback/0430_pipeline_stage_history_down.sql`.
+  `supabase/migrations/0448_pipeline_stage_history.sql`,
+  `supabase/migrations/rollback/0448_pipeline_stage_history_down.sql`.
 - **Executor routing (`docs/factory-workflow.md` § Executor routing):** the DB half adds a trigger that fires
   inside the win-SoD RPC `transition_project` and a new authority gate → **Director-dispatched per issue
   (money/SoD/auth tier)**, opus implementer for Tasks 1–22, on its own branch, shipped alone (not batched). The FE
@@ -204,14 +204,14 @@ Verify RED: `scripts/with-db-lock.sh supabase test db supabase/tests/pipeline_st
 → fails with `relation "project_stage_entries" does not exist`.
 
 ### Task 2 — migration §1: table, RLS, grants, date helper
-Create `supabase/migrations/0430_pipeline_stage_history.sql`:
+Create `supabase/migrations/0448_pipeline_stage_history.sql`:
 ```sql
--- 0430_pipeline_stage_history.sql — #1638 CRM-grade pipeline stage history.
+-- 0448_pipeline_stage_history.sql — #1638 CRM-grade pipeline stage history.
 -- Spec: docs/specs/pipeline-stage-history.spec.md · Plan: docs/plans/2026-11-01-pipeline-stage-history.md
 -- §1 table + RLS + grants · §2 ordering constraint + append trigger · §3 correction RPCs · §4 import RPC
 -- §5 audit registration · §6 stage age reads (0385 bodies, lateral swapped) · §7 backfill · §8 self-assertion
 -- transition_project (0236) is NOT modified (NFR-PSH-002).
--- Reversibility: rollback/0430_pipeline_stage_history_down.sql.
+-- Reversibility: rollback/0448_pipeline_stage_history_down.sql.
 
 -- §1 ─────────────────────────────────────────────────────────────────────────────────────────────
 create table public.project_stage_entries (
@@ -659,7 +659,7 @@ line), `mut:editor_org` (delete the line), `mut:order` (replace `s.entered_on < 
 `mut:pullback_person` (replace the whole `(e.redated_at is not null or …)` conjunct with `false`) —
 edit the migration, run
 `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/pipeline_stage_history_write.test.sql'`,
-confirm at least one AC-PSH-002/003/004/005/006 assertion goes **red**, then `git checkout -- supabase/migrations/0430_pipeline_stage_history.sql`.
+confirm at least one AC-PSH-002/003/004/005/006 assertion goes **red**, then `git checkout -- supabase/migrations/0448_pipeline_stage_history.sql`.
 Record the six red outputs in the branch hand-off (the Director copies them into the PR body).
 
 ### Task 12 — failing pgTAP: audit (AC-PSH-007)
@@ -1125,10 +1125,10 @@ red; restore.
 Verify: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/pipeline_stage_history_write.test.sql supabase/tests/pipeline_stage_history_read.test.sql supabase/tests/pipeline_stage_history_backfill.test.sql supabase/tests/0027_project_transition_authz.test.sql supabase/tests/0028_project_transition_legality.test.sql'`.
 
 ### Task 21 — rollback script
-Create `supabase/migrations/rollback/0430_pipeline_stage_history_down.sql` in three exact steps:
+Create `supabase/migrations/rollback/0448_pipeline_stage_history_down.sql` in three exact steps:
 ```bash
-cat > supabase/migrations/rollback/0430_pipeline_stage_history_down.sql <<'SQL'
--- 0430_pipeline_stage_history_down.sql — reverses 0430. Loses stage history; business rows untouched
+cat > supabase/migrations/rollback/0448_pipeline_stage_history_down.sql <<'SQL'
+-- 0448_pipeline_stage_history_down.sql — reverses 0430. Loses stage history; business rows untouched
 -- (contract_date / decided_at keep whatever re-dates set them to; the audit trail keeps the old values).
 begin;
 drop trigger if exists projects_zy_stage_entry on public.projects;
@@ -1147,9 +1147,9 @@ drop function if exists public.project_stage_entries_assert_order();
 drop function if exists public.stage_org_date(uuid, timestamptz);
 -- 0281's record_history_visible (no project_stage_entry arm), then 0385's two reads, verbatim:
 SQL
-sed -n '227,251p' supabase/migrations/0281_vendor_withholding_slips.sql >> supabase/migrations/rollback/0430_pipeline_stage_history_down.sql
-sed -n '4,247p' supabase/migrations/0385_dashboard_open_bids_and_stale_win_rate.sql >> supabase/migrations/rollback/0430_pipeline_stage_history_down.sql
-echo 'commit;' >> supabase/migrations/rollback/0430_pipeline_stage_history_down.sql
+sed -n '227,251p' supabase/migrations/0281_vendor_withholding_slips.sql >> supabase/migrations/rollback/0448_pipeline_stage_history_down.sql
+sed -n '4,247p' supabase/migrations/0385_dashboard_open_bids_and_stale_win_rate.sql >> supabase/migrations/rollback/0448_pipeline_stage_history_down.sql
+echo 'commit;' >> supabase/migrations/rollback/0448_pipeline_stage_history_down.sql
 ```
 Open the result and check it reads straight through (0281 lines 227-251 are `record_history_visible` + its
 revoke/grant; 0385 lines 4-247 are both functions, the grant lines, both comments and the `notify`).
@@ -1162,7 +1162,7 @@ select to_regclass('public.project_stage_entries') is null,
        public.record_history_visible('project', gen_random_uuid()) is not null;
 SQL
 scripts/with-db-lock.sh bash -c 'DB=postgresql://postgres:postgres@127.0.0.1:54322/postgres; supabase db reset \
-  && psql "$DB" -v ON_ERROR_STOP=1 -f supabase/migrations/rollback/0430_pipeline_stage_history_down.sql \
+  && psql "$DB" -v ON_ERROR_STOP=1 -f supabase/migrations/rollback/0448_pipeline_stage_history_down.sql \
   && psql "$DB" -v ON_ERROR_STOP=1 -tA -f /tmp/psh_rollback_check.sql; supabase db reset'
 ```
 → one line `t|t|t|t` (table gone, registry back to 16, the 0385 read restored, visibility function intact).
@@ -1419,7 +1419,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { toAppError } from '@/src/lib/appError';
 import type { ProjectStatus } from './projectTransitions';
 
-/** #1638 — one stage a deal entered (supabase/migrations/0430_pipeline_stage_history.sql §1). */
+/** #1638 — one stage a deal entered (supabase/migrations/0448_pipeline_stage_history.sql §1). */
 export interface StageEntry {
   id: string;
   project_id: string;

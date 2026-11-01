@@ -34,7 +34,7 @@ first and reuses the outbox / sweep / SoD architecture it maps; nothing here re-
 Everything cited was read on `origin/dev` at `6440a961` (migration head `0426_imprest_approval_route.sql`) and re-checked
 at `b52aa48a` in the 2026-11-01 review. A path marked **(new)** does not exist yet.
 
-**Migration numbers (Lane B range 0442–0446; 0440/0441 belong to sibling slices).** S1 `0442_subcontract_po_lines.sql`,
+**Migration numbers (Lane B range 0442–0446; 0440/0441 belong to sibling slices).** S1 `0449_subcontract_po_lines.sql`,
 S2 `0443_subcontract_acceptances.sql`, S3 `0444_subcontract_bill_caps.sql`, S4 `0445_po_variations.sql`, S5
 `0446_subcontract_erp_guards.sql`. On a collision, `scripts/renumber-migration.sh` within this range only; never take a
 number outside it. Every `<NNNN>` in a code block below is that slice's number.
@@ -151,7 +151,7 @@ None blocks dispatch. Each names the one slice that changes if the coordinator o
 
 | Slice | Migration | Tasks | Blocked by | Worker tier | Ships |
 |---|---|---|---|---|---|
-| **S1 Subcontract flag, PO lines, revision 1** | `0442_subcontract_po_lines.sql` | S1.1-S1.8 | none | Sol (money: PO amount) | **alone** |
+| **S1 Subcontract flag, PO lines, revision 1** | `0449_subcontract_po_lines.sql` | S1.1-S1.8 | none | Sol (money: PO amount) | **alone** |
 | **S2 Subcontract acceptance** | `0443_subcontract_acceptances.sql` | S2.1-S2.6 | S1 | Sol (SoD) | **alone** |
 | **S3 Bill lines, the cap, position read** | `0444_subcontract_bill_caps.sql` | S3.1-S3.9 | S2 | **Sol** (money path) | **alone** |
 | **S4 Variations, revisions, client link, tenancy** | `0445_po_variations.sql` | S4.1-S4.9 | S3 | **Sol** (money + SoD) | **alone** |
@@ -225,6 +225,8 @@ insert into auth.users (id, email) values
   ('15130000-0000-0000-0000-0000000000a4', 'sca-pm@example.com'),
   ('15130000-0000-0000-0000-0000000000a5', 'sca-eng@example.com'),
   ('15130000-0000-0000-0000-0000000000a6', 'sca-exec@example.com'),
+  ('15130000-0000-0000-0000-0000000000a7', 'sca-pm-off@example.com'),
+  ('15130000-0000-0000-0000-0000000000a8', 'sca-fin-off@example.com'),
   ('15130000-0000-0000-0000-0000000000b1', 'sca-xorg@example.com'),
   ('15130000-0000-0000-0000-0000000000c1', 'sca-solo@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
@@ -234,6 +236,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('15130000-0000-0000-0000-0000000000a4', '15130000-0000-0000-0000-00000000000a', 'SCA PM',    'sca-pm@example.com',    'Project Manager', 'active'),
   ('15130000-0000-0000-0000-0000000000a5', '15130000-0000-0000-0000-00000000000a', 'SCA Eng',   'sca-eng@example.com',   'Engineer', 'active'),
   ('15130000-0000-0000-0000-0000000000a6', '15130000-0000-0000-0000-00000000000a', 'SCA Exec',  'sca-exec@example.com',  'Executive', 'active'),
+  ('15130000-0000-0000-0000-0000000000a7', '15130000-0000-0000-0000-00000000000a', 'SCA PM Off', 'sca-pm-off@example.com', 'Project Manager', 'disabled'),
+  ('15130000-0000-0000-0000-0000000000a8', '15130000-0000-0000-0000-00000000000a', 'SCA Fin Off', 'sca-fin-off@example.com', 'Finance', 'disabled'),
   ('15130000-0000-0000-0000-0000000000b1', '15130000-0000-0000-0000-00000000000b', 'SCA XOrg',  'sca-xorg@example.com',  'Admin', 'active'),
   ('15130000-0000-0000-0000-0000000000c1', '15130000-0000-0000-0000-00000000000c', 'SCA Solo',  'sca-solo@example.com',  'Finance', 'active');
 insert into projects (id, org_id, name, status, project_manager_id) values
@@ -300,15 +304,15 @@ end $$;
 
 ---
 
-## S1 - Subcontract flag, PO lines, revision 1 (`0442_subcontract_po_lines.sql`) - ships alone
+## S1 - Subcontract flag, PO lines, revision 1 (`0449_subcontract_po_lines.sql`) - ships alone
 
 Covers FR-SCA-001, 002, 003; OQ-1; PQ-1..4. Header:
 
 ```sql
--- 0442_subcontract_po_lines.sql — #1513 S1: subcontract purchases carry BoQ lines on their PO; revision 1 freezes them.
+-- 0449_subcontract_po_lines.sql — #1513 S1: subcontract purchases carry BoQ lines on their PO; revision 1 freezes them.
 -- Spec docs/specs/subcontract-acceptance.spec.md (signed 2026-11-01) · Plan docs/plans/2026-11-01-subcontract-acceptance.md S1.
 -- Proven by supabase/tests/subcontract_po_lines.test.sql and the 0178 allow-list.
--- ── REVERSE (also rollback/0442_subcontract_po_lines_down.sql; refused while rows exist, NFR-SCA-007) ──
+-- ── REVERSE (also rollback/0449_subcontract_po_lines_down.sql; refused while rows exist, NFR-SCA-007) ──
 --   do $$ begin if exists (select 1 from public.purchase_order_lines) or exists (select 1 from public.purchase_order_revisions)
 --     then raise exception 'rollback refused: subcontract PO lines exist — export and remove them first'; end if; end $$;
 --   drop trigger if exists purchase_orders_zz_subcontract_amount on public.purchase_orders;
@@ -602,7 +606,7 @@ S1.3 adds, beside the PQ-2 block: a subcontract purchase `…f6` with `total_val
 
 Closing `do $$` asserts: both tables have `relforcerowsecurity`; `has_table_privilege('authenticated', t, 'INSERT')`,
 `'UPDATE'`, `'DELETE'` are false for both; `subcontract_po_lock` and the two guards are not executable by `authenticated`.
-Write `supabase/migrations/rollback/0442_subcontract_po_lines_down.sql` from the header. Add the two RPCs to the 0178
+Write `supabase/migrations/rollback/0449_subcontract_po_lines_down.sql` from the header. Add the two RPCs to the 0178
 list (+2); in `scripts/isolation-probe-denominator.json` (Conventions gate step 3) add both tables, every new SECURITY
 DEFINER signature (the two RPCs and `guard_procurement_subcontract_flag` only if written as definer — the plan writes the
 guards as invoker), and `rpcs` entries + `scripts/isolation-probe.sh` probes for the two RPCs.
